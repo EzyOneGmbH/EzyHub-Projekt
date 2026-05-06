@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { ArrowLeft, Save, Trash2, Sparkles, ListTodo } from "lucide-react";
 import { toast } from "sonner";
+import { GoogleConnectPanel } from "@/components/google-connect-panel";
 
 export const Route = createFileRoute("/customers/$id")({
   component: CustomerDetail,
