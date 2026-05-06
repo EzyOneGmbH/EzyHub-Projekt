@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
+import { RequireRole } from "@/components/require-role";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card } from "@/components/ui/card";
@@ -76,6 +77,7 @@ function SettingsPage() {
 
   return (
     <AppShell>
+      <RequireRole roles={["owner", "admin"]}>
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Einstellungen</h1>
         <p className="text-sm text-muted-foreground">
@@ -138,6 +140,7 @@ function SettingsPage() {
           </div>
         )}
       </Card>
+      </RequireRole>
     </AppShell>
   );
 }
