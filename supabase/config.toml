@@ -1,0 +1,10 @@
+project_id = "glrgccmujzuwnhyvwxyi"
+
+[functions.ai-summarize]
+verify_jwt = false
+
+[functions.ai-suggest-tasks]
+verify_jwt = false
+
+[functions.ai-chat]
+verify_jwt = false
