@@ -138,10 +138,13 @@ async function probeCanonry(baseUrl?: string, key?: string): Promise<ProbeResult
   );
 }
 
-function reportAhrefs(key?: string): ProbeResult {
+async function probeAhrefs(key?: string): Promise<ProbeResult> {
   if (!key) return { configured: false, ok: false, error: "AHREFS_API_KEY not configured" };
-  // Per spec: report as configured if the key exists. No live probe.
-  return { configured: true, ok: true };
+  return timedFetch(
+    "https://api.ahrefs.com/v3/subscription-info/limits-and-usage",
+    { method: "GET", headers: { Authorization: `Bearer ${key}`, Accept: "application/json" } },
+    [key]
+  );
 }
 
 function reportGoogleOAuth(clientId?: string, clientSecret?: string, redirect?: string): ProbeResult {
@@ -171,12 +174,13 @@ export const Route = createFileRoute("/api/live/status")({
         const gClientSecret = env.GOOGLE_CLIENT_SECRET;
         const gRedirect = env.GOOGLE_REDIRECT_URI;
 
-        const [g, o, a, p, c] = await Promise.all([
+        const [g, o, a, p, c, ah] = await Promise.all([
           probeGemini(gemini),
           probeOpenAI(openai),
           probeAnthropic(anthropic),
           probePerplexity(perplexity),
           probeCanonry(canonryBase, canonryKey),
+          probeAhrefs(ahrefs),
         ]);
 
         const result: LiveStatus = {
@@ -187,7 +191,7 @@ export const Route = createFileRoute("/api/live/status")({
             anthropic: a,
             perplexity: p,
             canonry: c,
-            ahrefs: reportAhrefs(ahrefs),
+            ahrefs: ah,
             google_oauth: reportGoogleOAuth(gClientId, gClientSecret, gRedirect),
           },
         };

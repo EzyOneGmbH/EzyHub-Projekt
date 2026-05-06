@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/card";
 import { ArrowLeft, Save, Trash2, Sparkles, ListTodo } from "lucide-react";
 import { toast } from "sonner";
 import { GoogleConnectPanel } from "@/components/google-connect-panel";
+import { AhrefsPanel } from "@/components/ahrefs-panel";
 
 export const Route = createFileRoute("/customers/$id")({
   component: CustomerDetail,
@@ -168,13 +169,14 @@ function CustomerDetail() {
         </Card>
       </div>
 
-      <div className="mt-6">
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <GoogleConnectPanel
           clientId={id}
           gscProperty={c.gsc_property ?? null}
           ga4Property={c.ga4_property ?? null}
           onPropertiesChange={(p) => setC({ ...c, ...p })}
         />
+        <AhrefsPanel clientId={id} domain={c.domain ?? null} />
       </div>
     </AppShell>
   );
