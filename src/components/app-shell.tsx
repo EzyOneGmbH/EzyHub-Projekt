@@ -2,14 +2,16 @@ import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { Sparkles, LayoutDashboard, Users, ListTodo, Shield, LogOut, Bot } from "lucide-react";
+import { Sparkles, LayoutDashboard, Users, ListTodo, Shield, LogOut, Bot, FileText, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/customers", label: "Kunden", icon: Users },
+  { to: "/content", label: "Inhalte", icon: FileText },
   { to: "/tasks", label: "Aufgaben", icon: ListTodo },
   { to: "/assistant", label: "KI-Assistent", icon: Bot },
+  { to: "/settings", label: "Einstellungen", icon: Settings },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
