@@ -19,9 +19,11 @@ import { Route as ContentRouteImport } from './routes/content'
 import { Route as AssistantRouteImport } from './routes/assistant'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TasksIdRouteImport } from './routes/tasks.$id'
+import { Route as SettingsApiRouteImport } from './routes/settings.api'
 import { Route as CustomersIdRouteImport } from './routes/customers.$id'
 import { Route as ContentIdRouteImport } from './routes/content.$id'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
+import { Route as ApiLiveStatusRouteImport } from './routes/api/live.status'
 
 const TasksRoute = TasksRouteImport.update({
   id: '/tasks',
@@ -73,6 +75,11 @@ const TasksIdRoute = TasksIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => TasksRoute,
 } as any)
+const SettingsApiRoute = SettingsApiRouteImport.update({
+  id: '/api',
+  path: '/api',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const CustomersIdRoute = CustomersIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -88,6 +95,11 @@ const AdminUsersRoute = AdminUsersRouteImport.update({
   path: '/admin/users',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiLiveStatusRoute = ApiLiveStatusRouteImport.update({
+  id: '/api/live/status',
+  path: '/api/live/status',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -96,13 +108,15 @@ export interface FileRoutesByFullPath {
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
-  '/settings': typeof SettingsRoute
+  '/settings': typeof SettingsRouteWithChildren
   '/signup': typeof SignupRoute
   '/tasks': typeof TasksRouteWithChildren
   '/admin/users': typeof AdminUsersRoute
   '/content/$id': typeof ContentIdRoute
   '/customers/$id': typeof CustomersIdRoute
+  '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
+  '/api/live/status': typeof ApiLiveStatusRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -111,13 +125,15 @@ export interface FileRoutesByTo {
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
-  '/settings': typeof SettingsRoute
+  '/settings': typeof SettingsRouteWithChildren
   '/signup': typeof SignupRoute
   '/tasks': typeof TasksRouteWithChildren
   '/admin/users': typeof AdminUsersRoute
   '/content/$id': typeof ContentIdRoute
   '/customers/$id': typeof CustomersIdRoute
+  '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
+  '/api/live/status': typeof ApiLiveStatusRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -127,13 +143,15 @@ export interface FileRoutesById {
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
-  '/settings': typeof SettingsRoute
+  '/settings': typeof SettingsRouteWithChildren
   '/signup': typeof SignupRoute
   '/tasks': typeof TasksRouteWithChildren
   '/admin/users': typeof AdminUsersRoute
   '/content/$id': typeof ContentIdRoute
   '/customers/$id': typeof CustomersIdRoute
+  '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
+  '/api/live/status': typeof ApiLiveStatusRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -150,7 +168,9 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/content/$id'
     | '/customers/$id'
+    | '/settings/api'
     | '/tasks/$id'
+    | '/api/live/status'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -165,7 +185,9 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/content/$id'
     | '/customers/$id'
+    | '/settings/api'
     | '/tasks/$id'
+    | '/api/live/status'
   id:
     | '__root__'
     | '/'
@@ -180,7 +202,9 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/content/$id'
     | '/customers/$id'
+    | '/settings/api'
     | '/tasks/$id'
+    | '/api/live/status'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -190,10 +214,11 @@ export interface RootRouteChildren {
   CustomersRoute: typeof CustomersRouteWithChildren
   DashboardRoute: typeof DashboardRoute
   LoginRoute: typeof LoginRoute
-  SettingsRoute: typeof SettingsRoute
+  SettingsRoute: typeof SettingsRouteWithChildren
   SignupRoute: typeof SignupRoute
   TasksRoute: typeof TasksRouteWithChildren
   AdminUsersRoute: typeof AdminUsersRoute
+  ApiLiveStatusRoute: typeof ApiLiveStatusRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -268,6 +293,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TasksIdRouteImport
       parentRoute: typeof TasksRoute
     }
+    '/settings/api': {
+      id: '/settings/api'
+      path: '/api'
+      fullPath: '/settings/api'
+      preLoaderRoute: typeof SettingsApiRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/customers/$id': {
       id: '/customers/$id'
       path: '/$id'
@@ -287,6 +319,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/users'
       fullPath: '/admin/users'
       preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/live/status': {
+      id: '/api/live/status'
+      path: '/api/live/status'
+      fullPath: '/api/live/status'
+      preLoaderRoute: typeof ApiLiveStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -315,6 +354,18 @@ const CustomersRouteWithChildren = CustomersRoute._addFileChildren(
   CustomersRouteChildren,
 )
 
+interface SettingsRouteChildren {
+  SettingsApiRoute: typeof SettingsApiRoute
+}
+
+const SettingsRouteChildren: SettingsRouteChildren = {
+  SettingsApiRoute: SettingsApiRoute,
+}
+
+const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
+  SettingsRouteChildren,
+)
+
 interface TasksRouteChildren {
   TasksIdRoute: typeof TasksIdRoute
 }
@@ -332,10 +383,11 @@ const rootRouteChildren: RootRouteChildren = {
   CustomersRoute: CustomersRouteWithChildren,
   DashboardRoute: DashboardRoute,
   LoginRoute: LoginRoute,
-  SettingsRoute: SettingsRoute,
+  SettingsRoute: SettingsRouteWithChildren,
   SignupRoute: SignupRoute,
   TasksRoute: TasksRouteWithChildren,
   AdminUsersRoute: AdminUsersRoute,
+  ApiLiveStatusRoute: ApiLiveStatusRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
