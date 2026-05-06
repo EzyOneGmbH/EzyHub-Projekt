@@ -169,6 +169,8 @@ export type Database = {
           created_at: string
           created_by: string
           domain: string | null
+          ga4_property: string | null
+          gsc_property: string | null
           id: string
           industry: string | null
           language: string
@@ -182,6 +184,8 @@ export type Database = {
           created_at?: string
           created_by: string
           domain?: string | null
+          ga4_property?: string | null
+          gsc_property?: string | null
           id?: string
           industry?: string | null
           language?: string
@@ -195,6 +199,8 @@ export type Database = {
           created_at?: string
           created_by?: string
           domain?: string | null
+          ga4_property?: string | null
+          gsc_property?: string | null
           id?: string
           industry?: string | null
           language?: string

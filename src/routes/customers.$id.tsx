@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { ArrowLeft, Save, Trash2, Sparkles, ListTodo } from "lucide-react";
 import { toast } from "sonner";
+import { GoogleConnectPanel } from "@/components/google-connect-panel";
 
 export const Route = createFileRoute("/customers/$id")({
   component: CustomerDetail,
@@ -165,6 +166,15 @@ function CustomerDetail() {
             </Link>
           </div>
         </Card>
+      </div>
+
+      <div className="mt-6">
+        <GoogleConnectPanel
+          clientId={id}
+          gscProperty={c.gsc_property ?? null}
+          ga4Property={c.ga4_property ?? null}
+          onPropertiesChange={(p) => setC({ ...c, ...p })}
+        />
       </div>
     </AppShell>
   );

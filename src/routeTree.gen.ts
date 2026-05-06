@@ -25,7 +25,9 @@ import { Route as CustomersIdRouteImport } from './routes/customers.$id'
 import { Route as ContentIdRouteImport } from './routes/content.$id'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as ApiLiveStatusRouteImport } from './routes/api/live.status'
+import { Route as ApiGoogleCallbackRouteImport } from './routes/api/google.callback'
 import { Route as ApiLiveCanonryOverviewRouteImport } from './routes/api/live.canonry.overview'
+import { Route as ApiGoogleOauthStartRouteImport } from './routes/api/google.oauth.start'
 
 const TasksRoute = TasksRouteImport.update({
   id: '/tasks',
@@ -107,9 +109,19 @@ const ApiLiveStatusRoute = ApiLiveStatusRouteImport.update({
   path: '/api/live/status',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGoogleCallbackRoute = ApiGoogleCallbackRouteImport.update({
+  id: '/api/google/callback',
+  path: '/api/google/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiLiveCanonryOverviewRoute = ApiLiveCanonryOverviewRouteImport.update({
   id: '/api/live/canonry/overview',
   path: '/api/live/canonry/overview',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiGoogleOauthStartRoute = ApiGoogleOauthStartRouteImport.update({
+  id: '/api/google/oauth/start',
+  path: '/api/google/oauth/start',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -129,7 +141,9 @@ export interface FileRoutesByFullPath {
   '/customers/$id': typeof CustomersIdRoute
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
+  '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/live/status': typeof ApiLiveStatusRoute
+  '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
   '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
 }
 export interface FileRoutesByTo {
@@ -148,7 +162,9 @@ export interface FileRoutesByTo {
   '/customers/$id': typeof CustomersIdRoute
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
+  '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/live/status': typeof ApiLiveStatusRoute
+  '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
   '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
 }
 export interface FileRoutesById {
@@ -168,7 +184,9 @@ export interface FileRoutesById {
   '/customers/$id': typeof CustomersIdRoute
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
+  '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/live/status': typeof ApiLiveStatusRoute
+  '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
   '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
 }
 export interface FileRouteTypes {
@@ -189,7 +207,9 @@ export interface FileRouteTypes {
     | '/customers/$id'
     | '/settings/api'
     | '/tasks/$id'
+    | '/api/google/callback'
     | '/api/live/status'
+    | '/api/google/oauth/start'
     | '/api/live/canonry/overview'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -208,7 +228,9 @@ export interface FileRouteTypes {
     | '/customers/$id'
     | '/settings/api'
     | '/tasks/$id'
+    | '/api/google/callback'
     | '/api/live/status'
+    | '/api/google/oauth/start'
     | '/api/live/canonry/overview'
   id:
     | '__root__'
@@ -227,7 +249,9 @@ export interface FileRouteTypes {
     | '/customers/$id'
     | '/settings/api'
     | '/tasks/$id'
+    | '/api/google/callback'
     | '/api/live/status'
+    | '/api/google/oauth/start'
     | '/api/live/canonry/overview'
   fileRoutesById: FileRoutesById
 }
@@ -243,7 +267,9 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   TasksRoute: typeof TasksRouteWithChildren
   AdminUsersRoute: typeof AdminUsersRoute
+  ApiGoogleCallbackRoute: typeof ApiGoogleCallbackRoute
   ApiLiveStatusRoute: typeof ApiLiveStatusRoute
+  ApiGoogleOauthStartRoute: typeof ApiGoogleOauthStartRoute
   ApiLiveCanonryOverviewRoute: typeof ApiLiveCanonryOverviewRoute
 }
 
@@ -361,11 +387,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiLiveStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/google/callback': {
+      id: '/api/google/callback'
+      path: '/api/google/callback'
+      fullPath: '/api/google/callback'
+      preLoaderRoute: typeof ApiGoogleCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/live/canonry/overview': {
       id: '/api/live/canonry/overview'
       path: '/api/live/canonry/overview'
       fullPath: '/api/live/canonry/overview'
       preLoaderRoute: typeof ApiLiveCanonryOverviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/google/oauth/start': {
+      id: '/api/google/oauth/start'
+      path: '/api/google/oauth/start'
+      fullPath: '/api/google/oauth/start'
+      preLoaderRoute: typeof ApiGoogleOauthStartRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -428,7 +468,9 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   TasksRoute: TasksRouteWithChildren,
   AdminUsersRoute: AdminUsersRoute,
+  ApiGoogleCallbackRoute: ApiGoogleCallbackRoute,
   ApiLiveStatusRoute: ApiLiveStatusRoute,
+  ApiGoogleOauthStartRoute: ApiGoogleOauthStartRoute,
   ApiLiveCanonryOverviewRoute: ApiLiveCanonryOverviewRoute,
 }
 export const routeTree = rootRouteImport
