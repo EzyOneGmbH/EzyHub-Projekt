@@ -77,6 +77,7 @@ function SettingsPage() {
 
   return (
     <AppShell>
+      <RequireRole roles={["owner", "admin"]}>
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Einstellungen</h1>
         <p className="text-sm text-muted-foreground">
