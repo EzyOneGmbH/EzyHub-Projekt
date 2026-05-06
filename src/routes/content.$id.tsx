@@ -18,6 +18,7 @@ import {
 import { ArrowLeft, Save, Trash2, Sparkles, Search, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { perplexitySearch } from "@/server/perplexity.functions";
+import { useServerFn } from "@tanstack/react-start";
 
 export const Route = createFileRoute("/content/$id")({
   component: ContentEditor,
@@ -29,6 +30,7 @@ function ContentEditor() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
+  const runPerplexity = useServerFn(perplexitySearch);
   const [item, setItem] = useState<any>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [aiBusy, setAiBusy] = useState(false);
@@ -103,7 +105,7 @@ function ContentEditor() {
     if (!researchQuery.trim()) return;
     setResearchBusy(true);
     try {
-      const res = await perplexitySearch({ data: { query: researchQuery, model: "sonar" } });
+      const res = await runPerplexity({ data: { query: researchQuery, model: "sonar" } });
       setResearch(res);
     } catch (e: any) {
       toast.error(e.message ?? "Recherche fehlgeschlagen");
