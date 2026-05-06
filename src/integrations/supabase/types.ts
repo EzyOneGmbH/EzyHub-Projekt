@@ -14,6 +14,205 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_users: {
+        Row: {
+          created_at: string
+          id: string
+          invited_by: string | null
+          organization_id: string
+          role: Database["public"]["Enums"]["org_role"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invited_by?: string | null
+          organization_id: string
+          role?: Database["public"]["Enums"]["org_role"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invited_by?: string | null
+          organization_id?: string
+          role?: Database["public"]["Enums"]["org_role"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_users_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audit_runs: {
+        Row: {
+          audit_type: string
+          client_id: string
+          created_at: string
+          error: string | null
+          finished_at: string | null
+          id: string
+          input: Json
+          organization_id: string
+          result: Json | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["audit_status"]
+          triggered_by: string
+          updated_at: string
+        }
+        Insert: {
+          audit_type?: string
+          client_id: string
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          input?: Json
+          organization_id: string
+          result?: Json | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["audit_status"]
+          triggered_by: string
+          updated_at?: string
+        }
+        Update: {
+          audit_type?: string
+          client_id?: string
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          input?: Json
+          organization_id?: string
+          result?: Json | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["audit_status"]
+          triggered_by?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_runs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_integrations: {
+        Row: {
+          client_id: string
+          config: Json
+          created_at: string
+          enabled: boolean
+          id: string
+          organization_id: string
+          provider: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          config?: Json
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          organization_id: string
+          provider: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          config?: Json
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          organization_id?: string
+          provider?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_integrations_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_integrations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clients: {
+        Row: {
+          country: string | null
+          created_at: string
+          created_by: string
+          domain: string | null
+          id: string
+          industry: string | null
+          language: string
+          name: string
+          notes: string | null
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          country?: string | null
+          created_at?: string
+          created_by: string
+          domain?: string | null
+          id?: string
+          industry?: string | null
+          language?: string
+          name: string
+          notes?: string | null
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          country?: string | null
+          created_at?: string
+          created_by?: string
+          domain?: string | null
+          id?: string
+          industry?: string | null
+          language?: string
+          name?: string
+          notes?: string | null
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clients_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       content_items: {
         Row: {
           body: string | null
@@ -63,6 +262,35 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_defaults: {
+        Row: {
+          defaults: Json
+          id: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          defaults?: Json
+          id?: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          defaults?: Json
+          id?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_defaults_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -180,6 +408,99 @@ export type Database = {
           },
         ]
       }
+      oauth_connections: {
+        Row: {
+          access_token: string | null
+          account_email: string | null
+          client_id: string | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          metadata: Json
+          organization_id: string
+          provider: string
+          refresh_token: string | null
+          scopes: string[] | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          access_token?: string | null
+          account_email?: string | null
+          client_id?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          metadata?: Json
+          organization_id: string
+          provider: string
+          refresh_token?: string | null
+          scopes?: string[] | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          access_token?: string | null
+          account_email?: string | null
+          client_id?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          metadata?: Json
+          organization_id?: string
+          provider?: string
+          refresh_token?: string | null
+          scopes?: string[] | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "oauth_connections_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "oauth_connections_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organizations: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+          plan: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          name: string
+          plan?: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
+          plan?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -280,6 +601,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_run_audits: { Args: { _org: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -287,11 +609,19 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_org_admin: { Args: { _org: string }; Returns: boolean }
+      is_org_member: { Args: { _org: string }; Returns: boolean }
+      org_role_of: {
+        Args: { _org: string }
+        Returns: Database["public"]["Enums"]["org_role"]
+      }
     }
     Enums: {
       app_role: "admin" | "member"
+      audit_status: "pending" | "running" | "succeeded" | "failed"
       content_status: "draft" | "review" | "published"
       content_type: "blog" | "landing" | "geo" | "social" | "other"
+      org_role: "owner" | "admin" | "member" | "viewer"
       task_priority: "low" | "medium" | "high"
       task_status: "open" | "in_progress" | "done"
     }
@@ -422,8 +752,10 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "member"],
+      audit_status: ["pending", "running", "succeeded", "failed"],
       content_status: ["draft", "review", "published"],
       content_type: ["blog", "landing", "geo", "social", "other"],
+      org_role: ["owner", "admin", "member", "viewer"],
       task_priority: ["low", "medium", "high"],
       task_status: ["open", "in_progress", "done"],
     },
