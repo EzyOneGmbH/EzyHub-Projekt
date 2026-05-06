@@ -13,6 +13,7 @@ import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as GeoRouteImport } from './routes/geo'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as ContentRouteImport } from './routes/content'
@@ -24,6 +25,7 @@ import { Route as CustomersIdRouteImport } from './routes/customers.$id'
 import { Route as ContentIdRouteImport } from './routes/content.$id'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as ApiLiveStatusRouteImport } from './routes/api/live.status'
+import { Route as ApiLiveCanonryOverviewRouteImport } from './routes/api/live.canonry.overview'
 
 const TasksRoute = TasksRouteImport.update({
   id: '/tasks',
@@ -43,6 +45,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GeoRoute = GeoRouteImport.update({
+  id: '/geo',
+  path: '/geo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -100,6 +107,11 @@ const ApiLiveStatusRoute = ApiLiveStatusRouteImport.update({
   path: '/api/live/status',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiLiveCanonryOverviewRoute = ApiLiveCanonryOverviewRouteImport.update({
+  id: '/api/live/canonry/overview',
+  path: '/api/live/canonry/overview',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -107,6 +119,7 @@ export interface FileRoutesByFullPath {
   '/content': typeof ContentRouteWithChildren
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
+  '/geo': typeof GeoRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRouteWithChildren
   '/signup': typeof SignupRoute
@@ -117,6 +130,7 @@ export interface FileRoutesByFullPath {
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
   '/api/live/status': typeof ApiLiveStatusRoute
+  '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -124,6 +138,7 @@ export interface FileRoutesByTo {
   '/content': typeof ContentRouteWithChildren
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
+  '/geo': typeof GeoRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRouteWithChildren
   '/signup': typeof SignupRoute
@@ -134,6 +149,7 @@ export interface FileRoutesByTo {
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
   '/api/live/status': typeof ApiLiveStatusRoute
+  '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -142,6 +158,7 @@ export interface FileRoutesById {
   '/content': typeof ContentRouteWithChildren
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
+  '/geo': typeof GeoRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRouteWithChildren
   '/signup': typeof SignupRoute
@@ -152,6 +169,7 @@ export interface FileRoutesById {
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
   '/api/live/status': typeof ApiLiveStatusRoute
+  '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -161,6 +179,7 @@ export interface FileRouteTypes {
     | '/content'
     | '/customers'
     | '/dashboard'
+    | '/geo'
     | '/login'
     | '/settings'
     | '/signup'
@@ -171,6 +190,7 @@ export interface FileRouteTypes {
     | '/settings/api'
     | '/tasks/$id'
     | '/api/live/status'
+    | '/api/live/canonry/overview'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -178,6 +198,7 @@ export interface FileRouteTypes {
     | '/content'
     | '/customers'
     | '/dashboard'
+    | '/geo'
     | '/login'
     | '/settings'
     | '/signup'
@@ -188,6 +209,7 @@ export interface FileRouteTypes {
     | '/settings/api'
     | '/tasks/$id'
     | '/api/live/status'
+    | '/api/live/canonry/overview'
   id:
     | '__root__'
     | '/'
@@ -195,6 +217,7 @@ export interface FileRouteTypes {
     | '/content'
     | '/customers'
     | '/dashboard'
+    | '/geo'
     | '/login'
     | '/settings'
     | '/signup'
@@ -205,6 +228,7 @@ export interface FileRouteTypes {
     | '/settings/api'
     | '/tasks/$id'
     | '/api/live/status'
+    | '/api/live/canonry/overview'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -213,12 +237,14 @@ export interface RootRouteChildren {
   ContentRoute: typeof ContentRouteWithChildren
   CustomersRoute: typeof CustomersRouteWithChildren
   DashboardRoute: typeof DashboardRoute
+  GeoRoute: typeof GeoRoute
   LoginRoute: typeof LoginRoute
   SettingsRoute: typeof SettingsRouteWithChildren
   SignupRoute: typeof SignupRoute
   TasksRoute: typeof TasksRouteWithChildren
   AdminUsersRoute: typeof AdminUsersRoute
   ApiLiveStatusRoute: typeof ApiLiveStatusRoute
+  ApiLiveCanonryOverviewRoute: typeof ApiLiveCanonryOverviewRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -249,6 +275,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/geo': {
+      id: '/geo'
+      path: '/geo'
+      fullPath: '/geo'
+      preLoaderRoute: typeof GeoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -328,6 +361,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiLiveStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/live/canonry/overview': {
+      id: '/api/live/canonry/overview'
+      path: '/api/live/canonry/overview'
+      fullPath: '/api/live/canonry/overview'
+      preLoaderRoute: typeof ApiLiveCanonryOverviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -382,12 +422,14 @@ const rootRouteChildren: RootRouteChildren = {
   ContentRoute: ContentRouteWithChildren,
   CustomersRoute: CustomersRouteWithChildren,
   DashboardRoute: DashboardRoute,
+  GeoRoute: GeoRoute,
   LoginRoute: LoginRoute,
   SettingsRoute: SettingsRouteWithChildren,
   SignupRoute: SignupRoute,
   TasksRoute: TasksRouteWithChildren,
   AdminUsersRoute: AdminUsersRoute,
   ApiLiveStatusRoute: ApiLiveStatusRoute,
+  ApiLiveCanonryOverviewRoute: ApiLiveCanonryOverviewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
