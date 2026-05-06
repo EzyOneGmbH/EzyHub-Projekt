@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -76,6 +77,31 @@ function SignupPage() {
             {loading ? "Erstellen..." : "Registrieren"}
           </Button>
         </form>
+
+        <div className="my-6 flex items-center gap-3">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-xs text-muted-foreground">oder</span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          onClick={async () => {
+            const result = await lovable.auth.signInWithOAuth("google", {
+              redirect_uri: window.location.origin,
+            });
+            if (result.error) {
+              toast.error(result.error.message ?? "Google-Anmeldung fehlgeschlagen");
+              return;
+            }
+            if (result.redirected) return;
+            navigate({ to: "/dashboard" });
+          }}
+        >
+          Mit Google fortfahren
+        </Button>
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
           Bereits ein Konto?{" "}
