@@ -14,6 +14,94 @@ export type Database = {
   }
   public: {
     Tables: {
+      content_items: {
+        Row: {
+          body: string | null
+          content_type: Database["public"]["Enums"]["content_type"]
+          created_at: string
+          created_by: string
+          customer_id: string | null
+          id: string
+          keywords: string[] | null
+          language: string
+          status: Database["public"]["Enums"]["content_status"]
+          target_url: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          body?: string | null
+          content_type?: Database["public"]["Enums"]["content_type"]
+          created_at?: string
+          created_by: string
+          customer_id?: string | null
+          id?: string
+          keywords?: string[] | null
+          language?: string
+          status?: Database["public"]["Enums"]["content_status"]
+          target_url?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string | null
+          content_type?: Database["public"]["Enums"]["content_type"]
+          created_at?: string
+          created_by?: string
+          customer_id?: string | null
+          id?: string
+          keywords?: string[] | null
+          language?: string
+          status?: Database["public"]["Enums"]["content_status"]
+          target_url?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_items_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_tool_settings: {
+        Row: {
+          config: Json | null
+          customer_id: string
+          enabled: boolean
+          id: string
+          tool_key: string
+          updated_at: string
+        }
+        Insert: {
+          config?: Json | null
+          customer_id: string
+          enabled?: boolean
+          id?: string
+          tool_key: string
+          updated_at?: string
+        }
+        Update: {
+          config?: Json | null
+          customer_id?: string
+          enabled?: boolean
+          id?: string
+          tool_key?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_tool_settings_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           company: string | null
@@ -202,6 +290,8 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "member"
+      content_status: "draft" | "review" | "published"
+      content_type: "blog" | "landing" | "geo" | "social" | "other"
       task_priority: "low" | "medium" | "high"
       task_status: "open" | "in_progress" | "done"
     }
@@ -332,6 +422,8 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "member"],
+      content_status: ["draft", "review", "published"],
+      content_type: ["blog", "landing", "geo", "social", "other"],
       task_priority: ["low", "medium", "high"],
       task_status: ["open", "in_progress", "done"],
     },

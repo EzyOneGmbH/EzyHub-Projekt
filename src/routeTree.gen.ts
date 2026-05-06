@@ -11,13 +11,16 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CustomersRouteImport } from './routes/customers'
+import { Route as ContentRouteImport } from './routes/content'
 import { Route as AssistantRouteImport } from './routes/assistant'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TasksIdRouteImport } from './routes/tasks.$id'
 import { Route as CustomersIdRouteImport } from './routes/customers.$id'
+import { Route as ContentIdRouteImport } from './routes/content.$id'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 
 const TasksRoute = TasksRouteImport.update({
@@ -28,6 +31,11 @@ const TasksRoute = TasksRouteImport.update({
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -43,6 +51,11 @@ const DashboardRoute = DashboardRouteImport.update({
 const CustomersRoute = CustomersRouteImport.update({
   id: '/customers',
   path: '/customers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContentRoute = ContentRouteImport.update({
+  id: '/content',
+  path: '/content',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AssistantRoute = AssistantRouteImport.update({
@@ -65,6 +78,11 @@ const CustomersIdRoute = CustomersIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => CustomersRoute,
 } as any)
+const ContentIdRoute = ContentIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ContentRoute,
+} as any)
 const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/admin/users',
   path: '/admin/users',
@@ -74,24 +92,30 @@ const AdminUsersRoute = AdminUsersRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/assistant': typeof AssistantRoute
+  '/content': typeof ContentRouteWithChildren
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/tasks': typeof TasksRouteWithChildren
   '/admin/users': typeof AdminUsersRoute
+  '/content/$id': typeof ContentIdRoute
   '/customers/$id': typeof CustomersIdRoute
   '/tasks/$id': typeof TasksIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/assistant': typeof AssistantRoute
+  '/content': typeof ContentRouteWithChildren
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/tasks': typeof TasksRouteWithChildren
   '/admin/users': typeof AdminUsersRoute
+  '/content/$id': typeof ContentIdRoute
   '/customers/$id': typeof CustomersIdRoute
   '/tasks/$id': typeof TasksIdRoute
 }
@@ -99,12 +123,15 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/assistant': typeof AssistantRoute
+  '/content': typeof ContentRouteWithChildren
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/tasks': typeof TasksRouteWithChildren
   '/admin/users': typeof AdminUsersRoute
+  '/content/$id': typeof ContentIdRoute
   '/customers/$id': typeof CustomersIdRoute
   '/tasks/$id': typeof TasksIdRoute
 }
@@ -113,36 +140,45 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/assistant'
+    | '/content'
     | '/customers'
     | '/dashboard'
     | '/login'
+    | '/settings'
     | '/signup'
     | '/tasks'
     | '/admin/users'
+    | '/content/$id'
     | '/customers/$id'
     | '/tasks/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/assistant'
+    | '/content'
     | '/customers'
     | '/dashboard'
     | '/login'
+    | '/settings'
     | '/signup'
     | '/tasks'
     | '/admin/users'
+    | '/content/$id'
     | '/customers/$id'
     | '/tasks/$id'
   id:
     | '__root__'
     | '/'
     | '/assistant'
+    | '/content'
     | '/customers'
     | '/dashboard'
     | '/login'
+    | '/settings'
     | '/signup'
     | '/tasks'
     | '/admin/users'
+    | '/content/$id'
     | '/customers/$id'
     | '/tasks/$id'
   fileRoutesById: FileRoutesById
@@ -150,9 +186,11 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AssistantRoute: typeof AssistantRoute
+  ContentRoute: typeof ContentRouteWithChildren
   CustomersRoute: typeof CustomersRouteWithChildren
   DashboardRoute: typeof DashboardRoute
   LoginRoute: typeof LoginRoute
+  SettingsRoute: typeof SettingsRoute
   SignupRoute: typeof SignupRoute
   TasksRoute: typeof TasksRouteWithChildren
   AdminUsersRoute: typeof AdminUsersRoute
@@ -174,6 +212,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -193,6 +238,13 @@ declare module '@tanstack/react-router' {
       path: '/customers'
       fullPath: '/customers'
       preLoaderRoute: typeof CustomersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/content': {
+      id: '/content'
+      path: '/content'
+      fullPath: '/content'
+      preLoaderRoute: typeof ContentRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/assistant': {
@@ -223,6 +275,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CustomersIdRouteImport
       parentRoute: typeof CustomersRoute
     }
+    '/content/$id': {
+      id: '/content/$id'
+      path: '/$id'
+      fullPath: '/content/$id'
+      preLoaderRoute: typeof ContentIdRouteImport
+      parentRoute: typeof ContentRoute
+    }
     '/admin/users': {
       id: '/admin/users'
       path: '/admin/users'
@@ -232,6 +291,17 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface ContentRouteChildren {
+  ContentIdRoute: typeof ContentIdRoute
+}
+
+const ContentRouteChildren: ContentRouteChildren = {
+  ContentIdRoute: ContentIdRoute,
+}
+
+const ContentRouteWithChildren =
+  ContentRoute._addFileChildren(ContentRouteChildren)
 
 interface CustomersRouteChildren {
   CustomersIdRoute: typeof CustomersIdRoute
@@ -258,9 +328,11 @@ const TasksRouteWithChildren = TasksRoute._addFileChildren(TasksRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AssistantRoute: AssistantRoute,
+  ContentRoute: ContentRouteWithChildren,
   CustomersRoute: CustomersRouteWithChildren,
   DashboardRoute: DashboardRoute,
   LoginRoute: LoginRoute,
+  SettingsRoute: SettingsRoute,
   SignupRoute: SignupRoute,
   TasksRoute: TasksRouteWithChildren,
   AdminUsersRoute: AdminUsersRoute,

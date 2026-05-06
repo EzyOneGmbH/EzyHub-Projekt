@@ -8,12 +8,16 @@ const cors = {
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   try {
-    const { text } = await req.json();
+    const { text, mode } = await req.json();
     if (!text || typeof text !== "string") {
       return new Response(JSON.stringify({ error: "text required" }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
     }
     const KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!KEY) throw new Error("LOVABLE_API_KEY missing");
+
+    const system = mode === "generate"
+      ? "Du bist ein erfahrener SEO/GEO-Texter. Erstelle gut strukturierte deutsche Inhalte mit klaren H2/H3-Überschriften, kurzen Absätzen und Mehrwert. Antworte direkt mit dem Text, ohne Einleitung."
+      : "Du fasst Texte präzise und prägnant auf Deutsch zusammen. Gib eine knappe, klar strukturierte Zusammenfassung ohne Einleitung.";
 
     const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -21,8 +25,8 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: [
-          { role: "system", content: "Du fasst Texte präzise und prägnant auf Deutsch zusammen. Gib eine knappe, klar strukturierte Zusammenfassung ohne Einleitung." },
-          { role: "user", content: text.slice(0, 8000) },
+          { role: "system", content: system },
+          { role: "user", content: text.slice(0, 12000) },
         ],
       }),
     });
