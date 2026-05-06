@@ -224,7 +224,7 @@ export const Route = createFileRoute("/api/ahrefs/overview")({
             organization_id: organizationId,
             triggered_by: user.id,
             audit_type: "ahrefs",
-            status: allFailed ? "failed" : "completed",
+            status: allFailed ? "failed" : "succeeded",
             input: { domain },
             result: result as unknown as Record<string, unknown>,
             error: allFailed
