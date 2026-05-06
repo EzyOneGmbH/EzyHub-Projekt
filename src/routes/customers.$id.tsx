@@ -167,6 +167,15 @@ function CustomerDetail() {
           </div>
         </Card>
       </div>
+
+      <div className="mt-6">
+        <GoogleConnectPanel
+          clientId={id}
+          gscProperty={c.gsc_property ?? null}
+          ga4Property={c.ga4_property ?? null}
+          onPropertiesChange={(p) => setC({ ...c, ...p })}
+        />
+      </div>
     </AppShell>
   );
 }
