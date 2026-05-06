@@ -26,6 +26,7 @@ import { Route as ContentIdRouteImport } from './routes/content.$id'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as ApiLiveStatusRouteImport } from './routes/api/live.status'
 import { Route as ApiGoogleCallbackRouteImport } from './routes/api/google.callback'
+import { Route as ApiAhrefsOverviewRouteImport } from './routes/api/ahrefs.overview'
 import { Route as ApiLiveCanonryOverviewRouteImport } from './routes/api/live.canonry.overview'
 import { Route as ApiGoogleOauthStartRouteImport } from './routes/api/google.oauth.start'
 
@@ -114,6 +115,11 @@ const ApiGoogleCallbackRoute = ApiGoogleCallbackRouteImport.update({
   path: '/api/google/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAhrefsOverviewRoute = ApiAhrefsOverviewRouteImport.update({
+  id: '/api/ahrefs/overview',
+  path: '/api/ahrefs/overview',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiLiveCanonryOverviewRoute = ApiLiveCanonryOverviewRouteImport.update({
   id: '/api/live/canonry/overview',
   path: '/api/live/canonry/overview',
@@ -141,6 +147,7 @@ export interface FileRoutesByFullPath {
   '/customers/$id': typeof CustomersIdRoute
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
+  '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/live/status': typeof ApiLiveStatusRoute
   '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
@@ -162,6 +169,7 @@ export interface FileRoutesByTo {
   '/customers/$id': typeof CustomersIdRoute
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
+  '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/live/status': typeof ApiLiveStatusRoute
   '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
@@ -184,6 +192,7 @@ export interface FileRoutesById {
   '/customers/$id': typeof CustomersIdRoute
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
+  '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/live/status': typeof ApiLiveStatusRoute
   '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
@@ -207,6 +216,7 @@ export interface FileRouteTypes {
     | '/customers/$id'
     | '/settings/api'
     | '/tasks/$id'
+    | '/api/ahrefs/overview'
     | '/api/google/callback'
     | '/api/live/status'
     | '/api/google/oauth/start'
@@ -228,6 +238,7 @@ export interface FileRouteTypes {
     | '/customers/$id'
     | '/settings/api'
     | '/tasks/$id'
+    | '/api/ahrefs/overview'
     | '/api/google/callback'
     | '/api/live/status'
     | '/api/google/oauth/start'
@@ -249,6 +260,7 @@ export interface FileRouteTypes {
     | '/customers/$id'
     | '/settings/api'
     | '/tasks/$id'
+    | '/api/ahrefs/overview'
     | '/api/google/callback'
     | '/api/live/status'
     | '/api/google/oauth/start'
@@ -267,6 +279,7 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   TasksRoute: typeof TasksRouteWithChildren
   AdminUsersRoute: typeof AdminUsersRoute
+  ApiAhrefsOverviewRoute: typeof ApiAhrefsOverviewRoute
   ApiGoogleCallbackRoute: typeof ApiGoogleCallbackRoute
   ApiLiveStatusRoute: typeof ApiLiveStatusRoute
   ApiGoogleOauthStartRoute: typeof ApiGoogleOauthStartRoute
@@ -394,6 +407,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGoogleCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/ahrefs/overview': {
+      id: '/api/ahrefs/overview'
+      path: '/api/ahrefs/overview'
+      fullPath: '/api/ahrefs/overview'
+      preLoaderRoute: typeof ApiAhrefsOverviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/live/canonry/overview': {
       id: '/api/live/canonry/overview'
       path: '/api/live/canonry/overview'
@@ -468,6 +488,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   TasksRoute: TasksRouteWithChildren,
   AdminUsersRoute: AdminUsersRoute,
+  ApiAhrefsOverviewRoute: ApiAhrefsOverviewRoute,
   ApiGoogleCallbackRoute: ApiGoogleCallbackRoute,
   ApiLiveStatusRoute: ApiLiveStatusRoute,
   ApiGoogleOauthStartRoute: ApiGoogleOauthStartRoute,
