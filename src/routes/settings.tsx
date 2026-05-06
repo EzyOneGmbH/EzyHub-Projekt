@@ -140,6 +140,7 @@ function SettingsPage() {
           </div>
         )}
       </Card>
+      </RequireRole>
     </AppShell>
   );
 }
