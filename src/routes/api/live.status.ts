@@ -174,12 +174,13 @@ export const Route = createFileRoute("/api/live/status")({
         const gClientSecret = env.GOOGLE_CLIENT_SECRET;
         const gRedirect = env.GOOGLE_REDIRECT_URI;
 
-        const [g, o, a, p, c] = await Promise.all([
+        const [g, o, a, p, c, ah] = await Promise.all([
           probeGemini(gemini),
           probeOpenAI(openai),
           probeAnthropic(anthropic),
           probePerplexity(perplexity),
           probeCanonry(canonryBase, canonryKey),
+          probeAhrefs(ahrefs),
         ]);
 
         const result: LiveStatus = {
@@ -190,7 +191,7 @@ export const Route = createFileRoute("/api/live/status")({
             anthropic: a,
             perplexity: p,
             canonry: c,
-            ahrefs: reportAhrefs(ahrefs),
+            ahrefs: ah,
             google_oauth: reportGoogleOAuth(gClientId, gClientSecret, gRedirect),
           },
         };
