@@ -4376,7 +4376,31 @@ function ClientsPage({
                 </div>
               </div>
             )}
-            {dt === "kpis" && (
+            {dt === "kpis" && (() => {
+              const hasData =
+                (detail.score || 0) +
+                  (detail.keywords || 0) +
+                  (detail.traffic || 0) +
+                  (detail.aiVisitors || 0) +
+                  (detail.revenue || 0) >
+                0;
+              if (!hasData) {
+                return (
+                  <div
+                    style={{
+                      background: C.card,
+                      borderRadius: 10,
+                      padding: 20,
+                      textAlign: "center",
+                      fontSize: 13,
+                      color: C.textMuted,
+                    }}
+                  >
+                    Noch keine Live-Daten — verbinde GSC/GA4 oder starte einen Audit-Lauf.
+                  </div>
+                );
+              }
+              return (
               <div
                 className="kpi-grid"
                 style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
