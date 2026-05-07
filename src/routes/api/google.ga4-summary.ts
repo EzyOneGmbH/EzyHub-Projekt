@@ -98,7 +98,7 @@ export const Route = createFileRoute("/api/google/ga4-summary")({
               audit_type: "ga4_summary",
               status: "succeeded",
               input: { days: parsed.data.days },
-              result: result as unknown as Record<string, unknown>,
+              result: result as any,
               started_at: new Date().toISOString(),
               finished_at: new Date().toISOString(),
             });
