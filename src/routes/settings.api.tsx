@@ -43,7 +43,14 @@ function ApiStatusPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/live/status", { cache: "no-store" });
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      if (!token) throw new Error("Not authenticated");
+      const res = await fetch("/api/live/status", {
+        cache: "no-store",
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setStatus(await res.json());
     } catch (e) {
