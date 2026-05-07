@@ -4573,6 +4573,7 @@ function SettingsPage({
   onSaveProfile,
   customerDefaults,
   onSaveDefaults,
+  onClientUpdated,
 }) {
   const toast = useToast();
   const [sec, setSec] = useState("profil");
