@@ -50,6 +50,7 @@ export const Route = createFileRoute("/api/google/gsc-import")({
           if ("error" in r) return Response.json({ error: r.error }, { status: r.status });
           const client = r.client;
           if (!client.gsc_property) return Response.json({ ok: false, error: "Kein GSC-Property gesetzt." });
+          if (!(await isProviderEnabled(client.id, "google"))) return Response.json({ ok: false, error: "Google-Integration für diesen Kunden deaktiviert." }, { status: 403 });
 
           const { accessToken } = await getGoogleAccessToken(client.id);
           const end = new Date();
