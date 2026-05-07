@@ -232,12 +232,12 @@ function ContentEditor({item,stCo,stLb,onBack,onSave}){
     </div>
   </div>);
 }
-function ContentPage({clients}){
-  const toast=useToast();const[items,setItems]=useState(CONTENT_ITEMS);const[editing,setEditing]=useState(null);const[filter,setFilter]=useState("all");const[search,setSearch]=useState("");
+function ContentPage({clients,items,onSaveContent}){
+  const toast=useToast();const[editing,setEditing]=useState(null);const[filter,setFilter]=useState("all");const[search,setSearch]=useState("");
   const typeIc={blog:PenTool,audit:Layers,note:Bookmark,report:FileText};const typeCo={blog:C.cyan,audit:C.accent,note:C.pink,report:C.blue};
   const stCo={draft:C.textMuted,published:C.green,archived:C.textDim};const stLb={draft:"Entwurf",published:"Publiziert",archived:"Archiviert"};
   const filtered=items.filter(it=>(filter==="all"||it.type===filter)&&(it.title.toLowerCase().includes(search.toLowerCase())));
-  const saveContent=(id,content)=>{setItems(p=>p.map(i=>i.id===id?{...i,content,updatedAt:new Date().toISOString().slice(0,10)}:i));toast("Inhalt gespeichert","success")};
+  const saveContent=async(id,content)=>{try{await onSaveContent(id,content);toast("Inhalt gespeichert","success")}catch(e){toast(e?.message||"Speichern fehlgeschlagen","error")}};
 
   if(editing){const it=items.find(i=>i.id===editing);if(!it)return null;return <ContentEditor item={it} stCo={stCo} stLb={stLb} onBack={()=>setEditing(null)} onSave={(id,md)=>{saveContent(id,md);setEditing(null)}}/>;}
 
