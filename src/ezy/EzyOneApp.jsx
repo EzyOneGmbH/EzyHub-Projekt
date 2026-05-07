@@ -6,8 +6,10 @@ import { useEzyClients } from "@/ezy/data/useEzyClients";
 import { useEzyDefaults } from "@/ezy/data/useEzyDefaults";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
 import { useEzyContent } from "@/ezy/data/useEzyContent";
-import { useEzyToolSettings } from "@/ezy/data/useEzyToolSettings";
+import { useEzyToolSettings, toolProvider } from "@/ezy/data/useEzyToolSettings";
+import { executeTool as runToolLive } from "@/ezy/data/runTool";
 import { supabase } from "@/integrations/supabase/client";
+const toolHasLiveProvider = (id) => toolProvider(id) !== null;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DESIGN SYSTEM
