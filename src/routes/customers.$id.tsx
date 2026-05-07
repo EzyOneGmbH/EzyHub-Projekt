@@ -47,6 +47,7 @@ function ClientDetail() {
   const { isOrgAdmin } = useAuth();
   const [c, setC] = useState<Client | null>(null);
   const [runs, setRuns] = useState<AuditRun[]>([]);
+  const [enabled, setEnabled] = useState<Record<string, boolean>>({});
   const [canonryData, setCanonryData] = useState<any>(null);
   const [canonryLoading, setCanonryLoading] = useState(false);
 
@@ -54,13 +55,19 @@ function ClientDetail() {
     (async () => {
       const { data } = await supabase.from("clients").select("*").eq("id", id).maybeSingle();
       setC(data as Client | null);
-      const { data: r } = await supabase
-        .from("audit_runs")
-        .select("id,audit_type,status,created_at,finished_at,error")
-        .eq("client_id", id)
-        .order("created_at", { ascending: false })
-        .limit(20);
+      const [{ data: r }, { data: ints }] = await Promise.all([
+        supabase
+          .from("audit_runs")
+          .select("id,audit_type,status,created_at,finished_at,error")
+          .eq("client_id", id)
+          .order("created_at", { ascending: false })
+          .limit(20),
+        supabase.from("client_integrations").select("provider,enabled").eq("client_id", id),
+      ]);
       setRuns((r ?? []) as AuditRun[]);
+      const map: Record<string, boolean> = {};
+      (ints ?? []).forEach((row: any) => (map[row.provider] = row.enabled));
+      setEnabled(map);
     })();
   }, [id]);
 
