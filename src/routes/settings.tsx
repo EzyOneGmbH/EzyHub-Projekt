@@ -28,19 +28,19 @@ const TOOLS = [
   { key: "ai", label: "KI-Generierung", icon: Bot, desc: "Texterstellung & Zusammenfassungen via AI Gateway." },
 ];
 
-type Customer = { id: string; name: string };
+type Client = { id: string; name: string; organization_id: string };
 
 function SettingsPage() {
   const { isAdmin, user } = useAuth();
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [selected, setSelected] = useState<string>("");
   const [enabledMap, setEnabledMap] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from("customers").select("id,name").order("name");
-      const list = (data ?? []) as Customer[];
-      setCustomers(list);
+      const { data } = await supabase.from("clients").select("id,name,organization_id").order("name");
+      const list = (data ?? []) as Client[];
+      setClients(list);
       if (list.length && !selected) setSelected(list[0].id);
     })();
   }, []);
@@ -49,23 +49,25 @@ function SettingsPage() {
     if (!selected) return;
     (async () => {
       const { data } = await supabase
-        .from("customer_tool_settings")
-        .select("tool_key, enabled")
-        .eq("customer_id", selected);
+        .from("client_integrations")
+        .select("provider, enabled")
+        .eq("client_id", selected);
       const map: Record<string, boolean> = {};
-      (data ?? []).forEach((r: any) => (map[r.tool_key] = r.enabled));
+      (data ?? []).forEach((r: any) => (map[r.provider] = r.enabled));
       setEnabledMap(map);
     })();
   }, [selected]);
 
   const toggle = async (toolKey: string, enabled: boolean) => {
     if (!isAdmin) return toast.error("Nur Admins können Tools schalten");
+    const client = clients.find((c) => c.id === selected);
+    if (!client) return;
     setEnabledMap((m) => ({ ...m, [toolKey]: enabled }));
     const { error } = await supabase
-      .from("customer_tool_settings")
+      .from("client_integrations")
       .upsert(
-        { customer_id: selected, tool_key: toolKey, enabled },
-        { onConflict: "customer_id,tool_key" }
+        { client_id: selected, organization_id: client.organization_id, provider: toolKey, enabled },
+        { onConflict: "client_id,provider" }
       );
     if (error) {
       toast.error(error.message);
