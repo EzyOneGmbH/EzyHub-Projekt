@@ -160,27 +160,46 @@ function ConvDashboard(){const ct=[{type:"Phone",icon:Phone,count:342,rev:17100,
 // ═══════════════════════════════════════════════════════════════════════════
 // TOOL RUNNER
 // ═══════════════════════════════════════════════════════════════════════════
-function ToolRunner({tool,onClose,clientDomain,onComplete}){
-  const toast=useToast();const[form,setForm]=useState(()=>{const f={};tool.inputs.forEach(i=>{f[i.id]=i.type==="url"?`https://${clientDomain}`:i.id==="language"?"Deutsch":""});return f});
-  const[phase,setPhase]=useState("form");const[step,setStep]=useState(0);const[score,setScore]=useState(0);
-  const intervalRef=useRef(null);const timeoutRef=useRef(null);const closedRef=useRef(false);
-  const steps=tool.subSkills.map(s=>s.replace(/-/g," ").replace(/\b\w/g,l=>l.toUpperCase()));
-  const resultSummary=tool.id==="canonry"?`Der Sweep hat ${1+Math.round(Math.random()*3)} neue Citations, ${1+Math.round(Math.random()*2)} Watchlist-Queries und ${8+Math.round(Math.random()*7)} stabile Keyword-Snapshots ueber die konfigurierten Provider gefunden.`:`Die Analyse hat ${1+Math.round(Math.random()*4)} kritische Issues, ${5+Math.round(Math.random()*10)} Warnungen und ${20+Math.round(Math.random()*25)} bestandene Checks ergeben. Detaillierte Ergebnisse koennen als Report exportiert oder als Obsidian Note gespeichert werden.`;
-  const clearTimers=useCallback(()=>{if(intervalRef.current){clearInterval(intervalRef.current);intervalRef.current=null}if(timeoutRef.current){clearTimeout(timeoutRef.current);timeoutRef.current=null}},[]);
-  useEffect(()=>()=>{closedRef.current=true;clearTimers()},[clearTimers]);
-  const handleClose=()=>{closedRef.current=true;clearTimers();onClose?.()};
-  const run=()=>{const m=tool.inputs.filter(i=>i.required&&!form[i.id]);if(m.length){toast(`"${m[0].label}" ausfüllen`,"error");return}closedRef.current=false;clearTimers();setPhase("running");setStep(0);intervalRef.current=setInterval(()=>{setStep(p=>{if(closedRef.current)return p;if(p>=steps.length-1){clearInterval(intervalRef.current);intervalRef.current=null;timeoutRef.current=setTimeout(()=>{if(closedRef.current)return;const s=tool.id==="canonry"?72+Math.round(Math.random()*22):65+Math.round(Math.random()*30);setScore(s);setPhase("done");toast(`${tool.label} — Score: ${s}/100`,"success");onComplete?.({toolId:tool.id,score:s})},600);return p}return p+1})},600)};
-  const exportMd=()=>{const md=`# ${tool.label} Report\n\nScore: ${score}/100\nDomain: ${form.url||form.domain||"—"}\nDatum: ${new Date().toLocaleDateString("de-CH")}\n\n## Zusammenfassung\n\n${resultSummary}\n\n## Ergebnisse\n\n${steps.map(s=>`- ✅ ${s}`).join("\n")}`;downloadFile(md,"text/markdown",`${tool.id}-report.md`);toast("Report exportiert","success")};
+function ToolRunner({tool,onClose,client,onComplete}){
+  const toast=useToast();
+  const clientDomain=client?.domain||"";
+  const[form,setForm]=useState(()=>{const f={};tool.inputs.forEach(i=>{f[i.id]=i.type==="url"?(clientDomain?`https://${clientDomain}`:""):i.id==="language"?"Deutsch":""});return f});
+  const[phase,setPhase]=useState("form");
+  const[result,setResult]=useState(null); // {ok, liveConnected, message, data, error}
+  const closedRef=useRef(false);
+  useEffect(()=>()=>{closedRef.current=true},[]);
+  const handleClose=()=>{closedRef.current=true;onClose?.()};
+  const run=async()=>{
+    const m=tool.inputs.filter(i=>i.required&&!form[i.id]);
+    if(m.length){toast(`"${m[0].label}" ausfüllen`,"error");return}
+    setPhase("running");
+    try{
+      const r=await runToolLive(tool.id,client||{id:"",domain:clientDomain},form);
+      if(closedRef.current)return;
+      setResult(r);
+      setPhase("done");
+      if(r.liveConnected&&r.ok){toast(`${tool.label} — Live-Lauf abgeschlossen`,"success");onComplete?.({toolId:tool.id,ok:true})}
+      else if(!r.liveConnected){toast(`${tool.label}: ${r.message}`,"info")}
+      else{toast(`${tool.label} fehlgeschlagen: ${r.error||r.message}`,"error")}
+    }catch(e){
+      if(closedRef.current)return;
+      setResult({ok:false,liveConnected:true,message:e?.message||"Fehler",error:e?.message});
+      setPhase("done");
+      toast(`Fehler: ${e?.message||e}`,"error");
+    }
+  };
+  const exportMd=()=>{const md=`# ${tool.label} Report\n\nDomain: ${form.url||form.domain||clientDomain||"—"}\nDatum: ${new Date().toLocaleDateString("de-CH")}\nStatus: ${result?.liveConnected?(result.ok?"Live-Lauf erfolgreich":"Live-Lauf fehlgeschlagen"):"Noch nicht live verbunden"}\n\n## Antwort\n\n\`\`\`json\n${JSON.stringify(result?.data??{message:result?.message},null,2)}\n\`\`\`\n`;downloadFile(md,"text/markdown",`${tool.id}-report.md`);toast("Report exportiert","success")};
   const Icon=tool.icon;
+  const liveBadgeColor=!result?C.textDim:result.liveConnected?(result.ok?C.green:C.red):C.orange;
+  const liveBadgeLabel=!result?"":result.liveConnected?(result.ok?"Live ✓":"Live-Fehler"):"Noch nicht live verbunden";
   return(<Modal open={true} onClose={handleClose} title={tool.label} width={560}>
-    {phase==="form"&&<div><div style={{display:"flex",gap:14,alignItems:"flex-start",marginBottom:20,padding:14,background:C.card,borderRadius:12,border:`1px solid ${C.border}`}}><div style={{width:44,height:44,borderRadius:12,background:`${tool.color}18`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icon size={20} color={tool.color}/></div><div><div style={{fontSize:13,color:C.text,lineHeight:1.5}}>{tool.longDescription}</div><div style={{display:"flex",gap:8,marginTop:8,flexWrap:"wrap"}}><Badge color={C.textDim}>{tool.repo}</Badge><Badge color={C.textDim}><Clock size={9} style={{marginRight:3}}/>{tool.estimatedTime}</Badge></div></div></div>
+    {phase==="form"&&<div><div style={{display:"flex",gap:14,alignItems:"flex-start",marginBottom:20,padding:14,background:C.card,borderRadius:12,border:`1px solid ${C.border}`}}><div style={{width:44,height:44,borderRadius:12,background:`${tool.color}18`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icon size={20} color={tool.color}/></div><div><div style={{fontSize:13,color:C.text,lineHeight:1.5}}>{tool.longDescription}</div><div style={{display:"flex",gap:8,marginTop:8,flexWrap:"wrap"}}><Badge color={C.textDim}>{tool.repo}</Badge><Badge color={C.textDim}><Clock size={9} style={{marginRight:3}}/>{tool.estimatedTime}</Badge>{!toolHasLiveProvider(tool.id)&&<Badge color={C.orange}>Noch nicht live verbunden</Badge>}</div></div></div>
       {tool.inputs.map(inp=>(<Inp key={inp.id} label={inp.label} value={form[inp.id]||""} onChange={v=>setForm(p=>({...p,[inp.id]:v}))} placeholder={inp.placeholder} type={inp.type==="url"?"url":"text"} textarea={inp.type==="textarea"} required={inp.required} options={inp.options}/>))}
-      <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:16}}>{steps.map(s=><Badge key={s} color={tool.color}>{s}</Badge>)}</div>
       <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><Btn variant="secondary" onClick={handleClose}>Abbrechen</Btn><Btn icon={Play} onClick={run}>Ausführen</Btn></div></div>}
-    {phase==="running"&&<div><div style={{textAlign:"center",marginBottom:20}}><RefreshCw size={32} color={tool.color} style={{animation:"spin 1s linear infinite",marginBottom:12}}/><div style={{fontSize:15,fontWeight:700,color:C.text}}>Analyse läuft...</div></div><div style={{display:"flex",flexDirection:"column",gap:4}}>{steps.map((s,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 12px",borderRadius:8,background:i===step?`${tool.color}10`:i<step?C.greenDim:"transparent"}}>{i<step?<CheckCircle size={15} color={C.green}/>:i===step?<RefreshCw size={15} color={tool.color} style={{animation:"spin 1s linear infinite"}}/>:<div style={{width:15,height:15,borderRadius:"50%",border:`2px solid ${C.border}`}}/>}<span style={{fontSize:12,color:i<step?C.green:i===step?C.text:C.textDim,fontWeight:i===step?600:400}}>{s}</span></div>))}</div><div style={{marginTop:14,background:C.card,borderRadius:8,height:4,overflow:"hidden"}}><div style={{height:"100%",background:tool.color,borderRadius:8,transition:"width .3s",width:`${((step+1)/steps.length)*100}%`}}/></div></div>}
-    {phase==="done"&&<div style={{textAlign:"center"}}><div style={{width:72,height:72,borderRadius:20,background:score>=80?C.greenDim:score>=60?C.orangeDim:C.redDim,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}><span style={{fontSize:32,fontWeight:800,color:score>=80?C.green:score>=60?C.orange:C.red}}>{score}</span></div><div style={{fontSize:16,fontWeight:700,color:C.text,marginBottom:4}}>Analyse abgeschlossen</div><div style={{fontSize:13,color:C.textMuted,marginBottom:16}}>{steps.length} Sub-Skills • {tool.estimatedTime}</div>
-      <div style={{background:C.card,borderRadius:12,padding:16,textAlign:"left",marginBottom:20,fontSize:13,color:C.textMuted,lineHeight:1.6}}>{resultSummary}</div>
-      <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}><Btn variant="secondary" icon={Bookmark} onClick={()=>toast("Als Obsidian Note gespeichert","success")}>Obsidian Note</Btn><Btn variant="secondary" icon={Download} onClick={exportMd}>Report exportieren</Btn><Btn onClick={handleClose}>Schliessen</Btn></div></div>}
+    {phase==="running"&&<div style={{textAlign:"center",padding:"30px 10px"}}><RefreshCw size={32} color={tool.color} style={{animation:"spin 1s linear infinite",marginBottom:12}}/><div style={{fontSize:15,fontWeight:700,color:C.text}}>Live-Lauf läuft …</div><div style={{fontSize:12,color:C.textMuted,marginTop:6}}>API-Call wird ausgeführt</div></div>}
+    {phase==="done"&&<div><div style={{display:"flex",justifyContent:"center",marginBottom:14}}><Badge color={liveBadgeColor}>{liveBadgeLabel}</Badge></div>
+      <div style={{background:C.card,borderRadius:12,padding:16,marginBottom:16,fontSize:13,color:C.text,lineHeight:1.6,whiteSpace:"pre-wrap",maxHeight:240,overflow:"auto"}}>{result?.liveConnected?(result.ok?(typeof result.data==="object"?JSON.stringify(result.data,null,2).slice(0,2000):String(result.message||"OK")):(result.error||result.message||"Fehler")):"Dieses Tool ist noch nicht an eine Live-API angebunden. Es wurde kein Lauf gespeichert."}</div>
+      <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}><Btn variant="secondary" icon={Download} onClick={exportMd}>Report exportieren</Btn><Btn onClick={handleClose}>Schliessen</Btn></div></div>}
   </Modal>)
 }
 
