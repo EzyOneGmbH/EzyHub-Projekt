@@ -43,8 +43,14 @@ function DashboardPage() {
       setRecent((rec.data ?? []) as AuditRow[]);
 
       try {
-        const r = await fetch("/api/live/status");
-        if (r.ok) setLive(await r.json());
+        const { data: sess } = await supabase.auth.getSession();
+        const token = sess.session?.access_token;
+        if (token) {
+          const r = await fetch("/api/live/status", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (r.ok) setLive(await r.json());
+        }
       } catch {
         /* ignore */
       }
