@@ -13,9 +13,17 @@ function htmlResponse(body: string, status = 200) {
 }
 
 function closingPage(ok: boolean, message: string) {
-  const safe = message.replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-  }[c]!));
+  const safe = message.replace(
+    /[&<>"']/g,
+    (c) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[c]!,
+  );
   return `<!doctype html><html><body style="font-family:system-ui;background:#0a0a0a;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
 <div style="max-width:480px;text-align:center;padding:24px">
 <h1>${ok ? "Google verbunden ✓" : "Verbindung fehlgeschlagen"}</h1>

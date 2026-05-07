@@ -84,9 +84,7 @@ function ApiStatusPage() {
             Object.entries(status.providers).map(([key, p]) => (
               <ProviderRow key={key} name={LABELS[key] ?? key} probe={p} />
             ))}
-          {!status && !error && (
-            <p className="text-sm text-muted-foreground">Lade...</p>
-          )}
+          {!status && !error && <p className="text-sm text-muted-foreground">Lade...</p>}
         </div>
 
         {status && (
@@ -100,18 +98,10 @@ function ApiStatusPage() {
 }
 
 function ProviderRow({ name, probe }: { name: string; probe: ProbeResult }) {
-  const state: "ok" | "warn" | "err" = !probe.configured
-    ? "warn"
-    : probe.ok
-      ? "ok"
-      : "err";
+  const state: "ok" | "warn" | "err" = !probe.configured ? "warn" : probe.ok ? "ok" : "err";
   const Icon = state === "ok" ? CheckCircle2 : state === "warn" ? AlertCircle : XCircle;
   const tone =
-    state === "ok"
-      ? "text-emerald-500"
-      : state === "warn"
-        ? "text-amber-500"
-        : "text-destructive";
+    state === "ok" ? "text-emerald-500" : state === "warn" ? "text-amber-500" : "text-destructive";
 
   return (
     <Card className="flex items-start justify-between gap-4 p-4">

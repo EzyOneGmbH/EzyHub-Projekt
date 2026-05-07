@@ -10,8 +10,20 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Plus, Calendar } from "lucide-react";
 import { toast } from "sonner";
 
@@ -50,10 +62,18 @@ function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [filter, setFilter] = useState<"all" | Task["status"]>("all");
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ title: "", description: "", priority: "medium" as Task["priority"], due_date: "" });
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    priority: "medium" as Task["priority"],
+    due_date: "",
+  });
 
   const load = async () => {
-    const { data } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
+    const { data } = await supabase
+      .from("tasks")
+      .select("*")
+      .order("created_at", { ascending: false });
     setTasks((data ?? []) as Task[]);
   };
 
@@ -113,17 +133,30 @@ function TasksPage() {
             <form onSubmit={onSubmit} className="space-y-3">
               <div className="space-y-1">
                 <Label htmlFor="title">Titel *</Label>
-                <Input id="title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+                <Input
+                  id="title"
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                />
               </div>
               <div className="space-y-1">
                 <Label htmlFor="desc">Beschreibung</Label>
-                <Textarea id="desc" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+                <Textarea
+                  id="desc"
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>Priorität</Label>
-                  <Select value={form.priority} onValueChange={(v) => setForm({ ...form, priority: v as Task["priority"] })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                  <Select
+                    value={form.priority}
+                    onValueChange={(v) => setForm({ ...form, priority: v as Task["priority"] })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="low">Niedrig</SelectItem>
                       <SelectItem value="medium">Mittel</SelectItem>
@@ -133,10 +166,17 @@ function TasksPage() {
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="due">Fällig</Label>
-                  <Input id="due" type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
+                  <Input
+                    id="due"
+                    type="date"
+                    value={form.due_date}
+                    onChange={(e) => setForm({ ...form, due_date: e.target.value })}
+                  />
                 </div>
               </div>
-              <Button type="submit" className="w-full">Erstellen</Button>
+              <Button type="submit" className="w-full">
+                Erstellen
+              </Button>
             </form>
           </DialogContent>
         </Dialog>
@@ -144,7 +184,12 @@ function TasksPage() {
 
       <div className="mb-4 flex gap-2">
         {(["all", "open", "in_progress", "done"] as const).map((s) => (
-          <Button key={s} variant={filter === s ? "default" : "outline"} size="sm" onClick={() => setFilter(s)}>
+          <Button
+            key={s}
+            variant={filter === s ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilter(s)}
+          >
             {s === "all" ? "Alle" : statusLabel[s]}
           </Button>
         ))}
@@ -156,7 +201,11 @@ function TasksPage() {
           <Card key={t.id} className="p-4">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
-                <Link to="/tasks/$id" params={{ id: t.id }} className="font-semibold text-foreground hover:underline">
+                <Link
+                  to="/tasks/$id"
+                  params={{ id: t.id }}
+                  className="font-semibold text-foreground hover:underline"
+                >
                   {t.title}
                 </Link>
                 {t.description && (
@@ -171,8 +220,13 @@ function TasksPage() {
                   )}
                 </div>
               </div>
-              <Select value={t.status} onValueChange={(v) => updateStatus(t.id, v as Task["status"])}>
-                <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+              <Select
+                value={t.status}
+                onValueChange={(v) => updateStatus(t.id, v as Task["status"])}
+              >
+                <SelectTrigger className="w-36">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="open">Offen</SelectItem>
                   <SelectItem value="in_progress">In Arbeit</SelectItem>

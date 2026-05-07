@@ -24,7 +24,9 @@ export async function getGoogleAccessToken(clientId: string): Promise<{
   if (!conn.refresh_token) throw new Error("No refresh token stored — please reconnect Google");
 
   const stillValid =
-    conn.access_token && conn.expires_at && new Date(conn.expires_at).getTime() - 60_000 > Date.now();
+    conn.access_token &&
+    conn.expires_at &&
+    new Date(conn.expires_at).getTime() - 60_000 > Date.now();
 
   if (stillValid) {
     return { accessToken: conn.access_token!, connectionId: conn.id, email: conn.account_email };
@@ -37,7 +39,11 @@ export async function getGoogleAccessToken(clientId: string): Promise<{
       .from("oauth_connections")
       .update({ access_token: refreshed.access_token, expires_at: expiresAt })
       .eq("id", conn.id);
-    return { accessToken: refreshed.access_token, connectionId: conn.id, email: conn.account_email };
+    return {
+      accessToken: refreshed.access_token,
+      connectionId: conn.id,
+      email: conn.account_email,
+    };
   } catch (e) {
     throw new Error(redactSecrets(e));
   }

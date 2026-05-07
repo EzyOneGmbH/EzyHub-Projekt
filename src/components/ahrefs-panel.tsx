@@ -54,9 +54,7 @@ export function AhrefsPanel({ clientId, domain }: Props) {
       </div>
 
       {!domain && (
-        <p className="text-sm text-muted-foreground">
-          Diesem Kunden ist keine Domain zugeordnet.
-        </p>
+        <p className="text-sm text-muted-foreground">Diesem Kunden ist keine Domain zugeordnet.</p>
       )}
 
       {error && (
@@ -74,13 +72,26 @@ export function AhrefsPanel({ clientId, domain }: Props) {
             </div>
           )}
           <div className="grid gap-3 sm:grid-cols-2">
-            <Section title="Domain Rating" payload={data.domain_rating} error={data.errors?.domain_rating} />
-            <Section title="Backlinks Stats" payload={data.backlinks_stats} error={data.errors?.backlinks_stats} />
-            <Section title="Refdomains (90d)" payload={data.refdomains_history} error={data.errors?.refdomains_history} />
+            <Section
+              title="Domain Rating"
+              payload={data.domain_rating}
+              error={data.errors?.domain_rating}
+            />
+            <Section
+              title="Backlinks Stats"
+              payload={data.backlinks_stats}
+              error={data.errors?.backlinks_stats}
+            />
+            <Section
+              title="Refdomains (90d)"
+              payload={data.refdomains_history}
+              error={data.errors?.refdomains_history}
+            />
             <Section title="Metrics" payload={data.metrics} error={data.errors?.metrics} />
           </div>
           <p className="text-xs text-muted-foreground">
-            Geprüft: {new Date(data.generated_at).toLocaleString("de-DE")} — Ergebnis in audit_runs gespeichert.
+            Geprüft: {new Date(data.generated_at).toLocaleString("de-DE")} — Ergebnis in audit_runs
+            gespeichert.
           </p>
         </div>
       )}
@@ -88,7 +99,15 @@ export function AhrefsPanel({ clientId, domain }: Props) {
   );
 }
 
-function Section({ title, payload, error }: { title: string; payload: unknown; error?: string | null }) {
+function Section({
+  title,
+  payload,
+  error,
+}: {
+  title: string;
+  payload: unknown;
+  error?: string | null;
+}) {
   return (
     <div className="rounded-md border border-border p-3">
       <div className="mb-2 flex items-center justify-between">

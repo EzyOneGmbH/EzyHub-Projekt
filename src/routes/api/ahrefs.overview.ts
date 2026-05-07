@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
+import { isProviderEnabled } from "@/server/integrations.server";
 
 const QuerySchema = z
   .object({
@@ -13,11 +14,7 @@ const QuerySchema = z
 
 function redact(input: unknown, secrets: Array<string | undefined>): string {
   let s =
-    typeof input === "string"
-      ? input
-      : input instanceof Error
-        ? input.message
-        : String(input);
+    typeof input === "string" ? input : input instanceof Error ? input.message : String(input);
   for (const v of secrets) {
     if (!v || v.length < 4) continue;
     s = s.split(v).join("***REDACTED***");
@@ -57,9 +54,7 @@ async function ahrefsFetch<T>(
         status: res.status,
         rate_limited,
         error: redact(
-          rate_limited
-            ? `Ahrefs rate limit reached (HTTP 429)`
-            : `HTTP ${res.status}: ${text}`,
+          rate_limited ? `Ahrefs rate limit reached (HTTP 429)` : `HTTP ${res.status}: ${text}`,
           secrets,
         ),
       };
@@ -80,20 +75,14 @@ export const Route = createFileRoute("/api/ahrefs/overview")({
         const apiKey = process.env.AHREFS_API_KEY;
         const secrets = [apiKey];
         if (!apiKey) {
-          return Response.json(
-            { error: "AHREFS_API_KEY not configured" },
-            { status: 503 },
-          );
+          return Response.json({ error: "AHREFS_API_KEY not configured" }, { status: 503 });
         }
 
         const supabaseUrl = process.env.SUPABASE_URL;
         const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
         const anonKey = process.env.SUPABASE_ANON_KEY;
         if (!supabaseUrl || !serviceKey || !anonKey) {
-          return Response.json(
-            { error: "Server not configured" },
-            { status: 503 },
-          );
+          return Response.json({ error: "Server not configured" }, { status: 503 });
         }
 
         const authHeader = request.headers.get("authorization") ?? "";
@@ -124,7 +113,7 @@ export const Route = createFileRoute("/api/ahrefs/overview")({
         const admin = createClient(supabaseUrl, serviceKey);
 
         // Resolve client + org + domain
-        let clientId = parsed.data.clientId ?? null;
+        const clientId = parsed.data.clientId ?? null;
         let domain = parsed.data.domain ?? null;
         let organizationId: string | null = null;
 
@@ -135,66 +124,60 @@ export const Route = createFileRoute("/api/ahrefs/overview")({
             .eq("id", clientId)
             .maybeSingle();
           if (error || !client) {
-            return Response.json(
-              { error: "Client not found or access denied" },
-              { status: 404 },
-            );
+            return Response.json({ error: "Client not found or access denied" }, { status: 404 });
           }
           domain = domain ?? client.domain;
           organizationId = client.organization_id;
+          if (!(await isProviderEnabled(client.id, "ahrefs"))) {
+            return Response.json(
+              { error: "Ahrefs für diesen Kunden deaktiviert." },
+              { status: 403 },
+            );
+          }
         }
 
         if (!domain) {
-          return Response.json(
-            { error: "No domain available for this client" },
-            { status: 400 },
-          );
+          return Response.json({ error: "No domain available for this client" }, { status: 400 });
         }
 
         const today = new Date().toISOString().slice(0, 10);
 
         // Parallel fetch core metrics. Each handles its own errors.
-        const [domainRating, backlinksStats, refdomains, metrics] =
-          await Promise.all([
-            ahrefsFetch<unknown>(
-              "site-explorer/domain-rating",
-              { target: domain, date: today },
-              apiKey,
-              secrets,
-            ),
-            ahrefsFetch<unknown>(
-              "site-explorer/backlinks-stats",
-              { target: domain, date: today, mode: "domain" },
-              apiKey,
-              secrets,
-            ),
-            ahrefsFetch<unknown>(
-              "site-explorer/refdomains-history",
-              {
-                target: domain,
-                date_from: new Date(Date.now() - 90 * 86400000)
-                  .toISOString()
-                  .slice(0, 10),
-                history_grouping: "weekly",
-                mode: "domain",
-              },
-              apiKey,
-              secrets,
-            ),
-            ahrefsFetch<unknown>(
-              "site-explorer/metrics",
-              { target: domain, date: today, mode: "domain" },
-              apiKey,
-              secrets,
-            ),
-          ]);
+        const [domainRating, backlinksStats, refdomains, metrics] = await Promise.all([
+          ahrefsFetch<unknown>(
+            "site-explorer/domain-rating",
+            { target: domain, date: today },
+            apiKey,
+            secrets,
+          ),
+          ahrefsFetch<unknown>(
+            "site-explorer/backlinks-stats",
+            { target: domain, date: today, mode: "domain" },
+            apiKey,
+            secrets,
+          ),
+          ahrefsFetch<unknown>(
+            "site-explorer/refdomains-history",
+            {
+              target: domain,
+              date_from: new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10),
+              history_grouping: "weekly",
+              mode: "domain",
+            },
+            apiKey,
+            secrets,
+          ),
+          ahrefsFetch<unknown>(
+            "site-explorer/metrics",
+            { target: domain, date: today, mode: "domain" },
+            apiKey,
+            secrets,
+          ),
+        ]);
 
-        const rate_limited = [
-          domainRating,
-          backlinksStats,
-          refdomains,
-          metrics,
-        ].some((r) => !r.ok && r.rate_limited);
+        const rate_limited = [domainRating, backlinksStats, refdomains, metrics].some(
+          (r) => !r.ok && r.rate_limited,
+        );
 
         const result = {
           generated_at: new Date().toISOString(),
@@ -214,11 +197,7 @@ export const Route = createFileRoute("/api/ahrefs/overview")({
 
         // Persist into audit_runs when we have a client + org context.
         if (clientId && organizationId) {
-          const allFailed =
-            !domainRating.ok &&
-            !backlinksStats.ok &&
-            !refdomains.ok &&
-            !metrics.ok;
+          const allFailed = !domainRating.ok && !backlinksStats.ok && !refdomains.ok && !metrics.ok;
           await admin.from("audit_runs").insert({
             client_id: clientId,
             organization_id: organizationId,

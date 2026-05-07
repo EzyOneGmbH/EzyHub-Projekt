@@ -41,9 +41,21 @@ function AssistantPage() {
         body: JSON.stringify({ messages: [...messages, userMsg] }),
       });
 
-      if (resp.status === 429) { toast.error("Rate Limit erreicht, bitte später erneut."); setLoading(false); return; }
-      if (resp.status === 402) { toast.error("KI-Guthaben aufgebraucht."); setLoading(false); return; }
-      if (!resp.ok || !resp.body) { toast.error("Fehler beim Stream"); setLoading(false); return; }
+      if (resp.status === 429) {
+        toast.error("Rate Limit erreicht, bitte später erneut.");
+        setLoading(false);
+        return;
+      }
+      if (resp.status === 402) {
+        toast.error("KI-Guthaben aufgebraucht.");
+        setLoading(false);
+        return;
+      }
+      if (!resp.ok || !resp.body) {
+        toast.error("Fehler beim Stream");
+        setLoading(false);
+        return;
+      }
 
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
@@ -62,13 +74,18 @@ function AssistantPage() {
           if (line.endsWith("\r")) line = line.slice(0, -1);
           if (!line.startsWith("data: ")) continue;
           const json = line.slice(6).trim();
-          if (json === "[DONE]") { buffer = ""; break; }
+          if (json === "[DONE]") {
+            buffer = "";
+            break;
+          }
           try {
             const parsed = JSON.parse(json);
             const delta = parsed.choices?.[0]?.delta?.content;
             if (delta) {
               assistant += delta;
-              setMessages((m) => m.map((msg, i) => (i === m.length - 1 ? { ...msg, content: assistant } : msg)));
+              setMessages((m) =>
+                m.map((msg, i) => (i === m.length - 1 ? { ...msg, content: assistant } : msg)),
+              );
             }
           } catch {
             buffer = line + "\n" + buffer;
@@ -101,13 +118,18 @@ function AssistantPage() {
             </div>
           )}
           {messages.map((m, i) => (
-            <div key={i} className={`flex gap-3 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+            <div
+              key={i}
+              className={`flex gap-3 ${m.role === "user" ? "justify-end" : "justify-start"}`}
+            >
               {m.role === "assistant" && (
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
                   <Bot className="h-4 w-4 text-primary" />
                 </div>
               )}
-              <div className={`max-w-[75%] rounded-lg px-4 py-2 text-sm ${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}>
+              <div
+                className={`max-w-[75%] rounded-lg px-4 py-2 text-sm ${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}
+              >
                 <div className="whitespace-pre-wrap">{m.content || "..."}</div>
               </div>
               {m.role === "user" && (

@@ -2,7 +2,12 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { createClient } from "@supabase/supabase-js";
-import { buildAuthUrl, getGoogleConfig, signState, redactSecrets } from "@/server/google-oauth.server";
+import {
+  buildAuthUrl,
+  getGoogleConfig,
+  signState,
+  redactSecrets,
+} from "@/server/google-oauth.server";
 import { randomBytes } from "node:crypto";
 
 const QuerySchema = z.object({
@@ -29,7 +34,9 @@ export const Route = createFileRoute("/api/google/oauth/start")({
         try {
           const { sessionSecret } = getGoogleConfig();
           const url = new URL(request.url);
-          const parsed = QuerySchema.safeParse({ client_id: url.searchParams.get("client_id") ?? "" });
+          const parsed = QuerySchema.safeParse({
+            client_id: url.searchParams.get("client_id") ?? "",
+          });
           if (!parsed.success) {
             return new Response(JSON.stringify({ error: "Invalid client_id" }), { status: 400 });
           }
@@ -66,7 +73,7 @@ export const Route = createFileRoute("/api/google/oauth/start")({
               nonce: randomBytes(16).toString("hex"),
               ts: Date.now(),
             },
-            sessionSecret
+            sessionSecret,
           );
 
           return new Response(JSON.stringify({ url: buildAuthUrl(state) }), {

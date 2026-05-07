@@ -47,6 +47,7 @@ function ClientDetail() {
   const { isOrgAdmin } = useAuth();
   const [c, setC] = useState<Client | null>(null);
   const [runs, setRuns] = useState<AuditRun[]>([]);
+  const [enabled, setEnabled] = useState<Record<string, boolean>>({});
   const [canonryData, setCanonryData] = useState<any>(null);
   const [canonryLoading, setCanonryLoading] = useState(false);
 
@@ -54,13 +55,19 @@ function ClientDetail() {
     (async () => {
       const { data } = await supabase.from("clients").select("*").eq("id", id).maybeSingle();
       setC(data as Client | null);
-      const { data: r } = await supabase
-        .from("audit_runs")
-        .select("id,audit_type,status,created_at,finished_at,error")
-        .eq("client_id", id)
-        .order("created_at", { ascending: false })
-        .limit(20);
+      const [{ data: r }, { data: ints }] = await Promise.all([
+        supabase
+          .from("audit_runs")
+          .select("id,audit_type,status,created_at,finished_at,error")
+          .eq("client_id", id)
+          .order("created_at", { ascending: false })
+          .limit(20),
+        supabase.from("client_integrations").select("provider,enabled").eq("client_id", id),
+      ]);
       setRuns((r ?? []) as AuditRun[]);
+      const map: Record<string, boolean> = {};
+      (ints ?? []).forEach((row: any) => (map[row.provider] = row.enabled));
+      setEnabled(map);
     })();
   }, [id]);
 
@@ -68,7 +75,7 @@ function ClientDetail() {
     if (!c?.canonry_project) return;
     setCanonryLoading(true);
     try {
-      const qs = new URLSearchParams({ project: c.canonry_project });
+      const qs = new URLSearchParams({ project: c.canonry_project, clientId: id });
       if (c.domain) qs.set("domain", c.domain);
       const res = await fetch(`/api/live/canonry/overview?${qs.toString()}`);
       setCanonryData(await res.json());
@@ -112,56 +119,126 @@ function ClientDetail() {
 
   return (
     <AppShell>
-      <Button variant="ghost" size="sm" onClick={() => navigate({ to: "/customers" })} className="mb-4">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => navigate({ to: "/customers" })}
+        className="mb-4"
+      >
         <ArrowLeft className="mr-2 h-4 w-4" /> Zurück
       </Button>
 
       <Card className="p-6">
         <h1 className="mb-4 text-2xl font-bold text-foreground">{c.name}</h1>
         <div className="grid gap-3 md:grid-cols-2">
-          <Field label="Name" value={c.name} onChange={(v) => setC({ ...c, name: v })} disabled={!isOrgAdmin} />
-          <Field label="Domain" value={c.domain ?? ""} onChange={(v) => setC({ ...c, domain: v || null })} disabled={!isOrgAdmin} />
-          <Field label="Branche" value={c.industry ?? ""} onChange={(v) => setC({ ...c, industry: v || null })} disabled={!isOrgAdmin} />
-          <Field label="Land" value={c.country ?? ""} onChange={(v) => setC({ ...c, country: v || null })} disabled={!isOrgAdmin} />
-          <Field label="Canonry Projekt-Slug" value={c.canonry_project ?? ""} onChange={(v) => setC({ ...c, canonry_project: v || null })} disabled={!isOrgAdmin} />
-          <Field label="GSC Property" value={c.gsc_property ?? ""} onChange={(v) => setC({ ...c, gsc_property: v || null })} disabled={!isOrgAdmin} />
-          <Field label="GA4 Property" value={c.ga4_property ?? ""} onChange={(v) => setC({ ...c, ga4_property: v || null })} disabled={!isOrgAdmin} />
+          <Field
+            label="Name"
+            value={c.name}
+            onChange={(v) => setC({ ...c, name: v })}
+            disabled={!isOrgAdmin}
+          />
+          <Field
+            label="Domain"
+            value={c.domain ?? ""}
+            onChange={(v) => setC({ ...c, domain: v || null })}
+            disabled={!isOrgAdmin}
+          />
+          <Field
+            label="Branche"
+            value={c.industry ?? ""}
+            onChange={(v) => setC({ ...c, industry: v || null })}
+            disabled={!isOrgAdmin}
+          />
+          <Field
+            label="Land"
+            value={c.country ?? ""}
+            onChange={(v) => setC({ ...c, country: v || null })}
+            disabled={!isOrgAdmin}
+          />
+          <Field
+            label="Canonry Projekt-Slug"
+            value={c.canonry_project ?? ""}
+            onChange={(v) => setC({ ...c, canonry_project: v || null })}
+            disabled={!isOrgAdmin}
+          />
+          <Field
+            label="GSC Property"
+            value={c.gsc_property ?? ""}
+            onChange={(v) => setC({ ...c, gsc_property: v || null })}
+            disabled={!isOrgAdmin}
+          />
+          <Field
+            label="GA4 Property"
+            value={c.ga4_property ?? ""}
+            onChange={(v) => setC({ ...c, ga4_property: v || null })}
+            disabled={!isOrgAdmin}
+          />
         </div>
         <div className="mt-3 space-y-1">
           <Label>Notizen</Label>
-          <Textarea rows={5} value={c.notes ?? ""} disabled={!isOrgAdmin} onChange={(e) => setC({ ...c, notes: e.target.value })} />
+          <Textarea
+            rows={5}
+            value={c.notes ?? ""}
+            disabled={!isOrgAdmin}
+            onChange={(e) => setC({ ...c, notes: e.target.value })}
+          />
         </div>
         {isOrgAdmin && (
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button onClick={save}><Save className="mr-2 h-4 w-4" /> Speichern</Button>
-            <Button variant="destructive" onClick={del} className="ml-auto"><Trash2 className="mr-2 h-4 w-4" /> Löschen</Button>
+            <Button onClick={save}>
+              <Save className="mr-2 h-4 w-4" /> Speichern
+            </Button>
+            <Button variant="destructive" onClick={del} className="ml-auto">
+              <Trash2 className="mr-2 h-4 w-4" /> Löschen
+            </Button>
           </div>
         )}
       </Card>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <GoogleConnectPanel
-          clientId={id}
-          gscProperty={c.gsc_property}
-          ga4Property={c.ga4_property}
-          onPropertiesChange={(p) => setC({ ...c, ...p })}
-        />
-        <AhrefsPanel clientId={id} domain={c.domain} />
+        {enabled.google ? (
+          <GoogleConnectPanel
+            clientId={id}
+            gscProperty={c.gsc_property}
+            ga4Property={c.ga4_property}
+            onPropertiesChange={(p) => setC({ ...c, ...p })}
+          />
+        ) : (
+          <DisabledTool name="Google (Search Console & GA4)" />
+        )}
+        {enabled.ahrefs ? (
+          <AhrefsPanel clientId={id} domain={c.domain} />
+        ) : (
+          <DisabledTool name="Ahrefs" />
+        )}
       </div>
 
       <Card className="mt-6 p-6">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="font-semibold">Canonry / GEO Health</h2>
-          <Button size="sm" variant="outline" onClick={loadCanonry} disabled={!c.canonry_project || canonryLoading}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={loadCanonry}
+            disabled={!c.canonry_project || canonryLoading || !enabled.canonry}
+          >
             {canonryLoading ? "Lädt..." : "Laden"}
           </Button>
         </div>
-        {!c.canonry_project ? (
+        {!enabled.canonry ? (
+          <p className="text-sm text-muted-foreground">
+            Canonry für diesen Kunden in den Einstellungen deaktiviert.
+          </p>
+        ) : !c.canonry_project ? (
           <p className="text-sm text-muted-foreground">Kein Canonry-Projekt-Slug konfiguriert.</p>
         ) : canonryData ? (
-          <pre className="max-h-80 overflow-auto rounded bg-muted/30 p-3 text-xs">{JSON.stringify(canonryData, null, 2)}</pre>
+          <pre className="max-h-80 overflow-auto rounded bg-muted/30 p-3 text-xs">
+            {JSON.stringify(canonryData, null, 2)}
+          </pre>
         ) : (
-          <p className="text-sm text-muted-foreground">Auf „Laden" klicken, um Health/Runs/Keywords zu holen.</p>
+          <p className="text-sm text-muted-foreground">
+            Auf „Laden" klicken, um Health/Runs/Keywords zu holen.
+          </p>
         )}
       </Card>
 
@@ -174,7 +251,17 @@ function ClientDetail() {
             {runs.map((r) => (
               <li key={r.id} className="flex items-center justify-between py-2 text-sm">
                 <div className="flex items-center gap-2">
-                  <Badge variant={r.status === "succeeded" ? "default" : r.status === "failed" ? "destructive" : "outline"}>{r.status}</Badge>
+                  <Badge
+                    variant={
+                      r.status === "succeeded"
+                        ? "default"
+                        : r.status === "failed"
+                          ? "destructive"
+                          : "outline"
+                    }
+                  >
+                    {r.status}
+                  </Badge>
                   <span className="font-mono text-xs">{r.audit_type}</span>
                 </div>
                 <div className="text-xs text-muted-foreground">
@@ -190,11 +277,35 @@ function ClientDetail() {
   );
 }
 
-function Field({ label, value, onChange, disabled }: { label: string; value: string; onChange: (v: string) => void; disabled?: boolean }) {
+function Field({
+  label,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
   return (
     <div className="space-y-1">
       <Label>{label}</Label>
       <Input value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
     </div>
+  );
+}
+
+function DisabledTool({ name }: { name: string }) {
+  return (
+    <Card className="p-6 opacity-60">
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="font-semibold">{name}</h2>
+        <Badge variant="outline">Deaktiviert</Badge>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        In den Einstellungen für diesen Kunden aktivieren.
+      </p>
+    </Card>
   );
 }

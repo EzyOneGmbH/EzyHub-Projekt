@@ -23,7 +23,12 @@ export function RequireRole({ roles, children, adminOnly }: Props) {
   if (loading) return null;
 
   if (!role) {
-    return <NoAccess title="Kein Organisations-Zugang" message="Dein Konto gehört noch zu keiner Organisation. Bitte wende dich an einen Administrator." />;
+    return (
+      <NoAccess
+        title="Kein Organisations-Zugang"
+        message="Dein Konto gehört noch zu keiner Organisation. Bitte wende dich an einen Administrator."
+      />
+    );
   }
 
   if (!allowed.includes(role)) {

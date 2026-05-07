@@ -46,7 +46,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .maybeSingle(),
       supabase.from("user_roles").select("role").eq("user_id", userId),
     ]);
-    setMembership(m.data ? { organization_id: m.data.organization_id, role: m.data.role as OrgRole } : null);
+    setMembership(
+      m.data ? { organization_id: m.data.organization_id, role: m.data.role as OrgRole } : null,
+    );
     setLegacyAdmin((r.data ?? []).some((x: { role: string }) => x.role === "admin"));
   };
 

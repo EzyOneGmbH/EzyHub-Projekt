@@ -29,7 +29,10 @@ function DashboardPage() {
       const [c, a, f, rec] = await Promise.all([
         supabase.from("clients").select("id", { count: "exact", head: true }),
         supabase.from("audit_runs").select("id", { count: "exact", head: true }),
-        supabase.from("audit_runs").select("id", { count: "exact", head: true }).eq("status", "failed"),
+        supabase
+          .from("audit_runs")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "failed"),
         supabase
           .from("audit_runs")
           .select("id,client_id,audit_type,status,created_at,error")
@@ -67,7 +70,9 @@ function DashboardPage() {
           <Link key={c.label} to={c.link}>
             <Card className="transition-colors hover:border-primary/60">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{c.label}</CardTitle>
+                <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  {c.label}
+                </CardTitle>
                 <c.icon className="h-4 w-4 text-primary" />
               </CardHeader>
               <CardContent>
@@ -82,16 +87,23 @@ function DashboardPage() {
         <Card className="mb-6 p-4">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold">Live-Status</h2>
-            <Badge variant="outline">{new Date(live.generated_at ?? Date.now()).toLocaleTimeString("de-DE")}</Badge>
+            <Badge variant="outline">
+              {new Date(live.generated_at ?? Date.now()).toLocaleTimeString("de-DE")}
+            </Badge>
           </div>
-          <pre className="mt-3 max-h-48 overflow-auto rounded bg-muted/30 p-3 text-xs">{JSON.stringify(live, null, 2)}</pre>
+          <pre className="mt-3 max-h-48 overflow-auto rounded bg-muted/30 p-3 text-xs">
+            {JSON.stringify(live, null, 2)}
+          </pre>
         </Card>
       )}
 
       <Card className="p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-semibold">Letzte Audit-Runs</h2>
-          <Link to="/customers" className="flex items-center gap-1 text-sm text-primary hover:underline">
+          <Link
+            to="/customers"
+            className="flex items-center gap-1 text-sm text-primary hover:underline"
+          >
             Clients <ArrowRight className="h-3 w-3" />
           </Link>
         </div>
@@ -102,12 +114,28 @@ function DashboardPage() {
             {recent.map((r) => (
               <li key={r.id} className="flex items-center justify-between py-2 text-sm">
                 <div className="flex items-center gap-2">
-                  <Badge variant={r.status === "succeeded" ? "default" : r.status === "failed" ? "destructive" : "outline"}>{r.status}</Badge>
-                  <Link to="/customers/$id" params={{ id: r.client_id }} className="font-mono text-xs hover:text-primary">
+                  <Badge
+                    variant={
+                      r.status === "succeeded"
+                        ? "default"
+                        : r.status === "failed"
+                          ? "destructive"
+                          : "outline"
+                    }
+                  >
+                    {r.status}
+                  </Badge>
+                  <Link
+                    to="/customers/$id"
+                    params={{ id: r.client_id }}
+                    className="font-mono text-xs hover:text-primary"
+                  >
                     {r.audit_type}
                   </Link>
                 </div>
-                <span className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString("de-DE")}</span>
+                <span className="text-xs text-muted-foreground">
+                  {new Date(r.created_at).toLocaleString("de-DE")}
+                </span>
               </li>
             ))}
           </ul>

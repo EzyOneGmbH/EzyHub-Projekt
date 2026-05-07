@@ -24,12 +24,18 @@ function Landing() {
             <span className="grid h-8 w-8 place-items-center rounded-lg bg-[image:var(--gradient-primary)] shadow-[var(--shadow-elegant)]">
               <Sparkles className="h-4 w-4 text-primary-foreground" />
             </span>
-            <span className="bg-clip-text text-transparent bg-[image:var(--gradient-primary)]">EZY ONE</span>
+            <span className="bg-clip-text text-transparent bg-[image:var(--gradient-primary)]">
+              EZY ONE
+            </span>
             <span className="text-xs font-medium text-muted-foreground">SEO &amp; GEO</span>
           </div>
           <div className="flex gap-2">
-            <Button asChild variant="ghost"><Link to="/login">Anmelden</Link></Button>
-            <Button asChild><Link to="/signup">Registrieren</Link></Button>
+            <Button asChild variant="ghost">
+              <Link to="/login">Anmelden</Link>
+            </Button>
+            <Button asChild>
+              <Link to="/signup">Registrieren</Link>
+            </Button>
           </div>
         </div>
       </header>
@@ -47,7 +53,8 @@ function Landing() {
           Alle SEO &amp; GEO Tools.
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-          Verwalte Kunden, recherchiere live, generiere Content mit KI und behalte SEO-Daten im Blick — alles in einem Premium-Dashboard.
+          Verwalte Kunden, recherchiere live, generiere Content mit KI und behalte SEO-Daten im
+          Blick — alles in einem Premium-Dashboard.
         </p>
         <div className="mt-10 flex justify-center gap-3">
           <Button asChild size="lg" className="shadow-[var(--shadow-elegant)]">
@@ -62,14 +69,41 @@ function Landing() {
       <section className="mx-auto max-w-6xl px-6 pb-24">
         <div className="grid gap-4 md:grid-cols-3">
           {[
-            { icon: Users, title: "Multi-Kunden CRM", text: "Kontakte, Notizen und Aufgaben zentral verwalten." },
-            { icon: FileText, title: "Content-Editor", text: "Blog, Landing & GEO-Inhalte mit Status-Workflow." },
-            { icon: Search, title: "Live-Recherche", text: "Perplexity-Suche mit Quellenangabe direkt im Editor." },
-            { icon: BarChart3, title: "SEO-Daten", text: "Ahrefs Domain-Rating und Backlink-Insights." },
-            { icon: Bot, title: "KI-Generierung", text: "Outlines & Texte über das Lovable AI Gateway." },
-            { icon: Sparkles, title: "Tool-Toggles", text: "Aktiviere Tools individuell pro Kunde." },
+            {
+              icon: Users,
+              title: "Multi-Kunden CRM",
+              text: "Kontakte, Notizen und Aufgaben zentral verwalten.",
+            },
+            {
+              icon: FileText,
+              title: "Content-Editor",
+              text: "Blog, Landing & GEO-Inhalte mit Status-Workflow.",
+            },
+            {
+              icon: Search,
+              title: "Live-Recherche",
+              text: "Perplexity-Suche mit Quellenangabe direkt im Editor.",
+            },
+            {
+              icon: BarChart3,
+              title: "SEO-Daten",
+              text: "Ahrefs Domain-Rating und Backlink-Insights.",
+            },
+            {
+              icon: Bot,
+              title: "KI-Generierung",
+              text: "Outlines & Texte über das Lovable AI Gateway.",
+            },
+            {
+              icon: Sparkles,
+              title: "Tool-Toggles",
+              text: "Aktiviere Tools individuell pro Kunde.",
+            },
           ].map((f) => (
-            <div key={f.title} className="rounded-xl border border-border bg-card p-6 shadow-[var(--shadow-card)] transition-all hover:border-primary/50">
+            <div
+              key={f.title}
+              className="rounded-xl border border-border bg-card p-6 shadow-[var(--shadow-card)] transition-all hover:border-primary/50"
+            >
               <span className="grid h-10 w-10 place-items-center rounded-lg bg-primary/10 text-primary">
                 <f.icon className="h-5 w-5" />
               </span>

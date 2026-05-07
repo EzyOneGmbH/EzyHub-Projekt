@@ -13,10 +13,18 @@ type Props = {
   clientId: string;
   gscProperty: string | null;
   ga4Property: string | null;
-  onPropertiesChange: (props: { gsc_property?: string | null; ga4_property?: string | null }) => void;
+  onPropertiesChange: (props: {
+    gsc_property?: string | null;
+    ga4_property?: string | null;
+  }) => void;
 };
 
-type Status = { connected: boolean; email: string | null; scopes: string[]; updatedAt: string | null };
+type Status = {
+  connected: boolean;
+  email: string | null;
+  scopes: string[];
+  updatedAt: string | null;
+};
 
 async function authedFetch(url: string, init: RequestInit = {}) {
   const session = (await supabase.auth.getSession()).data.session;
@@ -26,7 +34,12 @@ async function authedFetch(url: string, init: RequestInit = {}) {
   return fetch(url, { ...init, headers });
 }
 
-export function GoogleConnectPanel({ clientId, gscProperty, ga4Property, onPropertiesChange }: Props) {
+export function GoogleConnectPanel({
+  clientId,
+  gscProperty,
+  ga4Property,
+  onPropertiesChange,
+}: Props) {
   const { isOrgAdmin } = useAuth();
   const [status, setStatus] = useState<Status | null>(null);
   const [loading, setLoading] = useState(false);
@@ -39,14 +52,19 @@ export function GoogleConnectPanel({ clientId, gscProperty, ga4Property, onPrope
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await authedFetch("/api/google/connection", { method: "POST", body: JSON.stringify({ clientId }) });
+      const r = await authedFetch("/api/google/connection", {
+        method: "POST",
+        body: JSON.stringify({ clientId }),
+      });
       setStatus(await r.json());
     } finally {
       setLoading(false);
     }
   }, [clientId]);
 
-  useEffect(() => { reload(); }, [reload]);
+  useEffect(() => {
+    reload();
+  }, [reload]);
 
   const saveProps = async () => {
     const update = { gsc_property: gsc || null, ga4_property: ga4P || null };
@@ -67,43 +85,67 @@ export function GoogleConnectPanel({ clientId, gscProperty, ga4Property, onPrope
       if (!res.ok || !json.url) throw new Error(json.error || `HTTP ${res.status}`);
       const popup = window.open(json.url, "google-oauth", "width=520,height=640");
       const interval = setInterval(async () => {
-        if (popup?.closed) { clearInterval(interval); await reload(); }
+        if (popup?.closed) {
+          clearInterval(interval);
+          await reload();
+        }
       }, 1000);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
-    } finally { setBusy(null); }
+    } finally {
+      setBusy(null);
+    }
   };
 
   const runImport = async () => {
-    setBusy("import"); setImportResult(null);
+    setBusy("import");
+    setImportResult(null);
     try {
-      const r = await authedFetch("/api/google/gsc-import", { method: "POST", body: JSON.stringify({ clientId, days: 28, rowLimit: 50 }) });
+      const r = await authedFetch("/api/google/gsc-import", {
+        method: "POST",
+        body: JSON.stringify({ clientId, days: 28, rowLimit: 50 }),
+      });
       const json = await r.json();
       setImportResult(json);
       if (json.ok) toast.success(`${json.imported} Keywords importiert`);
       else toast.error(json.error || "Fehler");
-    } finally { setBusy(null); }
+    } finally {
+      setBusy(null);
+    }
   };
 
   const runGa4 = async () => {
-    setBusy("ga4"); setGa4Result(null);
+    setBusy("ga4");
+    setGa4Result(null);
     try {
-      const r = await authedFetch("/api/google/ga4-summary", { method: "POST", body: JSON.stringify({ clientId, days: 28 }) });
+      const r = await authedFetch("/api/google/ga4-summary", {
+        method: "POST",
+        body: JSON.stringify({ clientId, days: 28 }),
+      });
       const json = await r.json();
       setGa4Result(json);
       if (!json.ok) toast.error(json.error || "Fehler");
-    } finally { setBusy(null); }
+    } finally {
+      setBusy(null);
+    }
   };
 
   const runDisconnect = async () => {
     if (!confirm("Google-Verbindung wirklich entfernen?")) return;
     setBusy("disconnect");
     try {
-      const r = await authedFetch("/api/google/connection", { method: "DELETE", body: JSON.stringify({ clientId }) });
+      const r = await authedFetch("/api/google/connection", {
+        method: "DELETE",
+        body: JSON.stringify({ clientId }),
+      });
       const json = await r.json();
-      if (json.ok) { toast.success("Getrennt"); await reload(); }
-      else toast.error(json.error || "Fehler");
-    } finally { setBusy(null); }
+      if (json.ok) {
+        toast.success("Getrennt");
+        await reload();
+      } else toast.error(json.error || "Fehler");
+    } finally {
+      setBusy(null);
+    }
   };
 
   return (
@@ -122,34 +164,63 @@ export function GoogleConnectPanel({ clientId, gscProperty, ga4Property, onPrope
       <div className="grid gap-3 md:grid-cols-2">
         <div className="space-y-1">
           <Label>GSC Property</Label>
-          <Input placeholder="sc-domain:example.com oder https://example.com/" value={gsc} disabled={!isOrgAdmin} onChange={(e) => setGsc(e.target.value)} />
+          <Input
+            placeholder="sc-domain:example.com oder https://example.com/"
+            value={gsc}
+            disabled={!isOrgAdmin}
+            onChange={(e) => setGsc(e.target.value)}
+          />
         </div>
         <div className="space-y-1">
           <Label>GA4 Property ID</Label>
-          <Input placeholder="properties/123456789" value={ga4P} disabled={!isOrgAdmin} onChange={(e) => setGa4P(e.target.value)} />
+          <Input
+            placeholder="properties/123456789"
+            value={ga4P}
+            disabled={!isOrgAdmin}
+            onChange={(e) => setGa4P(e.target.value)}
+          />
         </div>
       </div>
 
       {isOrgAdmin && (
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button variant="outline" onClick={saveProps}>Properties speichern</Button>
+          <Button variant="outline" onClick={saveProps}>
+            Properties speichern
+          </Button>
           {status?.connected ? (
             <>
               <Button onClick={runImport} disabled={busy !== null}>
-                {busy === "import" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                {busy === "import" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
                 GSC-Keywords importieren
               </Button>
               <Button variant="outline" onClick={runGa4} disabled={busy !== null}>
-                {busy === "ga4" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BarChart3 className="mr-2 h-4 w-4" />}
+                {busy === "ga4" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <BarChart3 className="mr-2 h-4 w-4" />
+                )}
                 GA4 Summary
               </Button>
-              <Button variant="ghost" onClick={runDisconnect} disabled={busy !== null} className="ml-auto">
+              <Button
+                variant="ghost"
+                onClick={runDisconnect}
+                disabled={busy !== null}
+                className="ml-auto"
+              >
                 <Unplug className="mr-2 h-4 w-4" /> Trennen
               </Button>
             </>
           ) : (
             <Button onClick={connect} disabled={busy !== null}>
-              {busy === "connect" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Link2 className="mr-2 h-4 w-4" />}
+              {busy === "connect" ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Link2 className="mr-2 h-4 w-4" />
+              )}
               Google verbinden
             </Button>
           )}
@@ -162,7 +233,12 @@ export function GoogleConnectPanel({ clientId, gscProperty, ga4Property, onPrope
           {importResult.ok ? (
             <div>
               <div>Importiert: {importResult.imported}</div>
-              <div>Canonry: {importResult.canonry?.ok ? `OK (${importResult.canonry.count})` : `Fehler — ${importResult.canonry?.error ?? "n/a"}`}</div>
+              <div>
+                Canonry:{" "}
+                {importResult.canonry?.ok
+                  ? `OK (${importResult.canonry.count})`
+                  : `Fehler — ${importResult.canonry?.error ?? "n/a"}`}
+              </div>
             </div>
           ) : (
             <div className="text-destructive">{importResult.error}</div>

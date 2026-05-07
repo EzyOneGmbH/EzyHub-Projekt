@@ -9,10 +9,19 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FileText, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export const Route = createFileRoute("/content")({
   component: ContentList,
 });
+
+type ClientOpt = { id: string; name: string };
 
 type Item = {
   id: string;
@@ -34,17 +43,25 @@ function ContentList() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [items, setItems] = useState<Item[]>([]);
+  const [clients, setClients] = useState<ClientOpt[]>([]);
+  const [newClient, setNewClient] = useState<string>("");
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("content_items")
-      .select("id,title,content_type,status,language,client_id,updated_at")
-      .order("updated_at", { ascending: false });
+    const [{ data, error }, { data: cs }] = await Promise.all([
+      supabase
+        .from("content_items")
+        .select("id,title,content_type,status,language,client_id,updated_at")
+        .order("updated_at", { ascending: false }),
+      supabase.from("clients").select("id,name").order("name"),
+    ]);
     if (error) toast.error(error.message);
     else setItems((data ?? []) as Item[]);
+    const cl = (cs ?? []) as ClientOpt[];
+    setClients(cl);
+    if (cl.length && !newClient) setNewClient(cl[0].id);
     setLoading(false);
   };
 
@@ -53,9 +70,10 @@ function ContentList() {
   }, []);
 
   const create = async () => {
+    if (!newClient) return toast.error("Bitte zuerst einen Kunden anlegen.");
     const { data, error } = await supabase
       .from("content_items")
-      .insert({ title: "Neuer Inhalt", created_by: user!.id })
+      .insert({ title: "Neuer Inhalt", created_by: user!.id, client_id: newClient })
       .select("id")
       .single();
     if (error) return toast.error(error.message);
@@ -69,16 +87,37 @@ function ContentList() {
       <div className="mb-6 flex items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold">Inhalte</h1>
-          <p className="text-sm text-muted-foreground">SEO &amp; GEO Beiträge, Landingpages und Snippets.</p>
+          <p className="text-sm text-muted-foreground">
+            SEO &amp; GEO Beiträge, Landingpages und Snippets.
+          </p>
         </div>
-        <Button onClick={create}>
-          <Plus className="mr-2 h-4 w-4" /> Neu
-        </Button>
+        <div className="flex items-end gap-2">
+          <Select value={newClient} onValueChange={setNewClient}>
+            <SelectTrigger className="w-56">
+              <SelectValue placeholder="Kunde wählen" />
+            </SelectTrigger>
+            <SelectContent>
+              {clients.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button onClick={create} disabled={!newClient}>
+            <Plus className="mr-2 h-4 w-4" /> Neu
+          </Button>
+        </div>
       </div>
 
       <div className="relative mb-4">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Suchen..." className="pl-9" />
+        <Input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Suchen..."
+          className="pl-9"
+        />
       </div>
 
       {loading ? (
@@ -86,7 +125,9 @@ function ContentList() {
       ) : filtered.length === 0 ? (
         <Card className="p-10 text-center">
           <FileText className="mx-auto h-10 w-10 text-muted-foreground" />
-          <p className="mt-3 text-sm text-muted-foreground">Noch keine Inhalte. Lege den ersten an.</p>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Noch keine Inhalte. Lege den ersten an.
+          </p>
         </Card>
       ) : (
         <div className="grid gap-3">

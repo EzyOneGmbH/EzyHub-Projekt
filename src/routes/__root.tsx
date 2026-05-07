@@ -10,7 +10,9 @@ function NotFoundComponent() {
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold text-foreground">404</h1>
         <h2 className="mt-4 text-xl font-semibold text-foreground">Seite nicht gefunden</h2>
-        <p className="mt-2 text-sm text-muted-foreground">Die Seite existiert nicht oder wurde verschoben.</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Die Seite existiert nicht oder wurde verschoben.
+        </p>
         <div className="mt-6">
           <Link
             to="/"
@@ -30,7 +32,11 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "EZY ONE — SEO & GEO Plattform" },
-      { name: "description", content: "EZY ONE: Multi-Kunden SEO & GEO Plattform mit Content-Editor, Live-Recherche und KI-Generierung." },
+      {
+        name: "description",
+        content:
+          "EZY ONE: Multi-Kunden SEO & GEO Plattform mit Content-Editor, Live-Recherche und KI-Generierung.",
+      },
       { property: "og:title", content: "EZY ONE — SEO & GEO Plattform" },
       { property: "og:description", content: "Multi-Kunden SEO & GEO Plattform mit KI." },
       { property: "og:type", content: "website" },
