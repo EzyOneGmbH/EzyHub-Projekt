@@ -6,7 +6,7 @@ import { isProviderEnabled } from "@/server/integrations.server";
 const Body = z.object({
   query: z.string().min(1).max(2000),
   model: z.enum(["sonar", "sonar-pro", "sonar-reasoning"]).default("sonar"),
-  clientId: z.string().uuid().optional(),
+  clientId: z.string().uuid(),
 });
 
 export const Route = createFileRoute("/api/perplexity/search")({
