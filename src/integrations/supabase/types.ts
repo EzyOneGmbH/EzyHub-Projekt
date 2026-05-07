@@ -225,6 +225,7 @@ export type Database = {
       content_items: {
         Row: {
           body: string | null
+          client_id: string | null
           content_type: Database["public"]["Enums"]["content_type"]
           created_at: string
           created_by: string
@@ -239,6 +240,7 @@ export type Database = {
         }
         Insert: {
           body?: string | null
+          client_id?: string | null
           content_type?: Database["public"]["Enums"]["content_type"]
           created_at?: string
           created_by: string
@@ -253,6 +255,7 @@ export type Database = {
         }
         Update: {
           body?: string | null
+          client_id?: string | null
           content_type?: Database["public"]["Enums"]["content_type"]
           created_at?: string
           created_by?: string
@@ -266,6 +269,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "content_items_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "content_items_customer_id_fkey"
             columns: ["customer_id"]

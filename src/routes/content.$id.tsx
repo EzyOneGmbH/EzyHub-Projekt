@@ -17,22 +17,19 @@ import {
 } from "@/components/ui/select";
 import { ArrowLeft, Save, Trash2, Sparkles, Search, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { perplexitySearch } from "@/server/perplexity.functions";
-import { useServerFn } from "@tanstack/react-start";
 
 export const Route = createFileRoute("/content/$id")({
   component: ContentEditor,
 });
 
-type Customer = { id: string; name: string };
+type Client = { id: string; name: string };
 
 function ContentEditor() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
-  const runPerplexity = useServerFn(perplexitySearch);
   const [item, setItem] = useState<any>(null);
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [aiBusy, setAiBusy] = useState(false);
   const [research, setResearch] = useState<{ content: string; citations: string[] } | null>(null);
   const [researchBusy, setResearchBusy] = useState(false);
@@ -42,10 +39,10 @@ function ContentEditor() {
     (async () => {
       const [itemRes, custRes] = await Promise.all([
         supabase.from("content_items").select("*").eq("id", id).maybeSingle(),
-        supabase.from("customers").select("id,name").order("name"),
+        supabase.from("clients").select("id,name").order("name"),
       ]);
       setItem(itemRes.data);
-      setCustomers((custRes.data ?? []) as Customer[]);
+      setClients((custRes.data ?? []) as Client[]);
       if (itemRes.data?.title) setResearchQuery(itemRes.data.title);
     })();
   }, [id]);
@@ -70,7 +67,7 @@ function ContentEditor() {
         status: item.status,
         language: item.language,
         target_url: item.target_url,
-        customer_id: item.customer_id,
+        client_id: item.client_id,
         keywords: typeof item.keywords === "string"
           ? item.keywords.split(",").map((s: string) => s.trim()).filter(Boolean)
           : item.keywords,
@@ -105,8 +102,18 @@ function ContentEditor() {
     if (!researchQuery.trim()) return;
     setResearchBusy(true);
     try {
-      const res = await runPerplexity({ data: { query: researchQuery, model: "sonar" } });
-      setResearch(res);
+      const session = (await supabase.auth.getSession()).data.session;
+      const r = await fetch("/api/perplexity/search", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ query: researchQuery, model: "sonar" }),
+      });
+      const json = await r.json();
+      if (!r.ok) throw new Error(json.error ?? `HTTP ${r.status}`);
+      setResearch(json);
     } catch (e: any) {
       toast.error(e.message ?? "Recherche fehlgeschlagen");
     } finally {
@@ -179,14 +186,14 @@ function ContentEditor() {
               <div className="space-y-1">
                 <Label>Kunde</Label>
                 <Select
-                  value={item.customer_id ?? "none"}
+                  value={item.client_id ?? "none"}
                   disabled={!canEdit}
-                  onValueChange={(v) => setItem({ ...item, customer_id: v === "none" ? null : v })}
+                  onValueChange={(v) => setItem({ ...item, client_id: v === "none" ? null : v })}
                 >
                   <SelectTrigger><SelectValue placeholder="Kein Kunde" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Kein Kunde</SelectItem>
-                    {customers.map((c) => (
+                    {clients.map((c) => (
                       <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                     ))}
                   </SelectContent>

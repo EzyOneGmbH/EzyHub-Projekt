@@ -20,7 +20,7 @@ type Item = {
   content_type: string;
   status: string;
   language: string;
-  customer_id: string | null;
+  client_id: string | null;
   updated_at: string;
 };
 
@@ -41,7 +41,7 @@ function ContentList() {
     setLoading(true);
     const { data, error } = await supabase
       .from("content_items")
-      .select("id,title,content_type,status,language,customer_id,updated_at")
+      .select("id,title,content_type,status,language,client_id,updated_at")
       .order("updated_at", { ascending: false });
     if (error) toast.error(error.message);
     else setItems((data ?? []) as Item[]);
