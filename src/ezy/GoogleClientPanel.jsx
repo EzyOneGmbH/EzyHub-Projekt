@@ -33,22 +33,34 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
   useEffect(() => {
     let cancelled = false;
     async function check() {
-      if (!isUuid(clientId)) return;
+      if (!isUuid(clientId)) {
+        if (!cancelled) setCanRun(false);
+        return;
+      }
       try {
+        const { data: u, error: ue } = await supabase.auth.getUser();
+        if (ue || !u?.user?.id) {
+          if (!cancelled) setCanRun(false);
+          return;
+        }
         const { data: c } = await supabase
           .from("clients")
           .select("organization_id")
           .eq("id", clientId)
           .maybeSingle();
-        if (!c?.organization_id) return;
+        if (!c?.organization_id) {
+          if (!cancelled) setCanRun(false);
+          return;
+        }
         const { data: au } = await supabase
           .from("app_users")
           .select("role")
           .eq("organization_id", c.organization_id)
+          .eq("user_id", u.user.id)
           .maybeSingle();
         if (!cancelled) setCanRun(ROLES_THAT_RUN_AUDITS.has(au?.role));
       } catch {
-        /* leave default */
+        if (!cancelled) setCanRun(false);
       }
     }
     void check();
