@@ -215,3 +215,15 @@ function Field({ label, value, onChange, disabled }: { label: string; value: str
     </div>
   );
 }
+
+function DisabledTool({ name }: { name: string }) {
+  return (
+    <Card className="p-6 opacity-60">
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="font-semibold">{name}</h2>
+        <Badge variant="outline">Deaktiviert</Badge>
+      </div>
+      <p className="text-sm text-muted-foreground">In den Einstellungen für diesen Kunden aktivieren.</p>
+    </Card>
+  );
+}
