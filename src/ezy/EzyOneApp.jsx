@@ -4942,13 +4942,44 @@ function CmdPalette({ open, onClose, onNavigate, onSelectClient, tools, clients 
 // ═══════════════════════════════════════════════════════════════════════════
 // EXPORT
 // ═══════════════════════════════════════════════════════════════════════════
-function exportCSV(toast) {
-  const r = [
-    ["Keyword", "Position", "Volume", "URL"],
-    ...topKeywords.map((k) => [k.keyword, k.position, k.volume, k.url]),
-  ];
-  downloadFile(r.map((x) => x.join(",")).join("\n"), "text/csv", "ezy-one-export.csv");
-  toast("CSV exportiert", "success");
+async function exportCSV(toast, client) {
+  if (!client?.id) {
+    toast("Kein Kunde ausgewählt", "error");
+    return;
+  }
+  try {
+    const { data, error } = await supabase
+      .from("audit_runs")
+      .select("audit_type, status, started_at, finished_at, result")
+      .eq("client_id", client.id)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      toast("Keine Live-Daten zum Exportieren", "info");
+      return;
+    }
+    const escape = (v) => {
+      const s = v == null ? "" : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const rows = [
+      ["Audit Type", "Status", "Started", "Finished", "Result Summary"],
+      ...data.map((r) => [
+        r.audit_type,
+        r.status,
+        r.started_at || "",
+        r.finished_at || "",
+        r.result ? JSON.stringify(r.result).slice(0, 500) : "",
+      ]),
+    ];
+    const csv = rows.map((row) => row.map(escape).join(",")).join("\n");
+    const safeName = (client.domain || client.name || "client").replace(/[^a-z0-9.-]+/gi, "-");
+    downloadFile(csv, "text/csv", `ezy-one-${safeName}-audit-runs.csv`);
+    toast("CSV exportiert", "success");
+  } catch (e) {
+    toast(`Export fehlgeschlagen: ${e?.message || e}`, "error");
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
