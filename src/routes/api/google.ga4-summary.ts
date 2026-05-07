@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
 import { redactSecrets } from "@/server/google-oauth.server";
-import { isProviderEnabled } from "@/server/integrations.server";
+import { isProviderEnabled, canRunAudits } from "@/server/integrations.server";
 
 const Body = z.object({
   clientId: z.string().uuid(),
