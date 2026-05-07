@@ -6,7 +6,7 @@ import { isProviderEnabled } from "@/server/integrations.server";
 const Body = z.object({
   query: z.string().min(1).max(2000),
   model: z.enum(["sonar", "sonar-pro", "sonar-reasoning"]).default("sonar"),
-  clientId: z.string().uuid().optional(),
+  clientId: z.string().uuid(),
 });
 
 export const Route = createFileRoute("/api/perplexity/search")({
@@ -44,10 +44,16 @@ export const Route = createFileRoute("/api/perplexity/search")({
             { status: 400 },
           );
 
-        if (
-          parsed.data.clientId &&
-          !(await isProviderEnabled(parsed.data.clientId, "perplexity"))
-        ) {
+        // Verify client exists and user has access (RLS scoped)
+        const { data: client, error: clientErr } = await userClient
+          .from("clients")
+          .select("id")
+          .eq("id", parsed.data.clientId)
+          .maybeSingle();
+        if (clientErr || !client) {
+          return Response.json({ error: "Client not found or access denied" }, { status: 404 });
+        }
+        if (!(await isProviderEnabled(parsed.data.clientId, "perplexity"))) {
           return Response.json(
             { error: "Perplexity für diesen Kunden deaktiviert." },
             { status: 403 },

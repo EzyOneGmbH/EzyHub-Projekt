@@ -19,22 +19,40 @@ serve(async (req) => {
         model: "google/gemini-3-flash-preview",
         stream: true,
         messages: [
-          { role: "system", content: "Du bist der freundliche KI-Assistent in EZY ONE TOOL — einer App für Kunden- und Aufgabenverwaltung. Antworte klar und kurz auf Deutsch." },
+          {
+            role: "system",
+            content:
+              "Du bist der freundliche KI-Assistent in EZY ONE TOOL — einer App für Kunden- und Aufgabenverwaltung. Antworte klar und kurz auf Deutsch.",
+          },
           ...messages,
         ],
       }),
     });
 
-    if (r.status === 429) return new Response(JSON.stringify({ error: "Rate Limit" }), { status: 429, headers: { ...cors, "Content-Type": "application/json" } });
-    if (r.status === 402) return new Response(JSON.stringify({ error: "Guthaben aufgebraucht" }), { status: 402, headers: { ...cors, "Content-Type": "application/json" } });
+    if (r.status === 429)
+      return new Response(JSON.stringify({ error: "Rate Limit" }), {
+        status: 429,
+        headers: { ...cors, "Content-Type": "application/json" },
+      });
+    if (r.status === 402)
+      return new Response(JSON.stringify({ error: "Guthaben aufgebraucht" }), {
+        status: 402,
+        headers: { ...cors, "Content-Type": "application/json" },
+      });
     if (!r.ok) {
       const t = await r.text();
       console.error("AI error", r.status, t);
-      return new Response(JSON.stringify({ error: "AI error" }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ error: "AI error" }), {
+        status: 500,
+        headers: { ...cors, "Content-Type": "application/json" },
+      });
     }
     return new Response(r.body, { headers: { ...cors, "Content-Type": "text/event-stream" } });
   } catch (e) {
     console.error(e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "unknown" }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "unknown" }), {
+      status: 500,
+      headers: { ...cors, "Content-Type": "application/json" },
+    });
   }
 });

@@ -1,4 +1,3 @@
-
 # Reparatur-Plan: Build, Datenmodell, EZY ONE Dashboard
 
 Keine neuen Designspielereien. Fünf gezielte Reparaturen, danach Build + ZIP.
@@ -8,6 +7,7 @@ Keine neuen Designspielereien. Fünf gezielte Reparaturen, danach Build + ZIP.
 **Problem:** Komponenten importieren statisch aus `src/server/*.functions.ts` (z. B. `google-connect-panel.tsx` → `google.functions.ts`, `content.$id.tsx` → `perplexity.functions.ts`). Diese Dateien ziehen `client.server.ts` (Service-Role) und `google-tokens.server.ts` ein. TanStack Vite-Plugins sollten den Handler strippen, aber das Import-Protection-System bricht den Build, sobald eine `.server.*`-Datei transitiv vom Client erreicht wird.
 
 **Fix:**
+
 - Ein dünnes `createServerFn`-Wrapper-Modul je Feature einführen, das **nichts ausser `createServerFn` + Validator + Aufruf eines `.server.ts`-Helpers** enthält. Der Plugin-Transform ersetzt den Handler client-seitig durch einen RPC-Stub.
 - In den `.functions.ts`-Dateien sicherstellen, dass `client.server`/`*-tokens.server`/`*-oauth.server` **ausschliesslich innerhalb von `.handler(...)`** referenziert werden — keine Top-Level-Re-Exports von Server-Helpern.
 - `redactSecrets` aus `google-oauth.server.ts` herausziehen in `src/lib/redact.ts` (pure, isomorphic), damit `api/google.oauth.start.ts` und `google.functions.ts` es ohne Server-Bindings importieren können.
@@ -19,6 +19,7 @@ Keine neuen Designspielereien. Fünf gezielte Reparaturen, danach Build + ZIP.
 **Aktuell:** Routen `/customers` und `/customers/$id` schreiben/lesen `customers` (legacy, global, ohne `organization_id`). `GoogleConnectPanel` und `AhrefsPanel` bekommen `customers.id`, schreiben aber gegen `clients.gsc_property` etc. → Datenchaos.
 
 **Fix (Variante A: in-place migrieren, weniger Routen-Bruch):**
+
 - `/customers` und `/customers/$id` auf `clients` umstellen:
   - SELECT/INSERT/UPDATE/DELETE gegen `public.clients`
   - INSERT setzt `organization_id` aus aktuellem Org-Membership des Users; `created_by = auth.uid()`
@@ -40,6 +41,7 @@ Keine neuen Designspielereien. Fünf gezielte Reparaturen, danach Build + ZIP.
 **Problem:** `CANONRY_BASE_URL` kann `https://api.canonry.ai` ODER `…/api/v1` enthalten; Code hängt naiv `/projects/<id>` an. Zusätzlich wird in `gscKeywordImport` aktuell die Supabase-UUID als Canonry-Projekt-Slug verwendet → 404.
 
 **Fix:**
+
 - Helper `src/server/canonry-url.server.ts`:
   - `resolveCanonryBase()` → trimmt trailing `/`, ergänzt `/api/v1` falls Pfad fehlt
   - `canonryUrl(path)` → korrektes Join
@@ -54,11 +56,13 @@ Keine neuen Designspielereien. Fünf gezielte Reparaturen, danach Build + ZIP.
 Neuer Dashboard-Aufbau für `/dashboard` und `/customers/$id`:
 
 **`/dashboard` (Org-Übersicht):**
+
 - Live-Status-Card (vorhandener `/api/live/status`)
 - KPI-Grid: # Clients, # offene Audits, letzter Canonry-Health-Score (Aggregat)
 - „Letzte Audit-Runs" Tabelle (aus `audit_runs`, sortiert by `created_at desc`, Status-Badges)
 
 **`/customers/$id` (Client-Detail) — Tabs/Sektionen:**
+
 1. Stammdaten (name, domain, industry, country, canonry_project, gsc_property, ga4_property)
 2. **Ahrefs** (existierender `AhrefsPanel`, jetzt mit echter `clients.id`)
 3. **Google Search Console** — Connect + Keyword-Import (existierender Panel)

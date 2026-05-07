@@ -1,13 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { AppShell } from "@/components/app-shell";
 import { RequireRole } from "@/components/require-role";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Globe2, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/geo")({
   component: GeoDashboard,
@@ -27,23 +27,40 @@ type Overview = {
   errors: Record<string, string | null>;
 };
 
+type ClientRow = { id: string; name: string; canonry_project: string | null };
+
 function GeoDashboard() {
-  const [project, setProject] = useState("");
-  const [domain, setDomain] = useState("");
+  const [clients, setClients] = useState<ClientRow[]>([]);
+  const [clientId, setClientId] = useState("");
   const [data, setData] = useState<Overview | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("clients")
+        .select("id,name,canonry_project")
+        .order("name");
+      setClients((data ?? []) as ClientRow[]);
+    })();
+  }, []);
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!project) return;
+    if (!clientId) return;
     setLoading(true);
     setError(null);
     setData(null);
     try {
-      const qs = new URLSearchParams({ project });
-      if (domain) qs.set("domain", domain);
-      const res = await fetch(`/api/live/canonry/overview?${qs.toString()}`, { cache: "no-store" });
+      const session = (await supabase.auth.getSession()).data.session;
+      const qs = new URLSearchParams({ clientId });
+      const res = await fetch(`/api/live/canonry/overview?${qs.toString()}`, {
+        cache: "no-store",
+        headers: session?.access_token
+          ? { Authorization: `Bearer ${session.access_token}` }
+          : undefined,
+      });
       const body = await res.json();
       if (!res.ok) {
         setError(body.error ?? `HTTP ${res.status}`);
@@ -70,27 +87,26 @@ function GeoDashboard() {
         </div>
 
         <Card className="mb-6 p-6">
-          <form onSubmit={submit} className="grid gap-4 md:grid-cols-[1fr,1fr,auto] md:items-end">
+          <form onSubmit={submit} className="grid gap-4 md:grid-cols-[1fr,auto] md:items-end">
             <div className="space-y-2">
-              <Label htmlFor="project">Project</Label>
-              <Input
-                id="project"
-                value={project}
-                onChange={(e) => setProject(e.target.value)}
-                placeholder="my-project"
+              <Label htmlFor="client">Kunde</Label>
+              <select
+                id="client"
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
                 required
-              />
+              >
+                <option value="">— Kunde wählen —</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                    {c.canonry_project ? ` (${c.canonry_project})` : " — kein Project"}
+                  </option>
+                ))}
+              </select>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="domain">Domain (optional)</Label>
-              <Input
-                id="domain"
-                value={domain}
-                onChange={(e) => setDomain(e.target.value)}
-                placeholder="example.com"
-              />
-            </div>
-            <Button type="submit" disabled={loading || !project}>
+            <Button type="submit" disabled={loading || !clientId}>
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Laden
             </Button>

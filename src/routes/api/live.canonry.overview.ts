@@ -1,12 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
+import { createClient } from "@supabase/supabase-js";
 import { normalizeCanonryBase } from "@/lib/canonry-url";
 import { isProviderEnabled } from "@/server/integrations.server";
 
 const QuerySchema = z.object({
-  project: z.string().min(1).max(255),
-  domain: z.string().min(1).max(255).optional(),
-  clientId: z.string().uuid().optional(),
+  clientId: z.string().uuid(),
 });
 
 type SectionResult<T> = { ok: true; data: T } | { ok: false; status?: number; error: string };
@@ -33,10 +32,7 @@ async function fetchSection<T = unknown>(
   try {
     const res = await fetch(url, {
       method: "GET",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        Accept: "application/json",
-      },
+      headers: { Authorization: `Bearer ${key}`, Accept: "application/json" },
       signal: ctrl.signal,
     });
     if (!res.ok) {
@@ -62,47 +58,71 @@ export const Route = createFileRoute("/api/live/canonry/overview")({
       GET: async ({ request }) => {
         const url = new URL(request.url);
         const parsed = QuerySchema.safeParse({
-          project: url.searchParams.get("project") ?? "",
-          domain: url.searchParams.get("domain") ?? undefined,
-          clientId: url.searchParams.get("clientId") ?? undefined,
+          clientId: url.searchParams.get("clientId") ?? "",
         });
         if (!parsed.success) {
-          return new Response(
-            JSON.stringify({ error: "Invalid query", issues: parsed.error.issues }),
-            { status: 400, headers: { "Content-Type": "application/json" } },
+          return Response.json(
+            { error: "clientId is required", issues: parsed.error.issues },
+            { status: 400 },
           );
         }
-        const { project, domain, clientId } = parsed.data;
+        const { clientId } = parsed.data;
 
-        if (clientId && !(await isProviderEnabled(clientId, "canonry"))) {
-          return new Response(JSON.stringify({ error: "Canonry für diesen Kunden deaktiviert." }), {
-            status: 403,
-            headers: { "Content-Type": "application/json" },
-          });
-        }
-
+        const supabaseUrl = process.env.SUPABASE_URL;
+        const anonKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
         const baseUrl = process.env.CANONRY_BASE_URL;
         const apiKey = process.env.CANONRY_API_KEY;
         const secrets = [baseUrl, apiKey];
 
+        if (!supabaseUrl || !anonKey) {
+          return Response.json({ error: "Server not configured" }, { status: 503 });
+        }
         if (!baseUrl || !apiKey) {
-          return new Response(JSON.stringify({ error: "Canonry not configured" }), {
-            status: 503,
-            headers: { "Content-Type": "application/json" },
-          });
+          return Response.json({ error: "Canonry not configured" }, { status: 503 });
+        }
+
+        // Auth: validate user via the request's bearer token
+        const authHeader = request.headers.get("authorization") ?? "";
+        const userClient = createClient(supabaseUrl, anonKey, {
+          global: { headers: { Authorization: authHeader } },
+        });
+        const {
+          data: { user },
+        } = await userClient.auth.getUser();
+        if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+        // RLS-scoped lookup ensures org membership
+        const { data: client, error: clientErr } = await userClient
+          .from("clients")
+          .select("id, domain, organization_id, canonry_project")
+          .eq("id", clientId)
+          .maybeSingle();
+        if (clientErr || !client) {
+          return Response.json({ error: "Client not found or access denied" }, { status: 404 });
+        }
+        if (!client.canonry_project) {
+          return Response.json(
+            { error: "Kein canonry_project für diesen Kunden gepflegt." },
+            { status: 400 },
+          );
+        }
+        if (!(await isProviderEnabled(client.id, "canonry"))) {
+          return Response.json(
+            { error: "Canonry für diesen Kunden deaktiviert." },
+            { status: 403 },
+          );
         }
 
         const base = normalizeCanonryBase(baseUrl);
-        const p = encodeURIComponent(project);
-        const qs = domain ? `?domain=${encodeURIComponent(domain)}` : "";
+        const p = encodeURIComponent(client.canonry_project);
+        const qs = client.domain ? `?domain=${encodeURIComponent(client.domain)}` : "";
 
-        // Probe the project itself first — fail fast on 404.
         const projectRes = await fetchSection<unknown>(`${base}/projects/${p}`, apiKey, secrets);
         if (!projectRes.ok && projectRes.status === 404) {
-          return new Response(JSON.stringify({ error: "Project not found", project }), {
-            status: 404,
-            headers: { "Content-Type": "application/json" },
-          });
+          return Response.json(
+            { error: "Project not found", project: client.canonry_project },
+            { status: 404 },
+          );
         }
 
         const [history, timeline, health, runs, keywords, insights, schedule] = await Promise.all([
@@ -115,42 +135,36 @@ export const Route = createFileRoute("/api/live/canonry/overview")({
           fetchSection(`${base}/projects/${p}/schedule`, apiKey, secrets),
         ]);
 
-        // Helpers: tolerate 404 on optional sections (runs, schedule).
-        const tolerate404 = <T>(r: SectionResult<T>): T | null => {
-          if (r.ok) return r.data;
-          if (r.status === 404) return null;
-          return null;
-        };
+        const tolerate404 = <T>(r: SectionResult<T>): T | null =>
+          r.ok ? r.data : r.status === 404 ? null : null;
         const errorOf = <T>(r: SectionResult<T>): string | null =>
           r.ok || r.status === 404 ? null : r.error;
 
-        const body = {
-          generated_at: new Date().toISOString(),
-          project: projectRes.ok ? projectRes.data : null,
-          domain: domain ?? null,
-          history: history.ok ? history.data : null,
-          timeline: timeline.ok ? timeline.data : null,
-          health: health.ok ? health.data : null,
-          runs: tolerate404(runs),
-          keywords: keywords.ok ? keywords.data : null,
-          insights: insights.ok ? insights.data : null,
-          schedule: tolerate404(schedule),
-          errors: {
-            project: projectRes.ok ? null : projectRes.error,
-            history: errorOf(history),
-            timeline: errorOf(timeline),
-            health: errorOf(health),
-            runs: errorOf(runs),
-            keywords: errorOf(keywords),
-            insights: errorOf(insights),
-            schedule: errorOf(schedule),
+        return Response.json(
+          {
+            generated_at: new Date().toISOString(),
+            project: projectRes.ok ? projectRes.data : null,
+            domain: client.domain ?? null,
+            history: history.ok ? history.data : null,
+            timeline: timeline.ok ? timeline.data : null,
+            health: health.ok ? health.data : null,
+            runs: tolerate404(runs),
+            keywords: keywords.ok ? keywords.data : null,
+            insights: insights.ok ? insights.data : null,
+            schedule: tolerate404(schedule),
+            errors: {
+              project: projectRes.ok ? null : projectRes.error,
+              history: errorOf(history),
+              timeline: errorOf(timeline),
+              health: errorOf(health),
+              runs: errorOf(runs),
+              keywords: errorOf(keywords),
+              insights: errorOf(insights),
+              schedule: errorOf(schedule),
+            },
           },
-        };
-
-        return new Response(JSON.stringify(body), {
-          status: 200,
-          headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-        });
+          { status: 200, headers: { "Cache-Control": "no-store" } },
+        );
       },
     },
   },
