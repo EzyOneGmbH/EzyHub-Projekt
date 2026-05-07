@@ -106,7 +106,7 @@ function SettingsPage() {
             <Select value={selected} onValueChange={setSelected}>
               <SelectTrigger><SelectValue placeholder="Kunde wählen" /></SelectTrigger>
               <SelectContent>
-                {customers.map((c) => (
+                {clients.map((c) => (
                   <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                 ))}
               </SelectContent>
