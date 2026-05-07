@@ -4,6 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "./google-tokens.server";
 import { redactSecrets } from "./google-oauth.server";
+import { canonryUrl } from "@/lib/canonry-url";
 
 async function assertOrgAdmin(userId: string, clientId: string) {
   const { data: client } = await supabaseAdmin
@@ -39,6 +40,12 @@ export const gscKeywordImport = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     try {
       const client = await assertOrgAdmin(context.userId, data.clientId);
+      const { data: clientFull } = await supabaseAdmin
+        .from("clients")
+        .select("canonry_project")
+        .eq("id", client.id)
+        .maybeSingle();
+      const canonryProject = clientFull?.canonry_project ?? null;
       if (!client.gsc_property) {
         return { ok: false, error: "Kein GSC-Property für diesen Client gesetzt." };
       }
@@ -86,10 +93,12 @@ export const gscKeywordImport = createServerFn({ method: "POST" })
       let canonryStatus: { ok: boolean; count?: number; error?: string } = { ok: false, error: "Canonry not configured" };
       const canonryBase = process.env.CANONRY_BASE_URL;
       const canonryKey = process.env.CANONRY_API_KEY;
-      if (canonryBase && canonryKey && keywords.length > 0) {
+      if (!canonryProject) {
+        canonryStatus = { ok: false, error: "Kein Canonry-Projekt-Slug für diesen Client gesetzt." };
+      } else if (canonryBase && canonryKey && keywords.length > 0) {
         try {
           const cRes = await fetch(
-            `${canonryBase.replace(/\/+$/, "")}/projects/${encodeURIComponent(client.id)}/keywords`,
+            canonryUrl(canonryBase, `/projects/${encodeURIComponent(canonryProject)}/keywords`),
             {
               method: "POST",
               headers: {

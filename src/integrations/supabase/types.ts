@@ -165,6 +165,7 @@ export type Database = {
       }
       clients: {
         Row: {
+          canonry_project: string | null
           country: string | null
           created_at: string
           created_by: string
@@ -180,6 +181,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          canonry_project?: string | null
           country?: string | null
           created_at?: string
           created_by: string
@@ -195,6 +197,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          canonry_project?: string | null
           country?: string | null
           created_at?: string
           created_by?: string

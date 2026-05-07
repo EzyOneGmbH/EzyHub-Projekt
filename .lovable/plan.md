@@ -1,70 +1,101 @@
-## EZY ONE TOOL — Team-Tool mit Backend & KI
 
-Ein Business-Team-Tool mit Login, gemeinsamer Datenbank und KI-Funktionen. Backend läuft über Lovable Cloud (Datenbank + Auth + Edge Functions + Secrets); KI über das Lovable AI Gateway.
+# Reparatur-Plan: Build, Datenmodell, EZY ONE Dashboard
 
-### Kernfunktion (Vorschlag)
+Keine neuen Designspielereien. Fünf gezielte Reparaturen, danach Build + ZIP.
 
-Kombiniertes **Kunden- & Aufgaben-Management** — die meistgenutzte Basis für Team-Tools, modular erweiterbar:
+## 1. Production-Build reparieren
 
-- **Kunden**: Name, Firma, E-Mail, Telefon, Notizen
-- **Aufgaben**: Titel, Beschreibung, Status (Offen/In Arbeit/Erledigt), Priorität, Fälligkeit, Zuweisung an Teammitglied, optional an Kunde gekoppelt
-- **Notizen**: Freie Textnotizen pro Kunde/Aufgabe
-- **Dashboard**: Übersicht über offene Aufgaben, fällige Termine, letzte Kunden
+**Problem:** Komponenten importieren statisch aus `src/server/*.functions.ts` (z. B. `google-connect-panel.tsx` → `google.functions.ts`, `content.$id.tsx` → `perplexity.functions.ts`). Diese Dateien ziehen `client.server.ts` (Service-Role) und `google-tokens.server.ts` ein. TanStack Vite-Plugins sollten den Handler strippen, aber das Import-Protection-System bricht den Build, sobald eine `.server.*`-Datei transitiv vom Client erreicht wird.
 
-### Rollen
+**Fix:**
+- Ein dünnes `createServerFn`-Wrapper-Modul je Feature einführen, das **nichts ausser `createServerFn` + Validator + Aufruf eines `.server.ts`-Helpers** enthält. Der Plugin-Transform ersetzt den Handler client-seitig durch einen RPC-Stub.
+- In den `.functions.ts`-Dateien sicherstellen, dass `client.server`/`*-tokens.server`/`*-oauth.server` **ausschliesslich innerhalb von `.handler(...)`** referenziert werden — keine Top-Level-Re-Exports von Server-Helpern.
+- `redactSecrets` aus `google-oauth.server.ts` herausziehen in `src/lib/redact.ts` (pure, isomorphic), damit `api/google.oauth.start.ts` und `google.functions.ts` es ohne Server-Bindings importieren können.
+- Alle Komponenten-Imports `from "@/server/..."` prüfen: nur `.functions.ts` zulässig, niemals `.server.ts`.
+- Danach: `bun run build` muss grün sein.
 
-- **Admin**: alles verwalten, Nutzer/Rollen ändern
-- **Mitglied**: Kunden & Aufgaben sehen/bearbeiten
+## 2. `public.clients` als kanonische Kundentabelle
 
-Rollen liegen in eigener Tabelle `user_roles` (Sicherheits-Best-Practice).
+**Aktuell:** Routen `/customers` und `/customers/$id` schreiben/lesen `customers` (legacy, global, ohne `organization_id`). `GoogleConnectPanel` und `AhrefsPanel` bekommen `customers.id`, schreiben aber gegen `clients.gsc_property` etc. → Datenchaos.
 
-### KI-Funktionen (über Edge Function + Lovable AI Gateway)
+**Fix (Variante A: in-place migrieren, weniger Routen-Bruch):**
+- `/customers` und `/customers/$id` auf `clients` umstellen:
+  - SELECT/INSERT/UPDATE/DELETE gegen `public.clients`
+  - INSERT setzt `organization_id` aus aktuellem Org-Membership des Users; `created_by = auth.uid()`
+  - Felder: `name`, `domain` (statt `company`), `notes`, `industry`, `country`, `language`
+  - Detail-Seite zeigt `gsc_property`, `ga4_property`, `domain` — Properties speichern direkt auf `clients`
+- `GoogleConnectPanel`/`AhrefsPanel` bekommen `clients.id` (Spaltenname bleibt `clientId` in der API)
+- Sidebar/Nav-Label bleibt „Kunden", Route bleibt `/customers` für Kontinuität.
 
-1. **Notiz/Beschreibung zusammenfassen** — Button an langen Texten
-2. **Aufgabenvorschläge** — KI schlägt aus einer Kundennotiz nächste Tasks vor
-3. **Smart-Suche / Q&A** — Frage stellen ("Welche Aufgaben sind diese Woche fällig für Kunde X?"), KI antwortet mit App-Daten
+## 3. Legacy-Tabellen ent-UI-fizieren und absichern
 
-### Seiten
+- UI-Routen entfernen: `tasks`, `tasks/$id`, `notes`-Aufrufe in `customer.$id`, `content` (oder hinter Org-Scope umbauen — siehe unten).
+- Migration: alle `SELECT USING true`-Policies auf `customers`, `tasks`, `notes`, `content_items` ersetzen durch:
+  - SELECT: `is_org_member(organization_id)` — dafür Spalte `organization_id` ergänzen + Backfill aus erstem Org des `created_by`
+  - INSERT/UPDATE/DELETE: `is_org_admin(organization_id)` oder `created_by = auth.uid()`
+- Falls Tabellen rein historisch sind: in `_legacy_*` umbenennen und RLS auf `false` setzen.
 
-- `/login`, `/signup` — E-Mail + Passwort
-- `/` — Dashboard (geschützt)
-- `/customers`, `/customers/$id` — Kundenliste & Detail
-- `/tasks`, `/tasks/$id` — Aufgabenliste & Detail
-- `/admin/users` — Nutzer- & Rollenverwaltung (nur Admin)
+## 4. Canonry: URL-Normalisierung + Projekt-Slug pro Client
 
-### Backend-Setup (Lovable Cloud)
+**Problem:** `CANONRY_BASE_URL` kann `https://api.canonry.ai` ODER `…/api/v1` enthalten; Code hängt naiv `/projects/<id>` an. Zusätzlich wird in `gscKeywordImport` aktuell die Supabase-UUID als Canonry-Projekt-Slug verwendet → 404.
 
-**Tabellen** (alle mit RLS):
-- `profiles` (id → auth.users, full_name, avatar_url) — Auto-Trigger bei Signup
-- `user_roles` (user_id, role: admin|member) + `has_role()` Security-Definer-Funktion
-- `customers` (id, name, company, email, phone, notes, created_by, timestamps)
-- `tasks` (id, title, description, status, priority, due_date, assigned_to, customer_id, created_by, timestamps)
-- `notes` (id, content, customer_id?, task_id?, created_by, created_at)
+**Fix:**
+- Helper `src/server/canonry-url.server.ts`:
+  - `resolveCanonryBase()` → trimmt trailing `/`, ergänzt `/api/v1` falls Pfad fehlt
+  - `canonryUrl(path)` → korrektes Join
+- Spalten-Erweiterung auf `clients`: `canonry_project text` (nullable), und/oder `client_integrations.config->>canonry_project` lesen mit Fallback.
+- Migration: `ALTER TABLE clients ADD COLUMN canonry_project text;`
+- UI in Client-Detail: Eingabefeld „Canonry Projekt-Slug" (Admin only), gespeichert auf `clients.canonry_project`.
+- `/api/live/canonry/overview`-Aufrufer (GEO-Seite + neue Client-Detail-Sektion) übergeben `project = client.canonry_project`, **nicht** `client.id`.
+- `gscKeywordImport`: liest `canonry_project` aus `clients`, postet damit an Canonry.
 
-**RLS-Regeln**: alle eingeloggten Nutzer können lesen/schreiben; nur Admins ändern Rollen; nur Ersteller oder Admin können löschen.
+## 5. EZY ONE SEO/GEO Dashboard wiederherstellen
 
-**Auth**: E-Mail + Passwort, mit `/reset-password`-Seite. Auto-Confirm aktiviert für schnelles Testen.
+Neuer Dashboard-Aufbau für `/dashboard` und `/customers/$id`:
 
-**Edge Functions**:
-- `ai-summarize` — fasst Text zusammen
-- `ai-suggest-tasks` — schlägt Tasks aus Notiz vor
-- `ai-chat` — Streaming-Chat mit Kontext aus DB
+**`/dashboard` (Org-Übersicht):**
+- Live-Status-Card (vorhandener `/api/live/status`)
+- KPI-Grid: # Clients, # offene Audits, letzter Canonry-Health-Score (Aggregat)
+- „Letzte Audit-Runs" Tabelle (aus `audit_runs`, sortiert by `created_at desc`, Status-Badges)
 
-**Secrets**: `LOVABLE_API_KEY` (auto-bereitgestellt für AI Gateway).
+**`/customers/$id` (Client-Detail) — Tabs/Sektionen:**
+1. Stammdaten (name, domain, industry, country, canonry_project, gsc_property, ga4_property)
+2. **Ahrefs** (existierender `AhrefsPanel`, jetzt mit echter `clients.id`)
+3. **Google Search Console** — Connect + Keyword-Import (existierender Panel)
+4. **GA4 Summary** — Button + Anzeige (existiert bereits in Panel)
+5. **Canonry / GEO Health** — Embed der `live/canonry/overview`-Sektionen für `client.canonry_project`
+6. **Audit-Verlauf** — Liste `audit_runs WHERE client_id = $id ORDER BY created_at DESC`, mit Status, Typ, Dauer, Fehler
 
-### Design
+`/geo` bleibt als Power-User-View bestehen.
 
-Modernes, klares Light/Dark-Theme mit dezentem Akzent (Indigo/Blau), Sidebar-Navigation links, kartenbasierte Listen, responsive für Mobile.
+## 6. Verifikation & Lieferung
 
-### Out of Scope (v1)
+- `bun run build` — muss grün durchlaufen, Output protokollieren
+- ZIP-Snapshot `ezy-one-lovable-current-snapshot-v2.zip` mit `src/`, `supabase/`, `package.json`, `bun.lockb`, `vite.config.ts`, `tsconfig.json`, `.lovable/plan.md`
+- Kurzer Bericht: was geändert, welche Migrations liefen, Build-Ergebnis, Pfad zur ZIP
 
-- Datei-Uploads (kann später ergänzt werden)
-- Externe Integrationen (E-Mail-Versand, Kalender)
-- Bezahlung/Abo
+## Technische Details (Migrations-Übersicht)
 
-### Technische Hinweise
+```sql
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS canonry_project text;
 
-- TanStack Start, file-based Routing, geschützte Routen via `_authenticated` Layout
-- Server Functions für DB-Zugriffe mit `requireSupabaseAuth`
-- KI-Calls ausschließlich aus Edge Functions, nie vom Client
-- Rollen werden serverseitig mit `has_role(auth.uid(), 'admin')` geprüft
+-- Legacy lockdown (falls beibehalten)
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS organization_id uuid;
+-- Backfill aus app_users via created_by (1. Org)
+DROP POLICY customers_select ON public.customers;
+CREATE POLICY customers_select ON public.customers FOR SELECT TO authenticated
+  USING (is_org_member(organization_id));
+-- analog tasks, notes, content_items
+
+-- oauth_connections + customer_defaults: RLS-Policies ergänzen
+ALTER TABLE public.oauth_connections ENABLE ROW LEVEL SECURITY;
+CREATE POLICY oauth_admin ON public.oauth_connections FOR ALL TO authenticated
+  USING (is_org_admin(organization_id)) WITH CHECK (is_org_admin(organization_id));
+-- (defaults analog)
+```
+
+## Out of scope
+
+- Branding/Design-Refresh
+- Neue Features ausserhalb der oben genannten Dashboard-Sektionen
+- Refactor von `/tasks`, `/notes`, `/content` falls als Legacy entfernt
