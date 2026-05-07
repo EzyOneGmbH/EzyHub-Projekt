@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { createClient } from "@supabase/supabase-js";
 
 type ProbeResult = {
   configured: boolean;
@@ -165,7 +166,34 @@ function reportGoogleOAuth(
 export const Route = createFileRoute("/api/live/status")({
   server: {
     handlers: {
-      GET: async () => {
+      GET: async ({ request }) => {
+        // Auth: only owner/admin allowed
+        const supabaseUrl = process.env.SUPABASE_URL;
+        const anonKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
+        if (!supabaseUrl || !anonKey) {
+          return Response.json({ error: "Server not configured" }, { status: 503 });
+        }
+        const authHeader = request.headers.get("authorization") ?? "";
+        if (!authHeader.toLowerCase().startsWith("bearer ")) {
+          return Response.json({ error: "Unauthorized" }, { status: 401 });
+        }
+        const userClient = createClient(supabaseUrl, anonKey, {
+          global: { headers: { Authorization: authHeader } },
+        });
+        const {
+          data: { user },
+        } = await userClient.auth.getUser();
+        if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+        const { data: memberships } = await userClient
+          .from("app_users")
+          .select("role")
+          .eq("user_id", user.id);
+        const isAdmin = (memberships ?? []).some(
+          (m: { role: string }) => m.role === "owner" || m.role === "admin",
+        );
+        if (!isAdmin) return Response.json({ error: "Forbidden" }, { status: 403 });
+
         const env = process.env;
         const gemini = env.GEMINI_API_KEY;
         const openai = env.OPENAI_API_KEY;
