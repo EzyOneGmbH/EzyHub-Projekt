@@ -3,14 +3,9 @@ import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { isProviderEnabled } from "@/server/integrations.server";
 
-const QuerySchema = z
-  .object({
-    clientId: z.string().uuid().optional(),
-    domain: z.string().min(1).max(255).optional(),
-  })
-  .refine((d) => d.clientId || d.domain, {
-    message: "clientId or domain required",
-  });
+const QuerySchema = z.object({
+  clientId: z.string().uuid(),
+});
 
 function redact(input: unknown, secrets: Array<string | undefined>): string {
   let s =
