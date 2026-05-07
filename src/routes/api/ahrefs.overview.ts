@@ -113,7 +113,7 @@ export const Route = createFileRoute("/api/ahrefs/overview")({
         const admin = createClient(supabaseUrl, serviceKey);
 
         // Resolve client + org + domain
-        let clientId = parsed.data.clientId ?? null;
+        const clientId = parsed.data.clientId ?? null;
         let domain = parsed.data.domain ?? null;
         let organizationId: string | null = null;
 

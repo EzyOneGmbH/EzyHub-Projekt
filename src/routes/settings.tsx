@@ -81,17 +81,15 @@ function SettingsPage() {
     const client = clients.find((c) => c.id === selected);
     if (!client) return;
     setEnabledMap((m) => ({ ...m, [toolKey]: enabled }));
-    const { error } = await supabase
-      .from("client_integrations")
-      .upsert(
-        {
-          client_id: selected,
-          organization_id: client.organization_id,
-          provider: toolKey,
-          enabled,
-        },
-        { onConflict: "client_id,provider" },
-      );
+    const { error } = await supabase.from("client_integrations").upsert(
+      {
+        client_id: selected,
+        organization_id: client.organization_id,
+        provider: toolKey,
+        enabled,
+      },
+      { onConflict: "client_id,provider" },
+    );
     if (error) {
       toast.error(error.message);
       setEnabledMap((m) => ({ ...m, [toolKey]: !enabled }));
