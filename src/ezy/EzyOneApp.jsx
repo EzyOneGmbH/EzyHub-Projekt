@@ -2285,6 +2285,40 @@ function ConvDashboard({ selectedClient }) {
           color={C.orange}
         />
       </div>
+      {(sessions > 0 || totalUsers > 0 || engagedSessions > 0 || screenPageViews > 0) && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
+            gap: 14,
+          }}
+        >
+          <KpiCard
+            icon={Globe}
+            label="GA4 Sessions"
+            value={sessions > 0 ? sessions : "—"}
+            color={C.blue}
+          />
+          <KpiCard
+            icon={Eye}
+            label="GA4 Total Users"
+            value={totalUsers > 0 ? totalUsers : "—"}
+            color={C.accent}
+          />
+          <KpiCard
+            icon={Activity}
+            label="Engaged Sessions"
+            value={engagedSessions > 0 ? engagedSessions : "—"}
+            color={C.green}
+          />
+          <KpiCard
+            icon={FileText}
+            label="Page Views"
+            value={screenPageViews > 0 ? screenPageViews : "—"}
+            color={C.orange}
+          />
+        </div>
+      )}
       {revenue > 0 && (
         <div
           style={{
