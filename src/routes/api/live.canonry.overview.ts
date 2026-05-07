@@ -1,10 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { normalizeCanonryBase } from "@/lib/canonry-url";
+import { isProviderEnabled } from "@/server/integrations.server";
 
 const QuerySchema = z.object({
   project: z.string().min(1).max(255),
   domain: z.string().min(1).max(255).optional(),
+  clientId: z.string().uuid().optional(),
 });
 
 type SectionResult<T> =
