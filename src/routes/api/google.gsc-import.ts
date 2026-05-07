@@ -80,7 +80,9 @@ export const Route = createFileRoute("/api/google/gsc-import")({
           let canonryStatus: { ok: boolean; count?: number; error?: string } = { ok: false, error: "Canonry not configured" };
           const canonryBase = process.env.CANONRY_BASE_URL;
           const canonryKey = process.env.CANONRY_API_KEY;
-          if (!client.canonry_project) {
+          if (!(await isProviderEnabled(client.id, "canonry"))) {
+            canonryStatus = { ok: false, error: "Canonry für diesen Kunden deaktiviert." };
+          } else if (!client.canonry_project) {
             canonryStatus = { ok: false, error: "Kein Canonry-Projekt-Slug gesetzt." };
           } else if (canonryBase && canonryKey && keywords.length > 0) {
             try {
