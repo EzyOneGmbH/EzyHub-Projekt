@@ -147,23 +147,33 @@ function ClientDetail() {
       </Card>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <GoogleConnectPanel
-          clientId={id}
-          gscProperty={c.gsc_property}
-          ga4Property={c.ga4_property}
-          onPropertiesChange={(p) => setC({ ...c, ...p })}
-        />
-        <AhrefsPanel clientId={id} domain={c.domain} />
+        {enabled.google ? (
+          <GoogleConnectPanel
+            clientId={id}
+            gscProperty={c.gsc_property}
+            ga4Property={c.ga4_property}
+            onPropertiesChange={(p) => setC({ ...c, ...p })}
+          />
+        ) : (
+          <DisabledTool name="Google (Search Console & GA4)" />
+        )}
+        {enabled.ahrefs ? (
+          <AhrefsPanel clientId={id} domain={c.domain} />
+        ) : (
+          <DisabledTool name="Ahrefs" />
+        )}
       </div>
 
       <Card className="mt-6 p-6">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="font-semibold">Canonry / GEO Health</h2>
-          <Button size="sm" variant="outline" onClick={loadCanonry} disabled={!c.canonry_project || canonryLoading}>
+          <Button size="sm" variant="outline" onClick={loadCanonry} disabled={!c.canonry_project || canonryLoading || !enabled.canonry}>
             {canonryLoading ? "Lädt..." : "Laden"}
           </Button>
         </div>
-        {!c.canonry_project ? (
+        {!enabled.canonry ? (
+          <p className="text-sm text-muted-foreground">Canonry für diesen Kunden in den Einstellungen deaktiviert.</p>
+        ) : !c.canonry_project ? (
           <p className="text-sm text-muted-foreground">Kein Canonry-Projekt-Slug konfiguriert.</p>
         ) : canonryData ? (
           <pre className="max-h-80 overflow-auto rounded bg-muted/30 p-3 text-xs">{JSON.stringify(canonryData, null, 2)}</pre>
