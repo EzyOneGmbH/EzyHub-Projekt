@@ -106,6 +106,10 @@ function ContentEditor() {
 
   const doResearch = async () => {
     if (!researchQuery.trim()) return;
+    if (!item.client_id) {
+      toast.error("Bitte zuerst einen Kunden zuweisen.");
+      return;
+    }
     setResearchBusy(true);
     try {
       const session = (await supabase.auth.getSession()).data.session;
@@ -115,7 +119,11 @@ function ContentEditor() {
           "Content-Type": "application/json",
           ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
-        body: JSON.stringify({ query: researchQuery, model: "sonar" }),
+        body: JSON.stringify({
+          query: researchQuery,
+          model: "sonar",
+          clientId: item.client_id,
+        }),
       });
       const json = await r.json();
       if (!r.ok) throw new Error(json.error ?? `HTTP ${r.status}`);
