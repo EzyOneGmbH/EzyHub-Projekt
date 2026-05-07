@@ -57,6 +57,11 @@ export const Route = createFileRoute("/api/google/gsc-import")({
           const r = await requireMember(user.id, parsed.data.clientId);
           if ("error" in r) return Response.json({ error: r.error }, { status: r.status });
           const client = r.client;
+          if (!(await canRunAudits(user.id, client.organization_id)))
+            return Response.json(
+              { ok: false, error: "Keine Berechtigung für Audit-Läufe (viewer/read-only)." },
+              { status: 403 },
+            );
           if (!client.gsc_property)
             return Response.json({ ok: false, error: "Kein GSC-Property gesetzt." });
           if (!(await isProviderEnabled(client.id, "google")))
