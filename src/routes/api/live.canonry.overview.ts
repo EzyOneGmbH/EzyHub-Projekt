@@ -61,6 +61,7 @@ export const Route = createFileRoute("/api/live/canonry/overview")({
         const parsed = QuerySchema.safeParse({
           project: url.searchParams.get("project") ?? "",
           domain: url.searchParams.get("domain") ?? undefined,
+          clientId: url.searchParams.get("clientId") ?? undefined,
         });
         if (!parsed.success) {
           return new Response(
@@ -68,7 +69,14 @@ export const Route = createFileRoute("/api/live/canonry/overview")({
             { status: 400, headers: { "Content-Type": "application/json" } }
           );
         }
-        const { project, domain } = parsed.data;
+        const { project, domain, clientId } = parsed.data;
+
+        if (clientId && !(await isProviderEnabled(clientId, "canonry"))) {
+          return new Response(
+            JSON.stringify({ error: "Canonry für diesen Kunden deaktiviert." }),
+            { status: 403, headers: { "Content-Type": "application/json" } }
+          );
+        }
 
         const baseUrl = process.env.CANONRY_BASE_URL;
         const apiKey = process.env.CANONRY_API_KEY;
