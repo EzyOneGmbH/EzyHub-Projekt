@@ -68,9 +68,13 @@ function ContentEditor() {
         language: item.language,
         target_url: item.target_url,
         client_id: item.client_id,
-        keywords: typeof item.keywords === "string"
-          ? item.keywords.split(",").map((s: string) => s.trim()).filter(Boolean)
-          : item.keywords,
+        keywords:
+          typeof item.keywords === "string"
+            ? item.keywords
+                .split(",")
+                .map((s: string) => s.trim())
+                .filter(Boolean)
+            : item.keywords,
       })
       .eq("id", id);
     if (error) toast.error(error.message);
@@ -87,14 +91,16 @@ function ContentEditor() {
   const aiGenerate = async () => {
     setAiBusy(true);
     const prompt = `Erstelle einen ${item.content_type}-Text auf ${item.language} zum Thema: "${item.title}".${
-      item.keywords?.length ? ` Keywords: ${(Array.isArray(item.keywords) ? item.keywords : []).join(", ")}.` : ""
+      item.keywords?.length
+        ? ` Keywords: ${(Array.isArray(item.keywords) ? item.keywords : []).join(", ")}.`
+        : ""
     } Schreibe SEO-optimiert mit klarer Struktur (H2/H3) und Mehrwert.`;
     const { data, error } = await supabase.functions.invoke("ai-summarize", {
       body: { text: prompt, mode: "generate" },
     });
     setAiBusy(false);
     if (error) return toast.error(error.message);
-    setItem({ ...item, body: (data?.summary ?? data?.text ?? "") });
+    setItem({ ...item, body: data?.summary ?? data?.text ?? "" });
     toast.success("Entwurf eingefügt — bitte prüfen und speichern");
   };
 
@@ -123,7 +129,12 @@ function ContentEditor() {
 
   return (
     <AppShell>
-      <Button variant="ghost" size="sm" onClick={() => navigate({ to: "/content" })} className="mb-4">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => navigate({ to: "/content" })}
+        className="mb-4"
+      >
         <ArrowLeft className="mr-2 h-4 w-4" /> Zurück
       </Button>
 
@@ -147,7 +158,9 @@ function ContentEditor() {
                   disabled={!canEdit}
                   onValueChange={(v) => setItem({ ...item, content_type: v })}
                 >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="blog">Blog</SelectItem>
                     <SelectItem value="landing">Landingpage</SelectItem>
@@ -164,7 +177,9 @@ function ContentEditor() {
                   disabled={!canEdit}
                   onValueChange={(v) => setItem({ ...item, status: v })}
                 >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="draft">Entwurf</SelectItem>
                     <SelectItem value="review">Review</SelectItem>
@@ -190,11 +205,15 @@ function ContentEditor() {
                   disabled={!canEdit}
                   onValueChange={(v) => setItem({ ...item, client_id: v === "none" ? null : v })}
                 >
-                  <SelectTrigger><SelectValue placeholder="Kein Kunde" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Kein Kunde" />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Kein Kunde</SelectItem>
                     {clients.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -213,7 +232,9 @@ function ContentEditor() {
             <div className="space-y-1">
               <Label>Keywords (kommagetrennt)</Label>
               <Input
-                value={Array.isArray(item.keywords) ? item.keywords.join(", ") : item.keywords ?? ""}
+                value={
+                  Array.isArray(item.keywords) ? item.keywords.join(", ") : (item.keywords ?? "")
+                }
                 disabled={!canEdit}
                 onChange={(e) => setItem({ ...item, keywords: e.target.value })}
               />
@@ -232,7 +253,9 @@ function ContentEditor() {
 
             {canEdit && (
               <div className="flex flex-wrap gap-2 pt-2">
-                <Button onClick={save}><Save className="mr-2 h-4 w-4" /> Speichern</Button>
+                <Button onClick={save}>
+                  <Save className="mr-2 h-4 w-4" /> Speichern
+                </Button>
                 <Button variant="outline" onClick={aiGenerate} disabled={aiBusy}>
                   <Sparkles className="mr-2 h-4 w-4" />
                   {aiBusy ? "Generiere..." : "KI-Entwurf"}
@@ -259,7 +282,11 @@ function ContentEditor() {
               placeholder="Suchanfrage..."
             />
             <Button onClick={doResearch} disabled={researchBusy} className="w-full">
-              {researchBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+              {researchBusy ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Search className="mr-2 h-4 w-4" />
+              )}
               Recherchieren
             </Button>
           </div>
@@ -274,7 +301,12 @@ function ContentEditor() {
                   <ul className="space-y-1">
                     {research.citations.map((c, i) => (
                       <li key={i} className="truncate text-xs">
-                        <a href={c} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                        <a
+                          href={c}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-primary hover:underline"
+                        >
                           {c}
                         </a>
                       </li>

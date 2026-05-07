@@ -119,29 +119,78 @@ function ClientDetail() {
 
   return (
     <AppShell>
-      <Button variant="ghost" size="sm" onClick={() => navigate({ to: "/customers" })} className="mb-4">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => navigate({ to: "/customers" })}
+        className="mb-4"
+      >
         <ArrowLeft className="mr-2 h-4 w-4" /> Zurück
       </Button>
 
       <Card className="p-6">
         <h1 className="mb-4 text-2xl font-bold text-foreground">{c.name}</h1>
         <div className="grid gap-3 md:grid-cols-2">
-          <Field label="Name" value={c.name} onChange={(v) => setC({ ...c, name: v })} disabled={!isOrgAdmin} />
-          <Field label="Domain" value={c.domain ?? ""} onChange={(v) => setC({ ...c, domain: v || null })} disabled={!isOrgAdmin} />
-          <Field label="Branche" value={c.industry ?? ""} onChange={(v) => setC({ ...c, industry: v || null })} disabled={!isOrgAdmin} />
-          <Field label="Land" value={c.country ?? ""} onChange={(v) => setC({ ...c, country: v || null })} disabled={!isOrgAdmin} />
-          <Field label="Canonry Projekt-Slug" value={c.canonry_project ?? ""} onChange={(v) => setC({ ...c, canonry_project: v || null })} disabled={!isOrgAdmin} />
-          <Field label="GSC Property" value={c.gsc_property ?? ""} onChange={(v) => setC({ ...c, gsc_property: v || null })} disabled={!isOrgAdmin} />
-          <Field label="GA4 Property" value={c.ga4_property ?? ""} onChange={(v) => setC({ ...c, ga4_property: v || null })} disabled={!isOrgAdmin} />
+          <Field
+            label="Name"
+            value={c.name}
+            onChange={(v) => setC({ ...c, name: v })}
+            disabled={!isOrgAdmin}
+          />
+          <Field
+            label="Domain"
+            value={c.domain ?? ""}
+            onChange={(v) => setC({ ...c, domain: v || null })}
+            disabled={!isOrgAdmin}
+          />
+          <Field
+            label="Branche"
+            value={c.industry ?? ""}
+            onChange={(v) => setC({ ...c, industry: v || null })}
+            disabled={!isOrgAdmin}
+          />
+          <Field
+            label="Land"
+            value={c.country ?? ""}
+            onChange={(v) => setC({ ...c, country: v || null })}
+            disabled={!isOrgAdmin}
+          />
+          <Field
+            label="Canonry Projekt-Slug"
+            value={c.canonry_project ?? ""}
+            onChange={(v) => setC({ ...c, canonry_project: v || null })}
+            disabled={!isOrgAdmin}
+          />
+          <Field
+            label="GSC Property"
+            value={c.gsc_property ?? ""}
+            onChange={(v) => setC({ ...c, gsc_property: v || null })}
+            disabled={!isOrgAdmin}
+          />
+          <Field
+            label="GA4 Property"
+            value={c.ga4_property ?? ""}
+            onChange={(v) => setC({ ...c, ga4_property: v || null })}
+            disabled={!isOrgAdmin}
+          />
         </div>
         <div className="mt-3 space-y-1">
           <Label>Notizen</Label>
-          <Textarea rows={5} value={c.notes ?? ""} disabled={!isOrgAdmin} onChange={(e) => setC({ ...c, notes: e.target.value })} />
+          <Textarea
+            rows={5}
+            value={c.notes ?? ""}
+            disabled={!isOrgAdmin}
+            onChange={(e) => setC({ ...c, notes: e.target.value })}
+          />
         </div>
         {isOrgAdmin && (
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button onClick={save}><Save className="mr-2 h-4 w-4" /> Speichern</Button>
-            <Button variant="destructive" onClick={del} className="ml-auto"><Trash2 className="mr-2 h-4 w-4" /> Löschen</Button>
+            <Button onClick={save}>
+              <Save className="mr-2 h-4 w-4" /> Speichern
+            </Button>
+            <Button variant="destructive" onClick={del} className="ml-auto">
+              <Trash2 className="mr-2 h-4 w-4" /> Löschen
+            </Button>
           </div>
         )}
       </Card>
@@ -167,18 +216,29 @@ function ClientDetail() {
       <Card className="mt-6 p-6">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="font-semibold">Canonry / GEO Health</h2>
-          <Button size="sm" variant="outline" onClick={loadCanonry} disabled={!c.canonry_project || canonryLoading || !enabled.canonry}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={loadCanonry}
+            disabled={!c.canonry_project || canonryLoading || !enabled.canonry}
+          >
             {canonryLoading ? "Lädt..." : "Laden"}
           </Button>
         </div>
         {!enabled.canonry ? (
-          <p className="text-sm text-muted-foreground">Canonry für diesen Kunden in den Einstellungen deaktiviert.</p>
+          <p className="text-sm text-muted-foreground">
+            Canonry für diesen Kunden in den Einstellungen deaktiviert.
+          </p>
         ) : !c.canonry_project ? (
           <p className="text-sm text-muted-foreground">Kein Canonry-Projekt-Slug konfiguriert.</p>
         ) : canonryData ? (
-          <pre className="max-h-80 overflow-auto rounded bg-muted/30 p-3 text-xs">{JSON.stringify(canonryData, null, 2)}</pre>
+          <pre className="max-h-80 overflow-auto rounded bg-muted/30 p-3 text-xs">
+            {JSON.stringify(canonryData, null, 2)}
+          </pre>
         ) : (
-          <p className="text-sm text-muted-foreground">Auf „Laden" klicken, um Health/Runs/Keywords zu holen.</p>
+          <p className="text-sm text-muted-foreground">
+            Auf „Laden" klicken, um Health/Runs/Keywords zu holen.
+          </p>
         )}
       </Card>
 
@@ -191,7 +251,17 @@ function ClientDetail() {
             {runs.map((r) => (
               <li key={r.id} className="flex items-center justify-between py-2 text-sm">
                 <div className="flex items-center gap-2">
-                  <Badge variant={r.status === "succeeded" ? "default" : r.status === "failed" ? "destructive" : "outline"}>{r.status}</Badge>
+                  <Badge
+                    variant={
+                      r.status === "succeeded"
+                        ? "default"
+                        : r.status === "failed"
+                          ? "destructive"
+                          : "outline"
+                    }
+                  >
+                    {r.status}
+                  </Badge>
                   <span className="font-mono text-xs">{r.audit_type}</span>
                 </div>
                 <div className="text-xs text-muted-foreground">
@@ -207,7 +277,17 @@ function ClientDetail() {
   );
 }
 
-function Field({ label, value, onChange, disabled }: { label: string; value: string; onChange: (v: string) => void; disabled?: boolean }) {
+function Field({
+  label,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
   return (
     <div className="space-y-1">
       <Label>{label}</Label>
@@ -223,7 +303,9 @@ function DisabledTool({ name }: { name: string }) {
         <h2 className="font-semibold">{name}</h2>
         <Badge variant="outline">Deaktiviert</Badge>
       </div>
-      <p className="text-sm text-muted-foreground">In den Einstellungen für diesen Kunden aktivieren.</p>
+      <p className="text-sm text-muted-foreground">
+        In den Einstellungen für diesen Kunden aktivieren.
+      </p>
     </Card>
   );
 }

@@ -37,7 +37,13 @@ function AdminUsers() {
     (roles ?? []).forEach((r: any) => {
       byUser[r.user_id] = [...(byUser[r.user_id] ?? []), r.role];
     });
-    setRows((profiles ?? []).map((p: any) => ({ id: p.id, full_name: p.full_name, roles: byUser[p.id] ?? [] })));
+    setRows(
+      (profiles ?? []).map((p: any) => ({
+        id: p.id,
+        full_name: p.full_name,
+        roles: byUser[p.id] ?? [],
+      })),
+    );
   };
 
   useEffect(() => {
@@ -46,10 +52,16 @@ function AdminUsers() {
 
   const toggleAdmin = async (userId: string, hasAdmin: boolean) => {
     if (hasAdmin) {
-      const { error } = await supabase.from("user_roles").delete().eq("user_id", userId).eq("role", "admin");
+      const { error } = await supabase
+        .from("user_roles")
+        .delete()
+        .eq("user_id", userId)
+        .eq("role", "admin");
       if (error) return toast.error(error.message);
     } else {
-      const { error } = await supabase.from("user_roles").insert({ user_id: userId, role: "admin" });
+      const { error } = await supabase
+        .from("user_roles")
+        .insert({ user_id: userId, role: "admin" });
       if (error) return toast.error(error.message);
     }
     toast.success("Aktualisiert");
@@ -83,7 +95,11 @@ function AdminUsers() {
                   ))}
                 </div>
               </div>
-              <Button variant={hasAdmin ? "outline" : "default"} size="sm" onClick={() => toggleAdmin(r.id, hasAdmin)}>
+              <Button
+                variant={hasAdmin ? "outline" : "default"}
+                size="sm"
+                onClick={() => toggleAdmin(r.id, hasAdmin)}
+              >
                 {hasAdmin ? "Admin entfernen" : "Zum Admin machen"}
               </Button>
             </Card>

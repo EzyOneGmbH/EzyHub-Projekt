@@ -9,7 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Plus, Globe2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -86,7 +92,7 @@ function CustomersPage() {
   const filtered = clients.filter(
     (c) =>
       c.name.toLowerCase().includes(search.toLowerCase()) ||
-      (c.domain ?? "").toLowerCase().includes(search.toLowerCase())
+      (c.domain ?? "").toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
@@ -118,14 +124,24 @@ function CustomersPage() {
                 ).map(([k, label]) => (
                   <div key={k} className="space-y-1">
                     <Label htmlFor={k}>{label}</Label>
-                    <Input id={k} value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
+                    <Input
+                      id={k}
+                      value={form[k]}
+                      onChange={(e) => setForm({ ...form, [k]: e.target.value })}
+                    />
                   </div>
                 ))}
                 <div className="space-y-1">
                   <Label htmlFor="notes">Notizen</Label>
-                  <Textarea id="notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+                  <Textarea
+                    id="notes"
+                    value={form.notes}
+                    onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                  />
                 </div>
-                <Button type="submit" className="w-full">Anlegen</Button>
+                <Button type="submit" className="w-full">
+                  Anlegen
+                </Button>
               </form>
             </DialogContent>
           </Dialog>

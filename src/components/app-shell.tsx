@@ -48,11 +48,16 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const SidebarInner = () => (
     <>
-      <Link to="/dashboard" className="flex items-center gap-2 px-2 py-2 font-bold text-sidebar-foreground">
+      <Link
+        to="/dashboard"
+        className="flex items-center gap-2 px-2 py-2 font-bold text-sidebar-foreground"
+      >
         <span className="grid h-8 w-8 place-items-center rounded-lg bg-[image:var(--gradient-primary)] shadow-[var(--shadow-elegant)]">
           <Sparkles className="h-4 w-4 text-primary-foreground" />
         </span>
-        <span className="bg-clip-text text-transparent bg-[image:var(--gradient-primary)]">EZY ONE</span>
+        <span className="bg-clip-text text-transparent bg-[image:var(--gradient-primary)]">
+          EZY ONE
+        </span>
         <span className="text-xs font-medium text-muted-foreground">SEO &amp; GEO</span>
       </Link>
 
@@ -67,7 +72,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all",
                 active
                   ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
-                  : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
+                  : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
               )}
             >
               <item.icon className="h-4 w-4" />
@@ -82,7 +87,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all",
               location.pathname.startsWith("/admin")
                 ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60"
+                : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60",
             )}
           >
             <Shield className="h-4 w-4" />

@@ -9,7 +9,13 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FileText, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export const Route = createFileRoute("/content")({
   component: ContentList,
@@ -81,13 +87,21 @@ function ContentList() {
       <div className="mb-6 flex items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold">Inhalte</h1>
-          <p className="text-sm text-muted-foreground">SEO &amp; GEO Beiträge, Landingpages und Snippets.</p>
+          <p className="text-sm text-muted-foreground">
+            SEO &amp; GEO Beiträge, Landingpages und Snippets.
+          </p>
         </div>
         <div className="flex items-end gap-2">
           <Select value={newClient} onValueChange={setNewClient}>
-            <SelectTrigger className="w-56"><SelectValue placeholder="Kunde wählen" /></SelectTrigger>
+            <SelectTrigger className="w-56">
+              <SelectValue placeholder="Kunde wählen" />
+            </SelectTrigger>
             <SelectContent>
-              {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+              {clients.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Button onClick={create} disabled={!newClient}>
@@ -98,7 +112,12 @@ function ContentList() {
 
       <div className="relative mb-4">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Suchen..." className="pl-9" />
+        <Input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Suchen..."
+          className="pl-9"
+        />
       </div>
 
       {loading ? (
@@ -106,7 +125,9 @@ function ContentList() {
       ) : filtered.length === 0 ? (
         <Card className="p-10 text-center">
           <FileText className="mx-auto h-10 w-10 text-muted-foreground" />
-          <p className="mt-3 text-sm text-muted-foreground">Noch keine Inhalte. Lege den ersten an.</p>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Noch keine Inhalte. Lege den ersten an.
+          </p>
         </Card>
       ) : (
         <div className="grid gap-3">

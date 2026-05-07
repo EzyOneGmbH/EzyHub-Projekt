@@ -13,14 +13,22 @@ export function getGoogleConfig() {
   const redirectUri = process.env.GOOGLE_REDIRECT_URI;
   const sessionSecret = process.env.SESSION_SECRET;
   if (!clientId || !clientSecret || !redirectUri || !sessionSecret) {
-    throw new Error("Google OAuth not configured (GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI/SESSION_SECRET missing)");
+    throw new Error(
+      "Google OAuth not configured (GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI/SESSION_SECRET missing)",
+    );
   }
   return { clientId, clientSecret, redirectUri, sessionSecret };
 }
 
 export function redactSecrets(input: unknown): string {
-  let s = input instanceof Error ? input.message : typeof input === "string" ? input : String(input);
-  for (const k of ["GOOGLE_CLIENT_SECRET", "GOOGLE_CLIENT_ID", "SESSION_SECRET", "CANONRY_API_KEY"] as const) {
+  let s =
+    input instanceof Error ? input.message : typeof input === "string" ? input : String(input);
+  for (const k of [
+    "GOOGLE_CLIENT_SECRET",
+    "GOOGLE_CLIENT_ID",
+    "SESSION_SECRET",
+    "CANONRY_API_KEY",
+  ] as const) {
     const v = process.env[k];
     if (v && v.length > 4) s = s.split(v).join("***REDACTED***");
   }

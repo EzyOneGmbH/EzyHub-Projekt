@@ -22,10 +22,25 @@ export const Route = createFileRoute("/settings")({
 });
 
 const TOOLS = [
-  { key: "perplexity", label: "Perplexity Recherche", icon: Search, desc: "Live-Web-Suche mit Quellen für Content-Recherche." },
-  { key: "ahrefs", label: "Ahrefs SEO", icon: BarChart3, desc: "Domain-Rating, Backlinks, Keyword-Daten." },
+  {
+    key: "perplexity",
+    label: "Perplexity Recherche",
+    icon: Search,
+    desc: "Live-Web-Suche mit Quellen für Content-Recherche.",
+  },
+  {
+    key: "ahrefs",
+    label: "Ahrefs SEO",
+    icon: BarChart3,
+    desc: "Domain-Rating, Backlinks, Keyword-Daten.",
+  },
   { key: "canonry", label: "Canonry", icon: Link2, desc: "Eigene Canonry-API Anbindung." },
-  { key: "ai", label: "KI-Generierung", icon: Bot, desc: "Texterstellung & Zusammenfassungen via AI Gateway." },
+  {
+    key: "ai",
+    label: "KI-Generierung",
+    icon: Bot,
+    desc: "Texterstellung & Zusammenfassungen via AI Gateway.",
+  },
 ];
 
 type Client = { id: string; name: string; organization_id: string };
@@ -38,7 +53,10 @@ function SettingsPage() {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from("clients").select("id,name,organization_id").order("name");
+      const { data } = await supabase
+        .from("clients")
+        .select("id,name,organization_id")
+        .order("name");
       const list = (data ?? []) as Client[];
       setClients(list);
       if (list.length && !selected) setSelected(list[0].id);
@@ -66,8 +84,13 @@ function SettingsPage() {
     const { error } = await supabase
       .from("client_integrations")
       .upsert(
-        { client_id: selected, organization_id: client.organization_id, provider: toolKey, enabled },
-        { onConflict: "client_id,provider" }
+        {
+          client_id: selected,
+          organization_id: client.organization_id,
+          provider: toolKey,
+          enabled,
+        },
+        { onConflict: "client_id,provider" },
       );
     if (error) {
       toast.error(error.message);
@@ -80,68 +103,88 @@ function SettingsPage() {
   return (
     <AppShell>
       <RequireRole roles={["owner", "admin"]}>
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Einstellungen</h1>
-        <p className="text-sm text-muted-foreground">
-          {isAdmin ? "Verwalte Tools pro Kunde." : "Nur Lesemodus — Admins können Tools verwalten."}
-        </p>
-      </div>
-
-      <Card className="mb-6 p-6">
-        <h2 className="mb-2 font-semibold">Mein Konto</h2>
-        <div className="grid gap-2 text-sm">
-          <div className="flex justify-between"><span className="text-muted-foreground">E-Mail</span><span>{user?.email}</span></div>
-          <div className="flex justify-between"><span className="text-muted-foreground">Rolle</span><span>{isAdmin ? "Admin" : "Mitglied"}</span></div>
-        </div>
-      </Card>
-
-      <Card className="p-6">
-        <div className="mb-4 flex items-end justify-between gap-3">
-          <div>
-            <h2 className="font-semibold">Tools pro Kunde</h2>
-            <p className="text-xs text-muted-foreground">Schalte SEO/GEO-Tools für jeden Kunden einzeln frei.</p>
-          </div>
-          <div className="w-64">
-            <Label className="mb-1 block text-xs">Kunde</Label>
-            <Select value={selected} onValueChange={setSelected}>
-              <SelectTrigger><SelectValue placeholder="Kunde wählen" /></SelectTrigger>
-              <SelectContent>
-                {clients.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold">Einstellungen</h1>
+          <p className="text-sm text-muted-foreground">
+            {isAdmin
+              ? "Verwalte Tools pro Kunde."
+              : "Nur Lesemodus — Admins können Tools verwalten."}
+          </p>
         </div>
 
-        {!selected ? (
-          <p className="text-sm text-muted-foreground">Lege zuerst einen Kunden an.</p>
-        ) : (
-          <div className="grid gap-3">
-            {TOOLS.map((t) => {
-              const Icon = t.icon;
-              const on = !!enabledMap[t.key];
-              return (
-                <div
-                  key={t.key}
-                  className="flex items-center justify-between rounded-lg border border-border bg-muted/20 p-4"
-                >
-                  <div className="flex items-start gap-3">
-                    <span className={`grid h-9 w-9 place-items-center rounded-md ${on ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}>
-                      <Icon className="h-4 w-4" />
-                    </span>
-                    <div>
-                      <div className="font-medium">{t.label}</div>
-                      <div className="text-xs text-muted-foreground">{t.desc}</div>
+        <Card className="mb-6 p-6">
+          <h2 className="mb-2 font-semibold">Mein Konto</h2>
+          <div className="grid gap-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">E-Mail</span>
+              <span>{user?.email}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Rolle</span>
+              <span>{isAdmin ? "Admin" : "Mitglied"}</span>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <div className="mb-4 flex items-end justify-between gap-3">
+            <div>
+              <h2 className="font-semibold">Tools pro Kunde</h2>
+              <p className="text-xs text-muted-foreground">
+                Schalte SEO/GEO-Tools für jeden Kunden einzeln frei.
+              </p>
+            </div>
+            <div className="w-64">
+              <Label className="mb-1 block text-xs">Kunde</Label>
+              <Select value={selected} onValueChange={setSelected}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Kunde wählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clients.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {!selected ? (
+            <p className="text-sm text-muted-foreground">Lege zuerst einen Kunden an.</p>
+          ) : (
+            <div className="grid gap-3">
+              {TOOLS.map((t) => {
+                const Icon = t.icon;
+                const on = !!enabledMap[t.key];
+                return (
+                  <div
+                    key={t.key}
+                    className="flex items-center justify-between rounded-lg border border-border bg-muted/20 p-4"
+                  >
+                    <div className="flex items-start gap-3">
+                      <span
+                        className={`grid h-9 w-9 place-items-center rounded-md ${on ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}
+                      >
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <div className="font-medium">{t.label}</div>
+                        <div className="text-xs text-muted-foreground">{t.desc}</div>
+                      </div>
                     </div>
+                    <Switch
+                      checked={on}
+                      disabled={!isAdmin}
+                      onCheckedChange={(v) => toggle(t.key, v)}
+                    />
                   </div>
-                  <Switch checked={on} disabled={!isAdmin} onCheckedChange={(v) => toggle(t.key, v)} />
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Card>
+                );
+              })}
+            </div>
+          )}
+        </Card>
       </RequireRole>
     </AppShell>
   );

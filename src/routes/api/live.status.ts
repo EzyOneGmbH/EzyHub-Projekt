@@ -25,7 +25,8 @@ type LiveStatus = {
  * Strip secret values from any string so they never leak in error messages.
  */
 function redact(input: unknown, secrets: Array<string | undefined>): string {
-  let s = typeof input === "string" ? input : input instanceof Error ? input.message : String(input);
+  let s =
+    typeof input === "string" ? input : input instanceof Error ? input.message : String(input);
   for (const v of secrets) {
     if (!v || v.length < 4) continue;
     s = s.split(v).join("***REDACTED***");
@@ -40,7 +41,7 @@ async function timedFetch(
   url: string,
   init: RequestInit,
   secrets: Array<string | undefined>,
-  timeoutMs = 6000
+  timeoutMs = 6000,
 ): Promise<ProbeResult> {
   const start = Date.now();
   const ctrl = new AbortController();
@@ -76,7 +77,7 @@ async function probeGemini(key?: string): Promise<ProbeResult> {
   return timedFetch(
     `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`,
     { method: "GET" },
-    [key]
+    [key],
   );
 }
 
@@ -85,7 +86,7 @@ async function probeOpenAI(key?: string): Promise<ProbeResult> {
   return timedFetch(
     "https://api.openai.com/v1/models",
     { method: "GET", headers: { Authorization: `Bearer ${key}` } },
-    [key]
+    [key],
   );
 }
 
@@ -97,7 +98,7 @@ async function probeAnthropic(key?: string): Promise<ProbeResult> {
       method: "GET",
       headers: { "x-api-key": key, "anthropic-version": "2023-06-01" },
     },
-    [key]
+    [key],
   );
 }
 
@@ -118,7 +119,7 @@ async function probePerplexity(key?: string): Promise<ProbeResult> {
         max_tokens: 1,
       }),
     },
-    [key]
+    [key],
   );
 }
 
@@ -131,11 +132,10 @@ async function probeCanonry(baseUrl?: string, key?: string): Promise<ProbeResult
     };
   }
   const url = baseUrl.replace(/\/+$/, "") + "/health";
-  return timedFetch(
-    url,
-    { method: "GET", headers: { Authorization: `Bearer ${key}` } },
-    [key, baseUrl]
-  );
+  return timedFetch(url, { method: "GET", headers: { Authorization: `Bearer ${key}` } }, [
+    key,
+    baseUrl,
+  ]);
 }
 
 async function probeAhrefs(key?: string): Promise<ProbeResult> {
@@ -143,11 +143,15 @@ async function probeAhrefs(key?: string): Promise<ProbeResult> {
   return timedFetch(
     "https://api.ahrefs.com/v3/subscription-info/limits-and-usage",
     { method: "GET", headers: { Authorization: `Bearer ${key}`, Accept: "application/json" } },
-    [key]
+    [key],
   );
 }
 
-function reportGoogleOAuth(clientId?: string, clientSecret?: string, redirect?: string): ProbeResult {
+function reportGoogleOAuth(
+  clientId?: string,
+  clientSecret?: string,
+  redirect?: string,
+): ProbeResult {
   const missing: string[] = [];
   if (!clientId) missing.push("GOOGLE_CLIENT_ID");
   if (!clientSecret) missing.push("GOOGLE_CLIENT_SECRET");

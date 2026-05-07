@@ -73,11 +73,22 @@ function GeoDashboard() {
           <form onSubmit={submit} className="grid gap-4 md:grid-cols-[1fr,1fr,auto] md:items-end">
             <div className="space-y-2">
               <Label htmlFor="project">Project</Label>
-              <Input id="project" value={project} onChange={(e) => setProject(e.target.value)} placeholder="my-project" required />
+              <Input
+                id="project"
+                value={project}
+                onChange={(e) => setProject(e.target.value)}
+                placeholder="my-project"
+                required
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="domain">Domain (optional)</Label>
-              <Input id="domain" value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="example.com" />
+              <Input
+                id="domain"
+                value={domain}
+                onChange={(e) => setDomain(e.target.value)}
+                placeholder="example.com"
+              />
             </div>
             <Button type="submit" disabled={loading || !project}>
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
@@ -94,8 +105,18 @@ function GeoDashboard() {
           <div className="grid gap-4 md:grid-cols-2">
             <SectionCard title="Project" payload={data.project} err={data.errors.project} />
             <SectionCard title="Health (latest)" payload={data.health} err={data.errors.health} />
-            <SectionCard title="Runs (latest)" payload={data.runs} err={data.errors.runs} optional />
-            <SectionCard title="Schedule" payload={data.schedule} err={data.errors.schedule} optional />
+            <SectionCard
+              title="Runs (latest)"
+              payload={data.runs}
+              err={data.errors.runs}
+              optional
+            />
+            <SectionCard
+              title="Schedule"
+              payload={data.schedule}
+              err={data.errors.schedule}
+              optional
+            />
             <SectionCard title="Keywords" payload={data.keywords} err={data.errors.keywords} />
             <SectionCard title="Insights" payload={data.insights} err={data.errors.insights} />
             <SectionCard title="History" payload={data.history} err={data.errors.history} />

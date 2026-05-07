@@ -35,7 +35,7 @@ export const gscKeywordImport = createServerFn({ method: "POST" })
         days: z.number().int().min(1).max(90).default(28),
         rowLimit: z.number().int().min(1).max(500).default(50),
       })
-      .parse(d)
+      .parse(d),
   )
   .handler(async ({ data, context }) => {
     try {
@@ -58,7 +58,7 @@ export const gscKeywordImport = createServerFn({ method: "POST" })
       const fmt = (d: Date) => d.toISOString().slice(0, 10);
 
       const url = `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(
-        client.gsc_property
+        client.gsc_property,
       )}/searchAnalytics/query`;
 
       const res = await fetch(url, {
@@ -79,7 +79,15 @@ export const gscKeywordImport = createServerFn({ method: "POST" })
         const t = await res.text().catch(() => "");
         return { ok: false, error: redactSecrets(`GSC HTTP ${res.status}: ${t}`) };
       }
-      const json = (await res.json()) as { rows?: Array<{ keys: string[]; clicks: number; impressions: number; ctr: number; position: number }> };
+      const json = (await res.json()) as {
+        rows?: Array<{
+          keys: string[];
+          clicks: number;
+          impressions: number;
+          ctr: number;
+          position: number;
+        }>;
+      };
       const rows = json.rows ?? [];
       const keywords = rows.map((r) => ({
         query: r.keys[0],
@@ -90,11 +98,17 @@ export const gscKeywordImport = createServerFn({ method: "POST" })
       }));
 
       // Push to Canonry — graceful if not configured
-      let canonryStatus: { ok: boolean; count?: number; error?: string } = { ok: false, error: "Canonry not configured" };
+      let canonryStatus: { ok: boolean; count?: number; error?: string } = {
+        ok: false,
+        error: "Canonry not configured",
+      };
       const canonryBase = process.env.CANONRY_BASE_URL;
       const canonryKey = process.env.CANONRY_API_KEY;
       if (!canonryProject) {
-        canonryStatus = { ok: false, error: "Kein Canonry-Projekt-Slug für diesen Client gesetzt." };
+        canonryStatus = {
+          ok: false,
+          error: "Kein Canonry-Projekt-Slug für diesen Client gesetzt.",
+        };
       } else if (canonryBase && canonryKey && keywords.length > 0) {
         try {
           const cRes = await fetch(
@@ -110,11 +124,14 @@ export const gscKeywordImport = createServerFn({ method: "POST" })
                 property: client.gsc_property,
                 keywords: keywords.map((k) => ({ query: k.query, metrics: k })),
               }),
-            }
+            },
           );
           if (!cRes.ok) {
             const t = await cRes.text().catch(() => "");
-            canonryStatus = { ok: false, error: redactSecrets(`Canonry HTTP ${cRes.status}: ${t}`) };
+            canonryStatus = {
+              ok: false,
+              error: redactSecrets(`Canonry HTTP ${cRes.status}: ${t}`),
+            };
           } else {
             canonryStatus = { ok: true, count: keywords.length };
           }
@@ -145,7 +162,7 @@ export const ga4Summary = createServerFn({ method: "POST" })
         clientId: z.string().uuid(),
         days: z.number().int().min(1).max(90).default(28),
       })
-      .parse(d)
+      .parse(d),
   )
   .handler(async ({ data, context }) => {
     try {
