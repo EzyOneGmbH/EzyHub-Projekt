@@ -5916,7 +5916,37 @@ function App() {
           </div>
         </header>
         <div className="app-content" style={{ padding: isMobile ? "16px 12px" : "24px 28px" }}>
-          {page === "dashboard" && (
+          {!hasClients && page !== "clients" && page !== "settings" && (
+            <div
+              style={{
+                background: C.card,
+                border: `1px dashed ${C.border}`,
+                borderRadius: 14,
+                padding: "48px 24px",
+                textAlign: "center",
+              }}
+            >
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 6 }}>
+                Noch kein Kunde angelegt
+              </div>
+              <div
+                style={{
+                  fontSize: 13,
+                  color: C.textMuted,
+                  marginBottom: 16,
+                  maxWidth: 480,
+                  margin: "0 auto 16px",
+                }}
+              >
+                Lege deinen ersten Kunden an, um Dashboards, Tools und Reports mit Live-Daten zu
+                füllen.
+              </div>
+              <Btn icon={Plus} onClick={() => setPage("clients")}>
+                Kunde anlegen
+              </Btn>
+            </div>
+          )}
+          {hasClients && page === "dashboard" && (
             <>
               <div style={{ marginBottom: 20 }}>
                 <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
@@ -5943,7 +5973,7 @@ function App() {
               )}
             </>
           )}
-          {page === "tools" && <ToolsPage selectedClient={client} tools={tools} />}
+          {hasClients && page === "tools" && <ToolsPage selectedClient={client} tools={tools} />}
           {page === "content" && (
             <ContentPage
               clients={clients}
