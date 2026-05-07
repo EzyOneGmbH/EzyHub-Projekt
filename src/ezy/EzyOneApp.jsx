@@ -548,8 +548,7 @@ function buildCanonryLiveModel(selectedClient, payload) {
   const project = data.project;
   if (!project) return null;
   const timeline = Array.isArray(data.timeline) ? data.timeline : [];
-  const healthLatest =
-    data.health && typeof data.health === "object" ? data.health : null;
+  const healthLatest = data.health && typeof data.health === "object" ? data.health : null;
   const runsRaw = data.runs;
   const latestRun =
     (runsRaw && typeof runsRaw === "object" && (runsRaw.run || runsRaw.latest || runsRaw)) || null;
@@ -615,9 +614,10 @@ function buildCanonryLiveModel(selectedClient, payload) {
     keywords: trackedKeywords,
     latestRun: {
       status: latestRun?.status || "unknown",
-      time: latestRun?.finishedAt || latestRun?.startedAt
-        ? formatCanonryStamp(latestRun?.finishedAt || latestRun?.startedAt)
-        : "—",
+      time:
+        latestRun?.finishedAt || latestRun?.startedAt
+          ? formatCanonryStamp(latestRun?.finishedAt || latestRun?.startedAt)
+          : "—",
       duration:
         latestRun?.startedAt && latestRun?.finishedAt
           ? formatCanonryDuration(latestRun.startedAt, latestRun.finishedAt)
@@ -631,9 +631,7 @@ function buildCanonryLiveModel(selectedClient, payload) {
     insights: (liveInsights.length
       ? liveInsights
       : [
-          providerErrors.length
-            ? `Provider-Limits erkannt: ${providerErrors.join(", ")}`
-            : null,
+          providerErrors.length ? `Provider-Limits erkannt: ${providerErrors.join(", ")}` : null,
         ].filter(Boolean)
     ).slice(0, 3),
   };
