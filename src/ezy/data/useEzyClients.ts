@@ -36,33 +36,62 @@ function rowToClient(r: any): EzyClient {
     .replace(/^https?:\/\//i, "")
     .replace(/\/+$/, "")
     .trim();
+  const m = (r.metadata && typeof r.metadata === "object" ? r.metadata : {}) as Record<
+    string,
+    any
+  >;
   return {
     id: String(r.id),
     name: String(r.name ?? ""),
     domain,
-    status: r.status === "paused" ? "paused" : "active",
+    status: m.status === "paused" || r.status === "paused" ? "paused" : "active",
     industry: String(r.industry ?? ""),
-    contactEmail: "",
-    contactPhone: "",
-    monthlyBudget: 0,
-    tags: [],
-    targetLocations: r.country ? [String(r.country)] : [],
+    contactEmail: String(m.contactEmail ?? ""),
+    contactPhone: String(m.contactPhone ?? ""),
+    monthlyBudget: Number(m.monthlyBudget ?? 0) || 0,
+    tags: Array.isArray(m.tags) ? m.tags.map(String) : [],
+    targetLocations: Array.isArray(m.targetLocations)
+      ? m.targetLocations.map(String)
+      : r.country
+        ? [String(r.country)]
+        : [],
     notes: String(r.notes ?? ""),
-    defaults: { ...DEFAULT_DEFAULTS, language: r.language === "en" ? "English" : "Deutsch" },
-    score: 0,
-    keywords: 0,
-    traffic: 0,
-    aiVisitors: 0,
-    revenue: 0,
+    defaults: {
+      ...DEFAULT_DEFAULTS,
+      ...(m.defaults && typeof m.defaults === "object" ? m.defaults : {}),
+      language:
+        (m.defaults && m.defaults.language) || (r.language === "en" ? "English" : "Deutsch"),
+    },
+    score: Number(m.score ?? 0) || 0,
+    keywords: Number(m.keywords ?? 0) || 0,
+    traffic: Number(m.traffic ?? 0) || 0,
+    aiVisitors: Number(m.aiVisitors ?? 0) || 0,
+    revenue: Number(m.revenue ?? 0) || 0,
     gscSiteUrl: String(r.gsc_property ?? ""),
     ga4PropertyId: String(r.ga4_property ?? ""),
-    ga4MeasurementId: "",
+    ga4MeasurementId: String(m.ga4MeasurementId ?? ""),
     canonryProject: String(r.canonry_project ?? ""),
-    startDate: String(r.created_at ?? "").slice(0, 10),
+    startDate: String(m.startDate ?? r.created_at ?? "").slice(0, 10),
   };
 }
 
 function clientToRow(c: Partial<EzyClient>, organizationId: string, createdBy: string) {
+  const metadata = {
+    status: c.status ?? "active",
+    contactEmail: c.contactEmail ?? "",
+    contactPhone: c.contactPhone ?? "",
+    monthlyBudget: Number(c.monthlyBudget ?? 0) || 0,
+    tags: c.tags ?? [],
+    targetLocations: c.targetLocations ?? [],
+    ga4MeasurementId: c.ga4MeasurementId ?? "",
+    score: Number(c.score ?? 0) || 0,
+    keywords: Number(c.keywords ?? 0) || 0,
+    traffic: Number(c.traffic ?? 0) || 0,
+    aiVisitors: Number(c.aiVisitors ?? 0) || 0,
+    revenue: Number(c.revenue ?? 0) || 0,
+    startDate: c.startDate ?? null,
+    defaults: c.defaults ?? null,
+  };
   return {
     organization_id: organizationId,
     created_by: createdBy,
@@ -75,7 +104,31 @@ function clientToRow(c: Partial<EzyClient>, organizationId: string, createdBy: s
     gsc_property: c.gscSiteUrl ?? null,
     ga4_property: c.ga4PropertyId ?? null,
     canonry_project: c.canonryProject ?? null,
+    metadata,
   };
+}
+
+/** Default provider rows seeded for new clients. */
+const DEFAULT_PROVIDERS = ["ahrefs", "google", "canonry", "perplexity"] as const;
+
+async function seedDefaultIntegrations(organizationId: string, clientId: string) {
+  try {
+    const { data: existing } = await supabase
+      .from("client_integrations")
+      .select("provider")
+      .eq("client_id", clientId)
+      .in("provider", DEFAULT_PROVIDERS as unknown as string[]);
+    const have = new Set((existing ?? []).map((r: any) => r.provider));
+    const rows = DEFAULT_PROVIDERS.filter((p) => !have.has(p)).map((provider) => ({
+      organization_id: organizationId,
+      client_id: clientId,
+      provider,
+      enabled: true,
+    }));
+    if (rows.length) await supabase.from("client_integrations").insert(rows);
+  } catch {
+    /* non-fatal */
+  }
 }
 
 export function useEzyClients() {
@@ -116,8 +169,10 @@ export function useEzyClients() {
       if (isNew) {
         const { data, error } = await supabase.from("clients").insert(row).select().single();
         if (error) throw error;
-        setClients((p) => [rowToClient(data), ...p]);
-        return rowToClient(data);
+        const mapped = rowToClient(data);
+        await seedDefaultIntegrations(organizationId, mapped.id);
+        setClients((p) => [mapped, ...p]);
+        return mapped;
       } else {
         const { data, error } = await supabase
           .from("clients")
