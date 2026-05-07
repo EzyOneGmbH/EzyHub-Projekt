@@ -225,7 +225,7 @@ export type Database = {
       content_items: {
         Row: {
           body: string | null
-          client_id: string | null
+          client_id: string
           content_type: Database["public"]["Enums"]["content_type"]
           created_at: string
           created_by: string
@@ -240,7 +240,7 @@ export type Database = {
         }
         Insert: {
           body?: string | null
-          client_id?: string | null
+          client_id: string
           content_type?: Database["public"]["Enums"]["content_type"]
           created_at?: string
           created_by: string
@@ -255,7 +255,7 @@ export type Database = {
         }
         Update: {
           body?: string | null
-          client_id?: string | null
+          client_id?: string
           content_type?: Database["public"]["Enums"]["content_type"]
           created_at?: string
           created_by?: string
