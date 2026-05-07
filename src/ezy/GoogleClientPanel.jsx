@@ -74,10 +74,9 @@ export default function GoogleClientPanel({ client, onLog }) {
     setMsg("");
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const res = await fetch(
-        `/api/google/oauth/start?client_id=${encodeURIComponent(clientId)}`,
-        { headers: { Authorization: `Bearer ${session?.access_token || ""}` } },
-      );
+      const res = await fetch(`/api/google/oauth/start?client_id=${encodeURIComponent(clientId)}`, {
+        headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+      });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.url) throw new Error(json.error || `HTTP ${res.status}`);
       const popup = window.open(json.url, "google-oauth", "width=520,height=640");
@@ -204,7 +203,9 @@ export default function GoogleClientPanel({ client, onLog }) {
             borderRadius: 999,
           }}
         >
-          {status?.connected ? `Verbunden${status.email ? ` · ${status.email}` : ""}` : "Nicht verbunden"}
+          {status?.connected
+            ? `Verbunden${status.email ? ` · ${status.email}` : ""}`
+            : "Nicht verbunden"}
         </span>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
@@ -233,7 +234,11 @@ export default function GoogleClientPanel({ client, onLog }) {
         </button>
         {status?.connected ? (
           <>
-            <button onClick={importGsc} disabled={!!busy} style={btn({ background: "#1d4ed8", borderColor: "#1d4ed8" })}>
+            <button
+              onClick={importGsc}
+              disabled={!!busy}
+              style={btn({ background: "#1d4ed8", borderColor: "#1d4ed8" })}
+            >
               {busy === "import" ? "…" : "GSC importieren"}
             </button>
             <button onClick={ga4Run} disabled={!!busy} style={btn()}>
@@ -244,14 +249,16 @@ export default function GoogleClientPanel({ client, onLog }) {
             </button>
           </>
         ) : (
-          <button onClick={connect} disabled={!!busy} style={btn({ background: "#1d4ed8", borderColor: "#1d4ed8" })}>
+          <button
+            onClick={connect}
+            disabled={!!busy}
+            style={btn({ background: "#1d4ed8", borderColor: "#1d4ed8" })}
+          >
             {busy === "connect" ? "…" : "Google verbinden"}
           </button>
         )}
       </div>
-      {msg && (
-        <div style={{ marginTop: 10, fontSize: 12, color: "#cbd5e1" }}>{msg}</div>
-      )}
+      {msg && <div style={{ marginTop: 10, fontSize: 12, color: "#cbd5e1" }}>{msg}</div>}
     </div>
   );
 }
