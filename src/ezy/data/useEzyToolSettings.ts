@@ -6,7 +6,9 @@ import { useAuth } from "@/hooks/use-auth";
  * Maps a UI tool ID to the real backend provider used by isProviderEnabled.
  * Tools without a real backend provider return null and remain client-only.
  */
-export function toolProvider(toolId: string): "ahrefs" | "google" | "canonry" | "perplexity" | null {
+export function toolProvider(
+  toolId: string,
+): "ahrefs" | "google" | "canonry" | "perplexity" | null {
   switch (toolId) {
     case "canonry":
       return "canonry";
