@@ -5974,7 +5974,7 @@ function App() {
             </>
           )}
           {hasClients && page === "tools" && <ToolsPage selectedClient={client} tools={tools} />}
-          {page === "content" && (
+          {hasClients && page === "content" && (
             <ContentPage
               clients={clients}
               items={contentHook.items}
