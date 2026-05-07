@@ -143,6 +143,9 @@ export const Route = createFileRoute("/api/ahrefs/overview")({
           }
           domain = domain ?? client.domain;
           organizationId = client.organization_id;
+          if (!(await isProviderEnabled(client.id, "ahrefs"))) {
+            return Response.json({ error: "Ahrefs für diesen Kunden deaktiviert." }, { status: 403 });
+          }
         }
 
         if (!domain) {
