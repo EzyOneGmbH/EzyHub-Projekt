@@ -44,6 +44,10 @@ export async function executeTool(
   let path = "";
   let init: RequestInit = { method: "GET" };
   let auditType = "seo";
+  // Ownership: which side is responsible for inserting audit_runs.
+  // Server routes that already persist must set this to true so the client
+  // does not create duplicate audit_runs entries.
+  let serverPersists = false;
 
   switch (toolId) {
     case "canonry":
@@ -62,7 +66,8 @@ export async function executeTool(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ clientId: client.id }),
       };
-      auditType = "seo";
+      auditType = "ahrefs";
+      serverPersists = true;
       break;
     case "geo-aeo-audit": {
       const q = inputs.queries || inputs.url || client.domain || "";
@@ -91,38 +96,62 @@ export async function executeTool(
     errorMsg = e?.message || String(e);
   }
 
-  // Persist audit run (overview reads stored as geo_overview, not as a sweep)
-  try {
-    const { data: userRes } = await supabase.auth.getUser();
-    const { data: clientRow } = await supabase
-      .from("clients")
-      .select("organization_id")
-      .eq("id", client.id)
-      .maybeSingle();
-    if (userRes?.user && clientRow?.organization_id) {
-      await supabase.from("audit_runs").insert({
-        organization_id: clientRow.organization_id,
-        client_id: client.id,
-        triggered_by: userRes.user.id,
-        audit_type: auditType,
-        status: httpOk ? "succeeded" : "failed",
-        input: { toolId, inputs },
-        result: httpOk ? payload : null,
-        error: httpOk ? null : errorMsg,
-        started_at: new Date().toISOString(),
-        finished_at: new Date().toISOString(),
-      } as any);
+  // Detect Ahrefs all-failed / rate-limited even on HTTP 200.
+  let partial = false;
+  let effectiveOk = httpOk;
+  if (httpOk && payload && typeof payload === "object" && "errors" in payload) {
+    const errs = (payload as any).errors || {};
+    const sections = Object.values(errs);
+    const allFailed = sections.length > 0 && sections.every((e) => e !== null && e !== undefined);
+    const anyFailed = sections.some((e) => e !== null && e !== undefined);
+    if (allFailed) {
+      effectiveOk = false;
+      errorMsg = (payload as any).rate_limited
+        ? "Ahrefs rate limit"
+        : "Alle Ahrefs-Sektionen fehlgeschlagen";
+    } else if (anyFailed) {
+      partial = true;
     }
-  } catch {
-    /* non-fatal */
+  }
+
+  // Persist audit_run only when the server route does not already do so.
+  if (!serverPersists) {
+    try {
+      const { data: userRes } = await supabase.auth.getUser();
+      const { data: clientRow } = await supabase
+        .from("clients")
+        .select("organization_id")
+        .eq("id", client.id)
+        .maybeSingle();
+      if (userRes?.user && clientRow?.organization_id) {
+        await supabase.from("audit_runs").insert({
+          organization_id: clientRow.organization_id,
+          client_id: client.id,
+          triggered_by: userRes.user.id,
+          audit_type: auditType,
+          status: effectiveOk ? "succeeded" : "failed",
+          input: { toolId, inputs },
+          result: effectiveOk ? payload : null,
+          error: effectiveOk ? null : errorMsg,
+          started_at: new Date().toISOString(),
+          finished_at: new Date().toISOString(),
+        } as any);
+      }
+    } catch {
+      /* non-fatal */
+    }
   }
 
   return {
-    ok: httpOk,
+    ok: effectiveOk,
     liveConnected: true,
-    message: httpOk ? "Live-Lauf abgeschlossen" : errorMsg || "Fehler beim Live-Lauf",
+    message: effectiveOk
+      ? partial
+        ? "Live-Lauf teilweise erfolgreich"
+        : "Live-Lauf abgeschlossen"
+      : errorMsg || "Fehler beim Live-Lauf",
     data: payload,
-    error: httpOk ? undefined : errorMsg,
+    error: effectiveOk ? undefined : errorMsg,
     score: null,
   };
 }

@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
 import { redactSecrets } from "@/server/google-oauth.server";
-import { isProviderEnabled } from "@/server/integrations.server";
+import { isProviderEnabled, canRunAudits } from "@/server/integrations.server";
 
 const Body = z.object({
   clientId: z.string().uuid(),
@@ -42,7 +42,12 @@ export const Route = createFileRoute("/api/google/ga4-summary")({
             .eq("user_id", user.id)
             .eq("organization_id", client.organization_id)
             .maybeSingle();
-          if (!m) return Response.json({ ok: false, error: "Forbidden" });
+          if (!m) return Response.json({ ok: false, error: "Forbidden" }, { status: 403 });
+          if (!(await canRunAudits(user.id, client.organization_id)))
+            return Response.json(
+              { ok: false, error: "Keine Berechtigung für Audit-Läufe (viewer/read-only)." },
+              { status: 403 },
+            );
           if (!client.ga4_property)
             return Response.json({ ok: false, error: "Kein GA4-Property gesetzt." });
           if (!(await isProviderEnabled(client.id, "google")))
