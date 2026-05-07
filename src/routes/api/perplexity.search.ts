@@ -30,6 +30,10 @@ export const Route = createFileRoute("/api/perplexity/search")({
         const parsed = Body.safeParse(body);
         if (!parsed.success) return Response.json({ error: "Invalid input", issues: parsed.error.issues }, { status: 400 });
 
+        if (parsed.data.clientId && !(await isProviderEnabled(parsed.data.clientId, "perplexity"))) {
+          return Response.json({ error: "Perplexity für diesen Kunden deaktiviert." }, { status: 403 });
+        }
+
         const res = await fetch("https://api.perplexity.ai/chat/completions", {
           method: "POST",
           headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
