@@ -3472,30 +3472,51 @@ function ToolRunner({ tool, onClose, client, onComplete }) {
 function ToolsPage({ selectedClient, tools }) {
   const [cat, setCat] = useState("all");
   const [runner, setRunner] = useState(null);
-  const [history, setHistory] = useState(RUN_HISTORY);
+  const { runs, loading: histLoading, refresh: refreshHistory } = useEzyAuditHistory(
+    selectedClient?.id,
+    25,
+  );
   const visibleTools = useMemo(
     () =>
       (cat === "all" ? tools : tools.filter((t) => t.category === cat)).filter((t) => t.enabled),
     [cat, tools],
   );
-  const onComplete = ({ toolId, score }) => {
-    setHistory((p) => [
-      {
-        id: `r${Date.now()}`,
-        toolId,
-        client: selectedClient.name,
-        url: selectedClient.domain,
-        status: "completed",
-        score,
-        time: new Date().toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" }),
-        dur: `${1 + Math.round(Math.random() * 4)}m`,
-        date: new Date().toISOString().slice(0, 10),
-      },
-      ...p,
-    ]);
+  const onComplete = () => {
+    void refreshHistory();
   };
-  const stIc = { completed: CheckCircle, failed: AlertCircle };
-  const stCo = { completed: C.green, failed: C.red };
+  // Map provider/audit_type → tool label fallback.
+  const auditTypeToToolId = {
+    ahrefs: "full-seo-audit",
+    geo: "geo-aeo-audit",
+    geo_overview: "canonry",
+    seo: "open-seo-audit",
+  };
+  const history = useMemo(
+    () =>
+      runs.map((r) => {
+        const created = r.finished_at || r.started_at || r.created_at;
+        const d = new Date(created);
+        const inputToolId = (r.input && r.input.toolId) || auditTypeToToolId[r.audit_type] || r.audit_type;
+        return {
+          id: r.id,
+          toolId: inputToolId,
+          client: selectedClient?.name || "—",
+          url: selectedClient?.domain || "—",
+          status: r.status === "succeeded" ? "completed" : r.status === "failed" ? "failed" : "running",
+          score: null,
+          time: d.toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" }),
+          dur:
+            r.started_at && r.finished_at
+              ? `${Math.max(1, Math.round((new Date(r.finished_at).getTime() - new Date(r.started_at).getTime()) / 1000))}s`
+              : "—",
+          date: d.toISOString().slice(0, 10),
+          error: r.error,
+        };
+      }),
+    [runs, selectedClient],
+  );
+  const stIc = { completed: CheckCircle, failed: AlertCircle, running: Clock };
+  const stCo = { completed: C.green, failed: C.red, running: C.orange };
   return (
     <div style={{ display: "flex", gap: 24 }}>
       <div style={{ width: 170, flexShrink: 0 }}>
