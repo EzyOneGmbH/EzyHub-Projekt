@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
-import { isProviderEnabled } from "@/server/integrations.server";
+import { isProviderEnabled, canRunAudits } from "@/server/integrations.server";
 
 const Body = z.object({
   query: z.string().min(1).max(2000),
