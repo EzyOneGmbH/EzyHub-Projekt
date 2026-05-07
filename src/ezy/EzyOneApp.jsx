@@ -1042,11 +1042,6 @@ function genDays(n = 30) {
   return d;
 }
 const DAYS = genDays(30);
-const seoImpressions = DAYS.map((d, i) => ({
-  date: d,
-  impressions: 11000 + Math.round(Math.sin(i / 3) * 2000 + i * 120 + Math.random() * 800),
-  clicks: 700 + Math.round(Math.sin(i / 4) * 150 + i * 8 + Math.random() * 60),
-}));
 const seoRanking = [
   { name: "Top 3", value: 42, color: C.accent },
   { name: "4–10", value: 114, color: C.blue },
@@ -1060,33 +1055,6 @@ const trafficCountry = [
   { name: "AT", value: 4200, color: C.green },
   { name: "US", value: 2100, color: C.orange },
   { name: "Other", value: 1520, color: C.textDim },
-];
-const topKeywords = [
-  { keyword: "seo agentur zürich", position: 2, prev: 5, volume: 1200, url: "/services/seo" },
-  { keyword: "website optimierung schweiz", position: 5, prev: 4, volume: 880, url: "/services" },
-  {
-    keyword: "google ranking verbessern",
-    position: 1,
-    prev: 1,
-    volume: 2400,
-    url: "/blog/seo-guide",
-  },
-  { keyword: "seo beratung schweiz", position: 4, prev: 6, volume: 720, url: "/beratung" },
-  { keyword: "online marketing agentur", position: 8, prev: 6, volume: 1900, url: "/" },
-  { keyword: "local seo zürich", position: 3, prev: 7, volume: 540, url: "/local-seo" },
-];
-const topPages = [
-  { url: "/", title: "Homepage", impressions: 45200, clicks: 3800, ctr: 8.4 },
-  { url: "/services/seo", title: "SEO Services", impressions: 22100, clicks: 2100, ctr: 9.5 },
-  {
-    url: "/blog/seo-guide-2026",
-    title: "SEO Guide 2026",
-    impressions: 18700,
-    clicks: 1650,
-    ctr: 8.8,
-  },
-  { url: "/contact", title: "Kontakt", impressions: 8900, clicks: 890, ctr: 10.0 },
-  { url: "/case-studies", title: "Case Studies", impressions: 7200, clicks: 540, ctr: 7.5 },
 ];
 const backlinksTrend = DAYS.map((d) => ({
   date: d,
@@ -1110,26 +1078,6 @@ const geoRanking = [
   { name: "4–5", value: 16, color: C.blue },
   { name: "6–10", value: 17, color: C.green },
 ];
-const purchaseTrend = DAYS.map((d, i) => ({
-  date: d,
-  revenue: 1100 + Math.round(i * 35 + Math.sin(i / 3) * 200 + Math.random() * 150),
-  transactions: 6 + Math.round(Math.random() * 8),
-}));
-function buildCanonrySeries(
-  base,
-  growth = { ChatGPT: 1.1, Perplexity: 0.8, Gemini: 0.6, Claude: 0.5 },
-) {
-  return DAYS.map((date, i) => ({
-    date,
-    ChatGPT: Math.max(0, base.ChatGPT + Math.round(i * growth.ChatGPT + Math.sin(i / 2.8) * 4)),
-    Perplexity: Math.max(
-      0,
-      base.Perplexity + Math.round(i * growth.Perplexity + Math.cos(i / 3.2) * 3),
-    ),
-    Gemini: Math.max(0, base.Gemini + Math.round(i * growth.Gemini + Math.sin(i / 2.3) * 2)),
-    Claude: Math.max(0, base.Claude + Math.round(i * growth.Claude + Math.cos(i / 2.7) * 2)),
-  }));
-}
 const CANONRY_SERVICE = {
   status: "healthy",
   version: "0.12.3",
