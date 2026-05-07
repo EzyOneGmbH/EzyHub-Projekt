@@ -404,11 +404,10 @@ function App(){
   const saveCustomerDefaults=useCallback((next)=>defaultsHook.save(next),[defaultsHook]);
   const onSaveContent=useCallback((id,md)=>contentHook.updateContent(id,md),[contentHook]);
 
-  if(ezy.loading&&!clients.length)return(<div style={{minHeight:"100vh",background:C.bg,color:C.textMuted,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans',sans-serif"}}>Lädt EZY ONE…</div>);
-
-
   // Keyboard shortcuts
   useEffect(()=>{const h=(e)=>{if((e.metaKey||e.ctrlKey)&&e.key==="k"){e.preventDefault();setCmdOpen(true)}if(e.key==="Escape"){setShowTools(false);setCdd(false);setCmdOpen(false)}};document.addEventListener("keydown",h);return()=>document.removeEventListener("keydown",h)},[]);
+
+  if(ezy.loading&&!clients.length)return(<div style={{minHeight:"100vh",background:C.bg,color:C.textMuted,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans',sans-serif"}}>Lädt EZY ONE…</div>);
 
   return(
     <div className="app-shell" style={{fontFamily:"'DM Sans','Segoe UI',sans-serif",background:C.bg,color:C.text,minHeight:"100vh",display:"flex",fontSize:14,lineHeight:1.5,WebkitFontSmoothing:"antialiased"}}>
