@@ -44,6 +44,10 @@ export async function executeTool(
   let path = "";
   let init: RequestInit = { method: "GET" };
   let auditType = "seo";
+  // Ownership: which side is responsible for inserting audit_runs.
+  // Server routes that already persist must set this to true so the client
+  // does not create duplicate audit_runs entries.
+  let serverPersists = false;
 
   switch (toolId) {
     case "canonry":
@@ -62,7 +66,8 @@ export async function executeTool(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ clientId: client.id }),
       };
-      auditType = "seo";
+      auditType = "ahrefs";
+      serverPersists = true;
       break;
     case "geo-aeo-audit": {
       const q = inputs.queries || inputs.url || client.domain || "";
