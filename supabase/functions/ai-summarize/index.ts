@@ -10,14 +10,18 @@ serve(async (req) => {
   try {
     const { text, mode } = await req.json();
     if (!text || typeof text !== "string") {
-      return new Response(JSON.stringify({ error: "text required" }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ error: "text required" }), {
+        status: 400,
+        headers: { ...cors, "Content-Type": "application/json" },
+      });
     }
     const KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!KEY) throw new Error("LOVABLE_API_KEY missing");
 
-    const system = mode === "generate"
-      ? "Du bist ein erfahrener SEO/GEO-Texter. Erstelle gut strukturierte deutsche Inhalte mit klaren H2/H3-Überschriften, kurzen Absätzen und Mehrwert. Antworte direkt mit dem Text, ohne Einleitung."
-      : "Du fasst Texte präzise und prägnant auf Deutsch zusammen. Gib eine knappe, klar strukturierte Zusammenfassung ohne Einleitung.";
+    const system =
+      mode === "generate"
+        ? "Du bist ein erfahrener SEO/GEO-Texter. Erstelle gut strukturierte deutsche Inhalte mit klaren H2/H3-Überschriften, kurzen Absätzen und Mehrwert. Antworte direkt mit dem Text, ohne Einleitung."
+        : "Du fasst Texte präzise und prägnant auf Deutsch zusammen. Gib eine knappe, klar strukturierte Zusammenfassung ohne Einleitung.";
 
     const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -30,18 +34,34 @@ serve(async (req) => {
         ],
       }),
     });
-    if (r.status === 429) return new Response(JSON.stringify({ error: "Rate Limit" }), { status: 429, headers: { ...cors, "Content-Type": "application/json" } });
-    if (r.status === 402) return new Response(JSON.stringify({ error: "Guthaben aufgebraucht" }), { status: 402, headers: { ...cors, "Content-Type": "application/json" } });
+    if (r.status === 429)
+      return new Response(JSON.stringify({ error: "Rate Limit" }), {
+        status: 429,
+        headers: { ...cors, "Content-Type": "application/json" },
+      });
+    if (r.status === 402)
+      return new Response(JSON.stringify({ error: "Guthaben aufgebraucht" }), {
+        status: 402,
+        headers: { ...cors, "Content-Type": "application/json" },
+      });
     if (!r.ok) {
       const t = await r.text();
       console.error("AI error", r.status, t);
-      return new Response(JSON.stringify({ error: "AI error" }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ error: "AI error" }), {
+        status: 500,
+        headers: { ...cors, "Content-Type": "application/json" },
+      });
     }
     const data = await r.json();
     const summary = data.choices?.[0]?.message?.content ?? "";
-    return new Response(JSON.stringify({ summary }), { headers: { ...cors, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ summary }), {
+      headers: { ...cors, "Content-Type": "application/json" },
+    });
   } catch (e) {
     console.error(e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "unknown" }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "unknown" }), {
+      status: 500,
+      headers: { ...cors, "Content-Type": "application/json" },
+    });
   }
 });

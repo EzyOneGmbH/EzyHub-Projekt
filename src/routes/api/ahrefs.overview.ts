@@ -123,14 +123,10 @@ export const Route = createFileRoute("/api/ahrefs/overview")({
           );
         }
         if (!(await isProviderEnabled(client.id, "ahrefs"))) {
-          return Response.json(
-            { error: "Ahrefs für diesen Kunden deaktiviert." },
-            { status: 403 },
-          );
+          return Response.json({ error: "Ahrefs für diesen Kunden deaktiviert." }, { status: 403 });
         }
         const domain = client.domain;
         const organizationId = client.organization_id;
-
 
         const today = new Date().toISOString().slice(0, 10);
 
