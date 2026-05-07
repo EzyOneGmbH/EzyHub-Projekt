@@ -97,6 +97,11 @@ import { useEzyContent } from "@/ezy/data/useEzyContent";
 import { useEzyToolSettings, toolProvider } from "@/ezy/data/useEzyToolSettings";
 import { executeTool as runToolLive } from "@/ezy/data/runTool";
 import { useEzyAuditHistory } from "@/ezy/data/useEzyAuditHistory";
+import {
+  useEzyLatestRun,
+  ahrefsKpisFromResult,
+  ga4KpisFromResult,
+} from "@/ezy/data/useEzyLatestRun";
 import GoogleClientPanel from "@/ezy/GoogleClientPanel.jsx";
 import { supabase } from "@/integrations/supabase/client";
 const toolHasLiveProvider = (id) => toolProvider(id) !== null;
