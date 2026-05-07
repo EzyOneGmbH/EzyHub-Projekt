@@ -5403,7 +5403,6 @@ const NAV = [
 ];
 
 function App() {
-  const seedClients = useMemo(() => CLIENTS.map((client) => normalizeClientShape(client)), []);
   const isMobile = useMediaQuery("(max-width: 760px)");
   const ezy = useEzyClients();
   const clients = useMemo(() => ezy.clients.map((c) => normalizeClientShape(c)), [ezy.clients]);
@@ -5424,10 +5423,20 @@ function App() {
   const [cmdOpen, setCmdOpen] = useState(false);
   const toast = useToast();
   const sw = isMobile ? 0 : collapsed ? 68 : 240;
-  const fallback = seedClients[0];
+  const emptyClient = useMemo(
+    () =>
+      normalizeClientShape({
+        id: "",
+        name: "Kein Kunde",
+        domain: "",
+        defaults: { language: "Deutsch", tone: "Professionell", reportTemplate: "Standard" },
+      }),
+    [],
+  );
+  const hasClients = clients.length > 0;
   const client = useMemo(
-    () => clients.find((entry) => entry.id === clientId) || clients[0] || fallback,
-    [clientId, clients, fallback],
+    () => clients.find((entry) => entry.id === clientId) || clients[0] || emptyClient,
+    [clientId, clients, emptyClient],
   );
   const toolSettings = useEzyToolSettings(client?.id);
   const tools = useMemo(() => toolSettings.applyTo(ALL_TOOLS), [toolSettings]);
