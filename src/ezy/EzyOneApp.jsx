@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback, createContext, useContext, useRef, useMemo } from "react";
 import { LineChart, Line, PieChart, Pie, Cell, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, BarChart, Bar } from "recharts";
 import { Search, Bell, ChevronDown, ChevronLeft, TrendingUp, Globe, Eye, FileText, Bot, Sparkles, Phone, Mail, MapPin, FileInput, DollarSign, BarChart3, Activity, Zap, Users, Settings, LogOut, ChevronRight, Calendar, Download, RefreshCw, Play, ArrowUpRight, ArrowDownRight, Minus, Layers, Target, Award, Plus, Check, X, Clock, AlertCircle, CheckCircle, Copy, Save, PenTool, LayoutGrid, List, Key, Palette, Database, HelpCircle, Terminal, Code, Bookmark, Link2, ExternalLink, Hash, Bold, Italic, Heading2, Heading3, Command, Info, ToggleLeft, ToggleRight, GitBranch, Type } from "lucide-react";
+import { ezyFetch } from "@/ezy/data/api";
+import { useEzyClients } from "@/ezy/data/useEzyClients";
+import { supabase } from "@/integrations/supabase/client";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DESIGN SYSTEM
