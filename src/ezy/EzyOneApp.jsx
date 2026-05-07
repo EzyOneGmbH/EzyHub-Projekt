@@ -422,7 +422,7 @@ function App(){
         <div className="app-content" style={{padding:isMobile?"16px 12px":"24px 28px"}}>
           {page==="dashboard"&&<><div style={{marginBottom:20}}><h1 style={{fontSize:22,fontWeight:700,margin:0}}>{showAll?"Agentur-Übersicht":tab==="seo"?"SEO Dashboard":tab==="geo"?"GEO Dashboard":"Conversions"}</h1><p style={{color:C.textMuted,fontSize:13,margin:"4px 0 0"}}>{showAll?"Alle Kunden":`${client.name} — ${client.domain}`}{dateRange.label?` • ${dateRange.label}`:""}</p></div>{showAll&&<AgencyOverview clients={clients}/>}{!showAll&&<>{tab==="seo"&&<SeoDashboard/>}{tab==="geo"&&<GeoDashboard selectedClient={client}/>} {tab==="conversions"&&<ConvDashboard/>}</>}</>}
           {page==="tools"&&<ToolsPage selectedClient={client} tools={tools}/>}
-          {page==="content"&&<ContentPage clients={clients}/>}
+          {page==="content"&&<ContentPage clients={clients} items={contentHook.items} onSaveContent={onSaveContent}/>}
           {page==="clients"&&<ClientsPage clients={clients} selectedClientId={client.id} onSelectClient={selectClient} onUpsertClient={upsertClient} onDeleteClient={deleteClient} customerDefaults={customerDefaults}/>}
           {page==="settings"&&<SettingsPage tools={tools} onToggleTool={toggleTool} selectedClient={client} profile={profile} onSaveProfile={saveProfile} customerDefaults={customerDefaults} onSaveDefaults={saveCustomerDefaults}/>}
         </div>
