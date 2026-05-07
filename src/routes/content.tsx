@@ -37,17 +37,25 @@ function ContentList() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [items, setItems] = useState<Item[]>([]);
+  const [clients, setClients] = useState<ClientOpt[]>([]);
+  const [newClient, setNewClient] = useState<string>("");
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("content_items")
-      .select("id,title,content_type,status,language,client_id,updated_at")
-      .order("updated_at", { ascending: false });
+    const [{ data, error }, { data: cs }] = await Promise.all([
+      supabase
+        .from("content_items")
+        .select("id,title,content_type,status,language,client_id,updated_at")
+        .order("updated_at", { ascending: false }),
+      supabase.from("clients").select("id,name").order("name"),
+    ]);
     if (error) toast.error(error.message);
     else setItems((data ?? []) as Item[]);
+    const cl = (cs ?? []) as ClientOpt[];
+    setClients(cl);
+    if (cl.length && !newClient) setNewClient(cl[0].id);
     setLoading(false);
   };
 
@@ -56,9 +64,10 @@ function ContentList() {
   }, []);
 
   const create = async () => {
+    if (!newClient) return toast.error("Bitte zuerst einen Kunden anlegen.");
     const { data, error } = await supabase
       .from("content_items")
-      .insert({ title: "Neuer Inhalt", created_by: user!.id })
+      .insert({ title: "Neuer Inhalt", created_by: user!.id, client_id: newClient })
       .select("id")
       .single();
     if (error) return toast.error(error.message);
