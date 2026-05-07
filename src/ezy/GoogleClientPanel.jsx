@@ -22,7 +22,7 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
   const [gsc, setGsc] = useState(client?.gscSiteUrl || "");
   const [ga4, setGa4] = useState(client?.ga4PropertyId || "");
   const [msg, setMsg] = useState("");
-  const [canRun, setCanRun] = useState(true);
+  const [canRun, setCanRun] = useState(false);
 
   useEffect(() => {
     setGsc(client?.gscSiteUrl || "");
