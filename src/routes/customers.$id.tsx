@@ -75,9 +75,13 @@ function ClientDetail() {
     if (!c?.canonry_project) return;
     setCanonryLoading(true);
     try {
-      const qs = new URLSearchParams({ project: c.canonry_project, clientId: id });
-      if (c.domain) qs.set("domain", c.domain);
-      const res = await fetch(`/api/live/canonry/overview?${qs.toString()}`);
+      const session = (await supabase.auth.getSession()).data.session;
+      const qs = new URLSearchParams({ clientId: id });
+      const res = await fetch(`/api/live/canonry/overview?${qs.toString()}`, {
+        headers: session?.access_token
+          ? { Authorization: `Bearer ${session.access_token}` }
+          : undefined,
+      });
       setCanonryData(await res.json());
     } finally {
       setCanonryLoading(false);
