@@ -3068,7 +3068,16 @@ function GeoDashboard({ selectedClient }) {
     </div>
   );
 }
-function ConvDashboard() {
+function ConvDashboard({ selectedClient }) {
+  const hasData = (selectedClient?.revenue || 0) > 0;
+  if (!hasData) {
+    return (
+      <LiveEmptyState
+        title="Noch keine Conversion-Daten"
+        hint="Sobald GA4 Conversion-Events liefert oder Audit-Läufe Revenue-Daten enthalten, erscheinen hier echte Werte."
+      />
+    );
+  }
   const ct = [
     { type: "Phone", icon: Phone, count: 342, rev: 17100, avg: 50, tr: 12, co: C.accent },
     { type: "Email", icon: Mail, count: 891, rev: 8910, avg: 10, tr: 8, co: C.blue },
