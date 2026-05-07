@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
-import { isProviderEnabled } from "@/server/integrations.server";
+import { isProviderEnabled, canRunAudits } from "@/server/integrations.server";
 
 const QuerySchema = z.object({
   clientId: z.string().uuid(),
@@ -120,6 +120,12 @@ export const Route = createFileRoute("/api/ahrefs/overview")({
           return Response.json(
             { error: "Kein domain für diesen Kunden gepflegt." },
             { status: 400 },
+          );
+        }
+        if (!(await canRunAudits(user.id, client.organization_id))) {
+          return Response.json(
+            { error: "Keine Berechtigung für Audit-Läufe (viewer/read-only)." },
+            { status: 403 },
           );
         }
         if (!(await isProviderEnabled(client.id, "ahrefs"))) {

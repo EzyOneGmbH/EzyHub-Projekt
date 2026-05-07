@@ -96,6 +96,7 @@ import { useEzyProfile } from "@/ezy/data/useEzyProfile";
 import { useEzyContent } from "@/ezy/data/useEzyContent";
 import { useEzyToolSettings, toolProvider } from "@/ezy/data/useEzyToolSettings";
 import { executeTool as runToolLive } from "@/ezy/data/runTool";
+import GoogleClientPanel from "@/ezy/GoogleClientPanel.jsx";
 import { supabase } from "@/integrations/supabase/client";
 const toolHasLiveProvider = (id) => toolProvider(id) !== null;
 
@@ -2123,41 +2124,18 @@ const ALL_TOOLS = [
   },
   {
     id: "canonry",
-    label: "Canonry Visibility Sweep",
-    description: "AI Citations, Runs, Health & Evidence",
+    label: "Canonry Live Overview",
+    description: "AI Citations, Runs, Health & Evidence (read-only)",
     longDescription:
-      "Startet einen Canonry Sweep fuer ChatGPT, Gemini, Claude und Perplexity, prueft Citation Evidence, History und Health Snapshots und spiegelt damit das echte AEO/GEO-Produktmodell des Upstream-Repos wider.",
+      "Liest den aktuellen Canonry Project-Overview (Runs, Timeline, Health, Keywords, Insights) read-only aus. Startet keinen neuen Sweep — dafür ist die Canonry-Sweep-API erforderlich.",
     icon: Bot,
     category: "geo",
     repo: "canonry",
     repoUrl: "https://github.com/AINYC/canonry",
     color: C.green,
-    inputs: [
-      { id: "domain", label: "Projekt-Domain", type: "url", required: true },
-      {
-        id: "keywords",
-        label: "Priority Keywords",
-        type: "textarea",
-        required: false,
-        placeholder: "Eine Query pro Zeile",
-      },
-      {
-        id: "providers",
-        label: "Provider-Set",
-        type: "select",
-        required: false,
-        options: ["Gemini only", "Gemini + OpenAI", "Alle konfigurierten Provider"],
-      },
-    ],
-    estimatedTime: "1-6 min",
-    subSkills: [
-      "project-sync",
-      "run-sweep",
-      "citation-evidence",
-      "timeline",
-      "health-snapshot",
-      "insights",
-    ],
+    inputs: [{ id: "domain", label: "Projekt-Domain", type: "url", required: false }],
+    estimatedTime: "< 1 min",
+    subSkills: ["project-overview", "timeline", "health-snapshot", "insights"],
     enabled: true,
   },
 ];
@@ -5113,6 +5091,7 @@ function SettingsPage({
                     </span>
                   </div>
                 </div>
+                <GoogleClientPanel client={selectedClient} />
               </>
             )}
           </div>

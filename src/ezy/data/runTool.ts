@@ -47,14 +47,21 @@ export async function executeTool(
 
   switch (toolId) {
     case "canonry":
+      // NOTE: this is a read-only overview, not a real sweep.
       path = `/api/live/canonry/overview?clientId=${encodeURIComponent(client.id)}`;
-      auditType = "geo";
+      init = { method: "GET" };
+      auditType = "geo_overview";
       break;
     case "open-seo-audit":
     case "full-seo-audit":
     case "technical-audit":
     case "on-page-audit":
-      path = `/api/ahrefs/overview?clientId=${encodeURIComponent(client.id)}`;
+      path = `/api/ahrefs/overview`;
+      init = {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: client.id }),
+      };
       auditType = "seo";
       break;
     case "geo-aeo-audit": {
@@ -84,7 +91,7 @@ export async function executeTool(
     errorMsg = e?.message || String(e);
   }
 
-  // Persist audit run
+  // Persist audit run (overview reads stored as geo_overview, not as a sweep)
   try {
     const { data: userRes } = await supabase.auth.getUser();
     const { data: clientRow } = await supabase
