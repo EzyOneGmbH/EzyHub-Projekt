@@ -537,16 +537,18 @@ function buildCanonryProviderBreakdown(healthLatest) {
     }))
     .sort((a, b) => b.citations - a.citations || a.platform.localeCompare(b.platform));
 }
-function buildCanonryLiveModel(selectedClient, payload, fallback) {
-  const results = payload?.results || {};
-  const project = results.project;
-  const timeline = Array.isArray(results.timeline) ? results.timeline : [];
+function buildCanonryLiveModel(selectedClient, payload) {
+  // API returns top-level { project, timeline, health, runs, keywords, insights, schedule, errors }
+  const data = payload || {};
+  const project = data.project;
+  if (!project) return null;
+  const timeline = Array.isArray(data.timeline) ? data.timeline : [];
   const healthLatest =
-    results.healthLatest && typeof results.healthLatest === "object" ? results.healthLatest : null;
-  const latestRun = results.runsLatest?.run || null;
-  const trackedKeywords = Array.isArray(results.keywords)
-    ? results.keywords.length
-    : fallback.keywords;
+    data.health && typeof data.health === "object" ? data.health : null;
+  const runsRaw = data.runs;
+  const latestRun =
+    (runsRaw && typeof runsRaw === "object" && (runsRaw.run || runsRaw.latest || runsRaw)) || null;
+  const trackedKeywords = Array.isArray(data.keywords) ? data.keywords.length : 0;
   const latestRunId = latestRun?.id || healthLatest?.runId || "";
   const healthDistribution = buildCanonryHealthDistribution(timeline, latestRunId);
   const stableKeywords = healthDistribution.find((entry) => entry.name === "Stable")?.value || 0;
@@ -554,7 +556,7 @@ function buildCanonryLiveModel(selectedClient, payload, fallback) {
     healthDistribution.find((entry) => entry.name === "Watchlist")?.value || 0;
   const coverage = healthLatest
     ? Number((Number(healthLatest.overallCitedRate || 0) * 100).toFixed(1))
-    : fallback.coverage;
+    : 0;
   const providerBreakdown = buildCanonryProviderBreakdown(healthLatest);
   const evidence = buildCanonryEvidenceRows(timeline, latestRunId, selectedClient?.domain);
   const providerErrors = Object.keys(parseCanonryErrorMap(latestRun?.error))
@@ -567,7 +569,9 @@ function buildCanonryLiveModel(selectedClient, payload, fallback) {
         ? "Sweep abgeschlossen"
         : latestRun?.status === "running"
           ? "Sweep läuft"
-          : "Live-Status geladen",
+          : latestRun?.status
+            ? "Live-Status geladen"
+            : "Noch kein Run",
     healthLatest?.citedPairs != null && healthLatest?.totalPairs != null
       ? `${healthLatest.citedPairs}/${healthLatest.totalPairs} cited pairs`
       : null,
@@ -576,59 +580,58 @@ function buildCanonryLiveModel(selectedClient, payload, fallback) {
     .filter(Boolean)
     .join(" • ");
   const liveInsights =
-    Array.isArray(results.insights) && results.insights.length
-      ? results.insights
+    Array.isArray(data.insights) && data.insights.length
+      ? data.insights
           .slice(0, 3)
           .map((item) =>
             item?.recommendation?.reason
               ? `${item.title} — ${item.recommendation.reason}`
-              : item.title,
+              : item?.title,
           )
+          .filter(Boolean)
       : [];
   const healthScore = trackedKeywords
     ? Math.round(((stableKeywords + watchlistKeywords * 0.5) / trackedKeywords) * 100)
-    : fallback.healthScore;
-  return payload?.ok && project
-    ? {
-        ...fallback,
-        project: project.name || fallback.project,
-        schedule: results.schedule?.cron || results.schedule?.expression || fallback.schedule,
-        coverage,
-        coverageDelta: 0,
-        citations: Number(healthLatest?.citedPairs ?? fallback.citations),
-        citationsDelta: 0,
-        visibility: coverage,
-        visibilityDelta: 0,
-        aiVisitors: fallback.aiVisitors,
-        aiVisitorsDelta: 0,
-        healthScore,
-        healthDelta: 0,
-        keywords: trackedKeywords,
-        latestRun: {
-          status: latestRun?.status || fallback.latestRun.status,
-          time: formatCanonryStamp(latestRun?.finishedAt || latestRun?.startedAt),
-          duration: formatCanonryDuration(latestRun?.startedAt, latestRun?.finishedAt),
-          summary: summary || fallback.latestRun.summary,
-        },
-        providerSeries: buildCanonryProviderSeries(timeline, fallback.providerSeries),
-        providerBreakdown: providerBreakdown.length
-          ? providerBreakdown
-          : fallback.providerBreakdown,
-        healthDistribution: healthDistribution.some((entry) => entry.value > 0)
-          ? healthDistribution
-          : fallback.healthDistribution,
-        evidence: evidence.length ? evidence : fallback.evidence,
-        insights: (liveInsights.length
-          ? liveInsights
-          : [
-              ...fallback.insights,
-              providerErrors.length
-                ? `Provider-Limits erkannt: ${providerErrors.join(", ")}`
-                : null,
-            ].filter(Boolean)
-        ).slice(0, 3),
-      }
-    : fallback;
+    : 0;
+  const providerSeries = buildCanonryProviderSeries(timeline, []);
+  return {
+    project: project.name || selectedClient?.name || "—",
+    schedule: data.schedule?.cron || data.schedule?.expression || "—",
+    coverage,
+    coverageDelta: 0,
+    citations: Number(healthLatest?.citedPairs ?? 0),
+    citationsDelta: 0,
+    visibility: coverage,
+    visibilityDelta: 0,
+    aiVisitors: 0,
+    aiVisitorsDelta: 0,
+    healthScore,
+    healthDelta: 0,
+    keywords: trackedKeywords,
+    latestRun: {
+      status: latestRun?.status || "unknown",
+      time: latestRun?.finishedAt || latestRun?.startedAt
+        ? formatCanonryStamp(latestRun?.finishedAt || latestRun?.startedAt)
+        : "—",
+      duration:
+        latestRun?.startedAt && latestRun?.finishedAt
+          ? formatCanonryDuration(latestRun.startedAt, latestRun.finishedAt)
+          : "—",
+      summary: summary || "Noch kein Run",
+    },
+    providerSeries,
+    providerBreakdown,
+    healthDistribution,
+    evidence,
+    insights: (liveInsights.length
+      ? liveInsights
+      : [
+          providerErrors.length
+            ? `Provider-Limits erkannt: ${providerErrors.join(", ")}`
+            : null,
+        ].filter(Boolean)
+    ).slice(0, 3),
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2389,11 +2392,9 @@ function GeoDashboard({ selectedClient }) {
   const canonryServiceReady = Boolean(
     liveCanonry?.configured && liveCanonry?.reachable && liveCanonry?.authenticated,
   );
-  const projectLiveReady = Boolean(
-    canonryServiceReady && overview.data?.ok && overview.data?.results?.project,
-  );
+  const projectLiveReady = Boolean(canonryServiceReady && overview.data?.project);
   const canonry = useMemo(
-    () => (projectLiveReady ? buildCanonryLiveModel(selectedClient, overview.data, null) : null),
+    () => (projectLiveReady ? buildCanonryLiveModel(selectedClient, overview.data) : null),
     [selectedClient, overview.data, projectLiveReady],
   );
   const missingBits = [...(liveCanonry?.missing || [])];
