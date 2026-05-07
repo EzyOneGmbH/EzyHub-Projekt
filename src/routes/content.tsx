@@ -9,10 +9,13 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FileText, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export const Route = createFileRoute("/content")({
   component: ContentList,
 });
+
+type ClientOpt = { id: string; name: string };
 
 type Item = {
   id: string;
