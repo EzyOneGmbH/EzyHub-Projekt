@@ -6,11 +6,10 @@ import {
   Sparkles,
   LayoutDashboard,
   Users,
-  ListTodo,
+  Globe2,
   Shield,
   LogOut,
   Bot,
-  FileText,
   Settings,
   Menu,
   X,
@@ -19,9 +18,8 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/customers", label: "Kunden", icon: Users },
-  { to: "/content", label: "Inhalte", icon: FileText },
-  { to: "/tasks", label: "Aufgaben", icon: ListTodo },
+  { to: "/customers", label: "Clients", icon: Users },
+  { to: "/geo", label: "GEO", icon: Globe2 },
   { to: "/assistant", label: "KI-Assistent", icon: Bot },
   { to: "/settings", label: "Einstellungen", icon: Settings },
 ];
