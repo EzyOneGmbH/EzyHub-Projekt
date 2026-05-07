@@ -3,6 +3,10 @@ import { LineChart, Line, PieChart, Pie, Cell, AreaChart, Area, XAxis, YAxis, Ca
 import { Search, Bell, ChevronDown, ChevronLeft, TrendingUp, Globe, Eye, FileText, Bot, Sparkles, Phone, Mail, MapPin, FileInput, DollarSign, BarChart3, Activity, Zap, Users, Settings, LogOut, ChevronRight, Calendar, Download, RefreshCw, Play, ArrowUpRight, ArrowDownRight, Minus, Layers, Target, Award, Plus, Check, X, Clock, AlertCircle, CheckCircle, Copy, Save, PenTool, LayoutGrid, List, Key, Palette, Database, HelpCircle, Terminal, Code, Bookmark, Link2, ExternalLink, Hash, Bold, Italic, Heading2, Heading3, Command, Info, ToggleLeft, ToggleRight, GitBranch, Type } from "lucide-react";
 import { ezyFetch } from "@/ezy/data/api";
 import { useEzyClients } from "@/ezy/data/useEzyClients";
+import { useEzyDefaults } from "@/ezy/data/useEzyDefaults";
+import { useEzyProfile } from "@/ezy/data/useEzyProfile";
+import { useEzyContent } from "@/ezy/data/useEzyContent";
+import { useEzyToolSettings } from "@/ezy/data/useEzyToolSettings";
 import { supabase } from "@/integrations/supabase/client";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -228,12 +232,12 @@ function ContentEditor({item,stCo,stLb,onBack,onSave}){
     </div>
   </div>);
 }
-function ContentPage({clients}){
-  const toast=useToast();const[items,setItems]=useState(CONTENT_ITEMS);const[editing,setEditing]=useState(null);const[filter,setFilter]=useState("all");const[search,setSearch]=useState("");
+function ContentPage({clients,items,onSaveContent}){
+  const toast=useToast();const[editing,setEditing]=useState(null);const[filter,setFilter]=useState("all");const[search,setSearch]=useState("");
   const typeIc={blog:PenTool,audit:Layers,note:Bookmark,report:FileText};const typeCo={blog:C.cyan,audit:C.accent,note:C.pink,report:C.blue};
   const stCo={draft:C.textMuted,published:C.green,archived:C.textDim};const stLb={draft:"Entwurf",published:"Publiziert",archived:"Archiviert"};
   const filtered=items.filter(it=>(filter==="all"||it.type===filter)&&(it.title.toLowerCase().includes(search.toLowerCase())));
-  const saveContent=(id,content)=>{setItems(p=>p.map(i=>i.id===id?{...i,content,updatedAt:new Date().toISOString().slice(0,10)}:i));toast("Inhalt gespeichert","success")};
+  const saveContent=async(id,content)=>{try{await onSaveContent(id,content);toast("Inhalt gespeichert","success")}catch(e){toast(e?.message||"Speichern fehlgeschlagen","error")}};
 
   if(editing){const it=items.find(i=>i.id===editing);if(!it)return null;return <ContentEditor item={it} stCo={stCo} stLb={stLb} onBack={()=>setEditing(null)} onSave={(id,md)=>{saveContent(id,md);setEditing(null)}}/>;}
 
@@ -360,18 +364,24 @@ function App(){
   const clients=useMemo(()=>ezy.clients.map(c=>normalizeClientShape(c)),[ezy.clients]);
   const[clientId,setClientId]=useState("");
   useEffect(()=>{if(clients.length&&!clients.some(c=>c.id===clientId))setClientId(clients[0].id)},[clients,clientId]);
-  const[page,setPage]=useState("dashboard");const[tab,setTab]=useState("seo");const[profile,setProfile]=useState(()=>profileFromStored(readStoredJson(PROFILE_STORAGE_KEY,DEFAULT_PROFILE)));const[customerDefaults,setCustomerDefaults]=useState(()=>defaultsFromStored(readStoredJson(DEFAULTS_STORAGE_KEY,DEFAULT_CUSTOMER_DEFAULTS)));const[cdd,setCdd]=useState(false);const[showTools,setShowTools]=useState(false);const[collapsed,setCollapsed]=useState(false);const[dateRange,setDateRange]=useState({label:"30 Tage"});const[showAll,setShowAll]=useState(false);const[cmdOpen,setCmdOpen]=useState(false);const[tools,setTools]=useState(ALL_TOOLS);const toast=useToast();const sw=isMobile?0:collapsed?68:240;
+  const profileHook=useEzyProfile();
+  const defaultsHook=useEzyDefaults();
+  const contentHook=useEzyContent();
+  const[page,setPage]=useState("dashboard");const[tab,setTab]=useState("seo");const[cdd,setCdd]=useState(false);const[showTools,setShowTools]=useState(false);const[collapsed,setCollapsed]=useState(false);const[dateRange,setDateRange]=useState({label:"30 Tage"});const[showAll,setShowAll]=useState(false);const[cmdOpen,setCmdOpen]=useState(false);const toast=useToast();const sw=isMobile?0:collapsed?68:240;
   const fallback=seedClients[0];
   const client=useMemo(()=>clients.find(entry=>entry.id===clientId)||clients[0]||fallback,[clientId,clients,fallback]);
+  const toolSettings=useEzyToolSettings(client?.id);
+  const tools=useMemo(()=>toolSettings.applyTo(ALL_TOOLS),[toolSettings]);
   const enabledTools=useMemo(()=>tools.filter(t=>t.enabled),[tools]);
-  const toggleTool=useCallback((id)=>setTools(p=>p.map(t=>t.id===id?{...t,enabled:!t.enabled}:t)),[]);
+  const toggleTool=useCallback((id)=>{const cur=tools.find(t=>t.id===id);toolSettings.setEnabled(id,!(cur?.enabled!==false))},[tools,toolSettings]);
   const selectClient=useCallback((nextClient)=>{if(nextClient?.id)setClientId(nextClient.id);setShowAll(false)},[]);
-  const upsertClient=useCallback(async(nextClient)=>{try{const saved=await ezy.upsert(nextClient);setClientId(saved.id);setShowAll(false);toast?.("Kunde gespeichert","success")}catch(e){toast?.(e?.message||"Speichern fehlgeschlagen","error")}},[ezy,toast]);
+  const upsertClient=useCallback(async(nextClient)=>{try{const seeded=nextClient.id?nextClient:{...nextClient,defaults:nextClient.defaults||defaultsHook.defaults};const saved=await ezy.upsert(seeded);setClientId(saved.id);setShowAll(false);toast?.("Kunde gespeichert","success")}catch(e){toast?.(e?.message||"Speichern fehlgeschlagen","error")}},[ezy,toast,defaultsHook.defaults]);
   const deleteClient=useCallback(async(id)=>{try{await ezy.remove(id);setShowAll(false);toast?.("Kunde gelöscht","success")}catch(e){toast?.(e?.message||"Löschen fehlgeschlagen","error")}},[ezy,toast]);
-  const saveProfile=useCallback((nextProfile)=>setProfile(profileFromStored(nextProfile)),[]);
-  const saveCustomerDefaults=useCallback((nextDefaults)=>setCustomerDefaults(defaultsFromStored(nextDefaults)),[]);
-  useEffect(()=>persistJson(PROFILE_STORAGE_KEY,profile),[profile]);
-  useEffect(()=>persistJson(DEFAULTS_STORAGE_KEY,customerDefaults),[customerDefaults]);
+  const profile=profileHook.profile.name?profileHook.profile:{...DEFAULT_PROFILE,...profileHook.profile,name:profileHook.profile.name||DEFAULT_PROFILE.name};
+  const saveProfile=useCallback((next)=>profileHook.save(next),[profileHook]);
+  const customerDefaults=defaultsHook.defaults;
+  const saveCustomerDefaults=useCallback((next)=>defaultsHook.save(next),[defaultsHook]);
+  const onSaveContent=useCallback((id,md)=>contentHook.updateContent(id,md),[contentHook]);
 
   if(ezy.loading&&!clients.length)return(<div style={{minHeight:"100vh",background:C.bg,color:C.textMuted,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans',sans-serif"}}>Lädt EZY ONE…</div>);
 
@@ -412,7 +422,7 @@ function App(){
         <div className="app-content" style={{padding:isMobile?"16px 12px":"24px 28px"}}>
           {page==="dashboard"&&<><div style={{marginBottom:20}}><h1 style={{fontSize:22,fontWeight:700,margin:0}}>{showAll?"Agentur-Übersicht":tab==="seo"?"SEO Dashboard":tab==="geo"?"GEO Dashboard":"Conversions"}</h1><p style={{color:C.textMuted,fontSize:13,margin:"4px 0 0"}}>{showAll?"Alle Kunden":`${client.name} — ${client.domain}`}{dateRange.label?` • ${dateRange.label}`:""}</p></div>{showAll&&<AgencyOverview clients={clients}/>}{!showAll&&<>{tab==="seo"&&<SeoDashboard/>}{tab==="geo"&&<GeoDashboard selectedClient={client}/>} {tab==="conversions"&&<ConvDashboard/>}</>}</>}
           {page==="tools"&&<ToolsPage selectedClient={client} tools={tools}/>}
-          {page==="content"&&<ContentPage clients={clients}/>}
+          {page==="content"&&<ContentPage clients={clients} items={contentHook.items} onSaveContent={onSaveContent}/>}
           {page==="clients"&&<ClientsPage clients={clients} selectedClientId={client.id} onSelectClient={selectClient} onUpsertClient={upsertClient} onDeleteClient={deleteClient} customerDefaults={customerDefaults}/>}
           {page==="settings"&&<SettingsPage tools={tools} onToggleTool={toggleTool} selectedClient={client} profile={profile} onSaveProfile={saveProfile} customerDefaults={customerDefaults} onSaveDefaults={saveCustomerDefaults}/>}
         </div>
