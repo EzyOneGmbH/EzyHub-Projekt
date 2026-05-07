@@ -36,10 +36,7 @@ function rowToClient(r: any): EzyClient {
     .replace(/^https?:\/\//i, "")
     .replace(/\/+$/, "")
     .trim();
-  const m = (r.metadata && typeof r.metadata === "object" ? r.metadata : {}) as Record<
-    string,
-    any
-  >;
+  const m = (r.metadata && typeof r.metadata === "object" ? r.metadata : {}) as Record<string, any>;
   return {
     id: String(r.id),
     name: String(r.name ?? ""),
