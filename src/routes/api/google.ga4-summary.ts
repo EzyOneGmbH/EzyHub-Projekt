@@ -35,6 +35,7 @@ export const Route = createFileRoute("/api/google/ga4-summary")({
             .eq("user_id", user.id).eq("organization_id", client.organization_id).maybeSingle();
           if (!m) return Response.json({ ok: false, error: "Forbidden" });
           if (!client.ga4_property) return Response.json({ ok: false, error: "Kein GA4-Property gesetzt." });
+          if (!(await isProviderEnabled(client.id, "google"))) return Response.json({ ok: false, error: "Google-Integration für diesen Kunden deaktiviert." }, { status: 403 });
 
           const { accessToken } = await getGoogleAccessToken(client.id);
           const propertyId = client.ga4_property.replace(/^properties\//, "");
