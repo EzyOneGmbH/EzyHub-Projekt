@@ -5927,9 +5927,9 @@ function App() {
               {showAll && <AgencyOverview clients={clients} />}
               {!showAll && (
                 <>
-                  {tab === "seo" && <SeoDashboard />}
+                  {tab === "seo" && <SeoDashboard selectedClient={client} />}
                   {tab === "geo" && <GeoDashboard selectedClient={client} />}{" "}
-                  {tab === "conversions" && <ConvDashboard />}
+                  {tab === "conversions" && <ConvDashboard selectedClient={client} />}
                 </>
               )}
             </>
