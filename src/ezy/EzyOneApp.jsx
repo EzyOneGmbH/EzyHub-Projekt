@@ -2221,12 +2221,28 @@ function GeoDashboard({ selectedClient }) {
   );
 }
 function ConvDashboard({ selectedClient }) {
+  const { run } = useEzyLatestRun(selectedClient?.id, "ga4_summary");
+  const ga4 = run ? ga4KpisFromResult(run.result) : null;
   const revenue = Number(selectedClient?.revenue || 0);
   const phoneCalls = Number(selectedClient?.phoneCalls || 0);
   const mailClicks = Number(selectedClient?.mailClicks || 0);
   const mapsClicks = Number(selectedClient?.mapsClicks || 0);
   const formSubmits = Number(selectedClient?.formSubmits || 0);
-  const hasAnyKpi = revenue + phoneCalls + mailClicks + mapsClicks + formSubmits > 0;
+  const sessions = Number(ga4?.sessions || 0);
+  const totalUsers = Number(ga4?.totalUsers || 0);
+  const engagedSessions = Number(ga4?.engagedSessions || 0);
+  const screenPageViews = Number(ga4?.screenPageViews || 0);
+  const hasAnyKpi =
+    revenue +
+      phoneCalls +
+      mailClicks +
+      mapsClicks +
+      formSubmits +
+      sessions +
+      totalUsers +
+      engagedSessions +
+      screenPageViews >
+    0;
   if (!hasAnyKpi) {
     return (
       <LiveEmptyState
