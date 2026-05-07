@@ -4439,7 +4439,8 @@ function ClientsPage({
                   <div style={{ fontSize: 11, color: C.textMuted }}>Revenue (30d)</div>
                 </div>
               </div>
-            )}
+              );
+            })()}
             {dt === "notes" && (
               <div
                 style={{
