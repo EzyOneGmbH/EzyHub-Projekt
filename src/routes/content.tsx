@@ -83,9 +83,17 @@ function ContentList() {
           <h1 className="text-3xl font-bold">Inhalte</h1>
           <p className="text-sm text-muted-foreground">SEO &amp; GEO Beiträge, Landingpages und Snippets.</p>
         </div>
-        <Button onClick={create}>
-          <Plus className="mr-2 h-4 w-4" /> Neu
-        </Button>
+        <div className="flex items-end gap-2">
+          <Select value={newClient} onValueChange={setNewClient}>
+            <SelectTrigger className="w-56"><SelectValue placeholder="Kunde wählen" /></SelectTrigger>
+            <SelectContent>
+              {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button onClick={create} disabled={!newClient}>
+            <Plus className="mr-2 h-4 w-4" /> Neu
+          </Button>
+        </div>
       </div>
 
       <div className="relative mb-4">
