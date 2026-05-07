@@ -2324,12 +2324,12 @@ function LiveEmptyState({ title, hint }) {
   );
 }
 function SeoDashboard({ selectedClient }) {
-  const hasData =
-    (selectedClient?.score || 0) +
-      (selectedClient?.keywords || 0) +
-      (selectedClient?.traffic || 0) >
-    0;
-  if (!hasData) {
+  const traffic = Number(selectedClient?.traffic || 0);
+  const keywords = Number(selectedClient?.keywords || 0);
+  const score = Number(selectedClient?.score || 0);
+  const visibility = Number(selectedClient?.visibility || 0);
+  const hasAnyKpi = traffic + keywords + score + visibility > 0;
+  if (!hasAnyKpi) {
     return (
       <LiveEmptyState
         title="Noch keine SEO-Daten"
@@ -2349,190 +2349,32 @@ function SeoDashboard({ selectedClient }) {
         <KpiCard
           icon={Globe}
           label="Organic Traffic"
-          value={48520}
-          change={14.2}
+          value={traffic > 0 ? traffic : "—"}
           color={C.accent}
         />
-        <KpiCard icon={Eye} label="Visibility Index" value="34.7" change={8.5} color={C.blue} />
-        <KpiCard icon={Award} label="Authority Score" value="52" change={3.1} color={C.green} />
+        <KpiCard
+          icon={Eye}
+          label="Visibility Index"
+          value={visibility > 0 ? visibility : "—"}
+          color={C.blue}
+        />
+        <KpiCard
+          icon={Award}
+          label="Authority Score"
+          value={score > 0 ? score : "—"}
+          color={C.green}
+        />
         <KpiCard
           icon={Target}
           label="Organic Keywords"
-          value={3847}
-          change={12.8}
+          value={keywords > 0 ? keywords : "—"}
           color={C.orange}
         />
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14 }}>
-        <ChartCard title="Impressions & Clicks" action="30 days">
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={seoImpressions}>
-              <defs>
-                <linearGradient id="gI" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={C.accent} stopOpacity={0.25} />
-                  <stop offset="100%" stopColor={C.accent} stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="gC" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={C.green} stopOpacity={0.2} />
-                  <stop offset="100%" stopColor={C.green} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-              <XAxis
-                dataKey="date"
-                tick={{ fill: C.textDim, fontSize: 10 }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis tick={{ fill: C.textDim, fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip content={<CTooltip />} />
-              <Area
-                type="monotone"
-                dataKey="impressions"
-                stroke={C.accent}
-                fill="url(#gI)"
-                strokeWidth={2}
-                name="Impressions"
-              />
-              <Area
-                type="monotone"
-                dataKey="clicks"
-                stroke={C.green}
-                fill="url(#gC)"
-                strokeWidth={2}
-                name="Clicks"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </ChartCard>
-        <ChartCard title="Ranking Distribution">
-          <ResponsiveContainer width="100%" height={220}>
-            <PieChart>
-              <Pie
-                data={seoRanking}
-                cx="50%"
-                cy="50%"
-                innerRadius={50}
-                outerRadius={80}
-                paddingAngle={3}
-                dataKey="value"
-                stroke="none"
-              >
-                {seoRanking.map((e, i) => (
-                  <Cell key={i} fill={e.color} />
-                ))}
-              </Pie>
-              <Tooltip content={<CTooltip />} />
-              <Legend
-                iconType="circle"
-                iconSize={8}
-                formatter={(v) => <span style={{ color: C.textMuted, fontSize: 11 }}>{v}</span>}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        </ChartCard>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-        <ChartCard title="Top Keywords">
-          <DTable
-            columns={[
-              {
-                label: "Keyword",
-                key: "keyword",
-                render: (r) => <span style={{ fontWeight: 500 }}>{r.keyword}</span>,
-              },
-              {
-                label: "Pos",
-                key: "position",
-                align: "center",
-                render: (r) => <PBadge pos={r.position} prev={r.prev} />,
-              },
-              {
-                label: "Vol",
-                key: "volume",
-                align: "right",
-                render: (r) => r.volume.toLocaleString("de-CH"),
-              },
-            ]}
-            data={topKeywords}
-          />
-        </ChartCard>
-        <ChartCard title="Top Pages">
-          <DTable
-            columns={[
-              {
-                label: "Seite",
-                key: "url",
-                render: (r) => (
-                  <div>
-                    <div style={{ fontWeight: 500 }}>{r.title}</div>
-                    <div style={{ color: C.textMuted, fontSize: 11 }}>{r.url}</div>
-                  </div>
-                ),
-              },
-              {
-                label: "Clicks",
-                key: "clicks",
-                align: "right",
-                render: (r) => r.clicks.toLocaleString("de-CH"),
-              },
-              {
-                label: "CTR",
-                key: "ctr",
-                align: "right",
-                render: (r) => <span style={{ color: C.green }}>{r.ctr}%</span>,
-              },
-            ]}
-            data={topPages}
-          />
-        </ChartCard>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14 }}>
-        <ChartCard title="Backlinks" action="30d">
-          <ResponsiveContainer width="100%" height={190}>
-            <BarChart data={backlinksTrend} barGap={2}>
-              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-              <XAxis
-                dataKey="date"
-                tick={{ fill: C.textDim, fontSize: 10 }}
-                axisLine={false}
-                tickLine={false}
-                interval={4}
-              />
-              <YAxis tick={{ fill: C.textDim, fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip content={<CTooltip />} />
-              <Bar dataKey="new" fill={C.green} radius={[3, 3, 0, 0]} name="New" />
-              <Bar dataKey="lost" fill={C.red} radius={[3, 3, 0, 0]} name="Lost" />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-        <ChartCard title="Traffic by Country">
-          <ResponsiveContainer width="100%" height={190}>
-            <PieChart>
-              <Pie
-                data={trafficCountry}
-                cx="50%"
-                cy="50%"
-                innerRadius={40}
-                outerRadius={70}
-                paddingAngle={3}
-                dataKey="value"
-                stroke="none"
-              >
-                {trafficCountry.map((e, i) => (
-                  <Cell key={i} fill={e.color} />
-                ))}
-              </Pie>
-              <Tooltip content={<CTooltip />} />
-              <Legend
-                iconType="circle"
-                iconSize={8}
-                formatter={(v) => <span style={{ color: C.textMuted, fontSize: 11 }}>{v}</span>}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        </ChartCard>
-      </div>
+      <LiveEmptyState
+        title="Charts & Tabellen folgen mit Live-Provider-Daten"
+        hint="Sobald GSC-Import und Ahrefs-Audit-Läufe Zeitreihen, Top-Keywords und Top-Pages liefern, erscheinen hier die Detail-Charts."
+      />
     </div>
   );
 }
@@ -3069,8 +2911,13 @@ function GeoDashboard({ selectedClient }) {
   );
 }
 function ConvDashboard({ selectedClient }) {
-  const hasData = (selectedClient?.revenue || 0) > 0;
-  if (!hasData) {
+  const revenue = Number(selectedClient?.revenue || 0);
+  const phoneCalls = Number(selectedClient?.phoneCalls || 0);
+  const mailClicks = Number(selectedClient?.mailClicks || 0);
+  const mapsClicks = Number(selectedClient?.mapsClicks || 0);
+  const formSubmits = Number(selectedClient?.formSubmits || 0);
+  const hasAnyKpi = revenue + phoneCalls + mailClicks + mapsClicks + formSubmits > 0;
+  if (!hasAnyKpi) {
     return (
       <LiveEmptyState
         title="Noch keine Conversion-Daten"
@@ -3078,12 +2925,6 @@ function ConvDashboard({ selectedClient }) {
       />
     );
   }
-  const ct = [
-    { type: "Phone", icon: Phone, count: 342, rev: 17100, avg: 50, tr: 12, co: C.accent },
-    { type: "Email", icon: Mail, count: 891, rev: 8910, avg: 10, tr: 8, co: C.blue },
-    { type: "Maps", icon: MapPin, count: 1203, rev: 6015, avg: 5, tr: 15, co: C.green },
-    { type: "Forms", icon: FileInput, count: 156, rev: 15600, avg: 100, tr: 5, co: C.orange },
-  ];
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div
@@ -3093,133 +2934,55 @@ function ConvDashboard({ selectedClient }) {
           gap: 14,
         }}
       >
-        <KpiCard icon={Phone} label="Phone Calls" value={342} change={12} color={C.accent} />
-        <KpiCard icon={Mail} label="Mail Clicks" value={891} change={8} color={C.blue} />
-        <KpiCard icon={MapPin} label="Maps Clicks" value={1203} change={15} color={C.green} />
-        <KpiCard icon={FileInput} label="Form Submits" value={156} change={5} color={C.orange} />
+        <KpiCard
+          icon={Phone}
+          label="Phone Calls"
+          value={phoneCalls > 0 ? phoneCalls : "—"}
+          color={C.accent}
+        />
+        <KpiCard
+          icon={Mail}
+          label="Mail Clicks"
+          value={mailClicks > 0 ? mailClicks : "—"}
+          color={C.blue}
+        />
+        <KpiCard
+          icon={MapPin}
+          label="Maps Clicks"
+          value={mapsClicks > 0 ? mapsClicks : "—"}
+          color={C.green}
+        />
+        <KpiCard
+          icon={FileInput}
+          label="Form Submits"
+          value={formSubmits > 0 ? formSubmits : "—"}
+          color={C.orange}
+        />
       </div>
-      <div
-        style={{
-          background: `linear-gradient(135deg,${C.accent}22,${C.green}15)`,
-          border: `1px solid ${C.accent}40`,
-          borderRadius: 14,
-          padding: "24px 28px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <div>
-          <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 4 }}>Total Revenue</div>
-          <div style={{ fontSize: 36, fontWeight: 800, color: C.text }}>CHF 47'625</div>
-        </div>
+      {revenue > 0 && (
         <div
           style={{
+            background: `linear-gradient(135deg,${C.accent}22,${C.green}15)`,
+            border: `1px solid ${C.accent}40`,
+            borderRadius: 14,
+            padding: "24px 28px",
             display: "flex",
+            justifyContent: "space-between",
             alignItems: "center",
-            gap: 6,
-            background: C.greenDim,
-            padding: "6px 14px",
-            borderRadius: 8,
           }}
         >
-          <TrendingUp size={16} color={C.green} />
-          <span style={{ color: C.green, fontWeight: 700 }}>+18.4%</span>
+          <div>
+            <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 4 }}>Total Revenue</div>
+            <div style={{ fontSize: 36, fontWeight: 800, color: C.text }}>
+              CHF {revenue.toLocaleString("de-CH")}
+            </div>
+          </div>
         </div>
-      </div>
-      <ChartCard title="Revenue (CHF)" action="30d">
-        <ResponsiveContainer width="100%" height={220}>
-          <AreaChart data={purchaseTrend}>
-            <defs>
-              <linearGradient id="gR" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={C.accent} stopOpacity={0.3} />
-                <stop offset="100%" stopColor={C.accent} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-            <XAxis
-              dataKey="date"
-              tick={{ fill: C.textDim, fontSize: 10 }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <YAxis tick={{ fill: C.textDim, fontSize: 10 }} axisLine={false} tickLine={false} />
-            <Tooltip content={<CTooltip />} />
-            <Area
-              type="monotone"
-              dataKey="revenue"
-              stroke={C.accent}
-              fill="url(#gR)"
-              strokeWidth={2}
-              name="Revenue"
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </ChartCard>
-      <ChartCard title="Conversions" minH={200}>
-        <DTable
-          columns={[
-            {
-              label: "Typ",
-              key: "type",
-              render: (r) => {
-                const I = r.icon;
-                return (
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: 8,
-                        background: `${r.co}18`,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <I size={15} color={r.co} />
-                    </div>
-                    <span style={{ fontWeight: 600 }}>{r.type}</span>
-                  </div>
-                );
-              },
-            },
-            {
-              label: "Anzahl",
-              key: "count",
-              align: "right",
-              render: (r) => r.count.toLocaleString("de-CH"),
-            },
-            {
-              label: "Revenue",
-              key: "rev",
-              align: "right",
-              render: (r) => (
-                <span style={{ fontWeight: 600 }}>CHF {r.rev.toLocaleString("de-CH")}</span>
-              ),
-            },
-            {
-              label: "Trend",
-              key: "tr",
-              align: "right",
-              render: (r) => (
-                <span
-                  style={{
-                    color: C.green,
-                    fontWeight: 600,
-                    background: C.greenDim,
-                    padding: "2px 8px",
-                    borderRadius: 4,
-                  }}
-                >
-                  +{r.tr}%
-                </span>
-              ),
-            },
-          ]}
-          data={ct}
-        />
-      </ChartCard>
+      )}
+      <LiveEmptyState
+        title="Conversion-Charts folgen mit GA4-Live-Daten"
+        hint="Sobald GA4 Sessions, Events und Revenue liefert, erscheinen hier Trend-Charts und Conversion-Tabellen."
+      />
     </div>
   );
 }
