@@ -175,6 +175,7 @@ export type Database = {
           id: string
           industry: string | null
           language: string
+          metadata: Json
           name: string
           notes: string | null
           organization_id: string
@@ -191,6 +192,7 @@ export type Database = {
           id?: string
           industry?: string | null
           language?: string
+          metadata?: Json
           name: string
           notes?: string | null
           organization_id: string
@@ -207,6 +209,7 @@ export type Database = {
           id?: string
           industry?: string | null
           language?: string
+          metadata?: Json
           name?: string
           notes?: string | null
           organization_id?: string
@@ -638,8 +641,16 @@ export type Database = {
     Enums: {
       app_role: "admin" | "member"
       audit_status: "pending" | "running" | "succeeded" | "failed"
-      content_status: "draft" | "review" | "published"
-      content_type: "blog" | "landing" | "geo" | "social" | "other"
+      content_status: "draft" | "review" | "published" | "archived"
+      content_type:
+        | "blog"
+        | "landing"
+        | "geo"
+        | "social"
+        | "other"
+        | "audit"
+        | "note"
+        | "report"
       org_role: "owner" | "admin" | "member" | "viewer"
       task_priority: "low" | "medium" | "high"
       task_status: "open" | "in_progress" | "done"
@@ -772,8 +783,17 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "member"],
       audit_status: ["pending", "running", "succeeded", "failed"],
-      content_status: ["draft", "review", "published"],
-      content_type: ["blog", "landing", "geo", "social", "other"],
+      content_status: ["draft", "review", "published", "archived"],
+      content_type: [
+        "blog",
+        "landing",
+        "geo",
+        "social",
+        "other",
+        "audit",
+        "note",
+        "report",
+      ],
       org_role: ["owner", "admin", "member", "viewer"],
       task_priority: ["low", "medium", "high"],
       task_status: ["open", "in_progress", "done"],
