@@ -39,6 +39,12 @@ export const gscKeywordImport = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     try {
       const client = await assertOrgAdmin(context.userId, data.clientId);
+      const { data: clientFull } = await supabaseAdmin
+        .from("clients")
+        .select("canonry_project")
+        .eq("id", client.id)
+        .maybeSingle();
+      const canonryProject = clientFull?.canonry_project ?? null;
       if (!client.gsc_property) {
         return { ok: false, error: "Kein GSC-Property für diesen Client gesetzt." };
       }
@@ -86,10 +92,11 @@ export const gscKeywordImport = createServerFn({ method: "POST" })
       let canonryStatus: { ok: boolean; count?: number; error?: string } = { ok: false, error: "Canonry not configured" };
       const canonryBase = process.env.CANONRY_BASE_URL;
       const canonryKey = process.env.CANONRY_API_KEY;
-      if (canonryBase && canonryKey && keywords.length > 0) {
+      if (canonryBase && canonryKey && keywords.length > 0 && canonryProject) {
+        const { canonryUrl } = await import("@/lib/canonry-url");
         try {
           const cRes = await fetch(
-            `${canonryBase.replace(/\/+$/, "")}/projects/${encodeURIComponent(client.id)}/keywords`,
+            canonryUrl(canonryBase, `/projects/${encodeURIComponent(canonryProject)}/keywords`),
             {
               method: "POST",
               headers: {

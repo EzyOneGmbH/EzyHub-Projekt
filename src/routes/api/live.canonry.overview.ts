@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
+import { normalizeCanonryBase } from "@/lib/canonry-url";
 
 const QuerySchema = z.object({
   project: z.string().min(1).max(255),
@@ -78,7 +79,7 @@ export const Route = createFileRoute("/api/live/canonry/overview")({
           );
         }
 
-        const base = baseUrl.replace(/\/+$/, "");
+        const base = normalizeCanonryBase(baseUrl);
         const p = encodeURIComponent(project);
         const qs = domain ? `?domain=${encodeURIComponent(domain)}` : "";
 
