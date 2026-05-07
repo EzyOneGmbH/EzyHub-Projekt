@@ -107,33 +107,30 @@ export const Route = createFileRoute("/api/ahrefs/overview")({
 
         const admin = createClient(supabaseUrl, serviceKey);
 
-        // Resolve client + org + domain
-        const clientId = parsed.data.clientId ?? null;
-        let domain = parsed.data.domain ?? null;
-        let organizationId: string | null = null;
-
-        if (clientId) {
-          const { data: client, error } = await userClient
-            .from("clients")
-            .select("id, domain, organization_id")
-            .eq("id", clientId)
-            .maybeSingle();
-          if (error || !client) {
-            return Response.json({ error: "Client not found or access denied" }, { status: 404 });
-          }
-          domain = domain ?? client.domain;
-          organizationId = client.organization_id;
-          if (!(await isProviderEnabled(client.id, "ahrefs"))) {
-            return Response.json(
-              { error: "Ahrefs für diesen Kunden deaktiviert." },
-              { status: 403 },
-            );
-          }
+        const clientId = parsed.data.clientId;
+        const { data: client, error: clientErr } = await userClient
+          .from("clients")
+          .select("id, domain, organization_id")
+          .eq("id", clientId)
+          .maybeSingle();
+        if (clientErr || !client) {
+          return Response.json({ error: "Client not found or access denied" }, { status: 404 });
         }
-
-        if (!domain) {
-          return Response.json({ error: "No domain available for this client" }, { status: 400 });
+        if (!client.domain) {
+          return Response.json(
+            { error: "Kein domain für diesen Kunden gepflegt." },
+            { status: 400 },
+          );
         }
+        if (!(await isProviderEnabled(client.id, "ahrefs"))) {
+          return Response.json(
+            { error: "Ahrefs für diesen Kunden deaktiviert." },
+            { status: 403 },
+          );
+        }
+        const domain = client.domain;
+        const organizationId = client.organization_id;
+
 
         const today = new Date().toISOString().slice(0, 10);
 
