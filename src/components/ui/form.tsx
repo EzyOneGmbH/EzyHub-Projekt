@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- shadcn/template files intentionally export non-component helpers (variants/contexts/hooks) alongside components. */
 import * as React from "react";
 import * as LabelPrimitive from "@radix-ui/react-label";
 import { Slot } from "@radix-ui/react-slot";
