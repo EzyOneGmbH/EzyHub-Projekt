@@ -229,7 +229,7 @@ function ToolsPage({selectedClient,tools}){const[cat,setCat]=useState("all");con
         {history.map((h,i)=>{const SI=stIc[h.status]||Clock;return(<div key={h.id} style={{padding:"12px 20px",borderBottom:i<history.length-1?`1px solid ${C.border}`:"none",display:"flex",alignItems:"center",gap:12}}><SI size={15} color={stCo[h.status]||C.textMuted}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:600,color:C.text}}>{tools.find(t=>t.id===h.toolId)?.label||h.toolId}</div><div style={{fontSize:11,color:C.textMuted}}>{h.client} • {h.url} • {h.date} {h.time} • {h.dur}</div></div>{h.score!=null&&<div style={{fontSize:18,fontWeight:800,color:h.score>=80?C.green:h.score>=60?C.orange:C.red}}>{h.score}</div>}</div>)})}
       </div>
     </div>
-    {runner&&<ToolRunner tool={runner} onClose={()=>setRunner(null)} clientDomain={selectedClient.domain} onComplete={onComplete}/>}
+    {runner&&<ToolRunner tool={runner} onClose={()=>setRunner(null)} client={selectedClient} onComplete={onComplete}/>}
   </div>)}
 
 // ═══════════════════════════════════════════════════════════════════════════
