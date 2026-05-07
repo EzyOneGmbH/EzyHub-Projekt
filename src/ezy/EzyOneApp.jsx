@@ -356,19 +356,25 @@ const NAV=[{id:"dashboard",label:"Dashboard",icon:BarChart3},{id:"tools",label:"
 function App(){
   const seedClients=useMemo(()=>CLIENTS.map(client=>normalizeClientShape(client)),[]);
   const isMobile=useMediaQuery("(max-width: 760px)");
-  const[page,setPage]=useState("dashboard");const[tab,setTab]=useState("seo");const[clients,setClients]=useState(()=>{const stored=readStoredJson(CLIENT_STORAGE_KEY,CLIENTS);return Array.isArray(stored)&&stored.length?stored.map(client=>normalizeClientShape(client)):CLIENTS.map(client=>normalizeClientShape(client))});const[clientId,setClientId]=useState(()=>{const stored=readStoredJson(CLIENT_STORAGE_KEY,CLIENTS);return Array.isArray(stored)&&stored.length?normalizeClientShape(stored[0]).id:CLIENTS[0].id});const[profile,setProfile]=useState(()=>profileFromStored(readStoredJson(PROFILE_STORAGE_KEY,DEFAULT_PROFILE)));const[customerDefaults,setCustomerDefaults]=useState(()=>defaultsFromStored(readStoredJson(DEFAULTS_STORAGE_KEY,DEFAULT_CUSTOMER_DEFAULTS)));const[cdd,setCdd]=useState(false);const[showTools,setShowTools]=useState(false);const[collapsed,setCollapsed]=useState(false);const[dateRange,setDateRange]=useState({label:"30 Tage"});const[showAll,setShowAll]=useState(false);const[cmdOpen,setCmdOpen]=useState(false);const[tools,setTools]=useState(ALL_TOOLS);const toast=useToast();const sw=isMobile?0:collapsed?68:240;
-  const client=useMemo(()=>clients.find(entry=>entry.id===clientId)||clients[0]||seedClients[0],[clientId,clients,seedClients]);
+  const ezy=useEzyClients();
+  const clients=useMemo(()=>ezy.clients.map(c=>normalizeClientShape(c)),[ezy.clients]);
+  const[clientId,setClientId]=useState("");
+  useEffect(()=>{if(clients.length&&!clients.some(c=>c.id===clientId))setClientId(clients[0].id)},[clients,clientId]);
+  const[page,setPage]=useState("dashboard");const[tab,setTab]=useState("seo");const[profile,setProfile]=useState(()=>profileFromStored(readStoredJson(PROFILE_STORAGE_KEY,DEFAULT_PROFILE)));const[customerDefaults,setCustomerDefaults]=useState(()=>defaultsFromStored(readStoredJson(DEFAULTS_STORAGE_KEY,DEFAULT_CUSTOMER_DEFAULTS)));const[cdd,setCdd]=useState(false);const[showTools,setShowTools]=useState(false);const[collapsed,setCollapsed]=useState(false);const[dateRange,setDateRange]=useState({label:"30 Tage"});const[showAll,setShowAll]=useState(false);const[cmdOpen,setCmdOpen]=useState(false);const[tools,setTools]=useState(ALL_TOOLS);const toast=useToast();const sw=isMobile?0:collapsed?68:240;
+  const fallback=seedClients[0];
+  const client=useMemo(()=>clients.find(entry=>entry.id===clientId)||clients[0]||fallback,[clientId,clients,fallback]);
   const enabledTools=useMemo(()=>tools.filter(t=>t.enabled),[tools]);
   const toggleTool=useCallback((id)=>setTools(p=>p.map(t=>t.id===id?{...t,enabled:!t.enabled}:t)),[]);
   const selectClient=useCallback((nextClient)=>{if(nextClient?.id)setClientId(nextClient.id);setShowAll(false)},[]);
-  const upsertClient=useCallback((nextClient)=>{setClients(prev=>{const index=prev.findIndex(entry=>entry.id===nextClient.id);if(index===-1)return[...prev,nextClient];return prev.map(entry=>entry.id===nextClient.id?nextClient:entry)});setClientId(nextClient.id);setShowAll(false)},[]);
-  const deleteClient=useCallback((id)=>{setClients(prev=>prev.filter(entry=>entry.id!==id));setShowAll(false)},[]);
+  const upsertClient=useCallback(async(nextClient)=>{try{const saved=await ezy.upsert(nextClient);setClientId(saved.id);setShowAll(false);toast?.("Kunde gespeichert","success")}catch(e){toast?.(e?.message||"Speichern fehlgeschlagen","error")}},[ezy,toast]);
+  const deleteClient=useCallback(async(id)=>{try{await ezy.remove(id);setShowAll(false);toast?.("Kunde gelöscht","success")}catch(e){toast?.(e?.message||"Löschen fehlgeschlagen","error")}},[ezy,toast]);
   const saveProfile=useCallback((nextProfile)=>setProfile(profileFromStored(nextProfile)),[]);
   const saveCustomerDefaults=useCallback((nextDefaults)=>setCustomerDefaults(defaultsFromStored(nextDefaults)),[]);
-  useEffect(()=>persistJson(CLIENT_STORAGE_KEY,clients),[clients]);
   useEffect(()=>persistJson(PROFILE_STORAGE_KEY,profile),[profile]);
   useEffect(()=>persistJson(DEFAULTS_STORAGE_KEY,customerDefaults),[customerDefaults]);
-  useEffect(()=>{if(clients.length&&!clients.some(entry=>entry.id===clientId))setClientId(clients[0].id)},[clients,clientId]);
+
+  if(ezy.loading&&!clients.length)return(<div style={{minHeight:"100vh",background:C.bg,color:C.textMuted,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans',sans-serif"}}>Lädt EZY ONE…</div>);
+
 
   // Keyboard shortcuts
   useEffect(()=>{const h=(e)=>{if((e.metaKey||e.ctrlKey)&&e.key==="k"){e.preventDefault();setCmdOpen(true)}if(e.key==="Escape"){setShowTools(false);setCdd(false);setCmdOpen(false)}};document.addEventListener("keydown",h);return()=>document.removeEventListener("keydown",h)},[]);
