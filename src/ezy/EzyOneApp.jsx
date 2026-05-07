@@ -3,6 +3,10 @@ import { LineChart, Line, PieChart, Pie, Cell, AreaChart, Area, XAxis, YAxis, Ca
 import { Search, Bell, ChevronDown, ChevronLeft, TrendingUp, Globe, Eye, FileText, Bot, Sparkles, Phone, Mail, MapPin, FileInput, DollarSign, BarChart3, Activity, Zap, Users, Settings, LogOut, ChevronRight, Calendar, Download, RefreshCw, Play, ArrowUpRight, ArrowDownRight, Minus, Layers, Target, Award, Plus, Check, X, Clock, AlertCircle, CheckCircle, Copy, Save, PenTool, LayoutGrid, List, Key, Palette, Database, HelpCircle, Terminal, Code, Bookmark, Link2, ExternalLink, Hash, Bold, Italic, Heading2, Heading3, Command, Info, ToggleLeft, ToggleRight, GitBranch, Type } from "lucide-react";
 import { ezyFetch } from "@/ezy/data/api";
 import { useEzyClients } from "@/ezy/data/useEzyClients";
+import { useEzyDefaults } from "@/ezy/data/useEzyDefaults";
+import { useEzyProfile } from "@/ezy/data/useEzyProfile";
+import { useEzyContent } from "@/ezy/data/useEzyContent";
+import { useEzyToolSettings } from "@/ezy/data/useEzyToolSettings";
 import { supabase } from "@/integrations/supabase/client";
 
 // ═══════════════════════════════════════════════════════════════════════════
