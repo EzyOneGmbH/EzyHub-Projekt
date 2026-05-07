@@ -12,19 +12,50 @@ async function authedFetch(url, init = {}) {
 const isUuid = (id) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ""));
 
+const ROLES_THAT_RUN_AUDITS = new Set(["owner", "admin", "member"]);
+
 /** Inline Google panel for the currently selected EZY ONE client. */
-export default function GoogleClientPanel({ client, onLog }) {
+export default function GoogleClientPanel({ client, onLog, onSaved }) {
   const clientId = client?.id || "";
   const [status, setStatus] = useState(null);
   const [busy, setBusy] = useState(null);
   const [gsc, setGsc] = useState(client?.gscSiteUrl || "");
   const [ga4, setGa4] = useState(client?.ga4PropertyId || "");
   const [msg, setMsg] = useState("");
+  const [canRun, setCanRun] = useState(true);
 
   useEffect(() => {
     setGsc(client?.gscSiteUrl || "");
     setGa4(client?.ga4PropertyId || "");
   }, [client?.id, client?.gscSiteUrl, client?.ga4PropertyId]);
+
+  // Resolve current user's role for the client's organization → can run audits?
+  useEffect(() => {
+    let cancelled = false;
+    async function check() {
+      if (!isUuid(clientId)) return;
+      try {
+        const { data: c } = await supabase
+          .from("clients")
+          .select("organization_id")
+          .eq("id", clientId)
+          .maybeSingle();
+        if (!c?.organization_id) return;
+        const { data: au } = await supabase
+          .from("app_users")
+          .select("role")
+          .eq("organization_id", c.organization_id)
+          .maybeSingle();
+        if (!cancelled) setCanRun(ROLES_THAT_RUN_AUDITS.has(au?.role));
+      } catch {
+        /* leave default */
+      }
+    }
+    void check();
+    return () => {
+      cancelled = true;
+    };
+  }, [clientId]);
 
   const reload = useCallback(async () => {
     if (!isUuid(clientId)) return;
@@ -62,6 +93,7 @@ export default function GoogleClientPanel({ client, onLog }) {
       if (error) throw error;
       setMsg("Properties gespeichert");
       onLog?.({ ok: true, kind: "save", text: "Properties gespeichert" });
+      onSaved?.();
     } catch (e) {
       setMsg(e?.message || String(e));
     } finally {
@@ -74,9 +106,10 @@ export default function GoogleClientPanel({ client, onLog }) {
     setMsg("");
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const res = await fetch(`/api/google/oauth/start?client_id=${encodeURIComponent(clientId)}`, {
-        headers: { Authorization: `Bearer ${session?.access_token || ""}` },
-      });
+      const res = await fetch(
+        `/api/google/oauth/start?client_id=${encodeURIComponent(clientId)}`,
+        { headers: { Authorization: `Bearer ${session?.access_token || ""}` } },
+      );
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.url) throw new Error(json.error || `HTTP ${res.status}`);
       const popup = window.open(json.url, "google-oauth", "width=520,height=640");
@@ -113,6 +146,10 @@ export default function GoogleClientPanel({ client, onLog }) {
   };
 
   const importGsc = async () => {
+    if (!canRun) {
+      setMsg("Keine Berechtigung für Audit-Läufe (viewer/read-only).");
+      return;
+    }
     setBusy("import");
     setMsg("");
     try {
@@ -132,6 +169,10 @@ export default function GoogleClientPanel({ client, onLog }) {
   };
 
   const ga4Run = async () => {
+    if (!canRun) {
+      setMsg("Keine Berechtigung für Audit-Läufe (viewer/read-only).");
+      return;
+    }
     setBusy("ga4");
     setMsg("");
     try {
@@ -161,13 +202,14 @@ export default function GoogleClientPanel({ client, onLog }) {
     fontSize: 13,
     fontFamily: "inherit",
   };
-  const btn = (extra = {}) => ({
+  const btn = (extra = {}, disabled = false) => ({
     padding: "8px 12px",
     borderRadius: 8,
     border: "1px solid #334155",
     background: "#1e293b",
     color: "#e2e8f0",
-    cursor: "pointer",
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.5 : 1,
     fontSize: 12,
     fontFamily: "inherit",
     ...extra,
@@ -229,22 +271,31 @@ export default function GoogleClientPanel({ client, onLog }) {
         </div>
       </div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button onClick={saveProps} disabled={!!busy} style={btn()}>
+        <button onClick={saveProps} disabled={!!busy} style={btn({}, !!busy)}>
           {busy === "save" ? "…" : "Properties speichern"}
         </button>
         {status?.connected ? (
           <>
             <button
               onClick={importGsc}
-              disabled={!!busy}
-              style={btn({ background: "#1d4ed8", borderColor: "#1d4ed8" })}
+              disabled={!!busy || !canRun}
+              title={canRun ? "" : "Keine Berechtigung (viewer)"}
+              style={btn(
+                { background: "#1d4ed8", borderColor: "#1d4ed8" },
+                !!busy || !canRun,
+              )}
             >
               {busy === "import" ? "…" : "GSC importieren"}
             </button>
-            <button onClick={ga4Run} disabled={!!busy} style={btn()}>
+            <button
+              onClick={ga4Run}
+              disabled={!!busy || !canRun}
+              title={canRun ? "" : "Keine Berechtigung (viewer)"}
+              style={btn({}, !!busy || !canRun)}
+            >
               {busy === "ga4" ? "…" : "GA4 Summary"}
             </button>
-            <button onClick={disconnect} disabled={!!busy} style={btn({ marginLeft: "auto" })}>
+            <button onClick={disconnect} disabled={!!busy} style={btn({ marginLeft: "auto" }, !!busy)}>
               Trennen
             </button>
           </>
@@ -252,12 +303,17 @@ export default function GoogleClientPanel({ client, onLog }) {
           <button
             onClick={connect}
             disabled={!!busy}
-            style={btn({ background: "#1d4ed8", borderColor: "#1d4ed8" })}
+            style={btn({ background: "#1d4ed8", borderColor: "#1d4ed8" }, !!busy)}
           >
             {busy === "connect" ? "…" : "Google verbinden"}
           </button>
         )}
       </div>
+      {!canRun && (
+        <div style={{ marginTop: 10, fontSize: 11, color: "#f59e0b" }}>
+          Read-only Rolle: GSC Import und GA4 Summary sind deaktiviert.
+        </div>
+      )}
       {msg && <div style={{ marginTop: 10, fontSize: 12, color: "#cbd5e1" }}>{msg}</div>}
     </div>
   );
