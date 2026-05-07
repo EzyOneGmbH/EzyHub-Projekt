@@ -3686,6 +3686,11 @@ function ToolsPage({ selectedClient, tools }) {
             overflow: "hidden",
           }}
         >
+          {history.length === 0 && (
+            <div style={{ padding: "20px", fontSize: 13, color: C.textMuted, textAlign: "center" }}>
+              {histLoading ? "Lade Live-Verlauf …" : "Noch keine Live-Läufe für diesen Kunden."}
+            </div>
+          )}
           {history.map((h, i) => {
             const SI = stIc[h.status] || Clock;
             return (
@@ -3707,6 +3712,9 @@ function ToolsPage({ selectedClient, tools }) {
                   <div style={{ fontSize: 11, color: C.textMuted }}>
                     {h.client} • {h.url} • {h.date} {h.time} • {h.dur}
                   </div>
+                  {h.error && (
+                    <div style={{ fontSize: 11, color: C.red, marginTop: 2 }}>{h.error}</div>
+                  )}
                 </div>
                 {h.score != null && (
                   <div
