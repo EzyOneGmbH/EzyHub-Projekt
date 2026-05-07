@@ -1832,10 +1832,12 @@ function LiveEmptyState({ title, hint }) {
   );
 }
 function SeoDashboard({ selectedClient }) {
-  const traffic = Number(selectedClient?.traffic || 0);
-  const keywords = Number(selectedClient?.keywords || 0);
-  const score = Number(selectedClient?.score || 0);
-  const visibility = Number(selectedClient?.visibility || 0);
+  const { run } = useEzyLatestRun(selectedClient?.id, "ahrefs");
+  const live = run ? ahrefsKpisFromResult(run.result) : null;
+  const traffic = Number(live?.traffic ?? selectedClient?.traffic ?? 0);
+  const keywords = Number(live?.keywords ?? selectedClient?.keywords ?? 0);
+  const score = Number(live?.score ?? selectedClient?.score ?? 0);
+  const visibility = Number(live?.visibility ?? selectedClient?.visibility ?? 0);
   const hasAnyKpi = traffic + keywords + score + visibility > 0;
   if (!hasAnyKpi) {
     return (
