@@ -96,6 +96,7 @@ import { useEzyProfile } from "@/ezy/data/useEzyProfile";
 import { useEzyContent } from "@/ezy/data/useEzyContent";
 import { useEzyToolSettings, toolProvider } from "@/ezy/data/useEzyToolSettings";
 import { executeTool as runToolLive } from "@/ezy/data/runTool";
+import { useEzyAuditHistory } from "@/ezy/data/useEzyAuditHistory";
 import GoogleClientPanel from "@/ezy/GoogleClientPanel.jsx";
 import { supabase } from "@/integrations/supabase/client";
 const toolHasLiveProvider = (id) => toolProvider(id) !== null;
@@ -1802,86 +1803,7 @@ const CONTENT_ITEMS = [
     updatedAt: "2026-04-19",
   },
 ];
-
-const RUN_HISTORY = [
-  {
-    id: "r1",
-    toolId: "full-seo-audit",
-    client: "SchuhParadies AG",
-    url: "schuhparadies.ch",
-    status: "completed",
-    score: 78,
-    time: "14:22",
-    dur: "4m 12s",
-    date: "2026-04-20",
-  },
-  {
-    id: "r2",
-    toolId: "geo-aeo-audit",
-    client: "Hotel & Spa Arbon",
-    url: "hotel-arbon.ch",
-    status: "completed",
-    score: 65,
-    time: "13:15",
-    dur: "2m 48s",
-    date: "2026-04-20",
-  },
-  {
-    id: "r3",
-    toolId: "generate-blog",
-    client: "Dental-Praxis Zürich",
-    url: "—",
-    status: "completed",
-    score: 88,
-    time: "11:30",
-    dur: "3m 05s",
-    date: "2026-04-19",
-  },
-  {
-    id: "r4",
-    toolId: "technical-audit",
-    client: "CodeLab Basel",
-    url: "codelab-basel.ch",
-    status: "completed",
-    score: 71,
-    time: "09:45",
-    dur: "1m 52s",
-    date: "2026-04-19",
-  },
-  {
-    id: "r5",
-    toolId: "canonry",
-    client: "SchuhParadies AG",
-    url: "schuhparadies.ch",
-    status: "completed",
-    score: 92,
-    time: "16:10",
-    dur: "1m 15s",
-    date: "2026-04-18",
-  },
-  {
-    id: "r6",
-    toolId: "on-page-audit",
-    client: "Beauté Studio Winterthur",
-    url: "beaute-winterthur.ch/angebote",
-    status: "failed",
-    score: null,
-    time: "10:20",
-    dur: "0m 08s",
-    date: "2026-04-18",
-  },
-  {
-    id: "r7",
-    toolId: "obsidian-note",
-    client: "SchuhParadies AG",
-    url: "—",
-    status: "completed",
-    score: null,
-    time: "15:00",
-    dur: "0m 22s",
-    date: "2026-04-17",
-  },
-];
+// RUN_HISTORY removed in v14 — live data now comes from useEzyAuditHistory.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TOOLS DEFINITIONS
@@ -3471,30 +3393,54 @@ function ToolRunner({ tool, onClose, client, onComplete }) {
 function ToolsPage({ selectedClient, tools }) {
   const [cat, setCat] = useState("all");
   const [runner, setRunner] = useState(null);
-  const [history, setHistory] = useState(RUN_HISTORY);
+  const {
+    runs,
+    loading: histLoading,
+    refresh: refreshHistory,
+  } = useEzyAuditHistory(selectedClient?.id, 25);
   const visibleTools = useMemo(
     () =>
       (cat === "all" ? tools : tools.filter((t) => t.category === cat)).filter((t) => t.enabled),
     [cat, tools],
   );
-  const onComplete = ({ toolId, score }) => {
-    setHistory((p) => [
-      {
-        id: `r${Date.now()}`,
-        toolId,
-        client: selectedClient.name,
-        url: selectedClient.domain,
-        status: "completed",
-        score,
-        time: new Date().toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" }),
-        dur: `${1 + Math.round(Math.random() * 4)}m`,
-        date: new Date().toISOString().slice(0, 10),
-      },
-      ...p,
-    ]);
+  const onComplete = () => {
+    void refreshHistory();
   };
-  const stIc = { completed: CheckCircle, failed: AlertCircle };
-  const stCo = { completed: C.green, failed: C.red };
+  // Map provider/audit_type → tool label fallback.
+  const auditTypeToToolId = {
+    ahrefs: "full-seo-audit",
+    geo: "geo-aeo-audit",
+    geo_overview: "canonry",
+    seo: "open-seo-audit",
+  };
+  const history = useMemo(
+    () =>
+      runs.map((r) => {
+        const created = r.finished_at || r.started_at || r.created_at;
+        const d = new Date(created);
+        const inputToolId =
+          (r.input && r.input.toolId) || auditTypeToToolId[r.audit_type] || r.audit_type;
+        return {
+          id: r.id,
+          toolId: inputToolId,
+          client: selectedClient?.name || "—",
+          url: selectedClient?.domain || "—",
+          status:
+            r.status === "succeeded" ? "completed" : r.status === "failed" ? "failed" : "running",
+          score: null,
+          time: d.toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" }),
+          dur:
+            r.started_at && r.finished_at
+              ? `${Math.max(1, Math.round((new Date(r.finished_at).getTime() - new Date(r.started_at).getTime()) / 1000))}s`
+              : "—",
+          date: d.toISOString().slice(0, 10),
+          error: r.error,
+        };
+      }),
+    [runs, selectedClient],
+  );
+  const stIc = { completed: CheckCircle, failed: AlertCircle, running: Clock };
+  const stCo = { completed: C.green, failed: C.red, running: C.orange };
   return (
     <div style={{ display: "flex", gap: 24 }}>
       <div style={{ width: 170, flexShrink: 0 }}>
@@ -3664,6 +3610,11 @@ function ToolsPage({ selectedClient, tools }) {
             overflow: "hidden",
           }}
         >
+          {history.length === 0 && (
+            <div style={{ padding: "20px", fontSize: 13, color: C.textMuted, textAlign: "center" }}>
+              {histLoading ? "Lade Live-Verlauf …" : "Noch keine Live-Läufe für diesen Kunden."}
+            </div>
+          )}
           {history.map((h, i) => {
             const SI = stIc[h.status] || Clock;
             return (
@@ -3685,6 +3636,9 @@ function ToolsPage({ selectedClient, tools }) {
                   <div style={{ fontSize: 11, color: C.textMuted }}>
                     {h.client} • {h.url} • {h.date} {h.time} • {h.dur}
                   </div>
+                  {h.error && (
+                    <div style={{ fontSize: 11, color: C.red, marginTop: 2 }}>{h.error}</div>
+                  )}
                 </div>
                 {h.score != null && (
                   <div
@@ -4425,46 +4379,72 @@ function ClientsPage({
                 </div>
               </div>
             )}
-            {dt === "kpis" && (
-              <div
-                className="kpi-grid"
-                style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
-              >
-                {[
-                  [detail.score, detail.score >= 70 ? C.green : C.orange, "SEO Score"],
-                  [detail.keywords.toLocaleString("de-CH"), C.text, "Keywords"],
-                  [detail.traffic.toLocaleString("de-CH"), C.accent, "Traffic"],
-                  [detail.aiVisitors.toLocaleString("de-CH"), C.green, "AI Visitors"],
-                ].map(([v, co, l], i) => (
+            {dt === "kpis" &&
+              (() => {
+                const hasData =
+                  (detail.score || 0) +
+                    (detail.keywords || 0) +
+                    (detail.traffic || 0) +
+                    (detail.aiVisitors || 0) +
+                    (detail.revenue || 0) >
+                  0;
+                if (!hasData) {
+                  return (
+                    <div
+                      style={{
+                        background: C.card,
+                        borderRadius: 10,
+                        padding: 20,
+                        textAlign: "center",
+                        fontSize: 13,
+                        color: C.textMuted,
+                      }}
+                    >
+                      Noch keine Live-Daten — verbinde GSC/GA4 oder starte einen Audit-Lauf.
+                    </div>
+                  );
+                }
+                return (
                   <div
-                    key={i}
-                    style={{
-                      background: C.card,
-                      borderRadius: 10,
-                      padding: 14,
-                      textAlign: "center",
-                    }}
+                    className="kpi-grid"
+                    style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
                   >
-                    <div style={{ fontSize: 24, fontWeight: 800, color: co }}>{v}</div>
-                    <div style={{ fontSize: 11, color: C.textMuted }}>{l}</div>
+                    {[
+                      [detail.score, detail.score >= 70 ? C.green : C.orange, "SEO Score"],
+                      [detail.keywords.toLocaleString("de-CH"), C.text, "Keywords"],
+                      [detail.traffic.toLocaleString("de-CH"), C.accent, "Traffic"],
+                      [detail.aiVisitors.toLocaleString("de-CH"), C.green, "AI Visitors"],
+                    ].map(([v, co, l], i) => (
+                      <div
+                        key={i}
+                        style={{
+                          background: C.card,
+                          borderRadius: 10,
+                          padding: 14,
+                          textAlign: "center",
+                        }}
+                      >
+                        <div style={{ fontSize: 24, fontWeight: 800, color: co }}>{v}</div>
+                        <div style={{ fontSize: 11, color: C.textMuted }}>{l}</div>
+                      </div>
+                    ))}
+                    <div
+                      style={{
+                        background: C.card,
+                        borderRadius: 10,
+                        padding: 14,
+                        textAlign: "center",
+                        gridColumn: "1/3",
+                      }}
+                    >
+                      <div style={{ fontSize: 24, fontWeight: 800, color: C.text }}>
+                        CHF {detail.revenue.toLocaleString("de-CH")}
+                      </div>
+                      <div style={{ fontSize: 11, color: C.textMuted }}>Revenue (30d)</div>
+                    </div>
                   </div>
-                ))}
-                <div
-                  style={{
-                    background: C.card,
-                    borderRadius: 10,
-                    padding: 14,
-                    textAlign: "center",
-                    gridColumn: "1/3",
-                  }}
-                >
-                  <div style={{ fontSize: 24, fontWeight: 800, color: C.text }}>
-                    CHF {detail.revenue.toLocaleString("de-CH")}
-                  </div>
-                  <div style={{ fontSize: 11, color: C.textMuted }}>Revenue (30d)</div>
-                </div>
-              </div>
-            )}
+                );
+              })()}
             {dt === "notes" && (
               <div
                 style={{
@@ -4597,6 +4577,7 @@ function SettingsPage({
   onSaveProfile,
   customerDefaults,
   onSaveDefaults,
+  onClientUpdated,
 }) {
   const toast = useToast();
   const [sec, setSec] = useState("profil");
@@ -5091,7 +5072,7 @@ function SettingsPage({
                     </span>
                   </div>
                 </div>
-                <GoogleClientPanel client={selectedClient} />
+                <GoogleClientPanel client={selectedClient} onSaved={onClientUpdated} />
               </>
             )}
           </div>
@@ -5937,6 +5918,7 @@ function App() {
               onSaveProfile={saveProfile}
               customerDefaults={customerDefaults}
               onSaveDefaults={saveCustomerDefaults}
+              onClientUpdated={ezy.reload}
             />
           )}
         </div>

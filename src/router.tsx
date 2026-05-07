@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- shadcn/template files intentionally export non-component helpers (variants/contexts/hooks) alongside components. */
 import { createRouter, useRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 

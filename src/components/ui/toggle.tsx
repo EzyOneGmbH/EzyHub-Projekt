@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- shadcn/template files intentionally export non-component helpers (variants/contexts/hooks) alongside components. */
 import * as React from "react";
 import * as TogglePrimitive from "@radix-ui/react-toggle";
 import { cva, type VariantProps } from "class-variance-authority";
