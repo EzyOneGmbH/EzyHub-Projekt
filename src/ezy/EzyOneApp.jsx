@@ -5090,6 +5090,7 @@ function SettingsPage({
                     </span>
                   </div>
                 </div>
+                <GoogleClientPanel client={selectedClient} />
               </>
             )}
           </div>
