@@ -71,21 +71,18 @@ export function useEzyContent() {
     if (!authLoading) void reload();
   }, [authLoading, reload]);
 
-  const updateContent = useCallback(
-    async (id: string, content: string) => {
-      const { data, error } = await supabase
-        .from("content_items")
-        .update({ body: content })
-        .eq("id", id)
-        .select()
-        .single();
-      if (error) throw error;
-      const mapped = rowToItem(data);
-      setItems((p) => p.map((i) => (i.id === id ? mapped : i)));
-      return mapped;
-    },
-    [],
-  );
+  const updateContent = useCallback(async (id: string, content: string) => {
+    const { data, error } = await supabase
+      .from("content_items")
+      .update({ body: content })
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) throw error;
+    const mapped = rowToItem(data);
+    setItems((p) => p.map((i) => (i.id === id ? mapped : i)));
+    return mapped;
+  }, []);
 
   const create = useCallback(
     async (input: Partial<EzyContentItem> & { clientId: string; title: string }) => {

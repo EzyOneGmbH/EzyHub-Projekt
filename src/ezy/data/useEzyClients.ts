@@ -32,7 +32,10 @@ const DEFAULT_DEFAULTS = { language: "Deutsch", tone: "Professionell", reportTem
 
 /** Map a Supabase clients row to the reference EzyClient shape. */
 function rowToClient(r: any): EzyClient {
-  const domain = String(r.domain ?? "").replace(/^https?:\/\//i, "").replace(/\/+$/, "").trim();
+  const domain = String(r.domain ?? "")
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/+$/, "")
+    .trim();
   return {
     id: String(r.id),
     name: String(r.name ?? ""),
