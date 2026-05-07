@@ -364,18 +364,24 @@ function App(){
   const clients=useMemo(()=>ezy.clients.map(c=>normalizeClientShape(c)),[ezy.clients]);
   const[clientId,setClientId]=useState("");
   useEffect(()=>{if(clients.length&&!clients.some(c=>c.id===clientId))setClientId(clients[0].id)},[clients,clientId]);
-  const[page,setPage]=useState("dashboard");const[tab,setTab]=useState("seo");const[profile,setProfile]=useState(()=>profileFromStored(readStoredJson(PROFILE_STORAGE_KEY,DEFAULT_PROFILE)));const[customerDefaults,setCustomerDefaults]=useState(()=>defaultsFromStored(readStoredJson(DEFAULTS_STORAGE_KEY,DEFAULT_CUSTOMER_DEFAULTS)));const[cdd,setCdd]=useState(false);const[showTools,setShowTools]=useState(false);const[collapsed,setCollapsed]=useState(false);const[dateRange,setDateRange]=useState({label:"30 Tage"});const[showAll,setShowAll]=useState(false);const[cmdOpen,setCmdOpen]=useState(false);const[tools,setTools]=useState(ALL_TOOLS);const toast=useToast();const sw=isMobile?0:collapsed?68:240;
+  const profileHook=useEzyProfile();
+  const defaultsHook=useEzyDefaults();
+  const contentHook=useEzyContent();
+  const[page,setPage]=useState("dashboard");const[tab,setTab]=useState("seo");const[cdd,setCdd]=useState(false);const[showTools,setShowTools]=useState(false);const[collapsed,setCollapsed]=useState(false);const[dateRange,setDateRange]=useState({label:"30 Tage"});const[showAll,setShowAll]=useState(false);const[cmdOpen,setCmdOpen]=useState(false);const toast=useToast();const sw=isMobile?0:collapsed?68:240;
   const fallback=seedClients[0];
   const client=useMemo(()=>clients.find(entry=>entry.id===clientId)||clients[0]||fallback,[clientId,clients,fallback]);
+  const toolSettings=useEzyToolSettings(client?.id);
+  const tools=useMemo(()=>toolSettings.applyTo(ALL_TOOLS),[toolSettings]);
   const enabledTools=useMemo(()=>tools.filter(t=>t.enabled),[tools]);
-  const toggleTool=useCallback((id)=>setTools(p=>p.map(t=>t.id===id?{...t,enabled:!t.enabled}:t)),[]);
+  const toggleTool=useCallback((id)=>{const cur=tools.find(t=>t.id===id);toolSettings.setEnabled(id,!(cur?.enabled!==false))},[tools,toolSettings]);
   const selectClient=useCallback((nextClient)=>{if(nextClient?.id)setClientId(nextClient.id);setShowAll(false)},[]);
-  const upsertClient=useCallback(async(nextClient)=>{try{const saved=await ezy.upsert(nextClient);setClientId(saved.id);setShowAll(false);toast?.("Kunde gespeichert","success")}catch(e){toast?.(e?.message||"Speichern fehlgeschlagen","error")}},[ezy,toast]);
+  const upsertClient=useCallback(async(nextClient)=>{try{const seeded=nextClient.id?nextClient:{...nextClient,defaults:nextClient.defaults||defaultsHook.defaults};const saved=await ezy.upsert(seeded);setClientId(saved.id);setShowAll(false);toast?.("Kunde gespeichert","success")}catch(e){toast?.(e?.message||"Speichern fehlgeschlagen","error")}},[ezy,toast,defaultsHook.defaults]);
   const deleteClient=useCallback(async(id)=>{try{await ezy.remove(id);setShowAll(false);toast?.("Kunde gelöscht","success")}catch(e){toast?.(e?.message||"Löschen fehlgeschlagen","error")}},[ezy,toast]);
-  const saveProfile=useCallback((nextProfile)=>setProfile(profileFromStored(nextProfile)),[]);
-  const saveCustomerDefaults=useCallback((nextDefaults)=>setCustomerDefaults(defaultsFromStored(nextDefaults)),[]);
-  useEffect(()=>persistJson(PROFILE_STORAGE_KEY,profile),[profile]);
-  useEffect(()=>persistJson(DEFAULTS_STORAGE_KEY,customerDefaults),[customerDefaults]);
+  const profile=profileHook.profile.name?profileHook.profile:{...DEFAULT_PROFILE,...profileHook.profile,name:profileHook.profile.name||DEFAULT_PROFILE.name};
+  const saveProfile=useCallback((next)=>profileHook.save(next),[profileHook]);
+  const customerDefaults=defaultsHook.defaults;
+  const saveCustomerDefaults=useCallback((next)=>defaultsHook.save(next),[defaultsHook]);
+  const onSaveContent=useCallback((id,md)=>contentHook.updateContent(id,md),[contentHook]);
 
   if(ezy.loading&&!clients.length)return(<div style={{minHeight:"100vh",background:C.bg,color:C.textMuted,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans',sans-serif"}}>Lädt EZY ONE…</div>);
 
