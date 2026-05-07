@@ -2302,7 +2302,41 @@ function AgencyOverview({ clients }) {
     </div>
   );
 }
-function SeoDashboard() {
+function LiveEmptyState({ title, hint }) {
+  return (
+    <div
+      style={{
+        background: C.card,
+        border: `1px dashed ${C.border}`,
+        borderRadius: 14,
+        padding: "48px 24px",
+        textAlign: "center",
+      }}
+    >
+      <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 6 }}>
+        {title || "Noch keine Live-Daten"}
+      </div>
+      <div style={{ fontSize: 12, color: C.textMuted, maxWidth: 480, margin: "0 auto" }}>
+        {hint ||
+          "Verbinde GSC/GA4 in den Einstellungen oder starte einen Audit-Lauf, um echte Werte zu sehen."}
+      </div>
+    </div>
+  );
+}
+function SeoDashboard({ selectedClient }) {
+  const hasData =
+    (selectedClient?.score || 0) +
+      (selectedClient?.keywords || 0) +
+      (selectedClient?.traffic || 0) >
+    0;
+  if (!hasData) {
+    return (
+      <LiveEmptyState
+        title="Noch keine SEO-Daten"
+        hint="Verbinde GSC/Ahrefs oder starte einen Audit-Lauf, um Traffic, Visibility, Authority und Keywords live zu sehen."
+      />
+    );
+  }
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div
@@ -3034,7 +3068,16 @@ function GeoDashboard({ selectedClient }) {
     </div>
   );
 }
-function ConvDashboard() {
+function ConvDashboard({ selectedClient }) {
+  const hasData = (selectedClient?.revenue || 0) > 0;
+  if (!hasData) {
+    return (
+      <LiveEmptyState
+        title="Noch keine Conversion-Daten"
+        hint="Sobald GA4 Conversion-Events liefert oder Audit-Läufe Revenue-Daten enthalten, erscheinen hier echte Werte."
+      />
+    );
+  }
   const ct = [
     { type: "Phone", icon: Phone, count: 342, rev: 17100, avg: 50, tr: 12, co: C.accent },
     { type: "Email", icon: Mail, count: 891, rev: 8910, avg: 10, tr: 8, co: C.blue },
@@ -5360,7 +5403,6 @@ const NAV = [
 ];
 
 function App() {
-  const seedClients = useMemo(() => CLIENTS.map((client) => normalizeClientShape(client)), []);
   const isMobile = useMediaQuery("(max-width: 760px)");
   const ezy = useEzyClients();
   const clients = useMemo(() => ezy.clients.map((c) => normalizeClientShape(c)), [ezy.clients]);
@@ -5381,10 +5423,20 @@ function App() {
   const [cmdOpen, setCmdOpen] = useState(false);
   const toast = useToast();
   const sw = isMobile ? 0 : collapsed ? 68 : 240;
-  const fallback = seedClients[0];
+  const emptyClient = useMemo(
+    () =>
+      normalizeClientShape({
+        id: "",
+        name: "Kein Kunde",
+        domain: "",
+        defaults: { language: "Deutsch", tone: "Professionell", reportTemplate: "Standard" },
+      }),
+    [],
+  );
+  const hasClients = clients.length > 0;
   const client = useMemo(
-    () => clients.find((entry) => entry.id === clientId) || clients[0] || fallback,
-    [clientId, clients, fallback],
+    () => clients.find((entry) => entry.id === clientId) || clients[0] || emptyClient,
+    [clientId, clients, emptyClient],
   );
   const toolSettings = useEzyToolSettings(client?.id);
   const tools = useMemo(() => toolSettings.applyTo(ALL_TOOLS), [toolSettings]);
@@ -5864,7 +5916,37 @@ function App() {
           </div>
         </header>
         <div className="app-content" style={{ padding: isMobile ? "16px 12px" : "24px 28px" }}>
-          {page === "dashboard" && (
+          {!hasClients && page !== "clients" && page !== "settings" && (
+            <div
+              style={{
+                background: C.card,
+                border: `1px dashed ${C.border}`,
+                borderRadius: 14,
+                padding: "48px 24px",
+                textAlign: "center",
+              }}
+            >
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 6 }}>
+                Noch kein Kunde angelegt
+              </div>
+              <div
+                style={{
+                  fontSize: 13,
+                  color: C.textMuted,
+                  marginBottom: 16,
+                  maxWidth: 480,
+                  margin: "0 auto 16px",
+                }}
+              >
+                Lege deinen ersten Kunden an, um Dashboards, Tools und Reports mit Live-Daten zu
+                füllen.
+              </div>
+              <Btn icon={Plus} onClick={() => setPage("clients")}>
+                Kunde anlegen
+              </Btn>
+            </div>
+          )}
+          {hasClients && page === "dashboard" && (
             <>
               <div style={{ marginBottom: 20 }}>
                 <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
@@ -5884,15 +5966,15 @@ function App() {
               {showAll && <AgencyOverview clients={clients} />}
               {!showAll && (
                 <>
-                  {tab === "seo" && <SeoDashboard />}
+                  {tab === "seo" && <SeoDashboard selectedClient={client} />}
                   {tab === "geo" && <GeoDashboard selectedClient={client} />}{" "}
-                  {tab === "conversions" && <ConvDashboard />}
+                  {tab === "conversions" && <ConvDashboard selectedClient={client} />}
                 </>
               )}
             </>
           )}
-          {page === "tools" && <ToolsPage selectedClient={client} tools={tools} />}
-          {page === "content" && (
+          {hasClients && page === "tools" && <ToolsPage selectedClient={client} tools={tools} />}
+          {hasClients && page === "content" && (
             <ContentPage
               clients={clients}
               items={contentHook.items}
