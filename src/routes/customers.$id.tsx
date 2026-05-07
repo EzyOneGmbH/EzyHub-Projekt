@@ -75,7 +75,7 @@ function ClientDetail() {
     if (!c?.canonry_project) return;
     setCanonryLoading(true);
     try {
-      const qs = new URLSearchParams({ project: c.canonry_project });
+      const qs = new URLSearchParams({ project: c.canonry_project, clientId: id });
       if (c.domain) qs.set("domain", c.domain);
       const res = await fetch(`/api/live/canonry/overview?${qs.toString()}`);
       setCanonryData(await res.json());
