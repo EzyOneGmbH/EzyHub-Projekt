@@ -3393,10 +3393,11 @@ function ToolRunner({ tool, onClose, client, onComplete }) {
 function ToolsPage({ selectedClient, tools }) {
   const [cat, setCat] = useState("all");
   const [runner, setRunner] = useState(null);
-  const { runs, loading: histLoading, refresh: refreshHistory } = useEzyAuditHistory(
-    selectedClient?.id,
-    25,
-  );
+  const {
+    runs,
+    loading: histLoading,
+    refresh: refreshHistory,
+  } = useEzyAuditHistory(selectedClient?.id, 25);
   const visibleTools = useMemo(
     () =>
       (cat === "all" ? tools : tools.filter((t) => t.category === cat)).filter((t) => t.enabled),
@@ -3417,13 +3418,15 @@ function ToolsPage({ selectedClient, tools }) {
       runs.map((r) => {
         const created = r.finished_at || r.started_at || r.created_at;
         const d = new Date(created);
-        const inputToolId = (r.input && r.input.toolId) || auditTypeToToolId[r.audit_type] || r.audit_type;
+        const inputToolId =
+          (r.input && r.input.toolId) || auditTypeToToolId[r.audit_type] || r.audit_type;
         return {
           id: r.id,
           toolId: inputToolId,
           client: selectedClient?.name || "—",
           url: selectedClient?.domain || "—",
-          status: r.status === "succeeded" ? "completed" : r.status === "failed" ? "failed" : "running",
+          status:
+            r.status === "succeeded" ? "completed" : r.status === "failed" ? "failed" : "running",
           score: null,
           time: d.toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" }),
           dur:
@@ -4376,71 +4379,72 @@ function ClientsPage({
                 </div>
               </div>
             )}
-            {dt === "kpis" && (() => {
-              const hasData =
-                (detail.score || 0) +
-                  (detail.keywords || 0) +
-                  (detail.traffic || 0) +
-                  (detail.aiVisitors || 0) +
-                  (detail.revenue || 0) >
-                0;
-              if (!hasData) {
+            {dt === "kpis" &&
+              (() => {
+                const hasData =
+                  (detail.score || 0) +
+                    (detail.keywords || 0) +
+                    (detail.traffic || 0) +
+                    (detail.aiVisitors || 0) +
+                    (detail.revenue || 0) >
+                  0;
+                if (!hasData) {
+                  return (
+                    <div
+                      style={{
+                        background: C.card,
+                        borderRadius: 10,
+                        padding: 20,
+                        textAlign: "center",
+                        fontSize: 13,
+                        color: C.textMuted,
+                      }}
+                    >
+                      Noch keine Live-Daten — verbinde GSC/GA4 oder starte einen Audit-Lauf.
+                    </div>
+                  );
+                }
                 return (
                   <div
-                    style={{
-                      background: C.card,
-                      borderRadius: 10,
-                      padding: 20,
-                      textAlign: "center",
-                      fontSize: 13,
-                      color: C.textMuted,
-                    }}
+                    className="kpi-grid"
+                    style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
                   >
-                    Noch keine Live-Daten — verbinde GSC/GA4 oder starte einen Audit-Lauf.
+                    {[
+                      [detail.score, detail.score >= 70 ? C.green : C.orange, "SEO Score"],
+                      [detail.keywords.toLocaleString("de-CH"), C.text, "Keywords"],
+                      [detail.traffic.toLocaleString("de-CH"), C.accent, "Traffic"],
+                      [detail.aiVisitors.toLocaleString("de-CH"), C.green, "AI Visitors"],
+                    ].map(([v, co, l], i) => (
+                      <div
+                        key={i}
+                        style={{
+                          background: C.card,
+                          borderRadius: 10,
+                          padding: 14,
+                          textAlign: "center",
+                        }}
+                      >
+                        <div style={{ fontSize: 24, fontWeight: 800, color: co }}>{v}</div>
+                        <div style={{ fontSize: 11, color: C.textMuted }}>{l}</div>
+                      </div>
+                    ))}
+                    <div
+                      style={{
+                        background: C.card,
+                        borderRadius: 10,
+                        padding: 14,
+                        textAlign: "center",
+                        gridColumn: "1/3",
+                      }}
+                    >
+                      <div style={{ fontSize: 24, fontWeight: 800, color: C.text }}>
+                        CHF {detail.revenue.toLocaleString("de-CH")}
+                      </div>
+                      <div style={{ fontSize: 11, color: C.textMuted }}>Revenue (30d)</div>
+                    </div>
                   </div>
                 );
-              }
-              return (
-              <div
-                className="kpi-grid"
-                style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
-              >
-                {[
-                  [detail.score, detail.score >= 70 ? C.green : C.orange, "SEO Score"],
-                  [detail.keywords.toLocaleString("de-CH"), C.text, "Keywords"],
-                  [detail.traffic.toLocaleString("de-CH"), C.accent, "Traffic"],
-                  [detail.aiVisitors.toLocaleString("de-CH"), C.green, "AI Visitors"],
-                ].map(([v, co, l], i) => (
-                  <div
-                    key={i}
-                    style={{
-                      background: C.card,
-                      borderRadius: 10,
-                      padding: 14,
-                      textAlign: "center",
-                    }}
-                  >
-                    <div style={{ fontSize: 24, fontWeight: 800, color: co }}>{v}</div>
-                    <div style={{ fontSize: 11, color: C.textMuted }}>{l}</div>
-                  </div>
-                ))}
-                <div
-                  style={{
-                    background: C.card,
-                    borderRadius: 10,
-                    padding: 14,
-                    textAlign: "center",
-                    gridColumn: "1/3",
-                  }}
-                >
-                  <div style={{ fontSize: 24, fontWeight: 800, color: C.text }}>
-                    CHF {detail.revenue.toLocaleString("de-CH")}
-                  </div>
-                  <div style={{ fontSize: 11, color: C.textMuted }}>Revenue (30d)</div>
-                </div>
-              </div>
-              );
-            })()}
+              })()}
             {dt === "notes" && (
               <div
                 style={{

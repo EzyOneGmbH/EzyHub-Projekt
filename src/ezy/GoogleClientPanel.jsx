@@ -106,10 +106,9 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
     setMsg("");
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const res = await fetch(
-        `/api/google/oauth/start?client_id=${encodeURIComponent(clientId)}`,
-        { headers: { Authorization: `Bearer ${session?.access_token || ""}` } },
-      );
+      const res = await fetch(`/api/google/oauth/start?client_id=${encodeURIComponent(clientId)}`, {
+        headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+      });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.url) throw new Error(json.error || `HTTP ${res.status}`);
       const popup = window.open(json.url, "google-oauth", "width=520,height=640");
@@ -280,10 +279,7 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
               onClick={importGsc}
               disabled={!!busy || !canRun}
               title={canRun ? "" : "Keine Berechtigung (viewer)"}
-              style={btn(
-                { background: "#1d4ed8", borderColor: "#1d4ed8" },
-                !!busy || !canRun,
-              )}
+              style={btn({ background: "#1d4ed8", borderColor: "#1d4ed8" }, !!busy || !canRun)}
             >
               {busy === "import" ? "…" : "GSC importieren"}
             </button>
@@ -295,7 +291,11 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
             >
               {busy === "ga4" ? "…" : "GA4 Summary"}
             </button>
-            <button onClick={disconnect} disabled={!!busy} style={btn({ marginLeft: "auto" }, !!busy)}>
+            <button
+              onClick={disconnect}
+              disabled={!!busy}
+              style={btn({ marginLeft: "auto" }, !!busy)}
+            >
               Trennen
             </button>
           </>
