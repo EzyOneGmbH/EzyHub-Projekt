@@ -5068,7 +5068,7 @@ function SettingsPage({
                     </span>
                   </div>
                 </div>
-                <GoogleClientPanel client={selectedClient} />
+                <GoogleClientPanel client={selectedClient} onSaved={onClientUpdated} />
               </>
             )}
           </div>
