@@ -5913,6 +5913,7 @@ function App() {
               onSaveProfile={saveProfile}
               customerDefaults={customerDefaults}
               onSaveDefaults={saveCustomerDefaults}
+              onClientUpdated={ezy.reload}
             />
           )}
         </div>
