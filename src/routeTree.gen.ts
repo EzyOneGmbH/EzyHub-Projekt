@@ -24,7 +24,11 @@ import { Route as SettingsApiRouteImport } from './routes/settings.api'
 import { Route as CustomersIdRouteImport } from './routes/customers.$id'
 import { Route as ContentIdRouteImport } from './routes/content.$id'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
+import { Route as ApiPerplexitySearchRouteImport } from './routes/api/perplexity.search'
 import { Route as ApiLiveStatusRouteImport } from './routes/api/live.status'
+import { Route as ApiGoogleGscImportRouteImport } from './routes/api/google.gsc-import'
+import { Route as ApiGoogleGa4SummaryRouteImport } from './routes/api/google.ga4-summary'
+import { Route as ApiGoogleConnectionRouteImport } from './routes/api/google.connection'
 import { Route as ApiGoogleCallbackRouteImport } from './routes/api/google.callback'
 import { Route as ApiAhrefsOverviewRouteImport } from './routes/api/ahrefs.overview'
 import { Route as ApiLiveCanonryOverviewRouteImport } from './routes/api/live.canonry.overview'
@@ -105,9 +109,29 @@ const AdminUsersRoute = AdminUsersRouteImport.update({
   path: '/admin/users',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPerplexitySearchRoute = ApiPerplexitySearchRouteImport.update({
+  id: '/api/perplexity/search',
+  path: '/api/perplexity/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiLiveStatusRoute = ApiLiveStatusRouteImport.update({
   id: '/api/live/status',
   path: '/api/live/status',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiGoogleGscImportRoute = ApiGoogleGscImportRouteImport.update({
+  id: '/api/google/gsc-import',
+  path: '/api/google/gsc-import',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiGoogleGa4SummaryRoute = ApiGoogleGa4SummaryRouteImport.update({
+  id: '/api/google/ga4-summary',
+  path: '/api/google/ga4-summary',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiGoogleConnectionRoute = ApiGoogleConnectionRouteImport.update({
+  id: '/api/google/connection',
+  path: '/api/google/connection',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiGoogleCallbackRoute = ApiGoogleCallbackRouteImport.update({
@@ -149,7 +173,11 @@ export interface FileRoutesByFullPath {
   '/tasks/$id': typeof TasksIdRoute
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
+  '/api/google/connection': typeof ApiGoogleConnectionRoute
+  '/api/google/ga4-summary': typeof ApiGoogleGa4SummaryRoute
+  '/api/google/gsc-import': typeof ApiGoogleGscImportRoute
   '/api/live/status': typeof ApiLiveStatusRoute
+  '/api/perplexity/search': typeof ApiPerplexitySearchRoute
   '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
   '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
 }
@@ -171,7 +199,11 @@ export interface FileRoutesByTo {
   '/tasks/$id': typeof TasksIdRoute
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
+  '/api/google/connection': typeof ApiGoogleConnectionRoute
+  '/api/google/ga4-summary': typeof ApiGoogleGa4SummaryRoute
+  '/api/google/gsc-import': typeof ApiGoogleGscImportRoute
   '/api/live/status': typeof ApiLiveStatusRoute
+  '/api/perplexity/search': typeof ApiPerplexitySearchRoute
   '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
   '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
 }
@@ -194,7 +226,11 @@ export interface FileRoutesById {
   '/tasks/$id': typeof TasksIdRoute
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
+  '/api/google/connection': typeof ApiGoogleConnectionRoute
+  '/api/google/ga4-summary': typeof ApiGoogleGa4SummaryRoute
+  '/api/google/gsc-import': typeof ApiGoogleGscImportRoute
   '/api/live/status': typeof ApiLiveStatusRoute
+  '/api/perplexity/search': typeof ApiPerplexitySearchRoute
   '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
   '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
 }
@@ -218,7 +254,11 @@ export interface FileRouteTypes {
     | '/tasks/$id'
     | '/api/ahrefs/overview'
     | '/api/google/callback'
+    | '/api/google/connection'
+    | '/api/google/ga4-summary'
+    | '/api/google/gsc-import'
     | '/api/live/status'
+    | '/api/perplexity/search'
     | '/api/google/oauth/start'
     | '/api/live/canonry/overview'
   fileRoutesByTo: FileRoutesByTo
@@ -240,7 +280,11 @@ export interface FileRouteTypes {
     | '/tasks/$id'
     | '/api/ahrefs/overview'
     | '/api/google/callback'
+    | '/api/google/connection'
+    | '/api/google/ga4-summary'
+    | '/api/google/gsc-import'
     | '/api/live/status'
+    | '/api/perplexity/search'
     | '/api/google/oauth/start'
     | '/api/live/canonry/overview'
   id:
@@ -262,7 +306,11 @@ export interface FileRouteTypes {
     | '/tasks/$id'
     | '/api/ahrefs/overview'
     | '/api/google/callback'
+    | '/api/google/connection'
+    | '/api/google/ga4-summary'
+    | '/api/google/gsc-import'
     | '/api/live/status'
+    | '/api/perplexity/search'
     | '/api/google/oauth/start'
     | '/api/live/canonry/overview'
   fileRoutesById: FileRoutesById
@@ -281,7 +329,11 @@ export interface RootRouteChildren {
   AdminUsersRoute: typeof AdminUsersRoute
   ApiAhrefsOverviewRoute: typeof ApiAhrefsOverviewRoute
   ApiGoogleCallbackRoute: typeof ApiGoogleCallbackRoute
+  ApiGoogleConnectionRoute: typeof ApiGoogleConnectionRoute
+  ApiGoogleGa4SummaryRoute: typeof ApiGoogleGa4SummaryRoute
+  ApiGoogleGscImportRoute: typeof ApiGoogleGscImportRoute
   ApiLiveStatusRoute: typeof ApiLiveStatusRoute
+  ApiPerplexitySearchRoute: typeof ApiPerplexitySearchRoute
   ApiGoogleOauthStartRoute: typeof ApiGoogleOauthStartRoute
   ApiLiveCanonryOverviewRoute: typeof ApiLiveCanonryOverviewRoute
 }
@@ -393,11 +445,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminUsersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/perplexity/search': {
+      id: '/api/perplexity/search'
+      path: '/api/perplexity/search'
+      fullPath: '/api/perplexity/search'
+      preLoaderRoute: typeof ApiPerplexitySearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/live/status': {
       id: '/api/live/status'
       path: '/api/live/status'
       fullPath: '/api/live/status'
       preLoaderRoute: typeof ApiLiveStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/google/gsc-import': {
+      id: '/api/google/gsc-import'
+      path: '/api/google/gsc-import'
+      fullPath: '/api/google/gsc-import'
+      preLoaderRoute: typeof ApiGoogleGscImportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/google/ga4-summary': {
+      id: '/api/google/ga4-summary'
+      path: '/api/google/ga4-summary'
+      fullPath: '/api/google/ga4-summary'
+      preLoaderRoute: typeof ApiGoogleGa4SummaryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/google/connection': {
+      id: '/api/google/connection'
+      path: '/api/google/connection'
+      fullPath: '/api/google/connection'
+      preLoaderRoute: typeof ApiGoogleConnectionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/google/callback': {
@@ -490,10 +570,23 @@ const rootRouteChildren: RootRouteChildren = {
   AdminUsersRoute: AdminUsersRoute,
   ApiAhrefsOverviewRoute: ApiAhrefsOverviewRoute,
   ApiGoogleCallbackRoute: ApiGoogleCallbackRoute,
+  ApiGoogleConnectionRoute: ApiGoogleConnectionRoute,
+  ApiGoogleGa4SummaryRoute: ApiGoogleGa4SummaryRoute,
+  ApiGoogleGscImportRoute: ApiGoogleGscImportRoute,
   ApiLiveStatusRoute: ApiLiveStatusRoute,
+  ApiPerplexitySearchRoute: ApiPerplexitySearchRoute,
   ApiGoogleOauthStartRoute: ApiGoogleOauthStartRoute,
   ApiLiveCanonryOverviewRoute: ApiLiveCanonryOverviewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
