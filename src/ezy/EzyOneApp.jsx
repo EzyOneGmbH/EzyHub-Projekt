@@ -5487,7 +5487,13 @@ function App() {
           >
             {page === "dashboard" && <DateRangePicker value={dateRange} onChange={setDateRange} />}
             {page === "dashboard" && (
-              <Btn variant="secondary" size="md" icon={Download} onClick={() => exportCSV(toast)}>
+              <Btn
+                variant="secondary"
+                size="md"
+                icon={Download}
+                onClick={() => exportCSV(toast, client)}
+                disabled={!hasClients}
+              >
                 Export
               </Btn>
             )}
