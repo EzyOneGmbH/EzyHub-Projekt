@@ -2,14 +2,40 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 
-const PROVIDER_PREFIX = "tool:";
+/**
+ * Maps a UI tool ID to the real backend provider used by isProviderEnabled.
+ * Tools without a real backend provider return null and remain client-only.
+ */
+export function toolProvider(toolId: string): "ahrefs" | "google" | "canonry" | "perplexity" | null {
+  switch (toolId) {
+    case "canonry":
+      return "canonry";
+    case "open-seo-audit":
+    case "full-seo-audit":
+    case "technical-audit":
+    case "on-page-audit":
+      return "ahrefs";
+    case "geo-aeo-audit":
+      return "perplexity";
+    case "generate-blog":
+    case "obsidian-note":
+      return null;
+    default:
+      return null;
+  }
+}
+
+const UI_PREFIX = "tool:"; // for tools without a real provider
 
 /**
- * Tool toggles stored in client_integrations as provider="tool:<toolId>".
- * Per-client; a tool is enabled unless an explicit row says enabled=false.
+ * Tool toggles per client.
+ *  - For tools backed by a real provider (ahrefs/google/canonry/perplexity),
+ *    we read/write client_integrations rows with provider = the real name.
+ *  - For purely UI tools, we store provider = "tool:<toolId>".
  */
 export function useEzyToolSettings(clientId: string | null | undefined) {
   const { organizationId, loading: authLoading } = useAuth();
+  // overrides keyed by toolId
   const [overrides, setOverrides] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
 
@@ -28,12 +54,34 @@ export function useEzyToolSettings(clientId: string | null | undefined) {
       .from("client_integrations")
       .select("provider, enabled")
       .eq("organization_id", organizationId)
-      .eq("client_id", clientId)
-      .like("provider", `${PROVIDER_PREFIX}%`);
-    const map: Record<string, boolean> = {};
+      .eq("client_id", clientId);
+    const providerEnabled: Record<string, boolean> = {};
+    const uiEnabled: Record<string, boolean> = {};
     for (const row of data ?? []) {
-      const id = String(row.provider).slice(PROVIDER_PREFIX.length);
-      if (id) map[id] = !!row.enabled;
+      const p = String(row.provider);
+      if (p.startsWith(UI_PREFIX)) {
+        uiEnabled[p.slice(UI_PREFIX.length)] = !!row.enabled;
+      } else {
+        providerEnabled[p] = !!row.enabled;
+      }
+    }
+    // map tool IDs based on provider
+    const map: Record<string, boolean> = { ...uiEnabled };
+    const allToolIds = [
+      "open-seo-audit",
+      "full-seo-audit",
+      "geo-aeo-audit",
+      "technical-audit",
+      "on-page-audit",
+      "generate-blog",
+      "obsidian-note",
+      "canonry",
+    ];
+    for (const id of allToolIds) {
+      const prov = toolProvider(id);
+      if (prov && Object.prototype.hasOwnProperty.call(providerEnabled, prov)) {
+        map[id] = providerEnabled[prov];
+      }
     }
     setOverrides(map);
     setLoading(false);
@@ -53,7 +101,8 @@ export function useEzyToolSettings(clientId: string | null | undefined) {
     async (toolId: string, enabled: boolean) => {
       setOverrides((p) => ({ ...p, [toolId]: enabled }));
       if (!organizationId || !isUuid || !clientId) return;
-      const provider = `${PROVIDER_PREFIX}${toolId}`;
+      const real = toolProvider(toolId);
+      const provider = real ?? `${UI_PREFIX}${toolId}`;
       const { data: existing } = await supabase
         .from("client_integrations")
         .select("id")
