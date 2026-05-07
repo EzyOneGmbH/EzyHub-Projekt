@@ -2302,7 +2302,41 @@ function AgencyOverview({ clients }) {
     </div>
   );
 }
-function SeoDashboard() {
+function LiveEmptyState({ title, hint }) {
+  return (
+    <div
+      style={{
+        background: C.card,
+        border: `1px dashed ${C.border}`,
+        borderRadius: 14,
+        padding: "48px 24px",
+        textAlign: "center",
+      }}
+    >
+      <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 6 }}>
+        {title || "Noch keine Live-Daten"}
+      </div>
+      <div style={{ fontSize: 12, color: C.textMuted, maxWidth: 480, margin: "0 auto" }}>
+        {hint ||
+          "Verbinde GSC/GA4 in den Einstellungen oder starte einen Audit-Lauf, um echte Werte zu sehen."}
+      </div>
+    </div>
+  );
+}
+function SeoDashboard({ selectedClient }) {
+  const hasData =
+    (selectedClient?.score || 0) +
+      (selectedClient?.keywords || 0) +
+      (selectedClient?.traffic || 0) >
+    0;
+  if (!hasData) {
+    return (
+      <LiveEmptyState
+        title="Noch keine SEO-Daten"
+        hint="Verbinde GSC/Ahrefs oder starte einen Audit-Lauf, um Traffic, Visibility, Authority und Keywords live zu sehen."
+      />
+    );
+  }
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div
