@@ -83,16 +83,29 @@ export const Route = createFileRoute("/api/google/ga4-summary")({
             rows?: Array<{ metricValues: Array<{ value: string }> }>;
           };
           const row = json.rows?.[0]?.metricValues ?? [];
-          return Response.json({
-            ok: true,
-            days: parsed.data.days,
-            metrics: {
-              sessions: Number(row[0]?.value ?? 0),
-              totalUsers: Number(row[1]?.value ?? 0),
-              engagedSessions: Number(row[2]?.value ?? 0),
-              screenPageViews: Number(row[3]?.value ?? 0),
-            },
-          });
+          const metrics = {
+            sessions: Number(row[0]?.value ?? 0),
+            totalUsers: Number(row[1]?.value ?? 0),
+            engagedSessions: Number(row[2]?.value ?? 0),
+            screenPageViews: Number(row[3]?.value ?? 0),
+          };
+          const result = { days: parsed.data.days, metrics };
+          try {
+            await supabaseAdmin.from("audit_runs").insert({
+              client_id: client.id,
+              organization_id: client.organization_id,
+              triggered_by: user.id,
+              audit_type: "ga4_summary",
+              status: "succeeded",
+              input: { days: parsed.data.days },
+              result: result as any,
+              started_at: new Date().toISOString(),
+              finished_at: new Date().toISOString(),
+            });
+          } catch {
+            /* non-fatal */
+          }
+          return Response.json({ ok: true, ...result });
         } catch (e) {
           return Response.json({ ok: false, error: redactSecrets(e) });
         }

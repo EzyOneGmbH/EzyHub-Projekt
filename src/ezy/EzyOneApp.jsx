@@ -97,6 +97,11 @@ import { useEzyContent } from "@/ezy/data/useEzyContent";
 import { useEzyToolSettings, toolProvider } from "@/ezy/data/useEzyToolSettings";
 import { executeTool as runToolLive } from "@/ezy/data/runTool";
 import { useEzyAuditHistory } from "@/ezy/data/useEzyAuditHistory";
+import {
+  useEzyLatestRun,
+  ahrefsKpisFromResult,
+  ga4KpisFromResult,
+} from "@/ezy/data/useEzyLatestRun";
 import GoogleClientPanel from "@/ezy/GoogleClientPanel.jsx";
 import { supabase } from "@/integrations/supabase/client";
 const toolHasLiveProvider = (id) => toolProvider(id) !== null;
@@ -543,8 +548,7 @@ function buildCanonryLiveModel(selectedClient, payload) {
   const project = data.project;
   if (!project) return null;
   const timeline = Array.isArray(data.timeline) ? data.timeline : [];
-  const healthLatest =
-    data.health && typeof data.health === "object" ? data.health : null;
+  const healthLatest = data.health && typeof data.health === "object" ? data.health : null;
   const runsRaw = data.runs;
   const latestRun =
     (runsRaw && typeof runsRaw === "object" && (runsRaw.run || runsRaw.latest || runsRaw)) || null;
@@ -610,9 +614,10 @@ function buildCanonryLiveModel(selectedClient, payload) {
     keywords: trackedKeywords,
     latestRun: {
       status: latestRun?.status || "unknown",
-      time: latestRun?.finishedAt || latestRun?.startedAt
-        ? formatCanonryStamp(latestRun?.finishedAt || latestRun?.startedAt)
-        : "—",
+      time:
+        latestRun?.finishedAt || latestRun?.startedAt
+          ? formatCanonryStamp(latestRun?.finishedAt || latestRun?.startedAt)
+          : "—",
       duration:
         latestRun?.startedAt && latestRun?.finishedAt
           ? formatCanonryDuration(latestRun.startedAt, latestRun.finishedAt)
@@ -626,9 +631,7 @@ function buildCanonryLiveModel(selectedClient, payload) {
     insights: (liveInsights.length
       ? liveInsights
       : [
-          providerErrors.length
-            ? `Provider-Limits erkannt: ${providerErrors.join(", ")}`
-            : null,
+          providerErrors.length ? `Provider-Limits erkannt: ${providerErrors.join(", ")}` : null,
         ].filter(Boolean)
     ).slice(0, 3),
   };
@@ -1827,10 +1830,12 @@ function LiveEmptyState({ title, hint }) {
   );
 }
 function SeoDashboard({ selectedClient }) {
-  const traffic = Number(selectedClient?.traffic || 0);
-  const keywords = Number(selectedClient?.keywords || 0);
-  const score = Number(selectedClient?.score || 0);
-  const visibility = Number(selectedClient?.visibility || 0);
+  const { run } = useEzyLatestRun(selectedClient?.id, "ahrefs");
+  const live = run ? ahrefsKpisFromResult(run.result) : null;
+  const traffic = Number(live?.traffic ?? selectedClient?.traffic ?? 0);
+  const keywords = Number(live?.keywords ?? selectedClient?.keywords ?? 0);
+  const score = Number(live?.score ?? selectedClient?.score ?? 0);
+  const visibility = Number(live?.visibility ?? selectedClient?.visibility ?? 0);
   const hasAnyKpi = traffic + keywords + score + visibility > 0;
   if (!hasAnyKpi) {
     return (
@@ -2214,12 +2219,28 @@ function GeoDashboard({ selectedClient }) {
   );
 }
 function ConvDashboard({ selectedClient }) {
+  const { run } = useEzyLatestRun(selectedClient?.id, "ga4_summary");
+  const ga4 = run ? ga4KpisFromResult(run.result) : null;
   const revenue = Number(selectedClient?.revenue || 0);
   const phoneCalls = Number(selectedClient?.phoneCalls || 0);
   const mailClicks = Number(selectedClient?.mailClicks || 0);
   const mapsClicks = Number(selectedClient?.mapsClicks || 0);
   const formSubmits = Number(selectedClient?.formSubmits || 0);
-  const hasAnyKpi = revenue + phoneCalls + mailClicks + mapsClicks + formSubmits > 0;
+  const sessions = Number(ga4?.sessions || 0);
+  const totalUsers = Number(ga4?.totalUsers || 0);
+  const engagedSessions = Number(ga4?.engagedSessions || 0);
+  const screenPageViews = Number(ga4?.screenPageViews || 0);
+  const hasAnyKpi =
+    revenue +
+      phoneCalls +
+      mailClicks +
+      mapsClicks +
+      formSubmits +
+      sessions +
+      totalUsers +
+      engagedSessions +
+      screenPageViews >
+    0;
   if (!hasAnyKpi) {
     return (
       <LiveEmptyState
@@ -2262,6 +2283,40 @@ function ConvDashboard({ selectedClient }) {
           color={C.orange}
         />
       </div>
+      {(sessions > 0 || totalUsers > 0 || engagedSessions > 0 || screenPageViews > 0) && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
+            gap: 14,
+          }}
+        >
+          <KpiCard
+            icon={Globe}
+            label="GA4 Sessions"
+            value={sessions > 0 ? sessions : "—"}
+            color={C.blue}
+          />
+          <KpiCard
+            icon={Eye}
+            label="GA4 Total Users"
+            value={totalUsers > 0 ? totalUsers : "—"}
+            color={C.accent}
+          />
+          <KpiCard
+            icon={Activity}
+            label="Engaged Sessions"
+            value={engagedSessions > 0 ? engagedSessions : "—"}
+            color={C.green}
+          />
+          <KpiCard
+            icon={FileText}
+            label="Page Views"
+            value={screenPageViews > 0 ? screenPageViews : "—"}
+            color={C.orange}
+          />
+        </div>
+      )}
       {revenue > 0 && (
         <div
           style={{
