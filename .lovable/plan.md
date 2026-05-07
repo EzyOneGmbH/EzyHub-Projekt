@@ -1,105 +1,90 @@
-# Reparatur-Plan: Build, Datenmodell, EZY ONE Dashboard
+## Ziel
 
-Keine neuen Designspielereien. Fünf gezielte Reparaturen, danach Build + ZIP.
+Die sichtbare App entspricht ab v10 exakt der Referenz `src/review-app.jsx` aus dem hochgeladenen ZIP. Das v9 Backend (Supabase-Schema, RLS, Auth, `/api/*`-Routen, server-functions, Google/Ahrefs/Perplexity/Canonry-Integration) bleibt unverändert. localStorage wird durch Supabase-Adapter ersetzt.
 
-## 1. Production-Build reparieren
+## Vorgehen
 
-**Problem:** Komponenten importieren statisch aus `src/server/*.functions.ts` (z. B. `google-connect-panel.tsx` → `google.functions.ts`, `content.$id.tsx` → `perplexity.functions.ts`). Diese Dateien ziehen `client.server.ts` (Service-Role) und `google-tokens.server.ts` ein. TanStack Vite-Plugins sollten den Handler strippen, aber das Import-Protection-System bricht den Build, sobald eine `.server.*`-Datei transitiv vom Client erreicht wird.
+### Schritt 1 – Referenz ins Projekt einziehen
 
-**Fix:**
+- Kopiere `src/review-app.jsx` (422 Zeilen, monolithisch) und `src/main.jsx` aus dem ZIP nach `src/ezy/` im Lovable-Projekt.
+- Datei wird zu `src/ezy/EzyOneApp.tsx` (Rename .jsx→.tsx, minimal-invasive Typing: `any` wo nötig, später schärfen). Inline-CSS-String wird via `<style>{CSS}</style>` injiziert wie in der Referenz.
+- `recharts` und `lucide-react` sind bereits im Projekt; keine neuen Deps nötig.
 
-- Ein dünnes `createServerFn`-Wrapper-Modul je Feature einführen, das **nichts ausser `createServerFn` + Validator + Aufruf eines `.server.ts`-Helpers** enthält. Der Plugin-Transform ersetzt den Handler client-seitig durch einen RPC-Stub.
-- In den `.functions.ts`-Dateien sicherstellen, dass `client.server`/`*-tokens.server`/`*-oauth.server` **ausschliesslich innerhalb von `.handler(...)`** referenziert werden — keine Top-Level-Re-Exports von Server-Helpern.
-- `redactSecrets` aus `google-oauth.server.ts` herausziehen in `src/lib/redact.ts` (pure, isomorphic), damit `api/google.oauth.start.ts` und `google.functions.ts` es ohne Server-Bindings importieren können.
-- Alle Komponenten-Imports `from "@/server/..."` prüfen: nur `.functions.ts` zulässig, niemals `.server.ts`.
-- Danach: `bun run build` muss grün sein.
+### Schritt 2 – `/dashboard` rendert die EZY-App
 
-## 2. `public.clients` als kanonische Kundentabelle
+- `src/routes/dashboard.tsx` wird zu reinem Wrapper:
+  ```tsx
+  export const Route = createFileRoute("/dashboard")({
+    beforeLoad: requireAuth, // session gate
+    component: () => <EzyOneApp />,
+  });
+  ```
+- `app-shell.tsx` wird hier nicht mehr verwendet (die Referenz bringt eigene Sidebar/Header).
+- `/customers`, `/geo`, `/settings`, `/content` werden zu Redirects auf `/dashboard?view=…` (die Referenz schaltet Tabs intern).
+- `src/routes/index.tsx` bleibt Login-Gate / Marketing-Landing → leitet eingeloggt auf `/dashboard`.
+- Login (`/login`, `/signup`) bleibt unverändert.
 
-**Aktuell:** Routen `/customers` und `/customers/$id` schreiben/lesen `customers` (legacy, global, ohne `organization_id`). `GoogleConnectPanel` und `AhrefsPanel` bekommen `customers.id`, schreiben aber gegen `clients.gsc_property` etc. → Datenchaos.
+### Schritt 3 – Supabase-Adapter statt localStorage
 
-**Fix (Variante A: in-place migrieren, weniger Routen-Bruch):**
+Neue Hooks in `src/ezy/data/`:
 
-- `/customers` und `/customers/$id` auf `clients` umstellen:
-  - SELECT/INSERT/UPDATE/DELETE gegen `public.clients`
-  - INSERT setzt `organization_id` aus aktuellem Org-Membership des Users; `created_by = auth.uid()`
-  - Felder: `name`, `domain` (statt `company`), `notes`, `industry`, `country`, `language`
-  - Detail-Seite zeigt `gsc_property`, `ga4_property`, `domain` — Properties speichern direkt auf `clients`
-- `GoogleConnectPanel`/`AhrefsPanel` bekommen `clients.id` (Spaltenname bleibt `clientId` in der API)
-- Sidebar/Nav-Label bleibt „Kunden", Route bleibt `/customers` für Kontinuität.
+| Hook | Ersetzt | Tabelle |
+|---|---|---|
+| `useEzyClients` | `CLIENT_STORAGE_KEY` | `clients` (mit `normalizeClientShape`-Mapping) |
+| `useEzyProfile` | `PROFILE_STORAGE_KEY` | `profiles` + `useAuth` |
+| `useEzyDefaults` | `DEFAULTS_STORAGE_KEY` | `customer_defaults` |
+| `useEzyToolSettings` | Tool-Toggle State | `client_integrations` |
+| `useEzyContent` | (in Referenz leer) | `content_items` |
+| `useLiveIntegrations` | `/api/live/status` | sendet jetzt `Authorization: Bearer <token>` |
+| `useCanonryOverview` | direkter Canonry-Call | `/api/live/canonry/overview?clientId=<id>` (kein `project`/`domain` aus Frontend) |
 
-## 3. Legacy-Tabellen ent-UI-fizieren und absichern
+Das Mapping zur Referenz (`normalizeClientShape`) bleibt erhalten – Felder die in Supabase nicht existieren (`monthlyBudget`, `tags`, `targetLocations`, `contactEmail`, `contactPhone`, `score`, `keywords`, `traffic`, `aiVisitors`, `revenue`, `ga4MeasurementId`, `startDate`) werden:
+  - Wenn fachlich sinnvoll → eine Migration ergänzt die Spalten (`ALTER TABLE clients ADD COLUMN …`).
+  - Sonst clientseitig als optionale Felder mit Default 0/"" weitergeführt.
 
-- UI-Routen entfernen: `tasks`, `tasks/$id`, `notes`-Aufrufe in `customer.$id`, `content` (oder hinter Org-Scope umbauen — siehe unten).
-- Migration: alle `SELECT USING true`-Policies auf `customers`, `tasks`, `notes`, `content_items` ersetzen durch:
-  - SELECT: `is_org_member(organization_id)` — dafür Spalte `organization_id` ergänzen + Backfill aus erstem Org des `created_by`
-  - INSERT/UPDATE/DELETE: `is_org_admin(organization_id)` oder `created_by = auth.uid()`
-- Falls Tabellen rein historisch sind: in `_legacy_*` umbenennen und RLS auf `false` setzen.
+Geplante Migration: ergänze auf `clients` die fehlenden Spalten als `nullable`/`default`, ohne RLS zu berühren. Keine Datenmigration nötig (Defaults).
 
-## 4. Canonry: URL-Normalisierung + Projekt-Slug pro Client
+### Schritt 4 – Tool-Toggles enforcen
 
-**Problem:** `CANONRY_BASE_URL` kann `https://api.canonry.ai` ODER `…/api/v1` enthalten; Code hängt naiv `/projects/<id>` an. Zusätzlich wird in `gscKeywordImport` aktuell die Supabase-UUID als Canonry-Projekt-Slug verwendet → 404.
+- `useEzyToolSettings` liest `client_integrations` für den ausgewählten Client.
+- Quick Audit Drawer und ToolsPage rendern deaktivierte Tools entweder gar nicht oder als `disabled`-Card.
+- Die API-Routen prüfen bereits server-seitig (`integrations.server.ts` aus früheren Iterationen) → unverändert.
 
-**Fix:**
+### Schritt 5 – Auth überall mitsenden
 
-- Helper `src/server/canonry-url.server.ts`:
-  - `resolveCanonryBase()` → trimmt trailing `/`, ergänzt `/api/v1` falls Pfad fehlt
-  - `canonryUrl(path)` → korrektes Join
-- Spalten-Erweiterung auf `clients`: `canonry_project text` (nullable), und/oder `client_integrations.config->>canonry_project` lesen mit Fallback.
-- Migration: `ALTER TABLE clients ADD COLUMN canonry_project text;`
-- UI in Client-Detail: Eingabefeld „Canonry Projekt-Slug" (Admin only), gespeichert auf `clients.canonry_project`.
-- `/api/live/canonry/overview`-Aufrufer (GEO-Seite + neue Client-Detail-Sektion) übergeben `project = client.canonry_project`, **nicht** `client.id`.
-- `gscKeywordImport`: liest `canonry_project` aus `clients`, postet damit an Canonry.
+- Globale Helper `apiFetch(path)` in `src/ezy/data/api.ts`: holt Supabase-Session, hängt `Authorization: Bearer …` an, ruft `/api/...`.
+- Ersetzt den nackten `fetch(apiUrl(...))` der Referenz an allen Stellen.
 
-## 5. EZY ONE SEO/GEO Dashboard wiederherstellen
+### Schritt 6 – Aufräumen
 
-Neuer Dashboard-Aufbau für `/dashboard` und `/customers/$id`:
+- `src/components/app-shell.tsx`, `tasks.tsx`, `tasks.$id.tsx`, `assistant.tsx`, `admin.users.tsx` bleiben als Datei (für später), werden aus der Sidebar/Navigation entfernt; sind über Direkt-URL noch erreichbar.
+- shadcn-Komponenten bleiben installiert (Login/Signup nutzen sie).
 
-**`/dashboard` (Org-Übersicht):**
+### Schritt 7 – QA
 
-- Live-Status-Card (vorhandener `/api/live/status`)
-- KPI-Grid: # Clients, # offene Audits, letzter Canonry-Health-Score (Aggregat)
-- „Letzte Audit-Runs" Tabelle (aus `audit_runs`, sortiert by `created_at desc`, Status-Badges)
-
-**`/customers/$id` (Client-Detail) — Tabs/Sektionen:**
-
-1. Stammdaten (name, domain, industry, country, canonry_project, gsc_property, ga4_property)
-2. **Ahrefs** (existierender `AhrefsPanel`, jetzt mit echter `clients.id`)
-3. **Google Search Console** — Connect + Keyword-Import (existierender Panel)
-4. **GA4 Summary** — Button + Anzeige (existiert bereits in Panel)
-5. **Canonry / GEO Health** — Embed der `live/canonry/overview`-Sektionen für `client.canonry_project`
-6. **Audit-Verlauf** — Liste `audit_runs WHERE client_id = $id ORDER BY created_at DESC`, mit Status, Typ, Dauer, Fehler
-
-`/geo` bleibt als Power-User-View bestehen.
-
-## 6. Verifikation & Lieferung
-
-- `bun run build` — muss grün durchlaufen, Output protokollieren
-- ZIP-Snapshot `ezy-one-lovable-current-snapshot-v2.zip` mit `src/`, `supabase/`, `package.json`, `bun.lockb`, `vite.config.ts`, `tsconfig.json`, `.lovable/plan.md`
-- Kurzer Bericht: was geändert, welche Migrations liefen, Build-Ergebnis, Pfad zur ZIP
-
-## Technische Details (Migrations-Übersicht)
-
-```sql
-ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS canonry_project text;
-
--- Legacy lockdown (falls beibehalten)
-ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS organization_id uuid;
--- Backfill aus app_users via created_by (1. Org)
-DROP POLICY customers_select ON public.customers;
-CREATE POLICY customers_select ON public.customers FOR SELECT TO authenticated
-  USING (is_org_member(organization_id));
--- analog tasks, notes, content_items
-
--- oauth_connections + customer_defaults: RLS-Policies ergänzen
-ALTER TABLE public.oauth_connections ENABLE ROW LEVEL SECURITY;
-CREATE POLICY oauth_admin ON public.oauth_connections FOR ALL TO authenticated
-  USING (is_org_admin(organization_id)) WITH CHECK (is_org_admin(organization_id));
--- (defaults analog)
+```
+npm ci
+npm run lint
+npm run build
+npm audit
 ```
 
-## Out of scope
+Browser-Test: Login → `/dashboard` zeigt EZY ONE Sidebar + Header + SEO/GEO/Conversions Tabs + Quick Audit Drawer. Clients aus Supabase werden im Kunden-Dropdown gelistet. Anlage/Bearbeitung eines Clients persistiert in `clients`. GEO-Tab ruft `/api/live/canonry/overview?clientId=...` mit Bearer Token.
 
-- Branding/Design-Refresh
-- Neue Features ausserhalb der oben genannten Dashboard-Sektionen
-- Refactor von `/tasks`, `/notes`, `/content` falls als Legacy entfernt
+### Schritt 8 – Snapshot
+
+Export `ezy-one-lovable-current-snapshot-v10.zip` (ohne `.git`, `.workspace`, `node_modules`, `dist`, `.output`, `.env`, `*.tsbuildinfo`).
+
+## Was ich NICHT mache
+
+- Kein optisches Redesign der Referenz; Farben/Spacing/Layout bleiben pixelgenau wie in `review-app.jsx`.
+- Keine Änderung an Supabase-Schema außer additiven Spalten auf `clients` (siehe Schritt 3).
+- Keine Änderung an RLS-Policies, `/api/*`-Routen oder Edge Functions.
+- Keine Migration zur `app-shell`-basierten Sidebar.
+
+## Risiken / Caveats
+
+- Die Referenz ist eine monolithische 422-Zeilen-Datei mit minifiziertem Code in einer Zeile. Beim Port auf `.tsx` bleibt sie zunächst monolithisch (`any`-Typen erlaubt) – nachträgliche Modularisierung ist optional.
+- Felder, die in der Referenz aus Mock-Daten kommen (Score/Keywords/Traffic/AI-Visitors/Revenue), bleiben zunächst Demo-Werte, bis echte Aggregation aus `audit_runs`/GSC/GA4/Ahrefs angeschlossen ist. Das entspricht dem Plan-Dokument („bleiben nur als Fallback").
+
+Bitte freigeben, dann setze ich Schritt 1–8 in einem Rutsch um und liefere v10.
