@@ -13,6 +13,7 @@ import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as HealthRouteImport } from './routes/health'
 import { Route as GeoRouteImport } from './routes/geo'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CustomersRouteImport } from './routes/customers'
@@ -52,6 +53,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HealthRoute = HealthRouteImport.update({
+  id: '/health',
+  path: '/health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GeoRoute = GeoRouteImport.update({
@@ -162,6 +168,7 @@ export interface FileRoutesByFullPath {
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/geo': typeof GeoRoute
+  '/health': typeof HealthRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRouteWithChildren
   '/signup': typeof SignupRoute
@@ -188,6 +195,7 @@ export interface FileRoutesByTo {
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/geo': typeof GeoRoute
+  '/health': typeof HealthRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRouteWithChildren
   '/signup': typeof SignupRoute
@@ -215,6 +223,7 @@ export interface FileRoutesById {
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/geo': typeof GeoRoute
+  '/health': typeof HealthRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRouteWithChildren
   '/signup': typeof SignupRoute
@@ -243,6 +252,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/dashboard'
     | '/geo'
+    | '/health'
     | '/login'
     | '/settings'
     | '/signup'
@@ -269,6 +279,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/dashboard'
     | '/geo'
+    | '/health'
     | '/login'
     | '/settings'
     | '/signup'
@@ -295,6 +306,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/dashboard'
     | '/geo'
+    | '/health'
     | '/login'
     | '/settings'
     | '/signup'
@@ -322,6 +334,7 @@ export interface RootRouteChildren {
   CustomersRoute: typeof CustomersRouteWithChildren
   DashboardRoute: typeof DashboardRoute
   GeoRoute: typeof GeoRoute
+  HealthRoute: typeof HealthRoute
   LoginRoute: typeof LoginRoute
   SettingsRoute: typeof SettingsRouteWithChildren
   SignupRoute: typeof SignupRoute
@@ -366,6 +379,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/health': {
+      id: '/health'
+      path: '/health'
+      fullPath: '/health'
+      preLoaderRoute: typeof HealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/geo': {
@@ -563,6 +583,7 @@ const rootRouteChildren: RootRouteChildren = {
   CustomersRoute: CustomersRouteWithChildren,
   DashboardRoute: DashboardRoute,
   GeoRoute: GeoRoute,
+  HealthRoute: HealthRoute,
   LoginRoute: LoginRoute,
   SettingsRoute: SettingsRouteWithChildren,
   SignupRoute: SignupRoute,
