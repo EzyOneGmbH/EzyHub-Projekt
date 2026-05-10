@@ -1,27 +1,26 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
 import EzyOneApp from "@/ezy/EzyOneApp.jsx";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/dashboard")({
   component: DashboardRoute,
 });
 
 function DashboardRoute() {
-  const [ready, setReady] = useState(false);
-  const [authed, setAuthed] = useState(false);
+  const navigate = useNavigate();
+  const { session, loading } = useAuth();
+
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setAuthed(!!data.session);
-      setReady(true);
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setAuthed(!!s));
-    return () => sub.subscription.unsubscribe();
-  }, []);
-  if (!ready) return null;
-  if (!authed) {
-    if (typeof window !== "undefined") window.location.href = "/login";
+    if (!loading && !session) {
+      navigate({ to: "/login", replace: true });
+    }
+  }, [loading, session, navigate]);
+
+  if (loading) return null;
+  if (!session) {
     return null;
   }
+
   return <EzyOneApp />;
 }
