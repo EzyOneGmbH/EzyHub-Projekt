@@ -71,14 +71,14 @@ export function SupabaseConfigError({ missing }: Props) {
 }
 
 export function getMissingSupabaseEnv(): string[] {
-  const url =
-    (typeof import.meta !== "undefined" && import.meta.env?.VITE_SUPABASE_URL) ||
-    (typeof process !== "undefined" && process.env?.SUPABASE_URL);
-  const key =
-    (typeof import.meta !== "undefined" && import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY) ||
-    (typeof process !== "undefined" && process.env?.SUPABASE_PUBLISHABLE_KEY);
+  // Nur import.meta.env nutzen — Vite ersetzt diese Werte zur Build-Zeit
+  // konsistent in SSR- und Client-Bundle. process.env würde nur im SSR
+  // greifen und damit einen Hydration-Mismatch verursachen.
+  const env = (typeof import.meta !== "undefined" ? import.meta.env : undefined) as
+    | Record<string, string | undefined>
+    | undefined;
   const missing: string[] = [];
-  if (!url) missing.push("VITE_SUPABASE_URL");
-  if (!key) missing.push("VITE_SUPABASE_PUBLISHABLE_KEY");
+  if (!env?.VITE_SUPABASE_URL) missing.push("VITE_SUPABASE_URL");
+  if (!env?.VITE_SUPABASE_PUBLISHABLE_KEY) missing.push("VITE_SUPABASE_PUBLISHABLE_KEY");
   return missing;
 }
