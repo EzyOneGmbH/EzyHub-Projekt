@@ -117,7 +117,7 @@ async function probePerplexity(key?: string): Promise<ProbeResult> {
       body: JSON.stringify({
         model: "sonar",
         messages: [{ role: "user", content: "ping" }],
-        max_tokens: 1,
+        max_tokens: 16,
       }),
     },
     [key],
