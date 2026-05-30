@@ -59,13 +59,19 @@ export function ahrefsKpisFromResult(result: any): {
   visibility: number;
 } {
   const r = result || {};
-  const dr = r.domain_rating?.domain_rating ?? r.domain_rating?.domain?.domain_rating ?? 0;
+  // Ahrefs API nests as { domain_rating: { domain_rating: { domain_rating: 26.0, ahrefs_rank: ... } } }
+  const drNode = r.domain_rating?.domain_rating ?? r.domain_rating ?? {};
+  const dr =
+    (typeof drNode === "number" ? drNode : drNode?.domain_rating) ??
+    r.domain_rating?.domain?.domain_rating ??
+    0;
   const m = r.metrics?.metrics ?? r.metrics ?? {};
+  const bl = r.backlinks_stats?.metrics ?? r.backlinks_stats ?? {};
   return {
-    traffic: Number(m.org_traffic ?? 0) || 0,
-    keywords: Number(m.org_keywords ?? 0) || 0,
+    traffic: Number(m.org_traffic ?? m.paid_traffic ?? 0) || 0,
+    keywords: Number(m.org_keywords ?? m.paid_keywords ?? 0) || 0,
     score: Number(dr) || 0,
-    visibility: 0,
+    visibility: Number(bl.live_refdomains ?? 0) || 0,
   };
 }
 
