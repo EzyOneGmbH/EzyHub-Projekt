@@ -75,7 +75,7 @@ export const Route = createFileRoute("/api/ahrefs/overview")({
 
         const supabaseUrl = process.env.SUPABASE_URL;
         const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-        const anonKey = process.env.SUPABASE_ANON_KEY;
+        const anonKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
         if (!supabaseUrl || !serviceKey || !anonKey) {
           return Response.json({ error: "Server not configured" }, { status: 503 });
         }
