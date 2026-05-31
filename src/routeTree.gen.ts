@@ -14,6 +14,7 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as HealthRouteImport } from './routes/health'
+import { Route as GithubStatusRouteImport } from './routes/github-status'
 import { Route as GeoRouteImport } from './routes/geo'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CustomersRouteImport } from './routes/customers'
@@ -59,6 +60,11 @@ const LoginRoute = LoginRouteImport.update({
 const HealthRoute = HealthRouteImport.update({
   id: '/health',
   path: '/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GithubStatusRoute = GithubStatusRouteImport.update({
+  id: '/github-status',
+  path: '/github-status',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GeoRoute = GeoRouteImport.update({
@@ -174,6 +180,7 @@ export interface FileRoutesByFullPath {
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/geo': typeof GeoRoute
+  '/github-status': typeof GithubStatusRoute
   '/health': typeof HealthRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRouteWithChildren
@@ -202,6 +209,7 @@ export interface FileRoutesByTo {
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/geo': typeof GeoRoute
+  '/github-status': typeof GithubStatusRoute
   '/health': typeof HealthRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRouteWithChildren
@@ -231,6 +239,7 @@ export interface FileRoutesById {
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/geo': typeof GeoRoute
+  '/github-status': typeof GithubStatusRoute
   '/health': typeof HealthRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRouteWithChildren
@@ -261,6 +270,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/dashboard'
     | '/geo'
+    | '/github-status'
     | '/health'
     | '/login'
     | '/settings'
@@ -289,6 +299,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/dashboard'
     | '/geo'
+    | '/github-status'
     | '/health'
     | '/login'
     | '/settings'
@@ -317,6 +328,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/dashboard'
     | '/geo'
+    | '/github-status'
     | '/health'
     | '/login'
     | '/settings'
@@ -346,6 +358,7 @@ export interface RootRouteChildren {
   CustomersRoute: typeof CustomersRouteWithChildren
   DashboardRoute: typeof DashboardRoute
   GeoRoute: typeof GeoRoute
+  GithubStatusRoute: typeof GithubStatusRoute
   HealthRoute: typeof HealthRoute
   LoginRoute: typeof LoginRoute
   SettingsRoute: typeof SettingsRouteWithChildren
@@ -399,6 +412,13 @@ declare module '@tanstack/react-router' {
       path: '/health'
       fullPath: '/health'
       preLoaderRoute: typeof HealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/github-status': {
+      id: '/github-status'
+      path: '/github-status'
+      fullPath: '/github-status'
+      preLoaderRoute: typeof GithubStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/geo': {
@@ -603,6 +623,7 @@ const rootRouteChildren: RootRouteChildren = {
   CustomersRoute: CustomersRouteWithChildren,
   DashboardRoute: DashboardRoute,
   GeoRoute: GeoRoute,
+  GithubStatusRoute: GithubStatusRoute,
   HealthRoute: HealthRoute,
   LoginRoute: LoginRoute,
   SettingsRoute: SettingsRouteWithChildren,
@@ -623,12 +644,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}
