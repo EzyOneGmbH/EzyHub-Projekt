@@ -80,6 +80,102 @@ export async function executeTool(
       auditType = "geo";
       break;
     }
+    case "generate-blog":
+      path = `/api/ai/generate`;
+      init = {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: client.id,
+          kind: "blog",
+          topic: inputs.topic || "",
+          tone: inputs.tone || "Professionell",
+          length: inputs.length || "",
+          language: inputs.language || "Deutsch",
+        }),
+      };
+      auditType = "content_blog";
+      serverPersists = true;
+      break;
+    case "obsidian-note":
+      path = `/api/ai/generate`;
+      init = {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: client.id,
+          kind: "obsidian",
+          title: inputs.title || "",
+          content: inputs.content || "",
+          tags: inputs.tags || "",
+        }),
+      };
+      auditType = "content_note";
+      serverPersists = true;
+      break;
+    case "content-brief":
+      path = `/api/ai/generate`;
+      init = {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: client.id,
+          kind: "content-brief",
+          topic: inputs.topic || "",
+          audience: inputs.audience || "",
+          language: inputs.language || "Deutsch",
+        }),
+      };
+      auditType = "content_brief";
+      serverPersists = true;
+      break;
+    case "blog-outline":
+      path = `/api/ai/generate`;
+      init = {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: client.id,
+          kind: "outline",
+          topic: inputs.topic || "",
+          keywords: inputs.keywords || "",
+          language: inputs.language || "Deutsch",
+        }),
+      };
+      auditType = "content_outline";
+      serverPersists = true;
+      break;
+    case "meta-tags":
+      path = `/api/ai/generate`;
+      init = {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: client.id,
+          kind: "meta",
+          topic: inputs.topic || "",
+          keyword: inputs.keyword || "",
+          language: inputs.language || "Deutsch",
+        }),
+      };
+      auditType = "content_meta";
+      serverPersists = true;
+      break;
+    case "schema-markup":
+      path = `/api/ai/generate`;
+      init = {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: client.id,
+          kind: "schema",
+          schemaType: inputs.schemaType || "Article",
+          content: inputs.content || "",
+        }),
+      };
+      auditType = "content_schema";
+      serverPersists = true;
+      break;
     default:
       return { ok: false, liveConnected: false, message: "Noch nicht live verbunden" };
   }

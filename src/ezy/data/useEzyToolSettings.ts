@@ -8,7 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
  */
 export function toolProvider(
   toolId: string,
-): "ahrefs" | "google" | "canonry" | "perplexity" | null {
+): "ahrefs" | "google" | "canonry" | "perplexity" | "anthropic" | null {
   switch (toolId) {
     case "canonry":
       return "canonry";
@@ -21,7 +21,11 @@ export function toolProvider(
       return "perplexity";
     case "generate-blog":
     case "obsidian-note":
-      return null;
+    case "content-brief":
+    case "blog-outline":
+    case "meta-tags":
+    case "schema-markup":
+      return "anthropic";
     default:
       return null;
   }
@@ -78,6 +82,10 @@ export function useEzyToolSettings(clientId: string | null | undefined) {
       "generate-blog",
       "obsidian-note",
       "canonry",
+      "content-brief",
+      "blog-outline",
+      "meta-tags",
+      "schema-markup",
     ];
     for (const id of allToolIds) {
       const prov = toolProvider(id);
