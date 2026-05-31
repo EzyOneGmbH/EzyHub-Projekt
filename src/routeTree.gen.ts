@@ -31,6 +31,7 @@ import { Route as ApiGoogleGscImportRouteImport } from './routes/api/google.gsc-
 import { Route as ApiGoogleGa4SummaryRouteImport } from './routes/api/google.ga4-summary'
 import { Route as ApiGoogleConnectionRouteImport } from './routes/api/google.connection'
 import { Route as ApiGoogleCallbackRouteImport } from './routes/api/google.callback'
+import { Route as ApiAiGenerateRouteImport } from './routes/api/ai.generate'
 import { Route as ApiAhrefsOverviewRouteImport } from './routes/api/ahrefs.overview'
 import { Route as ApiLiveCanonryOverviewRouteImport } from './routes/api/live.canonry.overview'
 import { Route as ApiGoogleOauthStartRouteImport } from './routes/api/google.oauth.start'
@@ -145,6 +146,11 @@ const ApiGoogleCallbackRoute = ApiGoogleCallbackRouteImport.update({
   path: '/api/google/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAiGenerateRoute = ApiAiGenerateRouteImport.update({
+  id: '/api/ai/generate',
+  path: '/api/ai/generate',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAhrefsOverviewRoute = ApiAhrefsOverviewRouteImport.update({
   id: '/api/ahrefs/overview',
   path: '/api/ahrefs/overview',
@@ -179,6 +185,7 @@ export interface FileRoutesByFullPath {
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
+  '/api/ai/generate': typeof ApiAiGenerateRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
   '/api/google/ga4-summary': typeof ApiGoogleGa4SummaryRoute
@@ -206,6 +213,7 @@ export interface FileRoutesByTo {
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
+  '/api/ai/generate': typeof ApiAiGenerateRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
   '/api/google/ga4-summary': typeof ApiGoogleGa4SummaryRoute
@@ -234,6 +242,7 @@ export interface FileRoutesById {
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
+  '/api/ai/generate': typeof ApiAiGenerateRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
   '/api/google/ga4-summary': typeof ApiGoogleGa4SummaryRoute
@@ -263,6 +272,7 @@ export interface FileRouteTypes {
     | '/settings/api'
     | '/tasks/$id'
     | '/api/ahrefs/overview'
+    | '/api/ai/generate'
     | '/api/google/callback'
     | '/api/google/connection'
     | '/api/google/ga4-summary'
@@ -290,6 +300,7 @@ export interface FileRouteTypes {
     | '/settings/api'
     | '/tasks/$id'
     | '/api/ahrefs/overview'
+    | '/api/ai/generate'
     | '/api/google/callback'
     | '/api/google/connection'
     | '/api/google/ga4-summary'
@@ -317,6 +328,7 @@ export interface FileRouteTypes {
     | '/settings/api'
     | '/tasks/$id'
     | '/api/ahrefs/overview'
+    | '/api/ai/generate'
     | '/api/google/callback'
     | '/api/google/connection'
     | '/api/google/ga4-summary'
@@ -341,6 +353,7 @@ export interface RootRouteChildren {
   TasksRoute: typeof TasksRouteWithChildren
   AdminUsersRoute: typeof AdminUsersRoute
   ApiAhrefsOverviewRoute: typeof ApiAhrefsOverviewRoute
+  ApiAiGenerateRoute: typeof ApiAiGenerateRoute
   ApiGoogleCallbackRoute: typeof ApiGoogleCallbackRoute
   ApiGoogleConnectionRoute: typeof ApiGoogleConnectionRoute
   ApiGoogleGa4SummaryRoute: typeof ApiGoogleGa4SummaryRoute
@@ -507,6 +520,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGoogleCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/ai/generate': {
+      id: '/api/ai/generate'
+      path: '/api/ai/generate'
+      fullPath: '/api/ai/generate'
+      preLoaderRoute: typeof ApiAiGenerateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/ahrefs/overview': {
       id: '/api/ahrefs/overview'
       path: '/api/ahrefs/overview'
@@ -590,6 +610,7 @@ const rootRouteChildren: RootRouteChildren = {
   TasksRoute: TasksRouteWithChildren,
   AdminUsersRoute: AdminUsersRoute,
   ApiAhrefsOverviewRoute: ApiAhrefsOverviewRoute,
+  ApiAiGenerateRoute: ApiAiGenerateRoute,
   ApiGoogleCallbackRoute: ApiGoogleCallbackRoute,
   ApiGoogleConnectionRoute: ApiGoogleConnectionRoute,
   ApiGoogleGa4SummaryRoute: ApiGoogleGa4SummaryRoute,
@@ -602,3 +623,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
