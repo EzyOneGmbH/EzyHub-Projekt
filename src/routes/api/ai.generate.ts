@@ -243,7 +243,7 @@ export const Route = createFileRoute("/api/ai/generate")({
           audit_type: AUDIT_TYPE[d.kind] ?? "content_other",
           status: text ? "succeeded" : "failed",
           input: { kind: d.kind, topic: d.topic, title: d.title, schemaType: d.schemaType },
-          result: { content: text } as Record<string, unknown>,
+          result: { content: text } as never,
           error: text ? null : "Leere Antwort von Claude",
           started_at: new Date().toISOString(),
           finished_at: new Date().toISOString(),
