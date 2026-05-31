@@ -106,7 +106,7 @@ function clientToRow(c: Partial<EzyClient>, organizationId: string, createdBy: s
 }
 
 /** Default provider rows seeded for new clients. */
-const DEFAULT_PROVIDERS = ["ahrefs", "google", "canonry", "perplexity"] as const;
+const DEFAULT_PROVIDERS = ["ahrefs", "google", "canonry", "perplexity", "anthropic"] as const;
 
 async function seedDefaultIntegrations(organizationId: string, clientId: string) {
   try {
