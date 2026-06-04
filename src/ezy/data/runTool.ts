@@ -49,7 +49,47 @@ export async function executeTool(
   // does not create duplicate audit_runs entries.
   let serverPersists = false;
 
-  switch (toolId) {
+  // Tools backed by real Claude Code plugin skills, routed through the agent service.
+  const TOOL_SKILL: Record<string, string> = {
+    "generate-blog": "blog-write",
+    "blog-outline": "blog-outline",
+    "content-brief": "seo-content-brief",
+    "schema-markup": "seo-schema",
+  };
+  const agentSkill = TOOL_SKILL[toolId];
+  if (agentSkill) {
+    const lang = inputs.language || "Deutsch";
+    let skillInput = "";
+    switch (toolId) {
+      case "generate-blog":
+        skillInput = `Schreibe einen vollständigen, SEO- und GEO-optimierten Blog-Artikel.\nThema/Keyword: ${inputs.topic || ""}\nTonalität: ${inputs.tone || "Professionell"}\nLänge: ${inputs.length || "Standard"}\nSprache: ${lang}`;
+        break;
+      case "blog-outline":
+        skillInput = `Erstelle eine detaillierte Artikel-Gliederung (H1/H2/H3 + FAQ).\nThema: ${inputs.topic || ""}\nKeywords:\n${inputs.keywords || ""}\nSprache: ${lang}`;
+        break;
+      case "content-brief":
+        skillInput = `Erstelle ein SEO-Content-Brief.\nThema/Keyword: ${inputs.topic || ""}\nZielgruppe: ${inputs.audience || "nicht angegeben"}\nSprache: ${lang}`;
+        break;
+      case "schema-markup":
+        skillInput = `Erzeuge valides Schema.org JSON-LD.\nSchema-Typ: ${inputs.schemaType || "Article"}\nAngaben:\n${inputs.content || ""}`;
+        break;
+    }
+    path = `/api/agent/run`;
+    init = {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clientId: client.id,
+        skill: agentSkill,
+        input: skillInput,
+        title: inputs.topic || inputs.title || null,
+      }),
+    };
+    auditType = `skill_${agentSkill}`;
+    serverPersists = true;
+  }
+
+  if (!agentSkill) switch (toolId) {
     case "canonry":
       // NOTE: this is a read-only overview, not a real sweep.
       path = `/api/live/canonry/overview?clientId=${encodeURIComponent(client.id)}`;
