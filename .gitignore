@@ -35,6 +35,9 @@ dist-ssr
 .env
 .env.*
 !.env.example
+# Committed on purpose: PUBLIC build-time vars only (Supabase anon key is browser-safe).
+# Vite bakes these into the published build so the custom domain works.
+!.env.production
 
 # Workspace / TS build info
 .workspace/
