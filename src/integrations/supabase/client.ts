@@ -5,9 +5,18 @@ import type { Database } from "./types";
 function createSupabaseClient() {
   // Use import.meta.env for client-side (Vite build-time replacement)
   // Fall back to process.env for SSR (server-side rendering)
-  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  // Public, browser-safe fallbacks so the published build works even when the
+  // host (e.g. Lovable) does not inject VITE_ vars at build time. The anon key
+  // is designed to ship in the client bundle; RLS protects the data.
+  const FALLBACK_URL = "https://glrgccmujzuwnhyvwxyi.supabase.co";
+  const FALLBACK_PUBLISHABLE_KEY =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdscmdjY211anp1d25oeXZ3eHlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwNzE4ODIsImV4cCI6MjA5MzY0Nzg4Mn0.AOITFOXW-8bzgMljEx7dQOd_snxoptGHKGcWLAXZqMA";
+  const SUPABASE_URL =
+    import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || FALLBACK_URL;
   const SUPABASE_PUBLISHABLE_KEY =
-    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.SUPABASE_PUBLISHABLE_KEY ||
+    FALLBACK_PUBLISHABLE_KEY;
 
   if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
     const missing = [
