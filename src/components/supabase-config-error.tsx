@@ -70,21 +70,12 @@ export function SupabaseConfigError({ missing }: Props) {
   );
 }
 
-// Öffentliche Fallbacks: URL + Anon/Publishable Key landen ohnehin im
-// Browser-Bundle und sind nicht geheim. So startet die App auch dann, wenn
-// ein Build ohne gesetzte Env-Vars (z. B. älterer Publish-Stand) lief.
-export const FALLBACK_SUPABASE_URL = "https://glrgccmujzuwnhyvwxyi.supabase.co";
-export const FALLBACK_SUPABASE_PUBLISHABLE_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdscmdjY211anp1d25oeXZ3eHlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwNzE4ODIsImV4cCI6MjA5MzY0Nzg4Mn0.AOITFOXW-8bzgMljEx7dQOd_snxoptGHKGcWLAXZqMA";
-
 export function getMissingSupabaseEnv(): string[] {
   const env = (typeof import.meta !== "undefined" ? import.meta.env : undefined) as
     | Record<string, string | undefined>
     | undefined;
-  const url = env?.VITE_SUPABASE_URL || FALLBACK_SUPABASE_URL;
-  const key = env?.VITE_SUPABASE_PUBLISHABLE_KEY || FALLBACK_SUPABASE_PUBLISHABLE_KEY;
   const missing: string[] = [];
-  if (!url) missing.push("VITE_SUPABASE_URL");
-  if (!key) missing.push("VITE_SUPABASE_PUBLISHABLE_KEY");
+  if (!env?.VITE_SUPABASE_URL) missing.push("VITE_SUPABASE_URL");
+  if (!env?.VITE_SUPABASE_PUBLISHABLE_KEY) missing.push("VITE_SUPABASE_PUBLISHABLE_KEY");
   return missing;
 }
