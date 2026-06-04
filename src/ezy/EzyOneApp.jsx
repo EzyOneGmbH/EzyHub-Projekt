@@ -104,6 +104,7 @@ import {
 } from "@/ezy/data/useEzyLatestRun";
 import GoogleClientPanel from "@/ezy/GoogleClientPanel.jsx";
 import { supabase } from "@/integrations/supabase/client";
+import { SKILL_CATALOG } from "@/ezy/data/skillCatalog";
 const toolHasLiveProvider = (id) => toolProvider(id) !== null;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1314,7 +1315,7 @@ const CONTENT_ITEMS = [
 // ═══════════════════════════════════════════════════════════════════════════
 // TOOLS DEFINITIONS
 // ═══════════════════════════════════════════════════════════════════════════
-const ALL_TOOLS = [
+const CURATED_TOOLS = [
   {
     id: "open-seo-audit",
     label: "Open SEO Audit",
@@ -1772,6 +1773,48 @@ const ALL_TOOLS = [
     enabled: true,
   },
 ];
+
+// Generic, data-driven tiles for every installed plugin skill (auto-generated catalog).
+// Each runs through the same /api/agent/run bridge with a single free-text input.
+const SKILL_CAT_META = {
+  "skills-seo": { icon: Layers, color: C.accent },
+  "skills-blog": { icon: PenTool, color: C.cyan },
+  "skills-obsidian": { icon: Bookmark, color: C.pink },
+};
+const CATALOG_TOOLS = SKILL_CATALOG.map((s) => {
+  const meta = SKILL_CAT_META[s.category] || { icon: Zap, color: C.accent };
+  return {
+    id: s.id,
+    label: s.label,
+    description: s.description,
+    longDescription: s.note ? `${s.description}\n\nHinweis: ${s.note}.` : s.description,
+    icon: meta.icon,
+    category: s.category,
+    repo: s.plugin,
+    repoUrl: `https://github.com/AgriciDaniel/${s.plugin}`,
+    color: meta.color,
+    inputs: [
+      {
+        id: "prompt",
+        label: "Eingabe (URL, Thema oder Inhalt)",
+        type: "textarea",
+        required: true,
+        placeholder: "Beschreibe die Aufgabe, füge eine URL oder Inhalt ein …",
+      },
+      {
+        id: "language",
+        label: "Sprache",
+        type: "select",
+        required: false,
+        options: ["Deutsch", "Englisch", "Französisch"],
+      },
+    ],
+    estimatedTime: s.note && s.note.includes("langer Lauf") ? "3-10 min" : "1-4 min",
+    subSkills: [s.skill],
+    enabled: true,
+  };
+});
+const ALL_TOOLS = CURATED_TOOLS.concat(CATALOG_TOOLS);
 const TOOL_CATS = [
   { id: "all", label: "Alle", icon: LayoutGrid },
   { id: "audit", label: "Audit", icon: Layers },
@@ -1779,6 +1822,9 @@ const TOOL_CATS = [
   { id: "content", label: "Content", icon: PenTool },
   { id: "technical", label: "Technical", icon: Activity },
   { id: "obsidian", label: "Obsidian", icon: Bookmark },
+  { id: "skills-seo", label: "SEO-Skills", icon: Layers },
+  { id: "skills-blog", label: "Blog-Skills", icon: PenTool },
+  { id: "skills-obsidian", label: "Obsidian-Skills", icon: Bookmark },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════

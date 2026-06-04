@@ -9,6 +9,8 @@ import { useAuth } from "@/hooks/use-auth";
 export function toolProvider(
   toolId: string,
 ): "ahrefs" | "google" | "canonry" | "perplexity" | "anthropic" | null {
+  // Generic catalog skills (id "skill:<name>") all run through the Anthropic-backed agent service.
+  if (toolId.startsWith("skill:")) return "anthropic";
   switch (toolId) {
     case "canonry":
       return "canonry";

@@ -62,7 +62,9 @@ export async function executeTool(
     "editorial-calendar": "blog-calendar",
     "geo-content-check": "blog-geo",
   };
-  const agentSkill = TOOL_SKILL[toolId];
+  const agentSkill =
+    TOOL_SKILL[toolId] ||
+    (toolId.startsWith("skill:") ? toolId.slice("skill:".length) : undefined);
   if (agentSkill) {
     const lang = inputs.language || "Deutsch";
     let skillInput = "";
@@ -96,6 +98,10 @@ export async function executeTool(
         break;
       case "geo-content-check":
         skillInput = `Bewerte den folgenden Beitrag auf AI-Citation-Readiness (ChatGPT, Perplexity, Google AI Overviews) und gib konkrete Verbesserungen + Citation-Capsules aus.\nSprache: ${lang}\n\nInhalt:\n${inputs.content || ""}`;
+        break;
+      default:
+        // Generic catalog skills (id "skill:<name>"): single free-text input.
+        skillInput = `${inputs.prompt || inputs.input || ""}${inputs.language ? `\nSprache: ${inputs.language}` : ""}`.trim();
         break;
     }
     path = `/api/agent/run`;
