@@ -71,9 +71,6 @@ export function SupabaseConfigError({ missing }: Props) {
 }
 
 export function getMissingSupabaseEnv(): string[] {
-  // Nur import.meta.env nutzen — Vite ersetzt diese Werte zur Build-Zeit
-  // konsistent in SSR- und Client-Bundle. process.env würde nur im SSR
-  // greifen und damit einen Hydration-Mismatch verursachen.
   const env = (typeof import.meta !== "undefined" ? import.meta.env : undefined) as
     | Record<string, string | undefined>
     | undefined;
