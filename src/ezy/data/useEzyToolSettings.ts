@@ -25,6 +25,12 @@ export function toolProvider(
     case "blog-outline":
     case "meta-tags":
     case "schema-markup":
+    case "blog-rewrite":
+    case "blog-strategy":
+    case "blog-repurpose":
+    case "competitor-page":
+    case "editorial-calendar":
+    case "geo-content-check":
       return "anthropic";
     default:
       return null;
@@ -86,6 +92,12 @@ export function useEzyToolSettings(clientId: string | null | undefined) {
       "blog-outline",
       "meta-tags",
       "schema-markup",
+      "blog-rewrite",
+      "blog-strategy",
+      "blog-repurpose",
+      "competitor-page",
+      "editorial-calendar",
+      "geo-content-check",
     ];
     for (const id of allToolIds) {
       const prov = toolProvider(id);

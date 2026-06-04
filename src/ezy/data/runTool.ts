@@ -55,6 +55,12 @@ export async function executeTool(
     "blog-outline": "blog-outline",
     "content-brief": "seo-content-brief",
     "schema-markup": "seo-schema",
+    "blog-rewrite": "blog-rewrite",
+    "blog-strategy": "blog-strategy",
+    "blog-repurpose": "blog-repurpose",
+    "competitor-page": "seo-competitor-pages",
+    "editorial-calendar": "blog-calendar",
+    "geo-content-check": "blog-geo",
   };
   const agentSkill = TOOL_SKILL[toolId];
   if (agentSkill) {
@@ -72,6 +78,24 @@ export async function executeTool(
         break;
       case "schema-markup":
         skillInput = `Erzeuge valides Schema.org JSON-LD.\nSchema-Typ: ${inputs.schemaType || "Article"}\nAngaben:\n${inputs.content || ""}`;
+        break;
+      case "blog-rewrite":
+        skillInput = `Überarbeite und optimiere den folgenden Blog-Beitrag für Google-Rankings (E-E-A-T) und AI-Citations (GEO/AEO). Haupt-Keyword: ${inputs.keyword || "(keines angegeben)"}\nSprache: ${lang}\n\nInhalt:\n${inputs.content || ""}`;
+        break;
+      case "blog-strategy":
+        skillInput = `Entwickle eine Blog-Strategie (Topic-Cluster, Zielgruppe, Wettbewerb, AI-Citation-Surfaces).\nThema/Nische: ${inputs.topic || ""}\nZielgruppe: ${inputs.audience || "nicht angegeben"}\nSprache: ${lang}`;
+        break;
+      case "blog-repurpose":
+        skillInput = `Repurpose den folgenden Beitrag für diese Plattformen: ${inputs.platforms || "LinkedIn, X/Twitter, Newsletter"}.\nSprache: ${lang}\n\nInhalt:\n${inputs.content || ""}`;
+        break;
+      case "competitor-page":
+        skillInput = `Erstelle eine SEO-optimierte Vergleichsseite (X vs Y / Alternativen, Feature-Matrix, Schema).\nEigenes Produkt/Marke: ${inputs.own || ""}\nWettbewerber: ${inputs.competitor || ""}\nSprache: ${lang}`;
+        break;
+      case "editorial-calendar":
+        skillInput = `Erstelle einen Redaktionsplan (Topic-Cluster, Publishing-Schedule, Content-Mix, saisonale Chancen).\nThema/Domain: ${inputs.topic || ""}\nZeitraum: ${inputs.period || "1 Monat"}\nSprache: ${lang}`;
+        break;
+      case "geo-content-check":
+        skillInput = `Bewerte den folgenden Beitrag auf AI-Citation-Readiness (ChatGPT, Perplexity, Google AI Overviews) und gib konkrete Verbesserungen + Citation-Capsules aus.\nSprache: ${lang}\n\nInhalt:\n${inputs.content || ""}`;
         break;
     }
     path = `/api/agent/run`;
