@@ -34,6 +34,7 @@ import { Route as ApiGoogleConnectionRouteImport } from './routes/api/google.con
 import { Route as ApiGoogleCallbackRouteImport } from './routes/api/google.callback'
 import { Route as ApiAiGenerateRouteImport } from './routes/api/ai.generate'
 import { Route as ApiAhrefsOverviewRouteImport } from './routes/api/ahrefs.overview'
+import { Route as ApiAgentRunRouteImport } from './routes/api/agent.run'
 import { Route as ApiLiveCanonryOverviewRouteImport } from './routes/api/live.canonry.overview'
 import { Route as ApiGoogleOauthStartRouteImport } from './routes/api/google.oauth.start'
 
@@ -162,6 +163,11 @@ const ApiAhrefsOverviewRoute = ApiAhrefsOverviewRouteImport.update({
   path: '/api/ahrefs/overview',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAgentRunRoute = ApiAgentRunRouteImport.update({
+  id: '/api/agent/run',
+  path: '/api/agent/run',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiLiveCanonryOverviewRoute = ApiLiveCanonryOverviewRouteImport.update({
   id: '/api/live/canonry/overview',
   path: '/api/live/canonry/overview',
@@ -191,6 +197,7 @@ export interface FileRoutesByFullPath {
   '/customers/$id': typeof CustomersIdRoute
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
+  '/api/agent/run': typeof ApiAgentRunRoute
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/ai/generate': typeof ApiAiGenerateRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
@@ -220,6 +227,7 @@ export interface FileRoutesByTo {
   '/customers/$id': typeof CustomersIdRoute
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
+  '/api/agent/run': typeof ApiAgentRunRoute
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/ai/generate': typeof ApiAiGenerateRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
@@ -250,6 +258,7 @@ export interface FileRoutesById {
   '/customers/$id': typeof CustomersIdRoute
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
+  '/api/agent/run': typeof ApiAgentRunRoute
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/ai/generate': typeof ApiAiGenerateRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
@@ -281,6 +290,7 @@ export interface FileRouteTypes {
     | '/customers/$id'
     | '/settings/api'
     | '/tasks/$id'
+    | '/api/agent/run'
     | '/api/ahrefs/overview'
     | '/api/ai/generate'
     | '/api/google/callback'
@@ -310,6 +320,7 @@ export interface FileRouteTypes {
     | '/customers/$id'
     | '/settings/api'
     | '/tasks/$id'
+    | '/api/agent/run'
     | '/api/ahrefs/overview'
     | '/api/ai/generate'
     | '/api/google/callback'
@@ -339,6 +350,7 @@ export interface FileRouteTypes {
     | '/customers/$id'
     | '/settings/api'
     | '/tasks/$id'
+    | '/api/agent/run'
     | '/api/ahrefs/overview'
     | '/api/ai/generate'
     | '/api/google/callback'
@@ -365,6 +377,7 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   TasksRoute: typeof TasksRouteWithChildren
   AdminUsersRoute: typeof AdminUsersRoute
+  ApiAgentRunRoute: typeof ApiAgentRunRoute
   ApiAhrefsOverviewRoute: typeof ApiAhrefsOverviewRoute
   ApiAiGenerateRoute: typeof ApiAiGenerateRoute
   ApiGoogleCallbackRoute: typeof ApiGoogleCallbackRoute
@@ -554,6 +567,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAhrefsOverviewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agent/run': {
+      id: '/api/agent/run'
+      path: '/api/agent/run'
+      fullPath: '/api/agent/run'
+      preLoaderRoute: typeof ApiAgentRunRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/live/canonry/overview': {
       id: '/api/live/canonry/overview'
       path: '/api/live/canonry/overview'
@@ -630,6 +650,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   TasksRoute: TasksRouteWithChildren,
   AdminUsersRoute: AdminUsersRoute,
+  ApiAgentRunRoute: ApiAgentRunRoute,
   ApiAhrefsOverviewRoute: ApiAhrefsOverviewRoute,
   ApiAiGenerateRoute: ApiAiGenerateRoute,
   ApiGoogleCallbackRoute: ApiGoogleCallbackRoute,
