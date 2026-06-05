@@ -4925,7 +4925,10 @@ function SettingsPage({
                     </span>
                   </div>
                 </div>
-                <GoogleClientPanel client={selectedClient} onSaved={onClientUpdated} />
+                <div style={{ fontSize: 12, color: C.textDim, marginTop: 8 }}>
+                  Google verbinden &amp; Verbindungen verwalten: im{" "}
+                  <strong style={{ color: C.textMuted }}>Kunden-Detail → Onboarding-Karte</strong>.
+                </div>
               </>
             )}
           </div>
