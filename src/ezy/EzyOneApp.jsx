@@ -2541,6 +2541,12 @@ function ConvDashboard({ selectedClient }) {
   const totalUsers = Number(ga4?.totalUsers || 0);
   const engagedSessions = Number(ga4?.engagedSessions || 0);
   const screenPageViews = Number(ga4?.screenPageViews || 0);
+  const newUsers = Number(ga4?.newUsers || 0);
+  const bounceRate = Number(ga4?.bounceRate || 0);
+  const avgSession = Number(ga4?.averageSessionDuration || 0);
+  const ga4Conversions = Number(ga4?.conversions || 0);
+  const ga4Revenue = Number(ga4?.totalRevenue || 0);
+  const ga4Series = ga4?.series || [];
   const hasAnyKpi =
     revenue +
       phoneCalls +
@@ -2626,6 +2632,36 @@ function ConvDashboard({ selectedClient }) {
             value={screenPageViews > 0 ? screenPageViews : "—"}
             color={C.orange}
           />
+          <KpiCard
+            icon={Users}
+            label="New Users"
+            value={newUsers > 0 ? newUsers : "—"}
+            color={C.cyan}
+          />
+          <KpiCard
+            icon={Target}
+            label="Conversions"
+            value={ga4Conversions > 0 ? ga4Conversions : "—"}
+            color={C.pink}
+          />
+          <KpiCard
+            icon={DollarSign}
+            label="GA4 Revenue"
+            value={ga4Revenue > 0 ? `CHF ${Math.round(ga4Revenue).toLocaleString("de-CH")}` : "—"}
+            color={C.green}
+          />
+          <KpiCard
+            icon={Activity}
+            label="Bounce Rate"
+            value={bounceRate > 0 ? `${(bounceRate * 100).toFixed(1)}%` : "—"}
+            color={C.orange}
+          />
+          <KpiCard
+            icon={Clock}
+            label="Ø Session"
+            value={avgSession > 0 ? `${Math.round(avgSession)}s` : "—"}
+            color={C.blue}
+          />
         </div>
       )}
       {revenue > 0 && (
@@ -2648,10 +2684,72 @@ function ConvDashboard({ selectedClient }) {
           </div>
         </div>
       )}
-      <LiveEmptyState
-        title="Conversion-Charts folgen mit GA4-Live-Daten"
-        hint="Sobald GA4 Sessions, Events und Revenue liefert, erscheinen hier Trend-Charts und Conversion-Tabellen."
-      />
+      {ga4Series.length >= 2 ? (
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 14,
+            padding: 16,
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}>
+            Traffic-Verlauf ({ga4Series.length} Tage)
+          </div>
+          <ResponsiveContainer width="100%" height={260}>
+            <AreaChart data={ga4Series}>
+              <defs>
+                <linearGradient id="ga4-sessions" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={C.accent} stopOpacity={0.4} />
+                  <stop offset="100%" stopColor={C.accent} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+              <XAxis
+                dataKey="date"
+                stroke={C.textDim}
+                fontSize={11}
+                tickFormatter={(d) =>
+                  typeof d === "string" && d.length === 8
+                    ? `${d.slice(6, 8)}.${d.slice(4, 6)}.`
+                    : d
+                }
+              />
+              <YAxis stroke={C.textDim} fontSize={11} />
+              <Tooltip
+                contentStyle={{
+                  background: C.surface,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 8,
+                  color: C.textMuted,
+                }}
+              />
+              <Legend />
+              <Area
+                type="monotone"
+                dataKey="sessions"
+                name="Sessions"
+                stroke={C.accent}
+                fill="url(#ga4-sessions)"
+                strokeWidth={2}
+              />
+              <Area
+                type="monotone"
+                dataKey="totalUsers"
+                name="Users"
+                stroke={C.blue}
+                fillOpacity={0}
+                strokeWidth={2}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <LiveEmptyState
+          title="Conversion-Charts folgen mit GA4-Live-Daten"
+          hint="Sobald GA4 Sessions, Events und Revenue liefert, erscheinen hier Trend-Charts und Conversion-Tabellen."
+        />
+      )}
     </div>
   );
 }
