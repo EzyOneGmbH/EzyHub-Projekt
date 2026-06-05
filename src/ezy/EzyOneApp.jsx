@@ -3732,12 +3732,132 @@ function ContentPage({ clients, items, onSaveContent }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // PAGE: CLIENTS
 // ═══════════════════════════════════════════════════════════════════════════
+function OnboardingCard({ client, onUpdated }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    String(client?.id || ""),
+  );
+  const steps = [
+    { ok: !!client?.domain, label: "Domain hinterlegt", hint: "Basis für Ahrefs & Core Web Vitals" },
+    {
+      ok: !!client?.canonryProject,
+      label: "Canonry-Projekt (GEO)",
+      hint: "AI-Sichtbarkeit ChatGPT/Perplexity/…",
+      action: "canonry",
+    },
+    {
+      ok: !!client?.gscSiteUrl,
+      label: "Search Console verbunden",
+      hint: "Klicks, Impressionen, Position",
+    },
+    { ok: !!client?.ga4PropertyId, label: "GA4 verbunden", hint: "Sessions, Conversions, Revenue" },
+  ];
+  const done = steps.filter((s) => s.ok).length;
+  const createCanonry = async () => {
+    if (!isUuid) return toast("Kunde noch nicht gespeichert", "error");
+    setBusy(true);
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const res = await fetch("/api/canonry/create-project", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ clientId: client.id }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok && j.ok) {
+        toast(`Canonry-Projekt „${j.slug}" ${j.created ? "angelegt" : "aktualisiert"}`, "success");
+        onUpdated?.();
+      } else toast(j.error || "Canonry-Anlage fehlgeschlagen", "error");
+    } catch (e) {
+      toast(String(e?.message || e), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div
+      style={{
+        background: C.card,
+        border: `1px solid ${done === steps.length ? C.green + "55" : C.border}`,
+        borderRadius: 14,
+        padding: 18,
+        marginBottom: 16,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 12,
+        }}
+      >
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Onboarding / Verbindungen</div>
+        <div style={{ fontSize: 12, color: done === steps.length ? C.green : C.textMuted }}>
+          {done}/{steps.length} eingerichtet
+        </div>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {steps.map((s, i) => (
+          <div
+            key={i}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ color: s.ok ? C.green : C.textDim, flexShrink: 0 }}>
+                {s.ok ? <Check size={16} /> : <Clock size={16} />}
+              </span>
+              <div>
+                <div style={{ fontSize: 13, color: C.text }}>{s.label}</div>
+                <div style={{ fontSize: 11, color: C.textDim }}>{s.hint}</div>
+              </div>
+            </div>
+            {s.action === "canonry" && !s.ok && (
+              <button
+                onClick={createCanonry}
+                disabled={busy}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: C.accent,
+                  color: "#fff",
+                  cursor: busy ? "default" : "pointer",
+                  fontSize: 12,
+                  fontFamily: "inherit",
+                  flexShrink: 0,
+                }}
+              >
+                {busy ? "…" : "Automatisch anlegen"}
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 11, color: C.textDim, marginTop: 12, lineHeight: 1.5 }}>
+        Google (Search Console + GA4) verbindest du im Google-Panel (Einstellungen → Kunde). Semrush
+        ist aktuell nicht verfügbar (API-Units fehlen).
+      </div>
+    </div>
+  );
+}
+
 function ClientsPage({
   clients,
   selectedClientId,
   onSelectClient,
   onUpsertClient,
   onDeleteClient,
+  onReload,
   customerDefaults = DEFAULT_CUSTOMER_DEFAULTS,
 }) {
   const toast = useToast();
@@ -4044,6 +4164,7 @@ function ClientsPage({
             </div>
           </div>
           <div style={{ padding: "18px 22px" }}>
+            <OnboardingCard client={detail} onUpdated={onReload} />
             {dt === "overview" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {[
@@ -5789,6 +5910,7 @@ function App() {
               onSelectClient={selectClient}
               onUpsertClient={upsertClient}
               onDeleteClient={deleteClient}
+              onReload={ezy.reload}
               customerDefaults={customerDefaults}
             />
           )}
