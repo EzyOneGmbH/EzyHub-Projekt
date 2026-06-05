@@ -101,63 +101,87 @@ export const Route = createFileRoute("/api/agent/run")({
           );
         }
 
-        // Forward to the agent service.
-        let payload: { ok?: boolean; result?: string; error?: string; costUsd?: number } = {};
-        let httpOk = false;
-        let errorMsg = "";
+        // --- Per-org monthly AI budget check (never hard-fail on a meter error) ---
+        try {
+          const [{ data: org }, { data: spend }] = await Promise.all([
+            supabaseAdmin
+              .from("organizations")
+              .select("monthly_ai_budget_usd")
+              .eq("id", client.organization_id)
+              .maybeSingle(),
+            supabaseAdmin.rpc("org_ai_spend_this_month", { _org: client.organization_id }),
+          ]);
+          const budget = Number(org?.monthly_ai_budget_usd ?? 50);
+          const spent = Number((spend as unknown as number) ?? 0);
+          if (budget > 0 && spent >= budget) {
+            return Response.json(
+              {
+                ok: false,
+                error: `Monatliches KI-Budget erreicht ($${spent.toFixed(2)} / $${budget.toFixed(2)}). Bitte Budget erhöhen.`,
+              },
+              { status: 402 },
+            );
+          }
+        } catch {
+          /* meter query failed → do not block the run */
+        }
+
+        // --- Start the skill as an async job (each request stays short → no Worker timeout) ---
+        let jobId = "";
+        let startErr = "";
         const ctrl = new AbortController();
-        const t = setTimeout(() => ctrl.abort(), 8 * 60 * 1000);
+        const t = setTimeout(() => ctrl.abort(), 30_000);
         try {
           const res = await fetch(`${baseUrl.replace(/\/+$/, "")}/run-skill`, {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${agentSecret}`,
-              "Content-Type": "application/json",
-            },
+            headers: { Authorization: `Bearer ${agentSecret}`, "Content-Type": "application/json" },
             body: JSON.stringify({
               skill: d.skill,
               input: d.input,
               prompt: d.prompt,
               model: d.model,
               maxTurns: d.maxTurns,
+              async: true,
             }),
             signal: ctrl.signal,
           });
-          httpOk = res.ok;
-          payload = (await res.json().catch(() => ({}))) as typeof payload;
-          if (!res.ok) errorMsg = redact(payload?.error || `HTTP ${res.status}`, secrets);
+          const payload = (await res.json().catch(() => ({}))) as {
+            jobId?: string;
+            error?: string;
+          };
+          if (res.ok && payload?.jobId) jobId = payload.jobId;
+          else startErr = redact(payload?.error || `HTTP ${res.status}`, secrets);
         } catch (e) {
-          errorMsg = redact(e, secrets);
+          startErr = redact(e, secrets);
         } finally {
           clearTimeout(t);
         }
 
-        const ok = httpOk && payload?.ok !== false;
-        const content = payload?.result ?? "";
-
-        await supabaseAdmin.from("audit_runs").insert({
-          client_id: client.id,
-          organization_id: client.organization_id,
-          triggered_by: user.id,
-          audit_type: `skill_${(d.skill ?? "freeform").replace(/[^a-z0-9_-]/gi, "_")}`,
-          status: ok && content ? "succeeded" : "failed",
-          input: { skill: d.skill ?? null, title: d.title ?? null },
-          result: ok ? ({ content, costUsd: payload?.costUsd ?? null } as never) : null,
-          error: ok ? null : errorMsg || "Agent-Lauf fehlgeschlagen",
-          started_at: new Date().toISOString(),
-          finished_at: new Date().toISOString(),
-        });
-
-        if (!ok) {
+        if (!jobId) {
           return Response.json(
-            { ok: false, error: errorMsg || "Agent-Lauf fehlgeschlagen" },
+            { ok: false, error: startErr || "Agent-Job konnte nicht gestartet werden" },
             { status: 502 },
           );
         }
 
+        // --- Persist the run as "running"; /api/agent/job finalizes it on completion ---
+        const { data: runRow } = await supabaseAdmin
+          .from("audit_runs")
+          .insert({
+            client_id: client.id,
+            organization_id: client.organization_id,
+            triggered_by: user.id,
+            audit_type: `skill_${(d.skill ?? "freeform").replace(/[^a-z0-9_-]/gi, "_")}`,
+            status: "running",
+            input: { skill: d.skill ?? null, title: d.title ?? null, jobId },
+            started_at: new Date().toISOString(),
+          })
+          .select("id")
+          .maybeSingle();
+
         return Response.json(
-          { ok: true, skill: d.skill ?? null, content, costUsd: payload?.costUsd ?? null },
-          { headers: { "Cache-Control": "no-store" } },
+          { ok: true, status: "running", jobId, runId: runRow?.id ?? null, skill: d.skill ?? null },
+          { status: 202, headers: { "Cache-Control": "no-store" } },
         );
       },
     },

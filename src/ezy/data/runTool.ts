@@ -104,19 +104,70 @@ export async function executeTool(
         skillInput = `${inputs.prompt || inputs.input || ""}${inputs.language ? `\nSprache: ${inputs.language}` : ""}`.trim();
         break;
     }
-    path = `/api/agent/run`;
-    init = {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        clientId: client.id,
-        skill: agentSkill,
-        input: skillInput,
-        title: inputs.topic || inputs.title || null,
-      }),
-    };
-    auditType = `skill_${agentSkill}`;
-    serverPersists = true;
+    // Start an async job, then poll until done. Each request is short, so even
+    // multi-minute skills never hit the Cloudflare Worker fetch timeout.
+    try {
+      const startRes = await ezyFetch(`/api/agent/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: client.id,
+          skill: agentSkill,
+          input: skillInput,
+          title: inputs.topic || inputs.title || null,
+        }),
+      });
+      const startPayload: any = await startRes.json().catch(() => ({}));
+      if (!startRes.ok || !startPayload?.runId) {
+        return {
+          ok: false,
+          liveConnected: true,
+          message: startPayload?.error || `Start fehlgeschlagen (HTTP ${startRes.status})`,
+          error: startPayload?.error,
+        };
+      }
+      const runId: string = startPayload.runId;
+      const deadline = Date.now() + 12 * 60 * 1000;
+      for (;;) {
+        await new Promise((r) => setTimeout(r, 3000));
+        let poll: any = { status: "running" };
+        try {
+          const pollRes = await ezyFetch(`/api/agent/job?runId=${encodeURIComponent(runId)}`, {
+            method: "GET",
+          });
+          poll = await pollRes.json().catch(() => ({ status: "running" }));
+        } catch {
+          poll = { status: "running" };
+        }
+        if (poll.status === "done") {
+          return {
+            ok: true,
+            liveConnected: true,
+            message: "Skill abgeschlossen",
+            data: { content: poll.content, costUsd: poll.costUsd, skill: agentSkill },
+            score: null,
+          };
+        }
+        if (poll.status === "error") {
+          return {
+            ok: false,
+            liveConnected: true,
+            message: poll.error || "Skill fehlgeschlagen",
+            error: poll.error,
+          };
+        }
+        if (Date.now() > deadline) {
+          return {
+            ok: false,
+            liveConnected: true,
+            message:
+              "Zeitüberschreitung — der Lauf dauert ungewöhnlich lange. Das Ergebnis erscheint ggf. später im Verlauf.",
+          };
+        }
+      }
+    } catch (e: any) {
+      return { ok: false, liveConnected: true, message: e?.message || String(e), error: e?.message };
+    }
   }
 
   if (!agentSkill) switch (toolId) {
