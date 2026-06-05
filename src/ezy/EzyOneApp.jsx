@@ -95,6 +95,7 @@ import { useEzyDefaults } from "@/ezy/data/useEzyDefaults";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
 import { useEzyContent } from "@/ezy/data/useEzyContent";
 import { useEzyToolSettings, toolProvider } from "@/ezy/data/useEzyToolSettings";
+import { useEzyDashboardConfig } from "@/ezy/data/useEzyDashboardConfig";
 import { executeTool as runToolLive } from "@/ezy/data/runTool";
 import { useEzyAuditHistory } from "@/ezy/data/useEzyAuditHistory";
 import {
@@ -2121,12 +2122,16 @@ function SeoDashboard({ selectedClient }) {
   const gsc = gscRun ? gscKpisFromResult(gscRun.result) : null;
   const { run: psiRun } = useEzyLatestRun(selectedClient?.id, "pagespeed");
   const psi = psiRun ? pagespeedKpisFromResult(psiRun.result) : null;
+  const { isOn } = useEzyDashboardConfig();
   const traffic = Number(live?.traffic ?? selectedClient?.traffic ?? 0);
   const keywords = Number(live?.keywords ?? selectedClient?.keywords ?? 0);
   const score = Number(live?.score ?? selectedClient?.score ?? 0);
   const visibility = Number(live?.visibility ?? selectedClient?.visibility ?? 0);
-  const hasGsc = Boolean(gsc && (gsc.clicks > 0 || gsc.impressions > 0));
-  const hasCwv = Boolean(psi && (psi.lcp != null || psi.cls != null || psi.performanceScore != null));
+  const hasGsc =
+    isOn("seo.gsc") && Boolean(gsc && (gsc.clicks > 0 || gsc.impressions > 0));
+  const hasCwv =
+    isOn("seo.cwv") &&
+    Boolean(psi && (psi.lcp != null || psi.cls != null || psi.performanceScore != null));
   const hasAnyKpi = traffic + keywords + score + visibility > 0 || hasGsc || hasCwv;
   if (!hasAnyKpi) {
     return (
@@ -2138,6 +2143,7 @@ function SeoDashboard({ selectedClient }) {
   }
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {isOn("seo.ahrefs") && (
       <div
         style={{
           display: "grid",
@@ -2170,6 +2176,7 @@ function SeoDashboard({ selectedClient }) {
           color={C.orange}
         />
       </div>
+      )}
       {hasGsc && (
         <>
           <div
@@ -2282,7 +2289,7 @@ function SeoDashboard({ selectedClient }) {
           />
         </div>
       )}
-      {trend.length >= 2 ? (
+      {isOn("seo.trend") && trend.length >= 2 ? (
         <div
           style={{
             background: C.card,
@@ -2685,6 +2692,7 @@ function ConvDashboard({ selectedClient }) {
   const ga4Conversions = Number(ga4?.conversions || 0);
   const ga4Revenue = Number(ga4?.totalRevenue || 0);
   const ga4Series = ga4?.series || [];
+  const { isOn } = useEzyDashboardConfig();
   const hasAnyKpi =
     revenue +
       phoneCalls +
@@ -2706,6 +2714,7 @@ function ConvDashboard({ selectedClient }) {
   }
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {isOn("conv.custom") && (
       <div
         style={{
           display: "grid",
@@ -2738,7 +2747,9 @@ function ConvDashboard({ selectedClient }) {
           color={C.orange}
         />
       </div>
-      {(sessions > 0 || totalUsers > 0 || engagedSessions > 0 || screenPageViews > 0) && (
+      )}
+      {isOn("conv.ga4") &&
+        (sessions > 0 || totalUsers > 0 || engagedSessions > 0 || screenPageViews > 0) && (
         <div
           style={{
             display: "grid",
@@ -2802,7 +2813,7 @@ function ConvDashboard({ selectedClient }) {
           />
         </div>
       )}
-      {revenue > 0 && (
+      {isOn("conv.revenue") && revenue > 0 && (
         <div
           style={{
             background: `linear-gradient(135deg,${C.accent}22,${C.green}15)`,
@@ -2822,7 +2833,7 @@ function ConvDashboard({ selectedClient }) {
           </div>
         </div>
       )}
-      {ga4Series.length >= 2 ? (
+      {isOn("conv.trend") && ga4Series.length >= 2 ? (
         <div
           style={{
             background: C.card,
@@ -4295,6 +4306,7 @@ function SettingsPage({
   const [profileDraft, setProfileDraft] = useState(profile);
   const [defaultsDraft, setDefaultsDraft] = useState(defaultsFromStored(customerDefaults));
   const live = useLiveIntegrations();
+  const dash = useEzyDashboardConfig();
   useEffect(() => setProfileDraft(profile), [profile]);
   useEffect(() => setDefaultsDraft(defaultsFromStored(customerDefaults)), [customerDefaults]);
   const sects = [
@@ -4302,6 +4314,7 @@ function SettingsPage({
     ["defaults", "Kunden-Defaults", Settings],
     ["api", "API-Schlüssel", Key],
     ["skills", "Skills / Tools", Zap],
+    ["dashboard", "Dashboard-Metriken", BarChart3],
     ["about", "Über EZY ONE", Info],
   ];
   const providerRows = [
@@ -4826,6 +4839,78 @@ function SettingsPage({
           </div>
         )}
 
+        {sec === "dashboard" && (
+          <div>
+            <h2 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 8px" }}>Dashboard-Metriken</h2>
+            <p style={{ fontSize: 13, color: C.textMuted, margin: "0 0 16px" }}>
+              Lege fest, welche Kennzahlen in den Dashboards erscheinen. Standard: alles an —
+              schalte einfach ab, was du nicht brauchst. Gilt für die ganze Organisation (nur Admins).
+            </p>
+            {[
+              [
+                "SEO",
+                [
+                  ["seo.ahrefs", "Ahrefs-KPIs (Traffic, Visibility, Authority, Keywords)"],
+                  ["seo.gsc", "Search Console (Klicks, Impressionen, CTR, Position, Top-Queries)"],
+                  ["seo.cwv", "Core Web Vitals (LCP, INP, CLS, Performance)"],
+                  ["seo.trend", "SEO-Trend-Chart"],
+                ],
+              ],
+              [
+                "Conversion",
+                [
+                  ["conv.custom", "Conversion-Aktionen (Calls, Mail, Maps, Forms)"],
+                  ["conv.ga4", "GA4-KPIs (Sessions, Users, Conversions, Revenue, …)"],
+                  ["conv.revenue", "Revenue-Banner"],
+                  ["conv.trend", "GA4-Traffic-Trend"],
+                ],
+              ],
+            ].map(([group, items]) => (
+              <div key={group} style={{ marginBottom: 18 }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: C.textDim,
+                    textTransform: "uppercase",
+                    marginBottom: 8,
+                  }}
+                >
+                  {group}
+                </div>
+                {items.map(([key, label]) => {
+                  const on = dash.isOn(key);
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => dash.setKey(key, !on)}
+                      style={{
+                        width: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "10px 14px",
+                        borderRadius: 10,
+                        border: `1px solid ${C.border}`,
+                        background: C.card,
+                        color: C.text,
+                        cursor: "pointer",
+                        marginBottom: 6,
+                        fontFamily: "inherit",
+                        fontSize: 13,
+                      }}
+                    >
+                      <span>{label}</span>
+                      <span style={{ color: on ? C.green : C.textDim, flexShrink: 0 }}>
+                        {on ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        )}
         {sec === "about" && (
           <div>
             <h2 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 16px" }}>Über EZY ONE</h2>
