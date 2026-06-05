@@ -177,6 +177,19 @@ export async function executeTool(
       init = { method: "GET" };
       auditType = "geo_overview";
       break;
+    case "cwv-audit":
+      path = `/api/google/pagespeed`;
+      init = {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: client.id,
+          strategy: inputs.strategy === "Desktop" ? "desktop" : "mobile",
+        }),
+      };
+      auditType = "pagespeed";
+      serverPersists = true;
+      break;
     case "open-seo-audit":
     case "full-seo-audit":
     case "technical-audit":

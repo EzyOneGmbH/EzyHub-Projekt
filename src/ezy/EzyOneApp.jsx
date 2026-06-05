@@ -102,6 +102,7 @@ import {
   ahrefsKpisFromResult,
   ga4KpisFromResult,
   gscKpisFromResult,
+  pagespeedKpisFromResult,
 } from "@/ezy/data/useEzyLatestRun";
 import GoogleClientPanel from "@/ezy/GoogleClientPanel.jsx";
 import { supabase } from "@/integrations/supabase/client";
@@ -1773,6 +1774,24 @@ const CURATED_TOOLS = [
     subSkills: ["blog-geo"],
     enabled: true,
   },
+  {
+    id: "cwv-audit",
+    label: "Core Web Vitals",
+    description: "LCP, INP, CLS via PageSpeed",
+    longDescription:
+      "Misst Core Web Vitals (LCP, INP, CLS) + Performance-Score via Google PageSpeed Insights (CrUX-Felddaten + Lighthouse-Lab).",
+    icon: Activity,
+    category: "technical",
+    repo: "claude-seo",
+    repoUrl: "https://github.com/AgriciDaniel/claude-seo",
+    color: C.blue,
+    inputs: [
+      { id: "strategy", label: "Gerät", type: "select", required: false, options: ["Mobile", "Desktop"] },
+    ],
+    estimatedTime: "< 1 min",
+    subSkills: ["seo-technical"],
+    enabled: true,
+  },
 ];
 
 // Generic, data-driven tiles for every installed plugin skill (auto-generated catalog).
@@ -2100,12 +2119,15 @@ function SeoDashboard({ selectedClient }) {
     .reverse();
   const { run: gscRun } = useEzyLatestRun(selectedClient?.id, "gsc_summary");
   const gsc = gscRun ? gscKpisFromResult(gscRun.result) : null;
+  const { run: psiRun } = useEzyLatestRun(selectedClient?.id, "pagespeed");
+  const psi = psiRun ? pagespeedKpisFromResult(psiRun.result) : null;
   const traffic = Number(live?.traffic ?? selectedClient?.traffic ?? 0);
   const keywords = Number(live?.keywords ?? selectedClient?.keywords ?? 0);
   const score = Number(live?.score ?? selectedClient?.score ?? 0);
   const visibility = Number(live?.visibility ?? selectedClient?.visibility ?? 0);
   const hasGsc = Boolean(gsc && (gsc.clicks > 0 || gsc.impressions > 0));
-  const hasAnyKpi = traffic + keywords + score + visibility > 0 || hasGsc;
+  const hasCwv = Boolean(psi && (psi.lcp != null || psi.cls != null || psi.performanceScore != null));
+  const hasAnyKpi = traffic + keywords + score + visibility > 0 || hasGsc || hasCwv;
   if (!hasAnyKpi) {
     return (
       <LiveEmptyState
@@ -2225,6 +2247,40 @@ function SeoDashboard({ selectedClient }) {
             </div>
           )}
         </>
+      )}
+      {hasCwv && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
+            gap: 14,
+          }}
+        >
+          <KpiCard
+            icon={Activity}
+            label="LCP"
+            value={psi.lcp != null ? `${(psi.lcp / 1000).toFixed(2)}s` : "—"}
+            color={psi.lcp != null && psi.lcp <= 2500 ? C.green : C.orange}
+          />
+          <KpiCard
+            icon={Zap}
+            label="INP"
+            value={psi.inp != null ? `${Math.round(psi.inp)}ms` : "—"}
+            color={psi.inp != null && psi.inp <= 200 ? C.green : C.orange}
+          />
+          <KpiCard
+            icon={LayoutGrid}
+            label="CLS"
+            value={psi.cls != null ? psi.cls.toFixed(2) : "—"}
+            color={psi.cls != null && psi.cls <= 0.1 ? C.green : C.orange}
+          />
+          <KpiCard
+            icon={Award}
+            label="Performance"
+            value={psi.performanceScore != null ? `${psi.performanceScore}/100` : "—"}
+            color={C.accent}
+          />
+        </div>
       )}
       {trend.length >= 2 ? (
         <div

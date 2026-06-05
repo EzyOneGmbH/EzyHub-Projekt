@@ -126,3 +126,21 @@ export function gscKpisFromResult(result: any): {
     topQueries: Array.isArray(result?.topQueries) ? result.topQueries : [],
   };
 }
+
+/** Extract Core Web Vitals from a pagespeed audit_runs.result (field data, lab fallback). */
+export function pagespeedKpisFromResult(result: any): {
+  lcp: number | null;
+  inp: number | null;
+  cls: number | null;
+  performanceScore: number | null;
+} {
+  const m = result?.metrics || {};
+  const lcp = typeof m.lcp === "number" ? m.lcp : typeof m.lcpLab === "number" ? m.lcpLab : null;
+  const cls = typeof m.cls === "number" ? m.cls : typeof m.clsLab === "number" ? m.clsLab : null;
+  return {
+    lcp,
+    inp: typeof m.inp === "number" ? m.inp : null,
+    cls,
+    performanceScore: typeof m.performanceScore === "number" ? m.performanceScore : null,
+  };
+}

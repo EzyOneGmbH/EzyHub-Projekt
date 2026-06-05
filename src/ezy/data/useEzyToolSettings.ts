@@ -19,6 +19,8 @@ export function toolProvider(
     case "technical-audit":
     case "on-page-audit":
       return "ahrefs";
+    case "cwv-audit":
+      return "google";
     case "geo-aeo-audit":
       return "perplexity";
     case "generate-blog":
@@ -87,6 +89,7 @@ export function useEzyToolSettings(clientId: string | null | undefined) {
       "geo-aeo-audit",
       "technical-audit",
       "on-page-audit",
+      "cwv-audit",
       "generate-blog",
       "obsidian-note",
       "canonry",
