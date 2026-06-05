@@ -58,38 +58,77 @@ export const Route = createFileRoute("/api/google/ga4-summary")({
 
           const { accessToken } = await getGoogleAccessToken(client.id);
           const propertyId = client.ga4_property.replace(/^properties\//, "");
-          const url = `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`;
-          const res = await fetch(url, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              dateRanges: [{ startDate: `${parsed.data.days}daysAgo`, endDate: "today" }],
-              metrics: [
-                { name: "sessions" },
-                { name: "totalUsers" },
-                { name: "engagedSessions" },
-                { name: "screenPageViews" },
-              ],
-            }),
-          });
-          if (!res.ok) {
-            const t = await res.text().catch(() => "");
-            return Response.json({
-              ok: false,
-              error: redactSecrets(`GA4 HTTP ${res.status}: ${t}`),
+          const base = `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`;
+          const dateRanges = [{ startDate: `${parsed.data.days}daysAgo`, endDate: "today" }];
+          const callGa4 = async (reqBody: unknown) => {
+            const r = await fetch(base, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+              body: JSON.stringify(reqBody),
             });
+            if (!r.ok) throw new Error(`GA4 HTTP ${r.status}: ${await r.text().catch(() => "")}`);
+            return (await r.json()) as {
+              rows?: Array<{
+                dimensionValues?: Array<{ value: string }>;
+                metricValues?: Array<{ value: string }>;
+              }>;
+            };
+          };
+
+          // Core metrics (all standard, always valid).
+          const CORE = [
+            "sessions",
+            "totalUsers",
+            "newUsers",
+            "engagedSessions",
+            "screenPageViews",
+            "bounceRate",
+            "averageSessionDuration",
+          ];
+          let core: Awaited<ReturnType<typeof callGa4>>;
+          try {
+            core = await callGa4({ dateRanges, metrics: CORE.map((name) => ({ name })) });
+          } catch (e) {
+            return Response.json({ ok: false, error: redactSecrets(e) });
           }
-          const json = (await res.json()) as {
-            rows?: Array<{ metricValues: Array<{ value: string }> }>;
-          };
-          const row = json.rows?.[0]?.metricValues ?? [];
-          const metrics = {
-            sessions: Number(row[0]?.value ?? 0),
-            totalUsers: Number(row[1]?.value ?? 0),
-            engagedSessions: Number(row[2]?.value ?? 0),
-            screenPageViews: Number(row[3]?.value ?? 0),
-          };
-          const result = { days: parsed.data.days, metrics };
+          const cv = core.rows?.[0]?.metricValues ?? [];
+          const metrics: Record<string, number> = {};
+          CORE.forEach((name, i) => (metrics[name] = Number(cv[i]?.value ?? 0)));
+
+          // Conversions + revenue are optional (metric names vary by property / GA4 version).
+          try {
+            const opt = await callGa4({
+              dateRanges,
+              metrics: [{ name: "conversions" }, { name: "totalRevenue" }],
+            });
+            const ov = opt.rows?.[0]?.metricValues ?? [];
+            metrics.conversions = Number(ov[0]?.value ?? 0);
+            metrics.totalRevenue = Number(ov[1]?.value ?? 0);
+          } catch {
+            metrics.conversions = 0;
+            metrics.totalRevenue = 0;
+          }
+
+          // Daily trend for charts (optional).
+          let series: Array<Record<string, number | string>> = [];
+          try {
+            const tr = await callGa4({
+              dateRanges,
+              dimensions: [{ name: "date" }],
+              metrics: [{ name: "sessions" }, { name: "totalUsers" }, { name: "screenPageViews" }],
+              orderBys: [{ dimension: { dimensionName: "date" } }],
+            });
+            series = (tr.rows ?? []).map((r) => ({
+              date: r.dimensionValues?.[0]?.value ?? "",
+              sessions: Number(r.metricValues?.[0]?.value ?? 0),
+              totalUsers: Number(r.metricValues?.[1]?.value ?? 0),
+              pageViews: Number(r.metricValues?.[2]?.value ?? 0),
+            }));
+          } catch {
+            /* trend optional */
+          }
+
+          const result = { days: parsed.data.days, metrics, series };
           try {
             await supabaseAdmin.from("audit_runs").insert({
               client_id: client.id,

@@ -79,14 +79,26 @@ export function ahrefsKpisFromResult(result: any): {
 export function ga4KpisFromResult(result: any): {
   sessions: number;
   totalUsers: number;
+  newUsers: number;
   engagedSessions: number;
   screenPageViews: number;
+  bounceRate: number;
+  averageSessionDuration: number;
+  conversions: number;
+  totalRevenue: number;
+  series: Array<{ date: string; sessions: number; totalUsers: number; pageViews: number }>;
 } {
   const m = result?.metrics || {};
   return {
     sessions: Number(m.sessions ?? 0) || 0,
     totalUsers: Number(m.totalUsers ?? 0) || 0,
+    newUsers: Number(m.newUsers ?? 0) || 0,
     engagedSessions: Number(m.engagedSessions ?? 0) || 0,
     screenPageViews: Number(m.screenPageViews ?? 0) || 0,
+    bounceRate: Number(m.bounceRate ?? 0) || 0,
+    averageSessionDuration: Number(m.averageSessionDuration ?? 0) || 0,
+    conversions: Number(m.conversions ?? 0) || 0,
+    totalRevenue: Number(m.totalRevenue ?? 0) || 0,
+    series: Array.isArray(result?.series) ? result.series : [],
   };
 }
