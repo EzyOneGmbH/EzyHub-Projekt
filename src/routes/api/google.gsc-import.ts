@@ -153,11 +153,48 @@ export const Route = createFileRoute("/api/google/gsc-import")({
               canonryStatus = { ok: false, error: redactSecrets(e) };
             }
           }
+          // Persist a GSC summary so the SEO dashboard can read totals + top queries.
+          const totals = keywords.reduce(
+            (a, k) => {
+              a.clicks += k.clicks || 0;
+              a.impressions += k.impressions || 0;
+              a.posSum += (k.position || 0) * (k.impressions || 0);
+              return a;
+            },
+            { clicks: 0, impressions: 0, posSum: 0 },
+          );
+          const gscSummary = {
+            days: parsed.data.days,
+            metrics: {
+              clicks: totals.clicks,
+              impressions: totals.impressions,
+              ctr: totals.impressions > 0 ? totals.clicks / totals.impressions : 0,
+              position: totals.impressions > 0 ? totals.posSum / totals.impressions : 0,
+            },
+            topQueries: keywords.slice(0, 25),
+          };
+          try {
+            await supabaseAdmin.from("audit_runs").insert({
+              client_id: client.id,
+              organization_id: client.organization_id,
+              triggered_by: user.id,
+              audit_type: "gsc_summary",
+              status: "succeeded",
+              input: { days: parsed.data.days },
+              result: gscSummary as never,
+              started_at: new Date().toISOString(),
+              finished_at: new Date().toISOString(),
+            });
+          } catch {
+            /* non-fatal */
+          }
+
           return Response.json({
             ok: true,
             imported: keywords.length,
             sample: keywords.slice(0, 10),
             canonry: canonryStatus,
+            gsc: gscSummary.metrics,
           });
         } catch (e) {
           return Response.json({ ok: false, error: redactSecrets(e) });

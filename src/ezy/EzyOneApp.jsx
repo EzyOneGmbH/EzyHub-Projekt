@@ -101,6 +101,7 @@ import {
   useEzyLatestRun,
   ahrefsKpisFromResult,
   ga4KpisFromResult,
+  gscKpisFromResult,
 } from "@/ezy/data/useEzyLatestRun";
 import GoogleClientPanel from "@/ezy/GoogleClientPanel.jsx";
 import { supabase } from "@/integrations/supabase/client";
@@ -2097,11 +2098,14 @@ function SeoDashboard({ selectedClient }) {
       };
     })
     .reverse();
+  const { run: gscRun } = useEzyLatestRun(selectedClient?.id, "gsc_summary");
+  const gsc = gscRun ? gscKpisFromResult(gscRun.result) : null;
   const traffic = Number(live?.traffic ?? selectedClient?.traffic ?? 0);
   const keywords = Number(live?.keywords ?? selectedClient?.keywords ?? 0);
   const score = Number(live?.score ?? selectedClient?.score ?? 0);
   const visibility = Number(live?.visibility ?? selectedClient?.visibility ?? 0);
-  const hasAnyKpi = traffic + keywords + score + visibility > 0;
+  const hasGsc = Boolean(gsc && (gsc.clicks > 0 || gsc.impressions > 0));
+  const hasAnyKpi = traffic + keywords + score + visibility > 0 || hasGsc;
   if (!hasAnyKpi) {
     return (
       <LiveEmptyState
@@ -2144,6 +2148,84 @@ function SeoDashboard({ selectedClient }) {
           color={C.orange}
         />
       </div>
+      {hasGsc && (
+        <>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
+              gap: 14,
+            }}
+          >
+            <KpiCard
+              icon={Activity}
+              label="GSC Klicks"
+              value={gsc.clicks > 0 ? gsc.clicks : "—"}
+              color={C.accent}
+            />
+            <KpiCard
+              icon={Eye}
+              label="GSC Impressionen"
+              value={gsc.impressions > 0 ? gsc.impressions : "—"}
+              color={C.blue}
+            />
+            <KpiCard
+              icon={TrendingUp}
+              label="GSC CTR"
+              value={gsc.ctr > 0 ? `${(gsc.ctr * 100).toFixed(1)}%` : "—"}
+              color={C.green}
+            />
+            <KpiCard
+              icon={Target}
+              label="Ø Position"
+              value={gsc.position > 0 ? gsc.position.toFixed(1) : "—"}
+              color={C.orange}
+            />
+          </div>
+          {gsc.topQueries.length > 0 && (
+            <div
+              style={{
+                background: C.card,
+                border: `1px solid ${C.border}`,
+                borderRadius: 14,
+                padding: 16,
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}>
+                Top-Suchbegriffe (Search Console)
+              </div>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ color: C.textDim, textAlign: "left" }}>
+                      <th style={{ padding: "6px 8px" }}>Query</th>
+                      <th style={{ padding: "6px 8px", textAlign: "right" }}>Klicks</th>
+                      <th style={{ padding: "6px 8px", textAlign: "right" }}>Impr.</th>
+                      <th style={{ padding: "6px 8px", textAlign: "right" }}>CTR</th>
+                      <th style={{ padding: "6px 8px", textAlign: "right" }}>Pos.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gsc.topQueries.slice(0, 15).map((q, i) => (
+                      <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
+                        <td style={{ padding: "6px 8px", color: C.text }}>{q.query}</td>
+                        <td style={{ padding: "6px 8px", textAlign: "right" }}>{q.clicks}</td>
+                        <td style={{ padding: "6px 8px", textAlign: "right" }}>{q.impressions}</td>
+                        <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                          {(q.ctr * 100).toFixed(1)}%
+                        </td>
+                        <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                          {q.position?.toFixed(1)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
       {trend.length >= 2 ? (
         <div
           style={{

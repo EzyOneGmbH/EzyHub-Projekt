@@ -102,3 +102,27 @@ export function ga4KpisFromResult(result: any): {
     series: Array.isArray(result?.series) ? result.series : [],
   };
 }
+
+/** Extract Search Console KPIs from a gsc_summary audit_runs.result. */
+export function gscKpisFromResult(result: any): {
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+  topQueries: Array<{
+    query: string;
+    clicks: number;
+    impressions: number;
+    ctr: number;
+    position: number;
+  }>;
+} {
+  const m = result?.metrics || {};
+  return {
+    clicks: Number(m.clicks ?? 0) || 0,
+    impressions: Number(m.impressions ?? 0) || 0,
+    ctr: Number(m.ctr ?? 0) || 0,
+    position: Number(m.position ?? 0) || 0,
+    topQueries: Array.isArray(result?.topQueries) ? result.topQueries : [],
+  };
+}
