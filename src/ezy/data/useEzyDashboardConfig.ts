@@ -15,7 +15,10 @@ export type DashboardMetricKey =
   | "conv.custom"
   | "conv.ga4"
   | "conv.revenue"
-  | "conv.trend";
+  | "conv.trend"
+  | "geo.kpis"
+  | "geo.trend"
+  | "geo.evidence";
 
 export function useEzyDashboardConfig() {
   const { organizationId, loading: authLoading } = useAuth();

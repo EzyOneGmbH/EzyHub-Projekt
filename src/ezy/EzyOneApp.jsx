@@ -2344,6 +2344,7 @@ function SeoDashboard({ selectedClient }) {
 }
 function GeoDashboard({ selectedClient }) {
   const providerKeys = ["ChatGPT", "Perplexity", "Gemini", "Claude"];
+  const { isOn } = useEzyDashboardConfig();
   const live = useLiveIntegrations();
   const overview = useCanonryOverview(selectedClient);
   const liveCanonry = live.data?.canonry;
@@ -2551,6 +2552,7 @@ function GeoDashboard({ selectedClient }) {
               </div>
             )}
           </div>
+          {isOn("geo.kpis") && (
           <div
             style={{
               display: "grid",
@@ -2589,7 +2591,8 @@ function GeoDashboard({ selectedClient }) {
               color={C.orange}
             />
           </div>
-          {canonry.providerSeries?.length > 0 && (
+          )}
+          {isOn("geo.trend") && canonry.providerSeries?.length > 0 && (
             <ChartCard title="Citation Trend by Provider" action="Live">
               <ResponsiveContainer width="100%" height={250}>
                 <AreaChart data={canonry.providerSeries}>
@@ -2629,7 +2632,7 @@ function GeoDashboard({ selectedClient }) {
               </ResponsiveContainer>
             </ChartCard>
           )}
-          {canonry.evidence?.length > 0 && (
+          {isOn("geo.evidence") && canonry.evidence?.length > 0 && (
             <ChartCard title="Latest Evidence" minH={220}>
               <DTable
                 columns={[
@@ -4863,6 +4866,14 @@ function SettingsPage({
                   ["conv.ga4", "GA4-KPIs (Sessions, Users, Conversions, Revenue, …)"],
                   ["conv.revenue", "Revenue-Banner"],
                   ["conv.trend", "GA4-Traffic-Trend"],
+                ],
+              ],
+              [
+                "GEO",
+                [
+                  ["geo.kpis", "AI-KPIs (Coverage, Referrals, Citations, Health)"],
+                  ["geo.trend", "Citation-Trend je Provider"],
+                  ["geo.evidence", "Latest Evidence"],
                 ],
               ],
             ].map(([group, items]) => (
