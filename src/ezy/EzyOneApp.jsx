@@ -3843,9 +3843,14 @@ function OnboardingCard({ client, onUpdated }) {
           </div>
         ))}
       </div>
-      <div style={{ fontSize: 11, color: C.textDim, marginTop: 12, lineHeight: 1.5 }}>
-        Google (Search Console + GA4) verbindest du im Google-Panel (Einstellungen → Kunde). Semrush
-        ist aktuell nicht verfügbar (API-Units fehlen).
+      <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 8 }}>
+          Google: Search Console &amp; GA4 verbinden
+        </div>
+        <GoogleClientPanel client={client} onSaved={onUpdated} />
+      </div>
+      <div style={{ fontSize: 11, color: C.textDim, marginTop: 10 }}>
+        Semrush ist aktuell nicht verfügbar (API-Units fehlen).
       </div>
     </div>
   );
