@@ -2083,6 +2083,20 @@ function LiveEmptyState({ title, hint }) {
 function SeoDashboard({ selectedClient }) {
   const { run } = useEzyLatestRun(selectedClient?.id, "ahrefs");
   const live = run ? ahrefsKpisFromResult(run.result) : null;
+  const { runs } = useEzyAuditHistory(selectedClient?.id);
+  const trend = (runs || [])
+    .filter((r) => r.audit_type === "ahrefs" && r.status === "succeeded")
+    .map((r) => {
+      const k = ahrefsKpisFromResult(r.result);
+      const d = new Date(r.started_at || r.created_at);
+      return {
+        date: `${d.getDate()}.${d.getMonth() + 1}.`,
+        Traffic: k.traffic,
+        Visibility: k.visibility,
+        Keywords: k.keywords,
+      };
+    })
+    .reverse();
   const traffic = Number(live?.traffic ?? selectedClient?.traffic ?? 0);
   const keywords = Number(live?.keywords ?? selectedClient?.keywords ?? 0);
   const score = Number(live?.score ?? selectedClient?.score ?? 0);
@@ -2130,10 +2144,56 @@ function SeoDashboard({ selectedClient }) {
           color={C.orange}
         />
       </div>
-      <LiveEmptyState
-        title="Charts & Tabellen folgen mit Live-Provider-Daten"
-        hint="Sobald GSC-Import und Ahrefs-Audit-Läufe Zeitreihen, Top-Keywords und Top-Pages liefern, erscheinen hier die Detail-Charts."
-      />
+      {trend.length >= 2 ? (
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 14,
+            padding: 16,
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}>
+            Entwicklung (letzte {trend.length} Läufe)
+          </div>
+          <ResponsiveContainer width="100%" height={260}>
+            <LineChart data={trend}>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+              <XAxis dataKey="date" stroke={C.textDim} fontSize={11} />
+              <YAxis stroke={C.textDim} fontSize={11} />
+              <Tooltip
+                contentStyle={{
+                  background: C.surface,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 8,
+                  color: C.textMuted,
+                }}
+              />
+              <Legend />
+              <Line type="monotone" dataKey="Traffic" stroke={C.accent} strokeWidth={2} dot={false} />
+              <Line
+                type="monotone"
+                dataKey="Visibility"
+                stroke={C.blue}
+                strokeWidth={2}
+                dot={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="Keywords"
+                stroke={C.orange}
+                strokeWidth={2}
+                dot={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <LiveEmptyState
+          title="Charts & Tabellen folgen mit Live-Provider-Daten"
+          hint="Sobald GSC-Import und Ahrefs-Audit-Läufe Zeitreihen, Top-Keywords und Top-Pages liefern, erscheinen hier die Detail-Charts."
+        />
+      )}
     </div>
   );
 }
