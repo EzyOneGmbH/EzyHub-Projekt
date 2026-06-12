@@ -111,8 +111,16 @@ Speicherung in `organizations.dashboard_config` (JSONB). Nur Admins.
 
 ### Dienste / Autostart
 - **cloudflared**: Windows-Dienst `Cloudflared` (Autostart). Config: `~/.cloudflared/config.yml`.
-- **Canonry**: Autostart-Task `EzyOne-Canonry` (beim Login) → `canonry serve` (Port 4100).
-- **Agent-Service**: Autostart-Task `EzyOne-AgentService` (beim Login) → `node --env-file=.env server.mjs` (Port 8787).
+- **Canonry**: Autostart-Task `EzyOne-Canonry` (beim Login) → `start-canonry.cmd` (Port 4100).
+- **Agent-Service**: Autostart-Task `EzyOne-AgentService` (beim Login) → `start-agent.cmd` (Port 8787).
+- **Auto-Restart:** `start-agent.cmd` / `start-canonry.cmd` laufen als **Endlos-Schleife** —
+  stürzt der Dienst ab, startet ihn das Skript nach 5 s automatisch neu (Log:
+  `~/agent-service/agent-restart.log` bzw. `canonry-restart.log`).
+- **Watchdog:** Task `EzyOne-Watchdog` (alle 5 min) → `watchdog.cmd` prüft die Health beider
+  Dienste und stösst bei Ausfall den jeweiligen Autostart-Task neu an (fängt den Fall ab, dass
+  die Schleife selbst stirbt, z. B. nach Sleep). Log: `~/agent-service/watchdog.log`.
+  > Hinweis: `ONLOGON`-Tasks allein starten einen abgestürzten Dienst NICHT neu — dafür sorgen
+  > erst Schleife + Watchdog.
 
 ### Status prüfen / neu starten (PowerShell / Terminal)
 ```
