@@ -26,7 +26,7 @@ Cloud PC (Windows 365)  ── trägt die drei Backend-Teile:
 
 - **Frontend + /api-Routen:** Lovable-managed Deployment auf der Domain **ezyhub.ch**
   (`ezy-one-magic.lovable.app` leitet dorthin um). Deploy erfolgt über GitHub-Sync
-  (Repo `EzyOneGmbH/ezy-one-tool-980a32b9`, Branch `main`) → Änderungen gehen erst nach
+  (Repo `EzyOneGmbH/EzyHub-Projekt`, Branch `main`) → Änderungen gehen erst nach
   einem **Redeploy** live (Sync-Lag möglich; am wechselnden JS-Bundle-Hash erkennbar).
 - **Agent-Service:** führt echte Plugin-Skills (claude-seo / claude-blog / claude-obsidian)
   serverseitig aus. Async-Jobs (`POST /run-skill {async:true}` → `GET /jobs?id=`), damit
