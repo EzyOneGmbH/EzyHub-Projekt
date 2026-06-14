@@ -2003,8 +2003,15 @@ function PBadge({ pos, prev }) {
 }
 function DTable({ columns, data }) {
   return (
-    <div style={{ overflowX: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+    <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+      <table
+        style={{
+          width: "100%",
+          minWidth: columns.length >= 4 ? 560 : undefined,
+          borderCollapse: "collapse",
+          fontSize: 13,
+        }}
+      >
         <thead>
           <tr>
             {columns.map((c, i) => (
@@ -2224,8 +2231,8 @@ function SeoDashboard({ selectedClient }) {
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}>
                 Top-Suchbegriffe (Search Console)
               </div>
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                <table style={{ width: "100%", minWidth: 480, borderCollapse: "collapse", fontSize: 13 }}>
                   <thead>
                     <tr style={{ color: C.textDim, textAlign: "left" }}>
                       <th style={{ padding: "6px 8px" }}>Query</th>
