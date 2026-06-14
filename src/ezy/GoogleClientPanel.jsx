@@ -23,6 +23,8 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
   const [ga4, setGa4] = useState(client?.ga4PropertyId || "");
   const [msg, setMsg] = useState("");
   const [canRun, setCanRun] = useState(false);
+  const [gscOpts, setGscOpts] = useState([]);
+  const [ga4Opts, setGa4Opts] = useState([]);
 
   useEffect(() => {
     setGsc(client?.gscSiteUrl || "");
@@ -108,6 +110,34 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
       onSaved?.();
     } catch (e) {
       setMsg(e?.message || String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // Load the properties the connected account can access -> dropdowns.
+  const loadAvailable = async () => {
+    setBusy("load");
+    setMsg("");
+    try {
+      const [gr, ar] = await Promise.all([
+        authedFetch("/api/google/gsc-sites", { method: "POST", body: JSON.stringify({ clientId }) }),
+        authedFetch("/api/google/ga4-properties", { method: "POST", body: JSON.stringify({ clientId }) }),
+      ]);
+      const gj = await gr.json().catch(() => ({}));
+      const aj = await ar.json().catch(() => ({}));
+      const errs = [];
+      if (gj.ok) setGscOpts(gj.sites || []);
+      else errs.push(`GSC: ${gj.error || "Fehler"}`);
+      if (aj.ok) setGa4Opts(aj.properties || []);
+      else errs.push(`GA4: ${aj.error || "Fehler"}`);
+      setMsg(
+        errs.length
+          ? errs.join(" · ")
+          : `${(gj.sites || []).length} GSC- · ${(aj.properties || []).length} GA4-Properties geladen — bitte auswählen und speichern.`,
+      );
+    } catch (e) {
+      setMsg(String(e?.message || e));
     } finally {
       setBusy(null);
     }
@@ -264,6 +294,20 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
         <div>
           <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>GSC Property</div>
+          {gscOpts.length > 0 && (
+            <select
+              value={gscOpts.some((s) => s.url === gsc) ? gsc : ""}
+              onChange={(e) => setGsc(e.target.value)}
+              style={{ ...inputStyle, marginBottom: 6 }}
+            >
+              <option value="">— aus {gscOpts.length} auswählen —</option>
+              {gscOpts.map((s) => (
+                <option key={s.url} value={s.url}>
+                  {s.url}
+                </option>
+              ))}
+            </select>
+          )}
           <input
             value={gsc}
             onChange={(e) => setGsc(e.target.value)}
@@ -273,6 +317,20 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
         </div>
         <div>
           <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>GA4 Property ID</div>
+          {ga4Opts.length > 0 && (
+            <select
+              value={ga4Opts.some((p) => p.id === ga4) ? ga4 : ""}
+              onChange={(e) => setGa4(e.target.value)}
+              style={{ ...inputStyle, marginBottom: 6 }}
+            >
+              <option value="">— aus {ga4Opts.length} auswählen —</option>
+              {ga4Opts.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.displayName} ({p.id}){p.account ? ` · ${p.account}` : ""}
+                </option>
+              ))}
+            </select>
+          )}
           <input
             value={ga4}
             onChange={(e) => setGa4(e.target.value)}
@@ -287,6 +345,9 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
         </button>
         {status?.connected ? (
           <>
+            <button onClick={loadAvailable} disabled={!!busy} style={btn({}, !!busy)}>
+              {busy === "load" ? "…" : "Verfügbare Properties laden"}
+            </button>
             <button
               onClick={importGsc}
               disabled={!!busy || !canRun}
