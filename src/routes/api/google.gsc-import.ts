@@ -43,6 +43,39 @@ async function requireMember(userId: string, clientId: string, requireAdmin = fa
   return { client };
 }
 
+const API_DISABLED = /has not been used|is disabled|accessNotConfigured|SERVICE_DISABLED/i;
+
+// Turn an opaque GSC 403 into an actionable message: distinguishes
+// "API not enabled" vs "wrong property string" vs "no permission for site".
+async function diagnoseGsc403(
+  accessToken: string,
+  configured: string,
+  originalText: string,
+): Promise<string> {
+  if (API_DISABLED.test(originalText))
+    return "Search Console API ist im Google-Cloud-Projekt nicht aktiviert. In der Google Cloud Console unter 'APIs & Services → Library' die 'Google Search Console API' aktivieren, ~1 Min warten und erneut importieren.";
+  try {
+    const r = await fetch("https://www.googleapis.com/webmasters/v3/sites", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!r.ok) {
+      const tt = await r.text().catch(() => "");
+      if (API_DISABLED.test(tt))
+        return "Search Console API ist nicht aktiviert ('APIs & Services → Library' → 'Google Search Console API' aktivieren).";
+      return redactSecrets(`GSC HTTP 403 (sites.list ${r.status}): ${tt}`);
+    }
+    const j = (await r.json()) as { siteEntry?: Array<{ siteUrl: string }> };
+    const sites = (j.siteEntry ?? []).map((s) => s.siteUrl);
+    if (!sites.length)
+      return "Das verbundene Google-Konto hat keine Search-Console-Properties. Bitte mit dem Konto verbinden, das in der Search Console als Eigentümer/Nutzer verifiziert ist.";
+    if (!sites.includes(configured))
+      return `Property '${configured}' ist für dieses Konto nicht zugänglich. Verfügbare Properties (eine davon EXAKT eintragen): ${sites.join(" · ")}`;
+    return `Property '${configured}' existiert, aber der Zugriff wurde verweigert — Berechtigung in der Search Console prüfen.`;
+  } catch {
+    return redactSecrets(`GSC HTTP 403: ${originalText}`);
+  }
+}
+
 export const Route = createFileRoute("/api/google/gsc-import")({
   server: {
     handlers: {
@@ -90,10 +123,11 @@ export const Route = createFileRoute("/api/google/gsc-import")({
           });
           if (!res.ok) {
             const t = await res.text().catch(() => "");
-            return Response.json({
-              ok: false,
-              error: redactSecrets(`GSC HTTP ${res.status}: ${t}`),
-            });
+            const error =
+              res.status === 403
+                ? await diagnoseGsc403(accessToken, client.gsc_property, t)
+                : redactSecrets(`GSC HTTP ${res.status}: ${t}`);
+            return Response.json({ ok: false, error });
           }
           const json = (await res.json()) as {
             rows?: Array<{
