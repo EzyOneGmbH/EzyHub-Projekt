@@ -168,6 +168,20 @@ export function useEzyClients() {
         if (error) throw error;
         const mapped = rowToClient(data);
         await seedDefaultIntegrations(organizationId, mapped.id);
+        // Auto-provision a Canonry (GEO) project for every new client (best-effort).
+        try {
+          const session = (await supabase.auth.getSession()).data.session;
+          await fetch("/api/canonry/create-project", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session?.access_token ?? ""}`,
+            },
+            body: JSON.stringify({ clientId: mapped.id }),
+          });
+        } catch {
+          /* non-fatal — GEO can be provisioned later via the admin endpoint */
+        }
         setClients((p) => [mapped, ...p]);
         return mapped;
       } else {

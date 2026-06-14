@@ -3,6 +3,17 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
 import { redactSecrets } from "@/server/google-oauth.server";
+import { normalizeCanonryBase } from "@/lib/canonry-url";
+
+function slugify(s: string): string {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+}
 
 // Machine-triggerable data population (no user session). Protected by a shared
 // secret (ADMIN_AUTOMATION_SECRET) — inert until that env var is set. Runs only
@@ -12,8 +23,10 @@ import { redactSecrets } from "@/server/google-oauth.server";
 const Body = z.object({
   client: z.string().optional(), // client name (ilike) or uuid
   all: z.boolean().optional(), // populate every client
-  jobs: z.array(z.enum(["ahrefs", "pagespeed", "gsc", "ga4"])).optional(),
+  jobs: z.array(z.enum(["ahrefs", "pagespeed", "gsc", "ga4", "geo"])).optional(),
   days: z.number().int().min(1).max(90).default(28),
+  runGeo: z.boolean().optional(), // geo job: also trigger a Canonry sweep (costs)
+  geoSlug: z.string().optional(), // geo job: force a specific Canonry project slug
 });
 
 const isUuid = (s: string) =>
@@ -187,6 +200,61 @@ async function jobGa4(c: any, uid: string, days: number) {
   return { sessions: metrics.sessions };
 }
 
+// GEO: ensure a Canonry project + set client.canonry_project (+ optional sweep).
+async function jobGeo(c: any, opts: { runGeo?: boolean; geoSlug?: string }) {
+  const base = process.env.CANONRY_BASE_URL;
+  const key = process.env.CANONRY_API_KEY;
+  if (!base || !key) return { skipped: "Canonry not configured" };
+  const slug = opts.geoSlug || c.canonry_project || slugify(c.name || c.domain || "");
+  if (!slug) return { skipped: "kein Slug" };
+  const root = normalizeCanonryBase(base);
+  const H = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
+  const proj = `${root}/projects/${encodeURIComponent(slug)}`;
+  // 1. create (idempotent)
+  await fetch(proj, {
+    method: "PUT",
+    headers: H,
+    body: JSON.stringify({
+      displayName: c.name || slug,
+      canonicalDomain: String(c.domain || `${slug}.example`).replace(/^https?:\/\//, ""),
+      country: String(c.country || "CH").toUpperCase().slice(0, 2),
+      language: c.language || "de",
+    }),
+  }).catch(() => {});
+  // 2. persist slug on the client
+  await supabaseAdmin.from("clients").update({ canonry_project: slug }).eq("id", c.id);
+  // 3. ensure queries exist (generate if none)
+  let queries = 0;
+  try {
+    const qr = await fetch(`${proj}/queries`, { headers: H });
+    const qj: any = await qr.json().catch(() => []);
+    queries = Array.isArray(qj) ? qj.length : qj?.queries?.length || 0;
+  } catch {}
+  if (queries === 0) {
+    try {
+      const g = await fetch(`${proj}/queries/generate`, { method: "POST", headers: H, body: JSON.stringify({ provider: "perplexity", count: 8 }) });
+      const gj: any = await g.json().catch(() => ({}));
+      const qs: string[] = gj?.queries || [];
+      if (qs.length) {
+        await fetch(`${proj}/queries`, { method: "POST", headers: H, body: JSON.stringify({ queries: qs }) });
+        queries = qs.length;
+      }
+    } catch {}
+  }
+  // 4. optional sweep (costs)
+  let run: string | null = null;
+  if (opts.runGeo) {
+    try {
+      const rr = await fetch(`${proj}/runs`, { method: "POST", headers: H, body: JSON.stringify({ trigger: "manual", providers: ["perplexity", "openai"], noLocation: true }) });
+      const rj: any = await rr.json().catch(() => ({}));
+      run = rj?.id || rj?.status || (rr.ok ? "queued" : `HTTP ${rr.status}`);
+    } catch (e) {
+      run = redactSecrets(e);
+    }
+  }
+  return { slug, queries, run };
+}
+
 export const Route = createFileRoute("/api/admin/populate")({
   server: {
     handlers: {
@@ -198,12 +266,12 @@ export const Route = createFileRoute("/api/admin/populate")({
 
         const parsed = Body.safeParse(await request.json().catch(() => ({})));
         if (!parsed.success) return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
-        const { client: sel, all, jobs, days } = parsed.data;
+        const { client: sel, all, jobs, days, runGeo, geoSlug } = parsed.data;
         const wanted = jobs && jobs.length ? jobs : (["ahrefs", "pagespeed", "gsc", "ga4"] as const);
 
         let query = supabaseAdmin
           .from("clients")
-          .select("id, name, domain, organization_id, gsc_property, ga4_property");
+          .select("id, name, domain, organization_id, gsc_property, ga4_property, country, language, canonry_project");
         let clients: any[] = [];
         if (all) clients = (await query).data || [];
         else if (sel && isUuid(sel)) clients = (await query.eq("id", sel)).data || [];
@@ -225,6 +293,7 @@ export const Route = createFileRoute("/api/admin/populate")({
               else if (j === "pagespeed") jr.pagespeed = await jobPagespeed(c, uid, days);
               else if (j === "gsc") jr.gsc = await jobGsc(c, uid, days);
               else if (j === "ga4") jr.ga4 = await jobGa4(c, uid, days);
+              else if (j === "geo") jr.geo = await jobGeo(c, { runGeo, geoSlug });
             } catch (e) {
               jr[j] = { error: redactSecrets(e) };
             }
