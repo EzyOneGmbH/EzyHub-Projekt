@@ -115,6 +115,38 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
     }
   };
 
+  // One click: run every data job for this client so all dashboards fill.
+  // Uses the app's authenticated, service-keyed routes — no external key needed.
+  const runAll = async () => {
+    if (!canRun) {
+      setMsg("Keine Berechtigung für Audit-Läufe (viewer/read-only).");
+      return;
+    }
+    setBusy("all");
+    const jobs = [
+      ["Ahrefs", "/api/ahrefs/overview", { clientId }],
+      ["Core Web Vitals", "/api/google/pagespeed", { clientId }],
+      ["GSC", "/api/google/gsc-import", { clientId, days: 28, rowLimit: 50 }],
+      ["GA4", "/api/google/ga4-summary", { clientId, days: 28 }],
+    ];
+    const out = [];
+    for (const [label, url, body] of jobs) {
+      out.push(`⏳ ${label}…`);
+      setMsg(out.join("\n"));
+      try {
+        const r = await authedFetch(url, { method: "POST", body: JSON.stringify(body) });
+        const j = await r.json().catch(() => ({}));
+        const ok = j.ok === true || (r.ok && j.error == null);
+        out[out.length - 1] = `${ok ? "✅" : "⚠️"} ${label}${j.error ? ": " + String(j.error).slice(0, 70) : ""}`;
+      } catch (e) {
+        out[out.length - 1] = `❌ ${label}: ${String(e?.message || e).slice(0, 70)}`;
+      }
+      setMsg(out.join("\n"));
+    }
+    onSaved?.();
+    setBusy(null);
+  };
+
   // Load the properties the connected account can access -> dropdowns.
   const loadAvailable = async () => {
     setBusy("load");
@@ -343,6 +375,16 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
         <button onClick={saveProps} disabled={!!busy} style={btn({}, !!busy)}>
           {busy === "save" ? "…" : "Properties speichern"}
         </button>
+        {canRun && (
+          <button
+            onClick={runAll}
+            disabled={!!busy}
+            title="Ahrefs · Core Web Vitals · GSC · GA4 in einem Lauf"
+            style={btn({ background: "#059669", borderColor: "#059669", fontWeight: 700 }, !!busy)}
+          >
+            {busy === "all" ? "läuft…" : "⟳ Alle Daten aktualisieren"}
+          </button>
+        )}
         {status?.connected ? (
           <>
             <button onClick={loadAvailable} disabled={!!busy} style={btn({}, !!busy)}>
@@ -387,7 +429,9 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
           Read-only Rolle: GSC Import und GA4 Summary sind deaktiviert.
         </div>
       )}
-      {msg && <div style={{ marginTop: 10, fontSize: 12, color: "#cbd5e1" }}>{msg}</div>}
+      {msg && (
+        <div style={{ marginTop: 10, fontSize: 12, color: "#cbd5e1", whiteSpace: "pre-wrap" }}>{msg}</div>
+      )}
     </div>
   );
 }
