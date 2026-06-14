@@ -134,19 +134,21 @@ export const Route = createFileRoute("/api/ahrefs/overview")({
         const domain = client.domain;
         const organizationId = client.organization_id;
 
-        const today = new Date().toISOString().slice(0, 10);
+        // Ahrefs has no data for "today" (rejects it as "bad date") -> use yesterday.
+        // mode "subdomains" so a bare domain also captures its www/host data.
+        const date = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
 
         // Parallel fetch core metrics. Each handles its own errors.
         const [domainRating, backlinksStats, refdomains, metrics] = await Promise.all([
           ahrefsFetch<unknown>(
             "site-explorer/domain-rating",
-            { target: domain, date: today },
+            { target: domain, date },
             apiKey,
             secrets,
           ),
           ahrefsFetch<unknown>(
             "site-explorer/backlinks-stats",
-            { target: domain, date: today, mode: "domain" },
+            { target: domain, date, mode: "subdomains" },
             apiKey,
             secrets,
           ),
@@ -156,14 +158,14 @@ export const Route = createFileRoute("/api/ahrefs/overview")({
               target: domain,
               date_from: new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10),
               history_grouping: "weekly",
-              mode: "domain",
+              mode: "subdomains",
             },
             apiKey,
             secrets,
           ),
           ahrefsFetch<unknown>(
             "site-explorer/metrics",
-            { target: domain, date: today, mode: "domain" },
+            { target: domain, date, mode: "subdomains" },
             apiKey,
             secrets,
           ),

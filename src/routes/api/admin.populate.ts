@@ -88,13 +88,15 @@ async function jobAhrefs(c: any, uid: string) {
   if (!key) return { skipped: "AHREFS_API_KEY fehlt" };
   const domain = String(c.domain || "").replace(/^https?:\/\//, "");
   if (!domain) return { skipped: "keine Domain" };
-  const today = new Date().toISOString().slice(0, 10);
+  // Ahrefs has no data for "today" (rejects it as "bad date") -> use yesterday.
+  // mode "subdomains" so a bare domain also captures its www/host data.
+  const date = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
   const from = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
   const [dr, bl, rd, mt] = await Promise.all([
-    ahrefsCall("site-explorer/domain-rating", { target: domain, date: today }, key),
-    ahrefsCall("site-explorer/backlinks-stats", { target: domain, date: today, mode: "domain" }, key),
-    ahrefsCall("site-explorer/refdomains-history", { target: domain, date_from: from, history_grouping: "weekly", mode: "domain" }, key),
-    ahrefsCall("site-explorer/metrics", { target: domain, date: today, mode: "domain" }, key),
+    ahrefsCall("site-explorer/domain-rating", { target: domain, date }, key),
+    ahrefsCall("site-explorer/backlinks-stats", { target: domain, date, mode: "subdomains" }, key),
+    ahrefsCall("site-explorer/refdomains-history", { target: domain, date_from: from, history_grouping: "weekly", mode: "subdomains" }, key),
+    ahrefsCall("site-explorer/metrics", { target: domain, date, mode: "subdomains" }, key),
   ]);
   const result = {
     generated_at: nowIso(), domain,
