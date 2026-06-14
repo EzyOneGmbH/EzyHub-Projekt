@@ -45,6 +45,16 @@ export async function getGoogleAccessToken(clientId: string): Promise<{
       email: conn.account_email,
     };
   } catch (e) {
-    throw new Error(redactSecrets(e));
+    const msg = redactSecrets(e);
+    // invalid_grant = the refresh token is dead (revoked, password change, or the
+    // 7-day expiry that applies while the OAuth consent screen is in "Testing").
+    if (/invalid_grant/i.test(msg)) {
+      throw new Error(
+        "Google-Verbindung abgelaufen oder widerrufen — bitte Google für diesen Kunden NEU verbinden " +
+          "(Onboarding → Google → Verbinden). Damit es nicht alle 7 Tage erneut passiert: OAuth-Consent-Screen " +
+          "in der Google Cloud Console auf 'In Produktion' veröffentlichen.",
+      );
+    }
+    throw new Error(msg);
   }
 }
