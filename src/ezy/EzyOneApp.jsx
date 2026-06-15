@@ -2359,18 +2359,19 @@ function GeoDashboard({ selectedClient }) {
   const verifiedProviders = Object.entries(live.data?.providers || {})
     .filter(([, v]) => v?.verified)
     .map(([k]) => canonryProviderLabel(k));
-  const canonryServiceReady = Boolean(
-    liveCanonry?.configured && liveCanonry?.reachable && liveCanonry?.authenticated,
-  );
-  const projectLiveReady = Boolean(canonryServiceReady && overview.data?.project);
+  // The /api/live/status canonry probe returns { configured, ok } (not
+  // reachable/authenticated) — using the real `ok` field. And a successful
+  // project overview IS the definitive proof that Canonry is reachable +
+  // authenticated + the project exists, so GEO renders whenever it returns one.
+  const canonryServiceReady = Boolean(liveCanonry?.configured && liveCanonry?.ok);
+  const projectLiveReady = Boolean(overview.data?.project);
   const canonry = useMemo(
     () => (projectLiveReady ? buildCanonryLiveModel(selectedClient, overview.data) : null),
     [selectedClient, overview.data, projectLiveReady],
   );
   const missingBits = [...(liveCanonry?.missing || [])];
-  if (liveCanonry?.configured && !liveCanonry?.reachable) missingBits.push("Canonry Service");
-  if (liveCanonry?.configured && liveCanonry?.reachable && !liveCanonry?.authenticated)
-    missingBits.push("Canonry Auth");
+  if (liveCanonry?.configured && !liveCanonry?.ok && !projectLiveReady)
+    missingBits.push("Canonry Service");
   if (canonryServiceReady && !projectLiveReady) missingBits.push("Projekt-Overview");
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
