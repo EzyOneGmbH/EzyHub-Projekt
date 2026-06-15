@@ -5446,7 +5446,8 @@ function SkillPicker({ selected, onChange }) {
   );
 }
 
-function AgentsPage() {
+function AgentsPage({ selectedClient }) {
+  const clientId = selectedClient?.id || "global";
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
@@ -5462,7 +5463,7 @@ function AgentsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await ezyFetch("/api/agent/agents");
+      const r = await ezyFetch(`/api/agent/agents?clientId=${encodeURIComponent(clientId)}`);
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
       setAgents(j.agents || []);
@@ -5470,7 +5471,7 @@ function AgentsPage() {
       setMsg(String(e?.message || e));
     }
     setLoading(false);
-  }, []);
+  }, [clientId]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -5500,9 +5501,10 @@ function AgentsPage() {
     try {
       const payload = {
         ...editing,
+        clientId,
         skills: Array.isArray(editing.skills) ? editing.skills : [],
       };
-      const r = await ezyFetch("/api/agent/agents", {
+      const r = await ezyFetch(`/api/agent/agents?clientId=${encodeURIComponent(clientId)}`, {
         method: "POST",
         headers: JSON_HEAD,
         body: JSON.stringify(payload),
@@ -5521,7 +5523,7 @@ function AgentsPage() {
   const del = async (id) => {
     if (!window.confirm("Agent wirklich löschen?")) return;
     try {
-      await ezyFetch(`/api/agent/agents?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      await ezyFetch(`/api/agent/agents?clientId=${encodeURIComponent(clientId)}&id=${encodeURIComponent(id)}`, { method: "DELETE" });
       await load();
     } catch (e) {
       setMsg(String(e?.message || e));
@@ -5537,7 +5539,7 @@ function AgentsPage() {
       const r = await ezyFetch("/api/agent/run-agent", {
         method: "POST",
         headers: JSON_HEAD,
-        body: JSON.stringify({ id: agent.id, input: runInputs[agent.id] || "", resumeSessionId }),
+        body: JSON.stringify({ id: agent.id, clientId, input: runInputs[agent.id] || "", resumeSessionId }),
       });
       const j = await r.json();
       if (!j.jobId) throw new Error(j.error || "Start fehlgeschlagen");
@@ -5589,9 +5591,11 @@ function AgentsPage() {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div className="mobile-wrap" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
         <div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>Agents</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>
+            Agents{selectedClient?.name ? ` — ${selectedClient.name}` : ""}
+          </div>
           <div style={{ fontSize: 12, color: C.textMuted }}>
-            Eigene KI-Assistenten mit Instruktionen, Modell &amp; Skills — laufen über den Agent-Service.
+            KI-Assistenten für diesen Kunden. Wechsle den Kunden, um dessen Agents zu sehen.
           </div>
         </div>
         {!editing && (
@@ -6352,7 +6356,7 @@ function App() {
               onClientUpdated={ezy.reload}
             />
           )}
-          {page === "agents" && <AgentsPage />}
+          {page === "agents" && <AgentsPage selectedClient={client} />}
         </div>
       </main>
 
