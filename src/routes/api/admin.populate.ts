@@ -27,6 +27,7 @@ const Body = z.object({
   days: z.number().int().min(1).max(90).default(28),
   runGeo: z.boolean().optional(), // geo job: also trigger a Canonry sweep (costs)
   geoSlug: z.string().optional(), // geo job: force a specific Canonry project slug
+  debug: z.boolean().optional(), // return diagnostics instead of running jobs
 });
 
 const isUuid = (s: string) =>
@@ -278,6 +279,49 @@ export const Route = createFileRoute("/api/admin/populate")({
         else if (sel) clients = (await query.ilike("name", `%${sel}%`)).data || [];
         else return Response.json({ ok: false, error: "client oder all erforderlich" }, { status: 400 });
         if (!clients.length) return Response.json({ ok: false, error: "Kein Kunde gefunden" }, { status: 404 });
+
+        // --- Diagnostics: why is a dashboard empty? ---
+        if (parsed.data.debug) {
+          const cBase = process.env.CANONRY_BASE_URL;
+          const cKey = process.env.CANONRY_API_KEY;
+          const dbg: any[] = [];
+          for (const c of clients) {
+            const d: any = {
+              client: c.name,
+              domain: c.domain,
+              canonry_project: c.canonry_project ?? null,
+              gsc_property: c.gsc_property ?? null,
+              ga4_property: c.ga4_property ?? null,
+              canonryEnv: { baseSet: !!cBase, keySet: !!cKey },
+            };
+            if (cBase && cKey && c.canonry_project) {
+              try {
+                const root = normalizeCanonryBase(cBase);
+                const r = await fetch(`${root}/projects/${encodeURIComponent(c.canonry_project)}`, {
+                  headers: { Authorization: `Bearer ${cKey}`, Accept: "application/json" },
+                  signal: AbortSignal.timeout(10_000),
+                });
+                d.canonryProjectFetch = { status: r.status, ok: r.ok };
+                if (!r.ok) d.canonryProjectFetch.body = redactSecrets((await r.text().catch(() => "")).slice(0, 150));
+              } catch (e) {
+                d.canonryProjectFetch = { error: redactSecrets(e) };
+              }
+            }
+            try {
+              const { data: ar } = await supabaseAdmin
+                .from("audit_runs")
+                .select("audit_type, created_at")
+                .eq("client_id", c.id)
+                .order("created_at", { ascending: false })
+                .limit(8);
+              d.recentAuditRuns = (ar || []).map((x: any) => x.audit_type);
+            } catch (e) {
+              d.recentAuditRuns = redactSecrets(e);
+            }
+            dbg.push(d);
+          }
+          return Response.json({ ok: true, debug: dbg });
+        }
 
         const results: any[] = [];
         for (const c of clients) {
