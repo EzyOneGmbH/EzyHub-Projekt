@@ -10,6 +10,8 @@ const DEFAULTS: EzyDefaults = {
   reportTemplate: "Standard",
 };
 
+const LOCAL_KEY_PREFIX = "ezy-defaults:";
+
 function normalize(v: any): EzyDefaults {
   return {
     language: String(v?.language || DEFAULTS.language),
@@ -18,10 +20,29 @@ function normalize(v: any): EzyDefaults {
   };
 }
 
-export function useEzyDefaults() {
+function loadLocal(clientId: string): EzyDefaults | null {
+  try {
+    const raw = localStorage.getItem(`${LOCAL_KEY_PREFIX}${clientId}`);
+    return raw ? normalize(JSON.parse(raw)) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveLocal(clientId: string, defaults: EzyDefaults) {
+  try {
+    localStorage.setItem(`${LOCAL_KEY_PREFIX}${clientId}`, JSON.stringify(defaults));
+  } catch {}
+}
+
+export function useEzyDefaults(clientId?: string | null) {
   const { organizationId, loading: authLoading } = useAuth();
   const [defaults, setDefaults] = useState<EzyDefaults>(DEFAULTS);
   const [loading, setLoading] = useState(true);
+
+  const isUuid =
+    !!clientId &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(clientId));
 
   const reload = useCallback(async () => {
     if (!organizationId) {
@@ -30,14 +51,47 @@ export function useEzyDefaults() {
       return;
     }
     setLoading(true);
-    const { data } = await supabase
-      .from("customer_defaults")
-      .select("defaults")
-      .eq("organization_id", organizationId)
-      .maybeSingle();
-    setDefaults(normalize(data?.defaults));
+    // If clientId provided, try localStorage first (client_id column may not exist in Supabase)
+    if (isUuid && clientId) {
+      const local = loadLocal(clientId);
+      if (local) {
+        setDefaults(local);
+        setLoading(false);
+        return;
+      }
+      // Try Supabase with client_id (may fail if column doesn't exist)
+      try {
+        const { data, error } = await supabase
+          .from("customer_defaults")
+          .select("defaults")
+          .eq("organization_id", organizationId)
+          .eq("client_id", clientId)
+          .maybeSingle();
+        if (!error && data?.defaults) {
+          setDefaults(normalize(data.defaults));
+          setLoading(false);
+          return;
+        }
+      } catch {}
+      // Fall back to org defaults
+      const { data: orgData } = await supabase
+        .from("customer_defaults")
+        .select("defaults")
+        .eq("organization_id", organizationId)
+        .is("client_id", null)
+        .maybeSingle();
+      setDefaults(normalize(orgData?.defaults));
+    } else {
+      const { data } = await supabase
+        .from("customer_defaults")
+        .select("defaults")
+        .eq("organization_id", organizationId)
+        .is("client_id", null)
+        .maybeSingle();
+      setDefaults(normalize(data?.defaults));
+    }
     setLoading(false);
-  }, [organizationId]);
+  }, [organizationId, clientId, isUuid]);
 
   useEffect(() => {
     if (!authLoading) void reload();
@@ -48,24 +102,48 @@ export function useEzyDefaults() {
       const normalized = normalize(next);
       setDefaults(normalized);
       if (!organizationId) return normalized;
-      const { data: existing } = await supabase
-        .from("customer_defaults")
-        .select("id")
-        .eq("organization_id", organizationId)
-        .maybeSingle();
-      if (existing?.id) {
-        await supabase
-          .from("customer_defaults")
-          .update({ defaults: normalized })
-          .eq("id", existing.id);
+      // Save to client-specific: use localStorage (robust) + try Supabase (may fail)
+      if (isUuid && clientId) {
+        saveLocal(clientId, normalized);
+        try {
+          const { data: existing } = await supabase
+            .from("customer_defaults")
+            .select("id")
+            .eq("organization_id", organizationId)
+            .eq("client_id", clientId)
+            .maybeSingle();
+          if (existing?.id) {
+            await supabase
+              .from("customer_defaults")
+              .update({ defaults: normalized })
+              .eq("id", existing.id);
+          } else {
+            await supabase
+              .from("customer_defaults")
+              .insert({ organization_id: organizationId, client_id: clientId, defaults: normalized });
+          }
+        } catch {}
       } else {
-        await supabase
+        const { data: existing } = await supabase
           .from("customer_defaults")
-          .insert({ organization_id: organizationId, defaults: normalized });
+          .select("id")
+          .eq("organization_id", organizationId)
+          .is("client_id", null)
+          .maybeSingle();
+        if (existing?.id) {
+          await supabase
+            .from("customer_defaults")
+            .update({ defaults: normalized })
+            .eq("id", existing.id);
+        } else {
+          await supabase
+            .from("customer_defaults")
+            .insert({ organization_id: organizationId, defaults: normalized });
+        }
       }
       return normalized;
     },
-    [organizationId],
+    [organizationId, clientId, isUuid],
   );
 
   return { defaults, loading, save, reload };

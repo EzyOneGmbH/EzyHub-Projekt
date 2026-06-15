@@ -4492,7 +4492,7 @@ function SettingsPage({
   useEffect(() => setDefaultsDraft(defaultsFromStored(customerDefaults)), [customerDefaults]);
   const sects = [
     ["profil", "Profil", Users],
-    ["defaults", "Kunden-Defaults", Settings],
+    ["defaults", "Kunden-Einstellungen", Settings],
     ["api", "API-Schlüssel", Key],
     ["skills", "Skills / Tools", Zap],
     ["dashboard", "Dashboard-Metriken", BarChart3],
@@ -4611,7 +4611,12 @@ function SettingsPage({
 
         {sec === "defaults" && (
           <div>
-            <h2 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 16px" }}>Kunden-Defaults</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 6px" }}>
+              Einstellungen{selectedClient?.name ? ` — ${selectedClient.name}` : ""}
+            </h2>
+            <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 16 }}>
+              Diese Einstellungen gelten nur für diesen Kunden. Wechsle den Kunden, um dessen Einstellungen zu bearbeiten.
+            </div>
             <div
               style={{
                 background: C.card,
@@ -4638,16 +4643,11 @@ function SettingsPage({
                 onChange={(v) => setDefaultsDraft((p) => ({ ...p, reportTemplate: v }))}
                 options={["Standard", "Detailliert", "Executive Summary"]}
               />
-              <div
-                style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.6, margin: "0 0 14px" }}
-              >
-                Diese Werte werden lokal gespeichert und automatisch bei neuen Kunden hinterlegt.
-              </div>
               <Btn
                 icon={Save}
                 onClick={() => {
                   onSaveDefaults(defaultsDraft);
-                  toast("Defaults gespeichert", "success");
+                  toast("Einstellungen für " + (selectedClient?.name || "Kunde") + " gespeichert", "success");
                 }}
               >
                 Speichern
@@ -5756,19 +5756,6 @@ function App() {
   useEffect(() => {
     if (clients.length && !clients.some((c) => c.id === clientId)) setClientId(clients[0].id);
   }, [clients, clientId]);
-  const profileHook = useEzyProfile();
-  const defaultsHook = useEzyDefaults();
-  const contentHook = useEzyContent();
-  const [page, setPage] = useState("dashboard");
-  const [tab, setTab] = useState("seo");
-  const [cdd, setCdd] = useState(false);
-  const [showTools, setShowTools] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
-  const [dateRange, setDateRange] = useState({ label: "30 Tage" });
-  const [showAll, setShowAll] = useState(false);
-  const [cmdOpen, setCmdOpen] = useState(false);
-  const toast = useToast();
-  const sw = isMobile ? 0 : collapsed ? 68 : 240;
   const emptyClient = useMemo(
     () =>
       normalizeClientShape({
@@ -5784,6 +5771,19 @@ function App() {
     () => clients.find((entry) => entry.id === clientId) || clients[0] || emptyClient,
     [clientId, clients, emptyClient],
   );
+  const profileHook = useEzyProfile();
+  const defaultsHook = useEzyDefaults(client?.id);
+  const contentHook = useEzyContent();
+  const [page, setPage] = useState("dashboard");
+  const [tab, setTab] = useState("seo");
+  const [cdd, setCdd] = useState(false);
+  const [showTools, setShowTools] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [dateRange, setDateRange] = useState({ label: "30 Tage" });
+  const [showAll, setShowAll] = useState(false);
+  const [cmdOpen, setCmdOpen] = useState(false);
+  const toast = useToast();
+  const sw = isMobile ? 0 : collapsed ? 68 : 240;
   const toolSettings = useEzyToolSettings(client?.id);
   const tools = useMemo(() => toolSettings.applyTo(ALL_TOOLS), [toolSettings]);
   const enabledTools = useMemo(() => tools.filter((t) => t.enabled), [tools]);
