@@ -6,6 +6,7 @@ import {
   useContext,
   useRef,
   useMemo,
+  Component,
 } from "react";
 import {
   LineChart,
@@ -639,6 +640,45 @@ function buildCanonryLiveModel(selectedClient, payload) {
         ].filter(Boolean)
     ).slice(0, 3),
   };
+}
+
+// Local error boundary so a render glitch in one dashboard section shows an
+// inline message instead of crashing the whole app.
+class SectionErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  componentDidCatch(error, info) {
+    console.error("Section render error:", error, info);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.red}55`,
+            borderRadius: 12,
+            padding: 16,
+            fontSize: 12,
+            color: C.textMuted,
+          }}
+        >
+          <div style={{ color: C.red, fontWeight: 700, marginBottom: 6 }}>
+            {this.props.label || "Anzeige"} konnte nicht gerendert werden
+          </div>
+          <div style={{ whiteSpace: "pre-wrap", fontFamily: "monospace" }}>
+            {String(this.state.error?.message || this.state.error)}
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2460,6 +2500,7 @@ function GeoDashboard({ selectedClient }) {
         </div>
       )}
       {projectLiveReady && canonry && (
+        <SectionErrorBoundary label="GEO-Dashboard">
         <>
           <div
             style={{
@@ -2682,6 +2723,7 @@ function GeoDashboard({ selectedClient }) {
             </ChartCard>
           )}
         </>
+        </SectionErrorBoundary>
       )}
     </div>
   );
