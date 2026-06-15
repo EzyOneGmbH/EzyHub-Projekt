@@ -5365,6 +5365,249 @@ async function exportCSV(toast, client) {
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════════════════
+const AGENT_MODELS = [
+  { id: "claude-opus-4-8", label: "Opus 4.8 (stärkstes)" },
+  { id: "claude-fable-5", label: "Fable 5 (neuestes)" },
+  { id: "claude-sonnet-4-6", label: "Sonnet 4.6 (schnell)" },
+  { id: "claude-haiku-4-5-20251001", label: "Haiku 4.5 (günstig)" },
+];
+const JSON_HEAD = { "Content-Type": "application/json" };
+
+function AgentsPage() {
+  const [agents, setAgents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [runInputs, setRunInputs] = useState({});
+  const [runResult, setRunResult] = useState(null);
+  const [runningId, setRunningId] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await ezyFetch("/api/agent/agents");
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      setAgents(j.agents || []);
+    } catch (e) {
+      setMsg(String(e?.message || e));
+    }
+    setLoading(false);
+  }, []);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const save = async () => {
+    if (!editing?.name?.trim()) {
+      setMsg("Name erforderlich");
+      return;
+    }
+    setBusy(true);
+    setMsg("");
+    try {
+      const payload = {
+        ...editing,
+        skills: String(editing.skills || "")
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+      };
+      const r = await ezyFetch("/api/agent/agents", {
+        method: "POST",
+        headers: JSON_HEAD,
+        body: JSON.stringify(payload),
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || "Fehler beim Speichern");
+      setEditing(null);
+      await load();
+      setMsg("Agent gespeichert");
+    } catch (e) {
+      setMsg(String(e?.message || e));
+    }
+    setBusy(false);
+  };
+
+  const del = async (id) => {
+    if (!window.confirm("Agent wirklich löschen?")) return;
+    try {
+      await ezyFetch(`/api/agent/agents?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      await load();
+    } catch (e) {
+      setMsg(String(e?.message || e));
+    }
+  };
+
+  const run = async (agent) => {
+    setRunningId(agent.id);
+    setRunResult(null);
+    setMsg("");
+    try {
+      const r = await ezyFetch("/api/agent/run-agent", {
+        method: "POST",
+        headers: JSON_HEAD,
+        body: JSON.stringify({ id: agent.id, input: runInputs[agent.id] || "" }),
+      });
+      const j = await r.json();
+      if (!j.jobId) throw new Error(j.error || "Start fehlgeschlagen");
+      for (let i = 0; i < 180; i++) {
+        await new Promise((res) => setTimeout(res, 2000));
+        const pr = await ezyFetch(`/api/agent/run-agent?jobId=${encodeURIComponent(j.jobId)}`);
+        const pj = await pr.json();
+        if (pj.status === "done") {
+          setRunResult({ id: agent.id, ok: true, text: pj.result, cost: pj.costUsd });
+          break;
+        }
+        if (pj.status === "error") {
+          setRunResult({ id: agent.id, ok: false, text: pj.error || "Fehler" });
+          break;
+        }
+      }
+    } catch (e) {
+      setRunResult({ id: agent.id, ok: false, text: String(e?.message || e) });
+    }
+    setRunningId(null);
+  };
+
+  const inputStyle = {
+    width: "100%",
+    padding: "9px 11px",
+    background: C.bg,
+    border: `1px solid ${C.border}`,
+    borderRadius: 8,
+    color: C.text,
+    fontSize: 13,
+    fontFamily: "inherit",
+    outline: "none",
+  };
+  const lbl = { fontSize: 11, color: C.textMuted, marginBottom: 4 };
+  const btn = (bg) => ({
+    padding: "8px 14px",
+    borderRadius: 8,
+    border: `1px solid ${bg || C.border}`,
+    background: bg || C.surface,
+    color: bg ? "#fff" : C.text,
+    cursor: "pointer",
+    fontSize: 13,
+    fontWeight: 600,
+  });
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div className="mobile-wrap" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>Agents</div>
+          <div style={{ fontSize: 12, color: C.textMuted }}>
+            Eigene KI-Assistenten mit Instruktionen, Modell &amp; Skills — laufen über den Agent-Service.
+          </div>
+        </div>
+        {!editing && (
+          <button onClick={() => setEditing({ name: "", description: "", instructions: "", model: "claude-opus-4-8", skills: "" })} style={btn(C.accent)}>
+            + Neuer Agent
+          </button>
+        )}
+      </div>
+      {msg && <div style={{ fontSize: 12, color: C.textMuted }}>{msg}</div>}
+
+      {editing && (
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18, display: "flex", flexDirection: "column", gap: 12 }}>
+          <div className="ezy-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <div style={lbl}>Name</div>
+              <input style={inputStyle} value={editing.name} onChange={(e) => setEditing((p) => ({ ...p, name: e.target.value }))} placeholder="z. B. SEO-Audit-Bot" />
+            </div>
+            <div>
+              <div style={lbl}>Modell</div>
+              <select style={inputStyle} value={editing.model} onChange={(e) => setEditing((p) => ({ ...p, model: e.target.value }))}>
+                {AGENT_MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div>
+            <div style={lbl}>Beschreibung (optional)</div>
+            <input style={inputStyle} value={editing.description} onChange={(e) => setEditing((p) => ({ ...p, description: e.target.value }))} placeholder="Wofür ist dieser Agent?" />
+          </div>
+          <div>
+            <div style={lbl}>Instruktionen (System-Prompt)</div>
+            <textarea style={{ ...inputStyle, minHeight: 120, fontFamily: "'JetBrains Mono',monospace", lineHeight: 1.6, resize: "vertical" }} value={editing.instructions} onChange={(e) => setEditing((p) => ({ ...p, instructions: e.target.value }))} placeholder="Du bist ein SEO-Experte für Schweizer KMU. Antworte strukturiert, auf Deutsch ..." />
+          </div>
+          <div>
+            <div style={lbl}>Skills (optional, kommagetrennt)</div>
+            <input style={inputStyle} value={editing.skills} onChange={(e) => setEditing((p) => ({ ...p, skills: e.target.value }))} placeholder="seo-audit, seo-schema, blog-write" />
+            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 4 }}>Leer = freier Assistent. Skill-Namen siehe „AI Tools".</div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={save} disabled={busy} style={btn(C.accent)}>
+              {busy ? "…" : "Speichern"}
+            </button>
+            <button onClick={() => setEditing(null)} disabled={busy} style={btn()}>
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!editing &&
+        (loading ? (
+          <div style={{ color: C.textMuted, fontSize: 13 }}>Lädt…</div>
+        ) : agents.length === 0 ? (
+          <div style={{ color: C.textMuted, fontSize: 13, padding: 24, textAlign: "center", border: `1px dashed ${C.border}`, borderRadius: 12 }}>
+            Noch keine Agents. Erstelle deinen ersten mit „+ Neuer Agent".
+          </div>
+        ) : (
+          <div className="client-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(320px,1fr))", gap: 14 }}>
+            {agents.map((a) => (
+              <div key={a.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{a.name}</div>
+                    {a.description && <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>{a.description}</div>}
+                  </div>
+                  <Badge color={C.blue}>{(AGENT_MODELS.find((m) => m.id === a.model)?.label || a.model || "").split(" ")[0]}</Badge>
+                </div>
+                {a.skills?.length > 0 && (
+                  <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                    {a.skills.map((s) => (
+                      <Badge key={s} color={C.textDim}>
+                        {s}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                <textarea style={{ ...inputStyle, minHeight: 54, resize: "vertical" }} placeholder="Anfrage / Aufgabe an den Agenten…" value={runInputs[a.id] || ""} onChange={(e) => setRunInputs((p) => ({ ...p, [a.id]: e.target.value }))} />
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <button onClick={() => run(a)} disabled={runningId === a.id} style={btn(C.green)}>
+                    {runningId === a.id ? "läuft…" : "▶ Ausführen"}
+                  </button>
+                  <button onClick={() => setEditing({ ...a, skills: (a.skills || []).join(", ") })} style={btn()}>
+                    Bearbeiten
+                  </button>
+                  <button onClick={() => del(a.id)} style={{ ...btn(), color: C.textMuted, marginLeft: "auto" }}>
+                    Löschen
+                  </button>
+                </div>
+                {runResult?.id === a.id && (
+                  <div style={{ background: C.bg, border: `1px solid ${runResult.ok ? C.border : C.red}55`, borderRadius: 8, padding: 10, fontSize: 12, color: C.text, whiteSpace: "pre-wrap", maxHeight: 320, overflow: "auto" }}>
+                    {runResult.text}
+                    {runResult.ok && runResult.cost != null && (
+                      <div style={{ fontSize: 10, color: C.textMuted, marginTop: 6 }}>Kosten: ${Number(runResult.cost).toFixed(3)}</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ))}
+    </div>
+  );
+}
+
 const TABS = [
   { id: "seo", label: "SEO", icon: Globe },
   { id: "geo", label: "GEO", icon: Sparkles },
@@ -5373,6 +5616,7 @@ const TABS = [
 const NAV = [
   { id: "dashboard", label: "Dashboard", icon: BarChart3 },
   { id: "tools", label: "AI Tools", icon: Zap },
+  { id: "agents", label: "Agents", icon: Bot },
   { id: "content", label: "Content", icon: FileText },
   { id: "clients", label: "Clients", icon: Users },
   { id: "settings", label: "Einstellungen", icon: Settings },
@@ -5986,6 +6230,7 @@ function App() {
               onClientUpdated={ezy.reload}
             />
           )}
+          {page === "agents" && <AgentsPage />}
         </div>
       </main>
 
