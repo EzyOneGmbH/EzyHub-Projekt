@@ -5382,6 +5382,9 @@ function AgentsPage() {
   const [runInputs, setRunInputs] = useState({});
   const [runResult, setRunResult] = useState(null);
   const [runningId, setRunningId] = useState(null);
+  const [agentSessions, setAgentSessions] = useState({});
+  const [selectedSessions, setSelectedSessions] = useState({});
+  const [showMemory, setShowMemory] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -5398,6 +5401,21 @@ function AgentsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const loadMemory = async (agentId) => {
+    try {
+      const r = await ezyFetch(`/api/agent/memory?agentId=${encodeURIComponent(agentId)}`);
+      const j = await r.json();
+      setAgentSessions((p) => ({ ...p, [agentId]: j.sessions || [] }));
+    } catch {}
+  };
+  const deleteSession = async (agentId, sessionId) => {
+    try {
+      await ezyFetch(`/api/agent/memory?agentId=${encodeURIComponent(agentId)}&sessionId=${encodeURIComponent(sessionId)}`, { method: "DELETE" });
+      await loadMemory(agentId);
+      if (selectedSessions[agentId] === sessionId) setSelectedSessions((p) => ({ ...p, [agentId]: null }));
+    } catch {}
+  };
 
   const save = async () => {
     if (!editing?.name?.trim()) {
@@ -5440,15 +5458,16 @@ function AgentsPage() {
     }
   };
 
-  const run = async (agent) => {
+  const run = async (agent, forceNew = false) => {
     setRunningId(agent.id);
     setRunResult(null);
     setMsg("");
+    const resumeSessionId = forceNew ? undefined : selectedSessions[agent.id];
     try {
       const r = await ezyFetch("/api/agent/run-agent", {
         method: "POST",
         headers: JSON_HEAD,
-        body: JSON.stringify({ id: agent.id, input: runInputs[agent.id] || "" }),
+        body: JSON.stringify({ id: agent.id, input: runInputs[agent.id] || "", resumeSessionId }),
       });
       const j = await r.json();
       if (!j.jobId) throw new Error(j.error || "Start fehlgeschlagen");
@@ -5457,7 +5476,9 @@ function AgentsPage() {
         const pr = await ezyFetch(`/api/agent/run-agent?jobId=${encodeURIComponent(j.jobId)}`);
         const pj = await pr.json();
         if (pj.status === "done") {
-          setRunResult({ id: agent.id, ok: true, text: pj.result, cost: pj.costUsd });
+          setRunResult({ id: agent.id, ok: true, text: pj.result, cost: pj.costUsd, sessionId: pj.sessionId });
+          if (pj.sessionId) setSelectedSessions((p) => ({ ...p, [agent.id]: pj.sessionId }));
+          loadMemory(agent.id);
           break;
         }
         if (pj.status === "error") {
@@ -5581,9 +5602,19 @@ function AgentsPage() {
                   </div>
                 )}
                 <textarea style={{ ...inputStyle, minHeight: 54, resize: "vertical" }} placeholder="Anfrage / Aufgabe an den Agenten…" value={runInputs[a.id] || ""} onChange={(e) => setRunInputs((p) => ({ ...p, [a.id]: e.target.value }))} />
+                {selectedSessions[a.id] && (
+                  <div style={{ fontSize: 11, color: C.green, display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.green }} />
+                    Session aktiv — fortsetzen
+                    <button onClick={() => setSelectedSessions((p) => ({ ...p, [a.id]: null }))} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", fontSize: 11, padding: 0 }}>(neue starten)</button>
+                  </div>
+                )}
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   <button onClick={() => run(a)} disabled={runningId === a.id} style={btn(C.green)}>
-                    {runningId === a.id ? "läuft…" : "▶ Ausführen"}
+                    {runningId === a.id ? "läuft…" : selectedSessions[a.id] ? "▶ Fortsetzen" : "▶ Ausführen"}
+                  </button>
+                  <button onClick={() => { loadMemory(a.id); setShowMemory(showMemory === a.id ? null : a.id); }} style={btn()}>
+                    {showMemory === a.id ? "Gedächtnis ▲" : "Gedächtnis ▼"}
                   </button>
                   <button onClick={() => setEditing({ ...a, skills: (a.skills || []).join(", ") })} style={btn()}>
                     Bearbeiten
@@ -5592,6 +5623,27 @@ function AgentsPage() {
                     Löschen
                   </button>
                 </div>
+                {showMemory === a.id && (
+                  <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: 10, fontSize: 12 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 6, color: C.text }}>Sessions (Gedächtnis)</div>
+                    {(agentSessions[a.id] || []).length === 0 ? (
+                      <div style={{ color: C.textMuted }}>Noch keine Sessions gespeichert.</div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 180, overflow: "auto" }}>
+                        {(agentSessions[a.id] || []).map((s) => (
+                          <div key={s.sessionId} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 6, background: selectedSessions[a.id] === s.sessionId ? `${C.accent}22` : C.surface, border: `1px solid ${selectedSessions[a.id] === s.sessionId ? C.accent : C.border}`, cursor: "pointer" }} onClick={() => setSelectedSessions((p) => ({ ...p, [a.id]: s.sessionId }))}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
+                              <div style={{ fontSize: 10, color: C.textMuted }}>{s.messageCount || 1} Nachr. · {new Date(s.lastMessageAt).toLocaleDateString("de-CH")}</div>
+                            </div>
+                            <button onClick={(e) => { e.stopPropagation(); deleteSession(a.id, s.sessionId); }} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", fontSize: 14, padding: 2 }}>×</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <button onClick={() => { setSelectedSessions((p) => ({ ...p, [a.id]: null })); setShowMemory(null); }} style={{ ...btn(), marginTop: 8, fontSize: 11, padding: "5px 10px" }}>+ Neue Session starten</button>
+                  </div>
+                )}
                 {runResult?.id === a.id && (
                   <div style={{ background: C.bg, border: `1px solid ${runResult.ok ? C.border : C.red}55`, borderRadius: 8, padding: 10, fontSize: 12, color: C.text, whiteSpace: "pre-wrap", maxHeight: 320, overflow: "auto" }}>
                     {runResult.text}
