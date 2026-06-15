@@ -506,7 +506,7 @@ function buildCanonryEvidenceRows(timeline, latestRunId, domain) {
             ? "Mentioned"
             : "Watch";
       rows.push({
-        query: item.keyword,
+        query: item.query ?? item.keyword ?? "",
         provider: canonryProviderLabel(provider),
         status,
         landingPage: domain ? `https://${domain}` : "—",
@@ -526,7 +526,7 @@ function buildCanonryEvidenceRows(timeline, latestRunId, domain) {
       (a, b) =>
         a.sort - b.sort ||
         String(b.createdAt).localeCompare(String(a.createdAt)) ||
-        a.query.localeCompare(b.query),
+        String(a.query || "").localeCompare(String(b.query || "")),
     )
     .slice(0, 6);
 }
