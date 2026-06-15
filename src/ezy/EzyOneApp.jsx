@@ -5373,6 +5373,79 @@ const AGENT_MODELS = [
 ];
 const JSON_HEAD = { "Content-Type": "application/json" };
 
+const SKILL_CATEGORIES = [
+  { id: "skills-seo", label: "SEO", color: C.blue },
+  { id: "skills-blog", label: "Blog", color: C.green },
+  { id: "skills-obsidian", label: "Obsidian", color: C.accent },
+];
+
+function SkillPicker({ selected, onChange }) {
+  const [expanded, setExpanded] = useState(null);
+  const toggle = (skill) => {
+    if (selected.includes(skill)) onChange(selected.filter((s) => s !== skill));
+    else onChange([...selected, skill]);
+  };
+  const selectAll = (cat) => {
+    const catSkills = SKILL_CATALOG.filter((s) => s.category === cat).map((s) => s.skill);
+    const allSelected = catSkills.every((sk) => selected.includes(sk));
+    if (allSelected) onChange(selected.filter((s) => !catSkills.includes(s)));
+    else onChange([...new Set([...selected, ...catSkills])]);
+  };
+  const checkStyle = (on) => ({
+    width: 16, height: 16, borderRadius: 4, border: `1.5px solid ${on ? C.accent : C.border}`,
+    background: on ? C.accent : "transparent", display: "flex", alignItems: "center", justifyContent: "center",
+    color: "#fff", fontSize: 11, fontWeight: 700, flexShrink: 0, cursor: "pointer",
+  });
+  return (
+    <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: 10 }}>
+      {selected.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
+          {selected.map((s) => (
+            <span key={s} onClick={() => toggle(s)} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 5, padding: "2px 7px", fontSize: 11, color: C.text, cursor: "pointer" }}>
+              {s} ×
+            </span>
+          ))}
+        </div>
+      )}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {SKILL_CATEGORIES.map((cat) => {
+          const skills = SKILL_CATALOG.filter((s) => s.category === cat.id);
+          const selectedCount = skills.filter((s) => selected.includes(s.skill)).length;
+          const isOpen = expanded === cat.id;
+          return (
+            <div key={cat.id} style={{ border: `1px solid ${C.border}`, borderRadius: 6 }}>
+              <div onClick={() => setExpanded(isOpen ? null : cat.id)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", cursor: "pointer", background: isOpen ? `${cat.color}11` : "transparent", borderRadius: 6 }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: cat.color }} />
+                <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: C.text }}>{cat.label}</span>
+                {selectedCount > 0 && <span style={{ fontSize: 10, color: cat.color }}>{selectedCount}/{skills.length}</span>}
+                <span style={{ fontSize: 10, color: C.textMuted }}>{isOpen ? "▲" : "▼"}</span>
+              </div>
+              {isOpen && (
+                <div style={{ padding: "6px 10px 10px", display: "flex", flexDirection: "column", gap: 4 }}>
+                  <div onClick={() => selectAll(cat.id)} style={{ fontSize: 10, color: C.accent, cursor: "pointer", marginBottom: 4 }}>
+                    {skills.every((s) => selected.includes(s.skill)) ? "Alle abwählen" : "Alle auswählen"}
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 4 }}>
+                    {skills.map((s) => {
+                      const on = selected.includes(s.skill);
+                      return (
+                        <div key={s.id} onClick={() => toggle(s.skill)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 6px", borderRadius: 5, cursor: "pointer", background: on ? `${C.accent}11` : "transparent" }} title={s.description}>
+                          <span style={checkStyle(on)}>{on ? "✓" : ""}</span>
+                          <span style={{ fontSize: 11, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.skill}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function AgentsPage() {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -5427,10 +5500,7 @@ function AgentsPage() {
     try {
       const payload = {
         ...editing,
-        skills: String(editing.skills || "")
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean),
+        skills: Array.isArray(editing.skills) ? editing.skills : [],
       };
       const r = await ezyFetch("/api/agent/agents", {
         method: "POST",
@@ -5525,7 +5595,7 @@ function AgentsPage() {
           </div>
         </div>
         {!editing && (
-          <button onClick={() => setEditing({ name: "", description: "", instructions: "", model: "claude-opus-4-8", skills: "" })} style={btn(C.accent)}>
+          <button onClick={() => setEditing({ name: "", description: "", instructions: "", model: "claude-opus-4-8", skills: [] })} style={btn(C.accent)}>
             + Neuer Agent
           </button>
         )}
@@ -5559,9 +5629,9 @@ function AgentsPage() {
             <textarea style={{ ...inputStyle, minHeight: 120, fontFamily: "'JetBrains Mono',monospace", lineHeight: 1.6, resize: "vertical" }} value={editing.instructions} onChange={(e) => setEditing((p) => ({ ...p, instructions: e.target.value }))} placeholder="Du bist ein SEO-Experte für Schweizer KMU. Antworte strukturiert, auf Deutsch ..." />
           </div>
           <div>
-            <div style={lbl}>Skills (optional, kommagetrennt)</div>
-            <input style={inputStyle} value={editing.skills} onChange={(e) => setEditing((p) => ({ ...p, skills: e.target.value }))} placeholder="seo-audit, seo-schema, blog-write" />
-            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 4 }}>Leer = freier Assistent. Skill-Namen siehe „AI Tools".</div>
+            <div style={lbl}>Skills (optional)</div>
+            <SkillPicker selected={editing.skills || []} onChange={(skills) => setEditing((p) => ({ ...p, skills }))} />
+            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 4 }}>Leer = freier Assistent. Skills geben dem Agent spezialisierte Fähigkeiten.</div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={save} disabled={busy} style={btn(C.accent)}>
@@ -5616,7 +5686,7 @@ function AgentsPage() {
                   <button onClick={() => { loadMemory(a.id); setShowMemory(showMemory === a.id ? null : a.id); }} style={btn()}>
                     {showMemory === a.id ? "Gedächtnis ▲" : "Gedächtnis ▼"}
                   </button>
-                  <button onClick={() => setEditing({ ...a, skills: (a.skills || []).join(", ") })} style={btn()}>
+                  <button onClick={() => setEditing({ ...a, skills: a.skills || [] })} style={btn()}>
                     Bearbeiten
                   </button>
                   <button onClick={() => del(a.id)} style={{ ...btn(), color: C.textMuted, marginLeft: "auto" }}>
