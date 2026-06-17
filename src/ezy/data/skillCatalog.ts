@@ -642,5 +642,203 @@ export const SKILL_CATALOG: SkillCatalogEntry[] = [
     "category": "skills-obsidian",
     "description": "Hybrid retrieval primitive for the Compound Vault.",
     "note": "lokaler Vault"
+  },
+  {
+    "id": "skill:ads-audit",
+    "skill": "ads-audit",
+    "label": "ads-audit",
+    "plugin": "claude-ads",
+    "category": "skills-ads",
+    "description": "Full multi-platform paid advertising audit with parallel subagent delegation. Analyzes Google Ads, Meta Ads, LinkedIn Ads, TikTok Ads, Microsoft Ads, YouTube Ads, and Apple Ads.",
+    "note": "langer Lauf"
+  },
+  {
+    "id": "skill:ads-google",
+    "skill": "ads-google",
+    "label": "ads-google",
+    "plugin": "claude-ads",
+    "category": "skills-ads",
+    "description": "Google Ads deep analysis covering Search, Performance Max, AI Max, Display, YouTube, and Demand Gen campaigns. Evaluates 80 checks across 8 categories.",
+    "note": null
+  },
+  {
+    "id": "skill:ads-meta",
+    "skill": "ads-meta",
+    "label": "ads-meta",
+    "plugin": "claude-ads",
+    "category": "skills-ads",
+    "description": "Meta Ads deep analysis covering Facebook, Instagram, and Threads advertising in the Andromeda + GEM + Lattice era. Evaluates 50 checks.",
+    "note": null
+  },
+  {
+    "id": "skill:ads-linkedin",
+    "skill": "ads-linkedin",
+    "label": "ads-linkedin",
+    "plugin": "claude-ads",
+    "category": "skills-ads",
+    "description": "LinkedIn Ads deep analysis for B2B advertising. Evaluates 27 checks across technical setup, audience targeting, creative quality, lead gen.",
+    "note": null
+  },
+  {
+    "id": "skill:ads-tiktok",
+    "skill": "ads-tiktok",
+    "label": "ads-tiktok",
+    "plugin": "claude-ads",
+    "category": "skills-ads",
+    "description": "TikTok Ads deep analysis covering creative quality, tracking, bidding, campaign structure, and TikTok Shop.",
+    "note": null
+  },
+  {
+    "id": "skill:ads-microsoft",
+    "skill": "ads-microsoft",
+    "label": "ads-microsoft",
+    "plugin": "claude-ads",
+    "category": "skills-ads",
+    "description": "Microsoft/Bing Ads deep analysis covering search, Performance Max, Audience Network, and Copilot integration.",
+    "note": null
+  },
+  {
+    "id": "skill:ads-youtube",
+    "skill": "ads-youtube",
+    "label": "ads-youtube",
+    "plugin": "claude-ads",
+    "category": "skills-ads",
+    "description": "YouTube Ads specific analysis covering campaign types, creative quality, audience targeting, and measurement.",
+    "note": null
+  },
+  {
+    "id": "skill:ads-apple",
+    "skill": "ads-apple",
+    "label": "ads-apple",
+    "plugin": "claude-ads",
+    "category": "skills-ads",
+    "description": "Apple Ads (formerly Apple Search Ads) deep analysis for mobile app advertisers. Evaluates campaign structure, bid health, Custom Product Pages.",
+    "note": null
+  },
+  {
+    "id": "skill:ads-amazon",
+    "skill": "ads-amazon",
+    "label": "ads-amazon",
+    "plugin": "claude-ads",
+    "category": "skills-ads",
+    "description": "Amazon Ads deep analysis covering Sponsored Products, Sponsored Brands, Sponsored Display, and DSP.",
+    "note": null
+  },
+  {
+    "id": "skill:ads-creative",
+    "skill": "ads-creative",
+    "label": "ads-creative",
+    "plugin": "claude-ads",
+    "category": "skills-ads",
+    "description": "Cross-platform creative quality audit covering ad copy, video, image, and format diversity. Detects creative fatigue.",
+    "note": null
+  },
+  {
+    "id": "skill:ads-budget",
+    "skill": "ads-budget",
+    "label": "ads-budget",
+    "plugin": "claude-ads",
+    "category": "skills-ads",
+    "description": "Budget allocation and bidding strategy review across all ad platforms. Evaluates spend distribution and bidding strategies.",
+    "note": null
+  },
+  {
+    "id": "skill:ads-competitor",
+    "skill": "ads-competitor",
+    "label": "ads-competitor",
+    "plugin": "claude-ads",
+    "category": "skills-ads",
+    "description": "Competitor ad intelligence analysis across Google, Meta, LinkedIn, TikTok, Microsoft, and Apple Ads.",
+    "note": null
+  },
+  {
+    "id": "skill:ads-landing",
+    "skill": "ads-landing",
+    "label": "ads-landing",
+    "plugin": "claude-ads",
+    "category": "skills-ads",
+    "description": "Landing page quality assessment for paid advertising campaigns. Evaluates message match, page speed, mobile experience.",
+    "note": null
+  },
+  {
+    "id": "skill:ads-attribution",
+    "skill": "ads-attribution",
+    "label": "ads-attribution",
+    "plugin": "claude-ads",
+    "category": "skills-ads",
+    "description": "Cross-platform attribution health audit covering AdAttributionKit (iOS), CAPI, GA4, and server-side tracking.",
+    "note": null
+  },
+  {
+    "id": "skill:ads-server-side-tracking",
+    "skill": "ads-server-side-tracking",
+    "label": "ads-server-side-tracking",
+    "plugin": "claude-ads",
+    "category": "skills-ads",
+    "description": "Server-side tracking pipeline audit covering sGTM, Meta CAPI Gateway, Conversions API health, and event deduplication.",
+    "note": null
+  },
+  {
+    "id": "skill:ads-create",
+    "skill": "ads-create",
+    "label": "ads-create",
+    "plugin": "claude-ads",
+    "category": "skills-ads",
+    "description": "Campaign concept and copy brief generator for paid advertising. Produces structured briefs with messaging frameworks.",
+    "note": null
+  },
+  {
+    "id": "skill:ads-generate",
+    "skill": "ads-generate",
+    "label": "ads-generate",
+    "plugin": "claude-ads",
+    "category": "skills-ads",
+    "description": "AI image generation for paid ad creatives. Produces platform-sized ad images using Gemini.",
+    "note": "benötigt Gemini-Bild-API"
+  },
+  {
+    "id": "skill:ads-photoshoot",
+    "skill": "ads-photoshoot",
+    "label": "ads-photoshoot",
+    "plugin": "claude-ads",
+    "category": "skills-ads",
+    "description": "Product photography enhancement for ad creatives. Generates 5 professional ad-ready shots from a product image.",
+    "note": "benötigt Gemini-Bild-API"
+  },
+  {
+    "id": "skill:ads-dna",
+    "skill": "ads-dna",
+    "label": "ads-dna",
+    "plugin": "claude-ads",
+    "category": "skills-ads",
+    "description": "Brand DNA extractor for paid advertising. Scans a website URL to extract visual identity, tone of voice, and brand elements.",
+    "note": null
+  },
+  {
+    "id": "skill:ads-plan",
+    "skill": "ads-plan",
+    "label": "ads-plan",
+    "plugin": "claude-ads",
+    "category": "skills-ads",
+    "description": "Strategic paid advertising planning with industry-specific templates. Covers platform selection, campaign architecture, budget planning.",
+    "note": "langer Lauf"
+  },
+  {
+    "id": "skill:ads-math",
+    "skill": "ads-math",
+    "label": "ads-math",
+    "plugin": "claude-ads",
+    "category": "skills-ads",
+    "description": "PPC financial calculator and modeling tool. CPA, ROAS, CPL calculations, break-even analysis, budget scenarios.",
+    "note": null
+  },
+  {
+    "id": "skill:ads-test",
+    "skill": "ads-test",
+    "label": "ads-test",
+    "plugin": "claude-ads",
+    "category": "skills-ads",
+    "description": "A/B test design and experiment planning for paid advertising. Structured hypothesis framework, statistical significance calculator.",
+    "note": null
   }
 ];

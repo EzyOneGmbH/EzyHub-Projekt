@@ -18,7 +18,9 @@ export type DashboardMetricKey =
   | "conv.trend"
   | "geo.kpis"
   | "geo.trend"
-  | "geo.evidence";
+  | "geo.evidence"
+  | "ads.spend"
+  | "ads.kpis";
 
 export function useEzyDashboardConfig() {
   const { organizationId, loading: authLoading } = useAuth();

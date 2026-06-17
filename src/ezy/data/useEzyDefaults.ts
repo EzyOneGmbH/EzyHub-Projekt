@@ -13,7 +13,7 @@ const DEFAULTS: EzyDefaults = {
   language: "Deutsch",
   tone: "Professionell",
   reportTemplate: "Standard",
-  visibleTabs: ["seo", "geo", "conversions"],
+  visibleTabs: ["seo", "geo", "conversions", "ads"],
 };
 
 const LOCAL_KEY_PREFIX = "ezy-defaults:";

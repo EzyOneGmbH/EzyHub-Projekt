@@ -89,6 +89,7 @@ import {
   ToggleRight,
   GitBranch,
   Type,
+  Megaphone,
 } from "lucide-react";
 import { ezyFetch } from "@/ezy/data/api";
 import { useEzyClients } from "@/ezy/data/useEzyClients";
@@ -228,7 +229,7 @@ const DEFAULT_CUSTOMER_DEFAULTS = {
   language: "Deutsch",
   tone: "Professionell",
   reportTemplate: "Standard",
-  visibleTabs: ["seo", "geo", "conversions"],
+  visibleTabs: ["seo", "geo", "conversions", "ads"],
 };
 function readStoredJson(key, fallback) {
   if (typeof window === "undefined") return fallback;
@@ -3012,6 +3013,140 @@ function ConvDashboard({ selectedClient, dateRange }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ADS DASHBOARD
+// ═══════════════════════════════════════════════════════════════════════════
+function AdsDashboard({ selectedClient, dateRange }) {
+  const { isOn } = useEzyDashboardConfig();
+  const adSpend = Number(selectedClient?.adSpend || 0);
+  const adClicks = Number(selectedClient?.adClicks || 0);
+  const adImpressions = Number(selectedClient?.adImpressions || 0);
+  const adConversions = Number(selectedClient?.adConversions || 0);
+  const adCpc = adClicks > 0 ? adSpend / adClicks : 0;
+  const adCtr = adImpressions > 0 ? (adClicks / adImpressions) * 100 : 0;
+  const adRoas = adSpend > 0 ? (Number(selectedClient?.adRevenue || 0) / adSpend) : 0;
+  const adCpa = adConversions > 0 ? adSpend / adConversions : 0;
+  const hasAnyKpi = adSpend + adClicks + adImpressions + adConversions > 0;
+  if (!hasAnyKpi) {
+    return (
+      <LiveEmptyState
+        title="Noch keine Ads-Daten"
+        hint="Sobald Google Ads, Meta Ads oder andere Plattformen verbunden sind, erscheinen hier echte Werte. Nutze die Ads-Skills um Kampagnen zu analysieren."
+      />
+    );
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {isOn("ads.spend") && (
+        <div
+          style={{
+            background: `linear-gradient(135deg,${C.orange}22,${C.accent}15)`,
+            border: `1px solid ${C.orange}40`,
+            borderRadius: 14,
+            padding: "24px 28px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 4 }}>Total Ad Spend</div>
+            <div style={{ fontSize: 36, fontWeight: 800, color: C.text }}>
+              CHF {adSpend.toLocaleString("de-CH")}
+            </div>
+          </div>
+          {adRoas > 0 && (
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 4 }}>ROAS</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: adRoas >= 3 ? C.green : adRoas >= 1 ? C.orange : C.red }}>
+                {adRoas.toFixed(2)}x
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      {isOn("ads.kpis") && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
+            gap: 14,
+          }}
+        >
+          <KpiCard
+            icon={Eye}
+            label="Impressions"
+            value={adImpressions > 0 ? adImpressions.toLocaleString("de-CH") : "—"}
+            color={C.blue}
+          />
+          <KpiCard
+            icon={Target}
+            label="Clicks"
+            value={adClicks > 0 ? adClicks.toLocaleString("de-CH") : "—"}
+            color={C.accent}
+          />
+          <KpiCard
+            icon={Activity}
+            label="CTR"
+            value={adCtr > 0 ? `${adCtr.toFixed(2)}%` : "—"}
+            color={C.green}
+          />
+          <KpiCard
+            icon={DollarSign}
+            label="CPC"
+            value={adCpc > 0 ? `CHF ${adCpc.toFixed(2)}` : "—"}
+            color={C.orange}
+          />
+          <KpiCard
+            icon={CheckCircle}
+            label="Conversions"
+            value={adConversions > 0 ? adConversions.toLocaleString("de-CH") : "—"}
+            color={C.pink}
+          />
+          <KpiCard
+            icon={TrendingUp}
+            label="CPA"
+            value={adCpa > 0 ? `CHF ${adCpa.toFixed(2)}` : "—"}
+            color={C.cyan}
+          />
+        </div>
+      )}
+      <div
+        style={{
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: 14,
+          padding: 20,
+        }}
+      >
+        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: C.text }}>
+          Ads-Skills verfügbar
+        </div>
+        <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 16 }}>
+          Nutze die Ads-Skills im Agents-Bereich für tiefgehende Analysen:
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {["ads-audit", "ads-google", "ads-meta", "ads-linkedin", "ads-budget", "ads-creative"].map((skill) => (
+            <span
+              key={skill}
+              style={{
+                background: `${C.orange}15`,
+                border: `1px solid ${C.orange}30`,
+                borderRadius: 6,
+                padding: "4px 10px",
+                fontSize: 12,
+                color: C.text,
+              }}
+            >
+              {skill}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // TOOL RUNNER
 // ═══════════════════════════════════════════════════════════════════════════
 function ToolRunner({ tool, onClose, client, onComplete }) {
@@ -5462,6 +5597,7 @@ const JSON_HEAD = { "Content-Type": "application/json" };
 const SKILL_CATEGORIES = [
   { id: "skills-seo", label: "SEO", color: C.blue },
   { id: "skills-blog", label: "Blog", color: C.green },
+  { id: "skills-ads", label: "Ads", color: C.orange },
   { id: "skills-obsidian", label: "Obsidian", color: C.accent },
 ];
 
@@ -5824,6 +5960,7 @@ const TABS = [
   { id: "seo", label: "SEO", icon: Globe },
   { id: "geo", label: "GEO", icon: Sparkles },
   { id: "conversions", label: "Conversions", icon: DollarSign },
+  { id: "ads", label: "Ads", icon: Megaphone },
 ];
 const NAV = [
   { id: "dashboard", label: "Dashboard", icon: BarChart3 },
@@ -6406,7 +6543,9 @@ function App() {
                       ? "SEO Dashboard"
                       : tab === "geo"
                         ? "GEO Dashboard"
-                        : "Conversions"}
+                        : tab === "ads"
+                          ? "Ads Dashboard"
+                          : "Conversions"}
                 </h1>
                 <p style={{ color: C.textMuted, fontSize: 13, margin: "4px 0 0" }}>
                   {showAll ? "Alle Kunden" : `${client.name} — ${client.domain}`}
@@ -6419,6 +6558,7 @@ function App() {
                   {tab === "seo" && <SeoDashboard selectedClient={client} dateRange={dateRange} />}
                   {tab === "geo" && <GeoDashboard selectedClient={client} dateRange={dateRange} />}
                   {tab === "conversions" && <ConvDashboard selectedClient={client} dateRange={dateRange} />}
+                  {tab === "ads" && <AdsDashboard selectedClient={client} dateRange={dateRange} />}
                 </>
               )}
             </>
