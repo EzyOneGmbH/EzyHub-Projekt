@@ -407,15 +407,27 @@ async function jobGeo(c: any, opts: { runGeo?: boolean; geoSlug?: string }) {
   // 4. optional sweep (costs)
   let run: string | null = null;
   if (opts.runGeo) {
+    // Sweep every configured public AI assistant Canonry knows about (dynamic, so
+    // new providers are picked up automatically). "local"/llama is self-hosted and
+    // not a visibility target, so it is excluded.
+    let sweepProviders = ["openai", "perplexity", "gemini", "claude"];
+    try {
+      const sr = await fetch(`${root}/settings`, { headers: H });
+      const sj: any = await sr.json().catch(() => ({}));
+      const configured = (sj?.providers || [])
+        .filter((p: any) => p?.configured && p?.name && p.name !== "local")
+        .map((p: any) => String(p.name));
+      if (configured.length) sweepProviders = configured;
+    } catch {
+      /* fall back to the static list */
+    }
     try {
       const rr = await fetch(`${proj}/runs`, {
         method: "POST",
         headers: H,
         body: JSON.stringify({
           trigger: "manual",
-          // All public AI assistants Canonry has configured (ChatGPT, Perplexity,
-          // Gemini, Claude). "local"/llama is self-hosted, not a visibility target.
-          providers: ["openai", "perplexity", "gemini", "claude"],
+          providers: sweepProviders,
           noLocation: true,
         }),
       });
