@@ -2872,7 +2872,7 @@ function ConvDashboard({ selectedClient, dateRange }) {
       >
         <KpiCard
           icon={Phone}
-          label="Phone Calls"
+          label="Phone Clicks"
           value={phoneCalls > 0 ? phoneCalls : "—"}
           color={C.accent}
         />
@@ -2890,9 +2890,15 @@ function ConvDashboard({ selectedClient, dateRange }) {
         />
         <KpiCard
           icon={FileInput}
-          label="Form Submits"
+          label="Contact Form Submit"
           value={formSubmits > 0 ? formSubmits : "—"}
           color={C.orange}
+        />
+        <KpiCard
+          icon={DollarSign}
+          label="Generated"
+          value={revenue > 0 ? `${Math.round(revenue).toLocaleString("de-CH")} CHF` : "—"}
+          color={C.pink}
         />
       </div>
       )}
