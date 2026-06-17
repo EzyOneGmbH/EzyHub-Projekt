@@ -2207,7 +2207,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
       refreshHistory();
       refreshGsc();
       refreshPsi();
-    }, 12000);
+    }, 12 * 60 * 60 * 1000); // 12 Stunden
     return () => clearInterval(interval);
   }, [refreshAhrefs, refreshHistory, refreshGsc, refreshPsi]);
   const { isOn } = useEzyDashboardConfig();
@@ -2440,7 +2440,7 @@ function GeoDashboard({ selectedClient, dateRange }) {
     const interval = setInterval(() => {
       live.refresh?.();
       overview.refresh?.();
-    }, 12000);
+    }, 12 * 60 * 60 * 1000); // 12 Stunden
     return () => clearInterval(interval);
   }, [live.refresh, overview.refresh]);
   const verifiedProviders = Object.entries(live.data?.providers || {})
@@ -2781,7 +2781,7 @@ function ConvDashboard({ selectedClient, dateRange }) {
   const days = dateRange?.days || 30;
   const ga4 = ga4Raw;
   useEffect(() => {
-    const interval = setInterval(() => refreshGa4(), 12000);
+    const interval = setInterval(() => refreshGa4(), 12 * 60 * 60 * 1000); // 12 Stunden
     return () => clearInterval(interval);
   }, [refreshGa4]);
   const revenue = Number(selectedClient?.revenue || 0);
