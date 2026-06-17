@@ -180,6 +180,16 @@ function apiUrl(path) {
 }
 function useLiveIntegrations() {
   const [state, setState] = useState({ loading: true, data: null, error: "" });
+  const refresh = useCallback(async () => {
+    try {
+      const res = await ezyFetch("/api/live/status");
+      const payload = await res.json().catch(() => ({ error: "Ungültige Live-Antwort" }));
+      if (!res.ok) throw new Error(payload.error || "Live-Status nicht verfügbar");
+      setState({ loading: false, data: payload, error: "" });
+    } catch (error) {
+      setState({ loading: false, data: null, error: error.message || "Live-Status nicht verfügbar" });
+    }
+  }, []);
   useEffect(() => {
     let cancelled = false;
     const ctrl = new AbortController();
@@ -203,7 +213,7 @@ function useLiveIntegrations() {
       ctrl.abort();
     };
   }, []);
-  return state;
+  return { ...state, refresh };
 }
 const CLIENT_STORAGE_KEY = "ezy-one.clients.v1";
 const PROFILE_STORAGE_KEY = "ezy-one.profile.v1";
@@ -407,6 +417,18 @@ function useCanonryOverview(selectedClient) {
   const clientId = selectedClient?.id || "";
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientId);
   const [state, setState] = useState({ loading: isUuid, data: null, error: "" });
+  const refresh = useCallback(async () => {
+    if (!isUuid) return;
+    try {
+      const qs = new URLSearchParams({ clientId });
+      const res = await ezyFetch(`/api/live/canonry/overview?${qs.toString()}`);
+      const payload = await res.json().catch(() => ({ error: "Ungültige Canonry-Antwort" }));
+      if (!res.ok) throw new Error(payload.error || "Canonry-Overview nicht verfügbar");
+      setState({ loading: false, data: payload, error: "" });
+    } catch (error) {
+      setState({ loading: false, data: null, error: error.message || "Canonry-Overview nicht verfügbar" });
+    }
+  }, [clientId, isUuid]);
   useEffect(() => {
     if (!isUuid) {
       setState({ loading: false, data: null, error: "" });
@@ -438,7 +460,7 @@ function useCanonryOverview(selectedClient) {
       ctrl.abort();
     };
   }, [clientId, isUuid]);
-  return state;
+  return { ...state, refresh };
 }
 function buildCanonryProviderSeries(timeline, fallbackSeries) {
   const grouped = new Map();
@@ -2154,9 +2176,9 @@ function LiveEmptyState({ title, hint }) {
   );
 }
 function SeoDashboard({ selectedClient, dateRange }) {
-  const { run } = useEzyLatestRun(selectedClient?.id, "ahrefs");
+  const { run, refresh: refreshAhrefs } = useEzyLatestRun(selectedClient?.id, "ahrefs");
   const live = run ? ahrefsKpisFromResult(run.result) : null;
-  const { runs } = useEzyAuditHistory(selectedClient?.id);
+  const { runs, refresh: refreshHistory } = useEzyAuditHistory(selectedClient?.id);
   const startDate = dateRange?.start || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const trend = (runs || [])
     .filter((r) => {
@@ -2175,10 +2197,19 @@ function SeoDashboard({ selectedClient, dateRange }) {
       };
     })
     .reverse();
-  const { run: gscRun } = useEzyLatestRun(selectedClient?.id, "gsc_summary");
+  const { run: gscRun, refresh: refreshGsc } = useEzyLatestRun(selectedClient?.id, "gsc_summary");
   const gsc = gscRun ? gscKpisFromResult(gscRun.result) : null;
-  const { run: psiRun } = useEzyLatestRun(selectedClient?.id, "pagespeed");
+  const { run: psiRun, refresh: refreshPsi } = useEzyLatestRun(selectedClient?.id, "pagespeed");
   const psi = psiRun ? pagespeedKpisFromResult(psiRun.result) : null;
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshAhrefs();
+      refreshHistory();
+      refreshGsc();
+      refreshPsi();
+    }, 12000);
+    return () => clearInterval(interval);
+  }, [refreshAhrefs, refreshHistory, refreshGsc, refreshPsi]);
   const { isOn } = useEzyDashboardConfig();
   const traffic = Number(live?.traffic ?? selectedClient?.traffic ?? 0);
   const keywords = Number(live?.keywords ?? selectedClient?.keywords ?? 0);
@@ -2405,6 +2436,13 @@ function GeoDashboard({ selectedClient, dateRange }) {
   const live = useLiveIntegrations();
   const overview = useCanonryOverview(selectedClient);
   const liveCanonry = live.data?.canonry;
+  useEffect(() => {
+    const interval = setInterval(() => {
+      live.refresh?.();
+      overview.refresh?.();
+    }, 12000);
+    return () => clearInterval(interval);
+  }, [live.refresh, overview.refresh]);
   const verifiedProviders = Object.entries(live.data?.providers || {})
     .filter(([, v]) => v?.verified)
     .map(([k]) => canonryProviderLabel(k));
@@ -2738,10 +2776,14 @@ function GeoDashboard({ selectedClient, dateRange }) {
   );
 }
 function ConvDashboard({ selectedClient, dateRange }) {
-  const { run } = useEzyLatestRun(selectedClient?.id, "ga4_summary");
+  const { run, refresh: refreshGa4 } = useEzyLatestRun(selectedClient?.id, "ga4_summary");
   const ga4Raw = run ? ga4KpisFromResult(run.result) : null;
   const days = dateRange?.days || 30;
   const ga4 = ga4Raw;
+  useEffect(() => {
+    const interval = setInterval(() => refreshGa4(), 12000);
+    return () => clearInterval(interval);
+  }, [refreshGa4]);
   const revenue = Number(selectedClient?.revenue || 0);
   const phoneCalls = Number(selectedClient?.phoneCalls || 0);
   const mailClicks = Number(selectedClient?.mailClicks || 0);
