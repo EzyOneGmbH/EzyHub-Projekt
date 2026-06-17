@@ -413,7 +413,9 @@ async function jobGeo(c: any, opts: { runGeo?: boolean; geoSlug?: string }) {
         headers: H,
         body: JSON.stringify({
           trigger: "manual",
-          providers: ["perplexity", "openai"],
+          // All public AI assistants Canonry has configured (ChatGPT, Perplexity,
+          // Gemini, Claude). "local"/llama is self-hosted, not a visibility target.
+          providers: ["openai", "perplexity", "gemini", "claude"],
           noLocation: true,
         }),
       });
