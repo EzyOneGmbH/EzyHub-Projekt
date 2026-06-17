@@ -6424,8 +6424,9 @@ function SkillPicker({ selected, onChange }) {
                     {skills.map((s) => {
                       const on = selected.includes(s.skill);
                       return (
-                        <div key={s.id} onClick={() => toggle(s.skill)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 6px", borderRadius: 5, cursor: "pointer", background: on ? `${C.accent}11` : "transparent" }} title={s.description}>
+                        <div key={s.id} onClick={() => toggle(s.skill)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 6px", borderRadius: 5, cursor: "pointer", background: on ? `${C.accent}11` : "transparent", borderLeft: `3px solid ${cat.color}` }} title={`${cat.label} · ${s.description}`}>
                           <span style={checkStyle(on)}>{on ? "✓" : ""}</span>
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: cat.color, flexShrink: 0 }} />
                           <span style={{ fontSize: 11, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.skill}</span>
                         </div>
                       );
