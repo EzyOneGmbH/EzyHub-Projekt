@@ -248,3 +248,147 @@ export function ga4ConversionsFromResult(result: any): {
     series: Array.isArray(r.series) ? r.series : [],
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI Visibility (Canonry) — extractors over a canonry_ai_visibility snapshot.
+// Snapshot shape: { visibility, metrics, sources, contentSources, health, competitors }.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AiVisibilityLabel = "Low" | "Medium" | "High";
+
+/** 0–100 visibility score from Canonry health.overallCitedRate (citation rate). */
+export function aiVisibilityScoreFromResult(result: any): {
+  score: number;
+  label: AiVisibilityLabel;
+} {
+  const rate =
+    Number(result?.health?.overallCitedRate ?? result?.metrics?.overall?.citationRate ?? 0) || 0;
+  const score = Math.round(Math.max(0, Math.min(1, rate)) * 100);
+  const label: AiVisibilityLabel = score > 60 ? "High" : score >= 25 ? "Medium" : "Low";
+  return { score, label };
+}
+
+/**
+ * Headline KPIs with period-over-period deltas.
+ * Mentions/Citations deltas come from the last two metric buckets; referenced-page
+ * count has no native time series, so its delta is null (shown without a delta).
+ */
+export function aiVisibilityKpisFromResult(result: any): {
+  mentions: number;
+  citations: number;
+  referencedPages: number;
+  mentionsDelta: number | null;
+  citationsDelta: number | null;
+} {
+  const overall = result?.metrics?.overall || {};
+  const summary = result?.visibility?.summary || {};
+  const citations =
+    Number(overall.cited ?? summary.queriesCitedOnly ?? 0) +
+    (overall.cited != null ? 0 : Number(summary.queriesCitedAndMentioned ?? 0));
+  const mentions = Number(
+    overall.mentionedCount ??
+      Number(summary.queriesMentionedOnly ?? 0) + Number(summary.queriesCitedAndMentioned ?? 0),
+  );
+  // Referenced pages = unique own-domain grounding URIs across all queries.
+  const seen = new Set<string>();
+  for (const s of result?.contentSources?.sources ?? []) {
+    for (const g of s?.groundingSources ?? []) {
+      if (g?.isOurDomain && g?.uri) seen.add(String(g.uri));
+    }
+  }
+  const referencedPages = seen.size;
+
+  const pct = (cur: number, prev: number): number | null =>
+    prev > 0 ? Math.round(((cur - prev) / prev) * 1000) / 10 : null;
+  const buckets = Array.isArray(result?.metrics?.buckets) ? result.metrics.buckets : [];
+  let citationsDelta: number | null = null;
+  let mentionsDelta: number | null = null;
+  if (buckets.length >= 2) {
+    const last = buckets[buckets.length - 1];
+    const prev = buckets[buckets.length - 2];
+    citationsDelta = pct(Number(last?.cited ?? 0), Number(prev?.cited ?? 0));
+    mentionsDelta = pct(Number(last?.mentionedCount ?? 0), Number(prev?.mentionedCount ?? 0));
+  }
+  return { mentions, citations, referencedPages, mentionsDelta, citationsDelta };
+}
+
+/** Time-series buckets normalized for charting (full window; slice client-side). */
+export function aiVisibilitySeriesFromResult(
+  result: any,
+): Array<{ date: string; cited: number; mentioned: number; citationRate: number }> {
+  const buckets = Array.isArray(result?.metrics?.buckets) ? result.metrics.buckets : [];
+  return buckets
+    .map((b: any) => ({
+      date: String(b?.endDate ?? b?.startDate ?? ""),
+      cited: Number(b?.cited ?? 0) || 0,
+      mentioned: Number(b?.mentionedCount ?? 0) || 0,
+      citationRate: Number(b?.citationRate ?? 0) || 0,
+    }))
+    .filter((b: { date: string }) => b.date);
+}
+
+/**
+ * Per-LLM distribution from Canonry health.providerBreakdown
+ * ({ provider: { cited, citedRate, total } }). Returns raw provider keys —
+ * label via canonryProviderLabel in the component.
+ */
+export function aiVisibilityProvidersFromResult(
+  result: any,
+): Array<{ provider: string; cited: number; total: number; rate: number }> {
+  const pb = result?.health?.providerBreakdown;
+  if (!pb || typeof pb !== "object") return [];
+  return Object.entries(pb)
+    .map(([provider, v]: [string, any]) => ({
+      provider,
+      cited: Number(v?.cited ?? 0) || 0,
+      total: Number(v?.total ?? 0) || 0,
+      rate: Number(v?.citedRate ?? 0) || 0,
+    }))
+    .sort((a, b) => b.cited - a.cited || a.provider.localeCompare(b.provider));
+}
+
+/** Cited-source domains from Canonry analytics/sources.ranked.entries. */
+export function aiVisibilitySourcesFromResult(result: any): Array<{
+  domain: string;
+  count: number;
+  percentage: number;
+  label: string;
+  surfaceClass: string;
+}> {
+  const entries = result?.sources?.ranked?.entries;
+  if (!Array.isArray(entries)) return [];
+  return entries.map((e: any) => ({
+    domain: String(e?.domain ?? ""),
+    count: Number(e?.count ?? 0) || 0,
+    percentage: Number(e?.percentage ?? 0) || 0,
+    label: String(e?.label ?? e?.category ?? ""),
+    surfaceClass: String(e?.surfaceClass ?? ""),
+  }));
+}
+
+/**
+ * Top queries (used as the "Topics" view — Canonry's unit is queries, not topics).
+ * Includes a per-query Share-of-Voice: citedCount / totalProviders.
+ */
+export function aiVisibilityTopicsFromResult(
+  result: any,
+): Array<{ query: string; cited: number; mentioned: number; providers: number; sov: number }> {
+  const byQuery = Array.isArray(result?.visibility?.byQuery) ? result.visibility.byQuery : [];
+  return byQuery
+    .map((q: any) => {
+      const providers = Number(q?.totalProviders ?? 0) || 0;
+      const cited = Number(q?.citedCount ?? 0) || 0;
+      return {
+        query: String(q?.query ?? ""),
+        cited,
+        mentioned: Number(q?.mentionedCount ?? 0) || 0,
+        providers,
+        sov: providers > 0 ? Math.round((cited / providers) * 1000) / 10 : 0,
+      };
+    })
+    .filter((q: { query: string }) => q.query)
+    .sort(
+      (a: { cited: number; sov: number }, b: { cited: number; sov: number }) =>
+        b.cited - a.cited || b.sov - a.sov,
+    );
+}

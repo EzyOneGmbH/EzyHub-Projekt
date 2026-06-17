@@ -47,6 +47,7 @@ import { Route as ApiAgentJobRouteImport } from './routes/api/agent.job'
 import { Route as ApiAgentAgentsRouteImport } from './routes/api/agent.agents'
 import { Route as ApiAdminPopulateRouteImport } from './routes/api/admin.populate'
 import { Route as ApiLiveCanonryOverviewRouteImport } from './routes/api/live.canonry.overview'
+import { Route as ApiLiveCanonryAiVisibilityRouteImport } from './routes/api/live.canonry.ai-visibility'
 import { Route as ApiGoogleOauthStartRouteImport } from './routes/api/google.oauth.start'
 
 const TasksRoute = TasksRouteImport.update({
@@ -239,6 +240,12 @@ const ApiLiveCanonryOverviewRoute = ApiLiveCanonryOverviewRouteImport.update({
   path: '/api/live/canonry/overview',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiLiveCanonryAiVisibilityRoute =
+  ApiLiveCanonryAiVisibilityRouteImport.update({
+    id: '/api/live/canonry/ai-visibility',
+    path: '/api/live/canonry/ai-visibility',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiGoogleOauthStartRoute = ApiGoogleOauthStartRouteImport.update({
   id: '/api/google/oauth/start',
   path: '/api/google/oauth/start',
@@ -284,6 +291,7 @@ export interface FileRoutesByFullPath {
   '/api/live/status': typeof ApiLiveStatusRoute
   '/api/perplexity/search': typeof ApiPerplexitySearchRoute
   '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
+  '/api/live/canonry/ai-visibility': typeof ApiLiveCanonryAiVisibilityRoute
   '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
 }
 export interface FileRoutesByTo {
@@ -325,6 +333,7 @@ export interface FileRoutesByTo {
   '/api/live/status': typeof ApiLiveStatusRoute
   '/api/perplexity/search': typeof ApiPerplexitySearchRoute
   '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
+  '/api/live/canonry/ai-visibility': typeof ApiLiveCanonryAiVisibilityRoute
   '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
 }
 export interface FileRoutesById {
@@ -367,6 +376,7 @@ export interface FileRoutesById {
   '/api/live/status': typeof ApiLiveStatusRoute
   '/api/perplexity/search': typeof ApiPerplexitySearchRoute
   '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
+  '/api/live/canonry/ai-visibility': typeof ApiLiveCanonryAiVisibilityRoute
   '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
 }
 export interface FileRouteTypes {
@@ -410,6 +420,7 @@ export interface FileRouteTypes {
     | '/api/live/status'
     | '/api/perplexity/search'
     | '/api/google/oauth/start'
+    | '/api/live/canonry/ai-visibility'
     | '/api/live/canonry/overview'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -451,6 +462,7 @@ export interface FileRouteTypes {
     | '/api/live/status'
     | '/api/perplexity/search'
     | '/api/google/oauth/start'
+    | '/api/live/canonry/ai-visibility'
     | '/api/live/canonry/overview'
   id:
     | '__root__'
@@ -492,6 +504,7 @@ export interface FileRouteTypes {
     | '/api/live/status'
     | '/api/perplexity/search'
     | '/api/google/oauth/start'
+    | '/api/live/canonry/ai-visibility'
     | '/api/live/canonry/overview'
   fileRoutesById: FileRoutesById
 }
@@ -530,6 +543,7 @@ export interface RootRouteChildren {
   ApiLiveStatusRoute: typeof ApiLiveStatusRoute
   ApiPerplexitySearchRoute: typeof ApiPerplexitySearchRoute
   ApiGoogleOauthStartRoute: typeof ApiGoogleOauthStartRoute
+  ApiLiveCanonryAiVisibilityRoute: typeof ApiLiveCanonryAiVisibilityRoute
   ApiLiveCanonryOverviewRoute: typeof ApiLiveCanonryOverviewRoute
 }
 
@@ -801,6 +815,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiLiveCanonryOverviewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/live/canonry/ai-visibility': {
+      id: '/api/live/canonry/ai-visibility'
+      path: '/api/live/canonry/ai-visibility'
+      fullPath: '/api/live/canonry/ai-visibility'
+      preLoaderRoute: typeof ApiLiveCanonryAiVisibilityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/google/oauth/start': {
       id: '/api/google/oauth/start'
       path: '/api/google/oauth/start'
@@ -891,6 +912,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiLiveStatusRoute: ApiLiveStatusRoute,
   ApiPerplexitySearchRoute: ApiPerplexitySearchRoute,
   ApiGoogleOauthStartRoute: ApiGoogleOauthStartRoute,
+  ApiLiveCanonryAiVisibilityRoute: ApiLiveCanonryAiVisibilityRoute,
   ApiLiveCanonryOverviewRoute: ApiLiveCanonryOverviewRoute,
 }
 export const routeTree = rootRouteImport

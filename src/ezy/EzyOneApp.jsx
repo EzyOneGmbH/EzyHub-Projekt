@@ -111,6 +111,12 @@ import {
   ga4ConversionsFromResult,
   gscKpisFromResult,
   pagespeedKpisFromResult,
+  aiVisibilityScoreFromResult,
+  aiVisibilityKpisFromResult,
+  aiVisibilitySeriesFromResult,
+  aiVisibilityProvidersFromResult,
+  aiVisibilitySourcesFromResult,
+  aiVisibilityTopicsFromResult,
 } from "@/ezy/data/useEzyLatestRun";
 import GoogleClientPanel from "@/ezy/GoogleClientPanel.jsx";
 import { supabase } from "@/integrations/supabase/client";
@@ -234,7 +240,7 @@ const DEFAULT_CUSTOMER_DEFAULTS = {
   language: "Deutsch",
   tone: "Professionell",
   reportTemplate: "Standard",
-  visibleTabs: ["overview", "seo", "geo", "conversions", "ads"],
+  visibleTabs: ["overview", "seo", "geo", "aivis", "conversions", "ads"],
 };
 function readStoredJson(key, fallback) {
   if (typeof window === "undefined") return fallback;
@@ -3389,6 +3395,362 @@ function OverviewDashboard({ selectedClient, dateRange }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// AI VISIBILITY DASHBOARD (KI-Sichtbarkeit, Canonry-backed)
+// ═══════════════════════════════════════════════════════════════════════════
+const AIVIS_WINDOWS = [
+  { id: "7d", label: "7T", days: 7 },
+  { id: "30d", label: "30T", days: 30 },
+  { id: "90d", label: "90T", days: 90 },
+  { id: "all", label: "Alle", days: null },
+];
+function AiVisibilityDashboard({ selectedClient }) {
+  const { canRunAudits } = useAuth();
+  const { run, refresh } = useEzyLatestRun(selectedClient?.id, "canonry_ai_visibility");
+  const result = run?.result || null;
+  const [range, setRange] = useState("90d");
+  const [tab, setTab] = useState("topics");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const refreshLive = useCallback(async () => {
+    if (!selectedClient?.id) return;
+    setBusy(true);
+    setErr("");
+    try {
+      const qs = new URLSearchParams({ clientId: selectedClient.id });
+      const res = await ezyFetch(`/api/live/canonry/ai-visibility?${qs.toString()}`);
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload.error || "Canonry nicht verfügbar");
+      await refresh();
+    } catch (e) {
+      setErr(e?.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [selectedClient?.id, refresh]);
+
+  const { score, label } = result
+    ? aiVisibilityScoreFromResult(result)
+    : { score: 0, label: "Low" };
+  const kpis = result
+    ? aiVisibilityKpisFromResult(result)
+    : { mentions: 0, citations: 0, referencedPages: 0, mentionsDelta: null, citationsDelta: null };
+  const seriesAll = result ? aiVisibilitySeriesFromResult(result) : [];
+  const providers = result ? aiVisibilityProvidersFromResult(result) : [];
+  const sources = result ? aiVisibilitySourcesFromResult(result) : [];
+  const topics = result ? aiVisibilityTopicsFromResult(result) : [];
+
+  const win = AIVIS_WINDOWS.find((w) => w.id === range) || AIVIS_WINDOWS[2];
+  const series = useMemo(() => {
+    if (!win.days) return seriesAll;
+    const cutoff = Date.now() - win.days * 24 * 60 * 60 * 1000;
+    return seriesAll.filter((b) => {
+      const t = new Date(b.date).getTime();
+      return Number.isNaN(t) ? true : t >= cutoff;
+    });
+  }, [seriesAll, win.days]);
+
+  const scoreColor = label === "High" ? C.green : label === "Medium" ? C.orange : C.red;
+  const scoreLabelDe = label === "High" ? "Hoch" : label === "Medium" ? "Mittel" : "Niedrig";
+  const providerMax = Math.max(1, ...providers.map((p) => p.cited));
+
+  const RefreshBtn = canRunAudits ? (
+    <Btn icon={RefreshCw} onClick={refreshLive} disabled={busy}>
+      {busy ? "lädt…" : "Aktualisieren"}
+    </Btn>
+  ) : null;
+
+  if (!result) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>{RefreshBtn}</div>
+        {err && (
+          <div
+            style={{
+              background: C.redDim,
+              border: `1px solid ${C.red}35`,
+              borderRadius: 12,
+              padding: "12px 16px",
+              fontSize: 13,
+              color: C.text,
+            }}
+          >
+            {err}
+          </div>
+        )}
+        <LiveEmptyState
+          title="Noch keine KI-Sichtbarkeitsdaten"
+          hint="Sobald ein Canonry-Sweep gelaufen ist, erscheinen hier Visibility-Score, Mentions/Citations, LLM-Verteilung und zitierte Quellen. Mit Aktualisieren einen Live-Abruf starten."
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 12, color: C.textMuted }}>
+          {run?.created_at ? `Stand: ${new Date(run.created_at).toLocaleString("de-CH")}` : ""}
+        </div>
+        {RefreshBtn}
+      </div>
+      {err && (
+        <div style={{ background: C.redDim, border: `1px solid ${C.red}35`, borderRadius: 12, padding: "10px 14px", fontSize: 13, color: C.text }}>
+          {err}
+        </div>
+      )}
+      {/* Score gauge + headline KPIs */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 14 }}>
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, position: "relative" }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, color: C.textMuted }}>
+            Visibility Score
+          </div>
+          <div style={{ position: "relative", height: 150 }}>
+            <ResponsiveContainer width="100%" height={150}>
+              <PieChart>
+                <Pie
+                  data={[{ value: score }, { value: 100 - score }]}
+                  dataKey="value"
+                  startAngle={180}
+                  endAngle={0}
+                  cx="50%"
+                  cy="92%"
+                  innerRadius={68}
+                  outerRadius={96}
+                  stroke="none"
+                  isAnimationActive={false}
+                >
+                  <Cell fill={scoreColor} />
+                  <Cell fill={C.border} />
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+            <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", paddingBottom: 6 }}>
+              <div style={{ fontSize: 38, fontWeight: 800, color: C.text, lineHeight: 1 }}>{score}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: scoreColor }}>{scoreLabelDe}</div>
+            </div>
+          </div>
+          <div style={{ fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 4 }}>
+            aus Canonry Citation-Rate
+          </div>
+        </div>
+        <KpiCard
+          icon={Bot}
+          label="Mentions"
+          value={kpis.mentions > 0 ? kpis.mentions.toLocaleString("de-CH") : "—"}
+          change={kpis.mentionsDelta}
+          color={C.accent}
+        />
+        <KpiCard
+          icon={FileText}
+          label="Citations"
+          value={kpis.citations > 0 ? kpis.citations.toLocaleString("de-CH") : "—"}
+          change={kpis.citationsDelta}
+          color={C.green}
+        />
+        <KpiCard
+          icon={Link2}
+          label="Referenced Pages"
+          value={kpis.referencedPages > 0 ? kpis.referencedPages.toLocaleString("de-CH") : "—"}
+          color={C.blue}
+        />
+      </div>
+      {/* Time-series with range switcher */}
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: C.textMuted }}>
+            Mentions & Citations im Zeitverlauf
+          </div>
+          <div style={{ display: "flex", gap: 4 }}>
+            {AIVIS_WINDOWS.map((w) => (
+              <button
+                key={w.id}
+                onClick={() => setRange(w.id)}
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: 6,
+                  border: `1px solid ${range === w.id ? C.accent : C.border}`,
+                  background: range === w.id ? C.accentDim : "transparent",
+                  color: range === w.id ? C.accentLight : C.textMuted,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                {w.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {series.length >= 2 ? (
+          <ResponsiveContainer width="100%" height={260}>
+            <AreaChart data={series}>
+              <defs>
+                <linearGradient id="aivis-cit" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={C.green} stopOpacity={0.35} />
+                  <stop offset="100%" stopColor={C.green} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+              <XAxis
+                dataKey="date"
+                stroke={C.textDim}
+                fontSize={11}
+                tickFormatter={(d) => (typeof d === "string" && d.length >= 10 ? d.slice(5) : d)}
+              />
+              <YAxis stroke={C.textDim} fontSize={11} />
+              <Tooltip
+                contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, color: C.textMuted }}
+              />
+              <Legend />
+              <Area type="monotone" dataKey="cited" name="Citations" stroke={C.green} fill="url(#aivis-cit)" strokeWidth={2} />
+              <Area type="monotone" dataKey="mentioned" name="Mentions" stroke={C.accent} fillOpacity={0} strokeWidth={2} />
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : (
+          <div style={{ fontSize: 12, color: C.textDim, padding: "24px 0", textAlign: "center" }}>
+            Noch zu wenig Datenpunkte für diesen Zeitraum.
+          </div>
+        )}
+      </div>
+      {/* LLM distribution + Mentions by country */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 14 }}>
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}>
+            Verteilung nach LLM
+          </div>
+          {providers.length > 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {providers.map((p) => {
+                const lbl = canonryProviderLabel(p.provider);
+                const col = AI_COLORS[lbl] || C.textDim;
+                return (
+                  <div key={p.provider}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                      <span style={{ color: C.text, fontWeight: 600 }}>{lbl}</span>
+                      <span style={{ color: C.textMuted }}>
+                        {(p.rate * 100).toFixed(1)}% · {p.cited}/{p.total}
+                      </span>
+                    </div>
+                    <div style={{ height: 8, borderRadius: 4, background: C.border, overflow: "hidden" }}>
+                      <div style={{ width: `${(p.cited / providerMax) * 100}%`, height: "100%", background: col, borderRadius: 4 }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: C.textDim, padding: "16px 0" }}>
+              Keine Provider-Daten im letzten Sweep.
+            </div>
+          )}
+        </div>
+        {/* Mentions by country — not natively provided by Canonry yet */}
+        <div style={{ background: C.card, border: `1px dashed ${C.border}`, borderRadius: 14, padding: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: C.textMuted }}>Mentions nach Land</span>
+            <Badge color={C.orange}>coming soon</Badge>
+          </div>
+          <div style={{ fontSize: 12, color: C.textDim, lineHeight: 1.6 }}>
+            Canonry liefert aktuell keine länderspezifische Aufschlüsselung. Sobald Queries pro Markt
+            getaggt sind, wird dieser Tile aus marktspezifischen Query-Sets befüllt — bis dahin keine
+            geschätzten Werte.
+          </div>
+        </div>
+      </div>
+      {/* Topics & Sources tabs */}
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
+        <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+          {[
+            { id: "topics", label: "Top Queries" },
+            { id: "sources", label: "Zitierte Quellen" },
+          ].map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              style={{
+                padding: "6px 14px",
+                borderRadius: 8,
+                border: `1px solid ${tab === t.id ? C.accent : C.border}`,
+                background: tab === t.id ? C.accentDim : "transparent",
+                color: tab === t.id ? C.accentLight : C.textMuted,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {tab === "topics" ? (
+          topics.length > 0 ? (
+            <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+              <table style={{ width: "100%", minWidth: 420, borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ color: C.textDim, textAlign: "left" }}>
+                    <th style={{ padding: "6px 8px" }}>Query</th>
+                    <th style={{ padding: "6px 8px", textAlign: "right" }}>Cited</th>
+                    <th style={{ padding: "6px 8px", textAlign: "right" }}>Mentioned</th>
+                    <th style={{ padding: "6px 8px", textAlign: "right" }}>SOV</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topics.slice(0, 20).map((q, i) => (
+                    <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
+                      <td style={{ padding: "6px 8px", color: C.text }}>{q.query}</td>
+                      <td style={{ padding: "6px 8px", textAlign: "right" }}>{q.cited}/{q.providers}</td>
+                      <td style={{ padding: "6px 8px", textAlign: "right" }}>{q.mentioned}</td>
+                      <td style={{ padding: "6px 8px", textAlign: "right", color: q.sov >= 50 ? C.green : C.textMuted }}>
+                        {q.sov.toFixed(1)}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div style={{ fontSize: 11, color: C.textDim, marginTop: 8 }}>
+                SOV = zitierende Provider / konfigurierte Provider je Query.
+              </div>
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: C.textDim, padding: "16px 0" }}>Keine Query-Daten.</div>
+          )
+        ) : sources.length > 0 ? (
+          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <table style={{ width: "100%", minWidth: 420, borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr style={{ color: C.textDim, textAlign: "left" }}>
+                  <th style={{ padding: "6px 8px" }}>Domain</th>
+                  <th style={{ padding: "6px 8px" }}>Typ</th>
+                  <th style={{ padding: "6px 8px", textAlign: "right" }}>Anteil</th>
+                  <th style={{ padding: "6px 8px", textAlign: "right" }}>Citations</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sources.slice(0, 20).map((s, i) => (
+                  <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
+                    <td style={{ padding: "6px 8px", color: C.text }}>{s.domain}</td>
+                    <td style={{ padding: "6px 8px", color: C.textMuted }}>{s.label || s.surfaceClass || "—"}</td>
+                    <td style={{ padding: "6px 8px", textAlign: "right" }}>{s.percentage.toFixed(1)}%</td>
+                    <td style={{ padding: "6px 8px", textAlign: "right" }}>{s.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div style={{ fontSize: 12, color: C.textDim, padding: "16px 0" }}>
+            Keine zitierten Quellen im letzten Sweep.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // ADS DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════
 function AdsDashboard({ selectedClient, dateRange }) {
@@ -5215,17 +5577,18 @@ function SettingsPage({
                     { id: "overview", label: "Übersicht", icon: BarChart3 },
                     { id: "seo", label: "SEO", icon: Globe },
                     { id: "geo", label: "GEO", icon: Sparkles },
+                    { id: "aivis", label: "KI-Sichtbarkeit", icon: Bot },
                     { id: "conversions", label: "Conversions", icon: DollarSign },
                     { id: "ads", label: "Ads", icon: Megaphone },
                   ].map((t) => {
-                    const on = (defaultsDraft.visibleTabs || ["overview", "seo", "geo", "conversions", "ads"]).includes(t.id);
+                    const on = (defaultsDraft.visibleTabs || ["overview", "seo", "geo", "aivis", "conversions", "ads"]).includes(t.id);
                     return (
                       <label key={t.id} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
                         <input
                           type="checkbox"
                           checked={on}
                           onChange={() => {
-                            const cur = defaultsDraft.visibleTabs || ["overview", "seo", "geo", "conversions", "ads"];
+                            const cur = defaultsDraft.visibleTabs || ["overview", "seo", "geo", "aivis", "conversions", "ads"];
                             const next = on ? cur.filter((x) => x !== t.id) : [...cur, t.id];
                             setDefaultsDraft((p) => ({ ...p, visibleTabs: next.length > 0 ? next : [t.id] }));
                           }}
@@ -6338,6 +6701,7 @@ const TABS = [
   { id: "overview", label: "Übersicht", icon: BarChart3 },
   { id: "seo", label: "SEO", icon: Globe },
   { id: "geo", label: "GEO", icon: Sparkles },
+  { id: "aivis", label: "KI-Sichtbarkeit", icon: Bot },
   { id: "conversions", label: "Conversions", icon: DollarSign },
   { id: "ads", label: "Ads", icon: Megaphone },
 ];
@@ -6935,9 +7299,11 @@ function App() {
                           ? "SEO Dashboard"
                           : tab === "geo"
                             ? "GEO Dashboard"
-                            : tab === "ads"
-                              ? "Ads Dashboard"
-                              : "Conversions"}
+                            : tab === "aivis"
+                              ? "KI-Sichtbarkeit"
+                              : tab === "ads"
+                                ? "Ads Dashboard"
+                                : "Conversions"}
                   </h1>
                   {isViewer && <Badge color={C.blue}>Nur-Lese-Ansicht</Badge>}
                 </div>
@@ -6952,6 +7318,7 @@ function App() {
                   {tab === "overview" && <OverviewDashboard selectedClient={client} dateRange={dateRange} />}
                   {tab === "seo" && <SeoDashboard selectedClient={client} dateRange={dateRange} />}
                   {tab === "geo" && <GeoDashboard selectedClient={client} dateRange={dateRange} />}
+                  {tab === "aivis" && <AiVisibilityDashboard selectedClient={client} />}
                   {tab === "conversions" && <ConvDashboard selectedClient={client} dateRange={dateRange} />}
                   {tab === "ads" && <AdsDashboard selectedClient={client} dateRange={dateRange} />}
                 </>
