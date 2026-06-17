@@ -29,6 +29,14 @@ function bucketOf(eventName: string): "phone" | "mail" | "maps" | "contact" | nu
   return null;
 }
 
+const BUCKET_LABEL: Record<string, string> = {
+  phone: "Phone Click",
+  mail: "Mail Click",
+  maps: "Maps Click",
+  contact: "Contact Form",
+};
+const PURCHASE_RE = /purchase|order|checkout|kauf|transaction/i;
+
 export const Route = createFileRoute("/api/google/ga4-conversions")({
   server: {
     handlers: {
@@ -151,10 +159,52 @@ export const Route = createFileRoute("/api/google/ga4-conversions")({
             /* optional */
           }
 
+          // Detailed conversion listing (EzyRank-style table rows): one row per
+          // date × event × country × source × device for conversion-type events.
+          let rows: Array<Record<string, unknown>> = [];
+          try {
+            const dr = await callGa4({
+              dateRanges,
+              dimensions: [
+                { name: "date" },
+                { name: "eventName" },
+                { name: "country" },
+                { name: "sessionSource" },
+                { name: "deviceCategory" },
+              ],
+              metrics: [{ name: "eventCount" }, { name: "eventValue" }],
+              orderBys: [{ dimension: { dimensionName: "date" }, desc: true }],
+              limit: 250,
+            });
+            rows = (dr.rows ?? [])
+              .map((r) => {
+                const dv = r.dimensionValues ?? [];
+                const mv = r.metricValues ?? [];
+                const eventName = dv[1]?.value ?? "";
+                const b = bucketOf(eventName);
+                return {
+                  date: dv[0]?.value ?? "",
+                  eventName,
+                  description: b ? BUCKET_LABEL[b] : eventName,
+                  country: dv[2]?.value ?? "",
+                  source: dv[3]?.value ?? "",
+                  device: dv[4]?.value ?? "",
+                  count: Number(mv[0]?.value ?? 0),
+                  value: Number(mv[1]?.value ?? 0),
+                };
+              })
+              .filter(
+                (r) => bucketOf(String(r.eventName)) || PURCHASE_RE.test(String(r.eventName)),
+              );
+          } catch {
+            /* optional */
+          }
+
           const result = {
             days: parsed.data.days,
             breakdown,
             events: events.slice(0, 25),
+            rows: rows.slice(0, 200),
             revenue,
             purchases,
             series,

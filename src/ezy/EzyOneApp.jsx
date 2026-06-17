@@ -3161,7 +3161,7 @@ function ConvDashboard({ selectedClient, dateRange }) {
           )}
         </div>
       )}
-      {conv && conv.events.length > 0 && (
+      {conv && (conv.rows.length > 0 || conv.events.length > 0) && (
         <div
           style={{
             background: C.card,
@@ -3171,27 +3171,64 @@ function ConvDashboard({ selectedClient, dateRange }) {
           }}
         >
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}>
-            Conversion-Events (GA4)
+            Alle Conversions
           </div>
-          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <table style={{ width: "100%", minWidth: 360, borderCollapse: "collapse", fontSize: 13 }}>
-              <thead>
-                <tr style={{ color: C.textDim, textAlign: "left" }}>
-                  <th style={{ padding: "6px 8px" }}>Event</th>
-                  <th style={{ padding: "6px 8px", textAlign: "right" }}>Anzahl</th>
-                </tr>
-              </thead>
-              <tbody>
-                {conv.events.slice(0, 15).map((e, i) => (
-                  <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
-                    <td style={{ padding: "6px 8px", color: C.text }}>{e.eventName}</td>
-                    <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                      {e.count.toLocaleString("de-CH")}
-                    </td>
+          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", maxHeight: 460, overflowY: "auto" }}>
+            {conv.rows.length > 0 ? (
+              <table style={{ width: "100%", minWidth: 640, borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ color: C.textDim, textAlign: "left" }}>
+                    <th style={{ padding: "6px 8px" }}>Titel</th>
+                    <th style={{ padding: "6px 8px" }}>Datum</th>
+                    <th style={{ padding: "6px 8px", textAlign: "right" }}>Wert</th>
+                    <th style={{ padding: "6px 8px" }}>Land</th>
+                    <th style={{ padding: "6px 8px" }}>Quelle</th>
+                    <th style={{ padding: "6px 8px" }}>Gerät</th>
+                    <th style={{ padding: "6px 8px", textAlign: "right" }}>Anzahl</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {conv.rows.slice(0, 60).map((r, i) => (
+                    <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
+                      <td style={{ padding: "6px 8px", color: C.text, fontWeight: 600 }}>{r.description}</td>
+                      <td style={{ padding: "6px 8px", color: C.textMuted }}>
+                        {typeof r.date === "string" && r.date.length === 8
+                          ? `${r.date.slice(6, 8)}.${r.date.slice(4, 6)}.${r.date.slice(0, 4)}`
+                          : r.date}
+                      </td>
+                      <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                        {r.value > 0 ? `${Math.round(r.value).toLocaleString("de-CH")} CHF` : "—"}
+                      </td>
+                      <td style={{ padding: "6px 8px", color: C.textMuted }}>{r.country || "—"}</td>
+                      <td style={{ padding: "6px 8px", color: C.textMuted }}>{r.source || "—"}</td>
+                      <td style={{ padding: "6px 8px", color: C.textMuted }}>{r.device || "—"}</td>
+                      <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                        {Number(r.count).toLocaleString("de-CH")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <table style={{ width: "100%", minWidth: 360, borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ color: C.textDim, textAlign: "left" }}>
+                    <th style={{ padding: "6px 8px" }}>Event</th>
+                    <th style={{ padding: "6px 8px", textAlign: "right" }}>Anzahl</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {conv.events.slice(0, 15).map((e, i) => (
+                    <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
+                      <td style={{ padding: "6px 8px", color: C.text }}>{e.eventName}</td>
+                      <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                        {e.count.toLocaleString("de-CH")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       )}

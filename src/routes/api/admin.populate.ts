@@ -80,6 +80,14 @@ const CONV_BUCKETS: Array<{ key: "phone" | "mail" | "maps" | "contact"; re: RegE
   { key: "maps", re: /map|route|direction|wegbeschreibung|standort/i },
   { key: "contact", re: /contact|kontakt|form|lead|submit|anfrage|offerte/i },
 ];
+const CONV_BUCKET_LABEL: Record<string, string> = {
+  phone: "Phone Click",
+  mail: "Mail Click",
+  maps: "Maps Click",
+  contact: "Contact Form",
+};
+const CONV_PURCHASE_RE = /purchase|order|checkout|kauf|transaction/i;
+const convBucketOf = (n: string) => CONV_BUCKETS.find((b) => b.re.test(n))?.key ?? null;
 
 async function ranWithin(clientId: string, auditType: string, hours: number): Promise<boolean> {
   if (!hours || hours <= 0) return false;
@@ -649,7 +657,54 @@ async function jobGa4Conversions(c: any, uid: string, days: number) {
   } catch {
     /* optional */
   }
-  const result = { days, breakdown, events: events.slice(0, 25), revenue, purchases, series };
+  // Detailed conversion listing (EzyRank-style rows).
+  let rows: any[] = [];
+  try {
+    const dr = await call({
+      dateRanges,
+      dimensions: [
+        { name: "date" },
+        { name: "eventName" },
+        { name: "country" },
+        { name: "sessionSource" },
+        { name: "deviceCategory" },
+      ],
+      metrics: [{ name: "eventCount" }, { name: "eventValue" }],
+      orderBys: [{ dimension: { dimensionName: "date" }, desc: true }],
+      limit: 250,
+    });
+    rows = (dr.rows ?? [])
+      .map((r: any) => {
+        const dv = r.dimensionValues ?? [];
+        const mv = r.metricValues ?? [];
+        const eventName = dv[1]?.value ?? "";
+        const b = convBucketOf(eventName);
+        return {
+          date: dv[0]?.value ?? "",
+          eventName,
+          description: b ? CONV_BUCKET_LABEL[b] : eventName,
+          country: dv[2]?.value ?? "",
+          source: dv[3]?.value ?? "",
+          device: dv[4]?.value ?? "",
+          count: Number(mv[0]?.value ?? 0),
+          value: Number(mv[1]?.value ?? 0),
+        };
+      })
+      .filter(
+        (r: any) => convBucketOf(String(r.eventName)) || CONV_PURCHASE_RE.test(String(r.eventName)),
+      );
+  } catch {
+    /* optional */
+  }
+  const result = {
+    days,
+    breakdown,
+    events: events.slice(0, 25),
+    rows: rows.slice(0, 200),
+    revenue,
+    purchases,
+    series,
+  };
   await insertRun({
     client_id: c.id,
     organization_id: c.organization_id,

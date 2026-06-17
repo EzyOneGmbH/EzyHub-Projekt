@@ -229,6 +229,16 @@ export function ga4TrafficFromResult(result: any): {
 export function ga4ConversionsFromResult(result: any): {
   breakdown: { phone: number; mail: number; maps: number; contact: number };
   events: Array<{ eventName: string; count: number }>;
+  rows: Array<{
+    date: string;
+    eventName: string;
+    description: string;
+    country: string;
+    source: string;
+    device: string;
+    count: number;
+    value: number;
+  }>;
   revenue: number;
   purchases: number;
   series: Array<{ date: string; conversions: number; revenue: number }>;
@@ -243,6 +253,7 @@ export function ga4ConversionsFromResult(result: any): {
       contact: Number(b.contact ?? 0) || 0,
     },
     events: Array.isArray(r.events) ? r.events : [],
+    rows: Array.isArray(r.rows) ? r.rows : [],
     revenue: Number(r.revenue ?? 0) || 0,
     purchases: Number(r.purchases ?? 0) || 0,
     series: Array.isArray(r.series) ? r.series : [],
