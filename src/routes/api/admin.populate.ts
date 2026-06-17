@@ -721,7 +721,11 @@ async function jobGa4Conversions(c: any, uid: string, days: number) {
     started_at: nowIso(),
     finished_at: nowIso(),
   });
-  return { revenue, leads: breakdown.phone + breakdown.mail + breakdown.maps + breakdown.contact };
+  return {
+    revenue,
+    leads: breakdown.phone + breakdown.mail + breakdown.maps + breakdown.contact,
+    rows: rows.length,
+  };
 }
 
 // AI Visibility — pull Canonry analytics into a canonry_ai_visibility snapshot.
