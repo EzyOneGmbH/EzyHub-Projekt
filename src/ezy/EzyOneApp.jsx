@@ -92,6 +92,7 @@ import {
   Megaphone,
 } from "lucide-react";
 import { ezyFetch } from "@/ezy/data/api";
+import { useAuth } from "@/hooks/use-auth";
 import { useEzyClients } from "@/ezy/data/useEzyClients";
 import { useEzyDefaults } from "@/ezy/data/useEzyDefaults";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
@@ -6351,6 +6352,10 @@ const NAV = [
 
 function App() {
   const isMobile = useMediaQuery("(max-width: 760px)");
+  const { role } = useAuth();
+  // viewer = read-only customer report: dashboards only, no tools/clients/settings.
+  const isViewer = role === "viewer";
+  const nav = useMemo(() => (isViewer ? NAV.filter((n) => n.id === "dashboard") : NAV), [isViewer]);
   const ezy = useEzyClients();
   const clients = useMemo(() => ezy.clients.map((c) => normalizeClientShape(c)), [ezy.clients]);
   const [clientId, setClientId] = useState("");
@@ -6377,6 +6382,10 @@ function App() {
   const contentHook = useEzyContent();
   const [page, setPage] = useState("dashboard");
   const [tab, setTab] = useState("seo");
+  // Viewers only ever see the read-only dashboard report.
+  useEffect(() => {
+    if (isViewer && page !== "dashboard") setPage("dashboard");
+  }, [isViewer, page]);
   const [cdd, setCdd] = useState(false);
   const [showTools, setShowTools] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -6558,7 +6567,7 @@ function App() {
           )}
         </div>
         <nav style={{ flex: 1, padding: "12px 8px" }}>
-          {NAV.map((n) => {
+          {nav.map((n) => {
             const I = n.icon;
             const a = page === n.id;
             return (
@@ -6708,7 +6717,7 @@ function App() {
                   maxWidth: "100%",
                 }}
               >
-                {NAV.map((n) => (
+                {nav.map((n) => (
                   <option key={n.id} value={n.id}>
                     {n.label}
                   </option>
@@ -6767,27 +6776,29 @@ function App() {
                     boxShadow: "0 8px 32px rgba(0,0,0,.4)",
                   }}
                 >
-                  <button
-                    onClick={() => {
-                      setShowAll(true);
-                      setCdd(false);
-                    }}
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      width: "100%",
-                      padding: "10px 14px",
-                      border: "none",
-                      cursor: "pointer",
-                      background: showAll ? C.accentDim : "transparent",
-                      color: C.text,
-                      textAlign: "left",
-                      borderRadius: 8,
-                      fontFamily: "inherit",
-                    }}
-                  >
-                    <span style={{ fontWeight: 600, fontSize: 13 }}>Alle Kunden</span>
-                  </button>
+                  {!isViewer && (
+                    <button
+                      onClick={() => {
+                        setShowAll(true);
+                        setCdd(false);
+                      }}
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        width: "100%",
+                        padding: "10px 14px",
+                        border: "none",
+                        cursor: "pointer",
+                        background: showAll ? C.accentDim : "transparent",
+                        color: C.text,
+                        textAlign: "left",
+                        borderRadius: 8,
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      <span style={{ fontWeight: 600, fontSize: 13 }}>Alle Kunden</span>
+                    </button>
+                  )}
                   {clients.map((entry) => (
                     <button
                       key={entry.id}
@@ -6914,19 +6925,22 @@ function App() {
           {hasClients && page === "dashboard" && (
             <>
               <div style={{ marginBottom: 20 }}>
-                <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
-                  {showAll
-                    ? "Agentur-Übersicht"
-                    : tab === "overview"
-                      ? "Übersicht"
-                      : tab === "seo"
-                        ? "SEO Dashboard"
-                        : tab === "geo"
-                          ? "GEO Dashboard"
-                          : tab === "ads"
-                            ? "Ads Dashboard"
-                            : "Conversions"}
-                </h1>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
+                    {showAll
+                      ? "Agentur-Übersicht"
+                      : tab === "overview"
+                        ? "Übersicht"
+                        : tab === "seo"
+                          ? "SEO Dashboard"
+                          : tab === "geo"
+                            ? "GEO Dashboard"
+                            : tab === "ads"
+                              ? "Ads Dashboard"
+                              : "Conversions"}
+                  </h1>
+                  {isViewer && <Badge color={C.blue}>Nur-Lese-Ansicht</Badge>}
+                </div>
                 <p style={{ color: C.textMuted, fontSize: 13, margin: "4px 0 0" }}>
                   {showAll ? "Alle Kunden" : `${client.name} — ${client.domain}`}
                   {dateRange.label ? ` • ${dateRange.label}` : ""}
@@ -6944,15 +6958,17 @@ function App() {
               )}
             </>
           )}
-          {hasClients && page === "tools" && <ToolsPage selectedClient={client} tools={tools} />}
-          {hasClients && page === "content" && (
+          {!isViewer && hasClients && page === "tools" && (
+            <ToolsPage selectedClient={client} tools={tools} />
+          )}
+          {!isViewer && hasClients && page === "content" && (
             <ContentPage
               clients={clients}
               items={contentHook.items}
               onSaveContent={onSaveContent}
             />
           )}
-          {page === "clients" && (
+          {!isViewer && page === "clients" && (
             <ClientsPage
               clients={clients}
               selectedClientId={client.id}
@@ -6963,7 +6979,7 @@ function App() {
               customerDefaults={customerDefaults}
             />
           )}
-          {page === "settings" && (
+          {!isViewer && page === "settings" && (
             <SettingsPage
               tools={tools}
               onToggleTool={toggleTool}
@@ -6975,7 +6991,7 @@ function App() {
               onClientUpdated={ezy.reload}
             />
           )}
-          {page === "agents" && <AgentsPage selectedClient={client} />}
+          {!isViewer && page === "agents" && <AgentsPage selectedClient={client} />}
         </div>
       </main>
 
