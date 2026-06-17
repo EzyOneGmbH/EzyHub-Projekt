@@ -1749,6 +1749,28 @@ const TOOL_CATS = [
   { id: "skills-obsidian", label: "Obsidian-Skills", icon: Bookmark },
 ];
 
+// Clean parent-category label + color for a tool/skill category id — shown as a
+// badge on each tile/skill so the Überkategorie (SEO/Blog/Ads/…) is obvious at a glance.
+const CATEGORY_BADGE = {
+  audit: { label: "SEO", color: C.blue },
+  geo: { label: "GEO", color: C.accent },
+  content: { label: "Content", color: C.green },
+  technical: { label: "SEO", color: C.blue },
+  obsidian: { label: "Obsidian", color: C.pink },
+  "skills-seo": { label: "SEO", color: C.blue },
+  "skills-blog": { label: "Blog", color: C.green },
+  "skills-ads": { label: "Ads", color: C.orange },
+  "skills-obsidian": { label: "Obsidian", color: C.pink },
+};
+function categoryBadge(category) {
+  return CATEGORY_BADGE[category] || { label: String(category || "—"), color: C.textDim };
+}
+// Look up the parent category of a skill by its skill name (for the SkillPicker chips).
+function skillCategoryBadge(skillName) {
+  const entry = SKILL_CATALOG.find((s) => s.skill === skillName);
+  return entry ? categoryBadge(entry.category) : { label: "", color: C.textDim };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // SHARED CHART COMPONENTS (preserved)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -4243,6 +4265,11 @@ function ToolsPage({ selectedClient, tools }) {
                     <I size={20} color={tool.color} />
                   </div>
                   <div style={{ flex: 1 }}>
+                    <div style={{ marginBottom: 4 }}>
+                      <Badge color={categoryBadge(tool.category).color}>
+                        {categoryBadge(tool.category).label}
+                      </Badge>
+                    </div>
                     <div style={{ fontWeight: 700, fontSize: 14, color: C.text, marginBottom: 2 }}>
                       {tool.label}
                     </div>
@@ -6363,11 +6390,16 @@ function SkillPicker({ selected, onChange }) {
     <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: 10 }}>
       {selected.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
-          {selected.map((s) => (
-            <span key={s} onClick={() => toggle(s)} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 5, padding: "2px 7px", fontSize: 11, color: C.text, cursor: "pointer" }}>
-              {s} ×
-            </span>
-          ))}
+          {selected.map((s) => {
+            const cb = skillCategoryBadge(s);
+            return (
+              <span key={s} onClick={() => toggle(s)} title={cb.label ? `Kategorie: ${cb.label}` : undefined} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 5, padding: "2px 7px", fontSize: 11, color: C.text, cursor: "pointer" }}>
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: cb.color, flexShrink: 0 }} />
+                {cb.label && <span style={{ color: cb.color, fontWeight: 600 }}>{cb.label}</span>}
+                {s} ×
+              </span>
+            );
+          })}
         </div>
       )}
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
