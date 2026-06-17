@@ -161,23 +161,34 @@ export const Route = createFileRoute("/api/google/ga4-conversions")({
 
           // Detailed conversion listing (EzyRank-style table rows): one row per
           // date × event × country × source × device for conversion-type events.
+          // Filter the GA4 report to the conversion event NAMES (from the aggregate
+          // above) so high-volume events (page_view, …) don't crowd out the rows.
+          const convNames = events
+            .map((e) => e.eventName)
+            .filter((n) => bucketOf(n) || PURCHASE_RE.test(n));
           let rows: Array<Record<string, unknown>> = [];
-          try {
-            const dr = await callGa4({
-              dateRanges,
-              dimensions: [
-                { name: "date" },
-                { name: "eventName" },
-                { name: "country" },
-                { name: "sessionSource" },
-                { name: "deviceCategory" },
-              ],
-              metrics: [{ name: "eventCount" }, { name: "eventValue" }],
-              orderBys: [{ dimension: { dimensionName: "date" }, desc: true }],
-              limit: 250,
-            });
-            rows = (dr.rows ?? [])
-              .map((r) => {
+          if (convNames.length > 0) {
+            try {
+              const dr = await callGa4({
+                dateRanges,
+                dimensions: [
+                  { name: "date" },
+                  { name: "eventName" },
+                  { name: "country" },
+                  { name: "sessionSource" },
+                  { name: "deviceCategory" },
+                ],
+                metrics: [{ name: "eventCount" }, { name: "eventValue" }],
+                dimensionFilter: {
+                  filter: {
+                    fieldName: "eventName",
+                    inListFilter: { values: convNames },
+                  },
+                },
+                orderBys: [{ dimension: { dimensionName: "date" }, desc: true }],
+                limit: 250,
+              });
+              rows = (dr.rows ?? []).map((r) => {
                 const dv = r.dimensionValues ?? [];
                 const mv = r.metricValues ?? [];
                 const eventName = dv[1]?.value ?? "";
@@ -192,12 +203,10 @@ export const Route = createFileRoute("/api/google/ga4-conversions")({
                   count: Number(mv[0]?.value ?? 0),
                   value: Number(mv[1]?.value ?? 0),
                 };
-              })
-              .filter(
-                (r) => bucketOf(String(r.eventName)) || PURCHASE_RE.test(String(r.eventName)),
-              );
-          } catch {
-            /* optional */
+              });
+            } catch {
+              /* optional */
+            }
           }
 
           const result = {

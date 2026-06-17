@@ -657,24 +657,31 @@ async function jobGa4Conversions(c: any, uid: string, days: number) {
   } catch {
     /* optional */
   }
-  // Detailed conversion listing (EzyRank-style rows).
+  // Detailed conversion listing (EzyRank-style rows). Filter to conversion event
+  // NAMES so high-volume events (page_view, …) don't crowd out the rows.
+  const convNames = events
+    .map((e: any) => e.eventName)
+    .filter((n: string) => convBucketOf(n) || CONV_PURCHASE_RE.test(n));
   let rows: any[] = [];
-  try {
-    const dr = await call({
-      dateRanges,
-      dimensions: [
-        { name: "date" },
-        { name: "eventName" },
-        { name: "country" },
-        { name: "sessionSource" },
-        { name: "deviceCategory" },
-      ],
-      metrics: [{ name: "eventCount" }, { name: "eventValue" }],
-      orderBys: [{ dimension: { dimensionName: "date" }, desc: true }],
-      limit: 250,
-    });
-    rows = (dr.rows ?? [])
-      .map((r: any) => {
+  if (convNames.length > 0) {
+    try {
+      const dr = await call({
+        dateRanges,
+        dimensions: [
+          { name: "date" },
+          { name: "eventName" },
+          { name: "country" },
+          { name: "sessionSource" },
+          { name: "deviceCategory" },
+        ],
+        metrics: [{ name: "eventCount" }, { name: "eventValue" }],
+        dimensionFilter: {
+          filter: { fieldName: "eventName", inListFilter: { values: convNames } },
+        },
+        orderBys: [{ dimension: { dimensionName: "date" }, desc: true }],
+        limit: 250,
+      });
+      rows = (dr.rows ?? []).map((r: any) => {
         const dv = r.dimensionValues ?? [];
         const mv = r.metricValues ?? [];
         const eventName = dv[1]?.value ?? "";
@@ -689,12 +696,10 @@ async function jobGa4Conversions(c: any, uid: string, days: number) {
           count: Number(mv[0]?.value ?? 0),
           value: Number(mv[1]?.value ?? 0),
         };
-      })
-      .filter(
-        (r: any) => convBucketOf(String(r.eventName)) || CONV_PURCHASE_RE.test(String(r.eventName)),
-      );
-  } catch {
-    /* optional */
+      });
+    } catch {
+      /* optional */
+    }
   }
   const result = {
     days,
