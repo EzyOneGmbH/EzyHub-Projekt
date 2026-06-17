@@ -1867,6 +1867,7 @@ const CURATED_TOOLS = [
 const SKILL_CAT_META = {
   "skills-seo": { icon: Layers, color: C.accent },
   "skills-blog": { icon: PenTool, color: C.cyan },
+  "skills-ads": { icon: Megaphone, color: C.orange },
   "skills-obsidian": { icon: Bookmark, color: C.pink },
 };
 const CATALOG_TOOLS = SKILL_CATALOG.map((s) => {
@@ -1912,6 +1913,7 @@ const TOOL_CATS = [
   { id: "obsidian", label: "Obsidian", icon: Bookmark },
   { id: "skills-seo", label: "SEO-Skills", icon: Layers },
   { id: "skills-blog", label: "Blog-Skills", icon: PenTool },
+  { id: "skills-ads", label: "Ads-Skills", icon: Megaphone },
   { id: "skills-obsidian", label: "Obsidian-Skills", icon: Bookmark },
 ];
 
@@ -4839,15 +4841,16 @@ function SettingsPage({
                     { id: "seo", label: "SEO", icon: Globe },
                     { id: "geo", label: "GEO", icon: Sparkles },
                     { id: "conversions", label: "Conversions", icon: DollarSign },
+                    { id: "ads", label: "Ads", icon: Megaphone },
                   ].map((t) => {
-                    const on = (defaultsDraft.visibleTabs || ["seo", "geo", "conversions"]).includes(t.id);
+                    const on = (defaultsDraft.visibleTabs || ["seo", "geo", "conversions", "ads"]).includes(t.id);
                     return (
                       <label key={t.id} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
                         <input
                           type="checkbox"
                           checked={on}
                           onChange={() => {
-                            const cur = defaultsDraft.visibleTabs || ["seo", "geo", "conversions"];
+                            const cur = defaultsDraft.visibleTabs || ["seo", "geo", "conversions", "ads"];
                             const next = on ? cur.filter((x) => x !== t.id) : [...cur, t.id];
                             setDefaultsDraft((p) => ({ ...p, visibleTabs: next.length > 0 ? next : [t.id] }));
                           }}

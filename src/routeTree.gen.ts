@@ -29,15 +29,21 @@ import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as ApiPerplexitySearchRouteImport } from './routes/api/perplexity.search'
 import { Route as ApiLiveStatusRouteImport } from './routes/api/live.status'
 import { Route as ApiGooglePagespeedRouteImport } from './routes/api/google.pagespeed'
+import { Route as ApiGoogleGscSitesRouteImport } from './routes/api/google.gsc-sites'
 import { Route as ApiGoogleGscImportRouteImport } from './routes/api/google.gsc-import'
 import { Route as ApiGoogleGa4SummaryRouteImport } from './routes/api/google.ga4-summary'
+import { Route as ApiGoogleGa4PropertiesRouteImport } from './routes/api/google.ga4-properties'
 import { Route as ApiGoogleConnectionRouteImport } from './routes/api/google.connection'
 import { Route as ApiGoogleCallbackRouteImport } from './routes/api/google.callback'
 import { Route as ApiCanonryCreateProjectRouteImport } from './routes/api/canonry.create-project'
 import { Route as ApiAiGenerateRouteImport } from './routes/api/ai.generate'
 import { Route as ApiAhrefsOverviewRouteImport } from './routes/api/ahrefs.overview'
+import { Route as ApiAgentRunAgentRouteImport } from './routes/api/agent.run-agent'
 import { Route as ApiAgentRunRouteImport } from './routes/api/agent.run'
+import { Route as ApiAgentMemoryRouteImport } from './routes/api/agent.memory'
 import { Route as ApiAgentJobRouteImport } from './routes/api/agent.job'
+import { Route as ApiAgentAgentsRouteImport } from './routes/api/agent.agents'
+import { Route as ApiAdminPopulateRouteImport } from './routes/api/admin.populate'
 import { Route as ApiLiveCanonryOverviewRouteImport } from './routes/api/live.canonry.overview'
 import { Route as ApiGoogleOauthStartRouteImport } from './routes/api/google.oauth.start'
 
@@ -141,6 +147,11 @@ const ApiGooglePagespeedRoute = ApiGooglePagespeedRouteImport.update({
   path: '/api/google/pagespeed',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGoogleGscSitesRoute = ApiGoogleGscSitesRouteImport.update({
+  id: '/api/google/gsc-sites',
+  path: '/api/google/gsc-sites',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiGoogleGscImportRoute = ApiGoogleGscImportRouteImport.update({
   id: '/api/google/gsc-import',
   path: '/api/google/gsc-import',
@@ -149,6 +160,11 @@ const ApiGoogleGscImportRoute = ApiGoogleGscImportRouteImport.update({
 const ApiGoogleGa4SummaryRoute = ApiGoogleGa4SummaryRouteImport.update({
   id: '/api/google/ga4-summary',
   path: '/api/google/ga4-summary',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiGoogleGa4PropertiesRoute = ApiGoogleGa4PropertiesRouteImport.update({
+  id: '/api/google/ga4-properties',
+  path: '/api/google/ga4-properties',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiGoogleConnectionRoute = ApiGoogleConnectionRouteImport.update({
@@ -176,14 +192,34 @@ const ApiAhrefsOverviewRoute = ApiAhrefsOverviewRouteImport.update({
   path: '/api/ahrefs/overview',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAgentRunAgentRoute = ApiAgentRunAgentRouteImport.update({
+  id: '/api/agent/run-agent',
+  path: '/api/agent/run-agent',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAgentRunRoute = ApiAgentRunRouteImport.update({
   id: '/api/agent/run',
   path: '/api/agent/run',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAgentMemoryRoute = ApiAgentMemoryRouteImport.update({
+  id: '/api/agent/memory',
+  path: '/api/agent/memory',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAgentJobRoute = ApiAgentJobRouteImport.update({
   id: '/api/agent/job',
   path: '/api/agent/job',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAgentAgentsRoute = ApiAgentAgentsRouteImport.update({
+  id: '/api/agent/agents',
+  path: '/api/agent/agents',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminPopulateRoute = ApiAdminPopulateRouteImport.update({
+  id: '/api/admin/populate',
+  path: '/api/admin/populate',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiLiveCanonryOverviewRoute = ApiLiveCanonryOverviewRouteImport.update({
@@ -215,15 +251,21 @@ export interface FileRoutesByFullPath {
   '/customers/$id': typeof CustomersIdRoute
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
+  '/api/admin/populate': typeof ApiAdminPopulateRoute
+  '/api/agent/agents': typeof ApiAgentAgentsRoute
   '/api/agent/job': typeof ApiAgentJobRoute
+  '/api/agent/memory': typeof ApiAgentMemoryRoute
   '/api/agent/run': typeof ApiAgentRunRoute
+  '/api/agent/run-agent': typeof ApiAgentRunAgentRoute
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/ai/generate': typeof ApiAiGenerateRoute
   '/api/canonry/create-project': typeof ApiCanonryCreateProjectRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
+  '/api/google/ga4-properties': typeof ApiGoogleGa4PropertiesRoute
   '/api/google/ga4-summary': typeof ApiGoogleGa4SummaryRoute
   '/api/google/gsc-import': typeof ApiGoogleGscImportRoute
+  '/api/google/gsc-sites': typeof ApiGoogleGscSitesRoute
   '/api/google/pagespeed': typeof ApiGooglePagespeedRoute
   '/api/live/status': typeof ApiLiveStatusRoute
   '/api/perplexity/search': typeof ApiPerplexitySearchRoute
@@ -248,15 +290,21 @@ export interface FileRoutesByTo {
   '/customers/$id': typeof CustomersIdRoute
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
+  '/api/admin/populate': typeof ApiAdminPopulateRoute
+  '/api/agent/agents': typeof ApiAgentAgentsRoute
   '/api/agent/job': typeof ApiAgentJobRoute
+  '/api/agent/memory': typeof ApiAgentMemoryRoute
   '/api/agent/run': typeof ApiAgentRunRoute
+  '/api/agent/run-agent': typeof ApiAgentRunAgentRoute
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/ai/generate': typeof ApiAiGenerateRoute
   '/api/canonry/create-project': typeof ApiCanonryCreateProjectRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
+  '/api/google/ga4-properties': typeof ApiGoogleGa4PropertiesRoute
   '/api/google/ga4-summary': typeof ApiGoogleGa4SummaryRoute
   '/api/google/gsc-import': typeof ApiGoogleGscImportRoute
+  '/api/google/gsc-sites': typeof ApiGoogleGscSitesRoute
   '/api/google/pagespeed': typeof ApiGooglePagespeedRoute
   '/api/live/status': typeof ApiLiveStatusRoute
   '/api/perplexity/search': typeof ApiPerplexitySearchRoute
@@ -282,15 +330,21 @@ export interface FileRoutesById {
   '/customers/$id': typeof CustomersIdRoute
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
+  '/api/admin/populate': typeof ApiAdminPopulateRoute
+  '/api/agent/agents': typeof ApiAgentAgentsRoute
   '/api/agent/job': typeof ApiAgentJobRoute
+  '/api/agent/memory': typeof ApiAgentMemoryRoute
   '/api/agent/run': typeof ApiAgentRunRoute
+  '/api/agent/run-agent': typeof ApiAgentRunAgentRoute
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/ai/generate': typeof ApiAiGenerateRoute
   '/api/canonry/create-project': typeof ApiCanonryCreateProjectRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
+  '/api/google/ga4-properties': typeof ApiGoogleGa4PropertiesRoute
   '/api/google/ga4-summary': typeof ApiGoogleGa4SummaryRoute
   '/api/google/gsc-import': typeof ApiGoogleGscImportRoute
+  '/api/google/gsc-sites': typeof ApiGoogleGscSitesRoute
   '/api/google/pagespeed': typeof ApiGooglePagespeedRoute
   '/api/live/status': typeof ApiLiveStatusRoute
   '/api/perplexity/search': typeof ApiPerplexitySearchRoute
@@ -317,15 +371,21 @@ export interface FileRouteTypes {
     | '/customers/$id'
     | '/settings/api'
     | '/tasks/$id'
+    | '/api/admin/populate'
+    | '/api/agent/agents'
     | '/api/agent/job'
+    | '/api/agent/memory'
     | '/api/agent/run'
+    | '/api/agent/run-agent'
     | '/api/ahrefs/overview'
     | '/api/ai/generate'
     | '/api/canonry/create-project'
     | '/api/google/callback'
     | '/api/google/connection'
+    | '/api/google/ga4-properties'
     | '/api/google/ga4-summary'
     | '/api/google/gsc-import'
+    | '/api/google/gsc-sites'
     | '/api/google/pagespeed'
     | '/api/live/status'
     | '/api/perplexity/search'
@@ -350,15 +410,21 @@ export interface FileRouteTypes {
     | '/customers/$id'
     | '/settings/api'
     | '/tasks/$id'
+    | '/api/admin/populate'
+    | '/api/agent/agents'
     | '/api/agent/job'
+    | '/api/agent/memory'
     | '/api/agent/run'
+    | '/api/agent/run-agent'
     | '/api/ahrefs/overview'
     | '/api/ai/generate'
     | '/api/canonry/create-project'
     | '/api/google/callback'
     | '/api/google/connection'
+    | '/api/google/ga4-properties'
     | '/api/google/ga4-summary'
     | '/api/google/gsc-import'
+    | '/api/google/gsc-sites'
     | '/api/google/pagespeed'
     | '/api/live/status'
     | '/api/perplexity/search'
@@ -383,15 +449,21 @@ export interface FileRouteTypes {
     | '/customers/$id'
     | '/settings/api'
     | '/tasks/$id'
+    | '/api/admin/populate'
+    | '/api/agent/agents'
     | '/api/agent/job'
+    | '/api/agent/memory'
     | '/api/agent/run'
+    | '/api/agent/run-agent'
     | '/api/ahrefs/overview'
     | '/api/ai/generate'
     | '/api/canonry/create-project'
     | '/api/google/callback'
     | '/api/google/connection'
+    | '/api/google/ga4-properties'
     | '/api/google/ga4-summary'
     | '/api/google/gsc-import'
+    | '/api/google/gsc-sites'
     | '/api/google/pagespeed'
     | '/api/live/status'
     | '/api/perplexity/search'
@@ -413,15 +485,21 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   TasksRoute: typeof TasksRouteWithChildren
   AdminUsersRoute: typeof AdminUsersRoute
+  ApiAdminPopulateRoute: typeof ApiAdminPopulateRoute
+  ApiAgentAgentsRoute: typeof ApiAgentAgentsRoute
   ApiAgentJobRoute: typeof ApiAgentJobRoute
+  ApiAgentMemoryRoute: typeof ApiAgentMemoryRoute
   ApiAgentRunRoute: typeof ApiAgentRunRoute
+  ApiAgentRunAgentRoute: typeof ApiAgentRunAgentRoute
   ApiAhrefsOverviewRoute: typeof ApiAhrefsOverviewRoute
   ApiAiGenerateRoute: typeof ApiAiGenerateRoute
   ApiCanonryCreateProjectRoute: typeof ApiCanonryCreateProjectRoute
   ApiGoogleCallbackRoute: typeof ApiGoogleCallbackRoute
   ApiGoogleConnectionRoute: typeof ApiGoogleConnectionRoute
+  ApiGoogleGa4PropertiesRoute: typeof ApiGoogleGa4PropertiesRoute
   ApiGoogleGa4SummaryRoute: typeof ApiGoogleGa4SummaryRoute
   ApiGoogleGscImportRoute: typeof ApiGoogleGscImportRoute
+  ApiGoogleGscSitesRoute: typeof ApiGoogleGscSitesRoute
   ApiGooglePagespeedRoute: typeof ApiGooglePagespeedRoute
   ApiLiveStatusRoute: typeof ApiLiveStatusRoute
   ApiPerplexitySearchRoute: typeof ApiPerplexitySearchRoute
@@ -571,6 +649,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGooglePagespeedRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/google/gsc-sites': {
+      id: '/api/google/gsc-sites'
+      path: '/api/google/gsc-sites'
+      fullPath: '/api/google/gsc-sites'
+      preLoaderRoute: typeof ApiGoogleGscSitesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/google/gsc-import': {
       id: '/api/google/gsc-import'
       path: '/api/google/gsc-import'
@@ -583,6 +668,13 @@ declare module '@tanstack/react-router' {
       path: '/api/google/ga4-summary'
       fullPath: '/api/google/ga4-summary'
       preLoaderRoute: typeof ApiGoogleGa4SummaryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/google/ga4-properties': {
+      id: '/api/google/ga4-properties'
+      path: '/api/google/ga4-properties'
+      fullPath: '/api/google/ga4-properties'
+      preLoaderRoute: typeof ApiGoogleGa4PropertiesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/google/connection': {
@@ -620,6 +712,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAhrefsOverviewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agent/run-agent': {
+      id: '/api/agent/run-agent'
+      path: '/api/agent/run-agent'
+      fullPath: '/api/agent/run-agent'
+      preLoaderRoute: typeof ApiAgentRunAgentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/agent/run': {
       id: '/api/agent/run'
       path: '/api/agent/run'
@@ -627,11 +726,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentRunRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agent/memory': {
+      id: '/api/agent/memory'
+      path: '/api/agent/memory'
+      fullPath: '/api/agent/memory'
+      preLoaderRoute: typeof ApiAgentMemoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/agent/job': {
       id: '/api/agent/job'
       path: '/api/agent/job'
       fullPath: '/api/agent/job'
       preLoaderRoute: typeof ApiAgentJobRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/agent/agents': {
+      id: '/api/agent/agents'
+      path: '/api/agent/agents'
+      fullPath: '/api/agent/agents'
+      preLoaderRoute: typeof ApiAgentAgentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/populate': {
+      id: '/api/admin/populate'
+      path: '/api/admin/populate'
+      fullPath: '/api/admin/populate'
+      preLoaderRoute: typeof ApiAdminPopulateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/live/canonry/overview': {
@@ -710,15 +830,21 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   TasksRoute: TasksRouteWithChildren,
   AdminUsersRoute: AdminUsersRoute,
+  ApiAdminPopulateRoute: ApiAdminPopulateRoute,
+  ApiAgentAgentsRoute: ApiAgentAgentsRoute,
   ApiAgentJobRoute: ApiAgentJobRoute,
+  ApiAgentMemoryRoute: ApiAgentMemoryRoute,
   ApiAgentRunRoute: ApiAgentRunRoute,
+  ApiAgentRunAgentRoute: ApiAgentRunAgentRoute,
   ApiAhrefsOverviewRoute: ApiAhrefsOverviewRoute,
   ApiAiGenerateRoute: ApiAiGenerateRoute,
   ApiCanonryCreateProjectRoute: ApiCanonryCreateProjectRoute,
   ApiGoogleCallbackRoute: ApiGoogleCallbackRoute,
   ApiGoogleConnectionRoute: ApiGoogleConnectionRoute,
+  ApiGoogleGa4PropertiesRoute: ApiGoogleGa4PropertiesRoute,
   ApiGoogleGa4SummaryRoute: ApiGoogleGa4SummaryRoute,
   ApiGoogleGscImportRoute: ApiGoogleGscImportRoute,
+  ApiGoogleGscSitesRoute: ApiGoogleGscSitesRoute,
   ApiGooglePagespeedRoute: ApiGooglePagespeedRoute,
   ApiLiveStatusRoute: ApiLiveStatusRoute,
   ApiPerplexitySearchRoute: ApiPerplexitySearchRoute,
