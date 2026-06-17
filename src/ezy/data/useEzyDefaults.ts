@@ -2,12 +2,18 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 
-export type EzyDefaults = { language: string; tone: string; reportTemplate: string };
+export type EzyDefaults = {
+  language: string;
+  tone: string;
+  reportTemplate: string;
+  visibleTabs: string[];
+};
 
 const DEFAULTS: EzyDefaults = {
   language: "Deutsch",
   tone: "Professionell",
   reportTemplate: "Standard",
+  visibleTabs: ["seo", "geo", "conversions"],
 };
 
 const LOCAL_KEY_PREFIX = "ezy-defaults:";
@@ -17,6 +23,7 @@ function normalize(v: any): EzyDefaults {
     language: String(v?.language || DEFAULTS.language),
     tone: String(v?.tone || DEFAULTS.tone),
     reportTemplate: String(v?.reportTemplate || DEFAULTS.reportTemplate),
+    visibleTabs: Array.isArray(v?.visibleTabs) ? v.visibleTabs : DEFAULTS.visibleTabs,
   };
 }
 

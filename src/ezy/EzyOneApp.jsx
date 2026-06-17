@@ -218,6 +218,7 @@ const DEFAULT_CUSTOMER_DEFAULTS = {
   language: "Deutsch",
   tone: "Professionell",
   reportTemplate: "Standard",
+  visibleTabs: ["seo", "geo", "conversions"],
 };
 function readStoredJson(key, fallback) {
   if (typeof window === "undefined") return fallback;
@@ -241,6 +242,7 @@ function defaultsFromStored(value) {
     language: String(value?.language || DEFAULT_CUSTOMER_DEFAULTS.language),
     tone: String(value?.tone || DEFAULT_CUSTOMER_DEFAULTS.tone),
     reportTemplate: String(value?.reportTemplate || DEFAULT_CUSTOMER_DEFAULTS.reportTemplate),
+    visibleTabs: Array.isArray(value?.visibleTabs) ? value.visibleTabs : DEFAULT_CUSTOMER_DEFAULTS.visibleTabs,
   };
 }
 function useMediaQuery(query) {
@@ -4643,8 +4645,40 @@ function SettingsPage({
                 onChange={(v) => setDefaultsDraft((p) => ({ ...p, reportTemplate: v }))}
                 options={["Standard", "Detailliert", "Executive Summary"]}
               />
+              <div style={{ marginTop: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 8 }}>Sichtbare Dashboard-Tabs</div>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                  {[
+                    { id: "seo", label: "SEO", icon: Globe },
+                    { id: "geo", label: "GEO", icon: Sparkles },
+                    { id: "conversions", label: "Conversions", icon: DollarSign },
+                  ].map((t) => {
+                    const on = (defaultsDraft.visibleTabs || ["seo", "geo", "conversions"]).includes(t.id);
+                    return (
+                      <label key={t.id} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={on}
+                          onChange={() => {
+                            const cur = defaultsDraft.visibleTabs || ["seo", "geo", "conversions"];
+                            const next = on ? cur.filter((x) => x !== t.id) : [...cur, t.id];
+                            setDefaultsDraft((p) => ({ ...p, visibleTabs: next.length > 0 ? next : [t.id] }));
+                          }}
+                          style={{ accentColor: C.accent }}
+                        />
+                        <t.icon size={14} style={{ color: C.textMuted }} />
+                        <span style={{ fontSize: 13, color: C.text }}>{t.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <div style={{ fontSize: 11, color: C.textMuted, marginTop: 6 }}>
+                  Nur ausgewählte Tabs werden im Dashboard angezeigt.
+                </div>
+              </div>
               <Btn
                 icon={Save}
+                style={{ marginTop: 16 }}
                 onClick={() => {
                   onSaveDefaults(defaultsDraft);
                   toast("Einstellungen für " + (selectedClient?.name || "Kunde") + " gespeichert", "success");
@@ -5837,6 +5871,15 @@ function App() {
   const customerDefaults = defaultsHook.defaults;
   const saveCustomerDefaults = useCallback((next) => defaultsHook.save(next), [defaultsHook]);
   const onSaveContent = useCallback((id, md) => contentHook.updateContent(id, md), [contentHook]);
+  const visibleTabs = useMemo(
+    () => TABS.filter((t) => (customerDefaults.visibleTabs || ["seo", "geo", "conversions"]).includes(t.id)),
+    [customerDefaults.visibleTabs],
+  );
+  useEffect(() => {
+    if (visibleTabs.length > 0 && !visibleTabs.some((t) => t.id === tab)) {
+      setTab(visibleTabs[0].id);
+    }
+  }, [visibleTabs, tab]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -6205,7 +6248,7 @@ function App() {
                 </div>
               )}
             </div>
-            {page === "dashboard" && <TabBar tabs={TABS} active={tab} onChange={setTab} />}
+            {page === "dashboard" && visibleTabs.length > 0 && <TabBar tabs={visibleTabs} active={tab} onChange={setTab} />}
             {page !== "dashboard" && (
               <div
                 style={{
