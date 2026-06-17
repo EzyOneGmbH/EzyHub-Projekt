@@ -103,6 +103,8 @@ import { useEzyAuditHistory } from "@/ezy/data/useEzyAuditHistory";
 import {
   useEzyLatestRun,
   ahrefsKpisFromResult,
+  ahrefsRefdomainsSeriesFromResult,
+  gscRankingDistributionFromResult,
   ga4KpisFromResult,
   gscKpisFromResult,
   pagespeedKpisFromResult,
@@ -1103,55 +1105,8 @@ function DateRangePicker({ value, onChange }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DEMO DATA
+// SERVICE CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
-function genDays(n = 30) {
-  const d = [];
-  const t = new Date();
-  for (let i = n - 1; i >= 0; i--) {
-    const x = new Date(t);
-    x.setDate(x.getDate() - i);
-    d.push(x.toISOString().slice(5, 10));
-  }
-  return d;
-}
-const DAYS = genDays(30);
-const seoRanking = [
-  { name: "Top 3", value: 42, color: C.accent },
-  { name: "4–10", value: 114, color: C.blue },
-  { name: "11–20", value: 133, color: C.green },
-  { name: "21–50", value: 223, color: C.orange },
-  { name: "51–100", value: 335, color: C.textDim },
-];
-const trafficCountry = [
-  { name: "CH", value: 28400, color: C.accent },
-  { name: "DE", value: 12300, color: C.blue },
-  { name: "AT", value: 4200, color: C.green },
-  { name: "US", value: 2100, color: C.orange },
-  { name: "Other", value: 1520, color: C.textDim },
-];
-const backlinksTrend = DAYS.map((d) => ({
-  date: d,
-  new: 3 + Math.round(Math.random() * 8),
-  lost: 1 + Math.round(Math.random() * 3),
-}));
-const geoClicks = DAYS.map((d, i) => ({
-  date: d,
-  clicks: 100 + Math.round(i * 5 + Math.sin(i / 2) * 30 + Math.random() * 25),
-}));
-const geoVisitors = DAYS.map((d, i) => ({
-  date: d,
-  ChatGPT: 45 + Math.round(i * 1.8 + Math.random() * 15),
-  Perplexity: 30 + Math.round(i * 1.2 + Math.random() * 12),
-  Gemini: 15 + Math.round(i * 0.6 + Math.random() * 8),
-  Copilot: 8 + Math.round(i * 0.3 + Math.random() * 5),
-  Grok: 4 + Math.round(i * 0.2 + Math.random() * 3),
-}));
-const geoRanking = [
-  { name: "Top 3", value: 12, color: C.accent },
-  { name: "4–5", value: 16, color: C.blue },
-  { name: "6–10", value: 17, color: C.green },
-];
 const CANONRY_SERVICE = {
   status: "healthy",
   version: "0.12.3",
@@ -1161,138 +1116,6 @@ const CANONRY_SERVICE = {
   lastSync: "vor 6 Min",
   agent: "Aero",
 };
-// CANONRY_CLIENTS demo data removed in v19 — Canonry now lives only via /api/live/canonry/overview.
-
-const CLIENTS = [
-  {
-    id: "c1",
-    name: "Dental-Praxis Zürich",
-    domain: "dental-zuerich.ch",
-    industry: "Gesundheit",
-    status: "active",
-    contactEmail: "praxis@dental-zuerich.ch",
-    contactPhone: "+41 44 555 12 34",
-    monthlyBudget: 2800,
-    tags: ["Local SEO", "GEO"],
-    targetLocations: ["Zürich"],
-    notes: "Google Maps Optimierung, Bewertungen.",
-    score: 82,
-    keywords: 890,
-    traffic: 12800,
-    aiVisitors: 680,
-    revenue: 18400,
-    gscSiteUrl: "sc-domain:dental-zuerich.ch",
-    ga4PropertyId: "485920311",
-    canonryProject: "dental-zuerich-ch",
-  },
-  {
-    id: "c2",
-    name: "SchuhParadies AG",
-    domain: "schuhparadies.ch",
-    industry: "E-Commerce",
-    status: "active",
-    contactEmail: "marketing@schuhparadies.ch",
-    contactPhone: "+41 44 123 45 67",
-    monthlyBudget: 5200,
-    tags: ["SEO", "GEO", "Content"],
-    targetLocations: ["Schweiz", "DACH"],
-    notes: "Fokus auf Produktseiten und Blog-Content.",
-    score: 78,
-    keywords: 3847,
-    traffic: 48520,
-    aiVisitors: 1820,
-    revenue: 47625,
-    gscSiteUrl: "sc-domain:schuhparadies.ch",
-    ga4PropertyId: "486102744",
-    canonryProject: "schuhparadies-ch",
-  },
-  {
-    id: "c3",
-    name: "Hotel & Spa Arbon",
-    domain: "hotel-arbon.ch",
-    industry: "Tourismus",
-    status: "active",
-    contactEmail: "info@hotel-arbon.ch",
-    contactPhone: "+41 71 440 22 33",
-    monthlyBudget: 3500,
-    tags: ["Local SEO", "Content"],
-    targetLocations: ["Arbon", "Bodensee"],
-    notes: "Saisonales Geschäft, Spa-Packages bewerben.",
-    score: 65,
-    keywords: 2140,
-    traffic: 31200,
-    aiVisitors: 1240,
-    revenue: 32100,
-    gscSiteUrl: "sc-domain:hotel-arbon.ch",
-    ga4PropertyId: "486104118",
-    canonryProject: "hotel-arbon-ch",
-  },
-  {
-    id: "c4",
-    name: "CodeLab Basel",
-    domain: "codelab-basel.ch",
-    industry: "IT / SaaS",
-    status: "active",
-    contactEmail: "hello@codelab-basel.ch",
-    contactPhone: "+41 61 888 99 00",
-    monthlyBudget: 6200,
-    tags: ["SEO", "GEO", "Technical"],
-    targetLocations: ["Basel", "DACH"],
-    notes: "B2B SaaS, internationale Expansion.",
-    score: 71,
-    keywords: 1560,
-    traffic: 19400,
-    aiVisitors: 340,
-    revenue: 22800,
-    gscSiteUrl: "sc-domain:codelab-basel.ch",
-    ga4PropertyId: "486105029",
-    canonryProject: "codelab-basel-ch",
-  },
-  {
-    id: "c5",
-    name: "Beauté Studio Winterthur",
-    domain: "beaute-winterthur.ch",
-    industry: "Kosmetik",
-    status: "paused",
-    contactEmail: "kontakt@beaute-winterthur.ch",
-    contactPhone: "+41 52 333 44 55",
-    monthlyBudget: 1200,
-    tags: ["Local SEO"],
-    targetLocations: ["Winterthur"],
-    notes: "Kleine lokale Kosmetikpraxis.",
-    score: 54,
-    keywords: 420,
-    traffic: 5600,
-    aiVisitors: 200,
-    revenue: 6800,
-    gscSiteUrl: "sc-domain:beaute-winterthur.ch",
-    ga4PropertyId: "486106443",
-    canonryProject: "beaute-winterthur-ch",
-  },
-  {
-    id: "c6",
-    name: "Sicovend AG",
-    domain: "sicovend.com",
-    industry: "B2B / Commerce",
-    status: "active",
-    contactEmail: "Noch nicht hinterlegt",
-    contactPhone: "Noch nicht hinterlegt",
-    monthlyBudget: 2500,
-    tags: ["SEO", "GEO"],
-    targetLocations: ["Schweiz"],
-    notes:
-      "GSC verbunden, 10 Canonry-Keywords importiert und erster Visibility Sweep durchgeführt.",
-    score: 20,
-    keywords: 10,
-    traffic: 0,
-    aiVisitors: 0,
-    revenue: 0,
-    gscSiteUrl: "sc-domain:sicovend.com",
-    ga4PropertyId: "510924150",
-    ga4MeasurementId: "G-1DEJWRQDB0",
-    canonryProject: "sicovend-com",
-  },
-];
 
 const CONTENT_ITEMS = [
   {
@@ -2218,6 +2041,10 @@ function SeoDashboard({ selectedClient, dateRange }) {
   const keywords = Number(live?.keywords ?? selectedClient?.keywords ?? 0);
   const score = Number(live?.score ?? selectedClient?.score ?? 0);
   const visibility = Number(live?.visibility ?? selectedClient?.visibility ?? 0);
+  const backlinks = Number(live?.backlinks ?? 0);
+  const refdomainsSeries = run ? ahrefsRefdomainsSeriesFromResult(run.result) : [];
+  const rankingDist = gscRun ? gscRankingDistributionFromResult(gscRun.result) : [];
+  const RANK_COLORS = [C.accent, C.blue, C.green, C.orange, C.textDim];
   const hasGsc =
     isOn("seo.gsc") && Boolean(gsc && (gsc.clicks > 0 || gsc.impressions > 0));
   const hasCwv =
@@ -2265,6 +2092,12 @@ function SeoDashboard({ selectedClient, dateRange }) {
           label="Organic Keywords"
           value={keywords > 0 ? keywords : "—"}
           color={C.orange}
+        />
+        <KpiCard
+          icon={Link2}
+          label="Backlinks Total"
+          value={backlinks > 0 ? backlinks.toLocaleString("de-CH") : "—"}
+          color={C.cyan}
         />
       </div>
       )}
@@ -2378,6 +2211,114 @@ function SeoDashboard({ selectedClient, dateRange }) {
             value={psi.performanceScore != null ? `${psi.performanceScore}/100` : "—"}
             color={C.accent}
           />
+        </div>
+      )}
+      {((isOn("seo.gsc") && rankingDist.length > 0) ||
+        (isOn("seo.ahrefs") && refdomainsSeries.length >= 2)) && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))",
+            gap: 14,
+          }}
+        >
+          {isOn("seo.gsc") && rankingDist.length > 0 && (
+            <div
+              style={{
+                background: C.card,
+                border: `1px solid ${C.border}`,
+                borderRadius: 14,
+                padding: 16,
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, color: C.textMuted }}>
+                Ranking-Verteilung
+              </div>
+              <div style={{ fontSize: 11, color: C.textDim, marginBottom: 12 }}>
+                Positionen der importierten GSC Top-Keywords
+              </div>
+              <ResponsiveContainer width="100%" height={240}>
+                <PieChart>
+                  <Pie
+                    data={rankingDist}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={90}
+                    paddingAngle={2}
+                  >
+                    {rankingDist.map((entry, i) => (
+                      <Cell key={entry.name} fill={RANK_COLORS[i % RANK_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      background: C.surface,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 8,
+                      color: C.textMuted,
+                    }}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          {isOn("seo.ahrefs") && refdomainsSeries.length >= 2 && (
+            <div
+              style={{
+                background: C.card,
+                border: `1px solid ${C.border}`,
+                borderRadius: 14,
+                padding: 16,
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, color: C.textMuted }}>
+                Verweisende Domains
+              </div>
+              <div style={{ fontSize: 11, color: C.textDim, marginBottom: 12 }}>
+                Wöchentlich (Ahrefs, letzte 90 Tage)
+              </div>
+              <ResponsiveContainer width="100%" height={240}>
+                <AreaChart data={refdomainsSeries}>
+                  <defs>
+                    <linearGradient id="seo-refdomains" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={C.cyan} stopOpacity={0.35} />
+                      <stop offset="100%" stopColor={C.cyan} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                  <XAxis
+                    dataKey="date"
+                    stroke={C.textDim}
+                    fontSize={11}
+                    tickFormatter={(d) =>
+                      typeof d === "string" && d.length >= 10 ? d.slice(5) : d
+                    }
+                  />
+                  <YAxis stroke={C.textDim} fontSize={11} />
+                  <Tooltip
+                    contentStyle={{
+                      background: C.surface,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 8,
+                      color: C.textMuted,
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="refdomains"
+                    name="Verweisende Domains"
+                    stroke={C.cyan}
+                    fill="url(#seo-refdomains)"
+                    strokeWidth={2}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
       )}
       {isOn("seo.trend") && trend.length >= 2 ? (

@@ -57,6 +57,7 @@ export function ahrefsKpisFromResult(result: any): {
   keywords: number;
   score: number;
   visibility: number;
+  backlinks: number;
 } {
   const r = result || {};
   // Ahrefs API nests as { domain_rating: { domain_rating: { domain_rating: 26.0, ahrefs_rank: ... } } }
@@ -66,13 +67,59 @@ export function ahrefsKpisFromResult(result: any): {
     r.domain_rating?.domain?.domain_rating ??
     0;
   const m = r.metrics?.metrics ?? r.metrics ?? {};
+  // backlinks-stats: { metrics: { all_time, all_time_refdomains, live, live_refdomains } }
   const bl = r.backlinks_stats?.metrics ?? r.backlinks_stats ?? {};
   return {
     traffic: Number(m.org_traffic ?? m.paid_traffic ?? 0) || 0,
     keywords: Number(m.org_keywords ?? m.paid_keywords ?? 0) || 0,
     score: Number(dr) || 0,
     visibility: Number(bl.live_refdomains ?? 0) || 0,
+    backlinks: Number(bl.live ?? bl.all_time ?? 0) || 0,
   };
+}
+
+/**
+ * Weekly referring-domains trend from an Ahrefs overview result.
+ * Ahrefs refdomains-history: { refdomains: [{ date, refdomains }] }.
+ */
+export function ahrefsRefdomainsSeriesFromResult(
+  result: any,
+): Array<{ date: string; refdomains: number }> {
+  const rows = result?.refdomains_history?.refdomains;
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .map((row: any) => ({
+      date: String(row?.date ?? ""),
+      refdomains: Number(row?.refdomains ?? 0) || 0,
+    }))
+    .filter((row) => row.date);
+}
+
+/**
+ * Ranking distribution buckets from a gsc_summary result's topQueries[].position.
+ * Reflects the imported GSC top-keywords (not the full keyword universe).
+ */
+export function gscRankingDistributionFromResult(
+  result: any,
+): Array<{ name: string; value: number }> {
+  const rows = Array.isArray(result?.topQueries) ? result.topQueries : [];
+  const buckets = [
+    { name: "Top 3", value: 0 },
+    { name: "4–10", value: 0 },
+    { name: "11–20", value: 0 },
+    { name: "21–50", value: 0 },
+    { name: "51–100", value: 0 },
+  ];
+  for (const q of rows) {
+    const p = Number(q?.position ?? 0);
+    if (p <= 0) continue;
+    if (p <= 3) buckets[0].value++;
+    else if (p <= 10) buckets[1].value++;
+    else if (p <= 20) buckets[2].value++;
+    else if (p <= 50) buckets[3].value++;
+    else buckets[4].value++;
+  }
+  return buckets.filter((b) => b.value > 0);
 }
 
 /** Extract Conversion KPIs from a GA4 summary audit_runs.result. */
