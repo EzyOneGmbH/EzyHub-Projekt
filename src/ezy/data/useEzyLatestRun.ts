@@ -191,3 +191,60 @@ export function pagespeedKpisFromResult(result: any): {
     performanceScore: typeof m.performanceScore === "number" ? m.performanceScore : null,
   };
 }
+
+/** Extract GA4 traffic-intelligence from a ga4_traffic audit_runs.result. */
+export function ga4TrafficFromResult(result: any): {
+  channels: Array<{ channel: string; sessions: number }>;
+  aiReferral: {
+    sessions: number;
+    users: number;
+    bySource: Array<{ source: string; sessions: number; users: number }>;
+  };
+  googleVsAi: { google: number; ai: number; other: number; total: number };
+  aiSeries: Array<{ date: string; aiSessions: number }>;
+  topPages: Array<{ path: string; views: number }>;
+  countries: Array<{ country: string; sessions: number }>;
+} {
+  const r = result || {};
+  return {
+    channels: Array.isArray(r.channels) ? r.channels : [],
+    aiReferral: {
+      sessions: Number(r.aiReferral?.sessions ?? 0) || 0,
+      users: Number(r.aiReferral?.users ?? 0) || 0,
+      bySource: Array.isArray(r.aiReferral?.bySource) ? r.aiReferral.bySource : [],
+    },
+    googleVsAi: {
+      google: Number(r.googleVsAi?.google ?? 0) || 0,
+      ai: Number(r.googleVsAi?.ai ?? 0) || 0,
+      other: Number(r.googleVsAi?.other ?? 0) || 0,
+      total: Number(r.googleVsAi?.total ?? 0) || 0,
+    },
+    aiSeries: Array.isArray(r.aiSeries) ? r.aiSeries : [],
+    topPages: Array.isArray(r.topPages) ? r.topPages : [],
+    countries: Array.isArray(r.countries) ? r.countries : [],
+  };
+}
+
+/** Extract GA4 conversion detail from a ga4_conversions audit_runs.result. */
+export function ga4ConversionsFromResult(result: any): {
+  breakdown: { phone: number; mail: number; maps: number; contact: number };
+  events: Array<{ eventName: string; count: number }>;
+  revenue: number;
+  purchases: number;
+  series: Array<{ date: string; conversions: number; revenue: number }>;
+} {
+  const r = result || {};
+  const b = r.breakdown || {};
+  return {
+    breakdown: {
+      phone: Number(b.phone ?? 0) || 0,
+      mail: Number(b.mail ?? 0) || 0,
+      maps: Number(b.maps ?? 0) || 0,
+      contact: Number(b.contact ?? 0) || 0,
+    },
+    events: Array.isArray(r.events) ? r.events : [],
+    revenue: Number(r.revenue ?? 0) || 0,
+    purchases: Number(r.purchases ?? 0) || 0,
+    series: Array.isArray(r.series) ? r.series : [],
+  };
+}

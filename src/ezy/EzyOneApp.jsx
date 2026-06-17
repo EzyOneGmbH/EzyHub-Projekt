@@ -106,6 +106,8 @@ import {
   ahrefsRefdomainsSeriesFromResult,
   gscRankingDistributionFromResult,
   ga4KpisFromResult,
+  ga4TrafficFromResult,
+  ga4ConversionsFromResult,
   gscKpisFromResult,
   pagespeedKpisFromResult,
 } from "@/ezy/data/useEzyLatestRun";
@@ -231,7 +233,7 @@ const DEFAULT_CUSTOMER_DEFAULTS = {
   language: "Deutsch",
   tone: "Professionell",
   reportTemplate: "Standard",
-  visibleTabs: ["seo", "geo", "conversions", "ads"],
+  visibleTabs: ["overview", "seo", "geo", "conversions", "ads"],
 };
 function readStoredJson(key, fallback) {
   if (typeof window === "undefined") return fallback;
@@ -2027,15 +2029,18 @@ function SeoDashboard({ selectedClient, dateRange }) {
   const gsc = gscRun ? gscKpisFromResult(gscRun.result) : null;
   const { run: psiRun, refresh: refreshPsi } = useEzyLatestRun(selectedClient?.id, "pagespeed");
   const psi = psiRun ? pagespeedKpisFromResult(psiRun.result) : null;
+  const { run: trafRun, refresh: refreshTraf } = useEzyLatestRun(selectedClient?.id, "ga4_traffic");
+  const traf = trafRun ? ga4TrafficFromResult(trafRun.result) : null;
   useEffect(() => {
     const interval = setInterval(() => {
       refreshAhrefs();
       refreshHistory();
       refreshGsc();
       refreshPsi();
+      refreshTraf();
     }, 12 * 60 * 60 * 1000); // 12 Stunden
     return () => clearInterval(interval);
-  }, [refreshAhrefs, refreshHistory, refreshGsc, refreshPsi]);
+  }, [refreshAhrefs, refreshHistory, refreshGsc, refreshPsi, refreshTraf]);
   const { isOn } = useEzyDashboardConfig();
   const traffic = Number(live?.traffic ?? selectedClient?.traffic ?? 0);
   const keywords = Number(live?.keywords ?? selectedClient?.keywords ?? 0);
@@ -2045,6 +2050,10 @@ function SeoDashboard({ selectedClient, dateRange }) {
   const refdomainsSeries = run ? ahrefsRefdomainsSeriesFromResult(run.result) : [];
   const rankingDist = gscRun ? gscRankingDistributionFromResult(gscRun.result) : [];
   const RANK_COLORS = [C.accent, C.blue, C.green, C.orange, C.textDim];
+  const topPages = traf?.topPages || [];
+  const chSessions = (traf?.countries || []).find((c) =>
+    /switzerland|schweiz|^ch$/i.test(c.country),
+  )?.sessions;
   const hasGsc =
     isOn("seo.gsc") && Boolean(gsc && (gsc.clicks > 0 || gsc.impressions > 0));
   const hasCwv =
@@ -2099,6 +2108,14 @@ function SeoDashboard({ selectedClient, dateRange }) {
           value={backlinks > 0 ? backlinks.toLocaleString("de-CH") : "—"}
           color={C.cyan}
         />
+        {chSessions != null && chSessions > 0 && (
+          <KpiCard
+            icon={MapPin}
+            label="Switzerland Traffic"
+            value={chSessions.toLocaleString("de-CH")}
+            color={C.pink}
+          />
+        )}
       </div>
       )}
       {hasGsc && (
@@ -2319,6 +2336,42 @@ function SeoDashboard({ selectedClient, dateRange }) {
               </ResponsiveContainer>
             </div>
           )}
+        </div>
+      )}
+      {topPages.length > 0 && (
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 14,
+            padding: 16,
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}>
+            Meistbesuchte Seiten (GA4)
+          </div>
+          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <table style={{ width: "100%", minWidth: 360, borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr style={{ color: C.textDim, textAlign: "left" }}>
+                  <th style={{ padding: "6px 8px" }}>Seite</th>
+                  <th style={{ padding: "6px 8px", textAlign: "right" }}>Aufrufe</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topPages.slice(0, 15).map((p, i) => (
+                  <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
+                    <td style={{ padding: "6px 8px", color: C.text, maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {p.path}
+                    </td>
+                    <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                      {p.views.toLocaleString("de-CH")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
       {isOn("seo.trend") && trend.length >= 2 ? (
@@ -2721,18 +2774,32 @@ function GeoDashboard({ selectedClient, dateRange }) {
 }
 function ConvDashboard({ selectedClient, dateRange }) {
   const { run, refresh: refreshGa4 } = useEzyLatestRun(selectedClient?.id, "ga4_summary");
+  const { run: convRun, refresh: refreshConv } = useEzyLatestRun(
+    selectedClient?.id,
+    "ga4_conversions",
+  );
+  const { run: trafRun, refresh: refreshTraf } = useEzyLatestRun(selectedClient?.id, "ga4_traffic");
   const ga4Raw = run ? ga4KpisFromResult(run.result) : null;
+  const conv = convRun ? ga4ConversionsFromResult(convRun.result) : null;
+  const traf = trafRun ? ga4TrafficFromResult(trafRun.result) : null;
   const days = dateRange?.days || 30;
   const ga4 = ga4Raw;
   useEffect(() => {
-    const interval = setInterval(() => refreshGa4(), 12 * 60 * 60 * 1000); // 12 Stunden
+    const interval = setInterval(() => {
+      refreshGa4();
+      refreshConv();
+      refreshTraf();
+    }, 12 * 60 * 60 * 1000); // 12 Stunden
     return () => clearInterval(interval);
-  }, [refreshGa4]);
-  const revenue = Number(selectedClient?.revenue || 0);
-  const phoneCalls = Number(selectedClient?.phoneCalls || 0);
-  const mailClicks = Number(selectedClient?.mailClicks || 0);
-  const mapsClicks = Number(selectedClient?.mapsClicks || 0);
-  const formSubmits = Number(selectedClient?.formSubmits || 0);
+  }, [refreshGa4, refreshConv, refreshTraf]);
+  // Prefer live GA4 event-level breakdown; fall back to client placeholders.
+  const revenue = Number(conv?.revenue || selectedClient?.revenue || 0);
+  const phoneCalls = Number(conv?.breakdown.phone || selectedClient?.phoneCalls || 0);
+  const mailClicks = Number(conv?.breakdown.mail || selectedClient?.mailClicks || 0);
+  const mapsClicks = Number(conv?.breakdown.maps || selectedClient?.mapsClicks || 0);
+  const formSubmits = Number(conv?.breakdown.contact || selectedClient?.formSubmits || 0);
+  const convSeries = (conv?.series || []).slice(-days);
+  const googleVsAi = traf?.googleVsAi || null;
   const sessions = Number(ga4?.sessions || 0);
   const totalUsers = Number(ga4?.totalUsers || 0);
   const engagedSessions = Number(ga4?.engagedSessions || 0);
@@ -2950,6 +3017,371 @@ function ConvDashboard({ selectedClient, dateRange }) {
           title="Conversion-Charts folgen mit GA4-Live-Daten"
           hint="Sobald GA4 Sessions, Events und Revenue liefert, erscheinen hier Trend-Charts und Conversion-Tabellen."
         />
+      )}
+      {((googleVsAi && googleVsAi.total > 0) || convSeries.length >= 2) && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))",
+            gap: 14,
+          }}
+        >
+          {googleVsAi && googleVsAi.total > 0 && (
+            <div
+              style={{
+                background: C.card,
+                border: `1px solid ${C.border}`,
+                borderRadius: 14,
+                padding: 16,
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}>
+                Traffic-Verteilung Google vs. AI
+              </div>
+              <ResponsiveContainer width="100%" height={240}>
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: "Google", value: googleVsAi.google },
+                      { name: "AI", value: googleVsAi.ai },
+                      { name: "Andere", value: googleVsAi.other },
+                    ].filter((d) => d.value > 0)}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={90}
+                    paddingAngle={2}
+                  >
+                    {[C.blue, C.green, C.textDim].map((col, i) => (
+                      <Cell key={i} fill={col} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      background: C.surface,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 8,
+                      color: C.textMuted,
+                    }}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          {convSeries.length >= 2 && (
+            <div
+              style={{
+                background: C.card,
+                border: `1px solid ${C.border}`,
+                borderRadius: 14,
+                padding: 16,
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}>
+                Leads & Umsatz ({dateRange?.label || "30 Tage"})
+              </div>
+              <ResponsiveContainer width="100%" height={240}>
+                <AreaChart data={convSeries}>
+                  <defs>
+                    <linearGradient id="conv-leads" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={C.pink} stopOpacity={0.35} />
+                      <stop offset="100%" stopColor={C.pink} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                  <XAxis
+                    dataKey="date"
+                    stroke={C.textDim}
+                    fontSize={11}
+                    tickFormatter={(d) =>
+                      typeof d === "string" && d.length === 8
+                        ? `${d.slice(6, 8)}.${d.slice(4, 6)}.`
+                        : d
+                    }
+                  />
+                  <YAxis stroke={C.textDim} fontSize={11} />
+                  <Tooltip
+                    contentStyle={{
+                      background: C.surface,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 8,
+                      color: C.textMuted,
+                    }}
+                  />
+                  <Legend />
+                  <Area
+                    type="monotone"
+                    dataKey="conversions"
+                    name="Conversions"
+                    stroke={C.pink}
+                    fill="url(#conv-leads)"
+                    strokeWidth={2}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+      )}
+      {conv && conv.events.length > 0 && (
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 14,
+            padding: 16,
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}>
+            Conversion-Events (GA4)
+          </div>
+          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <table style={{ width: "100%", minWidth: 360, borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr style={{ color: C.textDim, textAlign: "left" }}>
+                  <th style={{ padding: "6px 8px" }}>Event</th>
+                  <th style={{ padding: "6px 8px", textAlign: "right" }}>Anzahl</th>
+                </tr>
+              </thead>
+              <tbody>
+                {conv.events.slice(0, 15).map((e, i) => (
+                  <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
+                    <td style={{ padding: "6px 8px", color: C.text }}>{e.eventName}</td>
+                    <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                      {e.count.toLocaleString("de-CH")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OVERVIEW DASHBOARD (EzyRank "Dashboard" blueprint)
+// ═══════════════════════════════════════════════════════════════════════════
+function OverviewDashboard({ selectedClient, dateRange }) {
+  const { run: ahrefsRun, refresh: refreshAhrefs } = useEzyLatestRun(selectedClient?.id, "ahrefs");
+  const { run: ga4Run, refresh: refreshGa4 } = useEzyLatestRun(selectedClient?.id, "ga4_summary");
+  const { run: trafRun, refresh: refreshTraf } = useEzyLatestRun(selectedClient?.id, "ga4_traffic");
+  const { run: convRun, refresh: refreshConv } = useEzyLatestRun(
+    selectedClient?.id,
+    "ga4_conversions",
+  );
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshAhrefs();
+      refreshGa4();
+      refreshTraf();
+      refreshConv();
+    }, 12 * 60 * 60 * 1000); // 12 Stunden
+    return () => clearInterval(interval);
+  }, [refreshAhrefs, refreshGa4, refreshTraf, refreshConv]);
+  const ahrefs = ahrefsRun ? ahrefsKpisFromResult(ahrefsRun.result) : null;
+  const ga4 = ga4Run ? ga4KpisFromResult(ga4Run.result) : null;
+  const traf = trafRun ? ga4TrafficFromResult(trafRun.result) : null;
+  const conv = convRun ? ga4ConversionsFromResult(convRun.result) : null;
+
+  const organicTraffic = Number(ahrefs?.traffic || ga4?.sessions || 0);
+  const aiReference = Number(traf?.aiReferral.sessions || 0);
+  const leadVisits = conv
+    ? conv.breakdown.phone + conv.breakdown.mail + conv.breakdown.maps + conv.breakdown.contact
+    : 0;
+  const visibility = Number(ahrefs?.visibility || 0);
+  const countries = traf?.countries || [];
+  const aiSeries = traf?.aiSeries || [];
+  const aiBySource = traf?.aiReferral.bySource || [];
+  const COUNTRY_COLORS = [C.accent, C.blue, C.green, C.orange, C.cyan, C.pink, C.textDim];
+
+  const hasAny = organicTraffic + aiReference + leadVisits + visibility > 0 || countries.length > 0;
+  if (!hasAny) {
+    return (
+      <LiveEmptyState
+        title="Noch keine Übersichts-Daten"
+        hint="Starte den Sammel-Lauf im Google-Panel (Ahrefs · GSC · GA4 · GA4 Traffic · GA4 Conversions), damit hier Traffic, AI-Referenzen und Lead-Visits erscheinen."
+      />
+    );
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
+          gap: 14,
+        }}
+      >
+        <KpiCard
+          icon={Globe}
+          label="Organic Traffic"
+          value={organicTraffic > 0 ? organicTraffic.toLocaleString("de-CH") : "—"}
+          color={C.accent}
+        />
+        <KpiCard
+          icon={Bot}
+          label="AI Reference"
+          value={aiReference > 0 ? aiReference.toLocaleString("de-CH") : "—"}
+          color={C.green}
+        />
+        <KpiCard
+          icon={Target}
+          label="Lead Visits"
+          value={leadVisits > 0 ? leadVisits.toLocaleString("de-CH") : "—"}
+          color={C.pink}
+        />
+        <KpiCard
+          icon={Eye}
+          label="Visibility Index"
+          value={visibility > 0 ? visibility.toLocaleString("de-CH") : "—"}
+          color={C.blue}
+        />
+      </div>
+      {(countries.length > 0 || aiSeries.length >= 2 || aiBySource.length > 0) && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))",
+            gap: 14,
+          }}
+        >
+          {countries.length > 0 && (
+            <div
+              style={{
+                background: C.card,
+                border: `1px solid ${C.border}`,
+                borderRadius: 14,
+                padding: 16,
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}>
+                Traffic nach Land
+              </div>
+              <ResponsiveContainer width="100%" height={240}>
+                <PieChart>
+                  <Pie
+                    data={countries.slice(0, 7).map((c) => ({ name: c.country, value: c.sessions }))}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={90}
+                    paddingAngle={2}
+                  >
+                    {countries.slice(0, 7).map((c, i) => (
+                      <Cell key={c.country} fill={COUNTRY_COLORS[i % COUNTRY_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      background: C.surface,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 8,
+                      color: C.textMuted,
+                    }}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          {aiSeries.length >= 2 ? (
+            <div
+              style={{
+                background: C.card,
+                border: `1px solid ${C.border}`,
+                borderRadius: 14,
+                padding: 16,
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}>
+                AI Referenced Visitors ({dateRange?.label || "30 Tage"})
+              </div>
+              <ResponsiveContainer width="100%" height={240}>
+                <AreaChart data={aiSeries}>
+                  <defs>
+                    <linearGradient id="ov-ai" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={C.green} stopOpacity={0.35} />
+                      <stop offset="100%" stopColor={C.green} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                  <XAxis
+                    dataKey="date"
+                    stroke={C.textDim}
+                    fontSize={11}
+                    tickFormatter={(d) =>
+                      typeof d === "string" && d.length === 8
+                        ? `${d.slice(6, 8)}.${d.slice(4, 6)}.`
+                        : d
+                    }
+                  />
+                  <YAxis stroke={C.textDim} fontSize={11} />
+                  <Tooltip
+                    contentStyle={{
+                      background: C.surface,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 8,
+                      color: C.textMuted,
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="aiSessions"
+                    name="AI Sessions"
+                    stroke={C.green}
+                    fill="url(#ov-ai)"
+                    strokeWidth={2}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            aiBySource.length > 0 && (
+              <div
+                style={{
+                  background: C.card,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 14,
+                  padding: 16,
+                }}
+              >
+                <div
+                  style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}
+                >
+                  AI-Referenzen nach Quelle
+                </div>
+                <div style={{ overflowX: "auto" }}>
+                  <table
+                    style={{ width: "100%", minWidth: 280, borderCollapse: "collapse", fontSize: 13 }}
+                  >
+                    <thead>
+                      <tr style={{ color: C.textDim, textAlign: "left" }}>
+                        <th style={{ padding: "6px 8px" }}>Quelle</th>
+                        <th style={{ padding: "6px 8px", textAlign: "right" }}>Sessions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {aiBySource.slice(0, 10).map((s, i) => (
+                        <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
+                          <td style={{ padding: "6px 8px", color: C.text }}>{s.source}</td>
+                          <td style={{ padding: "6px 8px", textAlign: "right" }}>{s.sessions}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
+          )}
+        </div>
       )}
     </div>
   );
@@ -4779,19 +5211,20 @@ function SettingsPage({
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 8 }}>Sichtbare Dashboard-Tabs</div>
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                   {[
+                    { id: "overview", label: "Übersicht", icon: BarChart3 },
                     { id: "seo", label: "SEO", icon: Globe },
                     { id: "geo", label: "GEO", icon: Sparkles },
                     { id: "conversions", label: "Conversions", icon: DollarSign },
                     { id: "ads", label: "Ads", icon: Megaphone },
                   ].map((t) => {
-                    const on = (defaultsDraft.visibleTabs || ["seo", "geo", "conversions", "ads"]).includes(t.id);
+                    const on = (defaultsDraft.visibleTabs || ["overview", "seo", "geo", "conversions", "ads"]).includes(t.id);
                     return (
                       <label key={t.id} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
                         <input
                           type="checkbox"
                           checked={on}
                           onChange={() => {
-                            const cur = defaultsDraft.visibleTabs || ["seo", "geo", "conversions", "ads"];
+                            const cur = defaultsDraft.visibleTabs || ["overview", "seo", "geo", "conversions", "ads"];
                             const next = on ? cur.filter((x) => x !== t.id) : [...cur, t.id];
                             setDefaultsDraft((p) => ({ ...p, visibleTabs: next.length > 0 ? next : [t.id] }));
                           }}
@@ -5901,6 +6334,7 @@ function AgentsPage({ selectedClient }) {
 }
 
 const TABS = [
+  { id: "overview", label: "Übersicht", icon: BarChart3 },
   { id: "seo", label: "SEO", icon: Globe },
   { id: "geo", label: "GEO", icon: Sparkles },
   { id: "conversions", label: "Conversions", icon: DollarSign },
@@ -6483,13 +6917,15 @@ function App() {
                 <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
                   {showAll
                     ? "Agentur-Übersicht"
-                    : tab === "seo"
-                      ? "SEO Dashboard"
-                      : tab === "geo"
-                        ? "GEO Dashboard"
-                        : tab === "ads"
-                          ? "Ads Dashboard"
-                          : "Conversions"}
+                    : tab === "overview"
+                      ? "Übersicht"
+                      : tab === "seo"
+                        ? "SEO Dashboard"
+                        : tab === "geo"
+                          ? "GEO Dashboard"
+                          : tab === "ads"
+                            ? "Ads Dashboard"
+                            : "Conversions"}
                 </h1>
                 <p style={{ color: C.textMuted, fontSize: 13, margin: "4px 0 0" }}>
                   {showAll ? "Alle Kunden" : `${client.name} — ${client.domain}`}
@@ -6499,6 +6935,7 @@ function App() {
               {showAll && <AgencyOverview clients={clients} />}
               {!showAll && (
                 <>
+                  {tab === "overview" && <OverviewDashboard selectedClient={client} dateRange={dateRange} />}
                   {tab === "seo" && <SeoDashboard selectedClient={client} dateRange={dateRange} />}
                   {tab === "geo" && <GeoDashboard selectedClient={client} dateRange={dateRange} />}
                   {tab === "conversions" && <ConvDashboard selectedClient={client} dateRange={dateRange} />}

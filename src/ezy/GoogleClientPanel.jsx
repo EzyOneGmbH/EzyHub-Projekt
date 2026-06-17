@@ -128,6 +128,8 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
       ["Core Web Vitals", "/api/google/pagespeed", { clientId }],
       ["GSC", "/api/google/gsc-import", { clientId, days: 28, rowLimit: 50 }],
       ["GA4", "/api/google/ga4-summary", { clientId, days: 28 }],
+      ["GA4 Traffic", "/api/google/ga4-traffic", { clientId, days: 28 }],
+      ["GA4 Conversions", "/api/google/ga4-conversions", { clientId, days: 28 }],
     ];
     const out = [];
     for (const [label, url, body] of jobs) {

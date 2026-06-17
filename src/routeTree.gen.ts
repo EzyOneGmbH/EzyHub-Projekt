@@ -31,8 +31,10 @@ import { Route as ApiLiveStatusRouteImport } from './routes/api/live.status'
 import { Route as ApiGooglePagespeedRouteImport } from './routes/api/google.pagespeed'
 import { Route as ApiGoogleGscSitesRouteImport } from './routes/api/google.gsc-sites'
 import { Route as ApiGoogleGscImportRouteImport } from './routes/api/google.gsc-import'
+import { Route as ApiGoogleGa4TrafficRouteImport } from './routes/api/google.ga4-traffic'
 import { Route as ApiGoogleGa4SummaryRouteImport } from './routes/api/google.ga4-summary'
 import { Route as ApiGoogleGa4PropertiesRouteImport } from './routes/api/google.ga4-properties'
+import { Route as ApiGoogleGa4ConversionsRouteImport } from './routes/api/google.ga4-conversions'
 import { Route as ApiGoogleConnectionRouteImport } from './routes/api/google.connection'
 import { Route as ApiGoogleCallbackRouteImport } from './routes/api/google.callback'
 import { Route as ApiCanonryCreateProjectRouteImport } from './routes/api/canonry.create-project'
@@ -157,6 +159,11 @@ const ApiGoogleGscImportRoute = ApiGoogleGscImportRouteImport.update({
   path: '/api/google/gsc-import',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGoogleGa4TrafficRoute = ApiGoogleGa4TrafficRouteImport.update({
+  id: '/api/google/ga4-traffic',
+  path: '/api/google/ga4-traffic',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiGoogleGa4SummaryRoute = ApiGoogleGa4SummaryRouteImport.update({
   id: '/api/google/ga4-summary',
   path: '/api/google/ga4-summary',
@@ -165,6 +172,11 @@ const ApiGoogleGa4SummaryRoute = ApiGoogleGa4SummaryRouteImport.update({
 const ApiGoogleGa4PropertiesRoute = ApiGoogleGa4PropertiesRouteImport.update({
   id: '/api/google/ga4-properties',
   path: '/api/google/ga4-properties',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiGoogleGa4ConversionsRoute = ApiGoogleGa4ConversionsRouteImport.update({
+  id: '/api/google/ga4-conversions',
+  path: '/api/google/ga4-conversions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiGoogleConnectionRoute = ApiGoogleConnectionRouteImport.update({
@@ -262,8 +274,10 @@ export interface FileRoutesByFullPath {
   '/api/canonry/create-project': typeof ApiCanonryCreateProjectRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
+  '/api/google/ga4-conversions': typeof ApiGoogleGa4ConversionsRoute
   '/api/google/ga4-properties': typeof ApiGoogleGa4PropertiesRoute
   '/api/google/ga4-summary': typeof ApiGoogleGa4SummaryRoute
+  '/api/google/ga4-traffic': typeof ApiGoogleGa4TrafficRoute
   '/api/google/gsc-import': typeof ApiGoogleGscImportRoute
   '/api/google/gsc-sites': typeof ApiGoogleGscSitesRoute
   '/api/google/pagespeed': typeof ApiGooglePagespeedRoute
@@ -301,8 +315,10 @@ export interface FileRoutesByTo {
   '/api/canonry/create-project': typeof ApiCanonryCreateProjectRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
+  '/api/google/ga4-conversions': typeof ApiGoogleGa4ConversionsRoute
   '/api/google/ga4-properties': typeof ApiGoogleGa4PropertiesRoute
   '/api/google/ga4-summary': typeof ApiGoogleGa4SummaryRoute
+  '/api/google/ga4-traffic': typeof ApiGoogleGa4TrafficRoute
   '/api/google/gsc-import': typeof ApiGoogleGscImportRoute
   '/api/google/gsc-sites': typeof ApiGoogleGscSitesRoute
   '/api/google/pagespeed': typeof ApiGooglePagespeedRoute
@@ -341,8 +357,10 @@ export interface FileRoutesById {
   '/api/canonry/create-project': typeof ApiCanonryCreateProjectRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
+  '/api/google/ga4-conversions': typeof ApiGoogleGa4ConversionsRoute
   '/api/google/ga4-properties': typeof ApiGoogleGa4PropertiesRoute
   '/api/google/ga4-summary': typeof ApiGoogleGa4SummaryRoute
+  '/api/google/ga4-traffic': typeof ApiGoogleGa4TrafficRoute
   '/api/google/gsc-import': typeof ApiGoogleGscImportRoute
   '/api/google/gsc-sites': typeof ApiGoogleGscSitesRoute
   '/api/google/pagespeed': typeof ApiGooglePagespeedRoute
@@ -382,8 +400,10 @@ export interface FileRouteTypes {
     | '/api/canonry/create-project'
     | '/api/google/callback'
     | '/api/google/connection'
+    | '/api/google/ga4-conversions'
     | '/api/google/ga4-properties'
     | '/api/google/ga4-summary'
+    | '/api/google/ga4-traffic'
     | '/api/google/gsc-import'
     | '/api/google/gsc-sites'
     | '/api/google/pagespeed'
@@ -421,8 +441,10 @@ export interface FileRouteTypes {
     | '/api/canonry/create-project'
     | '/api/google/callback'
     | '/api/google/connection'
+    | '/api/google/ga4-conversions'
     | '/api/google/ga4-properties'
     | '/api/google/ga4-summary'
+    | '/api/google/ga4-traffic'
     | '/api/google/gsc-import'
     | '/api/google/gsc-sites'
     | '/api/google/pagespeed'
@@ -460,8 +482,10 @@ export interface FileRouteTypes {
     | '/api/canonry/create-project'
     | '/api/google/callback'
     | '/api/google/connection'
+    | '/api/google/ga4-conversions'
     | '/api/google/ga4-properties'
     | '/api/google/ga4-summary'
+    | '/api/google/ga4-traffic'
     | '/api/google/gsc-import'
     | '/api/google/gsc-sites'
     | '/api/google/pagespeed'
@@ -496,8 +520,10 @@ export interface RootRouteChildren {
   ApiCanonryCreateProjectRoute: typeof ApiCanonryCreateProjectRoute
   ApiGoogleCallbackRoute: typeof ApiGoogleCallbackRoute
   ApiGoogleConnectionRoute: typeof ApiGoogleConnectionRoute
+  ApiGoogleGa4ConversionsRoute: typeof ApiGoogleGa4ConversionsRoute
   ApiGoogleGa4PropertiesRoute: typeof ApiGoogleGa4PropertiesRoute
   ApiGoogleGa4SummaryRoute: typeof ApiGoogleGa4SummaryRoute
+  ApiGoogleGa4TrafficRoute: typeof ApiGoogleGa4TrafficRoute
   ApiGoogleGscImportRoute: typeof ApiGoogleGscImportRoute
   ApiGoogleGscSitesRoute: typeof ApiGoogleGscSitesRoute
   ApiGooglePagespeedRoute: typeof ApiGooglePagespeedRoute
@@ -663,6 +689,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGoogleGscImportRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/google/ga4-traffic': {
+      id: '/api/google/ga4-traffic'
+      path: '/api/google/ga4-traffic'
+      fullPath: '/api/google/ga4-traffic'
+      preLoaderRoute: typeof ApiGoogleGa4TrafficRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/google/ga4-summary': {
       id: '/api/google/ga4-summary'
       path: '/api/google/ga4-summary'
@@ -675,6 +708,13 @@ declare module '@tanstack/react-router' {
       path: '/api/google/ga4-properties'
       fullPath: '/api/google/ga4-properties'
       preLoaderRoute: typeof ApiGoogleGa4PropertiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/google/ga4-conversions': {
+      id: '/api/google/ga4-conversions'
+      path: '/api/google/ga4-conversions'
+      fullPath: '/api/google/ga4-conversions'
+      preLoaderRoute: typeof ApiGoogleGa4ConversionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/google/connection': {
@@ -841,8 +881,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCanonryCreateProjectRoute: ApiCanonryCreateProjectRoute,
   ApiGoogleCallbackRoute: ApiGoogleCallbackRoute,
   ApiGoogleConnectionRoute: ApiGoogleConnectionRoute,
+  ApiGoogleGa4ConversionsRoute: ApiGoogleGa4ConversionsRoute,
   ApiGoogleGa4PropertiesRoute: ApiGoogleGa4PropertiesRoute,
   ApiGoogleGa4SummaryRoute: ApiGoogleGa4SummaryRoute,
+  ApiGoogleGa4TrafficRoute: ApiGoogleGa4TrafficRoute,
   ApiGoogleGscImportRoute: ApiGoogleGscImportRoute,
   ApiGoogleGscSitesRoute: ApiGoogleGscSitesRoute,
   ApiGooglePagespeedRoute: ApiGooglePagespeedRoute,
