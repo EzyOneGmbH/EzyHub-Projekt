@@ -1050,7 +1050,9 @@ function DateRangePicker({ value, onChange }) {
               key={p.id}
               onClick={() => {
                 setA(p.id);
-                onChange({ label: p.label });
+                const now = new Date();
+                const start = new Date(now.getTime() - p.d * 24 * 60 * 60 * 1000);
+                onChange({ label: p.label, days: p.d, start, end: now });
                 setOpen(false);
               }}
               style={{
@@ -2151,12 +2153,17 @@ function LiveEmptyState({ title, hint }) {
     </div>
   );
 }
-function SeoDashboard({ selectedClient }) {
+function SeoDashboard({ selectedClient, dateRange }) {
   const { run } = useEzyLatestRun(selectedClient?.id, "ahrefs");
   const live = run ? ahrefsKpisFromResult(run.result) : null;
   const { runs } = useEzyAuditHistory(selectedClient?.id);
+  const startDate = dateRange?.start || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const trend = (runs || [])
-    .filter((r) => r.audit_type === "ahrefs" && r.status === "succeeded")
+    .filter((r) => {
+      if (r.audit_type !== "ahrefs" || r.status !== "succeeded") return false;
+      const d = new Date(r.started_at || r.created_at);
+      return d >= startDate;
+    })
     .map((r) => {
       const k = ahrefsKpisFromResult(r.result);
       const d = new Date(r.started_at || r.created_at);
@@ -2349,7 +2356,7 @@ function SeoDashboard({ selectedClient }) {
           }}
         >
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}>
-            Entwicklung (letzte {trend.length} Läufe)
+            Entwicklung ({dateRange?.label || "30 Tage"} • {trend.length} Datenpunkte)
           </div>
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={trend}>
@@ -2392,7 +2399,7 @@ function SeoDashboard({ selectedClient }) {
     </div>
   );
 }
-function GeoDashboard({ selectedClient }) {
+function GeoDashboard({ selectedClient, dateRange }) {
   const providerKeys = ["ChatGPT", "Perplexity", "Gemini", "Claude"];
   const { isOn } = useEzyDashboardConfig();
   const live = useLiveIntegrations();
@@ -2730,9 +2737,11 @@ function GeoDashboard({ selectedClient }) {
     </div>
   );
 }
-function ConvDashboard({ selectedClient }) {
+function ConvDashboard({ selectedClient, dateRange }) {
   const { run } = useEzyLatestRun(selectedClient?.id, "ga4_summary");
-  const ga4 = run ? ga4KpisFromResult(run.result) : null;
+  const ga4Raw = run ? ga4KpisFromResult(run.result) : null;
+  const days = dateRange?.days || 30;
+  const ga4 = ga4Raw;
   const revenue = Number(selectedClient?.revenue || 0);
   const phoneCalls = Number(selectedClient?.phoneCalls || 0);
   const mailClicks = Number(selectedClient?.mailClicks || 0);
@@ -2747,7 +2756,8 @@ function ConvDashboard({ selectedClient }) {
   const avgSession = Number(ga4?.averageSessionDuration || 0);
   const ga4Conversions = Number(ga4?.conversions || 0);
   const ga4Revenue = Number(ga4?.totalRevenue || 0);
-  const ga4Series = ga4?.series || [];
+  const ga4SeriesRaw = ga4?.series || [];
+  const ga4Series = ga4SeriesRaw.slice(-days);
   const { isOn } = useEzyDashboardConfig();
   const hasAnyKpi =
     revenue +
@@ -2899,7 +2909,7 @@ function ConvDashboard({ selectedClient }) {
           }}
         >
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}>
-            Traffic-Verlauf ({ga4Series.length} Tage)
+            Traffic-Verlauf ({dateRange?.label || "30 Tage"})
           </div>
           <ResponsiveContainer width="100%" height={260}>
             <AreaChart data={ga4Series}>
@@ -5813,7 +5823,10 @@ function App() {
   const [cdd, setCdd] = useState(false);
   const [showTools, setShowTools] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [dateRange, setDateRange] = useState({ label: "30 Tage" });
+  const [dateRange, setDateRange] = useState(() => {
+    const now = new Date();
+    return { label: "30 Tage", days: 30, start: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000), end: now };
+  });
   const [showAll, setShowAll] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
   const toast = useToast();
@@ -6361,9 +6374,9 @@ function App() {
               {showAll && <AgencyOverview clients={clients} />}
               {!showAll && (
                 <>
-                  {tab === "seo" && <SeoDashboard selectedClient={client} />}
-                  {tab === "geo" && <GeoDashboard selectedClient={client} />}{" "}
-                  {tab === "conversions" && <ConvDashboard selectedClient={client} />}
+                  {tab === "seo" && <SeoDashboard selectedClient={client} dateRange={dateRange} />}
+                  {tab === "geo" && <GeoDashboard selectedClient={client} dateRange={dateRange} />}
+                  {tab === "conversions" && <ConvDashboard selectedClient={client} dateRange={dateRange} />}
                 </>
               )}
             </>
