@@ -114,9 +114,10 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
       // (google_ads_customer) never blocks saving GSC/GA4.
       let adsNote = "";
       try {
+        const gadsNorm = gads ? String(gads).replace(/\D/g, "") : null;
         const { error: adErr } = await supabase
           .from("clients")
-          .update({ google_ads_customer: gads || null })
+          .update({ google_ads_customer: gadsNorm })
           .eq("id", clientId);
         if (adErr) adsNote = " (Google Ads ID konnte nicht gespeichert werden — Migration ausstehend)";
       } catch {

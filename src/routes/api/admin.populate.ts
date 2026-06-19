@@ -801,7 +801,7 @@ async function jobGoogleAds(c: any, uid: string, days: number) {
     return { skipped: "kein Google-Token" };
   }
 
-  const customerId = String(c.google_ads_customer).replace(/-/g, "");
+  const customerId = String(c.google_ads_customer).replace(/\D/g, "");
   const today = new Date();
   const startDate = new Date(today);
   startDate.setDate(startDate.getDate() - days);

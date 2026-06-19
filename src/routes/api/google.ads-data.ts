@@ -69,7 +69,7 @@ export const Route = createFileRoute("/api/google/ads-data")({
           }
 
           const { accessToken } = await getGoogleAccessToken(client.id);
-          const customerId = String(client.google_ads_customer).replace(/-/g, "");
+          const customerId = String(client.google_ads_customer).replace(/\D/g, "");
           const days = parsed.data.days;
 
           // Date range for GAQL queries
