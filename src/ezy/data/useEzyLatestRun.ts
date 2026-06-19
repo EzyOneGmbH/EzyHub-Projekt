@@ -409,16 +409,50 @@ export function aiVisibilityTopicsFromResult(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function googleAdsFromResult(result: any): {
-  totals: { cost: number; clicks: number; impressions: number; conversions: number; conversionValue: number };
+  totals: {
+    cost: number;
+    clicks: number;
+    impressions: number;
+    conversions: number;
+    conversionValue: number;
+  };
   ctr: number;
   cpc: number;
   cpa: number;
   roas: number;
-  series: Array<{ date: string; cost: number; clicks: number; impressions: number; conversions: number }>;
-  campaigns: Array<{ name: string; status: string; cost: number; clicks: number; impressions: number; conversions: number }>;
+  series: Array<{
+    date: string;
+    cost: number;
+    clicks: number;
+    impressions: number;
+    conversions: number;
+  }>;
+  campaigns: Array<{
+    name: string;
+    status: string;
+    cost: number;
+    clicks: number;
+    impressions: number;
+    conversions: number;
+    conversionValue: number;
+    roas: number;
+  }>;
+  conversionActions: Array<{ name: string; count: number; value: number }>;
+  primary: { name: string; count: number; value: number } | null;
+  prev: {
+    cost: number;
+    clicks: number;
+    impressions: number;
+    conversions: number;
+    conversionValue: number;
+    ctr: number;
+    cpc: number;
+    primaryCount: number;
+  };
 } {
   const r = result || {};
   const t = r.totals || {};
+  const p = r.prev || {};
   return {
     totals: {
       cost: Number(t.cost ?? 0) || 0,
@@ -433,5 +467,17 @@ export function googleAdsFromResult(result: any): {
     roas: Number(r.roas ?? 0) || 0,
     series: Array.isArray(r.series) ? r.series : [],
     campaigns: Array.isArray(r.campaigns) ? r.campaigns : [],
+    conversionActions: Array.isArray(r.conversionActions) ? r.conversionActions : [],
+    primary: r.primary ?? null,
+    prev: {
+      cost: Number(p.cost ?? 0) || 0,
+      clicks: Number(p.clicks ?? 0) || 0,
+      impressions: Number(p.impressions ?? 0) || 0,
+      conversions: Number(p.conversions ?? 0) || 0,
+      conversionValue: Number(p.conversionValue ?? 0) || 0,
+      ctr: Number(p.ctr ?? 0) || 0,
+      cpc: Number(p.cpc ?? 0) || 0,
+      primaryCount: Number(p.primaryCount ?? 0) || 0,
+    },
   };
 }
