@@ -948,7 +948,7 @@ export const Route = createFileRoute("/api/admin/populate")({
         const query = supabaseAdmin
           .from("clients")
           .select(
-            "id, name, domain, organization_id, gsc_property, ga4_property, country, language, canonry_project",
+            "id, name, domain, organization_id, gsc_property, ga4_property, google_ads_customer, country, language, canonry_project",
           );
         let clients: any[] = [];
         if (all) clients = (await query).data || [];
@@ -974,6 +974,7 @@ export const Route = createFileRoute("/api/admin/populate")({
               canonry_project: c.canonry_project ?? null,
               gsc_property: c.gsc_property ?? null,
               ga4_property: c.ga4_property ?? null,
+              google_ads_customer: c.google_ads_customer ?? null,
               canonryEnv: { baseSet: !!cBase, keySet: !!cKey },
             };
             if (cBase && cKey && c.canonry_project) {
