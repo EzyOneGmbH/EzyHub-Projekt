@@ -5,6 +5,7 @@ import { getGoogleAccessToken } from "@/server/google-tokens.server";
 import { redactSecrets } from "@/server/google-oauth.server";
 import { normalizeCanonryBase } from "@/lib/canonry-url";
 import { fetchAdsSnapshot } from "@/server/google-ads.server";
+import { fetchAworkForClient } from "@/routes/api/awork.tasks";
 
 function slugify(s: string): string {
   return String(s || "")
@@ -35,6 +36,7 @@ const Body = z.object({
         "ga4_conversions",
         "ai_visibility",
         "google_ads",
+        "awork_tasks",
         "geo",
       ]),
     )
@@ -59,6 +61,7 @@ const JOB_AUDIT_TYPE: Record<string, string> = {
   ga4_conversions: "ga4_conversions",
   ai_visibility: "canonry_ai_visibility",
   google_ads: "google_ads",
+  awork_tasks: "awork_tasks",
 };
 
 // AI-referral source hostnames (substring match on GA4 sessionSource).
@@ -811,6 +814,26 @@ async function jobGoogleAds(c: any, uid: string, days: number) {
   };
 }
 
+// AWORK — match client to an AWORK project by name, pull its task board.
+async function jobAworkTasks(c: any, uid: string) {
+  const key = process.env.AWORK_API_KEY;
+  if (!key) return { skipped: "AWORK_API_KEY fehlt" };
+  const result: any = await fetchAworkForClient(c.name, key);
+  if (result?.error) return { error: String(result.error).slice(0, 200) };
+  await insertRun({
+    client_id: c.id,
+    organization_id: c.organization_id,
+    triggered_by: uid,
+    audit_type: "awork_tasks",
+    status: "succeeded",
+    input: { clientName: c.name },
+    result,
+    started_at: nowIso(),
+    finished_at: nowIso(),
+  });
+  return { project: result?.project?.name ?? null, tasks: result?.counts?.total ?? 0 };
+}
+
 export const Route = createFileRoute("/api/admin/populate")({
   server: {
     handlers: {
@@ -940,6 +963,7 @@ export const Route = createFileRoute("/api/admin/populate")({
                 jr.ga4_conversions = await jobGa4Conversions(c, uid, days);
               else if (j === "ai_visibility") jr.ai_visibility = await jobAiVisibility(c, uid);
               else if (j === "google_ads") jr.google_ads = await jobGoogleAds(c, uid, days);
+              else if (j === "awork_tasks") jr.awork_tasks = await jobAworkTasks(c, uid);
               else if (j === "geo") jr.geo = await jobGeo(c, { runGeo, geoSlug });
             } catch (e) {
               jr[j] = { error: redactSecrets(e) };

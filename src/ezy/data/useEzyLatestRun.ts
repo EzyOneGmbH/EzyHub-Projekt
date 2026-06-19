@@ -481,3 +481,34 @@ export function googleAdsFromResult(result: any): {
     },
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AWORK — extractor over an awork_tasks snapshot.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function aworkTasksFromResult(result: any): {
+  project: { id: string; name: string } | null;
+  statuses: Array<{ id: string; name: string; type?: string; order?: number }>;
+  tasks: Array<{
+    id: string;
+    name: string;
+    statusId: string;
+    statusName: string;
+    statusType: string;
+    assignees: Array<{ initials: string; name: string }>;
+    dueOn: string | null;
+    isPrio: boolean;
+    list: string;
+  }>;
+  counts: { total: number; done: number };
+  note: string | null;
+} {
+  const r = result || {};
+  return {
+    project: r.project ?? null,
+    statuses: Array.isArray(r.statuses) ? r.statuses : [],
+    tasks: Array.isArray(r.tasks) ? r.tasks : [],
+    counts: { total: Number(r.counts?.total ?? 0) || 0, done: Number(r.counts?.done ?? 0) || 0 },
+    note: r.note ?? null,
+  };
+}

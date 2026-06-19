@@ -90,6 +90,7 @@ import {
   GitBranch,
   Type,
   Megaphone,
+  ListChecks,
 } from "lucide-react";
 import { ezyFetch } from "@/ezy/data/api";
 import { useAuth } from "@/hooks/use-auth";
@@ -118,6 +119,7 @@ import {
   aiVisibilitySourcesFromResult,
   aiVisibilityTopicsFromResult,
   googleAdsFromResult,
+  aworkTasksFromResult,
 } from "@/ezy/data/useEzyLatestRun";
 import GoogleClientPanel from "@/ezy/GoogleClientPanel.jsx";
 import { supabase } from "@/integrations/supabase/client";
@@ -4228,6 +4230,208 @@ function AdsDashboard({ selectedClient, dateRange }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// TASKS (AWORK) DASHBOARD
+// ═══════════════════════════════════════════════════════════════════════════
+function TasksDashboard({ selectedClient }) {
+  const { run, loading, refresh } = useEzyLatestRun(selectedClient?.id, "awork_tasks");
+  const { project, statuses, tasks, counts, note } = aworkTasksFromResult(run?.result);
+  const [pulling, setPulling] = useState(false);
+  const [err, setErr] = useState("");
+
+  const pull = async () => {
+    if (!selectedClient?.id) return;
+    setPulling(true);
+    setErr("");
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const r = await fetch("/api/awork/tasks", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session?.access_token || ""}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ clientId: selectedClient.id }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!j.ok) setErr(j.error || "Abruf fehlgeschlagen");
+      await refresh();
+    } catch (e) {
+      setErr(String(e?.message || e));
+    } finally {
+      setPulling(false);
+    }
+  };
+
+  // Build columns: prefer the project's status order, else statuses seen in tasks.
+  const cols =
+    statuses.length > 0
+      ? statuses
+      : [...new Map(tasks.map((t) => [t.statusName, { id: t.statusId, name: t.statusName, type: t.statusType }])).values()];
+  const tasksByStatus = (name) => tasks.filter((t) => t.statusName === name);
+  const statusColor = (type) => {
+    const t = String(type || "").toLowerCase();
+    if (["done", "closed", "completed"].includes(t)) return C.green;
+    if (["progress", "inprogress", "doing"].includes(t)) return C.blue;
+    return C.textMuted;
+  };
+  const fmtDue = (iso) => {
+    if (!iso) return null;
+    const d = new Date(iso);
+    if (isNaN(d)) return null;
+    const overdue = d < new Date();
+    return { label: d.toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit" }), overdue };
+  };
+
+  if (loading) return <div style={{ color: C.textMuted, padding: 20 }}>Lade Aufgaben…</div>;
+
+  const hasData = !!project && tasks.length >= 0 && run;
+  if (!hasData) {
+    return (
+      <LiveEmptyState
+        title="Noch keine AWORK-Aufgaben"
+        hint={
+          'Aufgaben werden über den AWORK-Projektnamen dem Kunden zugeordnet. Klicke "Aktualisieren", um das passende Projekt zu laden.'
+        }
+        action={
+          <Btn onClick={pull} disabled={pulling}>
+            {pulling ? "Lädt…" : "⟳ Aktualisieren"}
+          </Btn>
+        }
+      />
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Header */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: C.text }}>
+            {project ? project.name : "Kein Projekt zugeordnet"}
+          </div>
+          <div style={{ fontSize: 12.5, color: C.textMuted, marginTop: 2 }}>
+            {counts.total} Aufgaben · {counts.done} erledigt
+            {project ? " · AWORK" : ""}
+          </div>
+        </div>
+        <Btn onClick={pull} disabled={pulling}>
+          {pulling ? "Lädt…" : "⟳ Aktualisieren"}
+        </Btn>
+      </div>
+
+      {err && <div style={{ fontSize: 12, color: C.red }}>{err}</div>}
+      {note && (
+        <div style={{ fontSize: 13, color: C.textMuted, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px 16px" }}>
+          {note}
+        </div>
+      )}
+
+      {/* Board: one column per status */}
+      {project && cols.length > 0 && (
+        <div className="awork-board" style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 6 }}>
+          {cols.map((col) => {
+            const colTasks = tasksByStatus(col.name);
+            const accent = statusColor(col.type);
+            return (
+              <div
+                key={col.id || col.name}
+                className="awork-col"
+                style={{
+                  flex: "0 0 280px",
+                  minWidth: 280,
+                  background: C.card,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 12,
+                  padding: 14,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ width: 9, height: 9, borderRadius: "50%", background: accent }} />
+                    <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{col.name}</span>
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: C.textMuted }}>{colTasks.length}</span>
+                </div>
+                {colTasks.length === 0 && (
+                  <div style={{ fontSize: 12, color: C.textDim, padding: "6px 0" }}>—</div>
+                )}
+                {colTasks.map((t) => {
+                  const due = fmtDue(t.dueOn);
+                  return (
+                    <div
+                      key={t.id}
+                      style={{
+                        background: C.bg,
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 10,
+                        padding: "10px 12px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 8,
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+                        {t.isPrio && <span style={{ color: C.orange, fontSize: 13, lineHeight: 1.3 }}>★</span>}
+                        <span style={{ fontSize: 13, color: C.text, lineHeight: 1.35 }}>{t.name}</span>
+                      </div>
+                      {t.list && (
+                        <span style={{ fontSize: 11, color: C.textDim }}>{t.list}</span>
+                      )}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                        <div style={{ display: "flex" }}>
+                          {t.assignees.slice(0, 3).map((a, i) => (
+                            <span
+                              key={i}
+                              title={a.name}
+                              style={{
+                                width: 22,
+                                height: 22,
+                                borderRadius: "50%",
+                                background: C.accentDim,
+                                color: C.accentLight,
+                                fontSize: 9,
+                                fontWeight: 700,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                marginLeft: i === 0 ? 0 : -6,
+                                border: `1px solid ${C.card}`,
+                              }}
+                            >
+                              {a.initials}
+                            </span>
+                          ))}
+                        </div>
+                        {due && (
+                          <span style={{ fontSize: 11, fontWeight: 600, color: due.overdue ? C.red : C.textMuted }}>
+                            {due.label}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // TOOL RUNNER
 // ═══════════════════════════════════════════════════════════════════════════
 function ToolRunner({ tool, onClose, client, onComplete }) {
@@ -5928,8 +6132,9 @@ function SettingsPage({
                     { id: "aivis", label: "KI-Sichtbarkeit", icon: Bot },
                     { id: "conversions", label: "Conversions", icon: DollarSign },
                     { id: "ads", label: "Ads", icon: Megaphone },
+                    { id: "tasks", label: "Projekt", icon: ListChecks },
                   ].map((t) => {
-                    const on = (defaultsDraft.visibleTabs || ["overview", "seo", "geo", "aivis", "conversions", "ads"]).includes(t.id);
+                    const on = (defaultsDraft.visibleTabs || ["overview", "seo", "geo", "aivis", "conversions", "ads", "tasks"]).includes(t.id);
                     return (
                       <label key={t.id} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
                         <input
@@ -7058,6 +7263,7 @@ const TABS = [
   { id: "aivis", label: "KI-Sichtbarkeit", icon: Bot },
   { id: "conversions", label: "Conversions", icon: DollarSign },
   { id: "ads", label: "Ads", icon: Megaphone },
+  { id: "tasks", label: "Projekt", icon: ListChecks },
 ];
 const NAV = [
   { id: "dashboard", label: "Dashboard", icon: BarChart3 },
@@ -7675,6 +7881,7 @@ function App() {
                   {tab === "aivis" && <AiVisibilityDashboard selectedClient={client} />}
                   {tab === "conversions" && <ConvDashboard selectedClient={client} dateRange={dateRange} />}
                   {tab === "ads" && <AdsDashboard selectedClient={client} dateRange={dateRange} />}
+                  {tab === "tasks" && <TasksDashboard selectedClient={client} />}
                 </>
               )}
             </>
