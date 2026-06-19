@@ -124,16 +124,20 @@ export const Route = createFileRoute("/api/awork/tasks")({
 
 // Exported so the batch job (admin.populate) can reuse the same logic.
 export async function fetchAworkForClient(clientName: string, key: string) {
-  const enc = encodeURIComponent;
-  const safeName = String(clientName || "").replace(/'/g, "''");
-  // 1) Find the project by name.
-  const projRes = await awork<any[]>(
-    `/projects?filterby=${enc(`contains(name,'${safeName}')`)}&pageSize=50`,
-    key,
-  );
-  if (!projRes.ok)
-    return { error: `AWORK Projekte HTTP ${projRes.status}: ${projRes.text || ""}`.trim() };
-  const project = pickProject(projRes.data || [], clientName);
+  // 1) Load projects (paginated) and match by name client-side. AWORK's
+  // filterby syntax is finicky, so we filter locally for robustness.
+  let allProjects: any[] = [];
+  for (let page = 1; page <= 5; page++) {
+    const pr = await awork<any[]>(`/projects?pageSize=1000&page=${page}`, key);
+    if (!pr.ok) {
+      if (page === 1) return { error: `AWORK Projekte HTTP ${pr.status}: ${pr.text || ""}`.trim() };
+      break;
+    }
+    const batch = pr.data || [];
+    allProjects = allProjects.concat(batch);
+    if (batch.length < 1000) break;
+  }
+  const project = pickProject(allProjects, clientName);
   if (!project)
     return {
       project: null,
