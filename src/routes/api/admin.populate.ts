@@ -823,7 +823,10 @@ async function jobGoogleAds(c: any, uid: string, days: number) {
         body: JSON.stringify({ query: gaql }),
       },
     );
-    if (!res.ok) throw new Error(`Ads API HTTP ${res.status}`);
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      throw new Error(`Ads API HTTP ${res.status}: ${t.slice(0, 400)}`);
+    }
     return (await res.json()) as Array<{ results?: Array<Record<string, unknown>> }>;
   };
 
