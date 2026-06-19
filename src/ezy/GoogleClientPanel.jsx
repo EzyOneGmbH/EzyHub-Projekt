@@ -103,16 +103,27 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
     setBusy("save");
     setMsg("");
     try {
+      // Core props (GSC/GA4) — these columns always exist.
       const { error } = await supabase
         .from("clients")
-        .update({
-          gsc_property: gsc || null,
-          ga4_property: ga4 || null,
-          google_ads_customer: gads || null,
-        })
+        .update({ gsc_property: gsc || null, ga4_property: ga4 || null })
         .eq("id", clientId);
       if (error) throw error;
-      setMsg("Properties gespeichert");
+
+      // Google Ads customer — separate update so a not-yet-migrated column
+      // (google_ads_customer) never blocks saving GSC/GA4.
+      let adsNote = "";
+      try {
+        const { error: adErr } = await supabase
+          .from("clients")
+          .update({ google_ads_customer: gads || null })
+          .eq("id", clientId);
+        if (adErr) adsNote = " (Google Ads ID konnte nicht gespeichert werden — Migration ausstehend)";
+      } catch {
+        adsNote = " (Google Ads ID konnte nicht gespeichert werden — Migration ausstehend)";
+      }
+
+      setMsg("Properties gespeichert" + adsNote);
       onLog?.({ ok: true, kind: "save", text: "Properties gespeichert" });
       onSaved?.();
     } catch (e) {
