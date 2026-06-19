@@ -811,7 +811,7 @@ async function jobGoogleAds(c: any, uid: string, days: number) {
 
   const query = async (gaql: string) => {
     const res = await fetch(
-      `https://googleads.googleapis.com/v18/customers/${customerId}/googleAds:searchStream`,
+      `https://googleads.googleapis.com/v17/customers/${customerId}/googleAds:searchStream`,
       {
         method: "POST",
         headers: {

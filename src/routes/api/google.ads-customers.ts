@@ -61,7 +61,7 @@ export const Route = createFileRoute("/api/google/ads-customers")({
 
           // Step 1: List accessible customers (returns customer resource names).
           const listRes = await fetch(
-            "https://googleads.googleapis.com/v18/customers:listAccessibleCustomers",
+            "https://googleads.googleapis.com/v17/customers:listAccessibleCustomers",
             {
               headers: {
                 Authorization: `Bearer ${accessToken}`,
@@ -94,7 +94,7 @@ export const Route = createFileRoute("/api/google/ads-customers")({
             const customerId = rn.replace("customers/", "");
             try {
               const searchRes = await fetch(
-                `https://googleads.googleapis.com/v18/customers/${customerId}/googleAds:searchStream`,
+                `https://googleads.googleapis.com/v17/customers/${customerId}/googleAds:searchStream`,
                 {
                   method: "POST",
                   headers: {
