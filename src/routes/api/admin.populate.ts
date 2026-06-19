@@ -818,7 +818,6 @@ async function jobGoogleAds(c: any, uid: string, days: number) {
           Authorization: `Bearer ${accessToken}`,
           "developer-token": devToken,
           "Content-Type": "application/json",
-          "login-customer-id": customerId,
         },
         body: JSON.stringify({ query: gaql }),
       },

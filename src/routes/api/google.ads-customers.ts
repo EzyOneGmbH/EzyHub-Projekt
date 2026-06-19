@@ -101,7 +101,6 @@ export const Route = createFileRoute("/api/google/ads-customers")({
                     Authorization: `Bearer ${accessToken}`,
                     "developer-token": devToken,
                     "Content-Type": "application/json",
-                    "login-customer-id": customerId,
                   },
                   body: JSON.stringify({
                     query:
