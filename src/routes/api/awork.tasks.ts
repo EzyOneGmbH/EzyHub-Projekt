@@ -123,50 +123,50 @@ export const Route = createFileRoute("/api/awork/tasks")({
   },
 });
 
-// Exported so the batch job (admin.populate) can reuse the same logic.
-export async function fetchAworkForClient(clientName: string, key: string) {
-  // 1) Load projects (paginated) and match by name client-side. AWORK's
-  // filterby syntax is finicky, so we filter locally for robustness.
-  let allProjects: any[] = [];
-  for (let page = 1; page <= 5; page++) {
-    const pr = await awork<any[]>(`/projects?pageSize=1000&page=${page}`, key);
-    if (!pr.ok) {
-      if (page === 1) return { error: `AWORK Projekte HTTP ${pr.status}: ${pr.text || ""}`.trim() };
+// Load all rows of a paginated AWORK collection (projects/companies).
+async function loadAll(path: string, key: string): Promise<{ rows: any[]; error?: string }> {
+  let rows: any[] = [];
+  for (let page = 1; page <= 6; page++) {
+    const sep = path.includes("?") ? "&" : "?";
+    const r = await awork<any[]>(`${path}${sep}pageSize=1000&page=${page}`, key);
+    if (!r.ok) {
+      if (page === 1) return { rows: [], error: `HTTP ${r.status}: ${r.text || ""}`.trim() };
       break;
     }
-    const batch = pr.data || [];
-    allProjects = allProjects.concat(batch);
+    const batch = r.data || [];
+    rows = rows.concat(batch);
     if (batch.length < 1000) break;
   }
-  const project = pickProject(allProjects, clientName);
-  if (!project)
-    return {
-      project: null,
-      statuses: [] as AworkStatus[],
-      tasks: [],
-      counts: { total: 0, done: 0 },
-      note: `Kein AWORK-Projekt zu „${clientName}" gefunden.`,
-    };
+  return { rows };
+}
 
-  // 2) Status columns (ordered) + 3) tasks — in parallel. AWORK path naming
-  // varies (hyphen vs none), so try both variants and take the first that works.
-  const firstOk = async (paths: string[]) => {
-    let last: Awaited<ReturnType<typeof awork>> | null = null;
-    for (const p of paths) {
-      const r = await awork<any[]>(p, key);
-      if (r.ok) return r;
-      last = r;
-    }
-    return last!;
-  };
+const initials = (a: any) =>
+  `${String(a?.firstName || a?.name || "").charAt(0)}${String(a?.lastName || "").charAt(0)}`.toUpperCase() ||
+  "?";
+
+// AWORK path naming varies (hyphen vs none); try both, take the first that works.
+async function firstOk(paths: string[], key: string) {
+  let last: Awaited<ReturnType<typeof awork>> | null = null;
+  for (const p of paths) {
+    const r = await awork<any[]>(p, key);
+    if (r.ok) return r;
+    last = r;
+  }
+  return last!;
+}
+
+// Fetch one project's statuses + tasks and normalize.
+async function fetchProjectTasks(projectId: string, projectName: string, key: string) {
   const [stRes, tkRes] = await Promise.all([
-    firstOk([`/projects/${project.id}/taskstatuses`, `/projects/${project.id}/task-statuses`]),
-    firstOk([
-      `/projects/${project.id}/projecttasks?pageSize=500`,
-      `/projects/${project.id}/project-tasks?pageSize=500`,
-    ]),
+    firstOk([`/projects/${projectId}/taskstatuses`, `/projects/${projectId}/task-statuses`], key),
+    firstOk(
+      [
+        `/projects/${projectId}/projecttasks?pageSize=500`,
+        `/projects/${projectId}/project-tasks?pageSize=500`,
+      ],
+      key,
+    ),
   ]);
-
   const statuses: AworkStatus[] = (stRes.data || [])
     .map((s: any) => ({
       id: String(s.id),
@@ -176,11 +176,6 @@ export async function fetchAworkForClient(clientName: string, key: string) {
     }))
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const statusById = new Map(statuses.map((s) => [s.id, s]));
-
-  const initials = (a: any) =>
-    `${String(a?.firstName || a?.name || "").charAt(0)}${String(a?.lastName || "").charAt(0)}`.toUpperCase() ||
-    "?";
-
   const tasks = (tkRes.data || []).map((t: any) => {
     const sid = String(t.taskStatusId ?? t.taskStatus?.id ?? "");
     const st = statusById.get(sid);
@@ -188,6 +183,7 @@ export async function fetchAworkForClient(clientName: string, key: string) {
     return {
       id: String(t.id ?? ""),
       name: String(t.name ?? ""),
+      project: projectName,
       statusId: sid,
       statusName: t.taskStatus?.name ?? st?.name ?? "Ohne Status",
       statusType: t.taskStatus?.type ?? st?.type ?? "",
@@ -200,23 +196,96 @@ export async function fetchAworkForClient(clientName: string, key: string) {
       list: Array.isArray(t.lists) ? (t.lists[0]?.name ?? "") : (t.listName ?? ""),
     };
   });
+  return {
+    statuses,
+    tasks,
+    statusesHttp: stRes.ok ? 200 : stRes.status,
+    tasksHttp: tkRes.ok ? 200 : tkRes.status,
+  };
+}
 
+const nameMatch = (a: string, b: string) => {
+  const x = String(a || "")
+    .trim()
+    .toLowerCase();
+  const y = String(b || "")
+    .trim()
+    .toLowerCase();
+  return !!x && !!y && (x === y || x.includes(y) || y.includes(x));
+};
+
+// Exported so the batch job (admin.populate) can reuse the same logic.
+// Resolution: AWORK Company by name → its projects; fallback to a project
+// whose name matches the client. Tasks are aggregated across the projects.
+export async function fetchAworkForClient(clientName: string, key: string) {
+  const projRes = await loadAll("/projects", key);
+  if (projRes.error) return { error: `AWORK Projekte ${projRes.error}` };
+  const allProjects = projRes.rows;
+
+  // 1) Company match → company's projects.
+  const compRes = await loadAll("/companies", key);
+  const company = (compRes.rows || []).find((co: any) => nameMatch(co.name, clientName)) || null;
+  let chosen: any[] = [];
+  let scope: { type: "company" | "project"; name: string } | null = null;
+  if (company) {
+    chosen = allProjects.filter(
+      (p) => String(p.companyId ?? p.company?.id ?? "") === String(company.id),
+    );
+    scope = { type: "company", name: String(company.name) };
+  }
+  // 2) Fallback: project-name match.
+  if (chosen.length === 0) {
+    const p = pickProject(allProjects, clientName);
+    if (p) {
+      chosen = [p];
+      scope = { type: "project", name: String(p.name) };
+    }
+  }
+  if (chosen.length === 0)
+    return {
+      project: null,
+      statuses: [] as AworkStatus[],
+      tasks: [],
+      counts: { total: 0, done: 0 },
+      note: `Kein AWORK-Projekt/keine Company zu „${clientName}" gefunden.`,
+      _debug: { projectsTotal: allProjects.length, companiesTotal: compRes.rows?.length ?? 0 },
+    };
+
+  // Fetch + aggregate tasks across the chosen projects (cap to 10).
+  const perProject = await Promise.all(
+    chosen.slice(0, 10).map((p) => fetchProjectTasks(String(p.id), String(p.name), key)),
+  );
+  const tasks = perProject.flatMap((r) => r.tasks);
+  // Merge status columns by name, keeping the smallest order seen.
+  const statusMap = new Map<string, AworkStatus>();
+  for (const r of perProject) {
+    for (const s of r.statuses) {
+      const ex = statusMap.get(s.name);
+      if (!ex || (s.order ?? 0) < (ex.order ?? 0)) statusMap.set(s.name, s);
+    }
+  }
+  const statuses = [...statusMap.values()].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const doneTypes = new Set(["done", "closed", "completed"]);
   const done = tasks.filter((t) => doneTypes.has(String(t.statusType).toLowerCase())).length;
 
+  const projectLabel =
+    scope?.type === "company" && chosen.length > 1
+      ? `${scope.name} · ${chosen.length} Projekte`
+      : (scope?.name ?? "");
+
   return {
-    project: { id: String(project.id), name: String(project.name) },
+    project: { id: String(chosen[0].id), name: projectLabel },
+    projects: chosen.map((p) => ({ id: String(p.id), name: String(p.name) })),
     statuses,
     tasks,
     counts: { total: tasks.length, done },
     generated_at: new Date().toISOString(),
     _debug: {
       projectsTotal: allProjects.length,
-      statusesHttp: stRes.ok ? 200 : stRes.status,
+      companiesTotal: compRes.rows?.length ?? 0,
+      scope: scope?.type,
+      chosen: chosen.length,
       statusesCount: statuses.length,
-      tasksHttp: tkRes.ok ? 200 : tkRes.status,
-      tasksErr: tkRes.ok ? null : tkRes.text || null,
-      tasksRaw: Array.isArray(tkRes.data) ? tkRes.data.length : `non-array:${typeof tkRes.data}`,
     },
   };
 }

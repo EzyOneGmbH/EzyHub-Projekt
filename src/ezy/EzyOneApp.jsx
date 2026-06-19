@@ -4268,6 +4268,7 @@ function TasksDashboard({ selectedClient }) {
       ? statuses
       : [...new Map(tasks.map((t) => [t.statusName, { id: t.statusId, name: t.statusName, type: t.statusType }])).values()];
   const tasksByStatus = (name) => tasks.filter((t) => t.statusName === name);
+  const multiProject = new Set(tasks.map((t) => t.project).filter(Boolean)).size > 1;
   const statusColor = (type) => {
     const t = String(type || "").toLowerCase();
     if (["done", "closed", "completed"].includes(t)) return C.green;
@@ -4385,8 +4386,10 @@ function TasksDashboard({ selectedClient }) {
                         {t.isPrio && <span style={{ color: C.orange, fontSize: 13, lineHeight: 1.3 }}>★</span>}
                         <span style={{ fontSize: 13, color: C.text, lineHeight: 1.35 }}>{t.name}</span>
                       </div>
-                      {t.list && (
-                        <span style={{ fontSize: 11, color: C.textDim }}>{t.list}</span>
+                      {(multiProject || t.list) && (
+                        <span style={{ fontSize: 11, color: C.textDim }}>
+                          {[multiProject ? t.project : null, t.list].filter(Boolean).join(" · ")}
+                        </span>
                       )}
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                         <div style={{ display: "flex" }}>

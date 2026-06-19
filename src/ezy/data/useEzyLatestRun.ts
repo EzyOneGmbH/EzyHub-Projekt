@@ -492,6 +492,7 @@ export function aworkTasksFromResult(result: any): {
   tasks: Array<{
     id: string;
     name: string;
+    project?: string;
     statusId: string;
     statusName: string;
     statusType: string;
