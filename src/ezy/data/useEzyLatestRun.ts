@@ -403,3 +403,35 @@ export function aiVisibilityTopicsFromResult(
         b.cited - a.cited || b.sov - a.sov,
     );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Google Ads — extractors over a google_ads snapshot.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function googleAdsFromResult(result: any): {
+  totals: { cost: number; clicks: number; impressions: number; conversions: number; conversionValue: number };
+  ctr: number;
+  cpc: number;
+  cpa: number;
+  roas: number;
+  series: Array<{ date: string; cost: number; clicks: number; impressions: number; conversions: number }>;
+  campaigns: Array<{ name: string; status: string; cost: number; clicks: number; impressions: number; conversions: number }>;
+} {
+  const r = result || {};
+  const t = r.totals || {};
+  return {
+    totals: {
+      cost: Number(t.cost ?? 0) || 0,
+      clicks: Number(t.clicks ?? 0) || 0,
+      impressions: Number(t.impressions ?? 0) || 0,
+      conversions: Number(t.conversions ?? 0) || 0,
+      conversionValue: Number(t.conversionValue ?? 0) || 0,
+    },
+    ctr: Number(r.ctr ?? 0) || 0,
+    cpc: Number(r.cpc ?? 0) || 0,
+    cpa: Number(r.cpa ?? 0) || 0,
+    roas: Number(r.roas ?? 0) || 0,
+    series: Array.isArray(r.series) ? r.series : [],
+    campaigns: Array.isArray(r.campaigns) ? r.campaigns : [],
+  };
+}

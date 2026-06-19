@@ -117,6 +117,7 @@ import {
   aiVisibilityProvidersFromResult,
   aiVisibilitySourcesFromResult,
   aiVisibilityTopicsFromResult,
+  googleAdsFromResult,
 } from "@/ezy/data/useEzyLatestRun";
 import GoogleClientPanel from "@/ezy/GoogleClientPanel.jsx";
 import { supabase } from "@/integrations/supabase/client";
@@ -3821,25 +3822,60 @@ function AiVisibilityDashboard({ selectedClient }) {
 // ═══════════════════════════════════════════════════════════════════════════
 function AdsDashboard({ selectedClient, dateRange }) {
   const { isOn } = useEzyDashboardConfig();
-  const adSpend = Number(selectedClient?.adSpend || 0);
-  const adClicks = Number(selectedClient?.adClicks || 0);
-  const adImpressions = Number(selectedClient?.adImpressions || 0);
-  const adConversions = Number(selectedClient?.adConversions || 0);
-  const adCpc = adClicks > 0 ? adSpend / adClicks : 0;
-  const adCtr = adImpressions > 0 ? (adClicks / adImpressions) * 100 : 0;
-  const adRoas = adSpend > 0 ? (Number(selectedClient?.adRevenue || 0) / adSpend) : 0;
-  const adCpa = adConversions > 0 ? adSpend / adConversions : 0;
-  const hasAnyKpi = adSpend + adClicks + adImpressions + adConversions > 0;
-  if (!hasAnyKpi) {
+  const { run, loading, refresh } = useEzyLatestRun(selectedClient?.id, "google_ads");
+  const ads = googleAdsFromResult(run?.result);
+  const { totals, ctr, cpc, cpa, roas, series, campaigns } = ads;
+  const hasData = totals.cost + totals.clicks + totals.impressions + totals.conversions > 0;
+
+  // Manual refresh via live route
+  const [pulling, setPulling] = useState(false);
+  const pull = async () => {
+    if (!selectedClient?.id) return;
+    setPulling(true);
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      await fetch("/api/google/ads-data", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session?.access_token || ""}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ clientId: selectedClient.id, days: 28 }),
+      });
+      await refresh();
+    } catch {
+      /* ignore */
+    } finally {
+      setPulling(false);
+    }
+  };
+
+  if (loading) {
+    return <div style={{ color: C.textMuted, padding: 20 }}>Lade Ads-Daten…</div>;
+  }
+  if (!hasData) {
     return (
       <LiveEmptyState
         title="Noch keine Ads-Daten"
-        hint="Sobald Google Ads, Meta Ads oder andere Plattformen verbunden sind, erscheinen hier echte Werte. Nutze die Ads-Skills um Kampagnen zu analysieren."
+        hint={
+          selectedClient?.googleAdsCustomer
+            ? "Google Ads Customer ID ist hinterlegt. Klicke 'Aktualisieren' um Daten zu laden."
+            : "Bitte zuerst unter 'Google verbinden' eine Google Ads Customer ID hinterlegen."
+        }
+        action={
+          selectedClient?.googleAdsCustomer && (
+            <Btn onClick={pull} disabled={pulling}>
+              {pulling ? "Lädt…" : "⟳ Aktualisieren"}
+            </Btn>
+          )
+        }
       />
     );
   }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Header with spend + ROAS */}
       {isOn("ads.spend") && (
         <div
           style={{
@@ -3850,24 +3886,37 @@ function AdsDashboard({ selectedClient, dateRange }) {
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
+            flexWrap: "wrap",
+            gap: 16,
           }}
         >
           <div>
             <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 4 }}>Total Ad Spend</div>
             <div style={{ fontSize: 36, fontWeight: 800, color: C.text }}>
-              CHF {adSpend.toLocaleString("de-CH")}
+              CHF {totals.cost.toLocaleString("de-CH", { minimumFractionDigits: 2 })}
             </div>
           </div>
-          {adRoas > 0 && (
+          {roas > 0 && (
             <div style={{ textAlign: "right" }}>
               <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 4 }}>ROAS</div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: adRoas >= 3 ? C.green : adRoas >= 1 ? C.orange : C.red }}>
-                {adRoas.toFixed(2)}x
+              <div
+                style={{
+                  fontSize: 28,
+                  fontWeight: 700,
+                  color: roas >= 3 ? C.green : roas >= 1 ? C.orange : C.red,
+                }}
+              >
+                {roas.toFixed(2)}x
               </div>
             </div>
           )}
+          <Btn onClick={pull} disabled={pulling} style={{ marginLeft: "auto" }}>
+            {pulling ? "Lädt…" : "⟳ Aktualisieren"}
+          </Btn>
         </div>
       )}
+
+      {/* KPI cards */}
       {isOn("ads.kpis") && (
         <div
           style={{
@@ -3879,41 +3928,159 @@ function AdsDashboard({ selectedClient, dateRange }) {
           <KpiCard
             icon={Eye}
             label="Impressions"
-            value={adImpressions > 0 ? adImpressions.toLocaleString("de-CH") : "—"}
+            value={totals.impressions > 0 ? totals.impressions.toLocaleString("de-CH") : "—"}
             color={C.blue}
           />
           <KpiCard
             icon={Target}
             label="Clicks"
-            value={adClicks > 0 ? adClicks.toLocaleString("de-CH") : "—"}
+            value={totals.clicks > 0 ? totals.clicks.toLocaleString("de-CH") : "—"}
             color={C.accent}
           />
           <KpiCard
             icon={Activity}
             label="CTR"
-            value={adCtr > 0 ? `${adCtr.toFixed(2)}%` : "—"}
+            value={ctr > 0 ? `${ctr.toFixed(2)}%` : "—"}
             color={C.green}
           />
           <KpiCard
             icon={DollarSign}
             label="CPC"
-            value={adCpc > 0 ? `CHF ${adCpc.toFixed(2)}` : "—"}
+            value={cpc > 0 ? `CHF ${cpc.toFixed(2)}` : "—"}
             color={C.orange}
           />
           <KpiCard
             icon={CheckCircle}
             label="Conversions"
-            value={adConversions > 0 ? adConversions.toLocaleString("de-CH") : "—"}
+            value={totals.conversions > 0 ? totals.conversions.toLocaleString("de-CH") : "—"}
             color={C.pink}
           />
           <KpiCard
             icon={TrendingUp}
             label="CPA"
-            value={adCpa > 0 ? `CHF ${adCpa.toFixed(2)}` : "—"}
+            value={cpa > 0 ? `CHF ${cpa.toFixed(2)}` : "—"}
             color={C.cyan}
           />
         </div>
       )}
+
+      {/* Daily series chart */}
+      {series.length > 0 && (
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 14,
+            padding: 20,
+          }}
+        >
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: C.text }}>
+            Tägliche Performance
+          </div>
+          <div style={{ height: 200 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={series} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="adsGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={C.orange} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={C.orange} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis
+                  dataKey="date"
+                  tick={{ fill: C.textMuted, fontSize: 10 }}
+                  tickFormatter={(d) =>
+                    d ? `${d.slice(6, 8)}.${d.slice(4, 6)}` : ""
+                  }
+                />
+                <YAxis tick={{ fill: C.textMuted, fontSize: 10 }} width={40} />
+                <Tooltip
+                  contentStyle={{ background: C.card, border: `1px solid ${C.border}` }}
+                  labelStyle={{ color: C.text }}
+                  formatter={(v, n) =>
+                    n === "cost"
+                      ? [`CHF ${Number(v).toFixed(2)}`, "Kosten"]
+                      : [Number(v).toLocaleString("de-CH"), n]
+                  }
+                />
+                <Area
+                  type="monotone"
+                  dataKey="cost"
+                  stroke={C.orange}
+                  fill="url(#adsGrad)"
+                  strokeWidth={2}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* Campaigns table */}
+      {campaigns.length > 0 && (
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 14,
+            padding: 20,
+          }}
+        >
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: C.text }}>
+            Kampagnen ({campaigns.length})
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+                  <th style={{ textAlign: "left", padding: "8px 6px", color: C.textMuted }}>Kampagne</th>
+                  <th style={{ textAlign: "left", padding: "8px 6px", color: C.textMuted }}>Status</th>
+                  <th style={{ textAlign: "right", padding: "8px 6px", color: C.textMuted }}>Kosten</th>
+                  <th style={{ textAlign: "right", padding: "8px 6px", color: C.textMuted }}>Clicks</th>
+                  <th style={{ textAlign: "right", padding: "8px 6px", color: C.textMuted }}>Impr.</th>
+                  <th style={{ textAlign: "right", padding: "8px 6px", color: C.textMuted }}>Conv.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {campaigns.map((c, i) => (
+                  <tr key={i} style={{ borderBottom: `1px solid ${C.border}20` }}>
+                    <td style={{ padding: "8px 6px", color: C.text, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {c.name}
+                    </td>
+                    <td style={{ padding: "8px 6px" }}>
+                      <span
+                        style={{
+                          fontSize: 10,
+                          padding: "2px 6px",
+                          borderRadius: 4,
+                          background: c.status === "ENABLED" ? `${C.green}20` : `${C.textMuted}20`,
+                          color: c.status === "ENABLED" ? C.green : C.textMuted,
+                        }}
+                      >
+                        {c.status}
+                      </span>
+                    </td>
+                    <td style={{ padding: "8px 6px", textAlign: "right", color: C.text }}>
+                      CHF {c.cost.toFixed(2)}
+                    </td>
+                    <td style={{ padding: "8px 6px", textAlign: "right", color: C.text }}>
+                      {c.clicks.toLocaleString("de-CH")}
+                    </td>
+                    <td style={{ padding: "8px 6px", textAlign: "right", color: C.textMuted }}>
+                      {c.impressions.toLocaleString("de-CH")}
+                    </td>
+                    <td style={{ padding: "8px 6px", textAlign: "right", color: C.text }}>
+                      {c.conversions.toLocaleString("de-CH")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Skills hint */}
       <div
         style={{
           background: C.card,
@@ -3929,21 +4096,23 @@ function AdsDashboard({ selectedClient, dateRange }) {
           Nutze die Ads-Skills im Agents-Bereich für tiefgehende Analysen:
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {["ads-audit", "ads-google", "ads-meta", "ads-linkedin", "ads-budget", "ads-creative"].map((skill) => (
-            <span
-              key={skill}
-              style={{
-                background: `${C.orange}15`,
-                border: `1px solid ${C.orange}30`,
-                borderRadius: 6,
-                padding: "4px 10px",
-                fontSize: 12,
-                color: C.text,
-              }}
-            >
-              {skill}
-            </span>
-          ))}
+          {["ads-audit", "ads-google", "ads-meta", "ads-linkedin", "ads-budget", "ads-creative"].map(
+            (skill) => (
+              <span
+                key={skill}
+                style={{
+                  background: `${C.orange}15`,
+                  border: `1px solid ${C.orange}30`,
+                  borderRadius: 6,
+                  padding: "4px 10px",
+                  fontSize: 12,
+                  color: C.text,
+                }}
+              >
+                {skill}
+              </span>
+            ),
+          )}
         </div>
       </div>
     </div>

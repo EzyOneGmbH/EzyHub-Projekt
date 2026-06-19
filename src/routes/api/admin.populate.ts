@@ -33,6 +33,7 @@ const Body = z.object({
         "ga4_traffic",
         "ga4_conversions",
         "ai_visibility",
+        "google_ads",
         "geo",
       ]),
     )
@@ -56,6 +57,7 @@ const JOB_AUDIT_TYPE: Record<string, string> = {
   ga4_traffic: "ga4_traffic",
   ga4_conversions: "ga4_conversions",
   ai_visibility: "canonry_ai_visibility",
+  google_ads: "google_ads",
 };
 
 // AI-referral source hostnames (substring match on GA4 sessionSource).
@@ -784,6 +786,126 @@ async function jobAiVisibility(c: any, uid: string) {
   return { ok: !allFailed };
 }
 
+// Google Ads — pull campaign metrics into a google_ads snapshot.
+async function jobGoogleAds(c: any, uid: string, days: number) {
+  const devToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
+  if (!devToken) return { skipped: "GOOGLE_ADS_DEVELOPER_TOKEN fehlt" };
+  if (!c.google_ads_customer) return { skipped: "keine google_ads_customer" };
+
+  let accessToken: string;
+  try {
+    const { getGoogleAccessToken } = await import("@/server/google-tokens.server");
+    const t = await getGoogleAccessToken(c.id);
+    accessToken = t.accessToken;
+  } catch {
+    return { skipped: "kein Google-Token" };
+  }
+
+  const customerId = String(c.google_ads_customer).replace(/-/g, "");
+  const today = new Date();
+  const startDate = new Date(today);
+  startDate.setDate(startDate.getDate() - days);
+  const formatDate = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, "");
+  const dateFrom = formatDate(startDate);
+  const dateTo = formatDate(today);
+
+  const query = async (gaql: string) => {
+    const res = await fetch(
+      `https://googleads.googleapis.com/v18/customers/${customerId}/googleAds:searchStream`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "developer-token": devToken,
+          "Content-Type": "application/json",
+          "login-customer-id": customerId,
+        },
+        body: JSON.stringify({ query: gaql }),
+      },
+    );
+    if (!res.ok) throw new Error(`Ads API HTTP ${res.status}`);
+    return (await res.json()) as Array<{ results?: Array<Record<string, unknown>> }>;
+  };
+
+  let totals = { cost: 0, clicks: 0, impressions: 0, conversions: 0, conversionValue: 0 };
+  try {
+    const r = await query(`
+      SELECT metrics.cost_micros, metrics.clicks, metrics.impressions,
+             metrics.conversions, metrics.conversions_value
+      FROM customer WHERE segments.date BETWEEN '${dateFrom}' AND '${dateTo}'
+    `);
+    const m = r?.[0]?.results?.[0]?.metrics as Record<string, unknown> | undefined;
+    if (m) {
+      totals.cost = Number(m.costMicros ?? 0) / 1_000_000;
+      totals.clicks = Number(m.clicks ?? 0);
+      totals.impressions = Number(m.impressions ?? 0);
+      totals.conversions = Number(m.conversions ?? 0);
+      totals.conversionValue = Number(m.conversionsValue ?? 0);
+    }
+  } catch {
+    /* optional */
+  }
+
+  let series: any[] = [];
+  try {
+    const r = await query(`
+      SELECT segments.date, metrics.cost_micros, metrics.clicks, metrics.impressions, metrics.conversions
+      FROM customer WHERE segments.date BETWEEN '${dateFrom}' AND '${dateTo}' ORDER BY segments.date
+    `);
+    series = (r?.[0]?.results ?? []).map((row: any) => ({
+      date: String(row.segments?.date ?? ""),
+      cost: Number(row.metrics?.costMicros ?? 0) / 1_000_000,
+      clicks: Number(row.metrics?.clicks ?? 0),
+      impressions: Number(row.metrics?.impressions ?? 0),
+      conversions: Number(row.metrics?.conversions ?? 0),
+    }));
+  } catch {
+    /* optional */
+  }
+
+  let campaigns: any[] = [];
+  try {
+    const r = await query(`
+      SELECT campaign.name, campaign.status, metrics.cost_micros, metrics.clicks, metrics.impressions, metrics.conversions
+      FROM campaign WHERE segments.date BETWEEN '${dateFrom}' AND '${dateTo}' ORDER BY metrics.cost_micros DESC LIMIT 20
+    `);
+    campaigns = (r?.[0]?.results ?? []).map((row: any) => ({
+      name: String(row.campaign?.name ?? ""),
+      status: String(row.campaign?.status ?? "").replace("CAMPAIGN_STATUS_", ""),
+      cost: Number(row.metrics?.costMicros ?? 0) / 1_000_000,
+      clicks: Number(row.metrics?.clicks ?? 0),
+      impressions: Number(row.metrics?.impressions ?? 0),
+      conversions: Number(row.metrics?.conversions ?? 0),
+    }));
+  } catch {
+    /* optional */
+  }
+
+  const result = {
+    days,
+    totals,
+    series,
+    campaigns,
+    ctr: totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0,
+    cpc: totals.clicks > 0 ? totals.cost / totals.clicks : 0,
+    cpa: totals.conversions > 0 ? totals.cost / totals.conversions : 0,
+    roas: totals.cost > 0 ? totals.conversionValue / totals.cost : 0,
+  };
+
+  await insertRun({
+    client_id: c.id,
+    organization_id: c.organization_id,
+    triggered_by: uid,
+    audit_type: "google_ads",
+    status: "succeeded",
+    input: { days, customerId },
+    result,
+    started_at: nowIso(),
+    finished_at: nowIso(),
+  });
+  return { cost: totals.cost, clicks: totals.clicks, campaigns: campaigns.length };
+}
+
 export const Route = createFileRoute("/api/admin/populate")({
   server: {
     handlers: {
@@ -911,6 +1033,7 @@ export const Route = createFileRoute("/api/admin/populate")({
               else if (j === "ga4_conversions")
                 jr.ga4_conversions = await jobGa4Conversions(c, uid, days);
               else if (j === "ai_visibility") jr.ai_visibility = await jobAiVisibility(c, uid);
+              else if (j === "google_ads") jr.google_ads = await jobGoogleAds(c, uid, days);
               else if (j === "geo") jr.geo = await jobGeo(c, { runGeo, geoSlug });
             } catch (e) {
               jr[j] = { error: redactSecrets(e) };
