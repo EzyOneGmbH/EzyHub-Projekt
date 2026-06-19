@@ -171,6 +171,7 @@ export type Database = {
           created_by: string
           domain: string | null
           ga4_property: string | null
+          google_ads_customer: string | null
           gsc_property: string | null
           id: string
           industry: string | null
@@ -188,6 +189,7 @@ export type Database = {
           created_by: string
           domain?: string | null
           ga4_property?: string | null
+          google_ads_customer?: string | null
           gsc_property?: string | null
           id?: string
           industry?: string | null
@@ -205,6 +207,7 @@ export type Database = {
           created_by?: string
           domain?: string | null
           ga4_property?: string | null
+          google_ads_customer?: string | null
           gsc_property?: string | null
           id?: string
           industry?: string | null
@@ -290,24 +293,34 @@ export type Database = {
       }
       customer_defaults: {
         Row: {
+          client_id: string | null
           defaults: Json
           id: string
           organization_id: string
           updated_at: string
         }
         Insert: {
+          client_id?: string | null
           defaults?: Json
           id?: string
           organization_id: string
           updated_at?: string
         }
         Update: {
+          client_id?: string | null
           defaults?: Json
           id?: string
           organization_id?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "customer_defaults_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "customer_defaults_organization_id_fkey"
             columns: ["organization_id"]
@@ -497,7 +510,9 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string
+          dashboard_config: Json
           id: string
+          monthly_ai_budget_usd: number
           name: string
           plan: string
           slug: string
@@ -506,7 +521,9 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by: string
+          dashboard_config?: Json
           id?: string
+          monthly_ai_budget_usd?: number
           name: string
           plan?: string
           slug: string
@@ -515,7 +532,9 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string
+          dashboard_config?: Json
           id?: string
+          monthly_ai_budget_usd?: number
           name?: string
           plan?: string
           slug?: string
@@ -633,6 +652,7 @@ export type Database = {
       }
       is_org_admin: { Args: { _org: string }; Returns: boolean }
       is_org_member: { Args: { _org: string }; Returns: boolean }
+      org_ai_spend_this_month: { Args: { _org: string }; Returns: number }
       org_role_of: {
         Args: { _org: string }
         Returns: Database["public"]["Enums"]["org_role"]
