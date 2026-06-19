@@ -40,14 +40,15 @@ function pickProject(projects: any[], clientName: string): any | null {
         .toLowerCase() === cn,
   );
   if (exact) return exact;
-  const contains = projects
-    .filter((p) =>
-      String(p.name || "")
-        .toLowerCase()
-        .includes(cn),
-    )
+  // Project name contains the client name, or vice versa (handles "La Campagnola"
+  // vs "Hotel La Campagnola"). Shortest match wins (most specific). No blind fallback.
+  const matches = projects
+    .filter((p) => {
+      const pn = String(p.name || "").toLowerCase();
+      return pn.includes(cn) || cn.includes(pn);
+    })
     .sort((a, b) => String(a.name).length - String(b.name).length);
-  return contains[0] || projects[0];
+  return matches[0] || null;
 }
 
 export const Route = createFileRoute("/api/awork/tasks")({
@@ -196,5 +197,13 @@ export async function fetchAworkForClient(clientName: string, key: string) {
     tasks,
     counts: { total: tasks.length, done },
     generated_at: new Date().toISOString(),
+    _debug: {
+      projectsTotal: allProjects.length,
+      statusesHttp: stRes.ok ? 200 : stRes.status,
+      statusesCount: statuses.length,
+      tasksHttp: tkRes.ok ? 200 : tkRes.status,
+      tasksErr: tkRes.ok ? null : tkRes.text || null,
+      tasksRaw: Array.isArray(tkRes.data) ? tkRes.data.length : `non-array:${typeof tkRes.data}`,
+    },
   };
 }

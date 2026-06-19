@@ -831,7 +831,12 @@ async function jobAworkTasks(c: any, uid: string) {
     started_at: nowIso(),
     finished_at: nowIso(),
   });
-  return { project: result?.project?.name ?? null, tasks: result?.counts?.total ?? 0 };
+  return {
+    project: result?.project?.name ?? null,
+    tasks: result?.counts?.total ?? 0,
+    note: result?.note ?? undefined,
+    _debug: result?._debug ?? undefined,
+  };
 }
 
 export const Route = createFileRoute("/api/admin/populate")({
