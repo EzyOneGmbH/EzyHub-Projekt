@@ -171,6 +171,7 @@ export type Database = {
           created_by: string
           domain: string | null
           ga4_property: string | null
+          google_ads_customer: string | null
           gsc_property: string | null
           id: string
           industry: string | null
@@ -188,6 +189,7 @@ export type Database = {
           created_by: string
           domain?: string | null
           ga4_property?: string | null
+          google_ads_customer?: string | null
           gsc_property?: string | null
           id?: string
           industry?: string | null
@@ -205,6 +207,7 @@ export type Database = {
           created_by?: string
           domain?: string | null
           ga4_property?: string | null
+          google_ads_customer?: string | null
           gsc_property?: string | null
           id?: string
           industry?: string | null
