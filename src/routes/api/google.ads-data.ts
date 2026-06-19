@@ -71,6 +71,10 @@ export const Route = createFileRoute("/api/google/ads-data")({
           const { accessToken } = await getGoogleAccessToken(client.id);
           const customerId = String(client.google_ads_customer).replace(/\D/g, "");
           const days = parsed.data.days;
+          const loginCustomerId = (process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || "").replace(
+            /\D/g,
+            "",
+          );
 
           // Date range for GAQL queries
           const today = new Date();
@@ -89,6 +93,7 @@ export const Route = createFileRoute("/api/google/ads-data")({
                   Authorization: `Bearer ${accessToken}`,
                   "developer-token": devToken,
                   "Content-Type": "application/json",
+                  ...(loginCustomerId ? { "login-customer-id": loginCustomerId } : {}),
                 },
                 body: JSON.stringify({ query: gaql }),
               },

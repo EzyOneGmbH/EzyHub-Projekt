@@ -802,6 +802,9 @@ async function jobGoogleAds(c: any, uid: string, days: number) {
   }
 
   const customerId = String(c.google_ads_customer).replace(/\D/g, "");
+  // Manager (MCC) ID for login-customer-id — set when client accounts are
+  // accessed through an agency manager account. Empty = direct access.
+  const loginCustomerId = (process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || "").replace(/\D/g, "");
   const today = new Date();
   const startDate = new Date(today);
   startDate.setDate(startDate.getDate() - days);
@@ -818,6 +821,7 @@ async function jobGoogleAds(c: any, uid: string, days: number) {
           Authorization: `Bearer ${accessToken}`,
           "developer-token": devToken,
           "Content-Type": "application/json",
+          ...(loginCustomerId ? { "login-customer-id": loginCustomerId } : {}),
         },
         body: JSON.stringify({ query: gaql }),
       },

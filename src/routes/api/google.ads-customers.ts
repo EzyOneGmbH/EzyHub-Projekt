@@ -58,6 +58,10 @@ export const Route = createFileRoute("/api/google/ads-customers")({
           }
 
           const { accessToken } = await getGoogleAccessToken(client.id);
+          const loginCustomerId = (process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || "").replace(
+            /\D/g,
+            "",
+          );
 
           // Step 1: List accessible customers (returns customer resource names).
           const listRes = await fetch(
@@ -101,6 +105,7 @@ export const Route = createFileRoute("/api/google/ads-customers")({
                     Authorization: `Bearer ${accessToken}`,
                     "developer-token": devToken,
                     "Content-Type": "application/json",
+                    ...(loginCustomerId ? { "login-customer-id": loginCustomerId } : {}),
                   },
                   body: JSON.stringify({
                     query:
