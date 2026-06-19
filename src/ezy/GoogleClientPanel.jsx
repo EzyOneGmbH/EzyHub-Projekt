@@ -21,15 +21,18 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
   const [busy, setBusy] = useState(null);
   const [gsc, setGsc] = useState(client?.gscSiteUrl || "");
   const [ga4, setGa4] = useState(client?.ga4PropertyId || "");
+  const [gads, setGads] = useState(client?.googleAdsCustomer || "");
   const [msg, setMsg] = useState("");
   const [canRun, setCanRun] = useState(false);
   const [gscOpts, setGscOpts] = useState([]);
   const [ga4Opts, setGa4Opts] = useState([]);
+  const [gadsOpts, setGadsOpts] = useState([]);
 
   useEffect(() => {
     setGsc(client?.gscSiteUrl || "");
     setGa4(client?.ga4PropertyId || "");
-  }, [client?.id, client?.gscSiteUrl, client?.ga4PropertyId]);
+    setGads(client?.googleAdsCustomer || "");
+  }, [client?.id, client?.gscSiteUrl, client?.ga4PropertyId, client?.googleAdsCustomer]);
 
   // Resolve current user's role for the client's organization → can run audits?
   useEffect(() => {
@@ -102,7 +105,11 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
     try {
       const { error } = await supabase
         .from("clients")
-        .update({ gsc_property: gsc || null, ga4_property: ga4 || null })
+        .update({
+          gsc_property: gsc || null,
+          ga4_property: ga4 || null,
+          google_ads_customer: gads || null,
+        })
         .eq("id", clientId);
       if (error) throw error;
       setMsg("Properties gespeichert");
@@ -154,21 +161,25 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
     setBusy("load");
     setMsg("");
     try {
-      const [gr, ar] = await Promise.all([
+      const [gr, ar, adr] = await Promise.all([
         authedFetch("/api/google/gsc-sites", { method: "POST", body: JSON.stringify({ clientId }) }),
         authedFetch("/api/google/ga4-properties", { method: "POST", body: JSON.stringify({ clientId }) }),
+        authedFetch("/api/google/ads-customers", { method: "POST", body: JSON.stringify({ clientId }) }),
       ]);
       const gj = await gr.json().catch(() => ({}));
       const aj = await ar.json().catch(() => ({}));
+      const adJ = await adr.json().catch(() => ({}));
       const errs = [];
       if (gj.ok) setGscOpts(gj.sites || []);
       else errs.push(`GSC: ${gj.error || "Fehler"}`);
       if (aj.ok) setGa4Opts(aj.properties || []);
       else errs.push(`GA4: ${aj.error || "Fehler"}`);
+      if (adJ.ok) setGadsOpts(adJ.customers || []);
+      else errs.push(`Ads: ${adJ.error || "Fehler"}`);
       setMsg(
         errs.length
           ? errs.join(" · ")
-          : `${(gj.sites || []).length} GSC- · ${(aj.properties || []).length} GA4-Properties geladen — bitte auswählen und speichern.`,
+          : `${(gj.sites || []).length} GSC · ${(aj.properties || []).length} GA4 · ${(adJ.customers || []).length} Ads geladen — bitte auswählen und speichern.`,
       );
     } catch (e) {
       setMsg(String(e?.message || e));
@@ -325,7 +336,7 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
             : "Nicht verbunden"}
         </span>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+      <div className="google-props-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
         <div>
           <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>GSC Property</div>
           {gscOpts.length > 0 && (
@@ -369,6 +380,29 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
             value={ga4}
             onChange={(e) => setGa4(e.target.value)}
             placeholder="properties/123456789"
+            style={inputStyle}
+          />
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>Google Ads Customer ID</div>
+          {gadsOpts.length > 0 && (
+            <select
+              value={gadsOpts.some((a) => a.id === gads) ? gads : ""}
+              onChange={(e) => setGads(e.target.value)}
+              style={{ ...inputStyle, marginBottom: 6 }}
+            >
+              <option value="">— aus {gadsOpts.length} auswählen —</option>
+              {gadsOpts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name} ({a.id})
+                </option>
+              ))}
+            </select>
+          )}
+          <input
+            value={gads}
+            onChange={(e) => setGads(e.target.value)}
+            placeholder="123-456-7890"
             style={inputStyle}
           />
         </div>

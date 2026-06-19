@@ -37,6 +37,7 @@ import { Route as ApiGoogleGa4PropertiesRouteImport } from './routes/api/google.
 import { Route as ApiGoogleGa4ConversionsRouteImport } from './routes/api/google.ga4-conversions'
 import { Route as ApiGoogleConnectionRouteImport } from './routes/api/google.connection'
 import { Route as ApiGoogleCallbackRouteImport } from './routes/api/google.callback'
+import { Route as ApiGoogleAdsCustomersRouteImport } from './routes/api/google.ads-customers'
 import { Route as ApiCanonryCreateProjectRouteImport } from './routes/api/canonry.create-project'
 import { Route as ApiAiGenerateRouteImport } from './routes/api/ai.generate'
 import { Route as ApiAhrefsOverviewRouteImport } from './routes/api/ahrefs.overview'
@@ -190,6 +191,11 @@ const ApiGoogleCallbackRoute = ApiGoogleCallbackRouteImport.update({
   path: '/api/google/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGoogleAdsCustomersRoute = ApiGoogleAdsCustomersRouteImport.update({
+  id: '/api/google/ads-customers',
+  path: '/api/google/ads-customers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCanonryCreateProjectRoute = ApiCanonryCreateProjectRouteImport.update({
   id: '/api/canonry/create-project',
   path: '/api/canonry/create-project',
@@ -279,6 +285,7 @@ export interface FileRoutesByFullPath {
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/ai/generate': typeof ApiAiGenerateRoute
   '/api/canonry/create-project': typeof ApiCanonryCreateProjectRoute
+  '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
   '/api/google/ga4-conversions': typeof ApiGoogleGa4ConversionsRoute
@@ -321,6 +328,7 @@ export interface FileRoutesByTo {
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/ai/generate': typeof ApiAiGenerateRoute
   '/api/canonry/create-project': typeof ApiCanonryCreateProjectRoute
+  '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
   '/api/google/ga4-conversions': typeof ApiGoogleGa4ConversionsRoute
@@ -364,6 +372,7 @@ export interface FileRoutesById {
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/ai/generate': typeof ApiAiGenerateRoute
   '/api/canonry/create-project': typeof ApiCanonryCreateProjectRoute
+  '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
   '/api/google/ga4-conversions': typeof ApiGoogleGa4ConversionsRoute
@@ -408,6 +417,7 @@ export interface FileRouteTypes {
     | '/api/ahrefs/overview'
     | '/api/ai/generate'
     | '/api/canonry/create-project'
+    | '/api/google/ads-customers'
     | '/api/google/callback'
     | '/api/google/connection'
     | '/api/google/ga4-conversions'
@@ -450,6 +460,7 @@ export interface FileRouteTypes {
     | '/api/ahrefs/overview'
     | '/api/ai/generate'
     | '/api/canonry/create-project'
+    | '/api/google/ads-customers'
     | '/api/google/callback'
     | '/api/google/connection'
     | '/api/google/ga4-conversions'
@@ -492,6 +503,7 @@ export interface FileRouteTypes {
     | '/api/ahrefs/overview'
     | '/api/ai/generate'
     | '/api/canonry/create-project'
+    | '/api/google/ads-customers'
     | '/api/google/callback'
     | '/api/google/connection'
     | '/api/google/ga4-conversions'
@@ -531,6 +543,7 @@ export interface RootRouteChildren {
   ApiAhrefsOverviewRoute: typeof ApiAhrefsOverviewRoute
   ApiAiGenerateRoute: typeof ApiAiGenerateRoute
   ApiCanonryCreateProjectRoute: typeof ApiCanonryCreateProjectRoute
+  ApiGoogleAdsCustomersRoute: typeof ApiGoogleAdsCustomersRoute
   ApiGoogleCallbackRoute: typeof ApiGoogleCallbackRoute
   ApiGoogleConnectionRoute: typeof ApiGoogleConnectionRoute
   ApiGoogleGa4ConversionsRoute: typeof ApiGoogleGa4ConversionsRoute
@@ -745,6 +758,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGoogleCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/google/ads-customers': {
+      id: '/api/google/ads-customers'
+      path: '/api/google/ads-customers'
+      fullPath: '/api/google/ads-customers'
+      preLoaderRoute: typeof ApiGoogleAdsCustomersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/canonry/create-project': {
       id: '/api/canonry/create-project'
       path: '/api/canonry/create-project'
@@ -900,6 +920,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAhrefsOverviewRoute: ApiAhrefsOverviewRoute,
   ApiAiGenerateRoute: ApiAiGenerateRoute,
   ApiCanonryCreateProjectRoute: ApiCanonryCreateProjectRoute,
+  ApiGoogleAdsCustomersRoute: ApiGoogleAdsCustomersRoute,
   ApiGoogleCallbackRoute: ApiGoogleCallbackRoute,
   ApiGoogleConnectionRoute: ApiGoogleConnectionRoute,
   ApiGoogleGa4ConversionsRoute: ApiGoogleGa4ConversionsRoute,
