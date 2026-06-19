@@ -148,10 +148,23 @@ export async function fetchAworkForClient(clientName: string, key: string) {
       note: `Kein AWORK-Projekt zu „${clientName}" gefunden.`,
     };
 
-  // 2) Status columns (ordered) + 3) tasks — in parallel.
+  // 2) Status columns (ordered) + 3) tasks — in parallel. AWORK path naming
+  // varies (hyphen vs none), so try both variants and take the first that works.
+  const firstOk = async (paths: string[]) => {
+    let last: Awaited<ReturnType<typeof awork>> | null = null;
+    for (const p of paths) {
+      const r = await awork<any[]>(p, key);
+      if (r.ok) return r;
+      last = r;
+    }
+    return last!;
+  };
   const [stRes, tkRes] = await Promise.all([
-    awork<any[]>(`/projects/${project.id}/task-statuses`, key),
-    awork<any[]>(`/projects/${project.id}/project-tasks?pageSize=500`, key),
+    firstOk([`/projects/${project.id}/taskstatuses`, `/projects/${project.id}/task-statuses`]),
+    firstOk([
+      `/projects/${project.id}/projecttasks?pageSize=500`,
+      `/projects/${project.id}/project-tasks?pageSize=500`,
+    ]),
   ]);
 
   const statuses: AworkStatus[] = (stRes.data || [])
