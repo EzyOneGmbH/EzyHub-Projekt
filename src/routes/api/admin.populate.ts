@@ -827,6 +827,7 @@ async function jobGoogleAds(c: any, uid: string, days: number) {
     return (await res.json()) as Array<{ results?: Array<Record<string, unknown>> }>;
   };
 
+  let adsError: string | null = null;
   let totals = { cost: 0, clicks: 0, impressions: 0, conversions: 0, conversionValue: 0 };
   try {
     const r = await query(`
@@ -842,8 +843,8 @@ async function jobGoogleAds(c: any, uid: string, days: number) {
       totals.conversions = Number(m.conversions ?? 0);
       totals.conversionValue = Number(m.conversionsValue ?? 0);
     }
-  } catch {
-    /* optional */
+  } catch (e) {
+    adsError = redactSecrets(e);
   }
 
   let series: any[] = [];
@@ -903,7 +904,12 @@ async function jobGoogleAds(c: any, uid: string, days: number) {
     started_at: nowIso(),
     finished_at: nowIso(),
   });
-  return { cost: totals.cost, clicks: totals.clicks, campaigns: campaigns.length };
+  return {
+    cost: totals.cost,
+    clicks: totals.clicks,
+    campaigns: campaigns.length,
+    ...(adsError ? { error: adsError } : {}),
+  };
 }
 
 export const Route = createFileRoute("/api/admin/populate")({
