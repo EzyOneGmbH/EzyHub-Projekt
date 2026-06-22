@@ -40,7 +40,10 @@ import { Route as ApiGoogleCallbackRouteImport } from './routes/api/google.callb
 import { Route as ApiGoogleAdsDataRouteImport } from './routes/api/google.ads-data'
 import { Route as ApiGoogleAdsCustomersRouteImport } from './routes/api/google.ads-customers'
 import { Route as ApiCanonryCreateProjectRouteImport } from './routes/api/canonry.create-project'
+import { Route as ApiAworkUsersRouteImport } from './routes/api/awork.users'
 import { Route as ApiAworkTasksRouteImport } from './routes/api/awork.tasks'
+import { Route as ApiAworkTaskRouteImport } from './routes/api/awork.task'
+import { Route as ApiAworkCreateTaskRouteImport } from './routes/api/awork.create-task'
 import { Route as ApiAiGenerateRouteImport } from './routes/api/ai.generate'
 import { Route as ApiAhrefsOverviewRouteImport } from './routes/api/ahrefs.overview'
 import { Route as ApiAgentRunAgentRouteImport } from './routes/api/agent.run-agent'
@@ -49,6 +52,7 @@ import { Route as ApiAgentMemoryRouteImport } from './routes/api/agent.memory'
 import { Route as ApiAgentJobRouteImport } from './routes/api/agent.job'
 import { Route as ApiAgentAgentsRouteImport } from './routes/api/agent.agents'
 import { Route as ApiAdminPopulateRouteImport } from './routes/api/admin.populate'
+import { Route as ApiAdminAdsClientsRouteImport } from './routes/api/admin.ads-clients'
 import { Route as ApiLiveCanonryOverviewRouteImport } from './routes/api/live.canonry.overview'
 import { Route as ApiLiveCanonryAiVisibilityRouteImport } from './routes/api/live.canonry.ai-visibility'
 import { Route as ApiGoogleOauthStartRouteImport } from './routes/api/google.oauth.start'
@@ -208,9 +212,24 @@ const ApiCanonryCreateProjectRoute = ApiCanonryCreateProjectRouteImport.update({
   path: '/api/canonry/create-project',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAworkUsersRoute = ApiAworkUsersRouteImport.update({
+  id: '/api/awork/users',
+  path: '/api/awork/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAworkTasksRoute = ApiAworkTasksRouteImport.update({
   id: '/api/awork/tasks',
   path: '/api/awork/tasks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAworkTaskRoute = ApiAworkTaskRouteImport.update({
+  id: '/api/awork/task',
+  path: '/api/awork/task',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAworkCreateTaskRoute = ApiAworkCreateTaskRouteImport.update({
+  id: '/api/awork/create-task',
+  path: '/api/awork/create-task',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAiGenerateRoute = ApiAiGenerateRouteImport.update({
@@ -253,6 +272,11 @@ const ApiAdminPopulateRoute = ApiAdminPopulateRouteImport.update({
   path: '/api/admin/populate',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminAdsClientsRoute = ApiAdminAdsClientsRouteImport.update({
+  id: '/api/admin/ads-clients',
+  path: '/api/admin/ads-clients',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiLiveCanonryOverviewRoute = ApiLiveCanonryOverviewRouteImport.update({
   id: '/api/live/canonry/overview',
   path: '/api/live/canonry/overview',
@@ -288,6 +312,7 @@ export interface FileRoutesByFullPath {
   '/customers/$id': typeof CustomersIdRoute
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
+  '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
   '/api/agent/job': typeof ApiAgentJobRoute
@@ -296,7 +321,10 @@ export interface FileRoutesByFullPath {
   '/api/agent/run-agent': typeof ApiAgentRunAgentRoute
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/ai/generate': typeof ApiAiGenerateRoute
+  '/api/awork/create-task': typeof ApiAworkCreateTaskRoute
+  '/api/awork/task': typeof ApiAworkTaskRoute
   '/api/awork/tasks': typeof ApiAworkTasksRoute
+  '/api/awork/users': typeof ApiAworkUsersRoute
   '/api/canonry/create-project': typeof ApiCanonryCreateProjectRoute
   '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
   '/api/google/ads-data': typeof ApiGoogleAdsDataRoute
@@ -333,6 +361,7 @@ export interface FileRoutesByTo {
   '/customers/$id': typeof CustomersIdRoute
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
+  '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
   '/api/agent/job': typeof ApiAgentJobRoute
@@ -341,7 +370,10 @@ export interface FileRoutesByTo {
   '/api/agent/run-agent': typeof ApiAgentRunAgentRoute
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/ai/generate': typeof ApiAiGenerateRoute
+  '/api/awork/create-task': typeof ApiAworkCreateTaskRoute
+  '/api/awork/task': typeof ApiAworkTaskRoute
   '/api/awork/tasks': typeof ApiAworkTasksRoute
+  '/api/awork/users': typeof ApiAworkUsersRoute
   '/api/canonry/create-project': typeof ApiCanonryCreateProjectRoute
   '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
   '/api/google/ads-data': typeof ApiGoogleAdsDataRoute
@@ -379,6 +411,7 @@ export interface FileRoutesById {
   '/customers/$id': typeof CustomersIdRoute
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
+  '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
   '/api/agent/job': typeof ApiAgentJobRoute
@@ -387,7 +420,10 @@ export interface FileRoutesById {
   '/api/agent/run-agent': typeof ApiAgentRunAgentRoute
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/ai/generate': typeof ApiAiGenerateRoute
+  '/api/awork/create-task': typeof ApiAworkCreateTaskRoute
+  '/api/awork/task': typeof ApiAworkTaskRoute
   '/api/awork/tasks': typeof ApiAworkTasksRoute
+  '/api/awork/users': typeof ApiAworkUsersRoute
   '/api/canonry/create-project': typeof ApiCanonryCreateProjectRoute
   '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
   '/api/google/ads-data': typeof ApiGoogleAdsDataRoute
@@ -426,6 +462,7 @@ export interface FileRouteTypes {
     | '/customers/$id'
     | '/settings/api'
     | '/tasks/$id'
+    | '/api/admin/ads-clients'
     | '/api/admin/populate'
     | '/api/agent/agents'
     | '/api/agent/job'
@@ -434,7 +471,10 @@ export interface FileRouteTypes {
     | '/api/agent/run-agent'
     | '/api/ahrefs/overview'
     | '/api/ai/generate'
+    | '/api/awork/create-task'
+    | '/api/awork/task'
     | '/api/awork/tasks'
+    | '/api/awork/users'
     | '/api/canonry/create-project'
     | '/api/google/ads-customers'
     | '/api/google/ads-data'
@@ -471,6 +511,7 @@ export interface FileRouteTypes {
     | '/customers/$id'
     | '/settings/api'
     | '/tasks/$id'
+    | '/api/admin/ads-clients'
     | '/api/admin/populate'
     | '/api/agent/agents'
     | '/api/agent/job'
@@ -479,7 +520,10 @@ export interface FileRouteTypes {
     | '/api/agent/run-agent'
     | '/api/ahrefs/overview'
     | '/api/ai/generate'
+    | '/api/awork/create-task'
+    | '/api/awork/task'
     | '/api/awork/tasks'
+    | '/api/awork/users'
     | '/api/canonry/create-project'
     | '/api/google/ads-customers'
     | '/api/google/ads-data'
@@ -516,6 +560,7 @@ export interface FileRouteTypes {
     | '/customers/$id'
     | '/settings/api'
     | '/tasks/$id'
+    | '/api/admin/ads-clients'
     | '/api/admin/populate'
     | '/api/agent/agents'
     | '/api/agent/job'
@@ -524,7 +569,10 @@ export interface FileRouteTypes {
     | '/api/agent/run-agent'
     | '/api/ahrefs/overview'
     | '/api/ai/generate'
+    | '/api/awork/create-task'
+    | '/api/awork/task'
     | '/api/awork/tasks'
+    | '/api/awork/users'
     | '/api/canonry/create-project'
     | '/api/google/ads-customers'
     | '/api/google/ads-data'
@@ -558,6 +606,7 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   TasksRoute: typeof TasksRouteWithChildren
   AdminUsersRoute: typeof AdminUsersRoute
+  ApiAdminAdsClientsRoute: typeof ApiAdminAdsClientsRoute
   ApiAdminPopulateRoute: typeof ApiAdminPopulateRoute
   ApiAgentAgentsRoute: typeof ApiAgentAgentsRoute
   ApiAgentJobRoute: typeof ApiAgentJobRoute
@@ -566,7 +615,10 @@ export interface RootRouteChildren {
   ApiAgentRunAgentRoute: typeof ApiAgentRunAgentRoute
   ApiAhrefsOverviewRoute: typeof ApiAhrefsOverviewRoute
   ApiAiGenerateRoute: typeof ApiAiGenerateRoute
+  ApiAworkCreateTaskRoute: typeof ApiAworkCreateTaskRoute
+  ApiAworkTaskRoute: typeof ApiAworkTaskRoute
   ApiAworkTasksRoute: typeof ApiAworkTasksRoute
+  ApiAworkUsersRoute: typeof ApiAworkUsersRoute
   ApiCanonryCreateProjectRoute: typeof ApiCanonryCreateProjectRoute
   ApiGoogleAdsCustomersRoute: typeof ApiGoogleAdsCustomersRoute
   ApiGoogleAdsDataRoute: typeof ApiGoogleAdsDataRoute
@@ -805,11 +857,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCanonryCreateProjectRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/awork/users': {
+      id: '/api/awork/users'
+      path: '/api/awork/users'
+      fullPath: '/api/awork/users'
+      preLoaderRoute: typeof ApiAworkUsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/awork/tasks': {
       id: '/api/awork/tasks'
       path: '/api/awork/tasks'
       fullPath: '/api/awork/tasks'
       preLoaderRoute: typeof ApiAworkTasksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/awork/task': {
+      id: '/api/awork/task'
+      path: '/api/awork/task'
+      fullPath: '/api/awork/task'
+      preLoaderRoute: typeof ApiAworkTaskRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/awork/create-task': {
+      id: '/api/awork/create-task'
+      path: '/api/awork/create-task'
+      fullPath: '/api/awork/create-task'
+      preLoaderRoute: typeof ApiAworkCreateTaskRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/ai/generate': {
@@ -866,6 +939,13 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/populate'
       fullPath: '/api/admin/populate'
       preLoaderRoute: typeof ApiAdminPopulateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/ads-clients': {
+      id: '/api/admin/ads-clients'
+      path: '/api/admin/ads-clients'
+      fullPath: '/api/admin/ads-clients'
+      preLoaderRoute: typeof ApiAdminAdsClientsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/live/canonry/overview': {
@@ -951,6 +1031,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   TasksRoute: TasksRouteWithChildren,
   AdminUsersRoute: AdminUsersRoute,
+  ApiAdminAdsClientsRoute: ApiAdminAdsClientsRoute,
   ApiAdminPopulateRoute: ApiAdminPopulateRoute,
   ApiAgentAgentsRoute: ApiAgentAgentsRoute,
   ApiAgentJobRoute: ApiAgentJobRoute,
@@ -959,7 +1040,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAgentRunAgentRoute: ApiAgentRunAgentRoute,
   ApiAhrefsOverviewRoute: ApiAhrefsOverviewRoute,
   ApiAiGenerateRoute: ApiAiGenerateRoute,
+  ApiAworkCreateTaskRoute: ApiAworkCreateTaskRoute,
+  ApiAworkTaskRoute: ApiAworkTaskRoute,
   ApiAworkTasksRoute: ApiAworkTasksRoute,
+  ApiAworkUsersRoute: ApiAworkUsersRoute,
   ApiCanonryCreateProjectRoute: ApiCanonryCreateProjectRoute,
   ApiGoogleAdsCustomersRoute: ApiGoogleAdsCustomersRoute,
   ApiGoogleAdsDataRoute: ApiGoogleAdsDataRoute,
