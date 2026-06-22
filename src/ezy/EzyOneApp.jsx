@@ -3828,6 +3828,7 @@ function AdsDashboard({ selectedClient, dateRange }) {
   const ads = googleAdsFromResult(run?.result);
   const { totals, ctr, cpc, cpa, roas, series, campaigns, conversionActions, primary, prev } = ads;
   const hasData = totals.cost + totals.clicks + totals.impressions + totals.conversions > 0;
+  const days = dateRange?.days || 30;
 
   // Formatting + delta helpers (Swiss CHF, tabular).
   const chf = (n, dec = 0) =>
@@ -3871,9 +3872,11 @@ function AdsDashboard({ selectedClient, dateRange }) {
     );
   };
 
-  // Manual refresh via live route
+  // Manual refresh via live route — uses selected date range.
   const [pulling, setPulling] = useState(false);
-  const pull = async () => {
+  const lastDaysRef = useRef(days);
+  const pull = useCallback(async (forceDays) => {
+    const d = forceDays ?? days;
     if (!selectedClient?.id) return;
     setPulling(true);
     try {
@@ -3884,7 +3887,7 @@ function AdsDashboard({ selectedClient, dateRange }) {
           Authorization: `Bearer ${session?.access_token || ""}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ clientId: selectedClient.id, days: 28 }),
+        body: JSON.stringify({ clientId: selectedClient.id, days: d }),
       });
       await refresh();
     } catch {
@@ -3892,7 +3895,15 @@ function AdsDashboard({ selectedClient, dateRange }) {
     } finally {
       setPulling(false);
     }
-  };
+  }, [selectedClient?.id, days, refresh]);
+
+  // Auto-refresh when date range changes (only if we have data already).
+  useEffect(() => {
+    if (hasData && days !== lastDaysRef.current) {
+      lastDaysRef.current = days;
+      pull(days);
+    }
+  }, [days, hasData, pull]);
 
   if (loading) {
     return <div style={{ color: C.textMuted, padding: 20 }}>Lade Ads-Daten…</div>;
@@ -3975,7 +3986,12 @@ function AdsDashboard({ selectedClient, dateRange }) {
         }}
       >
         <div className="ads-hero-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          {eyebrow("1", "Was hat Google Ads gebracht?", true)}
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            {eyebrow("1", "Was hat Google Ads gebracht?", true)}
+            <span style={{ fontSize: 11, color: C.textDim, background: C.bg, padding: "4px 10px", borderRadius: 6, fontWeight: 500 }}>
+              Letzte {days} Tage
+            </span>
+          </div>
           <Btn onClick={pull} disabled={pulling}>
             {pulling ? "Lädt…" : "⟳ Aktualisieren"}
           </Btn>
