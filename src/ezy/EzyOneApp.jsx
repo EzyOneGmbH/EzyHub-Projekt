@@ -6135,9 +6135,8 @@ function SettingsPage({
                     { id: "aivis", label: "KI-Sichtbarkeit", icon: Bot },
                     { id: "conversions", label: "Conversions", icon: DollarSign },
                     { id: "ads", label: "Ads", icon: Megaphone },
-                    { id: "tasks", label: "Projekt", icon: ListChecks },
                   ].map((t) => {
-                    const on = (defaultsDraft.visibleTabs || ["overview", "seo", "geo", "aivis", "conversions", "ads", "tasks"]).includes(t.id);
+                    const on = (defaultsDraft.visibleTabs || ["overview", "seo", "geo", "aivis", "conversions", "ads"]).includes(t.id);
                     return (
                       <label key={t.id} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
                         <input
@@ -7266,10 +7265,10 @@ const TABS = [
   { id: "aivis", label: "KI-Sichtbarkeit", icon: Bot },
   { id: "conversions", label: "Conversions", icon: DollarSign },
   { id: "ads", label: "Ads", icon: Megaphone },
-  { id: "tasks", label: "Projekt", icon: ListChecks },
 ];
 const NAV = [
   { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+  { id: "tasks", label: "Projekt", icon: ListChecks },
   { id: "tools", label: "AI Tools", icon: Zap },
   { id: "agents", label: "Agents", icon: Bot },
   { id: "content", label: "Content", icon: FileText },
@@ -7884,10 +7883,12 @@ function App() {
                   {tab === "aivis" && <AiVisibilityDashboard selectedClient={client} />}
                   {tab === "conversions" && <ConvDashboard selectedClient={client} dateRange={dateRange} />}
                   {tab === "ads" && <AdsDashboard selectedClient={client} dateRange={dateRange} />}
-                  {tab === "tasks" && <TasksDashboard selectedClient={client} />}
                 </>
               )}
             </>
+          )}
+          {hasClients && page === "tasks" && (
+            <TasksDashboard selectedClient={client} />
           )}
           {!isViewer && hasClients && page === "tools" && (
             <ToolsPage selectedClient={client} tools={tools} />

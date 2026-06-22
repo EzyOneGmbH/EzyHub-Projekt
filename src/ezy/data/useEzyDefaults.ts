@@ -13,7 +13,7 @@ const DEFAULTS: EzyDefaults = {
   language: "Deutsch",
   tone: "Professionell",
   reportTemplate: "Standard",
-  visibleTabs: ["overview", "seo", "geo", "aivis", "conversions", "ads", "tasks"],
+  visibleTabs: ["overview", "seo", "geo", "aivis", "conversions", "ads"],
 };
 
 const LOCAL_KEY_PREFIX = "ezy-defaults:";
@@ -125,9 +125,11 @@ export function useEzyDefaults(clientId?: string | null) {
               .update({ defaults: normalized })
               .eq("id", existing.id);
           } else {
-            await supabase
-              .from("customer_defaults")
-              .insert({ organization_id: organizationId, client_id: clientId, defaults: normalized });
+            await supabase.from("customer_defaults").insert({
+              organization_id: organizationId,
+              client_id: clientId,
+              defaults: normalized,
+            });
           }
         } catch {}
       } else {
