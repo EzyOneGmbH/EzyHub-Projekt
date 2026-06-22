@@ -4234,9 +4234,10 @@ function AdsDashboard({ selectedClient, dateRange }) {
 // ═══════════════════════════════════════════════════════════════════════════
 function TasksDashboard({ selectedClient }) {
   const { run, loading, refresh } = useEzyLatestRun(selectedClient?.id, "awork_tasks");
-  const { project, statuses, tasks, counts, note } = aworkTasksFromResult(run?.result);
+  const { project, projects, statuses, tasks, counts, note } = aworkTasksFromResult(run?.result);
   const [pulling, setPulling] = useState(false);
   const [err, setErr] = useState("");
+  const [selectedProjectId, setSelectedProjectId] = useState(null);
 
   const pull = async () => {
     if (!selectedClient?.id) return;
@@ -4262,13 +4263,6 @@ function TasksDashboard({ selectedClient }) {
     }
   };
 
-  // Build columns: prefer the project's status order, else statuses seen in tasks.
-  const cols =
-    statuses.length > 0
-      ? statuses
-      : [...new Map(tasks.map((t) => [t.statusName, { id: t.statusId, name: t.statusName, type: t.statusType }])).values()];
-  const tasksByStatus = (name) => tasks.filter((t) => t.statusName === name);
-  const multiProject = new Set(tasks.map((t) => t.project).filter(Boolean)).size > 1;
   const statusColor = (type) => {
     const t = String(type || "").toLowerCase();
     if (["done", "closed", "completed"].includes(t)) return C.green;
@@ -4302,6 +4296,146 @@ function TasksDashboard({ selectedClient }) {
     );
   }
 
+  // Multiple projects → show project picker first
+  const hasMultipleProjects = projects.length > 1;
+  const selectedProject = selectedProjectId
+    ? projects.find((p) => p.id === selectedProjectId)
+    : hasMultipleProjects
+      ? null
+      : projects[0] || null;
+
+  // Filter tasks to selected project
+  const projectTasks = selectedProject
+    ? tasks.filter((t) => t.project === selectedProject.name)
+    : tasks;
+  const projectStatuses = selectedProject
+    ? statuses
+    : statuses;
+  const cols =
+    projectStatuses.length > 0
+      ? projectStatuses
+      : [...new Map(projectTasks.map((t) => [t.statusName, { id: t.statusId, name: t.statusName, type: t.statusType }])).values()];
+  const tasksByStatus = (name) => projectTasks.filter((t) => t.statusName === name);
+  const doneTypes = new Set(["done", "closed", "completed"]);
+  const projectDone = projectTasks.filter((t) => doneTypes.has(String(t.statusType).toLowerCase())).length;
+
+  // Project card stats helper
+  const projectStats = (projName) => {
+    const pTasks = tasks.filter((t) => t.project === projName);
+    const pDone = pTasks.filter((t) => doneTypes.has(String(t.statusType).toLowerCase())).length;
+    return { total: pTasks.length, done: pDone };
+  };
+
+  // Show project overview if multiple projects and none selected
+  if (hasMultipleProjects && !selectedProject) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: C.text }}>
+              {project?.name || "Projekte"}
+            </div>
+            <div style={{ fontSize: 12.5, color: C.textMuted, marginTop: 2 }}>
+              {projects.length} Projekte · {counts.total} Aufgaben gesamt
+            </div>
+          </div>
+          <Btn onClick={pull} disabled={pulling}>
+            {pulling ? "Lädt…" : "⟳ Aktualisieren"}
+          </Btn>
+        </div>
+
+        {err && <div style={{ fontSize: 12, color: C.red }}>{err}</div>}
+        {note && (
+          <div style={{ fontSize: 13, color: C.textMuted, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px 16px" }}>
+            {note}
+          </div>
+        )}
+
+        {/* Project cards grid */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+            gap: 14,
+          }}
+        >
+          {projects.map((proj) => {
+            const stats = projectStats(proj.name);
+            const pct = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
+            return (
+              <button
+                key={proj.id}
+                onClick={() => setSelectedProjectId(proj.id)}
+                style={{
+                  background: C.card,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 12,
+                  padding: 18,
+                  textAlign: "left",
+                  cursor: "pointer",
+                  transition: "border-color .15s, background .15s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = C.accent;
+                  e.currentTarget.style.background = C.cardHover;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = C.border;
+                  e.currentTarget.style.background = C.card;
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 8,
+                      background: C.accentDim,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Layers size={18} color={C.accent} />
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: C.text, lineHeight: 1.3 }}>
+                    {proj.name}
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                  <span style={{ fontSize: 12, color: C.textMuted }}>
+                    {stats.total} Aufgaben
+                  </span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: pct === 100 ? C.green : C.textMuted }}>
+                    {pct}% erledigt
+                  </span>
+                </div>
+                <div style={{ height: 4, background: C.border, borderRadius: 2, overflow: "hidden" }}>
+                  <div
+                    style={{
+                      width: `${pct}%`,
+                      height: "100%",
+                      background: pct === 100 ? C.green : C.accent,
+                      transition: "width .3s",
+                    }}
+                  />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* Header */}
@@ -4314,13 +4448,34 @@ function TasksDashboard({ selectedClient }) {
           flexWrap: "wrap",
         }}
       >
-        <div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: C.text }}>
-            {project ? project.name : "Kein Projekt zugeordnet"}
-          </div>
-          <div style={{ fontSize: 12.5, color: C.textMuted, marginTop: 2 }}>
-            {counts.total} Aufgaben · {counts.done} erledigt
-            {project ? " · AWORK" : ""}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {hasMultipleProjects && (
+            <button
+              onClick={() => setSelectedProjectId(null)}
+              style={{
+                background: C.card,
+                border: `1px solid ${C.border}`,
+                borderRadius: 8,
+                width: 32,
+                height: 32,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+              }}
+              title="Zurück zur Übersicht"
+            >
+              <ChevronLeft size={16} color={C.textMuted} />
+            </button>
+          )}
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: C.text }}>
+              {selectedProject?.name || project?.name || "Kein Projekt zugeordnet"}
+            </div>
+            <div style={{ fontSize: 12.5, color: C.textMuted, marginTop: 2 }}>
+              {projectTasks.length} Aufgaben · {projectDone} erledigt
+              {selectedProject ? " · AWORK" : ""}
+            </div>
           </div>
         </div>
         <Btn onClick={pull} disabled={pulling}>
@@ -4329,14 +4484,14 @@ function TasksDashboard({ selectedClient }) {
       </div>
 
       {err && <div style={{ fontSize: 12, color: C.red }}>{err}</div>}
-      {note && (
+      {note && !selectedProject && (
         <div style={{ fontSize: 13, color: C.textMuted, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px 16px" }}>
           {note}
         </div>
       )}
 
       {/* Board: one column per status */}
-      {project && cols.length > 0 && (
+      {cols.length > 0 && (
         <div className="awork-board" style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 6 }}>
           {cols.map((col) => {
             const colTasks = tasksByStatus(col.name);
@@ -4386,9 +4541,9 @@ function TasksDashboard({ selectedClient }) {
                         {t.isPrio && <span style={{ color: C.orange, fontSize: 13, lineHeight: 1.3 }}>★</span>}
                         <span style={{ fontSize: 13, color: C.text, lineHeight: 1.35 }}>{t.name}</span>
                       </div>
-                      {(multiProject || t.list) && (
+                      {t.list && (
                         <span style={{ fontSize: 11, color: C.textDim }}>
-                          {[multiProject ? t.project : null, t.list].filter(Boolean).join(" · ")}
+                          {t.list}
                         </span>
                       )}
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>

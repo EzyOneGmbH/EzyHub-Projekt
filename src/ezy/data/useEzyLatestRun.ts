@@ -488,6 +488,7 @@ export function googleAdsFromResult(result: any): {
 
 export function aworkTasksFromResult(result: any): {
   project: { id: string; name: string } | null;
+  projects: Array<{ id: string; name: string }>;
   statuses: Array<{ id: string; name: string; type?: string; order?: number }>;
   tasks: Array<{
     id: string;
@@ -507,6 +508,7 @@ export function aworkTasksFromResult(result: any): {
   const r = result || {};
   return {
     project: r.project ?? null,
+    projects: Array.isArray(r.projects) ? r.projects : [],
     statuses: Array.isArray(r.statuses) ? r.statuses : [],
     tasks: Array.isArray(r.tasks) ? r.tasks : [],
     counts: { total: Number(r.counts?.total ?? 0) || 0, done: Number(r.counts?.done ?? 0) || 0 },
