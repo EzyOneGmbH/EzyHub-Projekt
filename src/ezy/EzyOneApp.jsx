@@ -1327,6 +1327,122 @@ function DateRangePicker({ value, onChange }) {
   );
 }
 
+// Comparison period options for the date range.
+const COMPARE_OPTIONS = [
+  { id: "none", label: "Kein Vergleich" },
+  { id: "prevPeriod", label: "Vorherige Periode" },
+  { id: "prevMonth", label: "Vormonat (gleicher Zeitraum)" },
+  { id: "prevYear", label: "Vorjahr (gleicher Zeitraum)" },
+];
+
+// Compute the comparison start/end dates for a given range + mode.
+function computeCompareRange(range, mode) {
+  if (!range || mode === "none") return null;
+  const start = new Date(range.start);
+  const end = new Date(range.end);
+  const days = range.days || Math.max(1, Math.ceil((end - start) / (24 * 60 * 60 * 1000)) + 1);
+  let cStart, cEnd;
+  if (mode === "prevPeriod") {
+    // The contiguous period immediately before the current one.
+    cEnd = new Date(start.getTime() - 24 * 60 * 60 * 1000);
+    cStart = new Date(cEnd.getTime() - (days - 1) * 24 * 60 * 60 * 1000);
+  } else if (mode === "prevMonth") {
+    cStart = new Date(start);
+    cStart.setMonth(cStart.getMonth() - 1);
+    cEnd = new Date(end);
+    cEnd.setMonth(cEnd.getMonth() - 1);
+  } else if (mode === "prevYear") {
+    cStart = new Date(start);
+    cStart.setFullYear(cStart.getFullYear() - 1);
+    cEnd = new Date(end);
+    cEnd.setFullYear(cEnd.getFullYear() - 1);
+  } else {
+    return null;
+  }
+  const fmt = (d) => d.toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit" });
+  return { start: cStart, end: cEnd, days, label: `${fmt(cStart)} – ${fmt(cEnd)}` };
+}
+
+// Comparison-period selector shown next to the DateRangePicker.
+function ComparePicker({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef();
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+  const active = value || "none";
+  const current = COMPARE_OPTIONS.find((o) => o.id === active) || COMPARE_OPTIONS[0];
+  const isOn = active !== "none";
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen(!open)}
+        title="Mit vorherigem Zeitraum vergleichen"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          background: isOn ? C.accentDim : C.card,
+          border: `1px solid ${isOn ? C.accent : C.border}`,
+          borderRadius: 8,
+          padding: "6px 12px",
+          cursor: "pointer",
+          color: isOn ? C.accentLight : C.textMuted,
+          fontSize: 12,
+          fontWeight: isOn ? 600 : 400,
+          fontFamily: "inherit",
+        }}
+      >
+        <GitBranch size={13} />
+        {isOn ? current.label.split(" ")[0] : "Vergleich"}
+        <ChevronDown size={12} />
+      </button>
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: "100%",
+            right: 0,
+            marginTop: 4,
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 10,
+            padding: 6,
+            minWidth: 220,
+            zIndex: 60,
+            boxShadow: "0 8px 32px rgba(0,0,0,.4)",
+          }}
+        >
+          {COMPARE_OPTIONS.map((o) => (
+            <button
+              key={o.id}
+              onClick={() => { onChange(o.id); setOpen(false); }}
+              style={{
+                display: "block",
+                width: "100%",
+                padding: "8px 12px",
+                border: "none",
+                borderRadius: 6,
+                cursor: "pointer",
+                fontSize: 12,
+                textAlign: "left",
+                fontFamily: "inherit",
+                background: active === o.id ? C.accentDim : "transparent",
+                color: active === o.id ? C.accentLight : C.text,
+                fontWeight: active === o.id ? 600 : 400,
+              }}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // SERVICE CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
@@ -8895,6 +9011,12 @@ function App() {
     const now = new Date();
     return { label: "30 Tage", days: 30, start: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000), end: now };
   });
+  const [compareMode, setCompareMode] = useState("none");
+  // Enrich the dateRange with a computed comparison period so dashboards can use it.
+  const dateRangeWithCompare = useMemo(() => {
+    const compare = computeCompareRange(dateRange, compareMode);
+    return { ...dateRange, compareMode, compare };
+  }, [dateRange, compareMode]);
   const [showAll, setShowAll] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
   const toast = useToast();
@@ -9362,6 +9484,7 @@ function App() {
             }}
           >
             {page !== "tasks" && <DateRangePicker value={dateRange} onChange={setDateRange} />}
+            {page === "dashboard" && <ComparePicker value={compareMode} onChange={setCompareMode} />}
             {page === "dashboard" && (
               <Btn
                 variant="secondary"
@@ -9448,17 +9571,22 @@ function App() {
                 <p style={{ color: C.textMuted, fontSize: 13, margin: "4px 0 0" }}>
                   {showAll ? "Alle Kunden" : `${client.name} — ${client.domain}`}
                   {dateRange.label ? ` • ${dateRange.label}` : ""}
+                  {dateRangeWithCompare.compare && (
+                    <span style={{ color: C.accentLight }}>
+                      {" "}vs. {dateRangeWithCompare.compare.label}
+                    </span>
+                  )}
                 </p>
               </div>
               {showAll && <AgencyOverview clients={clients} />}
               {!showAll && (
                 <>
-                  {tab === "overview" && <OverviewDashboard selectedClient={client} dateRange={dateRange} />}
-                  {tab === "seo" && <SeoDashboard selectedClient={client} dateRange={dateRange} />}
-                  {tab === "geo" && <GeoDashboard selectedClient={client} dateRange={dateRange} />}
+                  {tab === "overview" && <OverviewDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
+                  {tab === "seo" && <SeoDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
+                  {tab === "geo" && <GeoDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
                   {tab === "aivis" && <AiVisibilityDashboard selectedClient={client} />}
-                  {tab === "conversions" && <ConvDashboard selectedClient={client} dateRange={dateRange} />}
-                  {tab === "ads" && <AdsDashboard selectedClient={client} dateRange={dateRange} />}
+                  {tab === "conversions" && <ConvDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
+                  {tab === "ads" && <AdsDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
                 </>
               )}
             </>
