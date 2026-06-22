@@ -1402,6 +1402,55 @@ function seriesDelta(series, key, range) {
   return d == null ? undefined : d;
 }
 
+// Live GA4 comparison hook — fetches real current vs compare totals from GA4 for
+// the selected date range + comparison period. Returns { data, deltas }.
+function useGa4Compare(clientId, dateRange) {
+  const [data, setData] = useState(null);
+  const compareKey = dateRange?.compare
+    ? `${dateRange.compareMode}:${new Date(dateRange.start).toISOString().slice(0, 10)}:${new Date(dateRange.compare.start).toISOString().slice(0, 10)}`
+    : null;
+  useEffect(() => {
+    let cancelled = false;
+    if (!clientId || !dateRange?.compare) { setData(null); return; }
+    const iso = (d) => new Date(d).toISOString().slice(0, 10);
+    (async () => {
+      try {
+        const session = (await supabase.auth.getSession()).data.session;
+        const r = await fetch("/api/google/ga4-compare", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientId,
+            start: iso(dateRange.start),
+            end: iso(dateRange.end),
+            compareStart: iso(dateRange.compare.start),
+            compareEnd: iso(dateRange.compare.end),
+          }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!cancelled && j.ok) setData({ current: j.current, compare: j.compare });
+        else if (!cancelled) setData(null);
+      } catch {
+        if (!cancelled) setData(null);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId, compareKey]);
+  const deltas = useMemo(() => {
+    if (!data?.current || !data?.compare) return {};
+    const d = (k) => pctDelta(Number(data.current[k] || 0), Number(data.compare[k] || 0)) ?? undefined;
+    return {
+      sessions: d("sessions"),
+      totalUsers: d("totalUsers"),
+      screenPageViews: d("screenPageViews"),
+      conversions: d("conversions"),
+      totalRevenue: d("totalRevenue"),
+    };
+  }, [data]);
+  return { data, deltas };
+}
+
 // Comparison-period selector shown next to the DateRangePicker.
 function ComparePicker({ value, onChange }) {
   const [open, setOpen] = useState(false);
@@ -3209,12 +3258,14 @@ function ConvDashboard({ selectedClient, dateRange }) {
   const ga4Revenue = Number(ga4?.totalRevenue || 0);
   const ga4SeriesRaw = ga4?.series || [];
   const ga4Series = useMemo(() => ga4SeriesRaw.slice(-days), [ga4SeriesRaw, days]);
-  // Comparison deltas from the full (unsliced) series over the compare window.
-  const dRevenue = useMemo(() => seriesDelta(conv?.series, "revenue", dateRange), [conv?.series, dateRange]);
-  const dConv = useMemo(() => seriesDelta(conv?.series, "conversions", dateRange), [conv?.series, dateRange]);
-  const dSessions = useMemo(() => seriesDelta(ga4SeriesRaw, "sessions", dateRange), [ga4SeriesRaw, dateRange]);
-  const dUsers = useMemo(() => seriesDelta(ga4SeriesRaw, "totalUsers", dateRange), [ga4SeriesRaw, dateRange]);
-  const dPageViews = useMemo(() => seriesDelta(ga4SeriesRaw, "pageViews", dateRange), [ga4SeriesRaw, dateRange]);
+  // Live GA4 comparison (real YoY/MoM) — falls back to series-based deltas if unavailable.
+  const { deltas: liveDeltas } = useGa4Compare(selectedClient?.id, dateRange);
+  const pick = (live, fallback) => (live !== undefined ? live : fallback);
+  const dRevenue = pick(liveDeltas.totalRevenue, useMemo(() => seriesDelta(conv?.series, "revenue", dateRange), [conv?.series, dateRange]));
+  const dConv = pick(liveDeltas.conversions, useMemo(() => seriesDelta(conv?.series, "conversions", dateRange), [conv?.series, dateRange]));
+  const dSessions = pick(liveDeltas.sessions, useMemo(() => seriesDelta(ga4SeriesRaw, "sessions", dateRange), [ga4SeriesRaw, dateRange]));
+  const dUsers = pick(liveDeltas.totalUsers, useMemo(() => seriesDelta(ga4SeriesRaw, "totalUsers", dateRange), [ga4SeriesRaw, dateRange]));
+  const dPageViews = pick(liveDeltas.screenPageViews, useMemo(() => seriesDelta(ga4SeriesRaw, "pageViews", dateRange), [ga4SeriesRaw, dateRange]));
   const { isOn } = useEzyDashboardConfig();
   const hasAnyKpi =
     revenue +
@@ -3653,8 +3704,11 @@ function OverviewDashboard({ selectedClient, dateRange }) {
   const aiSeries = useMemo(() => aiSeriesRaw.slice(-days), [aiSeriesRaw, days]);
   const aiBySource = traf?.aiReferral.bySource || [];
   const COUNTRY_COLORS = [C.accent, C.blue, C.green, C.orange, C.cyan, C.pink, C.textDim];
-  // Comparison deltas from full series over the compare window.
-  const dOrganic = useMemo(() => seriesDelta(ga4Run ? (ga4KpisFromResult(ga4Run.result)?.series || []) : [], "sessions", dateRange), [ga4Run, dateRange]);
+  // Live GA4 comparison (real YoY/MoM) — falls back to series-based deltas.
+  const { deltas: ovLiveDeltas } = useGa4Compare(selectedClient?.id, dateRange);
+  const ga4SeriesForDelta = ga4Run ? (ga4KpisFromResult(ga4Run.result)?.series || []) : [];
+  const sOrganic = useMemo(() => seriesDelta(ga4SeriesForDelta, "sessions", dateRange), [ga4Run, dateRange]);
+  const dOrganic = ovLiveDeltas.sessions !== undefined ? ovLiveDeltas.sessions : sOrganic;
   const dAiRef = useMemo(() => seriesDelta(aiSeriesRaw, "aiSessions", dateRange), [aiSeriesRaw, dateRange]);
 
   const hasAny = organicTraffic + aiReference + leadVisits + visibility > 0 || countries.length > 0;

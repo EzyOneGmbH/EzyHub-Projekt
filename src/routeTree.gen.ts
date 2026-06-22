@@ -35,6 +35,7 @@ import { Route as ApiGoogleGa4TrafficRouteImport } from './routes/api/google.ga4
 import { Route as ApiGoogleGa4SummaryRouteImport } from './routes/api/google.ga4-summary'
 import { Route as ApiGoogleGa4PropertiesRouteImport } from './routes/api/google.ga4-properties'
 import { Route as ApiGoogleGa4ConversionsRouteImport } from './routes/api/google.ga4-conversions'
+import { Route as ApiGoogleGa4CompareRouteImport } from './routes/api/google.ga4-compare'
 import { Route as ApiGoogleConnectionRouteImport } from './routes/api/google.connection'
 import { Route as ApiGoogleCallbackRouteImport } from './routes/api/google.callback'
 import { Route as ApiGoogleAdsDataRouteImport } from './routes/api/google.ads-data'
@@ -187,6 +188,11 @@ const ApiGoogleGa4ConversionsRoute = ApiGoogleGa4ConversionsRouteImport.update({
   path: '/api/google/ga4-conversions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGoogleGa4CompareRoute = ApiGoogleGa4CompareRouteImport.update({
+  id: '/api/google/ga4-compare',
+  path: '/api/google/ga4-compare',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiGoogleConnectionRoute = ApiGoogleConnectionRouteImport.update({
   id: '/api/google/connection',
   path: '/api/google/connection',
@@ -330,6 +336,7 @@ export interface FileRoutesByFullPath {
   '/api/google/ads-data': typeof ApiGoogleAdsDataRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
+  '/api/google/ga4-compare': typeof ApiGoogleGa4CompareRoute
   '/api/google/ga4-conversions': typeof ApiGoogleGa4ConversionsRoute
   '/api/google/ga4-properties': typeof ApiGoogleGa4PropertiesRoute
   '/api/google/ga4-summary': typeof ApiGoogleGa4SummaryRoute
@@ -379,6 +386,7 @@ export interface FileRoutesByTo {
   '/api/google/ads-data': typeof ApiGoogleAdsDataRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
+  '/api/google/ga4-compare': typeof ApiGoogleGa4CompareRoute
   '/api/google/ga4-conversions': typeof ApiGoogleGa4ConversionsRoute
   '/api/google/ga4-properties': typeof ApiGoogleGa4PropertiesRoute
   '/api/google/ga4-summary': typeof ApiGoogleGa4SummaryRoute
@@ -429,6 +437,7 @@ export interface FileRoutesById {
   '/api/google/ads-data': typeof ApiGoogleAdsDataRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
+  '/api/google/ga4-compare': typeof ApiGoogleGa4CompareRoute
   '/api/google/ga4-conversions': typeof ApiGoogleGa4ConversionsRoute
   '/api/google/ga4-properties': typeof ApiGoogleGa4PropertiesRoute
   '/api/google/ga4-summary': typeof ApiGoogleGa4SummaryRoute
@@ -480,6 +489,7 @@ export interface FileRouteTypes {
     | '/api/google/ads-data'
     | '/api/google/callback'
     | '/api/google/connection'
+    | '/api/google/ga4-compare'
     | '/api/google/ga4-conversions'
     | '/api/google/ga4-properties'
     | '/api/google/ga4-summary'
@@ -529,6 +539,7 @@ export interface FileRouteTypes {
     | '/api/google/ads-data'
     | '/api/google/callback'
     | '/api/google/connection'
+    | '/api/google/ga4-compare'
     | '/api/google/ga4-conversions'
     | '/api/google/ga4-properties'
     | '/api/google/ga4-summary'
@@ -578,6 +589,7 @@ export interface FileRouteTypes {
     | '/api/google/ads-data'
     | '/api/google/callback'
     | '/api/google/connection'
+    | '/api/google/ga4-compare'
     | '/api/google/ga4-conversions'
     | '/api/google/ga4-properties'
     | '/api/google/ga4-summary'
@@ -624,6 +636,7 @@ export interface RootRouteChildren {
   ApiGoogleAdsDataRoute: typeof ApiGoogleAdsDataRoute
   ApiGoogleCallbackRoute: typeof ApiGoogleCallbackRoute
   ApiGoogleConnectionRoute: typeof ApiGoogleConnectionRoute
+  ApiGoogleGa4CompareRoute: typeof ApiGoogleGa4CompareRoute
   ApiGoogleGa4ConversionsRoute: typeof ApiGoogleGa4ConversionsRoute
   ApiGoogleGa4PropertiesRoute: typeof ApiGoogleGa4PropertiesRoute
   ApiGoogleGa4SummaryRoute: typeof ApiGoogleGa4SummaryRoute
@@ -820,6 +833,13 @@ declare module '@tanstack/react-router' {
       path: '/api/google/ga4-conversions'
       fullPath: '/api/google/ga4-conversions'
       preLoaderRoute: typeof ApiGoogleGa4ConversionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/google/ga4-compare': {
+      id: '/api/google/ga4-compare'
+      path: '/api/google/ga4-compare'
+      fullPath: '/api/google/ga4-compare'
+      preLoaderRoute: typeof ApiGoogleGa4CompareRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/google/connection': {
@@ -1049,6 +1069,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGoogleAdsDataRoute: ApiGoogleAdsDataRoute,
   ApiGoogleCallbackRoute: ApiGoogleCallbackRoute,
   ApiGoogleConnectionRoute: ApiGoogleConnectionRoute,
+  ApiGoogleGa4CompareRoute: ApiGoogleGa4CompareRoute,
   ApiGoogleGa4ConversionsRoute: ApiGoogleGa4ConversionsRoute,
   ApiGoogleGa4PropertiesRoute: ApiGoogleGa4PropertiesRoute,
   ApiGoogleGa4SummaryRoute: ApiGoogleGa4SummaryRoute,
