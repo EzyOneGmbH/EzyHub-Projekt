@@ -146,7 +146,7 @@ const initials = (a: any) =>
 
 // AWORK path naming varies (hyphen vs none); try both, take the first that works.
 async function firstOk(paths: string[], key: string) {
-  let last: Awaited<ReturnType<typeof awork>> | null = null;
+  let last: Awaited<ReturnType<typeof awork<any[]>>> | null = null;
   for (const p of paths) {
     const r = await awork<any[]>(p, key);
     if (r.ok) return r;
