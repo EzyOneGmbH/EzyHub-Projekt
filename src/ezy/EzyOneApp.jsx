@@ -1036,7 +1036,10 @@ const DRP = [
 ];
 function DateRangePicker({ value, onChange }) {
   const [open, setOpen] = useState(false);
-  const [a, setA] = useState("30d");
+  const [a, setA] = useState(value?.preset || "30d");
+  const [showCustom, setShowCustom] = useState(false);
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
   const ref = useRef();
   useEffect(() => {
     const h = (e) => {
@@ -1045,6 +1048,19 @@ function DateRangePicker({ value, onChange }) {
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
+  const applyCustom = () => {
+    if (!customStart || !customEnd) return;
+    const start = new Date(customStart);
+    const end = new Date(customEnd);
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) return;
+    const days = Math.max(1, Math.ceil((end - start) / (24 * 60 * 60 * 1000)));
+    const fmt = (d) => d.toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit" });
+    onChange({ label: `${fmt(start)} – ${fmt(end)}`, days, start, end, preset: "custom" });
+    setA("custom");
+    setShowCustom(false);
+    setOpen(false);
+  };
+  const displayLabel = value?.label || "30 Tage";
   return (
     <div ref={ref} style={{ position: "relative" }}>
       <button
@@ -1064,7 +1080,7 @@ function DateRangePicker({ value, onChange }) {
         }}
       >
         <Calendar size={13} />
-        {value.label || "30 Tage"}
+        {displayLabel}
         <ChevronDown size={12} />
       </button>
       {open && (
@@ -1078,7 +1094,7 @@ function DateRangePicker({ value, onChange }) {
             border: `1px solid ${C.border}`,
             borderRadius: 10,
             padding: 6,
-            minWidth: 160,
+            minWidth: 200,
             zIndex: 60,
             boxShadow: "0 8px 32px rgba(0,0,0,.4)",
           }}
@@ -1088,9 +1104,10 @@ function DateRangePicker({ value, onChange }) {
               key={p.id}
               onClick={() => {
                 setA(p.id);
+                setShowCustom(false);
                 const now = new Date();
                 const start = new Date(now.getTime() - p.d * 24 * 60 * 60 * 1000);
-                onChange({ label: p.label, days: p.d, start, end: now });
+                onChange({ label: p.label, days: p.d, start, end: now, preset: p.id });
                 setOpen(false);
               }}
               style={{
@@ -1111,6 +1128,83 @@ function DateRangePicker({ value, onChange }) {
               {p.label}
             </button>
           ))}
+          <div style={{ height: 1, background: C.border, margin: "6px 0" }} />
+          <button
+            onClick={() => setShowCustom(!showCustom)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              width: "100%",
+              padding: "8px 12px",
+              border: "none",
+              borderRadius: 6,
+              cursor: "pointer",
+              fontSize: 12,
+              textAlign: "left",
+              fontFamily: "inherit",
+              background: a === "custom" ? C.accentDim : "transparent",
+              color: a === "custom" ? C.accentLight : C.text,
+              fontWeight: a === "custom" ? 600 : 400,
+            }}
+          >
+            <Calendar size={12} />
+            Eigener Zeitraum
+          </button>
+          {showCustom && (
+            <div style={{ padding: "8px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="date"
+                  value={customStart}
+                  onChange={(e) => setCustomStart(e.target.value)}
+                  style={{
+                    flex: 1,
+                    padding: "6px 8px",
+                    borderRadius: 6,
+                    border: `1px solid ${C.border}`,
+                    background: C.bg,
+                    color: C.text,
+                    fontSize: 11,
+                    fontFamily: "inherit",
+                  }}
+                />
+                <span style={{ color: C.textMuted, fontSize: 11 }}>–</span>
+                <input
+                  type="date"
+                  value={customEnd}
+                  onChange={(e) => setCustomEnd(e.target.value)}
+                  style={{
+                    flex: 1,
+                    padding: "6px 8px",
+                    borderRadius: 6,
+                    border: `1px solid ${C.border}`,
+                    background: C.bg,
+                    color: C.text,
+                    fontSize: 11,
+                    fontFamily: "inherit",
+                  }}
+                />
+              </div>
+              <button
+                onClick={applyCustom}
+                disabled={!customStart || !customEnd}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  border: "none",
+                  background: customStart && customEnd ? C.accent : C.border,
+                  color: customStart && customEnd ? "#fff" : C.textMuted,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: customStart && customEnd ? "pointer" : "not-allowed",
+                  fontFamily: "inherit",
+                }}
+              >
+                Anwenden
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -8011,7 +8105,7 @@ function App() {
               justifyContent: isMobile ? "flex-start" : "flex-end",
             }}
           >
-            {page === "dashboard" && <DateRangePicker value={dateRange} onChange={setDateRange} />}
+            {page !== "tasks" && <DateRangePicker value={dateRange} onChange={setDateRange} />}
             {page === "dashboard" && (
               <Btn
                 variant="secondary"
