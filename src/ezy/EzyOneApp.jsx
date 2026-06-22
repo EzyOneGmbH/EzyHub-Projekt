@@ -2249,7 +2249,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
   const live = run ? ahrefsKpisFromResult(run.result) : null;
   const { runs, refresh: refreshHistory } = useEzyAuditHistory(selectedClient?.id);
   const startDate = dateRange?.start || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const trend = (runs || [])
+  const trend = useMemo(() => (runs || [])
     .filter((r) => {
       if (r.audit_type !== "ahrefs" || r.status !== "succeeded") return false;
       const d = new Date(r.started_at || r.created_at);
@@ -2265,7 +2265,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
         Keywords: k.keywords,
       };
     })
-    .reverse();
+    .reverse(), [runs, startDate]);
   const { run: gscRun, refresh: refreshGsc } = useEzyLatestRun(selectedClient?.id, "gsc_summary");
   const gsc = gscRun ? gscKpisFromResult(gscRun.result) : null;
   const { run: psiRun, refresh: refreshPsi } = useEzyLatestRun(selectedClient?.id, "pagespeed");
@@ -3039,7 +3039,7 @@ function ConvDashboard({ selectedClient, dateRange }) {
   const mailClicks = Number(conv?.breakdown.mail || selectedClient?.mailClicks || 0);
   const mapsClicks = Number(conv?.breakdown.maps || selectedClient?.mapsClicks || 0);
   const formSubmits = Number(conv?.breakdown.contact || selectedClient?.formSubmits || 0);
-  const convSeries = (conv?.series || []).slice(-days);
+  const convSeries = useMemo(() => (conv?.series || []).slice(-days), [conv?.series, days]);
   const googleVsAi = traf?.googleVsAi || null;
   const sessions = Number(ga4?.sessions || 0);
   const totalUsers = Number(ga4?.totalUsers || 0);
@@ -3051,7 +3051,7 @@ function ConvDashboard({ selectedClient, dateRange }) {
   const ga4Conversions = Number(ga4?.conversions || 0);
   const ga4Revenue = Number(ga4?.totalRevenue || 0);
   const ga4SeriesRaw = ga4?.series || [];
-  const ga4Series = ga4SeriesRaw.slice(-days);
+  const ga4Series = useMemo(() => ga4SeriesRaw.slice(-days), [ga4SeriesRaw, days]);
   const { isOn } = useEzyDashboardConfig();
   const hasAnyKpi =
     revenue +
@@ -3473,6 +3473,7 @@ function OverviewDashboard({ selectedClient, dateRange }) {
   const traf = trafRun ? ga4TrafficFromResult(trafRun.result) : null;
   const conv = convRun ? ga4ConversionsFromResult(convRun.result) : null;
 
+  const days = dateRange?.days || 30;
   const organicTraffic = Number(ahrefs?.traffic || ga4?.sessions || 0);
   const aiReference = Number(traf?.aiReferral.sessions || 0);
   const leadVisits = conv
@@ -3480,7 +3481,8 @@ function OverviewDashboard({ selectedClient, dateRange }) {
     : 0;
   const visibility = Number(ahrefs?.visibility || 0);
   const countries = traf?.countries || [];
-  const aiSeries = traf?.aiSeries || [];
+  const aiSeriesRaw = traf?.aiSeries || [];
+  const aiSeries = useMemo(() => aiSeriesRaw.slice(-days), [aiSeriesRaw, days]);
   const aiBySource = traf?.aiReferral.bySource || [];
   const COUNTRY_COLORS = [C.accent, C.blue, C.green, C.orange, C.cyan, C.pink, C.textDim];
 
@@ -4034,9 +4036,10 @@ function AdsDashboard({ selectedClient, dateRange }) {
   const { isOn } = useEzyDashboardConfig();
   const { run, loading, refresh } = useEzyLatestRun(selectedClient?.id, "google_ads");
   const ads = googleAdsFromResult(run?.result);
-  const { totals, ctr, cpc, cpa, roas, series, campaigns, conversionActions, primary, prev } = ads;
+  const { totals, ctr, cpc, cpa, roas, series: rawSeries, campaigns, conversionActions, primary, prev } = ads;
   const hasData = totals.cost + totals.clicks + totals.impressions + totals.conversions > 0;
   const days = dateRange?.days || 30;
+  const series = useMemo(() => (rawSeries || []).slice(-days), [rawSeries, days]);
 
   // Formatting + delta helpers (Swiss CHF, tabular).
   const chf = (n, dec = 0) =>
@@ -4083,10 +4086,10 @@ function AdsDashboard({ selectedClient, dateRange }) {
   // Manual refresh via live route — uses selected date range.
   const [pulling, setPulling] = useState(false);
   const lastDaysRef = useRef(days);
-  const pull = useCallback(async (forceDays) => {
+  const pull = useCallback(async (forceDays, silent = false) => {
     const d = forceDays ?? days;
     if (!selectedClient?.id) return;
-    setPulling(true);
+    if (!silent) setPulling(true);
     try {
       const session = (await supabase.auth.getSession()).data.session;
       await fetch("/api/google/ads-data", {
@@ -4101,17 +4104,21 @@ function AdsDashboard({ selectedClient, dateRange }) {
     } catch {
       /* ignore */
     } finally {
-      setPulling(false);
+      if (!silent) setPulling(false);
     }
   }, [selectedClient?.id, days, refresh]);
 
-  // Auto-refresh when date range changes (only if we have data already).
+  // Auto-refresh when date range changes — silent background fetch, instant local filter via useMemo.
   useEffect(() => {
     if (hasData && days !== lastDaysRef.current) {
+      const prevDays = lastDaysRef.current;
       lastDaysRef.current = days;
-      pull(days);
+      // Only fetch if new range is larger than cached data (need more data from API).
+      if (days > (rawSeries?.length || 0)) {
+        pull(days, true);
+      }
     }
-  }, [days, hasData, pull]);
+  }, [days, hasData, rawSeries?.length, pull]);
 
   if (loading) {
     return <div style={{ color: C.textMuted, padding: 20 }}>Lade Ads-Daten…</div>;
