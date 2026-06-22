@@ -1363,6 +1363,45 @@ function computeCompareRange(range, mode) {
   return { start: cStart, end: cEnd, days, label: `${fmt(cStart)} – ${fmt(cEnd)}` };
 }
 
+// Parse a series date string ("YYYYMMDD", "YYYY-MM-DD" or ISO) into a Date.
+function parseSeriesDate(s) {
+  if (!s) return null;
+  const str = String(s);
+  if (/^\d{8}$/.test(str)) {
+    return new Date(Number(str.slice(0, 4)), Number(str.slice(4, 6)) - 1, Number(str.slice(6, 8)));
+  }
+  const d = new Date(str);
+  return isNaN(d) ? null : d;
+}
+
+// Sum a metric across the series rows whose date falls within [start, end].
+function sumSeriesInRange(series, key, start, end) {
+  if (!Array.isArray(series) || !start || !end) return 0;
+  const s = new Date(start); s.setHours(0, 0, 0, 0);
+  const e = new Date(end); e.setHours(23, 59, 59, 999);
+  let sum = 0;
+  for (const row of series) {
+    const d = parseSeriesDate(row.date);
+    if (d && d >= s && d <= e) sum += Number(row[key] || 0);
+  }
+  return sum;
+}
+
+// Percentage delta current vs previous, rounded to one decimal. null if no basis.
+function pctDelta(cur, prev) {
+  if (prev == null || prev <= 0) return null;
+  return Math.round(((cur - prev) / prev) * 1000) / 10;
+}
+
+// Compute a KPI's comparison delta from a series: returns rounded % or undefined.
+function seriesDelta(series, key, range) {
+  if (!range?.compare) return undefined;
+  const cur = sumSeriesInRange(series, key, range.start, range.end);
+  const prev = sumSeriesInRange(series, key, range.compare.start, range.compare.end);
+  const d = pctDelta(cur, prev);
+  return d == null ? undefined : d;
+}
+
 // Comparison-period selector shown next to the DateRangePicker.
 function ComparePicker({ value, onChange }) {
   const [open, setOpen] = useState(false);
@@ -3170,6 +3209,12 @@ function ConvDashboard({ selectedClient, dateRange }) {
   const ga4Revenue = Number(ga4?.totalRevenue || 0);
   const ga4SeriesRaw = ga4?.series || [];
   const ga4Series = useMemo(() => ga4SeriesRaw.slice(-days), [ga4SeriesRaw, days]);
+  // Comparison deltas from the full (unsliced) series over the compare window.
+  const dRevenue = useMemo(() => seriesDelta(conv?.series, "revenue", dateRange), [conv?.series, dateRange]);
+  const dConv = useMemo(() => seriesDelta(conv?.series, "conversions", dateRange), [conv?.series, dateRange]);
+  const dSessions = useMemo(() => seriesDelta(ga4SeriesRaw, "sessions", dateRange), [ga4SeriesRaw, dateRange]);
+  const dUsers = useMemo(() => seriesDelta(ga4SeriesRaw, "totalUsers", dateRange), [ga4SeriesRaw, dateRange]);
+  const dPageViews = useMemo(() => seriesDelta(ga4SeriesRaw, "pageViews", dateRange), [ga4SeriesRaw, dateRange]);
   const { isOn } = useEzyDashboardConfig();
   const hasAnyKpi =
     revenue +
@@ -3228,6 +3273,7 @@ function ConvDashboard({ selectedClient, dateRange }) {
           icon={DollarSign}
           label="Generated"
           value={revenue > 0 ? `${Math.round(revenue).toLocaleString("de-CH")} CHF` : "—"}
+          change={dRevenue}
           color={C.pink}
         />
       </div>
@@ -3245,12 +3291,14 @@ function ConvDashboard({ selectedClient, dateRange }) {
             icon={Globe}
             label="GA4 Sessions"
             value={sessions > 0 ? sessions : "—"}
+            change={dSessions}
             color={C.blue}
           />
           <KpiCard
             icon={Eye}
             label="GA4 Total Users"
             value={totalUsers > 0 ? totalUsers : "—"}
+            change={dUsers}
             color={C.accent}
           />
           <KpiCard
@@ -3263,6 +3311,7 @@ function ConvDashboard({ selectedClient, dateRange }) {
             icon={FileText}
             label="Page Views"
             value={screenPageViews > 0 ? screenPageViews : "—"}
+            change={dPageViews}
             color={C.orange}
           />
           <KpiCard
@@ -3275,6 +3324,7 @@ function ConvDashboard({ selectedClient, dateRange }) {
             icon={Target}
             label="Conversions"
             value={ga4Conversions > 0 ? ga4Conversions : "—"}
+            change={dConv}
             color={C.pink}
           />
           <KpiCard
@@ -3603,6 +3653,9 @@ function OverviewDashboard({ selectedClient, dateRange }) {
   const aiSeries = useMemo(() => aiSeriesRaw.slice(-days), [aiSeriesRaw, days]);
   const aiBySource = traf?.aiReferral.bySource || [];
   const COUNTRY_COLORS = [C.accent, C.blue, C.green, C.orange, C.cyan, C.pink, C.textDim];
+  // Comparison deltas from full series over the compare window.
+  const dOrganic = useMemo(() => seriesDelta(ga4Run ? (ga4KpisFromResult(ga4Run.result)?.series || []) : [], "sessions", dateRange), [ga4Run, dateRange]);
+  const dAiRef = useMemo(() => seriesDelta(aiSeriesRaw, "aiSessions", dateRange), [aiSeriesRaw, dateRange]);
 
   const hasAny = organicTraffic + aiReference + leadVisits + visibility > 0 || countries.length > 0;
   if (!hasAny) {
@@ -3626,12 +3679,14 @@ function OverviewDashboard({ selectedClient, dateRange }) {
           icon={Globe}
           label="Organic Traffic"
           value={organicTraffic > 0 ? organicTraffic.toLocaleString("de-CH") : "—"}
+          change={dOrganic}
           color={C.accent}
         />
         <KpiCard
           icon={Bot}
           label="AI Reference"
           value={aiReference > 0 ? aiReference.toLocaleString("de-CH") : "—"}
+          change={dAiRef}
           color={C.green}
         />
         <KpiCard
