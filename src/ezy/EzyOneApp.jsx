@@ -4238,6 +4238,7 @@ function TasksDashboard({ selectedClient }) {
   const [pulling, setPulling] = useState(false);
   const [err, setErr] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState(null);
+  const [hideDone, setHideDone] = useState(true);
 
   const pull = async () => {
     if (!selectedClient?.id) return;
@@ -4263,12 +4264,38 @@ function TasksDashboard({ selectedClient }) {
     }
   };
 
+  const doneTypes = new Set(["done", "closed", "completed"]);
+  const isDone = (type) => doneTypes.has(String(type || "").toLowerCase());
   const statusColor = (type) => {
     const t = String(type || "").toLowerCase();
     if (["done", "closed", "completed"].includes(t)) return C.green;
     if (["progress", "inprogress", "doing"].includes(t)) return C.blue;
     return C.textMuted;
   };
+
+  // Small pill toggle to hide finished tasks / completed projects.
+  const HideDoneToggle = () => (
+    <button
+      onClick={() => setHideDone((v) => !v)}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 7,
+        background: hideDone ? C.accentDim : C.card,
+        border: `1px solid ${hideDone ? C.accent : C.border}`,
+        borderRadius: 8,
+        padding: "7px 11px",
+        cursor: "pointer",
+        fontSize: 12.5,
+        fontWeight: 600,
+        color: hideDone ? C.accentLight : C.textMuted,
+      }}
+      title={hideDone ? "Erledigte einblenden" : "Erledigte ausblenden"}
+    >
+      {hideDone ? <Eye size={14} /> : <Eye size={14} style={{ opacity: 0.5 }} />}
+      Erledigte ausblenden
+    </button>
+  );
   const fmtDue = (iso) => {
     if (!iso) return null;
     const d = new Date(iso);
@@ -4304,30 +4331,34 @@ function TasksDashboard({ selectedClient }) {
       ? null
       : projects[0] || null;
 
-  // Filter tasks to selected project
-  const projectTasks = selectedProject
+  // Filter tasks to selected project (and optionally drop finished tasks).
+  const projectTasksAll = selectedProject
     ? tasks.filter((t) => t.project === selectedProject.name)
     : tasks;
-  const projectStatuses = selectedProject
+  const projectTasks = hideDone
+    ? projectTasksAll.filter((t) => !isDone(t.statusType))
+    : projectTasksAll;
+  const projectDone = projectTasksAll.filter((t) => isDone(t.statusType)).length;
+  // Hide done-type columns when erledigte ausgeblendet sind.
+  const cols = (statuses.length > 0
     ? statuses
-    : statuses;
-  const cols =
-    projectStatuses.length > 0
-      ? projectStatuses
-      : [...new Map(projectTasks.map((t) => [t.statusName, { id: t.statusId, name: t.statusName, type: t.statusType }])).values()];
+    : [...new Map(projectTasks.map((t) => [t.statusName, { id: t.statusId, name: t.statusName, type: t.statusType }])).values()]
+  ).filter((c) => !hideDone || !isDone(c.type));
   const tasksByStatus = (name) => projectTasks.filter((t) => t.statusName === name);
-  const doneTypes = new Set(["done", "closed", "completed"]);
-  const projectDone = projectTasks.filter((t) => doneTypes.has(String(t.statusType).toLowerCase())).length;
 
   // Project card stats helper
   const projectStats = (projName) => {
     const pTasks = tasks.filter((t) => t.project === projName);
-    const pDone = pTasks.filter((t) => doneTypes.has(String(t.statusType).toLowerCase())).length;
-    return { total: pTasks.length, done: pDone };
+    const pDone = pTasks.filter((t) => isDone(t.statusType)).length;
+    return { total: pTasks.length, done: pDone, allDone: pTasks.length > 0 && pDone === pTasks.length };
   };
 
   // Show project overview if multiple projects and none selected
   if (hasMultipleProjects && !selectedProject) {
+    const visibleProjects = hideDone
+      ? projects.filter((p) => !projectStats(p.name).allDone)
+      : projects;
+    const hiddenCount = projects.length - visibleProjects.length;
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div
@@ -4347,9 +4378,12 @@ function TasksDashboard({ selectedClient }) {
               {projects.length} Projekte · {counts.total} Aufgaben gesamt
             </div>
           </div>
-          <Btn onClick={pull} disabled={pulling}>
-            {pulling ? "Lädt…" : "⟳ Aktualisieren"}
-          </Btn>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <HideDoneToggle />
+            <Btn onClick={pull} disabled={pulling}>
+              {pulling ? "Lädt…" : "⟳ Aktualisieren"}
+            </Btn>
+          </div>
         </div>
 
         {err && <div style={{ fontSize: 12, color: C.red }}>{err}</div>}
@@ -4367,7 +4401,7 @@ function TasksDashboard({ selectedClient }) {
             gap: 14,
           }}
         >
-          {projects.map((proj) => {
+          {visibleProjects.map((proj) => {
             const stats = projectStats(proj.name);
             const pct = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
             return (
@@ -4432,6 +4466,16 @@ function TasksDashboard({ selectedClient }) {
             );
           })}
         </div>
+        {hiddenCount > 0 && (
+          <div style={{ fontSize: 12, color: C.textDim }}>
+            {hiddenCount} abgeschlossene{hiddenCount === 1 ? "s Projekt" : " Projekte"} ausgeblendet
+          </div>
+        )}
+        {visibleProjects.length === 0 && (
+          <div style={{ fontSize: 13, color: C.textMuted, textAlign: "center", padding: "24px 0" }}>
+            Alle Projekte abgeschlossen — Toggle deaktivieren, um sie anzuzeigen.
+          </div>
+        )}
       </div>
     );
   }
@@ -4473,20 +4517,31 @@ function TasksDashboard({ selectedClient }) {
               {selectedProject?.name || project?.name || "Kein Projekt zugeordnet"}
             </div>
             <div style={{ fontSize: 12.5, color: C.textMuted, marginTop: 2 }}>
-              {projectTasks.length} Aufgaben · {projectDone} erledigt
+              {projectTasksAll.length} Aufgaben · {projectDone} erledigt
               {selectedProject ? " · AWORK" : ""}
             </div>
           </div>
         </div>
-        <Btn onClick={pull} disabled={pulling}>
-          {pulling ? "Lädt…" : "⟳ Aktualisieren"}
-        </Btn>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <HideDoneToggle />
+          <Btn onClick={pull} disabled={pulling}>
+            {pulling ? "Lädt…" : "⟳ Aktualisieren"}
+          </Btn>
+        </div>
       </div>
 
       {err && <div style={{ fontSize: 12, color: C.red }}>{err}</div>}
       {note && !selectedProject && (
         <div style={{ fontSize: 13, color: C.textMuted, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px 16px" }}>
           {note}
+        </div>
+      )}
+
+      {cols.length === 0 && (
+        <div style={{ fontSize: 13, color: C.textMuted, textAlign: "center", padding: "24px 0" }}>
+          {hideDone && projectTasksAll.length > 0
+            ? "Alle Aufgaben erledigt — Toggle deaktivieren, um sie anzuzeigen."
+            : "Keine Aufgaben."}
         </div>
       )}
 
