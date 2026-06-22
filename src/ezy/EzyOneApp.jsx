@@ -5286,7 +5286,7 @@ function TasksDashboard({ selectedClient }) {
             justifyContent: "center",
             padding: 20,
           }}
-          onClick={(e) => e.target === e.currentTarget && { setShowCreateTask(false); setCreateInList(null); }}
+          onClick={(e) => { if (e.target === e.currentTarget) { setShowCreateTask(false); setCreateInList(null); } }}
         >
           <CreateTaskModal
             projectId={selectedProject.id}
