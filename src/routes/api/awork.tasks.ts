@@ -174,6 +174,8 @@ async function fetchProjectTasks(projectId: string, projectName: string, key: st
       name: String(s.name ?? ""),
       type: s.type ?? s.statusType ?? undefined,
       order: Number(s.order ?? 0),
+      color: s.color || null,
+      icon: s.icon || null,
     }))
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const tasklists = (listRes.data || [])
@@ -181,6 +183,7 @@ async function fetchProjectTasks(projectId: string, projectName: string, key: st
       id: String(l.id),
       name: String(l.name ?? ""),
       order: Number(l.order ?? 0),
+      color: l.color || null,
     }))
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const statusById = new Map(statuses.map((s) => [s.id, s]));
@@ -198,6 +201,8 @@ async function fetchProjectTasks(projectId: string, projectName: string, key: st
       statusId: sid,
       statusName: t.taskStatus?.name ?? st?.name ?? "Ohne Status",
       statusType: t.taskStatus?.type ?? st?.type ?? "",
+      statusColor: t.taskStatus?.color ?? st?.color ?? null,
+      statusIcon: t.taskStatus?.icon ?? st?.icon ?? null,
       assignees: assignees.map((a: any) => ({
         id: String(a.id ?? a.userId ?? ""),
         initials: initials(a),

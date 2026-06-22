@@ -489,8 +489,8 @@ export function googleAdsFromResult(result: any): {
 export function aworkTasksFromResult(result: any): {
   project: { id: string; name: string } | null;
   projects: Array<{ id: string; name: string }>;
-  statuses: Array<{ id: string; name: string; type?: string; order?: number }>;
-  tasklists: Array<{ id: string; name: string; order?: number }>;
+  statuses: Array<{ id: string; name: string; type?: string; order?: number; color?: string | null; icon?: string | null }>;
+  tasklists: Array<{ id: string; name: string; order?: number; color?: string | null }>;
   tasks: Array<{
     id: string;
     name: string;
@@ -499,6 +499,8 @@ export function aworkTasksFromResult(result: any): {
     statusId: string;
     statusName: string;
     statusType: string;
+    statusColor?: string | null;
+    statusIcon?: string | null;
     assignees: Array<{ id?: string; initials: string; name: string }>;
     dueOn: string | null;
     isPrio: boolean;

@@ -4465,27 +4465,65 @@ function AdsDashboard({ selectedClient, dateRange }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // AWORK LIST VIEW COMPONENT (like AWORK's native list layout)
 // ═══════════════════════════════════════════════════════════════════════════
-function AworkListView({ tasks, allTasks, tasklists, statuses, hideDone, expandedLists, onToggleList, onOpenTask, onCreateInList, fmtDue, isDone, statusColor }) {
-  // Group tasks by list
+// AWORK color palette mapping
+const AWORK_COLORS = {
+  // Status type colors (fallbacks)
+  done: "#22c55e",
+  closed: "#22c55e",
+  completed: "#22c55e",
+  progress: "#3b82f6",
+  inprogress: "#3b82f6",
+  doing: "#3b82f6",
+  todo: "#6b7280",
+  open: "#6b7280",
+  // Named colors from AWORK
+  green: "#22c55e",
+  blue: "#3b82f6",
+  yellow: "#eab308",
+  orange: "#f97316",
+  red: "#ef4444",
+  purple: "#a855f7",
+  pink: "#ec4899",
+  cyan: "#06b6d4",
+  gray: "#6b7280",
+  grey: "#6b7280",
+};
+
+function AworkListView({ tasks, allTasks, tasklists, statuses, hideDone, expandedLists, onToggleList, onOpenTask, onCreateInList, fmtDue, isDone }) {
+  // Get status color from AWORK or fallback
+  const getStatusColor = (task) => {
+    // First try the task's own status color
+    if (task.statusColor) {
+      return task.statusColor.startsWith("#") ? task.statusColor : (AWORK_COLORS[task.statusColor.toLowerCase()] || task.statusColor);
+    }
+    // Then try to find from statuses list
+    const status = statuses.find((s) => s.id === task.statusId);
+    if (status?.color) {
+      return status.color.startsWith("#") ? status.color : (AWORK_COLORS[status.color.toLowerCase()] || status.color);
+    }
+    // Fallback to type-based color
+    const t = String(task.statusType || "").toLowerCase();
+    return AWORK_COLORS[t] || "#6b7280";
+  };
+
+  // Group tasks by list — ALWAYS show all tasklists (even empty ones)
   const tasksByList = useMemo(() => {
     const groups = new Map();
-    // First add all known tasklists
+    // First add all known tasklists (always show them)
     for (const list of tasklists) {
-      groups.set(list.name, { id: list.id, name: list.name, tasks: [], order: list.order ?? 0 });
+      groups.set(list.name, { id: list.id, name: list.name, tasks: [], order: list.order ?? 0, color: list.color });
     }
     // Add tasks to their lists
     for (const t of tasks) {
       const listName = t.list || "Ohne Liste";
       if (!groups.has(listName)) {
-        groups.set(listName, { id: listName, name: listName, tasks: [], order: 999 });
+        groups.set(listName, { id: listName, name: listName, tasks: [], order: 999, color: null });
       }
       groups.get(listName).tasks.push(t);
     }
-    // Sort by order and filter empty lists when hiding done
-    return [...groups.values()]
-      .filter((g) => g.tasks.length > 0 || !hideDone)
-      .sort((a, b) => a.order - b.order);
-  }, [tasks, tasklists, hideDone]);
+    // Sort by order — show ALL lists including empty ones
+    return [...groups.values()].sort((a, b) => a.order - b.order);
+  }, [tasks, tasklists]);
 
   // Calculate list stats
   const listStats = (listName) => {
@@ -4621,25 +4659,31 @@ function AworkListView({ tasks, allTasks, tasklists, statuses, hideDone, expande
                       onMouseEnter={(e) => e.currentTarget.style.background = C.cardHover}
                       onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                     >
-                      {/* Status Circle */}
-                      <div
-                        style={{
-                          width: 22,
-                          height: 22,
-                          borderRadius: "50%",
-                          border: `2px solid ${taskDone ? C.green : statusColor(t.statusType)}`,
-                          background: taskDone ? C.green : "transparent",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          flexShrink: 0,
-                        }}
-                      >
-                        {taskDone && <Check size={12} color="#fff" />}
-                        {!taskDone && t.statusType === "progress" && (
-                          <ArrowRight size={10} color={C.blue} />
-                        )}
-                      </div>
+                      {/* Status Circle — uses AWORK colors */}
+                      {(() => {
+                        const sColor = getStatusColor(t);
+                        const isProgress = ["progress", "inprogress", "doing"].includes(String(t.statusType || "").toLowerCase());
+                        return (
+                          <div
+                            style={{
+                              width: 22,
+                              height: 22,
+                              borderRadius: "50%",
+                              border: `2px solid ${sColor}`,
+                              background: taskDone ? sColor : "transparent",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {taskDone && <Check size={12} color="#fff" />}
+                            {!taskDone && isProgress && (
+                              <ArrowRight size={10} color={sColor} />
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {/* Task Name + Subtask indicator */}
                       <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8 }}>
@@ -5214,7 +5258,6 @@ function TasksDashboard({ selectedClient }) {
         onCreateInList={(listId) => { setCreateInList(listId); setShowCreateTask(true); }}
         fmtDue={fmtDue}
         isDone={isDone}
-        statusColor={statusColor}
       />
 
       {/* Task Detail Modal */}
