@@ -171,14 +171,31 @@ export const Route = createFileRoute("/api/awork/task")({
           const key = process.env.AWORK_API_KEY;
           if (!key) return Response.json({ ok: false, error: "AWORK_API_KEY nicht konfiguriert" });
 
-          const updates: any = {};
-          if (parsed.data.name !== undefined) updates.name = parsed.data.name;
-          if (parsed.data.description !== undefined) updates.description = parsed.data.description;
-          if (parsed.data.taskStatusId !== undefined) updates.taskStatusId = parsed.data.taskStatusId;
-          if (parsed.data.dueOn !== undefined) updates.dueOn = parsed.data.dueOn;
+          const wantsFieldUpdate =
+            parsed.data.name !== undefined ||
+            parsed.data.description !== undefined ||
+            parsed.data.taskStatusId !== undefined ||
+            parsed.data.dueOn !== undefined;
 
-          // Update task basic fields
-          if (Object.keys(updates).length > 0) {
+          // AWORK's PUT /tasks/{id} is a full replace: it requires `name`. Fetch the
+          // current task first and merge so partial updates (e.g. status only) don't
+          // fail with "The Name field is required."
+          if (wantsFieldUpdate) {
+            const currentRes = await aworkFetch<any>(`/tasks/${taskId}`, key);
+            if (!currentRes.ok || !currentRes.data) {
+              return Response.json({ ok: false, error: `Task nicht gefunden: ${currentRes.error}` }, { status: currentRes.status });
+            }
+            const cur = currentRes.data;
+            const updates: any = {
+              name: parsed.data.name !== undefined ? parsed.data.name : cur.name,
+              description: parsed.data.description !== undefined ? parsed.data.description : cur.description,
+              taskStatusId: parsed.data.taskStatusId !== undefined ? parsed.data.taskStatusId : cur.taskStatusId,
+              dueOn: parsed.data.dueOn !== undefined ? parsed.data.dueOn : cur.dueOn,
+              baseType: cur.baseType,
+              entityId: cur.entityId,
+              typeOfWorkId: cur.typeOfWorkId,
+              isPrio: cur.isPrio,
+            };
             const updateRes = await aworkFetch(`/tasks/${taskId}`, key, { method: "PUT", body: updates });
             if (!updateRes.ok) {
               return Response.json({ ok: false, error: `Update fehlgeschlagen: ${updateRes.error}` }, { status: updateRes.status });
