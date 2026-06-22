@@ -117,10 +117,19 @@ export const Route = createFileRoute("/api/awork/create-task")({
 
           const task = createRes.data;
 
-          // Add assignees if provided
+          // Add assignees if provided — AWORK uses a single "setassignees" endpoint
+          // that takes a bare array of user UUIDs and replaces the whole list.
           if (parsed.data.assigneeIds?.length) {
-            for (const userId of parsed.data.assigneeIds) {
-              await aworkFetch(`/tasks/${task.id}/users/${userId}`, key, { method: "POST" });
+            const asgRes = await aworkFetch(`/tasks/${task.id}/setassignees`, key, {
+              method: "POST",
+              body: parsed.data.assigneeIds,
+            });
+            if (!asgRes.ok) {
+              return Response.json({
+                ok: true,
+                task: { id: task.id, name: task.name, projectId: task.projectId },
+                warning: `Task erstellt, aber Zuweisung fehlgeschlagen: ${asgRes.error}`,
+              });
             }
           }
 

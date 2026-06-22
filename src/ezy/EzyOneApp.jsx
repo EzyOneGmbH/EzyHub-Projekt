@@ -5361,14 +5361,52 @@ function TaskDetailContent({ task, comments, statuses, users, onClose, onUpdateS
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [sending, setSending] = useState(false);
+  const [mentions, setMentions] = useState([]); // [{name, userId}]
+  const [mentionQuery, setMentionQuery] = useState(null); // null = closed, "" = just typed @
+  const commentInputRef = useRef(null);
+
+  // Detect @ to open the mention picker
+  const onCommentChange = (e) => {
+    const val = e.target.value;
+    setNewComment(val);
+    // Find an @ token at the caret that has no space after it yet
+    const caret = e.target.selectionStart;
+    const upToCaret = val.slice(0, caret);
+    const match = upToCaret.match(/@([\wäöüÄÖÜß]*)$/);
+    if (match) setMentionQuery(match[1]);
+    else setMentionQuery(null);
+  };
+
+  const insertMention = (user) => {
+    // Replace the trailing "@query" with "@Name " and remember the mention
+    const caret = commentInputRef.current?.selectionStart ?? newComment.length;
+    const upToCaret = newComment.slice(0, caret);
+    const rest = newComment.slice(caret);
+    const newUpTo = upToCaret.replace(/@([\wäöüÄÖÜß]*)$/, `@${user.name} `);
+    setNewComment(newUpTo + rest);
+    setMentions((prev) => prev.some((m) => m.userId === user.id) ? prev : [...prev, { name: user.name, userId: user.id }]);
+    setMentionQuery(null);
+    setTimeout(() => commentInputRef.current?.focus(), 0);
+  };
 
   const handleComment = async () => {
     if (!newComment.trim()) return;
     setSending(true);
-    await onAddComment(newComment.trim());
+    // Convert "@Name" occurrences into AWORK mention tokens ~[userId:xxx]
+    let message = newComment.trim();
+    for (const m of mentions) {
+      message = message.split(`@${m.name}`).join(`~[userId:${m.userId}]`);
+    }
+    await onAddComment(message);
     setNewComment("");
+    setMentions([]);
+    setMentionQuery(null);
     setSending(false);
   };
+
+  const mentionMatches = mentionQuery !== null
+    ? users.filter((u) => u.name.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 6)
+    : [];
 
   const doneTypes = new Set(["done", "closed", "completed"]);
   const isDone = doneTypes.has(String(task.taskStatus?.type || "").toLowerCase());
@@ -5379,9 +5417,19 @@ function TaskDetailContent({ task, comments, statuses, users, onClose, onUpdateS
     return d.toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric" });
   };
 
+  const userById = useMemo(() => {
+    const m = new Map();
+    for (const u of users) m.set(u.id, u.name);
+    return m;
+  }, [users]);
+
   const stripHtml = (html) => {
     if (!html) return "";
-    return html.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim();
+    let text = html.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ");
+    // Convert AWORK mention tokens ~[userId:xxx] back to @Name
+    text = text.replace(/~\[userId:([0-9a-f-]+)\]/gi, (_, id) => `@${userById.get(id) || "Unbekannt"}`);
+    text = text.replace(/~\[(task|project|workspace)\]/gi, (_, t) => `@${t}`);
+    return text.trim();
   };
 
   return (
@@ -5622,24 +5670,80 @@ function TaskDetailContent({ task, comments, statuses, users, onClose, onUpdateS
           </div>
 
           {/* Add Comment */}
-          <div style={{ display: "flex", gap: 10 }}>
-            <input
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              placeholder="Kommentar schreiben..."
-              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleComment()}
-              style={{
-                flex: 1,
-                padding: "10px 14px",
-                borderRadius: 8,
-                border: `1px solid ${C.border}`,
-                background: C.card,
-                color: C.text,
-                fontSize: 13,
-                fontFamily: "inherit",
-                outline: "none",
-              }}
-            />
+          <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <div style={{ flex: 1, position: "relative" }}>
+              <input
+                ref={commentInputRef}
+                value={newComment}
+                onChange={onCommentChange}
+                placeholder="Kommentar… @ für Erwähnung"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey && mentionQuery === null) handleComment();
+                  if (e.key === "Escape") setMentionQuery(null);
+                }}
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  borderRadius: 8,
+                  border: `1px solid ${C.border}`,
+                  background: C.card,
+                  color: C.text,
+                  fontSize: 13,
+                  fontFamily: "inherit",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+              {/* Mention dropdown */}
+              {mentionQuery !== null && mentionMatches.length > 0 && (
+                <div
+                  style={{
+                    position: "absolute",
+                    bottom: "100%",
+                    left: 0,
+                    marginBottom: 4,
+                    background: C.card,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 10,
+                    padding: 6,
+                    minWidth: 220,
+                    maxHeight: 240,
+                    overflowY: "auto",
+                    zIndex: 20,
+                    boxShadow: "0 8px 32px rgba(0,0,0,.4)",
+                  }}
+                >
+                  {mentionMatches.map((u) => (
+                    <button
+                      key={u.id}
+                      onClick={() => insertMention(u)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        width: "100%",
+                        padding: "8px 12px",
+                        border: "none",
+                        borderRadius: 6,
+                        cursor: "pointer",
+                        fontSize: 13,
+                        textAlign: "left",
+                        fontFamily: "inherit",
+                        background: "transparent",
+                        color: C.text,
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = C.accentDim}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                    >
+                      <span style={{ width: 24, height: 24, borderRadius: "50%", background: C.accentDim, color: C.accentLight, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {u.initials}
+                      </span>
+                      {u.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <Btn onClick={handleComment} disabled={!newComment.trim() || sending}>
               {sending ? "…" : "Senden"}
             </Btn>

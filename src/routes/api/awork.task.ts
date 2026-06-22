@@ -185,24 +185,15 @@ export const Route = createFileRoute("/api/awork/task")({
             }
           }
 
-          // Update assignees if provided
+          // Update assignees if provided — AWORK uses a single "setassignees"
+          // endpoint that takes a bare array of user UUIDs and replaces the list.
           if (parsed.data.assigneeIds !== undefined) {
-            // First, get current assignees
-            const taskRes = await aworkFetch<any>(`/tasks/${taskId}`, key);
-            const currentAssignees = (taskRes.data?.assignees || []).map((a: any) => a.id || a.userId);
-
-            // Remove old assignees
-            for (const oldId of currentAssignees) {
-              if (!parsed.data.assigneeIds.includes(oldId)) {
-                await aworkFetch(`/tasks/${taskId}/users/${oldId}`, key, { method: "DELETE" });
-              }
-            }
-
-            // Add new assignees
-            for (const newId of parsed.data.assigneeIds) {
-              if (!currentAssignees.includes(newId)) {
-                await aworkFetch(`/tasks/${taskId}/users/${newId}`, key, { method: "POST" });
-              }
+            const asgRes = await aworkFetch(`/tasks/${taskId}/setassignees`, key, {
+              method: "POST",
+              body: parsed.data.assigneeIds,
+            });
+            if (!asgRes.ok) {
+              return Response.json({ ok: false, error: `Zuweisung fehlgeschlagen: ${asgRes.error}` }, { status: asgRes.status });
             }
           }
 
