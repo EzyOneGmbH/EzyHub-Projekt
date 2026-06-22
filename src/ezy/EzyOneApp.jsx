@@ -1034,12 +1034,93 @@ const DRP = [
   { id: "30d", label: "30 Tage", d: 30 },
   { id: "90d", label: "90 Tage", d: 90 },
 ];
+const WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+const MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+
+function CalendarMonth({ year, month, rangeStart, rangeEnd, onSelect, hoverDate, onHover }) {
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const startWeekday = (firstDay.getDay() + 6) % 7;
+  const daysInMonth = lastDay.getDate();
+  const weeks = [];
+  let week = Array(startWeekday).fill(null);
+  for (let d = 1; d <= daysInMonth; d++) {
+    week.push(d);
+    if (week.length === 7) {
+      weeks.push(week);
+      week = [];
+    }
+  }
+  if (week.length > 0) {
+    while (week.length < 7) week.push(null);
+    weeks.push(week);
+  }
+  const isInRange = (day) => {
+    if (!day || !rangeStart) return false;
+    const date = new Date(year, month, day);
+    const end = rangeEnd || hoverDate;
+    if (!end) return false;
+    const s = rangeStart < end ? rangeStart : end;
+    const e = rangeStart < end ? end : rangeStart;
+    return date >= s && date <= e;
+  };
+  const isStart = (day) => day && rangeStart && new Date(year, month, day).toDateString() === rangeStart.toDateString();
+  const isEnd = (day) => day && rangeEnd && new Date(year, month, day).toDateString() === rangeEnd.toDateString();
+  const today = new Date();
+  const isToday = (day) => day && year === today.getFullYear() && month === today.getMonth() && day === today.getDate();
+  return (
+    <div style={{ width: 220 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 4 }}>
+        {WEEKDAYS.map((wd) => (
+          <div key={wd} style={{ textAlign: "center", fontSize: 10, color: C.textDim, padding: 4 }}>{wd}</div>
+        ))}
+      </div>
+      {weeks.map((w, wi) => (
+        <div key={wi} style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
+          {w.map((day, di) => {
+            const inRange = isInRange(day);
+            const start = isStart(day);
+            const end = isEnd(day);
+            const td = isToday(day);
+            return (
+              <button
+                key={di}
+                disabled={!day}
+                onClick={() => day && onSelect(new Date(year, month, day))}
+                onMouseEnter={() => day && onHover(new Date(year, month, day))}
+                style={{
+                  width: 28,
+                  height: 28,
+                  border: "none",
+                  borderRadius: start || end ? 6 : inRange ? 0 : 6,
+                  background: start || end ? C.accent : inRange ? `${C.accent}30` : "transparent",
+                  color: start || end ? "#fff" : day ? (td ? C.accent : C.text) : "transparent",
+                  fontSize: 11,
+                  fontWeight: start || end || td ? 600 : 400,
+                  cursor: day ? "pointer" : "default",
+                  fontFamily: "inherit",
+                  opacity: day ? 1 : 0,
+                }}
+              >
+                {day || ""}
+              </button>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function DateRangePicker({ value, onChange }) {
   const [open, setOpen] = useState(false);
   const [a, setA] = useState(value?.preset || "30d");
-  const [showCustom, setShowCustom] = useState(false);
-  const [customStart, setCustomStart] = useState("");
-  const [customEnd, setCustomEnd] = useState("");
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [viewMonth, setViewMonth] = useState(() => new Date().getMonth());
+  const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
+  const [rangeStart, setRangeStart] = useState(null);
+  const [rangeEnd, setRangeEnd] = useState(null);
+  const [hoverDate, setHoverDate] = useState(null);
   const ref = useRef();
   useEffect(() => {
     const h = (e) => {
@@ -1048,17 +1129,33 @@ function DateRangePicker({ value, onChange }) {
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
-  const applyCustom = () => {
-    if (!customStart || !customEnd) return;
-    const start = new Date(customStart);
-    const end = new Date(customEnd);
-    if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) return;
-    const days = Math.max(1, Math.ceil((end - start) / (24 * 60 * 60 * 1000)));
+  const handleDateSelect = (date) => {
+    if (!rangeStart || rangeEnd) {
+      setRangeStart(date);
+      setRangeEnd(null);
+    } else {
+      const start = date < rangeStart ? date : rangeStart;
+      const end = date < rangeStart ? rangeStart : date;
+      setRangeStart(start);
+      setRangeEnd(end);
+    }
+  };
+  const applyRange = () => {
+    if (!rangeStart || !rangeEnd) return;
+    const days = Math.max(1, Math.ceil((rangeEnd - rangeStart) / (24 * 60 * 60 * 1000)) + 1);
     const fmt = (d) => d.toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit" });
-    onChange({ label: `${fmt(start)} – ${fmt(end)}`, days, start, end, preset: "custom" });
+    onChange({ label: `${fmt(rangeStart)} – ${fmt(rangeEnd)}`, days, start: rangeStart, end: rangeEnd, preset: "custom" });
     setA("custom");
-    setShowCustom(false);
+    setShowCalendar(false);
     setOpen(false);
+  };
+  const prevMonth = () => {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear(viewYear - 1); }
+    else setViewMonth(viewMonth - 1);
+  };
+  const nextMonth = () => {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear(viewYear + 1); }
+    else setViewMonth(viewMonth + 1);
   };
   const displayLabel = value?.label || "30 Tage";
   return (
@@ -1094,115 +1191,132 @@ function DateRangePicker({ value, onChange }) {
             border: `1px solid ${C.border}`,
             borderRadius: 10,
             padding: 6,
-            minWidth: 200,
+            minWidth: showCalendar ? 260 : 200,
             zIndex: 60,
             boxShadow: "0 8px 32px rgba(0,0,0,.4)",
           }}
         >
-          {DRP.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => {
-                setA(p.id);
-                setShowCustom(false);
-                const now = new Date();
-                const start = new Date(now.getTime() - p.d * 24 * 60 * 60 * 1000);
-                onChange({ label: p.label, days: p.d, start, end: now, preset: p.id });
-                setOpen(false);
-              }}
-              style={{
-                display: "block",
-                width: "100%",
-                padding: "8px 12px",
-                border: "none",
-                borderRadius: 6,
-                cursor: "pointer",
-                fontSize: 12,
-                textAlign: "left",
-                fontFamily: "inherit",
-                background: a === p.id ? C.accentDim : "transparent",
-                color: a === p.id ? C.accentLight : C.text,
-                fontWeight: a === p.id ? 600 : 400,
-              }}
-            >
-              {p.label}
-            </button>
-          ))}
-          <div style={{ height: 1, background: C.border, margin: "6px 0" }} />
-          <button
-            onClick={() => setShowCustom(!showCustom)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              width: "100%",
-              padding: "8px 12px",
-              border: "none",
-              borderRadius: 6,
-              cursor: "pointer",
-              fontSize: 12,
-              textAlign: "left",
-              fontFamily: "inherit",
-              background: a === "custom" ? C.accentDim : "transparent",
-              color: a === "custom" ? C.accentLight : C.text,
-              fontWeight: a === "custom" ? 600 : 400,
-            }}
-          >
-            <Calendar size={12} />
-            Eigener Zeitraum
-          </button>
-          {showCustom && (
-            <div style={{ padding: "8px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <input
-                  type="date"
-                  value={customStart}
-                  onChange={(e) => setCustomStart(e.target.value)}
-                  style={{
-                    flex: 1,
-                    padding: "6px 8px",
-                    borderRadius: 6,
-                    border: `1px solid ${C.border}`,
-                    background: C.bg,
-                    color: C.text,
-                    fontSize: 11,
-                    fontFamily: "inherit",
+          {!showCalendar ? (
+            <>
+              {DRP.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => {
+                    setA(p.id);
+                    const now = new Date();
+                    const start = new Date(now.getTime() - p.d * 24 * 60 * 60 * 1000);
+                    onChange({ label: p.label, days: p.d, start, end: now, preset: p.id });
+                    setOpen(false);
                   }}
-                />
-                <span style={{ color: C.textMuted, fontSize: 11 }}>–</span>
-                <input
-                  type="date"
-                  value={customEnd}
-                  onChange={(e) => setCustomEnd(e.target.value)}
                   style={{
-                    flex: 1,
-                    padding: "6px 8px",
+                    display: "block",
+                    width: "100%",
+                    padding: "8px 12px",
+                    border: "none",
                     borderRadius: 6,
-                    border: `1px solid ${C.border}`,
-                    background: C.bg,
-                    color: C.text,
-                    fontSize: 11,
+                    cursor: "pointer",
+                    fontSize: 12,
+                    textAlign: "left",
                     fontFamily: "inherit",
+                    background: a === p.id ? C.accentDim : "transparent",
+                    color: a === p.id ? C.accentLight : C.text,
+                    fontWeight: a === p.id ? 600 : 400,
                   }}
-                />
-              </div>
+                >
+                  {p.label}
+                </button>
+              ))}
+              <div style={{ height: 1, background: C.border, margin: "6px 0" }} />
               <button
-                onClick={applyCustom}
-                disabled={!customStart || !customEnd}
+                onClick={() => {
+                  setShowCalendar(true);
+                  setRangeStart(null);
+                  setRangeEnd(null);
+                }}
                 style={{
-                  padding: "6px 12px",
-                  borderRadius: 6,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  width: "100%",
+                  padding: "8px 12px",
                   border: "none",
-                  background: customStart && customEnd ? C.accent : C.border,
-                  color: customStart && customEnd ? "#fff" : C.textMuted,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  cursor: customStart && customEnd ? "pointer" : "not-allowed",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  fontSize: 12,
+                  textAlign: "left",
                   fontFamily: "inherit",
+                  background: a === "custom" ? C.accentDim : "transparent",
+                  color: a === "custom" ? C.accentLight : C.text,
+                  fontWeight: a === "custom" ? 600 : 400,
                 }}
               >
-                Anwenden
+                <Calendar size={12} />
+                Eigener Zeitraum
               </button>
+            </>
+          ) : (
+            <div style={{ padding: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <button onClick={prevMonth} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, padding: 4 }}>
+                  <ChevronLeft size={16} />
+                </button>
+                <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>
+                  {MONTHS[viewMonth]} {viewYear}
+                </span>
+                <button onClick={nextMonth} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, padding: 4 }}>
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+              <CalendarMonth
+                year={viewYear}
+                month={viewMonth}
+                rangeStart={rangeStart}
+                rangeEnd={rangeEnd}
+                hoverDate={hoverDate}
+                onSelect={handleDateSelect}
+                onHover={setHoverDate}
+              />
+              <div style={{ marginTop: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ fontSize: 11, color: C.textMuted }}>
+                  {rangeStart ? rangeStart.toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric" }) : "Start"}
+                  {" – "}
+                  {rangeEnd ? rangeEnd.toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric" }) : "Ende"}
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    onClick={() => setShowCalendar(false)}
+                    style={{
+                      padding: "5px 10px",
+                      borderRadius: 6,
+                      border: `1px solid ${C.border}`,
+                      background: "transparent",
+                      color: C.textMuted,
+                      fontSize: 11,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    Zurück
+                  </button>
+                  <button
+                    onClick={applyRange}
+                    disabled={!rangeStart || !rangeEnd}
+                    style={{
+                      padding: "5px 10px",
+                      borderRadius: 6,
+                      border: "none",
+                      background: rangeStart && rangeEnd ? C.accent : C.border,
+                      color: rangeStart && rangeEnd ? "#fff" : C.textMuted,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: rangeStart && rangeEnd ? "pointer" : "not-allowed",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    Anwenden
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>
