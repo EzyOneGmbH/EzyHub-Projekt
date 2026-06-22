@@ -72,12 +72,22 @@ export const Route = createFileRoute("/api/awork/create-task")({
             taskStatusId = defaultStatus?.id;
           }
 
-          // Create the task
+          // Get a typeOfWork (required by some AWORK workspaces)
+          let typeOfWorkId: string | undefined;
+          const towRes = await aworkFetch<any[]>("/typeofwork", key);
+          if (towRes.ok && Array.isArray(towRes.data) && towRes.data.length > 0) {
+            const defaultTow = towRes.data.find((t: any) => t.isArchived !== true) || towRes.data[0];
+            typeOfWorkId = defaultTow?.id;
+          }
+
+          // Create the task — AWORK requires baseType="projecttask" and entityId=projectUUID.
           const taskBody: any = {
             name: parsed.data.name,
-            projectId: parsed.data.projectId,
+            baseType: "projecttask",
+            entityId: parsed.data.projectId,
             taskStatusId,
           };
+          if (typeOfWorkId) taskBody.typeOfWorkId = typeOfWorkId;
 
           if (parsed.data.description) taskBody.description = parsed.data.description;
           if (parsed.data.dueOn) taskBody.dueOn = parsed.data.dueOn;

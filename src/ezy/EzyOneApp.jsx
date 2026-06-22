@@ -5650,6 +5650,101 @@ function TaskDetailContent({ task, comments, statuses, users, onClose, onUpdateS
   );
 }
 
+// Reusable date picker field with calendar popup (single date)
+function DatePickerField({ value, onChange, placeholder = "Datum wählen" }) {
+  const [open, setOpen] = useState(false);
+  const parsed = value ? new Date(value) : null;
+  const [viewMonth, setViewMonth] = useState(() => (parsed && !isNaN(parsed) ? parsed.getMonth() : new Date().getMonth()));
+  const [viewYear, setViewYear] = useState(() => (parsed && !isNaN(parsed) ? parsed.getFullYear() : new Date().getFullYear()));
+  const ref = useRef();
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+  const selected = value ? new Date(value) : null;
+  const toISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const prevMonth = () => {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear(viewYear - 1); }
+    else setViewMonth(viewMonth - 1);
+  };
+  const nextMonth = () => {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear(viewYear + 1); }
+    else setViewMonth(viewMonth + 1);
+  };
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "10px 14px",
+          borderRadius: 8,
+          border: `1px solid ${C.border}`,
+          background: C.card,
+          color: value ? C.text : C.textMuted,
+          fontSize: 13,
+          fontFamily: "inherit",
+          cursor: "pointer",
+          boxSizing: "border-box",
+        }}
+      >
+        <Calendar size={14} color={C.textMuted} />
+        {value ? new Date(value).toLocaleDateString("de-CH", { day: "2-digit", month: "long", year: "numeric" }) : placeholder}
+        {value && (
+          <X
+            size={14}
+            color={C.textMuted}
+            style={{ marginLeft: "auto" }}
+            onClick={(e) => { e.stopPropagation(); onChange(""); }}
+          />
+        )}
+      </button>
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            marginTop: 4,
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 10,
+            padding: 12,
+            zIndex: 200,
+            boxShadow: "0 8px 32px rgba(0,0,0,.4)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <button type="button" onClick={prevMonth} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, padding: 4 }}>
+              <ChevronLeft size={16} />
+            </button>
+            <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>
+              {MONTHS[viewMonth]} {viewYear}
+            </span>
+            <button type="button" onClick={nextMonth} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, padding: 4 }}>
+              <ChevronRight size={16} />
+            </button>
+          </div>
+          <CalendarMonth
+            year={viewYear}
+            month={viewMonth}
+            rangeStart={selected}
+            rangeEnd={selected}
+            hoverDate={null}
+            onSelect={(d) => { onChange(toISO(d)); setOpen(false); }}
+            onHover={() => {}}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Create Task Modal Component
 function CreateTaskModal({ projectId, projectName, statuses, tasklists = [], users, defaultListId, onClose, onCreate }) {
   const [name, setName] = useState("");
@@ -5740,12 +5835,7 @@ function CreateTaskModal({ projectId, projectName, statuses, tasklists = [], use
           )}
           <div style={{ flex: 1 }}>
             <label style={{ fontSize: 12, color: C.textMuted, display: "block", marginBottom: 6 }}>Fällig am</label>
-            <input
-              type="date"
-              value={dueOn}
-              onChange={(e) => setDueOn(e.target.value)}
-              style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
-            />
+            <DatePickerField value={dueOn} onChange={setDueOn} placeholder="Kein Datum" />
           </div>
         </div>
 
