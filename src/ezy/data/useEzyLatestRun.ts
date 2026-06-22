@@ -490,17 +490,27 @@ export function aworkTasksFromResult(result: any): {
   project: { id: string; name: string } | null;
   projects: Array<{ id: string; name: string }>;
   statuses: Array<{ id: string; name: string; type?: string; order?: number }>;
+  tasklists: Array<{ id: string; name: string; order?: number }>;
   tasks: Array<{
     id: string;
     name: string;
     project?: string;
+    projectId?: string;
     statusId: string;
     statusName: string;
     statusType: string;
-    assignees: Array<{ initials: string; name: string }>;
+    assignees: Array<{ id?: string; initials: string; name: string }>;
     dueOn: string | null;
     isPrio: boolean;
+    listId?: string;
     list: string;
+    hasSubtasks?: boolean;
+    subtasksDoneCount?: number;
+    subtasksCount?: number;
+    trackedDuration?: number;
+    plannedDuration?: number;
+    commentsCount?: number;
+    parentId?: string | null;
   }>;
   counts: { total: number; done: number };
   note: string | null;
@@ -510,6 +520,7 @@ export function aworkTasksFromResult(result: any): {
     project: r.project ?? null,
     projects: Array.isArray(r.projects) ? r.projects : [],
     statuses: Array.isArray(r.statuses) ? r.statuses : [],
+    tasklists: Array.isArray(r.tasklists) ? r.tasklists : [],
     tasks: Array.isArray(r.tasks) ? r.tasks : [],
     counts: { total: Number(r.counts?.total ?? 0) || 0, done: Number(r.counts?.done ?? 0) || 0 },
     note: r.note ?? null,

@@ -155,9 +155,9 @@ async function firstOk(paths: string[], key: string) {
   return last!;
 }
 
-// Fetch one project's statuses + tasks and normalize.
+// Fetch one project's statuses + tasks + tasklists and normalize.
 async function fetchProjectTasks(projectId: string, projectName: string, key: string) {
-  const [stRes, tkRes] = await Promise.all([
+  const [stRes, tkRes, listRes] = await Promise.all([
     firstOk([`/projects/${projectId}/taskstatuses`, `/projects/${projectId}/task-statuses`], key),
     firstOk(
       [
@@ -166,6 +166,7 @@ async function fetchProjectTasks(projectId: string, projectName: string, key: st
       ],
       key,
     ),
+    firstOk([`/projects/${projectId}/tasklists`, `/projects/${projectId}/task-lists`], key),
   ]);
   const statuses: AworkStatus[] = (stRes.data || [])
     .map((s: any) => ({
@@ -175,29 +176,49 @@ async function fetchProjectTasks(projectId: string, projectName: string, key: st
       order: Number(s.order ?? 0),
     }))
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const tasklists = (listRes.data || [])
+    .map((l: any) => ({
+      id: String(l.id),
+      name: String(l.name ?? ""),
+      order: Number(l.order ?? 0),
+    }))
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const statusById = new Map(statuses.map((s) => [s.id, s]));
   const tasks = (tkRes.data || []).map((t: any) => {
     const sid = String(t.taskStatusId ?? t.taskStatus?.id ?? "");
     const st = statusById.get(sid);
     const assignees = Array.isArray(t.assignees) ? t.assignees : t.users || [];
+    const listId = Array.isArray(t.lists) && t.lists[0] ? String(t.lists[0].id ?? "") : "";
+    const listName = Array.isArray(t.lists) && t.lists[0] ? String(t.lists[0].name ?? "") : (t.listName ?? "");
     return {
       id: String(t.id ?? ""),
       name: String(t.name ?? ""),
       project: projectName,
+      projectId: projectId,
       statusId: sid,
       statusName: t.taskStatus?.name ?? st?.name ?? "Ohne Status",
       statusType: t.taskStatus?.type ?? st?.type ?? "",
       assignees: assignees.map((a: any) => ({
+        id: String(a.id ?? a.userId ?? ""),
         initials: initials(a),
         name: `${a?.firstName ?? ""} ${a?.lastName ?? ""}`.trim() || a?.name || "",
       })),
       dueOn: t.dueOn ?? t.dueDate ?? null,
       isPrio: !!t.isPrio,
-      list: Array.isArray(t.lists) ? (t.lists[0]?.name ?? "") : (t.listName ?? ""),
+      listId,
+      list: listName,
+      hasSubtasks: t.hasSubtasks || (t.subtasksCount ?? 0) > 0,
+      subtasksDoneCount: Number(t.subtasksDoneCount ?? 0),
+      subtasksCount: Number(t.subtasksCount ?? 0),
+      trackedDuration: Number(t.trackedDuration ?? 0),
+      plannedDuration: Number(t.plannedDuration ?? 0),
+      commentsCount: Number(t.commentsCount ?? 0),
+      parentId: t.parentId || null,
     };
   });
   return {
     statuses,
+    tasklists,
     tasks,
     statusesHttp: stRes.ok ? 200 : stRes.status,
     tasksHttp: tkRes.ok ? 200 : tkRes.status,
@@ -265,6 +286,14 @@ export async function fetchAworkForClient(clientName: string, key: string) {
     }
   }
   const statuses = [...statusMap.values()].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  // Merge tasklists by name
+  const tasklistMap = new Map<string, { id: string; name: string; order: number }>();
+  for (const r of perProject) {
+    for (const l of r.tasklists || []) {
+      if (!tasklistMap.has(l.name)) tasklistMap.set(l.name, l);
+    }
+  }
+  const tasklists = [...tasklistMap.values()].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const doneTypes = new Set(["done", "closed", "completed"]);
   const done = tasks.filter((t) => doneTypes.has(String(t.statusType).toLowerCase())).length;
 
@@ -277,6 +306,7 @@ export async function fetchAworkForClient(clientName: string, key: string) {
     project: { id: String(chosen[0].id), name: projectLabel },
     projects: chosen.map((p) => ({ id: String(p.id), name: String(p.name) })),
     statuses,
+    tasklists,
     tasks,
     counts: { total: tasks.length, done },
     generated_at: new Date().toISOString(),

@@ -91,6 +91,8 @@ import {
   Type,
   Megaphone,
   ListChecks,
+  MessageSquare,
+  ArrowRight,
 } from "lucide-react";
 import { ezyFetch } from "@/ezy/data/api";
 import { useAuth } from "@/hooks/use-auth";
@@ -4461,12 +4463,301 @@ function AdsDashboard({ selectedClient, dateRange }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// AWORK LIST VIEW COMPONENT (like AWORK's native list layout)
+// ═══════════════════════════════════════════════════════════════════════════
+function AworkListView({ tasks, allTasks, tasklists, statuses, hideDone, expandedLists, onToggleList, onOpenTask, onCreateInList, fmtDue, isDone, statusColor }) {
+  // Group tasks by list
+  const tasksByList = useMemo(() => {
+    const groups = new Map();
+    // First add all known tasklists
+    for (const list of tasklists) {
+      groups.set(list.name, { id: list.id, name: list.name, tasks: [], order: list.order ?? 0 });
+    }
+    // Add tasks to their lists
+    for (const t of tasks) {
+      const listName = t.list || "Ohne Liste";
+      if (!groups.has(listName)) {
+        groups.set(listName, { id: listName, name: listName, tasks: [], order: 999 });
+      }
+      groups.get(listName).tasks.push(t);
+    }
+    // Sort by order and filter empty lists when hiding done
+    return [...groups.values()]
+      .filter((g) => g.tasks.length > 0 || !hideDone)
+      .sort((a, b) => a.order - b.order);
+  }, [tasks, tasklists, hideDone]);
+
+  // Calculate list stats
+  const listStats = (listName) => {
+    const listTasks = allTasks.filter((t) => (t.list || "Ohne Liste") === listName);
+    const done = listTasks.filter((t) => isDone(t.statusType)).length;
+    const totalTime = listTasks.reduce((sum, t) => sum + (t.trackedDuration || 0), 0);
+    const plannedTime = listTasks.reduce((sum, t) => sum + (t.plannedDuration || 0), 0);
+    return { total: listTasks.length, done, totalTime, plannedTime };
+  };
+
+  const fmtDuration = (seconds) => {
+    if (!seconds || seconds <= 0) return "0h";
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    if (h > 0 && m > 0) return `${h}:${String(m).padStart(2, "0")}h`;
+    if (h > 0) return `${h}h`;
+    return `${m}m`;
+  };
+
+  const fmtDays = (dueOn) => {
+    if (!dueOn) return null;
+    const d = new Date(dueOn);
+    const now = new Date();
+    const diff = Math.ceil((d - now) / (1000 * 60 * 60 * 24));
+    if (diff < 0) return { label: `${Math.abs(diff)}d`, overdue: true };
+    if (diff === 0) return { label: "Heute", overdue: false };
+    return { label: d.toLocaleDateString("de-CH", { day: "2-digit", month: "short" }), overdue: false };
+  };
+
+  if (tasksByList.length === 0) {
+    return (
+      <div style={{ fontSize: 13, color: C.textMuted, textAlign: "center", padding: "24px 0" }}>
+        {hideDone && allTasks.length > 0
+          ? "Alle Aufgaben erledigt — Toggle deaktivieren, um sie anzuzeigen."
+          : "Keine Aufgaben."}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+      {tasksByList.map((group) => {
+        const stats = listStats(group.name);
+        const isExpanded = expandedLists.has(group.name) || expandedLists.size === 0;
+        const allDone = stats.total > 0 && stats.done === stats.total;
+
+        return (
+          <div key={group.name} style={{ borderBottom: `1px solid ${C.border}` }}>
+            {/* List Header */}
+            <button
+              onClick={() => onToggleList(group.name)}
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "14px 16px",
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                textAlign: "left",
+              }}
+            >
+              <ChevronDown
+                size={16}
+                color={C.textMuted}
+                style={{ transform: isExpanded ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform .15s" }}
+              />
+              <span style={{ fontSize: 15, fontWeight: 600, color: C.text, flex: 1 }}>
+                {group.name}
+              </span>
+              {/* Stats badges */}
+              <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: allDone ? C.green : C.textMuted }}>
+                <CheckCircle size={13} />
+                {stats.done}/{stats.total}
+              </span>
+              <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.textMuted }}>
+                <Clock size={13} />
+                {fmtDuration(stats.totalTime)}
+              </span>
+              {stats.plannedTime > 0 && (
+                <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.textMuted }}>
+                  <Target size={13} />
+                  {fmtDuration(stats.plannedTime)}
+                </span>
+              )}
+            </button>
+
+            {/* Tasks in list */}
+            {isExpanded && (
+              <div style={{ paddingLeft: 28 }}>
+                {/* New Task Input Row */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "10px 16px",
+                    color: C.textDim,
+                    fontSize: 13,
+                    cursor: "pointer",
+                  }}
+                  onClick={() => onCreateInList(group.id)}
+                >
+                  <div style={{ width: 22, height: 22, borderRadius: "50%", border: `2px dashed ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Plus size={12} color={C.textDim} />
+                  </div>
+                  <span style={{ fontStyle: "italic" }}>Neue Aufgabe</span>
+                </div>
+
+                {/* Task Rows */}
+                {group.tasks.map((t) => {
+                  const due = fmtDays(t.dueOn);
+                  const taskDone = isDone(t.statusType);
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => onOpenTask(t)}
+                      style={{
+                        width: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        padding: "10px 16px",
+                        background: "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        textAlign: "left",
+                        transition: "background .1s",
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = C.cardHover}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                    >
+                      {/* Status Circle */}
+                      <div
+                        style={{
+                          width: 22,
+                          height: 22,
+                          borderRadius: "50%",
+                          border: `2px solid ${taskDone ? C.green : statusColor(t.statusType)}`,
+                          background: taskDone ? C.green : "transparent",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {taskDone && <Check size={12} color="#fff" />}
+                        {!taskDone && t.statusType === "progress" && (
+                          <ArrowRight size={10} color={C.blue} />
+                        )}
+                      </div>
+
+                      {/* Task Name + Subtask indicator */}
+                      <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{
+                          fontSize: 13,
+                          color: taskDone ? C.textMuted : C.text,
+                          textDecoration: taskDone ? "line-through" : "none",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}>
+                          {t.name}
+                        </span>
+                        {t.hasSubtasks && (
+                          <span style={{ fontSize: 11, color: C.textDim, display: "flex", alignItems: "center", gap: 3, flexShrink: 0 }}>
+                            <ChevronDown size={10} style={{ transform: "rotate(-90deg)" }} />
+                            {t.subtasksDoneCount}/{t.subtasksCount}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Priority Flag */}
+                      {t.isPrio && (
+                        <span style={{ color: C.red, fontSize: 14, flexShrink: 0 }} title="Priorität">🚩</span>
+                      )}
+
+                      {/* Subtasks badge */}
+                      {t.subtasksCount > 0 && (
+                        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: C.textMuted, flexShrink: 0 }}>
+                          <Layers size={12} />
+                          {t.subtasksDoneCount}/{t.subtasksCount}
+                        </span>
+                      )}
+
+                      {/* Time tracked */}
+                      {t.trackedDuration > 0 && (
+                        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: C.textMuted, flexShrink: 0 }}>
+                          <Clock size={12} />
+                          {fmtDuration(t.trackedDuration)}
+                        </span>
+                      )}
+
+                      {/* Due Date */}
+                      {due && (
+                        <span style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                          fontSize: 11,
+                          color: due.overdue ? C.red : C.textMuted,
+                          fontWeight: due.overdue ? 600 : 400,
+                          flexShrink: 0,
+                        }}>
+                          <Calendar size={12} />
+                          {due.label}
+                        </span>
+                      )}
+
+                      {/* Comments badge */}
+                      {t.commentsCount > 0 && (
+                        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: C.textMuted, flexShrink: 0 }}>
+                          <MessageSquare size={12} />
+                          {t.commentsCount}
+                        </span>
+                      )}
+
+                      {/* Assignees */}
+                      {t.assignees?.length > 0 && (
+                        <div style={{ display: "flex", flexShrink: 0 }}>
+                          {t.assignees.slice(0, 2).map((a, i) => (
+                            <span
+                              key={a.id || i}
+                              title={a.name}
+                              style={{
+                                width: 24,
+                                height: 24,
+                                borderRadius: "50%",
+                                background: C.accentDim,
+                                color: C.accentLight,
+                                fontSize: 9,
+                                fontWeight: 700,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                marginLeft: i === 0 ? 0 : -8,
+                                border: `2px solid ${C.bg}`,
+                              }}
+                            >
+                              {a.initials}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+
+                {group.tasks.length === 0 && (
+                  <div style={{ padding: "12px 16px", fontSize: 12, color: C.textDim, fontStyle: "italic" }}>
+                    Keine Aufgaben in Liste.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // TASKS (AWORK) DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════
 function TasksDashboard({ selectedClient }) {
   const toast = useToast();
   const { run, loading, refresh } = useEzyLatestRun(selectedClient?.id, "awork_tasks");
-  const { project, projects, statuses, tasks, counts, note } = aworkTasksFromResult(run?.result);
+  const { project, projects, statuses, tasklists, tasks, counts, note } = aworkTasksFromResult(run?.result);
   const [pulling, setPulling] = useState(false);
   const [err, setErr] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState(null);
@@ -4476,6 +4767,8 @@ function TasksDashboard({ selectedClient }) {
   const [taskLoading, setTaskLoading] = useState(false);
   const [aworkUsers, setAworkUsers] = useState([]);
   const [showCreateTask, setShowCreateTask] = useState(false);
+  const [expandedLists, setExpandedLists] = useState(new Set());
+  const [createInList, setCreateInList] = useState(null);
 
   const pull = async () => {
     if (!selectedClient?.id) return;
@@ -4903,117 +5196,26 @@ function TasksDashboard({ selectedClient }) {
         </div>
       )}
 
-      {cols.length === 0 && (
-        <div style={{ fontSize: 13, color: C.textMuted, textAlign: "center", padding: "24px 0" }}>
-          {hideDone && projectTasksAll.length > 0
-            ? "Alle Aufgaben erledigt — Toggle deaktivieren, um sie anzuzeigen."
-            : "Keine Aufgaben."}
-        </div>
-      )}
-
-      {/* Board: one column per status */}
-      {cols.length > 0 && (
-        <div className="awork-board" style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 6 }}>
-          {cols.map((col) => {
-            const colTasks = tasksByStatus(col.name);
-            const accent = statusColor(col.type);
-            return (
-              <div
-                key={col.id || col.name}
-                className="awork-col"
-                style={{
-                  flex: "0 0 280px",
-                  minWidth: 280,
-                  background: C.card,
-                  border: `1px solid ${C.border}`,
-                  borderRadius: 12,
-                  padding: 14,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 10,
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ width: 9, height: 9, borderRadius: "50%", background: accent }} />
-                    <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{col.name}</span>
-                  </div>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: C.textMuted }}>{colTasks.length}</span>
-                </div>
-                {colTasks.length === 0 && (
-                  <div style={{ fontSize: 12, color: C.textDim, padding: "6px 0" }}>—</div>
-                )}
-                {colTasks.map((t) => {
-                  const due = fmtDue(t.dueOn);
-                  return (
-                    <button
-                      key={t.id}
-                      onClick={() => openTask(t)}
-                      style={{
-                        background: C.bg,
-                        border: `1px solid ${C.border}`,
-                        borderRadius: 10,
-                        padding: "10px 12px",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 8,
-                        cursor: "pointer",
-                        textAlign: "left",
-                        width: "100%",
-                        fontFamily: "inherit",
-                        transition: "border-color .15s",
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.borderColor = C.accent}
-                      onMouseLeave={(e) => e.currentTarget.style.borderColor = C.border}
-                    >
-                      <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
-                        {t.isPrio && <span style={{ color: C.orange, fontSize: 13, lineHeight: 1.3 }}>★</span>}
-                        <span style={{ fontSize: 13, color: C.text, lineHeight: 1.35 }}>{t.name}</span>
-                      </div>
-                      {t.list && (
-                        <span style={{ fontSize: 11, color: C.textDim }}>
-                          {t.list}
-                        </span>
-                      )}
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                        <div style={{ display: "flex" }}>
-                          {t.assignees.slice(0, 3).map((a, i) => (
-                            <span
-                              key={i}
-                              title={a.name}
-                              style={{
-                                width: 22,
-                                height: 22,
-                                borderRadius: "50%",
-                                background: C.accentDim,
-                                color: C.accentLight,
-                                fontSize: 9,
-                                fontWeight: 700,
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                marginLeft: i === 0 ? 0 : -6,
-                                border: `1px solid ${C.card}`,
-                              }}
-                            >
-                              {a.initials}
-                            </span>
-                          ))}
-                        </div>
-                        {due && (
-                          <span style={{ fontSize: 11, fontWeight: 600, color: due.overdue ? C.red : C.textMuted }}>
-                            {due.label}
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {/* AWORK-Style List View */}
+      <AworkListView
+        tasks={projectTasks}
+        allTasks={projectTasksAll}
+        tasklists={tasklists}
+        statuses={statuses}
+        hideDone={hideDone}
+        expandedLists={expandedLists}
+        onToggleList={(listName) => setExpandedLists((prev) => {
+          const next = new Set(prev);
+          if (next.has(listName)) next.delete(listName);
+          else next.add(listName);
+          return next;
+        })}
+        onOpenTask={openTask}
+        onCreateInList={(listId) => { setCreateInList(listId); setShowCreateTask(true); }}
+        fmtDue={fmtDue}
+        isDone={isDone}
+        statusColor={statusColor}
+      />
 
       {/* Task Detail Modal */}
       {selectedTask && (
@@ -5084,14 +5286,16 @@ function TasksDashboard({ selectedClient }) {
             justifyContent: "center",
             padding: 20,
           }}
-          onClick={(e) => e.target === e.currentTarget && setShowCreateTask(false)}
+          onClick={(e) => e.target === e.currentTarget && { setShowCreateTask(false); setCreateInList(null); }}
         >
           <CreateTaskModal
             projectId={selectedProject.id}
             projectName={selectedProject.name}
             statuses={statuses}
+            tasklists={tasklists}
             users={aworkUsers}
-            onClose={() => setShowCreateTask(false)}
+            defaultListId={createInList}
+            onClose={() => { setShowCreateTask(false); setCreateInList(null); }}
             onCreate={createTask}
           />
         </div>
@@ -5396,10 +5600,11 @@ function TaskDetailContent({ task, comments, statuses, users, onClose, onUpdateS
 }
 
 // Create Task Modal Component
-function CreateTaskModal({ projectId, projectName, statuses, users, onClose, onCreate }) {
+function CreateTaskModal({ projectId, projectName, statuses, tasklists = [], users, defaultListId, onClose, onCreate }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [statusId, setStatusId] = useState(statuses[0]?.id || "");
+  const [listId, setListId] = useState(defaultListId || "");
   const [assigneeIds, setAssigneeIds] = useState([]);
   const [dueOn, setDueOn] = useState("");
   const [isPrio, setIsPrio] = useState(false);
@@ -5413,6 +5618,7 @@ function CreateTaskModal({ projectId, projectName, statuses, users, onClose, onC
       name: name.trim(),
       description: description.trim() || undefined,
       taskStatusId: statusId || undefined,
+      listId: listId || undefined,
       assigneeIds: assigneeIds.length > 0 ? assigneeIds : undefined,
       dueOn: dueOn || undefined,
       isPrio,
@@ -5456,7 +5662,7 @@ function CreateTaskModal({ projectId, projectName, statuses, users, onClose, onC
           />
         </div>
 
-        {/* Status & Due Date Row */}
+        {/* Status & List Row */}
         <div style={{ display: "flex", gap: 12 }}>
           <div style={{ flex: 1 }}>
             <label style={{ fontSize: 12, color: C.textMuted, display: "block", marginBottom: 6 }}>Status</label>
@@ -5468,6 +5674,19 @@ function CreateTaskModal({ projectId, projectName, statuses, users, onClose, onC
               {statuses.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
+          {tasklists.length > 0 && (
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 12, color: C.textMuted, display: "block", marginBottom: 6 }}>Liste</label>
+              <select
+                value={listId}
+                onChange={(e) => setListId(e.target.value)}
+                style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none" }}
+              >
+                <option value="">Keine Liste</option>
+                {tasklists.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </select>
+            </div>
+          )}
           <div style={{ flex: 1 }}>
             <label style={{ fontSize: 12, color: C.textMuted, display: "block", marginBottom: 6 }}>Fällig am</label>
             <input
