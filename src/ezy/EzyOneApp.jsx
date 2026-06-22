@@ -5029,10 +5029,18 @@ function TasksDashboard({ selectedClient }) {
       ? null
       : projects[0] || null;
 
-  // Filter tasks to selected project (and optionally drop finished tasks).
+  // Filter tasks to selected project (by projectId, fallback to name) and drop finished tasks.
   const projectTasksAll = selectedProject
-    ? tasks.filter((t) => t.project === selectedProject.name)
+    ? tasks.filter((t) =>
+        t.projectId ? String(t.projectId) === String(selectedProject.id) : t.project === selectedProject.name,
+      )
     : tasks;
+  // Filter tasklists to the selected project so empty lists from other projects don't appear.
+  const projectTasklists = selectedProject
+    ? tasklists.filter((l) =>
+        l.projectId ? String(l.projectId) === String(selectedProject.id) : l.projectName === selectedProject.name,
+      )
+    : tasklists;
   const projectTasks = hideDone
     ? projectTasksAll.filter((t) => !isDone(t.statusType))
     : projectTasksAll;
@@ -5244,7 +5252,7 @@ function TasksDashboard({ selectedClient }) {
       <AworkListView
         tasks={projectTasks}
         allTasks={projectTasksAll}
-        tasklists={tasklists}
+        tasklists={projectTasklists}
         statuses={statuses}
         hideDone={hideDone}
         expandedLists={expandedLists}
@@ -5335,7 +5343,7 @@ function TasksDashboard({ selectedClient }) {
             projectId={selectedProject.id}
             projectName={selectedProject.name}
             statuses={statuses}
-            tasklists={tasklists}
+            tasklists={projectTasklists}
             users={aworkUsers}
             defaultListId={createInList}
             onClose={() => { setShowCreateTask(false); setCreateInList(null); }}

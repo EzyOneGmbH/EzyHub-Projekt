@@ -490,7 +490,7 @@ export function aworkTasksFromResult(result: any): {
   project: { id: string; name: string } | null;
   projects: Array<{ id: string; name: string }>;
   statuses: Array<{ id: string; name: string; type?: string; order?: number; color?: string | null; icon?: string | null }>;
-  tasklists: Array<{ id: string; name: string; order?: number; color?: string | null }>;
+  tasklists: Array<{ id: string; name: string; order?: number; color?: string | null; projectId?: string; projectName?: string }>;
   tasks: Array<{
     id: string;
     name: string;

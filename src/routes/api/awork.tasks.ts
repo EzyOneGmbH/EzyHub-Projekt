@@ -184,6 +184,8 @@ async function fetchProjectTasks(projectId: string, projectName: string, key: st
       name: String(l.name ?? ""),
       order: Number(l.order ?? 0),
       color: l.color || null,
+      projectId: projectId,
+      projectName: projectName,
     }))
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const statusById = new Map(statuses.map((s) => [s.id, s]));
@@ -291,11 +293,13 @@ export async function fetchAworkForClient(clientName: string, key: string) {
     }
   }
   const statuses = [...statusMap.values()].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  // Merge tasklists by name
-  const tasklistMap = new Map<string, { id: string; name: string; order: number }>();
+  // Keep tasklists separated per project (key by projectId + list id) so lists
+  // with the same name in different projects don't collapse into one.
+  const tasklistMap = new Map<string, any>();
   for (const r of perProject) {
     for (const l of r.tasklists || []) {
-      if (!tasklistMap.has(l.name)) tasklistMap.set(l.name, l);
+      const key = `${l.projectId}::${l.id}`;
+      if (!tasklistMap.has(key)) tasklistMap.set(key, l);
     }
   }
   const tasklists = [...tasklistMap.values()].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
