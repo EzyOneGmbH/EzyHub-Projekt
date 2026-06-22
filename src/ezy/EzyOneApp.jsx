@@ -4464,12 +4464,18 @@ function AdsDashboard({ selectedClient, dateRange }) {
 // TASKS (AWORK) DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════
 function TasksDashboard({ selectedClient }) {
+  const toast = useToast();
   const { run, loading, refresh } = useEzyLatestRun(selectedClient?.id, "awork_tasks");
   const { project, projects, statuses, tasks, counts, note } = aworkTasksFromResult(run?.result);
   const [pulling, setPulling] = useState(false);
   const [err, setErr] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [hideDone, setHideDone] = useState(true);
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [taskDetail, setTaskDetail] = useState(null);
+  const [taskLoading, setTaskLoading] = useState(false);
+  const [aworkUsers, setAworkUsers] = useState([]);
+  const [showCreateTask, setShowCreateTask] = useState(false);
 
   const pull = async () => {
     if (!selectedClient?.id) return;
@@ -4493,6 +4499,130 @@ function TasksDashboard({ selectedClient }) {
     } finally {
       setPulling(false);
     }
+  };
+
+  // Load AWORK users for assignee dropdown
+  const loadUsers = useCallback(async () => {
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const r = await fetch("/api/awork/users", {
+        headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+      });
+      const j = await r.json().catch(() => ({}));
+      if (j.ok) setAworkUsers(j.users || []);
+    } catch {}
+  }, []);
+
+  useEffect(() => { loadUsers(); }, [loadUsers]);
+
+  // Load task details
+  const loadTaskDetail = async (taskId) => {
+    setTaskLoading(true);
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const r = await fetch(`/api/awork/task?taskId=${encodeURIComponent(taskId)}`, {
+        headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+      });
+      const j = await r.json().catch(() => ({}));
+      if (j.ok) setTaskDetail(j);
+      else toast(j.error || "Fehler beim Laden", "error");
+    } catch (e) {
+      toast(String(e?.message || e), "error");
+    } finally {
+      setTaskLoading(false);
+    }
+  };
+
+  // Update task (status, assignees, etc.)
+  const updateTask = async (taskId, updates) => {
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const r = await fetch(`/api/awork/task?taskId=${encodeURIComponent(taskId)}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${session?.access_token || ""}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updates),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!j.ok) throw new Error(j.error || "Update fehlgeschlagen");
+      toast("Aktualisiert", "success");
+      await loadTaskDetail(taskId);
+      await pull(); // Refresh board
+    } catch (e) {
+      toast(String(e?.message || e), "error");
+    }
+  };
+
+  // Add comment
+  const addComment = async (taskId, message) => {
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const r = await fetch(`/api/awork/task?taskId=${encodeURIComponent(taskId)}&action=comment`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session?.access_token || ""}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ message }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!j.ok) throw new Error(j.error || "Kommentar fehlgeschlagen");
+      toast("Kommentar hinzugefügt", "success");
+      await loadTaskDetail(taskId);
+    } catch (e) {
+      toast(String(e?.message || e), "error");
+    }
+  };
+
+  // Toggle checklist item
+  const toggleChecklist = async (taskId, itemId, isDone) => {
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      await fetch(`/api/awork/task?taskId=${encodeURIComponent(taskId)}&action=checklist-toggle`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session?.access_token || ""}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ itemId, isDone }),
+      });
+      await loadTaskDetail(taskId);
+    } catch {}
+  };
+
+  // Create new task
+  const createTask = async (data) => {
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const r = await fetch("/api/awork/create-task", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session?.access_token || ""}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!j.ok) throw new Error(j.error || "Erstellen fehlgeschlagen");
+      toast("Task erstellt", "success");
+      setShowCreateTask(false);
+      await pull();
+    } catch (e) {
+      toast(String(e?.message || e), "error");
+    }
+  };
+
+  const openTask = (task) => {
+    setSelectedTask(task);
+    setTaskDetail(null);
+    loadTaskDetail(task.id);
+  };
+
+  const closeTask = () => {
+    setSelectedTask(null);
+    setTaskDetail(null);
   };
 
   const doneTypes = new Set(["done", "closed", "completed"]);
@@ -4755,6 +4885,11 @@ function TasksDashboard({ selectedClient }) {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <HideDoneToggle />
+          {selectedProject && (
+            <Btn icon={Plus} onClick={() => setShowCreateTask(true)}>
+              Neue Aufgabe
+            </Btn>
+          )}
           <Btn onClick={pull} disabled={pulling}>
             {pulling ? "Lädt…" : "⟳ Aktualisieren"}
           </Btn>
@@ -4811,8 +4946,9 @@ function TasksDashboard({ selectedClient }) {
                 {colTasks.map((t) => {
                   const due = fmtDue(t.dueOn);
                   return (
-                    <div
+                    <button
                       key={t.id}
+                      onClick={() => openTask(t)}
                       style={{
                         background: C.bg,
                         border: `1px solid ${C.border}`,
@@ -4821,7 +4957,14 @@ function TasksDashboard({ selectedClient }) {
                         display: "flex",
                         flexDirection: "column",
                         gap: 8,
+                        cursor: "pointer",
+                        textAlign: "left",
+                        width: "100%",
+                        fontFamily: "inherit",
+                        transition: "border-color .15s",
                       }}
+                      onMouseEnter={(e) => e.currentTarget.style.borderColor = C.accent}
+                      onMouseLeave={(e) => e.currentTarget.style.borderColor = C.border}
                     >
                       <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
                         {t.isPrio && <span style={{ color: C.orange, fontSize: 13, lineHeight: 1.3 }}>★</span>}
@@ -4863,7 +5006,7 @@ function TasksDashboard({ selectedClient }) {
                           </span>
                         )}
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -4871,6 +5014,533 @@ function TasksDashboard({ selectedClient }) {
           })}
         </div>
       )}
+
+      {/* Task Detail Modal */}
+      {selectedTask && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,.6)",
+            zIndex: 100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+          onClick={(e) => e.target === e.currentTarget && closeTask()}
+        >
+          <div
+            style={{
+              background: C.surface,
+              borderRadius: 16,
+              width: "100%",
+              maxWidth: 640,
+              maxHeight: "90vh",
+              overflow: "auto",
+              boxShadow: "0 20px 60px rgba(0,0,0,.5)",
+            }}
+          >
+            {taskLoading && !taskDetail ? (
+              <div style={{ padding: 40, textAlign: "center" }}>
+                <Skeleton w="60%" h={20} />
+                <div style={{ marginTop: 16 }}><Skeleton w="90%" h={14} /></div>
+                <div style={{ marginTop: 8 }}><Skeleton w="75%" h={14} /></div>
+              </div>
+            ) : taskDetail?.task ? (
+              <TaskDetailContent
+                task={taskDetail.task}
+                comments={taskDetail.comments || []}
+                statuses={statuses}
+                users={aworkUsers}
+                onClose={closeTask}
+                onUpdateStatus={(statusId) => updateTask(taskDetail.task.id, { taskStatusId: statusId })}
+                onUpdateAssignees={(ids) => updateTask(taskDetail.task.id, { assigneeIds: ids })}
+                onAddComment={(msg) => addComment(taskDetail.task.id, msg)}
+                onToggleChecklist={(itemId, isDone) => toggleChecklist(taskDetail.task.id, itemId, isDone)}
+              />
+            ) : (
+              <div style={{ padding: 40, textAlign: "center", color: C.textMuted }}>
+                Fehler beim Laden
+                <div style={{ marginTop: 12 }}>
+                  <Btn onClick={closeTask}>Schliessen</Btn>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Create Task Modal */}
+      {showCreateTask && selectedProject && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,.6)",
+            zIndex: 100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+          onClick={(e) => e.target === e.currentTarget && setShowCreateTask(false)}
+        >
+          <CreateTaskModal
+            projectId={selectedProject.id}
+            projectName={selectedProject.name}
+            statuses={statuses}
+            users={aworkUsers}
+            onClose={() => setShowCreateTask(false)}
+            onCreate={createTask}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Task Detail Content Component
+function TaskDetailContent({ task, comments, statuses, users, onClose, onUpdateStatus, onUpdateAssignees, onAddComment, onToggleChecklist }) {
+  const [newComment, setNewComment] = useState("");
+  const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  const handleComment = async () => {
+    if (!newComment.trim()) return;
+    setSending(true);
+    await onAddComment(newComment.trim());
+    setNewComment("");
+    setSending(false);
+  };
+
+  const doneTypes = new Set(["done", "closed", "completed"]);
+  const isDone = doneTypes.has(String(task.taskStatus?.type || "").toLowerCase());
+
+  const fmtDate = (iso) => {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    return d.toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric" });
+  };
+
+  const stripHtml = (html) => {
+    if (!html) return "";
+    return html.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim();
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column" }}>
+      {/* Header */}
+      <div style={{ padding: "20px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            {task.isPrio && <span style={{ color: C.orange, fontSize: 16 }}>★</span>}
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: C.text }}>{task.name}</h2>
+          </div>
+          <div style={{ fontSize: 12, color: C.textMuted }}>
+            {task.project?.name || "—"} {task.list && `· ${task.list}`}
+          </div>
+        </div>
+        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+          <X size={20} color={C.textMuted} />
+        </button>
+      </div>
+
+      {/* Content */}
+      <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 20 }}>
+        {/* Status & Assignees Row */}
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+          {/* Status */}
+          <div style={{ position: "relative" }}>
+            <div style={{ fontSize: 11, color: C.textDim, marginBottom: 6, textTransform: "uppercase", letterSpacing: ".5px" }}>Status</div>
+            <button
+              onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 12px",
+                background: isDone ? `${C.green}20` : C.card,
+                border: `1px solid ${isDone ? C.green : C.border}`,
+                borderRadius: 8,
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 600,
+                color: isDone ? C.green : C.text,
+                fontFamily: "inherit",
+              }}
+            >
+              {isDone ? <CheckCircle size={14} /> : <Clock size={14} />}
+              {task.taskStatus?.name || "—"}
+              <ChevronDown size={12} />
+            </button>
+            {showStatusDropdown && (
+              <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 6, minWidth: 180, zIndex: 10, boxShadow: "0 8px 32px rgba(0,0,0,.4)" }}>
+                {statuses.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => { onUpdateStatus(s.id); setShowStatusDropdown(false); }}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      padding: "8px 12px",
+                      border: "none",
+                      borderRadius: 6,
+                      cursor: "pointer",
+                      fontSize: 12,
+                      textAlign: "left",
+                      fontFamily: "inherit",
+                      background: s.id === task.taskStatusId ? C.accentDim : "transparent",
+                      color: s.id === task.taskStatusId ? C.accentLight : C.text,
+                      fontWeight: s.id === task.taskStatusId ? 600 : 400,
+                    }}
+                  >
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Assignees */}
+          <div style={{ position: "relative" }}>
+            <div style={{ fontSize: 11, color: C.textDim, marginBottom: 6, textTransform: "uppercase", letterSpacing: ".5px" }}>Zugewiesen</div>
+            <button
+              onClick={() => setShowAssigneeDropdown(!showAssigneeDropdown)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 12px",
+                background: C.card,
+                border: `1px solid ${C.border}`,
+                borderRadius: 8,
+                cursor: "pointer",
+                fontSize: 13,
+                color: C.text,
+                fontFamily: "inherit",
+              }}
+            >
+              <Users size={14} color={C.textMuted} />
+              {task.assignees?.length > 0 ? (
+                <span>{task.assignees.map((a) => a.name || a.initials).join(", ")}</span>
+              ) : (
+                <span style={{ color: C.textMuted }}>Niemand</span>
+              )}
+              <ChevronDown size={12} color={C.textMuted} />
+            </button>
+            {showAssigneeDropdown && (
+              <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 6, minWidth: 220, maxHeight: 280, overflowY: "auto", zIndex: 10, boxShadow: "0 8px 32px rgba(0,0,0,.4)" }}>
+                {users.map((u) => {
+                  const assigned = task.assignees?.some((a) => a.id === u.id);
+                  return (
+                    <button
+                      key={u.id}
+                      onClick={() => {
+                        const newIds = assigned
+                          ? task.assignees.filter((a) => a.id !== u.id).map((a) => a.id)
+                          : [...(task.assignees || []).map((a) => a.id), u.id];
+                        onUpdateAssignees(newIds);
+                        setShowAssigneeDropdown(false);
+                      }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        width: "100%",
+                        padding: "8px 12px",
+                        border: "none",
+                        borderRadius: 6,
+                        cursor: "pointer",
+                        fontSize: 12,
+                        textAlign: "left",
+                        fontFamily: "inherit",
+                        background: assigned ? C.accentDim : "transparent",
+                        color: assigned ? C.accentLight : C.text,
+                      }}
+                    >
+                      <span style={{ width: 24, height: 24, borderRadius: "50%", background: assigned ? C.accent : C.border, color: assigned ? "#fff" : C.textMuted, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {u.initials}
+                      </span>
+                      <span>{u.name}</span>
+                      {assigned && <CheckCircle size={14} style={{ marginLeft: "auto" }} />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Due Date */}
+          <div>
+            <div style={{ fontSize: 11, color: C.textDim, marginBottom: 6, textTransform: "uppercase", letterSpacing: ".5px" }}>Fällig</div>
+            <div style={{ padding: "8px 12px", background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, color: task.dueOn && new Date(task.dueOn) < new Date() ? C.red : C.text }}>
+              {fmtDate(task.dueOn)}
+            </div>
+          </div>
+        </div>
+
+        {/* Description */}
+        {task.description && (
+          <div>
+            <div style={{ fontSize: 11, color: C.textDim, marginBottom: 8, textTransform: "uppercase", letterSpacing: ".5px" }}>Beschreibung</div>
+            <div style={{ padding: 16, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 13, color: C.text, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+              {stripHtml(task.description) || "—"}
+            </div>
+          </div>
+        )}
+
+        {/* Checklist */}
+        {task.checklist?.length > 0 && (
+          <div>
+            <div style={{ fontSize: 11, color: C.textDim, marginBottom: 8, textTransform: "uppercase", letterSpacing: ".5px" }}>
+              Checkliste ({task.checklist.filter((c) => c.isDone).length}/{task.checklist.length})
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {task.checklist.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => onToggleChecklist(item.id, !item.isDone)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "10px 14px",
+                    background: C.card,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 8,
+                    cursor: "pointer",
+                    fontSize: 13,
+                    textAlign: "left",
+                    fontFamily: "inherit",
+                    color: item.isDone ? C.textMuted : C.text,
+                    textDecoration: item.isDone ? "line-through" : "none",
+                  }}
+                >
+                  <div style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${item.isDone ? C.green : C.border}`, background: item.isDone ? C.green : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {item.isDone && <Check size={12} color="#fff" />}
+                  </div>
+                  {item.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Tags */}
+        {task.tags?.length > 0 && (
+          <div>
+            <div style={{ fontSize: 11, color: C.textDim, marginBottom: 8, textTransform: "uppercase", letterSpacing: ".5px" }}>Tags</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {task.tags.map((tag) => (
+                <span key={tag.id} style={{ padding: "4px 10px", background: tag.color ? `${tag.color}30` : C.accentDim, color: tag.color || C.accent, borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
+                  {tag.name}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Comments */}
+        <div>
+          <div style={{ fontSize: 11, color: C.textDim, marginBottom: 8, textTransform: "uppercase", letterSpacing: ".5px" }}>
+            Kommentare ({comments.length})
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
+            {comments.length === 0 ? (
+              <div style={{ fontSize: 12, color: C.textDim, padding: "12px 0" }}>Noch keine Kommentare</div>
+            ) : (
+              comments.map((c) => (
+                <div key={c.id} style={{ padding: 14, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <span style={{ width: 26, height: 26, borderRadius: "50%", background: C.accentDim, color: C.accentLight, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {c.createdBy?.initials || "?"}
+                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{c.createdBy?.name || "Unbekannt"}</span>
+                    <span style={{ fontSize: 11, color: C.textDim, marginLeft: "auto" }}>{fmtDate(c.createdOn)}</span>
+                  </div>
+                  <div style={{ fontSize: 13, color: C.text, lineHeight: 1.5 }}>{stripHtml(c.message)}</div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Add Comment */}
+          <div style={{ display: "flex", gap: 10 }}>
+            <input
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              placeholder="Kommentar schreiben..."
+              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleComment()}
+              style={{
+                flex: 1,
+                padding: "10px 14px",
+                borderRadius: 8,
+                border: `1px solid ${C.border}`,
+                background: C.card,
+                color: C.text,
+                fontSize: 13,
+                fontFamily: "inherit",
+                outline: "none",
+              }}
+            />
+            <Btn onClick={handleComment} disabled={!newComment.trim() || sending}>
+              {sending ? "…" : "Senden"}
+            </Btn>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Create Task Modal Component
+function CreateTaskModal({ projectId, projectName, statuses, users, onClose, onCreate }) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [statusId, setStatusId] = useState(statuses[0]?.id || "");
+  const [assigneeIds, setAssigneeIds] = useState([]);
+  const [dueOn, setDueOn] = useState("");
+  const [isPrio, setIsPrio] = useState(false);
+  const [creating, setCreating] = useState(false);
+
+  const handleCreate = async () => {
+    if (!name.trim()) return;
+    setCreating(true);
+    await onCreate({
+      projectId,
+      name: name.trim(),
+      description: description.trim() || undefined,
+      taskStatusId: statusId || undefined,
+      assigneeIds: assigneeIds.length > 0 ? assigneeIds : undefined,
+      dueOn: dueOn || undefined,
+      isPrio,
+    });
+    setCreating(false);
+  };
+
+  return (
+    <div style={{ background: C.surface, borderRadius: 16, width: "100%", maxWidth: 520, boxShadow: "0 20px 60px rgba(0,0,0,.5)" }}>
+      <div style={{ padding: "20px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: C.text }}>Neue Aufgabe</h2>
+          <div style={{ fontSize: 12, color: C.textMuted, marginTop: 4 }}>{projectName}</div>
+        </div>
+        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+          <X size={20} color={C.textMuted} />
+        </button>
+      </div>
+
+      <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* Name */}
+        <div>
+          <label style={{ fontSize: 12, color: C.textMuted, display: "block", marginBottom: 6 }}>Titel *</label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Aufgabe eingeben..."
+            style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
+          />
+        </div>
+
+        {/* Description */}
+        <div>
+          <label style={{ fontSize: 12, color: C.textMuted, display: "block", marginBottom: 6 }}>Beschreibung</label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Optional..."
+            rows={3}
+            style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", resize: "vertical", boxSizing: "border-box" }}
+          />
+        </div>
+
+        {/* Status & Due Date Row */}
+        <div style={{ display: "flex", gap: 12 }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: 12, color: C.textMuted, display: "block", marginBottom: 6 }}>Status</label>
+            <select
+              value={statusId}
+              onChange={(e) => setStatusId(e.target.value)}
+              style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none" }}
+            >
+              {statuses.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: 12, color: C.textMuted, display: "block", marginBottom: 6 }}>Fällig am</label>
+            <input
+              type="date"
+              value={dueOn}
+              onChange={(e) => setDueOn(e.target.value)}
+              style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
+            />
+          </div>
+        </div>
+
+        {/* Assignees */}
+        <div>
+          <label style={{ fontSize: 12, color: C.textMuted, display: "block", marginBottom: 6 }}>Zuweisen an</label>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {users.slice(0, 10).map((u) => {
+              const selected = assigneeIds.includes(u.id);
+              return (
+                <button
+                  key={u.id}
+                  onClick={() => setAssigneeIds(selected ? assigneeIds.filter((id) => id !== u.id) : [...assigneeIds, u.id])}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "6px 10px",
+                    borderRadius: 6,
+                    border: `1px solid ${selected ? C.accent : C.border}`,
+                    background: selected ? C.accentDim : "transparent",
+                    cursor: "pointer",
+                    fontSize: 12,
+                    color: selected ? C.accentLight : C.text,
+                    fontFamily: "inherit",
+                  }}
+                >
+                  <span style={{ width: 20, height: 20, borderRadius: "50%", background: selected ? C.accent : C.border, color: selected ? "#fff" : C.textMuted, fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {u.initials}
+                  </span>
+                  {u.name.split(" ")[0]}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Priority */}
+        <button
+          onClick={() => setIsPrio(!isPrio)}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "10px 14px",
+            borderRadius: 8,
+            border: `1px solid ${isPrio ? C.orange : C.border}`,
+            background: isPrio ? `${C.orange}20` : "transparent",
+            cursor: "pointer",
+            fontSize: 13,
+            color: isPrio ? C.orange : C.textMuted,
+            fontFamily: "inherit",
+          }}
+        >
+          <span style={{ fontSize: 16 }}>★</span>
+          Als Priorität markieren
+        </button>
+      </div>
+
+      <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "flex-end", gap: 10 }}>
+        <Btn variant="secondary" onClick={onClose}>Abbrechen</Btn>
+        <Btn onClick={handleCreate} disabled={!name.trim() || creating}>
+          {creating ? "Erstellen…" : "Aufgabe erstellen"}
+        </Btn>
+      </div>
     </div>
   );
 }
