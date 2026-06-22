@@ -5764,6 +5764,7 @@ function CreateTaskModal({ projectId, projectName, statuses, tasklists = [], use
       name: name.trim(),
       description: description.trim() || undefined,
       taskStatusId: statusId || undefined,
+      taskStatusName: statuses.find((s) => s.id === statusId)?.name || undefined,
       listId: listId || undefined,
       assigneeIds: assigneeIds.length > 0 ? assigneeIds : undefined,
       dueOn: dueOn || undefined,

@@ -35,6 +35,7 @@ const CreateTaskBody = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   taskStatusId: z.string().optional(),
+  taskStatusName: z.string().optional(),
   dueOn: z.string().nullable().optional(),
   assigneeIds: z.array(z.string()).optional(),
   listId: z.string().optional(),
@@ -63,12 +64,27 @@ export const Route = createFileRoute("/api/awork/create-task")({
           const key = process.env.AWORK_API_KEY;
           if (!key) return Response.json({ ok: false, error: "AWORK_API_KEY nicht konfiguriert" });
 
-          // Get default status if not provided
+          // Always validate the status against THIS project's own statuses. The
+          // status id from the client may belong to a different project (the UI
+          // merges statuses across projects), which AWORK rejects with
+          // "illegal-property-transition". Fall back to the project's default.
+          const statusRes = await aworkFetch<any[]>(`/projects/${parsed.data.projectId}/taskstatuses`, key);
+          const projectStatuses = statusRes.data || [];
           let taskStatusId = parsed.data.taskStatusId;
-          if (!taskStatusId) {
-            const statusRes = await aworkFetch<any[]>(`/projects/${parsed.data.projectId}/taskstatuses`, key);
-            const statuses = statusRes.data || [];
-            const defaultStatus = statuses.find((s: any) => s.type === "todo" || s.order === 0) || statuses[0];
+          const supplied = taskStatusId && projectStatuses.find((s: any) => String(s.id) === String(taskStatusId));
+          if (!supplied) {
+            // Try to match the chosen status by name within this project (the UI
+            // merges statuses across projects, so the id may belong elsewhere).
+            const byName = parsed.data.taskStatusName
+              ? projectStatuses.find(
+                  (s: any) => String(s.name).toLowerCase() === String(parsed.data.taskStatusName).toLowerCase(),
+                )
+              : null;
+            const defaultStatus =
+              byName ||
+              projectStatuses.find((s: any) => s.type === "todo") ||
+              projectStatuses.find((s: any) => s.order === 0) ||
+              projectStatuses[0];
             taskStatusId = defaultStatus?.id;
           }
 
