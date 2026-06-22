@@ -4256,22 +4256,32 @@ function AdsDashboard({ selectedClient, dateRange }) {
     );
   };
 
-  // Manual refresh via live route — uses selected date range.
+  // Manual refresh via live route — uses selected date range + comparison period.
   const [pulling, setPulling] = useState(false);
   const lastDaysRef = useRef(days);
+  const compareKey = dateRange?.compare
+    ? `${dateRange.compareMode}:${new Date(dateRange.compare.start).toISOString().slice(0, 10)}`
+    : "none";
+  const lastCompareRef = useRef(compareKey);
+  const isoDate = (d) => new Date(d).toISOString().slice(0, 10);
   const pull = useCallback(async (forceDays, silent = false) => {
     const d = forceDays ?? days;
     if (!selectedClient?.id) return;
     if (!silent) setPulling(true);
     try {
       const session = (await supabase.auth.getSession()).data.session;
+      const body = { clientId: selectedClient.id, days: d };
+      if (dateRange?.compare) {
+        body.compareStart = isoDate(dateRange.compare.start);
+        body.compareEnd = isoDate(dateRange.compare.end);
+      }
       await fetch("/api/google/ads-data", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${session?.access_token || ""}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ clientId: selectedClient.id, days: d }),
+        body: JSON.stringify(body),
       });
       await refresh();
     } catch {
@@ -4279,12 +4289,11 @@ function AdsDashboard({ selectedClient, dateRange }) {
     } finally {
       if (!silent) setPulling(false);
     }
-  }, [selectedClient?.id, days, refresh]);
+  }, [selectedClient?.id, days, refresh, dateRange?.compare]);
 
   // Auto-refresh when date range changes — silent background fetch, instant local filter via useMemo.
   useEffect(() => {
     if (hasData && days !== lastDaysRef.current) {
-      const prevDays = lastDaysRef.current;
       lastDaysRef.current = days;
       // Only fetch if new range is larger than cached data (need more data from API).
       if (days > (rawSeries?.length || 0)) {
@@ -4292,6 +4301,14 @@ function AdsDashboard({ selectedClient, dateRange }) {
       }
     }
   }, [days, hasData, rawSeries?.length, pull]);
+
+  // Re-fetch when the comparison period changes so prev-totals reflect Vormonat/Vorjahr.
+  useEffect(() => {
+    if (hasData && compareKey !== lastCompareRef.current) {
+      lastCompareRef.current = compareKey;
+      pull(days, true);
+    }
+  }, [compareKey, hasData, days, pull]);
 
   if (loading) {
     return <div style={{ color: C.textMuted, padding: 20 }}>Lade Ads-Daten…</div>;

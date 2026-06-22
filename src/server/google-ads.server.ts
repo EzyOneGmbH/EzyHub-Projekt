@@ -64,6 +64,7 @@ export async function fetchAdsSnapshot(
   clientId: string,
   googleAdsCustomer: string | null | undefined,
   days: number,
+  compareRange?: { start: string; end: string } | null,
 ): Promise<{ ok: boolean; result?: AdsSnapshot; error?: string; skipped?: string }> {
   const devToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
   if (!devToken) return { ok: false, skipped: "GOOGLE_ADS_DEVELOPER_TOKEN fehlt" };
@@ -79,14 +80,22 @@ export async function fetchAdsSnapshot(
     return { ok: false, skipped: "kein Google-Token" };
   }
 
-  // Date windows: current [today-days, today]; previous equal-length window before it.
+  // Date windows: current [today-days, today]; previous = explicit compareRange
+  // (Vormonat/Vorjahr) if given, else the equal-length window immediately before.
   const today = new Date();
   const startDate = new Date(today);
   startDate.setDate(startDate.getDate() - days);
-  const prevEnd = new Date(startDate);
-  prevEnd.setDate(prevEnd.getDate() - 1);
-  const prevStart = new Date(prevEnd);
-  prevStart.setDate(prevStart.getDate() - (days - 1));
+  let prevStart: Date;
+  let prevEnd: Date;
+  if (compareRange?.start && compareRange?.end) {
+    prevStart = new Date(compareRange.start);
+    prevEnd = new Date(compareRange.end);
+  } else {
+    prevEnd = new Date(startDate);
+    prevEnd.setDate(prevEnd.getDate() - 1);
+    prevStart = new Date(prevEnd);
+    prevStart.setDate(prevStart.getDate() - (days - 1));
+  }
   const dateFrom = fmt(startDate);
   const dateTo = fmt(today);
   const prevFrom = fmt(prevStart);

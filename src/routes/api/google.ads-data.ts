@@ -13,6 +13,8 @@ import { fetchAdsSnapshot } from "@/server/google-ads.server";
 const Body = z.object({
   clientId: z.string().uuid(),
   days: z.number().int().min(1).max(90).default(28),
+  compareStart: z.string().optional(),
+  compareEnd: z.string().optional(),
 });
 
 export const Route = createFileRoute("/api/google/ads-data")({
@@ -57,10 +59,15 @@ export const Route = createFileRoute("/api/google/ads-data")({
               { status: 403 },
             );
 
+          const compareRange =
+            parsed.data.compareStart && parsed.data.compareEnd
+              ? { start: parsed.data.compareStart, end: parsed.data.compareEnd }
+              : null;
           const snap = await fetchAdsSnapshot(
             client.id,
             client.google_ads_customer,
             parsed.data.days,
+            compareRange,
           );
           if (!snap.ok || !snap.result)
             return Response.json({ ok: false, error: snap.skipped || "Ads-Abruf fehlgeschlagen" });
