@@ -9274,7 +9274,7 @@ function stripAgentSpecs(text) {
 const WEEKDAY_SHORT = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 
 function ActivityPage({ selectedClient, clients }) {
-  const [data, setData] = useState({ runs: [], running: 0, schedules: [] });
+  const [data, setData] = useState({ runs: [], running: 0, schedules: [], uptime: [], uptimeDown: 0 });
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
@@ -9283,7 +9283,7 @@ function ActivityPage({ selectedClient, clients }) {
       const session = (await supabase.auth.getSession()).data.session;
       const r = await fetch("/api/agent/runs", { headers: { Authorization: `Bearer ${session?.access_token || ""}` } });
       const j = await r.json().catch(() => ({}));
-      if (j.ok) { setData({ runs: j.runs || [], running: j.running || 0, schedules: j.schedules || [] }); setErr(""); }
+      if (j.ok) { setData({ runs: j.runs || [], running: j.running || 0, schedules: j.schedules || [], uptime: j.uptime || [], uptimeDown: j.uptimeDown || 0 }); setErr(""); }
       else setErr(j.error || "Laden fehlgeschlagen");
     } catch (e) {
       setErr(String(e?.message || e));
@@ -9388,6 +9388,26 @@ function ActivityPage({ selectedClient, clients }) {
           </div>
         )}
       </div>
+
+      {/* Verfügbarkeit (Uptime) */}
+      {data.uptime.length > 0 && (
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>
+            Verfügbarkeit {data.uptimeDown > 0 ? <span style={{ color: C.red }}>· {data.uptimeDown} offline</span> : <span style={{ color: C.green }}>· alle online</span>}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {data.uptime.map((s) => (
+              <div key={s.domain} style={{ display: "flex", alignItems: "center", gap: 10, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 14px" }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: s.ok ? C.green : C.red, flexShrink: 0 }} />
+                <span style={{ fontSize: 13, color: C.text, flex: 1 }}>{s.name || s.domain}</span>
+                <span style={{ fontSize: 11.5, color: s.ok ? C.textMuted : C.red, fontWeight: s.ok ? 400 : 600 }}>
+                  {s.ok ? `online (HTTP ${s.code})` : `offline (${s.code || "kein Response"})`}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Änderungen werden jetzt täglich unter Content → Notes protokolliert. */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", fontSize: 12.5, color: C.textMuted }}>

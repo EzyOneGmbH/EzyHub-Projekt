@@ -63,6 +63,7 @@ import { Route as ApiAdminWpDeployRouteImport } from './routes/api/admin.wp-depl
 import { Route as ApiAdminPopulateRouteImport } from './routes/api/admin.populate'
 import { Route as ApiAdminContentNoteRouteImport } from './routes/api/admin.content-note'
 import { Route as ApiAdminClientMetricsRouteImport } from './routes/api/admin.client-metrics'
+import { Route as ApiAdminClientDomainsRouteImport } from './routes/api/admin.client-domains'
 import { Route as ApiAdminAdsClientsRouteImport } from './routes/api/admin.ads-clients'
 import { Route as ApiLiveCanonryOverviewRouteImport } from './routes/api/live.canonry.overview'
 import { Route as ApiLiveCanonryAiVisibilityRouteImport } from './routes/api/live.canonry.ai-visibility'
@@ -338,6 +339,11 @@ const ApiAdminClientMetricsRoute = ApiAdminClientMetricsRouteImport.update({
   path: '/api/admin/client-metrics',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminClientDomainsRoute = ApiAdminClientDomainsRouteImport.update({
+  id: '/api/admin/client-domains',
+  path: '/api/admin/client-domains',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminAdsClientsRoute = ApiAdminAdsClientsRouteImport.update({
   id: '/api/admin/ads-clients',
   path: '/api/admin/ads-clients',
@@ -379,6 +385,7 @@ export interface FileRoutesByFullPath {
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
+  '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
@@ -439,6 +446,7 @@ export interface FileRoutesByTo {
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
+  '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
@@ -500,6 +508,7 @@ export interface FileRoutesById {
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
+  '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
@@ -562,6 +571,7 @@ export interface FileRouteTypes {
     | '/settings/api'
     | '/tasks/$id'
     | '/api/admin/ads-clients'
+    | '/api/admin/client-domains'
     | '/api/admin/client-metrics'
     | '/api/admin/content-note'
     | '/api/admin/populate'
@@ -622,6 +632,7 @@ export interface FileRouteTypes {
     | '/settings/api'
     | '/tasks/$id'
     | '/api/admin/ads-clients'
+    | '/api/admin/client-domains'
     | '/api/admin/client-metrics'
     | '/api/admin/content-note'
     | '/api/admin/populate'
@@ -682,6 +693,7 @@ export interface FileRouteTypes {
     | '/settings/api'
     | '/tasks/$id'
     | '/api/admin/ads-clients'
+    | '/api/admin/client-domains'
     | '/api/admin/client-metrics'
     | '/api/admin/content-note'
     | '/api/admin/populate'
@@ -739,6 +751,7 @@ export interface RootRouteChildren {
   TasksRoute: typeof TasksRouteWithChildren
   AdminUsersRoute: typeof AdminUsersRoute
   ApiAdminAdsClientsRoute: typeof ApiAdminAdsClientsRoute
+  ApiAdminClientDomainsRoute: typeof ApiAdminClientDomainsRoute
   ApiAdminClientMetricsRoute: typeof ApiAdminClientMetricsRoute
   ApiAdminContentNoteRoute: typeof ApiAdminContentNoteRoute
   ApiAdminPopulateRoute: typeof ApiAdminPopulateRoute
@@ -1161,6 +1174,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminClientMetricsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/client-domains': {
+      id: '/api/admin/client-domains'
+      path: '/api/admin/client-domains'
+      fullPath: '/api/admin/client-domains'
+      preLoaderRoute: typeof ApiAdminClientDomainsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/ads-clients': {
       id: '/api/admin/ads-clients'
       path: '/api/admin/ads-clients'
@@ -1252,6 +1272,7 @@ const rootRouteChildren: RootRouteChildren = {
   TasksRoute: TasksRouteWithChildren,
   AdminUsersRoute: AdminUsersRoute,
   ApiAdminAdsClientsRoute: ApiAdminAdsClientsRoute,
+  ApiAdminClientDomainsRoute: ApiAdminClientDomainsRoute,
   ApiAdminClientMetricsRoute: ApiAdminClientMetricsRoute,
   ApiAdminContentNoteRoute: ApiAdminContentNoteRoute,
   ApiAdminPopulateRoute: ApiAdminPopulateRoute,

@@ -28,18 +28,22 @@ export const Route = createFileRoute("/api/agent/runs")({
         const b = base.replace(/\/+$/, "");
         const headers = { Authorization: `Bearer ${secret}` };
         try {
-          const [runsRes, schedRes] = await Promise.all([
+          const [runsRes, schedRes, upRes] = await Promise.all([
             fetch(`${b}/jobs`, { headers, signal: AbortSignal.timeout(10_000) }),
             fetch(`${b}/schedules`, { headers, signal: AbortSignal.timeout(10_000) }),
+            fetch(`${b}/uptime`, { headers, signal: AbortSignal.timeout(10_000) }).catch(() => null),
           ]);
           const runsJson = await runsRes.json().catch(() => ({}));
           const schedJson = await schedRes.json().catch(() => ({}));
+          const upJson = upRes ? await upRes.json().catch(() => ({})) : {};
           return Response.json(
             {
               ok: true,
               runs: runsJson.runs || [],
               running: runsJson.running || 0,
               schedules: schedJson.schedules || [],
+              uptime: upJson.sites || [],
+              uptimeDown: upJson.down || 0,
             },
             { headers: { "Cache-Control": "no-store" } },
           );
