@@ -2,7 +2,7 @@
 /**
  * Plugin Name: EzyHub Connector
  * Description: Lässt EzyHub technische SEO-Maßnahmen autonom deployen — <head>-Injektion (JSON-LD, OG, Meta), llms.txt, Seiten-Meta, Canonical/Noindex, robots.txt, Sitemap-Optimierung, Bild-Alt-Texte und Elementor-Editing (Headings + Text-Widgets) mit automatischem Backup/Restore. Auth via Application Passwords (manage_options). Alle Änderungen reversibel.
- * Version: 1.2.0
+ * Version: 1.3.0
  * Author: EzyOne GmbH
  * License: GPL-2.0+
  */
@@ -26,6 +26,18 @@ class EzyHub_Connector {
         // Per-page canonical + noindex.
         add_action('wp_head', [$this, 'inject_canonical'], 1);
         add_filter('wp_robots', [$this, 'filter_wp_robots']);
+        // Per-page SEO title — override the <title> tag.
+        add_filter('pre_get_document_title', [$this, 'filter_title'], 99);
+    }
+
+    /** Override the document <title> with the stored SEO title (if set). */
+    public function filter_title($title) {
+        if (is_singular()) {
+            $id = get_queried_object_id();
+            $t = get_post_meta($id, '_ezyhub_seo_title', true);
+            if ($t) return $t;
+        }
+        return $title;
     }
 
     public function can_write() { return current_user_can('manage_options'); }
@@ -55,7 +67,7 @@ class EzyHub_Connector {
         register_rest_route(self::NS, '/status', ['methods' => 'GET', 'permission_callback' => $auth, 'callback' => function () {
             $head = get_option(self::OPT_HEAD, []);
             return [
-                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.2.0',
+                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.3.0',
                 'headKeys' => is_array($head) ? array_keys($head) : [],
                 'llmsBytes' => strlen((string) get_option(self::OPT_LLMS, '')),
                 'robotsBytes' => strlen((string) get_option(self::OPT_ROBOTS, '')),
