@@ -124,7 +124,25 @@ export async function verifyWpConnection(
   conn: WpConnection,
 ): Promise<{ ok: boolean; user?: { name: string; id: number }; error?: string }> {
   const r = await wpFetch<any>(conn, "/wp/v2/users/me", { query: { context: "edit" } });
-  if (!r.ok) return { ok: false, error: r.error || "Verbindung fehlgeschlagen" };
+  if (!r.ok) {
+    // 401 = credentials reached WP but were rejected, or the Authorization header
+    // was stripped by the host before reaching WordPress. Give an actionable hint.
+    if (r.status === 401) {
+      return {
+        ok: false,
+        error:
+          "Anmeldung abgelehnt (401). Bitte prüfen: (1) Ein Application Password verwenden — NICHT das normale Login-Passwort (Benutzer → Profil → Application Passwords). (2) Den richtigen WP-Benutzernamen. (3) Falls korrekt: Host entfernt evtl. den Authorization-Header — .htaccess-Regel nötig.",
+      };
+    }
+    if (r.status === 403) {
+      return {
+        ok: false,
+        error:
+          "Zugriff verweigert (403). Ein Security-Plugin (z.B. Wordfence) oder die Server-Firewall blockiert die REST-API / Application Passwords. Bitte freigeben.",
+      };
+    }
+    return { ok: false, error: r.error || "Verbindung fehlgeschlagen" };
+  }
   return { ok: true, user: { name: String(r.data?.name ?? ""), id: Number(r.data?.id ?? 0) } };
 }
 
