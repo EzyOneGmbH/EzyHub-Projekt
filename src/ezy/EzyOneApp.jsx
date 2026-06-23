@@ -9267,6 +9267,178 @@ function stripAgentSpecs(text) {
   return String(text || "").replace(/```agent-spec\s*\n[\s\S]*?```/g, "").trim();
 }
 
+// ── Activity / Runs tab ──────────────────────────────────────────────────────
+// Live view of agent runs (running/done/error), active schedules, and the
+// per-client protocol (Obsidian vault page) — so you can verify at a glance
+// whether the agents are running and trace what they did.
+const WEEKDAY_SHORT = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+
+function ActivityPage({ selectedClient, clients }) {
+  const [data, setData] = useState({ runs: [], running: 0, schedules: [] });
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  const [protoClient, setProtoClient] = useState(selectedClient?.name || "");
+  const [proto, setProto] = useState(null);
+  const [protoLoading, setProtoLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const r = await fetch("/api/agent/runs", { headers: { Authorization: `Bearer ${session?.access_token || ""}` } });
+      const j = await r.json().catch(() => ({}));
+      if (j.ok) { setData({ runs: j.runs || [], running: j.running || 0, schedules: j.schedules || [] }); setErr(""); }
+      else setErr(j.error || "Laden fehlgeschlagen");
+    } catch (e) {
+      setErr(String(e?.message || e));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Auto-refresh every 8s so "running" status is live.
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 8000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  const loadProtocol = useCallback(async (name) => {
+    if (!name) { setProto(null); return; }
+    setProtoLoading(true);
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const r = await fetch(`/api/agent/protocol?name=${encodeURIComponent(name)}`, { headers: { Authorization: `Bearer ${session?.access_token || ""}` } });
+      const j = await r.json().catch(() => ({}));
+      setProto(j.ok ? j : { exists: false, content: "" });
+    } catch {
+      setProto({ exists: false, content: "" });
+    } finally {
+      setProtoLoading(false);
+    }
+  }, []);
+  useEffect(() => { loadProtocol(protoClient); }, [protoClient, loadProtocol]);
+
+  const fmtTime = (ts) => (ts ? new Date(ts).toLocaleString("de-CH", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—");
+  const fmtDur = (ms) => (ms ? (ms >= 60000 ? `${Math.round(ms / 60000)}min` : `${Math.round(ms / 1000)}s`) : "");
+  const statusMeta = (s) => s === "running" ? { c: C.blue, label: "läuft" } : s === "done" ? { c: C.green, label: "fertig" } : { c: C.red, label: "Fehler" };
+
+  const freqLabel = (sch) => {
+    if (sch.dayOfMonth) return `am ${sch.dayOfMonth}. um ${sch.time}`;
+    if (Array.isArray(sch.weekdays) && sch.weekdays.length) return `${sch.weekdays.map((d) => WEEKDAY_SHORT[d]).join(",")} um ${sch.time}`;
+    return `täglich um ${sch.time}`;
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 38, height: 38, borderRadius: 10, background: C.accentDim, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Activity size={19} color={C.accent} />
+          </div>
+          <div>
+            <h1 style={{ fontSize: 19, fontWeight: 700, margin: 0, color: C.text }}>Aktivität</h1>
+            <div style={{ fontSize: 12, color: C.textMuted }}>
+              {data.running > 0
+                ? `${data.running} Agent${data.running === 1 ? "" : "en"} läuft gerade`
+                : "Keine laufenden Agenten"}
+              {" · aktualisiert alle 8s"}
+            </div>
+          </div>
+        </div>
+        <Btn variant="secondary" size="sm" icon={RefreshCw} onClick={load}>Aktualisieren</Btn>
+      </div>
+
+      {err && <div style={{ fontSize: 12, color: C.red }}>{err}</div>}
+
+      {/* Schedules */}
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>Zeitpläne</div>
+        {data.schedules.length === 0 ? (
+          <div style={{ fontSize: 13, color: C.textDim, padding: "8px 0" }}>Keine Zeitpläne angelegt.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {data.schedules.map((s) => (
+              <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px" }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: s.enabled ? C.green : C.textDim, flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: C.text }}>{s.clientName || "—"}</div>
+                  <div style={{ fontSize: 11.5, color: C.textMuted }}>{freqLabel(s)}{s.enabled ? "" : " · pausiert"}</div>
+                </div>
+                <div style={{ fontSize: 11, color: C.textDim, textAlign: "right" }}>
+                  {s.lastRunDate ? `zuletzt: ${s.lastRunDate}` : "noch nie gelaufen"}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Recent runs */}
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>Letzte Läufe</div>
+        {loading ? (
+          <div style={{ fontSize: 13, color: C.textDim }}>Lädt…</div>
+        ) : data.runs.length === 0 ? (
+          <div style={{ fontSize: 13, color: C.textDim, padding: "8px 0" }}>Noch keine Läufe registriert.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {data.runs.map((r) => {
+              const m = statusMeta(r.status);
+              return (
+                <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 12, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px" }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 6, color: m.c, fontSize: 12, fontWeight: 700, minWidth: 70 }}>
+                    {r.status === "running" ? <Clock size={13} /> : r.status === "done" ? <CheckCircle size={13} /> : <AlertCircle size={13} />}
+                    {m.label}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, color: C.text, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {r.agentName || "Agent"}{r.clientName ? ` · ${r.clientName}` : ""}
+                    </div>
+                    <div style={{ fontSize: 11, color: C.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {r.inputPreview || ""}{r.error ? ` — ${r.error}` : ""}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11, color: C.textDim, textAlign: "right", flexShrink: 0 }}>
+                    {fmtTime(r.createdAt)}{r.durationMs ? ` · ${fmtDur(r.durationMs)}` : ""}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Per-client protocol (vault) */}
+      <div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Kunden-Protokoll</div>
+          <select
+            value={protoClient}
+            onChange={(e) => setProtoClient(e.target.value)}
+            style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontSize: 12.5, fontFamily: "inherit", outline: "none" }}
+          >
+            <option value="">Kunde wählen…</option>
+            {(clients || []).map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+          </select>
+        </div>
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 18, minHeight: 120 }}>
+          {!protoClient ? (
+            <div style={{ fontSize: 13, color: C.textDim }}>Wähle einen Kunden, um das Agenten-Protokoll zu sehen.</div>
+          ) : protoLoading ? (
+            <div style={{ fontSize: 13, color: C.textDim }}>Lädt Protokoll…</div>
+          ) : proto?.exists && proto.content ? (
+            <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "'JetBrains Mono',monospace", fontSize: 12, lineHeight: 1.6, color: C.text }}>
+              {proto.content}
+            </pre>
+          ) : (
+            <div style={{ fontSize: 13, color: C.textDim }}>Noch kein Protokoll für diesen Kunden — sobald ein Agent für ihn läuft, erscheint es hier.</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── EzyPilot shared store ───────────────────────────────────────────────────
 // One conversation store shared by the full-page tab AND the header pop-up, so
 // the chat + history stay in sync everywhere and survive reloads (localStorage).
@@ -9953,6 +10125,7 @@ const TABS = [
 const NAV = [
   { id: "dashboard", label: "Dashboard", icon: BarChart3 },
   { id: "copilot", label: "EzyPilot", icon: Sparkles },
+  { id: "activity", label: "Aktivität", icon: Activity },
   { id: "tasks", label: "Projekt", icon: ListChecks },
   { id: "tools", label: "AI Tools", icon: Zap },
   { id: "agents", label: "Agents", icon: Bot },
@@ -10625,6 +10798,9 @@ function App() {
           {!isViewer && page === "agents" && <AgentsPage selectedClient={client} />}
           {!isViewer && page === "copilot" && (
             <EzyPilotPage selectedClient={client} />
+          )}
+          {!isViewer && page === "activity" && (
+            <ActivityPage selectedClient={client} clients={clients} />
           )}
         </div>
       </main>

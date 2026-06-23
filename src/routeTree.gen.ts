@@ -50,8 +50,10 @@ import { Route as ApiAworkTaskRouteImport } from './routes/api/awork.task'
 import { Route as ApiAworkCreateTaskRouteImport } from './routes/api/awork.create-task'
 import { Route as ApiAiGenerateRouteImport } from './routes/api/ai.generate'
 import { Route as ApiAhrefsOverviewRouteImport } from './routes/api/ahrefs.overview'
+import { Route as ApiAgentRunsRouteImport } from './routes/api/agent.runs'
 import { Route as ApiAgentRunAgentRouteImport } from './routes/api/agent.run-agent'
 import { Route as ApiAgentRunRouteImport } from './routes/api/agent.run'
+import { Route as ApiAgentProtocolRouteImport } from './routes/api/agent.protocol'
 import { Route as ApiAgentMemoryRouteImport } from './routes/api/agent.memory'
 import { Route as ApiAgentJobRouteImport } from './routes/api/agent.job'
 import { Route as ApiAgentCopilotRouteImport } from './routes/api/agent.copilot'
@@ -268,6 +270,11 @@ const ApiAhrefsOverviewRoute = ApiAhrefsOverviewRouteImport.update({
   path: '/api/ahrefs/overview',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAgentRunsRoute = ApiAgentRunsRouteImport.update({
+  id: '/api/agent/runs',
+  path: '/api/agent/runs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAgentRunAgentRoute = ApiAgentRunAgentRouteImport.update({
   id: '/api/agent/run-agent',
   path: '/api/agent/run-agent',
@@ -276,6 +283,11 @@ const ApiAgentRunAgentRoute = ApiAgentRunAgentRouteImport.update({
 const ApiAgentRunRoute = ApiAgentRunRouteImport.update({
   id: '/api/agent/run',
   path: '/api/agent/run',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAgentProtocolRoute = ApiAgentProtocolRouteImport.update({
+  id: '/api/agent/protocol',
+  path: '/api/agent/protocol',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAgentMemoryRoute = ApiAgentMemoryRouteImport.update({
@@ -355,8 +367,10 @@ export interface FileRoutesByFullPath {
   '/api/agent/copilot': typeof ApiAgentCopilotRoute
   '/api/agent/job': typeof ApiAgentJobRoute
   '/api/agent/memory': typeof ApiAgentMemoryRoute
+  '/api/agent/protocol': typeof ApiAgentProtocolRoute
   '/api/agent/run': typeof ApiAgentRunRoute
   '/api/agent/run-agent': typeof ApiAgentRunAgentRoute
+  '/api/agent/runs': typeof ApiAgentRunsRoute
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/ai/generate': typeof ApiAiGenerateRoute
   '/api/awork/create-task': typeof ApiAworkCreateTaskRoute
@@ -410,8 +424,10 @@ export interface FileRoutesByTo {
   '/api/agent/copilot': typeof ApiAgentCopilotRoute
   '/api/agent/job': typeof ApiAgentJobRoute
   '/api/agent/memory': typeof ApiAgentMemoryRoute
+  '/api/agent/protocol': typeof ApiAgentProtocolRoute
   '/api/agent/run': typeof ApiAgentRunRoute
   '/api/agent/run-agent': typeof ApiAgentRunAgentRoute
+  '/api/agent/runs': typeof ApiAgentRunsRoute
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/ai/generate': typeof ApiAiGenerateRoute
   '/api/awork/create-task': typeof ApiAworkCreateTaskRoute
@@ -466,8 +482,10 @@ export interface FileRoutesById {
   '/api/agent/copilot': typeof ApiAgentCopilotRoute
   '/api/agent/job': typeof ApiAgentJobRoute
   '/api/agent/memory': typeof ApiAgentMemoryRoute
+  '/api/agent/protocol': typeof ApiAgentProtocolRoute
   '/api/agent/run': typeof ApiAgentRunRoute
   '/api/agent/run-agent': typeof ApiAgentRunAgentRoute
+  '/api/agent/runs': typeof ApiAgentRunsRoute
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/ai/generate': typeof ApiAiGenerateRoute
   '/api/awork/create-task': typeof ApiAworkCreateTaskRoute
@@ -523,8 +541,10 @@ export interface FileRouteTypes {
     | '/api/agent/copilot'
     | '/api/agent/job'
     | '/api/agent/memory'
+    | '/api/agent/protocol'
     | '/api/agent/run'
     | '/api/agent/run-agent'
+    | '/api/agent/runs'
     | '/api/ahrefs/overview'
     | '/api/ai/generate'
     | '/api/awork/create-task'
@@ -578,8 +598,10 @@ export interface FileRouteTypes {
     | '/api/agent/copilot'
     | '/api/agent/job'
     | '/api/agent/memory'
+    | '/api/agent/protocol'
     | '/api/agent/run'
     | '/api/agent/run-agent'
+    | '/api/agent/runs'
     | '/api/ahrefs/overview'
     | '/api/ai/generate'
     | '/api/awork/create-task'
@@ -633,8 +655,10 @@ export interface FileRouteTypes {
     | '/api/agent/copilot'
     | '/api/agent/job'
     | '/api/agent/memory'
+    | '/api/agent/protocol'
     | '/api/agent/run'
     | '/api/agent/run-agent'
+    | '/api/agent/runs'
     | '/api/ahrefs/overview'
     | '/api/ai/generate'
     | '/api/awork/create-task'
@@ -685,8 +709,10 @@ export interface RootRouteChildren {
   ApiAgentCopilotRoute: typeof ApiAgentCopilotRoute
   ApiAgentJobRoute: typeof ApiAgentJobRoute
   ApiAgentMemoryRoute: typeof ApiAgentMemoryRoute
+  ApiAgentProtocolRoute: typeof ApiAgentProtocolRoute
   ApiAgentRunRoute: typeof ApiAgentRunRoute
   ApiAgentRunAgentRoute: typeof ApiAgentRunAgentRoute
+  ApiAgentRunsRoute: typeof ApiAgentRunsRoute
   ApiAhrefsOverviewRoute: typeof ApiAhrefsOverviewRoute
   ApiAiGenerateRoute: typeof ApiAiGenerateRoute
   ApiAworkCreateTaskRoute: typeof ApiAworkCreateTaskRoute
@@ -1005,6 +1031,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAhrefsOverviewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agent/runs': {
+      id: '/api/agent/runs'
+      path: '/api/agent/runs'
+      fullPath: '/api/agent/runs'
+      preLoaderRoute: typeof ApiAgentRunsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/agent/run-agent': {
       id: '/api/agent/run-agent'
       path: '/api/agent/run-agent'
@@ -1017,6 +1050,13 @@ declare module '@tanstack/react-router' {
       path: '/api/agent/run'
       fullPath: '/api/agent/run'
       preLoaderRoute: typeof ApiAgentRunRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/agent/protocol': {
+      id: '/api/agent/protocol'
+      path: '/api/agent/protocol'
+      fullPath: '/api/agent/protocol'
+      preLoaderRoute: typeof ApiAgentProtocolRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/agent/memory': {
@@ -1158,8 +1198,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAgentCopilotRoute: ApiAgentCopilotRoute,
   ApiAgentJobRoute: ApiAgentJobRoute,
   ApiAgentMemoryRoute: ApiAgentMemoryRoute,
+  ApiAgentProtocolRoute: ApiAgentProtocolRoute,
   ApiAgentRunRoute: ApiAgentRunRoute,
   ApiAgentRunAgentRoute: ApiAgentRunAgentRoute,
+  ApiAgentRunsRoute: ApiAgentRunsRoute,
   ApiAhrefsOverviewRoute: ApiAhrefsOverviewRoute,
   ApiAiGenerateRoute: ApiAiGenerateRoute,
   ApiAworkCreateTaskRoute: ApiAworkCreateTaskRoute,
