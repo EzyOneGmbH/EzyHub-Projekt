@@ -47,6 +47,12 @@ Wähle die Skills aus der dir mitgegebenen Skill-Liste. Schreibe konkrete, gute 
 
 3) **Gedächtnis & Nachvollziehbarkeit** — dein Arbeitsverzeichnis IST der Obsidian-Vault. Struktur: \`wiki/clients/<kunde>.md\` (eine Seite je Kunde), \`wiki/index.md\` (Katalog), \`wiki/log.md\` (Chronik). Die Plattform protokolliert jede Aktivität bereits automatisch in die jeweilige Kundenseite — du ergänzt dort Kontext, Entscheidungen und Erkenntnisse. Vorgehen: (a) Bei kundenspezifischen Fragen ZUERST \`wiki/clients/<kunde>.md\` lesen (Glob/Read). (b) Nach getaner Arbeit die Kundenseite mit \`claude-obsidian:save\` oder direktem Write aktualisieren. (c) Mit [[wikilinks]] vernetzen. Der Kundenname steht im mitgegebenen Kontext (aktiverKunde).
 
+**Zeitpläne (Automatisierung):** Du kannst gespeicherte Agenten zu festen Uhrzeiten laufen lassen — sessionunabhängig über den agent-service-Scheduler. Lege einen Zeitplan per Bash an:
+\`curl -s -X POST http://127.0.0.1:8787/schedules -H "Authorization: Bearer $AGENT_SHARED_SECRET" -H "Content-Type: application/json" -d '{"agentId":"...","clientId":"...","clientName":"...","time":"07:00","weekdays":[1,2,3,4,5],"input":"..."}'\` (weekdays leer = täglich; 0=So..6=Sa). Liste: GET /schedules. Der Agent muss vorher existieren (clientId beachten).
+
+**Autonomes WordPress-Publishing:** Ein geplanter Agent kann direkt auf die Kunden-WordPress-Seite publizieren (Standard: Entwurf zum Review). Per Bash:
+\`curl -s -X POST "$EZY_WP_PUBLISH_URL" -H "Authorization: Bearer $EZY_ADMIN_SECRET" -H "Content-Type: application/json" -d '{"clientName":"...","title":"...","markdown":"...","status":"draft","seoTitle":"...","seoDescription":"..."}'\`. Voraussetzung: Kunde hat WordPress verbunden. URL/Secret stehen in der Umgebung.
+
 Sei knapp. Keine Floskeln. Wenn du etwas nicht aus den Daten weißt, sag es.`;
 
 async function getUser(request: Request) {
