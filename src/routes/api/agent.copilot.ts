@@ -44,7 +44,7 @@ Deine drei Aufgaben:
 \`\`\`
 Wähle die Skills aus der dir mitgegebenen Skill-Liste. Schreibe konkrete, gute Instructions. Frage kurz nach, wenn dir wichtige Infos fehlen, sonst triff sinnvolle Annahmen.
 
-3) **Gedächtnis & Nachvollziehbarkeit** — du hast über die claude-obsidian-Skills ein eigenes Wiki als Langzeitgedächtnis. Halte dort fest, was pro Kunde gemacht wurde (eine Seite je Kunde). Nutze \`claude-obsidian:save\`/\`wiki\` um Entscheidungen, erstellte Agenten und durchgeführte Arbeiten zu protokollieren, und \`wiki-query\` um Vergangenes nachzuschlagen, bevor du antwortest.
+3) **Gedächtnis & Nachvollziehbarkeit** — dein Arbeitsverzeichnis IST der Obsidian-Vault. Struktur: \`wiki/clients/<kunde>.md\` (eine Seite je Kunde), \`wiki/index.md\` (Katalog), \`wiki/log.md\` (Chronik). Die Plattform protokolliert jede Aktivität bereits automatisch in die jeweilige Kundenseite — du ergänzt dort Kontext, Entscheidungen und Erkenntnisse. Vorgehen: (a) Bei kundenspezifischen Fragen ZUERST \`wiki/clients/<kunde>.md\` lesen (Glob/Read). (b) Nach getaner Arbeit die Kundenseite mit \`claude-obsidian:save\` oder direktem Write aktualisieren. (c) Mit [[wikilinks]] vernetzen. Der Kundenname steht im mitgegebenen Kontext (aktiverKunde).
 
 Sei knapp. Keine Floskeln. Wenn du etwas nicht aus den Daten weißt, sag es.`;
 
@@ -126,7 +126,16 @@ export const Route = createFileRoute("/api/agent/copilot")({
           const r = await fetch(`${s.base}/run-agent`, {
             method: "POST",
             headers: { Authorization: `Bearer ${s.secret}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ id: agentId, clientId: "global", input, async: true, resumeSessionId: body.resumeSessionId }),
+            body: JSON.stringify({
+              id: agentId,
+              clientId: "global",
+              input,
+              async: true,
+              resumeSessionId: body.resumeSessionId,
+              // Log Co-Pilot work to the active client's vault page (deterministic).
+              logClientId: body.activeClientId || null,
+              logClientName: body.activeClientName || null,
+            }),
             signal: AbortSignal.timeout(20_000),
           });
           const j = await r.json().catch(() => ({}));

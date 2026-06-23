@@ -31,7 +31,16 @@ export const Route = createFileRoute("/api/agent/run-agent")({
           const r = await fetch(`${base.replace(/\/+$/, "")}/run-agent`, {
             method: "POST",
             headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ id: body.id, input: body.input ?? "", resumeSessionId: body.resumeSessionId, async: true }),
+            body: JSON.stringify({
+              id: body.id,
+              clientId: body.clientId,
+              clientName: body.clientName,
+              input: body.input ?? "",
+              resumeSessionId: body.resumeSessionId,
+              logClientId: body.logClientId,
+              logClientName: body.logClientName,
+              async: true,
+            }),
             signal: AbortSignal.timeout(20_000),
           });
           return new Response(await r.text().catch(() => ""), {

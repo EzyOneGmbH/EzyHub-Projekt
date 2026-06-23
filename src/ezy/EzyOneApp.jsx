@@ -9305,7 +9305,13 @@ function CopilotPage({ selectedClient, clients, tools }) {
       const startRes = await fetch("/api/agent/copilot", {
         method: "POST",
         headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ input: q, context: buildContext(), resumeSessionId: sessionId }),
+        body: JSON.stringify({
+          input: q,
+          context: buildContext(),
+          resumeSessionId: sessionId,
+          activeClientId: selectedClient?.id || null,
+          activeClientName: selectedClient?.name || null,
+        }),
       });
       const start = await startRes.json().catch(() => ({}));
       if (!start.jobId) throw new Error(start.error || "Start fehlgeschlagen");
@@ -9553,7 +9559,7 @@ function AgentsPage({ selectedClient }) {
       const r = await ezyFetch("/api/agent/run-agent", {
         method: "POST",
         headers: JSON_HEAD,
-        body: JSON.stringify({ id: agent.id, clientId, input: runInputs[agent.id] || "", resumeSessionId }),
+        body: JSON.stringify({ id: agent.id, clientId, clientName: selectedClient?.name || null, input: runInputs[agent.id] || "", resumeSessionId }),
       });
       const j = await r.json();
       if (!j.jobId) throw new Error(j.error || "Start fehlgeschlagen");
