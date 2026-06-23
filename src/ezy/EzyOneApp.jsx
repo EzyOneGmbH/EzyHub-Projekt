@@ -9246,6 +9246,220 @@ function SkillPicker({ selected, onChange }) {
   );
 }
 
+// Parse ```agent-spec fenced JSON blocks the Co-Pilot emits when proposing agents.
+function parseAgentSpecs(text) {
+  const specs = [];
+  const re = /```agent-spec\s*\n([\s\S]*?)```/g;
+  let m;
+  while ((m = re.exec(text || "")) !== null) {
+    try {
+      const obj = JSON.parse(m[1].trim());
+      if (obj && obj.name && obj.instructions) specs.push(obj);
+    } catch {
+      /* ignore malformed block */
+    }
+  }
+  return specs;
+}
+
+// Strip agent-spec blocks from the displayed text (they're rendered as cards instead).
+function stripAgentSpecs(text) {
+  return String(text || "").replace(/```agent-spec\s*\n[\s\S]*?```/g, "").trim();
+}
+
+// EzyHub Co-Pilot — chat with the Opus 4.8 assistant. Answers data/portal
+// questions, proposes agents (one-click create), uses Obsidian memory.
+function CopilotPage({ selectedClient, clients, tools }) {
+  const toast = useToast();
+  const [messages, setMessages] = useState([]); // {role, text, specs?}
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [sessionId, setSessionId] = useState(null);
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, busy]);
+
+  // Compact portal context the assistant gets with every turn.
+  const buildContext = () => {
+    const skillIds = SKILL_CATALOG.map((s) => s.skill);
+    return {
+      aktiverKunde: selectedClient
+        ? { name: selectedClient.name, domain: selectedClient.domain, branche: selectedClient.industry || null }
+        : null,
+      alleKunden: (clients || []).map((c) => ({ name: c.name, domain: c.domain })),
+      verfügbareSkills: skillIds,
+      aktiveTools: (tools || []).filter((t) => t.enabled).map((t) => t.id),
+    };
+  };
+
+  const send = async (text) => {
+    const q = (text ?? input).trim();
+    if (!q || busy) return;
+    setInput("");
+    setMessages((m) => [...m, { role: "user", text: q }]);
+    setBusy(true);
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const startRes = await fetch("/api/agent/copilot", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ input: q, context: buildContext(), resumeSessionId: sessionId }),
+      });
+      const start = await startRes.json().catch(() => ({}));
+      if (!start.jobId) throw new Error(start.error || "Start fehlgeschlagen");
+      // Poll the job
+      let out = null;
+      for (let i = 0; i < 180; i++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const pr = await fetch(`/api/agent/run-agent?jobId=${encodeURIComponent(start.jobId)}`, {
+          headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+        });
+        const pj = await pr.json().catch(() => ({}));
+        if (pj.status === "done") { out = pj; break; }
+        if (pj.status === "error") throw new Error(pj.error || "Agent-Fehler");
+      }
+      if (!out) throw new Error("Zeitüberschreitung");
+      if (out.sessionId) setSessionId(out.sessionId);
+      const full = out.result || "";
+      setMessages((m) => [...m, { role: "assistant", text: stripAgentSpecs(full), specs: parseAgentSpecs(full) }]);
+    } catch (e) {
+      setMessages((m) => [...m, { role: "assistant", text: `⚠️ ${String(e?.message || e)}`, specs: [] }]);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const createAgent = async (spec) => {
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const clientId = selectedClient?.id || "global";
+      const r = await fetch(`/api/agent/agents?clientId=${encodeURIComponent(clientId)}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId,
+          name: spec.name,
+          description: spec.description || "",
+          instructions: spec.instructions || "",
+          model: spec.model || "claude-opus-4-8",
+          skills: Array.isArray(spec.skills) ? spec.skills : [],
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (j.ok || j.agent) toast(`Agent „${spec.name}" erstellt`, "success");
+      else throw new Error(j.error || "Erstellen fehlgeschlagen");
+    } catch (e) {
+      toast(String(e?.message || e), "error");
+    }
+  };
+
+  const suggestions = [
+    "Wie entwickelt sich der Traffic von " + (selectedClient?.name || "diesem Kunden") + "?",
+    "Erstelle mir einen Agenten der monatliche SEO-Reports schreibt",
+    "Was wurde für diesen Kunden bisher gemacht?",
+    "Welche Tools gibt es im Portal?",
+  ];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 140px)" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+        <div style={{ width: 40, height: 40, borderRadius: 10, background: C.accentDim, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Sparkles size={20} color={C.accent} />
+        </div>
+        <div>
+          <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: C.text }}>Co-Pilot</h1>
+          <div style={{ fontSize: 12, color: C.textMuted }}>
+            Opus 4.8 · Daten- & Portal-Fragen, Agenten bauen, Obsidian-Gedächtnis
+            {selectedClient ? ` · Kontext: ${selectedClient.name}` : ""}
+          </div>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 14, padding: "4px 2px" }}>
+        {messages.length === 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "20px 0" }}>
+            <div style={{ fontSize: 14, color: C.textMuted }}>Frag mich etwas, oder starte mit:</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {suggestions.map((s, i) => (
+                <button
+                  key={i}
+                  onClick={() => send(s)}
+                  style={{ padding: "8px 14px", borderRadius: 20, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {messages.map((msg, i) => (
+          <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
+            <div
+              style={{
+                maxWidth: "80%",
+                background: msg.role === "user" ? C.accent : C.card,
+                color: msg.role === "user" ? "#fff" : C.text,
+                border: msg.role === "user" ? "none" : `1px solid ${C.border}`,
+                borderRadius: 14,
+                padding: "12px 16px",
+                fontSize: 14,
+                lineHeight: 1.6,
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {msg.text}
+              {/* Agent proposals → one-click create */}
+              {(msg.specs || []).map((spec, si) => (
+                <div key={si} style={{ marginTop: 12, background: C.bg, border: `1px solid ${C.accent}55`, borderRadius: 10, padding: 14 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <Bot size={16} color={C.accent} />
+                    <span style={{ fontWeight: 700, color: C.text }}>{spec.name}</span>
+                  </div>
+                  <div style={{ fontSize: 12.5, color: C.textMuted, marginBottom: 8 }}>{spec.description}</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
+                    {(spec.skills || []).map((sk) => (
+                      <span key={sk} style={{ fontSize: 10.5, padding: "2px 8px", borderRadius: 5, background: C.accentDim, color: C.accentLight }}>{sk}</span>
+                    ))}
+                  </div>
+                  <Btn size="sm" icon={Plus} onClick={() => createAgent(spec)}>
+                    Diesen Agenten erstellen
+                  </Btn>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+        {busy && (
+          <div style={{ display: "flex", justifyContent: "flex-start" }}>
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 16px", fontSize: 14, color: C.textMuted }}>
+              Co-Pilot denkt nach…
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Input */}
+      <div style={{ display: "flex", gap: 10, marginTop: 14, alignItems: "flex-end" }}>
+        <textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+          placeholder="Frage zu Daten/Portal, oder „Erstelle einen Agenten der …"
+          rows={2}
+          style={{ flex: 1, padding: "12px 14px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontSize: 14, fontFamily: "inherit", outline: "none", resize: "none", boxSizing: "border-box" }}
+        />
+        <Btn icon={ArrowRight} onClick={() => send()} disabled={busy || !input.trim()}>
+          Senden
+        </Btn>
+      </div>
+    </div>
+  );
+}
+
 function AgentsPage({ selectedClient }) {
   const clientId = selectedClient?.id || "global";
   const [agents, setAgents] = useState([]);
@@ -9544,6 +9758,7 @@ const TABS = [
 ];
 const NAV = [
   { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+  { id: "copilot", label: "Co-Pilot", icon: Sparkles },
   { id: "tasks", label: "Projekt", icon: ListChecks },
   { id: "tools", label: "AI Tools", icon: Zap },
   { id: "agents", label: "Agents", icon: Bot },
@@ -10212,6 +10427,9 @@ function App() {
             />
           )}
           {!isViewer && page === "agents" && <AgentsPage selectedClient={client} />}
+          {!isViewer && page === "copilot" && (
+            <CopilotPage selectedClient={client} clients={clients} tools={tools} />
+          )}
         </div>
       </main>
 

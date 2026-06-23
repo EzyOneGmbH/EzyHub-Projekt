@@ -54,6 +54,7 @@ import { Route as ApiAgentRunAgentRouteImport } from './routes/api/agent.run-age
 import { Route as ApiAgentRunRouteImport } from './routes/api/agent.run'
 import { Route as ApiAgentMemoryRouteImport } from './routes/api/agent.memory'
 import { Route as ApiAgentJobRouteImport } from './routes/api/agent.job'
+import { Route as ApiAgentCopilotRouteImport } from './routes/api/agent.copilot'
 import { Route as ApiAgentAgentsRouteImport } from './routes/api/agent.agents'
 import { Route as ApiAdminPopulateRouteImport } from './routes/api/admin.populate'
 import { Route as ApiAdminAdsClientsRouteImport } from './routes/api/admin.ads-clients'
@@ -286,6 +287,11 @@ const ApiAgentJobRoute = ApiAgentJobRouteImport.update({
   path: '/api/agent/job',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAgentCopilotRoute = ApiAgentCopilotRouteImport.update({
+  id: '/api/agent/copilot',
+  path: '/api/agent/copilot',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAgentAgentsRoute = ApiAgentAgentsRouteImport.update({
   id: '/api/agent/agents',
   path: '/api/agent/agents',
@@ -339,6 +345,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
+  '/api/agent/copilot': typeof ApiAgentCopilotRoute
   '/api/agent/job': typeof ApiAgentJobRoute
   '/api/agent/memory': typeof ApiAgentMemoryRoute
   '/api/agent/run': typeof ApiAgentRunRoute
@@ -392,6 +399,7 @@ export interface FileRoutesByTo {
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
+  '/api/agent/copilot': typeof ApiAgentCopilotRoute
   '/api/agent/job': typeof ApiAgentJobRoute
   '/api/agent/memory': typeof ApiAgentMemoryRoute
   '/api/agent/run': typeof ApiAgentRunRoute
@@ -446,6 +454,7 @@ export interface FileRoutesById {
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
+  '/api/agent/copilot': typeof ApiAgentCopilotRoute
   '/api/agent/job': typeof ApiAgentJobRoute
   '/api/agent/memory': typeof ApiAgentMemoryRoute
   '/api/agent/run': typeof ApiAgentRunRoute
@@ -501,6 +510,7 @@ export interface FileRouteTypes {
     | '/api/admin/ads-clients'
     | '/api/admin/populate'
     | '/api/agent/agents'
+    | '/api/agent/copilot'
     | '/api/agent/job'
     | '/api/agent/memory'
     | '/api/agent/run'
@@ -554,6 +564,7 @@ export interface FileRouteTypes {
     | '/api/admin/ads-clients'
     | '/api/admin/populate'
     | '/api/agent/agents'
+    | '/api/agent/copilot'
     | '/api/agent/job'
     | '/api/agent/memory'
     | '/api/agent/run'
@@ -607,6 +618,7 @@ export interface FileRouteTypes {
     | '/api/admin/ads-clients'
     | '/api/admin/populate'
     | '/api/agent/agents'
+    | '/api/agent/copilot'
     | '/api/agent/job'
     | '/api/agent/memory'
     | '/api/agent/run'
@@ -657,6 +669,7 @@ export interface RootRouteChildren {
   ApiAdminAdsClientsRoute: typeof ApiAdminAdsClientsRoute
   ApiAdminPopulateRoute: typeof ApiAdminPopulateRoute
   ApiAgentAgentsRoute: typeof ApiAgentAgentsRoute
+  ApiAgentCopilotRoute: typeof ApiAgentCopilotRoute
   ApiAgentJobRoute: typeof ApiAgentJobRoute
   ApiAgentMemoryRoute: typeof ApiAgentMemoryRoute
   ApiAgentRunRoute: typeof ApiAgentRunRoute
@@ -1007,6 +1020,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentJobRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agent/copilot': {
+      id: '/api/agent/copilot'
+      path: '/api/agent/copilot'
+      fullPath: '/api/agent/copilot'
+      preLoaderRoute: typeof ApiAgentCopilotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/agent/agents': {
       id: '/api/agent/agents'
       path: '/api/agent/agents'
@@ -1114,6 +1134,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminAdsClientsRoute: ApiAdminAdsClientsRoute,
   ApiAdminPopulateRoute: ApiAdminPopulateRoute,
   ApiAgentAgentsRoute: ApiAgentAgentsRoute,
+  ApiAgentCopilotRoute: ApiAgentCopilotRoute,
   ApiAgentJobRoute: ApiAgentJobRoute,
   ApiAgentMemoryRoute: ApiAgentMemoryRoute,
   ApiAgentRunRoute: ApiAgentRunRoute,
