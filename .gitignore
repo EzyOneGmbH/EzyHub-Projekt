@@ -42,3 +42,6 @@ dist-ssr
 # Workspace / TS build info
 .workspace/
 *.tsbuildinfo
+
+# Plugin-ZIP-Build-Artefakte
+wordpress-plugin/_build/
