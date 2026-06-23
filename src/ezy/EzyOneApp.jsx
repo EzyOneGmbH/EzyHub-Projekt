@@ -9267,7 +9267,7 @@ function stripAgentSpecs(text) {
   return String(text || "").replace(/```agent-spec\s*\n[\s\S]*?```/g, "").trim();
 }
 
-// ── Ezy-Pilot shared store ───────────────────────────────────────────────────
+// ── EzyPilot shared store ───────────────────────────────────────────────────
 // One conversation store shared by the full-page tab AND the header pop-up, so
 // the chat + history stay in sync everywhere and survive reloads (localStorage).
 const EzyPilotCtx = createContext(null);
@@ -9486,7 +9486,7 @@ function EzyPilotChat({ compact = false }) {
         {busy && (
           <div style={{ display: "flex", justifyContent: "flex-start" }}>
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "10px 14px", fontSize: 13, color: C.textMuted }}>
-              Ezy-Pilot denkt nach…
+              EzyPilot denkt nach…
             </div>
           </div>
         )}
@@ -9543,7 +9543,7 @@ function EzyPilotHistory({ compact = false }) {
   );
 }
 
-// Full-page Ezy-Pilot tab: history sidebar + chat.
+// Full-page EzyPilot tab: history sidebar + chat.
 function EzyPilotPage({ selectedClient }) {
   return (
     <div style={{ display: "flex", gap: 16, height: "calc(100vh - 140px)" }}>
@@ -9559,7 +9559,7 @@ function EzyPilotPage({ selectedClient }) {
             <Sparkles size={19} color={C.accent} />
           </div>
           <div>
-            <h1 style={{ fontSize: 19, fontWeight: 700, margin: 0, color: C.text }}>Ezy-Pilot</h1>
+            <h1 style={{ fontSize: 19, fontWeight: 700, margin: 0, color: C.text }}>EzyPilot</h1>
             <div style={{ fontSize: 12, color: C.textMuted }}>
               Opus 4.8 · Daten- & Portal-Fragen, Agenten bauen, Obsidian-Gedächtnis
               {selectedClient ? ` · Kontext: ${selectedClient.name}` : ""}
@@ -9601,7 +9601,7 @@ function EzyPilotPopup() {
           <Sparkles size={16} color={C.accent} />
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Ezy-Pilot</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>EzyPilot</div>
           <div style={{ fontSize: 10.5, color: C.textDim }}>Opus 4.8</div>
         </div>
         <button onClick={() => setShowHistory((v) => !v)} title="Verlauf" style={{ background: showHistory ? C.accentDim : "none", border: "none", cursor: "pointer", color: showHistory ? C.accentLight : C.textMuted, padding: 6, borderRadius: 6 }}>
@@ -9625,13 +9625,13 @@ function EzyPilotPopup() {
   );
 }
 
-// Header button (right side) that toggles the Ezy-Pilot pop-up.
+// Header button (right side) that toggles the EzyPilot pop-up.
 function EzyPilotButton() {
   const { open, setOpen } = useEzyPilot();
   return (
     <button
       onClick={() => setOpen((v) => !v)}
-      title="Ezy-Pilot öffnen"
+      title="EzyPilot öffnen"
       style={{
         display: "flex",
         alignItems: "center",
@@ -9649,7 +9649,7 @@ function EzyPilotButton() {
       }}
     >
       <Sparkles size={15} />
-      Ezy-Pilot
+      EzyPilot
     </button>
   );
 }
@@ -9952,7 +9952,7 @@ const TABS = [
 ];
 const NAV = [
   { id: "dashboard", label: "Dashboard", icon: BarChart3 },
-  { id: "copilot", label: "Ezy-Pilot", icon: Sparkles },
+  { id: "copilot", label: "EzyPilot", icon: Sparkles },
   { id: "tasks", label: "Projekt", icon: ListChecks },
   { id: "tools", label: "AI Tools", icon: Zap },
   { id: "agents", label: "Agents", icon: Bot },

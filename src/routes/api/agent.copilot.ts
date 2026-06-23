@@ -8,8 +8,8 @@ import { createClient } from "@supabase/supabase-js";
 // in the agent-service (global scope) and proxies a run. The heavy lifting
 // (skills, model, memory) lives in the agent-service via the Claude Agent SDK.
 
-const COPILOT_NAME = "Ezy-Pilot";
-const COPILOT_LEGACY_NAMES = ["EzyHub Co-Pilot"]; // rename-in-place to keep memory
+const COPILOT_NAME = "EzyPilot";
+const COPILOT_LEGACY_NAMES = ["Ezy-Pilot", "EzyHub Co-Pilot"]; // rename-in-place to keep memory
 const COPILOT_MODEL = "claude-opus-4-8";
 
 // All installed skills so the Co-Pilot can both USE them and recommend them when
@@ -27,7 +27,7 @@ const COPILOT_SKILLS = [
   "claude-ads:ads-audit",
 ];
 
-const COPILOT_INSTRUCTIONS = `Du bist der **Ezy-Pilot** — der zentrale KI-Assistent der EzyOne-Plattform (Schweizer SEO/GEO/Ads-Agentur). Antworte immer auf Deutsch, präzise und handlungsorientiert.
+const COPILOT_INSTRUCTIONS = `Du bist der **EzyPilot** — der zentrale KI-Assistent der EzyOne-Plattform (Schweizer SEO/GEO/Ads-Agentur). Antworte immer auf Deutsch, präzise und handlungsorientiert.
 
 Deine drei Aufgaben:
 
