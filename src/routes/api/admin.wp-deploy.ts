@@ -4,21 +4,40 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getWpConnection, wpFetch } from "@/server/wordpress.server";
 
 // Machine-triggerable technical-SEO deploy for autonomous (scheduled) agents.
-// Pushes <head> snippets / llms.txt / page-meta to the EzyHub Connector plugin
-// on the client's WordPress site. Secret-gated (ADMIN_AUTOMATION_SECRET).
-// All changes are reversible (stored in WP options by the plugin).
+// Generic allowlisted passthrough to the EzyHub Connector plugin. Secret-gated
+// (ADMIN_AUTOMATION_SECRET). All changes are reversible (WP options / postmeta).
+
+// action -> { method, plugin path, allowed body fields }
+const ACTIONS: Record<string, { method: "GET" | "POST"; path: string; fields: string[] }> = {
+  "status":              { method: "GET",  path: "/ezyhub/v1/status", fields: [] },
+  "head":                { method: "POST", path: "/ezyhub/v1/head", fields: ["key", "html"] },
+  "llms-txt":            { method: "POST", path: "/ezyhub/v1/llms-txt", fields: ["content"] },
+  "robots-txt":          { method: "POST", path: "/ezyhub/v1/robots-txt", fields: ["content"] },
+  "page-meta":           { method: "POST", path: "/ezyhub/v1/page-meta", fields: ["postId", "seoTitle", "seoDescription", "canonical", "noindex"] },
+  "alt-text":            { method: "POST", path: "/ezyhub/v1/alt-text", fields: ["attachmentId", "alt"] },
+  "images-missing-alt":  { method: "GET",  path: "/ezyhub/v1/images-missing-alt", fields: ["limit"] },
+  "elementor-headings":  { method: "GET",  path: "/ezyhub/v1/elementor/headings", fields: ["postId"] },
+  "elementor-set-heading": { method: "POST", path: "/ezyhub/v1/elementor/set-heading", fields: ["postId", "widgetId", "tag"] },
+};
 
 const Body = z.object({
   clientId: z.string().uuid().optional(),
   clientName: z.string().optional(),
-  // exactly one action per call
-  action: z.enum(["status", "head", "llms-txt", "page-meta"]),
-  key: z.string().optional(),           // head snippet name
-  html: z.string().optional(),          // head snippet html
-  content: z.string().optional(),       // llms.txt content
+  action: z.string(),
+  // free-form payload; only allowlisted fields per action are forwarded
+  key: z.string().optional(),
+  html: z.string().optional(),
+  content: z.string().optional(),
   postId: z.number().int().optional(),
+  attachmentId: z.number().int().optional(),
+  alt: z.string().optional(),
+  widgetId: z.string().optional(),
+  tag: z.string().optional(),
   seoTitle: z.string().optional(),
   seoDescription: z.string().optional(),
+  canonical: z.string().optional(),
+  noindex: z.boolean().optional(),
+  limit: z.number().int().optional(),
 });
 
 export const Route = createFileRoute("/api/admin/wp-deploy")({
@@ -32,12 +51,14 @@ export const Route = createFileRoute("/api/admin/wp-deploy")({
 
         const parsed = Body.safeParse(await request.json().catch(() => ({})));
         if (!parsed.success) return Response.json({ ok: false, error: "Invalid input", details: parsed.error.issues }, { status: 400 });
-        const d = parsed.data;
+        const d = parsed.data as Record<string, any>;
+
+        const spec = ACTIONS[d.action];
+        if (!spec) return Response.json({ ok: false, error: `Unbekannte action: ${d.action}` }, { status: 400 });
 
         let clientId = d.clientId || null;
         if (!clientId && d.clientName) {
-          const { data } = await supabaseAdmin
-            .from("clients").select("id").ilike("name", d.clientName).limit(1).maybeSingle();
+          const { data } = await supabaseAdmin.from("clients").select("id").ilike("name", d.clientName).limit(1).maybeSingle();
           clientId = data?.id || null;
         }
         if (!clientId) return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
@@ -45,29 +66,26 @@ export const Route = createFileRoute("/api/admin/wp-deploy")({
         const conn = await getWpConnection(clientId);
         if (!conn) return Response.json({ ok: false, error: "Keine WordPress-Verbindung" });
 
-        // Probe the connector plugin first (clear error if not installed).
+        // Verify the connector plugin (clear error if missing/outdated).
         const status = await wpFetch<any>(conn, "/ezyhub/v1/status");
         if (!status.ok) {
-          return Response.json({
-            ok: false,
-            error: "EzyHub-Connector-Plugin nicht gefunden. Bitte einmalig auf der WordPress-Seite installieren & aktivieren.",
-            pluginMissing: true,
-          });
+          return Response.json({ ok: false, pluginMissing: true, error: "EzyHub-Connector-Plugin nicht gefunden/aktiv. Bitte auf der WordPress-Seite installieren & aktivieren (Version ≥ 1.1.0)." });
         }
         if (d.action === "status") return Response.json({ ok: true, status: status.data });
 
-        let res;
-        if (d.action === "head") {
-          if (!d.key) return Response.json({ ok: false, error: "key erforderlich" }, { status: 400 });
-          res = await wpFetch<any>(conn, "/ezyhub/v1/head", { method: "POST", body: { key: d.key, html: d.html ?? "" } });
-        } else if (d.action === "llms-txt") {
-          res = await wpFetch<any>(conn, "/ezyhub/v1/llms-txt", { method: "POST", body: { content: d.content ?? "" } });
-        } else if (d.action === "page-meta") {
-          if (!d.postId) return Response.json({ ok: false, error: "postId erforderlich" }, { status: 400 });
-          res = await wpFetch<any>(conn, "/ezyhub/v1/page-meta", { method: "POST", body: { postId: d.postId, seoTitle: d.seoTitle, seoDescription: d.seoDescription } });
+        // Build the forwarded payload from the allowlisted fields only.
+        if (spec.method === "GET") {
+          const query: Record<string, string | number> = {};
+          for (const f of spec.fields) if (d[f] !== undefined) query[f] = d[f];
+          const r = await wpFetch<any>(conn, spec.path, { query });
+          if (!r.ok) return Response.json({ ok: false, error: r.error });
+          return Response.json({ ok: true, result: r.data });
         }
-        if (!res || !res.ok) return Response.json({ ok: false, error: res?.error || "Deploy fehlgeschlagen" });
-        return Response.json({ ok: true, result: res.data });
+        const body: Record<string, any> = {};
+        for (const f of spec.fields) if (d[f] !== undefined) body[f] = d[f];
+        const r = await wpFetch<any>(conn, spec.path, { method: "POST", body });
+        if (!r.ok) return Response.json({ ok: false, error: r.error });
+        return Response.json({ ok: true, result: r.data });
       },
     },
   },
