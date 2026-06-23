@@ -18,6 +18,10 @@ const ACTIONS: Record<string, { method: "GET" | "POST"; path: string; fields: st
   "images-missing-alt":  { method: "GET",  path: "/ezyhub/v1/images-missing-alt", fields: ["limit"] },
   "elementor-headings":  { method: "GET",  path: "/ezyhub/v1/elementor/headings", fields: ["postId"] },
   "elementor-set-heading": { method: "POST", path: "/ezyhub/v1/elementor/set-heading", fields: ["postId", "widgetId", "tag"] },
+  "elementor-text-widgets": { method: "GET", path: "/ezyhub/v1/elementor/text-widgets", fields: ["postId"] },
+  "elementor-set-text":  { method: "POST", path: "/ezyhub/v1/elementor/set-text", fields: ["postId", "widgetId", "html"] },
+  "elementor-backups":   { method: "GET",  path: "/ezyhub/v1/elementor/backups", fields: ["postId"] },
+  "elementor-restore":   { method: "POST", path: "/ezyhub/v1/elementor/restore", fields: ["postId", "ts"] },
 };
 
 const Body = z.object({
@@ -33,6 +37,7 @@ const Body = z.object({
   alt: z.string().optional(),
   widgetId: z.string().optional(),
   tag: z.string().optional(),
+  ts: z.string().optional(),
   seoTitle: z.string().optional(),
   seoDescription: z.string().optional(),
   canonical: z.string().optional(),

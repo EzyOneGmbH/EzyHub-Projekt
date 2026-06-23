@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: EzyHub Connector
- * Description: Lässt EzyHub technische SEO-Maßnahmen autonom deployen — <head>-Injektion (JSON-LD, OG, Meta), llms.txt, Seiten-Meta, Canonical/Noindex, robots.txt, Sitemap-Optimierung, Bild-Alt-Texte und surgische Elementor-Heading-Korrekturen. Auth via Application Passwords (manage_options). Alle Änderungen reversibel.
- * Version: 1.1.0
+ * Description: Lässt EzyHub technische SEO-Maßnahmen autonom deployen — <head>-Injektion (JSON-LD, OG, Meta), llms.txt, Seiten-Meta, Canonical/Noindex, robots.txt, Sitemap-Optimierung, Bild-Alt-Texte und Elementor-Editing (Headings + Text-Widgets) mit automatischem Backup/Restore. Auth via Application Passwords (manage_options). Alle Änderungen reversibel.
+ * Version: 1.2.0
  * Author: EzyOne GmbH
  * License: GPL-2.0+
  */
@@ -30,13 +30,32 @@ class EzyHub_Connector {
 
     public function can_write() { return current_user_can('manage_options'); }
 
+    // ── Elementor safety net: snapshot _elementor_data before any change ──
+    // Keeps the last 8 snapshots in postmeta so every edit is fully reversible.
+    private function backup_elementor($postId) {
+        $cur = get_post_meta($postId, '_elementor_data', true);
+        if (!$cur) return;
+        $backups = get_post_meta($postId, '_ezyhub_elementor_backups', true);
+        if (!is_array($backups)) $backups = [];
+        array_unshift($backups, ['ts' => current_time('mysql'), 'data' => $cur]);
+        $backups = array_slice($backups, 0, 8);
+        update_post_meta($postId, '_ezyhub_elementor_backups', $backups);
+    }
+    private function save_elementor($postId, $tree) {
+        update_post_meta($postId, '_elementor_data', wp_slash(wp_json_encode($tree)));
+        delete_post_meta($postId, '_elementor_css'); // force regeneration
+        if (class_exists('\Elementor\Plugin')) {
+            try { \Elementor\Plugin::$instance->files_manager->clear_cache(); } catch (\Throwable $e) {}
+        }
+    }
+
     public function routes() {
         $auth = [$this, 'can_write'];
 
         register_rest_route(self::NS, '/status', ['methods' => 'GET', 'permission_callback' => $auth, 'callback' => function () {
             $head = get_option(self::OPT_HEAD, []);
             return [
-                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.1.0',
+                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.2.0',
                 'headKeys' => is_array($head) ? array_keys($head) : [],
                 'llmsBytes' => strlen((string) get_option(self::OPT_LLMS, '')),
                 'robotsBytes' => strlen((string) get_option(self::OPT_ROBOTS, '')),
@@ -146,13 +165,81 @@ class EzyHub_Connector {
             };
             $walk($tree);
             if (!$changed) return new WP_Error('not_found', 'Heading-Widget nicht gefunden', ['status' => 404]);
-            // wp_slash: _elementor_data is stored slashed.
-            update_post_meta($id, '_elementor_data', wp_slash(wp_json_encode($tree)));
-            delete_post_meta($id, '_elementor_css'); // force CSS/HTML regeneration
-            if (class_exists('\Elementor\Plugin')) {
-                try { \Elementor\Plugin::$instance->files_manager->clear_cache(); } catch (\Throwable $e) {}
-            }
+            $this->backup_elementor($id);
+            $this->save_elementor($id, $tree);
             return ['ok' => true, 'postId' => $id, 'widgetId' => $widgetId, 'tag' => $tag];
+        }]);
+
+        // ── Elementor: read text-editor widgets (id + HTML) ──
+        register_rest_route(self::NS, '/elementor/text-widgets', ['methods' => 'GET', 'permission_callback' => $auth, 'callback' => function ($r) {
+            $id = intval($r['postId'] ?? 0);
+            if (!$id) return new WP_Error('bad_id', 'postId erforderlich', ['status' => 400]);
+            $data = get_post_meta($id, '_elementor_data', true);
+            if (!$data) return ['ok' => true, 'elementor' => false, 'widgets' => []];
+            $tree = json_decode($data, true);
+            $widgets = [];
+            $walk = function ($els) use (&$walk, &$widgets) {
+                foreach ((array) $els as $el) {
+                    if (($el['widgetType'] ?? '') === 'text-editor') {
+                        $widgets[] = ['widgetId' => $el['id'] ?? '', 'html' => $el['settings']['editor'] ?? ''];
+                    }
+                    if (!empty($el['elements'])) $walk($el['elements']);
+                }
+            };
+            $walk($tree);
+            return ['ok' => true, 'elementor' => true, 'widgets' => $widgets];
+        }]);
+
+        // ── Elementor: replace a text-editor widget's HTML (e.g. add internal links) ──
+        register_rest_route(self::NS, '/elementor/set-text', ['methods' => 'POST', 'permission_callback' => $auth, 'callback' => function ($r) {
+            $id = intval($r['postId'] ?? 0);
+            $widgetId = sanitize_text_field($r['widgetId'] ?? '');
+            $html = (string) ($r['html'] ?? '');
+            if (!$id || !$widgetId || $html === '') return new WP_Error('bad', 'postId, widgetId, html erforderlich', ['status' => 400]);
+            // Allow only safe post HTML (links, formatting) — wp_kses_post strips scripts etc.
+            $html = wp_kses_post($html);
+            $data = get_post_meta($id, '_elementor_data', true);
+            if (!$data) return new WP_Error('no_elementor', 'Keine Elementor-Daten', ['status' => 404]);
+            $tree = json_decode($data, true);
+            $changed = false;
+            $walk = function (&$els) use (&$walk, $widgetId, $html, &$changed) {
+                foreach ($els as &$el) {
+                    if (($el['id'] ?? '') === $widgetId && ($el['widgetType'] ?? '') === 'text-editor') {
+                        $el['settings']['editor'] = $html; $changed = true;
+                    }
+                    if (!empty($el['elements'])) $walk($el['elements']);
+                }
+            };
+            $walk($tree);
+            if (!$changed) return new WP_Error('not_found', 'Text-Widget nicht gefunden', ['status' => 404]);
+            $this->backup_elementor($id);
+            $this->save_elementor($id, $tree);
+            return ['ok' => true, 'postId' => $id, 'widgetId' => $widgetId];
+        }]);
+
+        // ── Elementor: list backups for a post ──
+        register_rest_route(self::NS, '/elementor/backups', ['methods' => 'GET', 'permission_callback' => $auth, 'callback' => function ($r) {
+            $id = intval($r['postId'] ?? 0);
+            if (!$id) return new WP_Error('bad_id', 'postId erforderlich', ['status' => 400]);
+            $backups = get_post_meta($id, '_ezyhub_elementor_backups', true);
+            if (!is_array($backups)) $backups = [];
+            return ['ok' => true, 'backups' => array_map(function ($b) { return ['ts' => $b['ts'] ?? '', 'bytes' => strlen($b['data'] ?? '')]; }, $backups)];
+        }]);
+
+        // ── Elementor: restore a backup by timestamp (or latest) ──
+        register_rest_route(self::NS, '/elementor/restore', ['methods' => 'POST', 'permission_callback' => $auth, 'callback' => function ($r) {
+            $id = intval($r['postId'] ?? 0);
+            $ts = sanitize_text_field($r['ts'] ?? '');
+            if (!$id) return new WP_Error('bad_id', 'postId erforderlich', ['status' => 400]);
+            $backups = get_post_meta($id, '_ezyhub_elementor_backups', true);
+            if (!is_array($backups) || !$backups) return new WP_Error('no_backup', 'Kein Backup vorhanden', ['status' => 404]);
+            $chosen = $ts ? null : $backups[0];
+            if ($ts) foreach ($backups as $b) if (($b['ts'] ?? '') === $ts) { $chosen = $b; break; }
+            if (!$chosen) return new WP_Error('not_found', 'Backup nicht gefunden', ['status' => 404]);
+            // Snapshot current state first (so a restore is itself reversible), then restore.
+            $this->backup_elementor($id);
+            $this->save_elementor($id, json_decode($chosen['data'], true));
+            return ['ok' => true, 'postId' => $id, 'restored' => $chosen['ts'] ?? 'latest'];
         }]);
     }
 
