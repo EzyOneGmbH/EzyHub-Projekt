@@ -9318,6 +9318,37 @@ function ActivityPage({ selectedClient, clients }) {
   }, []);
   useEffect(() => { loadProtocol(protoClient); }, [protoClient, loadProtocol]);
 
+  // Extract items waiting on human input from the protocol markdown:
+  // (a) "## Wartet auf dich" checkbox lines, (b) backlog rows whose status needs input.
+  const actionItems = useMemo(() => {
+    const content = proto?.content || "";
+    if (!content) return [];
+    const items = [];
+    // (a) "Wartet auf dich" section
+    const sec = content.match(/##\s*Wartet auf dich([\s\S]*?)(?:\n##\s|\n#\s|$)/i);
+    if (sec) {
+      for (const line of sec[1].split("\n")) {
+        const m = line.match(/^\s*-\s*\[ \]\s*(.+)/);
+        if (m) items.push(m[1].trim());
+      }
+    }
+    // (b) backlog table rows with a "nötig"/"Freigabe" status
+    for (const line of content.split("\n")) {
+      if (!line.includes("|")) continue;
+      if (/(nötig|freigabe)/i.test(line) && /FIH-\d+/i.test(line)) {
+        const cells = line.split("|").map((c) => c.trim()).filter(Boolean);
+        if (cells.length >= 2) {
+          const id = (cells.find((c) => /^FIH-\d+/i.test(c)) || "").trim();
+          const measure = cells[1] || "";
+          const statusCell = cells.find((c) => /(nötig|freigabe)/i.test(c)) || "";
+          const label = `${id ? id + ": " : ""}${measure}${statusCell ? " — " + statusCell : ""}`;
+          if (!items.some((x) => x.includes(id) && id)) items.push(label);
+        }
+      }
+    }
+    return items.slice(0, 20);
+  }, [proto]);
+
   const fmtTime = (ts) => (ts ? new Date(ts).toLocaleString("de-CH", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—");
   const fmtDur = (ms) => (ms ? (ms >= 60000 ? `${Math.round(ms / 60000)}min` : `${Math.round(ms / 1000)}s`) : "");
   const statusMeta = (s) => s === "running" ? { c: C.blue, label: "läuft" } : s === "done" ? { c: C.green, label: "fertig" } : { c: C.red, label: "Fehler" };
@@ -9421,6 +9452,25 @@ function ActivityPage({ selectedClient, clients }) {
             {(clients || []).map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
           </select>
         </div>
+        {/* Action-required box: items waiting on human input */}
+        {protoClient && actionItems.length > 0 && (
+          <div style={{ background: `${C.orange}14`, border: `1px solid ${C.orange}55`, borderRadius: 12, padding: 16, marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, color: C.orange, fontWeight: 700, fontSize: 13.5 }}>
+              <AlertCircle size={16} /> Wartet auf dich ({actionItems.length})
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {actionItems.map((it, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12.5, color: C.text }}>
+                  <span style={{ color: C.orange, flexShrink: 0 }}>•</span>
+                  <span>{it}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 11, color: C.textDim, marginTop: 10 }}>
+              Diese Punkte braucht der Agent von dir (Kundendaten, Freigabe oder Plugin-Installation), bevor er sie umsetzen kann.
+            </div>
+          </div>
+        )}
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 18, minHeight: 120 }}>
           {!protoClient ? (
             <div style={{ fontSize: 13, color: C.textDim }}>Wähle einen Kunden, um das Agenten-Protokoll zu sehen.</div>

@@ -59,6 +59,7 @@ import { Route as ApiAgentJobRouteImport } from './routes/api/agent.job'
 import { Route as ApiAgentCopilotRouteImport } from './routes/api/agent.copilot'
 import { Route as ApiAgentAgentsRouteImport } from './routes/api/agent.agents'
 import { Route as ApiAdminWpPublishRouteImport } from './routes/api/admin.wp-publish'
+import { Route as ApiAdminWpDeployRouteImport } from './routes/api/admin.wp-deploy'
 import { Route as ApiAdminPopulateRouteImport } from './routes/api/admin.populate'
 import { Route as ApiAdminAdsClientsRouteImport } from './routes/api/admin.ads-clients'
 import { Route as ApiLiveCanonryOverviewRouteImport } from './routes/api/live.canonry.overview'
@@ -315,6 +316,11 @@ const ApiAdminWpPublishRoute = ApiAdminWpPublishRouteImport.update({
   path: '/api/admin/wp-publish',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminWpDeployRoute = ApiAdminWpDeployRouteImport.update({
+  id: '/api/admin/wp-deploy',
+  path: '/api/admin/wp-deploy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminPopulateRoute = ApiAdminPopulateRouteImport.update({
   id: '/api/admin/populate',
   path: '/api/admin/populate',
@@ -362,6 +368,7 @@ export interface FileRoutesByFullPath {
   '/tasks/$id': typeof TasksIdRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
+  '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
   '/api/agent/copilot': typeof ApiAgentCopilotRoute
@@ -419,6 +426,7 @@ export interface FileRoutesByTo {
   '/tasks/$id': typeof TasksIdRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
+  '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
   '/api/agent/copilot': typeof ApiAgentCopilotRoute
@@ -477,6 +485,7 @@ export interface FileRoutesById {
   '/tasks/$id': typeof TasksIdRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
+  '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
   '/api/agent/copilot': typeof ApiAgentCopilotRoute
@@ -536,6 +545,7 @@ export interface FileRouteTypes {
     | '/tasks/$id'
     | '/api/admin/ads-clients'
     | '/api/admin/populate'
+    | '/api/admin/wp-deploy'
     | '/api/admin/wp-publish'
     | '/api/agent/agents'
     | '/api/agent/copilot'
@@ -593,6 +603,7 @@ export interface FileRouteTypes {
     | '/tasks/$id'
     | '/api/admin/ads-clients'
     | '/api/admin/populate'
+    | '/api/admin/wp-deploy'
     | '/api/admin/wp-publish'
     | '/api/agent/agents'
     | '/api/agent/copilot'
@@ -650,6 +661,7 @@ export interface FileRouteTypes {
     | '/tasks/$id'
     | '/api/admin/ads-clients'
     | '/api/admin/populate'
+    | '/api/admin/wp-deploy'
     | '/api/admin/wp-publish'
     | '/api/agent/agents'
     | '/api/agent/copilot'
@@ -704,6 +716,7 @@ export interface RootRouteChildren {
   AdminUsersRoute: typeof AdminUsersRoute
   ApiAdminAdsClientsRoute: typeof ApiAdminAdsClientsRoute
   ApiAdminPopulateRoute: typeof ApiAdminPopulateRoute
+  ApiAdminWpDeployRoute: typeof ApiAdminWpDeployRoute
   ApiAdminWpPublishRoute: typeof ApiAdminWpPublishRoute
   ApiAgentAgentsRoute: typeof ApiAgentAgentsRoute
   ApiAgentCopilotRoute: typeof ApiAgentCopilotRoute
@@ -1094,6 +1107,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminWpPublishRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/wp-deploy': {
+      id: '/api/admin/wp-deploy'
+      path: '/api/admin/wp-deploy'
+      fullPath: '/api/admin/wp-deploy'
+      preLoaderRoute: typeof ApiAdminWpDeployRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/populate': {
       id: '/api/admin/populate'
       path: '/api/admin/populate'
@@ -1193,6 +1213,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminUsersRoute: AdminUsersRoute,
   ApiAdminAdsClientsRoute: ApiAdminAdsClientsRoute,
   ApiAdminPopulateRoute: ApiAdminPopulateRoute,
+  ApiAdminWpDeployRoute: ApiAdminWpDeployRoute,
   ApiAdminWpPublishRoute: ApiAdminWpPublishRoute,
   ApiAgentAgentsRoute: ApiAgentAgentsRoute,
   ApiAgentCopilotRoute: ApiAgentCopilotRoute,
