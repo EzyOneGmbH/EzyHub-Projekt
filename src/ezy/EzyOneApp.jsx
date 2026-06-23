@@ -6840,9 +6840,207 @@ function ToolsPage({ selectedClient, tools }) {
 // PAGE: CONTENT (with Editor split-view)
 // ═══════════════════════════════════════════════════════════════════════════
 // Content Editor (split-view)
+// Minimal Markdown → HTML converter for WordPress content (block-level).
+function markdownToHtml(md) {
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const inline = (s) =>
+    esc(s)
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*(.+?)\*/g, "<em>$1</em>")
+      .replace(/`(.+?)`/g, "<code>$1</code>")
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+  const lines = String(md || "").split("\n");
+  const out = [];
+  let listType = null; // "ul" | "ol"
+  const closeList = () => { if (listType) { out.push(`</${listType}>`); listType = null; } };
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    if (/^### (.+)/.test(line)) { closeList(); out.push(`<h3>${inline(line.replace(/^### /, ""))}</h3>`); }
+    else if (/^## (.+)/.test(line)) { closeList(); out.push(`<h2>${inline(line.replace(/^## /, ""))}</h2>`); }
+    else if (/^# (.+)/.test(line)) { closeList(); out.push(`<h1>${inline(line.replace(/^# /, ""))}</h1>`); }
+    else if (/^- (.+)/.test(line)) {
+      if (listType !== "ul") { closeList(); out.push("<ul>"); listType = "ul"; }
+      out.push(`<li>${inline(line.replace(/^- /, ""))}</li>`);
+    } else if (/^\d+\. (.+)/.test(line)) {
+      if (listType !== "ol") { closeList(); out.push("<ol>"); listType = "ol"; }
+      out.push(`<li>${inline(line.replace(/^\d+\. /, ""))}</li>`);
+    } else if (line.trim() === "") { closeList(); }
+    else { closeList(); out.push(`<p>${inline(line)}</p>`); }
+  }
+  closeList();
+  return out.join("\n");
+}
+
+// Modal to publish the current content to the client's connected WordPress site.
+function WordPressPublishModal({ clientId, defaultTitle, markdown, onClose }) {
+  const toast = useToast();
+  const [status, setStatus] = useState("loading"); // loading | none | ready
+  const [siteUrl, setSiteUrl] = useState("");
+  const [title, setTitle] = useState(defaultTitle || "");
+  const [type, setType] = useState("posts");
+  const [wpStatus, setWpStatus] = useState("draft");
+  const [seoTitle, setSeoTitle] = useState("");
+  const [seoDescription, setSeoDescription] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const session = (await supabase.auth.getSession()).data.session;
+        const r = await fetch(`/api/wordpress/connection?clientId=${encodeURIComponent(clientId)}`, {
+          headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+        });
+        const j = await r.json().catch(() => ({}));
+        if (j.connected) { setSiteUrl(j.siteUrl || ""); setStatus("ready"); }
+        else setStatus("none");
+      } catch {
+        setStatus("none");
+      }
+    })();
+  }, [clientId]);
+
+  const publish = async () => {
+    if (!title.trim()) { toast("Titel erforderlich", "error"); return; }
+    setBusy(true);
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const r = await fetch("/api/wordpress/publish", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId,
+          type,
+          title: title.trim(),
+          content: markdownToHtml(markdown),
+          status: wpStatus,
+          seoTitle: seoTitle.trim() || undefined,
+          seoDescription: seoDescription.trim() || undefined,
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (j.ok) {
+        setResult(j);
+        toast(`Veröffentlicht als ${wpStatus === "publish" ? "Beitrag" : "Entwurf"}`, "success");
+        if (j.seoPluginMissing) toast("Kein SEO-Plugin (Yoast/RankMath) erkannt — SEO-Felder übersprungen", "info");
+      } else {
+        toast(j.error || "Veröffentlichen fehlgeschlagen", "error");
+      }
+    } catch (e) {
+      toast(String(e?.message || e), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const inputStyle = {
+    width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`,
+    background: C.card, color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box",
+  };
+  const labelStyle = { fontSize: 12, color: C.textMuted, display: "block", marginBottom: 6 };
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.6)", zIndex: 120, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{ background: C.surface, borderRadius: 16, width: "100%", maxWidth: 520, maxHeight: "90vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.5)" }}>
+        <div style={{ padding: "20px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Globe size={18} color={C.accent} />
+            <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: C.text }}>An WordPress veröffentlichen</h2>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+            <X size={20} color={C.textMuted} />
+          </button>
+        </div>
+
+        <div style={{ padding: "20px 24px" }}>
+          {status === "loading" && <div style={{ fontSize: 13, color: C.textDim }}>Prüfe Verbindung…</div>}
+
+          {status === "none" && (
+            <div style={{ fontSize: 13, color: C.textMuted, lineHeight: 1.6 }}>
+              Für diesen Kunden ist noch keine WordPress-Seite verbunden.
+              <div style={{ marginTop: 8, color: C.textDim, fontSize: 12 }}>
+                Verbinde sie zuerst im <strong>Kunden-Detail → Onboarding / Verbindungen</strong>.
+              </div>
+            </div>
+          )}
+
+          {status === "ready" && !result && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ fontSize: 12, color: C.textDim }}>Ziel: <span style={{ color: C.text }}>{siteUrl}</span></div>
+              <div>
+                <label style={labelStyle}>Titel</label>
+                <input style={inputStyle} value={title} onChange={(e) => setTitle(e.target.value)} />
+              </div>
+              <div style={{ display: "flex", gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Typ</label>
+                  <select style={inputStyle} value={type} onChange={(e) => setType(e.target.value)}>
+                    <option value="posts">Beitrag</option>
+                    <option value="pages">Seite</option>
+                  </select>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Veröffentlichung</label>
+                  <select style={inputStyle} value={wpStatus} onChange={(e) => setWpStatus(e.target.value)}>
+                    <option value="draft">Entwurf</option>
+                    <option value="publish">Sofort veröffentlichen</option>
+                    <option value="pending">Zur Prüfung</option>
+                    <option value="private">Privat</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style={labelStyle}>SEO-Titel (optional)</label>
+                <input style={inputStyle} value={seoTitle} onChange={(e) => setSeoTitle(e.target.value)} placeholder="Yoast / RankMath Titel" />
+              </div>
+              <div>
+                <label style={labelStyle}>SEO-Beschreibung (optional)</label>
+                <textarea style={{ ...inputStyle, resize: "vertical" }} rows={2} value={seoDescription} onChange={(e) => setSeoDescription(e.target.value)} placeholder="Meta-Description" />
+              </div>
+            </div>
+          )}
+
+          {result && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, textAlign: "center", padding: "12px 0" }}>
+              <div style={{ color: C.green, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 15, fontWeight: 600 }}>
+                <CheckCircle size={20} /> Erfolgreich gesendet
+              </div>
+              {result.post?.link && (
+                <a href={result.post.link} target="_blank" rel="noopener noreferrer" style={{ color: C.accentLight, fontSize: 13 }}>
+                  In WordPress ansehen ↗
+                </a>
+              )}
+              {result.seoApplied && <div style={{ fontSize: 12, color: C.textMuted }}>SEO-Felder gesetzt ({result.seoApplied})</div>}
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          {result ? (
+            <Btn onClick={onClose}>Schliessen</Btn>
+          ) : (
+            <>
+              <Btn variant="secondary" onClick={onClose}>Abbrechen</Btn>
+              {status === "ready" && (
+                <Btn icon={Globe} onClick={publish} disabled={busy || !title.trim()}>
+                  {busy ? "Sende…" : "Veröffentlichen"}
+                </Btn>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ContentEditor({ item, stCo, stLb, onBack, onSave }) {
   const toast = useToast();
   const [md, setMd] = useState(item.content);
+  const [showWpPublish, setShowWpPublish] = useState(false);
   const renderMd = (s) =>
     escapeHtml(s)
       .replace(
@@ -6936,11 +7134,29 @@ function ContentEditor({ item, stCo, stLb, onBack, onSave }) {
           >
             Download
           </Btn>
+          {item.clientId && (
+            <Btn
+              variant="secondary"
+              size="sm"
+              icon={Globe}
+              onClick={() => setShowWpPublish(true)}
+            >
+              WordPress
+            </Btn>
+          )}
           <Btn size="sm" icon={Save} onClick={() => onSave(item.id, md)}>
             Speichern
           </Btn>
         </div>
       </div>
+      {showWpPublish && (
+        <WordPressPublishModal
+          clientId={item.clientId}
+          defaultTitle={item.title}
+          markdown={md}
+          onClose={() => setShowWpPublish(false)}
+        />
+      )}
       <div
         style={{
           display: "flex",
