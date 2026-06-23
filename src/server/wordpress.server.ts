@@ -52,15 +52,24 @@ export async function wpFetch<T = any>(
   path: string,
   options?: { method?: string; body?: any; query?: Record<string, string | number> },
 ): Promise<{ ok: boolean; status: number; data: T | null; error?: string }> {
-  let url = `${conn.siteUrl}/wp-json${path}`;
-  if (options?.query) {
-    const qs = new URLSearchParams(
-      Object.entries(options.query).map(([k, v]) => [k, String(v)]),
-    ).toString();
-    url += (path.includes("?") ? "&" : "?") + qs;
-  }
-  try {
-    const res = await fetch(url, {
+  // Build a URL for either permalink mode: "pretty" => /wp-json{path},
+  // "plain" => /?rest_route={path} (works when pretty permalinks are off).
+  const buildUrl = (mode: "pretty" | "plain") => {
+    const queryEntries = options?.query
+      ? Object.entries(options.query).map(([k, v]) => [k, String(v)] as [string, string])
+      : [];
+    if (mode === "pretty") {
+      let u = `${conn.siteUrl}/wp-json${path}`;
+      if (queryEntries.length) u += (path.includes("?") ? "&" : "?") + new URLSearchParams(queryEntries).toString();
+      return u;
+    }
+    // plain: rest_route carries the path; other query params are appended separately
+    const params = new URLSearchParams([["rest_route", path], ...queryEntries]);
+    return `${conn.siteUrl}/?${params.toString()}`;
+  };
+
+  const doFetch = async (mode: "pretty" | "plain") => {
+    const res = await fetch(buildUrl(mode), {
       method: options?.method || "GET",
       headers: {
         Authorization: authHeader(conn),
@@ -72,15 +81,32 @@ export async function wpFetch<T = any>(
     });
     const text = await res.text();
     let json: any = null;
+    let parseFailed = false;
     try {
       json = text ? JSON.parse(text) : null;
     } catch {
-      // Non-JSON response (often an HTML login/error page) → surface a clear hint.
+      parseFailed = true;
+    }
+    return { res, json, parseFailed };
+  };
+
+  try {
+    // Try pretty permalinks first; on 404 / non-JSON, retry the plain rest_route form.
+    let { res, json, parseFailed } = await doFetch("pretty");
+    if (res.status === 404 || parseFailed) {
+      const retry = await doFetch("plain");
+      // Only adopt the retry if it actually looks better (JSON or non-404).
+      if (!retry.parseFailed && retry.res.status !== 404) {
+        ({ res, json, parseFailed } = retry);
+      }
+    }
+
+    if (parseFailed) {
       return {
         ok: false,
         status: res.status,
         data: null,
-        error: `Keine JSON-Antwort (HTTP ${res.status}). REST-API erreichbar?`,
+        error: `Keine JSON-Antwort (HTTP ${res.status}). REST-API erreichbar / Permalinks aktiv?`,
       };
     }
     if (!res.ok) {
