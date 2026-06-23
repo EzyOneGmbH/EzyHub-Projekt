@@ -9267,55 +9267,101 @@ function stripAgentSpecs(text) {
   return String(text || "").replace(/```agent-spec\s*\n[\s\S]*?```/g, "").trim();
 }
 
-// EzyHub Co-Pilot — chat with the Opus 4.8 assistant. Answers data/portal
-// questions, proposes agents (one-click create), uses Obsidian memory.
-function CopilotPage({ selectedClient, clients, tools }) {
+// ── Ezy-Pilot shared store ───────────────────────────────────────────────────
+// One conversation store shared by the full-page tab AND the header pop-up, so
+// the chat + history stay in sync everywhere and survive reloads (localStorage).
+const EzyPilotCtx = createContext(null);
+const useEzyPilot = () => useContext(EzyPilotCtx);
+const EZYPILOT_LS = "ezyPilot.v1";
+
+function loadPilotState() {
+  try {
+    const raw = localStorage.getItem(EZYPILOT_LS);
+    if (raw) {
+      const p = JSON.parse(raw);
+      if (Array.isArray(p.conversations)) return p;
+    }
+  } catch {}
+  return { conversations: [], activeId: null };
+}
+
+function EzyPilotProvider({ selectedClient, clients, tools, children }) {
   const toast = useToast();
-  const [messages, setMessages] = useState([]); // {role, text, specs?}
-  const [input, setInput] = useState("");
+  const [conversations, setConversations] = useState(() => loadPilotState().conversations);
+  const [activeId, setActiveId] = useState(() => loadPilotState().activeId);
   const [busy, setBusy] = useState(false);
-  const [sessionId, setSessionId] = useState(null);
-  const scrollRef = useRef(null);
+  const [open, setOpen] = useState(false); // header pop-up visibility
+  // Keep latest portal context for send() without re-creating the callback.
+  const ctxRef = useRef({ selectedClient, clients, tools });
+  ctxRef.current = { selectedClient, clients, tools };
 
+  // Persist on every change.
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, busy]);
+    try {
+      localStorage.setItem(EZYPILOT_LS, JSON.stringify({ conversations, activeId }));
+    } catch {}
+  }, [conversations, activeId]);
 
-  // Compact portal context the assistant gets with every turn.
+  const active = conversations.find((c) => c.id === activeId) || null;
+
+  const newChat = () => {
+    const id = `c_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+    setConversations((cs) => [{ id, title: "Neue Unterhaltung", sessionId: null, messages: [], updatedAt: Date.now() }, ...cs]);
+    setActiveId(id);
+    return id;
+  };
+  const switchTo = (id) => setActiveId(id);
+  const deleteChat = (id) => {
+    setConversations((cs) => cs.filter((c) => c.id !== id));
+    setActiveId((cur) => (cur === id ? null : cur));
+  };
+
+  const updateConv = (id, fn) =>
+    setConversations((cs) => cs.map((c) => (c.id === id ? fn(c) : c)));
+
   const buildContext = () => {
-    const skillIds = SKILL_CATALOG.map((s) => s.skill);
+    const { selectedClient, clients, tools } = ctxRef.current;
     return {
       aktiverKunde: selectedClient
         ? { name: selectedClient.name, domain: selectedClient.domain, branche: selectedClient.industry || null }
         : null,
       alleKunden: (clients || []).map((c) => ({ name: c.name, domain: c.domain })),
-      verfügbareSkills: skillIds,
+      verfügbareSkills: SKILL_CATALOG.map((s) => s.skill),
       aktiveTools: (tools || []).filter((t) => t.enabled).map((t) => t.id),
     };
   };
 
   const send = async (text) => {
-    const q = (text ?? input).trim();
+    const q = String(text || "").trim();
     if (!q || busy) return;
-    setInput("");
-    setMessages((m) => [...m, { role: "user", text: q }]);
+    // Ensure there's an active conversation.
+    let convId = activeId;
+    if (!convId || !conversations.find((c) => c.id === convId)) convId = newChat();
+    const { selectedClient } = ctxRef.current;
+    updateConv(convId, (c) => ({
+      ...c,
+      title: c.messages.length === 0 ? q.slice(0, 48) : c.title,
+      messages: [...c.messages, { role: "user", text: q }],
+      updatedAt: Date.now(),
+    }));
     setBusy(true);
     try {
       const session = (await supabase.auth.getSession()).data.session;
+      const curConv = (loadPilotState().conversations || []).find((c) => c.id === convId);
+      const resumeSessionId = curConv?.sessionId || conversations.find((c) => c.id === convId)?.sessionId || null;
       const startRes = await fetch("/api/agent/copilot", {
         method: "POST",
         headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           input: q,
           context: buildContext(),
-          resumeSessionId: sessionId,
+          resumeSessionId,
           activeClientId: selectedClient?.id || null,
           activeClientName: selectedClient?.name || null,
         }),
       });
       const start = await startRes.json().catch(() => ({}));
       if (!start.jobId) throw new Error(start.error || "Start fehlgeschlagen");
-      // Poll the job
       let out = null;
       for (let i = 0; i < 180; i++) {
         await new Promise((r) => setTimeout(r, 2000));
@@ -9327,11 +9373,19 @@ function CopilotPage({ selectedClient, clients, tools }) {
         if (pj.status === "error") throw new Error(pj.error || "Agent-Fehler");
       }
       if (!out) throw new Error("Zeitüberschreitung");
-      if (out.sessionId) setSessionId(out.sessionId);
       const full = out.result || "";
-      setMessages((m) => [...m, { role: "assistant", text: stripAgentSpecs(full), specs: parseAgentSpecs(full) }]);
+      updateConv(convId, (c) => ({
+        ...c,
+        sessionId: out.sessionId || c.sessionId,
+        messages: [...c.messages, { role: "assistant", text: stripAgentSpecs(full), specs: parseAgentSpecs(full) }],
+        updatedAt: Date.now(),
+      }));
     } catch (e) {
-      setMessages((m) => [...m, { role: "assistant", text: `⚠️ ${String(e?.message || e)}`, specs: [] }]);
+      updateConv(convId, (c) => ({
+        ...c,
+        messages: [...c.messages, { role: "assistant", text: `⚠️ ${String(e?.message || e)}`, specs: [] }],
+        updatedAt: Date.now(),
+      }));
     } finally {
       setBusy(false);
     }
@@ -9340,7 +9394,7 @@ function CopilotPage({ selectedClient, clients, tools }) {
   const createAgent = async (spec) => {
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const clientId = selectedClient?.id || "global";
+      const clientId = ctxRef.current.selectedClient?.id || "global";
       const r = await fetch(`/api/agent/agents?clientId=${encodeURIComponent(clientId)}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
@@ -9361,41 +9415,46 @@ function CopilotPage({ selectedClient, clients, tools }) {
     }
   };
 
+  const value = {
+    conversations, active, activeId, busy, open, setOpen,
+    messages: active?.messages || [],
+    send, newChat, switchTo, deleteChat, createAgent,
+  };
+  return <EzyPilotCtx.Provider value={value}>{children}</EzyPilotCtx.Provider>;
+}
+
+// Shared chat surface (messages + input + suggestions). Used by tab and pop-up.
+function EzyPilotChat({ compact = false }) {
+  const { messages, busy, send, createAgent, active } = useEzyPilot();
+  const [input, setInput] = useState("");
+  const scrollRef = useRef(null);
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, busy]);
+
+  const submit = () => {
+    const q = input.trim();
+    if (!q || busy) return;
+    setInput("");
+    send(q);
+  };
+
   const suggestions = [
-    "Wie entwickelt sich der Traffic von " + (selectedClient?.name || "diesem Kunden") + "?",
-    "Erstelle mir einen Agenten der monatliche SEO-Reports schreibt",
+    "Wie entwickelt sich der Traffic?",
+    "Erstelle einen Agenten für monatliche SEO-Reports",
     "Was wurde für diesen Kunden bisher gemacht?",
     "Welche Tools gibt es im Portal?",
   ];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 140px)" }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-        <div style={{ width: 40, height: 40, borderRadius: 10, background: C.accentDim, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Sparkles size={20} color={C.accent} />
-        </div>
-        <div>
-          <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: C.text }}>Co-Pilot</h1>
-          <div style={{ fontSize: 12, color: C.textMuted }}>
-            Opus 4.8 · Daten- & Portal-Fragen, Agenten bauen, Obsidian-Gedächtnis
-            {selectedClient ? ` · Kontext: ${selectedClient.name}` : ""}
-          </div>
-        </div>
-      </div>
-
-      {/* Messages */}
-      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 14, padding: "4px 2px" }}>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, padding: compact ? "4px 2px" : "4px 2px" }}>
         {messages.length === 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "20px 0" }}>
-            <div style={{ fontSize: 14, color: C.textMuted }}>Frag mich etwas, oder starte mit:</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "16px 0" }}>
+            <div style={{ fontSize: 13, color: C.textMuted }}>Frag mich etwas, oder starte mit:</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {suggestions.map((s, i) => (
-                <button
-                  key={i}
-                  onClick={() => send(s)}
-                  style={{ padding: "8px 14px", borderRadius: 20, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}
-                >
+                <button key={i} onClick={() => send(s)} style={{ padding: "7px 12px", borderRadius: 18, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
                   {s}
                 </button>
               ))}
@@ -9404,36 +9463,21 @@ function CopilotPage({ selectedClient, clients, tools }) {
         )}
         {messages.map((msg, i) => (
           <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
-            <div
-              style={{
-                maxWidth: "80%",
-                background: msg.role === "user" ? C.accent : C.card,
-                color: msg.role === "user" ? "#fff" : C.text,
-                border: msg.role === "user" ? "none" : `1px solid ${C.border}`,
-                borderRadius: 14,
-                padding: "12px 16px",
-                fontSize: 14,
-                lineHeight: 1.6,
-                whiteSpace: "pre-wrap",
-              }}
-            >
+            <div style={{ maxWidth: "85%", background: msg.role === "user" ? C.accent : C.card, color: msg.role === "user" ? "#fff" : C.text, border: msg.role === "user" ? "none" : `1px solid ${C.border}`, borderRadius: 14, padding: "10px 14px", fontSize: compact ? 13 : 14, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
               {msg.text}
-              {/* Agent proposals → one-click create */}
               {(msg.specs || []).map((spec, si) => (
-                <div key={si} style={{ marginTop: 12, background: C.bg, border: `1px solid ${C.accent}55`, borderRadius: 10, padding: 14 }}>
+                <div key={si} style={{ marginTop: 10, background: C.bg, border: `1px solid ${C.accent}55`, borderRadius: 10, padding: 12 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                    <Bot size={16} color={C.accent} />
-                    <span style={{ fontWeight: 700, color: C.text }}>{spec.name}</span>
+                    <Bot size={15} color={C.accent} />
+                    <span style={{ fontWeight: 700, color: C.text, fontSize: 13 }}>{spec.name}</span>
                   </div>
-                  <div style={{ fontSize: 12.5, color: C.textMuted, marginBottom: 8 }}>{spec.description}</div>
+                  <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 8 }}>{spec.description}</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
                     {(spec.skills || []).map((sk) => (
-                      <span key={sk} style={{ fontSize: 10.5, padding: "2px 8px", borderRadius: 5, background: C.accentDim, color: C.accentLight }}>{sk}</span>
+                      <span key={sk} style={{ fontSize: 10, padding: "2px 7px", borderRadius: 5, background: C.accentDim, color: C.accentLight }}>{sk}</span>
                     ))}
                   </div>
-                  <Btn size="sm" icon={Plus} onClick={() => createAgent(spec)}>
-                    Diesen Agenten erstellen
-                  </Btn>
+                  <Btn size="sm" icon={Plus} onClick={() => createAgent(spec)}>Diesen Agenten erstellen</Btn>
                 </div>
               ))}
             </div>
@@ -9441,28 +9485,172 @@ function CopilotPage({ selectedClient, clients, tools }) {
         ))}
         {busy && (
           <div style={{ display: "flex", justifyContent: "flex-start" }}>
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 16px", fontSize: 14, color: C.textMuted }}>
-              Co-Pilot denkt nach…
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "10px 14px", fontSize: 13, color: C.textMuted }}>
+              Ezy-Pilot denkt nach…
             </div>
           </div>
         )}
       </div>
-
-      {/* Input */}
-      <div style={{ display: "flex", gap: 10, marginTop: 14, alignItems: "flex-end" }}>
+      <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "flex-end" }}>
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-          placeholder="Frage zu Daten/Portal, oder „Erstelle einen Agenten der …"
-          rows={2}
-          style={{ flex: 1, padding: "12px 14px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontSize: 14, fontFamily: "inherit", outline: "none", resize: "none", boxSizing: "border-box" }}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } }}
+          placeholder="Frage stellen oder „Erstelle einen Agenten der …"
+          rows={compact ? 1 : 2}
+          style={{ flex: 1, padding: "10px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontSize: 13.5, fontFamily: "inherit", outline: "none", resize: "none", boxSizing: "border-box" }}
         />
-        <Btn icon={ArrowRight} onClick={() => send()} disabled={busy || !input.trim()}>
-          Senden
-        </Btn>
+        <Btn icon={ArrowRight} onClick={submit} disabled={busy || !input.trim()}>Senden</Btn>
       </div>
     </div>
+  );
+}
+
+// History list (conversations) — shared by tab sidebar and pop-up dropdown.
+function EzyPilotHistory({ compact = false }) {
+  const { conversations, activeId, switchTo, newChat, deleteChat } = useEzyPilot();
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <button onClick={() => newChat()} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 8, border: `1px dashed ${C.border}`, background: "transparent", color: C.accentLight, cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "inherit" }}>
+        <Plus size={14} /> Neue Unterhaltung
+      </button>
+      {conversations.length === 0 && (
+        <div style={{ fontSize: 12, color: C.textDim, padding: "8px 4px" }}>Noch kein Verlauf.</div>
+      )}
+      {conversations.map((c) => (
+        <div
+          key={c.id}
+          onClick={() => switchTo(c.id)}
+          style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 8, cursor: "pointer", background: c.id === activeId ? C.accentDim : "transparent", border: `1px solid ${c.id === activeId ? C.accent + "55" : "transparent"}` }}
+        >
+          <MessageSquare size={13} color={c.id === activeId ? C.accentLight : C.textDim} style={{ flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12.5, color: c.id === activeId ? C.accentLight : C.text, fontWeight: c.id === activeId ? 600 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {c.title || "Unterhaltung"}
+            </div>
+            <div style={{ fontSize: 10.5, color: C.textDim }}>{c.messages.length} Nachrichten</div>
+          </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); deleteChat(c.id); }}
+            style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, padding: 2, flexShrink: 0 }}
+            title="Löschen"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Full-page Ezy-Pilot tab: history sidebar + chat.
+function EzyPilotPage({ selectedClient }) {
+  return (
+    <div style={{ display: "flex", gap: 16, height: "calc(100vh - 140px)" }}>
+      {/* History sidebar */}
+      <div className="ezypilot-sidebar" style={{ width: 240, flexShrink: 0, overflowY: "auto", borderRight: `1px solid ${C.border}`, paddingRight: 14 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.textDim, textTransform: "uppercase", letterSpacing: ".5px", margin: "2px 4px 10px" }}>Verlauf</div>
+        <EzyPilotHistory />
+      </div>
+      {/* Chat */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+          <div style={{ width: 38, height: 38, borderRadius: 10, background: C.accentDim, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Sparkles size={19} color={C.accent} />
+          </div>
+          <div>
+            <h1 style={{ fontSize: 19, fontWeight: 700, margin: 0, color: C.text }}>Ezy-Pilot</h1>
+            <div style={{ fontSize: 12, color: C.textMuted }}>
+              Opus 4.8 · Daten- & Portal-Fragen, Agenten bauen, Obsidian-Gedächtnis
+              {selectedClient ? ` · Kontext: ${selectedClient.name}` : ""}
+            </div>
+          </div>
+        </div>
+        <EzyPilotChat />
+      </div>
+    </div>
+  );
+}
+
+// Header pop-up: floating chat with a collapsible history list.
+function EzyPilotPopup() {
+  const { open, setOpen } = useEzyPilot();
+  const [showHistory, setShowHistory] = useState(false);
+  if (!open) return null;
+  return (
+    <div
+      className="ezypilot-popup"
+      style={{
+        position: "fixed",
+        bottom: 20,
+        right: 20,
+        width: "min(420px, calc(100vw - 40px))",
+        height: "min(620px, calc(100vh - 100px))",
+        background: C.surface,
+        border: `1px solid ${C.border}`,
+        borderRadius: 16,
+        boxShadow: "0 20px 60px rgba(0,0,0,.5)",
+        zIndex: 200,
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: `1px solid ${C.border}` }}>
+        <div style={{ width: 30, height: 30, borderRadius: 8, background: C.accentDim, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Sparkles size={16} color={C.accent} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Ezy-Pilot</div>
+          <div style={{ fontSize: 10.5, color: C.textDim }}>Opus 4.8</div>
+        </div>
+        <button onClick={() => setShowHistory((v) => !v)} title="Verlauf" style={{ background: showHistory ? C.accentDim : "none", border: "none", cursor: "pointer", color: showHistory ? C.accentLight : C.textMuted, padding: 6, borderRadius: 6 }}>
+          <MessageSquare size={16} />
+        </button>
+        <button onClick={() => setOpen(false)} title="Schliessen" style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, padding: 6 }}>
+          <X size={18} />
+        </button>
+      </div>
+      <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
+        {showHistory && (
+          <div style={{ width: 150, flexShrink: 0, overflowY: "auto", borderRight: `1px solid ${C.border}`, padding: 8 }}>
+            <EzyPilotHistory compact />
+          </div>
+        )}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, padding: 14 }}>
+          <EzyPilotChat compact />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Header button (right side) that toggles the Ezy-Pilot pop-up.
+function EzyPilotButton() {
+  const { open, setOpen } = useEzyPilot();
+  return (
+    <button
+      onClick={() => setOpen((v) => !v)}
+      title="Ezy-Pilot öffnen"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 7,
+        padding: "8px 13px",
+        borderRadius: 8,
+        border: `1px solid ${open ? C.accent : C.border}`,
+        background: open ? C.accentDim : `linear-gradient(135deg, ${C.accent}, ${C.accentLight || C.accent})`,
+        color: open ? C.accentLight : "#fff",
+        fontSize: 13,
+        fontWeight: 600,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        whiteSpace: "nowrap",
+      }}
+    >
+      <Sparkles size={15} />
+      Ezy-Pilot
+    </button>
   );
 }
 
@@ -9764,7 +9952,7 @@ const TABS = [
 ];
 const NAV = [
   { id: "dashboard", label: "Dashboard", icon: BarChart3 },
-  { id: "copilot", label: "Co-Pilot", icon: Sparkles },
+  { id: "copilot", label: "Ezy-Pilot", icon: Sparkles },
   { id: "tasks", label: "Projekt", icon: ListChecks },
   { id: "tools", label: "AI Tools", icon: Zap },
   { id: "agents", label: "Agents", icon: Bot },
@@ -9924,6 +10112,7 @@ function App() {
     );
 
   return (
+    <EzyPilotProvider selectedClient={client} clients={clients} tools={tools}>
     <div
       className="app-shell"
       style={{
@@ -10301,6 +10490,7 @@ function App() {
                 Export
               </Btn>
             )}
+            {!isViewer && <EzyPilotButton />}
             <Btn icon={Zap} onClick={() => setShowTools(true)}>
               Audit
             </Btn>
@@ -10434,7 +10624,7 @@ function App() {
           )}
           {!isViewer && page === "agents" && <AgentsPage selectedClient={client} />}
           {!isViewer && page === "copilot" && (
-            <CopilotPage selectedClient={client} clients={clients} tools={tools} />
+            <EzyPilotPage selectedClient={client} />
           )}
         </div>
       </main>
@@ -10557,7 +10747,9 @@ function App() {
         tools={tools}
         clients={clients}
       />
+      <EzyPilotPopup />
     </div>
+    </EzyPilotProvider>
   );
 }
 

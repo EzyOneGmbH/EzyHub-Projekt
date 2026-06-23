@@ -8,7 +8,8 @@ import { createClient } from "@supabase/supabase-js";
 // in the agent-service (global scope) and proxies a run. The heavy lifting
 // (skills, model, memory) lives in the agent-service via the Claude Agent SDK.
 
-const COPILOT_NAME = "EzyHub Co-Pilot";
+const COPILOT_NAME = "Ezy-Pilot";
+const COPILOT_LEGACY_NAMES = ["EzyHub Co-Pilot"]; // rename-in-place to keep memory
 const COPILOT_MODEL = "claude-opus-4-8";
 
 // All installed skills so the Co-Pilot can both USE them and recommend them when
@@ -26,7 +27,7 @@ const COPILOT_SKILLS = [
   "claude-ads:ads-audit",
 ];
 
-const COPILOT_INSTRUCTIONS = `Du bist der **EzyHub Co-Pilot** — der zentrale KI-Assistent der EzyOne-Plattform (Schweizer SEO/GEO/Ads-Agentur). Antworte immer auf Deutsch, präzise und handlungsorientiert.
+const COPILOT_INSTRUCTIONS = `Du bist der **Ezy-Pilot** — der zentrale KI-Assistent der EzyOne-Plattform (Schweizer SEO/GEO/Ads-Agentur). Antworte immer auf Deutsch, präzise und handlungsorientiert.
 
 Deine drei Aufgaben:
 
@@ -70,7 +71,9 @@ async function ensureCopilot(base: string, secret: string): Promise<string | nul
   const headers = { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" };
   const listRes = await fetch(`${base}/agents?clientId=global`, { headers, signal: AbortSignal.timeout(15_000) });
   const list = await listRes.json().catch(() => ({}));
-  const existing = (list.agents || []).find((a: any) => a.name === COPILOT_NAME);
+  const existing = (list.agents || []).find(
+    (a: any) => a.name === COPILOT_NAME || COPILOT_LEGACY_NAMES.includes(a.name),
+  );
   if (existing) {
     // Keep it current (model/skills/instructions may evolve).
     const upd = await fetch(`${base}/agents?clientId=global`, {
