@@ -1393,6 +1393,54 @@ function pctDelta(cur, prev) {
   return Math.round(((cur - prev) / prev) * 1000) / 10;
 }
 
+// Friendly short label for a comparison mode (shown on KPI cards).
+function compareName(mode) {
+  if (mode === "prevPeriod") return "Vorperiode";
+  if (mode === "prevMonth") return "Vormonat";
+  if (mode === "prevYear") return "Vorjahr";
+  return null;
+}
+
+// Banner shown at the top of a dashboard when a comparison period is active,
+// making it explicit which two windows are being compared.
+function CompareBanner({ dateRange }) {
+  if (!dateRange?.compare) return null;
+  const name = compareName(dateRange.compareMode) || "Vergleich";
+  const fmt = (d) => new Date(d).toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        flexWrap: "wrap",
+        background: C.accentDim,
+        border: `1px solid ${C.accent}55`,
+        borderRadius: 12,
+        padding: "12px 16px",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8, color: C.accentLight, fontWeight: 700, fontSize: 13 }}>
+        <GitBranch size={15} />
+        Vergleich aktiv: {name}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12.5, color: C.textMuted }}>
+        <span style={{ color: C.text, fontWeight: 600 }}>{fmt(dateRange.start)} – {fmt(dateRange.end)}</span>
+        <span style={{ color: C.textDim }}>vs.</span>
+        <span style={{ fontWeight: 600 }}>{fmt(dateRange.compare.start)} – {fmt(dateRange.compare.end)}</span>
+      </div>
+      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14, fontSize: 11.5, color: C.textDim }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <ArrowUpRight size={13} color={C.green} /> Anstieg
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <ArrowDownRight size={13} color={C.red} /> Rückgang
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // Compute a KPI's comparison delta from a series: returns rounded % or undefined.
 function seriesDelta(series, key, range) {
   if (!range?.compare) return undefined;
@@ -2192,14 +2240,17 @@ function skillCategoryBadge(skillName) {
 // ═══════════════════════════════════════════════════════════════════════════
 // SHARED CHART COMPONENTS (preserved)
 // ═══════════════════════════════════════════════════════════════════════════
-function KpiCard({ icon: I, label, value, change, prefix = "", suffix = "", color = C.accent }) {
+function KpiCard({ icon: I, label, value, change, prefix = "", suffix = "", color = C.accent, compareValue, compareLabel }) {
   const u = change > 0,
     n = change === 0;
+  const hasCompare = change !== undefined;
+  const fmtV = (v) =>
+    typeof v === "number" ? `${prefix}${v.toLocaleString("de-CH")}${suffix}` : v;
   return (
     <div
       style={{
         background: C.card,
-        border: `1px solid ${C.border}`,
+        border: `1px solid ${hasCompare ? (n ? C.border : u ? C.green : C.red) + "66" : C.border}`,
         borderRadius: 14,
         padding: "20px 22px",
         display: "flex",
@@ -2208,7 +2259,9 @@ function KpiCard({ icon: I, label, value, change, prefix = "", suffix = "", colo
         transition: "border-color .2s",
       }}
       onMouseEnter={(e) => (e.currentTarget.style.borderColor = C.borderHover)}
-      onMouseLeave={(e) => (e.currentTarget.style.borderColor = C.border)}
+      onMouseLeave={(e) =>
+        (e.currentTarget.style.borderColor = hasCompare ? (n ? C.border : u ? C.green : C.red) + "66" : C.border)
+      }
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div
@@ -2230,22 +2283,22 @@ function KpiCard({ icon: I, label, value, change, prefix = "", suffix = "", colo
               display: "flex",
               alignItems: "center",
               gap: 3,
-              fontSize: 12,
-              fontWeight: 600,
+              fontSize: 13,
+              fontWeight: 700,
               color: n ? C.textMuted : u ? C.green : C.red,
-              background: n ? "transparent" : u ? C.greenDim : C.redDim,
-              padding: "3px 8px",
+              background: n ? C.border + "44" : u ? C.greenDim : C.redDim,
+              padding: "4px 9px",
               borderRadius: 6,
             }}
           >
             {n ? (
-              <Minus size={12} />
+              <Minus size={13} />
             ) : u ? (
-              <ArrowUpRight size={12} />
+              <ArrowUpRight size={13} />
             ) : (
-              <ArrowDownRight size={12} />
+              <ArrowDownRight size={13} />
             )}
-            {Math.abs(change)}%
+            {change > 0 ? "+" : ""}{change}%
           </div>
         )}
       </div>
@@ -2256,6 +2309,25 @@ function KpiCard({ icon: I, label, value, change, prefix = "", suffix = "", colo
           {suffix}
         </div>
         <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>{label}</div>
+        {/* Comparison line: shows the previous value + period so the delta is traceable. */}
+        {compareValue !== undefined && compareValue !== null && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              marginTop: 8,
+              paddingTop: 8,
+              borderTop: `1px solid ${C.border}`,
+              fontSize: 11.5,
+              color: C.textDim,
+            }}
+          >
+            <span style={{ color: C.textMuted }}>vorher:</span>
+            <span style={{ color: C.textMuted, fontWeight: 600 }}>{fmtV(compareValue)}</span>
+            {compareLabel && <span style={{ color: C.textDim }}>· {compareLabel}</span>}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -3259,13 +3331,16 @@ function ConvDashboard({ selectedClient, dateRange }) {
   const ga4SeriesRaw = ga4?.series || [];
   const ga4Series = useMemo(() => ga4SeriesRaw.slice(-days), [ga4SeriesRaw, days]);
   // Live GA4 comparison (real YoY/MoM) — falls back to series-based deltas if unavailable.
-  const { deltas: liveDeltas } = useGa4Compare(selectedClient?.id, dateRange);
+  const { data: cmpData, deltas: liveDeltas } = useGa4Compare(selectedClient?.id, dateRange);
   const pick = (live, fallback) => (live !== undefined ? live : fallback);
   const dRevenue = pick(liveDeltas.totalRevenue, useMemo(() => seriesDelta(conv?.series, "revenue", dateRange), [conv?.series, dateRange]));
   const dConv = pick(liveDeltas.conversions, useMemo(() => seriesDelta(conv?.series, "conversions", dateRange), [conv?.series, dateRange]));
   const dSessions = pick(liveDeltas.sessions, useMemo(() => seriesDelta(ga4SeriesRaw, "sessions", dateRange), [ga4SeriesRaw, dateRange]));
   const dUsers = pick(liveDeltas.totalUsers, useMemo(() => seriesDelta(ga4SeriesRaw, "totalUsers", dateRange), [ga4SeriesRaw, dateRange]));
   const dPageViews = pick(liveDeltas.screenPageViews, useMemo(() => seriesDelta(ga4SeriesRaw, "pageViews", dateRange), [ga4SeriesRaw, dateRange]));
+  // Comparison absolute values (from live GA4) + friendly period label.
+  const cmpName = compareName(dateRange?.compareMode);
+  const cmp = (k) => (cmpData?.compare ? Number(cmpData.compare[k] || 0) : undefined);
   const { isOn } = useEzyDashboardConfig();
   const hasAnyKpi =
     revenue +
@@ -3288,6 +3363,7 @@ function ConvDashboard({ selectedClient, dateRange }) {
   }
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <CompareBanner dateRange={dateRange} />
       {isOn("conv.custom") && (
       <div
         style={{
@@ -3325,6 +3401,8 @@ function ConvDashboard({ selectedClient, dateRange }) {
           label="Generated"
           value={revenue > 0 ? `${Math.round(revenue).toLocaleString("de-CH")} CHF` : "—"}
           change={dRevenue}
+          compareValue={cmp("totalRevenue") !== undefined ? `${Math.round(cmp("totalRevenue")).toLocaleString("de-CH")} CHF` : undefined}
+          compareLabel={cmpName}
           color={C.pink}
         />
       </div>
@@ -3343,6 +3421,8 @@ function ConvDashboard({ selectedClient, dateRange }) {
             label="GA4 Sessions"
             value={sessions > 0 ? sessions : "—"}
             change={dSessions}
+            compareValue={cmp("sessions")}
+            compareLabel={cmpName}
             color={C.blue}
           />
           <KpiCard
@@ -3350,6 +3430,8 @@ function ConvDashboard({ selectedClient, dateRange }) {
             label="GA4 Total Users"
             value={totalUsers > 0 ? totalUsers : "—"}
             change={dUsers}
+            compareValue={cmp("totalUsers")}
+            compareLabel={cmpName}
             color={C.accent}
           />
           <KpiCard
@@ -3363,6 +3445,8 @@ function ConvDashboard({ selectedClient, dateRange }) {
             label="Page Views"
             value={screenPageViews > 0 ? screenPageViews : "—"}
             change={dPageViews}
+            compareValue={cmp("screenPageViews")}
+            compareLabel={cmpName}
             color={C.orange}
           />
           <KpiCard
@@ -3376,6 +3460,8 @@ function ConvDashboard({ selectedClient, dateRange }) {
             label="Conversions"
             value={ga4Conversions > 0 ? ga4Conversions : "—"}
             change={dConv}
+            compareValue={cmp("conversions")}
+            compareLabel={cmpName}
             color={C.pink}
           />
           <KpiCard
@@ -3705,11 +3791,13 @@ function OverviewDashboard({ selectedClient, dateRange }) {
   const aiBySource = traf?.aiReferral.bySource || [];
   const COUNTRY_COLORS = [C.accent, C.blue, C.green, C.orange, C.cyan, C.pink, C.textDim];
   // Live GA4 comparison (real YoY/MoM) — falls back to series-based deltas.
-  const { deltas: ovLiveDeltas } = useGa4Compare(selectedClient?.id, dateRange);
+  const { data: ovCmpData, deltas: ovLiveDeltas } = useGa4Compare(selectedClient?.id, dateRange);
   const ga4SeriesForDelta = ga4Run ? (ga4KpisFromResult(ga4Run.result)?.series || []) : [];
   const sOrganic = useMemo(() => seriesDelta(ga4SeriesForDelta, "sessions", dateRange), [ga4Run, dateRange]);
   const dOrganic = ovLiveDeltas.sessions !== undefined ? ovLiveDeltas.sessions : sOrganic;
   const dAiRef = useMemo(() => seriesDelta(aiSeriesRaw, "aiSessions", dateRange), [aiSeriesRaw, dateRange]);
+  const ovCmpName = compareName(dateRange?.compareMode);
+  const ovOrganicCmp = ovCmpData?.compare ? Number(ovCmpData.compare.sessions || 0) : undefined;
 
   const hasAny = organicTraffic + aiReference + leadVisits + visibility > 0 || countries.length > 0;
   if (!hasAny) {
@@ -3722,6 +3810,7 @@ function OverviewDashboard({ selectedClient, dateRange }) {
   }
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <CompareBanner dateRange={dateRange} />
       <div
         style={{
           display: "grid",
@@ -3734,6 +3823,8 @@ function OverviewDashboard({ selectedClient, dateRange }) {
           label="Organic Traffic"
           value={organicTraffic > 0 ? organicTraffic.toLocaleString("de-CH") : "—"}
           change={dOrganic}
+          compareValue={ovOrganicCmp}
+          compareLabel={ovCmpName}
           color={C.accent}
         />
         <KpiCard
@@ -4435,6 +4526,7 @@ function AdsDashboard({ selectedClient, dateRange }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <CompareBanner dateRange={dateRange} />
       {/* ===== EBENE 1 — HERO ===== */}
       <div
         style={{
