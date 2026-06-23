@@ -7176,6 +7176,150 @@ function ContentPage({ clients, items, onSaveContent }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // PAGE: CLIENTS
 // ═══════════════════════════════════════════════════════════════════════════
+// Per-client WordPress connection panel: enter site URL + WP username +
+// Application Password, verify against the WP REST API, then store. Shows status.
+function WordPressClientPanel({ client }) {
+  const toast = useToast();
+  const [status, setStatus] = useState(null); // {connected, siteUrl, username}
+  const [loading, setLoading] = useState(true);
+  const [siteUrl, setSiteUrl] = useState("");
+  const [username, setUsername] = useState("");
+  const [appPassword, setAppPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!client?.id) return;
+    setLoading(true);
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const r = await fetch(`/api/wordpress/connection?clientId=${encodeURIComponent(client.id)}`, {
+        headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+      });
+      const j = await r.json().catch(() => ({}));
+      setStatus(j.connected ? j : null);
+    } catch {
+      setStatus(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [client?.id]);
+  useEffect(() => { load(); }, [load]);
+
+  const connect = async () => {
+    if (!siteUrl.trim() || !username.trim() || !appPassword.trim()) {
+      toast("Bitte URL, Benutzername und Application-Password ausfüllen", "error");
+      return;
+    }
+    setBusy(true);
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const r = await fetch("/api/wordpress/connection", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: client.id, siteUrl: siteUrl.trim(), username: username.trim(), appPassword: appPassword.trim() }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (j.ok) {
+        toast(`WordPress verbunden${j.seoPlugin ? ` · SEO: ${j.seoPlugin}` : ""}`, "success");
+        setAppPassword("");
+        await load();
+      } else {
+        toast(j.error || "Verbindung fehlgeschlagen", "error");
+      }
+    } catch (e) {
+      toast(String(e?.message || e), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const disconnect = async () => {
+    if (!window.confirm("WordPress-Verbindung wirklich trennen?")) return;
+    setBusy(true);
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      await fetch("/api/wordpress/connection", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: client.id }),
+      });
+      toast("WordPress getrennt", "success");
+      setStatus(null);
+      await load();
+    } catch (e) {
+      toast(String(e?.message || e), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const inputStyle = {
+    width: "100%",
+    padding: "9px 12px",
+    borderRadius: 8,
+    border: `1px solid ${C.border}`,
+    background: C.bg,
+    color: C.text,
+    fontSize: 13,
+    fontFamily: "inherit",
+    outline: "none",
+    boxSizing: "border-box",
+  };
+
+  if (loading) return <div style={{ fontSize: 12, color: C.textDim }}>Lädt…</div>;
+
+  if (status?.connected) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, background: C.bg, border: `1px solid ${C.green}44`, borderRadius: 10, padding: "12px 14px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+          <span style={{ color: C.green, flexShrink: 0 }}><Check size={16} /></span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13, color: C.text, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {status.siteUrl}
+            </div>
+            <div style={{ fontSize: 11, color: C.textDim }}>Benutzer: {status.username}</div>
+          </div>
+        </div>
+        <button
+          onClick={disconnect}
+          disabled={busy}
+          style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.textMuted, cursor: "pointer", fontSize: 12, fontFamily: "inherit", flexShrink: 0 }}
+        >
+          Trennen
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <input style={inputStyle} placeholder="WordPress-URL (z.B. kunde.ch)" value={siteUrl} onChange={(e) => setSiteUrl(e.target.value)} />
+      <input style={inputStyle} placeholder="WP-Benutzername" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="off" />
+      <input style={inputStyle} type="password" placeholder="Application Password" value={appPassword} onChange={(e) => setAppPassword(e.target.value)} autoComplete="new-password" />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <a
+          href="https://wordpress.org/documentation/article/application-passwords/"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ fontSize: 11, color: C.accentLight, textDecoration: "none" }}
+        >
+          Application Password erstellen ↗
+        </a>
+        <button
+          onClick={connect}
+          disabled={busy}
+          style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: C.accent, color: "#fff", cursor: busy ? "default" : "pointer", fontSize: 13, fontWeight: 600, fontFamily: "inherit" }}
+        >
+          {busy ? "Verbinde…" : "Verbinden & testen"}
+        </button>
+      </div>
+      <div style={{ fontSize: 11, color: C.textDim, lineHeight: 1.5 }}>
+        In WordPress unter <strong>Benutzer → Profil → Application Passwords</strong> ein neues Passwort erstellen. Erfordert WordPress 5.6+ und HTTPS.
+      </div>
+    </div>
+  );
+}
+
 function OnboardingCard({ client, onUpdated }) {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -7292,6 +7436,12 @@ function OnboardingCard({ client, onUpdated }) {
           Google: Search Console &amp; GA4 verbinden
         </div>
         <GoogleClientPanel client={client} onSaved={onUpdated} />
+      </div>
+      <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 8 }}>
+          WordPress verbinden (Content veröffentlichen, Beiträge lesen, SEO schreiben)
+        </div>
+        <WordPressClientPanel client={client} />
       </div>
       <div style={{ fontSize: 11, color: C.textDim, marginTop: 10 }}>
         Semrush ist aktuell nicht verfügbar (API-Units fehlen).

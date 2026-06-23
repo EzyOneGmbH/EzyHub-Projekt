@@ -26,6 +26,9 @@ import { Route as SettingsApiRouteImport } from './routes/settings.api'
 import { Route as CustomersIdRouteImport } from './routes/customers.$id'
 import { Route as ContentIdRouteImport } from './routes/content.$id'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
+import { Route as ApiWordpressPublishRouteImport } from './routes/api/wordpress.publish'
+import { Route as ApiWordpressPostsRouteImport } from './routes/api/wordpress.posts'
+import { Route as ApiWordpressConnectionRouteImport } from './routes/api/wordpress.connection'
 import { Route as ApiPerplexitySearchRouteImport } from './routes/api/perplexity.search'
 import { Route as ApiLiveStatusRouteImport } from './routes/api/live.status'
 import { Route as ApiGooglePagespeedRouteImport } from './routes/api/google.pagespeed'
@@ -141,6 +144,21 @@ const ContentIdRoute = ContentIdRouteImport.update({
 const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/admin/users',
   path: '/admin/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWordpressPublishRoute = ApiWordpressPublishRouteImport.update({
+  id: '/api/wordpress/publish',
+  path: '/api/wordpress/publish',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWordpressPostsRoute = ApiWordpressPostsRouteImport.update({
+  id: '/api/wordpress/posts',
+  path: '/api/wordpress/posts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWordpressConnectionRoute = ApiWordpressConnectionRouteImport.update({
+  id: '/api/wordpress/connection',
+  path: '/api/wordpress/connection',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPerplexitySearchRoute = ApiPerplexitySearchRouteImport.update({
@@ -346,6 +364,9 @@ export interface FileRoutesByFullPath {
   '/api/google/pagespeed': typeof ApiGooglePagespeedRoute
   '/api/live/status': typeof ApiLiveStatusRoute
   '/api/perplexity/search': typeof ApiPerplexitySearchRoute
+  '/api/wordpress/connection': typeof ApiWordpressConnectionRoute
+  '/api/wordpress/posts': typeof ApiWordpressPostsRoute
+  '/api/wordpress/publish': typeof ApiWordpressPublishRoute
   '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
   '/api/live/canonry/ai-visibility': typeof ApiLiveCanonryAiVisibilityRoute
   '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
@@ -396,6 +417,9 @@ export interface FileRoutesByTo {
   '/api/google/pagespeed': typeof ApiGooglePagespeedRoute
   '/api/live/status': typeof ApiLiveStatusRoute
   '/api/perplexity/search': typeof ApiPerplexitySearchRoute
+  '/api/wordpress/connection': typeof ApiWordpressConnectionRoute
+  '/api/wordpress/posts': typeof ApiWordpressPostsRoute
+  '/api/wordpress/publish': typeof ApiWordpressPublishRoute
   '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
   '/api/live/canonry/ai-visibility': typeof ApiLiveCanonryAiVisibilityRoute
   '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
@@ -447,6 +471,9 @@ export interface FileRoutesById {
   '/api/google/pagespeed': typeof ApiGooglePagespeedRoute
   '/api/live/status': typeof ApiLiveStatusRoute
   '/api/perplexity/search': typeof ApiPerplexitySearchRoute
+  '/api/wordpress/connection': typeof ApiWordpressConnectionRoute
+  '/api/wordpress/posts': typeof ApiWordpressPostsRoute
+  '/api/wordpress/publish': typeof ApiWordpressPublishRoute
   '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
   '/api/live/canonry/ai-visibility': typeof ApiLiveCanonryAiVisibilityRoute
   '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
@@ -499,6 +526,9 @@ export interface FileRouteTypes {
     | '/api/google/pagespeed'
     | '/api/live/status'
     | '/api/perplexity/search'
+    | '/api/wordpress/connection'
+    | '/api/wordpress/posts'
+    | '/api/wordpress/publish'
     | '/api/google/oauth/start'
     | '/api/live/canonry/ai-visibility'
     | '/api/live/canonry/overview'
@@ -549,6 +579,9 @@ export interface FileRouteTypes {
     | '/api/google/pagespeed'
     | '/api/live/status'
     | '/api/perplexity/search'
+    | '/api/wordpress/connection'
+    | '/api/wordpress/posts'
+    | '/api/wordpress/publish'
     | '/api/google/oauth/start'
     | '/api/live/canonry/ai-visibility'
     | '/api/live/canonry/overview'
@@ -599,6 +632,9 @@ export interface FileRouteTypes {
     | '/api/google/pagespeed'
     | '/api/live/status'
     | '/api/perplexity/search'
+    | '/api/wordpress/connection'
+    | '/api/wordpress/posts'
+    | '/api/wordpress/publish'
     | '/api/google/oauth/start'
     | '/api/live/canonry/ai-visibility'
     | '/api/live/canonry/overview'
@@ -646,6 +682,9 @@ export interface RootRouteChildren {
   ApiGooglePagespeedRoute: typeof ApiGooglePagespeedRoute
   ApiLiveStatusRoute: typeof ApiLiveStatusRoute
   ApiPerplexitySearchRoute: typeof ApiPerplexitySearchRoute
+  ApiWordpressConnectionRoute: typeof ApiWordpressConnectionRoute
+  ApiWordpressPostsRoute: typeof ApiWordpressPostsRoute
+  ApiWordpressPublishRoute: typeof ApiWordpressPublishRoute
   ApiGoogleOauthStartRoute: typeof ApiGoogleOauthStartRoute
   ApiLiveCanonryAiVisibilityRoute: typeof ApiLiveCanonryAiVisibilityRoute
   ApiLiveCanonryOverviewRoute: typeof ApiLiveCanonryOverviewRoute
@@ -770,6 +809,27 @@ declare module '@tanstack/react-router' {
       path: '/admin/users'
       fullPath: '/admin/users'
       preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/wordpress/publish': {
+      id: '/api/wordpress/publish'
+      path: '/api/wordpress/publish'
+      fullPath: '/api/wordpress/publish'
+      preLoaderRoute: typeof ApiWordpressPublishRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/wordpress/posts': {
+      id: '/api/wordpress/posts'
+      path: '/api/wordpress/posts'
+      fullPath: '/api/wordpress/posts'
+      preLoaderRoute: typeof ApiWordpressPostsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/wordpress/connection': {
+      id: '/api/wordpress/connection'
+      path: '/api/wordpress/connection'
+      fullPath: '/api/wordpress/connection'
+      preLoaderRoute: typeof ApiWordpressConnectionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/perplexity/search': {
@@ -1079,6 +1139,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGooglePagespeedRoute: ApiGooglePagespeedRoute,
   ApiLiveStatusRoute: ApiLiveStatusRoute,
   ApiPerplexitySearchRoute: ApiPerplexitySearchRoute,
+  ApiWordpressConnectionRoute: ApiWordpressConnectionRoute,
+  ApiWordpressPostsRoute: ApiWordpressPostsRoute,
+  ApiWordpressPublishRoute: ApiWordpressPublishRoute,
   ApiGoogleOauthStartRoute: ApiGoogleOauthStartRoute,
   ApiLiveCanonryAiVisibilityRoute: ApiLiveCanonryAiVisibilityRoute,
   ApiLiveCanonryOverviewRoute: ApiLiveCanonryOverviewRoute,
