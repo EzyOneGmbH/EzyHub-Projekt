@@ -2,7 +2,7 @@
 /**
  * Plugin Name: EzyHub Connector
  * Description: Lässt EzyHub technische SEO-Maßnahmen autonom deployen — <head>-Injektion (JSON-LD, OG, Meta), llms.txt, Seiten-Meta, Canonical/Noindex, robots.txt, Sitemap-Optimierung, Bild-Alt-Texte und Elementor-Editing (Headings + Text-Widgets) mit automatischem Backup/Restore. Auth via Application Passwords (manage_options). Alle Änderungen reversibel.
- * Version: 1.3.0
+ * Version: 1.4.0
  * Author: EzyOne GmbH
  * License: GPL-2.0+
  */
@@ -42,6 +42,16 @@ class EzyHub_Connector {
 
     public function can_write() { return current_user_can('manage_options'); }
 
+    // Purge page caches so deployed changes go live immediately (LiteSpeed,
+    // WP Rocket, W3TC, generic object cache). Called after every change.
+    public function purge_caches() {
+        do_action('litespeed_purge_all');           // LiteSpeed Cache
+        if (function_exists('rocket_clean_domain')) { @rocket_clean_domain(); } // WP Rocket
+        if (function_exists('w3tc_flush_all')) { @w3tc_flush_all(); }           // W3 Total Cache
+        if (function_exists('wp_cache_clear_cache')) { @wp_cache_clear_cache(); } // WP Super Cache
+        if (function_exists('wp_cache_flush')) { @wp_cache_flush(); }
+    }
+
     // ── Elementor safety net: snapshot _elementor_data before any change ──
     // Keeps the last 8 snapshots in postmeta so every edit is fully reversible.
     private function backup_elementor($postId) {
@@ -59,6 +69,7 @@ class EzyHub_Connector {
         if (class_exists('\Elementor\Plugin')) {
             try { \Elementor\Plugin::$instance->files_manager->clear_cache(); } catch (\Throwable $e) {}
         }
+        $this->purge_caches();
     }
 
     public function routes() {
@@ -67,7 +78,7 @@ class EzyHub_Connector {
         register_rest_route(self::NS, '/status', ['methods' => 'GET', 'permission_callback' => $auth, 'callback' => function () {
             $head = get_option(self::OPT_HEAD, []);
             return [
-                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.3.0',
+                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.4.0',
                 'headKeys' => is_array($head) ? array_keys($head) : [],
                 'llmsBytes' => strlen((string) get_option(self::OPT_LLMS, '')),
                 'robotsBytes' => strlen((string) get_option(self::OPT_ROBOTS, '')),
@@ -82,18 +93,27 @@ class EzyHub_Connector {
             $head = get_option(self::OPT_HEAD, []); if (!is_array($head)) $head = [];
             if ($html === '') unset($head[$key]); else $head[$key] = $html;
             update_option(self::OPT_HEAD, $head);
+            $this->purge_caches();
             return ['ok' => true, 'keys' => array_keys($head)];
+        }]);
+
+        // ── Cache leeren (on-demand) ──
+        register_rest_route(self::NS, '/purge', ['methods' => 'POST', 'permission_callback' => $auth, 'callback' => function () {
+            $this->purge_caches();
+            return ['ok' => true, 'purged' => true];
         }]);
 
         // ── llms.txt ──
         register_rest_route(self::NS, '/llms-txt', ['methods' => 'POST', 'permission_callback' => $auth, 'callback' => function ($r) {
             update_option(self::OPT_LLMS, (string) ($r['content'] ?? ''));
+            $this->purge_caches();
             return ['ok' => true, 'bytes' => strlen((string) get_option(self::OPT_LLMS, ''))];
         }]);
 
         // ── robots.txt additions ──
         register_rest_route(self::NS, '/robots-txt', ['methods' => 'POST', 'permission_callback' => $auth, 'callback' => function ($r) {
             update_option(self::OPT_ROBOTS, (string) ($r['content'] ?? ''));
+            $this->purge_caches();
             return ['ok' => true, 'bytes' => strlen((string) get_option(self::OPT_ROBOTS, ''))];
         }]);
 
@@ -105,6 +125,8 @@ class EzyHub_Connector {
             if (isset($r['seoDescription'])) update_post_meta($id, '_ezyhub_seo_description', sanitize_text_field($r['seoDescription']));
             if (isset($r['canonical']))      update_post_meta($id, '_ezyhub_canonical', esc_url_raw($r['canonical']));
             if (isset($r['noindex']))        update_post_meta($id, '_ezyhub_noindex', $r['noindex'] ? '1' : '');
+            do_action('litespeed_purge_post', $id);
+            $this->purge_caches();
             return ['ok' => true, 'postId' => $id];
         }]);
 
@@ -129,6 +151,7 @@ class EzyHub_Connector {
             $id = intval($r['attachmentId'] ?? 0);
             if (!$id || get_post_type($id) !== 'attachment') return new WP_Error('bad_id', 'gültige attachmentId erforderlich', ['status' => 400]);
             update_post_meta($id, '_wp_attachment_image_alt', sanitize_text_field($r['alt'] ?? ''));
+            $this->purge_caches();
             return ['ok' => true, 'attachmentId' => $id];
         }]);
 

@@ -10,6 +10,7 @@ import { getWpConnection, wpFetch } from "@/server/wordpress.server";
 // action -> { method, plugin path, allowed body fields }
 const ACTIONS: Record<string, { method: "GET" | "POST"; path: string; fields: string[] }> = {
   "status":              { method: "GET",  path: "/ezyhub/v1/status", fields: [] },
+  "purge":               { method: "POST", path: "/ezyhub/v1/purge", fields: [] },
   "head":                { method: "POST", path: "/ezyhub/v1/head", fields: ["key", "html"] },
   "llms-txt":            { method: "POST", path: "/ezyhub/v1/llms-txt", fields: ["content"] },
   "robots-txt":          { method: "POST", path: "/ezyhub/v1/robots-txt", fields: ["content"] },
