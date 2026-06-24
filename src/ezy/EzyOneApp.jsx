@@ -9819,6 +9819,37 @@ function AgentsPage({ selectedClient }) {
   const [agentSessions, setAgentSessions] = useState({});
   const [selectedSessions, setSelectedSessions] = useState({});
   const [showMemory, setShowMemory] = useState(null);
+  const [templates, setTemplates] = useState([]);
+  const [showTemplates, setShowTemplates] = useState(false);
+
+  const loadTemplates = useCallback(async () => {
+    try {
+      const r = await ezyFetch("/api/agent/templates");
+      const j = await r.json().catch(() => ({}));
+      if (j.ok) setTemplates(j.templates || []);
+    } catch {}
+  }, []);
+  useEffect(() => { void loadTemplates(); }, [loadTemplates]);
+
+  const createFromTemplate = async (tpl) => {
+    if (clientId === "global") { setMsg("Bitte zuerst einen Kunden wählen"); return; }
+    setBusy(true); setMsg("");
+    try {
+      const r = await ezyFetch("/api/agent/templates", {
+        method: "POST",
+        headers: JSON_HEAD,
+        body: JSON.stringify({ templateId: tpl.id, clientId, clientName: selectedClient?.name || "", clientDomain: selectedClient?.domain || "" }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!j.ok) throw new Error(j.error || "Erstellen fehlgeschlagen");
+      setShowTemplates(false);
+      await load();
+      setMsg(`Agent „${j.agent?.name}" aus Vorlage erstellt`);
+    } catch (e) {
+      setMsg(String(e?.message || e));
+    }
+    setBusy(false);
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -9959,9 +9990,30 @@ function AgentsPage({ selectedClient }) {
           </div>
         </div>
         {!editing && (
-          <button onClick={() => setEditing({ name: "", description: "", instructions: "", model: "claude-opus-4-8", skills: [] })} style={btn(C.accent)}>
-            + Neuer Agent
-          </button>
+          <div style={{ display: "flex", gap: 8, position: "relative" }}>
+            {templates.length > 0 && (
+              <button onClick={() => setShowTemplates((v) => !v)} style={btn(C.card)} title="Agent aus einer Vorlage erstellen">
+                ▦ Aus Vorlage
+              </button>
+            )}
+            <button onClick={() => setEditing({ name: "", description: "", instructions: "", model: "claude-opus-4-8", skills: [] })} style={btn(C.accent)}>
+              + Neuer Agent
+            </button>
+            {showTemplates && (
+              <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 6, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 8, minWidth: 320, zIndex: 30, boxShadow: "0 8px 32px rgba(0,0,0,.4)" }}>
+                <div style={{ fontSize: 11, color: C.textDim, textTransform: "uppercase", letterSpacing: ".5px", padding: "4px 8px 8px" }}>Vorlagen</div>
+                {templates.map((t) => (
+                  <button key={t.id} onClick={() => createFromTemplate(t)} disabled={busy} style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit" }} onMouseEnter={(e) => e.currentTarget.style.background = C.cardHover} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{t.name}</div>
+                    <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 2, lineHeight: 1.4 }}>{t.description}</div>
+                  </button>
+                ))}
+                <div style={{ fontSize: 10.5, color: C.textDim, padding: "8px 8px 2px", borderTop: `1px solid ${C.border}`, marginTop: 6 }}>
+                  Wird für „{selectedClient?.name || "—"}" angelegt (Name/Domain automatisch eingesetzt).
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </div>
       {msg && <div style={{ fontSize: 12, color: C.textMuted }}>{msg}</div>}

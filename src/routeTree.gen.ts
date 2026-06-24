@@ -50,6 +50,7 @@ import { Route as ApiAworkTaskRouteImport } from './routes/api/awork.task'
 import { Route as ApiAworkCreateTaskRouteImport } from './routes/api/awork.create-task'
 import { Route as ApiAiGenerateRouteImport } from './routes/api/ai.generate'
 import { Route as ApiAhrefsOverviewRouteImport } from './routes/api/ahrefs.overview'
+import { Route as ApiAgentTemplatesRouteImport } from './routes/api/agent.templates'
 import { Route as ApiAgentRunsRouteImport } from './routes/api/agent.runs'
 import { Route as ApiAgentRunAgentRouteImport } from './routes/api/agent.run-agent'
 import { Route as ApiAgentRunRouteImport } from './routes/api/agent.run'
@@ -275,6 +276,11 @@ const ApiAhrefsOverviewRoute = ApiAhrefsOverviewRouteImport.update({
   path: '/api/ahrefs/overview',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAgentTemplatesRoute = ApiAgentTemplatesRouteImport.update({
+  id: '/api/agent/templates',
+  path: '/api/agent/templates',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAgentRunsRoute = ApiAgentRunsRouteImport.update({
   id: '/api/agent/runs',
   path: '/api/agent/runs',
@@ -406,6 +412,7 @@ export interface FileRoutesByFullPath {
   '/api/agent/run': typeof ApiAgentRunRoute
   '/api/agent/run-agent': typeof ApiAgentRunAgentRoute
   '/api/agent/runs': typeof ApiAgentRunsRoute
+  '/api/agent/templates': typeof ApiAgentTemplatesRoute
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/ai/generate': typeof ApiAiGenerateRoute
   '/api/awork/create-task': typeof ApiAworkCreateTaskRoute
@@ -468,6 +475,7 @@ export interface FileRoutesByTo {
   '/api/agent/run': typeof ApiAgentRunRoute
   '/api/agent/run-agent': typeof ApiAgentRunAgentRoute
   '/api/agent/runs': typeof ApiAgentRunsRoute
+  '/api/agent/templates': typeof ApiAgentTemplatesRoute
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/ai/generate': typeof ApiAiGenerateRoute
   '/api/awork/create-task': typeof ApiAworkCreateTaskRoute
@@ -531,6 +539,7 @@ export interface FileRoutesById {
   '/api/agent/run': typeof ApiAgentRunRoute
   '/api/agent/run-agent': typeof ApiAgentRunAgentRoute
   '/api/agent/runs': typeof ApiAgentRunsRoute
+  '/api/agent/templates': typeof ApiAgentTemplatesRoute
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/ai/generate': typeof ApiAiGenerateRoute
   '/api/awork/create-task': typeof ApiAworkCreateTaskRoute
@@ -595,6 +604,7 @@ export interface FileRouteTypes {
     | '/api/agent/run'
     | '/api/agent/run-agent'
     | '/api/agent/runs'
+    | '/api/agent/templates'
     | '/api/ahrefs/overview'
     | '/api/ai/generate'
     | '/api/awork/create-task'
@@ -657,6 +667,7 @@ export interface FileRouteTypes {
     | '/api/agent/run'
     | '/api/agent/run-agent'
     | '/api/agent/runs'
+    | '/api/agent/templates'
     | '/api/ahrefs/overview'
     | '/api/ai/generate'
     | '/api/awork/create-task'
@@ -719,6 +730,7 @@ export interface FileRouteTypes {
     | '/api/agent/run'
     | '/api/agent/run-agent'
     | '/api/agent/runs'
+    | '/api/agent/templates'
     | '/api/ahrefs/overview'
     | '/api/ai/generate'
     | '/api/awork/create-task'
@@ -778,6 +790,7 @@ export interface RootRouteChildren {
   ApiAgentRunRoute: typeof ApiAgentRunRoute
   ApiAgentRunAgentRoute: typeof ApiAgentRunAgentRoute
   ApiAgentRunsRoute: typeof ApiAgentRunsRoute
+  ApiAgentTemplatesRoute: typeof ApiAgentTemplatesRoute
   ApiAhrefsOverviewRoute: typeof ApiAhrefsOverviewRoute
   ApiAiGenerateRoute: typeof ApiAiGenerateRoute
   ApiAworkCreateTaskRoute: typeof ApiAworkCreateTaskRoute
@@ -1096,6 +1109,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAhrefsOverviewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agent/templates': {
+      id: '/api/agent/templates'
+      path: '/api/agent/templates'
+      fullPath: '/api/agent/templates'
+      preLoaderRoute: typeof ApiAgentTemplatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/agent/runs': {
       id: '/api/agent/runs'
       path: '/api/agent/runs'
@@ -1307,6 +1327,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAgentRunRoute: ApiAgentRunRoute,
   ApiAgentRunAgentRoute: ApiAgentRunAgentRoute,
   ApiAgentRunsRoute: ApiAgentRunsRoute,
+  ApiAgentTemplatesRoute: ApiAgentTemplatesRoute,
   ApiAhrefsOverviewRoute: ApiAhrefsOverviewRoute,
   ApiAiGenerateRoute: ApiAiGenerateRoute,
   ApiAworkCreateTaskRoute: ApiAworkCreateTaskRoute,
