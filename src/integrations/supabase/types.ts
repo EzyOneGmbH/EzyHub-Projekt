@@ -671,6 +671,7 @@ export type Database = {
         | "audit"
         | "note"
         | "report"
+        | "win"
       org_role: "owner" | "admin" | "member" | "viewer"
       task_priority: "low" | "medium" | "high"
       task_status: "open" | "in_progress" | "done"
@@ -813,6 +814,7 @@ export const Constants = {
         "audit",
         "note",
         "report",
+        "win",
       ],
       org_role: ["owner", "admin", "member", "viewer"],
       task_priority: ["low", "medium", "high"],

@@ -1,0 +1,1 @@
+ALTER TYPE content_type ADD VALUE IF NOT EXISTS 'win';
