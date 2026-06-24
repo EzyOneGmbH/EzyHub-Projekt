@@ -60,39 +60,44 @@ export async function gtmResolveDefault(
   clientId: string,
   clientDomain?: string,
 ): Promise<{ ok: boolean; accountPath?: string; containerPath?: string; publicId?: string; matchedBy?: string; error?: string }> {
-  const acc = await gtmAccounts(clientId);
-  if (!acc.ok) return { ok: false, error: acc.error };
-  // Gather containers across ALL accounts the user manages.
-  const containers: any[] = [];
-  for (const a of acc.accounts || []) {
-    const c = await gtmContainers(clientId, a.path);
-    if (c.ok) for (const x of c.containers || []) containers.push({ ...x, accountPath: a.path });
-  }
-  if (!containers.length) return { ok: false, error: "Keine GTM-Container gefunden" };
-
   const domain = String(clientDomain || "").replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "").toLowerCase();
+  const core = domain ? domain.split(".")[0] : "";
 
-  // 1) Match the GTM id actually installed on the client's live site.
+  // Read the GTM id(s) actually installed on the client's live site FIRST.
   let siteIds: string[] = [];
   if (domain) {
     try {
       const html = await (await fetch(`https://${domain}/`, { signal: AbortSignal.timeout(15_000) })).text();
       siteIds = [...new Set(html.match(/GTM-[A-Z0-9]+/g) || [])];
-    } catch { /* site unreachable — fall through */ }
+    } catch { /* site unreachable */ }
   }
-  let chosen = containers.find((c) => siteIds.includes(c.publicId));
-  let matchedBy = chosen ? "site" : "";
 
-  // 2) Match domain core against container name.
-  if (!chosen && domain) {
-    const core = domain.split(".")[0];
-    chosen = containers.find((c) => String(c.name || "").toLowerCase().includes(core));
-    if (chosen) matchedBy = "name";
+  const acc = await gtmAccounts(clientId);
+  if (!acc.ok) return { ok: false, error: acc.error };
+
+  // Iterate accounts, SHORT-CIRCUIT as soon as a container matches the site's
+  // GTM id (the reliable signal) — avoids listing every tenant's containers.
+  let nameMatch: any = null;
+  let firstWeb: any = null;
+  for (const a of acc.accounts || []) {
+    const c = await gtmContainers(clientId, a.path);
+    if (!c.ok) continue;
+    for (const x of c.containers || []) {
+      const cont = { ...x, accountPath: a.path };
+      if (siteIds.includes(cont.publicId)) {
+        return { ok: true, accountPath: a.path, containerPath: cont.path, publicId: cont.publicId, matchedBy: "site" };
+      }
+      if (!nameMatch && core && String(cont.name || "").toLowerCase().includes(core)) nameMatch = cont;
+      if (!firstWeb && (cont.usageContext || []).includes("web")) firstWeb = cont;
+    }
   }
-  // 3) Fallback: first web container (ambiguous → caller should verify).
-  if (!chosen) {
-    chosen = containers.find((c) => (c.usageContext || []).includes("web")) || containers[0];
-    matchedBy = "fallback";
+
+  // Site has a GTM id but it is NOT in the connected account → likely the client's
+  // own Site-Kit/Google account. Honest, actionable result instead of a wrong match.
+  if (siteIds.length && !nameMatch) {
+    return { ok: false, error: `Website nutzt ${siteIds.join(", ")}, dieser Container ist aber nicht im verbundenen GTM-Konto (gehört evtl. zum Kunden-/Site-Kit-Konto). Container manuell zuordnen oder Zugriff anfordern.` };
   }
-  return { ok: true, accountPath: chosen.accountPath, containerPath: chosen.path, publicId: chosen.publicId, matchedBy };
+  const chosen = nameMatch || firstWeb;
+  if (!chosen) return { ok: false, error: "Kein passender GTM-Container im verbundenen Konto gefunden" };
+  return { ok: true, accountPath: chosen.accountPath, containerPath: chosen.path, publicId: chosen.publicId, matchedBy: nameMatch ? "name" : "fallback" };
 }
