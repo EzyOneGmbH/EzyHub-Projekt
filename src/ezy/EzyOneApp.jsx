@@ -7242,8 +7242,8 @@ function ContentPage({ clients, items, onSaveContent }) {
   const [editing, setEditing] = useState(null);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
-  const typeIc = { blog: PenTool, audit: Layers, note: Bookmark, report: FileText };
-  const typeCo = { blog: C.cyan, audit: C.accent, note: C.pink, report: C.blue };
+  const typeIc = { blog: PenTool, audit: Layers, note: Bookmark, report: FileText, win: Award };
+  const typeCo = { blog: C.cyan, audit: C.accent, note: C.pink, report: C.blue, win: C.green };
   const stCo = { draft: C.textMuted, published: C.green, archived: C.textDim };
   const stLb = { draft: "Entwurf", published: "Publiziert", archived: "Archiviert" };
   const filtered = items.filter(
@@ -7315,6 +7315,7 @@ function ContentPage({ clients, items, onSaveContent }) {
         <TabBar
           tabs={[
             { id: "all", label: "Alle" },
+            { id: "win", label: "Erfolge" },
             { id: "blog", label: "Blog" },
             { id: "audit", label: "Audit" },
             { id: "note", label: "Notes" },

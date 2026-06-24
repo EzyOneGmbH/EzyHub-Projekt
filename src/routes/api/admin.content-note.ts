@@ -15,9 +15,9 @@ const Body = z.object({
   entry: z.string().min(1), // markdown body
   keywords: z.array(z.string()).optional(),
   // "note" (default) = append to the daily change-log.
-  // "audit"/"report" = create a standalone document (e.g. full audit report).
-  type: z.enum(["note", "audit", "report"]).optional(),
-  title: z.string().optional(), // custom title for audit/report docs
+  // "audit"/"report"/"win" = standalone document (audit report / success entry).
+  type: z.enum(["note", "audit", "report", "win"]).optional(),
+  title: z.string().optional(), // custom title for audit/report/win docs
 });
 
 export const Route = createFileRoute("/api/admin/content-note")({
@@ -60,9 +60,10 @@ export const Route = createFileRoute("/api/admin/content-note")({
         const date = (d.date || new Date().toISOString().slice(0, 10)).slice(0, 10);
         const type = d.type || "note";
 
-        // Audit / report: always a standalone document (one per audit run).
-        if (type === "audit" || type === "report") {
-          const title = d.title || `${type === "audit" ? "SEO/GEO Audit" : "Report"} ${date}`;
+        // Audit / report / win: standalone document.
+        if (type === "audit" || type === "report" || type === "win") {
+          const defaultTitle = type === "audit" ? `SEO/GEO Audit ${date}` : type === "report" ? `Report ${date}` : `Erfolg ${date}`;
+          const title = d.title || defaultTitle;
           const { data: created, error } = await supabaseAdmin
             .from("content_items")
             .insert({

@@ -6,7 +6,7 @@ export type EzyContentItem = {
   id: string;
   title: string;
   clientId: string;
-  type: "blog" | "audit" | "note" | "report";
+  type: "blog" | "audit" | "note" | "report" | "win";
   status: "draft" | "published" | "archived";
   content: string;
   keywords: string[];
@@ -16,7 +16,7 @@ export type EzyContentItem = {
   updatedAt: string;
 };
 
-const ALLOWED_TYPES = ["blog", "audit", "note", "report"] as const;
+const ALLOWED_TYPES = ["blog", "audit", "note", "report", "win"] as const;
 
 function rowToItem(r: any): EzyContentItem {
   const body = String(r.body ?? "");
