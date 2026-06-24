@@ -12,8 +12,12 @@ const Body = z.object({
   clientName: z.string().optional(),
   date: z.string().optional(), // YYYY-MM-DD; defaults to today (server TZ)
   agent: z.string().optional(),
-  entry: z.string().min(1), // markdown of what changed
+  entry: z.string().min(1), // markdown body
   keywords: z.array(z.string()).optional(),
+  // "note" (default) = append to the daily change-log.
+  // "audit"/"report" = create a standalone document (e.g. full audit report).
+  type: z.enum(["note", "audit", "report"]).optional(),
+  title: z.string().optional(), // custom title for audit/report docs
 });
 
 export const Route = createFileRoute("/api/admin/content-note")({
@@ -54,11 +58,32 @@ export const Route = createFileRoute("/api/admin/content-note")({
         if (!createdBy) return Response.json({ ok: false, error: "Kein Org-Benutzer für created_by gefunden" }, { status: 500 });
 
         const date = (d.date || new Date().toISOString().slice(0, 10)).slice(0, 10);
+        const type = d.type || "note";
+
+        // Audit / report: always a standalone document (one per audit run).
+        if (type === "audit" || type === "report") {
+          const title = d.title || `${type === "audit" ? "SEO/GEO Audit" : "Report"} ${date}`;
+          const { data: created, error } = await supabaseAdmin
+            .from("content_items")
+            .insert({
+              client_id: clientId,
+              created_by: createdBy,
+              title,
+              body: d.entry.trim(),
+              content_type: type,
+              status: "published",
+              keywords: d.keywords ?? [],
+            })
+            .select("id")
+            .single();
+          if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+          return Response.json({ ok: true, id: created?.id, type });
+        }
+
+        // Note: append to (or create) the daily change-log.
         const title = `Agent-Änderungen ${date}`;
         const stamp = new Date().toISOString().slice(11, 16);
         const block = `\n\n---\n**${stamp}${d.agent ? ` · ${d.agent}` : ""}**\n${d.entry.trim()}`;
-
-        // Find today's note for this client (append) or create it.
         const { data: existing } = await supabaseAdmin
           .from("content_items")
           .select("id, body")
