@@ -62,6 +62,7 @@ import { Route as ApiAgentAgentsRouteImport } from './routes/api/agent.agents'
 import { Route as ApiAdminWpPublishRouteImport } from './routes/api/admin.wp-publish'
 import { Route as ApiAdminWpDeployRouteImport } from './routes/api/admin.wp-deploy'
 import { Route as ApiAdminPopulateRouteImport } from './routes/api/admin.populate'
+import { Route as ApiAdminGtmRouteImport } from './routes/api/admin.gtm'
 import { Route as ApiAdminGbpRouteImport } from './routes/api/admin.gbp'
 import { Route as ApiAdminContentNoteRouteImport } from './routes/api/admin.content-note'
 import { Route as ApiAdminClientMetricsRouteImport } from './routes/api/admin.client-metrics'
@@ -336,6 +337,11 @@ const ApiAdminPopulateRoute = ApiAdminPopulateRouteImport.update({
   path: '/api/admin/populate',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminGtmRoute = ApiAdminGtmRouteImport.update({
+  id: '/api/admin/gtm',
+  path: '/api/admin/gtm',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminGbpRoute = ApiAdminGbpRouteImport.update({
   id: '/api/admin/gbp',
   path: '/api/admin/gbp',
@@ -401,6 +407,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
+  '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
@@ -464,6 +471,7 @@ export interface FileRoutesByTo {
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
+  '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
@@ -528,6 +536,7 @@ export interface FileRoutesById {
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
+  '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
@@ -593,6 +602,7 @@ export interface FileRouteTypes {
     | '/api/admin/client-metrics'
     | '/api/admin/content-note'
     | '/api/admin/gbp'
+    | '/api/admin/gtm'
     | '/api/admin/populate'
     | '/api/admin/wp-deploy'
     | '/api/admin/wp-publish'
@@ -656,6 +666,7 @@ export interface FileRouteTypes {
     | '/api/admin/client-metrics'
     | '/api/admin/content-note'
     | '/api/admin/gbp'
+    | '/api/admin/gtm'
     | '/api/admin/populate'
     | '/api/admin/wp-deploy'
     | '/api/admin/wp-publish'
@@ -719,6 +730,7 @@ export interface FileRouteTypes {
     | '/api/admin/client-metrics'
     | '/api/admin/content-note'
     | '/api/admin/gbp'
+    | '/api/admin/gtm'
     | '/api/admin/populate'
     | '/api/admin/wp-deploy'
     | '/api/admin/wp-publish'
@@ -779,6 +791,7 @@ export interface RootRouteChildren {
   ApiAdminClientMetricsRoute: typeof ApiAdminClientMetricsRoute
   ApiAdminContentNoteRoute: typeof ApiAdminContentNoteRoute
   ApiAdminGbpRoute: typeof ApiAdminGbpRoute
+  ApiAdminGtmRoute: typeof ApiAdminGtmRoute
   ApiAdminPopulateRoute: typeof ApiAdminPopulateRoute
   ApiAdminWpDeployRoute: typeof ApiAdminWpDeployRoute
   ApiAdminWpPublishRoute: typeof ApiAdminWpPublishRoute
@@ -1193,6 +1206,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminPopulateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/gtm': {
+      id: '/api/admin/gtm'
+      path: '/api/admin/gtm'
+      fullPath: '/api/admin/gtm'
+      preLoaderRoute: typeof ApiAdminGtmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/gbp': {
       id: '/api/admin/gbp'
       path: '/api/admin/gbp'
@@ -1316,6 +1336,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminClientMetricsRoute: ApiAdminClientMetricsRoute,
   ApiAdminContentNoteRoute: ApiAdminContentNoteRoute,
   ApiAdminGbpRoute: ApiAdminGbpRoute,
+  ApiAdminGtmRoute: ApiAdminGtmRoute,
   ApiAdminPopulateRoute: ApiAdminPopulateRoute,
   ApiAdminWpDeployRoute: ApiAdminWpDeployRoute,
   ApiAdminWpPublishRoute: ApiAdminWpPublishRoute,
@@ -1359,3 +1380,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
