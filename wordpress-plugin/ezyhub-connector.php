@@ -2,7 +2,7 @@
 /**
  * Plugin Name: EzyHub Connector
  * Description: Lässt EzyHub technische SEO-Maßnahmen autonom deployen — <head>-Injektion (JSON-LD, OG, Meta), llms.txt, Seiten-Meta, Canonical/Noindex, robots.txt, Sitemap-Optimierung, Bild-Alt-Texte und Elementor-Editing (Headings + Text-Widgets) mit automatischem Backup/Restore. Auth via Application Passwords (manage_options). Alle Änderungen reversibel.
- * Version: 1.4.0
+ * Version: 1.5.0
  * Author: EzyOne GmbH
  * License: GPL-2.0+
  */
@@ -78,7 +78,7 @@ class EzyHub_Connector {
         register_rest_route(self::NS, '/status', ['methods' => 'GET', 'permission_callback' => $auth, 'callback' => function () {
             $head = get_option(self::OPT_HEAD, []);
             return [
-                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.4.0',
+                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.5.0',
                 'headKeys' => is_array($head) ? array_keys($head) : [],
                 'llmsBytes' => strlen((string) get_option(self::OPT_LLMS, '')),
                 'robotsBytes' => strlen((string) get_option(self::OPT_ROBOTS, '')),
@@ -276,6 +276,61 @@ class EzyHub_Connector {
             $this->save_elementor($id, json_decode($chosen['data'], true));
             return ['ok' => true, 'postId' => $id, 'restored' => $chosen['ts'] ?? 'latest'];
         }]);
+
+        // ── Performance / Core Web Vitals: LiteSpeed-Cache-Steuerung ──
+        // Reversible, RISIKOARME Optimierungen ueber die LSCWP-Optionen
+        // (litespeed.conf.<id>). Bewusst NUR sichere Schalter — KEIN CSS/JS-Combine
+        // oder Defer (kann Seiten brechen). Vor erster Aenderung wird der Vorzustand
+        // dauerhaft gesichert; jede Aenderung leert den Cache, damit sie greift.
+        register_rest_route(self::NS, '/perf/status', ['methods' => 'GET', 'permission_callback' => $auth, 'callback' => function () {
+            $active = defined('LSCWP_V') || class_exists('\\LiteSpeed\\Core');
+            $map = self::ls_map();
+            $settings = [];
+            if ($active) foreach ($map as $name => $key) $settings[$name] = (int) get_option('litespeed.conf.' . $key, 0);
+            return [
+                'ok' => true,
+                'litespeedActive' => $active,
+                'version' => defined('LSCWP_V') ? LSCWP_V : null,
+                'settings' => $settings,
+                'available' => array_keys($map),
+                'backup' => get_option('ezyhub_litespeed_backup', null),
+            ];
+        }]);
+
+        register_rest_route(self::NS, '/perf/litespeed', ['methods' => 'POST', 'permission_callback' => $auth, 'callback' => function ($r) {
+            if (!(defined('LSCWP_V') || class_exists('\\LiteSpeed\\Core')))
+                return new WP_Error('no_litespeed', 'LiteSpeed Cache nicht aktiv', ['status' => 409]);
+            $settings = $r['settings'] ?? [];
+            if (!is_array($settings) || !$settings)
+                return new WP_Error('bad_input', 'settings (Objekt name->0/1) erforderlich', ['status' => 400]);
+            $map = self::ls_map();
+            $applied = []; $previous = []; $ignored = [];
+            foreach ($settings as $name => $val) {
+                if (!isset($map[$name])) { $ignored[] = $name; continue; }
+                $opt = 'litespeed.conf.' . $map[$name];
+                $previous[$name] = (int) get_option($opt, 0);
+                update_option($opt, $val ? 1 : 0);
+                $applied[$name] = $val ? 1 : 0;
+            }
+            // Erstes Pre-Change-Snapshot dauerhaft sichern (Notfall-Revert).
+            if (get_option('ezyhub_litespeed_backup', null) === null && $previous)
+                update_option('ezyhub_litespeed_backup', $previous);
+            // LiteSpeed + Seiten-Cache leeren, damit die Aenderungen greifen.
+            if (function_exists('do_action')) do_action('litespeed_purge_all');
+            $this->purge_caches();
+            return ['ok' => true, 'applied' => $applied, 'previous' => $previous, 'ignored' => $ignored];
+        }]);
+    }
+
+    // Friendly Name => LSCWP conf-id. Nur risikoarme, reversible Schalter.
+    private static function ls_map() {
+        return [
+            'lazyload' => 'media-lazy',    // Bilder Lazy-Load (LCP/Bandbreite)
+            'css_min'  => 'optm-css_min',  // CSS minifizieren
+            'js_min'   => 'optm-js_min',   // JS minifizieren
+            'html_min' => 'optm-html_min', // HTML minifizieren
+            'qs_rm'    => 'optm-qs_rm',    // Query-Strings von statischen Ressourcen entfernen
+        ];
     }
 
     public function inject_head() {

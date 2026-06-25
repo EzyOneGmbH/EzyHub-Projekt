@@ -9,20 +9,46 @@ import { getWpConnection, wpFetch } from "@/server/wordpress.server";
 
 // action -> { method, plugin path, allowed body fields }
 const ACTIONS: Record<string, { method: "GET" | "POST"; path: string; fields: string[] }> = {
-  "status":              { method: "GET",  path: "/ezyhub/v1/status", fields: [] },
-  "purge":               { method: "POST", path: "/ezyhub/v1/purge", fields: [] },
-  "head":                { method: "POST", path: "/ezyhub/v1/head", fields: ["key", "html"] },
-  "llms-txt":            { method: "POST", path: "/ezyhub/v1/llms-txt", fields: ["content"] },
-  "robots-txt":          { method: "POST", path: "/ezyhub/v1/robots-txt", fields: ["content"] },
-  "page-meta":           { method: "POST", path: "/ezyhub/v1/page-meta", fields: ["postId", "seoTitle", "seoDescription", "canonical", "noindex"] },
-  "alt-text":            { method: "POST", path: "/ezyhub/v1/alt-text", fields: ["attachmentId", "alt"] },
-  "images-missing-alt":  { method: "GET",  path: "/ezyhub/v1/images-missing-alt", fields: ["limit"] },
-  "elementor-headings":  { method: "GET",  path: "/ezyhub/v1/elementor/headings", fields: ["postId"] },
-  "elementor-set-heading": { method: "POST", path: "/ezyhub/v1/elementor/set-heading", fields: ["postId", "widgetId", "tag"] },
-  "elementor-text-widgets": { method: "GET", path: "/ezyhub/v1/elementor/text-widgets", fields: ["postId"] },
-  "elementor-set-text":  { method: "POST", path: "/ezyhub/v1/elementor/set-text", fields: ["postId", "widgetId", "html"] },
-  "elementor-backups":   { method: "GET",  path: "/ezyhub/v1/elementor/backups", fields: ["postId"] },
-  "elementor-restore":   { method: "POST", path: "/ezyhub/v1/elementor/restore", fields: ["postId", "ts"] },
+  status: { method: "GET", path: "/ezyhub/v1/status", fields: [] },
+  purge: { method: "POST", path: "/ezyhub/v1/purge", fields: [] },
+  head: { method: "POST", path: "/ezyhub/v1/head", fields: ["key", "html"] },
+  "llms-txt": { method: "POST", path: "/ezyhub/v1/llms-txt", fields: ["content"] },
+  "robots-txt": { method: "POST", path: "/ezyhub/v1/robots-txt", fields: ["content"] },
+  "page-meta": {
+    method: "POST",
+    path: "/ezyhub/v1/page-meta",
+    fields: ["postId", "seoTitle", "seoDescription", "canonical", "noindex"],
+  },
+  "alt-text": { method: "POST", path: "/ezyhub/v1/alt-text", fields: ["attachmentId", "alt"] },
+  "images-missing-alt": { method: "GET", path: "/ezyhub/v1/images-missing-alt", fields: ["limit"] },
+  "elementor-headings": {
+    method: "GET",
+    path: "/ezyhub/v1/elementor/headings",
+    fields: ["postId"],
+  },
+  "elementor-set-heading": {
+    method: "POST",
+    path: "/ezyhub/v1/elementor/set-heading",
+    fields: ["postId", "widgetId", "tag"],
+  },
+  "elementor-text-widgets": {
+    method: "GET",
+    path: "/ezyhub/v1/elementor/text-widgets",
+    fields: ["postId"],
+  },
+  "elementor-set-text": {
+    method: "POST",
+    path: "/ezyhub/v1/elementor/set-text",
+    fields: ["postId", "widgetId", "html"],
+  },
+  "elementor-backups": { method: "GET", path: "/ezyhub/v1/elementor/backups", fields: ["postId"] },
+  "elementor-restore": {
+    method: "POST",
+    path: "/ezyhub/v1/elementor/restore",
+    fields: ["postId", "ts"],
+  },
+  "perf-status": { method: "GET", path: "/ezyhub/v1/perf/status", fields: [] },
+  "perf-litespeed": { method: "POST", path: "/ezyhub/v1/perf/litespeed", fields: ["settings"] },
 };
 
 const Body = z.object({
@@ -44,6 +70,7 @@ const Body = z.object({
   canonical: z.string().optional(),
   noindex: z.boolean().optional(),
   limit: z.number().int().optional(),
+  settings: z.record(z.union([z.number(), z.boolean()])).optional(),
 });
 
 export const Route = createFileRoute("/api/admin/wp-deploy")({
@@ -51,23 +78,41 @@ export const Route = createFileRoute("/api/admin/wp-deploy")({
     handlers: {
       POST: async ({ request }) => {
         const secret = process.env.ADMIN_AUTOMATION_SECRET;
-        if (!secret) return Response.json({ ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" }, { status: 503 });
+        if (!secret)
+          return Response.json(
+            { ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" },
+            { status: 503 },
+          );
         if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
           return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
         const parsed = Body.safeParse(await request.json().catch(() => ({})));
-        if (!parsed.success) return Response.json({ ok: false, error: "Invalid input", details: parsed.error.issues }, { status: 400 });
+        if (!parsed.success)
+          return Response.json(
+            { ok: false, error: "Invalid input", details: parsed.error.issues },
+            { status: 400 },
+          );
         const d = parsed.data as Record<string, any>;
 
         const spec = ACTIONS[d.action];
-        if (!spec) return Response.json({ ok: false, error: `Unbekannte action: ${d.action}` }, { status: 400 });
+        if (!spec)
+          return Response.json(
+            { ok: false, error: `Unbekannte action: ${d.action}` },
+            { status: 400 },
+          );
 
         let clientId = d.clientId || null;
         if (!clientId && d.clientName) {
-          const { data } = await supabaseAdmin.from("clients").select("id").ilike("name", d.clientName).limit(1).maybeSingle();
+          const { data } = await supabaseAdmin
+            .from("clients")
+            .select("id")
+            .ilike("name", d.clientName)
+            .limit(1)
+            .maybeSingle();
           clientId = data?.id || null;
         }
-        if (!clientId) return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
+        if (!clientId)
+          return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
 
         const conn = await getWpConnection(clientId);
         if (!conn) return Response.json({ ok: false, error: "Keine WordPress-Verbindung" });
@@ -75,7 +120,12 @@ export const Route = createFileRoute("/api/admin/wp-deploy")({
         // Verify the connector plugin (clear error if missing/outdated).
         const status = await wpFetch<any>(conn, "/ezyhub/v1/status");
         if (!status.ok) {
-          return Response.json({ ok: false, pluginMissing: true, error: "EzyHub-Connector-Plugin nicht gefunden/aktiv. Bitte auf der WordPress-Seite installieren & aktivieren (Version ≥ 1.1.0)." });
+          return Response.json({
+            ok: false,
+            pluginMissing: true,
+            error:
+              "EzyHub-Connector-Plugin nicht gefunden/aktiv. Bitte auf der WordPress-Seite installieren & aktivieren (Version ≥ 1.1.0).",
+          });
         }
         if (d.action === "status") return Response.json({ ok: true, status: status.data });
 
