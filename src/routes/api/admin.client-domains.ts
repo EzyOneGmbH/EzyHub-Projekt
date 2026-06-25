@@ -23,7 +23,9 @@ export const Route = createFileRoute("/api/admin/client-domains")({
 
         const { data, error } = await supabaseAdmin
           .from("clients")
-          .select("id, name, domain, ga4_property, canonry_project, gsc_property");
+          .select(
+            "id, name, domain, ga4_property, canonry_project, gsc_property, country, language",
+          );
         if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 
         // client_integrations aller Kunden in EINEM Query laden, dann pro Kunde aufloesen.
@@ -57,6 +59,8 @@ export const Route = createFileRoute("/api/admin/client-domains")({
               ga4Property,
               canonryProject: c.canonry_project ? String(c.canonry_project) : null,
               gscProperty: c.gsc_property ? String(c.gsc_property) : null,
+              country: c.country ? String(c.country) : null,
+              language: c.language ? String(c.language) : null,
               services: resolveServices(integrationsByClient[String(c.id)] || {}),
             };
           })

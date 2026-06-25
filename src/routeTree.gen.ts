@@ -61,6 +61,7 @@ import { Route as ApiAgentCopilotRouteImport } from './routes/api/agent.copilot'
 import { Route as ApiAgentAgentsRouteImport } from './routes/api/agent.agents'
 import { Route as ApiAdminWpPublishRouteImport } from './routes/api/admin.wp-publish'
 import { Route as ApiAdminWpDeployRouteImport } from './routes/api/admin.wp-deploy'
+import { Route as ApiAdminSetCanonryProjectRouteImport } from './routes/api/admin.set-canonry-project'
 import { Route as ApiAdminPopulateRouteImport } from './routes/api/admin.populate'
 import { Route as ApiAdminGtmRouteImport } from './routes/api/admin.gtm'
 import { Route as ApiAdminGbpRouteImport } from './routes/api/admin.gbp'
@@ -332,6 +333,12 @@ const ApiAdminWpDeployRoute = ApiAdminWpDeployRouteImport.update({
   path: '/api/admin/wp-deploy',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminSetCanonryProjectRoute =
+  ApiAdminSetCanonryProjectRouteImport.update({
+    id: '/api/admin/set-canonry-project',
+    path: '/api/admin/set-canonry-project',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAdminPopulateRoute = ApiAdminPopulateRouteImport.update({
   id: '/api/admin/populate',
   path: '/api/admin/populate',
@@ -409,6 +416,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
+  '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
@@ -473,6 +481,7 @@ export interface FileRoutesByTo {
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
+  '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
@@ -538,6 +547,7 @@ export interface FileRoutesById {
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
+  '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
@@ -604,6 +614,7 @@ export interface FileRouteTypes {
     | '/api/admin/gbp'
     | '/api/admin/gtm'
     | '/api/admin/populate'
+    | '/api/admin/set-canonry-project'
     | '/api/admin/wp-deploy'
     | '/api/admin/wp-publish'
     | '/api/agent/agents'
@@ -668,6 +679,7 @@ export interface FileRouteTypes {
     | '/api/admin/gbp'
     | '/api/admin/gtm'
     | '/api/admin/populate'
+    | '/api/admin/set-canonry-project'
     | '/api/admin/wp-deploy'
     | '/api/admin/wp-publish'
     | '/api/agent/agents'
@@ -732,6 +744,7 @@ export interface FileRouteTypes {
     | '/api/admin/gbp'
     | '/api/admin/gtm'
     | '/api/admin/populate'
+    | '/api/admin/set-canonry-project'
     | '/api/admin/wp-deploy'
     | '/api/admin/wp-publish'
     | '/api/agent/agents'
@@ -793,6 +806,7 @@ export interface RootRouteChildren {
   ApiAdminGbpRoute: typeof ApiAdminGbpRoute
   ApiAdminGtmRoute: typeof ApiAdminGtmRoute
   ApiAdminPopulateRoute: typeof ApiAdminPopulateRoute
+  ApiAdminSetCanonryProjectRoute: typeof ApiAdminSetCanonryProjectRoute
   ApiAdminWpDeployRoute: typeof ApiAdminWpDeployRoute
   ApiAdminWpPublishRoute: typeof ApiAdminWpPublishRoute
   ApiAgentAgentsRoute: typeof ApiAgentAgentsRoute
@@ -1199,6 +1213,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminWpDeployRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/set-canonry-project': {
+      id: '/api/admin/set-canonry-project'
+      path: '/api/admin/set-canonry-project'
+      fullPath: '/api/admin/set-canonry-project'
+      preLoaderRoute: typeof ApiAdminSetCanonryProjectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/populate': {
       id: '/api/admin/populate'
       path: '/api/admin/populate'
@@ -1338,6 +1359,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminGbpRoute: ApiAdminGbpRoute,
   ApiAdminGtmRoute: ApiAdminGtmRoute,
   ApiAdminPopulateRoute: ApiAdminPopulateRoute,
+  ApiAdminSetCanonryProjectRoute: ApiAdminSetCanonryProjectRoute,
   ApiAdminWpDeployRoute: ApiAdminWpDeployRoute,
   ApiAdminWpPublishRoute: ApiAdminWpPublishRoute,
   ApiAgentAgentsRoute: ApiAgentAgentsRoute,
