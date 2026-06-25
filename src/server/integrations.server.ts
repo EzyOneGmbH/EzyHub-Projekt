@@ -1,17 +1,62 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { GOOGLE_CHILDREN, SERVICE_PARENT, SERVICE_KEYS, type ServiceKey } from "@/lib/services";
+
+/** Liest alle client_integrations-Zeilen eines Kunden als provider->enabled Map. */
+async function loadIntegrationMap(clientId: string): Promise<Record<string, boolean>> {
+  const { data } = await supabaseAdmin
+    .from("client_integrations")
+    .select("provider, enabled")
+    .eq("client_id", clientId);
+  const map: Record<string, boolean> = {};
+  for (const r of data ?? []) map[String((r as any).provider)] = !!(r as any).enabled;
+  return map;
+}
 
 /**
  * Returns true if the given provider is enabled for the client.
  * Default policy: missing row => disabled.
+ *
+ * Hierarchie-bewusst + abwaertskompatibel:
+ *  - Grobes "google": true, wenn die google-Zeile aktiv ist ODER irgendein
+ *    feines Kind (ga4/gsc/google-ads/gtm/gbp) aktiv ist.
+ *  - Feines Google-Kind: explizite feine Zeile gewinnt; fehlt sie, faellt es
+ *    auf die grobe "google"-Zeile zurueck (Alt-Kunden bleiben funktionsfaehig).
+ *  - Eigenstaendige Provider (ahrefs/canonry/perplexity/bing/wordpress/anthropic):
+ *    1:1 ihre eigene Zeile.
  */
 export async function isProviderEnabled(clientId: string, provider: string): Promise<boolean> {
-  const { data } = await supabaseAdmin
-    .from("client_integrations")
-    .select("enabled")
-    .eq("client_id", clientId)
-    .eq("provider", provider)
-    .maybeSingle();
-  return !!data?.enabled;
+  const map = await loadIntegrationMap(clientId);
+  return resolveEnabled(map, provider);
+}
+
+function resolveEnabled(map: Record<string, boolean>, provider: string): boolean {
+  // Grobes "google" = Eltern mehrerer feiner Dienste.
+  if (provider === "google") {
+    if (map.google === true) return true;
+    return GOOGLE_CHILDREN.some((c) => map[c] === true);
+  }
+  // Feines Google-Kind: explizite Einstellung gewinnt, sonst Fallback auf "google".
+  if (SERVICE_PARENT[provider] === "google") {
+    if (Object.prototype.hasOwnProperty.call(map, provider)) return map[provider] === true;
+    return map.google === true;
+  }
+  // Eigenstaendig.
+  return map[provider] === true;
+}
+
+/**
+ * Liefert die aufgeloeste Enablement-Map aller feinen Service-Keys fuer einen
+ * Kunden (fuer client-domains -> agent-service Auto-Connect-Gating).
+ */
+export async function getEnabledServices(clientId: string): Promise<Record<ServiceKey, boolean>> {
+  return resolveServices(await loadIntegrationMap(clientId));
+}
+
+/** Loest alle feinen Service-Keys aus einer vorab geladenen provider->enabled Map auf. */
+export function resolveServices(map: Record<string, boolean>): Record<ServiceKey, boolean> {
+  const out = {} as Record<ServiceKey, boolean>;
+  for (const k of SERVICE_KEYS) out[k] = resolveEnabled(map, k);
+  return out;
 }
 
 /**

@@ -101,6 +101,8 @@ import { useEzyDefaults } from "@/ezy/data/useEzyDefaults";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
 import { useEzyContent } from "@/ezy/data/useEzyContent";
 import { useEzyToolSettings, toolProvider } from "@/ezy/data/useEzyToolSettings";
+import { ServicesPicker, ServicesPanel } from "@/ezy/components/ServicesPanel";
+import { DEFAULT_ON_SERVICES } from "@/lib/services";
 import { useEzyDashboardConfig } from "@/ezy/data/useEzyDashboardConfig";
 import { executeTool as runToolLive } from "@/ezy/data/runTool";
 import { useEzyAuditHistory } from "@/ezy/data/useEzyAuditHistory";
@@ -376,6 +378,8 @@ function clientFormFromClient(client) {
     ga4PropertyId: client?.ga4PropertyId || "",
     ga4MeasurementId: client?.ga4MeasurementId || "",
     canonryProject: client?.canonryProject || "",
+    // Beim Anlegen vorausgewaehlte Dienste (Set von Service-Keys).
+    services: new Set(DEFAULT_ON_SERVICES),
   };
 }
 function profileFromStored(value) {
@@ -7728,6 +7732,8 @@ function ClientsPage({
       ga4MeasurementId: draft.ga4MeasurementId,
       canonryProject: draft.canonryProject || slugifyProjectName(draft.domain),
     });
+    // Beim Anlegen die gewaehlten Dienste mitgeben (transient -> client_integrations-Seed).
+    if (editorMode === "create") next.services = [...(draft.services || [])];
     onUpsertClient(next);
     onSelectClient?.(next);
     setDetailId(next.id);
@@ -7981,6 +7987,20 @@ function ClientsPage({
           </div>
           <div style={{ padding: "18px 22px" }}>
             <OnboardingCard client={detail} onUpdated={onReload} />
+            <div
+              style={{
+                background: C.card,
+                border: `1px solid ${C.border}`,
+                borderRadius: 14,
+                padding: 18,
+                marginBottom: 16,
+              }}
+            >
+              <div style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: "0 0 12px" }}>
+                Integrationen / Dienste
+              </div>
+              <ServicesPanel C={C} clientId={detail.id} />
+            </div>
             {dt === "overview" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {[
@@ -8215,6 +8235,22 @@ function ClientsPage({
           onChange={(v) => setDraft((p) => ({ ...p, notes: v }))}
           textarea
         />
+        {editorMode === "create" && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: "0 0 4px" }}>
+              Dienste auswählen
+            </div>
+            <p style={{ fontSize: 11, color: C.textMuted, margin: "0 0 10px", lineHeight: 1.4 }}>
+              Aktivierte Dienste werden automatisch verbunden. Nicht gewählte bleiben deaktiviert,
+              bis du sie später unter „Integrationen" einschaltest.
+            </p>
+            <ServicesPicker
+              C={C}
+              value={draft.services}
+              onChange={(s) => setDraft((p) => ({ ...p, services: s }))}
+            />
+          </div>
+        )}
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 8 }}>
           <Btn variant="secondary" onClick={() => setEditorOpen(false)}>
             Abbrechen

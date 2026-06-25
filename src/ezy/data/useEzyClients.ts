@@ -105,23 +105,38 @@ function clientToRow(c: Partial<EzyClient>, organizationId: string, createdBy: s
   };
 }
 
-/** Default provider rows seeded for new clients. */
-const DEFAULT_PROVIDERS = ["ahrefs", "google", "canonry", "perplexity", "anthropic"] as const;
+import { DEFAULT_ON_SERVICES, type ServiceKey } from "@/lib/services";
 
-async function seedDefaultIntegrations(organizationId: string, clientId: string) {
+// "anthropic" ist das Agent-Backbone (kein UI-Service) und immer aktiv.
+const ALWAYS_ON = ["anthropic"] as const;
+
+/**
+ * Seedet client_integrations fuer einen NEUEN Kunden anhand der ausgewaehlten
+ * Services. Nicht gewaehlte Dienste bleiben ohne Zeile = deaktiviert (Default),
+ * bis sie spaeter im Integrationen-Panel aktiviert werden.
+ */
+async function seedSelectedIntegrations(
+  organizationId: string,
+  clientId: string,
+  services: ServiceKey[],
+) {
   try {
+    const enabledKeys = services.length ? services : DEFAULT_ON_SERVICES;
+    const providers = [...new Set([...ALWAYS_ON, ...enabledKeys])];
     const { data: existing } = await supabase
       .from("client_integrations")
       .select("provider")
       .eq("client_id", clientId)
-      .in("provider", DEFAULT_PROVIDERS as unknown as string[]);
+      .in("provider", providers);
     const have = new Set((existing ?? []).map((r: any) => r.provider));
-    const rows = DEFAULT_PROVIDERS.filter((p) => !have.has(p)).map((provider) => ({
-      organization_id: organizationId,
-      client_id: clientId,
-      provider,
-      enabled: true,
-    }));
+    const rows = providers
+      .filter((p) => !have.has(p))
+      .map((provider) => ({
+        organization_id: organizationId,
+        client_id: clientId,
+        provider,
+        enabled: true,
+      }));
     if (rows.length) await supabase.from("client_integrations").insert(rows);
   } catch {
     /* non-fatal */
@@ -167,7 +182,11 @@ export function useEzyClients() {
         const { data, error } = await supabase.from("clients").insert(row).select().single();
         if (error) throw error;
         const mapped = rowToClient(data);
-        await seedDefaultIntegrations(organizationId, mapped.id);
+        // Ausgewaehlte Services (transient am Client-Objekt) -> client_integrations.
+        const selected = Array.isArray((next as any).services)
+          ? ((next as any).services as ServiceKey[])
+          : [];
+        await seedSelectedIntegrations(organizationId, mapped.id, selected);
         // Auto-provision a Canonry (GEO) project for every new client (best-effort).
         try {
           const session = (await supabase.auth.getSession()).data.session;
