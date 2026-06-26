@@ -7241,6 +7241,109 @@ function ContentEditor({ item, stCo, stLb, onBack, onSave }) {
     </div>
   );
 }
+// Kunden-Reports: zeigt content_items vom Typ "report" des gewählten Kunden,
+// für die Viewer-Rolle freigeschaltet. PDF via Print-to-PDF (sauberes Druck-Fenster).
+function ReportsPage({ items, selectedClient }) {
+  const reports = useMemo(
+    () =>
+      (items || [])
+        .filter((it) => it.type === "report" && (!selectedClient?.id || it.clientId === selectedClient.id))
+        .sort((a, b) =>
+          String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")),
+        ),
+    [items, selectedClient],
+  );
+  const [sel, setSel] = useState(null);
+  const current = reports.find((r) => r.id === sel) || reports[0] || null;
+
+  const printReport = (rep) => {
+    if (!rep) return;
+    const w = window.open("", "_blank");
+    if (!w) return;
+    const body = markdownToHtml(rep.content || "");
+    const title = String(rep.title || "Report").replace(/</g, "&lt;");
+    const meta = `${selectedClient?.name || ""} · ${rep.updatedAt || rep.createdAt || ""}`;
+    w.document.write(
+      `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>${title}</title>` +
+        `<style>body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:820px;margin:32px auto;padding:0 24px;color:#1a2233;line-height:1.6}` +
+        `h1{font-size:22px;border-bottom:2px solid #e3e8f0;padding-bottom:8px}h2{font-size:17px;margin-top:22px}h3{font-size:14px}` +
+        `table{border-collapse:collapse;width:100%;margin:12px 0}th,td{border:1px solid #d8dee9;padding:6px 10px;text-align:left;font-size:13px}` +
+        `th{background:#f3f6fb}code{background:#f3f6fb;padding:1px 5px;border-radius:4px}.m{display:flex;justify-content:space-between;color:#6b7894;font-size:12px;margin-bottom:10px}` +
+        `</style></head><body><div class="m"><span>${meta}</span><span>EzyOne</span></div><div>${body}</div>` +
+        `<script>window.onload=function(){window.print()}</script></body></html>`,
+    );
+    w.document.close();
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Reports</h1>
+          <p style={{ color: C.textMuted, fontSize: 13, margin: "4px 0 0" }}>
+            {reports.length} Reports{selectedClient?.name ? ` · ${selectedClient.name}` : ""}
+          </p>
+        </div>
+        {current && (
+          <Btn icon={Download} onClick={() => printReport(current)}>
+            PDF / Drucken
+          </Btn>
+        )}
+      </div>
+      {reports.length === 0 ? (
+        <div
+          style={{
+            color: C.textMuted,
+            fontSize: 13,
+            padding: 28,
+            textAlign: "center",
+            border: `1px dashed ${C.border}`,
+            borderRadius: 12,
+          }}
+        >
+          Noch keine Reports vorhanden. Der monatliche Report wird automatisch erstellt.
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 16 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {reports.map((r) => (
+              <button
+                key={r.id}
+                onClick={() => setSel(r.id)}
+                style={{
+                  textAlign: "left",
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  cursor: "pointer",
+                  background: current?.id === r.id ? C.card : "transparent",
+                  border: `1px solid ${current?.id === r.id ? C.accent : C.border}`,
+                  color: C.text,
+                  fontFamily: "inherit",
+                }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{r.title}</div>
+                <div style={{ fontSize: 11, color: C.textMuted }}>{r.updatedAt || r.createdAt}</div>
+              </button>
+            ))}
+          </div>
+          <div
+            style={{
+              background: C.card,
+              border: `1px solid ${C.border}`,
+              borderRadius: 14,
+              padding: 22,
+              fontSize: 13,
+              lineHeight: 1.7,
+              color: C.text,
+              overflowY: "auto",
+            }}
+            dangerouslySetInnerHTML={{ __html: markdownToHtml(current?.content || "") }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
 function ContentPage({ clients, items, onSaveContent, selectedClient }) {
   const toast = useToast();
   const [editing, setEditing] = useState(null);
@@ -10200,6 +10303,7 @@ const NAV = [
   { id: "tools", label: "AI Tools", icon: Zap },
   { id: "agents", label: "Agents", icon: Bot },
   { id: "content", label: "Content", icon: FileText },
+  { id: "reports", label: "Reports", icon: TrendingUp },
   { id: "clients", label: "Clients", icon: Users },
   { id: "settings", label: "Einstellungen", icon: Settings },
 ];
@@ -10209,7 +10313,11 @@ function App() {
   const { role } = useAuth();
   // viewer = read-only customer report: dashboards only, no tools/clients/settings.
   const isViewer = role === "viewer";
-  const nav = useMemo(() => (isViewer ? NAV.filter((n) => n.id === "dashboard") : NAV), [isViewer]);
+  // Viewer (Kunde) sieht nur Dashboard + die eigenen Reports.
+  const nav = useMemo(
+    () => (isViewer ? NAV.filter((n) => n.id === "dashboard" || n.id === "reports") : NAV),
+    [isViewer],
+  );
   const ezy = useEzyClients();
   const clients = useMemo(() => ezy.clients.map((c) => normalizeClientShape(c)), [ezy.clients]);
   const [clientId, setClientId] = useState("");
@@ -10236,9 +10344,9 @@ function App() {
   const contentHook = useEzyContent();
   const [page, setPage] = useState("dashboard");
   const [tab, setTab] = useState("seo");
-  // Viewers only ever see the read-only dashboard report.
+  // Viewers (Kunden) dürfen Dashboard + ihre Reports sehen, sonst nichts.
   useEffect(() => {
-    if (isViewer && page !== "dashboard") setPage("dashboard");
+    if (isViewer && page !== "dashboard" && page !== "reports") setPage("dashboard");
   }, [isViewer, page]);
   const [cdd, setCdd] = useState(false);
   const [showTools, setShowTools] = useState(false);
@@ -10842,6 +10950,9 @@ function App() {
               onSaveContent={onSaveContent}
               selectedClient={client}
             />
+          )}
+          {hasClients && page === "reports" && (
+            <ReportsPage items={contentHook.items} selectedClient={client} />
           )}
           {!isViewer && page === "clients" && (
             <ClientsPage
