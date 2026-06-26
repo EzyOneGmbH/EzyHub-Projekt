@@ -7241,7 +7241,7 @@ function ContentEditor({ item, stCo, stLb, onBack, onSave }) {
     </div>
   );
 }
-function ContentPage({ clients, items, onSaveContent }) {
+function ContentPage({ clients, items, onSaveContent, selectedClient }) {
   const toast = useToast();
   const [editing, setEditing] = useState(null);
   const [filter, setFilter] = useState("all");
@@ -7250,7 +7250,9 @@ function ContentPage({ clients, items, onSaveContent }) {
   const typeCo = { blog: C.cyan, audit: C.accent, note: C.pink, report: C.blue, win: C.green };
   const stCo = { draft: C.textMuted, published: C.green, archived: C.textDim };
   const stLb = { draft: "Entwurf", published: "Publiziert", archived: "Archiviert" };
-  const filtered = items.filter(
+  // Content pro Kunde trennen: nur Inhalte des aktuell gewählten Kunden zeigen.
+  const clientItems = items.filter((it) => !selectedClient?.id || it.clientId === selectedClient.id);
+  const filtered = clientItems.filter(
     (it) =>
       (filter === "all" || it.type === filter) &&
       it.title.toLowerCase().includes(search.toLowerCase()),
@@ -7287,7 +7289,7 @@ function ContentPage({ clients, items, onSaveContent }) {
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Content</h1>
           <p style={{ color: C.textMuted, fontSize: 13, margin: "4px 0 0" }}>
-            {items.length} Inhalte
+            {clientItems.length} Inhalte{selectedClient?.name ? ` · ${selectedClient.name}` : ""}
           </p>
         </div>
       </div>
@@ -10838,6 +10840,7 @@ function App() {
               clients={clients}
               items={contentHook.items}
               onSaveContent={onSaveContent}
+              selectedClient={client}
             />
           )}
           {!isViewer && page === "clients" && (
