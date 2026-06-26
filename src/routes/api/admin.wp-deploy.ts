@@ -64,6 +64,8 @@ const ACTIONS: Record<string, { method: "GET" | "POST"; path: string; fields: st
   // performance fixes (caching, image/WebP optimization).
   "plugin-install": { method: "POST", path: "/wp/v2/plugins", fields: ["slug", "status"] },
   "plugins-list": { method: "GET", path: "/wp/v2/plugins", fields: ["search"] },
+  "ewww-config": { method: "POST", path: "/ezyhub/v1/ewww/config", fields: ["webp", "maxw", "maxh"] },
+  "ewww-bulk": { method: "POST", path: "/ezyhub/v1/ewww/bulk", fields: ["limit"] },
 };
 
 // Only reputable, reversible performance/SEO plugins may be installed via the
@@ -100,6 +102,9 @@ const Body = z.object({
   slug: z.string().optional(),
   status: z.string().optional(),
   search: z.string().optional(),
+  webp: z.number().int().optional(),
+  maxw: z.number().int().optional(),
+  maxh: z.number().int().optional(),
 });
 
 export const Route = createFileRoute("/api/admin/wp-deploy")({

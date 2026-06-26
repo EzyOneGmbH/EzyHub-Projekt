@@ -2,7 +2,7 @@
 /**
  * Plugin Name: EzyHub Connector
  * Description: Lässt EzyHub technische SEO-Maßnahmen autonom deployen — <head>-Injektion (JSON-LD, OG, Meta), llms.txt, Seiten-Meta, Canonical/Noindex, robots.txt, Sitemap-Optimierung, Bild-Alt-Texte und Elementor-Editing (Headings + Text-Widgets) mit automatischem Backup/Restore. Auth via Application Passwords (manage_options). Alle Änderungen reversibel.
- * Version: 1.5.6
+ * Version: 1.5.7
  * Author: EzyOne GmbH
  * License: GPL-2.0+
  */
@@ -370,6 +370,64 @@ class EzyHub_Connector {
             if (function_exists('do_action')) do_action('litespeed_purge_all');
             $this->purge_caches();
             return ['ok' => true, 'applied' => $applied, 'previous' => $previous, 'ignored' => $ignored];
+        }]);
+
+        // EWWW Image Optimizer: WebP + Resize aktivieren (nur erlaubte Optionen).
+        register_rest_route(self::NS, '/ewww/config', ['methods' => 'POST', 'permission_callback' => $auth, 'callback' => function ($r) {
+            if (!defined('EWWW_IMAGE_OPTIMIZER_VERSION') && !function_exists('ewww_image_optimizer'))
+                return new WP_Error('no_ewww', 'EWWW Image Optimizer nicht aktiv', ['status' => 409]);
+            $in = $r->get_json_params(); $set = [];
+            if (!empty($in['webp'])) { update_option('ewww_image_optimizer_webp', 1); $set['webp'] = 1; }
+            if (!empty($in['maxw'])) { update_option('ewww_image_optimizer_maxmediawidth', (int) $in['maxw']); $set['maxw'] = (int) $in['maxw']; }
+            if (!empty($in['maxh'])) { update_option('ewww_image_optimizer_maxmediaheight', (int) $in['maxh']); $set['maxh'] = (int) $in['maxh']; }
+            return [
+                'ok' => true, 'set' => $set,
+                'webp_option' => (int) get_option('ewww_image_optimizer_webp', 0),
+                'cloud_key' => get_option('ewww_image_optimizer_cloud_key', '') ? true : false,
+                'version' => defined('EWWW_IMAGE_OPTIMIZER_VERSION') ? EWWW_IMAGE_OPTIMIZER_VERSION : null,
+            ];
+        }]);
+
+        // EWWW: gebuendelter, resumierbarer Bulk-Lauf (zeitbegrenzt). Markiert
+        // erledigte Bilder via _ezyhub_ewww_done; meldet webp_created zurueck,
+        // damit der Aufrufer erkennt, ob WebP auf diesem Host funktioniert.
+        register_rest_route(self::NS, '/ewww/bulk', ['methods' => 'POST', 'permission_callback' => $auth, 'callback' => function ($r) {
+            if (!function_exists('ewww_image_optimizer_resize_from_meta_data') && !function_exists('ewww_image_optimizer'))
+                return new WP_Error('no_ewww', 'EWWW Image Optimizer nicht aktiv', ['status' => 409]);
+            $in = $r->get_json_params();
+            $limit = min(20, max(1, (int) ($in['limit'] ?? 8)));
+            $q = new WP_Query([
+                'post_type' => 'attachment', 'post_mime_type' => 'image', 'post_status' => 'inherit',
+                'posts_per_page' => $limit, 'fields' => 'ids', 'orderby' => 'ID', 'order' => 'ASC',
+                'meta_query' => [['key' => '_ezyhub_ewww_done', 'compare' => 'NOT EXISTS']],
+            ]);
+            $ids = $q->posts; $done = []; $webp = 0; $bytes_before = 0; $bytes_after = 0; $start = time();
+            foreach ($ids as $id) {
+                if (time() - $start > 22) break; // PHP-Timeout-Schutz
+                $path = get_attached_file($id);
+                if ($path && file_exists($path)) {
+                    $b = (int) @filesize($path); $bytes_before += $b;
+                    if (function_exists('ewww_image_optimizer_resize_from_meta_data'))
+                        @ewww_image_optimizer_resize_from_meta_data(wp_get_attachment_metadata($id), $id);
+                    elseif (function_exists('ewww_image_optimizer'))
+                        @ewww_image_optimizer($path);
+                    clearstatcache(true, $path);
+                    $bytes_after += (int) @filesize($path);
+                    if (file_exists($path . '.webp')) $webp++;
+                }
+                update_post_meta($id, '_ezyhub_ewww_done', 1);
+                $done[] = $id;
+            }
+            $rem = new WP_Query([
+                'post_type' => 'attachment', 'post_mime_type' => 'image', 'post_status' => 'inherit',
+                'posts_per_page' => 1, 'fields' => 'ids',
+                'meta_query' => [['key' => '_ezyhub_ewww_done', 'compare' => 'NOT EXISTS']],
+            ]);
+            return [
+                'ok' => true, 'processed' => count($done), 'webp_created' => $webp,
+                'bytes_before' => $bytes_before, 'bytes_after' => $bytes_after,
+                'remaining' => (int) $rem->found_posts, 'ids' => $done,
+            ];
         }]);
     }
 
