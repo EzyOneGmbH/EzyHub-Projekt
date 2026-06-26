@@ -59,7 +59,22 @@ const ACTIONS: Record<string, { method: "GET" | "POST"; path: string; fields: st
     path: "/ezyhub/v1/plugin/self-update",
     fields: ["contentB64"],
   },
+  // WP-core endpoints (not the connector): install/activate a wordpress.org
+  // plugin by slug, and toggle its active state. Used for autonomous
+  // performance fixes (caching, image/WebP optimization).
+  "plugin-install": { method: "POST", path: "/wp/v2/plugins", fields: ["slug", "status"] },
+  "plugins-list": { method: "GET", path: "/wp/v2/plugins", fields: ["search"] },
 };
+
+// Only reputable, reversible performance/SEO plugins may be installed via the
+// bridge. Installing a plugin is a real change to a live client site, so the
+// surface is kept deliberately narrow.
+const PLUGIN_SLUG_ALLOWLIST = new Set([
+  "litespeed-cache",
+  "ewww-image-optimizer",
+  "autoptimize",
+  "webp-converter-for-media",
+]);
 
 const Body = z.object({
   clientId: z.string().uuid().optional(),
@@ -82,6 +97,9 @@ const Body = z.object({
   limit: z.number().int().optional(),
   settings: z.record(z.union([z.number(), z.boolean()])).optional(),
   contentB64: z.string().optional(),
+  slug: z.string().optional(),
+  status: z.string().optional(),
+  search: z.string().optional(),
 });
 
 export const Route = createFileRoute("/api/admin/wp-deploy")({
@@ -139,6 +157,17 @@ export const Route = createFileRoute("/api/admin/wp-deploy")({
           });
         }
         if (d.action === "status") return Response.json({ ok: true, status: status.data });
+
+        // Guard plugin installs: slug must be on the allowlist; default to
+        // installing AND activating in one call.
+        if (d.action === "plugin-install") {
+          if (!d.slug || !PLUGIN_SLUG_ALLOWLIST.has(String(d.slug)))
+            return Response.json(
+              { ok: false, error: `Plugin-Slug nicht erlaubt: ${d.slug ?? "(leer)"}` },
+              { status: 400 },
+            );
+          if (d.status === undefined) d.status = "active";
+        }
 
         // Build the forwarded payload from the allowlisted fields only.
         if (spec.method === "GET") {
