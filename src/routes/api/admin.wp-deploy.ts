@@ -49,6 +49,11 @@ const ACTIONS: Record<string, { method: "GET" | "POST"; path: string; fields: st
   },
   "perf-status": { method: "GET", path: "/ezyhub/v1/perf/status", fields: [] },
   "perf-litespeed": { method: "POST", path: "/ezyhub/v1/perf/litespeed", fields: ["settings"] },
+  "elementor-fix-encoding": {
+    method: "POST",
+    path: "/ezyhub/v1/elementor/fix-encoding",
+    fields: ["postId"],
+  },
 };
 
 const Body = z.object({
