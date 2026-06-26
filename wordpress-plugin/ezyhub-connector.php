@@ -2,7 +2,7 @@
 /**
  * Plugin Name: EzyHub Connector
  * Description: Lässt EzyHub technische SEO-Maßnahmen autonom deployen — <head>-Injektion (JSON-LD, OG, Meta), llms.txt, Seiten-Meta, Canonical/Noindex, robots.txt, Sitemap-Optimierung, Bild-Alt-Texte und Elementor-Editing (Headings + Text-Widgets) mit automatischem Backup/Restore. Auth via Application Passwords (manage_options). Alle Änderungen reversibel.
- * Version: 1.5.0
+ * Version: 1.5.1
  * Author: EzyOne GmbH
  * License: GPL-2.0+
  */
@@ -35,7 +35,7 @@ class EzyHub_Connector {
         if (is_singular()) {
             $id = get_queried_object_id();
             $t = get_post_meta($id, '_ezyhub_seo_title', true);
-            if ($t) return $t;
+            if ($t) return self::clean_meta_text($t); // bereinigt auch alt gespeicherte kaputte Werte (�)
         }
         return $title;
     }
@@ -78,7 +78,7 @@ class EzyHub_Connector {
         register_rest_route(self::NS, '/status', ['methods' => 'GET', 'permission_callback' => $auth, 'callback' => function () {
             $head = get_option(self::OPT_HEAD, []);
             return [
-                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.5.0',
+                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.5.1',
                 'headKeys' => is_array($head) ? array_keys($head) : [],
                 'llmsBytes' => strlen((string) get_option(self::OPT_LLMS, '')),
                 'robotsBytes' => strlen((string) get_option(self::OPT_ROBOTS, '')),
@@ -121,8 +121,8 @@ class EzyHub_Connector {
         register_rest_route(self::NS, '/page-meta', ['methods' => 'POST', 'permission_callback' => $auth, 'callback' => function ($r) {
             $id = intval($r['postId'] ?? 0);
             if (!$id || !get_post($id)) return new WP_Error('bad_id', 'gültige postId erforderlich', ['status' => 400]);
-            if (isset($r['seoTitle']))       update_post_meta($id, '_ezyhub_seo_title', sanitize_text_field($r['seoTitle']));
-            if (isset($r['seoDescription'])) update_post_meta($id, '_ezyhub_seo_description', sanitize_text_field($r['seoDescription']));
+            if (isset($r['seoTitle']))       update_post_meta($id, '_ezyhub_seo_title', sanitize_text_field(self::clean_meta_text($r['seoTitle'])));
+            if (isset($r['seoDescription'])) update_post_meta($id, '_ezyhub_seo_description', sanitize_text_field(self::clean_meta_text($r['seoDescription'])));
             if (isset($r['canonical']))      update_post_meta($id, '_ezyhub_canonical', esc_url_raw($r['canonical']));
             if (isset($r['noindex']))        update_post_meta($id, '_ezyhub_noindex', $r['noindex'] ? '1' : '');
             do_action('litespeed_purge_post', $id);
@@ -320,6 +320,26 @@ class EzyHub_Connector {
             $this->purge_caches();
             return ['ok' => true, 'applied' => $applied, 'previous' => $previous, 'ignored' => $ignored];
         }]);
+    }
+
+    // Normalisiert Meta-Texte (Titel/Description): erzwingt gueltiges UTF-8,
+    // entfernt das Replacement-Zeichen (U+FFFD) und wandelt typografische
+    // Trenner/Anfuehrungszeichen in ASCII — verhindert das kaputte "�" im Titel
+    // (z.B. wenn ein Agent einen non-ASCII-Trenner mit falschem Encoding sendet).
+    private static function clean_meta_text($s) {
+        $s = (string) $s;
+        if (function_exists('mb_convert_encoding')) {
+            // ungueltige Byte-Sequenzen verwerfen statt als � zu rendern
+            $s = @mb_convert_encoding($s, 'UTF-8', 'UTF-8');
+        }
+        $s = str_replace("\xEF\xBF\xBD", '', $s); // U+FFFD entfernen
+        $s = strtr($s, [
+            "\xE2\x80\x93" => '-', "\xE2\x80\x94" => '-', // en/em-dash
+            "\xE2\x80\xA2" => '-', "\xC2\xB7" => '-',     // bullet / middot
+            "\xE2\x80\x9C" => '"', "\xE2\x80\x9D" => '"', // curly double quotes
+            "\xE2\x80\x98" => "'", "\xE2\x80\x99" => "'", // curly single quotes
+        ]);
+        return trim(preg_replace('/\s{2,}/', ' ', $s));
     }
 
     // Friendly Name => LSCWP conf-id. Nur risikoarme, reversible Schalter.
