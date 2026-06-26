@@ -2,7 +2,7 @@
 /**
  * Plugin Name: EzyHub Connector
  * Description: Lässt EzyHub technische SEO-Maßnahmen autonom deployen — <head>-Injektion (JSON-LD, OG, Meta), llms.txt, Seiten-Meta, Canonical/Noindex, robots.txt, Sitemap-Optimierung, Bild-Alt-Texte und Elementor-Editing (Headings + Text-Widgets) mit automatischem Backup/Restore. Auth via Application Passwords (manage_options). Alle Änderungen reversibel.
- * Version: 1.5.5
+ * Version: 1.5.6
  * Author: EzyOne GmbH
  * License: GPL-2.0+
  */
@@ -78,7 +78,7 @@ class EzyHub_Connector {
         register_rest_route(self::NS, '/status', ['methods' => 'GET', 'permission_callback' => $auth, 'callback' => function () {
             $head = get_option(self::OPT_HEAD, []);
             return [
-                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.5.5',
+                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.5.6',
                 'headKeys' => is_array($head) ? array_keys($head) : [],
                 'llmsBytes' => strlen((string) get_option(self::OPT_LLMS, '')),
                 'robotsBytes' => strlen((string) get_option(self::OPT_ROBOTS, '')),
