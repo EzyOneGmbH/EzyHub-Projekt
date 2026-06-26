@@ -79,6 +79,7 @@ const PLUGIN_SLUG_ALLOWLIST = new Set([
   "ewww-image-optimizer",
   "autoptimize",
   "webp-converter-for-media",
+  "ezyhub-connector", // our own connector (activate remotely if only deactivated)
 ]);
 
 const Body = z.object({
@@ -108,6 +109,7 @@ const Body = z.object({
   webp: z.number().int().optional(),
   maxw: z.number().int().optional(),
   maxh: z.number().int().optional(),
+  plugin: z.string().optional(),
 });
 
 export const Route = createFileRoute("/api/admin/wp-deploy")({
@@ -154,17 +156,23 @@ export const Route = createFileRoute("/api/admin/wp-deploy")({
         const conn = await getWpConnection(clientId);
         if (!conn) return Response.json({ ok: false, error: "Keine WordPress-Verbindung" });
 
-        // Verify the connector plugin (clear error if missing/outdated).
-        const status = await wpFetch<any>(conn, "/ezyhub/v1/status");
-        if (!status.ok) {
-          return Response.json({
-            ok: false,
-            pluginMissing: true,
-            error:
-              "EzyHub-Connector-Plugin nicht gefunden/aktiv. Bitte auf der WordPress-Seite installieren & aktivieren (Version ≥ 1.1.0).",
-          });
+        // WP-core actions (plugin management) use the app-password directly and
+        // must NOT require the connector plugin — it may be exactly what we are
+        // installing/activating. Only connector (/ezyhub/) actions need the
+        // status pre-check.
+        const isCoreAction = spec.path.startsWith("/wp/");
+        if (!isCoreAction) {
+          const status = await wpFetch<any>(conn, "/ezyhub/v1/status");
+          if (!status.ok) {
+            return Response.json({
+              ok: false,
+              pluginMissing: true,
+              error:
+                "EzyHub-Connector-Plugin nicht gefunden/aktiv. Bitte auf der WordPress-Seite installieren & aktivieren (Version ≥ 1.1.0).",
+            });
+          }
+          if (d.action === "status") return Response.json({ ok: true, status: status.data });
         }
-        if (d.action === "status") return Response.json({ ok: true, status: status.data });
 
         // Guard plugin installs: slug must be on the allowlist; default to
         // installing AND activating in one call.
@@ -185,7 +193,9 @@ export const Route = createFileRoute("/api/admin/wp-deploy")({
               { status: 400 },
             );
           const wanted = d.status === "active" ? "active" : "inactive";
-          const plugin = `${d.slug}/${d.slug}`;
+          // Exact plugin identifier (folder/file) may differ from slug/slug;
+          // allow passing it explicitly (discovered via plugins-list).
+          const plugin = d.plugin ? String(d.plugin) : `${d.slug}/${d.slug}`;
           const r = await wpFetch<any>(conn, `/wp/v2/plugins/${plugin}`, {
             method: "POST",
             body: { status: wanted },
