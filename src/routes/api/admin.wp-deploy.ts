@@ -66,6 +66,9 @@ const ACTIONS: Record<string, { method: "GET" | "POST"; path: string; fields: st
   "plugins-list": { method: "GET", path: "/wp/v2/plugins", fields: ["search"] },
   "ewww-config": { method: "POST", path: "/ezyhub/v1/ewww/config", fields: ["webp", "maxw", "maxh"] },
   "ewww-bulk": { method: "POST", path: "/ezyhub/v1/ewww/bulk", fields: ["limit"] },
+  // Activate/deactivate an already-installed allowlisted plugin. Path is built
+  // from the slug in the handler (per-plugin WP-core endpoint).
+  "plugin-toggle": { method: "POST", path: "/wp/v2/plugins", fields: ["slug", "status"] },
 };
 
 // Only reputable, reversible performance/SEO plugins may be installed via the
@@ -172,6 +175,23 @@ export const Route = createFileRoute("/api/admin/wp-deploy")({
               { status: 400 },
             );
           if (d.status === undefined) d.status = "active";
+        }
+
+        // Activate/deactivate an installed plugin via the per-plugin endpoint.
+        if (d.action === "plugin-toggle") {
+          if (!d.slug || !PLUGIN_SLUG_ALLOWLIST.has(String(d.slug)))
+            return Response.json(
+              { ok: false, error: `Plugin-Slug nicht erlaubt: ${d.slug ?? "(leer)"}` },
+              { status: 400 },
+            );
+          const wanted = d.status === "active" ? "active" : "inactive";
+          const plugin = `${d.slug}/${d.slug}`;
+          const r = await wpFetch<any>(conn, `/wp/v2/plugins/${plugin}`, {
+            method: "POST",
+            body: { status: wanted },
+          });
+          if (!r.ok) return Response.json({ ok: false, error: r.error });
+          return Response.json({ ok: true, result: r.data });
         }
 
         // Build the forwarded payload from the allowlisted fields only.
