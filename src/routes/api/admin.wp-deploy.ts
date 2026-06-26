@@ -54,6 +54,11 @@ const ACTIONS: Record<string, { method: "GET" | "POST"; path: string; fields: st
     path: "/ezyhub/v1/elementor/fix-encoding",
     fields: ["postId"],
   },
+  "plugin-self-update": {
+    method: "POST",
+    path: "/ezyhub/v1/plugin/self-update",
+    fields: ["contentB64"],
+  },
 };
 
 const Body = z.object({
@@ -76,6 +81,7 @@ const Body = z.object({
   noindex: z.boolean().optional(),
   limit: z.number().int().optional(),
   settings: z.record(z.union([z.number(), z.boolean()])).optional(),
+  contentB64: z.string().optional(),
 });
 
 export const Route = createFileRoute("/api/admin/wp-deploy")({

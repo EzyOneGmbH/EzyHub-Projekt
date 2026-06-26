@@ -2,7 +2,7 @@
 /**
  * Plugin Name: EzyHub Connector
  * Description: Lässt EzyHub technische SEO-Maßnahmen autonom deployen — <head>-Injektion (JSON-LD, OG, Meta), llms.txt, Seiten-Meta, Canonical/Noindex, robots.txt, Sitemap-Optimierung, Bild-Alt-Texte und Elementor-Editing (Headings + Text-Widgets) mit automatischem Backup/Restore. Auth via Application Passwords (manage_options). Alle Änderungen reversibel.
- * Version: 1.5.2
+ * Version: 1.5.3
  * Author: EzyOne GmbH
  * License: GPL-2.0+
  */
@@ -78,12 +78,32 @@ class EzyHub_Connector {
         register_rest_route(self::NS, '/status', ['methods' => 'GET', 'permission_callback' => $auth, 'callback' => function () {
             $head = get_option(self::OPT_HEAD, []);
             return [
-                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.5.2',
+                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.5.3',
                 'headKeys' => is_array($head) ? array_keys($head) : [],
                 'llmsBytes' => strlen((string) get_option(self::OPT_LLMS, '')),
                 'robotsBytes' => strlen((string) get_option(self::OPT_ROBOTS, '')),
                 'elementorActive' => did_action('elementor/loaded') || defined('ELEMENTOR_VERSION'),
             ];
+        }]);
+
+        // ── Self-Update: ueberschreibt die eigene Plugin-Datei (base64) ──
+        // Ermoeglicht ferngesteuerte Updates ueber die EzyHub-Bruecke. Sichert die
+        // alte Version als .bak. Gated wie alle Schreib-Routen (manage_options +
+        // Application Password). Validiert, dass es eine EzyHub-Connector-PHP-Datei ist.
+        register_rest_route(self::NS, '/plugin/self-update', ['methods' => 'POST', 'permission_callback' => $auth, 'callback' => function ($r) {
+            $b64 = (string) ($r['contentB64'] ?? '');
+            if ($b64 === '') return new WP_Error('no_content', 'contentB64 erforderlich', ['status' => 400]);
+            $php = base64_decode($b64, true);
+            if ($php === false) return new WP_Error('bad_b64', 'contentB64 ist kein gueltiges base64', ['status' => 400]);
+            if (substr($php, 0, 5) !== '<?php' || strpos($php, 'Plugin Name: EzyHub Connector') === false)
+                return new WP_Error('bad_plugin', 'Kein gueltiges EzyHub-Connector-Plugin', ['status' => 400]);
+            $file = __FILE__;
+            if (!is_writable($file)) return new WP_Error('not_writable', 'Plugin-Datei nicht beschreibbar (Dateirechte/DISALLOW_FILE_MODS)', ['status' => 409]);
+            @copy($file, $file . '.bak');
+            $bytes = file_put_contents($file, $php);
+            if ($bytes === false) return new WP_Error('write_failed', 'Schreiben fehlgeschlagen', ['status' => 500]);
+            $ver = preg_match('/Version:\s*([0-9.]+)/', $php, $m) ? $m[1] : '';
+            return ['ok' => true, 'bytes' => $bytes, 'newVersion' => $ver, 'backup' => basename($file) . '.bak'];
         }]);
 
         // ── <head> snippet ──
