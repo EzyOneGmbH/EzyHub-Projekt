@@ -10465,6 +10465,19 @@ function App() {
   const customerDefaults = defaultsHook.defaults;
   const saveCustomerDefaults = useCallback((next) => defaultsHook.save(next), [defaultsHook]);
   const onSaveContent = useCallback((id, md) => contentHook.updateContent(id, md), [contentHook]);
+  // Globaler „Aktualisieren": remountet den Inhaltsbereich (alle Dashboard-Hooks
+  // holen frische Daten) UND lädt die App-Level-Hooks neu. Auf jedem Tab im Header.
+  const [refreshNonce, setRefreshNonce] = useState(0);
+  const refreshAll = useCallback(() => {
+    setRefreshNonce((n) => n + 1);
+    ezy.reload?.();
+    contentHook.reload?.();
+    svc.reload?.();
+    defaultsHook.reload?.();
+    profileHook.reload?.();
+    toolSettings.reload?.();
+    toast?.("Aktualisiert", "success");
+  }, [ezy, contentHook, svc, defaultsHook, profileHook, toolSettings, toast]);
   const visibleTabs = useMemo(
     () =>
       TABS.filter((t) => {
@@ -10897,6 +10910,15 @@ function App() {
                 Export
               </Btn>
             )}
+            <Btn
+              variant="secondary"
+              size="md"
+              icon={RefreshCw}
+              onClick={refreshAll}
+              title="Daten aktualisieren"
+            >
+              {isMobile ? null : "Aktualisieren"}
+            </Btn>
             {!isViewer && <EzyPilotButton />}
             <Btn icon={Zap} onClick={() => setShowTools(true)}>
               Audit
@@ -10918,7 +10940,7 @@ function App() {
             </div>
           </div>
         </header>
-        <div className="app-content" style={{ padding: isMobile ? "16px 12px" : "24px 28px" }}>
+        <div key={refreshNonce} className="app-content" style={{ padding: isMobile ? "16px 12px" : "24px 28px" }}>
           {!hasClients && page !== "clients" && page !== "settings" && (
             <div
               style={{
