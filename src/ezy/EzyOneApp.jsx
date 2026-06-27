@@ -10354,6 +10354,17 @@ const NAV = [
   { id: "settings", label: "Einstellungen", icon: Settings },
 ];
 
+const UI_LS = "ezyUi.v1";
+function loadUiState() {
+  try {
+    const raw = localStorage.getItem(UI_LS);
+    if (raw) {
+      const p = JSON.parse(raw);
+      if (p && typeof p === "object") return p;
+    }
+  } catch {}
+  return {};
+}
 function App() {
   const isMobile = useMediaQuery("(max-width: 760px)");
   const { role } = useAuth();
@@ -10366,7 +10377,8 @@ function App() {
   );
   const ezy = useEzyClients();
   const clients = useMemo(() => ezy.clients.map((c) => normalizeClientShape(c)), [ezy.clients]);
-  const [clientId, setClientId] = useState("");
+  const ui0 = useMemo(() => loadUiState(), []); // letzter UI-Stand aus localStorage
+  const [clientId, setClientId] = useState(ui0.clientId || "");
   useEffect(() => {
     if (clients.length && !clients.some((c) => c.id === clientId)) setClientId(clients[0].id);
   }, [clients, clientId]);
@@ -10388,8 +10400,8 @@ function App() {
   const profileHook = useEzyProfile();
   const defaultsHook = useEzyDefaults(client?.id);
   const contentHook = useEzyContent();
-  const [page, setPage] = useState("dashboard");
-  const [tab, setTab] = useState("seo");
+  const [page, setPage] = useState(ui0.page || "dashboard");
+  const [tab, setTab] = useState(ui0.tab || "seo");
   // Viewers (Kunden) dürfen Dashboard + ihre Reports sehen, sonst nichts.
   useEffect(() => {
     if (isViewer && page !== "dashboard" && page !== "reports") setPage("dashboard");
@@ -10399,14 +10411,31 @@ function App() {
   const [collapsed, setCollapsed] = useState(false);
   const [dateRange, setDateRange] = useState(() => {
     const now = new Date();
-    return { label: "30 Tage", days: 30, start: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000), end: now };
+    const days = ui0.dateRange?.days || 30;
+    const label = ui0.dateRange?.label || "30 Tage";
+    return { label, days, start: new Date(now.getTime() - days * 24 * 60 * 60 * 1000), end: now };
   });
-  const [compareMode, setCompareMode] = useState("none");
+  const [compareMode, setCompareMode] = useState(ui0.compareMode || "none");
   // Enrich the dateRange with a computed comparison period so dashboards can use it.
   const dateRangeWithCompare = useMemo(() => {
     const compare = computeCompareRange(dateRange, compareMode);
     return { ...dateRange, compareMode, compare };
   }, [dateRange, compareMode]);
+  // Letzten UI-Stand merken, damit ein Reload genau dort wieder öffnet.
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        UI_LS,
+        JSON.stringify({
+          page,
+          tab,
+          clientId,
+          dateRange: { label: dateRange.label, days: dateRange.days },
+          compareMode,
+        }),
+      );
+    } catch {}
+  }, [page, tab, clientId, dateRange.label, dateRange.days, compareMode]);
   const [showAll, setShowAll] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
   const toast = useToast();
