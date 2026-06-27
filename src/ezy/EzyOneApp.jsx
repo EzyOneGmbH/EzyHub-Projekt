@@ -9584,16 +9584,21 @@ function loadPilotState() {
     const raw = localStorage.getItem(EZYPILOT_LS);
     if (raw) {
       const p = JSON.parse(raw);
-      if (Array.isArray(p.conversations)) return p;
+      if (Array.isArray(p.conversations))
+        return {
+          conversations: p.conversations,
+          // pro-Kunde aktive Unterhaltung; alten Einzel-activeId verwerfen (wird neu je Kunde gesetzt)
+          activeByClient: p.activeByClient && typeof p.activeByClient === "object" ? p.activeByClient : {},
+        };
     }
   } catch {}
-  return { conversations: [], activeId: null };
+  return { conversations: [], activeByClient: {} };
 }
 
 function EzyPilotProvider({ selectedClient, clients, tools, children }) {
   const toast = useToast();
   const [conversations, setConversations] = useState(() => loadPilotState().conversations);
-  const [activeId, setActiveId] = useState(() => loadPilotState().activeId);
+  const [activeByClient, setActiveByClient] = useState(() => loadPilotState().activeByClient);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false); // header pop-up visibility
   // Keep latest portal context for send() without re-creating the callback.
@@ -9603,22 +9608,40 @@ function EzyPilotProvider({ selectedClient, clients, tools, children }) {
   // Persist on every change.
   useEffect(() => {
     try {
-      localStorage.setItem(EZYPILOT_LS, JSON.stringify({ conversations, activeId }));
+      localStorage.setItem(EZYPILOT_LS, JSON.stringify({ conversations, activeByClient }));
     } catch {}
-  }, [conversations, activeId]);
+  }, [conversations, activeByClient]);
 
-  const active = conversations.find((c) => c.id === activeId) || null;
+  // Chat-Historie PRO KUNDE: jede Unterhaltung trägt clientId; activeByClient hält
+  // die aktive Unterhaltung je Kunde. Kundenwechsel zeigt nur dessen Threads.
+  const cid = selectedClient?.id || "global";
+  // Einmalige Migration: alte Unterhaltungen ohne clientId dem ersten Kunden zuordnen
+  // (nicht verlieren), sobald die Kundenliste geladen ist.
+  const migratedRef = useRef(false);
+  useEffect(() => {
+    if (migratedRef.current) return;
+    const fallback = (clients && clients[0] && clients[0].id) || null;
+    if (!fallback) return;
+    if (conversations.some((c) => !c.clientId)) {
+      setConversations((cs) => cs.map((c) => (c.clientId ? c : { ...c, clientId: fallback })));
+    }
+    migratedRef.current = true;
+  }, [clients, conversations]);
+
+  const clientConvs = conversations.filter((c) => (c.clientId || "global") === cid);
+  const activeId = activeByClient[cid] || null;
+  const active = clientConvs.find((c) => c.id === activeId) || null;
 
   const newChat = () => {
     const id = `c_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
-    setConversations((cs) => [{ id, title: "Neue Unterhaltung", sessionId: null, messages: [], updatedAt: Date.now() }, ...cs]);
-    setActiveId(id);
+    setConversations((cs) => [{ id, clientId: cid, title: "Neue Unterhaltung", sessionId: null, messages: [], updatedAt: Date.now() }, ...cs]);
+    setActiveByClient((m) => ({ ...m, [cid]: id }));
     return id;
   };
-  const switchTo = (id) => setActiveId(id);
+  const switchTo = (id) => setActiveByClient((m) => ({ ...m, [cid]: id }));
   const deleteChat = (id) => {
     setConversations((cs) => cs.filter((c) => c.id !== id));
-    setActiveId((cur) => (cur === id ? null : cur));
+    setActiveByClient((m) => (m[cid] === id ? { ...m, [cid]: null } : m));
   };
 
   const updateConv = (id, fn) =>
@@ -9721,7 +9744,7 @@ function EzyPilotProvider({ selectedClient, clients, tools, children }) {
   };
 
   const value = {
-    conversations, active, activeId, busy, open, setOpen,
+    conversations: clientConvs, active, activeId, busy, open, setOpen,
     messages: active?.messages || [],
     send, newChat, switchTo, deleteChat, createAgent,
   };
