@@ -9451,6 +9451,18 @@ function ActivityPage({ selectedClient, clients }) {
     return `täglich um ${sch.time}`;
   };
 
+  // Pro gewähltem Kunde filtern: Runs/Schedules tragen clientId, Uptime via Domain.
+  // Reaktiv aus den geladenen Daten abgeleitet → Kundenwechsel filtert sofort neu.
+  const cid = selectedClient?.id || "";
+  const normDom = (d) =>
+    String(d || "").toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "").trim();
+  const selDom = normDom(selectedClient?.domain);
+  const runs = cid ? (data.runs || []).filter((r) => r.clientId === cid) : data.runs || [];
+  const schedules = cid ? (data.schedules || []).filter((s) => s.clientId === cid) : data.schedules || [];
+  const uptime = cid && selDom ? (data.uptime || []).filter((u) => normDom(u.domain) === selDom) : data.uptime || [];
+  const running = runs.filter((r) => r.status === "running").length;
+  const uptimeDown = uptime.filter((u) => !u.ok).length;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
@@ -9461,8 +9473,8 @@ function ActivityPage({ selectedClient, clients }) {
           <div>
             <h1 style={{ fontSize: 19, fontWeight: 700, margin: 0, color: C.text }}>Aktivität</h1>
             <div style={{ fontSize: 12, color: C.textMuted }}>
-              {data.running > 0
-                ? `${data.running} Agent${data.running === 1 ? "" : "en"} läuft gerade`
+              {running > 0
+                ? `${running} Agent${running === 1 ? "" : "en"} läuft gerade`
                 : "Keine laufenden Agenten"}
               {" · aktualisiert alle 8s"}
             </div>
@@ -9476,11 +9488,11 @@ function ActivityPage({ selectedClient, clients }) {
       {/* Schedules */}
       <div>
         <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>Zeitpläne</div>
-        {data.schedules.length === 0 ? (
+        {schedules.length === 0 ? (
           <div style={{ fontSize: 13, color: C.textDim, padding: "8px 0" }}>Keine Zeitpläne angelegt.</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {data.schedules.map((s) => (
+            {schedules.map((s) => (
               <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px" }}>
                 <span style={{ width: 8, height: 8, borderRadius: "50%", background: s.enabled ? C.green : C.textDim, flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -9501,11 +9513,11 @@ function ActivityPage({ selectedClient, clients }) {
         <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>Letzte Läufe</div>
         {loading ? (
           <div style={{ fontSize: 13, color: C.textDim }}>Lädt…</div>
-        ) : data.runs.length === 0 ? (
+        ) : runs.length === 0 ? (
           <div style={{ fontSize: 13, color: C.textDim, padding: "8px 0" }}>Noch keine Läufe registriert.</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {data.runs.map((r) => {
+            {runs.map((r) => {
               const m = statusMeta(r.status);
               return (
                 <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 12, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px" }}>
@@ -9532,13 +9544,13 @@ function ActivityPage({ selectedClient, clients }) {
       </div>
 
       {/* Verfügbarkeit (Uptime) */}
-      {data.uptime.length > 0 && (
+      {uptime.length > 0 && (
         <div>
           <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>
-            Verfügbarkeit {data.uptimeDown > 0 ? <span style={{ color: C.red }}>· {data.uptimeDown} offline</span> : <span style={{ color: C.green }}>· alle online</span>}
+            Verfügbarkeit {uptimeDown > 0 ? <span style={{ color: C.red }}>· {uptimeDown} offline</span> : <span style={{ color: C.green }}>· alle online</span>}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {data.uptime.map((s) => (
+            {uptime.map((s) => (
               <div key={s.domain} style={{ display: "flex", alignItems: "center", gap: 10, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 14px" }}>
                 <span style={{ width: 8, height: 8, borderRadius: "50%", background: s.ok ? C.green : C.red, flexShrink: 0 }} />
                 <span style={{ fontSize: 13, color: C.text, flex: 1 }}>{s.name || s.domain}</span>
