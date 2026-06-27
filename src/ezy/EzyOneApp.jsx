@@ -7358,7 +7358,7 @@ function ContentPage({ clients, items, onSaveContent, selectedClient }) {
   const clientItems = items.filter((it) => !selectedClient?.id || it.clientId === selectedClient.id);
   const filtered = clientItems.filter(
     (it) =>
-      (filter === "all" || it.type === filter) &&
+      (filter === "all" ? it.type !== "report" : it.type === filter) &&
       it.title.toLowerCase().includes(search.toLowerCase()),
   );
   const saveContent = async (id, content) => {
@@ -7429,11 +7429,15 @@ function ContentPage({ clients, items, onSaveContent, selectedClient }) {
             { id: "blog", label: "Blog" },
             { id: "audit", label: "Audit" },
             { id: "note", label: "Notes" },
+            { id: "report", label: "Berichte" },
           ]}
           active={filter}
           onChange={setFilter}
         />
       </div>
+      {filter === "report" ? (
+        <ReportsPage items={items} selectedClient={selectedClient} />
+      ) : (
       <div
         style={{
           background: C.card,
@@ -7496,6 +7500,7 @@ function ContentPage({ clients, items, onSaveContent, selectedClient }) {
           })
         )}
       </div>
+      )}
     </div>
   );
 }
@@ -10371,7 +10376,10 @@ function App() {
   const isViewer = role === "viewer";
   // Viewer (Kunde) sieht nur Dashboard + die eigenen Reports.
   const nav = useMemo(
-    () => (isViewer ? NAV.filter((n) => n.id === "dashboard" || n.id === "reports") : NAV),
+    () =>
+      isViewer
+        ? NAV.filter((n) => n.id === "dashboard" || n.id === "reports")
+        : NAV.filter((n) => n.id !== "reports"), // Team: Reports in Content integriert
     [isViewer],
   );
   const ezy = useEzyClients();
@@ -10405,10 +10413,12 @@ function App() {
   useEffect(() => {
     if (isViewer && page !== "dashboard" && page !== "reports") setPage("dashboard");
   }, [isViewer, page]);
-  // „Aktivität" ist in den Agenten-Tab integriert → alte/gespeicherte Auswahl umleiten.
+  // „Aktivität" → Agenten-Tab, „Reports" (Team) → Content-Tab integriert.
+  // Viewer behalten ihren eigenen Reports-Tab.
   useEffect(() => {
     if (page === "activity") setPage("agents");
-  }, [page]);
+    else if (!isViewer && page === "reports") setPage("content");
+  }, [page, isViewer]);
   const [cdd, setCdd] = useState(false);
   const [showTools, setShowTools] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
