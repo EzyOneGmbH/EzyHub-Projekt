@@ -28,14 +28,16 @@ export const Route = createFileRoute("/api/agent/runs")({
         const b = base.replace(/\/+$/, "");
         const headers = { Authorization: `Bearer ${secret}` };
         try {
-          const [runsRes, schedRes, upRes] = await Promise.all([
+          const [runsRes, schedRes, upRes, costRes] = await Promise.all([
             fetch(`${b}/jobs`, { headers, signal: AbortSignal.timeout(10_000) }),
             fetch(`${b}/schedules`, { headers, signal: AbortSignal.timeout(10_000) }),
             fetch(`${b}/uptime`, { headers, signal: AbortSignal.timeout(10_000) }).catch(() => null),
+            fetch(`${b}/costs`, { headers, signal: AbortSignal.timeout(10_000) }).catch(() => null),
           ]);
           const runsJson = await runsRes.json().catch(() => ({}));
           const schedJson = await schedRes.json().catch(() => ({}));
           const upJson = upRes ? await upRes.json().catch(() => ({})) : {};
+          const costJson = costRes ? await costRes.json().catch(() => ({})) : {};
           return Response.json(
             {
               ok: true,
@@ -44,6 +46,7 @@ export const Route = createFileRoute("/api/agent/runs")({
               schedules: schedJson.schedules || [],
               uptime: upJson.sites || [],
               uptimeDown: upJson.down || 0,
+              costs: costJson.ok ? costJson : null,
             },
             { headers: { "Cache-Control": "no-store" } },
           );

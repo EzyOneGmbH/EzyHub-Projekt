@@ -9422,7 +9422,7 @@ function stripAgentSpecs(text) {
 const WEEKDAY_SHORT = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 
 function ActivityPage({ selectedClient, clients }) {
-  const [data, setData] = useState({ runs: [], running: 0, schedules: [], uptime: [], uptimeDown: 0 });
+  const [data, setData] = useState({ runs: [], running: 0, schedules: [], uptime: [], uptimeDown: 0, costs: null });
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
@@ -9431,7 +9431,7 @@ function ActivityPage({ selectedClient, clients }) {
       const session = (await supabase.auth.getSession()).data.session;
       const r = await fetch("/api/agent/runs", { headers: { Authorization: `Bearer ${session?.access_token || ""}` } });
       const j = await r.json().catch(() => ({}));
-      if (j.ok) { setData({ runs: j.runs || [], running: j.running || 0, schedules: j.schedules || [], uptime: j.uptime || [], uptimeDown: j.uptimeDown || 0 }); setErr(""); }
+      if (j.ok) { setData({ runs: j.runs || [], running: j.running || 0, schedules: j.schedules || [], uptime: j.uptime || [], uptimeDown: j.uptimeDown || 0, costs: j.costs || null }); setErr(""); }
       else setErr(j.error || "Laden fehlgeschlagen");
     } catch (e) {
       setErr(String(e?.message || e));
@@ -9466,6 +9466,9 @@ function ActivityPage({ selectedClient, clients }) {
   const runs = cid ? (data.runs || []).filter((r) => r.clientId === cid) : data.runs || [];
   const schedules = cid ? (data.schedules || []).filter((s) => s.clientId === cid) : data.schedules || [];
   const uptime = cid && selDom ? (data.uptime || []).filter((u) => normDom(u.domain) === selDom) : data.uptime || [];
+  const costs = data.costs;
+  const fmtUsd = (n) => (n == null ? "—" : `$${Number(n).toFixed(2)}`);
+  const clientCost = costs && cid ? (costs.byClient || []).find((c) => c.name === selectedClient?.name)?.usd : null;
   const running = runs.filter((r) => r.status === "running").length;
   const uptimeDown = uptime.filter((u) => !u.ok).length;
 
@@ -9490,6 +9493,42 @@ function ActivityPage({ selectedClient, clients }) {
       </div>
 
       {err && <div style={{ fontSize: 12, color: C.red }}>{err}</div>}
+
+      {/* API-Kosten */}
+      {costs && (
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>
+            API-Kosten
+            {costs.runs ? <span style={{ color: C.textDim, fontWeight: 400 }}> · {costs.runs} Läufe</span> : null}
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            {[
+              { label: "Heute", v: costs.today },
+              { label: "7 Tage", v: costs.last7Days },
+              { label: "Dieser Monat", v: costs.thisMonth },
+              { label: "Gesamt", v: costs.total },
+              ...(cid ? [{ label: `${selectedClient?.name || "Kunde"} (gesamt)`, v: clientCost, accent: true }] : []),
+            ].map((s) => (
+              <div
+                key={s.label}
+                style={{
+                  flex: "1 1 130px",
+                  minWidth: 130,
+                  background: C.card,
+                  border: `1px solid ${s.accent ? C.accent : C.border}`,
+                  borderRadius: 10,
+                  padding: "12px 14px",
+                }}
+              >
+                <div style={{ fontSize: 11, color: C.textMuted }}>{s.label}</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: s.accent ? C.accentLight : C.text }}>
+                  {fmtUsd(s.v)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Schedules */}
       <div>
