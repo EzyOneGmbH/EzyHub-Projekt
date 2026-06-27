@@ -10344,7 +10344,6 @@ const TAB_SERVICE = {
 const NAV = [
   { id: "dashboard", label: "Dashboard", icon: BarChart3 },
   { id: "copilot", label: "EzyPilot", icon: Sparkles },
-  { id: "activity", label: "Aktivität", icon: Activity },
   { id: "tasks", label: "Projekt", icon: ListChecks },
   { id: "tools", label: "AI Tools", icon: Zap },
   { id: "agents", label: "Agents", icon: Bot },
@@ -10406,6 +10405,10 @@ function App() {
   useEffect(() => {
     if (isViewer && page !== "dashboard" && page !== "reports") setPage("dashboard");
   }, [isViewer, page]);
+  // „Aktivität" ist in den Agenten-Tab integriert → alte/gespeicherte Auswahl umleiten.
+  useEffect(() => {
+    if (page === "activity") setPage("agents");
+  }, [page]);
   const [cdd, setCdd] = useState(false);
   const [showTools, setShowTools] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -11084,12 +11087,16 @@ function App() {
               onClientUpdated={ezy.reload}
             />
           )}
-          {!isViewer && page === "agents" && <AgentsPage selectedClient={client} />}
+          {!isViewer && page === "agents" && (
+            <>
+              <AgentsPage selectedClient={client} />
+              <div style={{ marginTop: 28, paddingTop: 24, borderTop: `1px solid ${C.border}` }}>
+                <ActivityPage selectedClient={client} clients={clients} />
+              </div>
+            </>
+          )}
           {!isViewer && page === "copilot" && (
             <EzyPilotPage selectedClient={client} />
-          )}
-          {!isViewer && page === "activity" && (
-            <ActivityPage selectedClient={client} clients={clients} />
           )}
         </div>
       </main>
