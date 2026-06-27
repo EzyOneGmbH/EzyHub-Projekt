@@ -100,6 +100,7 @@ import { useEzyClients } from "@/ezy/data/useEzyClients";
 import { useEzyDefaults } from "@/ezy/data/useEzyDefaults";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
 import { useEzyContent } from "@/ezy/data/useEzyContent";
+import { useEzyServiceSettings } from "@/ezy/data/useEzyServiceSettings";
 import { useEzyToolSettings, toolProvider } from "@/ezy/data/useEzyToolSettings";
 import { ServicesPicker, ServicesPanel } from "@/ezy/components/ServicesPanel";
 import { DEFAULT_ON_SERVICES } from "@/lib/services";
@@ -10330,6 +10331,16 @@ const TABS = [
   { id: "conversions", label: "Conversions", icon: DollarSign },
   { id: "ads", label: "Ads", icon: Megaphone },
 ];
+// Welcher Dienst muss beim Kunden aktiv sein, damit ein Dashboard-Sub-Tab erscheint.
+// null = Kern-Ansicht (immer). Sonst: Tab zeigt sich, wenn MIND. EINER aktiv ist.
+const TAB_SERVICE = {
+  overview: null,
+  seo: null,
+  geo: ["canonry"],
+  aivis: ["canonry", "perplexity"],
+  conversions: ["ga4"],
+  ads: ["google-ads"],
+};
 const NAV = [
   { id: "dashboard", label: "Dashboard", icon: BarChart3 },
   { id: "copilot", label: "EzyPilot", icon: Sparkles },
@@ -10401,6 +10412,7 @@ function App() {
   const toast = useToast();
   const sw = isMobile ? 0 : collapsed ? 68 : 240;
   const toolSettings = useEzyToolSettings(client?.id);
+  const svc = useEzyServiceSettings(client?.id); // aktive Dienste des Kunden (Tab-Gating)
   const tools = useMemo(() => toolSettings.applyTo(ALL_TOOLS), [toolSettings]);
   const enabledTools = useMemo(() => tools.filter((t) => t.enabled), [tools]);
   const toggleTool = useCallback(
@@ -10454,8 +10466,17 @@ function App() {
   const saveCustomerDefaults = useCallback((next) => defaultsHook.save(next), [defaultsHook]);
   const onSaveContent = useCallback((id, md) => contentHook.updateContent(id, md), [contentHook]);
   const visibleTabs = useMemo(
-    () => TABS.filter((t) => (customerDefaults.visibleTabs || ["seo", "geo", "conversions"]).includes(t.id)),
-    [customerDefaults.visibleTabs],
+    () =>
+      TABS.filter((t) => {
+        // 1) manuelle Tab-Auswahl (Einstellungen)
+        if (!(customerDefaults.visibleTabs || ["seo", "geo", "conversions"]).includes(t.id)) return false;
+        // 2) Service-Gate: Tab nur, wenn ein zugehöriger Dienst aktiv ist.
+        //    Während Services laden NICHT ausblenden (kein Flackern).
+        const req = TAB_SERVICE[t.id];
+        if (!req || svc.loading) return true;
+        return req.some((k) => svc.enabled?.[k]);
+      }),
+    [customerDefaults.visibleTabs, svc.enabled, svc.loading],
   );
   useEffect(() => {
     if (visibleTabs.length > 0 && !visibleTabs.some((t) => t.id === tab)) {
