@@ -9423,16 +9423,20 @@ const WEEKDAY_SHORT = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 
 function ActivityPage({ selectedClient, clients }) {
   const [data, setData] = useState({ runs: [], running: 0, schedules: [], uptime: [], uptimeDown: 0, costs: null });
+  const [approvals, setApprovals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
   const load = useCallback(async () => {
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const r = await fetch("/api/agent/runs", { headers: { Authorization: `Bearer ${session?.access_token || ""}` } });
+      const auth = { Authorization: `Bearer ${session?.access_token || ""}` };
+      const r = await fetch("/api/agent/runs", { headers: auth });
       const j = await r.json().catch(() => ({}));
       if (j.ok) { setData({ runs: j.runs || [], running: j.running || 0, schedules: j.schedules || [], uptime: j.uptime || [], uptimeDown: j.uptimeDown || 0, costs: j.costs || null }); setErr(""); }
       else setErr(j.error || "Laden fehlgeschlagen");
+      const ar = await fetch("/api/agent/approvals", { headers: auth }).then((x) => x.json()).catch(() => ({}));
+      if (ar?.ok) setApprovals(ar.items || []);
     } catch (e) {
       setErr(String(e?.message || e));
     } finally {
@@ -9471,6 +9475,22 @@ function ActivityPage({ selectedClient, clients }) {
   const clientCost = costs && cid ? (costs.byClient || []).find((c) => c.name === selectedClient?.name)?.usd : null;
   const running = runs.filter((r) => r.status === "running").length;
   const uptimeDown = uptime.filter((u) => !u.ok).length;
+  // Freigaben pro gewähltem Kunde (lose Namens-Übereinstimmung mit dem Vault-Namen).
+  const normName = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const clientApprovals = approvals.filter(
+    (a) => !cid || normName(a.clientName) === normName(selectedClient?.name),
+  );
+  const setApprovalStatus = async (id, status) => {
+    setApprovals((p) => p.map((a) => (a.id === id ? { ...a, status } : a)));
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      await fetch("/api/agent/approvals", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status }),
+      });
+    } catch {}
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -9526,6 +9546,49 @@ function ActivityPage({ selectedClient, clients }) {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Freigaben (Wartet auf dich) */}
+      {clientApprovals.length > 0 && (
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>
+            Freigaben
+            {(() => {
+              const o = clientApprovals.filter((a) => a.status === "offen").length;
+              return o ? (
+                <span style={{ color: C.accent, fontWeight: 400 }}> · {o} offen</span>
+              ) : (
+                <span style={{ color: C.green, fontWeight: 400 }}> · alle bearbeitet</span>
+              );
+            })()}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {clientApprovals.map((a) => {
+              const stc =
+                a.status === "offen" ? C.accent
+                  : a.status === "freigegeben" ? C.blue
+                  : a.status === "abgelehnt" ? C.red
+                  : C.green;
+              return (
+                <div key={a.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, justifyContent: "space-between" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, color: C.text, lineHeight: 1.45 }}>{a.text}</div>
+                      <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3 }}>{a.clientName}</div>
+                    </div>
+                    <Badge color={stc}>{a.status}</Badge>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+                    {a.status !== "freigegeben" && <Btn size="sm" variant="secondary" onClick={() => setApprovalStatus(a.id, "freigegeben")}>Freigeben</Btn>}
+                    {a.status !== "erledigt" && <Btn size="sm" variant="secondary" onClick={() => setApprovalStatus(a.id, "erledigt")}>Erledigt</Btn>}
+                    {a.status !== "abgelehnt" && <Btn size="sm" variant="secondary" onClick={() => setApprovalStatus(a.id, "abgelehnt")}>Ablehnen</Btn>}
+                    {a.status !== "offen" && <Btn size="sm" variant="secondary" onClick={() => setApprovalStatus(a.id, "offen")}>Zurücksetzen</Btn>}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
