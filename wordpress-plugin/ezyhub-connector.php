@@ -2,7 +2,7 @@
 /**
  * Plugin Name: EzyHub Connector
  * Description: Lässt EzyHub technische SEO-Maßnahmen autonom deployen — <head>-Injektion (JSON-LD, OG, Meta), llms.txt, Seiten-Meta, Canonical/Noindex, robots.txt, Sitemap-Optimierung, Bild-Alt-Texte und Elementor-Editing (Headings + Text-Widgets) mit automatischem Backup/Restore. Auth via Application Passwords (manage_options). Alle Änderungen reversibel.
- * Version: 1.8.1
+ * Version: 1.8.3
  * Author: EzyOne GmbH
  * License: GPL-2.0+
  */
@@ -125,7 +125,7 @@ class EzyHub_Connector {
         register_rest_route(self::NS, '/status', ['methods' => 'GET', 'permission_callback' => $auth, 'callback' => function () {
             $head = get_option(self::OPT_HEAD, []);
             return [
-                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.8.1',
+                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.8.3',
                 'headKeys' => is_array($head) ? array_keys($head) : [],
                 'llmsBytes' => strlen((string) get_option(self::OPT_LLMS, '')),
                 'robotsBytes' => strlen((string) get_option(self::OPT_ROBOTS, '')),
@@ -206,15 +206,28 @@ class EzyHub_Connector {
                 $wpdb->update($wpdb->posts, ['post_content' => $content], ['ID' => $id]);
                 clean_post_cache($id);
             } elseif ($where === 'postmeta') {
-                $id = (int) ($r['id'] ?? 0); $mk = (string) ($r['meta_key'] ?? '');
+                $id = (int) ($r['id'] ?? 0); $mk = (string) ($r['meta_key'] ?? $r['metaKey'] ?? '');
                 if (!$id || !$mk) return new WP_Error('bad', 'id + meta_key erforderlich', ['status' => 400]);
                 update_post_meta($id, '_ezyhub_meta_bak_' . $mk, get_post_meta($id, $mk, true));
                 update_post_meta($id, $mk, $content);
             } elseif ($where === 'option') {
-                $on = (string) ($r['option_name'] ?? '');
+                $on = (string) ($r['option_name'] ?? $r['optionName'] ?? '');
                 if (!$on) return new WP_Error('bad', 'option_name erforderlich', ['status' => 400]);
-                update_option('_ezyhub_opt_bak_' . $on, get_option($on));
-                update_option($on, $content);
+                // Backup als exakter Roh-String (nicht die unserialisierte Form),
+                // damit auch serialisierte Optionen 1:1 restaurierbar bleiben.
+                update_option('_ezyhub_opt_bak_' . $on, $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $on)));
+                if (is_serialized($content)) {
+                    // Vorserialisierter Payload (z.B. bearbeitetes hefo-Array):
+                    // roh via $wpdb schreiben, sonst würde update_option/maybe_serialize
+                    // den bereits serialisierten String DOPPELT serialisieren -> kaputt.
+                    $exists = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name = %s", $on));
+                    if ($exists) $wpdb->update($wpdb->options, ['option_value' => $content], ['option_name' => $on]);
+                    else $wpdb->insert($wpdb->options, ['option_name' => $on, 'option_value' => $content, 'autoload' => 'yes']);
+                    wp_cache_delete($on, 'options');
+                    wp_cache_delete('alloptions', 'options');
+                } else {
+                    update_option($on, $content);
+                }
             } else {
                 return new WP_Error('bad', 'where muss post|postmeta|option sein', ['status' => 400]);
             }
