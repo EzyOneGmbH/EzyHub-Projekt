@@ -2,7 +2,7 @@
 /**
  * Plugin Name: EzyHub Connector
  * Description: Lässt EzyHub technische SEO-Maßnahmen autonom deployen — <head>-Injektion (JSON-LD, OG, Meta), llms.txt, Seiten-Meta, Canonical/Noindex, robots.txt, Sitemap-Optimierung, Bild-Alt-Texte und Elementor-Editing (Headings + Text-Widgets) mit automatischem Backup/Restore. Auth via Application Passwords (manage_options). Alle Änderungen reversibel.
- * Version: 1.8.3
+ * Version: 1.8.6
  * Author: EzyOne GmbH
  * License: GPL-2.0+
  */
@@ -74,7 +74,10 @@ class EzyHub_Connector {
     // ── PHP-Syntaxcheck via `php -l` gegen eine Temp-Datei. Wenn exec/php nicht
     // verfügbar ist, wird ran=false zurückgegeben (kein Blocker, Backup bleibt). ──
     private function php_lint($code) {
-        $tmp = wp_tempnam('ezylint');
+        // wp_tempnam() lebt in wp-admin/includes/file.php und ist im REST-Kontext
+        // nicht garantiert geladen -> natives tempnam mit get_temp_dir() nutzen.
+        $dir = function_exists('get_temp_dir') ? get_temp_dir() : sys_get_temp_dir();
+        $tmp = function_exists('tempnam') ? @tempnam($dir, 'ezylint') : false;
         if (!$tmp) return ['ran' => false, 'ok' => true, 'msg' => 'kein Temp'];
         @file_put_contents($tmp, $code);
         $out = ''; $ran = false; $ok = true;
@@ -83,6 +86,9 @@ class EzyHub_Connector {
         // entschieden — sonst „inconclusive" (ran=false, nicht blockierend).
         $php = defined('PHP_BINARY') && PHP_BINARY ? PHP_BINARY : 'php';
         $can_exec = function ($fn) { return function_exists($fn) && !in_array($fn, array_map('trim', explode(',', (string) ini_get('disable_functions'))), true); };
+        // escapeshellarg ist auf manchen Hosts deaktiviert -> Aufruf würde fataln.
+        // Ohne sie kann kein sicheres php -l laufen: Lint überspringen (Backup schützt).
+        if (!$can_exec('escapeshellarg')) { @unlink($tmp); return ['ran' => false, 'ok' => true, 'msg' => 'escapeshellarg n/a']; }
         if ($can_exec('exec')) {
             $lines = []; $rc = 0; @exec(escapeshellarg($php) . ' -l ' . escapeshellarg($tmp) . ' 2>&1', $lines, $rc);
             $out = trim(implode("\n", $lines));
@@ -125,7 +131,7 @@ class EzyHub_Connector {
         register_rest_route(self::NS, '/status', ['methods' => 'GET', 'permission_callback' => $auth, 'callback' => function () {
             $head = get_option(self::OPT_HEAD, []);
             return [
-                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.8.3',
+                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.8.6',
                 'headKeys' => is_array($head) ? array_keys($head) : [],
                 'llmsBytes' => strlen((string) get_option(self::OPT_LLMS, '')),
                 'robotsBytes' => strlen((string) get_option(self::OPT_ROBOTS, '')),
@@ -276,6 +282,7 @@ class EzyHub_Connector {
         }]);
 
         register_rest_route(self::NS, '/theme-file-write', ['methods' => 'POST', 'permission_callback' => $auth, 'callback' => function ($r) {
+          try {
             $path = $this->safe_theme_path((string) ($r['file'] ?? ''));
             if (is_wp_error($path)) return $path;
             $cur = @file_get_contents($path);
@@ -306,6 +313,9 @@ class EzyHub_Connector {
             if (@file_put_contents($path, $result) === false) return new WP_Error('write', 'Schreiben fehlgeschlagen', ['status' => 500]);
             $this->purge_caches();
             return ['ok' => true, 'file' => (string) ($r['file'] ?? ''), 'backup' => basename($bak), 'bytes' => strlen($result), 'linted' => $linted, 'lint' => $lint_msg];
+          } catch (\Throwable $e) {
+            return new WP_Error('exception', 'theme-file-write Ausnahme: ' . $e->getMessage() . ' @ ' . basename($e->getFile()) . ':' . $e->getLine(), ['status' => 500]);
+          }
         }]);
 
         register_rest_route(self::NS, '/theme-file-restore', ['methods' => 'POST', 'permission_callback' => $auth, 'callback' => function ($r) {
