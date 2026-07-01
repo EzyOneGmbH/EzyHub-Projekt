@@ -2,7 +2,7 @@
 /**
  * Plugin Name: EzyHub Connector
  * Description: Lässt EzyHub technische SEO-Maßnahmen autonom deployen — <head>-Injektion (JSON-LD, OG, Meta), llms.txt, Seiten-Meta, Canonical/Noindex, robots.txt, Sitemap-Optimierung, Bild-Alt-Texte und Elementor-Editing (Headings + Text-Widgets) mit automatischem Backup/Restore. Auth via Application Passwords (manage_options). Alle Änderungen reversibel.
- * Version: 1.8.0
+ * Version: 1.8.1
  * Author: EzyOne GmbH
  * License: GPL-2.0+
  */
@@ -78,15 +78,23 @@ class EzyHub_Connector {
         if (!$tmp) return ['ran' => false, 'ok' => true, 'msg' => 'kein Temp'];
         @file_put_contents($tmp, $code);
         $out = ''; $ran = false; $ok = true;
+        // php-cli unterstützt `-l`; php-fpm/php-cgi liefern teils nicht-null Exit
+        // ohne echten Fehler. Deshalb wird NUR anhand echter Fehler-Signaturen
+        // entschieden — sonst „inconclusive" (ran=false, nicht blockierend).
         $php = defined('PHP_BINARY') && PHP_BINARY ? PHP_BINARY : 'php';
         $can_exec = function ($fn) { return function_exists($fn) && !in_array($fn, array_map('trim', explode(',', (string) ini_get('disable_functions'))), true); };
         if ($can_exec('exec')) {
             $lines = []; $rc = 0; @exec(escapeshellarg($php) . ' -l ' . escapeshellarg($tmp) . ' 2>&1', $lines, $rc);
-            $ran = true; $ok = ($rc === 0); $out = implode(' ', $lines);
+            $out = trim(implode("\n", $lines));
         } elseif ($can_exec('shell_exec')) {
             $res = @shell_exec(escapeshellarg($php) . ' -l ' . escapeshellarg($tmp) . ' 2>&1');
-            if ($res !== null) { $ran = true; $out = trim($res); $ok = (stripos($out, 'No syntax errors') !== false); }
+            if ($res !== null) $out = trim($res);
         }
+        $hasErr = (stripos($out, 'syntax error') !== false) || (stripos($out, 'Parse error') !== false) || (stripos($out, 'Fatal error') !== false);
+        $hasOk  = (stripos($out, 'No syntax errors') !== false);
+        if ($hasErr)      { $ran = true; $ok = false; }
+        elseif ($hasOk)   { $ran = true; $ok = true; }
+        else              { $ran = false; $ok = true; } // unklar -> nicht blockieren
         @unlink($tmp);
         return ['ran' => $ran, 'ok' => $ok, 'msg' => substr($out, 0, 300)];
     }
@@ -117,7 +125,7 @@ class EzyHub_Connector {
         register_rest_route(self::NS, '/status', ['methods' => 'GET', 'permission_callback' => $auth, 'callback' => function () {
             $head = get_option(self::OPT_HEAD, []);
             return [
-                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.8.0',
+                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.8.1',
                 'headKeys' => is_array($head) ? array_keys($head) : [],
                 'llmsBytes' => strlen((string) get_option(self::OPT_LLMS, '')),
                 'robotsBytes' => strlen((string) get_option(self::OPT_ROBOTS, '')),
