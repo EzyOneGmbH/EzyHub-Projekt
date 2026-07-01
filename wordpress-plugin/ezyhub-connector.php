@@ -2,7 +2,7 @@
 /**
  * Plugin Name: EzyHub Connector
  * Description: Lässt EzyHub technische SEO-Maßnahmen autonom deployen — <head>-Injektion (JSON-LD, OG, Meta), llms.txt, Seiten-Meta, Canonical/Noindex, robots.txt, Sitemap-Optimierung, Bild-Alt-Texte und Elementor-Editing (Headings + Text-Widgets) mit automatischem Backup/Restore. Auth via Application Passwords (manage_options). Alle Änderungen reversibel.
- * Version: 1.8.6
+ * Version: 1.9.3
  * Author: EzyOne GmbH
  * License: GPL-2.0+
  */
@@ -28,6 +28,53 @@ class EzyHub_Connector {
         add_filter('wp_robots', [$this, 'filter_wp_robots']);
         // Per-page SEO title — override the <title> tag.
         add_filter('pre_get_document_title', [$this, 'filter_title'], 99);
+        // Perf: delay allowlisted third-party scripts (reCAPTCHA, pixels, …)
+        // until first user interaction. Config lives in option ezyhub_perf_delay
+        // (set via code-write); no-op unless enabled. Frontend only.
+        add_filter('script_loader_tag', [$this, 'perf_delay_tag'], 20, 3);
+        add_action('wp_footer', [$this, 'perf_delay_loader'], 100);
+    }
+
+    // Read + validate the delay config: ['enabled'=>bool,'patterns'=>[src-substr],'timeout'=>ms].
+    private function perf_delay_cfg() {
+        if (is_admin()) return null;
+        $c = get_option('ezyhub_perf_delay');
+        if (!is_array($c) || empty($c['enabled']) || empty($c['patterns']) || !is_array($c['patterns'])) return null;
+        return $c;
+    }
+
+    // Rewrite <script src=…> of allowlisted third parties to a delayed placeholder
+    // (type="ezydelay", src moved to data-ezysrc) so the browser won't fetch it
+    // until the loader swaps it back on first interaction. jQuery/first-party never
+    // match because the patterns are an explicit third-party allowlist.
+    public function perf_delay_tag($tag, $handle, $src) {
+        $c = $this->perf_delay_cfg();
+        if (!$c || !$src) return $tag;
+        foreach ($c['patterns'] as $p) {
+            if ($p !== '' && strpos($src, $p) !== false) {
+                $t = str_replace(' src=', ' data-ezysrc=', $tag);
+                if (strpos($t, 'type=') !== false) $t = preg_replace('/type=(["\']).*?\1/', 'type="ezydelay"', $t, 1);
+                else $t = preg_replace('/<script /', '<script type="ezydelay" ', $t, 1);
+                return $t;
+            }
+        }
+        return $tag;
+    }
+
+    // Print the one-time loader that, on first interaction (or timeout fallback),
+    // converts every type="ezydelay" placeholder back into a live <script>.
+    public function perf_delay_loader() {
+        $c = $this->perf_delay_cfg();
+        if (!$c) return;
+        $to = isset($c['timeout']) ? max(0, (int) $c['timeout']) : 4000;
+        echo "\n<script data-no-optimize=\"1\" data-no-defer=\"1\">(function(){var d=false;function go(){if(d)return;d=true;"
+           . "var L=document.querySelectorAll('script[type=\"ezydelay\"]');"
+           . "L.forEach(function(o){var n=document.createElement('script');"
+           . "for(var i=0;i<o.attributes.length;i++){var a=o.attributes[i];"
+           . "if(a.name==='type')continue;if(a.name==='data-ezysrc'){n.setAttribute('src',a.value);}else{n.setAttribute(a.name,a.value);}}"
+           . "if(o.textContent)n.textContent=o.textContent;o.parentNode.replaceChild(n,o);});}"
+           . "['mousemove','scroll','touchstart','keydown','click'].forEach(function(e){window.addEventListener(e,go,{once:true,passive:true});});"
+           . "setTimeout(go," . $to . ");})();</script>\n";
     }
 
     /** Override the document <title> with the stored SEO title (if set). */
@@ -131,7 +178,7 @@ class EzyHub_Connector {
         register_rest_route(self::NS, '/status', ['methods' => 'GET', 'permission_callback' => $auth, 'callback' => function () {
             $head = get_option(self::OPT_HEAD, []);
             return [
-                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.8.6',
+                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.9.3',
                 'headKeys' => is_array($head) ? array_keys($head) : [],
                 'llmsBytes' => strlen((string) get_option(self::OPT_LLMS, '')),
                 'robotsBytes' => strlen((string) get_option(self::OPT_ROBOTS, '')),
