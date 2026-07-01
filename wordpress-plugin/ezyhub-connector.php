@@ -2,7 +2,7 @@
 /**
  * Plugin Name: EzyHub Connector
  * Description: Lässt EzyHub technische SEO-Maßnahmen autonom deployen — <head>-Injektion (JSON-LD, OG, Meta), llms.txt, Seiten-Meta, Canonical/Noindex, robots.txt, Sitemap-Optimierung, Bild-Alt-Texte und Elementor-Editing (Headings + Text-Widgets) mit automatischem Backup/Restore. Auth via Application Passwords (manage_options). Alle Änderungen reversibel.
- * Version: 1.5.7
+ * Version: 1.7.0
  * Author: EzyOne GmbH
  * License: GPL-2.0+
  */
@@ -78,7 +78,7 @@ class EzyHub_Connector {
         register_rest_route(self::NS, '/status', ['methods' => 'GET', 'permission_callback' => $auth, 'callback' => function () {
             $head = get_option(self::OPT_HEAD, []);
             return [
-                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.5.6',
+                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.7.0',
                 'headKeys' => is_array($head) ? array_keys($head) : [],
                 'llmsBytes' => strlen((string) get_option(self::OPT_LLMS, '')),
                 'robotsBytes' => strlen((string) get_option(self::OPT_ROBOTS, '')),
@@ -125,6 +125,54 @@ class EzyHub_Connector {
         register_rest_route(self::NS, '/purge', ['methods' => 'POST', 'permission_callback' => $auth, 'callback' => function () {
             $this->purge_caches();
             return ['ok' => true, 'purged' => true];
+        }]);
+
+        // ── Code-Snippet finden (Header/Footer-Tracking/Widget-Code in
+        // Posts / Postmeta / Optionen). Read-only Suche fuer kontrollierte
+        // Anpassungen wie Mews-Lazy-Load. ──
+        register_rest_route(self::NS, '/code-locate', ['methods' => 'POST', 'permission_callback' => $auth, 'callback' => function ($r) {
+            global $wpdb;
+            $needle = (string) ($r['needle'] ?? '');
+            if (strlen($needle) < 6) return new WP_Error('bad_needle', 'needle (>=6 Zeichen) erforderlich', ['status' => 400]);
+            $like = '%' . $wpdb->esc_like($needle) . '%';
+            $hits = [];
+            foreach ($wpdb->get_results($wpdb->prepare("SELECT ID, post_type, post_title, post_content FROM {$wpdb->posts} WHERE post_content LIKE %s AND post_status NOT IN ('trash','auto-draft')", $like)) as $p)
+                $hits[] = ['where' => 'post', 'post_type' => $p->post_type, 'id' => (int) $p->ID, 'title' => $p->post_title, 'len' => strlen($p->post_content), 'content' => $p->post_content];
+            foreach ($wpdb->get_results($wpdb->prepare("SELECT post_id, meta_key, meta_value FROM {$wpdb->postmeta} WHERE meta_value LIKE %s", $like)) as $m)
+                $hits[] = ['where' => 'postmeta', 'id' => (int) $m->post_id, 'meta_key' => $m->meta_key, 'len' => strlen($m->meta_value), 'content' => $m->meta_value];
+            foreach ($wpdb->get_results($wpdb->prepare("SELECT option_name, option_value FROM {$wpdb->options} WHERE option_value LIKE %s", $like)) as $o)
+                $hits[] = ['where' => 'option', 'option_name' => $o->option_name, 'len' => strlen($o->option_value), 'content' => $o->option_value];
+            return ['ok' => true, 'count' => count($hits), 'hits' => $hits];
+        }]);
+
+        // ── Code-Snippet ersetzen (mit Backup). Schreibt post_content via $wpdb
+        // (umgeht kses -> <script> bleibt exakt); Postmeta/Optionen via API. ──
+        register_rest_route(self::NS, '/code-write', ['methods' => 'POST', 'permission_callback' => $auth, 'callback' => function ($r) {
+            global $wpdb;
+            $where = (string) ($r['where'] ?? '');
+            $content = (string) ($r['content'] ?? '');
+            if ($content === '') return new WP_Error('bad', 'content erforderlich', ['status' => 400]);
+            if ($where === 'post') {
+                $id = (int) ($r['id'] ?? 0); if (!$id) return new WP_Error('bad', 'id erforderlich', ['status' => 400]);
+                $cur = get_post($id); if (!$cur) return new WP_Error('nf', 'Post nicht gefunden', ['status' => 404]);
+                update_post_meta($id, '_ezyhub_code_bak', $cur->post_content);
+                $wpdb->update($wpdb->posts, ['post_content' => $content], ['ID' => $id]);
+                clean_post_cache($id);
+            } elseif ($where === 'postmeta') {
+                $id = (int) ($r['id'] ?? 0); $mk = (string) ($r['meta_key'] ?? '');
+                if (!$id || !$mk) return new WP_Error('bad', 'id + meta_key erforderlich', ['status' => 400]);
+                update_post_meta($id, '_ezyhub_meta_bak_' . $mk, get_post_meta($id, $mk, true));
+                update_post_meta($id, $mk, $content);
+            } elseif ($where === 'option') {
+                $on = (string) ($r['option_name'] ?? '');
+                if (!$on) return new WP_Error('bad', 'option_name erforderlich', ['status' => 400]);
+                update_option('_ezyhub_opt_bak_' . $on, get_option($on));
+                update_option($on, $content);
+            } else {
+                return new WP_Error('bad', 'where muss post|postmeta|option sein', ['status' => 400]);
+            }
+            $this->purge_caches();
+            return ['ok' => true, 'where' => $where];
         }]);
 
         // ── llms.txt ──
@@ -378,12 +426,41 @@ class EzyHub_Connector {
                 return new WP_Error('no_ewww', 'EWWW Image Optimizer nicht aktiv', ['status' => 409]);
             $in = $r->get_json_params(); $set = [];
             if (!empty($in['webp'])) { update_option('ewww_image_optimizer_webp', 1); $set['webp'] = 1; }
+            // WebP-Auslieferung (JS-Rewriting): liefert .webp an unterstuetzende Browser.
+            // Explizit via webp_cdn (0/1) steuerbar -> sauberer Revert; sonst beim
+            // Aktivieren von webp automatisch mit-anschalten.
+            if (isset($in['webp_cdn'])) { update_option('ewww_image_optimizer_webp_for_cdn', $in['webp_cdn'] ? 1 : 0); $set['webp_cdn'] = $in['webp_cdn'] ? 1 : 0; }
+            elseif (!empty($in['webp'])) { update_option('ewww_image_optimizer_webp_for_cdn', 0); $set['webp_cdn'] = 0; }
             if (!empty($in['maxw'])) { update_option('ewww_image_optimizer_maxmediawidth', (int) $in['maxw']); $set['maxw'] = (int) $in['maxw']; }
             if (!empty($in['maxh'])) { update_option('ewww_image_optimizer_maxmediaheight', (int) $in['maxh']); $set['maxh'] = (int) $in['maxh']; }
+            // Kompressionsstufe: explizit gesetzt -> verwenden; sonst bei vorhandenem
+            // Cloud-Key auf Lossy-Cloud defaulten (png 40 / jpg 30) -- sonst bringt der
+            // Key keine Verkleinerung (lossless schrumpft Foto-PNGs ~0%). Lokales
+            // Backup der Originale an, damit Lossy reversibel bleibt (EWWW Restore).
+            $hasKey = (bool) get_option('ewww_image_optimizer_cloud_key', '');
+            $prevPl = (int) get_option('ewww_image_optimizer_png_level', 0);
+            $prevJl = (int) get_option('ewww_image_optimizer_jpg_level', 0);
+            $pl = isset($in['png_level']) ? (int) $in['png_level'] : ($hasKey ? 40 : null);
+            $jl = isset($in['jpg_level']) ? (int) $in['jpg_level'] : ($hasKey ? 30 : null);
+            if ($pl !== null) { update_option('ewww_image_optimizer_png_level', $pl); $set['png_level'] = $pl; }
+            if ($jl !== null) { update_option('ewww_image_optimizer_jpg_level', $jl); $set['jpg_level'] = $jl; }
+            if ($hasKey) {
+                update_option('ewww_image_optimizer_gif_level', 10);
+                if (!get_option('ewww_image_optimizer_backup_files')) { update_option('ewww_image_optimizer_backup_files', 'local'); $set['backup'] = 'local'; }
+                // Stufe TATSAECHLICH veraendert (z.B. lossless->lossy) -> Done-Marker
+                // loeschen, damit der naechste Bulk ALLE Bilder neu (mit Lossy) optimiert.
+                if (($pl !== null && $pl !== $prevPl) || ($jl !== null && $jl !== $prevJl)) {
+                    global $wpdb; $wpdb->delete($wpdb->postmeta, ['meta_key' => '_ezyhub_ewww_done']); $set['relevel'] = 1;
+                }
+            }
             return [
                 'ok' => true, 'set' => $set,
                 'webp_option' => (int) get_option('ewww_image_optimizer_webp', 0),
+                'webp_cdn' => (int) get_option('ewww_image_optimizer_webp_for_cdn', 0),
                 'cloud_key' => get_option('ewww_image_optimizer_cloud_key', '') ? true : false,
+                'png_level' => (int) get_option('ewww_image_optimizer_png_level', 0),
+                'jpg_level' => (int) get_option('ewww_image_optimizer_jpg_level', 0),
+                'backup_files' => (string) get_option('ewww_image_optimizer_backup_files', ''),
                 'version' => defined('EWWW_IMAGE_OPTIMIZER_VERSION') ? EWWW_IMAGE_OPTIMIZER_VERSION : null,
             ];
         }]);
@@ -395,6 +472,13 @@ class EzyHub_Connector {
             if (!function_exists('ewww_image_optimizer_resize_from_meta_data') && !function_exists('ewww_image_optimizer'))
                 return new WP_Error('no_ewww', 'EWWW Image Optimizer nicht aktiv', ['status' => 409]);
             $in = $r->get_json_params();
+            // reset: alle Done-Marker loeschen, damit nach geaenderter Kompressionsstufe
+            // (z.B. neu auf Lossy) ALLE Bilder erneut optimiert werden, nicht nur neue.
+            if (!empty($in['reset'])) { global $wpdb; $wpdb->delete($wpdb->postmeta, ['meta_key' => '_ezyhub_ewww_done']); }
+            // Cloud-Key vorhanden -> EWWW ZWINGEN, auch bereits (lossless) optimierte
+            // Bilder mit der aktuellen Stufe NEU zu komprimieren. Ohne Force ueberspringt
+            // EWWW sie per eigener Dedup (ewwwio_images) -> 0% Ersparnis.
+            if (get_option('ewww_image_optimizer_cloud_key', '')) { global $ewww_force; $ewww_force = 1; }
             $limit = min(20, max(1, (int) ($in['limit'] ?? 8)));
             $q = new WP_Query([
                 'post_type' => 'attachment', 'post_mime_type' => 'image', 'post_status' => 'inherit',
@@ -454,11 +538,18 @@ class EzyHub_Connector {
     // Friendly Name => LSCWP conf-id. Nur risikoarme, reversible Schalter.
     private static function ls_map() {
         return [
-            'lazyload' => 'media-lazy',    // Bilder Lazy-Load (LCP/Bandbreite)
-            'css_min'  => 'optm-css_min',  // CSS minifizieren
-            'js_min'   => 'optm-js_min',   // JS minifizieren
-            'html_min' => 'optm-html_min', // HTML minifizieren
-            'qs_rm'    => 'optm-qs_rm',    // Query-Strings von statischen Ressourcen entfernen
+            'lazyload'  => 'media-lazy',    // Bilder Lazy-Load (LCP/Bandbreite)
+            'css_min'   => 'optm-css_min',  // CSS minifizieren
+            'js_min'    => 'optm-js_min',   // JS minifizieren
+            'html_min'  => 'optm-html_min', // HTML minifizieren
+            'qs_rm'     => 'optm-qs_rm',    // Query-Strings von statischen Ressourcen entfernen
+            // Riskantere Render-/Bundle-Optimierungen (koennen Page-Builder-Stacks
+            // brechen) -- nur mit Sichtpruefung + Sofort-Revert einsetzen:
+            'css_comb'  => 'optm-css_comb', // CSS kombinieren
+            'js_comb'   => 'optm-js_comb',  // JS kombinieren
+            'css_async' => 'optm-css_async',// CSS asynchron laden (Render-Blocking CSS)
+            'ucss'      => 'optm-ucss',      // Unused CSS entfernen (UCSS)
+            'js_defer'  => 'optm-js_defer',  // JS deferred laden (Render-Blocking JS)
         ];
     }
 

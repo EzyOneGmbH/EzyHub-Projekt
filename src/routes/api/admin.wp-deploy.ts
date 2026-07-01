@@ -66,6 +66,13 @@ const ACTIONS: Record<string, { method: "GET" | "POST"; path: string; fields: st
   "plugins-list": { method: "GET", path: "/wp/v2/plugins", fields: ["search"] },
   "ewww-config": { method: "POST", path: "/ezyhub/v1/ewww/config", fields: ["webp", "maxw", "maxh"] },
   "ewww-bulk": { method: "POST", path: "/ezyhub/v1/ewww/bulk", fields: ["limit"] },
+  // Code-snippet locate/replace (header/footer scripts, plugin settings, etc.)
+  "code-locate": { method: "POST", path: "/ezyhub/v1/code-locate", fields: ["needle"] },
+  "code-write": {
+    method: "POST",
+    path: "/ezyhub/v1/code-write",
+    fields: ["where", "id", "metaKey", "optionName", "content"],
+  },
   // Activate/deactivate an already-installed allowlisted plugin. Path is built
   // from the slug in the handler (per-plugin WP-core endpoint).
   "plugin-toggle": { method: "POST", path: "/wp/v2/plugins", fields: ["slug", "status"] },
@@ -110,6 +117,12 @@ const Body = z.object({
   maxw: z.number().int().optional(),
   maxh: z.number().int().optional(),
   plugin: z.string().optional(),
+  // code-locate / code-write
+  needle: z.string().optional(),
+  where: z.enum(["post", "postmeta", "option"]).optional(),
+  id: z.number().int().optional(),
+  metaKey: z.string().optional(),
+  optionName: z.string().optional(),
 });
 
 export const Route = createFileRoute("/api/admin/wp-deploy")({
