@@ -2,7 +2,7 @@
 /**
  * Plugin Name: EzyHub Connector
  * Description: Lässt EzyHub technische SEO-Maßnahmen autonom deployen — <head>-Injektion (JSON-LD, OG, Meta), llms.txt, Seiten-Meta, Canonical/Noindex, robots.txt, Sitemap-Optimierung, Bild-Alt-Texte und Elementor-Editing (Headings + Text-Widgets) mit automatischem Backup/Restore. Auth via Application Passwords (manage_options). Alle Änderungen reversibel.
- * Version: 1.7.0
+ * Version: 1.8.0
  * Author: EzyOne GmbH
  * License: GPL-2.0+
  */
@@ -52,6 +52,45 @@ class EzyHub_Connector {
         if (function_exists('wp_cache_flush')) { @wp_cache_flush(); }
     }
 
+    // ── Theme-Datei-Sandbox: löst einen relativen Pfad gegen wp-content/themes
+    // auf und verweigert alles außerhalb bzw. mit unerlaubter Endung. ──
+    private function safe_theme_path($rel) {
+        $rel = (string) $rel;
+        if ($rel === '') return new WP_Error('bad', 'file erforderlich', ['status' => 400]);
+        if (strpos($rel, "\0") !== false) return new WP_Error('bad', 'ungültiger Pfad', ['status' => 400]);
+        $root = realpath(WP_CONTENT_DIR . '/themes');
+        if (!$root) return new WP_Error('no_root', 'themes-Verzeichnis nicht gefunden', ['status' => 500]);
+        $rel = ltrim(str_replace('\\', '/', $rel), '/');
+        $target = realpath($root . '/' . $rel);
+        if ($target === false) return new WP_Error('nf', 'Datei nicht gefunden', ['status' => 404]);
+        // Muss echt innerhalb des themes-Roots liegen (kein ../-Ausbruch).
+        if (strpos($target, $root . DIRECTORY_SEPARATOR) !== 0) return new WP_Error('forbidden', 'Pfad außerhalb wp-content/themes', ['status' => 403]);
+        $ext = strtolower(pathinfo($target, PATHINFO_EXTENSION));
+        if (!in_array($ext, ['php', 'js', 'css', 'html', 'htm', 'twig'], true)) return new WP_Error('forbidden', 'Dateityp nicht erlaubt: ' . $ext, ['status' => 403]);
+        if (!is_writable($target)) return new WP_Error('ro', 'Datei nicht schreibbar', ['status' => 403]);
+        return $target;
+    }
+
+    // ── PHP-Syntaxcheck via `php -l` gegen eine Temp-Datei. Wenn exec/php nicht
+    // verfügbar ist, wird ran=false zurückgegeben (kein Blocker, Backup bleibt). ──
+    private function php_lint($code) {
+        $tmp = wp_tempnam('ezylint');
+        if (!$tmp) return ['ran' => false, 'ok' => true, 'msg' => 'kein Temp'];
+        @file_put_contents($tmp, $code);
+        $out = ''; $ran = false; $ok = true;
+        $php = defined('PHP_BINARY') && PHP_BINARY ? PHP_BINARY : 'php';
+        $can_exec = function ($fn) { return function_exists($fn) && !in_array($fn, array_map('trim', explode(',', (string) ini_get('disable_functions'))), true); };
+        if ($can_exec('exec')) {
+            $lines = []; $rc = 0; @exec(escapeshellarg($php) . ' -l ' . escapeshellarg($tmp) . ' 2>&1', $lines, $rc);
+            $ran = true; $ok = ($rc === 0); $out = implode(' ', $lines);
+        } elseif ($can_exec('shell_exec')) {
+            $res = @shell_exec(escapeshellarg($php) . ' -l ' . escapeshellarg($tmp) . ' 2>&1');
+            if ($res !== null) { $ran = true; $out = trim($res); $ok = (stripos($out, 'No syntax errors') !== false); }
+        }
+        @unlink($tmp);
+        return ['ran' => $ran, 'ok' => $ok, 'msg' => substr($out, 0, 300)];
+    }
+
     // ── Elementor safety net: snapshot _elementor_data before any change ──
     // Keeps the last 8 snapshots in postmeta so every edit is fully reversible.
     private function backup_elementor($postId) {
@@ -78,7 +117,7 @@ class EzyHub_Connector {
         register_rest_route(self::NS, '/status', ['methods' => 'GET', 'permission_callback' => $auth, 'callback' => function () {
             $head = get_option(self::OPT_HEAD, []);
             return [
-                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.7.0',
+                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.8.0',
                 'headKeys' => is_array($head) ? array_keys($head) : [],
                 'llmsBytes' => strlen((string) get_option(self::OPT_LLMS, '')),
                 'robotsBytes' => strlen((string) get_option(self::OPT_ROBOTS, '')),
@@ -173,6 +212,100 @@ class EzyHub_Connector {
             }
             $this->purge_caches();
             return ['ok' => true, 'where' => $where];
+        }]);
+
+        // ── Theme-Datei-Editor (Sandbox: nur wp-content/themes) ──────────────
+        // Manche Snippets (z.B. hartcodierte <script>-Loader) leben in Theme-
+        // PHP-Dateien, nicht in der DB. Diese Endpoints erlauben gezieltes
+        // Lokalisieren + chirurgisches Ersetzen mit Voll-Backup, PHP-Lint und
+        // 1-Klick-Restore. Streng auf wp-content/themes + erlaubte Endungen
+        // begrenzt; kein Zugriff auf Plugins/Core/uploads.
+        register_rest_route(self::NS, '/theme-file-locate', ['methods' => 'POST', 'permission_callback' => $auth, 'callback' => function ($r) {
+            $needle = (string) ($r['needle'] ?? '');
+            if (strlen($needle) < 6) return new WP_Error('bad_needle', 'needle (>=6 Zeichen) erforderlich', ['status' => 400]);
+            $root = realpath(WP_CONTENT_DIR . '/themes');
+            if (!$root) return new WP_Error('no_root', 'themes-Verzeichnis nicht gefunden', ['status' => 500]);
+            $exts = ['php', 'js', 'css', 'html', 'htm', 'twig'];
+            $hits = []; $scanned = 0;
+            $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
+            foreach ($it as $f) {
+                if (!$f->isFile()) continue;
+                if (!in_array(strtolower($f->getExtension()), $exts, true)) continue;
+                if ($f->getSize() > 3_000_000) continue;
+                $scanned++;
+                $txt = @file_get_contents($f->getPathname());
+                if ($txt === false || strpos($txt, $needle) === false) continue;
+                $lines = []; $ln = 0;
+                foreach (preg_split('/\r\n|\r|\n/', $txt) as $line) { $ln++;
+                    if (strpos($line, $needle) !== false) $lines[] = ['line' => $ln, 'text' => substr(trim($line), 0, 300)];
+                    if (count($lines) >= 20) break;
+                }
+                $hits[] = ['file' => str_replace($root . DIRECTORY_SEPARATOR, '', $f->getPathname()), 'count' => count($lines), 'lines' => $lines, 'size' => $f->getSize()];
+                if (count($hits) >= 50) break;
+            }
+            return ['ok' => true, 'scanned' => $scanned, 'files' => count($hits), 'hits' => $hits];
+        }]);
+
+        register_rest_route(self::NS, '/theme-file-read', ['methods' => 'POST', 'permission_callback' => $auth, 'callback' => function ($r) {
+            $path = $this->safe_theme_path((string) ($r['file'] ?? ''));
+            if (is_wp_error($path)) return $path;
+            $txt = @file_get_contents($path);
+            if ($txt === false) return new WP_Error('read', 'Datei nicht lesbar', ['status' => 500]);
+            return ['ok' => true, 'file' => (string) ($r['file'] ?? ''), 'len' => strlen($txt), 'content' => $txt];
+        }]);
+
+        register_rest_route(self::NS, '/theme-file-write', ['methods' => 'POST', 'permission_callback' => $auth, 'callback' => function ($r) {
+            $path = $this->safe_theme_path((string) ($r['file'] ?? ''));
+            if (is_wp_error($path)) return $path;
+            $cur = @file_get_contents($path);
+            if ($cur === false) return new WP_Error('read', 'Datei nicht lesbar', ['status' => 500]);
+            $old = (string) ($r['oldString'] ?? '');
+            $new = (string) ($r['newString'] ?? '');
+            $full = isset($r['content']) ? (string) $r['content'] : null;
+            if ($full === null) {
+                if ($old === '') return new WP_Error('bad', 'oldString oder content erforderlich', ['status' => 400]);
+                $n = substr_count($cur, $old);
+                if ($n === 0) return new WP_Error('nomatch', 'oldString nicht gefunden', ['status' => 404]);
+                if ($n > 1) return new WP_Error('ambiguous', "oldString $n× gefunden — muss eindeutig sein", ['status' => 409]);
+                $result = str_replace($old, $new, $cur);
+            } else {
+                $result = $full;
+            }
+            if ($result === $cur) return ['ok' => true, 'unchanged' => true];
+            // Voll-Backup mit Zeitstempel neben der Datei.
+            $bak = $path . '.ezybak-' . gmdate('Ymd-His');
+            if (@file_put_contents($bak, $cur) === false) return new WP_Error('bak', 'Backup fehlgeschlagen — kein Schreibzugriff?', ['status' => 500]);
+            // PHP-Lint gegen Temp-Datei, bevor die Live-Datei überschrieben wird.
+            $linted = null; $lint_msg = '';
+            if (strtolower(pathinfo($path, PATHINFO_EXTENSION)) === 'php') {
+                $lint = $this->php_lint($result);
+                $linted = $lint['ok']; $lint_msg = $lint['msg'];
+                if ($lint['ran'] && !$lint['ok']) return new WP_Error('lint', 'PHP-Syntaxfehler — nicht geschrieben: ' . $lint['msg'], ['status' => 422]);
+            }
+            if (@file_put_contents($path, $result) === false) return new WP_Error('write', 'Schreiben fehlgeschlagen', ['status' => 500]);
+            $this->purge_caches();
+            return ['ok' => true, 'file' => (string) ($r['file'] ?? ''), 'backup' => basename($bak), 'bytes' => strlen($result), 'linted' => $linted, 'lint' => $lint_msg];
+        }]);
+
+        register_rest_route(self::NS, '/theme-file-restore', ['methods' => 'POST', 'permission_callback' => $auth, 'callback' => function ($r) {
+            $path = $this->safe_theme_path((string) ($r['file'] ?? ''));
+            if (is_wp_error($path)) return $path;
+            $bakName = (string) ($r['backup'] ?? '');
+            if ($bakName === '') {
+                // Neuestes Backup automatisch wählen.
+                $cands = glob($path . '.ezybak-*');
+                if (!$cands) return new WP_Error('nobak', 'Kein Backup gefunden', ['status' => 404]);
+                rsort($cands); $bak = $cands[0];
+            } else {
+                if (strpos($bakName, '/') !== false || strpos($bakName, '\\') !== false || strpos($bakName, '..') !== false)
+                    return new WP_Error('bad', 'ungültiger backup-Name', ['status' => 400]);
+                $bak = dirname($path) . DIRECTORY_SEPARATOR . $bakName;
+            }
+            $prev = @file_get_contents($bak);
+            if ($prev === false) return new WP_Error('nobak', 'Backup nicht lesbar', ['status' => 404]);
+            if (@file_put_contents($path, $prev) === false) return new WP_Error('write', 'Restore fehlgeschlagen', ['status' => 500]);
+            $this->purge_caches();
+            return ['ok' => true, 'file' => (string) ($r['file'] ?? ''), 'restored_from' => basename($bak)];
         }]);
 
         // ── llms.txt ──

@@ -73,6 +73,23 @@ const ACTIONS: Record<string, { method: "GET" | "POST"; path: string; fields: st
     path: "/ezyhub/v1/code-write",
     fields: ["where", "id", "metaKey", "optionName", "content"],
   },
+  // Theme-file editor (sandboxed to wp-content/themes, backup + php -l + restore)
+  "theme-file-locate": {
+    method: "POST",
+    path: "/ezyhub/v1/theme-file-locate",
+    fields: ["needle"],
+  },
+  "theme-file-read": { method: "POST", path: "/ezyhub/v1/theme-file-read", fields: ["file"] },
+  "theme-file-write": {
+    method: "POST",
+    path: "/ezyhub/v1/theme-file-write",
+    fields: ["file", "oldString", "newString", "content"],
+  },
+  "theme-file-restore": {
+    method: "POST",
+    path: "/ezyhub/v1/theme-file-restore",
+    fields: ["file", "backup"],
+  },
   // Activate/deactivate an already-installed allowlisted plugin. Path is built
   // from the slug in the handler (per-plugin WP-core endpoint).
   "plugin-toggle": { method: "POST", path: "/wp/v2/plugins", fields: ["slug", "status"] },
@@ -123,6 +140,11 @@ const Body = z.object({
   id: z.number().int().optional(),
   metaKey: z.string().optional(),
   optionName: z.string().optional(),
+  // theme-file editor
+  file: z.string().optional(),
+  oldString: z.string().optional(),
+  newString: z.string().optional(),
+  backup: z.string().optional(),
 });
 
 export const Route = createFileRoute("/api/admin/wp-deploy")({
