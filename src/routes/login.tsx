@@ -23,6 +23,11 @@ const schema = z.object({
 
 function LoginPage() {
   const navigate = useNavigate();
+  const { next } = Route.useSearch();
+  const goNext = () => {
+    if (next) window.location.href = next;
+    else navigate({ to: "/dashboard" });
+  };
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -41,7 +46,7 @@ function LoginPage() {
       toast.error(error.message);
       return;
     }
-    navigate({ to: "/dashboard" });
+    goNext();
   };
 
   return (
