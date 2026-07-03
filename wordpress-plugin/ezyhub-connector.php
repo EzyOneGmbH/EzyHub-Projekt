@@ -2,7 +2,7 @@
 /**
  * Plugin Name: EzyHub Connector
  * Description: Lässt EzyHub technische SEO-Maßnahmen autonom deployen — <head>-Injektion (JSON-LD, OG, Meta), llms.txt, Seiten-Meta, Canonical/Noindex, robots.txt, Sitemap-Optimierung, Bild-Alt-Texte und Elementor-Editing (Headings + Text-Widgets) mit automatischem Backup/Restore. Auth via Application Passwords (manage_options). Alle Änderungen reversibel.
- * Version: 1.9.3
+ * Version: 1.9.6
  * Author: EzyOne GmbH
  * License: GPL-2.0+
  */
@@ -33,6 +33,42 @@ class EzyHub_Connector {
         // (set via code-write); no-op unless enabled. Frontend only.
         add_filter('script_loader_tag', [$this, 'perf_delay_tag'], 20, 3);
         add_action('wp_footer', [$this, 'perf_delay_loader'], 100);
+        // SEO-Audit-Genauigkeit: ExactDN/easyIO-CDN blockt Ahrefs-Crawler (403)
+        // -> deren Site-Audit meldet False-Positive "broken image/JS". Fix: fuer
+        // Ahrefs/Semrush-Audit-Bots das CDN-Rewriting ueberspringen, damit sie die
+        // Origin-URLs (HTTP 200) sehen. Echte Nutzer + Googlebot behalten das CDN.
+        // skip_page (Seite) + skip_image (jede Bild-URL, deckt srcset/CSS/Elementor ab).
+        add_filter('exactdn_skip_page', [$this, 'exactdn_skip_for_audit_bots'], 10, 2);
+        add_filter('exactdn_skip_image', [$this, 'exactdn_skip_for_audit_bots'], 10, 2);
+        // Catch-all: fuer Audit-Bots im finalen HTML die exactdn-Domain -> Origin
+        // ersetzen. Faengt auch HART in der DB gespeicherte CDN-URLs (Elementor,
+        // Alt-Search-Replace), CSS + JS ab, die die Filter oben nicht erreichen.
+        add_action('template_redirect', [$this, 'exactdn_origin_ob_for_audit_bots'], 0);
+    }
+
+    // Erkennt SEO-Audit-Crawler (bewusst eng, NICHT Googlebot). Statisch gecacht.
+    private function is_audit_bot() {
+        static $v = null;
+        if ($v === null) {
+            $ua = isset($_SERVER['HTTP_USER_AGENT']) ? (string) $_SERVER['HTTP_USER_AGENT'] : '';
+            $v = ($ua !== '' && (bool) preg_match('/AhrefsBot|AhrefsSiteAudit|SemrushBot|SiteAudit/i', $ua));
+        }
+        return $v;
+    }
+    public function exactdn_skip_for_audit_bots($skip, $x = '') {
+        return $this->is_audit_bot() ? true : $skip;
+    }
+    // Output-Buffer nur fuer Audit-Bots: ersetzt //<exactdn-domain>/ -> //<origin>/
+    public function exactdn_origin_ob_for_audit_bots() {
+        if (!$this->is_audit_bot() || is_admin()) return;
+        $exactdn = trim((string) get_option('ewww_image_optimizer_exactdn_domain'));
+        if ($exactdn === '') return;
+        $origin = (string) wp_parse_url(home_url('/'), PHP_URL_HOST);
+        if ($origin === '' || strcasecmp($origin, $exactdn) === 0) return;
+        ob_start(function ($html) use ($exactdn, $origin) {
+            if (!is_string($html) || $html === '') return $html;
+            return str_ireplace('//' . $exactdn . '/', '//' . $origin . '/', $html);
+        });
     }
 
     // Read + validate the delay config: ['enabled'=>bool,'patterns'=>[src-substr],'timeout'=>ms].
@@ -178,7 +214,7 @@ class EzyHub_Connector {
         register_rest_route(self::NS, '/status', ['methods' => 'GET', 'permission_callback' => $auth, 'callback' => function () {
             $head = get_option(self::OPT_HEAD, []);
             return [
-                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.9.3',
+                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.9.6',
                 'headKeys' => is_array($head) ? array_keys($head) : [],
                 'llmsBytes' => strlen((string) get_option(self::OPT_LLMS, '')),
                 'robotsBytes' => strlen((string) get_option(self::OPT_ROBOTS, '')),
