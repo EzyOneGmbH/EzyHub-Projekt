@@ -60,11 +60,14 @@ const ENGINES: Array<{ name: string; re: RegExp }> = [
   { name: "DeepSeek", re: /deepseek/i },
 ];
 
-// Ahrefs v3: strukturierte Parameter als JSON-Strings in der Query.
+// Ahrefs v3 Brand Radar (live validiert): Pfade OHNE "-entities"-Suffix;
+// Arrays als CSV, `brand` als Plain-Name, nur `where` als JSON-String.
 async function brandRadar(path: string, params: Record<string, unknown>, key: string) {
   const u = new URL(`https://api.ahrefs.com/v3/brand-radar/${path}`);
   for (const [k, v] of Object.entries(params)) {
-    u.searchParams.set(k, typeof v === "string" ? v : JSON.stringify(v));
+    if (Array.isArray(v)) u.searchParams.set(k, v.join(","));
+    else if (typeof v === "object" && v !== null) u.searchParams.set(k, JSON.stringify(v));
+    else u.searchParams.set(k, String(v));
   }
   const r = await fetch(u, {
     headers: { Authorization: `Bearer ${key}`, Accept: "application/json" },
@@ -77,13 +80,9 @@ async function brandRadar(path: string, params: Record<string, unknown>, key: st
   return { ok: true as const, data: (await r.json().catch(() => null)) as any };
 }
 
-function brandEntity(c: any) {
-  const names = [String(c.name || "").trim()].filter(Boolean);
-  const domain = cleanDomain(c.domain);
-  const entity: any = {};
-  if (names.length) entity.names = names;
-  if (domain) entity.url_groups = [{ target: domain, scope: "subdomains" }];
-  return entity;
+// REST-Form nimmt den Brand als Plain-Namen (die entities-Struktur ist MCP-only).
+function brandName(c: any) {
+  return String(c.name || "").trim() || cleanDomain(c.domain).split(".")[0];
 }
 
 // ── Ahrefs Brand Radar: Mentions je Modell (+ Land) + Citations ─────────────
@@ -91,16 +90,16 @@ async function jobBrandRadar(c: any) {
   const key = process.env.AHREFS_API_KEY;
   if (!key) return { skipped: "AHREFS_API_KEY fehlt" };
   if (!c.name && !c.domain) return { skipped: "kein Name/Domain" };
-  const brand = brandEntity(c);
+  const brand = brandName(c);
   const errors: string[] = [];
 
   // 1) Total je Modell (1 Call pro data_source).
   const models: Array<{ name: string; mentions: number; byCountry: Record<string, number> }> = [];
   for (const s of SOURCES) {
-    const r = await brandRadar("mentions-overview-entities", {
-      select: ["brand", "total"],
-      data_source: [s.ds],
-      brands: [brand],
+    const r = await brandRadar("mentions-overview", {
+      select: "brand,total",
+      data_source: s.ds,
+      brand,
     }, key);
     if (!r.ok) { errors.push(`${s.name}: ${r.error}`); models.push({ name: s.name, mentions: 0, byCountry: {} }); continue; }
     const total = Number(r.data?.metrics?.[0]?.total ?? 0);
@@ -112,11 +111,11 @@ async function jobBrandRadar(c: any) {
     if (m.mentions <= 0) continue;
     const ds = SOURCES.find((s) => s.name === m.name)!.ds;
     for (const co of COUNTRIES) {
-      const r = await brandRadar("mentions-overview-entities", {
-        select: ["brand", "total"],
-        data_source: [ds],
-        country: [co.code],
-        brands: [brand],
+      const r = await brandRadar("mentions-overview", {
+        select: "brand,total",
+        data_source: ds,
+        country: co.code,
+        brand,
       }, key);
       const v = r.ok ? Number(r.data?.metrics?.[0]?.total ?? 0) : 0;
       if (v > 0) m.byCountry[co.name] = v;
@@ -131,11 +130,11 @@ async function jobBrandRadar(c: any) {
   let citedPages: Array<{ url: string; responses: number }> = [];
   const domain = cleanDomain(c.domain);
   if (domain) {
-    const r = await brandRadar("cited-pages-entities", {
-      select: ["url", "responses"],
+    const r = await brandRadar("cited-pages", {
+      select: "url,responses",
       data_source: SOURCES.map((s) => s.ds),
       where: { field: "cited_domain_subdomains", is: ["eq", domain] },
-      brands: [brand],
+      brand,
       limit: 200,
     }, key);
     if (r.ok) {
