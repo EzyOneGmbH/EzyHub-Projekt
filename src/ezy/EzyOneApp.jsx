@@ -127,6 +127,8 @@ import {
   aworkTasksFromResult,
 } from "@/ezy/data/useEzyLatestRun";
 import GoogleClientPanel from "@/ezy/GoogleClientPanel.jsx";
+import AIVisibilityReport, { AIVisibilitySkeleton } from "@/ezy/AIVisibilityDashboard.jsx";
+import { useEzyAIVisibility } from "@/ezy/data/useEzyAIVisibility";
 import { supabase } from "@/integrations/supabase/client";
 import { SKILL_CATALOG } from "@/ezy/data/skillCatalog";
 const toolHasLiveProvider = (id) => toolProvider(id) !== null;
@@ -4005,6 +4007,18 @@ const AIVIS_WINDOWS = [
   { id: "90d", label: "90T", days: 90 },
   { id: "all", label: "Alle", days: null },
 ];
+// KI-Sichtbarkeit: neues Report-Dashboard (ai_visibility_*-Tabellen), solange
+// kein Report existiert Fallback auf die bestehende Canonry-Ansicht darunter.
+function AiVisibilityTab({ selectedClient }) {
+  const { data, loading, error } = useEzyAIVisibility(
+    selectedClient?.id,
+    selectedClient?.domain || selectedClient?.name,
+  );
+  if (loading) return <AIVisibilitySkeleton />;
+  if (data && !error) return <AIVisibilityReport data={data} />;
+  return <AiVisibilityDashboard selectedClient={selectedClient} />;
+}
+
 function AiVisibilityDashboard({ selectedClient }) {
   const { canRunAudits } = useAuth();
   const { run, refresh } = useEzyLatestRun(selectedClient?.id, "canonry_ai_visibility");
@@ -11295,7 +11309,7 @@ function App() {
                   {tab === "overview" && <OverviewDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
                   {tab === "seo" && <SeoDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
                   {tab === "geo" && <GeoDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
-                  {tab === "aivis" && <AiVisibilityDashboard selectedClient={client} />}
+                  {tab === "aivis" && <AiVisibilityTab selectedClient={client} />}
                   {tab === "conversions" && <ConvDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
                   {tab === "ads" && <AdsDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
                 </>
