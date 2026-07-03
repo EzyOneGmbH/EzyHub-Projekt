@@ -235,7 +235,7 @@ export type Database = {
           client_id: string
           content_type: Database["public"]["Enums"]["content_type"]
           created_at: string
-          created_by: string
+          created_by: string | null
           customer_id: string | null
           hub: string | null
           id: string
@@ -246,6 +246,7 @@ export type Database = {
           last_refresh_at: string | null
           primary_keyword: string | null
           published_at: string | null
+          source: string | null
           status: Database["public"]["Enums"]["content_status"]
           target_url: string | null
           title: string
@@ -257,7 +258,7 @@ export type Database = {
           client_id: string
           content_type?: Database["public"]["Enums"]["content_type"]
           created_at?: string
-          created_by: string
+          created_by?: string | null
           customer_id?: string | null
           hub?: string | null
           id?: string
@@ -268,6 +269,7 @@ export type Database = {
           last_refresh_at?: string | null
           primary_keyword?: string | null
           published_at?: string | null
+          source?: string | null
           status?: Database["public"]["Enums"]["content_status"]
           target_url?: string | null
           title: string
@@ -279,7 +281,7 @@ export type Database = {
           client_id?: string
           content_type?: Database["public"]["Enums"]["content_type"]
           created_at?: string
-          created_by?: string
+          created_by?: string | null
           customer_id?: string | null
           hub?: string | null
           id?: string
@@ -290,6 +292,7 @@ export type Database = {
           last_refresh_at?: string | null
           primary_keyword?: string | null
           published_at?: string | null
+          source?: string | null
           status?: Database["public"]["Enums"]["content_status"]
           target_url?: string | null
           title?: string
