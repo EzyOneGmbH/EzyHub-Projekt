@@ -69,6 +69,7 @@ import { Route as ApiAdminSetCanonryProjectRouteImport } from './routes/api/admi
 import { Route as ApiAdminPopulateRouteImport } from './routes/api/admin.populate'
 import { Route as ApiAdminGtmRouteImport } from './routes/api/admin.gtm'
 import { Route as ApiAdminGbpRouteImport } from './routes/api/admin.gbp'
+import { Route as ApiAdminContentSyncRouteImport } from './routes/api/admin.content-sync'
 import { Route as ApiAdminContentNoteRouteImport } from './routes/api/admin.content-note'
 import { Route as ApiAdminClientMetricsRouteImport } from './routes/api/admin.client-metrics'
 import { Route as ApiAdminClientDomainsRouteImport } from './routes/api/admin.client-domains'
@@ -382,6 +383,11 @@ const ApiAdminGbpRoute = ApiAdminGbpRouteImport.update({
   path: '/api/admin/gbp',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminContentSyncRoute = ApiAdminContentSyncRouteImport.update({
+  id: '/api/admin/content-sync',
+  path: '/api/admin/content-sync',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminContentNoteRoute = ApiAdminContentNoteRouteImport.update({
   id: '/api/admin/content-note',
   path: '/api/admin/content-note',
@@ -457,6 +463,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
+  '/api/admin/content-sync': typeof ApiAdminContentSyncRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
@@ -528,6 +535,7 @@ export interface FileRoutesByTo {
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
+  '/api/admin/content-sync': typeof ApiAdminContentSyncRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
@@ -600,6 +608,7 @@ export interface FileRoutesById {
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
+  '/api/admin/content-sync': typeof ApiAdminContentSyncRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
@@ -673,6 +682,7 @@ export interface FileRouteTypes {
     | '/api/admin/client-domains'
     | '/api/admin/client-metrics'
     | '/api/admin/content-note'
+    | '/api/admin/content-sync'
     | '/api/admin/gbp'
     | '/api/admin/gtm'
     | '/api/admin/populate'
@@ -744,6 +754,7 @@ export interface FileRouteTypes {
     | '/api/admin/client-domains'
     | '/api/admin/client-metrics'
     | '/api/admin/content-note'
+    | '/api/admin/content-sync'
     | '/api/admin/gbp'
     | '/api/admin/gtm'
     | '/api/admin/populate'
@@ -815,6 +826,7 @@ export interface FileRouteTypes {
     | '/api/admin/client-domains'
     | '/api/admin/client-metrics'
     | '/api/admin/content-note'
+    | '/api/admin/content-sync'
     | '/api/admin/gbp'
     | '/api/admin/gtm'
     | '/api/admin/populate'
@@ -883,6 +895,7 @@ export interface RootRouteChildren {
   ApiAdminClientDomainsRoute: typeof ApiAdminClientDomainsRoute
   ApiAdminClientMetricsRoute: typeof ApiAdminClientMetricsRoute
   ApiAdminContentNoteRoute: typeof ApiAdminContentNoteRoute
+  ApiAdminContentSyncRoute: typeof ApiAdminContentSyncRoute
   ApiAdminGbpRoute: typeof ApiAdminGbpRoute
   ApiAdminGtmRoute: typeof ApiAdminGtmRoute
   ApiAdminPopulateRoute: typeof ApiAdminPopulateRoute
@@ -1350,6 +1363,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminGbpRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/content-sync': {
+      id: '/api/admin/content-sync'
+      path: '/api/admin/content-sync'
+      fullPath: '/api/admin/content-sync'
+      preLoaderRoute: typeof ApiAdminContentSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/content-note': {
       id: '/api/admin/content-note'
       path: '/api/admin/content-note'
@@ -1485,6 +1505,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminClientDomainsRoute: ApiAdminClientDomainsRoute,
   ApiAdminClientMetricsRoute: ApiAdminClientMetricsRoute,
   ApiAdminContentNoteRoute: ApiAdminContentNoteRoute,
+  ApiAdminContentSyncRoute: ApiAdminContentSyncRoute,
   ApiAdminGbpRoute: ApiAdminGbpRoute,
   ApiAdminGtmRoute: ApiAdminGtmRoute,
   ApiAdminPopulateRoute: ApiAdminPopulateRoute,
