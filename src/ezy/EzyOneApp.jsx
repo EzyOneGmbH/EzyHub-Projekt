@@ -7304,7 +7304,7 @@ function RefreshDetailChart({ item }) {
 function RefreshRadar({ selectedClient }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [onlyAction, setOnlyAction] = useState(true);
+  const [onlyAction, setOnlyAction] = useState(false);
   const [detail, setDetail] = useState(null);
   const reload = useCallback(async () => {
     if (!selectedClient?.id) { setRows([]); setLoading(false); return; }
@@ -7566,7 +7566,6 @@ function ContentPage({ clients, items, onSaveContent, selectedClient }) {
         <TabBar
           tabs={[
             { id: "all", label: "Alle" },
-            { id: "refresh", label: "Refresh-Radar" },
             { id: "win", label: "Erfolge" },
             { id: "blog", label: "Blog" },
             { id: "audit", label: "Audit" },
@@ -7577,7 +7576,7 @@ function ContentPage({ clients, items, onSaveContent, selectedClient }) {
           onChange={setFilter}
         />
       </div>
-      {filter === "refresh" ? (
+      {filter === "blog" ? (
         <RefreshRadar selectedClient={selectedClient} />
       ) : filter === "report" ? (
         <ReportsPage items={items} selectedClient={selectedClient} />
