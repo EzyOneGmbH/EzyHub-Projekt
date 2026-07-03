@@ -195,16 +195,16 @@ const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-20250514
 const PARSE_MODEL = process.env.ANTHROPIC_PARSE_MODEL ?? "claude-haiku-4-5-20251001";
 const urlsIn = (t: string) => (t.match(/https?:\/\/[^\s)\]"']+/g) || []).length;
 
-async function askClaude(prompt: string): Promise<{ text: string; sources: number } | null> {
+async function askClaude(prompt: string, maxTokens = 600): Promise<{ text: string; sources: number; error?: string } | null> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return null;
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
-    body: JSON.stringify({ model: ANTHROPIC_MODEL, max_tokens: 600, messages: [{ role: "user", content: prompt }] }),
-    signal: AbortSignal.timeout(60_000),
+    body: JSON.stringify({ model: ANTHROPIC_MODEL, max_tokens: maxTokens, messages: [{ role: "user", content: prompt }] }),
+    signal: AbortSignal.timeout(90_000),
   });
-  if (!r.ok) return null;
+  if (!r.ok) return { text: "", sources: 0, error: `Claude HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 140)}` };
   const j: any = await r.json().catch(() => null);
   const text = (j?.content ?? []).map((b: any) => b?.text ?? "").join(" ").trim();
   return text ? { text, sources: urlsIn(text) } : null;
@@ -260,12 +260,14 @@ function parseJson(text: string): any {
 }
 
 // Erstes Seeding: 8 realistische Nutzer-Prompts je Kunde generieren.
-async function seedPromptDefs(c: any, sbAny: any): Promise<any[]> {
+async function seedPromptDefs(c: any, sbAny: any): Promise<{ defs: any[]; error?: string }> {
   const gen = await askClaude(
     `Du bist SEO/GEO-Analyst. Erzeuge 8 realistische Suchanfragen (Prompts), die potenzielle Kunden an KI-Assistenten (ChatGPT/Claude/Perplexity) stellen würden und bei denen die Firma "${c.name}" (${cleanDomain(c.domain)}, Markt ${c.country || "CH"}) idealerweise empfohlen werden sollte. Mische Sprachen passend zum Markt (v. a. ${c.language || "de"}), Länder (Schweiz/Deutschland/Österreich/Italien/International) und Such-Intents. WICHTIG: Die Prompts dürfen den Firmennamen NICHT enthalten (außer max. 1 Navigations-Prompt). Antworte NUR mit einem JSON-Array: [{"prompt":"...","topic":"kurzes Themen-Label","intent":"Kommerziell|Informativ|Transaktional|Navigativ","country":"Schweiz|Deutschland|Österreich|Italien|International"}]`,
+    1600, // 8 Objekte als JSON brauchen deutlich mehr als die 600 Antwort-Tokens des Runners
   );
+  if (gen?.error) return { defs: [], error: gen.error };
   const arr = gen ? parseJson(gen.text) : null;
-  if (!Array.isArray(arr) || !arr.length) return [];
+  if (!Array.isArray(arr) || !arr.length) return { defs: [], error: "Claude lieferte kein parsebares JSON" };
   const rows = arr.slice(0, 10).map((p: any) => ({
     client_id: c.id,
     prompt: String(p.prompt ?? "").slice(0, 500),
@@ -274,9 +276,10 @@ async function seedPromptDefs(c: any, sbAny: any): Promise<any[]> {
     country: String(p.country ?? "Schweiz").slice(0, 40),
     language: c.language || "de",
   })).filter((r: any) => r.prompt);
-  if (!rows.length) return [];
-  const { data } = await sbAny.from("ai_visibility_prompt_defs").insert(rows).select("*");
-  return data || [];
+  if (!rows.length) return { defs: [], error: "keine gültigen Prompts im JSON" };
+  const { data, error } = await sbAny.from("ai_visibility_prompt_defs").insert(rows).select("*");
+  if (error) return { defs: [], error: error.message };
+  return { defs: data || [] };
 }
 
 async function jobPromptRunner(c: any, sbAny: any) {
@@ -289,10 +292,11 @@ async function jobPromptRunner(c: any, sbAny: any) {
     .limit(12);
   let seeded = 0;
   if (!defs?.length) {
-    defs = await seedPromptDefs(c, sbAny);
+    const s = await seedPromptDefs(c, sbAny);
+    defs = s.defs;
     seeded = defs.length;
+    if (!defs.length) return { skipped: `Seeding fehlgeschlagen: ${s.error || "unbekannt"}` };
   }
-  if (!defs?.length) return { skipped: "keine Prompt-Definitionen (Seeding fehlgeschlagen)" };
 
   const nameRe = new RegExp(String(c.name || "").trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
   const domain = cleanDomain(c.domain);
@@ -302,7 +306,7 @@ async function jobPromptRunner(c: any, sbAny: any) {
   for (const eng of PROMPT_ENGINES) {
     const answers = await Promise.all(defs.map((d: any) => eng.ask(d.prompt).catch(() => null)));
     answers.forEach((a, i) => {
-      if (!a) return; // Engine ohne Key / Fehler -> graceful skip
+      if (!a || !a.text) return; // Engine ohne Key / Fehler -> graceful skip
       const d = defs[i];
       const mentioned = nameRe.test(a.text);
       const cited = domain ? a.text.toLowerCase().includes(domain.toLowerCase()) : false;
