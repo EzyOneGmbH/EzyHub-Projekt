@@ -140,6 +140,50 @@ export type Database = {
           },
         ]
       }
+      ai_visibility_prompt_defs: {
+        Row: {
+          active: boolean | null
+          client_id: string
+          country: string | null
+          created_at: string | null
+          id: string
+          intent: string | null
+          language: string | null
+          prompt: string
+          topic: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          client_id: string
+          country?: string | null
+          created_at?: string | null
+          id?: string
+          intent?: string | null
+          language?: string | null
+          prompt: string
+          topic?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          client_id?: string
+          country?: string | null
+          created_at?: string | null
+          id?: string
+          intent?: string | null
+          language?: string | null
+          prompt?: string
+          topic?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_visibility_prompt_defs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_visibility_prompts: {
         Row: {
           brands_count: number | null

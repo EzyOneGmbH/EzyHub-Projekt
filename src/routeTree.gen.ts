@@ -73,6 +73,7 @@ import { Route as ApiAdminContentSyncRouteImport } from './routes/api/admin.cont
 import { Route as ApiAdminContentNoteRouteImport } from './routes/api/admin.content-note'
 import { Route as ApiAdminClientMetricsRouteImport } from './routes/api/admin.client-metrics'
 import { Route as ApiAdminClientDomainsRouteImport } from './routes/api/admin.client-domains'
+import { Route as ApiAdminAivisSyncRouteImport } from './routes/api/admin.aivis-sync'
 import { Route as ApiAdminAdsClientsRouteImport } from './routes/api/admin.ads-clients'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
@@ -403,6 +404,11 @@ const ApiAdminClientDomainsRoute = ApiAdminClientDomainsRouteImport.update({
   path: '/api/admin/client-domains',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminAivisSyncRoute = ApiAdminAivisSyncRouteImport.update({
+  id: '/api/admin/aivis-sync',
+  path: '/api/admin/aivis-sync',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminAdsClientsRoute = ApiAdminAdsClientsRouteImport.update({
   id: '/api/admin/ads-clients',
   path: '/api/admin/ads-clients',
@@ -460,6 +466,7 @@ export interface FileRoutesByFullPath {
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
+  '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
@@ -532,6 +539,7 @@ export interface FileRoutesByTo {
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
+  '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
@@ -605,6 +613,7 @@ export interface FileRoutesById {
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
+  '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
@@ -679,6 +688,7 @@ export interface FileRouteTypes {
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
     | '/api/admin/ads-clients'
+    | '/api/admin/aivis-sync'
     | '/api/admin/client-domains'
     | '/api/admin/client-metrics'
     | '/api/admin/content-note'
@@ -751,6 +761,7 @@ export interface FileRouteTypes {
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
     | '/api/admin/ads-clients'
+    | '/api/admin/aivis-sync'
     | '/api/admin/client-domains'
     | '/api/admin/client-metrics'
     | '/api/admin/content-note'
@@ -823,6 +834,7 @@ export interface FileRouteTypes {
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
     | '/api/admin/ads-clients'
+    | '/api/admin/aivis-sync'
     | '/api/admin/client-domains'
     | '/api/admin/client-metrics'
     | '/api/admin/content-note'
@@ -892,6 +904,7 @@ export interface RootRouteChildren {
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
   ApiAdminAdsClientsRoute: typeof ApiAdminAdsClientsRoute
+  ApiAdminAivisSyncRoute: typeof ApiAdminAivisSyncRoute
   ApiAdminClientDomainsRoute: typeof ApiAdminClientDomainsRoute
   ApiAdminClientMetricsRoute: typeof ApiAdminClientMetricsRoute
   ApiAdminContentNoteRoute: typeof ApiAdminContentNoteRoute
@@ -1391,6 +1404,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminClientDomainsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/aivis-sync': {
+      id: '/api/admin/aivis-sync'
+      path: '/api/admin/aivis-sync'
+      fullPath: '/api/admin/aivis-sync'
+      preLoaderRoute: typeof ApiAdminAivisSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/ads-clients': {
       id: '/api/admin/ads-clients'
       path: '/api/admin/ads-clients'
@@ -1502,6 +1522,7 @@ const rootRouteChildren: RootRouteChildren = {
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
   ApiAdminAdsClientsRoute: ApiAdminAdsClientsRoute,
+  ApiAdminAivisSyncRoute: ApiAdminAivisSyncRoute,
   ApiAdminClientDomainsRoute: ApiAdminClientDomainsRoute,
   ApiAdminClientMetricsRoute: ApiAdminClientMetricsRoute,
   ApiAdminContentNoteRoute: ApiAdminContentNoteRoute,
