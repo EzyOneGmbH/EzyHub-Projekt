@@ -21,7 +21,7 @@ import { redactSecrets } from "@/server/google-oauth.server";
 const Body = z.object({
   client: z.string().optional(), // Name (ilike) oder uuid
   all: z.boolean().optional(),
-  jobs: z.array(z.enum(["brand_radar", "attribution"])).optional(),
+  jobs: z.array(z.enum(["brand_radar", "attribution", "prompts"])).optional(),
   minIntervalDays: z.number().int().min(0).max(60).default(6),
   force: z.boolean().optional(),
 });
@@ -190,6 +190,207 @@ async function jobAttribution(c: any) {
   };
 }
 
+// ── Stufe 2: Custom-Prompt-Runner (Claude / Perplexity / Gemini) ─────────────
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-20250514";
+const PARSE_MODEL = process.env.ANTHROPIC_PARSE_MODEL ?? "claude-haiku-4-5-20251001";
+const urlsIn = (t: string) => (t.match(/https?:\/\/[^\s)\]"']+/g) || []).length;
+
+async function askClaude(prompt: string): Promise<{ text: string; sources: number } | null> {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return null;
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
+    body: JSON.stringify({ model: ANTHROPIC_MODEL, max_tokens: 600, messages: [{ role: "user", content: prompt }] }),
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (!r.ok) return null;
+  const j: any = await r.json().catch(() => null);
+  const text = (j?.content ?? []).map((b: any) => b?.text ?? "").join(" ").trim();
+  return text ? { text, sources: urlsIn(text) } : null;
+}
+
+async function askPerplexity(prompt: string): Promise<{ text: string; sources: number } | null> {
+  const key = process.env.PERPLEXITY_API_KEY;
+  if (!key) return null;
+  const r = await fetch("https://api.perplexity.ai/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ model: "sonar", messages: [{ role: "user", content: prompt }], max_tokens: 600 }),
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (!r.ok) return null;
+  const j: any = await r.json().catch(() => null);
+  const text = String(j?.choices?.[0]?.message?.content ?? "").trim();
+  const cits = Array.isArray(j?.citations) ? j.citations.length : urlsIn(text);
+  return text ? { text, sources: cits } : null;
+}
+
+async function askGemini(prompt: string): Promise<{ text: string; sources: number } | null> {
+  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!key) return null;
+  const r = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: 600, thinkingConfig: { thinkingBudget: 0 } },
+      }),
+      signal: AbortSignal.timeout(60_000),
+    },
+  );
+  if (!r.ok) return null;
+  const j: any = await r.json().catch(() => null);
+  const text = (j?.candidates?.[0]?.content?.parts ?? []).map((p: any) => p?.text ?? "").join(" ").trim();
+  return text ? { text, sources: urlsIn(text) } : null;
+}
+
+const PROMPT_ENGINES: Array<{ name: string; ask: (p: string) => Promise<{ text: string; sources: number } | null> }> = [
+  { name: "Claude", ask: askClaude },
+  { name: "Perplexity", ask: askPerplexity },
+  { name: "Gemini", ask: askGemini },
+];
+
+// JSON aus LLM-Antworten robust extrahieren (Codefences etc.).
+function parseJson(text: string): any {
+  const m = text.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
+  try { return m ? JSON.parse(m[0]) : null; } catch { return null; }
+}
+
+// Erstes Seeding: 8 realistische Nutzer-Prompts je Kunde generieren.
+async function seedPromptDefs(c: any, sbAny: any): Promise<any[]> {
+  const gen = await askClaude(
+    `Du bist SEO/GEO-Analyst. Erzeuge 8 realistische Suchanfragen (Prompts), die potenzielle Kunden an KI-Assistenten (ChatGPT/Claude/Perplexity) stellen würden und bei denen die Firma "${c.name}" (${cleanDomain(c.domain)}, Markt ${c.country || "CH"}) idealerweise empfohlen werden sollte. Mische Sprachen passend zum Markt (v. a. ${c.language || "de"}), Länder (Schweiz/Deutschland/Österreich/Italien/International) und Such-Intents. WICHTIG: Die Prompts dürfen den Firmennamen NICHT enthalten (außer max. 1 Navigations-Prompt). Antworte NUR mit einem JSON-Array: [{"prompt":"...","topic":"kurzes Themen-Label","intent":"Kommerziell|Informativ|Transaktional|Navigativ","country":"Schweiz|Deutschland|Österreich|Italien|International"}]`,
+  );
+  const arr = gen ? parseJson(gen.text) : null;
+  if (!Array.isArray(arr) || !arr.length) return [];
+  const rows = arr.slice(0, 10).map((p: any) => ({
+    client_id: c.id,
+    prompt: String(p.prompt ?? "").slice(0, 500),
+    topic: String(p.topic ?? "").slice(0, 120) || null,
+    intent: ["Kommerziell", "Informativ", "Transaktional", "Navigativ"].includes(p.intent) ? p.intent : "Informativ",
+    country: String(p.country ?? "Schweiz").slice(0, 40),
+    language: c.language || "de",
+  })).filter((r: any) => r.prompt);
+  if (!rows.length) return [];
+  const { data } = await sbAny.from("ai_visibility_prompt_defs").insert(rows).select("*");
+  return data || [];
+}
+
+async function jobPromptRunner(c: any, sbAny: any) {
+  if (!process.env.ANTHROPIC_API_KEY) return { skipped: "ANTHROPIC_API_KEY fehlt" };
+  let { data: defs } = await sbAny
+    .from("ai_visibility_prompt_defs")
+    .select("*")
+    .eq("client_id", c.id)
+    .eq("active", true)
+    .limit(12);
+  let seeded = 0;
+  if (!defs?.length) {
+    defs = await seedPromptDefs(c, sbAny);
+    seeded = defs.length;
+  }
+  if (!defs?.length) return { skipped: "keine Prompt-Definitionen (Seeding fehlgeschlagen)" };
+
+  const nameRe = new RegExp(String(c.name || "").trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+  const domain = cleanDomain(c.domain);
+
+  // Alle Engines × Prompts (je Engine parallel über die Prompts).
+  const rows: any[] = [];
+  for (const eng of PROMPT_ENGINES) {
+    const answers = await Promise.all(defs.map((d: any) => eng.ask(d.prompt).catch(() => null)));
+    answers.forEach((a, i) => {
+      if (!a) return; // Engine ohne Key / Fehler -> graceful skip
+      const d = defs[i];
+      const mentioned = nameRe.test(a.text);
+      const cited = domain ? a.text.toLowerCase().includes(domain.toLowerCase()) : false;
+      rows.push({
+        def: d,
+        platform: eng.name,
+        text: a.text,
+        sources: a.sources,
+        mentioned: mentioned || cited,
+        status: cited ? "Referenziert" : mentioned ? "Erwähnt" : null,
+      });
+    });
+  }
+  if (!rows.length) return { skipped: "keine Engine-Antworten", seeded };
+
+  // Konkurrenz-Marken: EIN Batch-Parse-Call (Haiku) über alle Antworten.
+  let brandsByIdx: Record<number, string[]> = {};
+  try {
+    const batch = rows.map((r, i) => `#${i} [${r.platform}] ${r.text.slice(0, 700)}`).join("\n---\n");
+    const parsed = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": process.env.ANTHROPIC_API_KEY!, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: PARSE_MODEL,
+        max_tokens: 1500,
+        messages: [{
+          role: "user",
+          content: `Extrahiere aus jeder der folgenden KI-Antworten die genannten FIRMEN-/MARKENNAMEN (ohne "${c.name}", ohne generische Begriffe, max. 6 je Antwort). Antworte NUR mit JSON: [{"i":0,"brands":["..."]}]\n\n${batch}`,
+        }],
+      }),
+      signal: AbortSignal.timeout(90_000),
+    });
+    if (parsed.ok) {
+      const j: any = await parsed.json().catch(() => null);
+      const arr = parseJson((j?.content ?? []).map((b: any) => b?.text ?? "").join(" "));
+      if (Array.isArray(arr)) for (const e of arr) brandsByIdx[Number(e.i)] = Array.isArray(e.brands) ? e.brands.map(String).slice(0, 6) : [];
+    }
+  } catch { /* comps optional */ }
+
+  // Ergebnis-Objekte für die DB.
+  const promptRows = rows.map((r, i) => ({
+    prompt: r.def.prompt,
+    platform: r.platform,
+    country: r.def.country || "Schweiz",
+    status: r.mentioned ? r.status : null,
+    is_opportunity: !r.mentioned,
+    intent: r.def.intent || null,
+    brands_count: (brandsByIdx[i]?.length || 0) + (r.mentioned ? 1 : 0),
+    sources_count: r.sources,
+    response: r.text.slice(0, 1500),
+    competitors: brandsByIdx[i] || [],
+  }));
+
+  // Custom-Layer: Mentions je Engine (+ Land).
+  const customModels = PROMPT_ENGINES.map((eng) => {
+    const er = rows.filter((r) => r.platform === eng.name);
+    if (!er.length) return null;
+    const byCountry: Record<string, number> = {};
+    for (const r of er) if (r.mentioned) byCountry[r.def.country || "Schweiz"] = (byCountry[r.def.country || "Schweiz"] || 0) + 1;
+    return { name: eng.name, mentions: er.filter((r) => r.mentioned).length, byCountry };
+  }).filter(Boolean) as Array<{ name: string; mentions: number; byCountry: Record<string, number> }>;
+
+  // Themen: je topic-Label Sichtbarkeit = Anteil erwähnter Antworten.
+  const topicMap: Record<string, { total: number; mentioned: number; intent: string | null }> = {};
+  for (const r of rows) {
+    const t = r.def.topic || r.def.prompt.slice(0, 60);
+    topicMap[t] ??= { total: 0, mentioned: 0, intent: r.def.intent || null };
+    topicMap[t].total += 1;
+    if (r.mentioned) topicMap[t].mentioned += 1;
+  }
+  const topics = Object.entries(topicMap).map(([topic, v]) => ({
+    topic,
+    visibility: Math.round((v.mentioned / Math.max(1, v.total)) * 100),
+    mentions: v.mentioned,
+    volume: 0,
+    intent: v.intent,
+  }));
+
+  return {
+    promptRows,
+    customModels,
+    topics,
+    seeded,
+    answered: rows.length,
+    mentions: customModels.reduce((a, m) => a + m.mentions, 0),
+  };
+}
+
 export const Route = createFileRoute("/api/admin/aivis-sync")({
   server: {
     handlers: {
@@ -204,7 +405,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         if (!parsed.success)
           return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
         const { client: sel, all, jobs, minIntervalDays, force } = parsed.data;
-        const wanted = jobs && jobs.length ? jobs : (["brand_radar", "attribution"] as const);
+        const wanted = jobs && jobs.length ? jobs : (["brand_radar", "attribution", "prompts"] as const);
 
         const query = supabaseAdmin
           .from("clients")
@@ -241,10 +442,20 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
 
             const br: any = wanted.includes("brand_radar") ? await jobBrandRadar(c) : null;
             const at: any = wanted.includes("attribution") ? await jobAttribution(c) : null;
+            const pr: any = wanted.includes("prompts") ? await jobPromptRunner(c, sb) : null;
             jr.brand_radar = br ? (br.skipped ? { skipped: br.skipped } : { mentions: br.mentions, citations: br.citations, pages: br.citedPagesCount, errors: br.errors?.length || 0 }) : "skipped";
             jr.attribution = at ? (at.skipped || at.error ? at : { engines: at.engines.length }) : "skipped";
+            jr.prompts = pr ? (pr.skipped ? { skipped: pr.skipped, seeded: pr.seeded } : { answered: pr.answered, mentions: pr.mentions, seeded: pr.seeded, topics: pr.topics.length }) : "skipped";
 
-            if (br && !br.skipped) {
+            const hasBr = br && !br.skipped;
+            const hasPr = pr && !pr.skipped && pr.promptRows?.length;
+            if (hasBr || hasPr) {
+              // Kombinierte Totale: Makro (Brand Radar) + Custom (Prompt-Runner).
+              const macroMentions = hasBr ? br.mentions : 0;
+              const customMentions = hasPr ? pr.mentions : 0;
+              const mentions = macroMentions + customMentions;
+              const citations = hasBr ? br.citations : 0;
+              const citedPagesCount = hasBr ? br.citedPagesCount : 0;
               // Deltas vs. letztem Snapshot.
               const { data: prev } = await sb
                 .from("ai_visibility_reports")
@@ -254,14 +465,14 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 .order("snapshot_date", { ascending: false })
                 .limit(1)
                 .maybeSingle();
-              // Score-Heuristik Stufe 1 (TUNE): logarithmisch gedämpfte Summe aus
+              // Score-Heuristik (TUNE): logarithmisch gedämpfte Summe aus
               // Mentions/Citations/Seiten — 0 Daten -> 0; ~30 Mentions+15 Cit. -> ~60.
               const score = Math.min(
                 100,
                 Math.round(
-                  28 * Math.log10(1 + br.mentions) +
-                  22 * Math.log10(1 + br.citations) +
-                  14 * Math.log10(1 + br.citedPagesCount),
+                  28 * Math.log10(1 + mentions) +
+                  22 * Math.log10(1 + citations) +
+                  14 * Math.log10(1 + citedPagesCount),
                 ),
               );
               const { data: rep, error: repErr } = await sb
@@ -273,12 +484,12 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                     snapshot_date: snapshot,
                     score,
                     score_delta: score - Number(prev?.score ?? 0),
-                    mentions: br.mentions,
-                    mentions_delta: br.mentions - Number(prev?.mentions ?? 0),
-                    citations: br.citations,
-                    citations_delta: br.citations - Number(prev?.citations ?? 0),
-                    cited_pages: br.citedPagesCount,
-                    cited_pages_delta: br.citedPagesCount - Number(prev?.cited_pages ?? 0),
+                    mentions,
+                    mentions_delta: mentions - Number(prev?.mentions ?? 0),
+                    citations,
+                    citations_delta: citations - Number(prev?.citations ?? 0),
+                    cited_pages: citedPagesCount,
+                    cited_pages_delta: citedPagesCount - Number(prev?.cited_pages ?? 0),
                   },
                   { onConflict: "client_id,snapshot_date" },
                 )
@@ -291,16 +502,23 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               await sb.from("ai_visibility_models").delete().eq("report_id", reportId);
               await sb.from("ai_visibility_sources").delete().eq("report_id", reportId);
               await sb.from("ai_visibility_attribution").delete().eq("report_id", reportId);
+              await sb.from("ai_visibility_prompts").delete().eq("report_id", reportId);
+              await sb.from("ai_visibility_topics").delete().eq("report_id", reportId);
 
-              const totalMentions = Math.max(1, br.mentions);
+              // Modelle: Makro (Brand Radar) + Custom (Prompt-Runner) in einer Liste.
+              const allModels = [
+                ...(hasBr ? br.models.map((m: any) => ({ ...m, layer: "macro" })) : []),
+                ...(hasPr ? pr.customModels.map((m: any) => ({ ...m, layer: "custom" })) : []),
+              ];
+              const totalMentions = Math.max(1, mentions);
               const { data: modelRows, error: mErr } = await sb
                 .from("ai_visibility_models")
                 .insert(
-                  br.models.map((m: any) => ({
+                  allModels.map((m: any) => ({
                     report_id: reportId,
                     client_id: c.id,
                     model_name: m.name,
-                    layer: "macro",
+                    layer: m.layer,
                     mentions: m.mentions,
                     sov: Math.round((m.mentions / totalMentions) * 100),
                   })),
@@ -308,16 +526,27 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 .select("id, model_name");
               if (mErr) throw new Error(mErr.message);
               const mcInserts: any[] = [];
-              for (const m of br.models) {
+              for (const m of allModels) {
                 const row = (modelRows || []).find((x: any) => x.model_name === m.name);
                 if (!row) continue;
-                for (const [country, mentions] of Object.entries(m.byCountry)) {
-                  mcInserts.push({ model_id: row.id, client_id: c.id, country, mentions });
+                for (const [country, mentions2] of Object.entries(m.byCountry)) {
+                  mcInserts.push({ model_id: row.id, client_id: c.id, country, mentions: mentions2 });
                 }
               }
               if (mcInserts.length) await sb.from("ai_visibility_model_country").insert(mcInserts);
 
-              if (br.citedPages?.length) {
+              // Prompts + Themen (Custom-Layer, Stufe 2).
+              if (hasPr) {
+                await sb.from("ai_visibility_prompts").insert(
+                  pr.promptRows.map((p: any) => ({ ...p, report_id: reportId, client_id: c.id })),
+                );
+                if (pr.topics.length)
+                  await sb.from("ai_visibility_topics").insert(
+                    pr.topics.map((t: any) => ({ ...t, report_id: reportId, client_id: c.id })),
+                  );
+              }
+
+              if (hasBr && br.citedPages?.length) {
                 const domain = cleanDomain(c.domain);
                 await sb.from("ai_visibility_sources").insert({
                   report_id: reportId,
