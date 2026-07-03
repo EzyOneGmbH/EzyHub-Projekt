@@ -230,45 +230,66 @@ export type Database = {
       }
       content_items: {
         Row: {
+          author: string | null
           body: string | null
           client_id: string
           content_type: Database["public"]["Enums"]["content_type"]
           created_at: string
           created_by: string
           customer_id: string | null
+          hub: string | null
           id: string
+          intent: string | null
+          keyword_volume: number | null
           keywords: string[] | null
           language: string
+          last_refresh_at: string | null
+          primary_keyword: string | null
+          published_at: string | null
           status: Database["public"]["Enums"]["content_status"]
           target_url: string | null
           title: string
           updated_at: string
         }
         Insert: {
+          author?: string | null
           body?: string | null
           client_id: string
           content_type?: Database["public"]["Enums"]["content_type"]
           created_at?: string
           created_by: string
           customer_id?: string | null
+          hub?: string | null
           id?: string
+          intent?: string | null
+          keyword_volume?: number | null
           keywords?: string[] | null
           language?: string
+          last_refresh_at?: string | null
+          primary_keyword?: string | null
+          published_at?: string | null
           status?: Database["public"]["Enums"]["content_status"]
           target_url?: string | null
           title: string
           updated_at?: string
         }
         Update: {
+          author?: string | null
           body?: string | null
           client_id?: string
           content_type?: Database["public"]["Enums"]["content_type"]
           created_at?: string
           created_by?: string
           customer_id?: string | null
+          hub?: string | null
           id?: string
+          intent?: string | null
+          keyword_volume?: number | null
           keywords?: string[] | null
           language?: string
+          last_refresh_at?: string | null
+          primary_keyword?: string | null
+          published_at?: string | null
           status?: Database["public"]["Enums"]["content_status"]
           target_url?: string | null
           title?: string
@@ -287,6 +308,60 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_metrics: {
+        Row: {
+          ai_citations: number | null
+          backlinks: number | null
+          captured_on: string
+          clicks: number
+          content_item_id: string
+          conversions: number
+          ctr: number | null
+          impressions: number
+          position: number | null
+          sessions: number
+        }
+        Insert: {
+          ai_citations?: number | null
+          backlinks?: number | null
+          captured_on?: string
+          clicks?: number
+          content_item_id: string
+          conversions?: number
+          ctr?: number | null
+          impressions?: number
+          position?: number | null
+          sessions?: number
+        }
+        Update: {
+          ai_citations?: number | null
+          backlinks?: number | null
+          captured_on?: string
+          clicks?: number
+          content_item_id?: string
+          conversions?: number
+          ctr?: number | null
+          impressions?: number
+          position?: number | null
+          sessions?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_metrics_content_item_id_fkey"
+            columns: ["content_item_id"]
+            isOneToOne: false
+            referencedRelation: "content_decision"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_metrics_content_item_id_fkey"
+            columns: ["content_item_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
             referencedColumns: ["id"]
           },
         ]
@@ -639,10 +714,74 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      content_decision: {
+        Row: {
+          age_days: number | null
+          author: string | null
+          clicks_28: number | null
+          client_id: string | null
+          gate: string | null
+          hub: string | null
+          id: string | null
+          impr_28: number | null
+          language: string | null
+          last_refresh_at: string | null
+          peak_clicks_28: number | null
+          peak_position: number | null
+          position_28: number | null
+          primary_keyword: string | null
+          published_at: string | null
+          recommendation: string | null
+          status: string | null
+          title: string | null
+          trend: string | null
+          url: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_items_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      can_access_client: { Args: { _client_id: string }; Returns: boolean }
       can_run_audits: { Args: { _org: string }; Returns: boolean }
+      get_content_dashboard: {
+        Args: { p_client_id: string }
+        Returns: {
+          age_days: number | null
+          author: string | null
+          clicks_28: number | null
+          client_id: string | null
+          gate: string | null
+          hub: string | null
+          id: string | null
+          impr_28: number | null
+          language: string | null
+          last_refresh_at: string | null
+          peak_clicks_28: number | null
+          peak_position: number | null
+          position_28: number | null
+          primary_keyword: string | null
+          published_at: string | null
+          recommendation: string | null
+          status: string | null
+          title: string | null
+          trend: string | null
+          url: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "content_decision"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
