@@ -7244,6 +7244,147 @@ function ContentEditor({ item, stCo, stLb, onBack, onSave }) {
 }
 // Kunden-Reports: zeigt content_items vom Typ "report" des gewählten Kunden,
 // für die Viewer-Rolle freigeschaltet. PDF via Print-to-PDF (sauberes Druck-Fenster).
+// ── Content-Refresh-Radar ─────────────────────────────────────────────────
+// Worklist aus der SQL-View content_decision via rpc('get_content_dashboard').
+// Gate/Trend/Empfehlung werden in der DB berechnet (agentenunabhaengig); RLS via
+// SECURITY-DEFINER-Gate. Detail-Chart = content_metrics-Zeitreihe (recharts).
+const REC_META = {
+  refresh_decay:     { t: "Decay – Refresh fällig",            c: C.red,       a: "Freshness-Update gegen aktuelle SERP" },
+  tech_fix:          { t: "Technik prüfen",                    c: C.blue,      a: "An Tech/Agent (Index/interne Links) – nicht Content" },
+  consolidate:       { t: "Kannibalisierung – zusammenführen", c: C.pink,      a: "Zwei Artikel mergen" },
+  push_expand:       { t: "Striking Distance – ausbauen",      c: C.accent,    a: "Content erweitern, E-E-A-T, Intent schärfen" },
+  ctr_fix:           { t: "Title/Meta optimieren",             c: C.cyan,      a: "Snippet überarbeiten (kein Volltext-Refresh)" },
+  ceiling_new_kw:    { t: "Keyword-Ceiling – neues Ziel",      c: C.orange,    a: "Nicht refreshen – neues KW/Strategie" },
+  stable_hold:       { t: "Stabil",                            c: C.green,     a: "Nichts tun" },
+  monitor:           { t: "Beobachten",                        c: C.textMuted, a: "Beobachten" },
+  maturing_wait:     { t: "Reift noch",                        c: C.textDim,   a: "Warten (< 30 Tage)" },
+  insufficient_data: { t: "Zu wenig Daten",                    c: C.textDim,   a: "Beobachten, kein Urteil" },
+  unpublished:       { t: "Unpubliziert",                      c: C.textDim,   a: "—" },
+};
+const ACTION_RECS = ["tech_fix", "ctr_fix", "push_expand", "refresh_decay", "consolidate", "ceiling_new_kw"];
+const TREND_META = {
+  steigend_stabil: { c: C.green,   t: "steigend/stabil" },
+  stabil:          { c: C.orange,  t: "stabil" },
+  decay:           { c: C.red,     t: "Decay" },
+  kein_traffic:    { c: C.textDim, t: "kein Traffic" },
+};
+
+function RefreshDetailChart({ item }) {
+  const [series, setSeries] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const { data } = await supabase
+        .from("content_metrics")
+        .select("captured_on, clicks, position")
+        .eq("content_item_id", item.id)
+        .order("captured_on", { ascending: true });
+      if (alive) setSeries(data || []);
+    })();
+    return () => { alive = false; };
+  }, [item.id]);
+  if (!series) return <div style={{ color: C.textMuted, fontSize: 12.5, padding: 16 }}>Zeitreihe lädt…</div>;
+  if (!series.length) return <div style={{ color: C.textMuted, fontSize: 12.5, padding: 16 }}>Noch keine Metriken erfasst — der tägliche Sync füllt die Daten.</div>;
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <LineChart data={series} margin={{ top: 8, right: 10, left: -10, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+        <XAxis dataKey="captured_on" tick={{ fill: C.textDim, fontSize: 11 }} minTickGap={26} />
+        <YAxis yAxisId="l" tick={{ fill: C.textDim, fontSize: 11 }} />
+        <YAxis yAxisId="r" orientation="right" reversed tick={{ fill: C.textDim, fontSize: 11 }} />
+        <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text }} />
+        <Legend wrapperStyle={{ fontSize: 11 }} />
+        <Line yAxisId="l" type="monotone" dataKey="clicks" stroke={C.green} strokeWidth={2} dot={false} name="Klicks" />
+        <Line yAxisId="r" type="monotone" dataKey="position" stroke={C.accent} strokeWidth={2} dot={false} name="Position (invers)" />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+function RefreshRadar({ selectedClient }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [onlyAction, setOnlyAction] = useState(true);
+  const [detail, setDetail] = useState(null);
+  const reload = useCallback(async () => {
+    if (!selectedClient?.id) { setRows([]); setLoading(false); return; }
+    setLoading(true);
+    const { data, error } = await supabase.rpc("get_content_dashboard", { p_client_id: selectedClient.id });
+    setRows(error ? [] : (data || []));
+    setLoading(false);
+  }, [selectedClient?.id]);
+  useEffect(() => { reload(); }, [reload]);
+  const shown = useMemo(
+    () => rows.filter((r) => !onlyAction || ACTION_RECS.includes(r.recommendation)),
+    [rows, onlyAction],
+  );
+
+  if (!selectedClient?.id)
+    return <div style={{ padding: 30, color: C.textMuted, fontSize: 13 }}>Wähle einen Kunden, um den Refresh-Radar zu sehen.</div>;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+        <div style={{ fontSize: 13, color: C.textMuted }}>
+          {loading ? "lädt…" : `${shown.length} von ${rows.length} publizierten Artikeln`}
+        </div>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <label style={{ fontSize: 12.5, color: C.textMuted, display: "flex", gap: 6, alignItems: "center", cursor: "pointer" }}>
+            <input type="checkbox" checked={onlyAction} onChange={(e) => setOnlyAction(e.target.checked)} />
+            Nur handlungsbedürftig
+          </label>
+          <Btn variant="secondary" size="sm" icon={RefreshCw} onClick={reload}>Aktualisieren</Btn>
+        </div>
+      </div>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden" }}>
+        {loading ? (
+          <div style={{ padding: 30, color: C.textMuted, fontSize: 13 }}>Lade Refresh-Daten…</div>
+        ) : shown.length === 0 ? (
+          <div style={{ padding: 40, textAlign: "center" }}>
+            <RefreshCw size={30} color={C.textDim} style={{ marginBottom: 10 }} />
+            <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Nichts zu tun</div>
+            <div style={{ fontSize: 13, color: C.textMuted }}>
+              Keine handlungsbedürftigen Artikel — oder noch keine Metriken. Der tägliche Sync füllt die Daten.
+            </div>
+          </div>
+        ) : (
+          shown.map((r, i) => {
+            const rec = REC_META[r.recommendation] || { t: r.recommendation, c: C.textMuted, a: "" };
+            const tr = TREND_META[r.trend] || { c: C.textDim, t: r.trend || "—" };
+            const open = detail === r.id;
+            return (
+              <div key={r.id} style={{ borderBottom: i < shown.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                <div
+                  onClick={() => setDetail(open ? null : r.id)}
+                  style={{ padding: "13px 18px", display: "grid", gridTemplateColumns: "1.6fr 1fr auto 14px 1.5fr auto", gap: 12, alignItems: "center", cursor: "pointer" }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.title}</div>
+                    {r.url ? <div style={{ fontSize: 11.5, color: C.textDim, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.url}</div> : null}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: C.textMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.primary_keyword || "—"}</div>
+                  <span style={{ fontSize: 11, color: C.textDim, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 6, padding: "2px 7px", whiteSpace: "nowrap" }}>{r.gate}</span>
+                  <span title={tr.t} style={{ width: 10, height: 10, borderRadius: "50%", background: tr.c, display: "inline-block" }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: rec.c, background: rec.c + "1f", borderRadius: 7, padding: "3px 9px", whiteSpace: "nowrap", justifySelf: "start" }}>{rec.t}</span>
+                  <span style={{ fontSize: 12, color: C.textDim, whiteSpace: "nowrap", justifySelf: "end" }}>{r.age_days != null ? `${r.age_days} T` : "—"}</span>
+                </div>
+                {open ? (
+                  <div style={{ padding: "0 18px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+                    <div style={{ fontSize: 12.5, color: C.textMuted }}>
+                      <b style={{ color: rec.c }}>{rec.t}</b>{rec.a ? ` — ${rec.a}` : ""} · Klicks 28T: <b style={{ color: C.text }}>{r.clicks_28 ?? 0}</b> (Peak {r.peak_clicks_28 ?? 0}) · Ø-Pos: {r.position_28 ?? "—"} · Impr 28T: {r.impr_28 ?? 0}{r.language ? ` · ${String(r.language).toUpperCase()}` : ""}
+                    </div>
+                    <RefreshDetailChart item={r} />
+                  </div>
+                ) : null}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ReportsPage({ items, selectedClient }) {
   const reports = useMemo(
     () =>
@@ -7425,6 +7566,7 @@ function ContentPage({ clients, items, onSaveContent, selectedClient }) {
         <TabBar
           tabs={[
             { id: "all", label: "Alle" },
+            { id: "refresh", label: "Refresh-Radar" },
             { id: "win", label: "Erfolge" },
             { id: "blog", label: "Blog" },
             { id: "audit", label: "Audit" },
@@ -7435,7 +7577,9 @@ function ContentPage({ clients, items, onSaveContent, selectedClient }) {
           onChange={setFilter}
         />
       </div>
-      {filter === "report" ? (
+      {filter === "refresh" ? (
+        <RefreshRadar selectedClient={selectedClient} />
+      ) : filter === "report" ? (
         <ReportsPage items={items} selectedClient={selectedClient} />
       ) : (
       <div
