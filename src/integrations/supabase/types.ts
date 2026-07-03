@@ -14,6 +14,347 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_visibility_attribution: {
+        Row: {
+          client_id: string
+          conversions: number | null
+          engine: string
+          id: string
+          report_id: string
+          sessions: number | null
+        }
+        Insert: {
+          client_id: string
+          conversions?: number | null
+          engine: string
+          id?: string
+          report_id: string
+          sessions?: number | null
+        }
+        Update: {
+          client_id?: string
+          conversions?: number | null
+          engine?: string
+          id?: string
+          report_id?: string
+          sessions?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_visibility_attribution_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_visibility_attribution_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "ai_visibility_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_visibility_model_country: {
+        Row: {
+          client_id: string
+          country: string
+          id: string
+          mentions: number | null
+          model_id: string
+        }
+        Insert: {
+          client_id: string
+          country: string
+          id?: string
+          mentions?: number | null
+          model_id: string
+        }
+        Update: {
+          client_id?: string
+          country?: string
+          id?: string
+          mentions?: number | null
+          model_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_visibility_model_country_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_visibility_model_country_model_id_fkey"
+            columns: ["model_id"]
+            isOneToOne: false
+            referencedRelation: "ai_visibility_models"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_visibility_models: {
+        Row: {
+          client_id: string
+          id: string
+          layer: string | null
+          mentions: number | null
+          model_name: string
+          report_id: string
+          sov: number | null
+        }
+        Insert: {
+          client_id: string
+          id?: string
+          layer?: string | null
+          mentions?: number | null
+          model_name: string
+          report_id: string
+          sov?: number | null
+        }
+        Update: {
+          client_id?: string
+          id?: string
+          layer?: string | null
+          mentions?: number | null
+          model_name?: string
+          report_id?: string
+          sov?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_visibility_models_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_visibility_models_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "ai_visibility_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_visibility_prompts: {
+        Row: {
+          brands_count: number | null
+          client_id: string
+          competitors: string[] | null
+          country: string | null
+          id: string
+          intent: string | null
+          is_opportunity: boolean | null
+          platform: string | null
+          prompt: string
+          report_id: string
+          response: string | null
+          sources_count: number | null
+          status: string | null
+        }
+        Insert: {
+          brands_count?: number | null
+          client_id: string
+          competitors?: string[] | null
+          country?: string | null
+          id?: string
+          intent?: string | null
+          is_opportunity?: boolean | null
+          platform?: string | null
+          prompt: string
+          report_id: string
+          response?: string | null
+          sources_count?: number | null
+          status?: string | null
+        }
+        Update: {
+          brands_count?: number | null
+          client_id?: string
+          competitors?: string[] | null
+          country?: string | null
+          id?: string
+          intent?: string | null
+          is_opportunity?: boolean | null
+          platform?: string | null
+          prompt?: string
+          report_id?: string
+          response?: string | null
+          sources_count?: number | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_visibility_prompts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_visibility_prompts_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "ai_visibility_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_visibility_reports: {
+        Row: {
+          citations: number | null
+          citations_delta: number | null
+          cited_pages: number | null
+          cited_pages_delta: number | null
+          client_id: string
+          created_at: string | null
+          id: string
+          market: string | null
+          mentions: number | null
+          mentions_delta: number | null
+          score: number
+          score_delta: number | null
+          snapshot_date: string
+        }
+        Insert: {
+          citations?: number | null
+          citations_delta?: number | null
+          cited_pages?: number | null
+          cited_pages_delta?: number | null
+          client_id: string
+          created_at?: string | null
+          id?: string
+          market?: string | null
+          mentions?: number | null
+          mentions_delta?: number | null
+          score: number
+          score_delta?: number | null
+          snapshot_date: string
+        }
+        Update: {
+          citations?: number | null
+          citations_delta?: number | null
+          cited_pages?: number | null
+          cited_pages_delta?: number | null
+          client_id?: string
+          created_at?: string | null
+          id?: string
+          market?: string | null
+          mentions?: number | null
+          mentions_delta?: number | null
+          score?: number
+          score_delta?: number | null
+          snapshot_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_visibility_reports_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_visibility_sources: {
+        Row: {
+          client_id: string
+          domain: string
+          id: string
+          mentions: number | null
+          report_id: string
+          share: number | null
+          traffic: number | null
+          urls: number | null
+        }
+        Insert: {
+          client_id: string
+          domain: string
+          id?: string
+          mentions?: number | null
+          report_id: string
+          share?: number | null
+          traffic?: number | null
+          urls?: number | null
+        }
+        Update: {
+          client_id?: string
+          domain?: string
+          id?: string
+          mentions?: number | null
+          report_id?: string
+          share?: number | null
+          traffic?: number | null
+          urls?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_visibility_sources_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_visibility_sources_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "ai_visibility_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_visibility_topics: {
+        Row: {
+          client_id: string
+          id: string
+          intent: string | null
+          mentions: number | null
+          report_id: string
+          topic: string
+          visibility: number | null
+          volume: number | null
+        }
+        Insert: {
+          client_id: string
+          id?: string
+          intent?: string | null
+          mentions?: number | null
+          report_id: string
+          topic: string
+          visibility?: number | null
+          volume?: number | null
+        }
+        Update: {
+          client_id?: string
+          id?: string
+          intent?: string | null
+          mentions?: number | null
+          report_id?: string
+          topic?: string
+          visibility?: number | null
+          volume?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_visibility_topics_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_visibility_topics_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "ai_visibility_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_users: {
         Row: {
           created_at: string
