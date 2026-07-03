@@ -10,6 +10,9 @@ import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
 
 export const Route = createFileRoute("/login")({
+  validateSearch: (s: Record<string, unknown>) => ({
+    next: typeof s.next === "string" && s.next.startsWith("/") && !s.next.startsWith("//") ? s.next : undefined,
+  }),
   component: LoginPage,
 });
 
@@ -20,6 +23,11 @@ const schema = z.object({
 
 function LoginPage() {
   const navigate = useNavigate();
+  const { next } = Route.useSearch();
+  const goNext = () => {
+    if (next) window.location.href = next;
+    else navigate({ to: "/dashboard" });
+  };
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -38,7 +46,7 @@ function LoginPage() {
       toast.error(error.message);
       return;
     }
-    navigate({ to: "/dashboard" });
+    goNext();
   };
 
   return (
@@ -87,15 +95,18 @@ function LoginPage() {
           variant="outline"
           className="w-full"
           onClick={async () => {
+            const returnTo = next
+              ? `${window.location.origin}${next}`
+              : window.location.origin;
             const result = await lovable.auth.signInWithOAuth("google", {
-              redirect_uri: window.location.origin,
+              redirect_uri: returnTo,
             });
             if (result.error) {
               toast.error(result.error.message ?? "Google-Anmeldung fehlgeschlagen");
               return;
             }
             if (result.redirected) return;
-            navigate({ to: "/dashboard" });
+            goNext();
           }}
         >
           Mit Google fortfahren
