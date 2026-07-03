@@ -32,7 +32,8 @@ const Body = z.object({
 });
 
 // Modell per ENV überschreibbar. Aktuelle IDs: https://docs.claude.com/en/docs/about-claude/models
-const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-20250514";
+// (sonnet-4-20250514 wurde von der API zurückgezogen -> 404 not_found_error)
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5";
 
 function redact(input: unknown, secrets: Array<string | undefined>): string {
   let s =
