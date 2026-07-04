@@ -247,10 +247,43 @@ async function askGemini(prompt: string): Promise<{ text: string; sources: numbe
   return text ? { text, sources: urlsIn(text) } : null;
 }
 
+// OpenAI-kompatible Chat-APIs (ChatGPT / Grok / DeepSeek) — ein Helfer.
+async function askOpenAICompat(
+  url: string,
+  key: string | undefined,
+  model: string,
+  prompt: string,
+): Promise<{ text: string; sources: number } | null> {
+  if (!key) return null;
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], max_tokens: 600 }),
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (!r.ok) return null;
+  const j: any = await r.json().catch(() => null);
+  const text = String(j?.choices?.[0]?.message?.content ?? "").trim();
+  return text ? { text, sources: urlsIn(text) } : null;
+}
+
+// Engines aktivieren sich automatisch, sobald der jeweilige Key in der Env liegt.
 const PROMPT_ENGINES: Array<{ name: string; ask: (p: string) => Promise<{ text: string; sources: number } | null> }> = [
   { name: "Claude", ask: askClaude },
   { name: "Perplexity", ask: askPerplexity },
   { name: "Gemini", ask: askGemini },
+  {
+    name: "ChatGPT",
+    ask: (p) => askOpenAICompat("https://api.openai.com/v1/chat/completions", process.env.OPENAI_API_KEY, process.env.OPENAI_MODEL ?? "gpt-5.1", p),
+  },
+  {
+    name: "Grok",
+    ask: (p) => askOpenAICompat("https://api.x.ai/v1/chat/completions", process.env.XAI_API_KEY || process.env.GROK_API_KEY, process.env.XAI_MODEL ?? "grok-4", p),
+  },
+  {
+    name: "DeepSeek",
+    ask: (p) => askOpenAICompat("https://api.deepseek.com/chat/completions", process.env.DEEPSEEK_API_KEY, process.env.DEEPSEEK_MODEL ?? "deepseek-chat", p),
+  },
 ];
 
 // JSON aus LLM-Antworten robust extrahieren (Codefences etc.).
@@ -385,12 +418,17 @@ async function jobPromptRunner(c: any, sbAny: any) {
     intent: v.intent,
   }));
 
+  // Diagnose: welche Engines haben geantwortet (fehlender Key/Fehler -> fehlt hier).
+  const byEngine: Record<string, number> = {};
+  for (const r of rows) byEngine[r.platform] = (byEngine[r.platform] || 0) + 1;
+
   return {
     promptRows,
     customModels,
     topics,
     seeded,
     answered: rows.length,
+    byEngine,
     mentions: customModels.reduce((a, m) => a + m.mentions, 0),
   };
 }
@@ -449,7 +487,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             const pr: any = wanted.includes("prompts") ? await jobPromptRunner(c, sb) : null;
             jr.brand_radar = br ? (br.skipped ? { skipped: br.skipped } : { mentions: br.mentions, citations: br.citations, pages: br.citedPagesCount, errors: br.errors?.length || 0 }) : "skipped";
             jr.attribution = at ? (at.skipped || at.error ? at : { engines: at.engines.length }) : "skipped";
-            jr.prompts = pr ? (pr.skipped ? { skipped: pr.skipped, seeded: pr.seeded } : { answered: pr.answered, mentions: pr.mentions, seeded: pr.seeded, topics: pr.topics.length }) : "skipped";
+            jr.prompts = pr ? (pr.skipped ? { skipped: pr.skipped, seeded: pr.seeded } : { answered: pr.answered, byEngine: pr.byEngine, mentions: pr.mentions, seeded: pr.seeded, topics: pr.topics.length }) : "skipped";
 
             const hasBr = br && !br.skipped;
             const hasPr = pr && !pr.skipped && pr.promptRows?.length;

@@ -372,15 +372,17 @@ function PromptRow({ r, opportunity }) {
 }
 
 function PromptsTable({ prompts, opps, brand }) {
-  const [tab, setTab] = useState("win");
-  const rows = tab === "win" ? prompts : opps;
+  const [tab, setTab] = useState("all");
+  // "Alle" = jeder getestete Prompt; Chancen bekommen den Status "Nicht erwähnt".
+  const allRows = [...prompts, ...opps.map((o) => ({ ...o, status: "Nicht erwähnt" }))];
+  const rows = tab === "all" ? allRows : tab === "win" ? prompts : opps;
   const opportunity = tab === "opp";
   return (
     <div className="rounded-xl border bg-white" style={{ borderColor: C.line }}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3" style={{ borderColor: C.line }}>
         <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Prompts</h3>
         <div className="flex rounded-lg border p-0.5" style={{ borderColor: C.line }}>
-          {[{ k: "win", t: "Erfolgreichste Prompts" }, { k: "opp", t: "Prompt-Chancen" }].map((x) => (
+          {[{ k: "all", t: "Alle Prompts" }, { k: "win", t: "Erfolgreichste Prompts" }, { k: "opp", t: "Prompt-Chancen" }].map((x) => (
             <button key={x.k} onClick={() => setTab(x.k)}
               className="rounded-md px-2.5 py-1 text-xs font-medium transition focus:outline-none focus-visible:ring-2"
               style={{ background: tab === x.k ? C.ink : "transparent", color: tab === x.k ? "#fff" : C.sub }}>
@@ -390,7 +392,9 @@ function PromptsTable({ prompts, opps, brand }) {
         </div>
       </div>
       <div className="px-5 pt-2 text-[11px]" style={{ color: C.sub }}>
-        {opportunity
+        {tab === "all"
+          ? `Alle getesteten Prompts über alle KI-Modelle – mit Status für ${brand}. Zeile aufklappen für die echte Modell-Antwort.`
+          : opportunity
           ? `Prompts, bei denen Konkurrenten genannt werden – ${brand} aber nicht. Zeile aufklappen für die Antwort.`
           : `Prompts, in denen ${brand} erwähnt oder zitiert wird. Zeile aufklappen für die echte Modell-Antwort.`}
       </div>
@@ -407,7 +411,7 @@ function PromptsTable({ prompts, opps, brand }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => <PromptRow key={r.prompt} r={r} opportunity={opportunity} />)}
+            {rows.map((r) => <PromptRow key={`${r.prompt}·${r.platform}·${r.status || "opp"}`} r={r} opportunity={opportunity} />)}
           </tbody>
         </table>
       </div>
