@@ -241,7 +241,7 @@ async function askGemini(prompt: string): Promise<{ text: string; sources: numbe
       signal: AbortSignal.timeout(60_000),
     },
   );
-  if (!r.ok) return null;
+  if (!r.ok) return { text: "", sources: 0, error: `Gemini HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 140)}` } as any;
   const j: any = await r.json().catch(() => null);
   const text = (j?.candidates?.[0]?.content?.parts ?? []).map((p: any) => p?.text ?? "").join(" ").trim();
   return text ? { text, sources: urlsIn(text) } : null;
@@ -261,7 +261,7 @@ async function askOpenAICompat(
     body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], max_tokens: 600 }),
     signal: AbortSignal.timeout(60_000),
   });
-  if (!r.ok) return null;
+  if (!r.ok) return { text: "", sources: 0, error: `HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 140)}` } as any;
   const j: any = await r.json().catch(() => null);
   const text = String(j?.choices?.[0]?.message?.content ?? "").trim();
   return text ? { text, sources: urlsIn(text) } : null;
@@ -336,10 +336,14 @@ async function jobPromptRunner(c: any, sbAny: any) {
 
   // Alle Engines × Prompts (je Engine parallel über die Prompts).
   const rows: any[] = [];
+  const engineErrors: Record<string, string> = {};
   for (const eng of PROMPT_ENGINES) {
     const answers = await Promise.all(defs.map((d: any) => eng.ask(d.prompt).catch(() => null)));
-    answers.forEach((a, i) => {
-      if (!a || !a.text) return; // Engine ohne Key / Fehler -> graceful skip
+    answers.forEach((a: any, i) => {
+      if (!a || !a.text) {
+        if (a?.error && !engineErrors[eng.name]) engineErrors[eng.name] = a.error;
+        return; // Engine ohne Key / Fehler -> graceful skip
+      }
       const d = defs[i];
       const mentioned = nameRe.test(a.text);
       const cited = domain ? a.text.toLowerCase().includes(domain.toLowerCase()) : false;
@@ -429,6 +433,7 @@ async function jobPromptRunner(c: any, sbAny: any) {
     seeded,
     answered: rows.length,
     byEngine,
+    engineErrors,
     mentions: customModels.reduce((a, m) => a + m.mentions, 0),
   };
 }
@@ -487,7 +492,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             const pr: any = wanted.includes("prompts") ? await jobPromptRunner(c, sb) : null;
             jr.brand_radar = br ? (br.skipped ? { skipped: br.skipped } : { mentions: br.mentions, citations: br.citations, pages: br.citedPagesCount, errors: br.errors?.length || 0 }) : "skipped";
             jr.attribution = at ? (at.skipped || at.error ? at : { engines: at.engines.length }) : "skipped";
-            jr.prompts = pr ? (pr.skipped ? { skipped: pr.skipped, seeded: pr.seeded } : { answered: pr.answered, byEngine: pr.byEngine, mentions: pr.mentions, seeded: pr.seeded, topics: pr.topics.length }) : "skipped";
+            jr.prompts = pr ? (pr.skipped ? { skipped: pr.skipped, seeded: pr.seeded } : { answered: pr.answered, byEngine: pr.byEngine, engineErrors: pr.engineErrors, mentions: pr.mentions, seeded: pr.seeded, topics: pr.topics.length }) : "skipped";
 
             const hasBr = br && !br.skipped;
             const hasPr = pr && !pr.skipped && pr.promptRows?.length;
