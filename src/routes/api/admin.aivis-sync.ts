@@ -104,10 +104,15 @@ async function brandRadar(path: string, params: Record<string, unknown>, key: st
     else if (typeof v === "object" && v !== null) u.searchParams.set(k, JSON.stringify(v));
     else u.searchParams.set(k, String(v));
   }
-  const r = await fetch(u, {
-    headers: { Authorization: `Bearer ${key}`, Accept: "application/json" },
-    signal: AbortSignal.timeout(30_000),
-  });
+  let r: Response;
+  try {
+    r = await fetch(u, {
+      headers: { Authorization: `Bearer ${key}`, Accept: "application/json" },
+      signal: AbortSignal.timeout(30_000),
+    });
+  } catch (e) {
+    return { ok: false as const, error: `fetch: ${String((e as any)?.message || e).slice(0, 80)}` };
+  }
   if (!r.ok) {
     const body = (await r.text().catch(() => "")).slice(0, 160);
     return { ok: false as const, error: `HTTP ${r.status}: ${body}` };
@@ -199,20 +204,25 @@ async function jobAttribution(c: any) {
     return { error: "Google-Token: " + redactSecrets(e) };
   }
   const propertyId = String(c.ga4_property).replace(/^properties\//, "");
-  const r = await fetch(
-    `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`,
-    {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
-        dimensions: [{ name: "sessionSource" }],
-        metrics: [{ name: "sessions" }, { name: "keyEvents" }],
-        limit: 250,
-      }),
-      signal: AbortSignal.timeout(30_000),
-    },
-  );
+  let r: Response;
+  try {
+    r = await fetch(
+      `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
+          dimensions: [{ name: "sessionSource" }],
+          metrics: [{ name: "sessions" }, { name: "keyEvents" }],
+          limit: 250,
+        }),
+        signal: AbortSignal.timeout(30_000),
+      },
+    );
+  } catch (e) {
+    return { error: "GA4 fetch: " + redactSecrets(e) };
+  }
   if (!r.ok) return { error: `GA4 HTTP ${r.status}` };
   const json: any = await r.json().catch(() => ({}));
   const agg: Record<string, { sessions: number; conversions: number }> = {};
