@@ -4,6 +4,7 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
 import { redactSecrets } from "@/server/google-oauth.server";
+import { getEnabledServices } from "@/server/integrations.server";
 
 // AI-Visibility-Ingestion, Stufe 1 (Makro-Layer + Attribution). Befüllt die
 // ai_visibility_*-Tabellen server-seitig (service_role; n8n kommt nicht an die
@@ -654,6 +655,13 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         for (const c of clients) {
           const jr: Record<string, unknown> = {};
           try {
+            // Gate: nur Kunden, bei denen KI-Sichtbarkeit aktiv ist (aivis-Tab =
+            // canonry ODER perplexity in client_integrations = "in den Einstellungen").
+            const svc = await getEnabledServices(c.id);
+            if (!(svc.canonry || svc.perplexity)) {
+              results.push({ client: c.name, skipped: "KI-Sichtbarkeit nicht aktiv" });
+              continue;
+            }
             // Backfill-Modus: rückwirkende Monats-Reports (Ahrefs/GA4), dann fertig.
             if (mode === "backfill") {
               jr.backfill = await jobBackfill(c, sb, months);
