@@ -4009,25 +4009,16 @@ const AIVIS_WINDOWS = [
 ];
 // KI-Sichtbarkeit: neues Report-Dashboard (ai_visibility_*-Tabellen), solange
 // kein Report existiert Fallback auf die bestehende Canonry-Ansicht darunter.
-function AiVisibilityTab({ selectedClient, dateRange }) {
+function AiVisibilityTab({ selectedClient }) {
   const { data, loading, error } = useEzyAIVisibility(
     selectedClient?.id,
     selectedClient?.domain || selectedClient?.name,
   );
-  // Oben: aggregiertes Dashboard (Ahrefs/Semrush/Prompt-Runner). data=null -> Empty-State.
-  const top = loading ? <AIVisibilitySkeleton /> : <AIVisibilityReport data={data && !error ? data : null} />;
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      {top}
-      {/* Canonry-Live-Sweeps — früher eigener GEO-Tab, jetzt hier eingefaltet. */}
-      <div>
-        <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 12px", color: C.text }}>
-          Canonry · Live-Sweeps
-        </h2>
-        <GeoDashboard selectedClient={selectedClient} dateRange={dateRange} />
-      </div>
-    </div>
-  );
+  // EINE kombinierte Ansicht: Ahrefs + Semrush + Canonry + Prompt-Runner werden im
+  // Backend/Loader zusammengeführt (Canonry-Provider fließen in die Modell-Verteilung,
+  // -Quellen, -Konkurrenten). Kein separater GEO-Tab / keine gestapelte Sektion mehr.
+  if (loading) return <AIVisibilitySkeleton />;
+  return <AIVisibilityReport data={data && !error ? data : null} />;
 }
 
 function AiVisibilityDashboard({ selectedClient }) {

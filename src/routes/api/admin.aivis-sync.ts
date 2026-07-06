@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
 import { redactSecrets } from "@/server/google-oauth.server";
 import { getEnabledServices } from "@/server/integrations.server";
+import { normalizeCanonryBase } from "@/lib/canonry-url";
 
 // AI-Visibility-Ingestion, Stufe 1 (Makro-Layer + Attribution). Befüllt die
 // ai_visibility_*-Tabellen server-seitig (service_role; n8n kommt nicht an die
@@ -23,7 +24,7 @@ import { getEnabledServices } from "@/server/integrations.server";
 const Body = z.object({
   client: z.string().optional(), // Name (ilike) oder uuid
   all: z.boolean().optional(),
-  jobs: z.array(z.enum(["brand_radar", "attribution", "prompts"])).optional(),
+  jobs: z.array(z.enum(["brand_radar", "attribution", "prompts", "canonry"])).optional(),
   minIntervalDays: z.number().int().min(0).max(60).default(6),
   force: z.boolean().optional(),
   mode: z.enum(["live", "backfill"]).default("live"), // backfill = Ahrefs/GA4-Historie
@@ -537,6 +538,53 @@ async function jobPromptRunner(c: any, sbAny: any, fixedComps: string[] = []) {
   };
 }
 
+// ── Canonry: Live-Sweeps (per-Provider cited counts) in die eine Ansicht falten ─
+const CANONRY_LABEL: Record<string, string> = {
+  openai: "ChatGPT", chatgpt: "ChatGPT", perplexity: "Perplexity", gemini: "Gemini",
+  google: "Gemini", claude: "Claude", anthropic: "Claude", copilot: "Copilot", grok: "Grok",
+};
+const canonryLabel = (p: string) => CANONRY_LABEL[String(p).toLowerCase()] || (p ? p.charAt(0).toUpperCase() + p.slice(1) : "Canonry");
+
+async function jobCanonry(c: any) {
+  const baseUrl = process.env.CANONRY_BASE_URL;
+  const key = process.env.CANONRY_API_KEY;
+  if (!baseUrl || !key) return { skipped: "Canonry not configured" };
+  if (!c.canonry_project) return { skipped: "kein canonry_project" };
+  const root = normalizeCanonryBase(baseUrl);
+  const p = encodeURIComponent(c.canonry_project);
+  const get = async (path: string) => {
+    try {
+      const r = await fetch(`${root}/projects/${p}${path}`, {
+        headers: { Authorization: `Bearer ${key}`, Accept: "application/json" },
+        signal: AbortSignal.timeout(12_000),
+      });
+      return r.ok ? await r.json().catch(() => null) : null;
+    } catch { return null; }
+  };
+  const [health, sources, competitors] = await Promise.all([
+    get("/health/latest"),
+    get("/analytics/sources?window=all&limit=50"),
+    get("/competitors"),
+  ]);
+  // providerBreakdown = { provider: { cited, total, citedRate } } -> Modelle (layer canonry).
+  const pb = (health as any)?.providerBreakdown || {};
+  const models = Object.entries(pb).map(([prov, e]: any) => ({
+    name: canonryLabel(prov), mentions: Number(e?.cited ?? 0), byCountry: {} as Record<string, number>,
+  })).filter((m) => m.mentions > 0);
+  // Quellen (best-effort — Canonry-Shape defensiv).
+  const srcArr: any[] = Array.isArray(sources) ? sources : ((sources as any)?.sources || (sources as any)?.data || []);
+  const srcRows = (Array.isArray(srcArr) ? srcArr : []).map((s: any) => ({
+    domain: String(s?.domain || s?.host || domOf(s?.url || "") || "").replace(/^www\./, ""),
+    mentions: Number(s?.cited ?? s?.count ?? s?.citations ?? s?.mentions ?? 0),
+  })).filter((s: any) => s.domain).slice(0, 15);
+  // Konkurrenten (best-effort).
+  const compArr: any[] = Array.isArray(competitors) ? competitors : ((competitors as any)?.competitors || (competitors as any)?.data || []);
+  const comps = (Array.isArray(compArr) ? compArr : [])
+    .map((x: any) => String(x?.name || x?.brand || x?.domain || x || "").replace(/^www\./, "").replace(/\.[a-z.]+$/i, ""))
+    .filter(Boolean).map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).slice(0, 12);
+  return { models, sources: srcRows, competitors: comps, mentions: models.reduce((a, m) => a + m.mentions, 0) };
+}
+
 // ── Backfill: rückwirkende Makro-Historie (Ahrefs) + GA4-Attribution ─────────
 // Erzeugt je Monat einen rückdatierten Report, damit Trend-Kurve + Deltas sofort
 // gefüllt sind. NICHT backfillbar: Custom-Layer (Prompts/SoV/Sentiment) — die
@@ -636,7 +684,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         if (!parsed.success)
           return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
         const { client: sel, all, jobs, minIntervalDays, force, mode, months } = parsed.data;
-        const wanted = jobs && jobs.length ? jobs : (["brand_radar", "attribution", "prompts"] as const);
+        const wanted = jobs && jobs.length ? jobs : (["brand_radar", "attribution", "prompts", "canonry"] as const);
 
         const query = supabaseAdmin
           .from("clients")
@@ -689,12 +737,16 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             const { data: compRows } = await sb
               .from("ai_visibility_competitors").select("name").eq("client_id", c.id).eq("active", true);
             const semrushComps = await semrushCompetitors(cleanDomain(c.domain), db);
-            if (semrushComps.length)
-              await sb.from("ai_visibility_competitors").upsert(
-                semrushComps.map((n) => ({ client_id: c.id, name: n, source: "semrush", active: true })),
-                { onConflict: "client_id,name", ignoreDuplicates: true },
-              );
-            const fixedComps: string[] = [...new Set([...(compRows || []).map((r: any) => String(r.name)), ...semrushComps])].filter(Boolean);
+            const ca: any = wanted.includes("canonry") ? await jobCanonry(c) : null;
+            const hasCa = ca && !ca.skipped;
+            const canonryComps: string[] = hasCa ? ca.competitors : [];
+            const newComps = [
+              ...semrushComps.map((n) => ({ client_id: c.id, name: n, source: "semrush", active: true })),
+              ...canonryComps.map((n) => ({ client_id: c.id, name: n, source: "canonry", active: true })),
+            ];
+            if (newComps.length)
+              await sb.from("ai_visibility_competitors").upsert(newComps, { onConflict: "client_id,name", ignoreDuplicates: true });
+            const fixedComps: string[] = [...new Set([...(compRows || []).map((r: any) => String(r.name)), ...semrushComps, ...canonryComps])].filter(Boolean);
 
             const br: any = wanted.includes("brand_radar") ? await jobBrandRadar(c, fixedComps) : null;
             const at: any = wanted.includes("attribution") ? await jobAttribution(c) : null;
@@ -702,12 +754,13 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             jr.brand_radar = br ? (br.skipped ? { skipped: br.skipped } : { mentions: br.mentions, citations: br.citations, pages: br.citedPagesCount, errors: br.errors?.length || 0 }) : "skipped";
             jr.attribution = at ? (at.skipped || at.error ? at : { engines: at.engines.length }) : "skipped";
             jr.prompts = pr ? (pr.skipped ? { skipped: pr.skipped, seeded: pr.seeded } : { answered: pr.answered, byEngine: pr.byEngine, engineErrors: pr.engineErrors, mentions: pr.mentions, seeded: pr.seeded, topics: pr.topics.length, selfShare: pr.selfShare, sov: pr.sov?.length, judged: pr.judged, learned: pr.learnedComps?.length }) : "skipped";
+            jr.canonry = ca ? (ca.skipped ? { skipped: ca.skipped } : { models: ca.models.length, mentions: ca.mentions, sources: ca.sources.length }) : "skipped";
 
             const hasBr = br && !br.skipped;
             const hasPr = pr && !pr.skipped && pr.promptRows?.length;
-            if (hasBr || hasPr) {
-              // Kombinierte Totale: Makro (Brand Radar) + Custom (Prompt-Runner).
-              const macroMentions = hasBr ? br.mentions : 0;
+            if (hasBr || hasPr || hasCa) {
+              // Kombinierte Totale: Makro (Ahrefs) + Canonry + Custom (Prompt-Runner).
+              const macroMentions = (hasBr ? br.mentions : 0) + (hasCa ? ca.mentions : 0);
               const customMentions = hasPr ? pr.mentions : 0;
               const mentions = macroMentions + customMentions;
               const citations = hasBr ? br.citations : 0;
@@ -767,11 +820,27 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               await sb.from("ai_visibility_topics").delete().eq("report_id", reportId);
               await sb.from("ai_visibility_sov").delete().eq("report_id", reportId);
 
-              // Modelle: Makro (Brand Radar) + Custom (Prompt-Runner) in einer Liste.
-              const allModels = [
+              // Modelle: Makro (Ahrefs) + Canonry + Custom (Prompt-Runner), per Modell-
+              // NAME zusammengeführt (Summe der Mentions) -> KEINE Doppel-Zeilen mehr
+              // (ChatGPT/Perplexity/Gemini kamen sonst mehrfach vor -> das war die Verwirrung).
+              const rawModels = [
                 ...(hasBr ? br.models.map((m: any) => ({ ...m, layer: "macro" })) : []),
+                ...(hasCa ? ca.models.map((m: any) => ({ ...m, layer: "canonry" })) : []),
                 ...(hasPr ? pr.customModels.map((m: any) => ({ ...m, layer: "custom" })) : []),
               ];
+              const modelAgg: Record<string, { mentions: number; byCountry: Record<string, number>; layers: Set<string> }> = {};
+              for (const m of rawModels) {
+                const a = (modelAgg[m.name] ??= { mentions: 0, byCountry: {}, layers: new Set<string>() });
+                a.mentions += Number(m.mentions || 0);
+                a.layers.add(m.layer);
+                for (const [ct, v] of Object.entries(m.byCountry || {})) a.byCountry[ct] = (a.byCountry[ct] || 0) + Number(v);
+              }
+              const allModels = Object.entries(modelAgg).map(([name, a]) => ({
+                name,
+                layer: a.layers.has("custom") ? "custom" : a.layers.has("canonry") ? "canonry" : "macro",
+                mentions: a.mentions,
+                byCountry: a.byCountry,
+              }));
               const totalMentions = Math.max(1, mentions);
               const { data: modelRows, error: mErr } = await sb
                 .from("ai_visibility_models")
@@ -796,6 +865,12 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 }
               }
               if (mcInserts.length) await sb.from("ai_visibility_model_country").insert(mcInserts);
+
+              // Canonry-Quellen (layer='canonry') mit in die Quellen-Tabelle.
+              if (hasCa && ca.sources?.length)
+                await sb.from("ai_visibility_sources").insert(
+                  ca.sources.map((s: any) => ({ report_id: reportId, client_id: c.id, domain: s.domain, mentions: s.mentions, share: 0, urls: 0, traffic: 0, layer: "canonry" })),
+                );
 
               // Prompts + Themen + SoV + Quellen + Auto-Learning (Custom-Layer).
               if (hasPr) {
