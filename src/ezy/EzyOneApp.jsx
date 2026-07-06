@@ -250,7 +250,7 @@ const DEFAULT_CUSTOMER_DEFAULTS = {
   language: "Deutsch",
   tone: "Professionell",
   reportTemplate: "Standard",
-  visibleTabs: ["overview", "seo", "geo", "aivis", "conversions", "ads"],
+  visibleTabs: ["overview", "seo", "aivis", "conversions", "ads"],
 };
 function readStoredJson(key, fallback) {
   if (typeof window === "undefined") return fallback;
@@ -4009,14 +4009,25 @@ const AIVIS_WINDOWS = [
 ];
 // KI-Sichtbarkeit: neues Report-Dashboard (ai_visibility_*-Tabellen), solange
 // kein Report existiert Fallback auf die bestehende Canonry-Ansicht darunter.
-function AiVisibilityTab({ selectedClient }) {
+function AiVisibilityTab({ selectedClient, dateRange }) {
   const { data, loading, error } = useEzyAIVisibility(
     selectedClient?.id,
     selectedClient?.domain || selectedClient?.name,
   );
-  if (loading) return <AIVisibilitySkeleton />;
-  if (data && !error) return <AIVisibilityReport data={data} />;
-  return <AiVisibilityDashboard selectedClient={selectedClient} />;
+  // Oben: aggregiertes Dashboard (Ahrefs/Semrush/Prompt-Runner). data=null -> Empty-State.
+  const top = loading ? <AIVisibilitySkeleton /> : <AIVisibilityReport data={data && !error ? data : null} />;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      {top}
+      {/* Canonry-Live-Sweeps — früher eigener GEO-Tab, jetzt hier eingefaltet. */}
+      <div>
+        <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 12px", color: C.text }}>
+          Canonry · Live-Sweeps
+        </h2>
+        <GeoDashboard selectedClient={selectedClient} dateRange={dateRange} />
+      </div>
+    </div>
+  );
 }
 
 function AiVisibilityDashboard({ selectedClient }) {
@@ -8712,19 +8723,18 @@ function SettingsPage({
                   {[
                     { id: "overview", label: "Übersicht", icon: BarChart3 },
                     { id: "seo", label: "SEO", icon: Globe },
-                    { id: "geo", label: "GEO", icon: Sparkles },
                     { id: "aivis", label: "KI-Sichtbarkeit", icon: Bot },
                     { id: "conversions", label: "Conversions", icon: DollarSign },
                     { id: "ads", label: "Ads", icon: Megaphone },
                   ].map((t) => {
-                    const on = (defaultsDraft.visibleTabs || ["overview", "seo", "geo", "aivis", "conversions", "ads"]).includes(t.id);
+                    const on = (defaultsDraft.visibleTabs || ["overview", "seo", "aivis", "conversions", "ads"]).includes(t.id);
                     return (
                       <label key={t.id} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
                         <input
                           type="checkbox"
                           checked={on}
                           onChange={() => {
-                            const cur = defaultsDraft.visibleTabs || ["overview", "seo", "geo", "aivis", "conversions", "ads"];
+                            const cur = defaultsDraft.visibleTabs || ["overview", "seo", "aivis", "conversions", "ads"];
                             const next = on ? cur.filter((x) => x !== t.id) : [...cur, t.id];
                             setDefaultsDraft((p) => ({ ...p, visibleTabs: next.length > 0 ? next : [t.id] }));
                           }}
@@ -10590,7 +10600,6 @@ function AgentsPage({ selectedClient }) {
 const TABS = [
   { id: "overview", label: "Übersicht", icon: BarChart3 },
   { id: "seo", label: "SEO", icon: Globe },
-  { id: "geo", label: "GEO", icon: Sparkles },
   { id: "aivis", label: "KI-Sichtbarkeit", icon: Bot },
   { id: "conversions", label: "Conversions", icon: DollarSign },
   { id: "ads", label: "Ads", icon: Megaphone },
@@ -10600,8 +10609,7 @@ const TABS = [
 const TAB_SERVICE = {
   overview: null,
   seo: null,
-  geo: ["canonry"],
-  aivis: ["canonry", "perplexity"],
+  aivis: ["canonry", "perplexity"], // enthält jetzt auch die Canonry-Live-Sweeps
   conversions: ["ga4"],
   ads: ["google-ads"],
 };
@@ -10783,7 +10791,7 @@ function App() {
     () =>
       TABS.filter((t) => {
         // 1) manuelle Tab-Auswahl (Einstellungen)
-        if (!(customerDefaults.visibleTabs || ["seo", "geo", "conversions"]).includes(t.id)) return false;
+        if (!(customerDefaults.visibleTabs || ["seo", "aivis", "conversions"]).includes(t.id)) return false;
         // 2) Service-Gate: Tab nur, wenn ein zugehöriger Dienst aktiv ist.
         //    Während Services laden NICHT ausblenden (kein Flackern).
         const req = TAB_SERVICE[t.id];
@@ -11283,9 +11291,7 @@ function App() {
                         ? "Übersicht"
                         : tab === "seo"
                           ? "SEO Dashboard"
-                          : tab === "geo"
-                            ? "GEO Dashboard"
-                            : tab === "aivis"
+                          : tab === "aivis"
                               ? "KI-Sichtbarkeit"
                               : tab === "ads"
                                 ? "Ads Dashboard"
@@ -11308,8 +11314,7 @@ function App() {
                 <>
                   {tab === "overview" && <OverviewDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
                   {tab === "seo" && <SeoDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
-                  {tab === "geo" && <GeoDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
-                  {tab === "aivis" && <AiVisibilityTab selectedClient={client} />}
+                  {tab === "aivis" && <AiVisibilityTab selectedClient={client} dateRange={dateRangeWithCompare} />}
                   {tab === "conversions" && <ConvDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
                   {tab === "ads" && <AdsDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
                 </>
