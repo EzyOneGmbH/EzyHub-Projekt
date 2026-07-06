@@ -765,6 +765,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             jr.attribution = at ? (at.skipped || at.error ? at : { engines: at.engines.length }) : "skipped";
             jr.prompts = pr ? (pr.skipped ? { skipped: pr.skipped, seeded: pr.seeded } : { answered: pr.answered, byEngine: pr.byEngine, engineErrors: pr.engineErrors, mentions: pr.mentions, seeded: pr.seeded, topics: pr.topics.length, selfShare: pr.selfShare, sov: pr.sov?.length, judged: pr.judged, learned: pr.learnedComps?.length }) : "skipped";
             jr.canonry = ca ? (ca.skipped ? { skipped: ca.skipped } : { models: ca.models.length, mentions: ca.mentions, sources: ca.sources.length }) : "skipped";
+            jr.semrush = { keyPresent: !!process.env.SEMRUSH_API_KEY, competitors: semrushComps.length, volumesFilled: 0 };
 
             const hasBr = br && !br.skipped;
             const hasPr = pr && !pr.skipped && pr.promptRows?.length;
@@ -888,8 +889,11 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                   pr.promptRows.map((p: any) => ({ ...p, report_id: reportId, client_id: c.id })),
                 );
                 // Semrush: echte Suchvolumina in die Themen (füllt die AI-Vol.-Spalte).
-                if (process.env.SEMRUSH_API_KEY)
-                  for (const t of pr.topics) t.volume = await semrushVolume(t.topic, db);
+                if (process.env.SEMRUSH_API_KEY) {
+                  let vf = 0;
+                  for (const t of pr.topics) { t.volume = await semrushVolume(t.topic, db); if (t.volume > 0) vf++; }
+                  (jr.semrush as any).volumesFilled = vf;
+                }
                 if (pr.topics.length)
                   await sb.from("ai_visibility_topics").insert(
                     pr.topics.map((t: any) => ({ ...t, report_id: reportId, client_id: c.id })),
