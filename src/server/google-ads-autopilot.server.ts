@@ -18,6 +18,7 @@ export type AutopilotConfig = {
   client_id: string;
   industry: string;
   kill_switch: boolean;
+  observe_only: boolean;
   autonomy_level: number;
   monthly_budget_chf: number;
   target_cpa_chf: number | null;
@@ -33,6 +34,7 @@ const DEFAULT_CONFIG = (clientId: string): AutopilotConfig => ({
   client_id: clientId,
   industry: "kmu-local",
   kill_switch: false,
+  observe_only: true, // sicher per Default: nur dokumentieren, keine Writes
   autonomy_level: 0,
   monthly_budget_chf: 0,
   target_cpa_chf: null,
@@ -231,6 +233,7 @@ export type AutopilotRunSummary = {
   runId: string;
   dryRun: boolean;
   killSwitch?: boolean;
+  observeOnly?: boolean;
   autonomyLevel?: number;
   executed: number;
   queued: number;
@@ -257,7 +260,7 @@ export async function runAutopilot(clientId: string, opts?: { dryRun?: boolean }
     .maybeSingle();
   const runId = `${now.toISOString().slice(0, 10)}-${slugify(client?.name ?? "")}-${now.getTime().toString().slice(-4)}`;
   const base: AutopilotRunSummary = {
-    ok: true, runId, dryRun, autonomyLevel: cfg.autonomy_level,
+    ok: true, runId, dryRun, observeOnly: cfg.observe_only, autonomyLevel: cfg.autonomy_level,
     executed: 0, queued: 0, reportOnly: 0, failed: 0, actions: [],
   };
 
@@ -269,7 +272,8 @@ export async function runAutopilot(clientId: string, opts?: { dryRun?: boolean }
   if (!fetched.ok || !fetched.data) return { ...base, ok: false, skipped: fetched.skipped, error: fetched.error };
 
   const planned = planActions(fetched.data, cfg);
-  const effectiveDryRun = dryRun || cfg.autonomy_level < 1;
+  // observe_only (Evaluations-Gate) erzwingt Dry-Run: NUR dokumentieren, keine Writes.
+  const effectiveDryRun = dryRun || cfg.observe_only || cfg.autonomy_level < 1;
 
   for (const a of planned) {
     if (a.actionClass === "auto-execute" && a.exec?.kind === "negative") {
@@ -376,6 +380,13 @@ export async function decideApproval(p: {
     .maybeSingle();
   if (!client) return { ok: false, httpStatus: 404, error: "Client not found" };
   const cfg = await loadConfig(appr.client_id);
+  if (cfg.observe_only)
+    return {
+      ok: false,
+      httpStatus: 423,
+      error: "Beobachtungsmodus aktiv - Ausfuehrung deaktiviert. Erst observe_only=false setzen (nach Qualitaetspruefung).",
+      approvalId: appr.id,
+    };
   const payload = (appr.payload && typeof appr.payload === "object" ? appr.payload : {}) as Record<string, any>;
 
   let result: { ok: boolean; error?: string; skipped?: string };

@@ -91,6 +91,7 @@ export default function AdsAutopilotPanel({ selectedClient }) {
   if (!clientId) return null;
 
   const autonomyLabel = ["0 - report-only", "1 - Negatives auto", "2 - + Bids auto"][config?.autonomy_level ?? 0];
+  const observeOnly = config?.observe_only !== false; // Default sicher: an
 
   const cardStyle = {
     background: P.card,
@@ -111,6 +112,7 @@ export default function AdsAutopilotPanel({ selectedClient }) {
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {observeOnly && <Badge color={P.blue} bg={P.blueDim}>Beobachtungsmodus - nur Dokumentation</Badge>}
           <Badge color={P.textMuted} bg="rgba(139,141,163,0.12)">Autonomie {autonomyLabel}</Badge>
           {config?.kill_switch && <Badge color={P.red} bg={P.redDim}>Kill-Switch aktiv</Badge>}
           <Btn onClick={() => runDryRun()} disabled={loading}>Dry-Run jetzt</Btn>
@@ -121,6 +123,13 @@ export default function AdsAutopilotPanel({ selectedClient }) {
       {config?.kill_switch && (
         <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: P.redDim, color: P.red, fontSize: 13 }}>
           Kill-Switch ist aktiv - der Autopilot fuehrt fuer diesen Kunden keine Aenderungen aus.
+        </div>
+      )}
+      {observeOnly && (
+        <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: P.blueDim, color: P.blue, fontSize: 13 }}>
+          Beobachtungsmodus: Der Autopilot dokumentiert nur Massnahmen und Empfehlungen - es werden KEINE
+          Aenderungen an Google Ads vorgenommen (unabhaengig vom Autonomie-Level). Freigaben sind deaktiviert,
+          bis observe_only=false gesetzt wird (nach Qualitaetspruefung).
         </div>
       )}
       {error && (
@@ -138,7 +147,7 @@ export default function AdsAutopilotPanel({ selectedClient }) {
       {/* Approval queue */}
       <div style={{ marginTop: 20 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: P.text, marginBottom: 8 }}>
-          Wartet auf Freigabe ({approvals.length})
+          {observeOnly ? "Empfehlungen (Dokumentation)" : "Wartet auf Freigabe"} ({approvals.length})
         </div>
         {approvals.length === 0 && (
           <div style={{ fontSize: 13, color: P.textDim }}>Keine offenen Freigaben.</div>
@@ -162,8 +171,8 @@ export default function AdsAutopilotPanel({ selectedClient }) {
                   )}
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                  <Btn variant="approve" disabled={busyId === a.id} onClick={() => decide(a.id, "approve")}>
-                    {busyId === a.id ? "..." : "Freigeben"}
+                  <Btn variant="approve" disabled={busyId === a.id || observeOnly} onClick={() => decide(a.id, "approve")}>
+                    {busyId === a.id ? "..." : observeOnly ? "Freigabe gesperrt" : "Freigeben"}
                   </Btn>
                   <Btn variant="reject" disabled={busyId === a.id} onClick={() => decide(a.id, "reject")}>
                     Ablehnen

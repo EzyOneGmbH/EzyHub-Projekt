@@ -102,6 +102,7 @@ export type Database = {
           monthly_budget_chf: number
           no_touch_campaigns: string[]
           notes: string | null
+          observe_only: boolean
           season_high: string[]
           season_low: string[]
           target_cpa_chf: number | null
@@ -117,6 +118,7 @@ export type Database = {
           monthly_budget_chf?: number
           no_touch_campaigns?: string[]
           notes?: string | null
+          observe_only?: boolean
           season_high?: string[]
           season_low?: string[]
           target_cpa_chf?: number | null
@@ -132,6 +134,7 @@ export type Database = {
           monthly_budget_chf?: number
           no_touch_campaigns?: string[]
           notes?: string | null
+          observe_only?: boolean
           season_high?: string[]
           season_low?: string[]
           target_cpa_chf?: number | null

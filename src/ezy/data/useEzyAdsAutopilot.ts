@@ -34,6 +34,7 @@ export type AdsConfigRow = {
   client_id: string;
   industry: string;
   kill_switch: boolean;
+  observe_only: boolean;
   autonomy_level: number;
   target_cpa_chf: number | null;
   target_roas: number | null;
