@@ -1,4 +1,4 @@
-// redeploy-marker: aivis v2 (unlimited prompts + Semrush + Service-Gate) — 2026-07-06b
+// redeploy-marker: aivis v2 (Semrush-Diagnose, isolierter Worktree) — 2026-07-06d
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
