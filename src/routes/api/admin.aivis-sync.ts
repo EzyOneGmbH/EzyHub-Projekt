@@ -825,7 +825,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               // (ChatGPT/Perplexity/Gemini kamen sonst mehrfach vor -> das war die Verwirrung).
               const rawModels = [
                 ...(hasBr ? br.models.map((m: any) => ({ ...m, layer: "macro" })) : []),
-                ...(hasCa ? ca.models.map((m: any) => ({ ...m, layer: "canonry" })) : []),
+                ...(hasCa ? ca.models.map((m: any) => ({ ...m, layer: "macro" })) : []), // Canonry = Makro-Quelle
                 ...(hasPr ? pr.customModels.map((m: any) => ({ ...m, layer: "custom" })) : []),
               ];
               const modelAgg: Record<string, { mentions: number; byCountry: Record<string, number>; layers: Set<string> }> = {};
@@ -837,7 +837,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               }
               const allModels = Object.entries(modelAgg).map(([name, a]) => ({
                 name,
-                layer: a.layers.has("custom") ? "custom" : a.layers.has("canonry") ? "canonry" : "macro",
+                layer: a.layers.has("custom") ? "custom" : "macro",
                 mentions: a.mentions,
                 byCountry: a.byCountry,
               }));
