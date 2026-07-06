@@ -128,6 +128,7 @@ import {
 } from "@/ezy/data/useEzyLatestRun";
 import GoogleClientPanel from "@/ezy/GoogleClientPanel.jsx";
 import AIVisibilityReport, { AIVisibilitySkeleton } from "@/ezy/AIVisibilityDashboard.jsx";
+import AdsAutopilotPanel from "@/ezy/AdsAutopilotPanel.jsx";
 import { useEzyAIVisibility } from "@/ezy/data/useEzyAIVisibility";
 import { supabase } from "@/integrations/supabase/client";
 import { SKILL_CATALOG } from "@/ezy/data/skillCatalog";
@@ -11307,7 +11308,12 @@ function App() {
                   {tab === "seo" && <SeoDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
                   {tab === "aivis" && <AiVisibilityTab selectedClient={client} dateRange={dateRangeWithCompare} />}
                   {tab === "conversions" && <ConvDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
-                  {tab === "ads" && <AdsDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
+                  {tab === "ads" && (
+                    <>
+                      <AdsDashboard selectedClient={client} dateRange={dateRangeWithCompare} />
+                      <AdsAutopilotPanel selectedClient={client} />
+                    </>
+                  )}
                 </>
               )}
             </>

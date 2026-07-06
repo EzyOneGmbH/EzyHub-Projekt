@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "./google-tokens.server";
-import { addNegativeKeyword } from "./google-ads-mutate.server";
+import { addNegativeKeyword, setCampaignBudget } from "./google-ads-mutate.server";
 
 // Autopilot brain (deterministic layer). Pulls the data the classifier needs,
 // applies the numeric rules from the build brief, auto-executes only the
@@ -324,4 +324,84 @@ export async function runAutopilot(clientId: string, opts?: { dryRun?: boolean }
     }
   }
   return base;
+}
+
+// ── approve/reject a queued action (shared by admin + user-authed routes) ────
+export type DecideResult = {
+  ok: boolean;
+  httpStatus: number;
+  status?: string;
+  error?: string;
+  approvalId?: string;
+};
+
+export async function decideApproval(p: {
+  approvalId?: string;
+  runId?: string;
+  actionId?: string;
+  decision: "approve" | "reject";
+  decidedBy?: string | null;
+  clientId?: string; // optional guard: approval must belong to this client
+}): Promise<DecideResult> {
+  let q = supabaseAdmin.from("ads_approvals").select("*");
+  q = p.approvalId ? q.eq("id", p.approvalId) : q.eq("run_id", p.runId!).eq("action_id", p.actionId!);
+  const { data: appr, error } = await q.maybeSingle();
+  if (error) return { ok: false, httpStatus: 500, error: error.message };
+  if (!appr) return { ok: false, httpStatus: 404, error: "Approval nicht gefunden" };
+  if (p.clientId && appr.client_id !== p.clientId)
+    return { ok: false, httpStatus: 403, error: "Approval gehoert nicht zu diesem Kunden" };
+  if (appr.status !== "pending")
+    return { ok: false, httpStatus: 409, error: `Approval bereits '${appr.status}'`, approvalId: appr.id };
+  if (appr.expires_at && new Date(appr.expires_at).getTime() < Date.now()) {
+    await supabaseAdmin.from("ads_approvals").update({ status: "expired" }).eq("id", appr.id);
+    return { ok: false, httpStatus: 410, error: "Approval abgelaufen", approvalId: appr.id };
+  }
+
+  const decidedAt = new Date().toISOString();
+
+  if (p.decision === "reject") {
+    await supabaseAdmin
+      .from("ads_approvals")
+      .update({ status: "rejected", decided_by: p.decidedBy ?? null, decided_at: decidedAt })
+      .eq("id", appr.id);
+    if (appr.changelog_id)
+      await supabaseAdmin.from("ads_changelog").update({ status: "rejected", approved_by: p.decidedBy ?? null }).eq("id", appr.changelog_id);
+    return { ok: true, httpStatus: 200, status: "rejected", approvalId: appr.id };
+  }
+
+  const { data: client } = await supabaseAdmin
+    .from("clients")
+    .select("id, google_ads_customer")
+    .eq("id", appr.client_id)
+    .maybeSingle();
+  if (!client) return { ok: false, httpStatus: 404, error: "Client not found" };
+  const cfg = await loadConfig(appr.client_id);
+  const payload = (appr.payload && typeof appr.payload === "object" ? appr.payload : {}) as Record<string, any>;
+
+  let result: { ok: boolean; error?: string; skipped?: string };
+  if (payload.kind === "budget") {
+    result = await setCampaignBudget({
+      clientId: appr.client_id, googleAdsCustomer: client.google_ads_customer,
+      campaignName: payload.campaign, dailyChf: Number(payload.dailyChf),
+      dryRun: false, noTouch: cfg.no_touch_campaigns,
+    });
+  } else if (payload.kind === "negative") {
+    result = await addNegativeKeyword({
+      clientId: appr.client_id, googleAdsCustomer: client.google_ads_customer,
+      campaignName: payload.campaign, term: payload.term,
+      dryRun: false, noTouch: cfg.no_touch_campaigns,
+    });
+  } else {
+    return { ok: false, httpStatus: 422, error: `Kein ausfuehrbarer payload (kind=${payload.kind ?? "?"})`, approvalId: appr.id };
+  }
+
+  const status = result.ok ? "executed" : "failed";
+  await supabaseAdmin
+    .from("ads_approvals")
+    .update({ status, decided_by: p.decidedBy ?? null, decided_at: decidedAt })
+    .eq("id", appr.id);
+  if (appr.changelog_id)
+    await supabaseAdmin.from("ads_changelog").update({ status, approved_by: p.decidedBy ?? null }).eq("id", appr.changelog_id);
+
+  return { ok: result.ok, httpStatus: result.ok ? 200 : 502, status, error: result.error ?? result.skipped, approvalId: appr.id };
 }
