@@ -56,6 +56,41 @@ export type Database = {
           },
         ]
       }
+      ai_visibility_competitors: {
+        Row: {
+          active: boolean | null
+          client_id: string
+          created_at: string | null
+          id: string
+          name: string
+          source: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          client_id: string
+          created_at?: string | null
+          id?: string
+          name: string
+          source?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          client_id?: string
+          created_at?: string | null
+          id?: string
+          name?: string
+          source?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_visibility_competitors_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_visibility_model_country: {
         Row: {
           client_id: string
@@ -194,9 +229,11 @@ export type Database = {
           intent: string | null
           is_opportunity: boolean | null
           platform: string | null
+          position: string | null
           prompt: string
           report_id: string
           response: string | null
+          sentiment: string | null
           sources_count: number | null
           status: string | null
         }
@@ -209,9 +246,11 @@ export type Database = {
           intent?: string | null
           is_opportunity?: boolean | null
           platform?: string | null
+          position?: string | null
           prompt: string
           report_id: string
           response?: string | null
+          sentiment?: string | null
           sources_count?: number | null
           status?: string | null
         }
@@ -224,9 +263,11 @@ export type Database = {
           intent?: string | null
           is_opportunity?: boolean | null
           platform?: string | null
+          position?: string | null
           prompt?: string
           report_id?: string
           response?: string | null
+          sentiment?: string | null
           sources_count?: number | null
           status?: string | null
         }
@@ -308,6 +349,7 @@ export type Database = {
           client_id: string
           domain: string
           id: string
+          layer: string | null
           mentions: number | null
           report_id: string
           share: number | null
@@ -318,6 +360,7 @@ export type Database = {
           client_id: string
           domain: string
           id?: string
+          layer?: string | null
           mentions?: number | null
           report_id: string
           share?: number | null
@@ -328,6 +371,7 @@ export type Database = {
           client_id?: string
           domain?: string
           id?: string
+          layer?: string | null
           mentions?: number | null
           report_id?: string
           share?: number | null
@@ -344,6 +388,51 @@ export type Database = {
           },
           {
             foreignKeyName: "ai_visibility_sources_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "ai_visibility_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_visibility_sov: {
+        Row: {
+          brand: string
+          client_id: string
+          id: string
+          is_self: boolean | null
+          mentions: number | null
+          report_id: string
+          share: number | null
+        }
+        Insert: {
+          brand: string
+          client_id: string
+          id?: string
+          is_self?: boolean | null
+          mentions?: number | null
+          report_id: string
+          share?: number | null
+        }
+        Update: {
+          brand?: string
+          client_id?: string
+          id?: string
+          is_self?: boolean | null
+          mentions?: number | null
+          report_id?: string
+          share?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_visibility_sov_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_visibility_sov_report_id_fkey"
             columns: ["report_id"]
             isOneToOne: false
             referencedRelation: "ai_visibility_reports"
