@@ -512,26 +512,8 @@ export default function AIVisibilityDashboard({ data }) {
     <div className="w-full" style={{ background: C.page, color: C.ink }}>
       <div className="mx-auto max-w-6xl">
 
-        {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <div className="grid h-8 w-8 place-items-center rounded-lg text-white" style={{ background: C.indigo }}>
-                <Sparkles size={16} />
-              </div>
-              <div>
-                <h1 className="text-lg font-bold leading-tight" style={{ color: C.ink }}>Sichtbarkeits-Übersicht</h1>
-                <p className="text-xs" style={{ color: C.sub }}>{d.client} · {d.date}</p>
-              </div>
-            </div>
-          </div>
-          <span className="rounded-lg border px-2.5 py-1.5 text-xs" style={{ ...CARD, color: C.sub }}>
-            Alle KI-Plattformen
-          </span>
-        </div>
-
-        {/* Top row: score + KPIs */}
-        <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-4">
+        {/* Top row: score + KPIs (Header entfällt — Tab-Kopf der App zeigt Titel + Kunde) */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
           <div className="rounded-xl border p-5 lg:col-span-1" style={CARD}>
             <ScoreRing value={d.score} delta={d.scoreDelta} modelCount={d.models.length} />
           </div>
