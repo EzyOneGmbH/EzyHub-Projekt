@@ -214,13 +214,13 @@ async function askClaude(prompt: string, maxTokens = 600): Promise<{ text: strin
   return text ? { text, sources: urlsIn(text) } : null;
 }
 
-async function askPerplexity(prompt: string): Promise<{ text: string; sources: number } | null> {
+async function askPerplexity(prompt: string, maxTokens = 600): Promise<{ text: string; sources: number } | null> {
   const key = process.env.PERPLEXITY_API_KEY;
   if (!key) return null;
   const r = await fetch("https://api.perplexity.ai/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "sonar", messages: [{ role: "user", content: prompt }], max_tokens: 600 }),
+    body: JSON.stringify({ model: "sonar", messages: [{ role: "user", content: prompt }], max_tokens: maxTokens }),
     signal: AbortSignal.timeout(60_000),
   });
   if (!r.ok) return null;
@@ -230,7 +230,7 @@ async function askPerplexity(prompt: string): Promise<{ text: string; sources: n
   return text ? { text, sources: cits } : null;
 }
 
-async function askGemini(prompt: string): Promise<{ text: string; sources: number } | null> {
+async function askGemini(prompt: string, maxTokens = 600): Promise<{ text: string; sources: number } | null> {
   const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!key) return null;
   const r = await fetch(
@@ -240,7 +240,7 @@ async function askGemini(prompt: string): Promise<{ text: string; sources: numbe
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: 600, thinkingConfig: { thinkingBudget: 0 } },
+        generationConfig: { maxOutputTokens: maxTokens, thinkingConfig: { thinkingBudget: 0 } },
       }),
       signal: AbortSignal.timeout(60_000),
     },
@@ -257,12 +257,13 @@ async function askOpenAICompat(
   key: string | undefined,
   model: string,
   prompt: string,
+  maxTokens = 600,
 ): Promise<{ text: string; sources: number } | null> {
   if (!key) return null;
   const r = await fetch(url, {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], max_tokens: 600 }),
+    body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], max_tokens: maxTokens }),
     signal: AbortSignal.timeout(60_000),
   });
   if (!r.ok) return { text: "", sources: 0, error: `HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 140)}` } as any;
@@ -290,6 +291,24 @@ const PROMPT_ENGINES: Array<{ name: string; ask: (p: string) => Promise<{ text: 
   },
 ];
 
+// Utility-LLM für interne Aufgaben (Seeding, Judge) mit Failover-Kette: bei
+// leerem Guthaben/Fehler automatisch das nächste verfügbare Modell. So bricht
+// v2 nicht ab, nur weil EIN Anbieter (z. B. Claude) gerade kein Guthaben hat.
+async function askUtility(prompt: string, maxTokens = 2000): Promise<string | null> {
+  const chain: Array<() => Promise<any>> = [
+    () => askClaude(prompt, maxTokens),
+    () => askOpenAICompat("https://api.deepseek.com/chat/completions", process.env.DEEPSEEK_API_KEY, process.env.DEEPSEEK_MODEL ?? "deepseek-chat", prompt, maxTokens),
+    () => askOpenAICompat("https://api.x.ai/v1/chat/completions", process.env.XAI_API_KEY || process.env.GROK_API_KEY, process.env.XAI_MODEL ?? "grok-4", prompt, maxTokens),
+    () => askPerplexity(prompt, maxTokens),
+    () => askOpenAICompat("https://api.openai.com/v1/chat/completions", process.env.OPENAI_API_KEY, process.env.OPENAI_MODEL ?? "gpt-5.1", prompt, maxTokens),
+    () => askGemini(prompt, maxTokens),
+  ];
+  for (const fn of chain) {
+    try { const r = await fn(); if (r && r.text) return r.text as string; } catch { /* nächstes Modell */ }
+  }
+  return null;
+}
+
 // JSON aus LLM-Antworten robust extrahieren (Codefences etc.).
 function parseJson(text: string): any {
   const m = text.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
@@ -302,12 +321,12 @@ const domOf = (u: string) => { try { return new URL(u).hostname.replace(/^www\./
 
 // Erstes Seeding: ~16 realistische, strategisch gemischte Nutzer-Prompts je Kunde.
 async function seedPromptDefs(c: any, sbAny: any): Promise<{ defs: any[]; error?: string }> {
-  const gen = await askClaude(
+  const text = await askUtility(
     `Du bist SEO/GEO-Analyst. Erzeuge 16 realistische Suchanfragen (Prompts), die echte potenzielle Kunden an KI-Assistenten stellen und bei denen die Firma "${c.name}" (${cleanDomain(c.domain)}, Markt ${c.country || "CH"}) idealerweise empfohlen werden sollte. Decke bewusst ab: (a) generische Empfehlungsfragen ("bestes …"), (b) direkte Vergleichs-/Alternativfragen ("Alternativen zu …", "X oder Y"), (c) Long-Tail/Nischen mit spezifischen Anforderungen, (d) transaktionale und (e) lokale Fragen je Land. Mische Sprachen passend zum Markt (v. a. ${c.language || "de"}) und Länder (Schweiz/Deutschland/Österreich/Italien/International). WICHTIG: Prompts dürfen den Firmennamen NICHT enthalten (außer max. 1 Navigations-Prompt). Antworte NUR mit JSON-Array: [{"prompt":"...","topic":"kurzes Themen-Label","intent":"Kommerziell|Informativ|Transaktional|Navigativ","country":"Schweiz|Deutschland|Österreich|Italien|International"}]`,
     3000,
   );
-  if (gen?.error) return { defs: [], error: gen.error };
-  const arr = gen ? parseJson(gen.text) : null;
+  if (!text) return { defs: [], error: "kein Modell verfügbar (Seeding)" };
+  const arr = parseJson(text);
   if (!Array.isArray(arr) || !arr.length) return { defs: [], error: "Claude lieferte kein parsebares JSON" };
   const rows = arr.slice(0, 20).map((p: any) => ({
     client_id: c.id,
@@ -325,32 +344,19 @@ async function seedPromptDefs(c: any, sbAny: any): Promise<{ defs: any[]; error?
 
 // LLM-Judge (A): jede Antwort strukturiert bewerten statt Regex.
 async function judgeAnswers(brand: string, comps: string[], items: Array<{ i: number; platform: string; text: string }>) {
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) return null;
   const list = items.map((a) => `#${a.i} [${a.platform}] ${String(a.text).slice(0, 650)}`).join("\n---\n");
   const hint = comps.length ? `Bekannte Konkurrenten (nutze diese Schreibweise, ergänze neue): ${comps.join(", ")}. ` : "";
   const content = `Du bewertest KI-Antworten für die Zielmarke "${brand}". ${hint}Für JEDE Antwort ein Objekt:\n{"i":<nr>,"mentioned":true|false (wird die Zielmarke genannt?),"cited":true|false (wird ihre Website/Domain als Quelle genannt/verlinkt?),"position":"top"|"list"|"passing"|"none" (top=klare Top-Empfehlung, list=eine von mehreren gleichrangig, passing=nur Randnotiz, none=nicht genannt),"sentiment":"pos"|"neu"|"neg"|null (Tonalität ggü. der Zielmarke),"competitors":["andere genannte Firmen/Marken OHNE die Zielmarke, max 8"],"sources":["explizit genannte Quell-URLs, max 8"]}\nSei streng: Substring-Zufallstreffer sind KEINE Erwähnung. Antworte NUR mit JSON-Array.\n\n${list}`;
-  try {
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
-      body: JSON.stringify({ model: PARSE_MODEL, max_tokens: 4000, messages: [{ role: "user", content }] }),
-      signal: AbortSignal.timeout(120_000),
-    });
-    if (!r.ok) return null;
-    const j: any = await r.json().catch(() => null);
-    const arr = parseJson((j?.content ?? []).map((b: any) => b?.text ?? "").join(" "));
-    if (!Array.isArray(arr)) return null;
-    const map: Record<number, any> = {};
-    for (const e of arr) map[Number(e.i)] = e;
-    return map;
-  } catch {
-    return null;
-  }
+  const text = await askUtility(content, 4000); // Failover-Kette: Claude -> DeepSeek -> ...
+  if (!text) return null;
+  const arr = parseJson(text);
+  if (!Array.isArray(arr)) return null;
+  const map: Record<number, any> = {};
+  for (const e of arr) map[Number(e.i)] = e;
+  return map;
 }
 
 async function jobPromptRunner(c: any, sbAny: any, fixedComps: string[] = []) {
-  if (!process.env.ANTHROPIC_API_KEY) return { skipped: "ANTHROPIC_API_KEY fehlt" };
   let { data: defs } = await sbAny
     .from("ai_visibility_prompt_defs")
     .select("*")
