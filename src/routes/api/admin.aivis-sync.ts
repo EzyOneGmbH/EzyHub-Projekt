@@ -24,6 +24,8 @@ const Body = z.object({
   jobs: z.array(z.enum(["brand_radar", "attribution", "prompts"])).optional(),
   minIntervalDays: z.number().int().min(0).max(60).default(6),
   force: z.boolean().optional(),
+  mode: z.enum(["live", "backfill"]).default("live"), // backfill = Ahrefs/GA4-Historie
+  months: z.number().int().min(1).max(12).default(6),  // Backfill-Tiefe
 });
 
 const isUuid = (s: string) =>
@@ -500,6 +502,91 @@ async function jobPromptRunner(c: any, sbAny: any, fixedComps: string[] = []) {
   };
 }
 
+// ── Backfill: rückwirkende Makro-Historie (Ahrefs) + GA4-Attribution ─────────
+// Erzeugt je Monat einen rückdatierten Report, damit Trend-Kurve + Deltas sofort
+// gefüllt sind. NICHT backfillbar: Custom-Layer (Prompts/SoV/Sentiment) — die
+// wachsen ab jetzt vorwärts.
+async function jobBackfill(c: any, sb: any, months: number) {
+  const key = process.env.AHREFS_API_KEY;
+  if (!key && !c.ga4_property) return { skipped: "weder Ahrefs-Key noch GA4" };
+  const brand = brandName(c);
+  const now = new Date();
+  const mk = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  // Die letzten `months` ABGESCHLOSSENEN Monate (ohne den aktuellen).
+  const monthsList: Array<{ y: number; m: number; key: string }> = [];
+  for (let k = months; k >= 1; k--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - k, 1);
+    monthsList.push({ y: d.getFullYear(), m: d.getMonth(), key: mk(d) });
+  }
+  const dateFrom = `${monthsList[0].key}-01`;
+  const dateTo = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10); // letzter Tag Vormonat
+
+  // Ahrefs Mentions-History (1 Call, alle Quellen) -> Level je Monat (letzter Punkt).
+  const byMonth: Record<string, number> = {};
+  if (key) {
+    const r = await brandRadar("mentions-history", {
+      date_from: dateFrom, date_to: dateTo,
+      data_source: SOURCES.map((s) => s.ds).join(","),
+      brand,
+    }, key);
+    if (r.ok) {
+      const pts = ((r.data?.metrics ?? []) as any[]).slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      for (const p of pts) byMonth[String(p.date).slice(0, 7)] = Number(p.mentions ?? 0); // asc -> letzter gewinnt
+    }
+  }
+
+  let ga4Token: string | null = null;
+  if (c.ga4_property) { try { ga4Token = (await getGoogleAccessToken(c.id)).accessToken; } catch { /* ohne Attribution */ } }
+
+  let written = 0, prevMentions = 0, prevScore = 0;
+  for (const mo of monthsList) {
+    const mentions = byMonth[mo.key] ?? 0;
+    const snapshot = `${mo.key}-01`;
+    const score = Math.min(100, Math.round(26 * Math.log10(1 + mentions))); // nur Mengen historisch verfügbar
+    const { data: rep, error } = await sb
+      .from("ai_visibility_reports")
+      .upsert({
+        client_id: c.id, market: c.country || null, snapshot_date: snapshot,
+        score, score_delta: score - prevScore,
+        mentions, mentions_delta: mentions - prevMentions,
+        citations: 0, citations_delta: 0, cited_pages: 0, cited_pages_delta: 0,
+      }, { onConflict: "client_id,snapshot_date" })
+      .select("id").single();
+    if (error || !rep) continue;
+    prevMentions = mentions; prevScore = score; written++;
+
+    // GA4-Attribution für diesen Monat.
+    if (ga4Token) {
+      const propertyId = String(c.ga4_property).replace(/^properties\//, "");
+      const end = new Date(mo.y, mo.m + 1, 0).toISOString().slice(0, 10);
+      try {
+        const resp = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${ga4Token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ dateRanges: [{ startDate: `${mo.key}-01`, endDate: end }], dimensions: [{ name: "sessionSource" }], metrics: [{ name: "sessions" }, { name: "keyEvents" }], limit: 250 }),
+          signal: AbortSignal.timeout(30_000),
+        });
+        if (resp.ok) {
+          const jr: any = await resp.json().catch(() => ({}));
+          const agg: Record<string, { sessions: number; conversions: number }> = {};
+          for (const row of jr.rows ?? []) {
+            const src = String(row.dimensionValues?.[0]?.value ?? "");
+            const eng = ENGINES.find((e) => e.re.test(src));
+            if (!eng) continue;
+            agg[eng.name] ??= { sessions: 0, conversions: 0 };
+            agg[eng.name].sessions += Number(row.metricValues?.[0]?.value ?? 0);
+            agg[eng.name].conversions += Number(row.metricValues?.[1]?.value ?? 0);
+          }
+          await sb.from("ai_visibility_attribution").delete().eq("report_id", rep.id);
+          const ins = Object.entries(agg).map(([engine, v]) => ({ report_id: rep.id, client_id: c.id, engine, sessions: v.sessions, conversions: v.conversions }));
+          if (ins.length) await sb.from("ai_visibility_attribution").insert(ins);
+        }
+      } catch { /* Attribution optional */ }
+    }
+  }
+  return { months: written, ahrefs: Object.keys(byMonth).length, ga4: !!ga4Token };
+}
+
 export const Route = createFileRoute("/api/admin/aivis-sync")({
   server: {
     handlers: {
@@ -513,7 +600,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         const parsed = Body.safeParse(await request.json().catch(() => ({})));
         if (!parsed.success)
           return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
-        const { client: sel, all, jobs, minIntervalDays, force } = parsed.data;
+        const { client: sel, all, jobs, minIntervalDays, force, mode, months } = parsed.data;
         const wanted = jobs && jobs.length ? jobs : (["brand_radar", "attribution", "prompts"] as const);
 
         const query = supabaseAdmin
@@ -533,6 +620,12 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         for (const c of clients) {
           const jr: Record<string, unknown> = {};
           try {
+            // Backfill-Modus: rückwirkende Monats-Reports (Ahrefs/GA4), dann fertig.
+            if (mode === "backfill") {
+              jr.backfill = await jobBackfill(c, sb, months);
+              results.push({ client: c.name, domain: c.domain, jobs: jr });
+              continue;
+            }
             // Freshness-Guard (Brand Radar kostet Units).
             if (!force && minIntervalDays > 0) {
               const since = new Date(Date.now() - minIntervalDays * 86400_000).toISOString().slice(0, 10);
