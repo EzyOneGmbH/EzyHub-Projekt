@@ -34,6 +34,36 @@ const today = () => new Date().toISOString().slice(0, 10);
 const cleanDomain = (d: string) =>
   String(d || "").replace(/^https?:\/\//, "").replace(/\/+$/, "");
 
+// ── Semrush Analytics API (CSV): Suchvolumina + organische Konkurrenten ───────
+// Ergänzt Ahrefs (AI-Mentions) + GA4 (Attribution) um die Such-Markt-Ebene.
+function semrushDb(country?: string) {
+  const c = String(country || "ch").toLowerCase();
+  return ["ch", "de", "at", "it", "us", "uk", "fr", "es", "nl"].includes(c) ? c : "ch";
+}
+async function semrush(params: Record<string, string>): Promise<string[][] | null> {
+  const key = process.env.SEMRUSH_API_KEY;
+  if (!key) return null;
+  try {
+    const r = await fetch("https://api.semrush.com/?" + new URLSearchParams({ ...params, key }).toString(), { signal: AbortSignal.timeout(20_000) });
+    if (!r.ok) return null;
+    const lines = (await r.text()).trim().split(/\r?\n/).filter(Boolean);
+    return lines.length < 2 ? [] : lines.slice(1).map((l) => l.split(";"));
+  } catch { return null; }
+}
+async function semrushVolume(phrase: string, db: string): Promise<number> {
+  const rows = await semrush({ type: "phrase_this", phrase, database: db, export_columns: "Ph,Nq" });
+  return rows && rows[0] ? Number(rows[0][1] ?? 0) || 0 : 0;
+}
+async function semrushCompetitors(domain: string, db: string): Promise<string[]> {
+  if (!domain) return [];
+  const rows = await semrush({ type: "domain_organic_organic", domain, database: db, export_columns: "Dn,Cr", display_limit: "8" });
+  if (!rows) return [];
+  return rows
+    .map((r) => String(r[0] || "").replace(/^www\./, "").replace(/\.[a-z.]+$/i, ""))
+    .filter(Boolean)
+    .map((s) => s.charAt(0).toUpperCase() + s.slice(1));
+}
+
 // Spec §9: die 6 Makro-Datenquellen des Ahrefs Brand Radar (+ Anzeigename).
 const SOURCES: Array<{ ds: string; name: string }> = [
   { ds: "chatgpt", name: "ChatGPT" },
@@ -330,7 +360,7 @@ async function seedPromptDefs(c: any, sbAny: any): Promise<{ defs: any[]; error?
   if (!text) return { defs: [], error: "kein Modell verfügbar (Seeding)" };
   const arr = parseJson(text);
   if (!Array.isArray(arr) || !arr.length) return { defs: [], error: "Claude lieferte kein parsebares JSON" };
-  const rows = arr.slice(0, 20).map((p: any) => ({
+  const rows = arr.slice(0, 100).map((p: any) => ({
     client_id: c.id,
     prompt: String(p.prompt ?? "").slice(0, 500),
     topic: String(p.topic ?? "").slice(0, 120) || null,
@@ -346,16 +376,19 @@ async function seedPromptDefs(c: any, sbAny: any): Promise<{ defs: any[]; error?
 
 // LLM-Judge (A): jede Antwort strukturiert bewerten statt Regex.
 async function judgeAnswers(brand: string, comps: string[], items: Array<{ i: number; platform: string; text: string }>) {
-  const list = items.map((a) => `#${a.i} [${a.platform}] ${String(a.text).slice(0, 650)}`).join("\n---\n");
   const hint = comps.length ? `Bekannte Konkurrenten (nutze diese Schreibweise, ergänze neue): ${comps.join(", ")}. ` : "";
-  const content = `Du bewertest KI-Antworten für die Zielmarke "${brand}". ${hint}Für JEDE Antwort ein Objekt:\n{"i":<nr>,"mentioned":true|false (wird die Zielmarke genannt?),"cited":true|false (wird ihre Website/Domain als Quelle genannt/verlinkt?),"position":"top"|"list"|"passing"|"none" (top=klare Top-Empfehlung, list=eine von mehreren gleichrangig, passing=nur Randnotiz, none=nicht genannt),"sentiment":"pos"|"neu"|"neg"|null (Tonalität ggü. der Zielmarke),"competitors":["andere genannte Firmen/Marken OHNE die Zielmarke, max 8"],"sources":["explizit genannte Quell-URLs, max 8"]}\nSei streng: Substring-Zufallstreffer sind KEINE Erwähnung. Antworte NUR mit JSON-Array.\n\n${list}`;
-  const text = await askUtility(content, 4000); // Failover-Kette: Claude -> DeepSeek -> ...
-  if (!text) return null;
-  const arr = parseJson(text);
-  if (!Array.isArray(arr)) return null;
+  const head = `Du bewertest KI-Antworten für die Zielmarke "${brand}". ${hint}Für JEDE Antwort ein Objekt:\n{"i":<nr>,"mentioned":true|false (wird die Zielmarke genannt?),"cited":true|false (wird ihre Website/Domain als Quelle genannt/verlinkt?),"position":"top"|"list"|"passing"|"none" (top=klare Top-Empfehlung, list=eine von mehreren gleichrangig, passing=nur Randnotiz, none=nicht genannt),"sentiment":"pos"|"neu"|"neg"|null (Tonalität ggü. der Zielmarke),"competitors":["andere genannte Firmen/Marken OHNE die Zielmarke, max 8"],"sources":["explizit genannte Quell-URLs, max 8"]}\nSei streng: Substring-Zufallstreffer sind KEINE Erwähnung. Antworte NUR mit JSON-Array.\n\n`;
+  // Judge in Blöcken -> skaliert auf beliebig viele Prompts (ohne Token-Limit zu sprengen).
+  const CHUNK = 12;
   const map: Record<number, any> = {};
-  for (const e of arr) map[Number(e.i)] = e;
-  return map;
+  for (let off = 0; off < items.length; off += CHUNK) {
+    const list = items.slice(off, off + CHUNK).map((a) => `#${a.i} [${a.platform}] ${String(a.text).slice(0, 650)}`).join("\n---\n");
+    const text = await askUtility(head + list, 4000); // Failover-Kette: Claude -> DeepSeek -> ...
+    if (!text) continue;
+    const arr = parseJson(text);
+    if (Array.isArray(arr)) for (const e of arr) map[Number(e.i)] = e;
+  }
+  return Object.keys(map).length ? map : null;
 }
 
 async function jobPromptRunner(c: any, sbAny: any, fixedComps: string[] = []) {
@@ -364,7 +397,7 @@ async function jobPromptRunner(c: any, sbAny: any, fixedComps: string[] = []) {
     .select("*")
     .eq("client_id", c.id)
     .eq("active", true)
-    .limit(24);
+    .limit(1000); // kein hartes Prompt-Limit mehr — alle aktiven Prompts werden gefahren
   let seeded = 0;
   if (!defs?.length) {
     const s = await seedPromptDefs(c, sbAny);
@@ -642,10 +675,17 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               }
             }
 
-            // Konkurrentenliste (Fixliste, editierbar) einmal laden -> beide Layer.
+            // Konkurrentenliste (Fixliste, editierbar) + Semrush-Organik -> beide Layer.
+            const db = semrushDb(c.country);
             const { data: compRows } = await sb
               .from("ai_visibility_competitors").select("name").eq("client_id", c.id).eq("active", true);
-            const fixedComps: string[] = (compRows || []).map((r: any) => String(r.name)).filter(Boolean);
+            const semrushComps = await semrushCompetitors(cleanDomain(c.domain), db);
+            if (semrushComps.length)
+              await sb.from("ai_visibility_competitors").upsert(
+                semrushComps.map((n) => ({ client_id: c.id, name: n, source: "semrush", active: true })),
+                { onConflict: "client_id,name", ignoreDuplicates: true },
+              );
+            const fixedComps: string[] = [...new Set([...(compRows || []).map((r: any) => String(r.name)), ...semrushComps])].filter(Boolean);
 
             const br: any = wanted.includes("brand_radar") ? await jobBrandRadar(c, fixedComps) : null;
             const at: any = wanted.includes("attribution") ? await jobAttribution(c) : null;
@@ -753,6 +793,9 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 await sb.from("ai_visibility_prompts").insert(
                   pr.promptRows.map((p: any) => ({ ...p, report_id: reportId, client_id: c.id })),
                 );
+                // Semrush: echte Suchvolumina in die Themen (füllt die AI-Vol.-Spalte).
+                if (process.env.SEMRUSH_API_KEY)
+                  for (const t of pr.topics) t.volume = await semrushVolume(t.topic, db);
                 if (pr.topics.length)
                   await sb.from("ai_visibility_topics").insert(
                     pr.topics.map((t: any) => ({ ...t, report_id: reportId, client_id: c.id })),
