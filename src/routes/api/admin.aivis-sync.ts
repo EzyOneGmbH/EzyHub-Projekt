@@ -688,7 +688,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
 
         const query = supabaseAdmin
           .from("clients")
-          .select("id, name, domain, organization_id, ga4_property, country");
+          .select("id, name, domain, organization_id, ga4_property, country, canonry_project");
         let clients: any[] = [];
         if (all) clients = (await query).data || [];
         else if (sel && isUuid(sel)) clients = (await query.eq("id", sel)).data || [];
