@@ -11,20 +11,29 @@ import {
 /**
  * EzyHub — AI Visibility Dashboard (Hybrid)
  * -----------------------------------------------------------------------------
- * Visuelle Referenz: AIVisibilityDashboard.jsx aus dem Integrations-Briefing —
- * Layout/Farben/Charts unverändert. Daten kommen als { data }-Prop im
- * AIVisibilityData-Vertrag (src/ezy/data/useEzyAIVisibility.ts); keine Mock-Daten.
- * Jede Model-Zeile trägt `layer`:
- *   "macro"  = Ahrefs Brand Radar API (Semrush-Äquivalent)
- *   "custom" = Prompt-Runner (Claude/Grok/DeepSeek etc.)
+ * Layout/Charts wie in der Referenz — Farben auf die DUNKLE EzyOneApp-Palette
+ * umgestellt, damit der KI-Tab optisch zum Rest der App passt. Daten kommen als
+ * { data }-Prop im AIVisibilityData-Vertrag (src/ezy/data/useEzyAIVisibility.ts).
+ * Jede Model-Zeile trägt `layer`: "macro" = Ahrefs Brand Radar,
+ * "custom" = Prompt-Runner (Claude/Grok/DeepSeek etc.).
  */
 
-// ── Tokens ───────────────────────────────────────────────────────────────────
+// ── Tokens (dunkel, angeglichen an EzyOneApps C-Palette) ─────────────────────
 const C = {
-  ink: "#0f172a", sub: "#64748b", line: "#e2e8f0",
-  indigo: "#4f46e5", teal: "#0d9488", amber: "#d97706",
-  violet: "#7c3aed", up: "#059669", down: "#e11d48",
+  page: "transparent", // erbt den dunklen App-Hintergrund
+  card: "#181923",
+  cardAlt: "#12131a", // aufgeklappte Zeilen / subtile Panels
+  track: "#252636",   // Balken-/Fortschritt-Hintergrund, Chips
+  ink: "#e2e4f0",     // Haupttext
+  sub: "#8b8da3",     // gedämpft
+  line: "#252636",    // Rahmen
+  indigo: "#6c5ce7",
+  teal: "#14b8a6",
+  amber: "#f59e0b",
+  violet: "#a78bfa",
+  up: "#10b981", down: "#ef4444",
 };
+const CARD = { background: C.card, borderColor: C.line };
 
 const nf = (n) => new Intl.NumberFormat("de-CH").format(n);
 
@@ -46,7 +55,7 @@ function ScoreRing({ value, delta, modelCount }) {
     <div className="flex items-center gap-4">
       <div className="relative" style={{ width: 88, height: 88 }}>
         <svg width="88" height="88" className="-rotate-90">
-          <circle cx="44" cy="44" r={r} fill="none" stroke={C.line} strokeWidth="8" />
+          <circle cx="44" cy="44" r={r} fill="none" stroke={C.track} strokeWidth="8" />
           <circle cx="44" cy="44" r={r} fill="none" stroke={C.indigo} strokeWidth="8"
             strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={off}
             style={{ transition: "stroke-dashoffset 1s ease" }} />
@@ -69,7 +78,7 @@ function ScoreRing({ value, delta, modelCount }) {
 
 function Kpi({ icon: Icon, label, value, delta, prev, color }) {
   return (
-    <div className="rounded-xl border bg-white p-4" style={{ borderColor: C.line }}>
+    <div className="rounded-xl border p-4" style={CARD}>
       <div className="flex items-center gap-2 text-xs font-medium" style={{ color: C.sub }}>
         <Icon size={14} style={{ color }} /> {label}
       </div>
@@ -90,7 +99,7 @@ function FilterChip({ active, onClick, children }) {
       className="rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors"
       style={{
         borderColor: active ? C.indigo : C.line,
-        background: active ? C.indigo : "#fff",
+        background: active ? C.indigo : C.card,
         color: active ? "#fff" : C.sub,
       }}
     >
@@ -100,7 +109,6 @@ function FilterChip({ active, onClick, children }) {
 }
 
 function ModelDistribution({ models }) {
-  // Verfügbare Länder dynamisch aus den Modelldaten ableiten (nach Volumen sortiert)
   const totals = {};
   models.forEach((m) =>
     Object.entries(m.byCountry || {}).forEach(([c, v]) => {
@@ -119,7 +127,7 @@ function ModelDistribution({ models }) {
   const max = Math.max(...rows.map((r) => r.value), 1);
 
   return (
-    <div className="rounded-xl border bg-white p-5" style={{ borderColor: C.line }}>
+    <div className="rounded-xl border p-5" style={CARD}>
       <div>
         <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Verteilung nach Modell</h3>
       </div>
@@ -135,7 +143,7 @@ function ModelDistribution({ models }) {
         {sorted.map((m) => (
           <div key={m.name} className="flex items-center gap-3">
             <div className="w-44 shrink-0 text-xs font-medium" style={{ color: C.ink }}>{m.name}</div>
-            <div className="relative h-6 flex-1 overflow-hidden rounded" style={{ background: "#f1f5f9" }}>
+            <div className="relative h-6 flex-1 overflow-hidden rounded" style={{ background: C.track }}>
               <div className="h-full rounded transition-all"
                 style={{
                   width: `${(m.value / max) * 100}%`,
@@ -155,7 +163,7 @@ function ModelDistribution({ models }) {
 
 function TrendCard({ data }) {
   return (
-    <div className="rounded-xl border bg-white p-5" style={{ borderColor: C.line }}>
+    <div className="rounded-xl border p-5" style={CARD}>
       <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Entwicklung · 6 Monate</h3>
       <div className="mt-3" style={{ height: 200 }}>
         <ResponsiveContainer width="100%" height="100%">
@@ -163,7 +171,7 @@ function TrendCard({ data }) {
             <defs>
               {[["gM", C.indigo], ["gC", C.teal], ["gP", C.amber]].map(([id, col]) => (
                 <linearGradient key={id} id={id} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={col} stopOpacity={0.25} />
+                  <stop offset="0%" stopColor={col} stopOpacity={0.35} />
                   <stop offset="100%" stopColor={col} stopOpacity={0} />
                 </linearGradient>
               ))}
@@ -171,7 +179,7 @@ function TrendCard({ data }) {
             <CartesianGrid strokeDasharray="3 3" stroke={C.line} vertical={false} />
             <XAxis dataKey="m" tick={{ fontSize: 11, fill: C.sub }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 11, fill: C.sub }} axisLine={false} tickLine={false} width={30} />
-            <Tooltip contentStyle={{ borderRadius: 8, border: `1px solid ${C.line}`, fontSize: 12 }} />
+            <Tooltip contentStyle={{ borderRadius: 8, border: `1px solid ${C.line}`, background: C.card, color: C.ink, fontSize: 12 }} />
             <Area type="monotone" dataKey="mentions" name="Erwähnungen" stroke={C.indigo} fill="url(#gM)" strokeWidth={2} />
             <Area type="monotone" dataKey="citations" name="Citations" stroke={C.teal} fill="url(#gC)" strokeWidth={2} />
             <Area type="monotone" dataKey="pages" name="Ref. Seiten" stroke={C.amber} fill="url(#gP)" strokeWidth={2} />
@@ -190,13 +198,13 @@ function TrendCard({ data }) {
 }
 
 const intentColor = (i) => ({
-  Kommerziell: "#7c3aed", Transaktional: "#0d9488",
-  Informativ: "#2563eb", Navigativ: "#64748b",
-}[i] || "#64748b");
+  Kommerziell: C.violet, Transaktional: C.teal,
+  Informativ: C.indigo, Navigativ: C.sub,
+}[i] || C.sub);
 
 function TopicsTable({ rows }) {
   return (
-    <div className="rounded-xl border bg-white" style={{ borderColor: C.line }}>
+    <div className="rounded-xl border" style={CARD}>
       <div className="border-b px-5 py-3" style={{ borderColor: C.line }}>
         <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Erfolgreichste Themen</h3>
       </div>
@@ -217,7 +225,7 @@ function TopicsTable({ rows }) {
                 <td className="px-5 py-2.5" style={{ color: C.ink }}>{r.topic}</td>
                 <td className="px-3 py-2.5 text-right">
                   <span className="inline-flex items-center gap-1.5">
-                    <span className="h-1.5 w-10 overflow-hidden rounded-full" style={{ background: "#f1f5f9" }}>
+                    <span className="h-1.5 w-10 overflow-hidden rounded-full" style={{ background: C.track }}>
                       <span className="block h-full rounded-full" style={{ width: `${r.vis}%`, background: C.indigo }} />
                     </span>
                     <span className="tabular-nums font-medium" style={{ color: C.ink }}>{r.vis}</span>
@@ -227,7 +235,7 @@ function TopicsTable({ rows }) {
                 <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: C.sub }}>{nf(r.vol)}</td>
                 <td className="px-5 py-2.5">
                   <span className="rounded-full px-2 py-0.5 text-[11px] font-medium"
-                    style={{ background: `${intentColor(r.intent)}14`, color: intentColor(r.intent) }}>
+                    style={{ background: `${intentColor(r.intent)}26`, color: intentColor(r.intent) }}>
                     {r.intent}
                   </span>
                 </td>
@@ -242,7 +250,7 @@ function TopicsTable({ rows }) {
 
 function SourcesTable({ rows }) {
   return (
-    <div className="rounded-xl border bg-white" style={{ borderColor: C.line }}>
+    <div className="rounded-xl border" style={CARD}>
       <div className="border-b px-5 py-3" style={{ borderColor: C.line }}>
         <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Referenzierte Quellen</h3>
       </div>
@@ -282,7 +290,7 @@ function AttributionStrip({ rows }) {
   const totalS = rows.reduce((a, b) => a + b.sessions, 0);
   const totalC = rows.reduce((a, b) => a + b.conv, 0);
   return (
-    <div className="rounded-xl border bg-white p-5" style={{ borderColor: C.line }}>
+    <div className="rounded-xl border p-5" style={CARD}>
       <div className="flex items-center gap-2">
         <MousePointerClick size={15} style={{ color: C.teal }} />
         <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Conversions</h3>
@@ -290,7 +298,7 @@ function AttributionStrip({ rows }) {
       <p className="mt-0.5 text-xs" style={{ color: C.sub }}>letzte 30 Tage · {nf(totalS)} Sessions · {totalC} Conversions</p>
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
         {rows.map((r) => (
-          <div key={r.engine} className="rounded-lg border p-3" style={{ borderColor: C.line }}>
+          <div key={r.engine} className="rounded-lg border p-3" style={{ borderColor: C.line, background: C.cardAlt }}>
             <div className="text-xs font-medium" style={{ color: C.sub }}>{r.engine}</div>
             <div className="mt-1 text-xl font-bold tabular-nums" style={{ color: C.ink }}>{r.sessions}</div>
             <div className="text-[11px]" style={{ color: r.conv > 0 ? C.up : C.sub }}>
@@ -306,20 +314,20 @@ function AttributionStrip({ rows }) {
 // ── Prompts (Semrush-Style + aufklappbare Roh-Response) ──────────────────────
 function StatusPill({ s }) {
   const map = {
-    "Erwähnt": { bg: "#ecfdf5", fg: C.up },
-    "Referenziert": { bg: "#eef2ff", fg: C.indigo },
-    "Nicht erwähnt": { bg: "#fff7ed", fg: C.amber },
-  }[s] || { bg: "#f1f5f9", fg: C.sub };
+    "Erwähnt": C.up,
+    "Referenziert": C.indigo,
+    "Nicht erwähnt": C.amber,
+  }[s] || C.sub;
   return (
     <span className="rounded-full px-2 py-0.5 text-[11px] font-medium"
-      style={{ background: map.bg, color: map.fg }}>{s}</span>
+      style={{ background: `${map}26`, color: map }}>{s}</span>
   );
 }
 
 function PlatformTag({ p }) {
   return (
     <span className="inline-flex items-center whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium"
-      style={{ background: "#f1f5f9", color: C.sub }}>
+      style={{ background: C.track, color: C.sub }}>
       {p}
     </span>
   );
@@ -329,7 +337,7 @@ function PromptRow({ r, opportunity }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <tr className="border-t cursor-pointer hover:bg-slate-50" style={{ borderColor: C.line }}
+      <tr className="border-t cursor-pointer transition-colors hover:bg-white/5" style={{ borderColor: C.line }}
         onClick={() => setOpen((o) => !o)}>
         <td className="px-5 py-2.5">
           <div className="flex items-start gap-2">
@@ -345,9 +353,9 @@ function PromptRow({ r, opportunity }) {
         <td className="px-5 py-2.5 text-right tabular-nums" style={{ color: C.sub }}>{r.sources}</td>
       </tr>
       {open && (
-        <tr style={{ background: "#fafbff" }}>
+        <tr style={{ background: C.cardAlt }}>
           <td colSpan={opportunity ? 5 : 6} className="px-5 pb-3.5 pt-0">
-            <div className="ml-6 rounded-lg border p-3" style={{ borderColor: C.line }}>
+            <div className="ml-6 rounded-lg border p-3" style={{ borderColor: C.line, background: C.card }}>
               <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.sub }}>
                 <MessageSquareQuote size={12} /> Modell-Antwort
               </div>
@@ -359,7 +367,7 @@ function PromptRow({ r, opportunity }) {
                   </span>
                   {r.comps.map((c) => (
                     <span key={c} className="rounded px-1.5 py-0.5 text-[11px]"
-                      style={{ background: "#f1f5f9", color: C.ink }}>{c}</span>
+                      style={{ background: C.track, color: C.ink }}>{c}</span>
                   ))}
                 </div>
               )}
@@ -373,19 +381,18 @@ function PromptRow({ r, opportunity }) {
 
 function PromptsTable({ prompts, opps, brand }) {
   const [tab, setTab] = useState("all");
-  // "Alle" = jeder getestete Prompt; Chancen bekommen den Status "Nicht erwähnt".
   const allRows = [...prompts, ...opps.map((o) => ({ ...o, status: "Nicht erwähnt" }))];
   const rows = tab === "all" ? allRows : tab === "win" ? prompts : opps;
   const opportunity = tab === "opp";
   return (
-    <div className="rounded-xl border bg-white" style={{ borderColor: C.line }}>
+    <div className="rounded-xl border" style={CARD}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3" style={{ borderColor: C.line }}>
         <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Prompts</h3>
         <div className="flex rounded-lg border p-0.5" style={{ borderColor: C.line }}>
           {[{ k: "all", t: "Alle Prompts" }, { k: "win", t: "Erfolgreichste Prompts" }, { k: "opp", t: "Prompt-Chancen" }].map((x) => (
             <button key={x.k} onClick={() => setTab(x.k)}
               className="rounded-md px-2.5 py-1 text-xs font-medium transition focus:outline-none focus-visible:ring-2"
-              style={{ background: tab === x.k ? C.ink : "transparent", color: tab === x.k ? "#fff" : C.sub }}>
+              style={{ background: tab === x.k ? C.indigo : "transparent", color: tab === x.k ? "#fff" : C.sub }}>
               {x.t}
             </button>
           ))}
@@ -423,7 +430,7 @@ function PromptsTable({ prompts, opps, brand }) {
 function DonutCard({ title, subtitle, data, palette, centerLabel = "gesamt" }) {
   const total = data.reduce((a, b) => a + b.value, 0);
   return (
-    <div className="rounded-xl border bg-white p-5" style={{ borderColor: C.line }}>
+    <div className="rounded-xl border p-5" style={CARD}>
       <h3 className="text-sm font-semibold" style={{ color: C.ink }}>{title}</h3>
       {subtitle && <p className="mt-0.5 text-xs" style={{ color: C.sub }}>{subtitle}</p>}
       <div className="mt-3 flex items-center gap-5">
@@ -435,7 +442,7 @@ function DonutCard({ title, subtitle, data, palette, centerLabel = "gesamt" }) {
                 {data.map((_, i) => <Cell key={i} fill={palette[i % palette.length]} />)}
               </Pie>
               <Tooltip
-                contentStyle={{ borderRadius: 8, border: `1px solid ${C.line}`, fontSize: 12 }}
+                contentStyle={{ borderRadius: 8, border: `1px solid ${C.line}`, background: C.card, color: C.ink, fontSize: 12 }}
                 formatter={(v, n) => [`${v} · ${Math.round((v / total) * 100)}%`, n]} />
             </PieChart>
           </ResponsiveContainer>
@@ -462,13 +469,13 @@ function DonutCard({ title, subtitle, data, palette, centerLabel = "gesamt" }) {
   );
 }
 
-// ── Loading / Empty / Error (Card-Layout beibehalten) ────────────────────────
+// ── Loading / Empty (Card-Layout, dunkel) ────────────────────────────────────
 export function AIVisibilitySkeleton() {
   const Card = ({ h }) => (
-    <div className="animate-pulse rounded-xl border bg-white" style={{ borderColor: C.line, height: h }} />
+    <div className="animate-pulse rounded-xl border" style={{ ...CARD, height: h }} />
   );
   return (
-    <div className="min-h-screen w-full p-4 sm:p-6" style={{ background: "#f8fafc" }}>
+    <div className="w-full" style={{ background: C.page }}>
       <div className="mx-auto max-w-6xl">
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
           <Card h={128} /><Card h={128} /><Card h={128} /><Card h={128} />
@@ -482,9 +489,9 @@ export function AIVisibilitySkeleton() {
 
 export function AIVisibilityEmpty({ message }) {
   return (
-    <div className="min-h-screen w-full p-4 sm:p-6" style={{ background: "#f8fafc" }}>
+    <div className="w-full" style={{ background: C.page }}>
       <div className="mx-auto max-w-6xl">
-        <div className="rounded-xl border bg-white p-10 text-center" style={{ borderColor: C.line }}>
+        <div className="rounded-xl border p-10 text-center" style={CARD}>
           <Sparkles size={28} style={{ color: C.sub, margin: "0 auto" }} />
           <div className="mt-3 text-sm font-semibold" style={{ color: C.ink }}>Noch keine AI-Visibility-Daten</div>
           <p className="mt-1 text-xs" style={{ color: C.sub }}>
@@ -502,30 +509,30 @@ export default function AIVisibilityDashboard({ data }) {
   if (!d) return <AIVisibilityEmpty />;
 
   return (
-    <div className="min-h-screen w-full p-4 sm:p-6" style={{ background: "#f8fafc", color: C.ink }}>
+    <div className="w-full" style={{ background: C.page, color: C.ink }}>
       <div className="mx-auto max-w-6xl">
 
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <div className="grid h-8 w-8 place-items-center rounded-lg text-white" style={{ background: C.ink }}>
+              <div className="grid h-8 w-8 place-items-center rounded-lg text-white" style={{ background: C.indigo }}>
                 <Sparkles size={16} />
               </div>
               <div>
-                <h1 className="text-lg font-bold leading-tight">Sichtbarkeits-Übersicht</h1>
+                <h1 className="text-lg font-bold leading-tight" style={{ color: C.ink }}>Sichtbarkeits-Übersicht</h1>
                 <p className="text-xs" style={{ color: C.sub }}>{d.client} · {d.date}</p>
               </div>
             </div>
           </div>
-          <span className="rounded-lg border bg-white px-2.5 py-1.5 text-xs" style={{ borderColor: C.line, color: C.sub }}>
+          <span className="rounded-lg border px-2.5 py-1.5 text-xs" style={{ ...CARD, color: C.sub }}>
             Alle KI-Plattformen
           </span>
         </div>
 
         {/* Top row: score + KPIs */}
         <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-4">
-          <div className="rounded-xl border bg-white p-5 lg:col-span-1" style={{ borderColor: C.line }}>
+          <div className="rounded-xl border p-5 lg:col-span-1" style={CARD}>
             <ScoreRing value={d.score} delta={d.scoreDelta} modelCount={d.models.length} />
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:col-span-3">
@@ -547,14 +554,14 @@ export default function AIVisibilityDashboard({ data }) {
             title="Erwähnungen nach Land"
             subtitle={`Herkunft der Anfragen · ${d.date}`}
             data={d.countries}
-            palette={["#4f46e5", "#0d9488", "#d97706", "#7c3aed", "#94a3b8"]}
+            palette={[C.indigo, C.teal, C.amber, C.violet, C.sub]}
             centerLabel="Erwähnungen"
           />
           <DonutCard
             title="Prompts nach Intent"
             subtitle="Suchintention der Prompts"
             data={d.promptIntent}
-            palette={["#7c3aed", "#2563eb", "#0d9488", "#64748b", "#d97706"]}
+            palette={[C.violet, C.indigo, C.teal, C.sub, C.amber]}
             centerLabel="Prompts"
           />
         </div>
