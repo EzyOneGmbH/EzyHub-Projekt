@@ -17,6 +17,8 @@ export type AIPrompt = {
   platform: string;
   country: string;
   status?: string;
+  sentiment?: string; // 'pos' | 'neu' | 'neg'
+  position?: string;  // 'top' | 'list' | 'passing' | 'none'
   brands: number;
   sources: number;
   response: string;
@@ -45,6 +47,7 @@ export type AIVisibilityData = {
   attribution: { engine: string; sessions: number; conv: number }[];
   countries: { name: string; value: number }[];
   promptIntent: { name: string; value: number }[];
+  sov: { brand: string; isSelf: boolean; mentions: number; share: number }[];
 };
 
 const deCH = (d: string) =>
@@ -72,6 +75,8 @@ function mapPrompt(r: any, opportunity: boolean): AIPrompt {
     comps: Array.isArray(r.competitors) ? r.competitors.map(String) : [],
   };
   if (!opportunity && r.status) p.status = String(r.status); // bei Chancen weglassen
+  if (r.sentiment) p.sentiment = String(r.sentiment);
+  if (r.position) p.position = String(r.position);
   return p;
 }
 
@@ -94,7 +99,7 @@ export async function loadAIVisibility(
   if (!rep) return null; // Empty-State: noch kein Report für diesen Kunden
 
   // 2) Kind-Tabellen parallel (client_id-Filter zusätzlich -> nutzt die RLS-Policy direkt).
-  const [models, topics, prompts, sources, attribution, history] = await Promise.all([
+  const [models, topics, prompts, sources, attribution, history, sovRes] = await Promise.all([
     sb.from("ai_visibility_models").select("*").eq("report_id", rep.id),
     sb.from("ai_visibility_topics").select("*").eq("report_id", rep.id).order("visibility", { ascending: false }),
     sb.from("ai_visibility_prompts").select("*").eq("report_id", rep.id),
@@ -106,6 +111,7 @@ export async function loadAIVisibility(
       .eq("client_id", clientId)
       .order("snapshot_date", { ascending: false })
       .limit(6),
+    sb.from("ai_visibility_sov").select("*").eq("report_id", rep.id).order("share", { ascending: false }),
   ]);
   const modelRows = models.data ?? [];
   const modelIds = modelRows.map((m: any) => m.id);
@@ -180,6 +186,14 @@ export async function loadAIVisibility(
     promptIntent: Object.entries(intentTotals)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value),
+    sov: (sovRes.data ?? [])
+      .map((s: any) => ({
+        brand: String(s.brand ?? ""),
+        isSelf: !!s.is_self,
+        mentions: Number(s.mentions ?? 0),
+        share: Number(s.share ?? 0),
+      }))
+      .sort((a: any, b: any) => b.share - a.share),
   };
 }
 

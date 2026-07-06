@@ -86,11 +86,13 @@ function brandName(c: any) {
 }
 
 // ── Ahrefs Brand Radar: Mentions je Modell (+ Land) + Citations ─────────────
-async function jobBrandRadar(c: any) {
+async function jobBrandRadar(c: any, comps: string[] = []) {
   const key = process.env.AHREFS_API_KEY;
   if (!key) return { skipped: "AHREFS_API_KEY fehlt" };
   if (!c.name && !c.domain) return { skipped: "kein Name/Domain" };
   const brand = brandName(c);
+  // B) Konkurrenten als Kontext -> Ahrefs disambiguiert die Marke besser.
+  const competitors = comps.length ? comps.slice(0, 10).join(",") : undefined;
   const errors: string[] = [];
 
   // 1) Total je Modell (1 Call pro data_source).
@@ -100,6 +102,7 @@ async function jobBrandRadar(c: any) {
       select: "brand,total",
       data_source: s.ds,
       brand,
+      ...(competitors ? { competitors } : {}),
     }, key);
     if (!r.ok) { errors.push(`${s.name}: ${r.error}`); models.push({ name: s.name, mentions: 0, byCountry: {} }); continue; }
     const total = Number(r.data?.metrics?.[0]?.total ?? 0);
@@ -116,6 +119,7 @@ async function jobBrandRadar(c: any) {
         data_source: ds,
         country: co.code,
         brand,
+        ...(competitors ? { competitors } : {}),
       }, key);
       const v = r.ok ? Number(r.data?.metrics?.[0]?.total ?? 0) : 0;
       if (v > 0) m.byCountry[co.name] = v;
@@ -292,16 +296,20 @@ function parseJson(text: string): any {
   try { return m ? JSON.parse(m[0]) : null; } catch { return null; }
 }
 
-// Erstes Seeding: 8 realistische Nutzer-Prompts je Kunde generieren.
+// URLs/Domains aus Antworttext.
+const urlListIn = (t: string) => (String(t).match(/https?:\/\/[^\s)\]"'>]+/g) || []).map((u) => u.replace(/[.,);]+$/, ""));
+const domOf = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, "").toLowerCase(); } catch { return null; } };
+
+// Erstes Seeding: ~16 realistische, strategisch gemischte Nutzer-Prompts je Kunde.
 async function seedPromptDefs(c: any, sbAny: any): Promise<{ defs: any[]; error?: string }> {
   const gen = await askClaude(
-    `Du bist SEO/GEO-Analyst. Erzeuge 8 realistische Suchanfragen (Prompts), die potenzielle Kunden an KI-Assistenten (ChatGPT/Claude/Perplexity) stellen würden und bei denen die Firma "${c.name}" (${cleanDomain(c.domain)}, Markt ${c.country || "CH"}) idealerweise empfohlen werden sollte. Mische Sprachen passend zum Markt (v. a. ${c.language || "de"}), Länder (Schweiz/Deutschland/Österreich/Italien/International) und Such-Intents. WICHTIG: Die Prompts dürfen den Firmennamen NICHT enthalten (außer max. 1 Navigations-Prompt). Antworte NUR mit einem JSON-Array: [{"prompt":"...","topic":"kurzes Themen-Label","intent":"Kommerziell|Informativ|Transaktional|Navigativ","country":"Schweiz|Deutschland|Österreich|Italien|International"}]`,
-    1600, // 8 Objekte als JSON brauchen deutlich mehr als die 600 Antwort-Tokens des Runners
+    `Du bist SEO/GEO-Analyst. Erzeuge 16 realistische Suchanfragen (Prompts), die echte potenzielle Kunden an KI-Assistenten stellen und bei denen die Firma "${c.name}" (${cleanDomain(c.domain)}, Markt ${c.country || "CH"}) idealerweise empfohlen werden sollte. Decke bewusst ab: (a) generische Empfehlungsfragen ("bestes …"), (b) direkte Vergleichs-/Alternativfragen ("Alternativen zu …", "X oder Y"), (c) Long-Tail/Nischen mit spezifischen Anforderungen, (d) transaktionale und (e) lokale Fragen je Land. Mische Sprachen passend zum Markt (v. a. ${c.language || "de"}) und Länder (Schweiz/Deutschland/Österreich/Italien/International). WICHTIG: Prompts dürfen den Firmennamen NICHT enthalten (außer max. 1 Navigations-Prompt). Antworte NUR mit JSON-Array: [{"prompt":"...","topic":"kurzes Themen-Label","intent":"Kommerziell|Informativ|Transaktional|Navigativ","country":"Schweiz|Deutschland|Österreich|Italien|International"}]`,
+    3000,
   );
   if (gen?.error) return { defs: [], error: gen.error };
   const arr = gen ? parseJson(gen.text) : null;
   if (!Array.isArray(arr) || !arr.length) return { defs: [], error: "Claude lieferte kein parsebares JSON" };
-  const rows = arr.slice(0, 10).map((p: any) => ({
+  const rows = arr.slice(0, 20).map((p: any) => ({
     client_id: c.id,
     prompt: String(p.prompt ?? "").slice(0, 500),
     topic: String(p.topic ?? "").slice(0, 120) || null,
@@ -315,14 +323,40 @@ async function seedPromptDefs(c: any, sbAny: any): Promise<{ defs: any[]; error?
   return { defs: data || [] };
 }
 
-async function jobPromptRunner(c: any, sbAny: any) {
+// LLM-Judge (A): jede Antwort strukturiert bewerten statt Regex.
+async function judgeAnswers(brand: string, comps: string[], items: Array<{ i: number; platform: string; text: string }>) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return null;
+  const list = items.map((a) => `#${a.i} [${a.platform}] ${String(a.text).slice(0, 650)}`).join("\n---\n");
+  const hint = comps.length ? `Bekannte Konkurrenten (nutze diese Schreibweise, ergänze neue): ${comps.join(", ")}. ` : "";
+  const content = `Du bewertest KI-Antworten für die Zielmarke "${brand}". ${hint}Für JEDE Antwort ein Objekt:\n{"i":<nr>,"mentioned":true|false (wird die Zielmarke genannt?),"cited":true|false (wird ihre Website/Domain als Quelle genannt/verlinkt?),"position":"top"|"list"|"passing"|"none" (top=klare Top-Empfehlung, list=eine von mehreren gleichrangig, passing=nur Randnotiz, none=nicht genannt),"sentiment":"pos"|"neu"|"neg"|null (Tonalität ggü. der Zielmarke),"competitors":["andere genannte Firmen/Marken OHNE die Zielmarke, max 8"],"sources":["explizit genannte Quell-URLs, max 8"]}\nSei streng: Substring-Zufallstreffer sind KEINE Erwähnung. Antworte NUR mit JSON-Array.\n\n${list}`;
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
+      body: JSON.stringify({ model: PARSE_MODEL, max_tokens: 4000, messages: [{ role: "user", content }] }),
+      signal: AbortSignal.timeout(120_000),
+    });
+    if (!r.ok) return null;
+    const j: any = await r.json().catch(() => null);
+    const arr = parseJson((j?.content ?? []).map((b: any) => b?.text ?? "").join(" "));
+    if (!Array.isArray(arr)) return null;
+    const map: Record<number, any> = {};
+    for (const e of arr) map[Number(e.i)] = e;
+    return map;
+  } catch {
+    return null;
+  }
+}
+
+async function jobPromptRunner(c: any, sbAny: any, fixedComps: string[] = []) {
   if (!process.env.ANTHROPIC_API_KEY) return { skipped: "ANTHROPIC_API_KEY fehlt" };
   let { data: defs } = await sbAny
     .from("ai_visibility_prompt_defs")
     .select("*")
     .eq("client_id", c.id)
     .eq("active", true)
-    .limit(12);
+    .limit(24);
   let seeded = 0;
   if (!defs?.length) {
     const s = await seedPromptDefs(c, sbAny);
@@ -334,7 +368,7 @@ async function jobPromptRunner(c: any, sbAny: any) {
   const nameRe = new RegExp(String(c.name || "").trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
   const domain = cleanDomain(c.domain);
 
-  // Alle Engines × Prompts (je Engine parallel über die Prompts).
+  // Alle Engines × Prompts.
   const rows: any[] = [];
   const engineErrors: Record<string, string> = {};
   for (const eng of PROMPT_ENGINES) {
@@ -342,99 +376,121 @@ async function jobPromptRunner(c: any, sbAny: any) {
     answers.forEach((a: any, i) => {
       if (!a || !a.text) {
         if (a?.error && !engineErrors[eng.name]) engineErrors[eng.name] = a.error;
-        return; // Engine ohne Key / Fehler -> graceful skip
+        return;
       }
-      const d = defs[i];
-      const mentioned = nameRe.test(a.text);
-      const cited = domain ? a.text.toLowerCase().includes(domain.toLowerCase()) : false;
-      rows.push({
-        def: d,
-        platform: eng.name,
-        text: a.text,
-        sources: a.sources,
-        mentioned: mentioned || cited,
-        status: cited ? "Referenziert" : mentioned ? "Erwähnt" : null,
-      });
+      rows.push({ i: rows.length, def: defs[i], platform: eng.name, text: a.text });
     });
   }
   if (!rows.length) return { skipped: "keine Engine-Antworten", seeded };
 
-  // Konkurrenz-Marken: EIN Batch-Parse-Call (Haiku) über alle Antworten.
-  let brandsByIdx: Record<number, string[]> = {};
-  try {
-    const batch = rows.map((r, i) => `#${i} [${r.platform}] ${r.text.slice(0, 700)}`).join("\n---\n");
-    const parsed = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "x-api-key": process.env.ANTHROPIC_API_KEY!, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: PARSE_MODEL,
-        max_tokens: 1500,
-        messages: [{
-          role: "user",
-          content: `Extrahiere aus jeder der folgenden KI-Antworten die genannten FIRMEN-/MARKENNAMEN (ohne "${c.name}", ohne generische Begriffe, max. 6 je Antwort). Antworte NUR mit JSON: [{"i":0,"brands":["..."]}]\n\n${batch}`,
-        }],
-      }),
-      signal: AbortSignal.timeout(90_000),
-    });
-    if (parsed.ok) {
-      const j: any = await parsed.json().catch(() => null);
-      const arr = parseJson((j?.content ?? []).map((b: any) => b?.text ?? "").join(" "));
-      if (Array.isArray(arr)) for (const e of arr) brandsByIdx[Number(e.i)] = Array.isArray(e.brands) ? e.brands.map(String).slice(0, 6) : [];
+  // A) LLM-Judge über alle Antworten; Fallback = Regex, falls Judge ausfällt.
+  const judged = await judgeAnswers(c.name, fixedComps, rows.map((r) => ({ i: r.i, platform: r.platform, text: r.text })));
+  const evals = rows.map((r) => {
+    const j = judged?.[r.i];
+    if (j) {
+      return {
+        mentioned: !!j.mentioned || !!j.cited,
+        cited: !!j.cited,
+        position: ["top", "list", "passing", "none"].includes(j.position) ? j.position : (j.mentioned ? "list" : "none"),
+        sentiment: ["pos", "neu", "neg"].includes(j.sentiment) ? j.sentiment : null,
+        competitors: Array.isArray(j.competitors) ? j.competitors.map((x: any) => String(x).trim()).filter(Boolean).slice(0, 8) : [],
+        sources: Array.isArray(j.sources) ? j.sources.map(String) : urlListIn(r.text),
+      };
     }
-  } catch { /* comps optional */ }
+    const cited = domain ? r.text.toLowerCase().includes(domain.toLowerCase()) : false;
+    const mentioned = nameRe.test(r.text) || cited;
+    return { mentioned, cited, position: mentioned ? "list" : "none", sentiment: null as string | null, competitors: [] as string[], sources: urlListIn(r.text) };
+  });
 
-  // Ergebnis-Objekte für die DB.
-  const promptRows = rows.map((r, i) => ({
-    prompt: r.def.prompt,
-    platform: r.platform,
-    country: r.def.country || "Schweiz",
-    status: r.mentioned ? r.status : null,
-    is_opportunity: !r.mentioned,
-    intent: r.def.intent || null,
-    brands_count: (brandsByIdx[i]?.length || 0) + (r.mentioned ? 1 : 0),
-    sources_count: r.sources,
-    response: r.text.slice(0, 1500),
-    competitors: brandsByIdx[i] || [],
-  }));
+  // Prompt-Ergebnisse für die DB (mit Sentiment/Position).
+  const promptRows = rows.map((r, k) => {
+    const e = evals[k];
+    return {
+      prompt: r.def.prompt,
+      platform: r.platform,
+      country: r.def.country || "Schweiz",
+      status: e.cited ? "Referenziert" : e.mentioned ? "Erwähnt" : null,
+      is_opportunity: !e.mentioned,
+      intent: r.def.intent || null,
+      sentiment: e.sentiment,
+      position: e.position,
+      brands_count: e.competitors.length + (e.mentioned ? 1 : 0),
+      sources_count: e.sources.length,
+      response: r.text.slice(0, 1500),
+      competitors: e.competitors,
+    };
+  });
 
-  // Custom-Layer: Mentions je Engine (+ Land).
+  // C) Share-of-Voice: eigene Marke vs. Konkurrenten über alle Antworten.
+  const compTally: Record<string, { name: string; n: number }> = {};
+  const selfMentions = evals.filter((e) => e.mentioned).length;
+  for (const e of evals) {
+    for (const name of e.competitors) {
+      const kk = name.toLowerCase();
+      (compTally[kk] ??= { name, n: 0 }).n += 1;
+    }
+  }
+  // Fixliste zusätzlich per Substring absichern (falls Judge sie mal übersieht).
+  for (const fc of fixedComps) {
+    const kk = fc.toLowerCase();
+    if (!compTally[kk]) {
+      const n = rows.filter((r) => r.text.toLowerCase().includes(kk)).length;
+      if (n > 0) compTally[kk] = { name: fc, n };
+    }
+  }
+  const compList = Object.values(compTally).sort((a, b) => b.n - a.n).slice(0, 12);
+  const sovTotal = Math.max(1, selfMentions + compList.reduce((a, b) => a + b.n, 0));
+  const sov = [
+    { brand: c.name, is_self: true, mentions: selfMentions, share: Math.round((selfMentions / sovTotal) * 100) },
+    ...compList.map((cc) => ({ brand: cc.name, is_self: false, mentions: cc.n, share: Math.round((cc.n / sovTotal) * 100) })),
+  ];
+  // Auto-Learning: neue Konkurrenten (nicht in Fixliste), ab 2 Nennungen.
+  const fixedLower = new Set(fixedComps.map((x) => x.toLowerCase()));
+  const learnedComps = compList.filter((cc) => cc.n >= 2 && !fixedLower.has(cc.name.toLowerCase())).map((cc) => cc.name);
+
+  // E) Quellen aus den Antworten (Custom-Layer) nach Domain aggregiert.
+  const srcTally: Record<string, number> = {};
+  for (const e of evals) for (const u of e.sources) { const dd = domOf(u); if (dd) srcTally[dd] = (srcTally[dd] || 0) + 1; }
+  const customSources = Object.entries(srcTally)
+    .map(([dom, n]) => ({ domain: dom, mentions: n, layer: "custom" }))
+    .sort((a, b) => b.mentions - a.mentions)
+    .slice(0, 15);
+
+  // Custom-Modelle je Engine (+ Land), Basis = Judge-Erwähnungen.
   const customModels = PROMPT_ENGINES.map((eng) => {
-    const er = rows.filter((r) => r.platform === eng.name);
-    if (!er.length) return null;
+    const idx = rows.map((r, k) => ({ r, e: evals[k] })).filter((x) => x.r.platform === eng.name);
+    if (!idx.length) return null;
     const byCountry: Record<string, number> = {};
-    for (const r of er) if (r.mentioned) byCountry[r.def.country || "Schweiz"] = (byCountry[r.def.country || "Schweiz"] || 0) + 1;
-    return { name: eng.name, mentions: er.filter((r) => r.mentioned).length, byCountry };
+    for (const x of idx) if (x.e.mentioned) byCountry[x.r.def.country || "Schweiz"] = (byCountry[x.r.def.country || "Schweiz"] || 0) + 1;
+    return { name: eng.name, mentions: idx.filter((x) => x.e.mentioned).length, byCountry };
   }).filter(Boolean) as Array<{ name: string; mentions: number; byCountry: Record<string, number> }>;
 
-  // Themen: je topic-Label Sichtbarkeit = Anteil erwähnter Antworten.
+  // Themen: Sichtbarkeit = Anteil erwähnter Antworten je Themen-Label.
   const topicMap: Record<string, { total: number; mentioned: number; intent: string | null }> = {};
-  for (const r of rows) {
+  rows.forEach((r, k) => {
     const t = r.def.topic || r.def.prompt.slice(0, 60);
     topicMap[t] ??= { total: 0, mentioned: 0, intent: r.def.intent || null };
     topicMap[t].total += 1;
-    if (r.mentioned) topicMap[t].mentioned += 1;
-  }
+    if (evals[k].mentioned) topicMap[t].mentioned += 1;
+  });
   const topics = Object.entries(topicMap).map(([topic, v]) => ({
-    topic,
-    visibility: Math.round((v.mentioned / Math.max(1, v.total)) * 100),
-    mentions: v.mentioned,
-    volume: 0,
-    intent: v.intent,
+    topic, visibility: Math.round((v.mentioned / Math.max(1, v.total)) * 100), mentions: v.mentioned, volume: 0, intent: v.intent,
   }));
 
-  // Diagnose: welche Engines haben geantwortet (fehlender Key/Fehler -> fehlt hier).
+  // Positions-Qualität (0..1): top=1, list=0.6, passing=0.3.
+  const posScore = evals.filter((e) => e.mentioned).reduce((a, e) => a + (e.position === "top" ? 1 : e.position === "list" ? 0.6 : 0.3), 0);
+  const positionQuality = selfMentions ? posScore / selfMentions : 0;
+
   const byEngine: Record<string, number> = {};
   for (const r of rows) byEngine[r.platform] = (byEngine[r.platform] || 0) + 1;
 
   return {
-    promptRows,
-    customModels,
-    topics,
-    seeded,
-    answered: rows.length,
-    byEngine,
-    engineErrors,
+    promptRows, customModels, topics, sov, customSources, learnedComps,
+    seeded, answered: rows.length, byEngine, engineErrors,
     mentions: customModels.reduce((a, m) => a + m.mentions, 0),
+    selfShare: sov[0]?.share ?? 0,
+    positionQuality: Math.round(positionQuality * 100),
+    judged: !!judged,
   };
 }
 
@@ -487,12 +543,17 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               }
             }
 
-            const br: any = wanted.includes("brand_radar") ? await jobBrandRadar(c) : null;
+            // Konkurrentenliste (Fixliste, editierbar) einmal laden -> beide Layer.
+            const { data: compRows } = await sb
+              .from("ai_visibility_competitors").select("name").eq("client_id", c.id).eq("active", true);
+            const fixedComps: string[] = (compRows || []).map((r: any) => String(r.name)).filter(Boolean);
+
+            const br: any = wanted.includes("brand_radar") ? await jobBrandRadar(c, fixedComps) : null;
             const at: any = wanted.includes("attribution") ? await jobAttribution(c) : null;
-            const pr: any = wanted.includes("prompts") ? await jobPromptRunner(c, sb) : null;
+            const pr: any = wanted.includes("prompts") ? await jobPromptRunner(c, sb, fixedComps) : null;
             jr.brand_radar = br ? (br.skipped ? { skipped: br.skipped } : { mentions: br.mentions, citations: br.citations, pages: br.citedPagesCount, errors: br.errors?.length || 0 }) : "skipped";
             jr.attribution = at ? (at.skipped || at.error ? at : { engines: at.engines.length }) : "skipped";
-            jr.prompts = pr ? (pr.skipped ? { skipped: pr.skipped, seeded: pr.seeded } : { answered: pr.answered, byEngine: pr.byEngine, engineErrors: pr.engineErrors, mentions: pr.mentions, seeded: pr.seeded, topics: pr.topics.length }) : "skipped";
+            jr.prompts = pr ? (pr.skipped ? { skipped: pr.skipped, seeded: pr.seeded } : { answered: pr.answered, byEngine: pr.byEngine, engineErrors: pr.engineErrors, mentions: pr.mentions, seeded: pr.seeded, topics: pr.topics.length, selfShare: pr.selfShare, sov: pr.sov?.length, judged: pr.judged, learned: pr.learnedComps?.length }) : "skipped";
 
             const hasBr = br && !br.skipped;
             const hasPr = pr && !pr.skipped && pr.promptRows?.length;
@@ -512,14 +573,19 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 .order("snapshot_date", { ascending: false })
                 .limit(1)
                 .maybeSingle();
-              // Score-Heuristik (TUNE): logarithmisch gedämpfte Summe aus
-              // Mentions/Citations/Seiten — 0 Daten -> 0; ~30 Mentions+15 Cit. -> ~60.
+              // Score (TUNE, F): log-gedämpfte Mengen + Qualitäts-Boni. Share-of-
+              // Voice und Positions-Qualität aus dem Custom-Layer heben den Wert,
+              // wenn die Marke nicht nur oft, sondern PROMINENT genannt wird.
+              const selfShare = hasPr ? (pr.selfShare ?? 0) : 0; // 0..100
+              const posQ = hasPr ? (pr.positionQuality ?? 0) : 0; // 0..100
               const score = Math.min(
                 100,
                 Math.round(
-                  28 * Math.log10(1 + mentions) +
-                  22 * Math.log10(1 + citations) +
-                  14 * Math.log10(1 + citedPagesCount),
+                  26 * Math.log10(1 + mentions) +
+                  20 * Math.log10(1 + citations) +
+                  12 * Math.log10(1 + citedPagesCount) +
+                  0.18 * selfShare +
+                  0.12 * posQ,
                 ),
               );
               const { data: rep, error: repErr } = await sb
@@ -551,6 +617,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               await sb.from("ai_visibility_attribution").delete().eq("report_id", reportId);
               await sb.from("ai_visibility_prompts").delete().eq("report_id", reportId);
               await sb.from("ai_visibility_topics").delete().eq("report_id", reportId);
+              await sb.from("ai_visibility_sov").delete().eq("report_id", reportId);
 
               // Modelle: Makro (Brand Radar) + Custom (Prompt-Runner) in einer Liste.
               const allModels = [
@@ -582,7 +649,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               }
               if (mcInserts.length) await sb.from("ai_visibility_model_country").insert(mcInserts);
 
-              // Prompts + Themen (Custom-Layer, Stufe 2).
+              // Prompts + Themen + SoV + Quellen + Auto-Learning (Custom-Layer).
               if (hasPr) {
                 await sb.from("ai_visibility_prompts").insert(
                   pr.promptRows.map((p: any) => ({ ...p, report_id: reportId, client_id: c.id })),
@@ -590,6 +657,22 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 if (pr.topics.length)
                   await sb.from("ai_visibility_topics").insert(
                     pr.topics.map((t: any) => ({ ...t, report_id: reportId, client_id: c.id })),
+                  );
+                // C) Share-of-Voice
+                if (pr.sov?.length)
+                  await sb.from("ai_visibility_sov").insert(
+                    pr.sov.map((s: any) => ({ report_id: reportId, client_id: c.id, brand: s.brand, is_self: s.is_self, mentions: s.mentions, share: s.share })),
+                  );
+                // E) Quellen aus den Antworten (Custom-Layer)
+                if (pr.customSources?.length)
+                  await sb.from("ai_visibility_sources").insert(
+                    pr.customSources.map((s: any) => ({ report_id: reportId, client_id: c.id, domain: s.domain, mentions: s.mentions, share: 0, urls: 0, traffic: 0, layer: "custom" })),
+                  );
+                // Auto-Learning: neue Konkurrenten in die Fixliste (source='auto').
+                if (pr.learnedComps?.length)
+                  await sb.from("ai_visibility_competitors").upsert(
+                    pr.learnedComps.map((n: string) => ({ client_id: c.id, name: n, source: "auto", active: true })),
+                    { onConflict: "client_id,name", ignoreDuplicates: true },
                   );
               }
 

@@ -36,6 +36,9 @@ const C = {
 const CARD = { background: C.card, borderColor: C.line };
 
 const nf = (n) => new Intl.NumberFormat("de-CH").format(n);
+const POS_LABEL = { top: "Top-Empfehlung", list: "in Liste", passing: "Randnotiz", none: "nicht genannt" };
+const SENT_LABEL = { pos: "positiv", neu: "neutral", neg: "negativ" };
+const SENT_COLOR = (s) => ({ pos: "#10b981", neu: "#8b8da3", neg: "#ef4444" }[s] || "#8b8da3");
 
 // ── Small pieces ─────────────────────────────────────────────────────────────
 function Delta({ v }) {
@@ -360,6 +363,12 @@ function PromptRow({ r, opportunity }) {
                 <MessageSquareQuote size={12} /> Modell-Antwort
               </div>
               <p className="mt-1.5 text-[13px] leading-relaxed" style={{ color: C.ink }}>{r.response}</p>
+              {(r.position || r.sentiment) && (
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]" style={{ color: C.sub }}>
+                  {r.position && <span>Position: <b style={{ color: C.ink }}>{POS_LABEL[r.position] || r.position}</b></span>}
+                  {r.sentiment && <span>Tonalität: <b style={{ color: SENT_COLOR(r.sentiment) }}>{SENT_LABEL[r.sentiment] || r.sentiment}</b></span>}
+                </div>
+              )}
               {r.comps.length > 0 && (
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   <span className="text-[11px]" style={{ color: C.sub }}>
@@ -503,6 +512,33 @@ export function AIVisibilityEmpty({ message }) {
   );
 }
 
+// ── Share of Voice (eigene Marke vs. Konkurrenten) ───────────────────────────
+function SovCard({ rows }) {
+  const max = Math.max(...rows.map((r) => r.mentions), 1);
+  return (
+    <div className="rounded-xl border p-5" style={CARD}>
+      <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Share of Voice</h3>
+      <p className="mt-0.5 text-xs" style={{ color: C.sub }}>Nennungen im Vergleich zu Konkurrenten – über alle KI-Antworten</p>
+      <div className="mt-4 space-y-2.5">
+        {rows.map((r) => (
+          <div key={r.brand} className="flex items-center gap-3">
+            <div className="w-44 shrink-0 truncate text-xs font-medium" style={{ color: r.isSelf ? C.ink : C.sub }}>
+              {r.brand}{r.isSelf ? " · Sie" : ""}
+            </div>
+            <div className="relative h-6 flex-1 overflow-hidden rounded" style={{ background: C.track }}>
+              <div className="h-full rounded transition-all"
+                style={{ width: `${(r.mentions / max) * 100}%`, minWidth: r.mentions > 0 ? 8 : 0, background: r.isSelf ? C.indigo : C.sub }} />
+            </div>
+            <div className="w-16 shrink-0 text-right text-xs font-semibold tabular-nums" style={{ color: r.isSelf ? C.ink : C.sub }}>
+              {r.share}% <span className="font-normal" style={{ color: C.sub }}>({r.mentions})</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Shell ────────────────────────────────────────────────────────────────────
 export default function AIVisibilityDashboard({ data }) {
   const d = data;
@@ -547,6 +583,13 @@ export default function AIVisibilityDashboard({ data }) {
             centerLabel="Prompts"
           />
         </div>
+
+        {/* Share of Voice (nur wenn Konkurrenten erkannt) */}
+        {Array.isArray(d.sov) && d.sov.length > 1 && (
+          <div className="mt-4">
+            <SovCard rows={d.sov} />
+          </div>
+        )}
 
         {/* Attribution */}
         <div className="mt-4">
