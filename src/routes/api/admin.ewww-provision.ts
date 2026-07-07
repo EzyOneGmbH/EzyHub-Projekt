@@ -1,3 +1,4 @@
+// redeploy-marker: ewww cloud-key set+verify — 2026-07-07a
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
