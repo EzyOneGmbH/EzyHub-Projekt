@@ -20,7 +20,8 @@ import { getWpConnection, wpFetch } from "@/server/wordpress.server";
 const Body = z.object({
   client: z.string().optional(), // nur ein Kunde (Name ilike / uuid); sonst alle
   bulk: z.boolean().default(true),
-  exactdn: z.boolean().default(false), // Easy IO / ExactDN CDN aktivieren (Zone registrieren)
+  exactdn: z.boolean().default(false), // Easy IO / ExactDN CDN aktivieren (braucht registrierte Zone)
+  exactdnDomain: z.string().optional(), // xxxx.exactdn.com aus dem EasyIO-Konto (pro Site)
   reset: z.boolean().default(false), // Done-Marker löschen -> ALLE Bilder neu (nach Key-Verify)
   bulkLimit: z.number().int().min(0).max(1000).default(150),
   maxw: z.number().int().min(0).max(8000).default(2560),
@@ -153,10 +154,13 @@ export const Route = createFileRoute("/api/admin/ewww-provision")({
             if (b.exactdn) {
               const ex = await wpFetch<any>(conn, "/ezyhub/v1/ewww/exactdn", {
                 method: "POST",
-                body: { enable: true },
+                body: { enable: true, ...(b.exactdnDomain ? { domain: b.exactdnDomain } : {}) },
               });
+              // ex.data.needsZone -> Site muss erst im EasyIO-Konto registriert werden.
               steps.exactdn = ex.ok
-                ? { enabled: ex.data?.exactdn, domain: ex.data?.domain, activated: ex.data?.activated, verify: ex.data?.verify_method }
+                ? (ex.data?.ok === false
+                    ? { needsZone: true, hint: ex.data?.hint }
+                    : { enabled: ex.data?.exactdn, domain: ex.data?.domain })
                 : ex.error;
             }
 
