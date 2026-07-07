@@ -2,7 +2,7 @@
 /**
  * Plugin Name: EzyHub Connector
  * Description: Lässt EzyHub technische SEO-Maßnahmen autonom deployen — <head>-Injektion (JSON-LD, OG, Meta), llms.txt, Seiten-Meta, Canonical/Noindex, robots.txt, Sitemap-Optimierung, Bild-Alt-Texte und Elementor-Editing (Headings + Text-Widgets) mit automatischem Backup/Restore. Auth via Application Passwords (manage_options). Alle Änderungen reversibel.
- * Version: 1.9.7
+ * Version: 1.9.8
  * Author: EzyOne GmbH
  * License: GPL-2.0+
  */
@@ -678,21 +678,23 @@ class EzyHub_Connector {
             // (neuer: $api_key zuerst; aelter: $cache zuerst) -> per Reflection robust.
             if (!empty($in['cloud_key'])) {
                 $ckey = sanitize_text_field((string) $in['cloud_key']);
-                update_option('ewww_image_optimizer_cloud_key', $ckey);
+                // RAW in wp_options schreiben. update_option() triggert EWWWs
+                // pre_update-Filter, der den Key bei fehlgeschlagener SYNCHRONER
+                // Verifizierung (Netz-Timing) LEERT -> unbrauchbar. Direkt-Write
+                // umgeht das; EWWW verifiziert den Key dann selbst bei der naechsten
+                // Cloud-Operation (Transients unten geloescht -> erzwingt Neu-Check).
+                global $wpdb;
+                $exists = $wpdb->get_var($wpdb->prepare(
+                    "SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name = %s", 'ewww_image_optimizer_cloud_key'));
+                if ($exists)
+                    $wpdb->update($wpdb->options, ['option_value' => $ckey], ['option_name' => 'ewww_image_optimizer_cloud_key']);
+                else
+                    $wpdb->insert($wpdb->options, ['option_name' => 'ewww_image_optimizer_cloud_key', 'option_value' => $ckey, 'autoload' => 'yes']);
+                wp_cache_delete('ewww_image_optimizer_cloud_key', 'options');
+                wp_cache_delete('alloptions', 'options');
                 delete_transient('ewww_image_optimizer_cloud_key');
                 delete_transient('ewww_image_optimizer_hd_key');
-                $ver = 'set';
-                if (function_exists('ewww_image_optimizer_cloud_verify')) {
-                    try {
-                        $ref = new \ReflectionFunction('ewww_image_optimizer_cloud_verify');
-                        $ps = $ref->getParameters();
-                        $firstIsKey = $ps && (stripos($ps[0]->getName(), 'key') !== false || stripos($ps[0]->getName(), 'api') !== false);
-                        $res = $firstIsKey ? @ewww_image_optimizer_cloud_verify($ckey, false) : @ewww_image_optimizer_cloud_verify(false);
-                        if (!empty($res) && $res !== 'invalid') $ver = 'verified:' . (is_string($res) ? $res : '1');
-                        else $ver = 'set_unverified';
-                    } catch (\Throwable $e) { $ver = 'verify_err'; }
-                }
-                $set['cloud_key_status'] = $ver;
+                $set['cloud_key_status'] = (get_option('ewww_image_optimizer_cloud_key', '') === $ckey) ? 'set_raw' : 'set_failed';
             }
             if (!empty($in['webp'])) { update_option('ewww_image_optimizer_webp', 1); $set['webp'] = 1; }
             // WebP-Auslieferung (JS-Rewriting): liefert .webp an unterstuetzende Browser.

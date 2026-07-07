@@ -157,8 +157,8 @@ export const Route = createFileRoute("/api/admin/ewww-provision")({
               steps.bulk = bulk.ok ? bulk.data : bulk.error;
             }
 
-            const keyVerified = cfg.ok && String(cfg.data?.set?.cloud_key_status || "").startsWith("verified");
-            results.push({ client: name, ok: true, keyVerified, steps });
+            const keyStored = cfg.ok && cfg.data?.cloud_key === true;
+            results.push({ client: name, ok: true, keyStored, steps });
           } catch (e: any) {
             results.push({ client: name, error: String(e?.message || e).slice(0, 200), steps });
           }
