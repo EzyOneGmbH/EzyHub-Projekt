@@ -20,6 +20,7 @@ import { getWpConnection, wpFetch } from "@/server/wordpress.server";
 const Body = z.object({
   client: z.string().optional(), // nur ein Kunde (Name ilike / uuid); sonst alle
   bulk: z.boolean().default(true),
+  exactdn: z.boolean().default(false), // Easy IO / ExactDN CDN aktivieren (Zone registrieren)
   reset: z.boolean().default(false), // Done-Marker löschen -> ALLE Bilder neu (nach Key-Verify)
   bulkLimit: z.number().int().min(0).max(1000).default(150),
   maxw: z.number().int().min(0).max(8000).default(2560),
@@ -147,6 +148,17 @@ export const Route = createFileRoute("/api/admin/ewww-provision")({
                   backup: cfg.data?.backup_files,
                 }
               : cfg.error;
+
+            // 4b) Easy IO / ExactDN CDN aktivieren (Zone bei EasyIO registrieren)
+            if (b.exactdn) {
+              const ex = await wpFetch<any>(conn, "/ezyhub/v1/ewww/exactdn", {
+                method: "POST",
+                body: { enable: true },
+              });
+              steps.exactdn = ex.ok
+                ? { enabled: ex.data?.exactdn, domain: ex.data?.domain, activated: ex.data?.activated, verify: ex.data?.verify_method }
+                : ex.error;
+            }
 
             // 5) resumierbarer Bulk (reset=true erzwingt Neu-Optimierung, z.B. nach Key-Verify)
             if (b.bulk) {

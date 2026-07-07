@@ -2,7 +2,7 @@
 /**
  * Plugin Name: EzyHub Connector
  * Description: Lässt EzyHub technische SEO-Maßnahmen autonom deployen — <head>-Injektion (JSON-LD, OG, Meta), llms.txt, Seiten-Meta, Canonical/Noindex, robots.txt, Sitemap-Optimierung, Bild-Alt-Texte und Elementor-Editing (Headings + Text-Widgets) mit automatischem Backup/Restore. Auth via Application Passwords (manage_options). Alle Änderungen reversibel.
- * Version: 1.9.8
+ * Version: 1.9.9
  * Author: EzyOne GmbH
  * License: GPL-2.0+
  */
@@ -782,6 +782,47 @@ class EzyHub_Connector {
                 'ok' => true, 'processed' => count($done), 'webp_created' => $webp,
                 'bytes_before' => $bytes_before, 'bytes_after' => $bytes_after,
                 'remaining' => (int) $rem->found_posts, 'ids' => $done,
+            ];
+        }]);
+
+        // EWWW Easy IO / ExactDN aktivieren: Option setzen + EWWWs eigene Zonen-
+        // Registrierung bei EasyIO anstossen (braucht den Cloud-Key). Instanziiert
+        // die ExactDN-Klasse (Konstruktor -> setup -> activate_site), Namespace je
+        // Version unterschiedlich (\EWWW\ExactDN neu, \ExactDN alt). Gibt die
+        // registrierte exactdn-Domain zurueck (leer = noch nicht verifiziert).
+        register_rest_route(self::NS, '/ewww/exactdn', ['methods' => 'POST', 'permission_callback' => $auth, 'callback' => function ($r) {
+            if (!function_exists('ewww_image_optimizer'))
+                return new WP_Error('no_ewww', 'EWWW Image Optimizer nicht aktiv', ['status' => 409]);
+            $in = $r->get_json_params();
+            $enable = !isset($in['enable']) || !empty($in['enable']);
+            global $wpdb;
+            $val = $enable ? '1' : '';
+            $exists = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name = %s", 'ewww_image_optimizer_exactdn'));
+            if ($exists) $wpdb->update($wpdb->options, ['option_value' => $val], ['option_name' => 'ewww_image_optimizer_exactdn']);
+            else $wpdb->insert($wpdb->options, ['option_name' => 'ewww_image_optimizer_exactdn', 'option_value' => $val, 'autoload' => 'yes']);
+            wp_cache_delete('ewww_image_optimizer_exactdn', 'options');
+            wp_cache_delete('alloptions', 'options');
+            if (!$enable) {
+                delete_option('ewww_image_optimizer_exactdn_domain');
+                delete_option('ewww_image_optimizer_exactdn_verify_method');
+                return ['ok' => true, 'exactdn' => 0];
+            }
+            // Aktivierung/Registrierung anstossen.
+            $activated = 'not_triggered';
+            try {
+                if (class_exists('\\EWWW\\ExactDN')) { new \EWWW\ExactDN(); $activated = 'EWWW\\ExactDN'; }
+                elseif (class_exists('\\ExactDN')) { new \ExactDN(); $activated = 'ExactDN'; }
+                elseif (function_exists('ewww_image_optimizer_exactdn_setup')) { ewww_image_optimizer_exactdn_setup(); $activated = 'setup_fn'; }
+            } catch (\Throwable $e) { $activated = 'err:' . substr($e->getMessage(), 0, 80); }
+            $domain = trim((string) get_option('ewww_image_optimizer_exactdn_domain', ''));
+            return [
+                'ok' => true,
+                'exactdn' => (int) get_option('ewww_image_optimizer_exactdn', 0),
+                'domain' => $domain,
+                'verify_method' => (int) get_option('ewww_image_optimizer_exactdn_verify_method', 0),
+                'activated' => $activated,
+                'cloud_key' => get_option('ewww_image_optimizer_cloud_key', '') ? true : false,
             ];
         }]);
     }
