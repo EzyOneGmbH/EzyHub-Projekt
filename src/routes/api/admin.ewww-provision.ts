@@ -19,6 +19,7 @@ import { getWpConnection, wpFetch } from "@/server/wordpress.server";
 const Body = z.object({
   client: z.string().optional(), // nur ein Kunde (Name ilike / uuid); sonst alle
   bulk: z.boolean().default(true),
+  reset: z.boolean().default(false), // Done-Marker löschen -> ALLE Bilder neu (nach Key-Verify)
   bulkLimit: z.number().int().min(0).max(1000).default(150),
   maxw: z.number().int().min(0).max(8000).default(2560),
   maxh: z.number().int().min(0).max(8000).default(2560),
@@ -122,40 +123,41 @@ export const Route = createFileRoute("/api/admin/ewww-provision")({
               continue;
             }
 
-            // 3) Cloud-Key hinterlegen
-            const keySet = await wpFetch<any>(conn, "/ezyhub/v1/code-write", {
-              method: "POST",
-              body: { where: "option", optionName: "ewww_image_optimizer_cloud_key", content: KEY },
-            });
-            steps.key = keySet.ok ? "gesetzt" : keySet.error;
-
-            // 4) lazy_load=0 (Memory-Learning gegen LCP-Regression)
+            // 3) lazy_load=0 (Memory-Learning gegen LCP-Regression). '0' statt ''
+            // (code-write verlangt einen Wert; '0' ist für EWWW falsy = aus).
             const lz = await wpFetch<any>(conn, "/ezyhub/v1/code-write", {
               method: "POST",
-              body: { where: "option", optionName: "ewww_image_optimizer_lazy_load", content: "" },
+              body: { where: "option", optionName: "ewww_image_optimizer_lazy_load", content: "0" },
             });
             steps.lazyLoadOff = lz.ok ? "ok" : lz.error;
 
-            // 5) Config (WebP + Dimensionen; Connector defaultet Lossy da Key da)
+            // 4) Config: Cloud-Key SETZEN+VERIFIZIEREN (Connector v1.9.7) + WebP +
+            // Dimensionen. Der Connector defaultet danach auf Lossy (Key verifiziert).
             const cfg = await wpFetch<any>(conn, "/ezyhub/v1/ewww/config", {
               method: "POST",
-              body: { webp: 1, maxw: b.maxw, maxh: b.maxh },
+              body: { cloud_key: KEY, webp: 1, maxw: b.maxw, maxh: b.maxh },
             });
             steps.config = cfg.ok
-              ? { cloud_key: cfg.data?.cloud_key, png_level: cfg.data?.png_level, jpg_level: cfg.data?.jpg_level, backup: cfg.data?.backup_files }
+              ? {
+                  key: cfg.data?.set?.cloud_key_status,
+                  cloud_key: cfg.data?.cloud_key,
+                  png_level: cfg.data?.png_level,
+                  jpg_level: cfg.data?.jpg_level,
+                  backup: cfg.data?.backup_files,
+                }
               : cfg.error;
 
-            // 6) resumierbarer Bulk
+            // 5) resumierbarer Bulk (reset=true erzwingt Neu-Optimierung, z.B. nach Key-Verify)
             if (b.bulk) {
               const bulk = await wpFetch<any>(conn, "/ezyhub/v1/ewww/bulk", {
                 method: "POST",
-                body: { limit: b.bulkLimit },
+                body: { limit: b.bulkLimit, ...(b.reset ? { reset: true } : {}) },
               });
               steps.bulk = bulk.ok ? bulk.data : bulk.error;
             }
 
-            const keyOk = cfg.ok && cfg.data?.cloud_key === true;
-            results.push({ client: name, ok: true, keyActive: keyOk, steps });
+            const keyVerified = cfg.ok && String(cfg.data?.set?.cloud_key_status || "").startsWith("verified");
+            results.push({ client: name, ok: true, keyVerified, steps });
           } catch (e: any) {
             results.push({ client: name, error: String(e?.message || e).slice(0, 200), steps });
           }

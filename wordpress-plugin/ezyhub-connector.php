@@ -2,7 +2,7 @@
 /**
  * Plugin Name: EzyHub Connector
  * Description: Lässt EzyHub technische SEO-Maßnahmen autonom deployen — <head>-Injektion (JSON-LD, OG, Meta), llms.txt, Seiten-Meta, Canonical/Noindex, robots.txt, Sitemap-Optimierung, Bild-Alt-Texte und Elementor-Editing (Headings + Text-Widgets) mit automatischem Backup/Restore. Auth via Application Passwords (manage_options). Alle Änderungen reversibel.
- * Version: 1.9.6
+ * Version: 1.9.7
  * Author: EzyOne GmbH
  * License: GPL-2.0+
  */
@@ -672,6 +672,28 @@ class EzyHub_Connector {
             if (!defined('EWWW_IMAGE_OPTIMIZER_VERSION') && !function_exists('ewww_image_optimizer'))
                 return new WP_Error('no_ewww', 'EWWW Image Optimizer nicht aktiv', ['status' => 409]);
             $in = $r->get_json_params(); $set = [];
+            // Cloud-Key setzen UND verifizieren -- ein rohes update_option allein
+            // aktiviert die Cloud-Kompression NICHT (EWWW nutzt sie erst nach
+            // erfolgreicher Verifizierung). Signatur je EWWW-Version unterschiedlich
+            // (neuer: $api_key zuerst; aelter: $cache zuerst) -> per Reflection robust.
+            if (!empty($in['cloud_key'])) {
+                $ckey = sanitize_text_field((string) $in['cloud_key']);
+                update_option('ewww_image_optimizer_cloud_key', $ckey);
+                delete_transient('ewww_image_optimizer_cloud_key');
+                delete_transient('ewww_image_optimizer_hd_key');
+                $ver = 'set';
+                if (function_exists('ewww_image_optimizer_cloud_verify')) {
+                    try {
+                        $ref = new \ReflectionFunction('ewww_image_optimizer_cloud_verify');
+                        $ps = $ref->getParameters();
+                        $firstIsKey = $ps && (stripos($ps[0]->getName(), 'key') !== false || stripos($ps[0]->getName(), 'api') !== false);
+                        $res = $firstIsKey ? @ewww_image_optimizer_cloud_verify($ckey, false) : @ewww_image_optimizer_cloud_verify(false);
+                        if (!empty($res) && $res !== 'invalid') $ver = 'verified:' . (is_string($res) ? $res : '1');
+                        else $ver = 'set_unverified';
+                    } catch (\Throwable $e) { $ver = 'verify_err'; }
+                }
+                $set['cloud_key_status'] = $ver;
+            }
             if (!empty($in['webp'])) { update_option('ewww_image_optimizer_webp', 1); $set['webp'] = 1; }
             // WebP-Auslieferung (JS-Rewriting): liefert .webp an unterstuetzende Browser.
             // Explizit via webp_cdn (0/1) steuerbar -> sauberer Revert; sonst beim
