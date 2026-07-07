@@ -305,10 +305,14 @@ async function askOpenAICompat(
   maxTokens = 600,
 ): Promise<{ text: string; sources: number } | null> {
   if (!key) return null;
+  // OpenAI (gpt-5.x/o-Modelle) verlangt max_completion_tokens; Grok/DeepSeek nutzen max_tokens.
+  const tokenParam = url.includes("api.openai.com")
+    ? { max_completion_tokens: maxTokens }
+    : { max_tokens: maxTokens };
   const r = await fetch(url, {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], max_tokens: maxTokens }),
+    body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], ...tokenParam }),
     signal: AbortSignal.timeout(60_000),
   });
   if (!r.ok) return { text: "", sources: 0, error: `HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 140)}` } as any;
