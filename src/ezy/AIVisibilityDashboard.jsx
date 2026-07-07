@@ -336,50 +336,122 @@ function PlatformTag({ p }) {
   );
 }
 
-function PromptRow({ r, opportunity }) {
+const STATUS_COLOR = (s) =>
+  ({ "Erwähnt": C.up, "Referenziert": C.indigo, "Nicht erwähnt": C.sub }[s] || C.sub);
+const STATUS_RANK = { "Erwähnt": 0, "Referenziert": 1, "Nicht erwähnt": 2 };
+
+// Flache Prompt×Engine-Zeilen -> eine Gruppe je Prompt (Semrush-Style Matrix).
+function groupPrompts(rows) {
+  const map = new Map();
+  for (const r of rows) {
+    const key = `${r.prompt}·${r.country || ""}`;
+    if (!map.has(key)) map.set(key, { prompt: r.prompt, country: r.country, engines: [] });
+    map.get(key).engines.push(r);
+  }
+  const groups = [...map.values()].map((g) => {
+    g.engines.sort(
+      (a, b) =>
+        (STATUS_RANK[a.status] ?? 3) - (STATUS_RANK[b.status] ?? 3) ||
+        String(a.platform).localeCompare(String(b.platform)),
+    );
+    g.mentioned = g.engines.filter((e) => e.status === "Erwähnt" || e.status === "Referenziert").length;
+    g.total = g.engines.length;
+    return g;
+  });
+  groups.sort((a, b) => b.mentioned - a.mentioned || b.total - a.total || a.prompt.localeCompare(b.prompt));
+  return groups;
+}
+
+// Ein Engine-Chip: Plattformname + Status-Punkt (grün erwähnt / indigo referenziert / grau nicht).
+function EngineChip({ e }) {
+  const c = STATUS_COLOR(e.status);
+  return (
+    <span
+      className="inline-flex items-center gap-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-medium"
+      style={{ background: `${c}1f`, color: e.status === "Nicht erwähnt" ? C.sub : c }}
+      title={`${e.platform}: ${e.status}`}
+    >
+      <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: c }} />
+      {e.platform}
+    </span>
+  );
+}
+
+function PromptGroupRow({ g, opportunity }) {
   const [open, setOpen] = useState(false);
+  const rate = g.total ? Math.round((g.mentioned / g.total) * 100) : 0;
   return (
     <>
-      <tr className="border-t cursor-pointer transition-colors hover:bg-white/5" style={{ borderColor: C.line }}
-        onClick={() => setOpen((o) => !o)}>
-        <td className="px-5 py-2.5">
+      <tr
+        className="border-t cursor-pointer transition-colors hover:bg-white/5"
+        style={{ borderColor: C.line }}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <td className="px-5 py-3 align-top">
           <div className="flex items-start gap-2">
-            <ChevronRight size={14} className="mt-0.5 shrink-0 transition-transform"
-              style={{ color: C.sub, transform: open ? "rotate(90deg)" : "none" }} />
-            <span style={{ color: C.ink }}>{r.prompt}</span>
+            <ChevronRight
+              size={14}
+              className="mt-0.5 shrink-0 transition-transform"
+              style={{ color: C.sub, transform: open ? "rotate(90deg)" : "none" }}
+            />
+            <div className="min-w-0">
+              <span style={{ color: C.ink }}>{g.prompt}</span>
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {g.engines.map((e) => (
+                  <EngineChip key={e.platform} e={e} />
+                ))}
+              </div>
+            </div>
           </div>
         </td>
-        <td className="px-3 py-2.5"><PlatformTag p={r.platform} /></td>
-        <td className="px-3 py-2.5 text-xs" style={{ color: C.sub }}>{r.country}</td>
-        {!opportunity && <td className="px-3 py-2.5"><StatusPill s={r.status} /></td>}
-        <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: C.ink }}>{r.brands}</td>
-        <td className="px-5 py-2.5 text-right tabular-nums" style={{ color: C.sub }}>{r.sources}</td>
+        <td className="px-3 py-3 align-top text-xs" style={{ color: C.sub }}>{g.country}</td>
+        {!opportunity && (
+          <td className="px-5 py-3 align-top">
+            <div className="flex items-center justify-end gap-2">
+              <div className="h-1.5 w-16 overflow-hidden rounded-full" style={{ background: C.track }}>
+                <div
+                  className="h-full rounded-full"
+                  style={{ width: `${rate}%`, background: rate >= 50 ? C.up : rate > 0 ? C.indigo : C.amber }}
+                />
+              </div>
+              <span className="w-9 text-right text-xs tabular-nums" style={{ color: C.ink }}>{g.mentioned}/{g.total}</span>
+            </div>
+          </td>
+        )}
       </tr>
       {open && (
         <tr style={{ background: C.cardAlt }}>
-          <td colSpan={opportunity ? 5 : 6} className="px-5 pb-3.5 pt-0">
-            <div className="ml-6 rounded-lg border p-3" style={{ borderColor: C.line, background: C.card }}>
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.sub }}>
-                <MessageSquareQuote size={12} /> Modell-Antwort
-              </div>
-              <p className="mt-1.5 text-[13px] leading-relaxed" style={{ color: C.ink }}>{r.response}</p>
-              {(r.position || r.sentiment) && (
-                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]" style={{ color: C.sub }}>
-                  {r.position && <span>Position: <b style={{ color: C.ink }}>{POS_LABEL[r.position] || r.position}</b></span>}
-                  {r.sentiment && <span>Tonalität: <b style={{ color: SENT_COLOR(r.sentiment) }}>{SENT_LABEL[r.sentiment] || r.sentiment}</b></span>}
+          <td colSpan={opportunity ? 2 : 3} className="px-5 pb-3.5 pt-0">
+            <div className="ml-6 flex flex-col gap-2">
+              {g.engines.map((e) => (
+                <div key={e.platform} className="rounded-lg border p-3" style={{ borderColor: C.line, background: C.card }}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <PlatformTag p={e.platform} />
+                      <StatusPill s={e.status} />
+                    </div>
+                    {(e.position || e.sentiment) && (
+                      <div className="flex items-center gap-x-3 text-[11px]" style={{ color: C.sub }}>
+                        {e.position && <span>Position: <b style={{ color: C.ink }}>{POS_LABEL[e.position] || e.position}</b></span>}
+                        {e.sentiment && <span>Tonalität: <b style={{ color: SENT_COLOR(e.sentiment) }}>{SENT_LABEL[e.sentiment] || e.sentiment}</b></span>}
+                      </div>
+                    )}
+                  </div>
+                  {e.response && (
+                    <p className="mt-2 text-[13px] leading-relaxed" style={{ color: C.ink }}>{e.response}</p>
+                  )}
+                  {e.comps?.length > 0 && (
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <span className="text-[11px]" style={{ color: C.sub }}>
+                        {opportunity ? "Genannte Konkurrenten:" : "Mit-genannt:"}
+                      </span>
+                      {e.comps.map((c) => (
+                        <span key={c} className="rounded px-1.5 py-0.5 text-[11px]" style={{ background: C.track, color: C.ink }}>{c}</span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-              {r.comps.length > 0 && (
-                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  <span className="text-[11px]" style={{ color: C.sub }}>
-                    {opportunity ? "Genannte Konkurrenten:" : "Mit-genannt:"}
-                  </span>
-                  {r.comps.map((c) => (
-                    <span key={c} className="rounded px-1.5 py-0.5 text-[11px]"
-                      style={{ background: C.track, color: C.ink }}>{c}</span>
-                  ))}
-                </div>
-              )}
+              ))}
             </div>
           </td>
         </tr>
@@ -391,8 +463,9 @@ function PromptRow({ r, opportunity }) {
 function PromptsTable({ prompts, opps, brand }) {
   const [tab, setTab] = useState("all");
   const allRows = [...prompts, ...opps.map((o) => ({ ...o, status: "Nicht erwähnt" }))];
-  const rows = tab === "all" ? allRows : tab === "win" ? prompts : opps;
+  const source = tab === "all" ? allRows : tab === "win" ? prompts : opps;
   const opportunity = tab === "opp";
+  const groups = groupPrompts(source);
   return (
     <div className="rounded-xl border" style={CARD}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3" style={{ borderColor: C.line }}>
@@ -407,27 +480,36 @@ function PromptsTable({ prompts, opps, brand }) {
           ))}
         </div>
       </div>
-      <div className="px-5 pt-2 text-[11px]" style={{ color: C.sub }}>
-        {tab === "all"
-          ? `Alle getesteten Prompts über alle KI-Modelle – mit Status für ${brand}. Zeile aufklappen für die echte Modell-Antwort.`
-          : opportunity
-          ? `Prompts, bei denen Konkurrenten genannt werden – ${brand} aber nicht. Zeile aufklappen für die Antwort.`
-          : `Prompts, in denen ${brand} erwähnt oder zitiert wird. Zeile aufklappen für die echte Modell-Antwort.`}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-5 pt-2 text-[11px]" style={{ color: C.sub }}>
+        <span>
+          {tab === "all"
+            ? `${groups.length} Prompts über alle KI-Modelle – Status je Modell für ${brand}. Zeile aufklappen für die echten Antworten.`
+            : opportunity
+            ? `Prompts, bei denen Konkurrenten genannt werden – ${brand} aber nicht.`
+            : `Prompts, in denen ${brand} erwähnt oder zitiert wird.`}
+        </span>
+        {/* Legende */}
+        <span className="flex items-center gap-2">
+          {[["Erwähnt", C.up], ["Referenziert", C.indigo], ["Nicht erwähnt", C.sub]].map(([t, c]) => (
+            <span key={t} className="inline-flex items-center gap-1">
+              <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: c }} />{t}
+            </span>
+          ))}
+        </span>
       </div>
       <div className="mt-1 overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-[11px] uppercase tracking-wide" style={{ color: C.sub }}>
-              <th className="px-5 py-2 font-medium">Prompt</th>
-              <th className="px-3 py-2 font-medium">Plattform</th>
+              <th className="px-5 py-2 font-medium">Prompt &amp; Modelle</th>
               <th className="px-3 py-2 font-medium">Land</th>
-              {!opportunity && <th className="px-3 py-2 font-medium">Ihr Brand</th>}
-              <th className="px-3 py-2 text-right font-medium">{opportunity ? "Konkurrenten" : "Brands"}</th>
-              <th className="px-5 py-2 text-right font-medium">Quellen</th>
+              {!opportunity && <th className="px-5 py-2 text-right font-medium">Abdeckung</th>}
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => <PromptRow key={`${r.prompt}·${r.platform}·${r.status || "opp"}`} r={r} opportunity={opportunity} />)}
+            {groups.map((g) => (
+              <PromptGroupRow key={`${g.prompt}·${g.country}`} g={g} opportunity={opportunity} />
+            ))}
           </tbody>
         </table>
       </div>
