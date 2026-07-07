@@ -46,6 +46,8 @@ import { Route as ApiGoogleConnectionRouteImport } from './routes/api/google.con
 import { Route as ApiGoogleCallbackRouteImport } from './routes/api/google.callback'
 import { Route as ApiGoogleAdsDataRouteImport } from './routes/api/google.ads-data'
 import { Route as ApiGoogleAdsCustomersRouteImport } from './routes/api/google.ads-customers'
+import { Route as ApiGoogleAdsAutopilotRunRouteImport } from './routes/api/google.ads-autopilot-run'
+import { Route as ApiGoogleAdsAutopilotDecideRouteImport } from './routes/api/google.ads-autopilot-decide'
 import { Route as ApiCanonryCreateProjectRouteImport } from './routes/api/canonry.create-project'
 import { Route as ApiAworkUsersRouteImport } from './routes/api/awork.users'
 import { Route as ApiAworkTasksRouteImport } from './routes/api/awork.tasks'
@@ -69,12 +71,17 @@ import { Route as ApiAdminSetCanonryProjectRouteImport } from './routes/api/admi
 import { Route as ApiAdminPopulateRouteImport } from './routes/api/admin.populate'
 import { Route as ApiAdminGtmRouteImport } from './routes/api/admin.gtm'
 import { Route as ApiAdminGbpRouteImport } from './routes/api/admin.gbp'
+import { Route as ApiAdminEwwwProvisionRouteImport } from './routes/api/admin.ewww-provision'
 import { Route as ApiAdminContentSyncRouteImport } from './routes/api/admin.content-sync'
 import { Route as ApiAdminContentNoteRouteImport } from './routes/api/admin.content-note'
+import { Route as ApiAdminContentDecisionRouteImport } from './routes/api/admin.content-decision'
 import { Route as ApiAdminClientMetricsRouteImport } from './routes/api/admin.client-metrics'
 import { Route as ApiAdminClientDomainsRouteImport } from './routes/api/admin.client-domains'
 import { Route as ApiAdminAivisSyncRouteImport } from './routes/api/admin.aivis-sync'
 import { Route as ApiAdminAdsClientsRouteImport } from './routes/api/admin.ads-clients'
+import { Route as ApiAdminAdsAutopilotRunRouteImport } from './routes/api/admin.ads-autopilot-run'
+import { Route as ApiAdminAdsAutopilotExecuteRouteImport } from './routes/api/admin.ads-autopilot-execute'
+import { Route as ApiAdminAdsAutopilotApprovalsRouteImport } from './routes/api/admin.ads-autopilot-approvals'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as ApiLiveCanonryOverviewRouteImport } from './routes/api/live.canonry.overview'
@@ -268,6 +275,18 @@ const ApiGoogleAdsCustomersRoute = ApiGoogleAdsCustomersRouteImport.update({
   path: '/api/google/ads-customers',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGoogleAdsAutopilotRunRoute =
+  ApiGoogleAdsAutopilotRunRouteImport.update({
+    id: '/api/google/ads-autopilot-run',
+    path: '/api/google/ads-autopilot-run',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiGoogleAdsAutopilotDecideRoute =
+  ApiGoogleAdsAutopilotDecideRouteImport.update({
+    id: '/api/google/ads-autopilot-decide',
+    path: '/api/google/ads-autopilot-decide',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiCanonryCreateProjectRoute = ApiCanonryCreateProjectRouteImport.update({
   id: '/api/canonry/create-project',
   path: '/api/canonry/create-project',
@@ -384,6 +403,11 @@ const ApiAdminGbpRoute = ApiAdminGbpRouteImport.update({
   path: '/api/admin/gbp',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminEwwwProvisionRoute = ApiAdminEwwwProvisionRouteImport.update({
+  id: '/api/admin/ewww-provision',
+  path: '/api/admin/ewww-provision',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminContentSyncRoute = ApiAdminContentSyncRouteImport.update({
   id: '/api/admin/content-sync',
   path: '/api/admin/content-sync',
@@ -392,6 +416,11 @@ const ApiAdminContentSyncRoute = ApiAdminContentSyncRouteImport.update({
 const ApiAdminContentNoteRoute = ApiAdminContentNoteRouteImport.update({
   id: '/api/admin/content-note',
   path: '/api/admin/content-note',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminContentDecisionRoute = ApiAdminContentDecisionRouteImport.update({
+  id: '/api/admin/content-decision',
+  path: '/api/admin/content-decision',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminClientMetricsRoute = ApiAdminClientMetricsRouteImport.update({
@@ -414,6 +443,23 @@ const ApiAdminAdsClientsRoute = ApiAdminAdsClientsRouteImport.update({
   path: '/api/admin/ads-clients',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminAdsAutopilotRunRoute = ApiAdminAdsAutopilotRunRouteImport.update({
+  id: '/api/admin/ads-autopilot-run',
+  path: '/api/admin/ads-autopilot-run',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminAdsAutopilotExecuteRoute =
+  ApiAdminAdsAutopilotExecuteRouteImport.update({
+    id: '/api/admin/ads-autopilot-execute',
+    path: '/api/admin/ads-autopilot-execute',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAdminAdsAutopilotApprovalsRoute =
+  ApiAdminAdsAutopilotApprovalsRouteImport.update({
+    id: '/api/admin/ads-autopilot-approvals',
+    path: '/api/admin/ads-autopilot-approvals',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const Char91DotmcpChar93InvokeToolToolRoute =
   Char91DotmcpChar93InvokeToolToolRouteImport.update({
     id: '/.mcp/invoke-tool/$tool',
@@ -465,12 +511,17 @@ export interface FileRoutesByFullPath {
   '/tasks/$id': typeof TasksIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/api/admin/ads-autopilot-approvals': typeof ApiAdminAdsAutopilotApprovalsRoute
+  '/api/admin/ads-autopilot-execute': typeof ApiAdminAdsAutopilotExecuteRoute
+  '/api/admin/ads-autopilot-run': typeof ApiAdminAdsAutopilotRunRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
+  '/api/admin/content-decision': typeof ApiAdminContentDecisionRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
   '/api/admin/content-sync': typeof ApiAdminContentSyncRoute
+  '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
@@ -494,6 +545,8 @@ export interface FileRoutesByFullPath {
   '/api/awork/tasks': typeof ApiAworkTasksRoute
   '/api/awork/users': typeof ApiAworkUsersRoute
   '/api/canonry/create-project': typeof ApiCanonryCreateProjectRoute
+  '/api/google/ads-autopilot-decide': typeof ApiGoogleAdsAutopilotDecideRoute
+  '/api/google/ads-autopilot-run': typeof ApiGoogleAdsAutopilotRunRoute
   '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
   '/api/google/ads-data': typeof ApiGoogleAdsDataRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
@@ -538,12 +591,17 @@ export interface FileRoutesByTo {
   '/tasks/$id': typeof TasksIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/api/admin/ads-autopilot-approvals': typeof ApiAdminAdsAutopilotApprovalsRoute
+  '/api/admin/ads-autopilot-execute': typeof ApiAdminAdsAutopilotExecuteRoute
+  '/api/admin/ads-autopilot-run': typeof ApiAdminAdsAutopilotRunRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
+  '/api/admin/content-decision': typeof ApiAdminContentDecisionRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
   '/api/admin/content-sync': typeof ApiAdminContentSyncRoute
+  '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
@@ -567,6 +625,8 @@ export interface FileRoutesByTo {
   '/api/awork/tasks': typeof ApiAworkTasksRoute
   '/api/awork/users': typeof ApiAworkUsersRoute
   '/api/canonry/create-project': typeof ApiCanonryCreateProjectRoute
+  '/api/google/ads-autopilot-decide': typeof ApiGoogleAdsAutopilotDecideRoute
+  '/api/google/ads-autopilot-run': typeof ApiGoogleAdsAutopilotRunRoute
   '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
   '/api/google/ads-data': typeof ApiGoogleAdsDataRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
@@ -612,12 +672,17 @@ export interface FileRoutesById {
   '/tasks/$id': typeof TasksIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/api/admin/ads-autopilot-approvals': typeof ApiAdminAdsAutopilotApprovalsRoute
+  '/api/admin/ads-autopilot-execute': typeof ApiAdminAdsAutopilotExecuteRoute
+  '/api/admin/ads-autopilot-run': typeof ApiAdminAdsAutopilotRunRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
+  '/api/admin/content-decision': typeof ApiAdminContentDecisionRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
   '/api/admin/content-sync': typeof ApiAdminContentSyncRoute
+  '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
@@ -641,6 +706,8 @@ export interface FileRoutesById {
   '/api/awork/tasks': typeof ApiAworkTasksRoute
   '/api/awork/users': typeof ApiAworkUsersRoute
   '/api/canonry/create-project': typeof ApiCanonryCreateProjectRoute
+  '/api/google/ads-autopilot-decide': typeof ApiGoogleAdsAutopilotDecideRoute
+  '/api/google/ads-autopilot-run': typeof ApiGoogleAdsAutopilotRunRoute
   '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
   '/api/google/ads-data': typeof ApiGoogleAdsDataRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
@@ -687,12 +754,17 @@ export interface FileRouteTypes {
     | '/tasks/$id'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
+    | '/api/admin/ads-autopilot-approvals'
+    | '/api/admin/ads-autopilot-execute'
+    | '/api/admin/ads-autopilot-run'
     | '/api/admin/ads-clients'
     | '/api/admin/aivis-sync'
     | '/api/admin/client-domains'
     | '/api/admin/client-metrics'
+    | '/api/admin/content-decision'
     | '/api/admin/content-note'
     | '/api/admin/content-sync'
+    | '/api/admin/ewww-provision'
     | '/api/admin/gbp'
     | '/api/admin/gtm'
     | '/api/admin/populate'
@@ -716,6 +788,8 @@ export interface FileRouteTypes {
     | '/api/awork/tasks'
     | '/api/awork/users'
     | '/api/canonry/create-project'
+    | '/api/google/ads-autopilot-decide'
+    | '/api/google/ads-autopilot-run'
     | '/api/google/ads-customers'
     | '/api/google/ads-data'
     | '/api/google/callback'
@@ -760,12 +834,17 @@ export interface FileRouteTypes {
     | '/tasks/$id'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
+    | '/api/admin/ads-autopilot-approvals'
+    | '/api/admin/ads-autopilot-execute'
+    | '/api/admin/ads-autopilot-run'
     | '/api/admin/ads-clients'
     | '/api/admin/aivis-sync'
     | '/api/admin/client-domains'
     | '/api/admin/client-metrics'
+    | '/api/admin/content-decision'
     | '/api/admin/content-note'
     | '/api/admin/content-sync'
+    | '/api/admin/ewww-provision'
     | '/api/admin/gbp'
     | '/api/admin/gtm'
     | '/api/admin/populate'
@@ -789,6 +868,8 @@ export interface FileRouteTypes {
     | '/api/awork/tasks'
     | '/api/awork/users'
     | '/api/canonry/create-project'
+    | '/api/google/ads-autopilot-decide'
+    | '/api/google/ads-autopilot-run'
     | '/api/google/ads-customers'
     | '/api/google/ads-data'
     | '/api/google/callback'
@@ -833,12 +914,17 @@ export interface FileRouteTypes {
     | '/tasks/$id'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
+    | '/api/admin/ads-autopilot-approvals'
+    | '/api/admin/ads-autopilot-execute'
+    | '/api/admin/ads-autopilot-run'
     | '/api/admin/ads-clients'
     | '/api/admin/aivis-sync'
     | '/api/admin/client-domains'
     | '/api/admin/client-metrics'
+    | '/api/admin/content-decision'
     | '/api/admin/content-note'
     | '/api/admin/content-sync'
+    | '/api/admin/ewww-provision'
     | '/api/admin/gbp'
     | '/api/admin/gtm'
     | '/api/admin/populate'
@@ -862,6 +948,8 @@ export interface FileRouteTypes {
     | '/api/awork/tasks'
     | '/api/awork/users'
     | '/api/canonry/create-project'
+    | '/api/google/ads-autopilot-decide'
+    | '/api/google/ads-autopilot-run'
     | '/api/google/ads-customers'
     | '/api/google/ads-data'
     | '/api/google/callback'
@@ -903,12 +991,17 @@ export interface RootRouteChildren {
   AdminUsersRoute: typeof AdminUsersRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
+  ApiAdminAdsAutopilotApprovalsRoute: typeof ApiAdminAdsAutopilotApprovalsRoute
+  ApiAdminAdsAutopilotExecuteRoute: typeof ApiAdminAdsAutopilotExecuteRoute
+  ApiAdminAdsAutopilotRunRoute: typeof ApiAdminAdsAutopilotRunRoute
   ApiAdminAdsClientsRoute: typeof ApiAdminAdsClientsRoute
   ApiAdminAivisSyncRoute: typeof ApiAdminAivisSyncRoute
   ApiAdminClientDomainsRoute: typeof ApiAdminClientDomainsRoute
   ApiAdminClientMetricsRoute: typeof ApiAdminClientMetricsRoute
+  ApiAdminContentDecisionRoute: typeof ApiAdminContentDecisionRoute
   ApiAdminContentNoteRoute: typeof ApiAdminContentNoteRoute
   ApiAdminContentSyncRoute: typeof ApiAdminContentSyncRoute
+  ApiAdminEwwwProvisionRoute: typeof ApiAdminEwwwProvisionRoute
   ApiAdminGbpRoute: typeof ApiAdminGbpRoute
   ApiAdminGtmRoute: typeof ApiAdminGtmRoute
   ApiAdminPopulateRoute: typeof ApiAdminPopulateRoute
@@ -932,6 +1025,8 @@ export interface RootRouteChildren {
   ApiAworkTasksRoute: typeof ApiAworkTasksRoute
   ApiAworkUsersRoute: typeof ApiAworkUsersRoute
   ApiCanonryCreateProjectRoute: typeof ApiCanonryCreateProjectRoute
+  ApiGoogleAdsAutopilotDecideRoute: typeof ApiGoogleAdsAutopilotDecideRoute
+  ApiGoogleAdsAutopilotRunRoute: typeof ApiGoogleAdsAutopilotRunRoute
   ApiGoogleAdsCustomersRoute: typeof ApiGoogleAdsCustomersRoute
   ApiGoogleAdsDataRoute: typeof ApiGoogleAdsDataRoute
   ApiGoogleCallbackRoute: typeof ApiGoogleCallbackRoute
@@ -1215,6 +1310,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGoogleAdsCustomersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/google/ads-autopilot-run': {
+      id: '/api/google/ads-autopilot-run'
+      path: '/api/google/ads-autopilot-run'
+      fullPath: '/api/google/ads-autopilot-run'
+      preLoaderRoute: typeof ApiGoogleAdsAutopilotRunRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/google/ads-autopilot-decide': {
+      id: '/api/google/ads-autopilot-decide'
+      path: '/api/google/ads-autopilot-decide'
+      fullPath: '/api/google/ads-autopilot-decide'
+      preLoaderRoute: typeof ApiGoogleAdsAutopilotDecideRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/canonry/create-project': {
       id: '/api/canonry/create-project'
       path: '/api/canonry/create-project'
@@ -1376,6 +1485,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminGbpRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/ewww-provision': {
+      id: '/api/admin/ewww-provision'
+      path: '/api/admin/ewww-provision'
+      fullPath: '/api/admin/ewww-provision'
+      preLoaderRoute: typeof ApiAdminEwwwProvisionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/content-sync': {
       id: '/api/admin/content-sync'
       path: '/api/admin/content-sync'
@@ -1388,6 +1504,13 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/content-note'
       fullPath: '/api/admin/content-note'
       preLoaderRoute: typeof ApiAdminContentNoteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/content-decision': {
+      id: '/api/admin/content-decision'
+      path: '/api/admin/content-decision'
+      fullPath: '/api/admin/content-decision'
+      preLoaderRoute: typeof ApiAdminContentDecisionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/client-metrics': {
@@ -1416,6 +1539,27 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/ads-clients'
       fullPath: '/api/admin/ads-clients'
       preLoaderRoute: typeof ApiAdminAdsClientsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/ads-autopilot-run': {
+      id: '/api/admin/ads-autopilot-run'
+      path: '/api/admin/ads-autopilot-run'
+      fullPath: '/api/admin/ads-autopilot-run'
+      preLoaderRoute: typeof ApiAdminAdsAutopilotRunRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/ads-autopilot-execute': {
+      id: '/api/admin/ads-autopilot-execute'
+      path: '/api/admin/ads-autopilot-execute'
+      fullPath: '/api/admin/ads-autopilot-execute'
+      preLoaderRoute: typeof ApiAdminAdsAutopilotExecuteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/ads-autopilot-approvals': {
+      id: '/api/admin/ads-autopilot-approvals'
+      path: '/api/admin/ads-autopilot-approvals'
+      fullPath: '/api/admin/ads-autopilot-approvals'
+      preLoaderRoute: typeof ApiAdminAdsAutopilotApprovalsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/.mcp/invoke-tool/$tool': {
@@ -1521,12 +1665,17 @@ const rootRouteChildren: RootRouteChildren = {
   AdminUsersRoute: AdminUsersRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
+  ApiAdminAdsAutopilotApprovalsRoute: ApiAdminAdsAutopilotApprovalsRoute,
+  ApiAdminAdsAutopilotExecuteRoute: ApiAdminAdsAutopilotExecuteRoute,
+  ApiAdminAdsAutopilotRunRoute: ApiAdminAdsAutopilotRunRoute,
   ApiAdminAdsClientsRoute: ApiAdminAdsClientsRoute,
   ApiAdminAivisSyncRoute: ApiAdminAivisSyncRoute,
   ApiAdminClientDomainsRoute: ApiAdminClientDomainsRoute,
   ApiAdminClientMetricsRoute: ApiAdminClientMetricsRoute,
+  ApiAdminContentDecisionRoute: ApiAdminContentDecisionRoute,
   ApiAdminContentNoteRoute: ApiAdminContentNoteRoute,
   ApiAdminContentSyncRoute: ApiAdminContentSyncRoute,
+  ApiAdminEwwwProvisionRoute: ApiAdminEwwwProvisionRoute,
   ApiAdminGbpRoute: ApiAdminGbpRoute,
   ApiAdminGtmRoute: ApiAdminGtmRoute,
   ApiAdminPopulateRoute: ApiAdminPopulateRoute,
@@ -1550,6 +1699,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAworkTasksRoute: ApiAworkTasksRoute,
   ApiAworkUsersRoute: ApiAworkUsersRoute,
   ApiCanonryCreateProjectRoute: ApiCanonryCreateProjectRoute,
+  ApiGoogleAdsAutopilotDecideRoute: ApiGoogleAdsAutopilotDecideRoute,
+  ApiGoogleAdsAutopilotRunRoute: ApiGoogleAdsAutopilotRunRoute,
   ApiGoogleAdsCustomersRoute: ApiGoogleAdsCustomersRoute,
   ApiGoogleAdsDataRoute: ApiGoogleAdsDataRoute,
   ApiGoogleCallbackRoute: ApiGoogleCallbackRoute,
