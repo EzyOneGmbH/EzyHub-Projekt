@@ -32,6 +32,15 @@ const Body = z.object({
 const isUuid = (s: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(s || ""));
 
+// NUR Kunden mit hinterlegten SEO-Agenten bekommen EWWW (User-Vorgabe). Campagnola
+// u.a. ohne Agent bleiben aussen vor. Bei neuem Agenten-Kunden hier ID ergaenzen.
+const AGENT_CLIENTS = new Set<string>([
+  "0f891a24-08bf-4110-8168-51d7a41dbe36", // Faith in Humanity
+  "2281ce0d-6dbe-4bf5-8bdd-f8ef5d6d360c", // Hotel Ava
+  "359497da-e13a-44e8-a5f1-0a28a3b67b28", // TIMEOUT Memberclub
+  "d5675714-4249-4d82-949f-460b53d64dac", // Ezy Hotel
+]);
+
 const hasEwww = (plugins: any): boolean =>
   Array.isArray(plugins) &&
   plugins.some(
@@ -81,8 +90,13 @@ export const Route = createFileRoute("/api/admin/ewww-provision")({
             .from("oauth_connections").select("client_id").eq("provider", "wordpress");
           clientIds = [...new Set((data || []).map((r: any) => r.client_id).filter(Boolean))] as string[];
         }
+        // Gate: nur Agenten-Kunden (SEO-Massnahmen) einrichten.
+        clientIds = clientIds.filter((id) => AGENT_CLIENTS.has(id));
         if (!clientIds.length)
-          return Response.json({ ok: false, error: "Keine WP-verbundenen Kunden gefunden" }, { status: 404 });
+          return Response.json(
+            { ok: false, error: "Keine WP-verbundenen Agenten-Kunden gefunden (nur Kunden mit SEO-Agent werden eingerichtet)" },
+            { status: 404 },
+          );
 
         const { data: cRows } = await supabaseAdmin.from("clients").select("id, name").in("id", clientIds);
         const nameOf: Record<string, string> = Object.fromEntries((cRows || []).map((c: any) => [c.id, c.name]));
