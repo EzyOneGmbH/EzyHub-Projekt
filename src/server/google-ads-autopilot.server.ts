@@ -13,6 +13,10 @@ import { addNegativeKeyword, setCampaignBudget } from "./google-ads-mutate.serve
 const ADS_API = "https://googleads.googleapis.com/v24";
 const MICROS = 1_000_000;
 const MAX_NEGATIVES_PER_RUN = 20;
+// Mindest-ROAS fuer eine Budget-Erhoehungs-Empfehlung, wenn KEIN Ziel-ROAS gesetzt ist
+// (z.B. wenn nur Ziel-CPA konfiguriert ist). Verhindert Budget-Empfehlungen fuer
+// Kampagnen ohne belegten Return (z.B. ROAS 0.0).
+const MIN_ROAS_FLOOR = 2.0;
 
 export type AutopilotConfig = {
   client_id: string;
@@ -206,11 +210,15 @@ export function planActions(data: AutopilotData, cfg: AutopilotConfig): PlannedA
     }
   }
 
-  // Rule 2 — Budget: hoher Impression Share Lost (Budget) bei ROAS ueber Ziel -> approval.
+  // Rule 2 — Budget: budgetlimitiert (IS Lost Budget >= 20%) UND belegter Return.
+  // Nur empfehlen, wenn die Kampagne Conversions hat UND der ROAS ueber dem Ziel-ROAS
+  // (bzw. dem Mindest-Floor bei fehlendem Ziel) liegt. Verhindert Budget-Empfehlungen
+  // fuer Kampagnen mit ROAS 0.0 / ohne Conversions.
   const targetRoas = cfg.target_roas ?? null;
+  const roasFloor = targetRoas ?? MIN_ROAS_FLOOR;
   for (const c of data.campaigns) {
     if (noTouch.has(c.name)) continue;
-    if (c.budgetLostIs >= 0.2 && c.roas != null && (targetRoas == null || c.roas >= targetRoas)) {
+    if (c.budgetLostIs >= 0.2 && c.conversions > 0 && c.roas != null && c.roas >= roasFloor) {
       const proposed = Math.round(c.dailyBudgetChf * 1.1 * 100) / 100; // Vorschlag +10% (Hardlimit/Run)
       actions.push({
         actionClass: "approval-needed",
@@ -275,6 +283,15 @@ export async function runAutopilot(clientId: string, opts?: { dryRun?: boolean }
   // observe_only (Evaluations-Gate) erzwingt Dry-Run: NUR dokumentieren, keine Writes.
   const effectiveDryRun = dryRun || cfg.observe_only || cfg.autonomy_level < 1;
 
+  // Dedup: bereits offene (pending) Approvals dieses Kunden nicht erneut anlegen
+  // (sonst haeufen sich bei wiederholten Laeufen identische Empfehlungen).
+  const { data: openAppr } = await supabaseAdmin
+    .from("ads_approvals")
+    .select("type, entity")
+    .eq("client_id", clientId)
+    .eq("status", "pending");
+  const existingApprovalKeys = new Set((openAppr ?? []).map((a) => `${a.type}::${a.entity ?? ""}`));
+
   for (const a of planned) {
     if (a.actionClass === "auto-execute" && a.exec?.kind === "negative") {
       // 1) log pending  2) execute (or dry-run)  3) update status
@@ -304,6 +321,13 @@ export async function runAutopilot(clientId: string, opts?: { dryRun?: boolean }
       else if (status === "failed") base.failed += 1;
       base.actions.push({ class: a.actionClass, type: a.type, entity: a.entity, status, rationale: a.rationale });
     } else if (a.actionClass === "approval-needed") {
+      // Duplikat gegen bereits offene Approvals? -> nicht erneut anlegen.
+      const dedupKey = `${a.type}::${a.entity}`;
+      if (existingApprovalKeys.has(dedupKey)) {
+        base.actions.push({ class: a.actionClass, type: a.type, entity: a.entity, status: "already-pending", rationale: a.rationale });
+        continue;
+      }
+      existingApprovalKeys.add(dedupKey);
       const actionId = `a-${String(base.queued + 1).padStart(3, "0")}`;
       const { data: logRow } = await supabaseAdmin
         .from("ads_changelog")
