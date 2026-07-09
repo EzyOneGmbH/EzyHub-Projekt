@@ -116,8 +116,30 @@ export type AutopilotData = {
     conversions7d: number;
     conversionsBaseline30d: number; // Tag -37 .. -8
   };
+  // Phase 3.1: erweiterte Datenbasis (alle report-only; fehlertolerant gezogen)
+  auctionInsights: Array<{
+    campaign: string;
+    domain: string;
+    impressionShare: number | null;
+    overlapRate: number | null;
+    outrankingShare: number | null;
+  }>;
+  geoPerformance: Array<{ location: string; costChf: number; conversions: number; convValue: number }>;
+  devicePerformance: Array<{ campaign: string; device: string; costChf: number; conversions: number }>;
+  assetIssues: Array<{ adGroup: string; fieldType: string; text: string; label: string }>;
+  pmaxAssetGroups: Array<{ name: string; adStrength: string }>;
+  changeHistory: Array<{ at: string; user: string; resourceType: string; fields: string }>;
+  dataSourceErrors: string[]; // welche Phase-3-Quellen nicht lieferten (Transparenz)
   meta: { customerId: string; costSumChf: number; avgCpaChf: number | null };
   error: string | null;
+};
+
+// Geo-Target-Konstanten -> Laendernamen (haeufigste Maerkte; Rest als ID ausgewiesen)
+const GEO_NAMES: Record<string, string> = {
+  "2756": "Schweiz", "2276": "Deutschland", "2250": "Frankreich", "2380": "Italien",
+  "2040": "Oesterreich", "2826": "Grossbritannien", "2840": "USA", "2528": "Niederlande",
+  "2056": "Belgien", "2442": "Luxemburg", "2724": "Spanien", "2616": "Polen",
+  "2203": "Tschechien", "2208": "Daenemark", "2752": "Schweden", "2578": "Norwegen",
 };
 
 function gaqlEscape(s: string): string {
@@ -179,8 +201,23 @@ export async function fetchAutopilotData(
     searchTerms: [],
     termWindow: { from: termFrom, to: termTo, lagDays: lag },
     trackingHealth: { status: "NO_BASELINE", spend7d: 0, conversions7d: 0, conversionsBaseline30d: 0 },
+    auctionInsights: [],
+    geoPerformance: [],
+    devicePerformance: [],
+    assetIssues: [],
+    pmaxAssetGroups: [],
+    changeHistory: [],
+    dataSourceErrors: [],
     meta: { customerId: ctx.customerId, costSumChf: 0, avgCpaChf: null },
     error: null,
+  };
+  // Phase 3.1: Zusatzquellen fehlertolerant - eine ausfallende Quelle bricht den Run nicht.
+  const soft = async (label: string, fn: () => Promise<void>) => {
+    try {
+      await fn();
+    } catch (e) {
+      data.dataSourceErrors.push(`${label}: ${(e instanceof Error ? e.message : String(e)).slice(0, 160)}`);
+    }
   };
   try {
     const camps = await search(
@@ -265,10 +302,224 @@ export async function fetchAutopilotData(
         conversions: Number(r.metrics?.conversions ?? 0),
       });
     }
+
+    // ── Phase 3.1: fuenf Zusatzquellen (report-only, fehlertolerant) ──────────
+    // 1) Auction Insights: wer verdraengt uns (je Mitbewerber-Domain, Kampagnen-Ebene)?
+    await soft("auction_insights", async () => {
+      const rows = await search(
+        ctx,
+        `SELECT campaign.name, segments.auction_insight_domain,
+                metrics.auction_insight_search_impression_share,
+                metrics.auction_insight_search_overlap_rate,
+                metrics.auction_insight_search_outranking_share
+         FROM campaign WHERE segments.date DURING LAST_30_DAYS AND campaign.status = 'ENABLED'
+         ORDER BY metrics.auction_insight_search_overlap_rate DESC LIMIT 100`,
+      );
+      for (const r of rows) {
+        const dom = r.segments?.auctionInsightDomain ?? "";
+        if (!dom) continue;
+        data.auctionInsights.push({
+          campaign: r.campaign?.name ?? "",
+          domain: dom,
+          impressionShare: r.metrics?.auctionInsightSearchImpressionShare != null ? Number(r.metrics.auctionInsightSearchImpressionShare) : null,
+          overlapRate: r.metrics?.auctionInsightSearchOverlapRate != null ? Number(r.metrics.auctionInsightSearchOverlapRate) : null,
+          outrankingShare: r.metrics?.auctionInsightSearchOutrankingShare != null ? Number(r.metrics.auctionInsightSearchOutrankingShare) : null,
+        });
+      }
+    });
+
+    // 2) Geo-Performance (Herkunft/Zielregion auf Laender-Ebene)
+    await soft("geo_performance", async () => {
+      const rows = await search(
+        ctx,
+        `SELECT geographic_view.country_criterion_id, metrics.cost_micros, metrics.conversions, metrics.conversions_value
+         FROM geographic_view WHERE segments.date DURING LAST_30_DAYS`,
+      );
+      const agg = new Map<string, { cost: number; conv: number; value: number }>();
+      for (const r of rows) {
+        const id = String(r.geographicView?.countryCriterionId ?? "");
+        const key = GEO_NAMES[id] ?? `Land ${id}`;
+        const a = agg.get(key) ?? { cost: 0, conv: 0, value: 0 };
+        a.cost += Number(r.metrics?.costMicros ?? 0) / MICROS;
+        a.conv += Number(r.metrics?.conversions ?? 0);
+        a.value += Number(r.metrics?.conversionsValue ?? 0);
+        agg.set(key, a);
+      }
+      data.geoPerformance = [...agg.entries()]
+        .map(([location, a]) => ({ location, costChf: Math.round(a.cost * 100) / 100, conversions: a.conv, convValue: a.value }))
+        .sort((x, y) => y.costChf - x.costChf)
+        .slice(0, 20);
+    });
+
+    // 3) Geraete (Kampagnen-Ebene)
+    await soft("device_performance", async () => {
+      const rows = await search(
+        ctx,
+        `SELECT campaign.name, segments.device, metrics.cost_micros, metrics.conversions
+         FROM campaign WHERE segments.date DURING LAST_30_DAYS AND campaign.status = 'ENABLED'`,
+      );
+      for (const r of rows) {
+        data.devicePerformance.push({
+          campaign: r.campaign?.name ?? "",
+          device: String(r.segments?.device ?? "UNKNOWN"),
+          costChf: Number(r.metrics?.costMicros ?? 0) / MICROS,
+          conversions: Number(r.metrics?.conversions ?? 0),
+        });
+      }
+    });
+
+    // 4) Asset-Performance: schwache RSA-Bestandteile + PMax-Asset-Gruppen-Staerke
+    await soft("asset_performance", async () => {
+      const rows = await search(
+        ctx,
+        `SELECT ad_group.name, ad_group_ad_asset_view.field_type, ad_group_ad_asset_view.performance_label, asset.text_asset.text
+         FROM ad_group_ad_asset_view
+         WHERE ad_group_ad_asset_view.performance_label IN ('LOW','GOOD','BEST') LIMIT 300`,
+      );
+      for (const r of rows) {
+        const label = String(r.adGroupAdAssetView?.performanceLabel ?? "");
+        if (label !== "LOW") continue; // Report fokussiert auf Schwaechen
+        data.assetIssues.push({
+          adGroup: r.adGroup?.name ?? "",
+          fieldType: String(r.adGroupAdAssetView?.fieldType ?? ""),
+          text: String(r.asset?.textAsset?.text ?? "").slice(0, 90),
+          label,
+        });
+      }
+    });
+    await soft("pmax_asset_groups", async () => {
+      const rows = await search(
+        ctx,
+        `SELECT asset_group.name, asset_group.ad_strength FROM asset_group LIMIT 50`,
+      );
+      for (const r of rows) {
+        data.pmaxAssetGroups.push({
+          name: r.assetGroup?.name ?? "",
+          adStrength: String(r.assetGroup?.adStrength ?? "UNKNOWN"),
+        });
+      }
+    });
+
+    // 5) Aenderungshistorie 7d (wer/was/wann) - Grundlage Externen-Detektor (Phase 5)
+    await soft("change_history", async () => {
+      const rows = await search(
+        ctx,
+        `SELECT change_event.change_date_time, change_event.user_email, change_event.change_resource_type, change_event.changed_fields
+         FROM change_event
+         WHERE change_event.change_date_time >= '${daysAgo(7)}' AND change_event.change_date_time <= '${daysAgo(0)} 23:59:59'
+         ORDER BY change_event.change_date_time DESC LIMIT 100`,
+      );
+      for (const r of rows) {
+        data.changeHistory.push({
+          at: String(r.changeEvent?.changeDateTime ?? ""),
+          user: String(r.changeEvent?.userEmail ?? ""),
+          resourceType: String(r.changeEvent?.changeResourceType ?? ""),
+          fields: String(r.changeEvent?.changedFields ?? "").slice(0, 120),
+        });
+      }
+    });
+
     return { ok: true, data };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
+}
+
+// ── Phase 3.2: deterministische Anomalie-Findings (report-only, pure) ────────
+export function computeGeoDeviceFindings(data: AutopilotData): PlannedAction[] {
+  const out: PlannedAction[] = [];
+  const acctCpa = data.meta.avgCpaChf;
+  if (!acctCpa || acctCpa <= 0) return out;
+
+  // Geo: Abweichung > 30% vom Konto-CPA bei >= 5 Conversions (plus reine Kostenfresser)
+  for (const g of data.geoPerformance) {
+    if (g.conversions >= 5) {
+      const cpa = g.costChf / g.conversions;
+      const dev = (cpa - acctCpa) / acctCpa;
+      if (Math.abs(dev) > 0.3) {
+        out.push({
+          actionClass: "report-only",
+          type: "geo_anomaly",
+          entity: g.location,
+          before: "",
+          after: "",
+          rationale: `Geo "${g.location}": CPA CHF ${cpa.toFixed(2)} (${dev > 0 ? "+" : ""}${(dev * 100).toFixed(0)}% vs Konto-CPA ${acctCpa.toFixed(2)}) bei ${g.conversions.toFixed(0)} Conv./30d`,
+        });
+      }
+    } else if (g.conversions === 0 && g.costChf > 3 * acctCpa) {
+      out.push({
+        actionClass: "report-only",
+        type: "geo_anomaly",
+        entity: g.location,
+        before: "",
+        after: "",
+        rationale: `Geo "${g.location}": CHF ${g.costChf.toFixed(2)} ohne Conversions (30d) - Streuverlust pruefen (Geo-Targeting)`,
+      });
+    }
+  }
+
+  // Geraete: je Geraetetyp ueber alle Kampagnen aggregiert, gleiche Schwellen
+  const dev = new Map<string, { cost: number; conv: number }>();
+  for (const d of data.devicePerformance) {
+    const a = dev.get(d.device) ?? { cost: 0, conv: 0 };
+    a.cost += d.costChf;
+    a.conv += d.conversions;
+    dev.set(d.device, a);
+  }
+  for (const [device, a] of dev) {
+    if (a.conv < 5) continue;
+    const cpa = a.cost / a.conv;
+    const rel = (cpa - acctCpa) / acctCpa;
+    if (Math.abs(rel) > 0.3) {
+      out.push({
+        actionClass: "report-only",
+        type: "device_anomaly",
+        entity: device,
+        before: "",
+        after: "",
+        rationale: `Geraet ${device}: CPA CHF ${cpa.toFixed(2)} (${rel > 0 ? "+" : ""}${(rel * 100).toFixed(0)}% vs Konto-CPA ${acctCpa.toFixed(2)}) bei ${a.conv.toFixed(0)} Conv./30d${rel > 0 && device === "MOBILE" ? " - Mobile-Landing pruefen" : ""}`,
+      });
+    }
+  }
+
+  // Asset-Schwaechen (aggregiert je Ad-Group)
+  const weak = new Map<string, number>();
+  for (const a of data.assetIssues) weak.set(a.adGroup, (weak.get(a.adGroup) ?? 0) + 1);
+  for (const [ag, n] of weak) {
+    if (n >= 2) {
+      out.push({
+        actionClass: "report-only",
+        type: "asset_weakness",
+        entity: ag,
+        before: "",
+        after: "",
+        rationale: `${n} RSA-Assets mit Google-Label LOW in "${ag}" - Kandidat fuer Copy-Refresh (Input fuer /ads plan)`,
+      });
+    }
+  }
+  return out;
+}
+
+// Hotel: OTA-Druck auf Brand-Kampagnen quantifizieren (Playbook-Pflicht-KPI)
+const OTA_DOMAINS = ["booking.com", "expedia", "hotels.com", "trivago", "agoda", "hrs.", "ebookers"];
+export function computeBrandOtaFindings(data: AutopilotData, cfg: AutopilotConfig): PlannedAction[] {
+  if (cfg.industry !== "hotel") return [];
+  const out: PlannedAction[] = [];
+  // "Brand", aber nicht "Non-Brand" (sonst false positives auf Non-Brand-Kampagnen)
+  const isBrand = (name: string) => /brand/i.test(name) && !/non[-_ ]?brand/i.test(name);
+  const brandRows = data.auctionInsights.filter((a) => isBrand(a.campaign));
+  const otas = brandRows.filter((a) => OTA_DOMAINS.some((o) => a.domain.includes(o)));
+  for (const o of otas.slice(0, 5)) {
+    out.push({
+      actionClass: "report-only",
+      type: "brand_ota_pressure",
+      entity: `${o.campaign} vs ${o.domain}`,
+      before: "",
+      after: "",
+      rationale: `OTA "${o.domain}" auf Brand: Overlap ${o.overlapRate != null ? (o.overlapRate * 100).toFixed(0) + "%" : "n/a"}, Outranking ${o.outrankingShare != null ? (o.outrankingShare * 100).toFixed(0) + "%" : "n/a"} - jeder verlorene Brand-Klick kostet spaeter OTA-Kommission`,
+    });
+  }
+  return out;
 }
 
 // Phase 1.2 (Execute-Pfad): Learning-Status einer einzelnen Kampagne live pruefen.
@@ -501,6 +752,14 @@ export type AutopilotRunSummary = {
   learningCampaigns?: Array<{ name: string; status: string }>;
   notesAgeDays?: number | null;
   alerts?: string[];
+  // Phase 3: kompakte Datenbloecke fuer Wochen-/Monatsreport (report-only)
+  auctionInsightsTop?: Array<{ campaign: string; domain: string; overlapRate: number | null; outrankingShare: number | null }>;
+  geoTop?: Array<{ location: string; costChf: number; conversions: number }>;
+  deviceSplit?: Array<{ device: string; costChf: number; conversions: number }>;
+  assetIssueCount?: number;
+  pmaxAssetGroups?: Array<{ name: string; adStrength: string }>;
+  changeHistory?: Array<{ at: string; user: string; resourceType: string }>;
+  dataSourceErrors?: string[];
   actions: Array<{ class: string; type: string; entity: string; status: string; rationale: string }>;
 };
 
@@ -545,7 +804,31 @@ export async function runAutopilot(clientId: string, opts?: { dryRun?: boolean }
   if (base.notesAgeDays != null && base.notesAgeDays > 90)
     base.alerts.push(`Kontext-Check: notes zuletzt aktualisiert vor ${base.notesAgeDays} Tagen`);
 
-  const planned = planActions(fetched.data, cfg);
+  // Phase 3: Datenbloecke in die Summary + deterministische report-only-Findings.
+  const d3 = fetched.data;
+  base.auctionInsightsTop = d3.auctionInsights
+    .slice(0, 10)
+    .map((a) => ({ campaign: a.campaign, domain: a.domain, overlapRate: a.overlapRate, outrankingShare: a.outrankingShare }));
+  base.geoTop = d3.geoPerformance.slice(0, 8).map((g) => ({ location: g.location, costChf: g.costChf, conversions: g.conversions }));
+  {
+    const devAgg = new Map<string, { cost: number; conv: number }>();
+    for (const d of d3.devicePerformance) {
+      const a = devAgg.get(d.device) ?? { cost: 0, conv: 0 };
+      a.cost += d.costChf; a.conv += d.conversions;
+      devAgg.set(d.device, a);
+    }
+    base.deviceSplit = [...devAgg.entries()].map(([device, a]) => ({ device, costChf: Math.round(a.cost * 100) / 100, conversions: a.conv }));
+  }
+  base.assetIssueCount = d3.assetIssues.length;
+  base.pmaxAssetGroups = d3.pmaxAssetGroups;
+  base.changeHistory = d3.changeHistory.slice(0, 20).map((c) => ({ at: c.at, user: c.user, resourceType: c.resourceType }));
+  base.dataSourceErrors = d3.dataSourceErrors;
+
+  const planned = [
+    ...planActions(fetched.data, cfg),
+    ...computeGeoDeviceFindings(fetched.data),
+    ...computeBrandOtaFindings(fetched.data, cfg),
+  ];
 
   // Phase 1.1 Tracking-Health-Gate: bei BROKEN werden ALLE Write-Ops blockiert
   // (unabhaengig vom autonomy_level); der Run laeuft als reine Doku weiter.
