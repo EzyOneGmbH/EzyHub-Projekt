@@ -77,17 +77,17 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "ads_approvals_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "ads_approvals_changelog_id_fkey"
             columns: ["changelog_id"]
             isOneToOne: false
             referencedRelation: "ads_changelog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ads_approvals_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
             referencedColumns: ["id"]
           },
         ]
