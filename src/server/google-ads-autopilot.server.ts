@@ -243,12 +243,7 @@ export async function fetchAutopilotData(
     const convBase = Number(base30?.[0]?.metrics?.conversions ?? 0);
     const minBaseline = conf.min_conversions_baseline ?? 3;
     data.trackingHealth = {
-      status:
-        spend7d > 0 && conv7d === 0 && convBase >= minBaseline
-          ? "BROKEN"
-          : convBase >= minBaseline
-            ? "OK"
-            : "NO_BASELINE",
+      status: computeTrackingHealth(spend7d, conv7d, convBase, minBaseline),
       spend7d: Math.round(spend7d * 100) / 100,
       conversions7d: conv7d,
       conversionsBaseline30d: convBase,
@@ -312,14 +307,42 @@ export type PlannedAction = {
 };
 
 // Phase 1.4: Normalisierung + 1-/2-Gram-Zerlegung fuer die Phrase-Aggregation.
-function normalizeTerm(s: string): string {
+export function normalizeTerm(s: string): string {
   return s.toLowerCase().replace(/[^\p{L}\p{N} ]+/gu, " ").replace(/\s+/g, " ").trim();
 }
-function grams(term: string): string[] {
+// Stoppwoerter (DE/FR/IT/EN): duerfen NIE eigenstaendige Phrase-Negative-Kandidaten
+// werden ("mit" wuerde z.B. "hotel mit pool" blockieren). In 2-Grams bleiben sie
+// erlaubt ("hotel gratis" ok), als Unigram nicht.
+const STOPWORDS = new Set([
+  "mit", "und", "der", "die", "das", "den", "dem", "des", "ein", "eine", "einem", "einen", "einer",
+  "fuer", "für", "von", "vom", "zum", "zur", "bei", "beim", "auf", "aus", "als", "auch", "oder",
+  "nicht", "sind", "ist", "war", "hat", "wie", "was", "wer", "im", "in", "am", "an",
+  "the", "and", "for", "with", "from", "near", "best",
+  "les", "des", "une", "aux", "avec", "pour", "dans", "sur", "pres", "près",
+  "con", "per", "del", "della", "nel", "vicino",
+]);
+export function grams(term: string): string[] {
   const words = normalizeTerm(term).split(" ").filter((w) => w.length >= 3);
-  const out: string[] = [...words];
-  for (let i = 0; i < words.length - 1; i++) out.push(`${words[i]} ${words[i + 1]}`);
+  // Unigrams: min. 4 Zeichen und kein Stoppwort.
+  const out: string[] = words.filter((w) => w.length >= 4 && !STOPWORDS.has(w));
+  // Bigrams: mindestens ein Nicht-Stoppwort enthalten.
+  for (let i = 0; i < words.length - 1; i++) {
+    if (STOPWORDS.has(words[i]) && STOPWORDS.has(words[i + 1])) continue;
+    out.push(`${words[i]} ${words[i + 1]}`);
+  }
   return out;
+}
+
+// Phase 1.1: Tracking-Health als pure Funktion (unit-testbar; Abnahme
+// "simulierter Tracking-Ausfall blockiert Writes").
+export function computeTrackingHealth(
+  spend7d: number,
+  conversions7d: number,
+  conversionsBaseline30d: number,
+  minBaseline: number,
+): "OK" | "BROKEN" | "NO_BASELINE" {
+  if (spend7d > 0 && conversions7d === 0 && conversionsBaseline30d >= minBaseline) return "BROKEN";
+  return conversionsBaseline30d >= minBaseline ? "OK" : "NO_BASELINE";
 }
 
 export function planActions(data: AutopilotData, cfg: AutopilotConfig): PlannedAction[] {
