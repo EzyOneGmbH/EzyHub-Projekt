@@ -107,6 +107,7 @@ import { DEFAULT_ON_SERVICES } from "@/lib/services";
 import { useEzyDashboardConfig } from "@/ezy/data/useEzyDashboardConfig";
 import { executeTool as runToolLive } from "@/ezy/data/runTool";
 import { useEzyAuditHistory } from "@/ezy/data/useEzyAuditHistory";
+import { useEzyAgentRuns } from "@/ezy/data/useEzyAgentRuns";
 import {
   useEzyLatestRun,
   ahrefsKpisFromResult,
@@ -251,7 +252,7 @@ const DEFAULT_CUSTOMER_DEFAULTS = {
   language: "Deutsch",
   tone: "Professionell",
   reportTemplate: "Standard",
-  visibleTabs: ["overview", "seo", "aivis", "conversions", "ads"],
+  visibleTabs: ["overview", "seo", "aivis", "conversions", "ads", "runs"],
 };
 function readStoredJson(key, fallback) {
   if (typeof window === "undefined") return fallback;
@@ -10589,12 +10590,106 @@ function AgentsPage({ selectedClient }) {
   );
 }
 
+// Agent-Läufe: deterministischer Lauf-Nachweis pro Kunde (Quelle: agent_runs,
+// befüllt vom agent-service nach JEDEM Lauf — auch an Tagen ohne Änderung).
+function AgentRunsPanel({ selectedClient }) {
+  const { runs, loading, refresh } = useEzyAgentRuns(selectedClient?.id, 50);
+  const stCo = { ok: C.green, fehler: C.red, partial: C.orange };
+  const stIc = { ok: CheckCircle, fehler: AlertCircle, partial: Clock };
+  const stLbl = { ok: "OK", fehler: "Fehler", partial: "Teilweise" };
+
+  useEffect(() => {
+    const iv = setInterval(refresh, 2 * 60 * 1000);
+    return () => clearInterval(iv);
+  }, [refresh]);
+
+  if (loading && runs.length === 0)
+    return <div style={{ textAlign: "center", padding: 40, color: C.textMuted }}>Lade Agent-Läufe …</div>;
+
+  if (!runs.length)
+    return (
+      <LiveEmptyState
+        title="Noch keine Agent-Läufe"
+        hint="Sobald der Autopilot für diesen Kunden läuft, erscheint hier jeder Lauf — auch an Tagen ohne Änderung."
+      />
+    );
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: C.text }}>
+          Agent-Läufe ({runs.length})
+        </h3>
+        <Btn size="sm" variant="ghost" icon={RefreshCw} onClick={refresh}>
+          Aktualisieren
+        </Btn>
+      </div>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden" }}>
+        {runs.map((r, i) => {
+          const st = String(r.status || "ok").toLowerCase();
+          const SI = stIc[st] || Clock;
+          const d = new Date(r.run_at || r.created_at);
+          const dur = r.duration_ms ? `${Math.max(1, Math.round(r.duration_ms / 1000))}s` : "—";
+          return (
+            <div
+              key={r.id}
+              style={{
+                padding: "13px 20px",
+                borderBottom: i < runs.length - 1 ? `1px solid ${C.border}` : "none",
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 12,
+              }}
+            >
+              <SI size={16} color={stCo[st] || C.textMuted} style={{ marginTop: 2, flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{r.agent_name || "Agent"}</span>
+                  <span style={{ fontSize: 11, color: C.textMuted }}>
+                    {d.toLocaleDateString("de-CH")}{" "}
+                    {d.toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" })} · {dur}
+                  </span>
+                </div>
+                <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 3, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                  <span>{r.deploy_count > 0 ? `${r.deploy_count} Deploy${r.deploy_count === 1 ? "" : "s"}` : "0 Deploys"}</span>
+                  {r.health_score != null && <span>Health {r.health_score}/100</span>}
+                </div>
+                {r.summary && (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: C.textMuted,
+                      marginTop: 6,
+                      lineHeight: 1.5,
+                      display: "-webkit-box",
+                      WebkitLineClamp: 3,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                    }}
+                  >
+                    {r.summary}
+                  </div>
+                )}
+                {r.error_message && (
+                  <div style={{ fontSize: 11, color: C.red, marginTop: 4 }}>{r.error_message}</div>
+                )}
+              </div>
+              <Badge color={stCo[st] || C.textMuted}>{stLbl[st] || st}</Badge>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const TABS = [
   { id: "overview", label: "Übersicht", icon: BarChart3 },
   { id: "seo", label: "SEO", icon: Globe },
   { id: "aivis", label: "KI-Sichtbarkeit", icon: Bot },
   { id: "conversions", label: "Conversions", icon: DollarSign },
   { id: "ads", label: "Ads", icon: Megaphone },
+  { id: "runs", label: "Agent-Läufe", icon: Clock },
 ];
 // Welcher Dienst muss beim Kunden aktiv sein, damit ein Dashboard-Sub-Tab erscheint.
 // null = Kern-Ansicht (immer). Sonst: Tab zeigt sich, wenn MIND. EINER aktiv ist.
@@ -10604,6 +10699,7 @@ const TAB_SERVICE = {
   aivis: ["canonry", "perplexity"], // enthält jetzt auch die Canonry-Live-Sweeps
   conversions: ["ga4"],
   ads: ["google-ads"],
+  runs: null, // Lauf-Nachweis: immer sichtbar
 };
 const NAV = [
   { id: "dashboard", label: "Dashboard", icon: BarChart3 },
@@ -11314,6 +11410,7 @@ function App() {
                       <AdsAutopilotPanel selectedClient={client} />
                     </>
                   )}
+                  {tab === "runs" && <AgentRunsPanel selectedClient={client} />}
                 </>
               )}
             </>
