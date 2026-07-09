@@ -17,6 +17,16 @@ const MAX_NEGATIVES_PER_RUN = 20;
 // (z.B. wenn nur Ziel-CPA konfiguriert ist). Verhindert Budget-Empfehlungen fuer
 // Kampagnen ohne belegten Return (z.B. ROAS 0.0).
 const MIN_ROAS_FLOOR = 2.0;
+// Phase 1.4: Spend-Summen zweier unabhaengiger Abfragen duerfen max. 5% abweichen,
+// sonst Run-Abbruch (keine Teilausfuehrung auf inkonsistenten Daten).
+const MAX_SPEND_DIVERGENCE = 0.05;
+// Phase 1.2: Learning-Phase-Status, die jeden Write blockieren.
+const LEARNING_STATUSES = new Set(["LEARNING_NEW", "LEARNING_SETTING_CHANGE", "LEARNING_BUDGET_CHANGE"]);
+// Phase 1.3: Bid-Mutationen bleiben hart deaktiviert, bis die Vorschlagslogik
+// existiert (Phase 4/5). Global, nur per Deployment-Env aenderbar.
+export function bidWritesEnabled(): boolean {
+  return process.env.ADS_BID_WRITES_ENABLED === "true";
+}
 
 export type AutopilotConfig = {
   client_id: string;
@@ -32,6 +42,11 @@ export type AutopilotConfig = {
   no_touch_campaigns: string[];
   languages: string[];
   notes: string | null;
+  notes_updated_at: string | null;
+  // Phase 1: Datenqualitaet & Tracking-Health (pro Kunde konfigurierbar)
+  min_conversions_baseline: number;      // Tracking-Health: Mindest-Conversions in der 30d-Baseline
+  conversion_lag_days: number;           // Negatives-Fenster endet vor N Tagen (Hotels: 14)
+  min_conversions_for_budget_rec: number; // statistische Mindestbasis fuer Budget-Empfehlungen
 };
 
 const DEFAULT_CONFIG = (clientId: string): AutopilotConfig => ({
@@ -48,7 +63,33 @@ const DEFAULT_CONFIG = (clientId: string): AutopilotConfig => ({
   no_touch_campaigns: [],
   languages: ["de"],
   notes: null,
+  notes_updated_at: null,
+  min_conversions_baseline: 3,
+  conversion_lag_days: 7,
+  min_conversions_for_budget_rec: 5,
 });
+
+// ── Datums-/Saison-Helfer ────────────────────────────────────────────────────
+const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+function daysAgo(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return isoDay(d);
+}
+// Saisonfenster "MM-TT..MM-TT" (kann Jahreswechsel ueberspannen). Liefert das
+// aktive Fenster oder null.
+export function activeSeasonWindow(cfg: AutopilotConfig, today = new Date()): { kind: "high" | "low"; window: string } | null {
+  const mmdd = `${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const inWin = (w: string) => {
+    const m = w.match(/^(\d{2}-\d{2})\.\.(\d{2}-\d{2})$/);
+    if (!m) return false;
+    const [, a, b] = m;
+    return a <= b ? mmdd >= a && mmdd <= b : mmdd >= a || mmdd <= b; // b < a = Jahreswechsel
+  };
+  for (const w of cfg.season_high ?? []) if (inWin(w)) return { kind: "high", window: w };
+  for (const w of cfg.season_low ?? []) if (inWin(w)) return { kind: "low", window: w };
+  return null;
+}
 
 export type AutopilotData = {
   campaigns: Array<{
@@ -60,10 +101,45 @@ export type AutopilotData = {
     conversionValue: number;
     roas: number | null;
     budgetLostIs: number;
+    biddingSystemStatus: string; // Phase 1.2: LEARNING_* blockiert Writes
+    learning: boolean;
   }>;
+  // Phase 1.4: Suchbegriffe im Conversion-Lag-Fenster (Tag -(30+lag) .. -lag),
+  // damit junge Klicks ohne verbuchte Conversions nicht faelschlich als
+  // "0 Conversions" ausgeschlossen werden.
   searchTerms: Array<{ term: string; campaign: string; adGroup: string; costChf: number; conversions: number }>;
+  termWindow: { from: string; to: string; lagDays: number };
+  // Phase 1.1: Tracking-Health (Konto-Ebene)
+  trackingHealth: {
+    status: "OK" | "BROKEN" | "NO_BASELINE";
+    spend7d: number;
+    conversions7d: number;
+    conversionsBaseline30d: number; // Tag -37 .. -8
+  };
+  // Phase 3.1: erweiterte Datenbasis (alle report-only; fehlertolerant gezogen)
+  auctionInsights: Array<{
+    campaign: string;
+    domain: string;
+    impressionShare: number | null;
+    overlapRate: number | null;
+    outrankingShare: number | null;
+  }>;
+  geoPerformance: Array<{ location: string; costChf: number; conversions: number; convValue: number }>;
+  devicePerformance: Array<{ campaign: string; device: string; costChf: number; conversions: number }>;
+  assetIssues: Array<{ adGroup: string; fieldType: string; text: string; label: string }>;
+  pmaxAssetGroups: Array<{ name: string; adStrength: string }>;
+  changeHistory: Array<{ at: string; user: string; resourceType: string; fields: string }>;
+  dataSourceErrors: string[]; // welche Phase-3-Quellen nicht lieferten (Transparenz)
   meta: { customerId: string; costSumChf: number; avgCpaChf: number | null };
   error: string | null;
+};
+
+// Geo-Target-Konstanten -> Laendernamen (haeufigste Maerkte; Rest als ID ausgewiesen)
+const GEO_NAMES: Record<string, string> = {
+  "2756": "Schweiz", "2276": "Deutschland", "2250": "Frankreich", "2380": "Italien",
+  "2040": "Oesterreich", "2826": "Grossbritannien", "2840": "USA", "2528": "Niederlande",
+  "2056": "Belgien", "2442": "Luxemburg", "2724": "Spanien", "2616": "Polen",
+  "2203": "Tschechien", "2208": "Daenemark", "2752": "Schweden", "2578": "Norwegen",
 };
 
 function gaqlEscape(s: string): string {
@@ -111,20 +187,43 @@ export async function loadConfig(clientId: string): Promise<AutopilotConfig> {
 export async function fetchAutopilotData(
   clientId: string,
   googleAdsCustomer: string | null | undefined,
+  cfg?: AutopilotConfig,
 ): Promise<{ ok: boolean; data?: AutopilotData; skipped?: string; error?: string }> {
   const ctx = await adsContext(clientId, googleAdsCustomer);
   if ("skipped" in ctx) return { ok: false, skipped: ctx.skipped };
+  const conf = cfg ?? DEFAULT_CONFIG(clientId);
+  const lag = Math.max(0, conf.conversion_lag_days ?? 7);
+  const termFrom = daysAgo(30 + lag);
+  const termTo = daysAgo(lag);
 
   const data: AutopilotData = {
     campaigns: [],
     searchTerms: [],
+    termWindow: { from: termFrom, to: termTo, lagDays: lag },
+    trackingHealth: { status: "NO_BASELINE", spend7d: 0, conversions7d: 0, conversionsBaseline30d: 0 },
+    auctionInsights: [],
+    geoPerformance: [],
+    devicePerformance: [],
+    assetIssues: [],
+    pmaxAssetGroups: [],
+    changeHistory: [],
+    dataSourceErrors: [],
     meta: { customerId: ctx.customerId, costSumChf: 0, avgCpaChf: null },
     error: null,
+  };
+  // Phase 3.1: Zusatzquellen fehlertolerant - eine ausfallende Quelle bricht den Run nicht.
+  const soft = async (label: string, fn: () => Promise<void>) => {
+    try {
+      await fn();
+    } catch (e) {
+      data.dataSourceErrors.push(`${label}: ${(e instanceof Error ? e.message : String(e)).slice(0, 160)}`);
+    }
   };
   try {
     const camps = await search(
       ctx,
-      `SELECT campaign.name, campaign.status, campaign_budget.amount_micros, metrics.cost_micros,
+      `SELECT campaign.name, campaign.status, campaign.bidding_strategy_system_status,
+              campaign_budget.amount_micros, metrics.cost_micros,
               metrics.conversions, metrics.conversions_value, metrics.search_budget_lost_impression_share
        FROM campaign WHERE segments.date DURING LAST_30_DAYS AND campaign.status = 'ENABLED'`,
     );
@@ -133,6 +232,7 @@ export async function fetchAutopilotData(
     for (const r of camps) {
       const cost = Number(r.metrics?.costMicros ?? 0) / MICROS;
       const conv = Number(r.metrics?.conversions ?? 0);
+      const sysStatus = String(r.campaign?.biddingStrategySystemStatus ?? "UNKNOWN");
       costSum += cost;
       convSum += conv;
       data.campaigns.push({
@@ -144,15 +244,53 @@ export async function fetchAutopilotData(
         conversionValue: Number(r.metrics?.conversionsValue ?? 0),
         roas: cost ? Number(r.metrics?.conversionsValue ?? 0) / cost : null,
         budgetLostIs: Number(r.metrics?.searchBudgetLostImpressionShare ?? 0),
+        biddingSystemStatus: sysStatus,
+        learning: LEARNING_STATUSES.has(sysStatus),
       });
     }
     data.meta.costSumChf = Math.round(costSum * 100) / 100;
     data.meta.avgCpaChf = convSum > 0 ? costSum / convSum : null;
 
+    // Phase 1.4 Datenkonsistenz: unabhaengige Konto-Summe (customer-Ressource)
+    // gegen die Kampagnen-Summe pruefen; >5% Abweichung -> Abbruch.
+    const custRows = await search(
+      ctx,
+      `SELECT metrics.cost_micros FROM customer WHERE segments.date DURING LAST_30_DAYS`,
+    );
+    const custCost = Number(custRows?.[0]?.metrics?.costMicros ?? 0) / MICROS;
+    const ref = Math.max(custCost, costSum);
+    if (ref > 1 && Math.abs(custCost - costSum) / ref > MAX_SPEND_DIVERGENCE) {
+      return {
+        ok: false,
+        error: `Datenkonsistenz verletzt: Konto-Spend CHF ${custCost.toFixed(2)} vs Kampagnen-Summe CHF ${costSum.toFixed(2)} (> ${MAX_SPEND_DIVERGENCE * 100}% Abweichung) - Run abgebrochen, keine Teilausfuehrung.`,
+      };
+    }
+
+    // Phase 1.1 Tracking-Health: 7d aktuell vs 30d-Baseline (Tag -37 .. -8).
+    const h7 = await search(
+      ctx,
+      `SELECT metrics.cost_micros, metrics.conversions FROM customer WHERE segments.date DURING LAST_7_DAYS`,
+    );
+    const base30 = await search(
+      ctx,
+      `SELECT metrics.conversions FROM customer WHERE segments.date BETWEEN '${daysAgo(37)}' AND '${daysAgo(8)}'`,
+    );
+    const spend7d = Number(h7?.[0]?.metrics?.costMicros ?? 0) / MICROS;
+    const conv7d = Number(h7?.[0]?.metrics?.conversions ?? 0);
+    const convBase = Number(base30?.[0]?.metrics?.conversions ?? 0);
+    const minBaseline = conf.min_conversions_baseline ?? 3;
+    data.trackingHealth = {
+      status: computeTrackingHealth(spend7d, conv7d, convBase, minBaseline),
+      spend7d: Math.round(spend7d * 100) / 100,
+      conversions7d: conv7d,
+      conversionsBaseline30d: convBase,
+    };
+
+    // Phase 1.4: Suchbegriffe im Lag-Fenster (statt LAST_30_DAYS).
     const terms = await search(
       ctx,
       `SELECT search_term_view.search_term, campaign.name, ad_group.name, metrics.cost_micros, metrics.conversions
-       FROM search_term_view WHERE segments.date DURING LAST_30_DAYS
+       FROM search_term_view WHERE segments.date BETWEEN '${termFrom}' AND '${termTo}'
        ORDER BY metrics.cost_micros DESC LIMIT 500`,
     );
     for (const r of terms) {
@@ -164,9 +302,244 @@ export async function fetchAutopilotData(
         conversions: Number(r.metrics?.conversions ?? 0),
       });
     }
+
+    // ── Phase 3.1: fuenf Zusatzquellen (report-only, fehlertolerant) ──────────
+    // 1) Auction Insights: wer verdraengt uns (je Mitbewerber-Domain, Kampagnen-Ebene)?
+    await soft("auction_insights", async () => {
+      const rows = await search(
+        ctx,
+        `SELECT campaign.name, segments.auction_insight_domain,
+                metrics.auction_insight_search_impression_share,
+                metrics.auction_insight_search_overlap_rate,
+                metrics.auction_insight_search_outranking_share
+         FROM campaign WHERE segments.date DURING LAST_30_DAYS AND campaign.status = 'ENABLED'
+         ORDER BY metrics.auction_insight_search_overlap_rate DESC LIMIT 100`,
+      );
+      for (const r of rows) {
+        const dom = r.segments?.auctionInsightDomain ?? "";
+        if (!dom) continue;
+        data.auctionInsights.push({
+          campaign: r.campaign?.name ?? "",
+          domain: dom,
+          impressionShare: r.metrics?.auctionInsightSearchImpressionShare != null ? Number(r.metrics.auctionInsightSearchImpressionShare) : null,
+          overlapRate: r.metrics?.auctionInsightSearchOverlapRate != null ? Number(r.metrics.auctionInsightSearchOverlapRate) : null,
+          outrankingShare: r.metrics?.auctionInsightSearchOutrankingShare != null ? Number(r.metrics.auctionInsightSearchOutrankingShare) : null,
+        });
+      }
+    });
+
+    // 2) Geo-Performance (Herkunft/Zielregion auf Laender-Ebene)
+    await soft("geo_performance", async () => {
+      const rows = await search(
+        ctx,
+        `SELECT geographic_view.country_criterion_id, metrics.cost_micros, metrics.conversions, metrics.conversions_value
+         FROM geographic_view WHERE segments.date DURING LAST_30_DAYS`,
+      );
+      const agg = new Map<string, { cost: number; conv: number; value: number }>();
+      for (const r of rows) {
+        const id = String(r.geographicView?.countryCriterionId ?? "");
+        const key = GEO_NAMES[id] ?? `Land ${id}`;
+        const a = agg.get(key) ?? { cost: 0, conv: 0, value: 0 };
+        a.cost += Number(r.metrics?.costMicros ?? 0) / MICROS;
+        a.conv += Number(r.metrics?.conversions ?? 0);
+        a.value += Number(r.metrics?.conversionsValue ?? 0);
+        agg.set(key, a);
+      }
+      data.geoPerformance = [...agg.entries()]
+        .map(([location, a]) => ({ location, costChf: Math.round(a.cost * 100) / 100, conversions: a.conv, convValue: a.value }))
+        .sort((x, y) => y.costChf - x.costChf)
+        .slice(0, 20);
+    });
+
+    // 3) Geraete (Kampagnen-Ebene)
+    await soft("device_performance", async () => {
+      const rows = await search(
+        ctx,
+        `SELECT campaign.name, segments.device, metrics.cost_micros, metrics.conversions
+         FROM campaign WHERE segments.date DURING LAST_30_DAYS AND campaign.status = 'ENABLED'`,
+      );
+      for (const r of rows) {
+        data.devicePerformance.push({
+          campaign: r.campaign?.name ?? "",
+          device: String(r.segments?.device ?? "UNKNOWN"),
+          costChf: Number(r.metrics?.costMicros ?? 0) / MICROS,
+          conversions: Number(r.metrics?.conversions ?? 0),
+        });
+      }
+    });
+
+    // 4) Asset-Performance: schwache RSA-Bestandteile + PMax-Asset-Gruppen-Staerke
+    await soft("asset_performance", async () => {
+      const rows = await search(
+        ctx,
+        `SELECT ad_group.name, ad_group_ad_asset_view.field_type, ad_group_ad_asset_view.performance_label, asset.text_asset.text
+         FROM ad_group_ad_asset_view
+         WHERE ad_group_ad_asset_view.performance_label IN ('LOW','GOOD','BEST') LIMIT 300`,
+      );
+      for (const r of rows) {
+        const label = String(r.adGroupAdAssetView?.performanceLabel ?? "");
+        if (label !== "LOW") continue; // Report fokussiert auf Schwaechen
+        data.assetIssues.push({
+          adGroup: r.adGroup?.name ?? "",
+          fieldType: String(r.adGroupAdAssetView?.fieldType ?? ""),
+          text: String(r.asset?.textAsset?.text ?? "").slice(0, 90),
+          label,
+        });
+      }
+    });
+    await soft("pmax_asset_groups", async () => {
+      const rows = await search(
+        ctx,
+        `SELECT asset_group.name, asset_group.ad_strength FROM asset_group LIMIT 50`,
+      );
+      for (const r of rows) {
+        data.pmaxAssetGroups.push({
+          name: r.assetGroup?.name ?? "",
+          adStrength: String(r.assetGroup?.adStrength ?? "UNKNOWN"),
+        });
+      }
+    });
+
+    // 5) Aenderungshistorie 7d (wer/was/wann) - Grundlage Externen-Detektor (Phase 5)
+    await soft("change_history", async () => {
+      const rows = await search(
+        ctx,
+        `SELECT change_event.change_date_time, change_event.user_email, change_event.change_resource_type, change_event.changed_fields
+         FROM change_event
+         WHERE change_event.change_date_time >= '${daysAgo(7)}' AND change_event.change_date_time <= '${daysAgo(0)} 23:59:59'
+         ORDER BY change_event.change_date_time DESC LIMIT 100`,
+      );
+      for (const r of rows) {
+        data.changeHistory.push({
+          at: String(r.changeEvent?.changeDateTime ?? ""),
+          user: String(r.changeEvent?.userEmail ?? ""),
+          resourceType: String(r.changeEvent?.changeResourceType ?? ""),
+          fields: String(r.changeEvent?.changedFields ?? "").slice(0, 120),
+        });
+      }
+    });
+
     return { ok: true, data };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+// ── Phase 3.2: deterministische Anomalie-Findings (report-only, pure) ────────
+export function computeGeoDeviceFindings(data: AutopilotData): PlannedAction[] {
+  const out: PlannedAction[] = [];
+  const acctCpa = data.meta.avgCpaChf;
+  if (!acctCpa || acctCpa <= 0) return out;
+
+  // Geo: Abweichung > 30% vom Konto-CPA bei >= 5 Conversions (plus reine Kostenfresser)
+  for (const g of data.geoPerformance) {
+    if (g.conversions >= 5) {
+      const cpa = g.costChf / g.conversions;
+      const dev = (cpa - acctCpa) / acctCpa;
+      if (Math.abs(dev) > 0.3) {
+        out.push({
+          actionClass: "report-only",
+          type: "geo_anomaly",
+          entity: g.location,
+          before: "",
+          after: "",
+          rationale: `Geo "${g.location}": CPA CHF ${cpa.toFixed(2)} (${dev > 0 ? "+" : ""}${(dev * 100).toFixed(0)}% vs Konto-CPA ${acctCpa.toFixed(2)}) bei ${g.conversions.toFixed(0)} Conv./30d`,
+        });
+      }
+    } else if (g.conversions === 0 && g.costChf > 3 * acctCpa) {
+      out.push({
+        actionClass: "report-only",
+        type: "geo_anomaly",
+        entity: g.location,
+        before: "",
+        after: "",
+        rationale: `Geo "${g.location}": CHF ${g.costChf.toFixed(2)} ohne Conversions (30d) - Streuverlust pruefen (Geo-Targeting)`,
+      });
+    }
+  }
+
+  // Geraete: je Geraetetyp ueber alle Kampagnen aggregiert, gleiche Schwellen
+  const dev = new Map<string, { cost: number; conv: number }>();
+  for (const d of data.devicePerformance) {
+    const a = dev.get(d.device) ?? { cost: 0, conv: 0 };
+    a.cost += d.costChf;
+    a.conv += d.conversions;
+    dev.set(d.device, a);
+  }
+  for (const [device, a] of dev) {
+    if (a.conv < 5) continue;
+    const cpa = a.cost / a.conv;
+    const rel = (cpa - acctCpa) / acctCpa;
+    if (Math.abs(rel) > 0.3) {
+      out.push({
+        actionClass: "report-only",
+        type: "device_anomaly",
+        entity: device,
+        before: "",
+        after: "",
+        rationale: `Geraet ${device}: CPA CHF ${cpa.toFixed(2)} (${rel > 0 ? "+" : ""}${(rel * 100).toFixed(0)}% vs Konto-CPA ${acctCpa.toFixed(2)}) bei ${a.conv.toFixed(0)} Conv./30d${rel > 0 && device === "MOBILE" ? " - Mobile-Landing pruefen" : ""}`,
+      });
+    }
+  }
+
+  // Asset-Schwaechen (aggregiert je Ad-Group)
+  const weak = new Map<string, number>();
+  for (const a of data.assetIssues) weak.set(a.adGroup, (weak.get(a.adGroup) ?? 0) + 1);
+  for (const [ag, n] of weak) {
+    if (n >= 2) {
+      out.push({
+        actionClass: "report-only",
+        type: "asset_weakness",
+        entity: ag,
+        before: "",
+        after: "",
+        rationale: `${n} RSA-Assets mit Google-Label LOW in "${ag}" - Kandidat fuer Copy-Refresh (Input fuer /ads plan)`,
+      });
+    }
+  }
+  return out;
+}
+
+// Hotel: OTA-Druck auf Brand-Kampagnen quantifizieren (Playbook-Pflicht-KPI)
+const OTA_DOMAINS = ["booking.com", "expedia", "hotels.com", "trivago", "agoda", "hrs.", "ebookers"];
+export function computeBrandOtaFindings(data: AutopilotData, cfg: AutopilotConfig): PlannedAction[] {
+  if (cfg.industry !== "hotel") return [];
+  const out: PlannedAction[] = [];
+  // "Brand", aber nicht "Non-Brand" (sonst false positives auf Non-Brand-Kampagnen)
+  const isBrand = (name: string) => /brand/i.test(name) && !/non[-_ ]?brand/i.test(name);
+  const brandRows = data.auctionInsights.filter((a) => isBrand(a.campaign));
+  const otas = brandRows.filter((a) => OTA_DOMAINS.some((o) => a.domain.includes(o)));
+  for (const o of otas.slice(0, 5)) {
+    out.push({
+      actionClass: "report-only",
+      type: "brand_ota_pressure",
+      entity: `${o.campaign} vs ${o.domain}`,
+      before: "",
+      after: "",
+      rationale: `OTA "${o.domain}" auf Brand: Overlap ${o.overlapRate != null ? (o.overlapRate * 100).toFixed(0) + "%" : "n/a"}, Outranking ${o.outrankingShare != null ? (o.outrankingShare * 100).toFixed(0) + "%" : "n/a"} - jeder verlorene Brand-Klick kostet spaeter OTA-Kommission`,
+    });
+  }
+  return out;
+}
+
+// Phase 1.2 (Execute-Pfad): Learning-Status einer einzelnen Kampagne live pruefen.
+export async function isCampaignLearning(
+  clientId: string,
+  googleAdsCustomer: string | null | undefined,
+  campaignName: string,
+): Promise<{ learning: boolean; status: string; error?: string }> {
+  const ctx = await adsContext(clientId, googleAdsCustomer);
+  if ("skipped" in ctx) return { learning: false, status: "UNKNOWN", error: ctx.skipped };
+  try {
+    const rows = await search(
+      ctx,
+      `SELECT campaign.bidding_strategy_system_status FROM campaign WHERE campaign.name = '${gaqlEscape(campaignName)}' LIMIT 1`,
+    );
+    const st = String(rows?.[0]?.campaign?.biddingStrategySystemStatus ?? "UNKNOWN");
+    return { learning: LEARNING_STATUSES.has(st), status: st };
+  } catch (e) {
+    // Konservativ: Bei Fehler NICHT blockieren-umgehen, sondern als learning behandeln.
+    return { learning: true, status: "QUERY_FAILED", error: e instanceof Error ? e.message : String(e) };
   }
 }
 
@@ -184,49 +557,172 @@ export type PlannedAction = {
     | { kind: "budget"; campaign: string; dailyChf: number };
 };
 
+// Phase 1.4: Normalisierung + 1-/2-Gram-Zerlegung fuer die Phrase-Aggregation.
+export function normalizeTerm(s: string): string {
+  return s.toLowerCase().replace(/[^\p{L}\p{N} ]+/gu, " ").replace(/\s+/g, " ").trim();
+}
+// Stoppwoerter (DE/FR/IT/EN): duerfen NIE eigenstaendige Phrase-Negative-Kandidaten
+// werden ("mit" wuerde z.B. "hotel mit pool" blockieren). In 2-Grams bleiben sie
+// erlaubt ("hotel gratis" ok), als Unigram nicht.
+const STOPWORDS = new Set([
+  "mit", "und", "der", "die", "das", "den", "dem", "des", "ein", "eine", "einem", "einen", "einer",
+  "fuer", "für", "von", "vom", "zum", "zur", "bei", "beim", "auf", "aus", "als", "auch", "oder",
+  "nicht", "sind", "ist", "war", "hat", "wie", "was", "wer", "im", "in", "am", "an",
+  "the", "and", "for", "with", "from", "near", "best",
+  "les", "des", "une", "aux", "avec", "pour", "dans", "sur", "pres", "près",
+  "con", "per", "del", "della", "nel", "vicino",
+]);
+export function grams(term: string): string[] {
+  const words = normalizeTerm(term).split(" ").filter((w) => w.length >= 3);
+  // Unigrams: min. 4 Zeichen und kein Stoppwort.
+  const out: string[] = words.filter((w) => w.length >= 4 && !STOPWORDS.has(w));
+  // Bigrams: mindestens ein Nicht-Stoppwort enthalten.
+  for (let i = 0; i < words.length - 1; i++) {
+    if (STOPWORDS.has(words[i]) && STOPWORDS.has(words[i + 1])) continue;
+    out.push(`${words[i]} ${words[i + 1]}`);
+  }
+  return out;
+}
+
+// Phase 1.1: Tracking-Health als pure Funktion (unit-testbar; Abnahme
+// "simulierter Tracking-Ausfall blockiert Writes").
+export function computeTrackingHealth(
+  spend7d: number,
+  conversions7d: number,
+  conversionsBaseline30d: number,
+  minBaseline: number,
+): "OK" | "BROKEN" | "NO_BASELINE" {
+  if (spend7d > 0 && conversions7d === 0 && conversionsBaseline30d >= minBaseline) return "BROKEN";
+  return conversionsBaseline30d >= minBaseline ? "OK" : "NO_BASELINE";
+}
+
 export function planActions(data: AutopilotData, cfg: AutopilotConfig): PlannedAction[] {
   const actions: PlannedAction[] = [];
   const noTouch = new Set(cfg.no_touch_campaigns.map((c) => c.trim()).filter(Boolean));
   const refCpa = cfg.target_cpa_chf ?? data.meta.avgCpaChf; // Fallback: Konto-Durchschnitts-CPA
+  const learningCampaigns = new Set(data.campaigns.filter((c) => c.learning).map((c) => c.name));
+  const season = activeSeasonWindow(cfg);
+  const winNote = `${data.termWindow.from}..${data.termWindow.to}`;
 
-  // Rule 1 — Negatives: 0 Conversions & Spend > 3x Ziel-CPA-Anteil.
+  // Phase 1.4 Konfliktbasis: konvertierende Suchbegriffe im gesamten Konto.
+  const convertingTerms = data.searchTerms.filter((t) => t.conversions > 0);
+  const convertingByExact = new Map<string, string>(); // normTerm -> "campaign"
+  for (const t of convertingTerms) {
+    const k = normalizeTerm(t.term);
+    if (!convertingByExact.has(k)) convertingByExact.set(k, t.campaign);
+  }
+  const conflictsForPhrase = (gram: string): string | null => {
+    for (const t of convertingTerms) {
+      if (normalizeTerm(t.term).includes(gram)) return `"${t.term}" (konvertiert in ${t.campaign})`;
+    }
+    return null;
+  };
+
+  // Rule 1 — Exact-Negatives: 0 Conversions & Kosten > 3x Ziel-CPA (Lag-Fenster).
   if (refCpa && refCpa > 0) {
     const threshold = 3 * refCpa;
     let count = 0;
     for (const t of data.searchTerms) {
       if (t.conversions > 0 || t.costChf <= threshold) continue;
       if (noTouch.has(t.campaign)) continue;
+      // Cross-Kampagnen-Konfliktcheck: konvertiert derselbe Begriff woanders -> verwerfen.
+      const convElsewhere = convertingByExact.get(normalizeTerm(t.term));
+      if (convElsewhere && convElsewhere !== t.campaign) {
+        actions.push({
+          actionClass: "report-only",
+          type: "negative_conflict",
+          entity: `${t.campaign} | ${t.adGroup}`,
+          before: "",
+          after: `NICHT ausschliessen: "${t.term}"`,
+          rationale: `Konflikt: "${t.term}" kostet hier CHF ${t.costChf.toFixed(2)} ohne Conv., konvertiert aber in "${convElsewhere}" - Vorschlag verworfen.`,
+        });
+        continue;
+      }
+      const learning = learningCampaigns.has(t.campaign);
       const overLimit = count >= MAX_NEGATIVES_PER_RUN;
       actions.push({
-        actionClass: cfg.autonomy_level >= 1 && !overLimit ? "auto-execute" : "approval-needed",
+        actionClass: cfg.autonomy_level >= 1 && !overLimit && !learning ? "auto-execute" : "approval-needed",
         type: "add_negative",
         entity: `${t.campaign} | ${t.adGroup}`,
         before: "",
         after: `+ "${t.term}" (negative exact)`,
-        rationale: `Search Term "${t.term}": Cost CHF ${t.costChf.toFixed(2)}, 0 Conv./30d (> 3x Ziel-CPA ${refCpa.toFixed(2)})${overLimit ? " [Limit 20/Run erreicht]" : ""}`,
+        rationale:
+          `Search Term "${t.term}": Cost CHF ${t.costChf.toFixed(2)}, 0 Conv. im Lag-Fenster ${winNote} (> 3x Ziel-CPA ${refCpa.toFixed(2)})` +
+          `${overLimit ? " [Limit 20/Run erreicht]" : ""}${learning ? " [Learning Phase aktiv - herabgestuft]" : ""}`,
         exec: { kind: "negative", campaign: t.campaign, term: t.term },
       });
       count += 1;
     }
+
+    // Phase 1.4 — N-Gram-Aggregation: Phrase-Kandidaten (immer approval-needed,
+    // Phrase-Reichweite > Exact).
+    type Agg = { cost: number; conv: number; terms: Set<string>; campaign: string };
+    const agg = new Map<string, Agg>();
+    for (const t of data.searchTerms) {
+      if (noTouch.has(t.campaign)) continue;
+      for (const g of grams(t.term)) {
+        const a = agg.get(g) ?? { cost: 0, conv: 0, terms: new Set<string>(), campaign: t.campaign };
+        a.cost += t.costChf;
+        a.conv += t.conversions;
+        a.terms.add(normalizeTerm(t.term));
+        agg.set(g, a);
+      }
+    }
+    let phraseCount = 0;
+    for (const [g, a] of [...agg.entries()].sort((x, y) => y[1].cost - x[1].cost)) {
+      if (phraseCount >= 5) break; // konservativ: max 5 Phrase-Kandidaten je Run
+      if (a.conv > 0 || a.cost <= 2 * refCpa || a.terms.size < 5) continue;
+      const conflict = conflictsForPhrase(g);
+      if (conflict) {
+        actions.push({
+          actionClass: "report-only",
+          type: "negative_conflict",
+          entity: `Konto | n-gram`,
+          before: "",
+          after: `NICHT als Phrase ausschliessen: "${g}"`,
+          rationale: `Konflikt: n-gram "${g}" (CHF ${a.cost.toFixed(2)}, ${a.terms.size} Begriffe, 0 Conv.) wuerde ${conflict} blockieren - verworfen.`,
+        });
+        continue;
+      }
+      actions.push({
+        actionClass: "approval-needed",
+        type: "add_negative_phrase",
+        entity: `${a.campaign} | n-gram`,
+        before: "",
+        after: `+ "${g}" (negative phrase)`,
+        rationale: `n-gram "${g}": CHF ${a.cost.toFixed(2)} ueber ${a.terms.size} Suchbegriffe, 0 Conv. im Lag-Fenster ${winNote} (> 2x Ziel-CPA ${refCpa.toFixed(2)})`,
+        estimatedImpact: `Vermeidet wiederkehrende Verschwendung des Musters (CHF ~${a.cost.toFixed(0)}/30d)`,
+        exec: { kind: "negative", campaign: a.campaign, term: g },
+      });
+      phraseCount += 1;
+    }
   }
 
-  // Rule 2 — Budget: budgetlimitiert (IS Lost Budget >= 20%) UND belegter Return.
-  // Nur empfehlen, wenn die Kampagne Conversions hat UND der ROAS ueber dem Ziel-ROAS
-  // (bzw. dem Mindest-Floor bei fehlendem Ziel) liegt. Verhindert Budget-Empfehlungen
-  // fuer Kampagnen mit ROAS 0.0 / ohne Conversions.
+  // Rule 2 — Budget: budgetlimitiert (IS Lost >= 20%) UND statistische Mindestbasis
+  // (Phase 1.4: conversions >= min_conversions_for_budget_rec) UND ROAS >= Ziel/Floor.
   const targetRoas = cfg.target_roas ?? null;
   const roasFloor = targetRoas ?? MIN_ROAS_FLOOR;
+  const minConv = cfg.min_conversions_for_budget_rec ?? 5;
   for (const c of data.campaigns) {
     if (noTouch.has(c.name)) continue;
-    if (c.budgetLostIs >= 0.2 && c.conversions > 0 && c.roas != null && c.roas >= roasFloor) {
+    if (c.budgetLostIs >= 0.2 && c.conversions >= minConv && c.roas != null && c.roas >= roasFloor) {
       const proposed = Math.round(c.dailyBudgetChf * 1.1 * 100) / 100; // Vorschlag +10% (Hardlimit/Run)
+      // Phase 1.5: In der Nebensaison basieren die 30d-Daten evtl. auf der Hauptsaison
+      // -> Pflicht-Annotation, nie auto-execute (Budget ist ohnehin approval-needed).
+      const seasonNote =
+        season?.kind === "low"
+          ? " [Nebensaison " + season.window + ": basiert auf Hauptsaison-Daten - pruefen]"
+          : "";
       actions.push({
         actionClass: "approval-needed",
         type: "budget_change",
         entity: c.name,
         before: `CHF ${c.dailyBudgetChf.toFixed(2)}/Tag`,
         after: `CHF ${proposed.toFixed(2)}/Tag`,
-        rationale: `Impression Share Lost (Budget) ${(c.budgetLostIs * 100).toFixed(0)}%, ROAS ${c.roas.toFixed(1)}${targetRoas ? ` > Ziel ${targetRoas}` : ""}`,
+        rationale:
+          `Impression Share Lost (Budget) ${(c.budgetLostIs * 100).toFixed(0)}%, ROAS ${c.roas.toFixed(1)}${targetRoas ? ` > Ziel ${targetRoas}` : ""}, ${c.conversions.toFixed(0)} Conv./30d (Mindestbasis ${minConv})` +
+          seasonNote +
+          (learningCampaigns.has(c.name) ? " [Learning Phase aktiv]" : ""),
         estimatedImpact: "Mehr Sichtbarkeit in budgetlimitierter Kampagne",
         exec: { kind: "budget", campaign: c.name, dailyChf: proposed },
       });
@@ -249,6 +745,21 @@ export type AutopilotRunSummary = {
   failed: number;
   skipped?: string;
   error?: string;
+  // Phase 1: Kontext fuer Report-Kopf + Gates
+  trackingHealth?: { status: string; spend7d: number; conversions7d: number; conversionsBaseline30d: number };
+  seasonWindow?: { kind: string; window: string } | null;
+  termWindow?: { from: string; to: string; lagDays: number };
+  learningCampaigns?: Array<{ name: string; status: string }>;
+  notesAgeDays?: number | null;
+  alerts?: string[];
+  // Phase 3: kompakte Datenbloecke fuer Wochen-/Monatsreport (report-only)
+  auctionInsightsTop?: Array<{ campaign: string; domain: string; overlapRate: number | null; outrankingShare: number | null }>;
+  geoTop?: Array<{ location: string; costChf: number; conversions: number }>;
+  deviceSplit?: Array<{ device: string; costChf: number; conversions: number }>;
+  assetIssueCount?: number;
+  pmaxAssetGroups?: Array<{ name: string; adStrength: string }>;
+  changeHistory?: Array<{ at: string; user: string; resourceType: string }>;
+  dataSourceErrors?: string[];
   actions: Array<{ class: string; type: string; entity: string; status: string; rationale: string }>;
 };
 
@@ -276,12 +787,67 @@ export async function runAutopilot(clientId: string, opts?: { dryRun?: boolean }
   if (!client) return { ...base, ok: false, error: "Client not found" };
 
   const customerId = String(client.google_ads_customer ?? "").replace(/\D/g, "");
-  const fetched = await fetchAutopilotData(clientId, client.google_ads_customer);
+  const fetched = await fetchAutopilotData(clientId, client.google_ads_customer, cfg);
   if (!fetched.ok || !fetched.data) return { ...base, ok: false, skipped: fetched.skipped, error: fetched.error };
 
-  const planned = planActions(fetched.data, cfg);
-  // observe_only (Evaluations-Gate) erzwingt Dry-Run: NUR dokumentieren, keine Writes.
-  const effectiveDryRun = dryRun || cfg.observe_only || cfg.autonomy_level < 1;
+  // Phase 1: Kontext in die Summary (Report-Kopf).
+  base.trackingHealth = fetched.data.trackingHealth;
+  base.seasonWindow = activeSeasonWindow(cfg);
+  base.termWindow = fetched.data.termWindow;
+  base.learningCampaigns = fetched.data.campaigns
+    .filter((c) => c.learning)
+    .map((c) => ({ name: c.name, status: c.biddingSystemStatus }));
+  base.notesAgeDays = cfg.notes_updated_at
+    ? Math.floor((now.getTime() - new Date(cfg.notes_updated_at).getTime()) / 86_400_000)
+    : null;
+  base.alerts = [];
+  if (base.notesAgeDays != null && base.notesAgeDays > 90)
+    base.alerts.push(`Kontext-Check: notes zuletzt aktualisiert vor ${base.notesAgeDays} Tagen`);
+
+  // Phase 3: Datenbloecke in die Summary + deterministische report-only-Findings.
+  const d3 = fetched.data;
+  base.auctionInsightsTop = d3.auctionInsights
+    .slice(0, 10)
+    .map((a) => ({ campaign: a.campaign, domain: a.domain, overlapRate: a.overlapRate, outrankingShare: a.outrankingShare }));
+  base.geoTop = d3.geoPerformance.slice(0, 8).map((g) => ({ location: g.location, costChf: g.costChf, conversions: g.conversions }));
+  {
+    const devAgg = new Map<string, { cost: number; conv: number }>();
+    for (const d of d3.devicePerformance) {
+      const a = devAgg.get(d.device) ?? { cost: 0, conv: 0 };
+      a.cost += d.costChf; a.conv += d.conversions;
+      devAgg.set(d.device, a);
+    }
+    base.deviceSplit = [...devAgg.entries()].map(([device, a]) => ({ device, costChf: Math.round(a.cost * 100) / 100, conversions: a.conv }));
+  }
+  base.assetIssueCount = d3.assetIssues.length;
+  base.pmaxAssetGroups = d3.pmaxAssetGroups;
+  base.changeHistory = d3.changeHistory.slice(0, 20).map((c) => ({ at: c.at, user: c.user, resourceType: c.resourceType }));
+  base.dataSourceErrors = d3.dataSourceErrors;
+
+  const planned = [
+    ...planActions(fetched.data, cfg),
+    ...computeGeoDeviceFindings(fetched.data),
+    ...computeBrandOtaFindings(fetched.data, cfg),
+  ];
+
+  // Phase 1.1 Tracking-Health-Gate: bei BROKEN werden ALLE Write-Ops blockiert
+  // (unabhaengig vom autonomy_level); der Run laeuft als reine Doku weiter.
+  const trackingBroken = fetched.data.trackingHealth.status === "BROKEN";
+  if (trackingBroken) {
+    const th = fetched.data.trackingHealth;
+    const alertMsg = `Tracking-Verdacht Konto ${client.name}: Spend 7d CHF ${th.spend7d.toFixed(2)} bei 0 Conversions (Baseline ${th.conversionsBaseline30d} Conv./30d)`;
+    base.alerts.push(alertMsg);
+    // Alert-Zeile ins Changelog, damit n8n/UI sie aufnehmen koennen.
+    await supabaseAdmin.from("ads_changelog").insert({
+      client_id: clientId, customer_id: customerId, run_id: runId,
+      action_type: "tracking_health_alert", action_class: "report-only",
+      entity: "Konto", before_value: "", after_value: "",
+      rationale: alertMsg, status: "blocked_tracking",
+    });
+  }
+
+  // observe_only (Evaluations-Gate) erzwingt Dry-Run; Tracking-BROKEN blockiert hart.
+  const effectiveDryRun = dryRun || cfg.observe_only || cfg.autonomy_level < 1 || trackingBroken;
 
   // Dedup: bereits offene (pending) Approvals dieses Kunden nicht erneut anlegen
   // (sonst haeufen sich bei wiederholten Laeufen identische Empfehlungen).
@@ -293,6 +859,17 @@ export async function runAutopilot(clientId: string, opts?: { dryRun?: boolean }
   const existingApprovalKeys = new Set((openAppr ?? []).map((a) => `${a.type}::${a.entity ?? ""}`));
 
   for (const a of planned) {
+    // Tracking-BROKEN: reine Doku - keine Executes, keine Approvals (Daten unzuverlaessig).
+    if (trackingBroken && a.actionClass !== "report-only") {
+      await supabaseAdmin.from("ads_changelog").insert({
+        client_id: clientId, customer_id: customerId, run_id: runId,
+        action_type: a.type, action_class: a.actionClass, entity: a.entity,
+        before_value: a.before, after_value: a.after,
+        rationale: `${a.rationale} [blocked_tracking]`, status: "blocked_tracking",
+      });
+      base.actions.push({ class: a.actionClass, type: a.type, entity: a.entity, status: "blocked_tracking", rationale: a.rationale });
+      continue;
+    }
     if (a.actionClass === "auto-execute" && a.exec?.kind === "negative") {
       // 1) log pending  2) execute (or dry-run)  3) update status
       const { data: logRow } = await supabaseAdmin
@@ -385,6 +962,10 @@ export async function decideApproval(p: {
     return { ok: false, httpStatus: 410, error: "Approval abgelaufen", approvalId: appr.id };
   }
 
+  // Phase 1.3: approved_by ist bei Freigaben zwingend (Audit-Trail).
+  if (p.decision === "approve" && !p.decidedBy)
+    return { ok: false, httpStatus: 400, error: "decidedBy (approved_by) ist bei Freigaben zwingend", approvalId: appr.id };
+
   const decidedAt = new Date().toISOString();
 
   if (p.decision === "reject") {
@@ -395,6 +976,20 @@ export async function decideApproval(p: {
     if (appr.changelog_id)
       await supabaseAdmin.from("ads_changelog").update({ status: "rejected", approved_by: p.decidedBy ?? null }).eq("id", appr.changelog_id);
     return { ok: true, httpStatus: 200, status: "rejected", approvalId: appr.id };
+  }
+
+  // Phase 2.3: Kampagnen-Proposals werden NIE automatisch umgesetzt (dauerhaftes
+  // Nicht-Ziel). Approve markiert nur die Freigabe; die Umsetzung erfolgt manuell
+  // bzw. via Editor-Export. Kein Google-Write -> nicht durch observe_only blockiert.
+  const payloadEarly = (appr.payload && typeof appr.payload === "object" ? appr.payload : {}) as Record<string, any>;
+  if (appr.type === "campaign_proposal" || payloadEarly.kind === "proposal") {
+    await supabaseAdmin
+      .from("ads_approvals")
+      .update({ status: "approved", decided_by: p.decidedBy ?? null, decided_at: decidedAt })
+      .eq("id", appr.id);
+    if (appr.changelog_id)
+      await supabaseAdmin.from("ads_changelog").update({ status: "approved", approved_by: p.decidedBy ?? null }).eq("id", appr.changelog_id);
+    return { ok: true, httpStatus: 200, status: "approved", approvalId: appr.id };
   }
 
   const { data: client } = await supabaseAdmin
@@ -412,6 +1007,22 @@ export async function decideApproval(p: {
       approvalId: appr.id,
     };
   const payload = (appr.payload && typeof appr.payload === "object" ? appr.payload : {}) as Record<string, any>;
+
+  // Phase 1.3: Bid-Mutationen bleiben hart gesperrt, bis die Vorschlagslogik existiert.
+  if (payload.kind === "bid" && !bidWritesEnabled())
+    return { ok: false, httpStatus: 423, error: "Bid-Writes global deaktiviert (bid_writes_enabled=false)", approvalId: appr.id };
+
+  // Phase 1.1 (Execute-Pfad): Tracking-Health auch bei Freigaben pruefen.
+  const freshData = await fetchAutopilotData(appr.client_id, client.google_ads_customer, cfg);
+  if (freshData.ok && freshData.data?.trackingHealth.status === "BROKEN")
+    return { ok: false, httpStatus: 423, error: "Tracking-Verdacht (BROKEN) - alle Write-Ops blockiert", approvalId: appr.id };
+
+  // Phase 1.2 (Execute-Pfad): Learning-Phase live pruefen; LEARNING_* blockiert.
+  if (payload.campaign) {
+    const lp = await isCampaignLearning(appr.client_id, client.google_ads_customer, String(payload.campaign));
+    if (lp.learning)
+      return { ok: false, httpStatus: 423, error: `Learning Phase aktiv (${lp.status}) - Write blockiert, spaeter erneut freigeben`, approvalId: appr.id };
+  }
 
   let result: { ok: boolean; error?: string; skipped?: string };
   if (payload.kind === "budget") {

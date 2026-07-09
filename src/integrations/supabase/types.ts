@@ -14,6 +14,274 @@ export type Database = {
   }
   public: {
     Tables: {
+      ads_approvals: {
+        Row: {
+          action_id: string
+          changelog_id: string | null
+          client_id: string
+          created_at: string
+          current_value: string | null
+          customer_id: string
+          decided_at: string | null
+          decided_by: string | null
+          entity: string | null
+          estimated_impact: string | null
+          expires_at: string | null
+          id: string
+          payload: Json
+          proposed_value: string | null
+          rationale: string | null
+          run_id: string
+          status: string
+          type: string
+        }
+        Insert: {
+          action_id: string
+          changelog_id?: string | null
+          client_id: string
+          created_at?: string
+          current_value?: string | null
+          customer_id: string
+          decided_at?: string | null
+          decided_by?: string | null
+          entity?: string | null
+          estimated_impact?: string | null
+          expires_at?: string | null
+          id?: string
+          payload?: Json
+          proposed_value?: string | null
+          rationale?: string | null
+          run_id: string
+          status?: string
+          type: string
+        }
+        Update: {
+          action_id?: string
+          changelog_id?: string | null
+          client_id?: string
+          created_at?: string
+          current_value?: string | null
+          customer_id?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          entity?: string | null
+          estimated_impact?: string | null
+          expires_at?: string | null
+          id?: string
+          payload?: Json
+          proposed_value?: string | null
+          rationale?: string | null
+          run_id?: string
+          status?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_approvals_changelog_id_fkey"
+            columns: ["changelog_id"]
+            isOneToOne: false
+            referencedRelation: "ads_changelog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ads_approvals_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ads_autopilot_config: {
+        Row: {
+          autonomy_level: number
+          client_id: string
+          conversion_lag_days: number
+          industry: string
+          kill_switch: boolean
+          languages: string[]
+          min_conversions_baseline: number
+          min_conversions_for_budget_rec: number
+          monthly_budget_chf: number
+          no_touch_campaigns: string[]
+          notes: string | null
+          notes_updated_at: string | null
+          observe_only: boolean
+          season_high: string[]
+          season_low: string[]
+          target_cpa_chf: number | null
+          target_roas: number | null
+          updated_at: string
+        }
+        Insert: {
+          autonomy_level?: number
+          client_id: string
+          conversion_lag_days?: number
+          industry?: string
+          kill_switch?: boolean
+          languages?: string[]
+          min_conversions_baseline?: number
+          min_conversions_for_budget_rec?: number
+          monthly_budget_chf?: number
+          no_touch_campaigns?: string[]
+          notes?: string | null
+          notes_updated_at?: string | null
+          observe_only?: boolean
+          season_high?: string[]
+          season_low?: string[]
+          target_cpa_chf?: number | null
+          target_roas?: number | null
+          updated_at?: string
+        }
+        Update: {
+          autonomy_level?: number
+          client_id?: string
+          conversion_lag_days?: number
+          industry?: string
+          kill_switch?: boolean
+          languages?: string[]
+          min_conversions_baseline?: number
+          min_conversions_for_budget_rec?: number
+          monthly_budget_chf?: number
+          no_touch_campaigns?: string[]
+          notes?: string | null
+          notes_updated_at?: string | null
+          observe_only?: boolean
+          season_high?: string[]
+          season_low?: string[]
+          target_cpa_chf?: number | null
+          target_roas?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_autopilot_config_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: true
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ads_changelog: {
+        Row: {
+          action_class: string
+          action_type: string
+          after_value: string | null
+          approved_by: string | null
+          before_value: string | null
+          client_id: string
+          created_at: string
+          customer_id: string
+          entity: string | null
+          id: string
+          rationale: string | null
+          run_id: string
+          status: string
+        }
+        Insert: {
+          action_class: string
+          action_type: string
+          after_value?: string | null
+          approved_by?: string | null
+          before_value?: string | null
+          client_id: string
+          created_at?: string
+          customer_id: string
+          entity?: string | null
+          id?: string
+          rationale?: string | null
+          run_id: string
+          status?: string
+        }
+        Update: {
+          action_class?: string
+          action_type?: string
+          after_value?: string | null
+          approved_by?: string | null
+          before_value?: string | null
+          client_id?: string
+          created_at?: string
+          customer_id?: string
+          entity?: string | null
+          id?: string
+          rationale?: string | null
+          run_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_changelog_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_runs: {
+        Row: {
+          agent_name: string
+          client_id: string
+          created_at: string
+          deploy_count: number
+          duration_ms: number | null
+          error_message: string | null
+          health_score: number | null
+          id: string
+          metadata: Json
+          organization_id: string
+          run_at: string
+          status: string
+          summary: string | null
+        }
+        Insert: {
+          agent_name: string
+          client_id: string
+          created_at?: string
+          deploy_count?: number
+          duration_ms?: number | null
+          error_message?: string | null
+          health_score?: number | null
+          id?: string
+          metadata?: Json
+          organization_id: string
+          run_at?: string
+          status?: string
+          summary?: string | null
+        }
+        Update: {
+          agent_name?: string
+          client_id?: string
+          created_at?: string
+          deploy_count?: number
+          duration_ms?: number | null
+          error_message?: string | null
+          health_score?: number | null
+          id?: string
+          metadata?: Json
+          organization_id?: string
+          run_at?: string
+          status?: string
+          summary?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_runs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_visibility_attribution: {
         Row: {
           client_id: string

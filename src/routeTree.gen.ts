@@ -78,8 +78,10 @@ import { Route as ApiAdminContentDecisionRouteImport } from './routes/api/admin.
 import { Route as ApiAdminClientMetricsRouteImport } from './routes/api/admin.client-metrics'
 import { Route as ApiAdminClientDomainsRouteImport } from './routes/api/admin.client-domains'
 import { Route as ApiAdminAivisSyncRouteImport } from './routes/api/admin.aivis-sync'
+import { Route as ApiAdminAgentRunRouteImport } from './routes/api/admin.agent-run'
 import { Route as ApiAdminAdsClientsRouteImport } from './routes/api/admin.ads-clients'
 import { Route as ApiAdminAdsAutopilotRunRouteImport } from './routes/api/admin.ads-autopilot-run'
+import { Route as ApiAdminAdsAutopilotProposalRouteImport } from './routes/api/admin.ads-autopilot-proposal'
 import { Route as ApiAdminAdsAutopilotExecuteRouteImport } from './routes/api/admin.ads-autopilot-execute'
 import { Route as ApiAdminAdsAutopilotApprovalsRouteImport } from './routes/api/admin.ads-autopilot-approvals'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
@@ -438,6 +440,11 @@ const ApiAdminAivisSyncRoute = ApiAdminAivisSyncRouteImport.update({
   path: '/api/admin/aivis-sync',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminAgentRunRoute = ApiAdminAgentRunRouteImport.update({
+  id: '/api/admin/agent-run',
+  path: '/api/admin/agent-run',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminAdsClientsRoute = ApiAdminAdsClientsRouteImport.update({
   id: '/api/admin/ads-clients',
   path: '/api/admin/ads-clients',
@@ -448,6 +455,12 @@ const ApiAdminAdsAutopilotRunRoute = ApiAdminAdsAutopilotRunRouteImport.update({
   path: '/api/admin/ads-autopilot-run',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminAdsAutopilotProposalRoute =
+  ApiAdminAdsAutopilotProposalRouteImport.update({
+    id: '/api/admin/ads-autopilot-proposal',
+    path: '/api/admin/ads-autopilot-proposal',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAdminAdsAutopilotExecuteRoute =
   ApiAdminAdsAutopilotExecuteRouteImport.update({
     id: '/api/admin/ads-autopilot-execute',
@@ -513,8 +526,10 @@ export interface FileRoutesByFullPath {
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/api/admin/ads-autopilot-approvals': typeof ApiAdminAdsAutopilotApprovalsRoute
   '/api/admin/ads-autopilot-execute': typeof ApiAdminAdsAutopilotExecuteRoute
+  '/api/admin/ads-autopilot-proposal': typeof ApiAdminAdsAutopilotProposalRoute
   '/api/admin/ads-autopilot-run': typeof ApiAdminAdsAutopilotRunRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
+  '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
@@ -593,8 +608,10 @@ export interface FileRoutesByTo {
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/api/admin/ads-autopilot-approvals': typeof ApiAdminAdsAutopilotApprovalsRoute
   '/api/admin/ads-autopilot-execute': typeof ApiAdminAdsAutopilotExecuteRoute
+  '/api/admin/ads-autopilot-proposal': typeof ApiAdminAdsAutopilotProposalRoute
   '/api/admin/ads-autopilot-run': typeof ApiAdminAdsAutopilotRunRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
+  '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
@@ -674,8 +691,10 @@ export interface FileRoutesById {
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/api/admin/ads-autopilot-approvals': typeof ApiAdminAdsAutopilotApprovalsRoute
   '/api/admin/ads-autopilot-execute': typeof ApiAdminAdsAutopilotExecuteRoute
+  '/api/admin/ads-autopilot-proposal': typeof ApiAdminAdsAutopilotProposalRoute
   '/api/admin/ads-autopilot-run': typeof ApiAdminAdsAutopilotRunRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
+  '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
@@ -756,8 +775,10 @@ export interface FileRouteTypes {
     | '/.mcp/invoke-tool/$tool'
     | '/api/admin/ads-autopilot-approvals'
     | '/api/admin/ads-autopilot-execute'
+    | '/api/admin/ads-autopilot-proposal'
     | '/api/admin/ads-autopilot-run'
     | '/api/admin/ads-clients'
+    | '/api/admin/agent-run'
     | '/api/admin/aivis-sync'
     | '/api/admin/client-domains'
     | '/api/admin/client-metrics'
@@ -836,8 +857,10 @@ export interface FileRouteTypes {
     | '/.mcp/invoke-tool/$tool'
     | '/api/admin/ads-autopilot-approvals'
     | '/api/admin/ads-autopilot-execute'
+    | '/api/admin/ads-autopilot-proposal'
     | '/api/admin/ads-autopilot-run'
     | '/api/admin/ads-clients'
+    | '/api/admin/agent-run'
     | '/api/admin/aivis-sync'
     | '/api/admin/client-domains'
     | '/api/admin/client-metrics'
@@ -916,8 +939,10 @@ export interface FileRouteTypes {
     | '/.mcp/invoke-tool/$tool'
     | '/api/admin/ads-autopilot-approvals'
     | '/api/admin/ads-autopilot-execute'
+    | '/api/admin/ads-autopilot-proposal'
     | '/api/admin/ads-autopilot-run'
     | '/api/admin/ads-clients'
+    | '/api/admin/agent-run'
     | '/api/admin/aivis-sync'
     | '/api/admin/client-domains'
     | '/api/admin/client-metrics'
@@ -993,8 +1018,10 @@ export interface RootRouteChildren {
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
   ApiAdminAdsAutopilotApprovalsRoute: typeof ApiAdminAdsAutopilotApprovalsRoute
   ApiAdminAdsAutopilotExecuteRoute: typeof ApiAdminAdsAutopilotExecuteRoute
+  ApiAdminAdsAutopilotProposalRoute: typeof ApiAdminAdsAutopilotProposalRoute
   ApiAdminAdsAutopilotRunRoute: typeof ApiAdminAdsAutopilotRunRoute
   ApiAdminAdsClientsRoute: typeof ApiAdminAdsClientsRoute
+  ApiAdminAgentRunRoute: typeof ApiAdminAgentRunRoute
   ApiAdminAivisSyncRoute: typeof ApiAdminAivisSyncRoute
   ApiAdminClientDomainsRoute: typeof ApiAdminClientDomainsRoute
   ApiAdminClientMetricsRoute: typeof ApiAdminClientMetricsRoute
@@ -1534,6 +1561,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminAivisSyncRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/agent-run': {
+      id: '/api/admin/agent-run'
+      path: '/api/admin/agent-run'
+      fullPath: '/api/admin/agent-run'
+      preLoaderRoute: typeof ApiAdminAgentRunRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/ads-clients': {
       id: '/api/admin/ads-clients'
       path: '/api/admin/ads-clients'
@@ -1546,6 +1580,13 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/ads-autopilot-run'
       fullPath: '/api/admin/ads-autopilot-run'
       preLoaderRoute: typeof ApiAdminAdsAutopilotRunRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/ads-autopilot-proposal': {
+      id: '/api/admin/ads-autopilot-proposal'
+      path: '/api/admin/ads-autopilot-proposal'
+      fullPath: '/api/admin/ads-autopilot-proposal'
+      preLoaderRoute: typeof ApiAdminAdsAutopilotProposalRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/ads-autopilot-execute': {
@@ -1667,8 +1708,10 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
   ApiAdminAdsAutopilotApprovalsRoute: ApiAdminAdsAutopilotApprovalsRoute,
   ApiAdminAdsAutopilotExecuteRoute: ApiAdminAdsAutopilotExecuteRoute,
+  ApiAdminAdsAutopilotProposalRoute: ApiAdminAdsAutopilotProposalRoute,
   ApiAdminAdsAutopilotRunRoute: ApiAdminAdsAutopilotRunRoute,
   ApiAdminAdsClientsRoute: ApiAdminAdsClientsRoute,
+  ApiAdminAgentRunRoute: ApiAdminAgentRunRoute,
   ApiAdminAivisSyncRoute: ApiAdminAivisSyncRoute,
   ApiAdminClientDomainsRoute: ApiAdminClientDomainsRoute,
   ApiAdminClientMetricsRoute: ApiAdminClientMetricsRoute,
