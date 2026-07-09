@@ -13,7 +13,7 @@ const DEFAULTS: EzyDefaults = {
   language: "Deutsch",
   tone: "Professionell",
   reportTemplate: "Standard",
-  visibleTabs: ["overview", "seo", "geo", "aivis", "conversions", "ads"],
+  visibleTabs: ["overview", "seo", "geo", "aivis", "conversions", "ads", "runs"],
 };
 
 const LOCAL_KEY_PREFIX = "ezy-defaults:";
@@ -23,7 +23,13 @@ function normalize(v: any): EzyDefaults {
     language: String(v?.language || DEFAULTS.language),
     tone: String(v?.tone || DEFAULTS.tone),
     reportTemplate: String(v?.reportTemplate || DEFAULTS.reportTemplate),
-    visibleTabs: Array.isArray(v?.visibleTabs) ? v.visibleTabs : DEFAULTS.visibleTabs,
+    // "runs" (Agent-Läufe-Nachweis) IMMER sichtbar erzwingen — auch bei alten,
+    // vor dem Feature gespeicherten Configs (localStorage/DB), damit der Tab
+    // ohne Cache-Löschen bei jedem Kunden erscheint.
+    visibleTabs: (() => {
+      const base = Array.isArray(v?.visibleTabs) ? v.visibleTabs : DEFAULTS.visibleTabs;
+      return base.includes("runs") ? base : [...base, "runs"];
+    })(),
   };
 }
 
