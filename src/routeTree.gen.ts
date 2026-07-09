@@ -78,6 +78,7 @@ import { Route as ApiAdminContentDecisionRouteImport } from './routes/api/admin.
 import { Route as ApiAdminClientMetricsRouteImport } from './routes/api/admin.client-metrics'
 import { Route as ApiAdminClientDomainsRouteImport } from './routes/api/admin.client-domains'
 import { Route as ApiAdminAivisSyncRouteImport } from './routes/api/admin.aivis-sync'
+import { Route as ApiAdminAgentRunRouteImport } from './routes/api/admin.agent-run'
 import { Route as ApiAdminAdsClientsRouteImport } from './routes/api/admin.ads-clients'
 import { Route as ApiAdminAdsAutopilotRunRouteImport } from './routes/api/admin.ads-autopilot-run'
 import { Route as ApiAdminAdsAutopilotExecuteRouteImport } from './routes/api/admin.ads-autopilot-execute'
@@ -438,6 +439,11 @@ const ApiAdminAivisSyncRoute = ApiAdminAivisSyncRouteImport.update({
   path: '/api/admin/aivis-sync',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminAgentRunRoute = ApiAdminAgentRunRouteImport.update({
+  id: '/api/admin/agent-run',
+  path: '/api/admin/agent-run',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminAdsClientsRoute = ApiAdminAdsClientsRouteImport.update({
   id: '/api/admin/ads-clients',
   path: '/api/admin/ads-clients',
@@ -515,6 +521,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/ads-autopilot-execute': typeof ApiAdminAdsAutopilotExecuteRoute
   '/api/admin/ads-autopilot-run': typeof ApiAdminAdsAutopilotRunRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
+  '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
@@ -595,6 +602,7 @@ export interface FileRoutesByTo {
   '/api/admin/ads-autopilot-execute': typeof ApiAdminAdsAutopilotExecuteRoute
   '/api/admin/ads-autopilot-run': typeof ApiAdminAdsAutopilotRunRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
+  '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
@@ -676,6 +684,7 @@ export interface FileRoutesById {
   '/api/admin/ads-autopilot-execute': typeof ApiAdminAdsAutopilotExecuteRoute
   '/api/admin/ads-autopilot-run': typeof ApiAdminAdsAutopilotRunRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
+  '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
@@ -758,6 +767,7 @@ export interface FileRouteTypes {
     | '/api/admin/ads-autopilot-execute'
     | '/api/admin/ads-autopilot-run'
     | '/api/admin/ads-clients'
+    | '/api/admin/agent-run'
     | '/api/admin/aivis-sync'
     | '/api/admin/client-domains'
     | '/api/admin/client-metrics'
@@ -838,6 +848,7 @@ export interface FileRouteTypes {
     | '/api/admin/ads-autopilot-execute'
     | '/api/admin/ads-autopilot-run'
     | '/api/admin/ads-clients'
+    | '/api/admin/agent-run'
     | '/api/admin/aivis-sync'
     | '/api/admin/client-domains'
     | '/api/admin/client-metrics'
@@ -918,6 +929,7 @@ export interface FileRouteTypes {
     | '/api/admin/ads-autopilot-execute'
     | '/api/admin/ads-autopilot-run'
     | '/api/admin/ads-clients'
+    | '/api/admin/agent-run'
     | '/api/admin/aivis-sync'
     | '/api/admin/client-domains'
     | '/api/admin/client-metrics'
@@ -995,6 +1007,7 @@ export interface RootRouteChildren {
   ApiAdminAdsAutopilotExecuteRoute: typeof ApiAdminAdsAutopilotExecuteRoute
   ApiAdminAdsAutopilotRunRoute: typeof ApiAdminAdsAutopilotRunRoute
   ApiAdminAdsClientsRoute: typeof ApiAdminAdsClientsRoute
+  ApiAdminAgentRunRoute: typeof ApiAdminAgentRunRoute
   ApiAdminAivisSyncRoute: typeof ApiAdminAivisSyncRoute
   ApiAdminClientDomainsRoute: typeof ApiAdminClientDomainsRoute
   ApiAdminClientMetricsRoute: typeof ApiAdminClientMetricsRoute
@@ -1534,6 +1547,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminAivisSyncRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/agent-run': {
+      id: '/api/admin/agent-run'
+      path: '/api/admin/agent-run'
+      fullPath: '/api/admin/agent-run'
+      preLoaderRoute: typeof ApiAdminAgentRunRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/ads-clients': {
       id: '/api/admin/ads-clients'
       path: '/api/admin/ads-clients'
@@ -1669,6 +1689,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminAdsAutopilotExecuteRoute: ApiAdminAdsAutopilotExecuteRoute,
   ApiAdminAdsAutopilotRunRoute: ApiAdminAdsAutopilotRunRoute,
   ApiAdminAdsClientsRoute: ApiAdminAdsClientsRoute,
+  ApiAdminAgentRunRoute: ApiAdminAgentRunRoute,
   ApiAdminAivisSyncRoute: ApiAdminAivisSyncRoute,
   ApiAdminClientDomainsRoute: ApiAdminClientDomainsRoute,
   ApiAdminClientMetricsRoute: ApiAdminClientMetricsRoute,
