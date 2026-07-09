@@ -786,6 +786,13 @@ export async function runAutopilot(clientId: string, opts?: { dryRun?: boolean }
   if (cfg.kill_switch) return { ...base, killSwitch: true, skipped: "Run uebersprungen (Kill-Switch aktiv)" };
   if (!client) return { ...base, ok: false, error: "Client not found" };
 
+  // Phase 4: faellige Outcome-Reviews opportunistisch nachziehen (idempotent,
+  // billig wenn nichts faellig; Fehler blockieren den Run nicht).
+  try {
+    const { runOutcomeReview } = await import("./google-ads-outcome.server");
+    await runOutcomeReview(clientId);
+  } catch { /* Tagesjob via /api/admin/ads-outcome-review ist der Primaertrigger */ }
+
   const customerId = String(client.google_ads_customer ?? "").replace(/\D/g, "");
   const fetched = await fetchAutopilotData(clientId, client.google_ads_customer, cfg);
   if (!fetched.ok || !fetched.data) return { ...base, ok: false, skipped: fetched.skipped, error: fetched.error };

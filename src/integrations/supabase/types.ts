@@ -14,6 +14,63 @@ export type Database = {
   }
   public: {
     Tables: {
+      ads_outcome_reviews: {
+        Row: {
+          action_type: string
+          avoided_waste_chf: number | null
+          changelog_id: string
+          client_id: string
+          confounders: Json
+          id: string
+          metric_after: Json
+          metric_before: Json
+          review_window: string
+          reviewed_at: string
+          verdict: string
+        }
+        Insert: {
+          action_type: string
+          avoided_waste_chf?: number | null
+          changelog_id: string
+          client_id: string
+          confounders?: Json
+          id?: string
+          metric_after?: Json
+          metric_before?: Json
+          review_window: string
+          reviewed_at?: string
+          verdict: string
+        }
+        Update: {
+          action_type?: string
+          avoided_waste_chf?: number | null
+          changelog_id?: string
+          client_id?: string
+          confounders?: Json
+          id?: string
+          metric_after?: Json
+          metric_before?: Json
+          review_window?: string
+          reviewed_at?: string
+          verdict?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_outcome_reviews_changelog_id_fkey"
+            columns: ["changelog_id"]
+            isOneToOne: false
+            referencedRelation: "ads_changelog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ads_outcome_reviews_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ads_approvals: {
         Row: {
           action_id: string
