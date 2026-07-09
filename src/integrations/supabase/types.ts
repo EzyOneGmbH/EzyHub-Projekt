@@ -219,6 +219,69 @@ export type Database = {
           },
         ]
       }
+      agent_runs: {
+        Row: {
+          agent_name: string
+          client_id: string
+          created_at: string
+          deploy_count: number
+          duration_ms: number | null
+          error_message: string | null
+          health_score: number | null
+          id: string
+          metadata: Json
+          organization_id: string
+          run_at: string
+          status: string
+          summary: string | null
+        }
+        Insert: {
+          agent_name: string
+          client_id: string
+          created_at?: string
+          deploy_count?: number
+          duration_ms?: number | null
+          error_message?: string | null
+          health_score?: number | null
+          id?: string
+          metadata?: Json
+          organization_id: string
+          run_at?: string
+          status?: string
+          summary?: string | null
+        }
+        Update: {
+          agent_name?: string
+          client_id?: string
+          created_at?: string
+          deploy_count?: number
+          duration_ms?: number | null
+          error_message?: string | null
+          health_score?: number | null
+          id?: string
+          metadata?: Json
+          organization_id?: string
+          run_at?: string
+          status?: string
+          summary?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_runs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_visibility_attribution: {
         Row: {
           client_id: string
