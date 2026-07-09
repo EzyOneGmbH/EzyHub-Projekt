@@ -77,17 +77,17 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "ads_approvals_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "ads_approvals_changelog_id_fkey"
             columns: ["changelog_id"]
             isOneToOne: false
             referencedRelation: "ads_changelog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ads_approvals_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
             referencedColumns: ["id"]
           },
         ]
@@ -215,6 +215,69 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_runs: {
+        Row: {
+          agent_name: string
+          client_id: string
+          created_at: string
+          deploy_count: number
+          duration_ms: number | null
+          error_message: string | null
+          health_score: number | null
+          id: string
+          metadata: Json
+          organization_id: string
+          run_at: string
+          status: string
+          summary: string | null
+        }
+        Insert: {
+          agent_name: string
+          client_id: string
+          created_at?: string
+          deploy_count?: number
+          duration_ms?: number | null
+          error_message?: string | null
+          health_score?: number | null
+          id?: string
+          metadata?: Json
+          organization_id: string
+          run_at?: string
+          status?: string
+          summary?: string | null
+        }
+        Update: {
+          agent_name?: string
+          client_id?: string
+          created_at?: string
+          deploy_count?: number
+          duration_ms?: number | null
+          error_message?: string | null
+          health_score?: number | null
+          id?: string
+          metadata?: Json
+          organization_id?: string
+          run_at?: string
+          status?: string
+          summary?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_runs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
