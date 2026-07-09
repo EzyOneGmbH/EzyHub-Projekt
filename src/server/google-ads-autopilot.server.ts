@@ -695,6 +695,20 @@ export async function decideApproval(p: {
     return { ok: true, httpStatus: 200, status: "rejected", approvalId: appr.id };
   }
 
+  // Phase 2.3: Kampagnen-Proposals werden NIE automatisch umgesetzt (dauerhaftes
+  // Nicht-Ziel). Approve markiert nur die Freigabe; die Umsetzung erfolgt manuell
+  // bzw. via Editor-Export. Kein Google-Write -> nicht durch observe_only blockiert.
+  const payloadEarly = (appr.payload && typeof appr.payload === "object" ? appr.payload : {}) as Record<string, any>;
+  if (appr.type === "campaign_proposal" || payloadEarly.kind === "proposal") {
+    await supabaseAdmin
+      .from("ads_approvals")
+      .update({ status: "approved", decided_by: p.decidedBy ?? null, decided_at: decidedAt })
+      .eq("id", appr.id);
+    if (appr.changelog_id)
+      await supabaseAdmin.from("ads_changelog").update({ status: "approved", approved_by: p.decidedBy ?? null }).eq("id", appr.changelog_id);
+    return { ok: true, httpStatus: 200, status: "approved", approvalId: appr.id };
+  }
+
   const { data: client } = await supabaseAdmin
     .from("clients")
     .select("id, google_ads_customer")
