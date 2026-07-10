@@ -79,6 +79,8 @@ import { Route as ApiAdminClientMetricsRouteImport } from './routes/api/admin.cl
 import { Route as ApiAdminClientDomainsRouteImport } from './routes/api/admin.client-domains'
 import { Route as ApiAdminAivisSyncRouteImport } from './routes/api/admin.aivis-sync'
 import { Route as ApiAdminAgentRunRouteImport } from './routes/api/admin.agent-run'
+import { Route as ApiAdminAdsScorecardRouteImport } from './routes/api/admin.ads-scorecard'
+import { Route as ApiAdminAdsOutcomeReviewRouteImport } from './routes/api/admin.ads-outcome-review'
 import { Route as ApiAdminAdsClientsRouteImport } from './routes/api/admin.ads-clients'
 import { Route as ApiAdminAdsAutopilotRunRouteImport } from './routes/api/admin.ads-autopilot-run'
 import { Route as ApiAdminAdsAutopilotProposalRouteImport } from './routes/api/admin.ads-autopilot-proposal'
@@ -445,6 +447,17 @@ const ApiAdminAgentRunRoute = ApiAdminAgentRunRouteImport.update({
   path: '/api/admin/agent-run',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminAdsScorecardRoute = ApiAdminAdsScorecardRouteImport.update({
+  id: '/api/admin/ads-scorecard',
+  path: '/api/admin/ads-scorecard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminAdsOutcomeReviewRoute =
+  ApiAdminAdsOutcomeReviewRouteImport.update({
+    id: '/api/admin/ads-outcome-review',
+    path: '/api/admin/ads-outcome-review',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAdminAdsClientsRoute = ApiAdminAdsClientsRouteImport.update({
   id: '/api/admin/ads-clients',
   path: '/api/admin/ads-clients',
@@ -529,6 +542,8 @@ export interface FileRoutesByFullPath {
   '/api/admin/ads-autopilot-proposal': typeof ApiAdminAdsAutopilotProposalRoute
   '/api/admin/ads-autopilot-run': typeof ApiAdminAdsAutopilotRunRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
+  '/api/admin/ads-outcome-review': typeof ApiAdminAdsOutcomeReviewRoute
+  '/api/admin/ads-scorecard': typeof ApiAdminAdsScorecardRoute
   '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
@@ -611,6 +626,8 @@ export interface FileRoutesByTo {
   '/api/admin/ads-autopilot-proposal': typeof ApiAdminAdsAutopilotProposalRoute
   '/api/admin/ads-autopilot-run': typeof ApiAdminAdsAutopilotRunRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
+  '/api/admin/ads-outcome-review': typeof ApiAdminAdsOutcomeReviewRoute
+  '/api/admin/ads-scorecard': typeof ApiAdminAdsScorecardRoute
   '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
@@ -694,6 +711,8 @@ export interface FileRoutesById {
   '/api/admin/ads-autopilot-proposal': typeof ApiAdminAdsAutopilotProposalRoute
   '/api/admin/ads-autopilot-run': typeof ApiAdminAdsAutopilotRunRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
+  '/api/admin/ads-outcome-review': typeof ApiAdminAdsOutcomeReviewRoute
+  '/api/admin/ads-scorecard': typeof ApiAdminAdsScorecardRoute
   '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
@@ -778,6 +797,8 @@ export interface FileRouteTypes {
     | '/api/admin/ads-autopilot-proposal'
     | '/api/admin/ads-autopilot-run'
     | '/api/admin/ads-clients'
+    | '/api/admin/ads-outcome-review'
+    | '/api/admin/ads-scorecard'
     | '/api/admin/agent-run'
     | '/api/admin/aivis-sync'
     | '/api/admin/client-domains'
@@ -860,6 +881,8 @@ export interface FileRouteTypes {
     | '/api/admin/ads-autopilot-proposal'
     | '/api/admin/ads-autopilot-run'
     | '/api/admin/ads-clients'
+    | '/api/admin/ads-outcome-review'
+    | '/api/admin/ads-scorecard'
     | '/api/admin/agent-run'
     | '/api/admin/aivis-sync'
     | '/api/admin/client-domains'
@@ -942,6 +965,8 @@ export interface FileRouteTypes {
     | '/api/admin/ads-autopilot-proposal'
     | '/api/admin/ads-autopilot-run'
     | '/api/admin/ads-clients'
+    | '/api/admin/ads-outcome-review'
+    | '/api/admin/ads-scorecard'
     | '/api/admin/agent-run'
     | '/api/admin/aivis-sync'
     | '/api/admin/client-domains'
@@ -1021,6 +1046,8 @@ export interface RootRouteChildren {
   ApiAdminAdsAutopilotProposalRoute: typeof ApiAdminAdsAutopilotProposalRoute
   ApiAdminAdsAutopilotRunRoute: typeof ApiAdminAdsAutopilotRunRoute
   ApiAdminAdsClientsRoute: typeof ApiAdminAdsClientsRoute
+  ApiAdminAdsOutcomeReviewRoute: typeof ApiAdminAdsOutcomeReviewRoute
+  ApiAdminAdsScorecardRoute: typeof ApiAdminAdsScorecardRoute
   ApiAdminAgentRunRoute: typeof ApiAdminAgentRunRoute
   ApiAdminAivisSyncRoute: typeof ApiAdminAivisSyncRoute
   ApiAdminClientDomainsRoute: typeof ApiAdminClientDomainsRoute
@@ -1568,6 +1595,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminAgentRunRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/ads-scorecard': {
+      id: '/api/admin/ads-scorecard'
+      path: '/api/admin/ads-scorecard'
+      fullPath: '/api/admin/ads-scorecard'
+      preLoaderRoute: typeof ApiAdminAdsScorecardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/ads-outcome-review': {
+      id: '/api/admin/ads-outcome-review'
+      path: '/api/admin/ads-outcome-review'
+      fullPath: '/api/admin/ads-outcome-review'
+      preLoaderRoute: typeof ApiAdminAdsOutcomeReviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/ads-clients': {
       id: '/api/admin/ads-clients'
       path: '/api/admin/ads-clients'
@@ -1711,6 +1752,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminAdsAutopilotProposalRoute: ApiAdminAdsAutopilotProposalRoute,
   ApiAdminAdsAutopilotRunRoute: ApiAdminAdsAutopilotRunRoute,
   ApiAdminAdsClientsRoute: ApiAdminAdsClientsRoute,
+  ApiAdminAdsOutcomeReviewRoute: ApiAdminAdsOutcomeReviewRoute,
+  ApiAdminAdsScorecardRoute: ApiAdminAdsScorecardRoute,
   ApiAdminAgentRunRoute: ApiAdminAgentRunRoute,
   ApiAdminAivisSyncRoute: ApiAdminAivisSyncRoute,
   ApiAdminClientDomainsRoute: ApiAdminClientDomainsRoute,
