@@ -160,6 +160,8 @@ async function jobMetrics(c: any) {
       gscFailed = true;
     }
     // Top-Query je Seite über 28 Tage (1 Call) -> primary_keyword-Backfill.
+    // rowLimit = GSC-Maximum: bei grossen Properties (Studioforma) fielen
+    // klickarme Blog-Seiten sonst hinter dem 5000er-Cut raus -> kein Keyword.
     try {
       const start = new Date();
       start.setDate(start.getDate() - 30);
@@ -167,7 +169,7 @@ async function jobMetrics(c: any) {
         startDate: start.toISOString().slice(0, 10),
         endDate: ref,
         dimensions: ["page", "query"],
-        rowLimit: 5000,
+        rowLimit: 25000,
         orderBy: [{ field: "clicks", descending: true }],
       });
       for (const row of pq.rows ?? []) {
