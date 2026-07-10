@@ -578,7 +578,11 @@ export function computeGeoDeviceFindings(data: AutopilotData): PlannedAction[] {
           entity: g.location,
           before: "",
           after: "",
-          rationale: `Geo "${g.location}": CPA CHF ${cpa.toFixed(2)} (${dev > 0 ? "+" : ""}${(dev * 100).toFixed(0)}% vs Konto-CPA ${acctCpa.toFixed(2)}) bei ${g.conversions.toFixed(0)} Conv./30d`,
+          rationale:
+            `In der Region "${g.location}" kostet eine Conversion CHF ${cpa.toFixed(2)} - das sind ${dev > 0 ? "+" : ""}${(dev * 100).toFixed(0)}% gegenueber dem Konto-Schnitt von CHF ${acctCpa.toFixed(2)} (Basis: ${g.conversions.toFixed(0)} Conv./30d). ` +
+            (dev > 0
+              ? `Die Region ist ueberdurchschnittlich teuer - Gebotsanpassung oder Ausschluss pruefen.`
+              : `Die Region ist ueberdurchschnittlich guenstig - hier liegt ungenutztes Potenzial (Gebot/Budget verstaerken).`),
         });
       }
     } else if (g.conversions === 0 && g.costChf > 3 * acctCpa) {
@@ -588,7 +592,9 @@ export function computeGeoDeviceFindings(data: AutopilotData): PlannedAction[] {
         entity: g.location,
         before: "",
         after: "",
-        rationale: `Geo "${g.location}": CHF ${g.costChf.toFixed(2)} ohne Conversions (30d) - Streuverlust pruefen (Geo-Targeting)`,
+        rationale:
+          `Die Region "${g.location}" hat in 30 Tagen CHF ${g.costChf.toFixed(2)} gekostet, ohne eine einzige Conversion zu bringen - ` +
+          `das ist Werbebudget ohne Gegenwert (Streuverlust). Pruefen, ob die Region bewusst beworben wird (Geo-Targeting), sonst ausschliessen.`,
       });
     }
   }
@@ -612,7 +618,11 @@ export function computeGeoDeviceFindings(data: AutopilotData): PlannedAction[] {
         entity: device,
         before: "",
         after: "",
-        rationale: `Geraet ${device}: CPA CHF ${cpa.toFixed(2)} (${rel > 0 ? "+" : ""}${(rel * 100).toFixed(0)}% vs Konto-CPA ${acctCpa.toFixed(2)}) bei ${a.conv.toFixed(0)} Conv./30d${rel > 0 && device === "MOBILE" ? " - Mobile-Landing pruefen" : ""}`,
+        rationale:
+          `Auf Geraetetyp ${device} kostet eine Conversion CHF ${cpa.toFixed(2)} - ${rel > 0 ? "+" : ""}${(rel * 100).toFixed(0)}% gegenueber dem Konto-Schnitt von CHF ${acctCpa.toFixed(2)} (Basis: ${a.conv.toFixed(0)} Conv./30d). ` +
+          (rel > 0
+            ? `Nutzer auf diesem Geraet konvertieren deutlich teurer${device === "MOBILE" ? " - haeufigste Ursache ist eine langsame oder unbequeme mobile Website (Mobile-Landing pruefen)" : " - Gebotsanpassung pruefen"}.`
+            : `Nutzer auf diesem Geraet konvertieren deutlich guenstiger - Potenzial fuer staerkere Gebote.`),
       });
     }
   }
@@ -628,7 +638,9 @@ export function computeGeoDeviceFindings(data: AutopilotData): PlannedAction[] {
         entity: ag,
         before: "",
         after: "",
-        rationale: `${n} RSA-Assets mit Google-Label LOW in "${ag}" - Kandidat fuer Copy-Refresh (Input fuer /ads plan)`,
+        rationale:
+          `Google bewertet ${n} Anzeigen-Bausteine (Titel/Beschreibungen) in "${ag}" mit der schlechtesten Stufe LOW. ` +
+          `Schwache Bausteine druecken die Anzeigenqualitaet und damit die Auslieferung - Kandidat fuer Copy-Refresh (Input fuer /ads plan).`,
       });
     }
   }
@@ -744,7 +756,10 @@ export function computeBrandOtaFindings(data: AutopilotData, cfg: AutopilotConfi
       entity: `${o.campaign} vs ${o.domain}`,
       before: "",
       after: "",
-      rationale: `OTA "${o.domain}" auf Brand: Overlap ${o.overlapRate != null ? (o.overlapRate * 100).toFixed(0) + "%" : "n/a"}, Outranking ${o.outrankingShare != null ? (o.outrankingShare * 100).toFixed(0) + "%" : "n/a"} - jeder verlorene Brand-Klick kostet spaeter OTA-Kommission`,
+      rationale:
+        `Das Buchungsportal "${o.domain}" bietet auf die eigenen Marken-Suchanfragen mit: Es erscheint in ${o.overlapRate != null ? (o.overlapRate * 100).toFixed(0) + "%" : "n/a"} derselben Auktionen (Overlap ${o.overlapRate != null ? (o.overlapRate * 100).toFixed(0) + "%" : "n/a"}) ` +
+        `und steht in ${o.outrankingShare != null ? (o.outrankingShare * 100).toFixed(0) + "%" : "n/a"} davon ueber der eigenen Anzeige (Outranking). ` +
+        `Jeder Gast, der so beim Portal statt direkt bucht, kostet spaeter Kommission - Brand-Sichtbarkeit verteidigen lohnt sich doppelt.`,
     });
   }
   return out;
@@ -862,7 +877,9 @@ export function planActions(data: AutopilotData, cfg: AutopilotConfig): PlannedA
           entity: `${t.campaign} | ${t.adGroup}`,
           before: "",
           after: `NICHT ausschliessen: "${t.term}"`,
-          rationale: `Konflikt: "${t.term}" kostet hier CHF ${t.costChf.toFixed(2)} ohne Conv., konvertiert aber in "${convElsewhere}" - Vorschlag verworfen.`,
+          rationale:
+            `Konflikt: "${t.term}" kostet in dieser Kampagne CHF ${t.costChf.toFixed(2)} ohne Conversion, bringt aber in der Kampagne "${convElsewhere}" nachweislich Conversions. ` +
+            `Ein Ausschluss wuerde dort funktionierende Anfragen blockieren - der Vorschlag wurde deshalb verworfen. Besser: Kampagnen-Zuordnung des Begriffs pruefen.`,
         });
         continue;
       }
@@ -875,7 +892,9 @@ export function planActions(data: AutopilotData, cfg: AutopilotConfig): PlannedA
         before: "",
         after: `+ "${t.term}" (negative exact)`,
         rationale:
-          `Search Term "${t.term}": Cost CHF ${t.costChf.toFixed(2)}, 0 Conv. im Lag-Fenster ${winNote} (> 3x Ziel-CPA ${refCpa.toFixed(2)})` +
+          `Der Suchbegriff "${t.term}" hat im Auswertungsfenster ${winNote} CHF ${t.costChf.toFixed(2)} gekostet, ohne eine einzige Conversion zu bringen - ` +
+          `mehr als das 3-fache dessen, was eine Conversion kosten darf (Ziel-CPA CHF ${refCpa.toFixed(2)}). ` +
+          `Der exakte Ausschluss stoppt diese wiederkehrende Verschwendung, ohne andere Suchanfragen zu beruehren.` +
           `${overLimit ? " [Limit 20/Run erreicht]" : ""}${learning ? " [Learning Phase aktiv - herabgestuft]" : ""}`,
         exec: { kind: "negative", campaign: t.campaign, term: t.term },
       });
@@ -918,7 +937,9 @@ export function planActions(data: AutopilotData, cfg: AutopilotConfig): PlannedA
         entity: `${a.campaign} | n-gram`,
         before: "",
         after: `+ "${g}" (negative phrase)`,
-        rationale: `n-gram "${g}": CHF ${a.cost.toFixed(2)} ueber ${a.terms.size} Suchbegriffe, 0 Conv. im Lag-Fenster ${winNote} (> 2x Ziel-CPA ${refCpa.toFixed(2)})`,
+        rationale:
+          `Das Wortmuster "${g}" taucht in ${a.terms.size} verschiedenen Suchbegriffen auf, die zusammen CHF ${a.cost.toFixed(2)} gekostet haben - ohne eine einzige Conversion im Fenster ${winNote} ` +
+          `(mehr als das 2-fache des Ziel-CPA CHF ${refCpa.toFixed(2)}). Ein Phrase-Ausschluss unterbindet das gesamte Muster statt jedes Einzelbegriffs - darum Freigabe noetig: er wirkt breiter als ein exakter Ausschluss.`,
         estimatedImpact: `Vermeidet wiederkehrende Verschwendung des Musters (CHF ~${a.cost.toFixed(0)}/30d)`,
         exec: { kind: "negative", campaign: a.campaign, term: g },
       });
@@ -949,12 +970,23 @@ export function planActions(data: AutopilotData, cfg: AutopilotConfig): PlannedA
     const learningNote = learningCampaigns.has(c.name) ? " [Learning Phase aktiv]" : "";
     const baseNote = `${c.conversions.toFixed(0)} Conv./30d (Mindestbasis ${minConv})` + seasonNote + learningNote;
 
+    // Beobachtung in Klartext: was heisst "IS Lost (Budget)" konkret?
+    const limitNote =
+      `Die Kampagne verliert ${(c.budgetLostIs * 100).toFixed(0)}% der moeglichen Impressionen, ` +
+      `weil das Tagesbudget frueher ausgeschoepft ist als die Nachfrage (Impression Share Lost Budget ${(c.budgetLostIs * 100).toFixed(0)}%).`;
+
     let evidence: string | null = null; // gesetzt = Ziel erfuellt -> Vorschlag
     if (targetRoas != null) {
-      if (c.roas != null && c.roas >= targetRoas) evidence = `ROAS ${c.roas.toFixed(1)} >= Ziel ${targetRoas}`;
+      if (c.roas != null && c.roas >= targetRoas)
+        evidence =
+          `Gleichzeitig ist sie nachweislich rentabel: ROAS ${c.roas.toFixed(1)} >= Ziel ${targetRoas} ` +
+          `(pro Werbefranken kommen CHF ${c.roas.toFixed(1)} Umsatz zurueck).`;
     } else if (targetCpa != null && targetCpa > 0) {
       const cpa = c.costChf / c.conversions; // conversions >= minConv > 0
-      if (cpa <= targetCpa) evidence = `CPA CHF ${cpa.toFixed(2)} <= Ziel-CPA CHF ${targetCpa.toFixed(2)} (ROAS-los gueltig, z.B. Lead-Tracking ohne Wert)`;
+      if (cpa <= targetCpa)
+        evidence =
+          `Gleichzeitig ist sie nachweislich rentabel: CPA CHF ${cpa.toFixed(2)} <= Ziel-CPA CHF ${targetCpa.toFixed(2)} ` +
+          `(eine Conversion kostet weniger, als sie kosten darf; gilt auch ohne Umsatz-Tracking, ROAS zeigt dort 0.0).`;
     } else {
       // Fall 1 (Brief 0.1): fehlende Zielgroesse blockiert Budget-Vorschlaege.
       actions.push({
@@ -964,8 +996,8 @@ export function planActions(data: AutopilotData, cfg: AutopilotConfig): PlannedA
         before: `CHF ${c.dailyBudgetChf.toFixed(2)}/Tag`,
         after: "",
         rationale:
-          `Impression Share Lost (Budget) ${(c.budgetLostIs * 100).toFixed(0)}%, aber kein Ziel definiert ` +
-          `(target_roas/target_cpa in Config setzen) - keine Budget-Empfehlung. ${baseNote}`,
+          `${limitNote} Es ist aber kein Ziel definiert (target_roas/target_cpa in Config setzen) - ` +
+          `ohne Wirtschaftlichkeitsziel laesst sich nicht belegen, ob mehr Budget rentiert. Deshalb nur Beobachtung, keine Budget-Empfehlung. ${baseNote}`,
       });
       continue;
     }
@@ -976,7 +1008,9 @@ export function planActions(data: AutopilotData, cfg: AutopilotConfig): PlannedA
       entity: c.name,
       before: `CHF ${c.dailyBudgetChf.toFixed(2)}/Tag`,
       after: `CHF ${proposed.toFixed(2)}/Tag`,
-      rationale: `Impression Share Lost (Budget) ${(c.budgetLostIs * 100).toFixed(0)}%, ${evidence}, ${baseNote}`,
+      rationale:
+        `${limitNote} ${evidence} ` +
+        `Eine Erhoehung um 10% (CHF ${c.dailyBudgetChf.toFixed(2)} -> ${proposed.toFixed(2)}/Tag) erschliesst diese verlorene, rentable Nachfrage. Datenbasis: ${baseNote}`,
       estimatedImpact: "Mehr Sichtbarkeit in budgetlimitierter Kampagne",
       exec: { kind: "budget", campaign: c.name, dailyChf: proposed },
     });
