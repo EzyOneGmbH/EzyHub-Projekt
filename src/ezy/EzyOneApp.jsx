@@ -7280,6 +7280,68 @@ const REC_META = {
   unpublished:       { t: "Unpubliziert",                      c: C.textDim,   a: "—" },
 };
 const ACTION_RECS = ["tech_fix", "ctr_fix", "push_expand", "refresh_decay", "consolidate", "ceiling_new_kw"];
+// Massnahmen-Playbook je Empfehlung (Kurzfassung von content-fix-playbook/fix-procedures.md)
+// fuer das Mitarbeiter-Pop-up: Befund -> konkrete Schritte -> Exit-Kriterium.
+const REC_PLAYBOOK = {
+  ctr_fix: {
+    befund: "Gute Position (Top 10), Impressionen vorhanden, aber kaum Klicks — das Problem sitzt im Snippet, nicht im Inhalt.",
+    schritte: [
+      "SERP für das Ziel-Keyword ansehen: welche Snippets gewinnen den Klick — und warum?",
+      "Title neu schreiben: Ziel-Keyword vorn, konkreter Nutzen/Differenzierung, Zahl/Jahr wo sinnvoll, unter 60 Zeichen.",
+      "Meta-Description: Suchintention beantworten + klarer Grund zu klicken, 150–160 Zeichen.",
+      "KEIN Volltext-Refresh — der Inhalt rankt bereits.",
+    ],
+    exit: "Neuer Title/Meta nach QA live; Re-Test in 3–4 Wochen auf CTR terminieren.",
+  },
+  push_expand: {
+    befund: "Position 11–20 — knapp vor Seite 1. Höchster Refresh-ROI: ein gezielter Schub bringt überproportional Traffic.",
+    schritte: [
+      "Top 5 der SERP analysieren: welche Subtopics/Fragen decken sie ab, die diesem Artikel fehlen?",
+      "Lücken als Answer-first-Blöcke schließen: Frage als H2, Antwort im ersten Satz, 130–170 Wörter.",
+      "E-E-A-T stärken: Autor/Quellen/Aktualität sichtbar machen; interne Links von starken Seiten auf diesen Artikel setzen.",
+      "Intent schärfen: passt das Format zur Suchintention (Guide vs. Liste vs. Definition)?",
+    ],
+    exit: "Ausbau live, interne Links gesetzt; Re-Test in 4 Wochen auf Position terminieren.",
+  },
+  refresh_decay: {
+    befund: "War gut, fällt jetzt (Decay ab Tag 90) — die SERP hat sich bewegt oder der Inhalt ist veraltet.",
+    schritte: [
+      "Zuerst Saisonalität prüfen: gleichen Kalendermonat im Vorjahr vergleichen (GSC). Entspricht der Rückgang dem Vorjahresmuster → KEIN Refresh, nur vermerken.",
+      "Aktuelle SERP vs. Artikel: was ist bei den Gewinnern neu oder anders?",
+      "Veraltetes aktualisieren (Zahlen, Jahr, Fakten), fehlende neue Aspekte ergänzen — Substanz statt Kosmetik.",
+      "Modified-Datum sauber setzen; interne Links prüfen.",
+    ],
+    exit: "Update nach QA live, Refresh datiert; Re-Test in 4 Wochen terminieren.",
+  },
+  consolidate: {
+    befund: "Mehrere publizierte Artikel ranken auf demselben Keyword und nehmen sich gegenseitig die Sichtbarkeit (Kannibalisierung).",
+    schritte: [
+      "Stärkeren Artikel bestimmen (Position, Backlinks, Traffic).",
+      "Einzigartige Inhalte des schwächeren Artikels in den stärkeren mergen.",
+      "Schwächeren per 301 auf den stärkeren umleiten — Redirect ist strukturell: erst Freigabe einholen, nie eigenmächtig.",
+      "Interne Links auf die neue Ziel-URL umbiegen.",
+    ],
+    exit: "Merge + Redirect live; Re-Test in 4–6 Wochen terminieren.",
+  },
+  tech_fix: {
+    befund: "Keine verwertbare Position trotz Sichtbarkeitsdaten — das Problem liegt in der Technik (Indexierung, interne Verlinkung, Crawlbarkeit), nicht im Text.",
+    schritte: [
+      "Indexierungsstatus prüfen (GSC URL-Prüfung: ist die Seite im Index?).",
+      "Interne Verlinkung prüfen: erreichen starke Seiten diesen Artikel?",
+      "An Technik/SEO übergeben — an diesem Artikel KEINE Text-Änderung vornehmen.",
+    ],
+    exit: "Übergabe/Ticket an Technik erstellt; Artikel bleibt unverändert.",
+  },
+  ceiling_new_kw: {
+    befund: "Rankt bereits top, aber das Keyword hat zu wenig Suchvolumen — ein Refresh bringt hier nichts mehr.",
+    schritte: [
+      "Keinen Refresh an diesem Artikel durchführen.",
+      "Größeres, angrenzendes Ziel-Keyword identifizieren (Keyword-Recherche).",
+      "Entscheiden: bestehenden Artikel auf das neue Keyword erweitern ODER zusätzlichen Artikel für die angrenzende Nachfrage planen.",
+    ],
+    exit: "Neues Keyword-Ziel an Strategie/Content-Planung übergeben.",
+  },
+};
 const TREND_META = {
   steigend_stabil: { c: C.green,   t: "steigend/stabil" },
   stabil:          { c: C.orange,  t: "stabil" },
@@ -7324,6 +7386,37 @@ function RefreshRadar({ selectedClient }) {
   const [loading, setLoading] = useState(true);
   const [onlyAction, setOnlyAction] = useState(false);
   const [detail, setDetail] = useState(null);
+  const [playbook, setPlaybook] = useState(null); // Zeile fuer Massnahmen-Pop-up
+  // Google-Verbindungsstatus: erklaert "keine Metriken" ehrlich (Token fehlt/abgelaufen)
+  // statt sie als "kein Traffic" aussehen zu lassen. null = unbekannt -> kein Banner.
+  const [gConn, setGConn] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    setGConn(null);
+    if (!selectedClient?.id) return undefined;
+    (async () => {
+      try {
+        const session = (await supabase.auth.getSession()).data.session;
+        const r = await fetch("/api/google/connection", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ clientId: selectedClient.id }),
+        });
+        const j = await r.json().catch(() => null);
+        if (alive && r.ok && j) setGConn(j);
+      } catch {
+        /* Status unbekannt -> kein Banner */
+      }
+    })();
+    return () => { alive = false; };
+  }, [selectedClient?.id]);
+  const connHint = !selectedClient?.id
+    ? null
+    : gConn && !gConn.connected
+      ? "Google ist für diesen Kunden nicht verbunden — GSC/GA4-Metriken können nicht erfasst werden. Verbinden unter Onboarding → Google."
+      : gConn?.connected && !selectedClient?.gscSiteUrl
+        ? "Keine GSC-Property hinterlegt — Ranking-Metriken (Klicks/Impressionen/Position) bleiben leer. Property im Kunden-Profil eintragen."
+        : null;
   const reload = useCallback(async () => {
     if (!selectedClient?.id) { setRows([]); setLoading(false); return; }
     setLoading(true);
@@ -7342,6 +7435,12 @@ function RefreshRadar({ selectedClient }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {connHint ? (
+        <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 14px", borderRadius: 10, background: C.orange + "1a", border: `1px solid ${C.orange}55`, fontSize: 12.5, color: C.text }}>
+          <AlertCircle size={16} color={C.orange} style={{ flexShrink: 0 }} />
+          <span>{connHint}</span>
+        </div>
+      ) : null}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
         <div style={{ fontSize: 13, color: C.textMuted }}>
           {loading ? "lädt…" : `${shown.length} von ${rows.length} publizierten Artikeln`}
@@ -7383,13 +7482,22 @@ function RefreshRadar({ selectedClient }) {
                   <div style={{ fontSize: 12.5, color: C.textMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.primary_keyword || "—"}</div>
                   <span style={{ fontSize: 11, color: C.textDim, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 6, padding: "2px 7px", whiteSpace: "nowrap" }}>{r.gate}</span>
                   <span title={tr.t} style={{ width: 10, height: 10, borderRadius: "50%", background: tr.c, display: "inline-block" }} />
-                  <span style={{ fontSize: 12, fontWeight: 600, color: rec.c, background: rec.c + "1f", borderRadius: 7, padding: "3px 9px", whiteSpace: "nowrap", justifySelf: "start" }}>{rec.t}</span>
+                  <span
+                    title={REC_PLAYBOOK[r.recommendation] ? "Klicken für Maßnahme" : undefined}
+                    onClick={REC_PLAYBOOK[r.recommendation] ? (e) => { e.stopPropagation(); setPlaybook(r); } : undefined}
+                    style={{ fontSize: 12, fontWeight: 600, color: rec.c, background: rec.c + "1f", borderRadius: 7, padding: "3px 9px", whiteSpace: "nowrap", justifySelf: "start", cursor: REC_PLAYBOOK[r.recommendation] ? "pointer" : "default", textDecoration: REC_PLAYBOOK[r.recommendation] ? "underline dotted" : "none", textUnderlineOffset: 3 }}
+                  >{rec.t}</span>
                   <span style={{ fontSize: 12, color: C.textDim, whiteSpace: "nowrap", justifySelf: "end" }}>{r.age_days != null ? `${r.age_days} T` : "—"}</span>
                 </div>
                 {open ? (
                   <div style={{ padding: "0 18px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
-                    <div style={{ fontSize: 12.5, color: C.textMuted }}>
-                      <b style={{ color: rec.c }}>{rec.t}</b>{rec.a ? ` — ${rec.a}` : ""} · Klicks 28T: <b style={{ color: C.text }}>{r.clicks_28 ?? 0}</b> (Peak {r.peak_clicks_28 ?? 0}) · Ø-Pos: {r.position_28 ?? "—"} · Impr 28T: {r.impr_28 ?? 0}{r.language ? ` · ${String(r.language).toUpperCase()}` : ""}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <div style={{ fontSize: 12.5, color: C.textMuted }}>
+                        <b style={{ color: rec.c }}>{rec.t}</b>{rec.a ? ` — ${rec.a}` : ""} · Klicks 28T: <b style={{ color: C.text }}>{r.clicks_28 ?? 0}</b> (Peak {r.peak_clicks_28 ?? 0}) · Ø-Pos: {r.position_28 ?? "—"} · Impr 28T: {r.impr_28 ?? 0}{r.language ? ` · ${String(r.language).toUpperCase()}` : ""}
+                      </div>
+                      {REC_PLAYBOOK[r.recommendation] ? (
+                        <Btn variant="secondary" size="sm" onClick={() => setPlaybook(r)}>Maßnahme anzeigen</Btn>
+                      ) : null}
                     </div>
                     <RefreshDetailChart item={r} />
                   </div>
@@ -7399,6 +7507,40 @@ function RefreshRadar({ selectedClient }) {
           })
         )}
       </div>
+      {playbook ? (() => {
+        const pb = REC_PLAYBOOK[playbook.recommendation];
+        const rec = REC_META[playbook.recommendation] || { t: playbook.recommendation, c: C.textMuted };
+        if (!pb) return null;
+        return (
+          <Modal open onClose={() => setPlaybook(null)} title={`Maßnahme: ${rec.t}`} width={620}>
+            <div style={{ padding: "18px 22px", display: "flex", flexDirection: "column", gap: 16 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 2 }}>{playbook.title}</div>
+                {playbook.url ? (
+                  <a href={playbook.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.accent, wordBreak: "break-all" }}>{playbook.url}</a>
+                ) : null}
+                <div style={{ fontSize: 12, color: C.textMuted, marginTop: 6 }}>
+                  Keyword: <b style={{ color: C.text }}>{playbook.primary_keyword || "—"}</b> · Klicks 28T: <b style={{ color: C.text }}>{playbook.clicks_28 ?? 0}</b> (Peak {playbook.peak_clicks_28 ?? 0}) · Ø-Pos: {playbook.position_28 ?? "—"} · Impr 28T: {playbook.impr_28 ?? 0}
+                </div>
+              </div>
+              <div style={{ padding: "10px 14px", borderRadius: 10, background: rec.c + "14", border: `1px solid ${rec.c}44`, fontSize: 12.5, color: C.text, lineHeight: 1.55 }}>
+                <b style={{ color: rec.c }}>Befund:</b> {pb.befund}
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>So gehst du vor</div>
+                <ol style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 8 }}>
+                  {pb.schritte.map((s, i) => (
+                    <li key={i} style={{ fontSize: 13, color: C.text, lineHeight: 1.55 }}>{s}</li>
+                  ))}
+                </ol>
+              </div>
+              <div style={{ padding: "10px 14px", borderRadius: 10, background: C.green + "14", border: `1px solid ${C.green}44`, fontSize: 12.5, color: C.text, lineHeight: 1.55 }}>
+                <b style={{ color: C.green }}>Fertig, wenn:</b> {pb.exit}
+              </div>
+            </div>
+          </Modal>
+        );
+      })() : null}
     </div>
   );
 }
