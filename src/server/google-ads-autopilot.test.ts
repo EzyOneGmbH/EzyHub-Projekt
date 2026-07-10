@@ -149,6 +149,63 @@ describe("planActions (Abnahme 1.4)", () => {
     expect(acts.find((a) => a.type === "budget_change")?.rationale).toContain("Nebensaison");
   });
 
+  // ── Phase 0.1: explizite Ziel-Pruefkette (ROAS -> CPA -> report-only) ──────
+  it("La-Campagnola-Regression: Conversions ohne Wert (ROAS 0.0) -> CPA-Zweig, kein ROAS-Vorschlag", () => {
+    // Exakt der Fall vom 08.07.: budgetlimitiert, 12 Conversions, conversion_value 0
+    // -> ROAS 0.0. target_roas null, target_cpa 50 -> CPA-Pruefung: 300/12 = 25 <= 50.
+    const d = data({
+      campaigns: [
+        { name: "SN - DE - Hotel - ZH + SG + TG", status: "ENABLED", dailyBudgetChf: 10, costChf: 300, conversions: 12, conversionValue: 0, roas: 0, budgetLostIs: 0.25, biddingSystemStatus: "ENABLED", learning: false },
+      ],
+    });
+    const acts = planActions(d, cfg({ target_roas: null, target_cpa_chf: 50 }));
+    const budget = acts.filter((a) => a.type === "budget_change");
+    expect(budget).toHaveLength(1);
+    expect(budget[0].actionClass).toBe("approval-needed");
+    expect(budget[0].rationale).toContain("CPA");
+    expect(budget[0].rationale).toContain("Ziel-CPA");
+    expect(budget[0].rationale).not.toContain("ROAS 0.0");
+  });
+
+  it("CPA ueber Ziel-CPA -> kein Budget-Vorschlag (weder approval noch report-only)", () => {
+    const d = data({
+      campaigns: [
+        { name: "Teuer", status: "ENABLED", dailyBudgetChf: 10, costChf: 900, conversions: 6, conversionValue: 0, roas: 0, budgetLostIs: 0.3, biddingSystemStatus: "ENABLED", learning: false },
+      ],
+    });
+    // CPA 150 > Ziel-CPA 50 -> Ziel gesetzt, nicht erfuellt -> gar kein budget_change
+    const acts = planActions(d, cfg({ target_roas: null, target_cpa_chf: 50 }));
+    expect(acts.filter((a) => a.type === "budget_change")).toHaveLength(0);
+  });
+
+  it("kein Ziel gesetzt -> report-only mit Hinweis 'kein Ziel definiert', nie approval", () => {
+    const d = data({
+      campaigns: [
+        { name: "OhneZiel", status: "ENABLED", dailyBudgetChf: 20, costChf: 500, conversions: 27, conversionValue: 4000, roas: 8, budgetLostIs: 0.4, biddingSystemStatus: "ENABLED", learning: false },
+      ],
+    });
+    const acts = planActions(d, cfg({ target_roas: null, target_cpa_chf: null }));
+    const budget = acts.filter((a) => a.type === "budget_change");
+    expect(budget).toHaveLength(1);
+    expect(budget[0].actionClass).toBe("report-only");
+    expect(budget[0].rationale).toContain("kein Ziel definiert");
+    expect(budget[0].exec).toBeUndefined();
+  });
+
+  it("target_roas gesetzt -> ROAS-Pruefung hat Vorrang (CPA irrelevant)", () => {
+    const d = data({
+      campaigns: [
+        // ROAS 2.0 < Ziel 4.0 -> kein Vorschlag, obwohl CPA (500/25=20) unter target_cpa 50 laege
+        { name: "RoasZiel", status: "ENABLED", dailyBudgetChf: 20, costChf: 500, conversions: 25, conversionValue: 1000, roas: 2, budgetLostIs: 0.4, biddingSystemStatus: "ENABLED", learning: false },
+      ],
+    });
+    expect(planActions(d, cfg({ target_roas: 4, target_cpa_chf: 50 })).filter((a) => a.type === "budget_change")).toHaveLength(0);
+    // ROAS 2.0 >= Ziel 1.5 -> Vorschlag mit ROAS-Beleg
+    const ok = planActions(d, cfg({ target_roas: 1.5, target_cpa_chf: 50 })).filter((a) => a.type === "budget_change");
+    expect(ok).toHaveLength(1);
+    expect(ok[0].rationale).toContain("ROAS 2.0 >= Ziel 1.5");
+  });
+
   it("N-Gram-Kandidat entsteht nur bei >=5 Begriffen, 0 Conv., Kosten > 2x CPA - und nie als Stoppwort", () => {
     const terms = Array.from({ length: 6 }, (_, i) => ({
       term: `billige unterkunft variante ${i}`,
