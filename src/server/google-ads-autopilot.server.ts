@@ -13,10 +13,6 @@ import { addNegativeKeyword, setCampaignBudget } from "./google-ads-mutate.serve
 const ADS_API = "https://googleads.googleapis.com/v24";
 const MICROS = 1_000_000;
 const MAX_NEGATIVES_PER_RUN = 20;
-// Mindest-ROAS fuer eine Budget-Erhoehungs-Empfehlung, wenn KEIN Ziel-ROAS gesetzt ist
-// (z.B. wenn nur Ziel-CPA konfiguriert ist). Verhindert Budget-Empfehlungen fuer
-// Kampagnen ohne belegten Return (z.B. ROAS 0.0).
-const MIN_ROAS_FLOOR = 2.0;
 // Phase 1.4: Spend-Summen zweier unabhaengiger Abfragen duerfen max. 5% abweichen,
 // sonst Run-Abbruch (keine Teilausfuehrung auf inkonsistenten Daten).
 const MAX_SPEND_DIVERGENCE = 0.05;
@@ -699,34 +695,59 @@ export function planActions(data: AutopilotData, cfg: AutopilotConfig): PlannedA
   }
 
   // Rule 2 — Budget: budgetlimitiert (IS Lost >= 20%) UND statistische Mindestbasis
-  // (Phase 1.4: conversions >= min_conversions_for_budget_rec) UND ROAS >= Ziel/Floor.
+  // (conversions >= min_conversions_for_budget_rec) UND belegter Return.
+  // Phase 0.1: EXPLIZITE Ziel-Pruefkette, keine stille Degradierung:
+  //   target_roas gesetzt -> ROAS-Pruefung (roas >= target_roas)
+  //   sonst target_cpa    -> CPA-Pruefung (Kampagnen-CPA <= target_cpa; deckt
+  //                          Lead-Tracking ohne Conversion-Wert ab, ROAS zeigt dort 0.0)
+  //   sonst               -> report-only "kein Ziel definiert" (nie approval)
   const targetRoas = cfg.target_roas ?? null;
-  const roasFloor = targetRoas ?? MIN_ROAS_FLOOR;
+  const targetCpa = cfg.target_cpa_chf ?? null;
   const minConv = cfg.min_conversions_for_budget_rec ?? 5;
   for (const c of data.campaigns) {
     if (noTouch.has(c.name)) continue;
-    if (c.budgetLostIs >= 0.2 && c.conversions >= minConv && c.roas != null && c.roas >= roasFloor) {
-      const proposed = Math.round(c.dailyBudgetChf * 1.1 * 100) / 100; // Vorschlag +10% (Hardlimit/Run)
-      // Phase 1.5: In der Nebensaison basieren die 30d-Daten evtl. auf der Hauptsaison
-      // -> Pflicht-Annotation, nie auto-execute (Budget ist ohnehin approval-needed).
-      const seasonNote =
-        season?.kind === "low"
-          ? " [Nebensaison " + season.window + ": basiert auf Hauptsaison-Daten - pruefen]"
-          : "";
+    if (c.budgetLostIs < 0.2 || c.conversions < minConv) continue;
+    const proposed = Math.round(c.dailyBudgetChf * 1.1 * 100) / 100; // Vorschlag +10% (Hardlimit/Run)
+    // Phase 1.5: In der Nebensaison basieren die 30d-Daten evtl. auf der Hauptsaison
+    // -> Pflicht-Annotation, nie auto-execute (Budget ist ohnehin approval-needed).
+    const seasonNote =
+      season?.kind === "low"
+        ? " [Nebensaison " + season.window + ": basiert auf Hauptsaison-Daten - pruefen]"
+        : "";
+    const learningNote = learningCampaigns.has(c.name) ? " [Learning Phase aktiv]" : "";
+    const baseNote = `${c.conversions.toFixed(0)} Conv./30d (Mindestbasis ${minConv})` + seasonNote + learningNote;
+
+    let evidence: string | null = null; // gesetzt = Ziel erfuellt -> Vorschlag
+    if (targetRoas != null) {
+      if (c.roas != null && c.roas >= targetRoas) evidence = `ROAS ${c.roas.toFixed(1)} >= Ziel ${targetRoas}`;
+    } else if (targetCpa != null && targetCpa > 0) {
+      const cpa = c.costChf / c.conversions; // conversions >= minConv > 0
+      if (cpa <= targetCpa) evidence = `CPA CHF ${cpa.toFixed(2)} <= Ziel-CPA CHF ${targetCpa.toFixed(2)} (ROAS-los gueltig, z.B. Lead-Tracking ohne Wert)`;
+    } else {
+      // Fall 1 (Brief 0.1): fehlende Zielgroesse blockiert Budget-Vorschlaege.
       actions.push({
-        actionClass: "approval-needed",
+        actionClass: "report-only",
         type: "budget_change",
         entity: c.name,
         before: `CHF ${c.dailyBudgetChf.toFixed(2)}/Tag`,
-        after: `CHF ${proposed.toFixed(2)}/Tag`,
+        after: "",
         rationale:
-          `Impression Share Lost (Budget) ${(c.budgetLostIs * 100).toFixed(0)}%, ROAS ${c.roas.toFixed(1)}${targetRoas ? ` > Ziel ${targetRoas}` : ""}, ${c.conversions.toFixed(0)} Conv./30d (Mindestbasis ${minConv})` +
-          seasonNote +
-          (learningCampaigns.has(c.name) ? " [Learning Phase aktiv]" : ""),
-        estimatedImpact: "Mehr Sichtbarkeit in budgetlimitierter Kampagne",
-        exec: { kind: "budget", campaign: c.name, dailyChf: proposed },
+          `Impression Share Lost (Budget) ${(c.budgetLostIs * 100).toFixed(0)}%, aber kein Ziel definiert ` +
+          `(target_roas/target_cpa in Config setzen) - keine Budget-Empfehlung. ${baseNote}`,
       });
+      continue;
     }
+    if (!evidence) continue; // Ziel gesetzt, aber nicht erfuellt -> kein Vorschlag
+    actions.push({
+      actionClass: "approval-needed",
+      type: "budget_change",
+      entity: c.name,
+      before: `CHF ${c.dailyBudgetChf.toFixed(2)}/Tag`,
+      after: `CHF ${proposed.toFixed(2)}/Tag`,
+      rationale: `Impression Share Lost (Budget) ${(c.budgetLostIs * 100).toFixed(0)}%, ${evidence}, ${baseNote}`,
+      estimatedImpact: "Mehr Sichtbarkeit in budgetlimitierter Kampagne",
+      exec: { kind: "budget", campaign: c.name, dailyChf: proposed },
+    });
   }
   return actions;
 }
@@ -975,11 +996,27 @@ export async function decideApproval(p: {
 
   const decidedAt = new Date().toISOString();
 
-  if (p.decision === "reject") {
-    await supabaseAdmin
+  // Phase 0.3: Entscheidungen nur via atomarem Claim (status='pending' als Guard) -
+  // parallele Doppel-Approves/Rejects fuehren genau EINMAL aus; der Verlierer
+  // erhaelt 409 already_executed.
+  const claim = async (newStatus: string): Promise<boolean> => {
+    const { data: rows } = await supabaseAdmin
       .from("ads_approvals")
-      .update({ status: "rejected", decided_by: p.decidedBy ?? null, decided_at: decidedAt })
-      .eq("id", appr.id);
+      .update({ status: newStatus, decided_by: p.decidedBy ?? null, decided_at: decidedAt })
+      .eq("id", appr.id)
+      .eq("status", "pending")
+      .select("id");
+    return !!rows && rows.length > 0;
+  };
+  const lost = (): DecideResult => ({
+    ok: false,
+    httpStatus: 409,
+    error: "already_executed - Approval wurde bereits parallel entschieden/ausgefuehrt",
+    approvalId: appr.id,
+  });
+
+  if (p.decision === "reject") {
+    if (!(await claim("rejected"))) return lost();
     if (appr.changelog_id)
       await supabaseAdmin.from("ads_changelog").update({ status: "rejected", approved_by: p.decidedBy ?? null }).eq("id", appr.changelog_id);
     return { ok: true, httpStatus: 200, status: "rejected", approvalId: appr.id };
@@ -990,10 +1027,7 @@ export async function decideApproval(p: {
   // bzw. via Editor-Export. Kein Google-Write -> nicht durch observe_only blockiert.
   const payloadEarly = (appr.payload && typeof appr.payload === "object" ? appr.payload : {}) as Record<string, any>;
   if (appr.type === "campaign_proposal" || payloadEarly.kind === "proposal") {
-    await supabaseAdmin
-      .from("ads_approvals")
-      .update({ status: "approved", decided_by: p.decidedBy ?? null, decided_at: decidedAt })
-      .eq("id", appr.id);
+    if (!(await claim("approved"))) return lost();
     if (appr.changelog_id)
       await supabaseAdmin.from("ads_changelog").update({ status: "approved", approved_by: p.decidedBy ?? null }).eq("id", appr.changelog_id);
     return { ok: true, httpStatus: 200, status: "approved", approvalId: appr.id };
@@ -1030,6 +1064,10 @@ export async function decideApproval(p: {
     if (lp.learning)
       return { ok: false, httpStatus: 423, error: `Learning Phase aktiv (${lp.status}) - Write blockiert, spaeter erneut freigeben`, approvalId: appr.id };
   }
+
+  // Phase 0.3: atomarer Claim NACH den Gates (423 laesst pending fuer spaeter),
+  // aber VOR dem Google-Write - genau ein paralleler Approve fuehrt aus.
+  if (!(await claim("executing"))) return lost();
 
   let result: { ok: boolean; error?: string; skipped?: string };
   if (payload.kind === "budget") {
