@@ -20,9 +20,10 @@ import { redactSecrets } from "@/server/google-oauth.server";
 const Body = z.object({
   client: z.string().optional(), // Name (ilike) oder uuid
   all: z.boolean().optional(),
-  jobs: z.array(z.enum(["discover", "metrics"])).optional(),
+  jobs: z.array(z.enum(["discover", "metrics", "inspect"])).optional(),
   perPage: z.number().int().min(1).max(100).default(100), // WP-Posts pro Seite
   maxPages: z.number().int().min(1).max(20).default(10), // WP-Pagination-Cap
+  inspectLimit: z.number().int().min(1).max(200).default(50), // URL-Inspections je Kunde
 });
 
 const isUuid = (s: string) =>
@@ -266,6 +267,66 @@ async function jobMetrics(c: any) {
   };
 }
 
+// ── 3) Inspect: GSC URL-Inspection-API -> echtes Google-Index-Urteil ────────
+// NICHT im Default-Jobset (Quota 2000/Tag je Property) — explizit anfordern.
+// Kandidaten-Reihenfolge: Artikel OHNE primary_keyword zuerst (Proxy fuer
+// "unsichtbar", dort ist die Index-Frage am wichtigsten), dann der Rest.
+async function jobInspect(c: any, limit: number) {
+  if (!c.gsc_property) return { skipped: "keine GSC-Property" };
+  const { data: items } = await supabaseAdmin
+    .from("content_items")
+    .select("id, target_url, primary_keyword")
+    .eq("client_id", c.id)
+    .eq("status", "published")
+    .eq("content_type", "blog")
+    .not("target_url", "is", null);
+  if (!items || !items.length) return { skipped: "keine Artikel" };
+
+  let token: string | null = null;
+  try {
+    token = (await getGoogleAccessToken(c.id)).accessToken;
+  } catch (e) {
+    return { error: "Google-Token: " + redactSecrets(e) };
+  }
+
+  const picked = [...items]
+    .sort((a, b) => (a.primary_keyword ? 1 : 0) - (b.primary_keyword ? 1 : 0))
+    .slice(0, limit);
+  const results: any[] = [];
+  for (const it of picked) {
+    try {
+      const r = await fetch("https://searchconsole.googleapis.com/v1/urlInspection/index:inspect", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ inspectionUrl: it.target_url, siteUrl: c.gsc_property }),
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (!r.ok) {
+        results.push({ url: it.target_url, error: `HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 120)}` });
+        continue;
+      }
+      const j = (await r.json()) as any;
+      const s = j?.inspectionResult?.indexStatusResult ?? {};
+      results.push({
+        url: it.target_url,
+        verdict: s.verdict ?? null, // PASS = indexiert
+        coverage: s.coverageState ?? null, // z.B. "Crawled - currently not indexed"
+        robots: s.robotsTxtState ?? null,
+        lastCrawl: s.lastCrawlTime ?? null,
+        googleCanonical: s.googleCanonical ?? null,
+      });
+    } catch (e) {
+      results.push({ url: it.target_url, error: redactSecrets(e) });
+    }
+  }
+  return {
+    inspected: results.length,
+    indexed: results.filter((x) => x.verdict === "PASS").length,
+    notIndexed: results.filter((x) => x.verdict && x.verdict !== "PASS").length,
+    results,
+  };
+}
+
 export const Route = createFileRoute("/api/admin/content-sync")({
   server: {
     handlers: {
@@ -282,7 +343,7 @@ export const Route = createFileRoute("/api/admin/content-sync")({
         const parsed = Body.safeParse(await request.json().catch(() => ({})));
         if (!parsed.success)
           return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
-        const { client: sel, all, jobs, perPage, maxPages } = parsed.data;
+        const { client: sel, all, jobs, perPage, maxPages, inspectLimit } = parsed.data;
         const wanted = jobs && jobs.length ? jobs : (["discover", "metrics"] as const);
 
         const query = supabaseAdmin
@@ -304,6 +365,7 @@ export const Route = createFileRoute("/api/admin/content-sync")({
             try {
               if (j === "discover") jr.discover = await jobDiscover(c, perPage, maxPages);
               else if (j === "metrics") jr.metrics = await jobMetrics(c);
+              else if (j === "inspect") jr.inspect = await jobInspect(c, inspectLimit);
             } catch (e) {
               jr[j] = { error: redactSecrets(e) };
             }

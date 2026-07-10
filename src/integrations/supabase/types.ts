@@ -14,63 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      ads_outcome_reviews: {
-        Row: {
-          action_type: string
-          avoided_waste_chf: number | null
-          changelog_id: string
-          client_id: string
-          confounders: Json
-          id: string
-          metric_after: Json
-          metric_before: Json
-          review_window: string
-          reviewed_at: string
-          verdict: string
-        }
-        Insert: {
-          action_type: string
-          avoided_waste_chf?: number | null
-          changelog_id: string
-          client_id: string
-          confounders?: Json
-          id?: string
-          metric_after?: Json
-          metric_before?: Json
-          review_window: string
-          reviewed_at?: string
-          verdict: string
-        }
-        Update: {
-          action_type?: string
-          avoided_waste_chf?: number | null
-          changelog_id?: string
-          client_id?: string
-          confounders?: Json
-          id?: string
-          metric_after?: Json
-          metric_before?: Json
-          review_window?: string
-          reviewed_at?: string
-          verdict?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ads_outcome_reviews_changelog_id_fkey"
-            columns: ["changelog_id"]
-            isOneToOne: false
-            referencedRelation: "ads_changelog"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ads_outcome_reviews_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       ads_approvals: {
         Row: {
           action_id: string
@@ -269,6 +212,63 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "ads_changelog_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ads_outcome_reviews: {
+        Row: {
+          action_type: string
+          avoided_waste_chf: number | null
+          changelog_id: string
+          client_id: string
+          confounders: Json
+          id: string
+          metric_after: Json
+          metric_before: Json
+          review_window: string
+          reviewed_at: string
+          verdict: string
+        }
+        Insert: {
+          action_type: string
+          avoided_waste_chf?: number | null
+          changelog_id: string
+          client_id: string
+          confounders?: Json
+          id?: string
+          metric_after?: Json
+          metric_before?: Json
+          review_window: string
+          reviewed_at?: string
+          verdict: string
+        }
+        Update: {
+          action_type?: string
+          avoided_waste_chf?: number | null
+          changelog_id?: string
+          client_id?: string
+          confounders?: Json
+          id?: string
+          metric_after?: Json
+          metric_before?: Json
+          review_window?: string
+          reviewed_at?: string
+          verdict?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_outcome_reviews_changelog_id_fkey"
+            columns: ["changelog_id"]
+            isOneToOne: false
+            referencedRelation: "ads_changelog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ads_outcome_reviews_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
@@ -1516,6 +1516,28 @@ export type Database = {
       }
     }
     Views: {
+      ads_agent_scorecard: {
+        Row: {
+          action_type: string | null
+          avoided_waste_chf_sum: number | null
+          client_id: string | null
+          hit_rate: number | null
+          n_inconclusive: number | null
+          n_negative: number | null
+          n_neutral: number | null
+          n_positive: number | null
+          n_total: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_outcome_reviews_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       content_decision: {
         Row: {
           age_days: number | null
