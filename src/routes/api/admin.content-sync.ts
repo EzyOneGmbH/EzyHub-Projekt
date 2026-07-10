@@ -11,8 +11,9 @@ import { redactSecrets } from "@/server/google-oauth.server";
 // Zwei Phasen je Kunde:
 //   1) discover : WP-REST /wp/v2/posts -> upsert content_items (alle publizierten
 //                 Blogartikel, auch die direkt auf der Kundenseite erstellten)
-//   2) metrics  : GSC (page + top-query) + GA4 (pagePath) in WENIGEN Calls je
-//                 Kunde -> upsert content_metrics (captured_on = heute-3) und
+//   2) metrics  : GSC (date+page + top-query) + GA4 (date+pagePath) in WENIGEN
+//                 Calls je Kunde -> upsert content_metrics (captured_on =
+//                 heute-5..heute-3, holt Cron-Ausfaelle selbst nach) und
 //                 primary_keyword-Backfill aus der GSC-Top-Query
 // Secret-gated (ADMIN_AUTOMATION_SECRET), keine willkürliche SQL, keine Deletes.
 
@@ -33,6 +34,20 @@ function refDate(): string {
   d.setDate(d.getDate() - 3);
   return d.toISOString().slice(0, 10);
 }
+// Referenzspanne heute-5..heute-3: nimmt bei einem Cron-Ausfall die zwei
+// Vortage automatisch mit (Selbstheilung der Zeitreihe, upsert ist idempotent).
+function refDates(): string[] {
+  const out: string[] = [];
+  for (let back = 5; back >= 3; back--) {
+    const d = new Date();
+    d.setDate(d.getDate() - back);
+    out.push(d.toISOString().slice(0, 10));
+  }
+  return out;
+}
+// GA4 liefert das date-Dimension-Format YYYYMMDD -> YYYY-MM-DD.
+const ga4Date = (s: string) =>
+  `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
 // URL normalisieren für Map-Matching (ohne Protokoll/trailing slash, lowercase).
 function normUrl(u: string): string {
   return String(u || "")
@@ -104,7 +119,8 @@ async function jobMetrics(c: any) {
     .not("target_url", "is", null);
   if (!items || !items.length) return { skipped: "keine Artikel" };
 
-  const ref = refDate();
+  const refs = refDates(); // heute-5 .. heute-3
+  const ref = refs[refs.length - 1];
   let token: string | null = null;
   try {
     token = (await getGoogleAccessToken(c.id)).accessToken;
@@ -122,23 +138,26 @@ async function jobMetrics(c: any) {
     return (await r.json()) as any;
   };
 
-  // --- GSC: page-level Metriken (1 Call) ---
-  const gscByUrl = new Map<string, any>();
+  // --- GSC: page-level Metriken je Tag der Referenzspanne (1 Call) ---
+  const gscByDayUrl = new Map<string, any>(); // key: `${date}|${normUrl}`
   const topQueryByUrl = new Map<string, string>();
+  let gscFailed = false;
   if (c.gsc_property) {
     const gscUrl = `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(
       c.gsc_property,
     )}/searchAnalytics/query`;
     try {
       const pg = await gApi(gscUrl, {
-        startDate: ref,
+        startDate: refs[0],
         endDate: ref,
-        dimensions: ["page"],
-        rowLimit: 1000,
+        dimensions: ["date", "page"],
+        rowLimit: 25000,
       });
-      for (const row of pg.rows ?? []) gscByUrl.set(normUrl(row.keys?.[0] ?? ""), row);
+      for (const row of pg.rows ?? [])
+        gscByDayUrl.set(`${row.keys?.[0] ?? ""}|${normUrl(row.keys?.[1] ?? "")}`, row);
     } catch {
-      /* Metriken bleiben leer -> graceful */
+      // Call fehlgeschlagen -> GSC-Spalten NICHT mit Nullen ueberschreiben.
+      gscFailed = true;
     }
     // Top-Query je Seite über 28 Tage (1 Call) -> primary_keyword-Backfill.
     try {
@@ -160,8 +179,9 @@ async function jobMetrics(c: any) {
     }
   }
 
-  // --- GA4: sessions/conversions je pagePath (1 Call) ---
-  const ga4ByPath = new Map<string, { sessions: number; conversions: number }>();
+  // --- GA4: sessions/conversions je Tag+pagePath (1 Call) ---
+  const ga4ByDayPath = new Map<string, { sessions: number; conversions: number }>(); // key: `${date}|${path}`
+  let ga4Failed = false;
   if (c.ga4_property) {
     const propertyId = String(c.ga4_property).replace(/^properties\//, "");
     const ga4Url = `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(
@@ -169,42 +189,49 @@ async function jobMetrics(c: any) {
     )}:runReport`;
     try {
       const rep = await gApi(ga4Url, {
-        dateRanges: [{ startDate: ref, endDate: ref }],
-        dimensions: [{ name: "pagePath" }],
+        dateRanges: [{ startDate: refs[0], endDate: ref }],
+        dimensions: [{ name: "date" }, { name: "pagePath" }],
         metrics: [{ name: "sessions" }, { name: "conversions" }],
-        limit: 1000,
+        limit: 3000,
       });
       for (const row of rep.rows ?? []) {
-        const p = String(row.dimensionValues?.[0]?.value ?? "").replace(/\/+$/, "") || "/";
-        ga4ByPath.set(p.toLowerCase(), {
+        const day = ga4Date(String(row.dimensionValues?.[0]?.value ?? ""));
+        const p = String(row.dimensionValues?.[1]?.value ?? "").replace(/\/+$/, "") || "/";
+        ga4ByDayPath.set(`${day}|${p.toLowerCase()}`, {
           sessions: Number(row.metricValues?.[0]?.value ?? 0),
           conversions: Number(row.metricValues?.[1]?.value ?? 0),
         });
       }
     } catch {
-      /* optional */
+      // Call fehlgeschlagen -> GA4-Spalten NICHT mit Nullen ueberschreiben.
+      ga4Failed = true;
     }
   }
+  if (gscFailed && ga4Failed) return { error: "GSC- und GA4-Abruf fehlgeschlagen" };
 
-  // --- Rows bauen + upserten ---
+  // --- Rows bauen + upserten (je Artikel × Referenztag). Bei fehlgeschlagenem
+  // GSC-/GA4-Call fehlen dessen Spalten im Payload -> Upsert laesst Bestand stehen. ---
   const metricRows: any[] = [];
   const kwUpdates: Array<{ id: string; primary_keyword: string }> = [];
   for (const it of items) {
     const key = normUrl(it.target_url);
-    const g = gscByUrl.get(key);
-    const ga = ga4ByPath.get(pathOf(it.target_url).toLowerCase());
-    metricRows.push({
-      content_item_id: it.id,
-      captured_on: ref,
-      position: g ? g.position ?? null : null,
-      impressions: g ? Math.round(g.impressions ?? 0) : 0,
-      clicks: g ? Math.round(g.clicks ?? 0) : 0,
-      ctr: g ? g.ctr ?? null : null,
-      sessions: ga ? ga.sessions : 0,
-      conversions: ga ? ga.conversions : 0,
-      backlinks: null,
-      ai_citations: null,
-    });
+    const path = pathOf(it.target_url).toLowerCase();
+    for (const day of refs) {
+      const g = gscByDayUrl.get(`${day}|${key}`);
+      const ga = ga4ByDayPath.get(`${day}|${path}`);
+      const row: any = { content_item_id: it.id, captured_on: day };
+      if (!gscFailed) {
+        row.position = g ? g.position ?? null : null;
+        row.impressions = g ? Math.round(g.impressions ?? 0) : 0;
+        row.clicks = g ? Math.round(g.clicks ?? 0) : 0;
+        row.ctr = g ? g.ctr ?? null : null;
+      }
+      if (!ga4Failed) {
+        row.sessions = ga ? ga.sessions : 0;
+        row.conversions = ga ? ga.conversions : 0;
+      }
+      metricRows.push(row);
+    }
     const tq = topQueryByUrl.get(key);
     if (tq && (!it.primary_keyword || it.primary_keyword === "")) {
       kwUpdates.push({ id: it.id, primary_keyword: tq });
@@ -227,7 +254,14 @@ async function jobMetrics(c: any) {
       .eq("id", k.id)
       .or("primary_keyword.is.null,primary_keyword.eq.");
   }
-  return { articles: items.length, metrics: upserted, keywords: kwUpdates.length };
+  return {
+    articles: items.length,
+    metrics: upserted,
+    keywords: kwUpdates.length,
+    days: refs,
+    ...(gscFailed ? { gscFailed: true } : {}),
+    ...(ga4Failed ? { ga4Failed: true } : {}),
+  };
 }
 
 export const Route = createFileRoute("/api/admin/content-sync")({

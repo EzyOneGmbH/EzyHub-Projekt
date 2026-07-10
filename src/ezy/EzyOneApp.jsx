@@ -7324,6 +7324,36 @@ function RefreshRadar({ selectedClient }) {
   const [loading, setLoading] = useState(true);
   const [onlyAction, setOnlyAction] = useState(false);
   const [detail, setDetail] = useState(null);
+  // Google-Verbindungsstatus: erklaert "keine Metriken" ehrlich (Token fehlt/abgelaufen)
+  // statt sie als "kein Traffic" aussehen zu lassen. null = unbekannt -> kein Banner.
+  const [gConn, setGConn] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    setGConn(null);
+    if (!selectedClient?.id) return undefined;
+    (async () => {
+      try {
+        const session = (await supabase.auth.getSession()).data.session;
+        const r = await fetch("/api/google/connection", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ clientId: selectedClient.id }),
+        });
+        const j = await r.json().catch(() => null);
+        if (alive && r.ok && j) setGConn(j);
+      } catch {
+        /* Status unbekannt -> kein Banner */
+      }
+    })();
+    return () => { alive = false; };
+  }, [selectedClient?.id]);
+  const connHint = !selectedClient?.id
+    ? null
+    : gConn && !gConn.connected
+      ? "Google ist für diesen Kunden nicht verbunden — GSC/GA4-Metriken können nicht erfasst werden. Verbinden unter Onboarding → Google."
+      : gConn?.connected && !selectedClient?.gscSiteUrl
+        ? "Keine GSC-Property hinterlegt — Ranking-Metriken (Klicks/Impressionen/Position) bleiben leer. Property im Kunden-Profil eintragen."
+        : null;
   const reload = useCallback(async () => {
     if (!selectedClient?.id) { setRows([]); setLoading(false); return; }
     setLoading(true);
@@ -7342,6 +7372,12 @@ function RefreshRadar({ selectedClient }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {connHint ? (
+        <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 14px", borderRadius: 10, background: C.orange + "1a", border: `1px solid ${C.orange}55`, fontSize: 12.5, color: C.text }}>
+          <AlertCircle size={16} color={C.orange} style={{ flexShrink: 0 }} />
+          <span>{connHint}</span>
+        </div>
+      ) : null}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
         <div style={{ fontSize: 13, color: C.textMuted }}>
           {loading ? "lädt…" : `${shown.length} von ${rows.length} publizierten Artikeln`}
