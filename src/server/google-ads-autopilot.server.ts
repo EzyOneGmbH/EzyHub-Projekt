@@ -194,7 +194,12 @@ async function search(
     },
     body: JSON.stringify({ query: gaql }),
   });
-  if (!res.ok) throw new Error(`Ads API HTTP ${res.status}: ${(await res.text().catch(() => "")).slice(0, 300)}`);
+  if (!res.ok) {
+    // Fehlertext kompaktieren: JSON-Whitespace raus, damit der aussagekraeftige
+    // Detail-Fehlercode (errors[].errorCode) die Slice-Grenze nicht sprengt.
+    const raw = (await res.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 600);
+    throw new Error(`Ads API HTTP ${res.status}: ${raw}`);
+  }
   const json = (await res.json()) as Array<{ results?: Array<Record<string, any>> }>;
   return json.flatMap((b) => b.results ?? []);
 }
@@ -240,7 +245,7 @@ export async function fetchAutopilotData(
     try {
       await fn();
     } catch (e) {
-      data.dataSourceErrors.push(`${label}: ${(e instanceof Error ? e.message : String(e)).slice(0, 300)}`);
+      data.dataSourceErrors.push(`${label}: ${(e instanceof Error ? e.message : String(e)).slice(0, 600)}`);
     }
   };
   try {
@@ -533,24 +538,37 @@ export async function fetchAutopilotData(
       data.monthComparison.sort((a, b) => b.cost - a.cost);
     });
 
-    // 9) PMax-Suchthemen-Insights (Kategorie-Ebene; API liefert nur Kategorien)
+    // 9) PMax-Suchthemen-Insights (Kategorie-Ebene). Die API verlangt einen
+    //    campaign_id-Filter je Abfrage -> erst PMax-Kampagnen holen, dann je
+    //    Kampagne (max. 5, nach Status) die Insight-Kategorien.
     await soft("pmax_search_themes", async () => {
-      const rows = await search(
+      const pmax = await search(
         ctx,
-        `SELECT campaign.name, campaign_search_term_insight.category_label,
-                metrics.clicks, metrics.impressions, metrics.conversions
-         FROM campaign_search_term_insight
-         WHERE segments.date DURING LAST_30_DAYS
-         ORDER BY metrics.clicks DESC LIMIT 50`,
+        `SELECT campaign.id, campaign.name FROM campaign
+         WHERE campaign.advertising_channel_type = 'PERFORMANCE_MAX' AND campaign.status = 'ENABLED' LIMIT 5`,
       );
-      for (const r of rows) {
-        data.pmaxSearchThemes.push({
-          campaign: r.campaign?.name ?? "",
-          category: String(r.campaignSearchTermInsight?.categoryLabel ?? ""),
-          clicks: Number(r.metrics?.clicks ?? 0),
-          impressions: Number(r.metrics?.impressions ?? 0),
-          conversions: Number(r.metrics?.conversions ?? 0),
-        });
+      for (const c of pmax) {
+        const campId = c.campaign?.id;
+        const campName = c.campaign?.name ?? "";
+        if (!campId) continue;
+        const rows = await search(
+          ctx,
+          `SELECT campaign_search_term_insight.category_label,
+                  metrics.clicks, metrics.impressions, metrics.conversions
+           FROM campaign_search_term_insight
+           WHERE segments.date DURING LAST_30_DAYS
+             AND campaign_search_term_insight.campaign_id = ${Number(campId)}
+           ORDER BY metrics.clicks DESC LIMIT 10`,
+        );
+        for (const r of rows) {
+          data.pmaxSearchThemes.push({
+            campaign: campName,
+            category: String(r.campaignSearchTermInsight?.categoryLabel ?? ""),
+            clicks: Number(r.metrics?.clicks ?? 0),
+            impressions: Number(r.metrics?.impressions ?? 0),
+            conversions: Number(r.metrics?.conversions ?? 0),
+          });
+        }
       }
     });
 
