@@ -346,6 +346,22 @@ describe("computeStructureFindings (Struktur-Review, report-only)", () => {
 });
 
 describe("computeBrandOtaFindings (Hotel-Playbook)", () => {
+  it("brand_is_alert: Brand-IS < 90% aus oeffentlichen IS-Metriken (Ersatz fuer Auction Insights)", () => {
+    const d = data({
+      campaigns: [
+        { name: "SN - DE - Brand - X", status: "ENABLED", dailyBudgetChf: 20, costChf: 500, conversions: 30, conversionValue: 9000, roas: 18, budgetLostIs: 0.38, biddingSystemStatus: "ENABLED", learning: false, searchImpressionShare: 0.62, searchAbsTopImpressionShare: 0.5 },
+        { name: "SN - DE - Brand - OK", status: "ENABLED", dailyBudgetChf: 20, costChf: 100, conversions: 10, conversionValue: 3000, roas: 30, budgetLostIs: 0, biddingSystemStatus: "ENABLED", learning: false, searchImpressionShare: 0.95, searchAbsTopImpressionShare: 0.9 },
+        { name: "Non-Brand Y", status: "ENABLED", dailyBudgetChf: 20, costChf: 100, conversions: 5, conversionValue: 500, roas: 5, budgetLostIs: 0.5, biddingSystemStatus: "ENABLED", learning: false, searchImpressionShare: 0.3, searchAbsTopImpressionShare: 0.1 },
+      ],
+    });
+    const f = computeBrandOtaFindings(d, cfg({ industry: "hotel" })).filter((x) => x.type === "brand_is_alert");
+    expect(f).toHaveLength(1);
+    expect(f[0].entity).toBe("SN - DE - Brand - X");
+    expect(f[0].rationale).toContain("62%");
+    expect(f[0].actionClass).toBe("report-only");
+    expect(computeBrandOtaFindings(d, cfg({ industry: "kmu-local" }))).toEqual([]);
+  });
+
   it("quantifiziert OTA-Druck auf Brand-Kampagnen (nur industry hotel)", () => {
     const d = data({
       auctionInsights: [

@@ -99,6 +99,10 @@ export type AutopilotData = {
     budgetLostIs: number;
     biddingSystemStatus: string; // Phase 1.2: LEARNING_* blockiert Writes
     learning: boolean;
+    // Oeffentliche IS-Metriken (Search) - Ersatz fuer die nicht-oeffentlichen
+    // auction_insight_*-Metriken (API-Allowlist geschlossen). PMax liefert null.
+    searchImpressionShare?: number | null;
+    searchAbsTopImpressionShare?: number | null;
   }>;
   // Phase 1.4: Suchbegriffe im Conversion-Lag-Fenster (Tag -(30+lag) .. -lag),
   // damit junge Klicks ohne verbuchte Conversions nicht faelschlich als
@@ -253,7 +257,8 @@ export async function fetchAutopilotData(
       ctx,
       `SELECT campaign.name, campaign.status, campaign.bidding_strategy_system_status,
               campaign_budget.amount_micros, metrics.cost_micros,
-              metrics.conversions, metrics.conversions_value, metrics.search_budget_lost_impression_share
+              metrics.conversions, metrics.conversions_value, metrics.search_budget_lost_impression_share,
+              metrics.search_impression_share, metrics.search_absolute_top_impression_share
        FROM campaign WHERE segments.date DURING LAST_30_DAYS AND campaign.status = 'ENABLED'`,
     );
     let costSum = 0;
@@ -275,6 +280,8 @@ export async function fetchAutopilotData(
         budgetLostIs: Number(r.metrics?.searchBudgetLostImpressionShare ?? 0),
         biddingSystemStatus: sysStatus,
         learning: LEARNING_STATUSES.has(sysStatus),
+        searchImpressionShare: r.metrics?.searchImpressionShare != null ? Number(r.metrics.searchImpressionShare) : null,
+        searchAbsTopImpressionShare: r.metrics?.searchAbsoluteTopImpressionShare != null ? Number(r.metrics.searchAbsoluteTopImpressionShare) : null,
       });
     }
     data.meta.costSumChf = Math.round(costSum * 100) / 100;
@@ -765,6 +772,30 @@ export function computeBrandOtaFindings(data: AutopilotData, cfg: AutopilotConfi
   const out: PlannedAction[] = [];
   // "Brand", aber nicht "Non-Brand" (sonst false positives auf Non-Brand-Kampagnen)
   const isBrand = (name: string) => /brand/i.test(name) && !/non[-_ ]?brand/i.test(name);
+
+  // Playbook-Pflicht-KPI Brand-IS < 90% - aus den OEFFENTLICHEN IS-Metriken
+  // (die auction_insight_*-Metriken sind API-seitig nicht verfuegbar, Allowlist
+  // geschlossen; Konkurrenz-Detail nur in der Ads-UI unter Insights > Auktionsdaten).
+  for (const c of data.campaigns) {
+    if (!isBrand(c.name)) continue;
+    const is = c.searchImpressionShare ?? null;
+    if (is == null || is >= 0.9) continue;
+    const absTop = c.searchAbsTopImpressionShare ?? null;
+    out.push({
+      actionClass: "report-only",
+      type: "brand_is_alert",
+      entity: c.name,
+      before: "",
+      after: "",
+      rationale:
+        `Die eigene Marken-Kampagne "${c.name}" erscheint nur bei ${(is * 100).toFixed(0)}% der Suchen nach der eigenen Marke ` +
+        `(Impression Share ${(is * 100).toFixed(0)}%, Playbook-Schwelle 90%)` +
+        (absTop != null ? ` und steht nur in ${(absTop * 100).toFixed(0)}% ganz oben (Absolute Top)` : "") +
+        `. Jede verpasste Marken-Suche kann bei einem Buchungsportal landen und kostet dann Kommission. ` +
+        `Wer verdraengt, zeigt die Ads-UI unter Insights > Auktionsdaten (via API nicht verfuegbar).`,
+    });
+  }
+
   const brandRows = data.auctionInsights.filter((a) => isBrand(a.campaign));
   const otas = brandRows.filter((a) => OTA_DOMAINS.some((o) => a.domain.includes(o)));
   for (const o of otas.slice(0, 5)) {
