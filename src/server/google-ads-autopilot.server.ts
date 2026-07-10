@@ -120,6 +120,30 @@ export type AutopilotData = {
     overlapRate: number | null;
     outrankingShare: number | null;
   }>;
+  // Struktur-Review (report-only): Gesamtstruktur ueber ALLE Kampagnentypen
+  adGroupPerformance: Array<{ campaign: string; adGroup: string; costChf: number; conversions: number; convValue: number }>;
+  keywordQuality: Array<{
+    campaign: string;
+    adGroup: string;
+    keyword: string;
+    matchType: string;
+    qualityScore: number | null; // 1-10; null = von Google nicht bewertet
+    expectedCtr: string;
+    adRelevance: string;
+    landingPageExperience: string;
+    costChf: number;
+    conversions: number;
+  }>;
+  // Monat vs. Vormonat je Kampagne (Tag -30..-1 vs. Tag -60..-31), alle Typen
+  monthComparison: Array<{
+    campaign: string;
+    channelType: string;
+    cost: number; costPrev: number;
+    conversions: number; conversionsPrev: number;
+    convValue: number; convValuePrev: number;
+    roas: number | null; roasPrev: number | null;
+  }>;
+  pmaxSearchThemes: Array<{ campaign: string; category: string; clicks: number; impressions: number; conversions: number }>;
   geoPerformance: Array<{ location: string; costChf: number; conversions: number; convValue: number }>;
   devicePerformance: Array<{ campaign: string; device: string; costChf: number; conversions: number }>;
   assetIssues: Array<{ adGroup: string; fieldType: string; text: string; label: string }>;
@@ -198,6 +222,10 @@ export async function fetchAutopilotData(
     termWindow: { from: termFrom, to: termTo, lagDays: lag },
     trackingHealth: { status: "NO_BASELINE", spend7d: 0, conversions7d: 0, conversionsBaseline30d: 0 },
     auctionInsights: [],
+    adGroupPerformance: [],
+    keywordQuality: [],
+    monthComparison: [],
+    pmaxSearchThemes: [],
     geoPerformance: [],
     devicePerformance: [],
     assetIssues: [],
@@ -212,7 +240,7 @@ export async function fetchAutopilotData(
     try {
       await fn();
     } catch (e) {
-      data.dataSourceErrors.push(`${label}: ${(e instanceof Error ? e.message : String(e)).slice(0, 160)}`);
+      data.dataSourceErrors.push(`${label}: ${(e instanceof Error ? e.message : String(e)).slice(0, 300)}`);
     }
   };
   try {
@@ -396,13 +424,14 @@ export async function fetchAutopilotData(
       }
     });
 
-    // 5) Aenderungshistorie 7d (wer/was/wann) - Grundlage Externen-Detektor (Phase 5)
+    // 5) Aenderungshistorie 29d (wer/was/wann) - Externen-Detektor + Monats-Audit-Basis
+    // (change_event erlaubt max. 30 Tage Rueckblick; 29 vermeidet Randfehler)
     await soft("change_history", async () => {
       const rows = await search(
         ctx,
         `SELECT change_event.change_date_time, change_event.user_email, change_event.change_resource_type, change_event.changed_fields
          FROM change_event
-         WHERE change_event.change_date_time >= '${daysAgo(7)}' AND change_event.change_date_time <= '${daysAgo(0)} 23:59:59'
+         WHERE change_event.change_date_time >= '${daysAgo(29)}' AND change_event.change_date_time <= '${daysAgo(0)} 23:59:59'
          ORDER BY change_event.change_date_time DESC LIMIT 100`,
       );
       for (const r of rows) {
@@ -411,6 +440,116 @@ export async function fetchAutopilotData(
           user: String(r.changeEvent?.userEmail ?? ""),
           resourceType: String(r.changeEvent?.changeResourceType ?? ""),
           fields: String(r.changeEvent?.changedFields ?? "").slice(0, 120),
+        });
+      }
+    });
+
+    // ── Struktur-Review (report-only): 4 weitere Quellen ─────────────────────
+    // 6) Ad-Group-Performance (alle Typen, Top 100 nach Kosten)
+    await soft("adgroup_performance", async () => {
+      const rows = await search(
+        ctx,
+        `SELECT campaign.name, ad_group.name, metrics.cost_micros, metrics.conversions, metrics.conversions_value
+         FROM ad_group WHERE segments.date DURING LAST_30_DAYS AND ad_group.status = 'ENABLED'
+         ORDER BY metrics.cost_micros DESC LIMIT 100`,
+      );
+      for (const r of rows) {
+        data.adGroupPerformance.push({
+          campaign: r.campaign?.name ?? "",
+          adGroup: r.adGroup?.name ?? "",
+          costChf: Number(r.metrics?.costMicros ?? 0) / MICROS,
+          conversions: Number(r.metrics?.conversions ?? 0),
+          convValue: Number(r.metrics?.conversionsValue ?? 0),
+        });
+      }
+    });
+
+    // 7) Keyword-Bestand + Quality Score (Top 200 nach Kosten)
+    await soft("keyword_quality", async () => {
+      const rows = await search(
+        ctx,
+        `SELECT campaign.name, ad_group.name, ad_group_criterion.keyword.text, ad_group_criterion.keyword.match_type,
+                ad_group_criterion.quality_info.quality_score,
+                ad_group_criterion.quality_info.search_predicted_ctr,
+                ad_group_criterion.quality_info.creative_quality_score,
+                ad_group_criterion.quality_info.post_click_quality_score,
+                metrics.cost_micros, metrics.conversions
+         FROM keyword_view WHERE segments.date DURING LAST_30_DAYS AND ad_group_criterion.status = 'ENABLED'
+         ORDER BY metrics.cost_micros DESC LIMIT 200`,
+      );
+      for (const r of rows) {
+        const qi = r.adGroupCriterion?.qualityInfo ?? {};
+        data.keywordQuality.push({
+          campaign: r.campaign?.name ?? "",
+          adGroup: r.adGroup?.name ?? "",
+          keyword: String(r.adGroupCriterion?.keyword?.text ?? ""),
+          matchType: String(r.adGroupCriterion?.keyword?.matchType ?? ""),
+          qualityScore: qi.qualityScore != null ? Number(qi.qualityScore) : null,
+          expectedCtr: String(qi.searchPredictedCtr ?? "UNKNOWN"),
+          adRelevance: String(qi.creativeQualityScore ?? "UNKNOWN"),
+          landingPageExperience: String(qi.postClickQualityScore ?? "UNKNOWN"),
+          costChf: Number(r.metrics?.costMicros ?? 0) / MICROS,
+          conversions: Number(r.metrics?.conversions ?? 0),
+        });
+      }
+    });
+
+    // 8) Monat vs. Vormonat je Kampagne (Tag -30..-1 vs. -60..-31, ALLE Typen)
+    await soft("month_comparison", async () => {
+      const q = (from: string, to: string) =>
+        `SELECT campaign.name, campaign.advertising_channel_type, metrics.cost_micros, metrics.conversions, metrics.conversions_value
+         FROM campaign WHERE segments.date BETWEEN '${from}' AND '${to}' AND campaign.status = 'ENABLED'`;
+      const cur = await search(ctx, q(daysAgo(30), daysAgo(1)));
+      const prev = await search(ctx, q(daysAgo(60), daysAgo(31)));
+      type M = { channelType: string; cost: number; conv: number; value: number };
+      const agg = (rows: Array<Record<string, any>>) => {
+        const m = new Map<string, M>();
+        for (const r of rows) {
+          const name = r.campaign?.name ?? "";
+          const a = m.get(name) ?? { channelType: String(r.campaign?.advertisingChannelType ?? "UNKNOWN"), cost: 0, conv: 0, value: 0 };
+          a.cost += Number(r.metrics?.costMicros ?? 0) / MICROS;
+          a.conv += Number(r.metrics?.conversions ?? 0);
+          a.value += Number(r.metrics?.conversionsValue ?? 0);
+          m.set(name, a);
+        }
+        return m;
+      };
+      const curM = agg(cur);
+      const prevM = agg(prev);
+      const names = new Set([...curM.keys(), ...prevM.keys()]);
+      for (const name of names) {
+        const c = curM.get(name) ?? { channelType: prevM.get(name)!.channelType, cost: 0, conv: 0, value: 0 };
+        const p = prevM.get(name) ?? { channelType: c.channelType, cost: 0, conv: 0, value: 0 };
+        data.monthComparison.push({
+          campaign: name,
+          channelType: c.channelType,
+          cost: Math.round(c.cost * 100) / 100, costPrev: Math.round(p.cost * 100) / 100,
+          conversions: c.conv, conversionsPrev: p.conv,
+          convValue: Math.round(c.value * 100) / 100, convValuePrev: Math.round(p.value * 100) / 100,
+          roas: c.cost > 0 ? c.value / c.cost : null,
+          roasPrev: p.cost > 0 ? p.value / p.cost : null,
+        });
+      }
+      data.monthComparison.sort((a, b) => b.cost - a.cost);
+    });
+
+    // 9) PMax-Suchthemen-Insights (Kategorie-Ebene; API liefert nur Kategorien)
+    await soft("pmax_search_themes", async () => {
+      const rows = await search(
+        ctx,
+        `SELECT campaign.name, campaign_search_term_insight.category_label,
+                metrics.clicks, metrics.impressions, metrics.conversions
+         FROM campaign_search_term_insight
+         WHERE segments.date DURING LAST_30_DAYS
+         ORDER BY metrics.clicks DESC LIMIT 50`,
+      );
+      for (const r of rows) {
+        data.pmaxSearchThemes.push({
+          campaign: r.campaign?.name ?? "",
+          category: String(r.campaignSearchTermInsight?.categoryLabel ?? ""),
+          clicks: Number(r.metrics?.clicks ?? 0),
+          impressions: Number(r.metrics?.impressions ?? 0),
+          conversions: Number(r.metrics?.conversions ?? 0),
         });
       }
     });
@@ -493,6 +632,99 @@ export function computeGeoDeviceFindings(data: AutopilotData): PlannedAction[] {
       });
     }
   }
+  return out;
+}
+
+// ── Struktur-Review: deterministische Findings (report-only, pure) ───────────
+// Speist die "Strategischen Beobachtungen" - Vorschlaege, keine Writes.
+export function computeStructureFindings(data: AutopilotData): PlannedAction[] {
+  const out: PlannedAction[] = [];
+  const acctCpa = data.meta.avgCpaChf;
+
+  // 1) qs_weakness: Quality Score <= 4 mit relevanten Kosten (Top 5 nach Kosten).
+  //    Komponenten nennen, damit die Empfehlung konkret ist (Anzeige vs. Landingpage).
+  const weakQs = data.keywordQuality
+    .filter((k) => k.qualityScore != null && k.qualityScore <= 4 && k.costChf > 0)
+    .sort((a, b) => b.costChf - a.costChf)
+    .slice(0, 5);
+  for (const k of weakQs) {
+    const parts: string[] = [];
+    if (k.adRelevance === "BELOW_AVERAGE") parts.push("Ad Relevance unterdurchschnittlich");
+    if (k.expectedCtr === "BELOW_AVERAGE") parts.push("Expected CTR unterdurchschnittlich");
+    if (k.landingPageExperience === "BELOW_AVERAGE") parts.push("Landing Page unterdurchschnittlich");
+    out.push({
+      actionClass: "report-only",
+      type: "qs_weakness",
+      entity: `${k.campaign} | ${k.adGroup} | ${k.keyword}`,
+      before: "",
+      after: "",
+      rationale:
+        `Keyword "${k.keyword}" (${k.matchType}): Quality Score ${k.qualityScore}/10 bei CHF ${k.costChf.toFixed(2)}/30d` +
+        (parts.length ? ` - Hebel: ${parts.join(", ")}` : "") +
+        ` - QS-Verbesserung senkt den CPC direkt (ROAS-Hebel ohne Mehrbudget)`,
+    });
+  }
+
+  // 2) adgroup_anomaly: CPA-Ausreisser je Ad-Group (>30% vs Konto-CPA bei >=5 Conv.)
+  //    plus reine Kostenfresser (0 Conv., Kosten > 3x Konto-CPA).
+  if (acctCpa && acctCpa > 0) {
+    for (const g of data.adGroupPerformance) {
+      if (g.conversions >= 5) {
+        const cpa = g.costChf / g.conversions;
+        const dev = (cpa - acctCpa) / acctCpa;
+        if (dev > 0.3) {
+          out.push({
+            actionClass: "report-only",
+            type: "adgroup_anomaly",
+            entity: `${g.campaign} | ${g.adGroup}`,
+            before: "",
+            after: "",
+            rationale: `Ad-Group "${g.adGroup}": CPA CHF ${cpa.toFixed(2)} (+${(dev * 100).toFixed(0)}% vs Konto-CPA ${acctCpa.toFixed(2)}) bei ${g.conversions.toFixed(0)} Conv./30d - Split/Ausschluss oder Gebots-Review pruefen`,
+          });
+        }
+      } else if (g.conversions === 0 && g.costChf > 3 * acctCpa) {
+        out.push({
+          actionClass: "report-only",
+          type: "adgroup_anomaly",
+          entity: `${g.campaign} | ${g.adGroup}`,
+          before: "",
+          after: "",
+          rationale: `Ad-Group "${g.adGroup}": CHF ${g.costChf.toFixed(2)} ohne Conversions (30d) - Relevanz/Suchbegriffe pruefen`,
+        });
+      }
+    }
+  }
+
+  // 3) mom_regression: ROAS-Einbruch > 20% ggue. Vormonat (nur belastbare Basis:
+  //    Vormonat >= 5 Conv.). Alle Kampagnentypen (Search, PMax, Display, ...).
+  for (const m of data.monthComparison) {
+    if (m.conversionsPrev < 5) continue;
+    if (m.roasPrev != null && m.roasPrev > 0 && m.roas != null) {
+      const delta = (m.roas - m.roasPrev) / m.roasPrev;
+      if (delta <= -0.2) {
+        out.push({
+          actionClass: "report-only",
+          type: "mom_regression",
+          entity: m.campaign,
+          before: `ROAS ${m.roasPrev.toFixed(1)} (Vormonat)`,
+          after: `ROAS ${m.roas.toFixed(1)}`,
+          rationale:
+            `${m.campaign} (${m.channelType}): ROAS ${m.roasPrev.toFixed(1)} -> ${m.roas.toFixed(1)} (${(delta * 100).toFixed(0)}%), ` +
+            `Kosten CHF ${m.costPrev.toFixed(0)} -> ${m.cost.toFixed(0)}, Conv. ${m.conversionsPrev.toFixed(0)} -> ${m.conversions.toFixed(0)} - Ursache pruefen (Aenderungsverlauf, Saison, Wettbewerb)`,
+        });
+      }
+    } else if (m.roasPrev != null && m.roasPrev > 0 && (m.roas == null || m.cost === 0)) {
+      out.push({
+        actionClass: "report-only",
+        type: "mom_regression",
+        entity: m.campaign,
+        before: `aktiv (Vormonat: CHF ${m.costPrev.toFixed(0)}, ROAS ${m.roasPrev.toFixed(1)})`,
+        after: "kein Spend im aktuellen 30d-Fenster",
+        rationale: `${m.campaign} (${m.channelType}): lief im Vormonat (CHF ${m.costPrev.toFixed(0)}, ${m.conversionsPrev.toFixed(0)} Conv.), aktuell ohne Spend - pausiert oder budgetlos? Aenderungsverlauf pruefen`,
+      });
+    }
+  }
+
   return out;
 }
 
@@ -781,6 +1013,16 @@ export type AutopilotRunSummary = {
   pmaxAssetGroups?: Array<{ name: string; adStrength: string }>;
   changeHistory?: Array<{ at: string; user: string; resourceType: string }>;
   dataSourceErrors?: string[];
+  // Struktur-Review (report-only): Gesamtstruktur + MoM + QS fuer den Report
+  adGroupTop?: Array<{ campaign: string; adGroup: string; costChf: number; conversions: number }>;
+  qsDistribution?: { rated: number; weak: number; avg: number | null };
+  monthComparison?: Array<{
+    campaign: string; channelType: string;
+    cost: number; costPrev: number;
+    conversions: number; conversionsPrev: number;
+    roas: number | null; roasPrev: number | null;
+  }>;
+  pmaxSearchThemes?: Array<{ campaign: string; category: string; clicks: number; conversions: number }>;
   actions: Array<{ class: string; type: string; entity: string; status: string; rationale: string }>;
 };
 
@@ -852,10 +1094,34 @@ export async function runAutopilot(clientId: string, opts?: { dryRun?: boolean }
   base.changeHistory = d3.changeHistory.slice(0, 20).map((c) => ({ at: c.at, user: c.user, resourceType: c.resourceType }));
   base.dataSourceErrors = d3.dataSourceErrors;
 
+  // Struktur-Review-Bloecke (report-only) fuer den Report.
+  base.adGroupTop = d3.adGroupPerformance.slice(0, 10).map((g) => ({
+    campaign: g.campaign, adGroup: g.adGroup, costChf: Math.round(g.costChf * 100) / 100, conversions: g.conversions,
+  }));
+  {
+    const rated = d3.keywordQuality.filter((k) => k.qualityScore != null);
+    base.qsDistribution = {
+      rated: rated.length,
+      weak: rated.filter((k) => (k.qualityScore ?? 10) <= 4).length,
+      avg: rated.length ? Math.round((rated.reduce((s, k) => s + (k.qualityScore ?? 0), 0) / rated.length) * 10) / 10 : null,
+    };
+  }
+  base.monthComparison = d3.monthComparison.slice(0, 15).map((m) => ({
+    campaign: m.campaign, channelType: m.channelType,
+    cost: m.cost, costPrev: m.costPrev,
+    conversions: m.conversions, conversionsPrev: m.conversionsPrev,
+    roas: m.roas != null ? Math.round(m.roas * 10) / 10 : null,
+    roasPrev: m.roasPrev != null ? Math.round(m.roasPrev * 10) / 10 : null,
+  }));
+  base.pmaxSearchThemes = d3.pmaxSearchThemes.slice(0, 10).map((t) => ({
+    campaign: t.campaign, category: t.category, clicks: t.clicks, conversions: t.conversions,
+  }));
+
   const planned = [
     ...planActions(fetched.data, cfg),
     ...computeGeoDeviceFindings(fetched.data),
     ...computeBrandOtaFindings(fetched.data, cfg),
+    ...computeStructureFindings(fetched.data),
   ];
 
   // Phase 1.1 Tracking-Health-Gate: bei BROKEN werden ALLE Write-Ops blockiert
