@@ -10,7 +10,11 @@ import { getGoogleAccessToken } from "./google-tokens.server";
 
 const ADS_API = "https://googleads.googleapis.com/v24";
 const MICROS = 1_000_000;
-const REVIEWABLE_TYPES = ["add_negative", "add_negative_phrase", "budget_change", "bid_adjustment"];
+// Phase 2: negative_keyword_semantic wird wie die deterministischen Negatives
+// reviewt (vermiedene Verschwendung), erhaelt aber eine EIGENE Scorecard-Zeile
+// (Gruppierung nach action_type) und zaehlt NICHT in die L1-Release-Gates -
+// eine Automatisierung semantischer Negatives ist eine menschliche Entscheidung.
+const REVIEWABLE_TYPES = ["add_negative", "add_negative_phrase", "budget_change", "bid_adjustment", "negative_keyword_semantic"];
 
 export type Metrics = { cost: number; conversions: number; cpa: number | null; roas: number | null; impressionShare: number | null };
 
@@ -242,7 +246,7 @@ export async function runOutcomeReview(clientId?: string): Promise<{
 
         // Negatives: vermiedene Verschwendung = Kosten des Musters im Vorher-Fenster
         let avoided: number | null = null;
-        if (ch.action_type.startsWith("add_negative")) {
+        if (ch.action_type.startsWith("add_negative") || ch.action_type === "negative_keyword_semantic") {
           const term = termFromAfterValue(ch.after_value);
           if (term) {
             try {

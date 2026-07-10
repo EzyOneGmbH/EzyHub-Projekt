@@ -120,8 +120,8 @@ describe("planActions (Abnahme 1.4)", () => {
   it("Cross-Kampagnen-Konflikt: konvertierender Begriff wird NICHT ausgeschlossen", () => {
     const d = data({
       searchTerms: [
-        { term: "wellness wochenende", campaign: "Kampagne X", adGroup: "AG1", costChf: 400, conversions: 0 },
-        { term: "wellness wochenende", campaign: "Kampagne Y", adGroup: "AG2", costChf: 90, conversions: 2 },
+        { term: "wellness wochenende", campaign: "Kampagne X", adGroup: "AG1", costChf: 400, conversions: 0, clicks: 0 },
+        { term: "wellness wochenende", campaign: "Kampagne Y", adGroup: "AG2", costChf: 90, conversions: 2, clicks: 0 },
       ],
     });
     const acts = planActions(d, cfg());
@@ -134,7 +134,7 @@ describe("planActions (Abnahme 1.4)", () => {
       campaigns: [
         { name: "L", status: "ENABLED", dailyBudgetChf: 20, costChf: 100, conversions: 10, conversionValue: 500, roas: 5, budgetLostIs: 0, biddingSystemStatus: "LEARNING_BUDGET_CHANGE", learning: true },
       ],
-      searchTerms: [{ term: "teurer quatsch begriff", campaign: "L", adGroup: "AG", costChf: 200, conversions: 0 }],
+      searchTerms: [{ term: "teurer quatsch begriff", campaign: "L", adGroup: "AG", costChf: 200, conversions: 0, clicks: 0 }],
     });
     const acts = planActions(d, cfg({ autonomy_level: 1 }));
     const neg = acts.find((a) => a.type === "add_negative");
@@ -214,7 +214,7 @@ describe("planActions (Abnahme 1.4)", () => {
   it("N-Gram-Kandidat entsteht nur bei >=5 Begriffen, 0 Conv., Kosten > 2x CPA - und nie als Stoppwort", () => {
     const terms = Array.from({ length: 6 }, (_, i) => ({
       term: `billige unterkunft variante ${i}`,
-      campaign: "K", adGroup: "AG", costChf: 30, conversions: 0,
+      campaign: "K", adGroup: "AG", costChf: 30, conversions: 0, clicks: 0,
     }));
     const acts = planActions(data({ searchTerms: terms }), cfg());
     const phrases = acts.filter((a) => a.type === "add_negative_phrase");

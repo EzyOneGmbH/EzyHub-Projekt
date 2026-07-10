@@ -109,7 +109,7 @@ export type AutopilotData = {
   // Phase 1.4: Suchbegriffe im Conversion-Lag-Fenster (Tag -(30+lag) .. -lag),
   // damit junge Klicks ohne verbuchte Conversions nicht faelschlich als
   // "0 Conversions" ausgeschlossen werden.
-  searchTerms: Array<{ term: string; campaign: string; adGroup: string; costChf: number; conversions: number }>;
+  searchTerms: Array<{ term: string; campaign: string; adGroup: string; costChf: number; conversions: number; clicks: number }>;
   termWindow: { from: string; to: string; lagDays: number };
   // Phase 1.1: Tracking-Health (Konto-Ebene)
   trackingHealth: {
@@ -344,7 +344,7 @@ export async function fetchAutopilotData(
     // Phase 1.4: Suchbegriffe im Lag-Fenster (statt LAST_30_DAYS).
     const terms = await search(
       ctx,
-      `SELECT search_term_view.search_term, campaign.name, ad_group.name, metrics.cost_micros, metrics.conversions
+      `SELECT search_term_view.search_term, campaign.name, ad_group.name, metrics.cost_micros, metrics.conversions, metrics.clicks
        FROM search_term_view WHERE segments.date BETWEEN '${termFrom}' AND '${termTo}'
        ORDER BY metrics.cost_micros DESC LIMIT 500`,
     );
@@ -355,6 +355,7 @@ export async function fetchAutopilotData(
         adGroup: r.adGroup?.name ?? "",
         costChf: Number(r.metrics?.costMicros ?? 0) / MICROS,
         conversions: Number(r.metrics?.conversions ?? 0),
+        clicks: Number(r.metrics?.clicks ?? 0),
       });
     }
 
@@ -1137,6 +1138,9 @@ export type AutopilotRunSummary = {
   pmaxSearchThemes?: Array<{ campaign: string; category: string; clicks: number; conversions: number }>;
   // Phase 1.4: Waechter-Kopfzeile "Waechter (letzte 7 Tage): X ok / Y warn / Z critical"
   guardian7d?: { ok: number; warn: number; critical: number };
+  // Phase 2: Kandidaten fuer semantische Negatives (Kosten > 0, 0 Conv. im
+  // Lag-Fenster, NICHT von der Kostenregel erfasst; max 200 nach Kosten).
+  semanticCandidates?: Array<{ term: string; campaign: string; adGroup: string; costChf: number; clicks: number }>;
   actions: Array<{ class: string; type: string; entity: string; status: string; rationale: string }>;
 };
 
@@ -1252,6 +1256,25 @@ export async function runAutopilot(clientId: string, opts?: { dryRun?: boolean }
     ...computeBrandOtaFindings(fetched.data, cfg),
     ...computeStructureFindings(fetched.data),
   ];
+
+  // Phase 2: Kandidaten fuer semantische Negatives - Begriffe mit Kosten aber
+  // 0 Conversions, die die Kostenregel (Rule 1) NICHT erfasst hat (sonst
+  // Doppelvorschlag). Verworfene Konflikt-Terms ebenfalls ausschliessen.
+  {
+    const handled = new Set<string>();
+    for (const a of planned) {
+      if (a.type === "add_negative" && a.exec?.kind === "negative") handled.add(normalizeTerm(a.exec.term));
+      if (a.type === "negative_conflict") {
+        const m = a.after.match(/"([^"]+)"/);
+        if (m) handled.add(normalizeTerm(m[1]));
+      }
+    }
+    base.semanticCandidates = fetched.data.searchTerms
+      .filter((t) => t.conversions === 0 && t.costChf > 0 && !handled.has(normalizeTerm(t.term)))
+      .sort((a, b) => b.costChf - a.costChf)
+      .slice(0, 200)
+      .map((t) => ({ term: t.term, campaign: t.campaign, adGroup: t.adGroup, costChf: Math.round(t.costChf * 100) / 100, clicks: t.clicks }));
+  }
 
   // Phase 1.1 Tracking-Health-Gate: bei BROKEN werden ALLE Write-Ops blockiert
   // (unabhaengig vom autonomy_level); der Run laeuft als reine Doku weiter.
@@ -1475,6 +1498,7 @@ export async function decideApproval(p: {
     result = await addNegativeKeyword({
       clientId: appr.client_id, googleAdsCustomer: client.google_ads_customer,
       campaignName: payload.campaign, term: payload.term,
+      matchType: payload.matchType === "PHRASE" ? "PHRASE" : "EXACT",
       dryRun: false, noTouch: cfg.no_touch_campaigns,
     });
   } else {

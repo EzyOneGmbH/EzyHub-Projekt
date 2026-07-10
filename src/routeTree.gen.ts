@@ -84,6 +84,7 @@ import { Route as ApiAdminAdsOutcomeReviewRouteImport } from './routes/api/admin
 import { Route as ApiAdminAdsClientsRouteImport } from './routes/api/admin.ads-clients'
 import { Route as ApiAdminAdsAutopilotRunRouteImport } from './routes/api/admin.ads-autopilot-run'
 import { Route as ApiAdminAdsGuardianRouteImport } from './routes/api/admin.ads-guardian'
+import { Route as ApiAdminAdsSemanticNegativesRouteImport } from './routes/api/admin.ads-semantic-negatives'
 import { Route as ApiAdminAdsAutopilotProposalRouteImport } from './routes/api/admin.ads-autopilot-proposal'
 import { Route as ApiAdminAdsAutopilotExecuteRouteImport } from './routes/api/admin.ads-autopilot-execute'
 import { Route as ApiAdminAdsAutopilotApprovalsRouteImport } from './routes/api/admin.ads-autopilot-approvals'
@@ -474,6 +475,11 @@ const ApiAdminAdsGuardianRoute = ApiAdminAdsGuardianRouteImport.update({
   path: '/api/admin/ads-guardian',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminAdsSemanticNegativesRoute = ApiAdminAdsSemanticNegativesRouteImport.update({
+  id: '/api/admin/ads-semantic-negatives',
+  path: '/api/admin/ads-semantic-negatives',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminAdsAutopilotProposalRoute =
   ApiAdminAdsAutopilotProposalRouteImport.update({
     id: '/api/admin/ads-autopilot-proposal',
@@ -548,6 +554,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/ads-autopilot-proposal': typeof ApiAdminAdsAutopilotProposalRoute
   '/api/admin/ads-autopilot-run': typeof ApiAdminAdsAutopilotRunRoute
   '/api/admin/ads-guardian': typeof ApiAdminAdsGuardianRoute
+  '/api/admin/ads-semantic-negatives': typeof ApiAdminAdsSemanticNegativesRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
   '/api/admin/ads-outcome-review': typeof ApiAdminAdsOutcomeReviewRoute
   '/api/admin/ads-scorecard': typeof ApiAdminAdsScorecardRoute
@@ -633,6 +640,7 @@ export interface FileRoutesByTo {
   '/api/admin/ads-autopilot-proposal': typeof ApiAdminAdsAutopilotProposalRoute
   '/api/admin/ads-autopilot-run': typeof ApiAdminAdsAutopilotRunRoute
   '/api/admin/ads-guardian': typeof ApiAdminAdsGuardianRoute
+  '/api/admin/ads-semantic-negatives': typeof ApiAdminAdsSemanticNegativesRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
   '/api/admin/ads-outcome-review': typeof ApiAdminAdsOutcomeReviewRoute
   '/api/admin/ads-scorecard': typeof ApiAdminAdsScorecardRoute
@@ -719,6 +727,7 @@ export interface FileRoutesById {
   '/api/admin/ads-autopilot-proposal': typeof ApiAdminAdsAutopilotProposalRoute
   '/api/admin/ads-autopilot-run': typeof ApiAdminAdsAutopilotRunRoute
   '/api/admin/ads-guardian': typeof ApiAdminAdsGuardianRoute
+  '/api/admin/ads-semantic-negatives': typeof ApiAdminAdsSemanticNegativesRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
   '/api/admin/ads-outcome-review': typeof ApiAdminAdsOutcomeReviewRoute
   '/api/admin/ads-scorecard': typeof ApiAdminAdsScorecardRoute
@@ -806,6 +815,7 @@ export interface FileRouteTypes {
     | '/api/admin/ads-autopilot-proposal'
     | '/api/admin/ads-autopilot-run'
     | '/api/admin/ads-guardian'
+    | '/api/admin/ads-semantic-negatives'
     | '/api/admin/ads-clients'
     | '/api/admin/ads-outcome-review'
     | '/api/admin/ads-scorecard'
@@ -891,6 +901,7 @@ export interface FileRouteTypes {
     | '/api/admin/ads-autopilot-proposal'
     | '/api/admin/ads-autopilot-run'
     | '/api/admin/ads-guardian'
+    | '/api/admin/ads-semantic-negatives'
     | '/api/admin/ads-clients'
     | '/api/admin/ads-outcome-review'
     | '/api/admin/ads-scorecard'
@@ -976,6 +987,7 @@ export interface FileRouteTypes {
     | '/api/admin/ads-autopilot-proposal'
     | '/api/admin/ads-autopilot-run'
     | '/api/admin/ads-guardian'
+    | '/api/admin/ads-semantic-negatives'
     | '/api/admin/ads-clients'
     | '/api/admin/ads-outcome-review'
     | '/api/admin/ads-scorecard'
@@ -1058,6 +1070,7 @@ export interface RootRouteChildren {
   ApiAdminAdsAutopilotProposalRoute: typeof ApiAdminAdsAutopilotProposalRoute
   ApiAdminAdsAutopilotRunRoute: typeof ApiAdminAdsAutopilotRunRoute
   ApiAdminAdsGuardianRoute: typeof ApiAdminAdsGuardianRoute
+  ApiAdminAdsSemanticNegativesRoute: typeof ApiAdminAdsSemanticNegativesRoute
   ApiAdminAdsClientsRoute: typeof ApiAdminAdsClientsRoute
   ApiAdminAdsOutcomeReviewRoute: typeof ApiAdminAdsOutcomeReviewRoute
   ApiAdminAdsScorecardRoute: typeof ApiAdminAdsScorecardRoute
@@ -1643,6 +1656,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminAdsGuardianRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/ads-semantic-negatives': {
+      id: '/api/admin/ads-semantic-negatives'
+      path: '/api/admin/ads-semantic-negatives'
+      fullPath: '/api/admin/ads-semantic-negatives'
+      preLoaderRoute: typeof ApiAdminAdsSemanticNegativesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/ads-autopilot-proposal': {
       id: '/api/admin/ads-autopilot-proposal'
       path: '/api/admin/ads-autopilot-proposal'
@@ -1772,6 +1792,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminAdsAutopilotProposalRoute: ApiAdminAdsAutopilotProposalRoute,
   ApiAdminAdsAutopilotRunRoute: ApiAdminAdsAutopilotRunRoute,
   ApiAdminAdsGuardianRoute: ApiAdminAdsGuardianRoute,
+  ApiAdminAdsSemanticNegativesRoute: ApiAdminAdsSemanticNegativesRoute,
   ApiAdminAdsClientsRoute: ApiAdminAdsClientsRoute,
   ApiAdminAdsOutcomeReviewRoute: ApiAdminAdsOutcomeReviewRoute,
   ApiAdminAdsScorecardRoute: ApiAdminAdsScorecardRoute,
