@@ -219,6 +219,38 @@ export type Database = {
           },
         ]
       }
+      ads_guardian_log: {
+        Row: {
+          checked_at: string
+          client_id: string
+          findings: Json
+          id: string
+          status: string
+        }
+        Insert: {
+          checked_at?: string
+          client_id: string
+          findings?: Json
+          id?: string
+          status: string
+        }
+        Update: {
+          checked_at?: string
+          client_id?: string
+          findings?: Json
+          id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_guardian_log_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ads_outcome_reviews: {
         Row: {
           action_type: string

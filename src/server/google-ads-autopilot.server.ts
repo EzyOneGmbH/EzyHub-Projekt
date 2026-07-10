@@ -103,6 +103,8 @@ export type AutopilotData = {
     // auction_insight_*-Metriken (API-Allowlist geschlossen). PMax liefert null.
     searchImpressionShare?: number | null;
     searchAbsTopImpressionShare?: number | null;
+    // IS-Verlust-Aufteilung: Budget (Tagesbudget zu knapp) vs. Rang (Gebot/Qualitaet)
+    rankLostIs?: number | null;
   }>;
   // Phase 1.4: Suchbegriffe im Conversion-Lag-Fenster (Tag -(30+lag) .. -lag),
   // damit junge Klicks ohne verbuchte Conversions nicht faelschlich als
@@ -208,6 +210,21 @@ async function search(
   return json.flatMap((b) => b.results ?? []);
 }
 
+// Read-only GAQL fuer Nebenmodule (z.B. Waechter-Lauf) - gleiche Auth/Kontext-Logik.
+export async function adsQuery(
+  clientId: string,
+  googleAdsCustomer: string | null | undefined,
+  gaql: string,
+): Promise<{ ok: boolean; rows?: Array<Record<string, any>>; skipped?: string; error?: string }> {
+  const ctx = await adsContext(clientId, googleAdsCustomer);
+  if ("skipped" in ctx) return { ok: false, skipped: ctx.skipped };
+  try {
+    return { ok: true, rows: await search(ctx, gaql) };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 export async function loadConfig(clientId: string): Promise<AutopilotConfig> {
   const { data } = await supabaseAdmin.from("ads_autopilot_config").select("*").eq("client_id", clientId).maybeSingle();
   return data ? { ...DEFAULT_CONFIG(clientId), ...data } : DEFAULT_CONFIG(clientId);
@@ -258,7 +275,8 @@ export async function fetchAutopilotData(
       `SELECT campaign.name, campaign.status, campaign.bidding_strategy_system_status,
               campaign_budget.amount_micros, metrics.cost_micros,
               metrics.conversions, metrics.conversions_value, metrics.search_budget_lost_impression_share,
-              metrics.search_impression_share, metrics.search_absolute_top_impression_share
+              metrics.search_impression_share, metrics.search_absolute_top_impression_share,
+              metrics.search_rank_lost_impression_share
        FROM campaign WHERE segments.date DURING LAST_30_DAYS AND campaign.status = 'ENABLED'`,
     );
     let costSum = 0;
@@ -282,6 +300,7 @@ export async function fetchAutopilotData(
         learning: LEARNING_STATUSES.has(sysStatus),
         searchImpressionShare: r.metrics?.searchImpressionShare != null ? Number(r.metrics.searchImpressionShare) : null,
         searchAbsTopImpressionShare: r.metrics?.searchAbsoluteTopImpressionShare != null ? Number(r.metrics.searchAbsoluteTopImpressionShare) : null,
+        rankLostIs: r.metrics?.searchRankLostImpressionShare != null ? Number(r.metrics.searchRankLostImpressionShare) : null,
       });
     }
     data.meta.costSumChf = Math.round(costSum * 100) / 100;
@@ -781,6 +800,16 @@ export function computeBrandOtaFindings(data: AutopilotData, cfg: AutopilotConfi
     const is = c.searchImpressionShare ?? null;
     if (is == null || is >= 0.9) continue;
     const absTop = c.searchAbsTopImpressionShare ?? null;
+    // IS-Verlust-Aufteilung: sagt dem Leser, OB der Hebel Budget oder Gebot/Qualitaet ist.
+    const budgetPct = Math.round(c.budgetLostIs * 100);
+    const rankPct = c.rankLostIs != null ? Math.round(c.rankLostIs * 100) : null;
+    let split = "";
+    if (rankPct != null) {
+      split =
+        ` Vom fehlenden Anteil gehen ${budgetPct} Prozentpunkte auf ein zu knappes Budget (Anzeige pausiert, sobald das Tagesbudget aufgebraucht ist) ` +
+        `und ${rankPct} Prozentpunkte auf einen zu tiefen Rang (Gebot/Anzeigenqualitaet) - der Hebel ist hier also ` +
+        (budgetPct > rankPct ? `das Budget.` : rankPct > budgetPct ? `Gebot/Qualitaet, nicht mehr Budget.` : `beides gleichermassen.`);
+    }
     out.push({
       actionClass: "report-only",
       type: "brand_is_alert",
@@ -791,7 +820,7 @@ export function computeBrandOtaFindings(data: AutopilotData, cfg: AutopilotConfi
         `Die eigene Marken-Kampagne "${c.name}" erscheint nur bei ${(is * 100).toFixed(0)}% der Suchen nach der eigenen Marke ` +
         `(Impression Share ${(is * 100).toFixed(0)}%, Playbook-Schwelle 90%)` +
         (absTop != null ? ` und steht nur in ${(absTop * 100).toFixed(0)}% ganz oben (Absolute Top)` : "") +
-        `. Jede verpasste Marken-Suche kann bei einem Buchungsportal landen und kostet dann Kommission. ` +
+        `.${split} Jede verpasste Marken-Suche kann bei einem Buchungsportal landen und kostet dann Kommission. ` +
         `Wer verdraengt, zeigt die Ads-UI unter Insights > Auktionsdaten (via API nicht verfuegbar).`,
     });
   }
@@ -1106,6 +1135,8 @@ export type AutopilotRunSummary = {
     roas: number | null; roasPrev: number | null;
   }>;
   pmaxSearchThemes?: Array<{ campaign: string; category: string; clicks: number; conversions: number }>;
+  // Phase 1.4: Waechter-Kopfzeile "Waechter (letzte 7 Tage): X ok / Y warn / Z critical"
+  guardian7d?: { ok: number; warn: number; critical: number };
   actions: Array<{ class: string; type: string; entity: string; status: string; rationale: string }>;
 };
 
@@ -1199,6 +1230,21 @@ export async function runAutopilot(clientId: string, opts?: { dryRun?: boolean }
   base.pmaxSearchThemes = d3.pmaxSearchThemes.slice(0, 10).map((t) => ({
     campaign: t.campaign, category: t.category, clicks: t.clicks, conversions: t.conversions,
   }));
+
+  // Phase 1.4: Waechter-Bilanz der letzten 7 Tage fuer den Report-Kopf.
+  try {
+    const since = new Date(now.getTime() - 7 * 24 * 3600 * 1000).toISOString();
+    const { data: g } = await supabaseAdmin
+      .from("ads_guardian_log")
+      .select("status")
+      .eq("client_id", clientId)
+      .gte("checked_at", since);
+    base.guardian7d = {
+      ok: (g ?? []).filter((r) => r.status === "ok").length,
+      warn: (g ?? []).filter((r) => r.status === "warn").length,
+      critical: (g ?? []).filter((r) => r.status === "critical").length,
+    };
+  } catch { /* Tabelle fehlt/Fehler -> Kopfzeile entfaellt, Run laeuft weiter */ }
 
   const planned = [
     ...planActions(fetched.data, cfg),

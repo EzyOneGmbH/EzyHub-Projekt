@@ -349,7 +349,7 @@ describe("computeBrandOtaFindings (Hotel-Playbook)", () => {
   it("brand_is_alert: Brand-IS < 90% aus oeffentlichen IS-Metriken (Ersatz fuer Auction Insights)", () => {
     const d = data({
       campaigns: [
-        { name: "SN - DE - Brand - X", status: "ENABLED", dailyBudgetChf: 20, costChf: 500, conversions: 30, conversionValue: 9000, roas: 18, budgetLostIs: 0.38, biddingSystemStatus: "ENABLED", learning: false, searchImpressionShare: 0.62, searchAbsTopImpressionShare: 0.5 },
+        { name: "SN - DE - Brand - X", status: "ENABLED", dailyBudgetChf: 20, costChf: 500, conversions: 30, conversionValue: 9000, roas: 18, budgetLostIs: 0.3, biddingSystemStatus: "ENABLED", learning: false, searchImpressionShare: 0.62, searchAbsTopImpressionShare: 0.5, rankLostIs: 0.08 },
         { name: "SN - DE - Brand - OK", status: "ENABLED", dailyBudgetChf: 20, costChf: 100, conversions: 10, conversionValue: 3000, roas: 30, budgetLostIs: 0, biddingSystemStatus: "ENABLED", learning: false, searchImpressionShare: 0.95, searchAbsTopImpressionShare: 0.9 },
         { name: "Non-Brand Y", status: "ENABLED", dailyBudgetChf: 20, costChf: 100, conversions: 5, conversionValue: 500, roas: 5, budgetLostIs: 0.5, biddingSystemStatus: "ENABLED", learning: false, searchImpressionShare: 0.3, searchAbsTopImpressionShare: 0.1 },
       ],
@@ -358,6 +358,10 @@ describe("computeBrandOtaFindings (Hotel-Playbook)", () => {
     expect(f).toHaveLength(1);
     expect(f[0].entity).toBe("SN - DE - Brand - X");
     expect(f[0].rationale).toContain("62%");
+    // IS-Verlust-Aufteilung: Budget vs. Rang, mit klarer Hebel-Aussage
+    expect(f[0].rationale).toContain("30 Prozentpunkte auf ein zu knappes Budget");
+    expect(f[0].rationale).toContain("8 Prozentpunkte auf einen zu tiefen Rang");
+    expect(f[0].rationale).toContain("der Hebel ist hier also das Budget");
     expect(f[0].actionClass).toBe("report-only");
     expect(computeBrandOtaFindings(d, cfg({ industry: "kmu-local" }))).toEqual([]);
   });
