@@ -99,11 +99,17 @@ export type AutopilotData = {
     budgetLostIs: number;
     biddingSystemStatus: string; // Phase 1.2: LEARNING_* blockiert Writes
     learning: boolean;
+    // Oeffentliche IS-Metriken (Search) - Ersatz fuer die nicht-oeffentlichen
+    // auction_insight_*-Metriken (API-Allowlist geschlossen). PMax liefert null.
+    searchImpressionShare?: number | null;
+    searchAbsTopImpressionShare?: number | null;
+    // IS-Verlust-Aufteilung: Budget (Tagesbudget zu knapp) vs. Rang (Gebot/Qualitaet)
+    rankLostIs?: number | null;
   }>;
   // Phase 1.4: Suchbegriffe im Conversion-Lag-Fenster (Tag -(30+lag) .. -lag),
   // damit junge Klicks ohne verbuchte Conversions nicht faelschlich als
   // "0 Conversions" ausgeschlossen werden.
-  searchTerms: Array<{ term: string; campaign: string; adGroup: string; costChf: number; conversions: number }>;
+  searchTerms: Array<{ term: string; campaign: string; adGroup: string; costChf: number; conversions: number; clicks: number }>;
   termWindow: { from: string; to: string; lagDays: number };
   // Phase 1.1: Tracking-Health (Konto-Ebene)
   trackingHealth: {
@@ -120,6 +126,30 @@ export type AutopilotData = {
     overlapRate: number | null;
     outrankingShare: number | null;
   }>;
+  // Struktur-Review (report-only): Gesamtstruktur ueber ALLE Kampagnentypen
+  adGroupPerformance: Array<{ campaign: string; adGroup: string; costChf: number; conversions: number; convValue: number }>;
+  keywordQuality: Array<{
+    campaign: string;
+    adGroup: string;
+    keyword: string;
+    matchType: string;
+    qualityScore: number | null; // 1-10; null = von Google nicht bewertet
+    expectedCtr: string;
+    adRelevance: string;
+    landingPageExperience: string;
+    costChf: number;
+    conversions: number;
+  }>;
+  // Monat vs. Vormonat je Kampagne (Tag -30..-1 vs. Tag -60..-31), alle Typen
+  monthComparison: Array<{
+    campaign: string;
+    channelType: string;
+    cost: number; costPrev: number;
+    conversions: number; conversionsPrev: number;
+    convValue: number; convValuePrev: number;
+    roas: number | null; roasPrev: number | null;
+  }>;
+  pmaxSearchThemes: Array<{ campaign: string; category: string; clicks: number; impressions: number; conversions: number }>;
   geoPerformance: Array<{ location: string; costChf: number; conversions: number; convValue: number }>;
   devicePerformance: Array<{ campaign: string; device: string; costChf: number; conversions: number }>;
   assetIssues: Array<{ adGroup: string; fieldType: string; text: string; label: string }>;
@@ -170,9 +200,29 @@ async function search(
     },
     body: JSON.stringify({ query: gaql }),
   });
-  if (!res.ok) throw new Error(`Ads API HTTP ${res.status}: ${(await res.text().catch(() => "")).slice(0, 300)}`);
+  if (!res.ok) {
+    // Fehlertext kompaktieren: JSON-Whitespace raus, damit der aussagekraeftige
+    // Detail-Fehlercode (errors[].errorCode) die Slice-Grenze nicht sprengt.
+    const raw = (await res.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 600);
+    throw new Error(`Ads API HTTP ${res.status}: ${raw}`);
+  }
   const json = (await res.json()) as Array<{ results?: Array<Record<string, any>> }>;
   return json.flatMap((b) => b.results ?? []);
+}
+
+// Read-only GAQL fuer Nebenmodule (z.B. Waechter-Lauf) - gleiche Auth/Kontext-Logik.
+export async function adsQuery(
+  clientId: string,
+  googleAdsCustomer: string | null | undefined,
+  gaql: string,
+): Promise<{ ok: boolean; rows?: Array<Record<string, any>>; skipped?: string; error?: string }> {
+  const ctx = await adsContext(clientId, googleAdsCustomer);
+  if ("skipped" in ctx) return { ok: false, skipped: ctx.skipped };
+  try {
+    return { ok: true, rows: await search(ctx, gaql) };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 export async function loadConfig(clientId: string): Promise<AutopilotConfig> {
@@ -198,6 +248,10 @@ export async function fetchAutopilotData(
     termWindow: { from: termFrom, to: termTo, lagDays: lag },
     trackingHealth: { status: "NO_BASELINE", spend7d: 0, conversions7d: 0, conversionsBaseline30d: 0 },
     auctionInsights: [],
+    adGroupPerformance: [],
+    keywordQuality: [],
+    monthComparison: [],
+    pmaxSearchThemes: [],
     geoPerformance: [],
     devicePerformance: [],
     assetIssues: [],
@@ -212,7 +266,7 @@ export async function fetchAutopilotData(
     try {
       await fn();
     } catch (e) {
-      data.dataSourceErrors.push(`${label}: ${(e instanceof Error ? e.message : String(e)).slice(0, 160)}`);
+      data.dataSourceErrors.push(`${label}: ${(e instanceof Error ? e.message : String(e)).slice(0, 600)}`);
     }
   };
   try {
@@ -220,7 +274,9 @@ export async function fetchAutopilotData(
       ctx,
       `SELECT campaign.name, campaign.status, campaign.bidding_strategy_system_status,
               campaign_budget.amount_micros, metrics.cost_micros,
-              metrics.conversions, metrics.conversions_value, metrics.search_budget_lost_impression_share
+              metrics.conversions, metrics.conversions_value, metrics.search_budget_lost_impression_share,
+              metrics.search_impression_share, metrics.search_absolute_top_impression_share,
+              metrics.search_rank_lost_impression_share
        FROM campaign WHERE segments.date DURING LAST_30_DAYS AND campaign.status = 'ENABLED'`,
     );
     let costSum = 0;
@@ -242,6 +298,9 @@ export async function fetchAutopilotData(
         budgetLostIs: Number(r.metrics?.searchBudgetLostImpressionShare ?? 0),
         biddingSystemStatus: sysStatus,
         learning: LEARNING_STATUSES.has(sysStatus),
+        searchImpressionShare: r.metrics?.searchImpressionShare != null ? Number(r.metrics.searchImpressionShare) : null,
+        searchAbsTopImpressionShare: r.metrics?.searchAbsoluteTopImpressionShare != null ? Number(r.metrics.searchAbsoluteTopImpressionShare) : null,
+        rankLostIs: r.metrics?.searchRankLostImpressionShare != null ? Number(r.metrics.searchRankLostImpressionShare) : null,
       });
     }
     data.meta.costSumChf = Math.round(costSum * 100) / 100;
@@ -285,7 +344,7 @@ export async function fetchAutopilotData(
     // Phase 1.4: Suchbegriffe im Lag-Fenster (statt LAST_30_DAYS).
     const terms = await search(
       ctx,
-      `SELECT search_term_view.search_term, campaign.name, ad_group.name, metrics.cost_micros, metrics.conversions
+      `SELECT search_term_view.search_term, campaign.name, ad_group.name, metrics.cost_micros, metrics.conversions, metrics.clicks
        FROM search_term_view WHERE segments.date BETWEEN '${termFrom}' AND '${termTo}'
        ORDER BY metrics.cost_micros DESC LIMIT 500`,
     );
@@ -296,6 +355,7 @@ export async function fetchAutopilotData(
         adGroup: r.adGroup?.name ?? "",
         costChf: Number(r.metrics?.costMicros ?? 0) / MICROS,
         conversions: Number(r.metrics?.conversions ?? 0),
+        clicks: Number(r.metrics?.clicks ?? 0),
       });
     }
 
@@ -396,13 +456,14 @@ export async function fetchAutopilotData(
       }
     });
 
-    // 5) Aenderungshistorie 7d (wer/was/wann) - Grundlage Externen-Detektor (Phase 5)
+    // 5) Aenderungshistorie 29d (wer/was/wann) - Externen-Detektor + Monats-Audit-Basis
+    // (change_event erlaubt max. 30 Tage Rueckblick; 29 vermeidet Randfehler)
     await soft("change_history", async () => {
       const rows = await search(
         ctx,
         `SELECT change_event.change_date_time, change_event.user_email, change_event.change_resource_type, change_event.changed_fields
          FROM change_event
-         WHERE change_event.change_date_time >= '${daysAgo(7)}' AND change_event.change_date_time <= '${daysAgo(0)} 23:59:59'
+         WHERE change_event.change_date_time >= '${daysAgo(29)}' AND change_event.change_date_time <= '${daysAgo(0)} 23:59:59'
          ORDER BY change_event.change_date_time DESC LIMIT 100`,
       );
       for (const r of rows) {
@@ -412,6 +473,129 @@ export async function fetchAutopilotData(
           resourceType: String(r.changeEvent?.changeResourceType ?? ""),
           fields: String(r.changeEvent?.changedFields ?? "").slice(0, 120),
         });
+      }
+    });
+
+    // ── Struktur-Review (report-only): 4 weitere Quellen ─────────────────────
+    // 6) Ad-Group-Performance (alle Typen, Top 100 nach Kosten)
+    await soft("adgroup_performance", async () => {
+      const rows = await search(
+        ctx,
+        `SELECT campaign.name, ad_group.name, metrics.cost_micros, metrics.conversions, metrics.conversions_value
+         FROM ad_group WHERE segments.date DURING LAST_30_DAYS AND ad_group.status = 'ENABLED'
+         ORDER BY metrics.cost_micros DESC LIMIT 100`,
+      );
+      for (const r of rows) {
+        data.adGroupPerformance.push({
+          campaign: r.campaign?.name ?? "",
+          adGroup: r.adGroup?.name ?? "",
+          costChf: Number(r.metrics?.costMicros ?? 0) / MICROS,
+          conversions: Number(r.metrics?.conversions ?? 0),
+          convValue: Number(r.metrics?.conversionsValue ?? 0),
+        });
+      }
+    });
+
+    // 7) Keyword-Bestand + Quality Score (Top 200 nach Kosten)
+    await soft("keyword_quality", async () => {
+      const rows = await search(
+        ctx,
+        `SELECT campaign.name, ad_group.name, ad_group_criterion.keyword.text, ad_group_criterion.keyword.match_type,
+                ad_group_criterion.quality_info.quality_score,
+                ad_group_criterion.quality_info.search_predicted_ctr,
+                ad_group_criterion.quality_info.creative_quality_score,
+                ad_group_criterion.quality_info.post_click_quality_score,
+                metrics.cost_micros, metrics.conversions
+         FROM keyword_view WHERE segments.date DURING LAST_30_DAYS AND ad_group_criterion.status = 'ENABLED'
+         ORDER BY metrics.cost_micros DESC LIMIT 200`,
+      );
+      for (const r of rows) {
+        const qi = r.adGroupCriterion?.qualityInfo ?? {};
+        data.keywordQuality.push({
+          campaign: r.campaign?.name ?? "",
+          adGroup: r.adGroup?.name ?? "",
+          keyword: String(r.adGroupCriterion?.keyword?.text ?? ""),
+          matchType: String(r.adGroupCriterion?.keyword?.matchType ?? ""),
+          qualityScore: qi.qualityScore != null ? Number(qi.qualityScore) : null,
+          expectedCtr: String(qi.searchPredictedCtr ?? "UNKNOWN"),
+          adRelevance: String(qi.creativeQualityScore ?? "UNKNOWN"),
+          landingPageExperience: String(qi.postClickQualityScore ?? "UNKNOWN"),
+          costChf: Number(r.metrics?.costMicros ?? 0) / MICROS,
+          conversions: Number(r.metrics?.conversions ?? 0),
+        });
+      }
+    });
+
+    // 8) Monat vs. Vormonat je Kampagne (Tag -30..-1 vs. -60..-31, ALLE Typen)
+    await soft("month_comparison", async () => {
+      const q = (from: string, to: string) =>
+        `SELECT campaign.name, campaign.advertising_channel_type, metrics.cost_micros, metrics.conversions, metrics.conversions_value
+         FROM campaign WHERE segments.date BETWEEN '${from}' AND '${to}' AND campaign.status = 'ENABLED'`;
+      const cur = await search(ctx, q(daysAgo(30), daysAgo(1)));
+      const prev = await search(ctx, q(daysAgo(60), daysAgo(31)));
+      type M = { channelType: string; cost: number; conv: number; value: number };
+      const agg = (rows: Array<Record<string, any>>) => {
+        const m = new Map<string, M>();
+        for (const r of rows) {
+          const name = r.campaign?.name ?? "";
+          const a = m.get(name) ?? { channelType: String(r.campaign?.advertisingChannelType ?? "UNKNOWN"), cost: 0, conv: 0, value: 0 };
+          a.cost += Number(r.metrics?.costMicros ?? 0) / MICROS;
+          a.conv += Number(r.metrics?.conversions ?? 0);
+          a.value += Number(r.metrics?.conversionsValue ?? 0);
+          m.set(name, a);
+        }
+        return m;
+      };
+      const curM = agg(cur);
+      const prevM = agg(prev);
+      const names = new Set([...curM.keys(), ...prevM.keys()]);
+      for (const name of names) {
+        const c = curM.get(name) ?? { channelType: prevM.get(name)!.channelType, cost: 0, conv: 0, value: 0 };
+        const p = prevM.get(name) ?? { channelType: c.channelType, cost: 0, conv: 0, value: 0 };
+        data.monthComparison.push({
+          campaign: name,
+          channelType: c.channelType,
+          cost: Math.round(c.cost * 100) / 100, costPrev: Math.round(p.cost * 100) / 100,
+          conversions: c.conv, conversionsPrev: p.conv,
+          convValue: Math.round(c.value * 100) / 100, convValuePrev: Math.round(p.value * 100) / 100,
+          roas: c.cost > 0 ? c.value / c.cost : null,
+          roasPrev: p.cost > 0 ? p.value / p.cost : null,
+        });
+      }
+      data.monthComparison.sort((a, b) => b.cost - a.cost);
+    });
+
+    // 9) PMax-Suchthemen-Insights (Kategorie-Ebene). Die API verlangt einen
+    //    campaign_id-Filter je Abfrage -> erst PMax-Kampagnen holen, dann je
+    //    Kampagne (max. 5, nach Status) die Insight-Kategorien.
+    await soft("pmax_search_themes", async () => {
+      const pmax = await search(
+        ctx,
+        `SELECT campaign.id, campaign.name FROM campaign
+         WHERE campaign.advertising_channel_type = 'PERFORMANCE_MAX' AND campaign.status = 'ENABLED' LIMIT 5`,
+      );
+      for (const c of pmax) {
+        const campId = c.campaign?.id;
+        const campName = c.campaign?.name ?? "";
+        if (!campId) continue;
+        const rows = await search(
+          ctx,
+          `SELECT campaign_search_term_insight.category_label,
+                  metrics.clicks, metrics.impressions, metrics.conversions
+           FROM campaign_search_term_insight
+           WHERE segments.date DURING LAST_30_DAYS
+             AND campaign_search_term_insight.campaign_id = ${Number(campId)}
+           ORDER BY metrics.clicks DESC LIMIT 10`,
+        );
+        for (const r of rows) {
+          data.pmaxSearchThemes.push({
+            campaign: campName,
+            category: String(r.campaignSearchTermInsight?.categoryLabel ?? ""),
+            clicks: Number(r.metrics?.clicks ?? 0),
+            impressions: Number(r.metrics?.impressions ?? 0),
+            conversions: Number(r.metrics?.conversions ?? 0),
+          });
+        }
       }
     });
 
@@ -439,7 +623,11 @@ export function computeGeoDeviceFindings(data: AutopilotData): PlannedAction[] {
           entity: g.location,
           before: "",
           after: "",
-          rationale: `Geo "${g.location}": CPA CHF ${cpa.toFixed(2)} (${dev > 0 ? "+" : ""}${(dev * 100).toFixed(0)}% vs Konto-CPA ${acctCpa.toFixed(2)}) bei ${g.conversions.toFixed(0)} Conv./30d`,
+          rationale:
+            `In der Region "${g.location}" kostet eine Conversion CHF ${cpa.toFixed(2)} - das sind ${dev > 0 ? "+" : ""}${(dev * 100).toFixed(0)}% gegenueber dem Konto-Schnitt von CHF ${acctCpa.toFixed(2)} (Basis: ${g.conversions.toFixed(0)} Conv./30d). ` +
+            (dev > 0
+              ? `Die Region ist ueberdurchschnittlich teuer - Gebotsanpassung oder Ausschluss pruefen.`
+              : `Die Region ist ueberdurchschnittlich guenstig - hier liegt ungenutztes Potenzial (Gebot/Budget verstaerken).`),
         });
       }
     } else if (g.conversions === 0 && g.costChf > 3 * acctCpa) {
@@ -449,7 +637,9 @@ export function computeGeoDeviceFindings(data: AutopilotData): PlannedAction[] {
         entity: g.location,
         before: "",
         after: "",
-        rationale: `Geo "${g.location}": CHF ${g.costChf.toFixed(2)} ohne Conversions (30d) - Streuverlust pruefen (Geo-Targeting)`,
+        rationale:
+          `Die Region "${g.location}" hat in 30 Tagen CHF ${g.costChf.toFixed(2)} gekostet, ohne eine einzige Conversion zu bringen - ` +
+          `das ist Werbebudget ohne Gegenwert (Streuverlust). Pruefen, ob die Region bewusst beworben wird (Geo-Targeting), sonst ausschliessen.`,
       });
     }
   }
@@ -473,7 +663,11 @@ export function computeGeoDeviceFindings(data: AutopilotData): PlannedAction[] {
         entity: device,
         before: "",
         after: "",
-        rationale: `Geraet ${device}: CPA CHF ${cpa.toFixed(2)} (${rel > 0 ? "+" : ""}${(rel * 100).toFixed(0)}% vs Konto-CPA ${acctCpa.toFixed(2)}) bei ${a.conv.toFixed(0)} Conv./30d${rel > 0 && device === "MOBILE" ? " - Mobile-Landing pruefen" : ""}`,
+        rationale:
+          `Auf Geraetetyp ${device} kostet eine Conversion CHF ${cpa.toFixed(2)} - ${rel > 0 ? "+" : ""}${(rel * 100).toFixed(0)}% gegenueber dem Konto-Schnitt von CHF ${acctCpa.toFixed(2)} (Basis: ${a.conv.toFixed(0)} Conv./30d). ` +
+          (rel > 0
+            ? `Nutzer auf diesem Geraet konvertieren deutlich teurer${device === "MOBILE" ? " - haeufigste Ursache ist eine langsame oder unbequeme mobile Website (Mobile-Landing pruefen)" : " - Gebotsanpassung pruefen"}.`
+            : `Nutzer auf diesem Geraet konvertieren deutlich guenstiger - Potenzial fuer staerkere Gebote.`),
       });
     }
   }
@@ -489,10 +683,105 @@ export function computeGeoDeviceFindings(data: AutopilotData): PlannedAction[] {
         entity: ag,
         before: "",
         after: "",
-        rationale: `${n} RSA-Assets mit Google-Label LOW in "${ag}" - Kandidat fuer Copy-Refresh (Input fuer /ads plan)`,
+        rationale:
+          `Google bewertet ${n} Anzeigen-Bausteine (Titel/Beschreibungen) in "${ag}" mit der schlechtesten Stufe LOW. ` +
+          `Schwache Bausteine druecken die Anzeigenqualitaet und damit die Auslieferung - Kandidat fuer Copy-Refresh (Input fuer /ads plan).`,
       });
     }
   }
+  return out;
+}
+
+// ── Struktur-Review: deterministische Findings (report-only, pure) ───────────
+// Speist die "Strategischen Beobachtungen" - Vorschlaege, keine Writes.
+export function computeStructureFindings(data: AutopilotData): PlannedAction[] {
+  const out: PlannedAction[] = [];
+  const acctCpa = data.meta.avgCpaChf;
+
+  // 1) qs_weakness: Quality Score <= 4 mit relevanten Kosten (Top 5 nach Kosten).
+  //    Komponenten nennen, damit die Empfehlung konkret ist (Anzeige vs. Landingpage).
+  const weakQs = data.keywordQuality
+    .filter((k) => k.qualityScore != null && k.qualityScore <= 4 && k.costChf > 0)
+    .sort((a, b) => b.costChf - a.costChf)
+    .slice(0, 5);
+  for (const k of weakQs) {
+    const parts: string[] = [];
+    if (k.adRelevance === "BELOW_AVERAGE") parts.push("Ad Relevance unterdurchschnittlich");
+    if (k.expectedCtr === "BELOW_AVERAGE") parts.push("Expected CTR unterdurchschnittlich");
+    if (k.landingPageExperience === "BELOW_AVERAGE") parts.push("Landing Page unterdurchschnittlich");
+    out.push({
+      actionClass: "report-only",
+      type: "qs_weakness",
+      entity: `${k.campaign} | ${k.adGroup} | ${k.keyword}`,
+      before: "",
+      after: "",
+      rationale:
+        `Keyword "${k.keyword}" (${k.matchType}): Quality Score ${k.qualityScore}/10 bei CHF ${k.costChf.toFixed(2)}/30d` +
+        (parts.length ? ` - Hebel: ${parts.join(", ")}` : "") +
+        ` - QS-Verbesserung senkt den CPC direkt (ROAS-Hebel ohne Mehrbudget)`,
+    });
+  }
+
+  // 2) adgroup_anomaly: CPA-Ausreisser je Ad-Group (>30% vs Konto-CPA bei >=5 Conv.)
+  //    plus reine Kostenfresser (0 Conv., Kosten > 3x Konto-CPA).
+  if (acctCpa && acctCpa > 0) {
+    for (const g of data.adGroupPerformance) {
+      if (g.conversions >= 5) {
+        const cpa = g.costChf / g.conversions;
+        const dev = (cpa - acctCpa) / acctCpa;
+        if (dev > 0.3) {
+          out.push({
+            actionClass: "report-only",
+            type: "adgroup_anomaly",
+            entity: `${g.campaign} | ${g.adGroup}`,
+            before: "",
+            after: "",
+            rationale: `Ad-Group "${g.adGroup}": CPA CHF ${cpa.toFixed(2)} (+${(dev * 100).toFixed(0)}% vs Konto-CPA ${acctCpa.toFixed(2)}) bei ${g.conversions.toFixed(0)} Conv./30d - Split/Ausschluss oder Gebots-Review pruefen`,
+          });
+        }
+      } else if (g.conversions === 0 && g.costChf > 3 * acctCpa) {
+        out.push({
+          actionClass: "report-only",
+          type: "adgroup_anomaly",
+          entity: `${g.campaign} | ${g.adGroup}`,
+          before: "",
+          after: "",
+          rationale: `Ad-Group "${g.adGroup}": CHF ${g.costChf.toFixed(2)} ohne Conversions (30d) - Relevanz/Suchbegriffe pruefen`,
+        });
+      }
+    }
+  }
+
+  // 3) mom_regression: ROAS-Einbruch > 20% ggue. Vormonat (nur belastbare Basis:
+  //    Vormonat >= 5 Conv.). Alle Kampagnentypen (Search, PMax, Display, ...).
+  for (const m of data.monthComparison) {
+    if (m.conversionsPrev < 5) continue;
+    if (m.roasPrev != null && m.roasPrev > 0 && m.roas != null) {
+      const delta = (m.roas - m.roasPrev) / m.roasPrev;
+      if (delta <= -0.2) {
+        out.push({
+          actionClass: "report-only",
+          type: "mom_regression",
+          entity: m.campaign,
+          before: `ROAS ${m.roasPrev.toFixed(1)} (Vormonat)`,
+          after: `ROAS ${m.roas.toFixed(1)}`,
+          rationale:
+            `${m.campaign} (${m.channelType}): ROAS ${m.roasPrev.toFixed(1)} -> ${m.roas.toFixed(1)} (${(delta * 100).toFixed(0)}%), ` +
+            `Kosten CHF ${m.costPrev.toFixed(0)} -> ${m.cost.toFixed(0)}, Conv. ${m.conversionsPrev.toFixed(0)} -> ${m.conversions.toFixed(0)} - Ursache pruefen (Aenderungsverlauf, Saison, Wettbewerb)`,
+        });
+      }
+    } else if (m.roasPrev != null && m.roasPrev > 0 && (m.roas == null || m.cost === 0)) {
+      out.push({
+        actionClass: "report-only",
+        type: "mom_regression",
+        entity: m.campaign,
+        before: `aktiv (Vormonat: CHF ${m.costPrev.toFixed(0)}, ROAS ${m.roasPrev.toFixed(1)})`,
+        after: "kein Spend im aktuellen 30d-Fenster",
+        rationale: `${m.campaign} (${m.channelType}): lief im Vormonat (CHF ${m.costPrev.toFixed(0)}, ${m.conversionsPrev.toFixed(0)} Conv.), aktuell ohne Spend - pausiert oder budgetlos? Aenderungsverlauf pruefen`,
+      });
+    }
+  }
+
   return out;
 }
 
@@ -503,6 +792,40 @@ export function computeBrandOtaFindings(data: AutopilotData, cfg: AutopilotConfi
   const out: PlannedAction[] = [];
   // "Brand", aber nicht "Non-Brand" (sonst false positives auf Non-Brand-Kampagnen)
   const isBrand = (name: string) => /brand/i.test(name) && !/non[-_ ]?brand/i.test(name);
+
+  // Playbook-Pflicht-KPI Brand-IS < 90% - aus den OEFFENTLICHEN IS-Metriken
+  // (die auction_insight_*-Metriken sind API-seitig nicht verfuegbar, Allowlist
+  // geschlossen; Konkurrenz-Detail nur in der Ads-UI unter Insights > Auktionsdaten).
+  for (const c of data.campaigns) {
+    if (!isBrand(c.name)) continue;
+    const is = c.searchImpressionShare ?? null;
+    if (is == null || is >= 0.9) continue;
+    const absTop = c.searchAbsTopImpressionShare ?? null;
+    // IS-Verlust-Aufteilung: sagt dem Leser, OB der Hebel Budget oder Gebot/Qualitaet ist.
+    const budgetPct = Math.round(c.budgetLostIs * 100);
+    const rankPct = c.rankLostIs != null ? Math.round(c.rankLostIs * 100) : null;
+    let split = "";
+    if (rankPct != null) {
+      split =
+        ` Vom fehlenden Anteil gehen ${budgetPct} Prozentpunkte auf ein zu knappes Budget (Anzeige pausiert, sobald das Tagesbudget aufgebraucht ist) ` +
+        `und ${rankPct} Prozentpunkte auf einen zu tiefen Rang (Gebot/Anzeigenqualitaet) - der Hebel ist hier also ` +
+        (budgetPct > rankPct ? `das Budget.` : rankPct > budgetPct ? `Gebot/Qualitaet, nicht mehr Budget.` : `beides gleichermassen.`);
+    }
+    out.push({
+      actionClass: "report-only",
+      type: "brand_is_alert",
+      entity: c.name,
+      before: "",
+      after: "",
+      rationale:
+        `Die eigene Marken-Kampagne "${c.name}" erscheint nur bei ${(is * 100).toFixed(0)}% der Suchen nach der eigenen Marke ` +
+        `(Impression Share ${(is * 100).toFixed(0)}%, Playbook-Schwelle 90%)` +
+        (absTop != null ? ` und steht nur in ${(absTop * 100).toFixed(0)}% ganz oben (Absolute Top)` : "") +
+        `.${split} Jede verpasste Marken-Suche kann bei einem Buchungsportal landen und kostet dann Kommission. ` +
+        `Wer verdraengt, zeigt die Ads-UI unter Insights > Auktionsdaten (via API nicht verfuegbar).`,
+    });
+  }
+
   const brandRows = data.auctionInsights.filter((a) => isBrand(a.campaign));
   const otas = brandRows.filter((a) => OTA_DOMAINS.some((o) => a.domain.includes(o)));
   for (const o of otas.slice(0, 5)) {
@@ -512,7 +835,10 @@ export function computeBrandOtaFindings(data: AutopilotData, cfg: AutopilotConfi
       entity: `${o.campaign} vs ${o.domain}`,
       before: "",
       after: "",
-      rationale: `OTA "${o.domain}" auf Brand: Overlap ${o.overlapRate != null ? (o.overlapRate * 100).toFixed(0) + "%" : "n/a"}, Outranking ${o.outrankingShare != null ? (o.outrankingShare * 100).toFixed(0) + "%" : "n/a"} - jeder verlorene Brand-Klick kostet spaeter OTA-Kommission`,
+      rationale:
+        `Das Buchungsportal "${o.domain}" bietet auf die eigenen Marken-Suchanfragen mit: Es erscheint in ${o.overlapRate != null ? (o.overlapRate * 100).toFixed(0) + "%" : "n/a"} derselben Auktionen (Overlap ${o.overlapRate != null ? (o.overlapRate * 100).toFixed(0) + "%" : "n/a"}) ` +
+        `und steht in ${o.outrankingShare != null ? (o.outrankingShare * 100).toFixed(0) + "%" : "n/a"} davon ueber der eigenen Anzeige (Outranking). ` +
+        `Jeder Gast, der so beim Portal statt direkt bucht, kostet spaeter Kommission - Brand-Sichtbarkeit verteidigen lohnt sich doppelt.`,
     });
   }
   return out;
@@ -630,7 +956,9 @@ export function planActions(data: AutopilotData, cfg: AutopilotConfig): PlannedA
           entity: `${t.campaign} | ${t.adGroup}`,
           before: "",
           after: `NICHT ausschliessen: "${t.term}"`,
-          rationale: `Konflikt: "${t.term}" kostet hier CHF ${t.costChf.toFixed(2)} ohne Conv., konvertiert aber in "${convElsewhere}" - Vorschlag verworfen.`,
+          rationale:
+            `Konflikt: "${t.term}" kostet in dieser Kampagne CHF ${t.costChf.toFixed(2)} ohne Conversion, bringt aber in der Kampagne "${convElsewhere}" nachweislich Conversions. ` +
+            `Ein Ausschluss wuerde dort funktionierende Anfragen blockieren - der Vorschlag wurde deshalb verworfen. Besser: Kampagnen-Zuordnung des Begriffs pruefen.`,
         });
         continue;
       }
@@ -643,7 +971,9 @@ export function planActions(data: AutopilotData, cfg: AutopilotConfig): PlannedA
         before: "",
         after: `+ "${t.term}" (negative exact)`,
         rationale:
-          `Search Term "${t.term}": Cost CHF ${t.costChf.toFixed(2)}, 0 Conv. im Lag-Fenster ${winNote} (> 3x Ziel-CPA ${refCpa.toFixed(2)})` +
+          `Der Suchbegriff "${t.term}" hat im Auswertungsfenster ${winNote} CHF ${t.costChf.toFixed(2)} gekostet, ohne eine einzige Conversion zu bringen - ` +
+          `mehr als das 3-fache dessen, was eine Conversion kosten darf (Ziel-CPA CHF ${refCpa.toFixed(2)}). ` +
+          `Der exakte Ausschluss stoppt diese wiederkehrende Verschwendung, ohne andere Suchanfragen zu beruehren.` +
           `${overLimit ? " [Limit 20/Run erreicht]" : ""}${learning ? " [Learning Phase aktiv - herabgestuft]" : ""}`,
         exec: { kind: "negative", campaign: t.campaign, term: t.term },
       });
@@ -686,7 +1016,9 @@ export function planActions(data: AutopilotData, cfg: AutopilotConfig): PlannedA
         entity: `${a.campaign} | n-gram`,
         before: "",
         after: `+ "${g}" (negative phrase)`,
-        rationale: `n-gram "${g}": CHF ${a.cost.toFixed(2)} ueber ${a.terms.size} Suchbegriffe, 0 Conv. im Lag-Fenster ${winNote} (> 2x Ziel-CPA ${refCpa.toFixed(2)})`,
+        rationale:
+          `Das Wortmuster "${g}" taucht in ${a.terms.size} verschiedenen Suchbegriffen auf, die zusammen CHF ${a.cost.toFixed(2)} gekostet haben - ohne eine einzige Conversion im Fenster ${winNote} ` +
+          `(mehr als das 2-fache des Ziel-CPA CHF ${refCpa.toFixed(2)}). Ein Phrase-Ausschluss unterbindet das gesamte Muster statt jedes Einzelbegriffs - darum Freigabe noetig: er wirkt breiter als ein exakter Ausschluss.`,
         estimatedImpact: `Vermeidet wiederkehrende Verschwendung des Musters (CHF ~${a.cost.toFixed(0)}/30d)`,
         exec: { kind: "negative", campaign: a.campaign, term: g },
       });
@@ -717,12 +1049,23 @@ export function planActions(data: AutopilotData, cfg: AutopilotConfig): PlannedA
     const learningNote = learningCampaigns.has(c.name) ? " [Learning Phase aktiv]" : "";
     const baseNote = `${c.conversions.toFixed(0)} Conv./30d (Mindestbasis ${minConv})` + seasonNote + learningNote;
 
+    // Beobachtung in Klartext: was heisst "IS Lost (Budget)" konkret?
+    const limitNote =
+      `Die Kampagne verliert ${(c.budgetLostIs * 100).toFixed(0)}% der moeglichen Impressionen, ` +
+      `weil das Tagesbudget frueher ausgeschoepft ist als die Nachfrage (Impression Share Lost Budget ${(c.budgetLostIs * 100).toFixed(0)}%).`;
+
     let evidence: string | null = null; // gesetzt = Ziel erfuellt -> Vorschlag
     if (targetRoas != null) {
-      if (c.roas != null && c.roas >= targetRoas) evidence = `ROAS ${c.roas.toFixed(1)} >= Ziel ${targetRoas}`;
+      if (c.roas != null && c.roas >= targetRoas)
+        evidence =
+          `Gleichzeitig ist sie nachweislich rentabel: ROAS ${c.roas.toFixed(1)} >= Ziel ${targetRoas} ` +
+          `(pro Werbefranken kommen CHF ${c.roas.toFixed(1)} Umsatz zurueck).`;
     } else if (targetCpa != null && targetCpa > 0) {
       const cpa = c.costChf / c.conversions; // conversions >= minConv > 0
-      if (cpa <= targetCpa) evidence = `CPA CHF ${cpa.toFixed(2)} <= Ziel-CPA CHF ${targetCpa.toFixed(2)} (ROAS-los gueltig, z.B. Lead-Tracking ohne Wert)`;
+      if (cpa <= targetCpa)
+        evidence =
+          `Gleichzeitig ist sie nachweislich rentabel: CPA CHF ${cpa.toFixed(2)} <= Ziel-CPA CHF ${targetCpa.toFixed(2)} ` +
+          `(eine Conversion kostet weniger, als sie kosten darf; gilt auch ohne Umsatz-Tracking, ROAS zeigt dort 0.0).`;
     } else {
       // Fall 1 (Brief 0.1): fehlende Zielgroesse blockiert Budget-Vorschlaege.
       actions.push({
@@ -732,8 +1075,8 @@ export function planActions(data: AutopilotData, cfg: AutopilotConfig): PlannedA
         before: `CHF ${c.dailyBudgetChf.toFixed(2)}/Tag`,
         after: "",
         rationale:
-          `Impression Share Lost (Budget) ${(c.budgetLostIs * 100).toFixed(0)}%, aber kein Ziel definiert ` +
-          `(target_roas/target_cpa in Config setzen) - keine Budget-Empfehlung. ${baseNote}`,
+          `${limitNote} Es ist aber kein Ziel definiert (target_roas/target_cpa in Config setzen) - ` +
+          `ohne Wirtschaftlichkeitsziel laesst sich nicht belegen, ob mehr Budget rentiert. Deshalb nur Beobachtung, keine Budget-Empfehlung. ${baseNote}`,
       });
       continue;
     }
@@ -744,7 +1087,9 @@ export function planActions(data: AutopilotData, cfg: AutopilotConfig): PlannedA
       entity: c.name,
       before: `CHF ${c.dailyBudgetChf.toFixed(2)}/Tag`,
       after: `CHF ${proposed.toFixed(2)}/Tag`,
-      rationale: `Impression Share Lost (Budget) ${(c.budgetLostIs * 100).toFixed(0)}%, ${evidence}, ${baseNote}`,
+      rationale:
+        `${limitNote} ${evidence} ` +
+        `Eine Erhoehung um 10% (CHF ${c.dailyBudgetChf.toFixed(2)} -> ${proposed.toFixed(2)}/Tag) erschliesst diese verlorene, rentable Nachfrage. Datenbasis: ${baseNote}`,
       estimatedImpact: "Mehr Sichtbarkeit in budgetlimitierter Kampagne",
       exec: { kind: "budget", campaign: c.name, dailyChf: proposed },
     });
@@ -781,6 +1126,21 @@ export type AutopilotRunSummary = {
   pmaxAssetGroups?: Array<{ name: string; adStrength: string }>;
   changeHistory?: Array<{ at: string; user: string; resourceType: string }>;
   dataSourceErrors?: string[];
+  // Struktur-Review (report-only): Gesamtstruktur + MoM + QS fuer den Report
+  adGroupTop?: Array<{ campaign: string; adGroup: string; costChf: number; conversions: number }>;
+  qsDistribution?: { rated: number; weak: number; avg: number | null };
+  monthComparison?: Array<{
+    campaign: string; channelType: string;
+    cost: number; costPrev: number;
+    conversions: number; conversionsPrev: number;
+    roas: number | null; roasPrev: number | null;
+  }>;
+  pmaxSearchThemes?: Array<{ campaign: string; category: string; clicks: number; conversions: number }>;
+  // Phase 1.4: Waechter-Kopfzeile "Waechter (letzte 7 Tage): X ok / Y warn / Z critical"
+  guardian7d?: { ok: number; warn: number; critical: number };
+  // Phase 2: Kandidaten fuer semantische Negatives (Kosten > 0, 0 Conv. im
+  // Lag-Fenster, NICHT von der Kostenregel erfasst; max 200 nach Kosten).
+  semanticCandidates?: Array<{ term: string; campaign: string; adGroup: string; costChf: number; clicks: number }>;
   actions: Array<{ class: string; type: string; entity: string; status: string; rationale: string }>;
 };
 
@@ -852,11 +1212,69 @@ export async function runAutopilot(clientId: string, opts?: { dryRun?: boolean }
   base.changeHistory = d3.changeHistory.slice(0, 20).map((c) => ({ at: c.at, user: c.user, resourceType: c.resourceType }));
   base.dataSourceErrors = d3.dataSourceErrors;
 
+  // Struktur-Review-Bloecke (report-only) fuer den Report.
+  base.adGroupTop = d3.adGroupPerformance.slice(0, 10).map((g) => ({
+    campaign: g.campaign, adGroup: g.adGroup, costChf: Math.round(g.costChf * 100) / 100, conversions: g.conversions,
+  }));
+  {
+    const rated = d3.keywordQuality.filter((k) => k.qualityScore != null);
+    base.qsDistribution = {
+      rated: rated.length,
+      weak: rated.filter((k) => (k.qualityScore ?? 10) <= 4).length,
+      avg: rated.length ? Math.round((rated.reduce((s, k) => s + (k.qualityScore ?? 0), 0) / rated.length) * 10) / 10 : null,
+    };
+  }
+  base.monthComparison = d3.monthComparison.slice(0, 15).map((m) => ({
+    campaign: m.campaign, channelType: m.channelType,
+    cost: m.cost, costPrev: m.costPrev,
+    conversions: m.conversions, conversionsPrev: m.conversionsPrev,
+    roas: m.roas != null ? Math.round(m.roas * 10) / 10 : null,
+    roasPrev: m.roasPrev != null ? Math.round(m.roasPrev * 10) / 10 : null,
+  }));
+  base.pmaxSearchThemes = d3.pmaxSearchThemes.slice(0, 10).map((t) => ({
+    campaign: t.campaign, category: t.category, clicks: t.clicks, conversions: t.conversions,
+  }));
+
+  // Phase 1.4: Waechter-Bilanz der letzten 7 Tage fuer den Report-Kopf.
+  try {
+    const since = new Date(now.getTime() - 7 * 24 * 3600 * 1000).toISOString();
+    const { data: g } = await supabaseAdmin
+      .from("ads_guardian_log")
+      .select("status")
+      .eq("client_id", clientId)
+      .gte("checked_at", since);
+    base.guardian7d = {
+      ok: (g ?? []).filter((r) => r.status === "ok").length,
+      warn: (g ?? []).filter((r) => r.status === "warn").length,
+      critical: (g ?? []).filter((r) => r.status === "critical").length,
+    };
+  } catch { /* Tabelle fehlt/Fehler -> Kopfzeile entfaellt, Run laeuft weiter */ }
+
   const planned = [
     ...planActions(fetched.data, cfg),
     ...computeGeoDeviceFindings(fetched.data),
     ...computeBrandOtaFindings(fetched.data, cfg),
+    ...computeStructureFindings(fetched.data),
   ];
+
+  // Phase 2: Kandidaten fuer semantische Negatives - Begriffe mit Kosten aber
+  // 0 Conversions, die die Kostenregel (Rule 1) NICHT erfasst hat (sonst
+  // Doppelvorschlag). Verworfene Konflikt-Terms ebenfalls ausschliessen.
+  {
+    const handled = new Set<string>();
+    for (const a of planned) {
+      if (a.type === "add_negative" && a.exec?.kind === "negative") handled.add(normalizeTerm(a.exec.term));
+      if (a.type === "negative_conflict") {
+        const m = a.after.match(/"([^"]+)"/);
+        if (m) handled.add(normalizeTerm(m[1]));
+      }
+    }
+    base.semanticCandidates = fetched.data.searchTerms
+      .filter((t) => t.conversions === 0 && t.costChf > 0 && !handled.has(normalizeTerm(t.term)))
+      .sort((a, b) => b.costChf - a.costChf)
+      .slice(0, 200)
+      .map((t) => ({ term: t.term, campaign: t.campaign, adGroup: t.adGroup, costChf: Math.round(t.costChf * 100) / 100, clicks: t.clicks }));
+  }
 
   // Phase 1.1 Tracking-Health-Gate: bei BROKEN werden ALLE Write-Ops blockiert
   // (unabhaengig vom autonomy_level); der Run laeuft als reine Doku weiter.
@@ -1080,6 +1498,7 @@ export async function decideApproval(p: {
     result = await addNegativeKeyword({
       clientId: appr.client_id, googleAdsCustomer: client.google_ads_customer,
       campaignName: payload.campaign, term: payload.term,
+      matchType: payload.matchType === "PHRASE" ? "PHRASE" : "EXACT",
       dryRun: false, noTouch: cfg.no_touch_campaigns,
     });
   } else {

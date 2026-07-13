@@ -7,6 +7,7 @@ import {
   normalizeTerm,
   computeGeoDeviceFindings,
   computeBrandOtaFindings,
+  computeStructureFindings,
   type AutopilotConfig,
   type AutopilotData,
 } from "./google-ads-autopilot.server";
@@ -42,6 +43,10 @@ const data = (over: Partial<AutopilotData> = {}): AutopilotData => ({
   termWindow: { from: "2026-05-26", to: "2026-06-25", lagDays: 14 },
   trackingHealth: { status: "OK", spend7d: 100, conversions7d: 5, conversionsBaseline30d: 50 },
   auctionInsights: [],
+  adGroupPerformance: [],
+  keywordQuality: [],
+  monthComparison: [],
+  pmaxSearchThemes: [],
   geoPerformance: [],
   devicePerformance: [],
   assetIssues: [],
@@ -115,8 +120,8 @@ describe("planActions (Abnahme 1.4)", () => {
   it("Cross-Kampagnen-Konflikt: konvertierender Begriff wird NICHT ausgeschlossen", () => {
     const d = data({
       searchTerms: [
-        { term: "wellness wochenende", campaign: "Kampagne X", adGroup: "AG1", costChf: 400, conversions: 0 },
-        { term: "wellness wochenende", campaign: "Kampagne Y", adGroup: "AG2", costChf: 90, conversions: 2 },
+        { term: "wellness wochenende", campaign: "Kampagne X", adGroup: "AG1", costChf: 400, conversions: 0, clicks: 0 },
+        { term: "wellness wochenende", campaign: "Kampagne Y", adGroup: "AG2", costChf: 90, conversions: 2, clicks: 0 },
       ],
     });
     const acts = planActions(d, cfg());
@@ -129,7 +134,7 @@ describe("planActions (Abnahme 1.4)", () => {
       campaigns: [
         { name: "L", status: "ENABLED", dailyBudgetChf: 20, costChf: 100, conversions: 10, conversionValue: 500, roas: 5, budgetLostIs: 0, biddingSystemStatus: "LEARNING_BUDGET_CHANGE", learning: true },
       ],
-      searchTerms: [{ term: "teurer quatsch begriff", campaign: "L", adGroup: "AG", costChf: 200, conversions: 0 }],
+      searchTerms: [{ term: "teurer quatsch begriff", campaign: "L", adGroup: "AG", costChf: 200, conversions: 0, clicks: 0 }],
     });
     const acts = planActions(d, cfg({ autonomy_level: 1 }));
     const neg = acts.find((a) => a.type === "add_negative");
@@ -209,7 +214,7 @@ describe("planActions (Abnahme 1.4)", () => {
   it("N-Gram-Kandidat entsteht nur bei >=5 Begriffen, 0 Conv., Kosten > 2x CPA - und nie als Stoppwort", () => {
     const terms = Array.from({ length: 6 }, (_, i) => ({
       term: `billige unterkunft variante ${i}`,
-      campaign: "K", adGroup: "AG", costChf: 30, conversions: 0,
+      campaign: "K", adGroup: "AG", costChf: 30, conversions: 0, clicks: 0,
     }));
     const acts = planActions(data({ searchTerms: terms }), cfg());
     const phrases = acts.filter((a) => a.type === "add_negative_phrase");
@@ -268,7 +273,99 @@ describe("computeGeoDeviceFindings (Phase 3.2)", () => {
   });
 });
 
+describe("computeStructureFindings (Struktur-Review, report-only)", () => {
+  it("qs_weakness: QS <= 4 mit Kosten wird gemeldet, mit Komponenten-Hebel; QS 5+ nicht", () => {
+    const d = data({
+      keywordQuality: [
+        { campaign: "K", adGroup: "AG", keyword: "hotel tessin", matchType: "PHRASE", qualityScore: 3, expectedCtr: "AVERAGE", adRelevance: "BELOW_AVERAGE", landingPageExperience: "BELOW_AVERAGE", costChf: 120, conversions: 1 },
+        { campaign: "K", adGroup: "AG", keyword: "gutes keyword", matchType: "EXACT", qualityScore: 8, expectedCtr: "ABOVE_AVERAGE", adRelevance: "AVERAGE", landingPageExperience: "AVERAGE", costChf: 200, conversions: 5 },
+        { campaign: "K", adGroup: "AG", keyword: "unbewertet", matchType: "BROAD", qualityScore: null, expectedCtr: "UNKNOWN", adRelevance: "UNKNOWN", landingPageExperience: "UNKNOWN", costChf: 90, conversions: 0 },
+      ],
+    });
+    const f = computeStructureFindings(d).filter((x) => x.type === "qs_weakness");
+    expect(f).toHaveLength(1);
+    expect(f[0].entity).toContain("hotel tessin");
+    expect(f[0].rationale).toContain("Quality Score 3/10");
+    expect(f[0].rationale).toContain("Ad Relevance");
+    expect(f[0].rationale).toContain("Landing Page");
+    expect(f[0].actionClass).toBe("report-only");
+  });
+
+  it("adgroup_anomaly: CPA-Ausreisser (>30%) und Kostenfresser ohne Conversions", () => {
+    const d = data({
+      adGroupPerformance: [
+        { campaign: "K", adGroup: "Teuer", costChf: 500, conversions: 5, convValue: 0 },   // CPA 100 = +100%
+        { campaign: "K", adGroup: "Normal", costChf: 250, conversions: 5, convValue: 0 },  // CPA 50 = 0%
+        { campaign: "K", adGroup: "Fresser", costChf: 200, conversions: 0, convValue: 0 }, // > 3x CPA, 0 Conv.
+        { campaign: "K", adGroup: "Klein", costChf: 40, conversions: 0, convValue: 0 },    // unter Schwelle
+      ],
+      meta: { customerId: "1", costSumChf: 0, avgCpaChf: 50 },
+    });
+    const f = computeStructureFindings(d).filter((x) => x.type === "adgroup_anomaly");
+    expect(f.map((x) => x.entity)).toEqual(["K | Teuer", "K | Fresser"]);
+    for (const x of f) expect(x.actionClass).toBe("report-only");
+  });
+
+  it("mom_regression: ROAS-Einbruch > 20% MoM wird gemeldet (alle Kampagnentypen), stabile nicht", () => {
+    const d = data({
+      monthComparison: [
+        { campaign: "PMax A", channelType: "PERFORMANCE_MAX", cost: 1000, costPrev: 1000, conversions: 20, conversionsPrev: 22, convValue: 3000, convValuePrev: 8000, roas: 3, roasPrev: 8 },
+        { campaign: "Search B", channelType: "SEARCH", cost: 500, costPrev: 480, conversions: 10, conversionsPrev: 11, convValue: 2600, convValuePrev: 2500, roas: 5.2, roasPrev: 5.2 },
+        { campaign: "Duenn C", channelType: "SEARCH", cost: 100, costPrev: 90, conversions: 1, conversionsPrev: 2, convValue: 0, convValuePrev: 400, roas: 0, roasPrev: 4.4 }, // Vormonat < 5 Conv. -> keine Meldung
+      ],
+    });
+    const f = computeStructureFindings(d).filter((x) => x.type === "mom_regression");
+    expect(f).toHaveLength(1);
+    expect(f[0].entity).toBe("PMax A");
+    expect(f[0].rationale).toContain("PERFORMANCE_MAX");
+    expect(f[0].actionClass).toBe("report-only");
+  });
+
+  it("mom_regression: Kampagne lief im Vormonat, jetzt ohne Spend -> Hinweis", () => {
+    const d = data({
+      monthComparison: [
+        { campaign: "Pausiert", channelType: "SEARCH", cost: 0, costPrev: 300, conversions: 0, conversionsPrev: 8, convValue: 0, convValuePrev: 1200, roas: null, roasPrev: 4 },
+      ],
+    });
+    const f = computeStructureFindings(d).filter((x) => x.type === "mom_regression");
+    expect(f).toHaveLength(1);
+    expect(f[0].rationale).toContain("ohne Spend");
+  });
+
+  it("liefert NIE etwas anderes als report-only", () => {
+    const d = data({
+      keywordQuality: [{ campaign: "K", adGroup: "A", keyword: "x", matchType: "EXACT", qualityScore: 2, expectedCtr: "BELOW_AVERAGE", adRelevance: "BELOW_AVERAGE", landingPageExperience: "BELOW_AVERAGE", costChf: 500, conversions: 0 }],
+      adGroupPerformance: [{ campaign: "K", adGroup: "A", costChf: 900, conversions: 0, convValue: 0 }],
+      monthComparison: [{ campaign: "K", channelType: "SEARCH", cost: 100, costPrev: 500, conversions: 1, conversionsPrev: 20, convValue: 100, convValuePrev: 4000, roas: 1, roasPrev: 8 }],
+      meta: { customerId: "1", costSumChf: 0, avgCpaChf: 50 },
+    });
+    const f = computeStructureFindings(d);
+    expect(f.length).toBeGreaterThan(0);
+    expect(f.every((x) => x.actionClass === "report-only" && x.exec === undefined)).toBe(true);
+  });
+});
+
 describe("computeBrandOtaFindings (Hotel-Playbook)", () => {
+  it("brand_is_alert: Brand-IS < 90% aus oeffentlichen IS-Metriken (Ersatz fuer Auction Insights)", () => {
+    const d = data({
+      campaigns: [
+        { name: "SN - DE - Brand - X", status: "ENABLED", dailyBudgetChf: 20, costChf: 500, conversions: 30, conversionValue: 9000, roas: 18, budgetLostIs: 0.3, biddingSystemStatus: "ENABLED", learning: false, searchImpressionShare: 0.62, searchAbsTopImpressionShare: 0.5, rankLostIs: 0.08 },
+        { name: "SN - DE - Brand - OK", status: "ENABLED", dailyBudgetChf: 20, costChf: 100, conversions: 10, conversionValue: 3000, roas: 30, budgetLostIs: 0, biddingSystemStatus: "ENABLED", learning: false, searchImpressionShare: 0.95, searchAbsTopImpressionShare: 0.9 },
+        { name: "Non-Brand Y", status: "ENABLED", dailyBudgetChf: 20, costChf: 100, conversions: 5, conversionValue: 500, roas: 5, budgetLostIs: 0.5, biddingSystemStatus: "ENABLED", learning: false, searchImpressionShare: 0.3, searchAbsTopImpressionShare: 0.1 },
+      ],
+    });
+    const f = computeBrandOtaFindings(d, cfg({ industry: "hotel" })).filter((x) => x.type === "brand_is_alert");
+    expect(f).toHaveLength(1);
+    expect(f[0].entity).toBe("SN - DE - Brand - X");
+    expect(f[0].rationale).toContain("62%");
+    // IS-Verlust-Aufteilung: Budget vs. Rang, mit klarer Hebel-Aussage
+    expect(f[0].rationale).toContain("30 Prozentpunkte auf ein zu knappes Budget");
+    expect(f[0].rationale).toContain("8 Prozentpunkte auf einen zu tiefen Rang");
+    expect(f[0].rationale).toContain("der Hebel ist hier also das Budget");
+    expect(f[0].actionClass).toBe("report-only");
+    expect(computeBrandOtaFindings(d, cfg({ industry: "kmu-local" }))).toEqual([]);
+  });
+
   it("quantifiziert OTA-Druck auf Brand-Kampagnen (nur industry hotel)", () => {
     const d = data({
       auctionInsights: [
