@@ -24,7 +24,7 @@ import { normalizeCanonryBase } from "@/lib/canonry-url";
 const Body = z.object({
   client: z.string().optional(), // Name (ilike) oder uuid
   all: z.boolean().optional(),
-  jobs: z.array(z.enum(["brand_radar", "attribution", "prompts", "canonry"])).optional(),
+  jobs: z.array(z.enum(["brand_radar", "attribution", "prompts", "canonry", "serp_ai"])).optional(),
   minIntervalDays: z.number().int().min(0).max(60).default(6),
   force: z.boolean().optional(),
   mode: z.enum(["live", "backfill"]).default("live"), // backfill = Ahrefs/GA4-Historie
@@ -123,6 +123,118 @@ async function brandRadar(path: string, params: Record<string, unknown>, key: st
 // REST-Form nimmt den Brand als Plain-Namen (die entities-Struktur ist MCP-only).
 function brandName(c: any) {
   return String(c.name || "").trim() || cleanDomain(c.domain).split(".")[0];
+}
+
+// ── DataForSEO: eigener AI-Overview/AI-Mode-Tracker (Makro-Quelle 2) ─────────
+// Copilot & Co. sind nicht per API abfragbar — aber Google AI Overviews und
+// AI Mode stehen in der Google-SERP. Wir prüfen die GSC-Top-Suchanfragen des
+// Kunden per DataForSEO (pay-per-call) darauf, ob eine AI-Antwort erscheint
+// und ob der Kunde darin zitiert/erwähnt wird. Macht die beiden Modelle
+// unabhängig vom Ahrefs-Korpus und misst auf den EIGENEN Keywords.
+const DFS_SERP_KEYWORDS = Math.max(1, Number(process.env.AIVIS_SERP_KEYWORDS ?? 20) || 20);
+const DFS_LOCATION: Record<string, { code: number; lang: string; name: string }> = {
+  CH: { code: 2756, lang: "de", name: "Schweiz" },
+  DE: { code: 2276, lang: "de", name: "Deutschland" },
+  AT: { code: 2040, lang: "de", name: "Österreich" },
+  IT: { code: 2380, lang: "it", name: "Italien" },
+};
+
+function dfsAuth(): string | null {
+  const login = process.env.DATAFORSEO_LOGIN, pass = process.env.DATAFORSEO_PASSWORD;
+  if (!login || !pass) return null;
+  return "Basic " + Buffer.from(`${login}:${pass}`).toString("base64");
+}
+
+async function dfsSerp(auth: string, kind: "organic" | "ai_mode", keyword: string, loc: { code: number; lang: string }) {
+  const url = kind === "organic"
+    ? "https://api.dataforseo.com/v3/serp/google/organic/live/advanced"
+    : "https://api.dataforseo.com/v3/serp/google/ai_mode/live/advanced";
+  const body: any = { keyword, location_code: loc.code, language_code: loc.lang, device: "desktop" };
+  if (kind === "organic") { body.depth = 20; body.load_async_ai_overview = true; } // AI Overview lädt teils async
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: auth, "Content-Type": "application/json" },
+    body: JSON.stringify([body]),
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (!r.ok) throw new Error(`DataForSEO ${kind} -> HTTP ${r.status}`);
+  const j: any = await r.json().catch(() => ({}));
+  const t = j?.tasks?.[0];
+  if (j.status_code !== 20000 || !t || t.status_code !== 20000)
+    throw new Error(`DataForSEO ${kind} -> ${t?.status_code || j.status_code} ${t?.status_message || ""}`.trim());
+  return t.result?.[0]?.items || [];
+}
+
+// GSC-Top-Suchanfragen (28 Tage, GSC-Reihenfolge = Klicks absteigend).
+async function gscTopQueries(c: any, limit: number): Promise<string[]> {
+  if (!c.gsc_property) return [];
+  let token: string;
+  try { token = (await getGoogleAccessToken(c.id)).accessToken; } catch { return []; }
+  const d = (back: number) => { const x = new Date(); x.setDate(x.getDate() - back); return x.toISOString().slice(0, 10); };
+  try {
+    const r = await fetch(
+      `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(c.gsc_property)}/searchAnalytics/query`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ startDate: d(31), endDate: d(3), dimensions: ["query"], rowLimit: limit }),
+        signal: AbortSignal.timeout(30_000),
+      },
+    );
+    if (!r.ok) return [];
+    const j: any = await r.json().catch(() => ({}));
+    return (j.rows ?? []).map((row: any) => String(row.keys?.[0] ?? "")).filter(Boolean);
+  } catch { return []; }
+}
+
+// Alle Domains aus einem SERP-Element rekursiv einsammeln (Schema-robust).
+function dfsCollectDomains(node: any, out: Set<string>) {
+  if (!node) return;
+  if (Array.isArray(node)) { for (const x of node) dfsCollectDomains(x, out); return; }
+  if (typeof node === "object") {
+    for (const [k, v] of Object.entries(node)) {
+      if ((k === "domain" || k === "url" || k === "source_url") && typeof v === "string") {
+        const dom = v.includes("://") ? domOf(v) : v.replace(/^www\./, "").toLowerCase();
+        if (dom) out.add(dom);
+      } else dfsCollectDomains(v, out);
+    }
+  }
+}
+
+async function jobSerpAi(c: any) {
+  const auth = dfsAuth();
+  if (!auth) return { skipped: "DATAFORSEO_LOGIN/DATAFORSEO_PASSWORD fehlt (Lovable-Env)" };
+  const keywords = await gscTopQueries(c, DFS_SERP_KEYWORDS);
+  if (!keywords.length) return { skipped: "keine GSC-Keywords (gsc_property/Google-Verbindung prüfen)" };
+  const loc = DFS_LOCATION[String(c.country || "CH").toUpperCase()] || DFS_LOCATION.CH;
+  const domain = cleanDomain(c.domain);
+  const nameRe = new RegExp(String(c.name || "").trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+  const hit = (el: any) => {
+    const doms = new Set<string>();
+    dfsCollectDomains(el, doms);
+    return (domain && doms.has(domain)) || nameRe.test(JSON.stringify(el));
+  };
+  const errors: string[] = [];
+  const aio = { checked: 0, present: 0, cited: 0, keywords: [] as string[] };
+  const aim = { checked: 0, present: 0, cited: 0, keywords: [] as string[] };
+  for (const kw of keywords) {
+    try {
+      const items = await dfsSerp(auth, "organic", kw, loc);
+      aio.checked++;
+      const el = (items as any[]).find((i: any) => i?.type === "ai_overview");
+      if (el) { aio.present++; if (hit(el)) { aio.cited++; aio.keywords.push(kw); } }
+    } catch (e) { errors.push(`aio "${kw}": ${String((e as any)?.message || e).slice(0, 80)}`); }
+    try {
+      const items = await dfsSerp(auth, "ai_mode", kw, loc);
+      aim.checked++;
+      if ((items as any[])?.length) { aim.present++; if (hit(items)) { aim.cited++; aim.keywords.push(kw); } }
+    } catch (e) { errors.push(`aim "${kw}": ${String((e as any)?.message || e).slice(0, 80)}`); }
+  }
+  const models = [
+    { name: "Google AI Overviews", mentions: aio.cited, byCountry: aio.cited > 0 ? { [loc.name]: aio.cited } : {} },
+    { name: "Google AI Mode", mentions: aim.cited, byCountry: aim.cited > 0 ? { [loc.name]: aim.cited } : {} },
+  ];
+  return { models, mentions: aio.cited + aim.cited, keywords: keywords.length, aio, aim, errors };
 }
 
 // ── Ahrefs Brand Radar: Mentions je Modell (+ Land) + Citations ─────────────
@@ -739,11 +851,11 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         if (!parsed.success)
           return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
         const { client: sel, all, jobs, minIntervalDays, force, mode, months } = parsed.data;
-        const wanted = jobs && jobs.length ? jobs : (["brand_radar", "attribution", "prompts", "canonry"] as const);
+        const wanted = jobs && jobs.length ? jobs : (["brand_radar", "attribution", "prompts", "canonry", "serp_ai"] as const);
 
         const query = supabaseAdmin
           .from("clients")
-          .select("id, name, domain, organization_id, ga4_property, country, canonry_project");
+          .select("id, name, domain, organization_id, ga4_property, gsc_property, country, canonry_project");
         let clients: any[] = [];
         if (all) clients = (await query).data || [];
         else if (sel && isUuid(sel)) clients = (await query.eq("id", sel)).data || [];
@@ -806,6 +918,12 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             const br: any = wanted.includes("brand_radar") ? await jobBrandRadar(c, fixedComps) : null;
             const at: any = wanted.includes("attribution") ? await jobAttribution(c) : null;
             const pr: any = wanted.includes("prompts") ? await jobPromptRunner(c, sb, fixedComps) : null;
+            const sa: any = wanted.includes("serp_ai") ? await jobSerpAi(c) : null;
+            jr.serp_ai = sa
+              ? (sa.skipped
+                  ? { skipped: sa.skipped }
+                  : { keywords: sa.keywords, aiOverview: sa.aio, aiMode: sa.aim, errors: sa.errors?.length || 0 })
+              : "skipped";
             jr.brand_radar = br ? (br.skipped ? { skipped: br.skipped } : { mentions: br.mentions, citations: br.citations, pages: br.citedPagesCount, errors: br.errors?.length || 0 }) : "skipped";
             jr.attribution = at ? (at.skipped || at.error ? at : { engines: at.engines.length }) : "skipped";
             jr.prompts = pr ? (pr.skipped ? { skipped: pr.skipped, seeded: pr.seeded } : { answered: pr.answered, byEngine: pr.byEngine, engineErrors: pr.engineErrors, mentions: pr.mentions, seeded: pr.seeded, topics: pr.topics.length, selfShare: pr.selfShare, sov: pr.sov?.length, judged: pr.judged, learned: pr.learnedComps?.length }) : "skipped";
@@ -814,9 +932,10 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
 
             const hasBr = br && !br.skipped;
             const hasPr = pr && !pr.skipped && pr.promptRows?.length;
-            if (hasBr || hasPr || hasCa) {
-              // Kombinierte Totale: Makro (Ahrefs) + Canonry + Custom (Prompt-Runner).
-              const macroMentions = (hasBr ? br.mentions : 0) + (hasCa ? ca.mentions : 0);
+            const hasSa = sa && !sa.skipped;
+            if (hasBr || hasPr || hasCa || hasSa) {
+              // Kombinierte Totale: Makro (Ahrefs + Canonry + eigener SERP-Check) + Custom (Prompt-Runner).
+              const macroMentions = (hasBr ? br.mentions : 0) + (hasCa ? ca.mentions : 0) + (hasSa ? sa.mentions : 0);
               const customMentions = hasPr ? pr.mentions : 0;
               const mentions = macroMentions + customMentions;
               const citations = hasBr ? br.citations : 0;
@@ -855,7 +974,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 .eq("client_id", c.id)
                 .eq("snapshot_date", snapshot)
                 .maybeSingle();
-              const partial = !hasBr && !hasCa && !!existingRep && Number(existingRep.mentions ?? 0) > mentions;
+              const partial = !hasBr && !hasCa && !hasSa && !!existingRep && Number(existingRep.mentions ?? 0) > mentions;
               let reportId: string;
               if (partial) {
                 reportId = existingRep.id;
@@ -906,6 +1025,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               const rawModels = [
                 ...(hasBr ? br.models.map((m: any) => ({ ...m, layer: "macro" })) : []),
                 ...(hasCa ? ca.models.map((m: any) => ({ ...m, layer: "macro" })) : []), // Canonry = Makro-Quelle
+                ...(hasSa ? sa.models.map((m: any) => ({ ...m, layer: "macro" })) : []), // eigener AI-Overview/AI-Mode-Check
                 ...(hasPr ? pr.customModels.map((m: any) => ({ ...m, layer: "custom" })) : []),
               ];
               const modelAgg: Record<string, { mentions: number; byCountry: Record<string, number>; layers: Set<string> }> = {};
