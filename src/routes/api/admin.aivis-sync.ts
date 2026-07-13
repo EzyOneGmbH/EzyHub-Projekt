@@ -134,17 +134,46 @@ function brandName(c: any) {
 // Kosten-Bremse (User-Entscheid 2026-07-13): Default 500 GSC-Suchanfragen je
 // Kunde (28 Tage, GSC-Reihenfolge = Klicks absteigend, d. h. die wichtigsten
 // zuerst). AIVIS_SERP_KEYWORDS=0 = ALLE (bis GSC-Max 25000), Zahl > 0 = Limit.
+// WELTWEIT (User-Entscheid 2026-07-13): Das Limit zählt Query-LAND-Paare —
+// jedes Keyword wird im Land seiner GSC-Impressionen geprüft (Dimension
+// query+country), nicht mehr nur im Heimatland. Kosten je Paar unverändert
+// (2 Calls); die Treffer landen pro Land in ai_visibility_model_country,
+// damit der Länder-Filter im Dashboard greift.
 const DFS_SERP_KEYWORDS = (() => {
   const raw = Number(process.env.AIVIS_SERP_KEYWORDS ?? 500);
   return Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : 500;
 })();
 const DFS_CONCURRENCY = 8; // parallele SERP-Checks (DataForSEO-Live-Limit ~30)
-const DFS_LOCATION: Record<string, { code: number; lang: string; name: string }> = {
-  CH: { code: 2756, lang: "de", name: "Schweiz" },
-  DE: { code: 2276, lang: "de", name: "Deutschland" },
-  AT: { code: 2040, lang: "de", name: "Österreich" },
-  IT: { code: 2380, lang: "it", name: "Italien" },
+// DataForSEO location_code = 2000 + ISO-3166-numerisch; a3 = GSC-Ländercode.
+const DFS_LOCATION: Record<string, { code: number; lang: string; name: string; a3: string }> = {
+  CH: { code: 2756, lang: "de", name: "Schweiz", a3: "che" },
+  DE: { code: 2276, lang: "de", name: "Deutschland", a3: "deu" },
+  AT: { code: 2040, lang: "de", name: "Österreich", a3: "aut" },
+  IT: { code: 2380, lang: "it", name: "Italien", a3: "ita" },
+  FR: { code: 2250, lang: "fr", name: "Frankreich", a3: "fra" },
+  LI: { code: 2438, lang: "de", name: "Liechtenstein", a3: "lie" },
+  LU: { code: 2442, lang: "de", name: "Luxemburg", a3: "lux" },
+  US: { code: 2840, lang: "en", name: "USA", a3: "usa" },
+  GB: { code: 2826, lang: "en", name: "Grossbritannien", a3: "gbr" },
+  IE: { code: 2372, lang: "en", name: "Irland", a3: "irl" },
+  CA: { code: 2124, lang: "en", name: "Kanada", a3: "can" },
+  AU: { code: 2036, lang: "en", name: "Australien", a3: "aus" },
+  NL: { code: 2528, lang: "nl", name: "Niederlande", a3: "nld" },
+  BE: { code: 2056, lang: "fr", name: "Belgien", a3: "bel" },
+  ES: { code: 2724, lang: "es", name: "Spanien", a3: "esp" },
+  PT: { code: 2620, lang: "pt", name: "Portugal", a3: "prt" },
+  SE: { code: 2752, lang: "sv", name: "Schweden", a3: "swe" },
+  DK: { code: 2208, lang: "da", name: "Dänemark", a3: "dnk" },
+  NO: { code: 2578, lang: "no", name: "Norwegen", a3: "nor" },
+  PL: { code: 2616, lang: "pl", name: "Polen", a3: "pol" },
+  CZ: { code: 2203, lang: "cs", name: "Tschechien", a3: "cze" },
+  AE: { code: 2784, lang: "en", name: "VAE", a3: "are" },
+  TR: { code: 2792, lang: "tr", name: "Türkei", a3: "tur" },
+  IN: { code: 2356, lang: "en", name: "Indien", a3: "ind" },
 };
+const DFS_LOC_BY_A3: Record<string, { code: number; lang: string; name: string }> = Object.fromEntries(
+  Object.values(DFS_LOCATION).map((l) => [l.a3, { code: l.code, lang: l.lang, name: l.name }]),
+);
 
 function dfsAuth(): string | null {
   const login = process.env.DATAFORSEO_LOGIN, pass = process.env.DATAFORSEO_PASSWORD;
@@ -172,8 +201,9 @@ async function dfsSerp(auth: string, kind: "organic" | "ai_mode", keyword: strin
   return t.result?.[0]?.items || [];
 }
 
-// GSC-Top-Suchanfragen (28 Tage, GSC-Reihenfolge = Klicks absteigend).
-async function gscTopQueries(c: any, limit: number): Promise<string[]> {
+// GSC-Top-Suchanfragen als Query-LAND-Paare (28 Tage, GSC-Reihenfolge =
+// Klicks absteigend). country = ISO-3166-1 alpha-3 kleingeschrieben (GSC).
+async function gscTopQueryCountryPairs(c: any, limit: number): Promise<Array<{ kw: string; a3: string }>> {
   if (!c.gsc_property) return [];
   let token: string;
   try { token = (await getGoogleAccessToken(c.id)).accessToken; } catch { return []; }
@@ -184,13 +214,15 @@ async function gscTopQueries(c: any, limit: number): Promise<string[]> {
       {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ startDate: d(31), endDate: d(3), dimensions: ["query"], rowLimit: limit }),
+        body: JSON.stringify({ startDate: d(31), endDate: d(3), dimensions: ["query", "country"], rowLimit: Math.min(limit, 25000) }),
         signal: AbortSignal.timeout(30_000),
       },
     );
     if (!r.ok) return [];
     const j: any = await r.json().catch(() => ({}));
-    return (j.rows ?? []).map((row: any) => String(row.keys?.[0] ?? "")).filter(Boolean);
+    return (j.rows ?? [])
+      .map((row: any) => ({ kw: String(row.keys?.[0] ?? ""), a3: String(row.keys?.[1] ?? "").toLowerCase() }))
+      .filter((p: any) => p.kw && p.a3);
   } catch { return []; }
 }
 
@@ -211,9 +243,17 @@ function dfsCollectDomains(node: any, out: Set<string>) {
 async function jobSerpAi(c: any) {
   const auth = dfsAuth();
   if (!auth) return { skipped: "DATAFORSEO_LOGIN/DATAFORSEO_PASSWORD fehlt (Lovable-Env)" };
-  const keywords = await gscTopQueries(c, DFS_SERP_KEYWORDS || 25000); // 0 = alle
-  if (!keywords.length) return { skipped: "keine GSC-Keywords (gsc_property/Google-Verbindung prüfen)" };
-  const loc = DFS_LOCATION[String(c.country || "CH").toUpperCase()] || DFS_LOCATION.CH;
+  const allPairs = await gscTopQueryCountryPairs(c, DFS_SERP_KEYWORDS || 25000); // 0 = alle
+  if (!allPairs.length) return { skipped: "keine GSC-Keywords (gsc_property/Google-Verbindung prüfen)" };
+  // Nur Länder mit bekannter DataForSEO-Location; Rest zählen statt raten.
+  const homeLoc = DFS_LOCATION[String(c.country || "CH").toUpperCase()] || DFS_LOCATION.CH;
+  const skippedCountries: Record<string, number> = {};
+  const pairs = allPairs.filter((p) => {
+    if (DFS_LOC_BY_A3[p.a3]) return true;
+    skippedCountries[p.a3] = (skippedCountries[p.a3] || 0) + 1;
+    return false;
+  });
+  if (!pairs.length) return { skipped: "keine GSC-Keywords in unterstützten Ländern", skippedCountries };
   const domain = cleanDomain(c.domain);
   const nameRe = new RegExp(String(c.name || "").trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
   const hit = (el: any) => {
@@ -222,31 +262,48 @@ async function jobSerpAi(c: any) {
     return (domain && doms.has(domain)) || nameRe.test(JSON.stringify(el));
   };
   const errors: string[] = [];
-  const aio = { checked: 0, present: 0, cited: 0, keywords: [] as string[] };
-  const aim = { checked: 0, present: 0, cited: 0, keywords: [] as string[] };
-  // Parallel in Blöcken — bei "alle Keywords" sonst zu langsam (2 Calls je Keyword).
-  const checkKeyword = async (kw: string) => {
+  const aio = { checked: 0, present: 0, cited: 0, keywords: [] as string[], byCountry: {} as Record<string, number> };
+  const aim = { checked: 0, present: 0, cited: 0, keywords: [] as string[], byCountry: {} as Record<string, number> };
+  // Parallel in Blöcken — bei "alle Keywords" sonst zu langsam (2 Calls je Paar).
+  const checkPair = async (p: { kw: string; a3: string }) => {
+    const loc = DFS_LOC_BY_A3[p.a3] || homeLoc;
     const jobs = [
-      dfsSerp(auth, "organic", kw, loc).then((items) => {
+      dfsSerp(auth, "organic", p.kw, loc).then((items) => {
         aio.checked++;
         const el = (items as any[]).find((i: any) => i?.type === "ai_overview");
-        if (el) { aio.present++; if (hit(el)) { aio.cited++; aio.keywords.push(kw); } }
-      }).catch((e) => { errors.push(`aio "${kw}": ${String((e as any)?.message || e).slice(0, 80)}`); }),
-      dfsSerp(auth, "ai_mode", kw, loc).then((items) => {
+        if (el) {
+          aio.present++;
+          if (hit(el)) { aio.cited++; aio.keywords.push(`${p.kw} (${loc.name})`); aio.byCountry[loc.name] = (aio.byCountry[loc.name] || 0) + 1; }
+        }
+      }).catch((e) => { errors.push(`aio "${p.kw}"@${p.a3}: ${String((e as any)?.message || e).slice(0, 80)}`); }),
+      dfsSerp(auth, "ai_mode", p.kw, loc).then((items) => {
         aim.checked++;
-        if ((items as any[])?.length) { aim.present++; if (hit(items)) { aim.cited++; aim.keywords.push(kw); } }
-      }).catch((e) => { errors.push(`aim "${kw}": ${String((e as any)?.message || e).slice(0, 80)}`); }),
+        if ((items as any[])?.length) {
+          aim.present++;
+          if (hit(items)) { aim.cited++; aim.keywords.push(`${p.kw} (${loc.name})`); aim.byCountry[loc.name] = (aim.byCountry[loc.name] || 0) + 1; }
+        }
+      }).catch((e) => { errors.push(`aim "${p.kw}"@${p.a3}: ${String((e as any)?.message || e).slice(0, 80)}`); }),
     ];
     await Promise.all(jobs);
   };
-  for (let i = 0; i < keywords.length; i += DFS_CONCURRENCY) {
-    await Promise.all(keywords.slice(i, i + DFS_CONCURRENCY).map(checkKeyword));
+  for (let i = 0; i < pairs.length; i += DFS_CONCURRENCY) {
+    await Promise.all(pairs.slice(i, i + DFS_CONCURRENCY).map(checkPair));
   }
   const models = [
-    { name: "Google AI Overviews", mentions: aio.cited, byCountry: aio.cited > 0 ? { [loc.name]: aio.cited } : {} },
-    { name: "Google AI Mode", mentions: aim.cited, byCountry: aim.cited > 0 ? { [loc.name]: aim.cited } : {} },
+    { name: "Google AI Overviews", mentions: aio.cited, byCountry: aio.byCountry },
+    { name: "Google AI Mode", mentions: aim.cited, byCountry: aim.byCountry },
   ];
-  return { models, mentions: aio.cited + aim.cited, keywords: keywords.length, aio, aim, errors };
+  const countries = [...new Set(pairs.map((p) => DFS_LOC_BY_A3[p.a3].name))];
+  return {
+    models,
+    mentions: aio.cited + aim.cited,
+    keywords: pairs.length,
+    countries,
+    ...(Object.keys(skippedCountries).length ? { skippedCountries } : {}),
+    aio,
+    aim,
+    errors,
+  };
 }
 
 // ── Ahrefs Brand Radar: Mentions je Modell (+ Land) + Citations ─────────────
