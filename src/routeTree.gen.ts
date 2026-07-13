@@ -79,12 +79,12 @@ import { Route as ApiAdminClientMetricsRouteImport } from './routes/api/admin.cl
 import { Route as ApiAdminClientDomainsRouteImport } from './routes/api/admin.client-domains'
 import { Route as ApiAdminAivisSyncRouteImport } from './routes/api/admin.aivis-sync'
 import { Route as ApiAdminAgentRunRouteImport } from './routes/api/admin.agent-run'
+import { Route as ApiAdminAdsSemanticNegativesRouteImport } from './routes/api/admin.ads-semantic-negatives'
 import { Route as ApiAdminAdsScorecardRouteImport } from './routes/api/admin.ads-scorecard'
 import { Route as ApiAdminAdsOutcomeReviewRouteImport } from './routes/api/admin.ads-outcome-review'
+import { Route as ApiAdminAdsGuardianRouteImport } from './routes/api/admin.ads-guardian'
 import { Route as ApiAdminAdsClientsRouteImport } from './routes/api/admin.ads-clients'
 import { Route as ApiAdminAdsAutopilotRunRouteImport } from './routes/api/admin.ads-autopilot-run'
-import { Route as ApiAdminAdsGuardianRouteImport } from './routes/api/admin.ads-guardian'
-import { Route as ApiAdminAdsSemanticNegativesRouteImport } from './routes/api/admin.ads-semantic-negatives'
 import { Route as ApiAdminAdsAutopilotProposalRouteImport } from './routes/api/admin.ads-autopilot-proposal'
 import { Route as ApiAdminAdsAutopilotExecuteRouteImport } from './routes/api/admin.ads-autopilot-execute'
 import { Route as ApiAdminAdsAutopilotApprovalsRouteImport } from './routes/api/admin.ads-autopilot-approvals'
@@ -449,6 +449,12 @@ const ApiAdminAgentRunRoute = ApiAdminAgentRunRouteImport.update({
   path: '/api/admin/agent-run',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminAdsSemanticNegativesRoute =
+  ApiAdminAdsSemanticNegativesRouteImport.update({
+    id: '/api/admin/ads-semantic-negatives',
+    path: '/api/admin/ads-semantic-negatives',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAdminAdsScorecardRoute = ApiAdminAdsScorecardRouteImport.update({
   id: '/api/admin/ads-scorecard',
   path: '/api/admin/ads-scorecard',
@@ -460,6 +466,11 @@ const ApiAdminAdsOutcomeReviewRoute =
     path: '/api/admin/ads-outcome-review',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAdminAdsGuardianRoute = ApiAdminAdsGuardianRouteImport.update({
+  id: '/api/admin/ads-guardian',
+  path: '/api/admin/ads-guardian',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminAdsClientsRoute = ApiAdminAdsClientsRouteImport.update({
   id: '/api/admin/ads-clients',
   path: '/api/admin/ads-clients',
@@ -468,16 +479,6 @@ const ApiAdminAdsClientsRoute = ApiAdminAdsClientsRouteImport.update({
 const ApiAdminAdsAutopilotRunRoute = ApiAdminAdsAutopilotRunRouteImport.update({
   id: '/api/admin/ads-autopilot-run',
   path: '/api/admin/ads-autopilot-run',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAdminAdsGuardianRoute = ApiAdminAdsGuardianRouteImport.update({
-  id: '/api/admin/ads-guardian',
-  path: '/api/admin/ads-guardian',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAdminAdsSemanticNegativesRoute = ApiAdminAdsSemanticNegativesRouteImport.update({
-  id: '/api/admin/ads-semantic-negatives',
-  path: '/api/admin/ads-semantic-negatives',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminAdsAutopilotProposalRoute =
@@ -553,11 +554,11 @@ export interface FileRoutesByFullPath {
   '/api/admin/ads-autopilot-execute': typeof ApiAdminAdsAutopilotExecuteRoute
   '/api/admin/ads-autopilot-proposal': typeof ApiAdminAdsAutopilotProposalRoute
   '/api/admin/ads-autopilot-run': typeof ApiAdminAdsAutopilotRunRoute
-  '/api/admin/ads-guardian': typeof ApiAdminAdsGuardianRoute
-  '/api/admin/ads-semantic-negatives': typeof ApiAdminAdsSemanticNegativesRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
+  '/api/admin/ads-guardian': typeof ApiAdminAdsGuardianRoute
   '/api/admin/ads-outcome-review': typeof ApiAdminAdsOutcomeReviewRoute
   '/api/admin/ads-scorecard': typeof ApiAdminAdsScorecardRoute
+  '/api/admin/ads-semantic-negatives': typeof ApiAdminAdsSemanticNegativesRoute
   '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
@@ -639,11 +640,11 @@ export interface FileRoutesByTo {
   '/api/admin/ads-autopilot-execute': typeof ApiAdminAdsAutopilotExecuteRoute
   '/api/admin/ads-autopilot-proposal': typeof ApiAdminAdsAutopilotProposalRoute
   '/api/admin/ads-autopilot-run': typeof ApiAdminAdsAutopilotRunRoute
-  '/api/admin/ads-guardian': typeof ApiAdminAdsGuardianRoute
-  '/api/admin/ads-semantic-negatives': typeof ApiAdminAdsSemanticNegativesRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
+  '/api/admin/ads-guardian': typeof ApiAdminAdsGuardianRoute
   '/api/admin/ads-outcome-review': typeof ApiAdminAdsOutcomeReviewRoute
   '/api/admin/ads-scorecard': typeof ApiAdminAdsScorecardRoute
+  '/api/admin/ads-semantic-negatives': typeof ApiAdminAdsSemanticNegativesRoute
   '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
@@ -726,11 +727,11 @@ export interface FileRoutesById {
   '/api/admin/ads-autopilot-execute': typeof ApiAdminAdsAutopilotExecuteRoute
   '/api/admin/ads-autopilot-proposal': typeof ApiAdminAdsAutopilotProposalRoute
   '/api/admin/ads-autopilot-run': typeof ApiAdminAdsAutopilotRunRoute
-  '/api/admin/ads-guardian': typeof ApiAdminAdsGuardianRoute
-  '/api/admin/ads-semantic-negatives': typeof ApiAdminAdsSemanticNegativesRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
+  '/api/admin/ads-guardian': typeof ApiAdminAdsGuardianRoute
   '/api/admin/ads-outcome-review': typeof ApiAdminAdsOutcomeReviewRoute
   '/api/admin/ads-scorecard': typeof ApiAdminAdsScorecardRoute
+  '/api/admin/ads-semantic-negatives': typeof ApiAdminAdsSemanticNegativesRoute
   '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
@@ -814,11 +815,11 @@ export interface FileRouteTypes {
     | '/api/admin/ads-autopilot-execute'
     | '/api/admin/ads-autopilot-proposal'
     | '/api/admin/ads-autopilot-run'
-    | '/api/admin/ads-guardian'
-    | '/api/admin/ads-semantic-negatives'
     | '/api/admin/ads-clients'
+    | '/api/admin/ads-guardian'
     | '/api/admin/ads-outcome-review'
     | '/api/admin/ads-scorecard'
+    | '/api/admin/ads-semantic-negatives'
     | '/api/admin/agent-run'
     | '/api/admin/aivis-sync'
     | '/api/admin/client-domains'
@@ -900,11 +901,11 @@ export interface FileRouteTypes {
     | '/api/admin/ads-autopilot-execute'
     | '/api/admin/ads-autopilot-proposal'
     | '/api/admin/ads-autopilot-run'
-    | '/api/admin/ads-guardian'
-    | '/api/admin/ads-semantic-negatives'
     | '/api/admin/ads-clients'
+    | '/api/admin/ads-guardian'
     | '/api/admin/ads-outcome-review'
     | '/api/admin/ads-scorecard'
+    | '/api/admin/ads-semantic-negatives'
     | '/api/admin/agent-run'
     | '/api/admin/aivis-sync'
     | '/api/admin/client-domains'
@@ -986,11 +987,11 @@ export interface FileRouteTypes {
     | '/api/admin/ads-autopilot-execute'
     | '/api/admin/ads-autopilot-proposal'
     | '/api/admin/ads-autopilot-run'
-    | '/api/admin/ads-guardian'
-    | '/api/admin/ads-semantic-negatives'
     | '/api/admin/ads-clients'
+    | '/api/admin/ads-guardian'
     | '/api/admin/ads-outcome-review'
     | '/api/admin/ads-scorecard'
+    | '/api/admin/ads-semantic-negatives'
     | '/api/admin/agent-run'
     | '/api/admin/aivis-sync'
     | '/api/admin/client-domains'
@@ -1069,11 +1070,11 @@ export interface RootRouteChildren {
   ApiAdminAdsAutopilotExecuteRoute: typeof ApiAdminAdsAutopilotExecuteRoute
   ApiAdminAdsAutopilotProposalRoute: typeof ApiAdminAdsAutopilotProposalRoute
   ApiAdminAdsAutopilotRunRoute: typeof ApiAdminAdsAutopilotRunRoute
-  ApiAdminAdsGuardianRoute: typeof ApiAdminAdsGuardianRoute
-  ApiAdminAdsSemanticNegativesRoute: typeof ApiAdminAdsSemanticNegativesRoute
   ApiAdminAdsClientsRoute: typeof ApiAdminAdsClientsRoute
+  ApiAdminAdsGuardianRoute: typeof ApiAdminAdsGuardianRoute
   ApiAdminAdsOutcomeReviewRoute: typeof ApiAdminAdsOutcomeReviewRoute
   ApiAdminAdsScorecardRoute: typeof ApiAdminAdsScorecardRoute
+  ApiAdminAdsSemanticNegativesRoute: typeof ApiAdminAdsSemanticNegativesRoute
   ApiAdminAgentRunRoute: typeof ApiAdminAgentRunRoute
   ApiAdminAivisSyncRoute: typeof ApiAdminAivisSyncRoute
   ApiAdminClientDomainsRoute: typeof ApiAdminClientDomainsRoute
@@ -1621,6 +1622,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminAgentRunRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/ads-semantic-negatives': {
+      id: '/api/admin/ads-semantic-negatives'
+      path: '/api/admin/ads-semantic-negatives'
+      fullPath: '/api/admin/ads-semantic-negatives'
+      preLoaderRoute: typeof ApiAdminAdsSemanticNegativesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/ads-scorecard': {
       id: '/api/admin/ads-scorecard'
       path: '/api/admin/ads-scorecard'
@@ -1635,6 +1643,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminAdsOutcomeReviewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/ads-guardian': {
+      id: '/api/admin/ads-guardian'
+      path: '/api/admin/ads-guardian'
+      fullPath: '/api/admin/ads-guardian'
+      preLoaderRoute: typeof ApiAdminAdsGuardianRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/ads-clients': {
       id: '/api/admin/ads-clients'
       path: '/api/admin/ads-clients'
@@ -1647,20 +1662,6 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/ads-autopilot-run'
       fullPath: '/api/admin/ads-autopilot-run'
       preLoaderRoute: typeof ApiAdminAdsAutopilotRunRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/admin/ads-guardian': {
-      id: '/api/admin/ads-guardian'
-      path: '/api/admin/ads-guardian'
-      fullPath: '/api/admin/ads-guardian'
-      preLoaderRoute: typeof ApiAdminAdsGuardianRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/admin/ads-semantic-negatives': {
-      id: '/api/admin/ads-semantic-negatives'
-      path: '/api/admin/ads-semantic-negatives'
-      fullPath: '/api/admin/ads-semantic-negatives'
-      preLoaderRoute: typeof ApiAdminAdsSemanticNegativesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/ads-autopilot-proposal': {
@@ -1791,11 +1792,11 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminAdsAutopilotExecuteRoute: ApiAdminAdsAutopilotExecuteRoute,
   ApiAdminAdsAutopilotProposalRoute: ApiAdminAdsAutopilotProposalRoute,
   ApiAdminAdsAutopilotRunRoute: ApiAdminAdsAutopilotRunRoute,
-  ApiAdminAdsGuardianRoute: ApiAdminAdsGuardianRoute,
-  ApiAdminAdsSemanticNegativesRoute: ApiAdminAdsSemanticNegativesRoute,
   ApiAdminAdsClientsRoute: ApiAdminAdsClientsRoute,
+  ApiAdminAdsGuardianRoute: ApiAdminAdsGuardianRoute,
   ApiAdminAdsOutcomeReviewRoute: ApiAdminAdsOutcomeReviewRoute,
   ApiAdminAdsScorecardRoute: ApiAdminAdsScorecardRoute,
+  ApiAdminAdsSemanticNegativesRoute: ApiAdminAdsSemanticNegativesRoute,
   ApiAdminAgentRunRoute: ApiAdminAgentRunRoute,
   ApiAdminAivisSyncRoute: ApiAdminAivisSyncRoute,
   ApiAdminClientDomainsRoute: ApiAdminClientDomainsRoute,
