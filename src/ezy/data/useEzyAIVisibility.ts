@@ -80,6 +80,24 @@ function mapPrompt(r: any, opportunity: boolean): AIPrompt {
   return p;
 }
 
+// Supabase/PostgREST liefert pro Query max. 1000 Zeilen. Bei vielen Prompts ×
+// Engines reicht das nicht — deshalb blockweise laden, bis alles da ist.
+async function fetchAllPromptRows(reportId: string): Promise<any[]> {
+  const CHUNK = 1000;
+  const out: any[] = [];
+  for (let from = 0; ; from += CHUNK) {
+    const { data, error } = await sb
+      .from("ai_visibility_prompts")
+      .select("*")
+      .eq("report_id", reportId)
+      .order("id", { ascending: true }) // stabile Reihenfolge für lückenlose Blöcke
+      .range(from, from + CHUNK - 1);
+    if (error) throw new Error(error.message);
+    out.push(...(data ?? []));
+    if (!data || data.length < CHUNK) return out;
+  }
+}
+
 export async function loadAIVisibility(
   clientId: string,
   clientLabel?: string,
@@ -102,7 +120,7 @@ export async function loadAIVisibility(
   const [models, topics, prompts, sources, attribution, history, sovRes] = await Promise.all([
     sb.from("ai_visibility_models").select("*").eq("report_id", rep.id),
     sb.from("ai_visibility_topics").select("*").eq("report_id", rep.id).order("visibility", { ascending: false }),
-    sb.from("ai_visibility_prompts").select("*").eq("report_id", rep.id),
+    fetchAllPromptRows(rep.id),
     sb.from("ai_visibility_sources").select("*").eq("report_id", rep.id).order("mentions", { ascending: false }),
     sb.from("ai_visibility_attribution").select("*").eq("report_id", rep.id).order("sessions", { ascending: false }),
     sb
@@ -126,7 +144,7 @@ export async function loadAIVisibility(
     (byModel[r.model_id] ??= {})[r.country] = (byModel[r.model_id]?.[r.country] || 0) + Number(r.mentions ?? 0);
     countryTotals[r.country] = (countryTotals[r.country] || 0) + Number(r.mentions ?? 0);
   }
-  const promptRows = prompts.data ?? [];
+  const promptRows = prompts; // fetchAllPromptRows liefert bereits das Array
   const intentTotals: Record<string, number> = {};
   for (const r of promptRows) {
     if (r.intent) intentTotals[r.intent] = (intentTotals[r.intent] || 0) + 1;

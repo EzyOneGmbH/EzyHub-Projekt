@@ -5,7 +5,7 @@ import {
 } from "recharts";
 import {
   Sparkles, TrendingUp, TrendingDown, Quote, FileText, Eye,
-  ExternalLink, MousePointerClick, ChevronRight, MessageSquareQuote,
+  ExternalLink, MousePointerClick, ChevronRight, ChevronLeft, MessageSquareQuote,
 } from "lucide-react";
 
 /**
@@ -460,19 +460,38 @@ function PromptGroupRow({ g, opportunity }) {
   );
 }
 
+// Seitengröße der Prompt-Tabelle: 10 Prompts je Seite, blätterbar.
+const PROMPTS_PAGE_SIZE = 10;
+
+// Kompakte Seitenzahlen-Liste: 1 … (cur-1) cur (cur+1) … letzte.
+function pageNumbers(cur, pages) {
+  const set = new Set([0, pages - 1, cur - 1, cur, cur + 1]);
+  const nums = [...set].filter((n) => n >= 0 && n < pages).sort((a, b) => a - b);
+  const out = [];
+  for (let i = 0; i < nums.length; i++) {
+    if (i > 0 && nums[i] - nums[i - 1] > 1) out.push("…");
+    out.push(nums[i]);
+  }
+  return out;
+}
+
 function PromptsTable({ prompts, opps, brand }) {
   const [tab, setTab] = useState("all");
+  const [page, setPage] = useState(0);
   const allRows = [...prompts, ...opps.map((o) => ({ ...o, status: "Nicht erwähnt" }))];
   const source = tab === "all" ? allRows : tab === "win" ? prompts : opps;
   const opportunity = tab === "opp";
   const groups = groupPrompts(source);
+  const pages = Math.max(1, Math.ceil(groups.length / PROMPTS_PAGE_SIZE));
+  const cur = Math.min(page, pages - 1); // Tab-Wechsel kann die Seitenzahl verkleinern
+  const pageGroups = groups.slice(cur * PROMPTS_PAGE_SIZE, (cur + 1) * PROMPTS_PAGE_SIZE);
   return (
     <div className="rounded-xl border" style={CARD}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3" style={{ borderColor: C.line }}>
         <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Prompts</h3>
         <div className="flex rounded-lg border p-0.5" style={{ borderColor: C.line }}>
           {[{ k: "all", t: "Alle Prompts" }, { k: "win", t: "Erfolgreichste Prompts" }, { k: "opp", t: "Prompt-Chancen" }].map((x) => (
-            <button key={x.k} onClick={() => setTab(x.k)}
+            <button key={x.k} onClick={() => { setTab(x.k); setPage(0); }}
               className="rounded-md px-2.5 py-1 text-xs font-medium transition focus:outline-none focus-visible:ring-2"
               style={{ background: tab === x.k ? C.indigo : "transparent", color: tab === x.k ? "#fff" : C.sub }}>
               {x.t}
@@ -507,12 +526,57 @@ function PromptsTable({ prompts, opps, brand }) {
             </tr>
           </thead>
           <tbody>
-            {groups.map((g) => (
+            {pageGroups.map((g) => (
               <PromptGroupRow key={`${g.prompt}·${g.country}`} g={g} opportunity={opportunity} />
             ))}
           </tbody>
         </table>
       </div>
+      {pages > 1 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t px-5 py-3" style={{ borderColor: C.line }}>
+          <span className="text-[11px]" style={{ color: C.sub }}>
+            {cur * PROMPTS_PAGE_SIZE + 1}–{Math.min(groups.length, (cur + 1) * PROMPTS_PAGE_SIZE)} von {groups.length} Prompts
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage(Math.max(0, cur - 1))}
+              disabled={cur === 0}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border transition disabled:opacity-35"
+              style={{ borderColor: C.line, color: C.sub }}
+              aria-label="Vorherige Seite"
+            >
+              <ChevronLeft size={14} />
+            </button>
+            {pageNumbers(cur, pages).map((p, i) =>
+              p === "…" ? (
+                <span key={`e${i}`} className="px-1 text-xs" style={{ color: C.sub }}>…</span>
+              ) : (
+                <button
+                  key={p}
+                  onClick={() => setPage(p)}
+                  className="h-7 min-w-7 rounded-md px-1.5 text-xs font-medium tabular-nums transition"
+                  style={{
+                    background: p === cur ? C.indigo : "transparent",
+                    color: p === cur ? "#fff" : C.sub,
+                    border: `1px solid ${p === cur ? C.indigo : C.line}`,
+                  }}
+                >
+                  {p + 1}
+                </button>
+              ),
+            )}
+            <button
+              onClick={() => setPage(Math.min(pages - 1, cur + 1))}
+              disabled={cur >= pages - 1}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border transition disabled:opacity-35"
+              style={{ borderColor: C.line, color: C.sub }}
+              aria-label="Nächste Seite"
+            >
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
