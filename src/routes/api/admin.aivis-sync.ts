@@ -368,11 +368,15 @@ function parseJson(text: string): any {
 const urlListIn = (t: string) => (String(t).match(/https?:\/\/[^\s)\]"'>]+/g) || []).map((u) => u.replace(/[.,);]+$/, ""));
 const domOf = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, "").toLowerCase(); } catch { return null; } };
 
-// Ziel-Anzahl aktiver Prompts je Kunde (Env-übersteuerbar). Liegt der Bestand
-// darunter, stockt der Prompt-Runner beim nächsten Lauf automatisch auf.
-// Das ist ein MINIMUM (Untergrenze fürs Nachsäen), keine Anzeige-/Lauf-Grenze:
-// gefahren und angezeigt werden immer ALLE aktiven Prompts.
-const PROMPT_TARGET = Math.min(60, Math.max(1, Number(process.env.AIVIS_PROMPT_TARGET ?? 30) || 30));
+// Ziel-Anzahl aktiver Prompts je Kunde (Env-übersteuerbar, KEINE Obergrenze).
+// Liegt der Bestand darunter, stockt der Prompt-Runner beim nächsten Lauf
+// automatisch auf. Das ist ein MINIMUM (Untergrenze fürs Nachsäen), keine
+// Anzeige-/Lauf-Grenze: gefahren und angezeigt werden immer ALLE aktiven Prompts.
+const PROMPT_TARGET = Math.max(1, Number(process.env.AIVIS_PROMPT_TARGET ?? 30) || 30);
+
+// Pro LLM-Aufruf säen wir höchstens 25 Prompts (Zuverlässigkeit der JSON-
+// Antwort) — höhere Ziele werden per Schleife in Etappen erreicht.
+const SEED_CHUNK = 25;
 
 // Seeding: realistische, strategisch gemischte Nutzer-Prompts je Kunde.
 // Mit opts.existing wird nachgesät (Top-up) statt neu gesät — ohne Duplikate.
@@ -381,7 +385,7 @@ async function seedPromptDefs(
   sbAny: any,
   opts: { count?: number; existing?: string[] } = {},
 ): Promise<{ defs: any[]; error?: string }> {
-  const count = Math.min(50, Math.max(1, opts.count ?? PROMPT_TARGET));
+  const count = Math.min(SEED_CHUNK, Math.max(1, opts.count ?? PROMPT_TARGET));
   const existing = (opts.existing ?? []).map((p) => String(p).trim()).filter(Boolean);
   const avoid = existing.length
     ? `\nBereits vorhandene Prompts (erzeuge KEINE Duplikate und keine nahen Umformulierungen davon, sondern NEUE Blickwinkel/Nischen):\n${existing.map((p) => `- ${p}`).join("\n")}\n`
@@ -431,30 +435,34 @@ async function judgeAnswers(brand: string, comps: string[], items: Array<{ i: nu
 }
 
 async function jobPromptRunner(c: any, sbAny: any, fixedComps: string[] = []) {
-  let { data: defs } = await sbAny
-    .from("ai_visibility_prompt_defs")
-    .select("*")
-    .eq("client_id", c.id)
-    .eq("active", true)
-    .limit(1000); // kein hartes Prompt-Limit mehr — alle aktiven Prompts werden gefahren
+  // ALLE aktiven Prompts blockweise laden — kein Limit (PostgREST kappt
+  // einzelne Queries bei 1000 Zeilen, deshalb range-Schleife).
+  let defs: any[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data: page } = await sbAny
+      .from("ai_visibility_prompt_defs")
+      .select("*")
+      .eq("client_id", c.id)
+      .eq("active", true)
+      .order("id", { ascending: true })
+      .range(from, from + 999);
+    defs.push(...(page ?? []));
+    if (!page || page.length < 1000) break;
+  }
+  // Nachsäen bis zum Ziel — in Etappen (SEED_CHUNK je LLM-Aufruf), damit auch
+  // hohe Ziele zuverlässig erreicht werden. Bestehende bleiben unverändert.
   let seeded = 0;
-  if (!defs?.length) {
-    const s = await seedPromptDefs(c, sbAny);
-    defs = s.defs;
-    seeded = defs.length;
-    if (!defs.length) return { skipped: `Seeding fehlgeschlagen: ${s.error || "unbekannt"}` };
-  } else if (defs.length < PROMPT_TARGET) {
-    // Top-up: Bestand liegt unter dem Ziel (z. B. Alt-Seeding mit nur 8) ->
-    // fehlende Prompts nachsäen; bestehende bleiben unverändert (History!).
+  let seedError: string | undefined;
+  while (defs.length < PROMPT_TARGET) {
     const s = await seedPromptDefs(c, sbAny, {
       count: PROMPT_TARGET - defs.length,
       existing: defs.map((d: any) => d.prompt),
     });
-    if (s.defs.length) {
-      defs = [...defs, ...s.defs];
-      seeded = s.defs.length;
-    }
+    if (!s.defs.length) { seedError = s.error; break; } // LLM liefert nichts Neues mehr
+    defs = [...defs, ...s.defs];
+    seeded += s.defs.length;
   }
+  if (!defs.length) return { skipped: `Seeding fehlgeschlagen: ${seedError || "unbekannt"}` };
 
   const nameRe = new RegExp(String(c.name || "").trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
   const domain = cleanDomain(c.domain);
@@ -922,9 +930,11 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
 
               // Prompts + Themen + SoV + Quellen + Auto-Learning (Custom-Layer).
               if (hasPr) {
-                await sb.from("ai_visibility_prompts").insert(
-                  pr.promptRows.map((p: any) => ({ ...p, report_id: reportId, client_id: c.id })),
-                );
+                // Blockweise einfügen — bei vielen Prompts × Engines bleibt
+                // der einzelne Request sonst zu groß.
+                const promptInserts = pr.promptRows.map((p: any) => ({ ...p, report_id: reportId, client_id: c.id }));
+                for (let off = 0; off < promptInserts.length; off += 500)
+                  await sb.from("ai_visibility_prompts").insert(promptInserts.slice(off, off + 500));
                 // Semrush: echte Suchvolumina in die Themen (füllt die AI-Vol.-Spalte).
                 if (process.env.SEMRUSH_API_KEY) {
                   let vf = 0;
