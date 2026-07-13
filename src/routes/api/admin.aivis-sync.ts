@@ -25,6 +25,7 @@ const Body = z.object({
   client: z.string().optional(), // Name (ilike) oder uuid
   all: z.boolean().optional(),
   jobs: z.array(z.enum(["brand_radar", "attribution", "prompts", "canonry", "serp_ai"])).optional(),
+  serpKeywords: z.number().int().min(0).max(25000).optional(), // pro Request: serp_ai-Keyword-Limit (0 = alle)
   minIntervalDays: z.number().int().min(0).max(60).default(6),
   force: z.boolean().optional(),
   mode: z.enum(["live", "backfill"]).default("live"), // backfill = Ahrefs/GA4-Historie
@@ -240,10 +241,11 @@ function dfsCollectDomains(node: any, out: Set<string>) {
   }
 }
 
-async function jobSerpAi(c: any) {
+async function jobSerpAi(c: any, limitOverride?: number) {
   const auth = dfsAuth();
   if (!auth) return { skipped: "DATAFORSEO_LOGIN/DATAFORSEO_PASSWORD fehlt (Lovable-Env)" };
-  const allPairs = await gscTopQueryCountryPairs(c, DFS_SERP_KEYWORDS || 25000); // 0 = alle
+  const kwLimit = limitOverride ?? DFS_SERP_KEYWORDS;
+  const allPairs = await gscTopQueryCountryPairs(c, kwLimit || 25000); // 0 = alle
   if (!allPairs.length) return { skipped: "keine GSC-Keywords (gsc_property/Google-Verbindung prüfen)" };
   // Nur Länder mit bekannter DataForSEO-Location; Rest zählen statt raten.
   const homeLoc = DFS_LOCATION[String(c.country || "CH").toUpperCase()] || DFS_LOCATION.CH;
@@ -919,7 +921,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         const parsed = Body.safeParse(await request.json().catch(() => ({})));
         if (!parsed.success)
           return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
-        const { client: sel, all, jobs, minIntervalDays, force, mode, months } = parsed.data;
+        const { client: sel, all, jobs, minIntervalDays, force, mode, months, serpKeywords } = parsed.data;
         const wanted = jobs && jobs.length ? jobs : (["brand_radar", "attribution", "prompts", "canonry", "serp_ai"] as const);
 
         const query = supabaseAdmin
@@ -987,7 +989,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             const br: any = wanted.includes("brand_radar") ? await jobBrandRadar(c, fixedComps) : null;
             const at: any = wanted.includes("attribution") ? await jobAttribution(c) : null;
             const pr: any = wanted.includes("prompts") ? await jobPromptRunner(c, sb, fixedComps) : null;
-            const sa: any = wanted.includes("serp_ai") ? await jobSerpAi(c) : null;
+            const sa: any = wanted.includes("serp_ai") ? await jobSerpAi(c, serpKeywords) : null;
             jr.serp_ai = sa
               ? (sa.skipped
                   ? { skipped: sa.skipped }
