@@ -1172,27 +1172,34 @@ export const Route = createFileRoute("/api/admin/populate")({
           }
           results.push({ client: c.name, domain: c.domain, jobs: jr });
         }
-        // WP4/A4.2: Heartbeat an den n8n-Watchdog (fire-and-forget, 5s). Secret aus
-        // Env (bestehendes rotiertes n8n-Secret, NICHT hardcoden); fehlt es -> still.
+        // WP4/A4.2: Heartbeat an den n8n-Watchdog (5s-Timeout, darf den Lauf nie
+        // scheitern lassen). Secret aus Env; Ergebnis wird zur Diagnose in der
+        // Antwort mitgegeben (sent | no-secret | error:<kurz>).
+        let heartbeat = "no-secret";
         try {
           const hbSecret = process.env.N8N_AGENT_WEBHOOK_SECRET;
           if (hbSecret) {
-            fetch("https://ezyone.app.n8n.cloud/webhook/agent-heartbeat", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "X-Ezy-Auth": hbSecret },
-              body: JSON.stringify({
-                client: "ezyhub",
-                agent: "populate-job",
-                status: metaFail > 0 ? "fehler" : "ok",
-                note: `${metaOk} Quellen ok, ${metaFail} fail`,
-              }),
-              signal: AbortSignal.timeout(5000),
-            }).catch(() => {});
+            try {
+              const hr = await fetch("https://ezyone.app.n8n.cloud/webhook/agent-heartbeat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "X-Ezy-Auth": hbSecret },
+                body: JSON.stringify({
+                  client: "ezyhub",
+                  agent: "populate-job",
+                  status: metaFail > 0 ? "fehler" : "ok",
+                  note: `${metaOk} Quellen ok, ${metaFail} fail`,
+                }),
+                signal: AbortSignal.timeout(5000),
+              });
+              heartbeat = hr.ok ? "sent" : `error:HTTP ${hr.status}`;
+            } catch (e) {
+              heartbeat = `error:${String((e as Error)?.message || e).slice(0, 60)}`;
+            }
           }
         } catch {
-          /* fire-and-forget */
+          /* nie den Lauf scheitern lassen */
         }
-        return Response.json({ ok: true, count: clients.length, results });
+        return Response.json({ ok: true, count: clients.length, heartbeat, results });
       },
     },
   },
