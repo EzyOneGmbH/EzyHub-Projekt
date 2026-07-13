@@ -131,9 +131,13 @@ function brandName(c: any) {
 // Kunden per DataForSEO (pay-per-call) darauf, ob eine AI-Antwort erscheint
 // und ob der Kunde darin zitiert/erwähnt wird. Macht die beiden Modelle
 // unabhängig vom Ahrefs-Korpus und misst auf den EIGENEN Keywords.
-// 0 (Default) = ALLE GSC-Suchanfragen der letzten 28 Tage (bis GSC-Max 25000).
-// Nur wer bewusst begrenzen will, setzt AIVIS_SERP_KEYWORDS auf eine Zahl > 0.
-const DFS_SERP_KEYWORDS = Math.max(0, Number(process.env.AIVIS_SERP_KEYWORDS ?? 0) || 0);
+// Kosten-Bremse (User-Entscheid 2026-07-13): Default 500 GSC-Suchanfragen je
+// Kunde (28 Tage, GSC-Reihenfolge = Klicks absteigend, d. h. die wichtigsten
+// zuerst). AIVIS_SERP_KEYWORDS=0 = ALLE (bis GSC-Max 25000), Zahl > 0 = Limit.
+const DFS_SERP_KEYWORDS = (() => {
+  const raw = Number(process.env.AIVIS_SERP_KEYWORDS ?? 500);
+  return Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : 500;
+})();
 const DFS_CONCURRENCY = 8; // parallele SERP-Checks (DataForSEO-Live-Limit ~30)
 const DFS_LOCATION: Record<string, { code: number; lang: string; name: string }> = {
   CH: { code: 2756, lang: "de", name: "Schweiz" },
