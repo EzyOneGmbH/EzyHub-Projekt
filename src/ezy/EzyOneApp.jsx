@@ -126,6 +126,7 @@ import {
   aiVisibilityTopicsFromResult,
   googleAdsFromResult,
   aworkTasksFromResult,
+  useEzyHealthComponents,
 } from "@/ezy/data/useEzyLatestRun";
 import GoogleClientPanel from "@/ezy/GoogleClientPanel.jsx";
 import AIVisibilityReport, { AIVisibilitySkeleton } from "@/ezy/AIVisibilityDashboard.jsx";
@@ -365,6 +366,8 @@ function normalizeClientShape(client, fallback = {}) {
     startDate: String(
       client?.startDate ?? fallback.startDate ?? new Date().toISOString().slice(0, 10),
     ).trim(),
+    brandTerms: Array.isArray(client?.brandTerms) ? client.brandTerms : [],
+    revenueMode: client?.revenueMode === "clicks" ? "clicks" : "revenue",
   };
 }
 function clientFormFromClient(client) {
@@ -383,6 +386,9 @@ function clientFormFromClient(client) {
     ga4PropertyId: client?.ga4PropertyId || "",
     ga4MeasurementId: client?.ga4MeasurementId || "",
     canonryProject: client?.canonryProject || "",
+    // Dashboard-Ausbau 2026-07-11 (B5d): Brand-Terms (Tag-Input) + Umsatz-Modus.
+    brandTerms: (client?.brandTerms || []).join(", "),
+    revenueMode: client?.revenueMode === "clicks" ? "clicks" : "revenue",
     // Beim Anlegen vorausgewaehlte Dienste (Set von Service-Keys).
     services: new Set(DEFAULT_ON_SERVICES),
   };
@@ -2555,8 +2561,14 @@ function SeoDashboard({ selectedClient, dateRange }) {
     .reverse(), [runs, startDate]);
   const { run: gscRun, refresh: refreshGsc } = useEzyLatestRun(selectedClient?.id, "gsc_summary");
   const gsc = gscRun ? gscKpisFromResult(gscRun.result) : null;
+  // Dashboard-Ausbau 2026-07-11: B1 Rankings (agent-service Rank-Store) + B2 GSC-Split.
+  const { run: rankRun } = useEzyLatestRun(selectedClient?.id, "rankings");
+  const rank = rankRun?.result || null;
+  const { run: gscQRun } = useEzyLatestRun(selectedClient?.id, "gsc_queries");
+  const gscQ = gscQRun?.result || null;
   const { run: psiRun, refresh: refreshPsi } = useEzyLatestRun(selectedClient?.id, "pagespeed");
   const psi = psiRun ? pagespeedKpisFromResult(psiRun.result) : null;
+  const cwvOrigin = psiRun?.result?.metrics?.dataOrigin || null; // B5a
   const { run: trafRun, refresh: refreshTraf } = useEzyLatestRun(selectedClient?.id, "ga4_traffic");
   const traf = trafRun ? ga4TrafficFromResult(trafRun.result) : null;
   useEffect(() => {
@@ -2596,8 +2608,106 @@ function SeoDashboard({ selectedClient, dateRange }) {
       />
     );
   }
+  // B1: Rankings-Zeilen sortiert — Money-Keywords zuerst, dann nach Position.
+  const rankRows = rank
+    ? [...(rank.keywords || [])].sort((a, b) => {
+        if (!!b.isMoney !== !!a.isMoney) return b.isMoney ? 1 : -1;
+        return (a.pos ?? 999) - (b.pos ?? 999);
+      })
+    : [];
+  const fmtDelta = (cur, prev) => {
+    if (cur == null || prev == null) return null;
+    return prev - cur; // Position kleiner = besser -> positives Delta = Verbesserung
+  };
+  const DeltaCell = ({ cur, prev }) => {
+    const d = fmtDelta(cur, prev);
+    if (d == null) return <span style={{ color: C.textDim }}>—</span>;
+    if (d === 0) return <span style={{ color: C.textDim }}>±0</span>;
+    const up = d > 0;
+    return (
+      <span style={{ color: up ? C.green : C.orange, fontWeight: 600 }}>
+        {up ? "▲" : "▼"} {Math.abs(d)}
+      </span>
+    );
+  };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {rank && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
+              gap: 14,
+            }}
+          >
+            <KpiCard icon={Award} label="In Top 3" value={rank.aggregate?.top3 ?? "—"} color={C.green} />
+            <KpiCard icon={Target} label="In Top 10" value={rank.aggregate?.top10 ?? "—"} color={C.accent} />
+            <KpiCard
+              icon={TrendingUp}
+              label="Verbessert (7 Tage)"
+              value={rank.aggregate?.improved7 ?? "—"}
+              color={C.green}
+            />
+            <KpiCard
+              icon={Activity}
+              label="Verschlechtert (7 Tage)"
+              value={rank.aggregate?.declined7 ?? "—"}
+              color={C.orange}
+            />
+          </div>
+          <div
+            style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}>
+              Rankings ({rank.aggregate?.tracked ?? rankRows.length} Keywords · Stand {rank.date || "—"})
+            </div>
+            <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+              <table style={{ width: "100%", minWidth: 560, borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ color: C.textDim, textAlign: "left" }}>
+                    <th style={{ padding: "6px 8px" }}>Keyword</th>
+                    <th style={{ padding: "6px 8px", textAlign: "right" }}>Position</th>
+                    <th style={{ padding: "6px 8px", textAlign: "right" }}>Δ 7T</th>
+                    <th style={{ padding: "6px 8px", textAlign: "right" }}>Δ 28T</th>
+                    <th style={{ padding: "6px 8px" }}>URL</th>
+                    <th style={{ padding: "6px 8px", textAlign: "right" }}>Volumen</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rankRows.map((k, i) => (
+                    <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
+                      <td style={{ padding: "6px 8px", color: C.text }}>
+                        {k.isMoney && (
+                          <span style={{ marginRight: 6 }}>
+                            <Badge color={C.pink}>Money</Badge>
+                          </span>
+                        )}
+                        {k.kw}
+                      </td>
+                      <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 600 }}>
+                        {k.pos != null ? k.pos : "> 100"}
+                      </td>
+                      <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                        <DeltaCell cur={k.pos} prev={k.posPrev7} />
+                      </td>
+                      <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                        <DeltaCell cur={k.pos} prev={k.posPrev28} />
+                      </td>
+                      <td style={{ padding: "6px 8px", color: C.textMuted, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {k.url || "—"}
+                      </td>
+                      <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                        {k.volume != null ? k.volume.toLocaleString("de-CH") : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
       {isOn("seo.ahrefs") && (
       <div
         style={{
@@ -2646,7 +2756,104 @@ function SeoDashboard({ selectedClient, dateRange }) {
         )}
       </div>
       )}
-      {hasGsc && (
+      {isOn("seo.gsc") && gscQ && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* B2a: Brand vs. Non-Brand (28 Tage, GSC-Puffer heute-3) */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))",
+              gap: 14,
+            }}
+          >
+            {[
+              ["Brand", gscQ.brand, C.blue],
+              ["Non-Brand", gscQ.nonbrand, C.accent],
+            ].map(([label, seg, color]) => (
+              <div
+                key={label}
+                style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}
+              >
+                <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 6 }}>
+                  {label} · {gscQ.range?.from} – {gscQ.range?.to}
+                </div>
+                <div style={{ fontSize: 24, fontWeight: 800, color }}>
+                  {(seg?.clicks ?? 0).toLocaleString("de-CH")} Klicks
+                </div>
+                <div style={{ fontSize: 12, color: C.textMuted }}>
+                  {(seg?.impressions ?? 0).toLocaleString("de-CH")} Impressionen · {(seg?.queries ?? 0).toLocaleString("de-CH")} Suchanfragen
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* B2b: Positions-Buckets Non-Brand */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))",
+              gap: 14,
+            }}
+          >
+            {[
+              ["Top 3", gscQ.buckets_nonbrand?.top3, C.green],
+              ["Top 10", gscQ.buckets_nonbrand?.top10, C.accent],
+              ["11–20", gscQ.buckets_nonbrand?.pos11to20, C.orange],
+              ["21+", gscQ.buckets_nonbrand?.pos21plus, C.textDim],
+            ].map(([label, b, color]) => (
+              <div
+                key={label}
+                style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 14, textAlign: "center" }}
+              >
+                <div style={{ fontSize: 22, fontWeight: 800, color }}>{b?.queries ?? 0}</div>
+                <div style={{ fontSize: 11, color: C.textMuted }}>
+                  {label} · {(b?.clicks ?? 0).toLocaleString("de-CH")} Klicks
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* B2c: Top-Non-Brand-Queries + Ø-Position als Sekundaer-Metrik */}
+          {Array.isArray(gscQ.topNonbrandQueries) && gscQ.topNonbrandQueries.length > 0 && (
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.textMuted }}>
+                  Top Non-Brand-Suchanfragen
+                </div>
+                {gsc && gsc.position > 0 && (
+                  <div
+                    style={{ fontSize: 11, color: C.textDim, cursor: "help" }}
+                    title="Vorsicht: sinkt oft, wenn neue Keywords erstmals ranken."
+                  >
+                    Ø Position {gsc.position.toFixed(1)} ⓘ
+                  </div>
+                )}
+              </div>
+              <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                <table style={{ width: "100%", minWidth: 480, borderCollapse: "collapse", fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ color: C.textDim, textAlign: "left" }}>
+                      <th style={{ padding: "6px 8px" }}>Query</th>
+                      <th style={{ padding: "6px 8px", textAlign: "right" }}>Klicks</th>
+                      <th style={{ padding: "6px 8px", textAlign: "right" }}>Impr.</th>
+                      <th style={{ padding: "6px 8px", textAlign: "right" }}>Pos.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gscQ.topNonbrandQueries.slice(0, 10).map((q, i) => (
+                      <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
+                        <td style={{ padding: "6px 8px", color: C.text }}>{q.query}</td>
+                        <td style={{ padding: "6px 8px", textAlign: "right" }}>{q.clicks}</td>
+                        <td style={{ padding: "6px 8px", textAlign: "right" }}>{q.impressions}</td>
+                        <td style={{ padding: "6px 8px", textAlign: "right" }}>{Number(q.position).toFixed(1)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      {hasGsc && !gscQ && (
         <>
           <div
             style={{
@@ -2725,6 +2932,35 @@ function SeoDashboard({ selectedClient, dateRange }) {
         </>
       )}
       {hasCwv && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {cwvOrigin && (
+            <div>
+              <span
+                style={{
+                  display: "inline-block",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: "3px 10px",
+                  borderRadius: 999,
+                  background: cwvOrigin === "lab" ? `${C.orange}22` : `${C.green}22`,
+                  color: cwvOrigin === "lab" ? C.orange : C.green,
+                  cursor: cwvOrigin === "lab" ? "help" : "default",
+                }}
+                title={
+                  cwvOrigin === "lab"
+                    ? "Labordaten schwanken zwischen Laeufen — Trends mit Vorsicht lesen."
+                    : undefined
+                }
+              >
+                {cwvOrigin === "field"
+                  ? "Felddaten (CrUX)"
+                  : cwvOrigin === "field-origin"
+                    ? "Felddaten (Origin)"
+                    : "Labordaten (Lighthouse)"}
+                {cwvOrigin === "lab" ? " ⓘ" : ""}
+              </span>
+            </div>
+          )}
         <div
           style={{
             display: "grid",
@@ -2756,6 +2992,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
             value={psi.performanceScore != null ? `${psi.performanceScore}/100` : "—"}
             color={C.accent}
           />
+        </div>
         </div>
       )}
       {((isOn("seo.gsc") && rankingDist.length > 0) ||
@@ -3328,6 +3565,19 @@ function ConvDashboard({ selectedClient, dateRange }) {
   const formSubmits = Number(conv?.breakdown.contact || selectedClient?.formSubmits || 0);
   const convSeries = useMemo(() => (conv?.series || []).slice(-days), [conv?.series, days]);
   const googleVsAi = traf?.googleVsAi || null;
+  // Dashboard-Ausbau 2026-07-11: B3 Kanal-Split (neues channels-Feld) + B5b Umsatz-Modus.
+  const channels = Array.isArray(convRun?.result?.channels)
+    ? convRun.result.channels
+    : Array.isArray(trafRun?.result?.channels) && trafRun.result.channels.some((ch) => ch.conversions != null)
+      ? trafRun.result.channels
+      : null;
+  const channelTotalSessions = channels ? channels.reduce((a, ch) => a + (ch.sessions || 0), 0) : 0;
+  const organicChannel = channels ? channels.find((ch) => /^organic search$/i.test(ch.channel)) : null;
+  const organicShare =
+    channels && channelTotalSessions > 0 && organicChannel
+      ? Math.round((organicChannel.sessions / channelTotalSessions) * 100)
+      : null;
+  const clicksMode = selectedClient?.revenueMode === "clicks"; // B5b: nur Anzeige-Steuerung
   const sessions = Number(ga4?.sessions || 0);
   const totalUsers = Number(ga4?.totalUsers || 0);
   const engagedSessions = Number(ga4?.engagedSessions || 0);
@@ -3405,16 +3655,95 @@ function ConvDashboard({ selectedClient, dateRange }) {
           value={formSubmits > 0 ? formSubmits : "—"}
           color={C.orange}
         />
-        <KpiCard
-          icon={DollarSign}
-          label="Generated"
-          value={revenue > 0 ? `${Math.round(revenue).toLocaleString("de-CH")} CHF` : "—"}
-          change={dRevenue}
-          compareValue={cmp("totalRevenue") !== undefined ? `${Math.round(cmp("totalRevenue")).toLocaleString("de-CH")} CHF` : undefined}
-          compareLabel={cmpName}
-          color={C.pink}
-        />
+        {!clicksMode && (
+          <KpiCard
+            icon={DollarSign}
+            label="Generated"
+            value={revenue > 0 ? `${Math.round(revenue).toLocaleString("de-CH")} CHF` : "—"}
+            change={dRevenue}
+            compareValue={cmp("totalRevenue") !== undefined ? `${Math.round(cmp("totalRevenue")).toLocaleString("de-CH")} CHF` : undefined}
+            compareLabel={cmpName}
+            color={C.pink}
+          />
+        )}
+        {clicksMode && (
+          <KpiCard
+            icon={Target}
+            label="Conversions (Buchungsklicks)"
+            value={conv && conv.purchases + phoneCalls + mailClicks + mapsClicks + formSubmits > 0
+              ? conv.purchases + phoneCalls + mailClicks + mapsClicks + formSubmits
+              : "—"}
+            change={dConv}
+            color={C.pink}
+          />
+        )}
       </div>
+      )}
+      {/* B3: Kanal-Split (GA4 sessionDefaultChannelGroup) — nur wenn channels vorhanden */}
+      {channels && channels.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {organicShare != null && (
+            <div
+              style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, maxWidth: 320 }}
+            >
+              <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 4 }}>davon organisch</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: C.green }}>{organicShare}%</div>
+              <div style={{ fontSize: 11, color: C.textDim }}>
+                {organicChannel.sessions.toLocaleString("de-CH")} von {channelTotalSessions.toLocaleString("de-CH")} Sessions
+              </div>
+            </div>
+          )}
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}>Kanaele</div>
+            <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+              <table style={{ width: "100%", minWidth: 480, borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ color: C.textDim, textAlign: "left" }}>
+                    <th style={{ padding: "6px 8px" }}>Kanal</th>
+                    <th style={{ padding: "6px 8px", textAlign: "right" }}>Sessions</th>
+                    <th style={{ padding: "6px 8px", textAlign: "right" }}>Conversions</th>
+                    <th style={{ padding: "6px 8px", textAlign: "right" }}>
+                      {clicksMode ? "Buchungsklicks (Wert)" : "Umsatz"}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {channels.map((ch, i) => {
+                    const isOrganic = /^organic search$/i.test(ch.channel);
+                    return (
+                      <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
+                        <td style={{ padding: "6px 8px", color: C.text, fontWeight: isOrganic ? 700 : 400 }}>
+                          {isOrganic && (
+                            <span
+                              style={{
+                                display: "inline-block", width: 8, height: 8, borderRadius: 4,
+                                background: C.green, marginRight: 6,
+                              }}
+                            />
+                          )}
+                          {ch.channel}
+                        </td>
+                        <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: isOrganic ? 700 : 400 }}>
+                          {(ch.sessions ?? 0).toLocaleString("de-CH")}
+                        </td>
+                        <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                          {ch.conversions != null ? Math.round(ch.conversions).toLocaleString("de-CH") : "—"}
+                        </td>
+                        <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                          {ch.revenue != null && !clicksMode
+                            ? `${Math.round(ch.revenue).toLocaleString("de-CH")} CHF`
+                            : ch.revenue != null
+                              ? Math.round(ch.revenue).toLocaleString("de-CH")
+                              : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       )}
       {isOn("conv.ga4") &&
         (sessions > 0 || totalUsers > 0 || engagedSessions > 0 || screenPageViews > 0) && (
@@ -3473,12 +3802,22 @@ function ConvDashboard({ selectedClient, dateRange }) {
             compareLabel={cmpName}
             color={C.pink}
           />
-          <KpiCard
-            icon={DollarSign}
-            label="GA4 Revenue"
-            value={ga4Revenue > 0 ? `CHF ${Math.round(ga4Revenue).toLocaleString("de-CH")}` : "—"}
-            color={C.green}
-          />
+          {!clicksMode && (
+            <KpiCard
+              icon={DollarSign}
+              label="GA4 Revenue"
+              value={ga4Revenue > 0 ? `CHF ${Math.round(ga4Revenue).toLocaleString("de-CH")}` : "—"}
+              color={C.green}
+            />
+          )}
+          {clicksMode && (
+            <KpiCard
+              icon={DollarSign}
+              label="Buchungsklicks (Wert)"
+              value={ga4Revenue > 0 ? Math.round(ga4Revenue).toLocaleString("de-CH") : "—"}
+              color={C.green}
+            />
+          )}
           <KpiCard
             icon={Activity}
             label="Bounce Rate"
@@ -3493,7 +3832,7 @@ function ConvDashboard({ selectedClient, dateRange }) {
           />
         </div>
       )}
-      {isOn("conv.revenue") && revenue > 0 && (
+      {isOn("conv.revenue") && revenue > 0 && !clicksMode && (
         <div
           style={{
             background: `linear-gradient(135deg,${C.accent}22,${C.green}15)`,
@@ -3758,6 +4097,10 @@ function ConvDashboard({ selectedClient, dateRange }) {
           </div>
         </div>
       )}
+      {/* B5c: Mess-Hygiene-Fussnote (immer sichtbar) */}
+      <div style={{ fontSize: 11, color: C.textDim }}>
+        Gemessene Werte — je nach Cookie-Einwilligung untererfasst.
+      </div>
     </div>
   );
 }
@@ -3808,6 +4151,21 @@ function OverviewDashboard({ selectedClient, dateRange }) {
   const ovCmpName = compareName(dateRange?.compareMode);
   const ovOrganicCmp = ovCmpData?.compare ? Number(ovCmpData.compare.sessions || 0) : undefined;
 
+  // Dashboard-Ausbau 2026-07-11 (B4): Health-Komponenten + Frische aus populate_meta.
+  const { health, populateMeta } = useEzyHealthComponents(selectedClient?.id);
+  const metaAgeH = populateMeta?.created_at
+    ? (Date.now() - new Date(populateMeta.created_at).getTime()) / 3600_000
+    : null;
+  const SOURCE_LABELS = {
+    ahrefs: "Ahrefs", gsc: "GSC", gsc_queries: "GSC-Queries", crux: "CWV",
+    ga4: "GA4", ga4_traffic: "GA4-Traffic", ga4_conversions: "GA4-Conv.", canonry: "Canonry",
+  };
+  const fmtTs = (ts) => {
+    try {
+      const d = new Date(ts);
+      return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}. ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    } catch { return ""; }
+  };
   const hasAny = organicTraffic + aiReference + leadVisits + visibility > 0 || countries.length > 0;
   if (!hasAny) {
     return (
@@ -3820,6 +4178,73 @@ function OverviewDashboard({ selectedClient, dateRange }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <CompareBanner dateRange={dateRange} />
+      {/* B4d: Datenstand-Banner wenn letzter Sammel-Lauf aelter als 26h */}
+      {metaAgeH != null && metaAgeH > 26 && (
+        <div
+          style={{
+            background: `${C.orange}18`, border: `1px solid ${C.orange}55`,
+            borderRadius: 10, padding: "10px 14px", fontSize: 13, color: C.orange, fontWeight: 600,
+          }}
+        >
+          Datenstand aelter als ein Tag — Sammel-Job pruefen.
+        </div>
+      )}
+      {/* B4a/b: Health-Score + Komponenten-Chips + deltaDriver */}
+      {health && (health.score != null || health.components.length > 0) && (
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+            {health.score != null && (
+              <div style={{ fontSize: 28, fontWeight: 800, color: health.score >= 70 ? C.green : C.orange }}>
+                {health.score}/100
+              </div>
+            )}
+            <div style={{ fontSize: 12, color: C.textMuted }}>Health-Score (Agent-QS)</div>
+            {health.deltaDriver && (
+              <div style={{ fontSize: 12, color: C.textDim }}>{health.deltaDriver}</div>
+            )}
+          </div>
+          {health.components.length > 0 && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+              {health.components.map((k) => (
+                <span
+                  key={k.key}
+                  style={{
+                    fontSize: 12, fontWeight: 600, padding: "4px 12px", borderRadius: 999,
+                    background: `${C.accent}18`, color: C.text, border: `1px solid ${C.border}`,
+                  }}
+                >
+                  {k.label} {k.value != null ? `${Math.round(k.value).toLocaleString("de-CH")}${k.suffix}` : "—"}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {/* B4c: Frische-Zeile aus populate_meta */}
+      {populateMeta?.sources && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {Object.entries(populateMeta.sources)
+            .filter(([k]) => SOURCE_LABELS[k])
+            .map(([k, s]) => {
+              const fail = s?.status === "fail";
+              const skipped = s?.status === "skipped";
+              return (
+                <span
+                  key={k}
+                  title={fail && s?.error ? s.error : undefined}
+                  style={{
+                    fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999,
+                    background: fail ? `${C.orange}22` : `${C.surface}`,
+                    color: fail ? C.orange : skipped ? C.textDim : C.textMuted,
+                    border: `1px solid ${fail ? C.orange : C.border}`,
+                  }}
+                >
+                  {SOURCE_LABELS[k]} · {fail ? "Fehler" : skipped ? "uebersprungen" : `Stand ${fmtTs(s?.ts)}`}
+                </span>
+              );
+            })}
+        </div>
+      )}
       <div
         style={{
           display: "grid",
@@ -8145,6 +8570,8 @@ function ClientsPage({
       ga4PropertyId: draft.ga4PropertyId,
       ga4MeasurementId: draft.ga4MeasurementId,
       canonryProject: draft.canonryProject || slugifyProjectName(draft.domain),
+      brandTerms: splitCsv(draft.brandTerms),
+      revenueMode: draft.revenueMode === "clicks" ? "clicks" : "revenue",
     });
     // Beim Anlegen die gewaehlten Dienste mitgeben (transient -> client_integrations-Seed).
     if (editorMode === "create") next.services = [...(draft.services || [])];
@@ -8643,6 +9070,36 @@ function ClientsPage({
           value={draft.ga4MeasurementId}
           onChange={(v) => setDraft((p) => ({ ...p, ga4MeasurementId: v }))}
         />
+        {/* B5d (Dashboard-Ausbau): Brand-Terms fuer den GSC-Split + Umsatz-Modus */}
+        <Inp
+          label="Brand-Begriffe (GSC Brand/Non-Brand)"
+          value={draft.brandTerms}
+          onChange={(v) => setDraft((p) => ({ ...p, brandTerms: v }))}
+          placeholder="hotel ava, hotelava, hotel-ava"
+        />
+        <div style={{ margin: "4px 0 8px" }}>
+          <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 6 }}>Umsatz-Modus</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            {[
+              ["revenue", "Umsatz-Tracking vollstaendig"],
+              ["clicks", "nur Buchungsklicks"],
+            ].map(([val, label]) => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => setDraft((p) => ({ ...p, revenueMode: val }))}
+                style={{
+                  padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                  border: `1px solid ${draft.revenueMode === val ? C.accent : C.border}`,
+                  background: draft.revenueMode === val ? C.accentDim : "transparent",
+                  color: draft.revenueMode === val ? C.accentLight : C.textMuted,
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
         <Inp
           label="Notizen"
           value={draft.notes}

@@ -261,6 +261,144 @@ export function ga4ConversionsFromResult(result: any): {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Health-Dekomposition (Dashboard-Ausbau 2026-07-11, WP4/A4.3 + B4).
+// WICHTIG: Die Uebersicht hatte bisher KEINEN eigenen 0-100-Score; der bestehende
+// Health-Score des Systems ist agent_runs.health_score (vom Agenten berechnet,
+// Formel unveraendert/serverseitig). Diese Util AGGREGIERT NICHTS NEU — sie
+// exponiert die real vorhandenen Teilmetriken als Komponenten-Chips und leitet
+// deltaDriver aus dem Vergleich zum jeweils vorherigen Lauf ab.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type HealthComponents = {
+  score: number | null; // letzter agent_runs.health_score (bestehende Groesse)
+  components: Array<{ key: string; label: string; value: number | null; suffix: string }>;
+  deltaDriver: string | null;
+};
+
+/** Pure Berechnung — gemeinsame Util, damit keine Duplikate in Tabs entstehen. */
+export function computeHealthComponents(input: {
+  score?: { cur: number | null; prev: number | null };
+  pagespeed?: { cur: any; prev: any };
+  ahrefs?: { cur: any; prev: any };
+  gsc?: { cur: any; prev: any };
+  canonry?: { cur: any; prev: any };
+}): HealthComponents {
+  const comp: HealthComponents["components"] = [];
+  const drivers: Array<{ label: string; delta: number; hint: string }> = [];
+  const push = (
+    key: string,
+    label: string,
+    cur: number | null,
+    prev: number | null,
+    suffix: string,
+    hint: string,
+  ) => {
+    if (cur == null) return;
+    comp.push({ key, label, value: cur, suffix });
+    if (prev != null && prev !== cur) drivers.push({ label, delta: cur - prev, hint });
+  };
+  const ps = (r: any) => (typeof r?.metrics?.performanceScore === "number" ? r.metrics.performanceScore : null);
+  push("technik", "Technik", ps(input.pagespeed?.cur), ps(input.pagespeed?.prev), "/100", "CWV");
+  const dr = (r: any) => {
+    if (!r) return null;
+    const k = ahrefsKpisFromResult(r);
+    return k.score || null;
+  };
+  push("seo", "SEO", dr(input.ahrefs?.cur), dr(input.ahrefs?.prev), " DR", "Autoritaet");
+  const clicks = (r: any) => (r ? Number(r?.metrics?.clicks ?? 0) || 0 : null);
+  push("nachfrage", "Nachfrage", clicks(input.gsc?.cur), clicks(input.gsc?.prev), " Klicks", "GSC");
+  const ki = (r: any) => (r ? aiVisibilityScoreFromResult(r).score : null);
+  push("ki", "KI", ki(input.canonry?.cur), ki(input.canonry?.prev), "/100", "AI-Sichtbarkeit");
+
+  let deltaDriver: string | null = null;
+  const scoreCur = input.score?.cur ?? null;
+  const scorePrev = input.score?.prev ?? null;
+  const gesamt = scoreCur != null && scorePrev != null ? scoreCur - scorePrev : null;
+  if (drivers.length) {
+    drivers.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+    const d = drivers[0];
+    const sign = (n: number) => (n > 0 ? `+${Math.round(n * 10) / 10}` : `${Math.round(n * 10) / 10}`);
+    deltaDriver =
+      gesamt != null && gesamt !== 0
+        ? `${sign(gesamt)} gesamt, davon ${sign(d.delta)} ${d.label} (${d.hint})`
+        : `groesste Veraenderung: ${sign(d.delta)} ${d.label} (${d.hint})`;
+  } else if (gesamt != null && gesamt !== 0) {
+    deltaDriver = `${gesamt > 0 ? "+" : ""}${gesamt} gesamt`;
+  }
+  return { score: scoreCur, components: comp, deltaDriver };
+}
+
+/** Letzte 2 Laeufe je Typ + letzter Agent-Health-Score -> HealthComponents. */
+export function useEzyHealthComponents(clientId: string | undefined): {
+  health: HealthComponents | null;
+  populateMeta: any | null;
+} {
+  const [health, setHealth] = useState<HealthComponents | null>(null);
+  const [populateMeta, setPopulateMeta] = useState<any | null>(null);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (!clientId || !isUuid(clientId)) {
+        setHealth(null);
+        setPopulateMeta(null);
+        return;
+      }
+      try {
+        const TYPES = ["pagespeed", "ahrefs", "gsc_summary", "canonry_ai_visibility", "populate_meta"];
+        const { data } = await supabase
+          .from("audit_runs")
+          .select("audit_type, result, created_at, status")
+          .eq("client_id", clientId)
+          .in("audit_type", TYPES)
+          .eq("status", "succeeded")
+          .order("created_at", { ascending: false })
+          .limit(40);
+        const byType: Record<string, any[]> = {};
+        for (const row of data || []) {
+          (byType[(row as any).audit_type] ||= []).push(row);
+        }
+        const pair = (t: string) => ({
+          cur: byType[t]?.[0]?.result ?? null,
+          prev: byType[t]?.[1]?.result ?? null,
+        });
+        const { data: runs } = await supabase
+          .from("agent_runs")
+          .select("health_score, run_at")
+          .eq("client_id", clientId)
+          .not("health_score", "is", null)
+          .order("run_at", { ascending: false })
+          .limit(2);
+        const score = {
+          cur: (runs?.[0] as any)?.health_score ?? null,
+          prev: (runs?.[1] as any)?.health_score ?? null,
+        };
+        if (!alive) return;
+        setHealth(
+          computeHealthComponents({
+            score,
+            pagespeed: pair("pagespeed"),
+            ahrefs: pair("ahrefs"),
+            gsc: pair("gsc_summary"),
+            canonry: pair("canonry_ai_visibility"),
+          }),
+        );
+        const pm = byType["populate_meta"]?.[0];
+        setPopulateMeta(pm ? { ...(pm as any).result, created_at: (pm as any).created_at } : null);
+      } catch {
+        if (alive) {
+          setHealth(null);
+          setPopulateMeta(null);
+        }
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [clientId]);
+  return { health, populateMeta };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // AI Visibility (Canonry) — extractors over a canonry_ai_visibility snapshot.
 // Snapshot shape: { visibility, metrics, sources, contentSources, health, competitors }.
 // ─────────────────────────────────────────────────────────────────────────────

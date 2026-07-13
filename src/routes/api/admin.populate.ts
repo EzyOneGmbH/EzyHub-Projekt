@@ -31,6 +31,7 @@ const Body = z.object({
         "ahrefs",
         "pagespeed",
         "gsc",
+        "gsc_queries",
         "ga4",
         "ga4_traffic",
         "ga4_conversions",
@@ -56,6 +57,7 @@ const JOB_AUDIT_TYPE: Record<string, string> = {
   ahrefs: "ahrefs",
   pagespeed: "pagespeed",
   gsc: "gsc_summary",
+  gsc_queries: "gsc_queries",
   ga4: "ga4_summary",
   ga4_traffic: "ga4_traffic",
   ga4_conversions: "ga4_conversions",
@@ -63,6 +65,34 @@ const JOB_AUDIT_TYPE: Record<string, string> = {
   google_ads: "google_ads",
   awork_tasks: "awork_tasks",
 };
+
+// GSC-Datenpuffer (Dashboard-Ausbau 2026-07-11, WP2): die letzten ~2 Tage sind in
+// GSC unvollstaendig -> endDate = heute minus 3 Tage fuer ALLE GSC-Abrufe im populate.
+const GSC_END_LAG_DAYS = 3;
+function gscRange(days: number): { start: string; end: string } {
+  const end = new Date();
+  end.setDate(end.getDate() - GSC_END_LAG_DAYS);
+  const start = new Date(end);
+  start.setDate(end.getDate() - days);
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  return { start: fmt(start), end: fmt(end) };
+}
+
+// Brand-Term-Fallback (WP2): ist clients.brand_terms leer, gilt der Domain-Stamm
+// in drei Varianten ("hotel-ava.ch" -> "hotel ava", "hotel-ava", "hotelava").
+function brandTermsOf(c: any): string[] {
+  const configured = Array.isArray(c.brand_terms)
+    ? c.brand_terms.map((t: unknown) => String(t).toLowerCase().trim()).filter(Boolean)
+    : [];
+  if (configured.length) return configured;
+  const stem = String(c.domain || "")
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .split(".")[0]
+    .toLowerCase();
+  if (!stem) return [];
+  return [...new Set([stem.replace(/-/g, " "), stem, stem.replace(/-/g, "")])];
+}
 
 // AI-referral source hostnames (substring match on GA4 sessionSource).
 const AI_SOURCE_PATTERNS = [
@@ -143,7 +173,16 @@ async function jobPagespeed(c: any, uid: string, _days: number) {
   if (!r.ok) return { error: redactSecrets(json?.error?.message || `PSI HTTP ${r.status}`) };
   const field = json?.loadingExperience?.metrics ?? {};
   const lab = json?.lighthouseResult?.audits ?? {};
+  // WP5/A5.1 (Dashboard-Ausbau): Herkunft kennzeichnen — echte CrUX-Felddaten der
+  // URL ("field"), Origin-Fallback ("field-origin") oder nur Lighthouse-Labor ("lab").
+  const hasUrlField = !!field?.LARGEST_CONTENTFUL_PAINT_MS || !!field?.INTERACTION_TO_NEXT_PAINT;
+  const originFallback = json?.loadingExperience?.origin_fallback === true;
+  const hasOriginField =
+    !!json?.originLoadingExperience?.metrics?.LARGEST_CONTENTFUL_PAINT_MS ||
+    !!json?.originLoadingExperience?.metrics?.INTERACTION_TO_NEXT_PAINT;
+  const dataOrigin = hasUrlField && !originFallback ? "field" : hasUrlField || hasOriginField ? "field-origin" : "lab";
   const metrics = {
+    dataOrigin,
     lcp: num(field?.LARGEST_CONTENTFUL_PAINT_MS?.percentile),
     inp: num(field?.INTERACTION_TO_NEXT_PAINT?.percentile),
     cls:
@@ -170,7 +209,7 @@ async function jobPagespeed(c: any, uid: string, _days: number) {
     started_at: nowIso(),
     finished_at: nowIso(),
   });
-  return { score: metrics.performanceScore, lcp: metrics.lcp ?? metrics.lcpLab };
+  return { score: metrics.performanceScore, lcp: metrics.lcp ?? metrics.lcpLab, dataOrigin };
 }
 
 async function ahrefsCall(path: string, params: Record<string, string>, key: string) {
@@ -233,17 +272,15 @@ async function jobAhrefs(c: any, uid: string) {
 async function jobGsc(c: any, uid: string, days: number) {
   if (!c.gsc_property) return { skipped: "kein gsc_property" };
   const { accessToken } = await getGoogleAccessToken(c.id);
-  const end = new Date();
-  const start = new Date(end);
-  start.setDate(end.getDate() - days);
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  // WP2: GSC-Puffer — endDate = heute-3 (letzte ~2 Tage unvollstaendig).
+  const { start, end } = gscRange(days);
   const url = `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(c.gsc_property)}/searchAnalytics/query`;
   const r = await fetch(url, {
     method: "POST",
     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      startDate: fmt(start),
-      endDate: fmt(end),
+      startDate: start,
+      endDate: end,
       dimensions: ["query"],
       rowLimit: 50,
       orderBy: [{ field: "clicks", descending: true }],
@@ -270,6 +307,7 @@ async function jobGsc(c: any, uid: string, days: number) {
   );
   const result = {
     days,
+    range: { from: start, to: end },
     metrics: {
       clicks: t.clicks,
       impressions: t.impressions,
@@ -290,6 +328,86 @@ async function jobGsc(c: any, uid: string, days: number) {
     finished_at: nowIso(),
   });
   return { imported: keywords.length };
+}
+
+// WP2 (Dashboard-Ausbau 2026-07-11): Query-Level-GSC mit Brand/Non-Brand-Split
+// + Positions-Buckets (Non-Brand) + Top-Non-Brand-Queries -> type 'gsc_queries'.
+async function jobGscQueries(c: any, uid: string, days: number) {
+  if (!c.gsc_property) return { skipped: "kein gsc_property" };
+  const { accessToken } = await getGoogleAccessToken(c.id);
+  const { start, end } = gscRange(days);
+  const url = `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(c.gsc_property)}/searchAnalytics/query`;
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      startDate: start,
+      endDate: end,
+      dimensions: ["query"],
+      rowLimit: 25000,
+      orderBy: [{ field: "clicks", descending: true }],
+    }),
+  });
+  if (!r.ok)
+    return { error: redactSecrets(`GSC HTTP ${r.status}: ${await r.text().catch(() => "")}`) };
+  const json: any = await r.json();
+  const terms = brandTermsOf(c);
+  const isBrand = (q: string) => {
+    const s = q.toLowerCase();
+    return terms.some((t) => t && s.includes(t));
+  };
+  const brand = { clicks: 0, impressions: 0, queries: 0 };
+  const nonbrand = { clicks: 0, impressions: 0, queries: 0 };
+  const mkBucket = () => ({ queries: 0, clicks: 0, impressions: 0 });
+  const buckets = {
+    top3: mkBucket(),
+    top10: mkBucket(),
+    pos11to20: mkBucket(),
+    pos21plus: mkBucket(),
+  };
+  const nonbrandRows: Array<{ query: string; clicks: number; impressions: number; position: number }> = [];
+  for (const row of json.rows ?? []) {
+    const q = String(row.keys?.[0] ?? "");
+    const clicks = Number(row.clicks ?? 0);
+    const impressions = Number(row.impressions ?? 0);
+    const position = Number(row.position ?? 0);
+    if (isBrand(q)) {
+      brand.clicks += clicks;
+      brand.impressions += impressions;
+      brand.queries += 1;
+      continue;
+    }
+    nonbrand.clicks += clicks;
+    nonbrand.impressions += impressions;
+    nonbrand.queries += 1;
+    // Bucket ueber die Durchschnittsposition der Query (top10 = 4-10).
+    const b =
+      position < 4 ? buckets.top3 : position <= 10 ? buckets.top10 : position <= 20 ? buckets.pos11to20 : buckets.pos21plus;
+    b.queries += 1;
+    b.clicks += clicks;
+    b.impressions += impressions;
+    if (impressions >= 10) nonbrandRows.push({ query: q, clicks, impressions, position: Math.round(position * 10) / 10 });
+  }
+  nonbrandRows.sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions);
+  const result = {
+    range: { from: start, to: end },
+    brand,
+    nonbrand,
+    buckets_nonbrand: buckets,
+    topNonbrandQueries: nonbrandRows.slice(0, 20),
+  };
+  await insertRun({
+    client_id: c.id,
+    organization_id: c.organization_id,
+    triggered_by: uid,
+    audit_type: "gsc_queries",
+    status: "succeeded",
+    input: { days, brandTerms: terms },
+    result,
+    started_at: nowIso(),
+    finished_at: nowIso(),
+  });
+  return { brand: brand.queries, nonbrand: nonbrand.queries };
 }
 
 async function jobGa4(c: any, uid: string, days: number) {
@@ -472,18 +590,36 @@ async function jobGa4Traffic(c: any, uid: string, days: number) {
   };
   let channels: any[] = [];
   try {
+    // WP3 (Dashboard-Ausbau): conversions + revenue je Kanal ADDITIV mitziehen —
+    // bestehendes Feld sessions bleibt unveraendert (Hooks!).
     const ch = await call({
       dateRanges,
       dimensions: [{ name: "sessionDefaultChannelGroup" }],
-      metrics: [{ name: "sessions" }],
+      metrics: [{ name: "sessions" }, { name: "conversions" }, { name: "totalRevenue" }],
       orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
     });
     channels = (ch.rows ?? []).map((r: any) => ({
       channel: r.dimensionValues?.[0]?.value ?? "(other)",
       sessions: Number(r.metricValues?.[0]?.value ?? 0),
+      conversions: Number(r.metricValues?.[1]?.value ?? 0),
+      revenue: Number(r.metricValues?.[2]?.value ?? 0),
     }));
   } catch {
-    /* optional */
+    // Fallback ohne conversions/revenue (aeltere Properties): nur sessions.
+    try {
+      const ch = await call({
+        dateRanges,
+        dimensions: [{ name: "sessionDefaultChannelGroup" }],
+        metrics: [{ name: "sessions" }],
+        orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+      });
+      channels = (ch.rows ?? []).map((r: any) => ({
+        channel: r.dimensionValues?.[0]?.value ?? "(other)",
+        sessions: Number(r.metricValues?.[0]?.value ?? 0),
+      }));
+    } catch {
+      /* optional */
+    }
   }
   let aiBySource: any[] = [];
   try {
@@ -707,6 +843,24 @@ async function jobGa4Conversions(c: any, uid: string, days: number) {
       /* optional */
     }
   }
+  // WP3 (Dashboard-Ausbau): Kanal-Split additiv auch in ga4_conversions.
+  let channels: any[] = [];
+  try {
+    const ch = await call({
+      dateRanges,
+      dimensions: [{ name: "sessionDefaultChannelGroup" }],
+      metrics: [{ name: "sessions" }, { name: "conversions" }, { name: "totalRevenue" }],
+      orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+    });
+    channels = (ch.rows ?? []).map((r: any) => ({
+      channel: r.dimensionValues?.[0]?.value ?? "(other)",
+      sessions: Number(r.metricValues?.[0]?.value ?? 0),
+      conversions: Number(r.metricValues?.[1]?.value ?? 0),
+      revenue: Number(r.metricValues?.[2]?.value ?? 0),
+    }));
+  } catch {
+    /* optional — Feld fehlt dann, UI blendet den Block aus */
+  }
   const result = {
     days,
     breakdown,
@@ -715,6 +869,7 @@ async function jobGa4Conversions(c: any, uid: string, days: number) {
     revenue,
     purchases,
     series,
+    ...(channels.length ? { channels } : {}),
   };
   await insertRun({
     client_id: c.id,
@@ -872,17 +1027,16 @@ export const Route = createFileRoute("/api/admin/populate")({
                 "ahrefs",
                 "pagespeed",
                 "gsc",
+                "gsc_queries",
                 "ga4",
                 "ga4_traffic",
                 "ga4_conversions",
                 "ai_visibility",
               ] as const);
 
-        const query = supabaseAdmin
-          .from("clients")
-          .select(
-            "id, name, domain, organization_id, gsc_property, ga4_property, google_ads_customer, country, language, canonry_project",
-          );
+        // select("*"): tolerant gegenueber noch nicht applizierter Migration
+        // (brand_terms/revenue_mode) — Deploy-Reihenfolge darf den 12h-Cron nie brechen.
+        const query = supabaseAdmin.from("clients").select("*");
         let clients: any[] = [];
         if (all) clients = (await query).data || [];
         else if (sel && isUuid(sel)) clients = (await query.eq("id", sel)).data || [];
@@ -943,7 +1097,10 @@ export const Route = createFileRoute("/api/admin/populate")({
         }
 
         const results: any[] = [];
+        let metaOk = 0;
+        let metaFail = 0;
         for (const c of clients) {
+          const clientStartedAt = nowIso();
           const uid = await ownerOf(c.organization_id);
           const jr: Record<string, unknown> = {};
           if (!uid) {
@@ -962,6 +1119,7 @@ export const Route = createFileRoute("/api/admin/populate")({
               if (j === "ahrefs") jr.ahrefs = await jobAhrefs(c, uid);
               else if (j === "pagespeed") jr.pagespeed = await jobPagespeed(c, uid, days);
               else if (j === "gsc") jr.gsc = await jobGsc(c, uid, days);
+              else if (j === "gsc_queries") jr.gsc_queries = await jobGscQueries(c, uid, days);
               else if (j === "ga4") jr.ga4 = await jobGa4(c, uid, days);
               else if (j === "ga4_traffic") jr.ga4_traffic = await jobGa4Traffic(c, uid, days);
               else if (j === "ga4_conversions")
@@ -974,7 +1132,65 @@ export const Route = createFileRoute("/api/admin/populate")({
               jr[j] = { error: redactSecrets(e) };
             }
           }
+          // WP4/A4.1 (Dashboard-Ausbau): Frische-Metadaten je Lauf — auch bei
+          // Teilfehlern. Quelle -> ok | fail | skipped (+ ts, kurzer Fehler).
+          try {
+            const srcOf = (v: any, extra?: Record<string, unknown>) => {
+              if (!v) return { status: "skipped" as const, ts: nowIso() };
+              if (v.error) return { status: "fail" as const, error: String(v.error).slice(0, 160), ts: nowIso() };
+              if (v.skipped) return { status: "skipped" as const, note: String(v.skipped).slice(0, 80), ts: nowIso() };
+              return { status: "ok" as const, ts: nowIso(), ...(extra || {}) };
+            };
+            const cruxOrigin = (jr.pagespeed as any)?.dataOrigin;
+            const sources: Record<string, unknown> = {
+              ahrefs: srcOf(jr.ahrefs),
+              gsc: srcOf(jr.gsc),
+              gsc_queries: srcOf(jr.gsc_queries),
+              crux: srcOf(jr.pagespeed, cruxOrigin ? { dataOrigin: cruxOrigin } : undefined),
+              ga4: srcOf(jr.ga4),
+              ga4_traffic: srcOf(jr.ga4_traffic),
+              ga4_conversions: srcOf(jr.ga4_conversions),
+              canonry: srcOf(jr.ai_visibility),
+            };
+            for (const s of Object.values(sources) as any[]) {
+              if (s.status === "ok") metaOk++;
+              else if (s.status === "fail") metaFail++;
+            }
+            await insertRun({
+              client_id: c.id,
+              organization_id: c.organization_id,
+              triggered_by: uid,
+              audit_type: "populate_meta",
+              status: "succeeded",
+              input: { jobs: wanted },
+              result: { startedAt: clientStartedAt, finishedAt: nowIso(), sources },
+              started_at: clientStartedAt,
+              finished_at: nowIso(),
+            });
+          } catch {
+            /* Meta-Zeile darf den Lauf nie scheitern lassen */
+          }
           results.push({ client: c.name, domain: c.domain, jobs: jr });
+        }
+        // WP4/A4.2: Heartbeat an den n8n-Watchdog (fire-and-forget, 5s). Secret aus
+        // Env (bestehendes rotiertes n8n-Secret, NICHT hardcoden); fehlt es -> still.
+        try {
+          const hbSecret = process.env.N8N_AGENT_WEBHOOK_SECRET;
+          if (hbSecret) {
+            fetch("https://ezyone.app.n8n.cloud/webhook/agent-heartbeat", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "X-Ezy-Auth": hbSecret },
+              body: JSON.stringify({
+                client: "ezyhub",
+                agent: "populate-job",
+                status: metaFail > 0 ? "fehler" : "ok",
+                note: `${metaOk} Quellen ok, ${metaFail} fail`,
+              }),
+              signal: AbortSignal.timeout(5000),
+            }).catch(() => {});
+          }
+        } catch {
+          /* fire-and-forget */
         }
         return Response.json({ ok: true, count: clients.length, results });
       },

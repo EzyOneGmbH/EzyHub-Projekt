@@ -26,6 +26,10 @@ export type EzyClient = {
   ga4MeasurementId: string;
   canonryProject: string;
   startDate: string;
+  // Dashboard-Ausbau 2026-07-11 (WP2/B5): Brand-Terms fuer den GSC-Split +
+  // Umsatz-Modus ('revenue' = vollstaendiges Umsatz-Tracking | 'clicks' = nur Buchungsklicks).
+  brandTerms: string[];
+  revenueMode: "revenue" | "clicks";
 };
 
 const DEFAULT_DEFAULTS = { language: "Deutsch", tone: "Professionell", reportTemplate: "Standard" };
@@ -69,6 +73,8 @@ function rowToClient(r: any): EzyClient {
     ga4MeasurementId: String(m.ga4MeasurementId ?? ""),
     canonryProject: String(r.canonry_project ?? ""),
     startDate: String(m.startDate ?? r.created_at ?? "").slice(0, 10),
+    brandTerms: Array.isArray(r.brand_terms) ? r.brand_terms.map(String) : [],
+    revenueMode: r.revenue_mode === "clicks" ? "clicks" : "revenue",
   };
 }
 
@@ -101,6 +107,8 @@ function clientToRow(c: Partial<EzyClient>, organizationId: string, createdBy: s
     gsc_property: c.gscSiteUrl ?? null,
     ga4_property: c.ga4PropertyId ?? null,
     canonry_project: c.canonryProject ?? null,
+    brand_terms: Array.isArray(c.brandTerms) ? c.brandTerms : [],
+    revenue_mode: c.revenueMode === "clicks" ? "clicks" : "revenue",
     metadata,
   };
 }
