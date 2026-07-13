@@ -845,40 +845,64 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                   0.12 * posQ,
                 ),
               );
-              const { data: rep, error: repErr } = await sb
+              // Schutz vor Teil-Lauf-Datenverlust: liefert DIESER Lauf keine
+              // Makro-Daten (Ahrefs + Canonry leer/übersprungen), ein früherer
+              // Lauf am selben Tag aber schon, dann Report + Makro-Modelle
+              // bewahren und nur den Custom-Layer (Prompts/Themen/SoV) ersetzen.
+              const { data: existingRep } = await sb
                 .from("ai_visibility_reports")
-                .upsert(
-                  {
-                    client_id: c.id,
-                    market: c.country || null,
-                    snapshot_date: snapshot,
-                    score,
-                    score_delta: score - Number(prev?.score ?? 0),
-                    mentions,
-                    mentions_delta: mentions - Number(prev?.mentions ?? 0),
-                    citations,
-                    citations_delta: citations - Number(prev?.citations ?? 0),
-                    cited_pages: citedPagesCount,
-                    cited_pages_delta: citedPagesCount - Number(prev?.cited_pages ?? 0),
-                  },
-                  { onConflict: "client_id,snapshot_date" },
-                )
-                .select("id")
-                .single();
-              if (repErr) throw new Error(repErr.message);
-              const reportId = rep.id;
+                .select("id, mentions, score")
+                .eq("client_id", c.id)
+                .eq("snapshot_date", snapshot)
+                .maybeSingle();
+              const partial = !hasBr && !hasCa && !!existingRep && Number(existingRep.mentions ?? 0) > mentions;
+              let reportId: string;
+              if (partial) {
+                reportId = existingRep.id;
+                jr.note = "Teil-Lauf ohne Makro-Daten: Report/Makro-Modelle bewahrt, nur Custom-Layer ersetzt";
+                await sb.from("ai_visibility_prompts").delete().eq("report_id", reportId);
+                await sb.from("ai_visibility_topics").delete().eq("report_id", reportId);
+                await sb.from("ai_visibility_sov").delete().eq("report_id", reportId);
+                await sb.from("ai_visibility_sources").delete().eq("report_id", reportId).eq("layer", "custom");
+                await sb.from("ai_visibility_attribution").delete().eq("report_id", reportId);
+              } else {
+                const { data: rep, error: repErr } = await sb
+                  .from("ai_visibility_reports")
+                  .upsert(
+                    {
+                      client_id: c.id,
+                      market: c.country || null,
+                      snapshot_date: snapshot,
+                      score,
+                      score_delta: score - Number(prev?.score ?? 0),
+                      mentions,
+                      mentions_delta: mentions - Number(prev?.mentions ?? 0),
+                      citations,
+                      citations_delta: citations - Number(prev?.citations ?? 0),
+                      cited_pages: citedPagesCount,
+                      cited_pages_delta: citedPagesCount - Number(prev?.cited_pages ?? 0),
+                    },
+                    { onConflict: "client_id,snapshot_date" },
+                  )
+                  .select("id")
+                  .single();
+                if (repErr) throw new Error(repErr.message);
+                reportId = rep.id;
 
-              // Kind-Tabellen idempotent: alte Zeilen des Reports ersetzen.
-              await sb.from("ai_visibility_models").delete().eq("report_id", reportId);
-              await sb.from("ai_visibility_sources").delete().eq("report_id", reportId);
-              await sb.from("ai_visibility_attribution").delete().eq("report_id", reportId);
-              await sb.from("ai_visibility_prompts").delete().eq("report_id", reportId);
-              await sb.from("ai_visibility_topics").delete().eq("report_id", reportId);
-              await sb.from("ai_visibility_sov").delete().eq("report_id", reportId);
+                // Kind-Tabellen idempotent: alte Zeilen des Reports ersetzen.
+                await sb.from("ai_visibility_models").delete().eq("report_id", reportId);
+                await sb.from("ai_visibility_sources").delete().eq("report_id", reportId);
+                await sb.from("ai_visibility_attribution").delete().eq("report_id", reportId);
+                await sb.from("ai_visibility_prompts").delete().eq("report_id", reportId);
+                await sb.from("ai_visibility_topics").delete().eq("report_id", reportId);
+                await sb.from("ai_visibility_sov").delete().eq("report_id", reportId);
+              }
 
               // Modelle: Makro (Ahrefs) + Canonry + Custom (Prompt-Runner), per Modell-
               // NAME zusammengeführt (Summe der Mentions) -> KEINE Doppel-Zeilen mehr
               // (ChatGPT/Perplexity/Gemini kamen sonst mehrfach vor -> das war die Verwirrung).
+              // Im Teil-Lauf (partial) bleiben die bestehenden Modell-Zeilen stehen.
+              if (!partial) {
               const rawModels = [
                 ...(hasBr ? br.models.map((m: any) => ({ ...m, layer: "macro" })) : []),
                 ...(hasCa ? ca.models.map((m: any) => ({ ...m, layer: "macro" })) : []), // Canonry = Makro-Quelle
@@ -927,6 +951,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 await sb.from("ai_visibility_sources").insert(
                   ca.sources.map((s: any) => ({ report_id: reportId, client_id: c.id, domain: s.domain, mentions: s.mentions, share: 0, urls: 0, traffic: 0, layer: "canonry" })),
                 );
+              } // Ende if (!partial)
 
               // Prompts + Themen + SoV + Quellen + Auto-Learning (Custom-Layer).
               if (hasPr) {
@@ -986,7 +1011,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                   })),
                 );
               }
-              jr.report = { id: reportId, score, snapshot };
+              jr.report = { id: reportId, score: partial ? Number(existingRep.score ?? 0) : score, snapshot };
             }
           } catch (e) {
             jr.error = redactSecrets(e);
