@@ -368,15 +368,30 @@ function parseJson(text: string): any {
 const urlListIn = (t: string) => (String(t).match(/https?:\/\/[^\s)\]"'>]+/g) || []).map((u) => u.replace(/[.,);]+$/, ""));
 const domOf = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, "").toLowerCase(); } catch { return null; } };
 
-// Erstes Seeding: ~16 realistische, strategisch gemischte Nutzer-Prompts je Kunde.
-async function seedPromptDefs(c: any, sbAny: any): Promise<{ defs: any[]; error?: string }> {
+// Ziel-Anzahl aktiver Prompts je Kunde (Env-übersteuerbar). Liegt der Bestand
+// darunter, stockt der Prompt-Runner beim nächsten Lauf automatisch auf.
+const PROMPT_TARGET = Math.min(50, Math.max(1, Number(process.env.AIVIS_PROMPT_TARGET ?? 16) || 16));
+
+// Seeding: realistische, strategisch gemischte Nutzer-Prompts je Kunde.
+// Mit opts.existing wird nachgesät (Top-up) statt neu gesät — ohne Duplikate.
+async function seedPromptDefs(
+  c: any,
+  sbAny: any,
+  opts: { count?: number; existing?: string[] } = {},
+): Promise<{ defs: any[]; error?: string }> {
+  const count = Math.min(50, Math.max(1, opts.count ?? PROMPT_TARGET));
+  const existing = (opts.existing ?? []).map((p) => String(p).trim()).filter(Boolean);
+  const avoid = existing.length
+    ? `\nBereits vorhandene Prompts (erzeuge KEINE Duplikate und keine nahen Umformulierungen davon, sondern NEUE Blickwinkel/Nischen):\n${existing.map((p) => `- ${p}`).join("\n")}\n`
+    : "";
   const text = await askUtility(
-    `Du bist SEO/GEO-Analyst. Erzeuge 16 realistische Suchanfragen (Prompts), die echte potenzielle Kunden an KI-Assistenten stellen und bei denen die Firma "${c.name}" (${cleanDomain(c.domain)}, Markt ${c.country || "CH"}) idealerweise empfohlen werden sollte. Decke bewusst ab: (a) generische Empfehlungsfragen ("bestes …"), (b) direkte Vergleichs-/Alternativfragen ("Alternativen zu …", "X oder Y"), (c) Long-Tail/Nischen mit spezifischen Anforderungen, (d) transaktionale und (e) lokale Fragen je Land. Mische Sprachen passend zum Markt (v. a. ${c.language || "de"}) und Länder (Schweiz/Deutschland/Österreich/Italien/International). WICHTIG: Prompts dürfen den Firmennamen NICHT enthalten (außer max. 1 Navigations-Prompt). Antworte NUR mit JSON-Array: [{"prompt":"...","topic":"kurzes Themen-Label","intent":"Kommerziell|Informativ|Transaktional|Navigativ","country":"Schweiz|Deutschland|Österreich|Italien|International"}]`,
-    3000,
+    `Du bist SEO/GEO-Analyst. Erzeuge ${count} realistische Suchanfragen (Prompts), die echte potenzielle Kunden an KI-Assistenten stellen und bei denen die Firma "${c.name}" (${cleanDomain(c.domain)}, Markt ${c.country || "CH"}) idealerweise empfohlen werden sollte. Decke bewusst ab: (a) generische Empfehlungsfragen ("bestes …"), (b) direkte Vergleichs-/Alternativfragen ("Alternativen zu …", "X oder Y"), (c) Long-Tail/Nischen mit spezifischen Anforderungen, (d) transaktionale und (e) lokale Fragen je Land. Mische Sprachen passend zum Markt (v. a. ${c.language || "de"}) und Länder (Schweiz/Deutschland/Österreich/Italien/International). WICHTIG: Prompts dürfen den Firmennamen NICHT enthalten (außer max. 1 Navigations-Prompt).${avoid} Antworte NUR mit JSON-Array: [{"prompt":"...","topic":"kurzes Themen-Label","intent":"Kommerziell|Informativ|Transaktional|Navigativ","country":"Schweiz|Deutschland|Österreich|Italien|International"}]`,
+    4000,
   );
   if (!text) return { defs: [], error: "kein Modell verfügbar (Seeding)" };
   const arr = parseJson(text);
   if (!Array.isArray(arr) || !arr.length) return { defs: [], error: "Claude lieferte kein parsebares JSON" };
+  const seen = new Set(existing.map((p) => p.toLowerCase()));
   const rows = arr.slice(0, 100).map((p: any) => ({
     client_id: c.id,
     prompt: String(p.prompt ?? "").slice(0, 500),
@@ -384,7 +399,12 @@ async function seedPromptDefs(c: any, sbAny: any): Promise<{ defs: any[]; error?
     intent: ["Kommerziell", "Informativ", "Transaktional", "Navigativ"].includes(p.intent) ? p.intent : "Informativ",
     country: String(p.country ?? "Schweiz").slice(0, 40),
     language: c.language || "de",
-  })).filter((r: any) => r.prompt);
+  })).filter((r: any) => {
+    const k = r.prompt.trim().toLowerCase();
+    if (!k || seen.has(k)) return false;
+    seen.add(k); // dedupliziert auch innerhalb der LLM-Antwort
+    return true;
+  });
   if (!rows.length) return { defs: [], error: "keine gültigen Prompts im JSON" };
   const { data, error } = await sbAny.from("ai_visibility_prompt_defs").insert(rows).select("*");
   if (error) return { defs: [], error: error.message };
@@ -421,6 +441,17 @@ async function jobPromptRunner(c: any, sbAny: any, fixedComps: string[] = []) {
     defs = s.defs;
     seeded = defs.length;
     if (!defs.length) return { skipped: `Seeding fehlgeschlagen: ${s.error || "unbekannt"}` };
+  } else if (defs.length < PROMPT_TARGET) {
+    // Top-up: Bestand liegt unter dem Ziel (z. B. Alt-Seeding mit nur 8) ->
+    // fehlende Prompts nachsäen; bestehende bleiben unverändert (History!).
+    const s = await seedPromptDefs(c, sbAny, {
+      count: PROMPT_TARGET - defs.length,
+      existing: defs.map((d: any) => d.prompt),
+    });
+    if (s.defs.length) {
+      defs = [...defs, ...s.defs];
+      seeded = s.defs.length;
+    }
   }
 
   const nameRe = new RegExp(String(c.name || "").trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
