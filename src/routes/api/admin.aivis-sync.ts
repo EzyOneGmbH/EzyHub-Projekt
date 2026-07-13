@@ -370,7 +370,9 @@ const domOf = (u: string) => { try { return new URL(u).hostname.replace(/^www\./
 
 // Ziel-Anzahl aktiver Prompts je Kunde (Env-übersteuerbar). Liegt der Bestand
 // darunter, stockt der Prompt-Runner beim nächsten Lauf automatisch auf.
-const PROMPT_TARGET = Math.min(50, Math.max(1, Number(process.env.AIVIS_PROMPT_TARGET ?? 16) || 16));
+// Das ist ein MINIMUM (Untergrenze fürs Nachsäen), keine Anzeige-/Lauf-Grenze:
+// gefahren und angezeigt werden immer ALLE aktiven Prompts.
+const PROMPT_TARGET = Math.min(60, Math.max(1, Number(process.env.AIVIS_PROMPT_TARGET ?? 30) || 30));
 
 // Seeding: realistische, strategisch gemischte Nutzer-Prompts je Kunde.
 // Mit opts.existing wird nachgesät (Top-up) statt neu gesät — ohne Duplikate.
