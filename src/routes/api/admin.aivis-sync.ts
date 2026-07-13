@@ -131,7 +131,10 @@ function brandName(c: any) {
 // Kunden per DataForSEO (pay-per-call) darauf, ob eine AI-Antwort erscheint
 // und ob der Kunde darin zitiert/erwähnt wird. Macht die beiden Modelle
 // unabhängig vom Ahrefs-Korpus und misst auf den EIGENEN Keywords.
-const DFS_SERP_KEYWORDS = Math.max(1, Number(process.env.AIVIS_SERP_KEYWORDS ?? 20) || 20);
+// 0 (Default) = ALLE GSC-Suchanfragen der letzten 28 Tage (bis GSC-Max 25000).
+// Nur wer bewusst begrenzen will, setzt AIVIS_SERP_KEYWORDS auf eine Zahl > 0.
+const DFS_SERP_KEYWORDS = Math.max(0, Number(process.env.AIVIS_SERP_KEYWORDS ?? 0) || 0);
+const DFS_CONCURRENCY = 8; // parallele SERP-Checks (DataForSEO-Live-Limit ~30)
 const DFS_LOCATION: Record<string, { code: number; lang: string; name: string }> = {
   CH: { code: 2756, lang: "de", name: "Schweiz" },
   DE: { code: 2276, lang: "de", name: "Deutschland" },
@@ -204,7 +207,7 @@ function dfsCollectDomains(node: any, out: Set<string>) {
 async function jobSerpAi(c: any) {
   const auth = dfsAuth();
   if (!auth) return { skipped: "DATAFORSEO_LOGIN/DATAFORSEO_PASSWORD fehlt (Lovable-Env)" };
-  const keywords = await gscTopQueries(c, DFS_SERP_KEYWORDS);
+  const keywords = await gscTopQueries(c, DFS_SERP_KEYWORDS || 25000); // 0 = alle
   if (!keywords.length) return { skipped: "keine GSC-Keywords (gsc_property/Google-Verbindung prüfen)" };
   const loc = DFS_LOCATION[String(c.country || "CH").toUpperCase()] || DFS_LOCATION.CH;
   const domain = cleanDomain(c.domain);
@@ -217,18 +220,23 @@ async function jobSerpAi(c: any) {
   const errors: string[] = [];
   const aio = { checked: 0, present: 0, cited: 0, keywords: [] as string[] };
   const aim = { checked: 0, present: 0, cited: 0, keywords: [] as string[] };
-  for (const kw of keywords) {
-    try {
-      const items = await dfsSerp(auth, "organic", kw, loc);
-      aio.checked++;
-      const el = (items as any[]).find((i: any) => i?.type === "ai_overview");
-      if (el) { aio.present++; if (hit(el)) { aio.cited++; aio.keywords.push(kw); } }
-    } catch (e) { errors.push(`aio "${kw}": ${String((e as any)?.message || e).slice(0, 80)}`); }
-    try {
-      const items = await dfsSerp(auth, "ai_mode", kw, loc);
-      aim.checked++;
-      if ((items as any[])?.length) { aim.present++; if (hit(items)) { aim.cited++; aim.keywords.push(kw); } }
-    } catch (e) { errors.push(`aim "${kw}": ${String((e as any)?.message || e).slice(0, 80)}`); }
+  // Parallel in Blöcken — bei "alle Keywords" sonst zu langsam (2 Calls je Keyword).
+  const checkKeyword = async (kw: string) => {
+    const jobs = [
+      dfsSerp(auth, "organic", kw, loc).then((items) => {
+        aio.checked++;
+        const el = (items as any[]).find((i: any) => i?.type === "ai_overview");
+        if (el) { aio.present++; if (hit(el)) { aio.cited++; aio.keywords.push(kw); } }
+      }).catch((e) => { errors.push(`aio "${kw}": ${String((e as any)?.message || e).slice(0, 80)}`); }),
+      dfsSerp(auth, "ai_mode", kw, loc).then((items) => {
+        aim.checked++;
+        if ((items as any[])?.length) { aim.present++; if (hit(items)) { aim.cited++; aim.keywords.push(kw); } }
+      }).catch((e) => { errors.push(`aim "${kw}": ${String((e as any)?.message || e).slice(0, 80)}`); }),
+    ];
+    await Promise.all(jobs);
+  };
+  for (let i = 0; i < keywords.length; i += DFS_CONCURRENCY) {
+    await Promise.all(keywords.slice(i, i + DFS_CONCURRENCY).map(checkKeyword));
   }
   const models = [
     { name: "Google AI Overviews", mentions: aio.cited, byCountry: aio.cited > 0 ? { [loc.name]: aio.cited } : {} },
