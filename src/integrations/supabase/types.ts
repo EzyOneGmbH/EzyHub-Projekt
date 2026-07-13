@@ -996,6 +996,7 @@ export type Database = {
       }
       clients: {
         Row: {
+          brand_terms: string[]
           canonry_project: string | null
           country: string | null
           created_at: string
@@ -1011,9 +1012,11 @@ export type Database = {
           name: string
           notes: string | null
           organization_id: string
+          revenue_mode: string
           updated_at: string
         }
         Insert: {
+          brand_terms?: string[]
           canonry_project?: string | null
           country?: string | null
           created_at?: string
@@ -1029,9 +1032,11 @@ export type Database = {
           name: string
           notes?: string | null
           organization_id: string
+          revenue_mode?: string
           updated_at?: string
         }
         Update: {
+          brand_terms?: string[]
           canonry_project?: string | null
           country?: string | null
           created_at?: string
@@ -1047,6 +1052,7 @@ export type Database = {
           name?: string
           notes?: string | null
           organization_id?: string
+          revenue_mode?: string
           updated_at?: string
         }
         Relationships: [
