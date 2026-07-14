@@ -44,7 +44,12 @@ export type AIVisibilityData = {
   prompts: AIPrompt[];
   promptOpps: AIPrompt[];
   sources: { domain: string; mentions: number; share: number; urls: number; traffic: number }[];
-  attribution: { engine: string; sessions: number; conv: number; events: { name: string; count: number }[] }[];
+  attribution: {
+    engine: string;
+    sessions: number;
+    conv: number;
+    events: { name: string; count: number; value: number; country: string; device: string; date: string }[];
+  }[];
   countries: { name: string; value: number }[];
   promptIntent: { name: string; value: number }[];
   sov: { brand: string; isSelf: boolean; mentions: number; share: number }[];
@@ -198,7 +203,16 @@ export async function loadAIVisibility(
       sessions: Number(a.sessions ?? 0),
       conv: Number(a.conversions ?? 0),
       events: Array.isArray(a.events)
-        ? a.events.map((e: any) => ({ name: String(e?.name ?? ""), count: Number(e?.count ?? 0) })).filter((e: any) => e.name)
+        ? a.events
+            .map((e: any) => ({
+              name: String(e?.name ?? ""),
+              count: Number(e?.count ?? 0),
+              value: Number(e?.value ?? 0),
+              country: String(e?.country ?? ""),
+              device: String(e?.device ?? ""),
+              date: String(e?.date ?? ""),
+            }))
+            .filter((e: any) => e.name)
         : [],
     })),
     countries: Object.entries(countryTotals)

@@ -466,8 +466,9 @@ async function jobAttribution(c: any) {
     agg[eng.name].conversions += Number(row.metricValues?.[1]?.value ?? 0);
   }
   // Detail: WELCHE Key-Events (Conversion-Namen) je Engine ausgelöst wurden —
-  // zweiter Report mit eventName-Dimension, nur wenn überhaupt Conversions da sind.
-  const events: Record<string, Array<{ name: string; count: number }>> = {};
+  // inkl. Land, Gerät, Datum und Wert (wie die Zeilen im Conversions-Tab).
+  // Session-scoped über sessionSource (event-scoped landet oft in "(not set)").
+  const events: Record<string, Array<{ name: string; count: number; value: number; country: string; device: string; date: string }>> = {};
   if (Object.values(agg).some((v) => v.conversions > 0)) {
     try {
       const r2 = await fetch(
@@ -477,28 +478,41 @@ async function jobAttribution(c: any) {
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
           body: JSON.stringify({
             dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
-            dimensions: [{ name: "sessionSource" }, { name: "eventName" }],
-            metrics: [{ name: "keyEvents" }],
-            limit: 500,
+            dimensions: [
+              { name: "sessionSource" },
+              { name: "eventName" },
+              { name: "country" },
+              { name: "deviceCategory" },
+              { name: "date" },
+            ],
+            metrics: [{ name: "keyEvents" }, { name: "eventValue" }],
+            limit: 2000,
           }),
           signal: AbortSignal.timeout(30_000),
         },
       );
       if (r2.ok) {
         const j2: any = await r2.json().catch(() => ({}));
-        const perEngine: Record<string, Record<string, number>> = {};
         for (const row of j2.rows ?? []) {
-          const src = String(row.dimensionValues?.[0]?.value ?? "");
+          const dv = row.dimensionValues ?? [];
+          const src = String(dv[0]?.value ?? "");
           const eng = ENGINES.find((e) => e.re.test(src));
-          const evName = String(row.dimensionValues?.[1]?.value ?? "");
           const n = Number(row.metricValues?.[0]?.value ?? 0);
-          if (!eng || !evName || n <= 0) continue;
-          (perEngine[eng.name] ??= {})[evName] = (perEngine[eng.name]?.[evName] || 0) + n;
+          if (!eng || n <= 0) continue;
+          (events[eng.name] ??= []).push({
+            name: String(dv[1]?.value ?? ""),
+            count: n,
+            value: Number(row.metricValues?.[1]?.value ?? 0),
+            country: String(dv[2]?.value ?? ""),
+            device: String(dv[3]?.value ?? ""),
+            date: String(dv[4]?.value ?? ""),
+          });
         }
-        for (const [engine, m] of Object.entries(perEngine))
-          events[engine] = Object.entries(m)
-            .map(([name, count]) => ({ name, count }))
-            .sort((a, b) => b.count - a.count);
+        // neueste zuerst, pro Engine gedeckelt (jsonb klein halten)
+        for (const k of Object.keys(events))
+          events[k] = events[k]
+            .sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.count - a.count)
+            .slice(0, 100);
       }
     } catch { /* Detail optional — Totale bleiben gültig */ }
   }

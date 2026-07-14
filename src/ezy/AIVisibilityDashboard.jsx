@@ -307,10 +307,21 @@ function AttributionStrip({ rows, convRows = [] }) {
   const totalS = rows.reduce((a, b) => a + b.sessions, 0);
   const totalC = rows.reduce((a, b) => a + b.conv, 0);
   const openRow = rows.find((r) => r.engine === open);
-  // Einzel-Conversions der aufgeklappten Engine — gleiche Zeilen wie im
-  // Conversions-Tab (ga4_conversions), gefiltert auf die KI-Quelle.
+  // Einzel-Conversions der aufgeklappten Engine — bevorzugt die reichen
+  // events aus der Attribution (Name+Land+Gerät+Datum+Wert, session-scoped),
+  // sonst die ga4_conversions-Zeilen des Conversions-Tabs (Quelle-Filter).
+  const richEvents = (openRow?.events || []).filter((e) => e.country || e.date || e.device);
   const detailRows = openRow
-    ? convRows.filter((r) => ATTR_SOURCE_RE[openRow.engine]?.test(String(r.source || "")))
+    ? richEvents.length
+      ? richEvents.map((e) => ({
+          description: e.name,
+          date: e.date,
+          value: e.value,
+          country: e.country,
+          device: e.device,
+          count: e.count,
+        }))
+      : convRows.filter((r) => ATTR_SOURCE_RE[openRow.engine]?.test(String(r.source || "")))
     : [];
   return (
     <div className="rounded-xl border p-5" style={CARD}>
