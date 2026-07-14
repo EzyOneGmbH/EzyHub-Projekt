@@ -221,7 +221,7 @@ async function gscTopQueryCountryPairs(c: any, limit: number): Promise<Array<{ k
   try { token = (await getGoogleAccessToken(c.id)).accessToken; } catch { return []; }
   const d = (back: number) => { const x = new Date(); x.setDate(x.getDate() - back); return x.toISOString().slice(0, 10); };
   try {
-    const r = await fetch(
+    const r = await withDeadline(fetch(
       `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(c.gsc_property)}/searchAnalytics/query`,
       {
         method: "POST",
@@ -229,7 +229,7 @@ async function gscTopQueryCountryPairs(c: any, limit: number): Promise<Array<{ k
         body: JSON.stringify({ startDate: d(31), endDate: d(3), dimensions: ["query", "country"], rowLimit: Math.min(limit, 25000) }),
         signal: AbortSignal.timeout(30_000),
       },
-    );
+    ), 40_000, "gsc pairs");
     if (!r.ok) return [];
     const j: any = await r.json().catch(() => ({}));
     return (j.rows ?? [])
