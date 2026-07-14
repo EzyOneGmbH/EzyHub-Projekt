@@ -246,6 +246,20 @@ async function gscTopQueryCountryPairs(c: any, limit: number): Promise<Array<{ k
   } catch { return []; }
 }
 
+// Eigene (Kunden-)URLs aus einem SERP-Element einsammeln — speist Citations +
+// Referenzierte Seiten (nur Links auf die Kunden-Domain, ohne Fragment).
+function dfsCollectOwnUrls(node: any, domain: string, out: Set<string>) {
+  if (!node || !domain) return;
+  if (Array.isArray(node)) { for (const x of node) dfsCollectOwnUrls(x, domain, out); return; }
+  if (typeof node === "object") {
+    for (const [k, v] of Object.entries(node)) {
+      if ((k === "url" || k === "source_url") && typeof v === "string" && v.includes("://")) {
+        if (domOf(v) === domain) out.add(v.split("#")[0]);
+      } else dfsCollectOwnUrls(v, domain, out);
+    }
+  }
+}
+
 // Alle Domains aus einem SERP-Element rekursiv einsammeln (Schema-robust).
 function dfsCollectDomains(node: any, out: Set<string>) {
   if (!node) return;
@@ -293,14 +307,21 @@ async function jobSerpAi(c: any, limitOverride?: number) {
   if (!pairs.length) return { skipped: "keine GSC-Keywords in unterstützten Ländern", skippedCountries };
   const domain = cleanDomain(c.domain);
   const nameRe = new RegExp(String(c.name || "").trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-  const hit = (el: any) => {
+  // Treffer-Art unterscheiden: Domain in den Antwort-Referenzen = echtes ZITAT
+  // (zählt in Citations + Referenzierte Seiten), reine Namens-Nennung = nur
+  // Erwähnung. ownPages sammelt die zitierten eigenen URLs (dedupliziert).
+  const ownPages = new Set<string>();
+  const hitDetail = (el: any) => {
     const doms = new Set<string>();
     dfsCollectDomains(el, doms);
-    return (domain && doms.has(domain)) || nameRe.test(JSON.stringify(el));
+    const urls = new Set<string>();
+    if (domain) dfsCollectOwnUrls(el, domain, urls);
+    const cited = (!!domain && doms.has(domain)) || urls.size > 0;
+    return { hit: cited || nameRe.test(JSON.stringify(el)), cited, urls };
   };
   const errors: string[] = [];
-  const aio = { checked: 0, present: 0, cited: 0, keywords: [] as string[], byCountry: {} as Record<string, number> };
-  const aim = { checked: 0, present: 0, cited: 0, keywords: [] as string[], byCountry: {} as Record<string, number> };
+  const aio = { checked: 0, present: 0, cited: 0, citations: 0, keywords: [] as string[], byCountry: {} as Record<string, number> };
+  const aim = { checked: 0, present: 0, cited: 0, citations: 0, keywords: [] as string[], byCountry: {} as Record<string, number> };
   // Parallel in Blöcken — bei "alle Keywords" sonst zu langsam (2 Calls je Paar).
   const checkPair = async (p: { kw: string; a3: string }) => {
     const loc = DFS_LOC_BY_A3[p.a3] || homeLoc;
@@ -310,14 +331,22 @@ async function jobSerpAi(c: any, limitOverride?: number) {
         const el = (items as any[]).find((i: any) => i?.type === "ai_overview");
         if (el) {
           aio.present++;
-          if (hit(el)) { aio.cited++; aio.keywords.push(`${p.kw} (${loc.name})`); aio.byCountry[loc.name] = (aio.byCountry[loc.name] || 0) + 1; }
+          const d = hitDetail(el);
+          if (d.hit) {
+            aio.cited++; aio.keywords.push(`${p.kw} (${loc.name})`); aio.byCountry[loc.name] = (aio.byCountry[loc.name] || 0) + 1;
+            if (d.cited) { aio.citations++; for (const u of d.urls) ownPages.add(u); }
+          }
         }
       }).catch((e) => { errors.push(`aio "${p.kw}"@${p.a3}: ${String((e as any)?.message || e).slice(0, 80)}`); }),
       withDeadline(dfsSerp(auth, "ai_mode", p.kw, loc), 90_000, "dfs ai_mode").then((items) => {
         aim.checked++;
         if ((items as any[])?.length) {
           aim.present++;
-          if (hit(items)) { aim.cited++; aim.keywords.push(`${p.kw} (${loc.name})`); aim.byCountry[loc.name] = (aim.byCountry[loc.name] || 0) + 1; }
+          const d = hitDetail(items);
+          if (d.hit) {
+            aim.cited++; aim.keywords.push(`${p.kw} (${loc.name})`); aim.byCountry[loc.name] = (aim.byCountry[loc.name] || 0) + 1;
+            if (d.cited) { aim.citations++; for (const u of d.urls) ownPages.add(u); }
+          }
         }
       }).catch((e) => { errors.push(`aim "${p.kw}"@${p.a3}: ${String((e as any)?.message || e).slice(0, 80)}`); }),
     ];
@@ -344,6 +373,8 @@ async function jobSerpAi(c: any, limitOverride?: number) {
   return {
     models,
     mentions: aio.cited + aim.cited,
+    citations: aio.citations + aim.citations, // Domain stand in den Referenzen
+    citedPages: [...ownPages], // zitierte eigene URLs, dedupliziert
     keywords: pairs.length,
     countries,
     ...(Object.keys(skippedCountries).length ? { skippedCountries } : {}),
@@ -1117,7 +1148,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             jr.serp_ai = sa
               ? (sa.skipped
                   ? { skipped: sa.skipped }
-                  : { keywords: sa.keywords, aiOverview: sa.aio, aiMode: sa.aim, errors: sa.errors?.length || 0 })
+                  : { keywords: sa.keywords, aiOverview: sa.aio, aiMode: sa.aim, citations: sa.citations || 0, citedPages: sa.citedPages?.length || 0, errors: sa.errors?.length || 0 })
               : "skipped";
             jr.brand_radar = br ? (br.skipped ? { skipped: br.skipped } : { mentions: br.mentions, citations: br.citations, pages: br.citedPagesCount, errors: br.errors?.length || 0 }) : "skipped";
             jr.attribution = at ? (at.skipped || at.error ? at : { engines: at.engines.length }) : "skipped";
@@ -1133,8 +1164,10 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               const macroMentions = (hasBr ? br.mentions : 0) + (hasCa ? ca.mentions : 0) + (hasSa ? sa.mentions : 0);
               const customMentions = hasPr ? pr.mentions : 0;
               const mentions = macroMentions + customMentions;
-              const citations = hasBr ? br.citations : 0;
-              const citedPagesCount = hasBr ? br.citedPagesCount : 0;
+              // Citations/Seiten: Ahrefs-Korpus + eigener SERP-Check (getrennte
+              // Korpora; theoretische Doppelzählung derselben Seite akzeptiert).
+              const citations = (hasBr ? br.citations : 0) + (hasSa ? Number(sa.citations || 0) : 0);
+              const citedPagesCount = (hasBr ? br.citedPagesCount : 0) + (hasSa ? (sa.citedPages?.length || 0) : 0);
               // Deltas vs. letztem Snapshot.
               const { data: prev } = await sb
                 .from("ai_visibility_reports")
