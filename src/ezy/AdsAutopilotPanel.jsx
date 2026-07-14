@@ -219,7 +219,7 @@ function ApprovalDetailModal({ approval: a, observeOnly, busy, onDecide, onClose
 
 export default function AdsAutopilotPanel({ selectedClient }) {
   const clientId = selectedClient?.id;
-  const { config, approvals, changelog, loading, error, busyId, refresh, decide, runDryRun } =
+  const { config, approvals, changelog, recommendations, loading, error, busyId, refresh, decide, runDryRun, markRecommendation } =
     useEzyAdsAutopilot(clientId, 80); // Befunde (~15/Lauf) + Eingriffe brauchen mehr als 30 Zeilen
   const [detail, setDetail] = React.useState(null);
   const [findingDetail, setFindingDetail] = React.useState(null);
@@ -348,6 +348,66 @@ export default function AdsAutopilotPanel({ selectedClient }) {
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* Offene Massnahmen (Phase C): Empfehlungen mit Statuszyklus - Umsetzung ist Mensch-Sache */}
+      <div style={{ marginTop: 20 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: P.text, marginBottom: 4 }}>
+          Offene Massnahmen ({recommendations.length})
+        </div>
+        <div style={{ fontSize: 12, color: P.textDim, marginBottom: 8 }}>
+          Empfehlungen der Analyse-Module. Umsetzung erfolgt manuell — hier nur den Status pflegen
+          (nichts wird an Google Ads geschrieben).
+        </div>
+        {recommendations.length === 0 && (
+          <div style={{ fontSize: 13, color: P.textDim }}>Keine offenen Massnahmen.</div>
+        )}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {recommendations.map((r) => (
+            <div key={r.id} style={{ border: `1px solid ${P.border}`, borderRadius: 10, padding: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <Badge color={P.green} bg={P.greenDim}>{r.recommendation_type}</Badge>
+                    <span style={{ color: P.text, fontWeight: 600, fontSize: 14 }}>{r.title}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: P.textMuted, marginTop: 4 }}>{r.entity}</div>
+                  {r.rationale && <div style={{ fontSize: 12, color: P.textDim, marginTop: 4 }}>{r.rationale}</div>}
+                  {r.expected_impact && (
+                    <div style={{ fontSize: 12, color: P.accent, marginTop: 4 }}>Erwartet: {r.expected_impact}</div>
+                  )}
+                  <div style={{ fontSize: 11, color: P.textDim, marginTop: 4 }}>
+                    Erstmals: {new Date(r.created_at).toLocaleDateString("de-CH")} · zuletzt gesehen: {r.last_seen_run}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                  <Btn
+                    variant="approve"
+                    disabled={busyId === r.id}
+                    onClick={() => {
+                      const note = window.prompt("Umgesetzt — optionale Notiz (was/wann):", "");
+                      if (note === null) return;
+                      void markRecommendation(r.id, "implemented", note || undefined);
+                    }}
+                  >
+                    {busyId === r.id ? "..." : "Umgesetzt"}
+                  </Btn>
+                  <Btn
+                    variant="reject"
+                    disabled={busyId === r.id}
+                    onClick={() => {
+                      const note = window.prompt("Verworfen — warum? (Pflicht fuer den Verlauf):", "");
+                      if (note === null) return;
+                      void markRecommendation(r.id, "dismissed", note || undefined);
+                    }}
+                  >
+                    Verworfen
+                  </Btn>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

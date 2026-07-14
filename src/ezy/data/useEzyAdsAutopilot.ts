@@ -32,6 +32,19 @@ export type AdsChangelogRow = {
   created_at: string;
 };
 
+export type AdsRecommendationRow = {
+  id: string;
+  run_id: string;
+  last_seen_run: string;
+  recommendation_type: string;
+  entity: string;
+  title: string;
+  rationale: string;
+  expected_impact: string | null;
+  status: string;
+  created_at: string;
+};
+
 export type AdsConfigRow = {
   client_id: string;
   industry: string;
@@ -51,6 +64,7 @@ export function useEzyAdsAutopilot(clientId: string | undefined, limit = 30) {
   const [config, setConfig] = useState<AdsConfigRow | null>(null);
   const [approvals, setApprovals] = useState<AdsApprovalRow[]>([]);
   const [changelog, setChangelog] = useState<AdsChangelogRow[]>([]);
+  const [recommendations, setRecommendations] = useState<AdsRecommendationRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -65,7 +79,7 @@ export function useEzyAdsAutopilot(clientId: string | undefined, limit = 30) {
     setLoading(true);
     setError(null);
     try {
-      const [cfgRes, apprRes, logRes] = await Promise.all([
+      const [cfgRes, apprRes, logRes, recRes] = await Promise.all([
         supabase.from("ads_autopilot_config").select("*").eq("client_id", clientId).maybeSingle(),
         supabase
           .from("ads_approvals")
@@ -79,6 +93,12 @@ export function useEzyAdsAutopilot(clientId: string | undefined, limit = 30) {
           .eq("client_id", clientId)
           .order("created_at", { ascending: false })
           .limit(limit),
+        supabase
+          .from("ads_recommendations")
+          .select("*")
+          .eq("client_id", clientId)
+          .eq("status", "open")
+          .order("created_at", { ascending: true }),
       ]);
       if (cfgRes.error) throw cfgRes.error;
       if (apprRes.error) throw apprRes.error;
@@ -86,6 +106,7 @@ export function useEzyAdsAutopilot(clientId: string | undefined, limit = 30) {
       setConfig((cfgRes.data as AdsConfigRow) ?? null);
       setApprovals((apprRes.data as AdsApprovalRow[]) || []);
       setChangelog((logRes.data as AdsChangelogRow[]) || []);
+      setRecommendations(((recRes.data as AdsRecommendationRow[]) || []).filter((r) => r.recommendation_type !== "test_dummy"));
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -96,6 +117,26 @@ export function useEzyAdsAutopilot(clientId: string | undefined, limit = 30) {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const markRecommendation = useCallback(
+    async (id: string, status: "implemented" | "dismissed", note?: string) => {
+      if (!clientId) return { ok: false, error: "kein Kunde" };
+      setBusyId(id);
+      try {
+        const res = await ezyFetch("/api/google/ads-recommendation-status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clientId, id, status, note }),
+        });
+        const json = await res.json().catch(() => ({}));
+        await refresh();
+        return json as { ok: boolean; error?: string };
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [clientId, refresh],
+  );
 
   const decide = useCallback(
     async (approvalId: string, decision: "approve" | "reject") => {
@@ -138,5 +179,5 @@ export function useEzyAdsAutopilot(clientId: string | undefined, limit = 30) {
     }
   }, [clientId, refresh]);
 
-  return { config, approvals, changelog, loading, error, busyId, refresh, decide, runDryRun };
+  return { config, approvals, changelog, recommendations, loading, error, busyId, refresh, decide, runDryRun, markRecommendation };
 }

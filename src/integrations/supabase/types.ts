@@ -275,6 +275,65 @@ export type Database = {
           },
         ]
       }
+      ads_recommendations: {
+        Row: {
+          client_id: string
+          created_at: string
+          entity: string
+          expected_impact: string | null
+          id: string
+          implementation_note: string | null
+          implemented_at: string | null
+          implemented_by: string | null
+          last_seen_run: string
+          rationale: string
+          recommendation_type: string
+          run_id: string
+          status: string
+          title: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          entity: string
+          expected_impact?: string | null
+          id?: string
+          implementation_note?: string | null
+          implemented_at?: string | null
+          implemented_by?: string | null
+          last_seen_run: string
+          rationale?: string
+          recommendation_type: string
+          run_id: string
+          status?: string
+          title: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          entity?: string
+          expected_impact?: string | null
+          id?: string
+          implementation_note?: string | null
+          implemented_at?: string | null
+          implemented_by?: string | null
+          last_seen_run?: string
+          rationale?: string
+          recommendation_type?: string
+          run_id?: string
+          status?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_recommendations_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ads_guardian_log: {
         Row: {
           checked_at: string

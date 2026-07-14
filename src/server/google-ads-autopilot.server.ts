@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { openRecommendationsBlock } from "./google-ads-recommendations.server";
 import { getGoogleAccessToken } from "./google-tokens.server";
 import { addNegativeKeyword, setCampaignBudget } from "./google-ads-mutate.server";
 
@@ -1642,6 +1643,8 @@ export type AutopilotRunSummary = {
   multiWindow?: MultiWindowExtract | null;
   // Phase B.2: Asset-Detail (Servings/Pinning/Abdeckung/PMax-Videos, L90)
   assetDetail?: AutopilotData["assetDetail"] | null;
+  // Phase C: Report-Pflichtblock "Offene Massnahmen" aus dem Register
+  openRecommendations?: Awaited<ReturnType<typeof openRecommendationsBlock>> | null;
   changeHistory?: Array<{ at: string; user: string; resourceType: string }>;
   dataSourceErrors?: string[];
   // Struktur-Review (report-only): Gesamtstruktur + MoM + QS fuer den Report
@@ -1743,6 +1746,11 @@ export async function runAutopilot(clientId: string, opts?: { dryRun?: boolean }
   }
   base.multiWindow = d3.multiWindow ?? null;
   base.assetDetail = d3.assetDetail ?? null;
+  try {
+    base.openRecommendations = await openRecommendationsBlock(clientId);
+  } catch {
+    base.openRecommendations = null;
+  }
   base.biddingStrategies = d3.campaigns.map((c) => ({
     campaign: c.name,
     strategyType: c.biddingStrategyType ?? "UNKNOWN",
