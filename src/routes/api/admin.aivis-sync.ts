@@ -30,7 +30,18 @@ const Body = z.object({
   force: z.boolean().optional(),
   mode: z.enum(["live", "backfill"]).default("live"), // backfill = Ahrefs/GA4-Historie
   months: z.number().int().min(1).max(12).default(6),  // Backfill-Tiefe
+  async: z.boolean().default(false), // true = sofort 202 + runId, Verarbeitung im Hintergrund
 });
+
+// Async-Läufe (in-memory; Server ist long-running). Letzte 50 behalten.
+const ASYNC_RUNS = new Map<string, { status: "running" | "done" | "error"; startedAt: string; finishedAt?: string; clients: string[]; result?: unknown; error?: string }>();
+function pruneAsyncRuns() {
+  while (ASYNC_RUNS.size > 50) {
+    const oldest = ASYNC_RUNS.keys().next().value;
+    if (!oldest) break;
+    ASYNC_RUNS.delete(oldest);
+  }
+}
 
 const isUuid = (s: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(s || ""));
@@ -995,7 +1006,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         const parsed = Body.safeParse(await request.json().catch(() => ({})));
         if (!parsed.success)
           return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
-        const { client: sel, all, jobs, minIntervalDays, force, mode, months, serpKeywords } = parsed.data;
+        const { client: sel, all, jobs, minIntervalDays, force, mode, months, serpKeywords, async: runAsync } = parsed.data;
         const wanted = jobs && jobs.length ? jobs : (["brand_radar", "attribution", "prompts", "canonry", "serp_ai"] as const);
 
         const query = supabaseAdmin
@@ -1012,6 +1023,8 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         const sb = supabaseAdmin as any;
         const snapshot = today();
         const results: any[] = [];
+        // Kernverarbeitung — synchron aufgerufen ODER als Hintergrund-Lauf (async:true).
+        const runAll = async () => {
         for (const c of clients) {
           const jr: Record<string, unknown> = {};
           try {
@@ -1299,7 +1312,38 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
           }
           results.push({ client: c.name, domain: c.domain, jobs: jr });
         }
-        return Response.json({ ok: true, count: clients.length, snapshot, results });
+        return { ok: true, count: clients.length, snapshot, results };
+        }; // Ende runAll
+
+        if (runAsync) {
+          const runId = crypto.randomUUID();
+          ASYNC_RUNS.set(runId, { status: "running", startedAt: new Date().toISOString(), clients: clients.map((c) => String(c.name)) });
+          pruneAsyncRuns();
+          runAll()
+            .then((r) => { const e = ASYNC_RUNS.get(runId); if (e) { e.status = "done"; e.finishedAt = new Date().toISOString(); e.result = r; } })
+            .catch((err) => { const e = ASYNC_RUNS.get(runId); if (e) { e.status = "error"; e.finishedAt = new Date().toISOString(); e.error = String((err as any)?.message || err).slice(0, 300); } });
+          return Response.json(
+            { ok: true, async: true, runId, clients: clients.map((c) => String(c.name)), status: `GET ?run=${runId}` },
+            { status: 202 },
+          );
+        }
+        return Response.json(await runAll());
+      },
+      // Status eines async-Laufs: GET /api/admin/aivis-sync?run=<runId>
+      GET: async ({ request }) => {
+        const secret = process.env.ADMIN_AUTOMATION_SECRET;
+        if (!secret)
+          return Response.json({ ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" }, { status: 503 });
+        if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
+          return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        const runId = new URL(request.url).searchParams.get("run") || "";
+        if (!runId) {
+          const runs = [...ASYNC_RUNS.entries()].map(([id, e]) => ({ id, status: e.status, startedAt: e.startedAt, finishedAt: e.finishedAt ?? null, clients: e.clients }));
+          return Response.json({ ok: true, runs });
+        }
+        const e = ASYNC_RUNS.get(runId);
+        if (!e) return Response.json({ ok: false, error: "runId unbekannt (Server-Neustart oder >50 Läufe her)" }, { status: 404 });
+        return Response.json({ ok: true, runId, ...e });
       },
     },
   },
