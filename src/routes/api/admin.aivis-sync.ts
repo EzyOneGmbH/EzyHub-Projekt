@@ -454,8 +454,45 @@ async function jobAttribution(c: any) {
     agg[eng.name].sessions += Number(row.metricValues?.[0]?.value ?? 0);
     agg[eng.name].conversions += Number(row.metricValues?.[1]?.value ?? 0);
   }
+  // Detail: WELCHE Key-Events (Conversion-Namen) je Engine ausgelöst wurden —
+  // zweiter Report mit eventName-Dimension, nur wenn überhaupt Conversions da sind.
+  const events: Record<string, Array<{ name: string; count: number }>> = {};
+  if (Object.values(agg).some((v) => v.conversions > 0)) {
+    try {
+      const r2 = await fetch(
+        `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
+            dimensions: [{ name: "sessionSource" }, { name: "eventName" }],
+            metrics: [{ name: "keyEvents" }],
+            limit: 500,
+          }),
+          signal: AbortSignal.timeout(30_000),
+        },
+      );
+      if (r2.ok) {
+        const j2: any = await r2.json().catch(() => ({}));
+        const perEngine: Record<string, Record<string, number>> = {};
+        for (const row of j2.rows ?? []) {
+          const src = String(row.dimensionValues?.[0]?.value ?? "");
+          const eng = ENGINES.find((e) => e.re.test(src));
+          const evName = String(row.dimensionValues?.[1]?.value ?? "");
+          const n = Number(row.metricValues?.[0]?.value ?? 0);
+          if (!eng || !evName || n <= 0) continue;
+          (perEngine[eng.name] ??= {})[evName] = (perEngine[eng.name]?.[evName] || 0) + n;
+        }
+        for (const [engine, m] of Object.entries(perEngine))
+          events[engine] = Object.entries(m)
+            .map(([name, count]) => ({ name, count }))
+            .sort((a, b) => b.count - a.count);
+      }
+    } catch { /* Detail optional — Totale bleiben gültig */ }
+  }
   return {
-    engines: Object.entries(agg).map(([engine, v]) => ({ engine, ...v })),
+    engines: Object.entries(agg).map(([engine, v]) => ({ engine, ...v, events: events[engine] ?? [] })),
   };
 }
 
@@ -1230,18 +1267,32 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                   traffic: 0,
                 });
               }
-              if (at?.engines?.length) {
+              jr.report = { id: reportId, score: partial ? Number(existingRep.score ?? 0) : score, snapshot };
+            }
+            // Attribution UNABHÄNGIG vom Report-Block schreiben: hängt am
+            // neuesten Report des Kunden. So aktualisiert auch ein reiner
+            // attribution-Lauf die Conversion-Details (inkl. events-Aufschlüsselung).
+            if (at?.engines?.length) {
+              const { data: lastRep } = await sb
+                .from("ai_visibility_reports")
+                .select("id")
+                .eq("client_id", c.id)
+                .order("snapshot_date", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              if (lastRep?.id) {
+                await sb.from("ai_visibility_attribution").delete().eq("report_id", lastRep.id);
                 await sb.from("ai_visibility_attribution").insert(
                   at.engines.map((e: any) => ({
-                    report_id: reportId,
+                    report_id: lastRep.id,
                     client_id: c.id,
                     engine: e.engine,
                     sessions: e.sessions,
                     conversions: e.conversions,
+                    events: Array.isArray(e.events) ? e.events : [],
                   })),
                 );
               }
-              jr.report = { id: reportId, score: partial ? Number(existingRep.score ?? 0) : score, snapshot };
             }
           } catch (e) {
             jr.error = redactSecrets(e);

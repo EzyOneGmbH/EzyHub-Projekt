@@ -290,26 +290,69 @@ function SourcesTable({ rows }) {
 }
 
 function AttributionStrip({ rows }) {
+  const [open, setOpen] = useState(null); // engine-Name der aufgeklappten Kachel
   const totalS = rows.reduce((a, b) => a + b.sessions, 0);
   const totalC = rows.reduce((a, b) => a + b.conv, 0);
+  const openRow = rows.find((r) => r.engine === open);
   return (
     <div className="rounded-xl border p-5" style={CARD}>
       <div className="flex items-center gap-2">
         <MousePointerClick size={15} style={{ color: C.teal }} />
         <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Conversions</h3>
       </div>
-      <p className="mt-0.5 text-xs" style={{ color: C.sub }}>letzte 30 Tage · {nf(totalS)} Sessions · {totalC} Conversions</p>
+      <p className="mt-0.5 text-xs" style={{ color: C.sub }}>
+        letzte 30 Tage · {nf(totalS)} Sessions · {totalC} Conversions
+        {totalC > 0 && <span> · Kachel anklicken für das Conversion-Detail</span>}
+      </p>
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {rows.map((r) => (
-          <div key={r.engine} className="rounded-lg border p-3" style={{ borderColor: C.line, background: C.cardAlt }}>
-            <div className="text-xs font-medium" style={{ color: C.sub }}>{r.engine}</div>
-            <div className="mt-1 text-xl font-bold tabular-nums" style={{ color: C.ink }}>{r.sessions}</div>
-            <div className="text-[11px]" style={{ color: r.conv > 0 ? C.up : C.sub }}>
-              {r.conv} Conv.
+        {rows.map((r) => {
+          const clickable = r.conv > 0;
+          const isOpen = open === r.engine;
+          return (
+            <div
+              key={r.engine}
+              role={clickable ? "button" : undefined}
+              tabIndex={clickable ? 0 : undefined}
+              onClick={() => clickable && setOpen(isOpen ? null : r.engine)}
+              onKeyDown={(e) => clickable && (e.key === "Enter" || e.key === " ") && setOpen(isOpen ? null : r.engine)}
+              className={`rounded-lg border p-3 transition ${clickable ? "cursor-pointer hover:brightness-125 focus:outline-none focus-visible:ring-2" : ""}`}
+              style={{ borderColor: isOpen ? C.teal : C.line, background: C.cardAlt }}
+            >
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-medium" style={{ color: C.sub }}>{r.engine}</div>
+                {clickable && (
+                  <ChevronRight size={12} style={{ color: C.sub, transform: isOpen ? "rotate(90deg)" : "none" }} className="transition-transform" />
+                )}
+              </div>
+              <div className="mt-1 text-xl font-bold tabular-nums" style={{ color: C.ink }}>{r.sessions}</div>
+              <div className="text-[11px]" style={{ color: r.conv > 0 ? C.up : C.sub }}>
+                {r.conv} Conv.
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
+      {openRow && (
+        <div className="mt-2 rounded-lg border p-3" style={{ borderColor: C.line, background: C.cardAlt }}>
+          <div className="text-xs font-medium" style={{ color: C.ink }}>
+            Ausgelöste Conversions über {openRow.engine}
+          </div>
+          {openRow.events?.length ? (
+            <div className="mt-2 flex flex-col gap-1.5">
+              {openRow.events.map((e) => (
+                <div key={e.name} className="flex items-center justify-between gap-3 text-[13px]">
+                  <span style={{ color: C.ink }}>{e.name}</span>
+                  <span className="tabular-nums font-semibold" style={{ color: C.up }}>{e.count}×</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-1 text-xs" style={{ color: C.sub }}>
+              Detail noch nicht erfasst — wird beim nächsten Daten-Lauf gefüllt.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
