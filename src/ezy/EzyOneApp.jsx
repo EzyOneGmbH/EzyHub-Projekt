@@ -4441,11 +4441,16 @@ function AiVisibilityTab({ selectedClient }) {
     selectedClient?.id,
     selectedClient?.domain || selectedClient?.name,
   );
+  // Conversion-Einzelzeilen (Titel/Datum/Wert/Land/Gerät) aus DEMSELBEN
+  // ga4_conversions-Lauf wie der Conversions-Tab — das Attribution-Panel
+  // filtert sie clientseitig nach KI-Quellen (identische Datenbasis).
+  const { run: convRun } = useEzyLatestRun(selectedClient?.id, "ga4_conversions");
+  const convRows = convRun ? (ga4ConversionsFromResult(convRun.result)?.rows ?? []) : [];
   // EINE kombinierte Ansicht: Ahrefs + Semrush + Canonry + Prompt-Runner werden im
   // Backend/Loader zusammengeführt (Canonry-Provider fließen in die Modell-Verteilung,
   // -Quellen, -Konkurrenten). Kein separater GEO-Tab / keine gestapelte Sektion mehr.
   if (loading) return <AIVisibilitySkeleton />;
-  return <AIVisibilityReport data={data && !error ? data : null} />;
+  return <AIVisibilityReport data={data && !error ? data : null} convRows={convRows} />;
 }
 
 function AiVisibilityDashboard({ selectedClient }) {
