@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { adsQuery, loadConfig, computeTrackingHealth } from "./google-ads-autopilot.server";
+import { resolveBudgetAnchor, budgetSourceLanguage, type BudgetAnchor, type BudgetSource } from "./google-ads-budget.server";
 
 // Waechter-Lauf (Phase 1): rein deterministischer, taeglicher Melder - KEIN LLM,
 // KEINE Actions, KEINE Approvals, KEINE Writes ins Ads-Konto. Vier Checks pro
@@ -15,6 +16,7 @@ export type GuardianFinding = {
   entity: string;
   metric: string;
   message: string;
+  budgetSource?: BudgetSource; // bei budget_pacing: Herkunft des Vergleichswerts
   knownSince?: string; // gesetzt, wenn dasselbe Finding schon in einem frueheren Lauf gemeldet wurde
 };
 
@@ -24,38 +26,49 @@ export type GuardianResult = {
   checkedAt: string;
   status: "ok" | "warn" | "critical";
   findings: GuardianFinding[];
+  budgetAnchor?: BudgetAnchor; // Herkunftsnachweis des Budget-Ankers (immer ausgewiesen)
   skipped?: string;
   dataErrors?: string[]; // ausgefallene Datenquellen - transparent, kein stilles "ok"
 };
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
-// ── Check 1: Budget-Pacing (MTD-Spend vs. anteiliges Monatsbudget) ───────────
+// ── Check 1: Budget-Pacing (MTD-Spend vs. anteiliger Budget-Anker) ───────────
+// Die Sprache richtet sich nach der HERKUNFT des Vergleichswerts (budgetSource):
+// nur 'client' meldet eine bestaetigte Ueberschreitung; abgeleitete Quellen sind
+// Abweichungs- bzw. Anomalie-Beobachtungen und werden nie als Budget dargestellt.
 export function checkBudgetPacing(
   mtdSpendChf: number,
-  monthlyBudgetChf: number,
+  anchor: BudgetAnchor,
   dayOfMonth: number,
   daysInMonth: number,
 ): GuardianFinding | null {
-  if (!monthlyBudgetChf || monthlyBudgetChf <= 0) return null; // kein Monatsbudget konfiguriert -> Check inaktiv
+  const monthlyBudgetChf = anchor.monthlyBudgetChf ?? 0;
+  if (!monthlyBudgetChf || monthlyBudgetChf <= 0) return null; // kein Anker -> Check inaktiv
   const expected = (monthlyBudgetChf * dayOfMonth) / daysInMonth;
   if (expected <= 0) return null;
   const dev = (mtdSpendChf - expected) / expected;
   if (Math.abs(dev) <= 0.2) return null;
-  const severity: "warn" | "critical" = Math.abs(dev) > 0.4 ? "critical" : "warn";
+  const lang = budgetSourceLanguage(anchor.source);
+  let severity: "warn" | "critical" = Math.abs(dev) > 0.4 ? "critical" : "warn";
+  if (lang.capWarn) severity = "warn"; // Beobachtung ohne bestaetigtes Budget -> nie Sofort-Alarm
   const richtung = dev > 0 ? "ueber" : "unter";
   return {
     check: "budget_pacing",
     severity,
     entity: "Konto",
-    metric: `MTD CHF ${mtdSpendChf.toFixed(2)} vs. Soll CHF ${expected.toFixed(2)} (${dev > 0 ? "+" : ""}${round1(dev * 100)}%)`,
+    budgetSource: anchor.source,
+    metric: `MTD CHF ${mtdSpendChf.toFixed(2)} vs. Soll CHF ${expected.toFixed(2)} (${dev > 0 ? "+" : ""}${round1(dev * 100)}%) [Quelle: ${anchor.source}]`,
     message:
-      `Das Konto hat diesen Monat bisher CHF ${mtdSpendChf.toFixed(2)} ausgegeben - nach ${dayOfMonth} von ${daysInMonth} Tagen ` +
-      `waeren anteilig CHF ${expected.toFixed(2)} des Monatsbudgets (CHF ${monthlyBudgetChf.toFixed(0)}) zu erwarten. ` +
+      `${lang.head}: Das Konto hat diesen Monat bisher CHF ${mtdSpendChf.toFixed(2)} ausgegeben - nach ${dayOfMonth} von ${daysInMonth} Tagen ` +
+      `waeren anteilig CHF ${expected.toFixed(2)} ${lang.budgetWord} (CHF ${monthlyBudgetChf.toFixed(0)}/Monat, Herkunft: ${anchor.detail}) zu erwarten. ` +
       `Die Ausgaben liegen ${Math.abs(round1(dev * 100))}% ${richtung} Plan` +
       (dev > 0
-        ? ` - bei diesem Tempo ist das Budget vor Monatsende aufgebraucht.`
-        : ` - moegliche Ursachen: pausierte Kampagnen, abgelehnte Anzeigen oder zu tiefe Gebote.`),
+        ? ` - bei diesem Tempo ist der Rahmen vor Monatsende ausgeschoepft.`
+        : ` - moegliche Ursachen: pausierte Kampagnen, abgelehnte Anzeigen oder zu tiefe Gebote.`) +
+      (anchor.source !== "client"
+        ? ` Hinweis: Dieser Vergleichswert ist ABGELEITET (${anchor.source}), kein bestaetigtes Budget - fuer eine verbindliche Budget-Ueberwachung monthly_budget_chf setzen.`
+        : ""),
   };
 }
 
@@ -183,14 +196,18 @@ export async function runGuardianForClient(client: { id: string; name: string; g
   const probe = await q(`SELECT customer.id FROM customer LIMIT 1`);
   if (!probe.ok) return { ...result, skipped: probe.skipped ?? probe.error };
 
-  // Check 1: Budget-Pacing
+  // Budget-Anker mit Herkunftsnachweis aufloesen (rein lesend) - immer, damit
+  // budget_source in der Antwort ausgewiesen ist (auch ohne Pacing-Finding).
+  result.budgetAnchor = await resolveBudgetAnchor(q, Number(cfg.monthly_budget_chf ?? 0), now);
+
+  // Check 1: Budget-Pacing (gegen den aufgeloesten Anker)
   await soft("budget_pacing", async () => {
     const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
     const r = await q(`SELECT metrics.cost_micros FROM customer WHERE segments.date BETWEEN '${monthStart}' AND '${isoDay(now)}'`);
     if (!r.ok) throw new Error(r.error ?? r.skipped);
     const mtd = Number(r.rows?.[0]?.metrics?.costMicros ?? 0) / 1_000_000;
     const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    const f = checkBudgetPacing(mtd, Number(cfg.monthly_budget_chf ?? 0), now.getDate(), daysInMonth);
+    const f = checkBudgetPacing(mtd, result.budgetAnchor!, now.getDate(), daysInMonth);
     if (f) result.findings.push(f);
   });
 

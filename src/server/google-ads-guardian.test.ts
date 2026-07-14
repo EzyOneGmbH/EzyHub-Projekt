@@ -12,21 +12,50 @@ import {
 // Phase-1-Abnahme: je Check ein simulierter Ausloesefall (+ Gegenprobe).
 // Die Checks sind pure functions - DB-/API-Pfade werden hier nicht beruehrt.
 
+const anchor = (chf: number | null, source: "client" | "account" | "historical" | "none" = "client") => ({
+  monthlyBudgetChf: chf,
+  source,
+  detail: "test",
+});
+
 describe("checkBudgetPacing", () => {
-  // Monatsbudget 3000, Tag 15 von 30 -> Soll 1500
-  it("warn bei > +20% Abweichung, critical bei > +40%", () => {
-    expect(checkBudgetPacing(1950, 3000, 15, 30)?.severity).toBe("warn"); // +30%
-    expect(checkBudgetPacing(2250, 3000, 15, 30)?.severity).toBe("critical"); // +50%
-    expect(checkBudgetPacing(2250, 3000, 15, 30)?.message).toContain("aufgebraucht");
+  // Monatsbudget 3000 (Quelle client), Tag 15 von 30 -> Soll 1500
+  it("warn bei > +20% Abweichung, critical bei > +40% (Quelle client)", () => {
+    expect(checkBudgetPacing(1950, anchor(3000), 15, 30)?.severity).toBe("warn"); // +30%
+    expect(checkBudgetPacing(2250, anchor(3000), 15, 30)?.severity).toBe("critical"); // +50%
+    expect(checkBudgetPacing(2250, anchor(3000), 15, 30)?.message).toContain("ausgeschoepft");
   });
   it("critical bei < -40% (Unterpacing = etwas laeuft nicht)", () => {
-    const f = checkBudgetPacing(750, 3000, 15, 30); // -50%
+    const f = checkBudgetPacing(750, anchor(3000), 15, 30); // -50%
     expect(f?.severity).toBe("critical");
     expect(f?.message).toContain("unter Plan");
   });
-  it("still bei +/-20% und inaktiv ohne Monatsbudget", () => {
-    expect(checkBudgetPacing(1650, 3000, 15, 30)).toBeNull(); // +10%
-    expect(checkBudgetPacing(9999, 0, 15, 30)).toBeNull();
+  it("still bei +/-20% und inaktiv ohne Anker", () => {
+    expect(checkBudgetPacing(1650, anchor(3000), 15, 30)).toBeNull(); // +10%
+    expect(checkBudgetPacing(9999, anchor(0), 15, 30)).toBeNull();
+    expect(checkBudgetPacing(9999, anchor(null, "none"), 15, 30)).toBeNull();
+  });
+
+  // Quellenabhaengige Sprache - eine abgeleitete Quelle wird NIE als Budget dargestellt.
+  it("Quelle client: 'Budget-Ueberschreitung', kein Ableitungs-Hinweis, budgetSource gesetzt", () => {
+    const f = checkBudgetPacing(2250, anchor(3000, "client"), 15, 30)!;
+    expect(f.budgetSource).toBe("client");
+    expect(f.message).toContain("Budget-Ueberschreitung");
+    expect(f.message).not.toContain("ABGELEITET");
+  });
+  it("Quelle account: 'weicht von Konto-Konfiguration ab' + Ableitungs-Hinweis; critical bleibt erlaubt", () => {
+    const f = checkBudgetPacing(2250, anchor(3000, "account"), 15, 30)!;
+    expect(f.budgetSource).toBe("account");
+    expect(f.severity).toBe("critical");
+    expect(f.message).toContain("Konto-Konfiguration");
+    expect(f.message).toContain("ABGELEITET");
+  });
+  it("Quelle historical: 'Ausgabemuster-Anomalie (Beobachtung...)' und NIE critical (auf warn gekappt)", () => {
+    const f = checkBudgetPacing(2250, anchor(3000, "historical"), 15, 30)!; // +50% -> waere critical
+    expect(f.budgetSource).toBe("historical");
+    expect(f.severity).toBe("warn"); // Beobachtung -> nie Sofort-Alarm
+    expect(f.message).toContain("Ausgabemuster-Anomalie");
+    expect(f.message).toContain("kein bestaetigtes Budget");
   });
 });
 

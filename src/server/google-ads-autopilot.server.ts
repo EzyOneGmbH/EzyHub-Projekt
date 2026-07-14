@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { openRecommendationsBlock, computeRecommendationOutcomes } from "./google-ads-recommendations.server";
+import { resolveBudgetAnchor, budgetSourceLanguage, type BudgetAnchor } from "./google-ads-budget.server";
 import { getGoogleAccessToken } from "./google-tokens.server";
 import { addNegativeKeyword, setCampaignBudget } from "./google-ads-mutate.server";
 
@@ -1641,6 +1642,8 @@ export type AutopilotRunSummary = {
   biddingStrategies?: Array<{ campaign: string; strategyType: string; targetRoas: number | null; targetCpaChf: number | null; systemStatus: string }>;
   // Phase A: Mehrfenster-Extrakt (Kennzahlen tragen Fenster-Label per Struktur)
   multiWindow?: MultiWindowExtract | null;
+  // Budget-Anker mit Herkunftsnachweis (client/account/historical/none)
+  budgetAnchor?: BudgetAnchor | null;
   // Phase B.2: Asset-Detail (Servings/Pinning/Abdeckung/PMax-Videos, L90)
   assetDetail?: AutopilotData["assetDetail"] | null;
   // Phase C: Report-Pflichtblock "Offene Massnahmen" aus dem Register
@@ -1756,6 +1759,38 @@ export async function runAutopilot(clientId: string, opts?: { dryRun?: boolean }
   } catch {
     base.openRecommendations = null;
   }
+  // Budget-Anker mit Herkunftsnachweis (rein lesend) + Config-Lint: ist die
+  // Quelle nicht 'client', ein DAUERHAFTES report-only-Finding "Budget nicht
+  // bestaetigt" - damit die Luecke nicht still verschwindet.
+  try {
+    const anchor = await resolveBudgetAnchor(
+      (g) => adsQuery(clientId, client.google_ads_customer, g),
+      Number(cfg.monthly_budget_chf ?? 0),
+      now,
+    );
+    base.budgetAnchor = anchor;
+    if (anchor.source !== "client") {
+      const lang = budgetSourceLanguage(anchor.source);
+      const wertText =
+        anchor.monthlyBudgetChf != null
+          ? `abgeleiteter Wert CHF ${anchor.monthlyBudgetChf.toFixed(0)}/Monat (Quelle: ${anchor.source})`
+          : `kein Wert ableitbar`;
+      await supabaseAdmin.from("ads_changelog").insert({
+        client_id: clientId, customer_id: customerId, run_id: runId,
+        action_type: "budget_unconfirmed", action_class: "report-only",
+        entity: "Konto - Monatsbudget", before_value: "", after_value: wertText,
+        rationale:
+          `Budget nicht bestaetigt: In der Autopilot-Config ist kein Soll-Budget (monthly_budget_chf) gesetzt. ` +
+          `Der Budget-Waechter arbeitet ersatzweise mit einem abgeleiteten Wert - ${wertText}, Herkunft: ${anchor.detail}. ` +
+          `Solange die Quelle nicht 'client' ist, meldet der Waechter nur als "${lang.head}" (Beobachtung), nicht als bestaetigte Ueberschreitung.`,
+        recommendation:
+          `monthly_budget_chf in ads_autopilot_config setzen (Soll-Budget) - dann wird budget_source=client und der Pacing-Check meldet bestaetigte Budget-Ueberschreitungen mit voller Autoritaet.`,
+        status: "report-only",
+      });
+      base.reportOnly += 1;
+      base.actions.push({ class: "report-only", type: "budget_unconfirmed", entity: "Konto - Monatsbudget", status: "report-only", rationale: `Budget nicht bestaetigt (Quelle ${anchor.source}).` });
+    }
+  } catch { base.budgetAnchor = null; }
   base.biddingStrategies = d3.campaigns.map((c) => ({
     campaign: c.name,
     strategyType: c.biddingStrategyType ?? "UNKNOWN",
