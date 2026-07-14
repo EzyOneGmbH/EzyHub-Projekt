@@ -1254,7 +1254,10 @@ export async function runAutopilot(clientId: string, opts?: { dryRun?: boolean }
     for (const r of d3.rsaAdStrength ?? []) dist[r.adStrength] = (dist[r.adStrength] ?? 0) + 1;
     base.rsaAdStrength = {
       distribution: dist,
-      weakest: (d3.rsaAdStrength ?? []).filter((r) => r.adStrength === "POOR" || r.adStrength === "AVERAGE").slice(0, 10),
+      weakest: (d3.rsaAdStrength ?? [])
+        .filter((r) => r.adStrength === "POOR" || r.adStrength === "AVERAGE")
+        .sort((a, b) => (a.adStrength === b.adStrength ? 0 : a.adStrength === "POOR" ? -1 : 1))
+        .slice(0, 10),
     };
   }
   base.biddingStrategies = d3.campaigns.map((c) => ({
