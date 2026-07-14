@@ -289,11 +289,40 @@ function SourcesTable({ rows }) {
   );
 }
 
-function AttributionStrip({ rows }) {
+// Quelle->Engine-Zuordnung (identisch zur Server-Seite ENGINES in aivis-sync).
+const ATTR_SOURCE_RE = {
+  ChatGPT: /chatgpt|openai/i,
+  Perplexity: /perplexity/i,
+  Gemini: /gemini|bard/i,
+  Claude: /claude|anthropic/i,
+  Copilot: /copilot|bing/i,
+  Grok: /grok|x\.ai/i,
+  DeepSeek: /deepseek/i,
+};
+const fmtGa4Date = (d) =>
+  typeof d === "string" && d.length === 8 ? `${d.slice(6, 8)}.${d.slice(4, 6)}.${d.slice(0, 4)}` : (d || "—");
+
+function AttributionStrip({ rows, convRows = [] }) {
   const [open, setOpen] = useState(null); // engine-Name der aufgeklappten Kachel
   const totalS = rows.reduce((a, b) => a + b.sessions, 0);
   const totalC = rows.reduce((a, b) => a + b.conv, 0);
   const openRow = rows.find((r) => r.engine === open);
+  // Einzel-Conversions der aufgeklappten Engine — bevorzugt die reichen
+  // events aus der Attribution (Name+Land+Gerät+Datum+Wert, session-scoped),
+  // sonst die ga4_conversions-Zeilen des Conversions-Tabs (Quelle-Filter).
+  const richEvents = (openRow?.events || []).filter((e) => e.country || e.date || e.device);
+  const detailRows = openRow
+    ? richEvents.length
+      ? richEvents.map((e) => ({
+          description: e.name,
+          date: e.date,
+          value: e.value,
+          country: e.country,
+          device: e.device,
+          count: e.count,
+        }))
+      : convRows.filter((r) => ATTR_SOURCE_RE[openRow.engine]?.test(String(r.source || "")))
+    : [];
   return (
     <div className="rounded-xl border p-5" style={CARD}>
       <div className="flex items-center gap-2">
@@ -337,7 +366,43 @@ function AttributionStrip({ rows }) {
           <div className="text-xs font-medium" style={{ color: C.ink }}>
             Ausgelöste Conversions über {openRow.engine}
           </div>
-          {openRow.events?.length ? (
+          {detailRows.length > 0 ? (
+            // Einzel-Conversions wie im Conversions-Tab: Titel, Datum, Wert, Land, Gerät.
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full text-[13px]" style={{ minWidth: 520 }}>
+                <thead>
+                  <tr className="text-left text-[11px] uppercase tracking-wide" style={{ color: C.sub }}>
+                    <th className="px-2 py-1.5 font-medium">Titel</th>
+                    <th className="px-2 py-1.5 font-medium">Datum</th>
+                    <th className="px-2 py-1.5 text-right font-medium">Wert</th>
+                    <th className="px-2 py-1.5 font-medium">Land</th>
+                    <th className="px-2 py-1.5 font-medium">Gerät</th>
+                    <th className="px-2 py-1.5 text-right font-medium">Anzahl</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detailRows.slice(0, 30).map((r, i) => (
+                    <tr key={i} className="border-t" style={{ borderColor: C.line }}>
+                      <td className="px-2 py-1.5 font-semibold" style={{ color: C.ink }}>{r.description || r.eventName || "—"}</td>
+                      <td className="px-2 py-1.5" style={{ color: C.sub }}>{fmtGa4Date(r.date)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums" style={{ color: r.value > 0 ? C.up : C.sub }}>
+                        {r.value > 0 ? `${Math.round(r.value).toLocaleString("de-CH")} CHF` : "—"}
+                      </td>
+                      <td className="px-2 py-1.5" style={{ color: C.sub }}>{r.country || "—"}</td>
+                      <td className="px-2 py-1.5" style={{ color: C.sub }}>{r.device || "—"}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums" style={{ color: C.ink }}>
+                        {Number(r.count || 0).toLocaleString("de-CH")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {detailRows.length > 30 && (
+                <p className="mt-1 text-[11px]" style={{ color: C.sub }}>… {detailRows.length - 30} weitere Zeilen</p>
+              )}
+            </div>
+          ) : openRow.events?.length ? (
+            // Fallback: Event-Namen + Anzahl (wenn keine Einzelzeilen im ga4_conversions-Lauf liegen).
             <div className="mt-2 flex flex-col gap-1.5">
               {openRow.events.map((e) => (
                 <div key={e.name} className="flex items-center justify-between gap-3 text-[13px]">
@@ -729,7 +794,7 @@ function SovCard({ rows }) {
 }
 
 // ── Shell ────────────────────────────────────────────────────────────────────
-export default function AIVisibilityDashboard({ data }) {
+export default function AIVisibilityDashboard({ data, convRows = [] }) {
   const d = data;
   if (!d) return <AIVisibilityEmpty />;
 
@@ -782,7 +847,7 @@ export default function AIVisibilityDashboard({ data }) {
 
         {/* Attribution */}
         <div className="mt-4">
-          <AttributionStrip rows={d.attribution} />
+          <AttributionStrip rows={d.attribution} convRows={convRows} />
         </div>
 
         {/* Tables */}

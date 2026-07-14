@@ -33,15 +33,12 @@ const Body = z.object({
   async: z.boolean().default(false), // true = sofort 202 + runId, Verarbeitung im Hintergrund
 });
 
-// Async-Läufe (in-memory; Server ist long-running). Letzte 50 behalten.
-const ASYNC_RUNS = new Map<string, { status: "running" | "done" | "error"; startedAt: string; finishedAt?: string; clients: string[]; result?: unknown; error?: string }>();
-function pruneAsyncRuns() {
-  while (ASYNC_RUNS.size > 50) {
-    const oldest = ASYNC_RUNS.keys().next().value;
-    if (!oldest) break;
-    ASYNC_RUNS.delete(oldest);
-  }
-}
+// Async-Design: fire-and-forget IM Prozess wird vom Hosting nach der Response
+// beendet (2026-07-14 verifiziert: Lauf startete, DB blieb leer). Deshalb:
+// async:true legt eine Zeile in ai_visibility_sync_runs an und feuert einen
+// SELBST-Aufruf als eigenen HTTP-Request (Header x-sync-run) — Requests laufen
+// serverseitig zu Ende, auch wenn der Aufrufer trennt (2026-07-13 bewiesen).
+// Status/Ergebnis liegen in der DB: GET ?run=<id> bzw. GET ohne Param = Liste.
 
 const isUuid = (s: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(s || ""));
@@ -466,8 +463,9 @@ async function jobAttribution(c: any) {
     agg[eng.name].conversions += Number(row.metricValues?.[1]?.value ?? 0);
   }
   // Detail: WELCHE Key-Events (Conversion-Namen) je Engine ausgelöst wurden —
-  // zweiter Report mit eventName-Dimension, nur wenn überhaupt Conversions da sind.
-  const events: Record<string, Array<{ name: string; count: number }>> = {};
+  // inkl. Land, Gerät, Datum und Wert (wie die Zeilen im Conversions-Tab).
+  // Session-scoped über sessionSource (event-scoped landet oft in "(not set)").
+  const events: Record<string, Array<{ name: string; count: number; value: number; country: string; device: string; date: string }>> = {};
   if (Object.values(agg).some((v) => v.conversions > 0)) {
     try {
       const r2 = await fetch(
@@ -477,28 +475,43 @@ async function jobAttribution(c: any) {
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
           body: JSON.stringify({
             dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
-            dimensions: [{ name: "sessionSource" }, { name: "eventName" }],
-            metrics: [{ name: "keyEvents" }],
-            limit: 500,
+            dimensions: [
+              { name: "sessionSource" },
+              { name: "eventName" },
+              { name: "country" },
+              { name: "deviceCategory" },
+              { name: "date" },
+            ],
+            metrics: [{ name: "keyEvents" }, { name: "eventValue" }, { name: "totalRevenue" }],
+            limit: 2000,
           }),
           signal: AbortSignal.timeout(30_000),
         },
       );
       if (r2.ok) {
         const j2: any = await r2.json().catch(() => ({}));
-        const perEngine: Record<string, Record<string, number>> = {};
         for (const row of j2.rows ?? []) {
-          const src = String(row.dimensionValues?.[0]?.value ?? "");
+          const dv = row.dimensionValues ?? [];
+          const src = String(dv[0]?.value ?? "");
           const eng = ENGINES.find((e) => e.re.test(src));
-          const evName = String(row.dimensionValues?.[1]?.value ?? "");
           const n = Number(row.metricValues?.[0]?.value ?? 0);
-          if (!eng || !evName || n <= 0) continue;
-          (perEngine[eng.name] ??= {})[evName] = (perEngine[eng.name]?.[evName] || 0) + n;
+          if (!eng || n <= 0) continue;
+          (events[eng.name] ??= []).push({
+            name: String(dv[1]?.value ?? ""),
+            count: n,
+            // Betrag wie im Conversions-Tab: totalRevenue (Purchase-Umsatz),
+            // sonst eventValue (value-Parameter des Events).
+            value: Number(row.metricValues?.[2]?.value ?? 0) || Number(row.metricValues?.[1]?.value ?? 0),
+            country: String(dv[2]?.value ?? ""),
+            device: String(dv[3]?.value ?? ""),
+            date: String(dv[4]?.value ?? ""),
+          });
         }
-        for (const [engine, m] of Object.entries(perEngine))
-          events[engine] = Object.entries(m)
-            .map(([name, count]) => ({ name, count }))
-            .sort((a, b) => b.count - a.count);
+        // neueste zuerst, pro Engine gedeckelt (jsonb klein halten)
+        for (const k of Object.keys(events))
+          events[k] = events[k]
+            .sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.count - a.count)
+            .slice(0, 100);
       }
     } catch { /* Detail optional — Totale bleiben gültig */ }
   }
@@ -1023,6 +1036,28 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         const sb = supabaseAdmin as any;
         const snapshot = today();
         const results: any[] = [];
+
+        // async:true -> Run-Zeile anlegen und IM SELBEN Request weiterarbeiten.
+        // Der Aufrufer trennt nach wenigen Sekunden (Server arbeitet nachweislich
+        // weiter, 2026-07-13 verifiziert) und pollt GET ?run=<id>. Die runId kann
+        // der Aufrufer via Header x-sync-run mitgeben (damit er sie VOR der
+        // Trennung kennt); ohne Header wird eine erzeugt (nur für geduldige
+        // Aufrufer sinnvoll, die die Antwort abwarten).
+        // Hintergrund: Sowohl fire-and-forget als auch Selbst-Aufruf werden vom
+        // Hosting nach der Response eingefroren (beide 2026-07-14 verifiziert
+        // fehlgeschlagen) — nur die Ein-Request-Variante ist zuverlässig.
+        const headerRunId = (request.headers.get("x-sync-run") || "").trim();
+        if (headerRunId && !isUuid(headerRunId))
+          return Response.json({ ok: false, error: "x-sync-run muss eine UUID sein" }, { status: 400 });
+        const syncRunId = headerRunId || (runAsync ? crypto.randomUUID() : "");
+        if (syncRunId) {
+          await sb.from("ai_visibility_sync_runs").upsert({
+            id: syncRunId, status: "running",
+            clients: clients.map((x) => String(x.name)),
+            params: { client: sel ?? null, all: !!all, jobs: jobs ?? null, mode, months, force: !!force, minIntervalDays, serpKeywords: serpKeywords ?? null },
+          });
+        }
+
         // Kernverarbeitung — synchron aufgerufen ODER als Hintergrund-Lauf (async:true).
         const runAll = async () => {
         for (const c of clients) {
@@ -1315,35 +1350,37 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         return { ok: true, count: clients.length, snapshot, results };
         }; // Ende runAll
 
-        if (runAsync) {
-          const runId = crypto.randomUUID();
-          ASYNC_RUNS.set(runId, { status: "running", startedAt: new Date().toISOString(), clients: clients.map((c) => String(c.name)) });
-          pruneAsyncRuns();
-          runAll()
-            .then((r) => { const e = ASYNC_RUNS.get(runId); if (e) { e.status = "done"; e.finishedAt = new Date().toISOString(); e.result = r; } })
-            .catch((err) => { const e = ASYNC_RUNS.get(runId); if (e) { e.status = "error"; e.finishedAt = new Date().toISOString(); e.error = String((err as any)?.message || err).slice(0, 300); } });
-          return Response.json(
-            { ok: true, async: true, runId, clients: clients.map((c) => String(c.name)), status: `GET ?run=${runId}` },
-            { status: 202 },
-          );
+        try {
+          const payload = await runAll();
+          if (syncRunId)
+            await sb.from("ai_visibility_sync_runs").update({ status: "done", finished_at: new Date().toISOString(), result: payload }).eq("id", syncRunId);
+          return Response.json(payload);
+        } catch (err) {
+          if (syncRunId)
+            await sb.from("ai_visibility_sync_runs").update({ status: "error", finished_at: new Date().toISOString(), error: String((err as any)?.message || err).slice(0, 300) }).eq("id", syncRunId);
+          throw err;
         }
-        return Response.json(await runAll());
       },
-      // Status eines async-Laufs: GET /api/admin/aivis-sync?run=<runId>
+      // Status eines async-Laufs: GET ?run=<runId>; ohne Param: letzte 20 Läufe.
       GET: async ({ request }) => {
         const secret = process.env.ADMIN_AUTOMATION_SECRET;
         if (!secret)
           return Response.json({ ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" }, { status: 503 });
         if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
           return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        const sb = supabaseAdmin as any;
         const runId = new URL(request.url).searchParams.get("run") || "";
         if (!runId) {
-          const runs = [...ASYNC_RUNS.entries()].map(([id, e]) => ({ id, status: e.status, startedAt: e.startedAt, finishedAt: e.finishedAt ?? null, clients: e.clients }));
-          return Response.json({ ok: true, runs });
+          const { data } = await sb
+            .from("ai_visibility_sync_runs")
+            .select("id, status, started_at, finished_at, clients")
+            .order("started_at", { ascending: false })
+            .limit(20);
+          return Response.json({ ok: true, runs: data || [] });
         }
-        const e = ASYNC_RUNS.get(runId);
-        if (!e) return Response.json({ ok: false, error: "runId unbekannt (Server-Neustart oder >50 Läufe her)" }, { status: 404 });
-        return Response.json({ ok: true, runId, ...e });
+        const { data } = await sb.from("ai_visibility_sync_runs").select("*").eq("id", runId).maybeSingle();
+        if (!data) return Response.json({ ok: false, error: "runId unbekannt" }, { status: 404 });
+        return Response.json({ ok: true, run: data });
       },
     },
   },
