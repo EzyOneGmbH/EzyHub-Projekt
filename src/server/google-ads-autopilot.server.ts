@@ -1414,24 +1414,39 @@ export async function decideApproval(p: {
 
   const decidedAt = new Date().toISOString();
 
+  // decided_by ist eine uuid-Spalte (auth-User). n8n/Admin liefern oft Freitext
+  // (E-Mail + Begruendung) - der landet im Text-Feld approved_by des Changelogs,
+  // decided_by bleibt dann null. Vorher fuehrte Freitext zu einem 22P02-DB-Fehler,
+  // der im Claim verschluckt und faelschlich als 409 already_executed gemeldet wurde.
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const decidedByUuid = p.decidedBy && UUID_RE.test(p.decidedBy) ? p.decidedBy : null;
+  let claimError: string | null = null;
+
   // Phase 0.3: Entscheidungen nur via atomarem Claim (status='pending' als Guard) -
   // parallele Doppel-Approves/Rejects fuehren genau EINMAL aus; der Verlierer
   // erhaelt 409 already_executed.
   const claim = async (newStatus: string): Promise<boolean> => {
-    const { data: rows } = await supabaseAdmin
+    const { data: rows, error: claimErr } = await supabaseAdmin
       .from("ads_approvals")
-      .update({ status: newStatus, decided_by: p.decidedBy ?? null, decided_at: decidedAt })
+      .update({ status: newStatus, decided_by: decidedByUuid, decided_at: decidedAt })
       .eq("id", appr.id)
       .eq("status", "pending")
       .select("id");
+    if (claimErr) {
+      claimError = claimErr.message;
+      return false;
+    }
     return !!rows && rows.length > 0;
   };
-  const lost = (): DecideResult => ({
-    ok: false,
-    httpStatus: 409,
-    error: "already_executed - Approval wurde bereits parallel entschieden/ausgefuehrt",
-    approvalId: appr.id,
-  });
+  const lost = (): DecideResult =>
+    claimError
+      ? { ok: false, httpStatus: 500, error: `Claim fehlgeschlagen: ${claimError}`, approvalId: appr.id }
+      : {
+          ok: false,
+          httpStatus: 409,
+          error: "already_executed - Approval wurde bereits parallel entschieden/ausgefuehrt",
+          approvalId: appr.id,
+        };
 
   if (p.decision === "reject") {
     if (!(await claim("rejected"))) return lost();

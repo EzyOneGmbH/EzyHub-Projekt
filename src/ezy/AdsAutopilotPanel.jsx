@@ -83,12 +83,138 @@ function Btn({ children, onClick, disabled, variant }) {
   );
 }
 
+// Verstaendliche deutsche Erklaerung je Empfehlungs-Typ: Label fuer die Liste,
+// im Popup "Was wird bei Freigabe gemacht?" fuer Menschen ohne Ads-Wissen.
+const TYPE_INFO = {
+  budget_change: {
+    label: "Budget-Änderung",
+    action: (a) =>
+      `Bei Freigabe wird das Tagesbudget der Kampagne «${a.entity || "?"}» von ${a.current_value || "?"} auf ${a.proposed_value || "?"} angepasst. Sonst wird nichts verändert — die Anpassung kann jederzeit wieder zurückgesetzt werden.`,
+  },
+  add_negative: {
+    label: "Suchbegriff ausschliessen",
+    action: (a) =>
+      `Bei Freigabe wird dieser Suchbegriff als «auszuschliessendes Keyword» hinterlegt. Die Anzeige erscheint dann nicht mehr, wenn jemand genau danach sucht — das Budget fliesst stattdessen in Suchanfragen, die tatsächlich Buchungen bringen. Der Begriff hat Geld gekostet, aber keine einzige Buchung gebracht.`,
+  },
+  negative_keyword_semantic: {
+    label: "Suchbegriff ausschliessen (KI-geprüft)",
+    action: (a) =>
+      `Bei Freigabe wird dieser Suchbegriff als «auszuschliessendes Keyword» hinterlegt, weil er inhaltlich nicht zum Angebot passt (z. B. falsche Region oder Stellensuche). Der Vorschlag stammt von der KI-Bewertung, wurde aber automatisch gegengeprüft (kein Konflikt mit buchenden Suchbegriffen, kein Duplikat). Solche Vorschläge werden grundsätzlich NIE ohne menschliche Freigabe umgesetzt.`,
+  },
+  campaign_proposal: {
+    label: "Kampagnen-Vorschlag",
+    action: () =>
+      `Bei Freigabe wird NICHTS automatisch an Google Ads verändert. Die Freigabe bedeutet nur dein Einverständnis zum Konzept — die eigentliche Umsetzung (neue Kampagnenstruktur) erfolgt danach manuell bzw. über den Ads-Editor.`,
+  },
+  bid_change: {
+    label: "Gebots-Änderung",
+    action: (a) =>
+      `Bei Freigabe wird das Gebot von ${a.current_value || "?"} auf ${a.proposed_value || "?"} angepasst. Die Änderung ist jederzeit umkehrbar.`,
+  },
+};
+const typeLabel = (t) => TYPE_INFO[t]?.label || t;
+
+function daysUntil(iso) {
+  if (!iso) return null;
+  return Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000);
+}
+
+// Popup: warum wurde die Empfehlung erzeugt + was wird bei Freigabe gemacht.
+function ApprovalDetailModal({ approval: a, observeOnly, busy, onDecide, onClose }) {
+  if (!a) return null;
+  const info = TYPE_INFO[a.type];
+  const rest = daysUntil(a.expires_at);
+  const section = (title, body, color) => (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: P.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>
+        {title}
+      </div>
+      <div style={{ fontSize: 13, color: color || P.text, marginTop: 4, lineHeight: 1.55 }}>{body}</div>
+    </div>
+  );
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 1000, background: "rgba(10,10,16,0.7)",
+        display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: P.card, border: `1px solid ${P.border}`, borderRadius: 14,
+          padding: 20, maxWidth: 560, width: "100%", maxHeight: "85vh", overflowY: "auto",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+          <div>
+            <Badge>{typeLabel(a.type)}</Badge>
+            <div style={{ fontSize: 15, fontWeight: 700, color: P.text, marginTop: 8 }}>{a.entity || "-"}</div>
+            {(a.current_value || a.proposed_value) && (
+              <div style={{ fontSize: 13, color: P.textMuted, marginTop: 4 }}>
+                {a.current_value ? `${a.current_value} ` : ""}
+                {a.proposed_value ? <span style={{ color: P.text }}>-&gt; {a.proposed_value}</span> : null}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            style={{ background: "transparent", border: "none", color: P.textMuted, fontSize: 20, cursor: "pointer", lineHeight: 1 }}
+            aria-label="Schliessen"
+          >
+            ×
+          </button>
+        </div>
+
+        {section("Warum gibt es diese Empfehlung?", a.rationale || "Keine Begründung hinterlegt.")}
+        {section(
+          "Was wird bei Freigabe gemacht?",
+          info ? info.action(a) : "Bei Freigabe wird die vorgeschlagene Änderung umgesetzt; bei Ablehnung passiert nichts.",
+        )}
+        {a.estimated_impact && section("Erwartete Wirkung", a.estimated_impact, P.accent)}
+        {section(
+          "Fristen & Herkunft",
+          <>
+            Erstellt am {new Date(a.created_at).toLocaleDateString("de-CH")} (Lauf {a.run_id || "?"}).{" "}
+            {a.expires_at ? (
+              <span style={{ color: rest !== null && rest <= 2 ? P.orange : P.textMuted }}>
+                Läuft ab am {new Date(a.expires_at).toLocaleDateString("de-CH")}
+                {rest !== null ? ` — noch ${Math.max(rest, 0)} Tag${rest === 1 ? "" : "e"}` : ""}.
+              </span>
+            ) : (
+              "Kein Ablaufdatum."
+            )}{" "}
+            Ohne Entscheid verfällt die Empfehlung automatisch — es wird dann nichts verändert.
+          </>,
+          P.textMuted,
+        )}
+
+        <div style={{ display: "flex", gap: 8, marginTop: 18, justifyContent: "flex-end" }}>
+          <Btn onClick={onClose}>Schliessen</Btn>
+          <Btn variant="reject" disabled={busy} onClick={() => onDecide("reject")}>Ablehnen</Btn>
+          <Btn variant="approve" disabled={busy || observeOnly} onClick={() => onDecide("approve")}>
+            {observeOnly ? "Freigabe gesperrt" : "Freigeben"}
+          </Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdsAutopilotPanel({ selectedClient }) {
   const clientId = selectedClient?.id;
   const { config, approvals, changelog, loading, error, busyId, refresh, decide, runDryRun } =
     useEzyAdsAutopilot(clientId);
+  const [detail, setDetail] = React.useState(null);
 
   if (!clientId) return null;
+
+  // Nur aktuelle Empfehlungen zeigen: abgelaufene pending-Eintraege ausblenden
+  // (sie verfallen serverseitig, sollen aber gar nicht erst als "offen" wirken).
+  const activeApprovals = approvals.filter(
+    (a) => !a.expires_at || new Date(a.expires_at).getTime() > Date.now(),
+  );
 
   const autonomyLabel = ["0 - report-only", "1 - Negatives auto", "2 - + Bids auto"][config?.autonomy_level ?? 0];
   const observeOnly = config?.observe_only !== false; // Default sicher: an
@@ -147,42 +273,66 @@ export default function AdsAutopilotPanel({ selectedClient }) {
       {/* Approval queue */}
       <div style={{ marginTop: 20 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: P.text, marginBottom: 8 }}>
-          {observeOnly ? "Empfehlungen (Dokumentation)" : "Wartet auf Freigabe"} ({approvals.length})
+          {observeOnly ? "Empfehlungen (Dokumentation)" : "Wartet auf Freigabe"} ({activeApprovals.length})
         </div>
-        {approvals.length === 0 && (
+        {activeApprovals.length === 0 && (
           <div style={{ fontSize: 13, color: P.textDim }}>Keine offenen Freigaben.</div>
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {approvals.map((a) => (
-            <div key={a.id} style={{ border: `1px solid ${P.border}`, borderRadius: 10, padding: 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                    <Badge>{a.type}</Badge>
-                    <span style={{ color: P.text, fontWeight: 600, fontSize: 14 }}>{a.entity || "-"}</span>
+          {activeApprovals.map((a) => {
+            const rest = daysUntil(a.expires_at);
+            return (
+              <div
+                key={a.id}
+                onClick={() => setDetail(a)}
+                style={{ border: `1px solid ${P.border}`, borderRadius: 10, padding: 12, cursor: "pointer" }}
+                title="Klicken für Erklärung und Details"
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                      <Badge>{typeLabel(a.type)}</Badge>
+                      <span style={{ color: P.text, fontWeight: 600, fontSize: 14 }}>{a.entity || "-"}</span>
+                      {rest !== null && rest <= 2 && (
+                        <Badge color={P.orange} bg={P.orangeDim}>läuft in {Math.max(rest, 0)} Tag{rest === 1 ? "" : "en"} ab</Badge>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 13, color: P.textMuted, marginTop: 6 }}>
+                      {a.current_value ? <span>{a.current_value} </span> : null}
+                      {a.proposed_value ? <span style={{ color: P.text }}>-&gt; {a.proposed_value}</span> : null}
+                    </div>
+                    {a.rationale && <div style={{ fontSize: 12, color: P.textDim, marginTop: 4 }}>{a.rationale}</div>}
+                    {a.estimated_impact && (
+                      <div style={{ fontSize: 12, color: P.accent, marginTop: 4 }}>Erwartet: {a.estimated_impact}</div>
+                    )}
+                    <div style={{ fontSize: 11, color: P.textDim, marginTop: 6 }}>Klicken für Erklärung &amp; Details</div>
                   </div>
-                  <div style={{ fontSize: 13, color: P.textMuted, marginTop: 6 }}>
-                    {a.current_value ? <span>{a.current_value} </span> : null}
-                    {a.proposed_value ? <span style={{ color: P.text }}>-&gt; {a.proposed_value}</span> : null}
+                  <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }} onClick={(e) => e.stopPropagation()}>
+                    <Btn variant="approve" disabled={busyId === a.id || observeOnly} onClick={() => decide(a.id, "approve")}>
+                      {busyId === a.id ? "..." : observeOnly ? "Freigabe gesperrt" : "Freigeben"}
+                    </Btn>
+                    <Btn variant="reject" disabled={busyId === a.id} onClick={() => decide(a.id, "reject")}>
+                      Ablehnen
+                    </Btn>
                   </div>
-                  {a.rationale && <div style={{ fontSize: 12, color: P.textDim, marginTop: 4 }}>{a.rationale}</div>}
-                  {a.estimated_impact && (
-                    <div style={{ fontSize: 12, color: P.accent, marginTop: 4 }}>Erwartet: {a.estimated_impact}</div>
-                  )}
-                </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                  <Btn variant="approve" disabled={busyId === a.id || observeOnly} onClick={() => decide(a.id, "approve")}>
-                    {busyId === a.id ? "..." : observeOnly ? "Freigabe gesperrt" : "Freigeben"}
-                  </Btn>
-                  <Btn variant="reject" disabled={busyId === a.id} onClick={() => decide(a.id, "reject")}>
-                    Ablehnen
-                  </Btn>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
+
+      <ApprovalDetailModal
+        approval={detail}
+        observeOnly={observeOnly}
+        busy={detail ? busyId === detail.id : false}
+        onClose={() => setDetail(null)}
+        onDecide={async (decision) => {
+          if (!detail) return;
+          await decide(detail.id, decision);
+          setDetail(null);
+        }}
+      />
 
       {/* Changelog */}
       <div style={{ marginTop: 20 }}>
