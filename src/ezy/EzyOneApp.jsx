@@ -9026,26 +9026,9 @@ function ClientsPage({
                 </Badge>
               ))}
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-              {[
-                [c.score, c.score >= 70 ? C.green : C.orange, "Score"],
-                [c.keywords.toLocaleString("de-CH"), C.text, "Keywords"],
-                [`CHF ${(c.monthlyBudget / 1000).toFixed(1)}k`, C.text, "Budget"],
-              ].map(([v, co, l], i) => (
-                <div
-                  key={i}
-                  style={{
-                    background: C.surface,
-                    borderRadius: 8,
-                    padding: "8px 10px",
-                    textAlign: "center",
-                  }}
-                >
-                  <div style={{ fontSize: 17, fontWeight: 700, color: co }}>{v}</div>
-                  <div style={{ fontSize: 9, color: C.textMuted }}>{l}</div>
-                </div>
-              ))}
-            </div>
+            {/* Score/Keywords/Budget-Kacheln entfernt (2026-07-14): waren statische
+                metadata-Platzhalter (ueberall 0) — die echten Zahlen zeigt das
+                Dashboard aus audit_runs. Budget bleibt im Detail/Editor pflegbar. */}
           </div>
         ))}
       </div>
