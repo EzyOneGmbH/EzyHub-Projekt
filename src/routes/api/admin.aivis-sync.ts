@@ -665,7 +665,7 @@ async function askUtility(prompt: string, maxTokens = 2000): Promise<string | nu
     () => askGemini(prompt, maxTokens),
   ];
   for (const fn of chain) {
-    try { const r = await fn(); if (r && r.text) return r.text as string; } catch { /* nächstes Modell */ }
+    try { const r = await withDeadline(fn(), 120_000, "utility-llm"); if (r && r.text) return r.text as string; } catch { /* nächstes Modell */ }
   }
   return null;
 }
@@ -783,7 +783,10 @@ async function jobPromptRunner(c: any, sbAny: any, fixedComps: string[] = []) {
   const rows: any[] = [];
   const engineErrors: Record<string, string> = {};
   for (const eng of PROMPT_ENGINES) {
-    const answers = await Promise.all(defs.map((d: any) => eng.ask(d.prompt).catch(() => null)));
+    // Harte Deadline je Call: AbortSignal wird von der Runtime ignoriert
+    // (2026-07-14 verifiziert) — ohne Promise.race haengt EIN toter Provider-
+    // Call den gesamten Lauf endlos.
+    const answers = await Promise.all(defs.map((d: any) => withDeadline(eng.ask(d.prompt), 120_000, `ask:${eng.name}`).catch(() => null)));
     answers.forEach((a: any, i) => {
       if (!a || !a.text) {
         if (a?.error && !engineErrors[eng.name]) engineErrors[eng.name] = a.error;
@@ -1139,9 +1142,16 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               await sb.from("ai_visibility_competitors").upsert(newComps, { onConflict: "client_id,name", ignoreDuplicates: true });
             const fixedComps: string[] = [...new Set([...(compRows || []).map((r: any) => String(r.name)), ...semrushComps, ...canonryComps])].filter(Boolean);
 
-            const br: any = wanted.includes("brand_radar") ? await jobBrandRadar(c, fixedComps) : null;
-            const at: any = wanted.includes("attribution") ? await jobAttribution(c) : null;
-            const pr: any = wanted.includes("prompts") ? await jobPromptRunner(c, sb, fixedComps) : null;
+            // Job-Level-Deadlines (wie serp_ai): kein Job darf den Lauf endlos halten.
+            const br: any = wanted.includes("brand_radar")
+              ? await withDeadline(jobBrandRadar(c, fixedComps), 6 * 60_000, "brand_radar").catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }))
+              : null;
+            const at: any = wanted.includes("attribution")
+              ? await withDeadline(jobAttribution(c), 5 * 60_000, "attribution").catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }))
+              : null;
+            const pr: any = wanted.includes("prompts")
+              ? await withDeadline(jobPromptRunner(c, sb, fixedComps), 20 * 60_000, "prompts").catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }))
+              : null;
             const sa: any = wanted.includes("serp_ai")
               ? await withDeadline(jobSerpAi(c, serpKeywords), 25 * 60_000, "serp_ai").catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }))
               : null;
