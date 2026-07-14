@@ -1605,6 +1605,12 @@ export function planActions(data: AutopilotData, cfg: AutopilotConfig): PlannedA
 export type AutopilotRunSummary = {
   ok: boolean;
   runId: string;
+  // Identitaets-Echo: Aufrufer MUESSEN verifizieren, dass clientId der Antwort
+  // ihrer Anfrage entspricht (Lehre aus dem /tmp-Payload-Vorfall 14.07.:
+  // ein Agent sendete unbemerkt die clientId eines anderen Kunden).
+  clientId?: string;
+  clientName?: string;
+  customerId?: string;
   dryRun: boolean;
   killSwitch?: boolean;
   observeOnly?: boolean;
@@ -1672,7 +1678,10 @@ export async function runAutopilot(clientId: string, opts?: { dryRun?: boolean }
     .maybeSingle();
   const runId = `${now.toISOString().slice(0, 10)}-${slugify(client?.name ?? "")}-${now.getTime().toString().slice(-4)}`;
   const base: AutopilotRunSummary = {
-    ok: true, runId, dryRun, observeOnly: cfg.observe_only, autonomyLevel: cfg.autonomy_level,
+    ok: true, runId,
+    clientId: client?.id ?? clientId, clientName: client?.name ?? "",
+    customerId: String(client?.google_ads_customer ?? "").replace(/\D/g, ""),
+    dryRun, observeOnly: cfg.observe_only, autonomyLevel: cfg.autonomy_level,
     executed: 0, queued: 0, reportOnly: 0, failed: 0, actions: [],
   };
 
