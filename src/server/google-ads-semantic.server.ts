@@ -174,7 +174,7 @@ export async function queueSemanticNegatives(p: {
       `Ausschluss als ${pr.matchType === "PHRASE" ? "Phrase (blockiert das gesamte Wortmuster)" : "Exact (blockiert nur genau diesen Begriff)"} - ` +
       `LLM-bewertet, deshalb IMMER Freigabe durch einen Menschen.`;
     const actionId = `s-${String(result.queued + 1).padStart(3, "0")}`;
-    const { data: logRow } = await supabaseAdmin
+    const { data: logRow, error: logErr } = await supabaseAdmin
       .from("ads_changelog")
       .insert({
         client_id: p.clientId, customer_id: customerId, run_id: p.runId,
@@ -183,13 +183,26 @@ export async function queueSemanticNegatives(p: {
         rationale, status: "pending",
       })
       .select("id").maybeSingle();
-    await supabaseAdmin.from("ads_approvals").insert({
+    if (logErr) {
+      result.rejected.push({ term: pr.term, reason: `Changelog-Insert fehlgeschlagen: ${logErr.message}` });
+      continue;
+    }
+    const { error: apprErr } = await supabaseAdmin.from("ads_approvals").insert({
       client_id: p.clientId, customer_id: customerId, run_id: p.runId, action_id: actionId,
       type: SEMANTIC_ACTION_TYPE, entity, current_value: "", proposed_value: `+ "${pr.term}" (negative ${pr.matchType.toLowerCase()})`,
       rationale, estimated_impact: `Vermeidet kuenftige Verschwendung (~CHF ${pr.costChf.toFixed(0)}/30d des Begriffs)`,
       payload: { kind: "negative", campaign: pr.campaign, term: pr.term, matchType: pr.matchType, semantic: true },
       status: "pending", expires_at: expires, changelog_id: logRow?.id ?? null,
     });
+    if (apprErr) {
+      // Ohne Approval-Zeile ist der Vorschlag nicht entscheidbar - Changelog-Zeile
+      // schliessen und als Fehler melden statt falschem "queued" (z.B. UNIQUE-
+      // Verletzung (run_id, action_id), wenn der Aufrufer eine alte runId schickt).
+      if (logRow?.id)
+        await supabaseAdmin.from("ads_changelog").update({ status: "rejected" }).eq("id", logRow.id);
+      result.rejected.push({ term: pr.term, reason: `Approval-Insert fehlgeschlagen: ${apprErr.message}` });
+      continue;
+    }
     result.queued += 1;
     result.actions.push({ actionId, term: pr.term, campaign: pr.campaign, kategorie: pr.kategorie, costChf: pr.costChf });
   }
