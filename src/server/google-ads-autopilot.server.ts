@@ -98,6 +98,9 @@ export type AutopilotData = {
     roas: number | null;
     budgetLostIs: number;
     biddingSystemStatus: string; // Phase 1.2: LEARNING_* blockiert Writes
+    biddingStrategyType?: string; // z.B. MAXIMIZE_CONVERSION_VALUE, TARGET_CPA
+    targetRoas?: number | null; // hinterlegtes Strategie-Ziel (falls gesetzt)
+    targetCpaChf?: number | null;
     learning: boolean;
     // Oeffentliche IS-Metriken (Search) - Ersatz fuer die nicht-oeffentlichen
     // auction_insight_*-Metriken (API-Allowlist geschlossen). PMax liefert null.
@@ -154,6 +157,7 @@ export type AutopilotData = {
   devicePerformance: Array<{ campaign: string; device: string; costChf: number; conversions: number }>;
   assetIssues: Array<{ adGroup: string; fieldType: string; text: string; label: string }>;
   pmaxAssetGroups: Array<{ name: string; adStrength: string }>;
+  rsaAdStrength?: Array<{ campaign: string; adGroup: string; adStrength: string }>;
   changeHistory: Array<{ at: string; user: string; resourceType: string; fields: string }>;
   dataSourceErrors: string[]; // welche Phase-3-Quellen nicht lieferten (Transparenz)
   meta: { customerId: string; costSumChf: number; avgCpaChf: number | null };
@@ -273,6 +277,9 @@ export async function fetchAutopilotData(
     const camps = await search(
       ctx,
       `SELECT campaign.name, campaign.status, campaign.bidding_strategy_system_status,
+              campaign.bidding_strategy_type,
+              campaign.maximize_conversion_value.target_roas, campaign.target_roas.target_roas,
+              campaign.maximize_conversions.target_cpa_micros, campaign.target_cpa.target_cpa_micros,
               campaign_budget.amount_micros, metrics.cost_micros,
               metrics.conversions, metrics.conversions_value, metrics.search_budget_lost_impression_share,
               metrics.search_impression_share, metrics.search_absolute_top_impression_share,
@@ -287,6 +294,15 @@ export async function fetchAutopilotData(
       const sysStatus = String(r.campaign?.biddingStrategySystemStatus ?? "UNKNOWN");
       costSum += cost;
       convSum += conv;
+      // Gebotsstrategie: Typ + hinterlegte Ziele (fuer das report-only Review).
+      const tRoas =
+        Number(r.campaign?.maximizeConversionValue?.targetRoas ?? 0) ||
+        Number(r.campaign?.targetRoas?.targetRoas ?? 0) ||
+        null;
+      const tCpaMicros =
+        Number(r.campaign?.targetCpa?.targetCpaMicros ?? 0) ||
+        Number(r.campaign?.maximizeConversions?.targetCpaMicros ?? 0) ||
+        0;
       data.campaigns.push({
         name: r.campaign?.name ?? "",
         status: r.campaign?.status ?? "",
@@ -297,6 +313,9 @@ export async function fetchAutopilotData(
         roas: cost ? Number(r.metrics?.conversionsValue ?? 0) / cost : null,
         budgetLostIs: Number(r.metrics?.searchBudgetLostImpressionShare ?? 0),
         biddingSystemStatus: sysStatus,
+        biddingStrategyType: String(r.campaign?.biddingStrategyType ?? "UNKNOWN"),
+        targetRoas: tRoas,
+        targetCpaChf: tCpaMicros ? tCpaMicros / MICROS : null,
         learning: LEARNING_STATUSES.has(sysStatus),
         searchImpressionShare: r.metrics?.searchImpressionShare != null ? Number(r.metrics.searchImpressionShare) : null,
         searchAbsTopImpressionShare: r.metrics?.searchAbsoluteTopImpressionShare != null ? Number(r.metrics.searchAbsoluteTopImpressionShare) : null,
@@ -452,6 +471,23 @@ export async function fetchAutopilotData(
         data.pmaxAssetGroups.push({
           name: r.assetGroup?.name ?? "",
           adStrength: String(r.assetGroup?.adStrength ?? "UNKNOWN"),
+        });
+      }
+    });
+    // Asset-Qualitaets-KPI: Ad Strength der aktiven RSAs (Pendant zu den
+    // PMax-Asset-Gruppen) - Basis fuer das report-only Asset-Review.
+    await soft("rsa_ad_strength", async () => {
+      const rows = await search(
+        ctx,
+        `SELECT campaign.name, ad_group.name, ad_group_ad.ad_strength
+         FROM ad_group_ad
+         WHERE ad_group_ad.status = 'ENABLED' AND ad_group_ad.ad.type = 'RESPONSIVE_SEARCH_AD' LIMIT 200`,
+      );
+      for (const r of rows) {
+        (data.rsaAdStrength ??= []).push({
+          campaign: r.campaign?.name ?? "",
+          adGroup: r.adGroup?.name ?? "",
+          adStrength: String(r.adGroupAd?.adStrength ?? "UNKNOWN"),
         });
       }
     });
@@ -1124,6 +1160,10 @@ export type AutopilotRunSummary = {
   deviceSplit?: Array<{ device: string; costChf: number; conversions: number }>;
   assetIssueCount?: number;
   pmaxAssetGroups?: Array<{ name: string; adStrength: string }>;
+  // Asset-Qualitaets-KPIs: Ad-Strength-Verteilung der aktiven RSAs + schwaechste
+  rsaAdStrength?: { distribution: Record<string, number>; weakest: Array<{ campaign: string; adGroup: string; adStrength: string }> };
+  // Gebotsstrategie-Review (report-only): Typ + Ziel je Kampagne
+  biddingStrategies?: Array<{ campaign: string; strategyType: string; targetRoas: number | null; targetCpaChf: number | null; systemStatus: string }>;
   changeHistory?: Array<{ at: string; user: string; resourceType: string }>;
   dataSourceErrors?: string[];
   // Struktur-Review (report-only): Gesamtstruktur + MoM + QS fuer den Report
@@ -1209,6 +1249,21 @@ export async function runAutopilot(clientId: string, opts?: { dryRun?: boolean }
   }
   base.assetIssueCount = d3.assetIssues.length;
   base.pmaxAssetGroups = d3.pmaxAssetGroups;
+  {
+    const dist: Record<string, number> = {};
+    for (const r of d3.rsaAdStrength ?? []) dist[r.adStrength] = (dist[r.adStrength] ?? 0) + 1;
+    base.rsaAdStrength = {
+      distribution: dist,
+      weakest: (d3.rsaAdStrength ?? []).filter((r) => r.adStrength === "POOR" || r.adStrength === "AVERAGE").slice(0, 10),
+    };
+  }
+  base.biddingStrategies = d3.campaigns.map((c) => ({
+    campaign: c.name,
+    strategyType: c.biddingStrategyType ?? "UNKNOWN",
+    targetRoas: c.targetRoas ?? null,
+    targetCpaChf: c.targetCpaChf ?? null,
+    systemStatus: c.biddingSystemStatus,
+  }));
   base.changeHistory = d3.changeHistory.slice(0, 20).map((c) => ({ at: c.at, user: c.user, resourceType: c.resourceType }));
   base.dataSourceErrors = d3.dataSourceErrors;
 
