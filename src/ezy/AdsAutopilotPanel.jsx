@@ -126,6 +126,7 @@ const FINDING_INFO = {
   device_anomaly: { label: "Geräte-Auffälligkeit", gruppe: "Streuung" },
   negative_conflict: { label: "Ausschluss-Konflikt (nicht umgesetzt)", gruppe: "Suchbegriffe" },
   tracking_health_alert: { label: "Tracking-Verdacht", gruppe: "Messung" },
+  budget_unconfirmed: { label: "Budget nicht bestätigt", gruppe: "Konfiguration" },
 };
 const findingGroup = (t) => FINDING_INFO[t]?.gruppe || "Weitere";
 
