@@ -1170,14 +1170,33 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             const hasPr = pr && !pr.skipped && pr.promptRows?.length;
             const hasSa = sa && !sa.skipped;
             if (hasBr || hasPr || hasCa || hasSa) {
-              // Kombinierte Totale: Makro (Ahrefs + Canonry + eigener SERP-Check) + Custom (Prompt-Runner).
-              const macroMentions = (hasBr ? br.mentions : 0) + (hasCa ? ca.mentions : 0) + (hasSa ? sa.mentions : 0);
-              const customMentions = hasPr ? pr.mentions : 0;
-              const mentions = macroMentions + customMentions;
+              // MERGE-MODELL (2026-07-14): Jeder Lauf legt seinen Beitrag in
+              // reports.parts (jsonb) ab; Totale + Modell-Zeilen werden aus den
+              // GEMERGTEN Parts neu aufgebaut. Teil-Laeufe ergaenzen sich damit,
+              // statt sich gegenseitig zu ueberschreiben (ersetzt den frueheren
+              // Teil-Lauf-Guard vollstaendig).
+              const { data: existingRep } = await sb
+                .from("ai_visibility_reports")
+                .select("id, parts")
+                .eq("client_id", c.id)
+                .eq("snapshot_date", snapshot)
+                .maybeSingle();
+              const newParts: any = {};
+              if (hasBr) newParts.br = { mentions: br.mentions, citations: br.citations, pages: br.citedPagesCount, models: br.models };
+              if (hasCa) newParts.ca = { mentions: ca.mentions, models: ca.models };
+              if (hasSa) newParts.sa = { mentions: sa.mentions, citations: Number(sa.citations || 0), pages: sa.citedPages?.length || 0, models: sa.models };
+              if (hasPr) newParts.pr = { mentions: pr.mentions, selfShare: pr.selfShare ?? 0, posQ: pr.positionQuality ?? 0, models: pr.customModels };
+              const parts: any = { ...((existingRep?.parts as any) || {}), ...newParts };
+              if (Object.keys(parts).length > Object.keys(newParts).length)
+                jr.note = `Merge: bestehende Anteile bewahrt (${Object.keys(parts).filter((k) => !newParts[k]).join(",")})`;
+
+              const mentions = ["br", "ca", "sa", "pr"].reduce((a, k) => a + Number(parts[k]?.mentions || 0), 0);
               // Citations/Seiten: Ahrefs-Korpus + eigener SERP-Check (getrennte
               // Korpora; theoretische Doppelzählung derselben Seite akzeptiert).
-              const citations = (hasBr ? br.citations : 0) + (hasSa ? Number(sa.citations || 0) : 0);
-              const citedPagesCount = (hasBr ? br.citedPagesCount : 0) + (hasSa ? (sa.citedPages?.length || 0) : 0);
+              const citations = Number(parts.br?.citations || 0) + Number(parts.sa?.citations || 0);
+              const citedPagesCount = Number(parts.br?.pages || 0) + Number(parts.sa?.pages || 0);
+              const selfShare = Number(parts.pr?.selfShare || 0); // 0..100
+              const posQ = Number(parts.pr?.posQ || 0); // 0..100
               // Deltas vs. letztem Snapshot.
               const { data: prev } = await sb
                 .from("ai_visibility_reports")
@@ -1187,11 +1206,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 .order("snapshot_date", { ascending: false })
                 .limit(1)
                 .maybeSingle();
-              // Score (TUNE, F): log-gedämpfte Mengen + Qualitäts-Boni. Share-of-
-              // Voice und Positions-Qualität aus dem Custom-Layer heben den Wert,
-              // wenn die Marke nicht nur oft, sondern PROMINENT genannt wird.
-              const selfShare = hasPr ? (pr.selfShare ?? 0) : 0; // 0..100
-              const posQ = hasPr ? (pr.positionQuality ?? 0) : 0; // 0..100
+              // Score (TUNE, F): log-gedämpfte Mengen + Qualitäts-Boni.
               const score = Math.min(
                 100,
                 Math.round(
@@ -1202,69 +1217,38 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                   0.12 * posQ,
                 ),
               );
-              // Schutz vor Teil-Lauf-Datenverlust: liefert DIESER Lauf keine
-              // Makro-Daten (Ahrefs + Canonry leer/übersprungen), ein früherer
-              // Lauf am selben Tag aber schon, dann Report + Makro-Modelle
-              // bewahren und nur den Custom-Layer (Prompts/Themen/SoV) ersetzen.
-              const { data: existingRep } = await sb
+              const { data: rep, error: repErr } = await sb
                 .from("ai_visibility_reports")
-                .select("id, mentions, score")
-                .eq("client_id", c.id)
-                .eq("snapshot_date", snapshot)
-                .maybeSingle();
-              const partial = !hasBr && !hasCa && !hasSa && !!existingRep && Number(existingRep.mentions ?? 0) > mentions;
-              let reportId: string;
-              if (partial) {
-                reportId = existingRep.id;
-                jr.note = "Teil-Lauf ohne Makro-Daten: Report/Makro-Modelle bewahrt, nur Custom-Layer ersetzt";
-                await sb.from("ai_visibility_prompts").delete().eq("report_id", reportId);
-                await sb.from("ai_visibility_topics").delete().eq("report_id", reportId);
-                await sb.from("ai_visibility_sov").delete().eq("report_id", reportId);
-                await sb.from("ai_visibility_sources").delete().eq("report_id", reportId).eq("layer", "custom");
-                await sb.from("ai_visibility_attribution").delete().eq("report_id", reportId);
-              } else {
-                const { data: rep, error: repErr } = await sb
-                  .from("ai_visibility_reports")
-                  .upsert(
-                    {
-                      client_id: c.id,
-                      market: c.country || null,
-                      snapshot_date: snapshot,
-                      score,
-                      score_delta: score - Number(prev?.score ?? 0),
-                      mentions,
-                      mentions_delta: mentions - Number(prev?.mentions ?? 0),
-                      citations,
-                      citations_delta: citations - Number(prev?.citations ?? 0),
-                      cited_pages: citedPagesCount,
-                      cited_pages_delta: citedPagesCount - Number(prev?.cited_pages ?? 0),
-                    },
-                    { onConflict: "client_id,snapshot_date" },
-                  )
-                  .select("id")
-                  .single();
-                if (repErr) throw new Error(repErr.message);
-                reportId = rep.id;
+                .upsert(
+                  {
+                    client_id: c.id,
+                    market: c.country || null,
+                    snapshot_date: snapshot,
+                    score,
+                    score_delta: score - Number(prev?.score ?? 0),
+                    mentions,
+                    mentions_delta: mentions - Number(prev?.mentions ?? 0),
+                    citations,
+                    citations_delta: citations - Number(prev?.citations ?? 0),
+                    cited_pages: citedPagesCount,
+                    cited_pages_delta: citedPagesCount - Number(prev?.cited_pages ?? 0),
+                    parts,
+                  },
+                  { onConflict: "client_id,snapshot_date" },
+                )
+                .select("id")
+                .single();
+              if (repErr) throw new Error(repErr.message);
+              const reportId: string = rep.id;
 
-                // Kind-Tabellen idempotent: alte Zeilen des Reports ersetzen.
-                await sb.from("ai_visibility_models").delete().eq("report_id", reportId);
-                await sb.from("ai_visibility_sources").delete().eq("report_id", reportId);
-                await sb.from("ai_visibility_attribution").delete().eq("report_id", reportId);
-                await sb.from("ai_visibility_prompts").delete().eq("report_id", reportId);
-                await sb.from("ai_visibility_topics").delete().eq("report_id", reportId);
-                await sb.from("ai_visibility_sov").delete().eq("report_id", reportId);
-              }
-
-              // Modelle: Makro (Ahrefs) + Canonry + Custom (Prompt-Runner), per Modell-
-              // NAME zusammengeführt (Summe der Mentions) -> KEINE Doppel-Zeilen mehr
-              // (ChatGPT/Perplexity/Gemini kamen sonst mehrfach vor -> das war die Verwirrung).
-              // Im Teil-Lauf (partial) bleiben die bestehenden Modell-Zeilen stehen.
-              if (!partial) {
+              // Modelle: IMMER aus den gemergten Parts neu aufbauen, per Modell-
+              // NAME zusammengeführt (Summe der Mentions) -> keine Doppel-Zeilen.
+              await sb.from("ai_visibility_models").delete().eq("report_id", reportId);
               const rawModels = [
-                ...(hasBr ? br.models.map((m: any) => ({ ...m, layer: "macro" })) : []),
-                ...(hasCa ? ca.models.map((m: any) => ({ ...m, layer: "macro" })) : []), // Canonry = Makro-Quelle
-                ...(hasSa ? sa.models.map((m: any) => ({ ...m, layer: "macro" })) : []), // eigener AI-Overview/AI-Mode-Check
-                ...(hasPr ? pr.customModels.map((m: any) => ({ ...m, layer: "custom" })) : []),
+                ...((parts.br?.models || []).map((m: any) => ({ ...m, layer: "macro" }))),
+                ...((parts.ca?.models || []).map((m: any) => ({ ...m, layer: "macro" }))), // Canonry = Makro-Quelle
+                ...((parts.sa?.models || []).map((m: any) => ({ ...m, layer: "macro" }))), // eigener AI-Overview/AI-Mode-Check
+                ...((parts.pr?.models || []).map((m: any) => ({ ...m, layer: "custom" }))),
               ];
               const modelAgg: Record<string, { mentions: number; byCountry: Record<string, number>; layers: Set<string> }> = {};
               for (const m of rawModels) {
@@ -1304,15 +1288,22 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               }
               if (mcInserts.length) await sb.from("ai_visibility_model_country").insert(mcInserts);
 
-              // Canonry-Quellen (layer='canonry') mit in die Quellen-Tabelle.
-              if (hasCa && ca.sources?.length)
-                await sb.from("ai_visibility_sources").insert(
-                  ca.sources.map((s: any) => ({ report_id: reportId, client_id: c.id, domain: s.domain, mentions: s.mentions, share: 0, urls: 0, traffic: 0, layer: "canonry" })),
-                );
-              } // Ende if (!partial)
+              // Kind-Tabellen JOB-SCOPED ersetzen: jeder Job raeumt nur seine
+              // eigenen Zeilen ab — fremde Anteile bleiben stehen (Merge).
+              if (hasCa) {
+                await sb.from("ai_visibility_sources").delete().eq("report_id", reportId).eq("layer", "canonry");
+                if (ca.sources?.length)
+                  await sb.from("ai_visibility_sources").insert(
+                    ca.sources.map((s: any) => ({ report_id: reportId, client_id: c.id, domain: s.domain, mentions: s.mentions, share: 0, urls: 0, traffic: 0, layer: "canonry" })),
+                  );
+              }
 
               // Prompts + Themen + SoV + Quellen + Auto-Learning (Custom-Layer).
               if (hasPr) {
+                await sb.from("ai_visibility_prompts").delete().eq("report_id", reportId);
+                await sb.from("ai_visibility_topics").delete().eq("report_id", reportId);
+                await sb.from("ai_visibility_sov").delete().eq("report_id", reportId);
+                await sb.from("ai_visibility_sources").delete().eq("report_id", reportId).eq("layer", "custom");
                 // Blockweise einfügen — bei vielen Prompts × Engines bleibt
                 // der einzelne Request sonst zu groß.
                 const promptInserts = pr.promptRows.map((p: any) => ({ ...p, report_id: reportId, client_id: c.id }));
@@ -1346,19 +1337,22 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                   );
               }
 
-              if (hasBr && br.citedPages?.length) {
-                const domain = cleanDomain(c.domain);
-                await sb.from("ai_visibility_sources").insert({
-                  report_id: reportId,
-                  client_id: c.id,
-                  domain,
-                  mentions: br.citations,
-                  share: 100,
-                  urls: br.citedPagesCount,
-                  traffic: 0,
-                });
+              if (hasBr) {
+                await sb.from("ai_visibility_sources").delete().eq("report_id", reportId).is("layer", null);
+                if (br.citedPages?.length) {
+                  const domain = cleanDomain(c.domain);
+                  await sb.from("ai_visibility_sources").insert({
+                    report_id: reportId,
+                    client_id: c.id,
+                    domain,
+                    mentions: br.citations,
+                    share: 100,
+                    urls: br.citedPagesCount,
+                    traffic: 0,
+                  });
+                }
               }
-              jr.report = { id: reportId, score: partial ? Number(existingRep.score ?? 0) : score, snapshot };
+              jr.report = { id: reportId, score, snapshot };
             }
             // Attribution UNABHÄNGIG vom Report-Block schreiben: hängt am
             // neuesten Report des Kunden. So aktualisiert auch ein reiner

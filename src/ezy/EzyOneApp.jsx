@@ -11774,7 +11774,26 @@ function App() {
       };
   const saveProfile = useCallback((next) => profileHook.save(next), [profileHook]);
   const customerDefaults = defaultsHook.defaults;
-  const saveCustomerDefaults = useCallback((next) => defaultsHook.save(next), [defaultsHook]);
+  const saveCustomerDefaults = useCallback(
+    async (next) => {
+      const saved = await defaultsHook.save(next);
+      // Zusaetzlich in den KUNDEN-DATENSATZ schreiben (clients.metadata.defaults) —
+      // das ist die geraeteuebergreifend zuverlaessige Quelle, aus der der
+      // Tab-Filter primaer liest (fix 2026-07-14). Ohne Toast (stilles Persistieren).
+      try {
+        if (client?.id && client.id !== emptyClient.id) {
+          await ezy.upsert({
+            ...client,
+            defaults: { ...(client.defaults || {}), ...(saved || next) },
+          });
+        }
+      } catch {
+        /* localStorage/customer_defaults haben bereits gespeichert */
+      }
+      return saved;
+    },
+    [defaultsHook, ezy, client, emptyClient.id],
+  );
   const onSaveContent = useCallback((id, md) => contentHook.updateContent(id, md), [contentHook]);
   // Globaler „Aktualisieren": remountet den Inhaltsbereich (alle Dashboard-Hooks
   // holen frische Daten) UND lädt die App-Level-Hooks neu. Auf jedem Tab im Header.
@@ -11789,18 +11808,30 @@ function App() {
     toolSettings.reload?.();
     toast?.("Aktualisiert", "success");
   }, [ezy, contentHook, svc, defaultsHook, profileHook, toolSettings, toast]);
+  // Tab-Auswahl: der KUNDEN-DATENSATZ (clients.metadata.defaults) ist die
+  // maSSgebliche, geraeteuebergreifend zuverlaessige Quelle — er wird bei jedem
+  // Laden aus Supabase gelesen. Der localStorage-basierte defaultsHook ist nur
+  // Fallback (fix 2026-07-14: Einstellungen wirkten nur auf dem Geraet, auf dem
+  // sie gesetzt wurden). "runs" bleibt immer sichtbar.
+  const effectiveVisibleTabs = useMemo(() => {
+    const fromClient = Array.isArray(client?.defaults?.visibleTabs) && client.defaults.visibleTabs.length
+      ? client.defaults.visibleTabs
+      : null;
+    const base = fromClient || customerDefaults.visibleTabs || ["seo", "aivis", "conversions"];
+    return base.includes("runs") ? base : [...base, "runs"];
+  }, [client?.defaults?.visibleTabs, customerDefaults.visibleTabs]);
   const visibleTabs = useMemo(
     () =>
       TABS.filter((t) => {
-        // 1) manuelle Tab-Auswahl (Einstellungen)
-        if (!(customerDefaults.visibleTabs || ["seo", "aivis", "conversions"]).includes(t.id)) return false;
+        // 1) manuelle Tab-Auswahl (Kunden-Datensatz bevorzugt)
+        if (!effectiveVisibleTabs.includes(t.id)) return false;
         // 2) Service-Gate: Tab nur, wenn ein zugehöriger Dienst aktiv ist.
         //    Während Services laden NICHT ausblenden (kein Flackern).
         const req = TAB_SERVICE[t.id];
         if (!req || svc.loading) return true;
         return req.some((k) => svc.enabled?.[k]);
       }),
-    [customerDefaults.visibleTabs, svc.enabled, svc.loading],
+    [effectiveVisibleTabs, svc.enabled, svc.loading],
   );
   useEffect(() => {
     if (visibleTabs.length > 0 && !visibleTabs.some((t) => t.id === tab)) {

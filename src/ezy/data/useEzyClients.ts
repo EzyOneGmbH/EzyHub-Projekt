@@ -15,7 +15,7 @@ export type EzyClient = {
   tags: string[];
   targetLocations: string[];
   notes: string;
-  defaults: { language: string; tone: string; reportTemplate: string };
+  defaults: { language: string; tone: string; reportTemplate: string; visibleTabs?: string[] };
   score: number;
   keywords: number;
   traffic: number;
@@ -24,6 +24,7 @@ export type EzyClient = {
   gscSiteUrl: string;
   ga4PropertyId: string;
   ga4MeasurementId: string;
+  googleAdsCustomer: string; // clients.google_ads_customer (fix 2026-07-14: wurde nie zurueckgelesen)
   canonryProject: string;
   startDate: string;
   // Dashboard-Ausbau 2026-07-11 (WP2/B5): Brand-Terms fuer den GSC-Split +
@@ -71,6 +72,7 @@ function rowToClient(r: any): EzyClient {
     gscSiteUrl: String(r.gsc_property ?? ""),
     ga4PropertyId: String(r.ga4_property ?? ""),
     ga4MeasurementId: String(m.ga4MeasurementId ?? ""),
+    googleAdsCustomer: String(r.google_ads_customer ?? ""),
     canonryProject: String(r.canonry_project ?? ""),
     startDate: String(m.startDate ?? r.created_at ?? "").slice(0, 10),
     brandTerms: Array.isArray(r.brand_terms) ? r.brand_terms.map(String) : [],
@@ -109,6 +111,11 @@ function clientToRow(c: Partial<EzyClient>, organizationId: string, createdBy: s
     canonry_project: c.canonryProject ?? null,
     brand_terms: Array.isArray(c.brandTerms) ? c.brandTerms : [],
     revenue_mode: c.revenueMode === "clicks" ? "clicks" : "revenue",
+    // Nur schreiben wenn bekannt — sonst wuerde ein Speichern ohne dieses Feld
+    // den vom Google-Panel gesetzten Wert nullen (fix 2026-07-14).
+    ...(c.googleAdsCustomer !== undefined
+      ? { google_ads_customer: c.googleAdsCustomer || null }
+      : {}),
     metadata,
   };
 }
