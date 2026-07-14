@@ -255,6 +255,22 @@ function dfsCollectDomains(node: any, out: Set<string>) {
 async function jobSerpAi(c: any, limitOverride?: number) {
   const auth = dfsAuth();
   if (!auth) return { skipped: "DATAFORSEO_LOGIN/DATAFORSEO_PASSWORD fehlt (Lovable-Env)" };
+  // Preflight (kostenlos): Ist DataForSEO von HIER erreichbar? Beobachtet
+  // 2026-07-14: Nach ~2500 Calls in 2h kamen keine Requests mehr an (IP-
+  // Drossel, Verbindungen hingen) — dann sauber überspringen statt hängen.
+  try {
+    const ping = await withDeadline(
+      fetch("https://api.dataforseo.com/v3/appendix/user_data", {
+        headers: { Authorization: auth },
+        signal: AbortSignal.timeout(12_000),
+      }),
+      15_000,
+      "dfs preflight",
+    );
+    if (!ping.ok) return { skipped: `DataForSEO Preflight: HTTP ${ping.status}` };
+  } catch (e) {
+    return { skipped: `DataForSEO nicht erreichbar: ${String((e as any)?.message || e).slice(0, 100)}` };
+  }
   const kwLimit = limitOverride ?? DFS_SERP_KEYWORDS;
   const allPairs = await gscTopQueryCountryPairs(c, kwLimit || 25000); // 0 = alle
   if (!allPairs.length) return { skipped: "keine GSC-Keywords (gsc_property/Google-Verbindung prüfen)" };
@@ -299,8 +315,18 @@ async function jobSerpAi(c: any, limitOverride?: number) {
     ];
     await Promise.all(jobs);
   };
+  // Schutzschalter: schlagen ZWEI komplette Blöcke in Folge fehl (alle Calls),
+  // ist DataForSEO weg — Rest abbrechen statt sich durch Timeouts zu quälen.
+  let deadBlocks = 0;
   for (let i = 0; i < pairs.length; i += DFS_CONCURRENCY) {
-    await Promise.all(pairs.slice(i, i + DFS_CONCURRENCY).map(checkPair));
+    const block = pairs.slice(i, i + DFS_CONCURRENCY);
+    const before = errors.length;
+    await Promise.all(block.map(checkPair));
+    deadBlocks = errors.length - before >= block.length * 2 ? deadBlocks + 1 : 0;
+    if (deadBlocks >= 2) {
+      errors.push(`Abbruch nach ${i + block.length}/${pairs.length} Paaren: DataForSEO antwortet nicht mehr`);
+      break;
+    }
   }
   const models = [
     { name: "Google AI Overviews", mentions: aio.cited, byCountry: aio.byCountry },
