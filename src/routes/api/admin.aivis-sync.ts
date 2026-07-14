@@ -1354,35 +1354,37 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         return { ok: true, count: clients.length, snapshot, results };
         }; // Ende runAll
 
-        if (runAsync) {
-          const runId = crypto.randomUUID();
-          ASYNC_RUNS.set(runId, { status: "running", startedAt: new Date().toISOString(), clients: clients.map((c) => String(c.name)) });
-          pruneAsyncRuns();
-          runAll()
-            .then((r) => { const e = ASYNC_RUNS.get(runId); if (e) { e.status = "done"; e.finishedAt = new Date().toISOString(); e.result = r; } })
-            .catch((err) => { const e = ASYNC_RUNS.get(runId); if (e) { e.status = "error"; e.finishedAt = new Date().toISOString(); e.error = String((err as any)?.message || err).slice(0, 300); } });
-          return Response.json(
-            { ok: true, async: true, runId, clients: clients.map((c) => String(c.name)), status: `GET ?run=${runId}` },
-            { status: 202 },
-          );
+        try {
+          const payload = await runAll();
+          if (syncRunId)
+            await sb.from("ai_visibility_sync_runs").update({ status: "done", finished_at: new Date().toISOString(), result: payload }).eq("id", syncRunId);
+          return Response.json(payload);
+        } catch (err) {
+          if (syncRunId)
+            await sb.from("ai_visibility_sync_runs").update({ status: "error", finished_at: new Date().toISOString(), error: String((err as any)?.message || err).slice(0, 300) }).eq("id", syncRunId);
+          throw err;
         }
-        return Response.json(await runAll());
       },
-      // Status eines async-Laufs: GET /api/admin/aivis-sync?run=<runId>
+      // Status eines async-Laufs: GET ?run=<runId>; ohne Param: letzte 20 Läufe.
       GET: async ({ request }) => {
         const secret = process.env.ADMIN_AUTOMATION_SECRET;
         if (!secret)
           return Response.json({ ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" }, { status: 503 });
         if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
           return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        const sb = supabaseAdmin as any;
         const runId = new URL(request.url).searchParams.get("run") || "";
         if (!runId) {
-          const runs = [...ASYNC_RUNS.entries()].map(([id, e]) => ({ id, status: e.status, startedAt: e.startedAt, finishedAt: e.finishedAt ?? null, clients: e.clients }));
-          return Response.json({ ok: true, runs });
+          const { data } = await sb
+            .from("ai_visibility_sync_runs")
+            .select("id, status, started_at, finished_at, clients")
+            .order("started_at", { ascending: false })
+            .limit(20);
+          return Response.json({ ok: true, runs: data || [] });
         }
-        const e = ASYNC_RUNS.get(runId);
-        if (!e) return Response.json({ ok: false, error: "runId unbekannt (Server-Neustart oder >50 Läufe her)" }, { status: 404 });
-        return Response.json({ ok: true, runId, ...e });
+        const { data } = await sb.from("ai_visibility_sync_runs").select("*").eq("id", runId).maybeSingle();
+        if (!data) return Response.json({ ok: false, error: "runId unbekannt" }, { status: 404 });
+        return Response.json({ ok: true, run: data });
       },
     },
   },
