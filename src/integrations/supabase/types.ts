@@ -275,6 +275,69 @@ export type Database = {
           },
         ]
       }
+      ads_recommendation_outcomes: {
+        Row: {
+          after_value: number | null
+          before_value: number | null
+          campaign: string | null
+          client_id: string
+          delta_pct: number | null
+          id: string
+          measured_at: string
+          metric_primary: string
+          metrics: Json
+          reason: string
+          recommendation_id: string
+          verdict: string
+          window_days: number
+        }
+        Insert: {
+          after_value?: number | null
+          before_value?: number | null
+          campaign?: string | null
+          client_id: string
+          delta_pct?: number | null
+          id?: string
+          measured_at?: string
+          metric_primary: string
+          metrics?: Json
+          reason?: string
+          recommendation_id: string
+          verdict: string
+          window_days: number
+        }
+        Update: {
+          after_value?: number | null
+          before_value?: number | null
+          campaign?: string | null
+          client_id?: string
+          delta_pct?: number | null
+          id?: string
+          measured_at?: string
+          metric_primary?: string
+          metrics?: Json
+          reason?: string
+          recommendation_id?: string
+          verdict?: string
+          window_days?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_recommendation_outcomes_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ads_recommendation_outcomes_recommendation_id_fkey"
+            columns: ["recommendation_id"]
+            isOneToOne: false
+            referencedRelation: "ads_recommendations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ads_recommendations: {
         Row: {
           client_id: string

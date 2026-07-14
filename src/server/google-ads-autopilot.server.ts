@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { openRecommendationsBlock } from "./google-ads-recommendations.server";
+import { openRecommendationsBlock, computeRecommendationOutcomes } from "./google-ads-recommendations.server";
 import { getGoogleAccessToken } from "./google-tokens.server";
 import { addNegativeKeyword, setCampaignBudget } from "./google-ads-mutate.server";
 
@@ -1746,6 +1746,11 @@ export async function runAutopilot(clientId: string, opts?: { dryRun?: boolean }
   }
   base.multiWindow = d3.multiWindow ?? null;
   base.assetDetail = d3.assetDetail ?? null;
+  try {
+    // Phase D: faellige Wirkungsmessungen opportunistisch nachziehen (idempotent,
+    // rein lesend/berechnend; Fehler blockieren den Run nie).
+    await computeRecommendationOutcomes(clientId, client.google_ads_customer);
+  } catch { /* Wirkungsmessung darf den Run nie blockieren */ }
   try {
     base.openRecommendations = await openRecommendationsBlock(clientId);
   } catch {
