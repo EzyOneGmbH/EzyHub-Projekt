@@ -33,15 +33,12 @@ const Body = z.object({
   async: z.boolean().default(false), // true = sofort 202 + runId, Verarbeitung im Hintergrund
 });
 
-// Async-Läufe (in-memory; Server ist long-running). Letzte 50 behalten.
-const ASYNC_RUNS = new Map<string, { status: "running" | "done" | "error"; startedAt: string; finishedAt?: string; clients: string[]; result?: unknown; error?: string }>();
-function pruneAsyncRuns() {
-  while (ASYNC_RUNS.size > 50) {
-    const oldest = ASYNC_RUNS.keys().next().value;
-    if (!oldest) break;
-    ASYNC_RUNS.delete(oldest);
-  }
-}
+// Async-Design: fire-and-forget IM Prozess wird vom Hosting nach der Response
+// beendet (2026-07-14 verifiziert: Lauf startete, DB blieb leer). Deshalb:
+// async:true legt eine Zeile in ai_visibility_sync_runs an und feuert einen
+// SELBST-Aufruf als eigenen HTTP-Request (Header x-sync-run) — Requests laufen
+// serverseitig zu Ende, auch wenn der Aufrufer trennt (2026-07-13 bewiesen).
+// Status/Ergebnis liegen in der DB: GET ?run=<id> bzw. GET ohne Param = Liste.
 
 const isUuid = (s: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(s || ""));
@@ -485,7 +482,7 @@ async function jobAttribution(c: any) {
               { name: "deviceCategory" },
               { name: "date" },
             ],
-            metrics: [{ name: "keyEvents" }, { name: "eventValue" }],
+            metrics: [{ name: "keyEvents" }, { name: "eventValue" }, { name: "totalRevenue" }],
             limit: 2000,
           }),
           signal: AbortSignal.timeout(30_000),
@@ -502,7 +499,9 @@ async function jobAttribution(c: any) {
           (events[eng.name] ??= []).push({
             name: String(dv[1]?.value ?? ""),
             count: n,
-            value: Number(row.metricValues?.[1]?.value ?? 0),
+            // Betrag wie im Conversions-Tab: totalRevenue (Purchase-Umsatz),
+            // sonst eventValue (value-Parameter des Events).
+            value: Number(row.metricValues?.[2]?.value ?? 0) || Number(row.metricValues?.[1]?.value ?? 0),
             country: String(dv[2]?.value ?? ""),
             device: String(dv[3]?.value ?? ""),
             date: String(dv[4]?.value ?? ""),
@@ -1037,6 +1036,32 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         const sb = supabaseAdmin as any;
         const snapshot = today();
         const results: any[] = [];
+
+        // async:true -> Run-Zeile anlegen, SELBST-Aufruf feuern (eigener HTTP-
+        // Request, überlebt die Trennung), sofort 202 antworten.
+        if (runAsync) {
+          const runId = crypto.randomUUID();
+          await sb.from("ai_visibility_sync_runs").insert({
+            id: runId, status: "queued",
+            clients: clients.map((x) => String(x.name)),
+            params: { client: sel ?? null, all: !!all, jobs: jobs ?? null, mode, months, force: !!force, minIntervalDays, serpKeywords: serpKeywords ?? null },
+          });
+          const selfUrl = new URL(request.url);
+          fetch(selfUrl.toString(), {
+            method: "POST",
+            headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json", "x-sync-run": runId },
+            body: JSON.stringify({ ...parsed.data, async: false }),
+          }).catch(() => { /* Aufrufer wartet nicht — Fehler stehen in der Run-Zeile */ });
+          return Response.json(
+            { ok: true, async: true, runId, clients: clients.map((x) => String(x.name)), status: `GET ?run=${runId}` },
+            { status: 202 },
+          );
+        }
+
+        // Getriggerter Hintergrund-Lauf? Dann Status in der Run-Zeile pflegen.
+        const syncRunId = request.headers.get("x-sync-run") || "";
+        if (syncRunId) await sb.from("ai_visibility_sync_runs").update({ status: "running" }).eq("id", syncRunId);
+
         // Kernverarbeitung — synchron aufgerufen ODER als Hintergrund-Lauf (async:true).
         const runAll = async () => {
         for (const c of clients) {
