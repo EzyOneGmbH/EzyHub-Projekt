@@ -182,18 +182,29 @@ function dfsAuth(): string | null {
   return "Basic " + Buffer.from(`${login}:${pass}`).toString("base64");
 }
 
+// Harte Deadline UNABHÄNGIG vom AbortSignal: Beobachtung 2026-07-14 — serp_ai
+// hing trotz AbortSignal.timeout endlos (Runtime ignoriert das Signal bei
+// toten Verbindungen). Promise.race garantiert, dass jeder Call terminiert.
+function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  let t: any;
+  return Promise.race([
+    p.finally(() => clearTimeout(t)),
+    new Promise<T>((_, rej) => { t = setTimeout(() => rej(new Error(`${label}: Deadline ${Math.round(ms / 1000)}s überschritten`)), ms); }),
+  ]);
+}
+
 async function dfsSerp(auth: string, kind: "organic" | "ai_mode", keyword: string, loc: { code: number; lang: string }) {
   const url = kind === "organic"
     ? "https://api.dataforseo.com/v3/serp/google/organic/live/advanced"
     : "https://api.dataforseo.com/v3/serp/google/ai_mode/live/advanced";
   const body: any = { keyword, location_code: loc.code, language_code: loc.lang, device: "desktop" };
   if (kind === "organic") { body.depth = 20; body.load_async_ai_overview = true; } // AI Overview lädt teils async
-  const r = await fetch(url, {
+  const r = await withDeadline(fetch(url, {
     method: "POST",
     headers: { Authorization: auth, "Content-Type": "application/json" },
     body: JSON.stringify([body]),
     signal: AbortSignal.timeout(60_000),
-  });
+  }), 70_000, `dfs ${kind}`);
   if (!r.ok) throw new Error(`DataForSEO ${kind} -> HTTP ${r.status}`);
   const j: any = await r.json().catch(() => ({}));
   const t = j?.tasks?.[0];
@@ -270,7 +281,7 @@ async function jobSerpAi(c: any, limitOverride?: number) {
   const checkPair = async (p: { kw: string; a3: string }) => {
     const loc = DFS_LOC_BY_A3[p.a3] || homeLoc;
     const jobs = [
-      dfsSerp(auth, "organic", p.kw, loc).then((items) => {
+      withDeadline(dfsSerp(auth, "organic", p.kw, loc), 90_000, "dfs organic").then((items) => {
         aio.checked++;
         const el = (items as any[]).find((i: any) => i?.type === "ai_overview");
         if (el) {
@@ -278,7 +289,7 @@ async function jobSerpAi(c: any, limitOverride?: number) {
           if (hit(el)) { aio.cited++; aio.keywords.push(`${p.kw} (${loc.name})`); aio.byCountry[loc.name] = (aio.byCountry[loc.name] || 0) + 1; }
         }
       }).catch((e) => { errors.push(`aio "${p.kw}"@${p.a3}: ${String((e as any)?.message || e).slice(0, 80)}`); }),
-      dfsSerp(auth, "ai_mode", p.kw, loc).then((items) => {
+      withDeadline(dfsSerp(auth, "ai_mode", p.kw, loc), 90_000, "dfs ai_mode").then((items) => {
         aim.checked++;
         if ((items as any[])?.length) {
           aim.present++;
@@ -989,7 +1000,9 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             const br: any = wanted.includes("brand_radar") ? await jobBrandRadar(c, fixedComps) : null;
             const at: any = wanted.includes("attribution") ? await jobAttribution(c) : null;
             const pr: any = wanted.includes("prompts") ? await jobPromptRunner(c, sb, fixedComps) : null;
-            const sa: any = wanted.includes("serp_ai") ? await jobSerpAi(c, serpKeywords) : null;
+            const sa: any = wanted.includes("serp_ai")
+              ? await withDeadline(jobSerpAi(c, serpKeywords), 25 * 60_000, "serp_ai").catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }))
+              : null;
             jr.serp_ai = sa
               ? (sa.skipped
                   ? { skipped: sa.skipped }
