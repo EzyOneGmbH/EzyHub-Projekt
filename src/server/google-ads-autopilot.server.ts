@@ -158,7 +158,10 @@ export type AutopilotData = {
   assetIssues: Array<{ adGroup: string; fieldType: string; text: string; label: string }>;
   pmaxAssetGroups: Array<{ name: string; adStrength: string }>;
   rsaAdStrength?: Array<{ campaign: string; adGroup: string; adStrength: string }>;
-  changeHistory: Array<{ at: string; user: string; resourceType: string; fields: string }>;
+  // Phase A (Advisory-Vertiefung): Mehrfenster-Extrakt (L90/L365/LIFETIME).
+  // L30 bleibt die unveraenderte operative Basis aller bestehenden Regeln.
+  multiWindow?: MultiWindowExtract;
+  changeHistory: Array<{ at: string; user: string; resourceType: string; fields: string; campaignRef?: string }>;
   dataSourceErrors: string[]; // welche Phase-3-Quellen nicht lieferten (Transparenz)
   meta: { customerId: string; costSumChf: number; avgCpaChf: number | null };
   error: string | null;
@@ -497,7 +500,7 @@ export async function fetchAutopilotData(
     await soft("change_history", async () => {
       const rows = await search(
         ctx,
-        `SELECT change_event.change_date_time, change_event.user_email, change_event.change_resource_type, change_event.changed_fields
+        `SELECT change_event.change_date_time, change_event.user_email, change_event.change_resource_type, change_event.changed_fields, change_event.campaign
          FROM change_event
          WHERE change_event.change_date_time >= '${daysAgo(29)}' AND change_event.change_date_time <= '${daysAgo(0)} 23:59:59'
          ORDER BY change_event.change_date_time DESC LIMIT 100`,
@@ -508,8 +511,181 @@ export async function fetchAutopilotData(
           user: String(r.changeEvent?.userEmail ?? ""),
           resourceType: String(r.changeEvent?.changeResourceType ?? ""),
           fields: String(r.changeEvent?.changedFields ?? "").slice(0, 120),
+          campaignRef: String(r.changeEvent?.campaign ?? ""),
         });
       }
+    });
+
+    // ── Phase A (Advisory-Vertiefung): Mehrfenster-Extrakt L90/L365/LIFETIME ──
+    // Fehlertolerant (soft) und vollstaendig ADDITIV: kein bestehender L30-Wert
+    // haengt hiervon ab. Token-Diaet: aggregierte Extrakte, nie Rohtabellen.
+    await soft("multi_window", async () => {
+      const CAMP_FIELDS =
+        "campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type, metrics.cost_micros, metrics.conversions, metrics.conversions_value";
+      const between = (a: number, b: number) => ` AND segments.date BETWEEN '${daysAgo(a)}' AND '${daysAgo(b)}'`;
+      const sums = (rows: Array<Record<string, any>>) => {
+        const m = new Map<string, { status: string; channel: string; cost: number; conv: number; value: number }>();
+        for (const r of rows) {
+          const name = String(r.campaign?.name ?? "");
+          const a = m.get(name) ?? {
+            status: String(r.campaign?.status ?? ""),
+            channel: String(r.campaign?.advertisingChannelType ?? ""),
+            cost: 0, conv: 0, value: 0,
+          };
+          a.cost += Number(r.metrics?.costMicros ?? 0) / MICROS;
+          a.conv += Number(r.metrics?.conversions ?? 0);
+          a.value += Number(r.metrics?.conversionsValue ?? 0);
+          m.set(name, a);
+        }
+        return m;
+      };
+
+      // Kampagnen je Fenster (ENABLED + PAUSED; LIFETIME = ohne Datumsfilter)
+      const [l90, l365, life] = await Promise.all([
+        search(ctx, `SELECT ${CAMP_FIELDS} FROM campaign WHERE campaign.status IN ('ENABLED','PAUSED')${between(90, 1)}`),
+        search(ctx, `SELECT ${CAMP_FIELDS} FROM campaign WHERE campaign.status IN ('ENABLED','PAUSED')${between(365, 1)}`),
+        search(ctx, `SELECT ${CAMP_FIELDS} FROM campaign WHERE campaign.status IN ('ENABLED','PAUSED')`),
+      ]);
+      const m90 = sums(l90), m365 = sums(l365), mLife = sums(life);
+      const idToName = new Map<string, string>();
+      for (const r of life) idToName.set(String(r.campaign?.id ?? ""), String(r.campaign?.name ?? ""));
+
+      const wm = (m: Map<string, any>, name: string) => {
+        const a = m.get(name);
+        return windowMetrics(a?.cost ?? 0, a?.conv ?? 0, a?.value ?? 0);
+      };
+      const campaigns = [...mLife.entries()]
+        .sort((a, b) => b[1].cost - a[1].cost)
+        .slice(0, 25)
+        .map(([name, a]) => ({
+          campaign: name, status: a.status, channelType: a.channel,
+          L90: wm(m90, name), L365: wm(m365, name), LIFETIME: windowMetrics(a.cost, a.conv, a.value),
+        }));
+
+      // REMOVED nur als LIFETIME-Summe
+      let removedLifetime = { campaigns: 0, ...windowMetrics(0, 0, 0) };
+      try {
+        const rem = await search(ctx, `SELECT ${CAMP_FIELDS} FROM campaign WHERE campaign.status = 'REMOVED'`);
+        const mr = sums(rem);
+        let c = 0, v = 0, k = 0;
+        for (const a of mr.values()) { c += a.cost; k += a.conv; v += a.value; }
+        removedLifetime = { campaigns: mr.size, ...windowMetrics(c, k, v) };
+      } catch { /* REMOVED-Abfrage optional */ }
+
+      // Monats-Serie 12M (Konto-Ebene, Saisonmuster)
+      const months = await search(
+        ctx,
+        `SELECT segments.month, metrics.cost_micros, metrics.conversions FROM campaign${between(365, 1).replace(" AND", " WHERE")}`,
+      );
+      const mm = new Map<string, { cost: number; conv: number }>();
+      for (const r of months) {
+        const mo = String(r.segments?.month ?? "").slice(0, 7);
+        if (!mo) continue;
+        const a = mm.get(mo) ?? { cost: 0, conv: 0 };
+        a.cost += Number(r.metrics?.costMicros ?? 0) / MICROS;
+        a.conv += Number(r.metrics?.conversions ?? 0);
+        mm.set(mo, a);
+      }
+      const monthlySeries = [...mm.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([month, a]) => ({ month, costChf: Math.round(a.cost * 100) / 100, conversions: Math.round(a.conv * 100) / 100 }));
+
+      // Keywords: Top nach LIFETIME-Kosten, mit L90 daneben (Basis keyword_pause)
+      const KW_FIELDS =
+        "campaign.name, ad_group.name, ad_group_criterion.keyword.text, metrics.cost_micros, metrics.conversions";
+      const kwAgg = (rows: Array<Record<string, any>>) => {
+        const m = new Map<string, { costChf: number; conversions: number }>();
+        for (const r of rows) {
+          const key = `${r.campaign?.name ?? ""} | ${r.adGroup?.name ?? ""} | ${r.adGroupCriterion?.keyword?.text ?? ""}`;
+          const a = m.get(key) ?? { costChf: 0, conversions: 0 };
+          a.costChf += Number(r.metrics?.costMicros ?? 0) / MICROS;
+          a.conversions += Number(r.metrics?.conversions ?? 0);
+          m.set(key, a);
+        }
+        return m;
+      };
+      const [kw90, kwLife] = await Promise.all([
+        search(ctx, `SELECT ${KW_FIELDS} FROM keyword_view WHERE campaign.status IN ('ENABLED','PAUSED')${between(90, 1)} ORDER BY metrics.cost_micros DESC LIMIT 200`),
+        search(ctx, `SELECT ${KW_FIELDS} FROM keyword_view WHERE campaign.status IN ('ENABLED','PAUSED') ORDER BY metrics.cost_micros DESC LIMIT 200`),
+      ]);
+      const k90 = kwAgg(kw90), kLife = kwAgg(kwLife);
+      const r2 = (n: number) => Math.round(n * 100) / 100;
+      const keywordsTop = [...kLife.entries()]
+        .sort((a, b) => b[1].costChf - a[1].costChf)
+        .slice(0, 40)
+        .map(([key, lifeV]) => {
+          const [campaign, adGroup, keyword] = key.split(" | ");
+          const v90 = k90.get(key) ?? { costChf: 0, conversions: 0 };
+          return {
+            campaign, adGroup, keyword,
+            L90: { costChf: r2(v90.costChf), conversions: r2(v90.conversions) },
+            LIFETIME: { costChf: r2(lifeV.costChf), conversions: r2(lifeV.conversions) },
+          };
+        });
+
+      // Geo + Geraete L90 (aggregiert, klein)
+      const geoRows = await search(
+        ctx,
+        `SELECT geographic_view.country_criterion_id, metrics.cost_micros, metrics.conversions FROM geographic_view WHERE segments.date BETWEEN '${daysAgo(90)}' AND '${daysAgo(1)}'`,
+      );
+      const geoAgg = new Map<string, { cost: number; conv: number }>();
+      for (const r of geoRows) {
+        const id = String(r.geographicView?.countryCriterionId ?? "");
+        const key = GEO_NAMES[id] ?? `Land ${id}`;
+        const a = geoAgg.get(key) ?? { cost: 0, conv: 0 };
+        a.cost += Number(r.metrics?.costMicros ?? 0) / MICROS;
+        a.conv += Number(r.metrics?.conversions ?? 0);
+        geoAgg.set(key, a);
+      }
+      const geoL90 = [...geoAgg.entries()]
+        .map(([location, a]) => ({ location, costChf: r2(a.cost), conversions: r2(a.conv) }))
+        .sort((x, y) => y.costChf - x.costChf)
+        .slice(0, 10);
+      const devRows = await search(
+        ctx,
+        `SELECT segments.device, metrics.cost_micros, metrics.conversions FROM campaign WHERE segments.date BETWEEN '${daysAgo(90)}' AND '${daysAgo(1)}'`,
+      );
+      const devAgg = new Map<string, { cost: number; conv: number }>();
+      for (const r of devRows) {
+        const d = String(r.segments?.device ?? "UNKNOWN");
+        const a = devAgg.get(d) ?? { cost: 0, conv: 0 };
+        a.cost += Number(r.metrics?.costMicros ?? 0) / MICROS;
+        a.conv += Number(r.metrics?.conversions ?? 0);
+        devAgg.set(d, a);
+      }
+      const deviceL90 = [...devAgg.entries()].map(([device, a]) => ({ device, costChf: r2(a.cost), conversions: r2(a.conv) }));
+
+      // Strategiewechsel erkennen + L90 je Periode getrennt auswerten
+      const strategyChanges = detectStrategyChanges(data.changeHistory, idToName);
+      const strategyPeriods: MultiWindowExtract["strategyPeriods"] = [];
+      for (const ch of strategyChanges.slice(0, 3)) {
+        const ranges = periodRanges(ch.at, daysAgo(1));
+        if (!ranges) continue;
+        const per = async (from: string, to: string) => {
+          const rows = await search(
+            ctx,
+            `SELECT metrics.cost_micros, metrics.conversions, metrics.conversions_value FROM campaign WHERE campaign.name = '${gaqlEscape(ch.campaign)}' AND segments.date BETWEEN '${from}' AND '${to}'`,
+          );
+          let c = 0, k = 0, v = 0;
+          for (const r of rows) {
+            c += Number(r.metrics?.costMicros ?? 0) / MICROS;
+            k += Number(r.metrics?.conversions ?? 0);
+            v += Number(r.metrics?.conversionsValue ?? 0);
+          }
+          return windowMetrics(c, k, v);
+        };
+        strategyPeriods.push({
+          campaign: ch.campaign,
+          changedAt: ch.at,
+          before: { ...(await per(ranges.before.from, ranges.before.to)), days: ranges.before.days },
+          after: { ...(await per(ranges.after.from, ranges.after.to)), days: ranges.after.days },
+        });
+      }
+
+      data.multiWindow = {
+        campaigns, removedLifetime, monthlySeries, keywordsTop, geoL90, deviceL90,
+        strategyChanges, strategyPeriods,
+      };
     });
 
     // ── Struktur-Review (report-only): 4 weitere Quellen ─────────────────────
@@ -935,6 +1111,97 @@ export async function isCampaignLearning(
 }
 
 // ── deterministic classification ────────────────────────────────────────────
+// ── Phase A: Mehrfenster-Typen ───────────────────────────────────────────────
+export type WindowMetrics = {
+  costChf: number;
+  conversions: number;
+  conversionValue: number;
+  roas: number | null;
+  cpaChf: number | null;
+};
+
+export type MultiWindowExtract = {
+  // alle Kampagnen ENABLED+PAUSED (pausierte mit Historie gehoeren zur Analyse)
+  campaigns: Array<{
+    campaign: string;
+    status: string;
+    channelType: string;
+    L90: WindowMetrics;
+    L365: WindowMetrics;
+    LIFETIME: WindowMetrics;
+  }>;
+  // REMOVED-Kampagnen nur als LIFETIME-Summe (Kontext Gesamtinvestition)
+  removedLifetime: { campaigns: number } & WindowMetrics;
+  // Konto-Ebene, 12 Monate (Saisonmuster; YoY sofern Historie vorhanden)
+  monthlySeries: Array<{ month: string; costChf: number; conversions: number }>;
+  // Top-Keywords nach LIFETIME-Kosten (Streichkandidaten-Basis Phase B.3)
+  keywordsTop: Array<{
+    campaign: string; adGroup: string; keyword: string;
+    L90: { costChf: number; conversions: number };
+    LIFETIME: { costChf: number; conversions: number };
+  }>;
+  geoL90: Array<{ location: string; costChf: number; conversions: number }>;
+  deviceL90: Array<{ device: string; costChf: number; conversions: number }>;
+  // erkannte Gebotsstrategie-Wechsel (aus changeHistory, max. 29d rekonstruierbar)
+  strategyChanges: Array<{ campaign: string; at: string; fields: string }>;
+  // L90 je Periode getrennt ausgewertet (nie ueber den Wechsel hinweg gemittelt)
+  strategyPeriods: Array<{
+    campaign: string; changedAt: string;
+    before: WindowMetrics & { days: number };
+    after: WindowMetrics & { days: number };
+  }>;
+};
+
+export function windowMetrics(costChf: number, conversions: number, conversionValue: number): WindowMetrics {
+  const r = (n: number) => Math.round(n * 100) / 100;
+  return {
+    costChf: r(costChf),
+    conversions: r(conversions),
+    conversionValue: r(conversionValue),
+    roas: costChf > 0 ? r(conversionValue / costChf) : null,
+    cpaChf: conversions > 0 ? r(costChf / conversions) : null,
+  };
+}
+
+// Gebotsstrategie-Wechsel aus der Aenderungshistorie erkennen (pure, testbar).
+// change_event reicht max. 30 Tage zurueck - aeltere Wechsel sind nicht
+// rekonstruierbar (Brief A.2: "soweit rekonstruierbar").
+const BIDDING_FIELDS_RE = /bidding|target_roas|target_cpa|maximize_conversion|manual_cpc|target_impression_share/i;
+export function detectStrategyChanges(
+  changeHistory: Array<{ at: string; resourceType: string; fields: string; campaignRef?: string }>,
+  idToName: Map<string, string>,
+): Array<{ campaign: string; at: string; fields: string }> {
+  const seen = new Set<string>();
+  const out: Array<{ campaign: string; at: string; fields: string }> = [];
+  for (const c of changeHistory) {
+    if (c.resourceType !== "CAMPAIGN" || !BIDDING_FIELDS_RE.test(c.fields)) continue;
+    const id = String(c.campaignRef ?? "").split("/").pop() ?? "";
+    const campaign = idToName.get(id);
+    if (!campaign || seen.has(campaign)) continue; // juengster Wechsel je Kampagne (Liste ist DESC)
+    seen.add(campaign);
+    out.push({ campaign, at: c.at, fields: c.fields });
+  }
+  return out;
+}
+
+// Datumsfenster fuer die Perioden-Trennung um einen Strategiewechsel (pure).
+export function periodRanges(
+  changedAt: string,
+  today: string,
+  windowDays = 90,
+): { before: { from: string; to: string; days: number }; after: { from: string; to: string; days: number } } | null {
+  const changeDate = changedAt.slice(0, 10);
+  const d = (s: string) => new Date(s + "T00:00:00Z").getTime();
+  const day = 86400000;
+  const from = new Date(d(today) - windowDays * day).toISOString().slice(0, 10);
+  const beforeTo = new Date(d(changeDate) - day).toISOString().slice(0, 10);
+  if (d(beforeTo) < d(from) || d(changeDate) > d(today)) return null; // Wechsel liegt ausserhalb des Fensters
+  return {
+    before: { from, to: beforeTo, days: Math.round((d(beforeTo) - d(from)) / day) + 1 },
+    after: { from: changeDate, to: today, days: Math.round((d(today) - d(changeDate)) / day) + 1 },
+  };
+}
+
 export type PlannedAction = {
   actionClass: "auto-execute" | "approval-needed" | "report-only";
   type: string;
@@ -1198,6 +1465,8 @@ export type AutopilotRunSummary = {
   rsaAdStrength?: { distribution: Record<string, number>; weakest: Array<{ campaign: string; adGroup: string; adStrength: string }> };
   // Gebotsstrategie-Review (report-only): Typ + Ziel je Kampagne
   biddingStrategies?: Array<{ campaign: string; strategyType: string; targetRoas: number | null; targetCpaChf: number | null; systemStatus: string }>;
+  // Phase A: Mehrfenster-Extrakt (Kennzahlen tragen Fenster-Label per Struktur)
+  multiWindow?: MultiWindowExtract | null;
   changeHistory?: Array<{ at: string; user: string; resourceType: string }>;
   dataSourceErrors?: string[];
   // Struktur-Review (report-only): Gesamtstruktur + MoM + QS fuer den Report
@@ -1294,6 +1563,7 @@ export async function runAutopilot(clientId: string, opts?: { dryRun?: boolean }
         .slice(0, 10),
     };
   }
+  base.multiWindow = d3.multiWindow ?? null;
   base.biddingStrategies = d3.campaigns.map((c) => ({
     campaign: c.name,
     strategyType: c.biddingStrategyType ?? "UNKNOWN",
