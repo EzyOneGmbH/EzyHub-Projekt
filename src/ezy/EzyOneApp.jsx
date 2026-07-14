@@ -8515,6 +8515,316 @@ function OnboardingCard({ client, onUpdated }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Onboarding-Wizard (User-Wunsch 2026-07-14): Jeder NEUE Kunde wird in 3
+// Schritten angelegt — 1) Kundendaten, 2) Dashboards + Dienste, 3) daraus
+// abgeleitete Verbindungen (GSC, GA4, Ads, Canonry, WordPress). Der Kunde wird
+// nach Schritt 2 erstellt (Dienste-Seed + Dashboard-Auswahl in defaults),
+// Schritt 3 sammelt Properties und verlinkt ins Kunden-Panel fuer OAuth.
+// ─────────────────────────────────────────────────────────────────────────────
+const ONBOARD_TABS = [
+  { id: "overview", label: "Übersicht", hint: "KPIs, Health, Frische" },
+  { id: "seo", label: "SEO", hint: "Rankings, GSC, CWV, Ahrefs" },
+  { id: "aivis", label: "KI-Sichtbarkeit", hint: "AI-Citations (Canonry)" },
+  { id: "conversions", label: "Conversions", hint: "GA4, Kanäle, Umsatz" },
+  { id: "ads", label: "Google Ads", hint: "Kampagnen, Autopilot" },
+  { id: "runs", label: "Agent-Läufe", hint: "Lauf-Nachweis" },
+];
+
+function onboardingConnections(tabsSet, servicesSet) {
+  const why = (arr) => arr.filter(Boolean);
+  const out = [];
+  if (tabsSet.has("seo") || servicesSet.has("gsc"))
+    out.push({
+      key: "gsc",
+      label: "Google Search Console",
+      reason: why([tabsSet.has("seo") && "Dashboard SEO", servicesSet.has("gsc") && "Dienst Search Console"]),
+      action: "Google-Konto im Kunden-Panel verbinden und die GSC-Property eintragen.",
+      field: "gscSiteUrl",
+      placeholder: "sc-domain:example.com",
+    });
+  if (tabsSet.has("conversions") || servicesSet.has("ga4"))
+    out.push({
+      key: "ga4",
+      label: "Google Analytics 4",
+      reason: why([tabsSet.has("conversions") && "Dashboard Conversions", servicesSet.has("ga4") && "Dienst GA4"]),
+      action: "Google-Konto im Kunden-Panel verbinden und die GA4-Property-ID eintragen.",
+      field: "ga4PropertyId",
+      placeholder: "z. B. 123456789",
+    });
+  if (tabsSet.has("ads") || servicesSet.has("google-ads"))
+    out.push({
+      key: "google-ads",
+      label: "Google Ads",
+      reason: why([tabsSet.has("ads") && "Dashboard Google Ads", servicesSet.has("google-ads") && "Dienst Google Ads"]),
+      action: "Google-Konto verbinden und die Ads-Customer-ID im Kunden-Panel hinterlegen.",
+    });
+  if (tabsSet.has("aivis") || servicesSet.has("canonry"))
+    out.push({
+      key: "canonry",
+      label: "Canonry (GEO)",
+      reason: why([tabsSet.has("aivis") && "Dashboard KI-Sichtbarkeit", servicesSet.has("canonry") && "Dienst Canonry"]),
+      action: "Wird beim Anlegen automatisch eingerichtet — keine Aktion nötig.",
+      auto: true,
+    });
+  if (servicesSet.has("wordpress"))
+    out.push({
+      key: "wordpress",
+      label: "WordPress",
+      reason: ["Dienst WordPress"],
+      action: "Site-URL + Application-Password im Kunden-Panel (WordPress) verbinden.",
+    });
+  if (servicesSet.has("gbp"))
+    out.push({
+      key: "gbp",
+      label: "Google Business Profile",
+      reason: ["Dienst GBP"],
+      action: "Google-Konto mit Scope business.manage verbinden (Inhaberzugang nötig).",
+    });
+  if (servicesSet.has("bing"))
+    out.push({
+      key: "bing",
+      label: "Bing Webmaster",
+      reason: ["Dienst Bing"],
+      action: "Site in Bing Webmaster Tools verifizieren (speist ChatGPT/Copilot).",
+    });
+  return out;
+}
+
+function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinished, onOpenPanel }) {
+  const toast = useToast();
+  const [step, setStep] = useState(1);
+  const [busy, setBusy] = useState(false);
+  const [draft, setDraft] = useState(clientFormFromClient());
+  const [tabsSel, setTabsSel] = useState(new Set(DEFAULT_CUSTOMER_DEFAULTS.visibleTabs));
+  const [created, setCreated] = useState(null);
+  useEffect(() => {
+    if (open) {
+      setStep(1);
+      setBusy(false);
+      setDraft(clientFormFromClient());
+      setTabsSel(new Set(DEFAULT_CUSTOMER_DEFAULTS.visibleTabs));
+      setCreated(null);
+    }
+  }, [open]);
+  const set = (k) => (v) => setDraft((p) => ({ ...p, [k]: v }));
+  const toggleTab = (id) =>
+    setTabsSel((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      if (next.size === 0) next.add(id); // mindestens ein Dashboard
+      return next;
+    });
+  const connections = onboardingConnections(tabsSel, draft.services || new Set());
+
+  const createClient = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const next = normalizeClientShape({
+        defaults: { ...effectiveDefaults, visibleTabs: [...tabsSel] },
+        name: draft.name,
+        domain: draft.domain,
+        industry: draft.industry,
+        status: draft.status,
+        contactEmail: draft.contactEmail,
+        contactPhone: draft.contactPhone,
+        monthlyBudget: Number(draft.monthlyBudget || 0),
+        tags: splitCsv(draft.tags),
+        targetLocations: splitCsv(draft.targetLocations),
+        notes: draft.notes,
+        canonryProject: slugifyProjectName(draft.domain),
+        brandTerms: splitCsv(draft.brandTerms),
+        revenueMode: draft.revenueMode === "clicks" ? "clicks" : "revenue",
+      });
+      next.services = [...(draft.services || [])];
+      const mapped = await onCreate(next);
+      if (!mapped?.id) return; // Fehler-Toast kommt aus dem Upsert-Wrapper
+      setCreated(mapped);
+      setStep(3);
+    } catch (e) {
+      toast(String(e?.message || e), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const finish = async (openPanel) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const patch = {};
+      if (draft.gscSiteUrl.trim()) patch.gscSiteUrl = draft.gscSiteUrl.trim();
+      if (draft.ga4PropertyId.trim()) patch.ga4PropertyId = draft.ga4PropertyId.trim();
+      let final = created;
+      if (created && Object.keys(patch).length) final = (await onCreate({ ...created, ...patch })) || created;
+      onFinished?.(final);
+      if (openPanel && final) onOpenPanel?.(final);
+      onClose();
+    } catch (e) {
+      toast(String(e?.message || e), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const StepDots = () => (
+    <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16 }}>
+      {[1, 2, 3].map((s) => (
+        <div key={s} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div
+            style={{
+              width: 26, height: 26, borderRadius: 13, display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 12, fontWeight: 700,
+              background: s === step ? C.accent : s < step ? `${C.green}33` : C.surface,
+              color: s === step ? "#fff" : s < step ? C.green : C.textDim,
+              border: `1px solid ${s <= step ? "transparent" : C.border}`,
+            }}
+          >
+            {s < step ? "✓" : s}
+          </div>
+          <span style={{ fontSize: 12, color: s === step ? C.text : C.textDim, fontWeight: s === step ? 600 : 400 }}>
+            {s === 1 ? "Kundendaten" : s === 2 ? "Dashboards & Dienste" : "Verbindungen"}
+          </span>
+          {s < 3 && <div style={{ width: 24, height: 1, background: C.border }} />}
+        </div>
+      ))}
+    </div>
+  );
+
+  return (
+    <Modal open={open} onClose={onClose} title="Neuen Kunden onboarden" width={680}>
+      <StepDots />
+      {step === 1 && (
+        <>
+          <div className="ezy-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <Inp label="Name" value={draft.name} onChange={set("name")} required />
+            <Inp label="Domain" value={draft.domain} onChange={set("domain")} placeholder="example.com" required />
+            <Inp label="Branche" value={draft.industry} onChange={set("industry")} />
+            <Inp label="Status" value={draft.status} onChange={set("status")} options={["active", "paused"]} />
+            <Inp label="E-Mail" value={draft.contactEmail} onChange={set("contactEmail")} />
+            <Inp label="Telefon" value={draft.contactPhone} onChange={set("contactPhone")} />
+            <Inp label="Monatsbudget (CHF)" value={draft.monthlyBudget} onChange={set("monthlyBudget")} type="number" />
+            <Inp label="Standorte" value={draft.targetLocations} onChange={set("targetLocations")} placeholder="Schweiz, Zürich" />
+            <Inp label="Tags" value={draft.tags} onChange={set("tags")} placeholder="SEO, GEO, Content" />
+            <Inp label="Brand-Begriffe (GSC-Split)" value={draft.brandTerms} onChange={set("brandTerms")} placeholder="firmenname, firmen-name" />
+          </div>
+          <div style={{ margin: "10px 0 4px" }}>
+            <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 6 }}>Umsatz-Modus</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {[["revenue", "Umsatz-Tracking vollstaendig"], ["clicks", "nur Buchungsklicks"]].map(([val, label]) => (
+                <button key={val} type="button" onClick={() => setDraft((p) => ({ ...p, revenueMode: val }))}
+                  style={{
+                    padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                    border: `1px solid ${draft.revenueMode === val ? C.accent : C.border}`,
+                    background: draft.revenueMode === val ? C.accentDim : "transparent",
+                    color: draft.revenueMode === val ? C.accentLight : C.textMuted,
+                  }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <Inp label="Notizen" value={draft.notes} onChange={set("notes")} textarea />
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
+            <Btn variant="secondary" onClick={onClose}>Abbrechen</Btn>
+            <Btn
+              onClick={() => {
+                if (!draft.name.trim() || !draft.domain.trim()) {
+                  toast("Name und Domain sind erforderlich", "error");
+                  return;
+                }
+                setStep(2);
+              }}
+            >
+              Weiter: Dashboards & Dienste
+            </Btn>
+          </div>
+        </>
+      )}
+      {step === 2 && (
+        <>
+          <div style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: "0 0 6px" }}>Dashboards</div>
+          <p style={{ fontSize: 11, color: C.textMuted, margin: "0 0 10px" }}>
+            Welche Bereiche soll dieser Kunde im Dashboard sehen?
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 18 }}>
+            {ONBOARD_TABS.map((t) => {
+              const on = tabsSel.has(t.id);
+              return (
+                <button key={t.id} type="button" onClick={() => toggleTab(t.id)}
+                  style={{
+                    textAlign: "left", padding: "10px 12px", borderRadius: 10, cursor: "pointer",
+                    border: `1px solid ${on ? C.accent : C.border}`,
+                    background: on ? C.accentDim : "transparent",
+                  }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: on ? C.accentLight : C.text }}>
+                    {on ? "☑" : "☐"} {t.label}
+                  </div>
+                  <div style={{ fontSize: 11, color: C.textDim }}>{t.hint}</div>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: "0 0 6px" }}>Dienste</div>
+          <p style={{ fontSize: 11, color: C.textMuted, margin: "0 0 10px" }}>
+            Aktivierte Dienste werden fuer diesen Kunden freigeschaltet (client_integrations).
+          </p>
+          <ServicesPicker C={C} value={draft.services} onChange={(next) => setDraft((p) => ({ ...p, services: next }))} />
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 16 }}>
+            <Btn variant="secondary" onClick={() => setStep(1)}>Zurück</Btn>
+            <Btn onClick={createClient} disabled={busy}>
+              {busy ? "Wird angelegt…" : "Kunde anlegen & weiter: Verbindungen"}
+            </Btn>
+          </div>
+        </>
+      )}
+      {step === 3 && (
+        <>
+          <p style={{ fontSize: 12, color: C.textMuted, margin: "0 0 12px" }}>
+            Basierend auf deiner Auswahl braucht <strong style={{ color: C.text }}>{created?.name || draft.name}</strong> diese
+            Verbindungen. Properties kannst du direkt hier eintragen; OAuth-Verbindungen (Google) laufen im Kunden-Panel.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {connections.length === 0 && (
+              <div style={{ fontSize: 13, color: C.textMuted, padding: 12, background: C.surface, borderRadius: 10 }}>
+                Keine Verbindungen nötig — dieser Kunde nutzt nur globale Dienste.
+              </div>
+            )}
+            {connections.map((c) => (
+              <div key={c.key} style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", background: C.card }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{c.label}</span>
+                  {c.auto && <Badge color={C.green}>automatisch</Badge>}
+                  {c.reason.map((r) => (
+                    <Badge key={r} color={C.blue}>{r}</Badge>
+                  ))}
+                </div>
+                <div style={{ fontSize: 12, color: C.textMuted, marginTop: 4 }}>{c.action}</div>
+                {c.field && (
+                  <div style={{ marginTop: 8, maxWidth: 320 }}>
+                    <Inp label={c.key === "gsc" ? "GSC Property" : "GA4 Property ID"} value={draft[c.field]} onChange={set(c.field)} placeholder={c.placeholder} />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <p style={{ fontSize: 11, color: C.textDim, margin: "12px 0 0" }}>
+            Ahrefs, DataForSEO & Co. laufen über globale Schlüssel — dafür ist nichts zu tun.
+          </p>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 16 }}>
+            <Btn variant="secondary" onClick={() => finish(false)} disabled={busy}>Später verbinden — fertig</Btn>
+            <Btn onClick={() => finish(true)} disabled={busy}>
+              {busy ? "Speichert…" : "Speichern & Kunden-Panel öffnen"}
+            </Btn>
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
 function ClientsPage({
   clients,
   selectedClientId,
@@ -8542,11 +8852,10 @@ function ClientsPage({
       (sf === "all" || c.status === sf) &&
       (c.name.toLowerCase().includes(search.toLowerCase()) || c.domain.includes(search)),
   );
-  const openCreate = () => {
-    setEditorMode("create");
-    setDraft(clientFormFromClient());
-    setEditorOpen(true);
-  };
+  const [wizardOpen, setWizardOpen] = useState(false);
+  // Neuanlage laeuft seit 2026-07-14 ueber den 3-Schritte-Onboarding-Wizard;
+  // der klassische Editor bleibt fuer "Bearbeiten" bestehen.
+  const openCreate = () => setWizardOpen(true);
   const openEdit = (client) => {
     setEditorMode("edit");
     setDraft(clientFormFromClient(client));
@@ -8990,6 +9299,22 @@ function ClientsPage({
           </div>
         </div>
       )}
+      <OnboardingWizard
+        open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        effectiveDefaults={effectiveDefaults}
+        onCreate={onUpsertClient}
+        onFinished={(c) => {
+          if (!c) return;
+          onSelectClient?.(c);
+          setDetailId(c.id);
+          setDt("overview");
+        }}
+        onOpenPanel={(c) => {
+          setDetailId(c.id);
+          setDt("overview");
+        }}
+      />
       <Modal
         open={editorOpen}
         onClose={() => setEditorOpen(false)}
@@ -11437,8 +11762,10 @@ function App() {
         setClientId(saved.id);
         setShowAll(false);
         toast?.("Kunde gespeichert", "success");
+        return saved; // Onboarding-Wizard braucht die erzeugte ID (Schritt 3)
       } catch (e) {
         toast?.(e?.message || "Speichern fehlgeschlagen", "error");
+        return null;
       }
     },
     [ezy, toast, defaultsHook.defaults],
