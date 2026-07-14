@@ -163,6 +163,59 @@ export type Database = {
           },
         ]
       }
+      ads_change_events: {
+        Row: {
+          campaign: string | null
+          changed_fields: string
+          client_id: string
+          created_at: string
+          customer_id: string
+          event_resource: string
+          id: string
+          is_bidding_change: boolean
+          occurred_at: string
+          resource_type: string
+          source: string
+          user_email: string
+        }
+        Insert: {
+          campaign?: string | null
+          changed_fields?: string
+          client_id: string
+          created_at?: string
+          customer_id: string
+          event_resource: string
+          id?: string
+          is_bidding_change?: boolean
+          occurred_at: string
+          resource_type: string
+          source?: string
+          user_email?: string
+        }
+        Update: {
+          campaign?: string | null
+          changed_fields?: string
+          client_id?: string
+          created_at?: string
+          customer_id?: string
+          event_resource?: string
+          id?: string
+          is_bidding_change?: boolean
+          occurred_at?: string
+          resource_type?: string
+          source?: string
+          user_email?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_change_events_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ads_changelog: {
         Row: {
           action_class: string

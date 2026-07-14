@@ -161,7 +161,14 @@ export type AutopilotData = {
   // Phase A (Advisory-Vertiefung): Mehrfenster-Extrakt (L90/L365/LIFETIME).
   // L30 bleibt die unveraenderte operative Basis aller bestehenden Regeln.
   multiWindow?: MultiWindowExtract;
-  changeHistory: Array<{ at: string; user: string; resourceType: string; fields: string; campaignRef?: string }>;
+  // Phase B.2: Asset-Detail (Servings/Pinning/Abdeckung/PMax-Videos, L90)
+  assetDetail?: {
+    overPinned: Array<{ adGroup: string; pinnedPositions: string[] }>;
+    lowServing: Array<{ adGroup: string; fieldType: string; text: string; sharePct: number }>;
+    adGroupsWithoutRsa: string[];
+    pmaxMissingVideo: string[];
+  };
+  changeHistory: Array<{ at: string; user: string; resourceType: string; fields: string; campaignRef?: string; eventResource?: string }>;
   dataSourceErrors: string[]; // welche Phase-3-Quellen nicht lieferten (Transparenz)
   meta: { customerId: string; costSumChf: number; avgCpaChf: number | null };
   error: string | null;
@@ -242,6 +249,8 @@ export async function fetchAutopilotData(
   googleAdsCustomer: string | null | undefined,
   cfg?: AutopilotConfig,
 ): Promise<{ ok: boolean; data?: AutopilotData; skipped?: string; error?: string }> {
+  const clientIdForData = clientId;
+  const customerIdForData = String(googleAdsCustomer ?? "").replace(/\D/g, "");
   const ctx = await adsContext(clientId, googleAdsCustomer);
   if ("skipped" in ctx) return { ok: false, skipped: ctx.skipped };
   const conf = cfg ?? DEFAULT_CONFIG(clientId);
@@ -477,6 +486,85 @@ export async function fetchAutopilotData(
         });
       }
     });
+    // Phase B.2: Asset-Detail (L90) - Servings je Asset, Pinning, Abdeckung,
+    // fehlende PMax-Asset-Typen. Alles aggregiert (Token-Diaet), report-only-Basis.
+    await soft("asset_detail", async () => {
+      // Servings + Pinning je Asset (L90)
+      const rows = await search(
+        ctx,
+        `SELECT campaign.name, ad_group.name, ad_group_ad_asset_view.field_type, ad_group_ad_asset_view.pinned_field, metrics.impressions, asset.text_asset.text
+         FROM ad_group_ad_asset_view
+         WHERE segments.date BETWEEN '${daysAgo(90)}' AND '${daysAgo(1)}' LIMIT 400`,
+      );
+      const pinsPerGroup = new Map<string, Set<string>>();
+      const grpImpr = new Map<string, number>();
+      type AssetRow = { adGroup: string; fieldType: string; text: string; impressions: number };
+      const assets: AssetRow[] = [];
+      for (const r of rows) {
+        const adGroup = `${r.campaign?.name ?? ""} | ${r.adGroup?.name ?? ""}`;
+        const impressions = Number(r.metrics?.impressions ?? 0);
+        const pinned = String(r.adGroupAdAssetView?.pinnedField ?? "");
+        if (pinned && pinned !== "UNSPECIFIED" && pinned !== "UNKNOWN") {
+          const s = pinsPerGroup.get(adGroup) ?? new Set<string>();
+          s.add(pinned);
+          pinsPerGroup.set(adGroup, s);
+        }
+        grpImpr.set(adGroup, (grpImpr.get(adGroup) ?? 0) + impressions);
+        assets.push({
+          adGroup,
+          fieldType: String(r.adGroupAdAssetView?.fieldType ?? ""),
+          text: String(r.asset?.textAsset?.text ?? "").slice(0, 60),
+          impressions,
+        });
+      }
+      // Ueberpinnte Ad-Groups (> 2 gepinnte Positionen = Flexibilitaetsverlust)
+      const overPinned = [...pinsPerGroup.entries()]
+        .filter(([, s]) => s.size > 2)
+        .map(([adGroup, s]) => ({ adGroup, pinnedPositions: [...s].sort() }));
+      // Servings: Assets mit auffaellig kleinem Impressions-Anteil (< 2% der Gruppe, Gruppe >= 500 Impr.)
+      const lowServing = assets
+        .filter((a) => (grpImpr.get(a.adGroup) ?? 0) >= 500 && a.impressions < 0.02 * (grpImpr.get(a.adGroup) ?? 0))
+        .sort((a, b) => (grpImpr.get(b.adGroup) ?? 0) - (grpImpr.get(a.adGroup) ?? 0))
+        .slice(0, 10)
+        .map((a) => ({ adGroup: a.adGroup, fieldType: a.fieldType, text: a.text, sharePct: Math.round((a.impressions / Math.max(1, grpImpr.get(a.adGroup) ?? 1)) * 1000) / 10 }));
+
+      // Abdeckung: aktive Search-Ad-Groups ohne aktive RSA
+      const adRows = await search(
+        ctx,
+        `SELECT campaign.name, ad_group.name FROM ad_group_ad
+         WHERE ad_group_ad.status = 'ENABLED' AND ad_group_ad.ad.type = 'RESPONSIVE_SEARCH_AD' AND campaign.status = 'ENABLED' LIMIT 300`,
+      );
+      const groupsWithRsa = new Set(adRows.map((r) => `${r.campaign?.name ?? ""} | ${r.adGroup?.name ?? ""}`));
+      const grpRows = await search(
+        ctx,
+        `SELECT campaign.name, ad_group.name FROM ad_group
+         WHERE ad_group.status = 'ENABLED' AND campaign.status = 'ENABLED' AND campaign.advertising_channel_type = 'SEARCH' LIMIT 300`,
+      );
+      const noRsa = [...new Set(grpRows.map((r) => `${r.campaign?.name ?? ""} | ${r.adGroup?.name ?? ""}`))]
+        .filter((g) => !groupsWithRsa.has(g))
+        .slice(0, 10);
+
+      // PMax: fehlende Asset-Typen je Gruppe (v.a. Video -> Google generiert sonst selbst)
+      const agRows = await search(
+        ctx,
+        `SELECT asset_group.name, asset_group_asset.field_type FROM asset_group_asset
+         WHERE asset_group_asset.status = 'ENABLED' LIMIT 500`,
+      );
+      const typesPerGroup = new Map<string, Set<string>>();
+      for (const r of agRows) {
+        const g = String(r.assetGroup?.name ?? "");
+        const s = typesPerGroup.get(g) ?? new Set<string>();
+        s.add(String(r.assetGroupAsset?.fieldType ?? ""));
+        typesPerGroup.set(g, s);
+      }
+      const pmaxMissingVideo = [...typesPerGroup.entries()]
+        .filter(([, s]) => !s.has("YOUTUBE_VIDEO"))
+        .map(([g]) => g)
+        .slice(0, 15);
+
+      data.assetDetail = { overPinned, lowServing, adGroupsWithoutRsa: noRsa, pmaxMissingVideo };
+    });
+
     // Asset-Qualitaets-KPI: Ad Strength der aktiven RSAs (Pendant zu den
     // PMax-Asset-Gruppen) - Basis fuer das report-only Asset-Review.
     await soft("rsa_ad_strength", async () => {
@@ -500,7 +588,7 @@ export async function fetchAutopilotData(
     await soft("change_history", async () => {
       const rows = await search(
         ctx,
-        `SELECT change_event.change_date_time, change_event.user_email, change_event.change_resource_type, change_event.changed_fields, change_event.campaign
+        `SELECT change_event.resource_name, change_event.change_date_time, change_event.user_email, change_event.change_resource_type, change_event.changed_fields, change_event.campaign
          FROM change_event
          WHERE change_event.change_date_time >= '${daysAgo(29)}' AND change_event.change_date_time <= '${daysAgo(0)} 23:59:59'
          ORDER BY change_event.change_date_time DESC LIMIT 100`,
@@ -512,6 +600,7 @@ export async function fetchAutopilotData(
           resourceType: String(r.changeEvent?.changeResourceType ?? ""),
           fields: String(r.changeEvent?.changedFields ?? "").slice(0, 120),
           campaignRef: String(r.changeEvent?.campaign ?? ""),
+          eventResource: String(r.changeEvent?.resourceName ?? ""),
         });
       }
     });
@@ -655,8 +744,52 @@ export async function fetchAutopilotData(
       }
       const deviceL90 = [...devAgg.entries()].map(([device, a]) => ({ device, costChf: r2(a.cost), conversions: r2(a.conv) }));
 
-      // Strategiewechsel erkennen + L90 je Periode getrennt auswerten
-      const strategyChanges = detectStrategyChanges(data.changeHistory, idToName);
+      // Zusatzauftrag: Aenderungs-Events dauerhaft persistieren (append-only,
+      // idempotent via Unique (client_id, event_resource)) - damit die
+      // Strategie-Segmentierung ueber die 29-Tage-API-Grenze hinaus waechst.
+      const classifySource = (email: string) =>
+        /auto.?apply|recommendation/i.test(email) ? "google_auto" : email ? "human" : "unknown";
+      const eventRows = data.changeHistory
+        .filter((c) => c.eventResource)
+        .map((c) => ({
+          client_id: clientIdForData,
+          customer_id: customerIdForData,
+          event_resource: c.eventResource!,
+          occurred_at: c.at ? new Date(c.at.replace(" ", "T") + "Z").toISOString() : new Date().toISOString(),
+          user_email: c.user,
+          resource_type: c.resourceType,
+          changed_fields: c.fields,
+          campaign: idToName.get(String(c.campaignRef ?? "").split("/").pop() ?? "") ?? null,
+          source: classifySource(c.user),
+          is_bidding_change: c.resourceType === "CAMPAIGN" && BIDDING_FIELDS_RE.test(c.fields),
+        }));
+      if (eventRows.length) {
+        await supabaseAdmin
+          .from("ads_change_events")
+          .upsert(eventRows, { onConflict: "client_id,event_resource", ignoreDuplicates: true });
+      }
+
+      // Strategiewechsel aus der PERSISTIERTEN Historie (bis 365d), nicht nur
+      // aus dem 29d-Live-Fenster; juengster Wechsel je Kampagne.
+      let strategyChanges: Array<{ campaign: string; at: string; fields: string }> = [];
+      try {
+        const { data: persisted } = await supabaseAdmin
+          .from("ads_change_events")
+          .select("campaign, occurred_at, changed_fields")
+          .eq("client_id", clientIdForData)
+          .eq("is_bidding_change", true)
+          .gte("occurred_at", new Date(Date.now() - 365 * 86400000).toISOString())
+          .order("occurred_at", { ascending: false })
+          .limit(50);
+        const seen = new Set<string>();
+        for (const e of persisted ?? []) {
+          if (!e.campaign || seen.has(e.campaign)) continue;
+          seen.add(e.campaign);
+          strategyChanges.push({ campaign: e.campaign, at: String(e.occurred_at).replace("T", " ").slice(0, 19), fields: e.changed_fields ?? "" });
+        }
+      } catch {
+        strategyChanges = detectStrategyChanges(data.changeHistory, idToName); // Fallback Live-Fenster
+      }
       const strategyPeriods: MultiWindowExtract["strategyPeriods"] = [];
       for (const ch of strategyChanges.slice(0, 3)) {
         const ranges = periodRanges(ch.at, daysAgo(1));
@@ -682,8 +815,36 @@ export async function fetchAutopilotData(
         });
       }
 
+      // Phase B.3 (deterministisch): Streichkandidaten auf LIFETIME-Basis -
+      // Kosten > 3x Ziel-CPA (Fallback Konto-CPA) und 0 Conversions ueberhaupt.
+      const cpaRef = (cfg?.target_cpa_chf ?? 0) > 0 ? cfg!.target_cpa_chf! : data.meta.avgCpaChf || 0;
+      const pauseCandidates =
+        cpaRef > 0
+          ? keywordsTop
+              .filter((k) => k.LIFETIME.conversions === 0 && k.LIFETIME.costChf > 3 * cpaRef)
+              .slice(0, 10)
+              .map((k) => ({ campaign: k.campaign, adGroup: k.adGroup, keyword: k.keyword, lifetimeCostChf: k.LIFETIME.costChf }))
+          : [];
+
+      // Phase B.3 (deterministisch): Kannibalisierung - gleicher Suchbegriff in
+      // mehreren Kampagnen (aus dem L30-Suchbegriffsfenster), mit Kosten-Split.
+      const byTerm = new Map<string, Map<string, number>>();
+      for (const s of data.searchTerms) {
+        const m = byTerm.get(s.term) ?? new Map<string, number>();
+        m.set(s.campaign, (m.get(s.campaign) ?? 0) + s.costChf);
+        byTerm.set(s.term, m);
+      }
+      const cannibalization = [...byTerm.entries()]
+        .filter(([, m]) => m.size > 1)
+        .map(([term, m]) => ({
+          term,
+          campaigns: [...m.entries()].map(([campaign, costChf]) => ({ campaign, costChf: r2(costChf) })).sort((a, b) => b.costChf - a.costChf),
+        }))
+        .sort((a, b) => b.campaigns.reduce((s, c) => s + c.costChf, 0) - a.campaigns.reduce((s, c) => s + c.costChf, 0))
+        .slice(0, 10);
+
       data.multiWindow = {
-        campaigns, removedLifetime, monthlySeries, keywordsTop, geoL90, deviceL90,
+        campaigns, removedLifetime, monthlySeries, keywordsTop, pauseCandidates, cannibalization, geoL90, deviceL90,
         strategyChanges, strategyPeriods,
       };
     });
@@ -1142,7 +1303,13 @@ export type MultiWindowExtract = {
   }>;
   geoL90: Array<{ location: string; costChf: number; conversions: number }>;
   deviceL90: Array<{ device: string; costChf: number; conversions: number }>;
-  // erkannte Gebotsstrategie-Wechsel (aus changeHistory, max. 29d rekonstruierbar)
+  // Phase B.3: haerteste Streichkandidaten - LIFETIME-Kosten > 3x Ziel-CPA und
+  // 0 Conversions ueber alle Fenster (Empfehlung keyword_pause, nie Write)
+  pauseCandidates?: Array<{ campaign: string; adGroup: string; keyword: string; lifetimeCostChf: number }>;
+  // Phase B.3: Kannibalisierung - gleicher Suchbegriff laeuft in mehreren Kampagnen
+  cannibalization?: Array<{ term: string; campaigns: Array<{ campaign: string; costChf: number }> }>;
+  // erkannte Gebotsstrategie-Wechsel (persistiert in ads_change_events - waechst
+  // ueber die 29-Tage-API-Grenze hinaus; Quelle des Perioden-Splits)
   strategyChanges: Array<{ campaign: string; at: string; fields: string }>;
   // L90 je Periode getrennt ausgewertet (nie ueber den Wechsel hinweg gemittelt)
   strategyPeriods: Array<{
@@ -1467,6 +1634,8 @@ export type AutopilotRunSummary = {
   biddingStrategies?: Array<{ campaign: string; strategyType: string; targetRoas: number | null; targetCpaChf: number | null; systemStatus: string }>;
   // Phase A: Mehrfenster-Extrakt (Kennzahlen tragen Fenster-Label per Struktur)
   multiWindow?: MultiWindowExtract | null;
+  // Phase B.2: Asset-Detail (Servings/Pinning/Abdeckung/PMax-Videos, L90)
+  assetDetail?: AutopilotData["assetDetail"] | null;
   changeHistory?: Array<{ at: string; user: string; resourceType: string }>;
   dataSourceErrors?: string[];
   // Struktur-Review (report-only): Gesamtstruktur + MoM + QS fuer den Report
@@ -1564,6 +1733,7 @@ export async function runAutopilot(clientId: string, opts?: { dryRun?: boolean }
     };
   }
   base.multiWindow = d3.multiWindow ?? null;
+  base.assetDetail = d3.assetDetail ?? null;
   base.biddingStrategies = d3.campaigns.map((c) => ({
     campaign: c.name,
     strategyType: c.biddingStrategyType ?? "UNKNOWN",
