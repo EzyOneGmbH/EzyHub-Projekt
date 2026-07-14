@@ -1037,30 +1037,26 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         const snapshot = today();
         const results: any[] = [];
 
-        // async:true -> Run-Zeile anlegen, SELBST-Aufruf feuern (eigener HTTP-
-        // Request, überlebt die Trennung), sofort 202 antworten.
-        if (runAsync) {
-          const runId = crypto.randomUUID();
-          await sb.from("ai_visibility_sync_runs").insert({
-            id: runId, status: "queued",
+        // async:true -> Run-Zeile anlegen und IM SELBEN Request weiterarbeiten.
+        // Der Aufrufer trennt nach wenigen Sekunden (Server arbeitet nachweislich
+        // weiter, 2026-07-13 verifiziert) und pollt GET ?run=<id>. Die runId kann
+        // der Aufrufer via Header x-sync-run mitgeben (damit er sie VOR der
+        // Trennung kennt); ohne Header wird eine erzeugt (nur für geduldige
+        // Aufrufer sinnvoll, die die Antwort abwarten).
+        // Hintergrund: Sowohl fire-and-forget als auch Selbst-Aufruf werden vom
+        // Hosting nach der Response eingefroren (beide 2026-07-14 verifiziert
+        // fehlgeschlagen) — nur die Ein-Request-Variante ist zuverlässig.
+        const headerRunId = (request.headers.get("x-sync-run") || "").trim();
+        if (headerRunId && !isUuid(headerRunId))
+          return Response.json({ ok: false, error: "x-sync-run muss eine UUID sein" }, { status: 400 });
+        const syncRunId = headerRunId || (runAsync ? crypto.randomUUID() : "");
+        if (syncRunId) {
+          await sb.from("ai_visibility_sync_runs").upsert({
+            id: syncRunId, status: "running",
             clients: clients.map((x) => String(x.name)),
             params: { client: sel ?? null, all: !!all, jobs: jobs ?? null, mode, months, force: !!force, minIntervalDays, serpKeywords: serpKeywords ?? null },
           });
-          const selfUrl = new URL(request.url);
-          fetch(selfUrl.toString(), {
-            method: "POST",
-            headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json", "x-sync-run": runId },
-            body: JSON.stringify({ ...parsed.data, async: false }),
-          }).catch(() => { /* Aufrufer wartet nicht — Fehler stehen in der Run-Zeile */ });
-          return Response.json(
-            { ok: true, async: true, runId, clients: clients.map((x) => String(x.name)), status: `GET ?run=${runId}` },
-            { status: 202 },
-          );
         }
-
-        // Getriggerter Hintergrund-Lauf? Dann Status in der Run-Zeile pflegen.
-        const syncRunId = request.headers.get("x-sync-run") || "";
-        if (syncRunId) await sb.from("ai_visibility_sync_runs").update({ status: "running" }).eq("id", syncRunId);
 
         // Kernverarbeitung — synchron aufgerufen ODER als Hintergrund-Lauf (async:true).
         const runAll = async () => {
