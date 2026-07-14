@@ -20,6 +20,7 @@ export type AdsApprovalRow = {
 
 export type AdsChangelogRow = {
   id: string;
+  run_id: string;
   action_type: string;
   action_class: string;
   entity: string | null;

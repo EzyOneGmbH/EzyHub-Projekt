@@ -112,7 +112,22 @@ const TYPE_INFO = {
       `Bei Freigabe wird das Gebot von ${a.current_value || "?"} auf ${a.proposed_value || "?"} angepasst. Die Änderung ist jederzeit umkehrbar.`,
   },
 };
-const typeLabel = (t) => TYPE_INFO[t]?.label || t;
+const typeLabel = (t) => TYPE_INFO[t]?.label || FINDING_INFO[t]?.label || t;
+
+// Report-only-Befunde: deutsche Labels + Laien-Erklaerung, was der Befund bedeutet.
+const FINDING_INFO = {
+  brand_is_alert: { label: "Brand-Sichtbarkeit unter Ziel", gruppe: "Sichtbarkeit" },
+  brand_ota_pressure: { label: "OTA-Druck auf Brand", gruppe: "Sichtbarkeit" },
+  qs_weakness: { label: "Schwacher Quality Score", gruppe: "Anzeigen-Qualität" },
+  asset_weakness: { label: "Schwache Anzeigen-Bausteine", gruppe: "Anzeigen-Qualität" },
+  adgroup_anomaly: { label: "Anzeigengruppen-Ausreisser", gruppe: "Struktur" },
+  mom_regression: { label: "Verschlechterung vs. Vormonat", gruppe: "Struktur" },
+  geo_anomaly: { label: "Geld ohne Ertrag (Region)", gruppe: "Streuung" },
+  device_anomaly: { label: "Geräte-Auffälligkeit", gruppe: "Streuung" },
+  negative_conflict: { label: "Ausschluss-Konflikt (nicht umgesetzt)", gruppe: "Suchbegriffe" },
+  tracking_health_alert: { label: "Tracking-Verdacht", gruppe: "Messung" },
+};
+const findingGroup = (t) => FINDING_INFO[t]?.gruppe || "Weitere";
 
 function daysUntil(iso) {
   if (!iso) return null;
@@ -205,8 +220,9 @@ function ApprovalDetailModal({ approval: a, observeOnly, busy, onDecide, onClose
 export default function AdsAutopilotPanel({ selectedClient }) {
   const clientId = selectedClient?.id;
   const { config, approvals, changelog, loading, error, busyId, refresh, decide, runDryRun } =
-    useEzyAdsAutopilot(clientId);
+    useEzyAdsAutopilot(clientId, 80); // Befunde (~15/Lauf) + Eingriffe brauchen mehr als 30 Zeilen
   const [detail, setDetail] = React.useState(null);
+  const [findingDetail, setFindingDetail] = React.useState(null);
 
   if (!clientId) return null;
 
@@ -215,6 +231,19 @@ export default function AdsAutopilotPanel({ selectedClient }) {
   const activeApprovals = approvals.filter(
     (a) => !a.expires_at || new Date(a.expires_at).getTime() > Date.now(),
   );
+
+  // Befunde des letzten Laufs: report-only-Zeilen des juengsten Runs, der
+  // welche hat (gruppiert). Aeltere Laeufe bleiben im Vault-Protokoll.
+  const reportRows = changelog.filter((c) => c.action_class === "report-only" && c.status === "report-only");
+  const latestFindingRun = reportRows.length ? reportRows[0].run_id : null;
+  const findings = reportRows.filter((c) => c.run_id === latestFindingRun);
+  const findingGroups = findings.reduce((m, f) => {
+    const g = findingGroup(f.action_type);
+    (m[g] = m[g] || []).push(f);
+    return m;
+  }, {});
+  // Aenderungs-Log ohne Befunde (zeigt weiterhin nur echte Eingriffe/Queues).
+  const changeRows = changelog.filter((c) => !(c.action_class === "report-only" && c.status === "report-only"));
 
   const autonomyLabel = ["0 - report-only", "1 - Negatives auto", "2 - + Bids auto"][config?.autonomy_level ?? 0];
   const observeOnly = config?.observe_only !== false; // Default sicher: an
@@ -322,6 +351,87 @@ export default function AdsAutopilotPanel({ selectedClient }) {
         </div>
       </div>
 
+      {/* Befunde des letzten Laufs (report-only): dokumentiert, kein Eingriff */}
+      <div style={{ marginTop: 20 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: P.text, marginBottom: 4 }}>
+          Befunde des letzten Laufs ({findings.length})
+        </div>
+        <div style={{ fontSize: 12, color: P.textDim, marginBottom: 8 }}>
+          Beobachtungen aus {latestFindingRun || "-"} — der Autopilot ändert hier nichts automatisch; Details per Klick.
+        </div>
+        {findings.length === 0 && (
+          <div style={{ fontSize: 13, color: P.textDim }}>
+            Noch keine Befunde gespeichert — sie erscheinen ab dem nächsten Lauf.
+          </div>
+        )}
+        {Object.entries(findingGroups).map(([gruppe, rows]) => (
+          <div key={gruppe} style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: P.textMuted, textTransform: "uppercase", letterSpacing: 0.5, margin: "8px 0 6px" }}>
+              {gruppe} ({rows.length})
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {rows.map((f) => (
+                <div
+                  key={f.id}
+                  onClick={() => setFindingDetail(f)}
+                  title="Klicken für Erklärung"
+                  style={{ border: `1px solid ${P.border}`, borderRadius: 8, padding: "8px 12px", cursor: "pointer", display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}
+                >
+                  <Badge color={P.blue} bg={P.blueDim}>{typeLabel(f.action_type)}</Badge>
+                  <span style={{ color: P.text, fontSize: 13, fontWeight: 600 }}>{f.entity || "-"}</span>
+                  <span style={{ color: P.textDim, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 480 }}>
+                    {f.rationale || ""}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {findingDetail && (
+        <div
+          onClick={() => setFindingDetail(null)}
+          style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(10,10,16,0.7)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 14, padding: 20, maxWidth: 560, width: "100%", maxHeight: "85vh", overflowY: "auto" }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+              <div>
+                <Badge color={P.blue} bg={P.blueDim}>{typeLabel(findingDetail.action_type)}</Badge>
+                <div style={{ fontSize: 15, fontWeight: 700, color: P.text, marginTop: 8 }}>{findingDetail.entity || "-"}</div>
+              </div>
+              <button onClick={() => setFindingDetail(null)} style={{ background: "transparent", border: "none", color: P.textMuted, fontSize: 20, cursor: "pointer", lineHeight: 1 }} aria-label="Schliessen">×</button>
+            </div>
+            <div style={{ marginTop: 14 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: P.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Was wurde beobachtet?</div>
+              <div style={{ fontSize: 13, color: P.text, marginTop: 4, lineHeight: 1.55 }}>{findingDetail.rationale || "Keine Begründung hinterlegt."}</div>
+            </div>
+            {(findingDetail.before_value || findingDetail.after_value) && (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: P.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Werte</div>
+                <div style={{ fontSize: 13, color: P.textMuted, marginTop: 4 }}>
+                  {findingDetail.before_value || "-"} {findingDetail.after_value ? <span style={{ color: P.text }}>-&gt; {findingDetail.after_value}</span> : null}
+                </div>
+              </div>
+            )}
+            <div style={{ marginTop: 14 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: P.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Einordnung</div>
+              <div style={{ fontSize: 13, color: P.textMuted, marginTop: 4, lineHeight: 1.55 }}>
+                Reiner Befund aus Lauf {findingDetail.run_id} vom {new Date(findingDetail.created_at).toLocaleDateString("de-CH")} — der
+                Autopilot ändert hier nichts automatisch. Der Punkt fliesst in Report, Vault-Doku und Monats-Audit ein;
+                eine Umsetzung wäre ein manueller Schritt oder ein späterer Freigabe-Vorschlag.
+              </div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}>
+              <Btn onClick={() => setFindingDetail(null)}>Schliessen</Btn>
+            </div>
+          </div>
+        </div>
+      )}
+
       <ApprovalDetailModal
         approval={detail}
         observeOnly={observeOnly}
@@ -337,8 +447,8 @@ export default function AdsAutopilotPanel({ selectedClient }) {
       {/* Changelog */}
       <div style={{ marginTop: 20 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: P.text, marginBottom: 8 }}>Aenderungs-Log</div>
-        {changelog.length === 0 && <div style={{ fontSize: 13, color: P.textDim }}>Noch keine Eintraege.</div>}
-        {changelog.length > 0 && (
+        {changeRows.length === 0 && <div style={{ fontSize: 13, color: P.textDim }}>Noch keine Eintraege.</div>}
+        {changeRows.length > 0 && (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
@@ -351,7 +461,7 @@ export default function AdsAutopilotPanel({ selectedClient }) {
                 </tr>
               </thead>
               <tbody>
-                {changelog.map((c) => (
+                {changeRows.map((c) => (
                   <tr key={c.id} style={{ borderTop: `1px solid ${P.border}`, color: P.textMuted }}>
                     <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>
                       {new Date(c.created_at).toLocaleDateString("de-CH")}

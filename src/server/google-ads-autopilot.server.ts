@@ -1429,6 +1429,14 @@ export async function runAutopilot(clientId: string, opts?: { dryRun?: boolean }
       base.actions.push({ class: a.actionClass, type: a.type, entity: a.entity, status: "pending", rationale: a.rationale });
     } else {
       base.reportOnly += 1;
+      // Befunde sichtbar machen: report-only ab jetzt auch ins Changelog
+      // (EzyHub-Ads-Tab, Abschnitt "Befunde des letzten Laufs").
+      await supabaseAdmin.from("ads_changelog").insert({
+        client_id: clientId, customer_id: customerId, run_id: runId,
+        action_type: a.type, action_class: a.actionClass, entity: a.entity,
+        before_value: a.before, after_value: a.after, rationale: a.rationale,
+        status: "report-only",
+      });
       base.actions.push({ class: a.actionClass, type: a.type, entity: a.entity, status: "report-only", rationale: a.rationale });
     }
   }
