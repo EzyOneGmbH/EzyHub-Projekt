@@ -664,6 +664,9 @@ export function computeGeoDeviceFindings(data: AutopilotData): PlannedAction[] {
             (dev > 0
               ? `Die Region ist ueberdurchschnittlich teuer - Gebotsanpassung oder Ausschluss pruefen.`
               : `Die Region ist ueberdurchschnittlich guenstig - hier liegt ungenutztes Potenzial (Gebot/Budget verstaerken).`),
+          recommendation: dev > 0
+            ? `Standort-Gebotsanpassung fuer "${g.location}" um -15 bis -30% setzen (Kampagnen-Einstellungen > Standorte) und den CPA nach 30 Tagen erneut pruefen; bleibt er ueber +50% zum Konto-Schnitt, Region ausschliessen.`
+            : `Standort-Gebotsanpassung fuer "${g.location}" um +10 bis +20% testen - guenstige Conversions abschoepfen, nach 30 Tagen CPA gegenpruefen.`,
         });
       }
     } else if (g.conversions === 0 && g.costChf > 3 * acctCpa) {
@@ -676,6 +679,8 @@ export function computeGeoDeviceFindings(data: AutopilotData): PlannedAction[] {
         rationale:
           `Die Region "${g.location}" hat in 30 Tagen CHF ${g.costChf.toFixed(2)} gekostet, ohne eine einzige Conversion zu bringen - ` +
           `das ist Werbebudget ohne Gegenwert (Streuverlust). Pruefen, ob die Region bewusst beworben wird (Geo-Targeting), sonst ausschliessen.`,
+        recommendation:
+          `"${g.location}" aus dem Geo-Targeting der betroffenen Kampagnen nehmen (Einstellungen > Standorte), sofern keine bewusste Markterschliessung laeuft - spart ~CHF ${g.costChf.toFixed(0)}/30d ohne Buchungsverlust.`,
       });
     }
   }
@@ -704,6 +709,11 @@ export function computeGeoDeviceFindings(data: AutopilotData): PlannedAction[] {
           (rel > 0
             ? `Nutzer auf diesem Geraet konvertieren deutlich teurer${device === "MOBILE" ? " - haeufigste Ursache ist eine langsame oder unbequeme mobile Website (Mobile-Landing pruefen)" : " - Gebotsanpassung pruefen"}.`
             : `Nutzer auf diesem Geraet konvertieren deutlich guenstiger - Potenzial fuer staerkere Gebote.`),
+        recommendation: rel > 0
+          ? (device === "MOBILE"
+              ? `Zuerst die mobile Landingpage beschleunigen (Ladezeit/LCP - groesster Hebel), parallel mobile Gebotsanpassung -10 bis -20% testen; nach 30 Tagen CPA erneut pruefen.`
+              : `Gebotsanpassung fuer ${device} um -10 bis -20% testen (Kampagnen-Einstellungen > Geraete), nach 30 Tagen CPA erneut pruefen.`)
+          : `Gebotsanpassung fuer ${device} um +10 bis +20% testen - das Geraet liefert guenstige Conversions.`,
       });
     }
   }
@@ -722,6 +732,8 @@ export function computeGeoDeviceFindings(data: AutopilotData): PlannedAction[] {
         rationale:
           `Google bewertet ${n} Anzeigen-Bausteine (Titel/Beschreibungen) in "${ag}" mit der schlechtesten Stufe LOW. ` +
           `Schwache Bausteine druecken die Anzeigenqualitaet und damit die Auslieferung - Kandidat fuer Copy-Refresh (Input fuer /ads plan).`,
+        recommendation:
+          `Die ${n} LOW-Bausteine in "${ag}" ersetzen: neue Titel/Beschreibungen mit konkretem Angebot/USP (z.B. Direktbuchungs-Vorteil, Lage, Familienangebot) formulieren und die schwaechsten zuerst austauschen - Google testet neue Varianten automatisch.`,
       });
     }
   }
@@ -755,6 +767,13 @@ export function computeStructureFindings(data: AutopilotData): PlannedAction[] {
         `Keyword "${k.keyword}" (${k.matchType}): Quality Score ${k.qualityScore}/10 bei CHF ${k.costChf.toFixed(2)}/30d` +
         (parts.length ? ` - Hebel: ${parts.join(", ")}` : "") +
         ` - QS-Verbesserung senkt den CPC direkt (ROAS-Hebel ohne Mehrbudget)`,
+      recommendation: (() => {
+        const todo: string[] = [];
+        if (k.landingPageExperience === "BELOW_AVERAGE") todo.push(`die Zielseite inhaltlich auf "${k.keyword}" ausrichten (Begriff prominent aufnehmen, Ladezeit pruefen)`);
+        if (k.adRelevance === "BELOW_AVERAGE") todo.push(`den Anzeigentext der Ad-Group "${k.adGroup}" naeher ans Keyword bringen (Begriff in Titel/Beschreibung)`);
+        if (k.expectedCtr === "BELOW_AVERAGE") todo.push(`Titel/CTA schaerfen (konkreter Nutzen statt generischer Aussage)`);
+        return (todo.length ? `Zuerst ${todo.join("; danach ")}.` : `Anzeigentext und Zielseite auf das Keyword ausrichten.`) + ` Ziel: QS >= 6 - jeder Punkt senkt den Klickpreis spuerbar.`;
+      })(),
     });
   }
 
@@ -773,6 +792,8 @@ export function computeStructureFindings(data: AutopilotData): PlannedAction[] {
             before: "",
             after: "",
             rationale: `Ad-Group "${g.adGroup}": CPA CHF ${cpa.toFixed(2)} (+${(dev * 100).toFixed(0)}% vs Konto-CPA ${acctCpa.toFixed(2)}) bei ${g.conversions.toFixed(0)} Conv./30d - Split/Ausschluss oder Gebots-Review pruefen`,
+            recommendation:
+              `NICHT pausieren (die Gruppe bringt Buchungen). Stattdessen: Suchbegriffsbericht der Ad-Group durchgehen und unpassende Begriffe ausschliessen; bleibt der CPA danach hoch, Gebot ca. -15% absenken. Re-Check in 3 Wochen.`,
           });
         }
       } else if (g.conversions === 0 && g.costChf > 3 * acctCpa) {
@@ -783,6 +804,8 @@ export function computeStructureFindings(data: AutopilotData): PlannedAction[] {
           before: "",
           after: "",
           rationale: `Ad-Group "${g.adGroup}": CHF ${g.costChf.toFixed(2)} ohne Conversions (30d) - Relevanz/Suchbegriffe pruefen`,
+          recommendation:
+            `Suchbegriffsbericht pruefen: unpassende Suchanfragen ausschliessen und zu breite Keywords auf Phrase/Exact verengen. Bringt die Gruppe danach weiterhin keine Buchung, Pausierung erwaegen - das Budget arbeitet in den konvertierenden Gruppen besser.`,
         });
       }
     }
@@ -804,6 +827,8 @@ export function computeStructureFindings(data: AutopilotData): PlannedAction[] {
           rationale:
             `${m.campaign} (${m.channelType}): ROAS ${m.roasPrev.toFixed(1)} -> ${m.roas.toFixed(1)} (${(delta * 100).toFixed(0)}%), ` +
             `Kosten CHF ${m.costPrev.toFixed(0)} -> ${m.cost.toFixed(0)}, Conv. ${m.conversionsPrev.toFixed(0)} -> ${m.conversions.toFixed(0)} - Ursache pruefen (Aenderungsverlauf, Saison, Wettbewerb)`,
+          recommendation:
+            `Erst Ursache klaeren, dann handeln: (1) Aenderungsverlauf um den Einbruch pruefen (wer hat was geaendert?), (2) Saison-/Nachfrage-Effekt gegenpruefen, (3) danach gezielt gegensteuern (Gebote/Budget/Assets) - nicht vorschnell umbauen, sonst ist die Ursache nicht mehr messbar.`,
         });
       }
     } else if (m.roasPrev != null && m.roasPrev > 0 && (m.roas == null || m.cost === 0)) {
@@ -814,6 +839,8 @@ export function computeStructureFindings(data: AutopilotData): PlannedAction[] {
         before: `aktiv (Vormonat: CHF ${m.costPrev.toFixed(0)}, ROAS ${m.roasPrev.toFixed(1)})`,
         after: "kein Spend im aktuellen 30d-Fenster",
         rationale: `${m.campaign} (${m.channelType}): lief im Vormonat (CHF ${m.costPrev.toFixed(0)}, ${m.conversionsPrev.toFixed(0)} Conv.), aktuell ohne Spend - pausiert oder budgetlos? Aenderungsverlauf pruefen`,
+        recommendation:
+          `Klaeren, ob die Kampagne bewusst gestoppt wurde (Aenderungsverlauf). Falls nicht: Status/Budget wiederherstellen - im Vormonat hat sie mit ROAS ${m.roasPrev != null ? m.roasPrev.toFixed(1) : "?"} geliefert.`,
       });
     }
   }
@@ -859,6 +886,10 @@ export function computeBrandOtaFindings(data: AutopilotData, cfg: AutopilotConfi
         (absTop != null ? ` und steht nur in ${(absTop * 100).toFixed(0)}% ganz oben (Absolute Top)` : "") +
         `.${split} Jede verpasste Marken-Suche kann bei einem Buchungsportal landen und kostet dann Kommission. ` +
         `Wer verdraengt, zeigt die Ads-UI unter Insights > Auktionsdaten (via API nicht verfuegbar).`,
+      recommendation:
+        rankPct != null && rankPct > budgetPct
+          ? `Hebel Gebot/Qualitaet: Gebote der Brand-Keywords leicht anheben und Anzeigen mit Markenname + Direktbuchungs-Vorteil (Bestpreis) staerken - mehr Budget allein schliesst die Luecke hier nicht (nur ${budgetPct}pp Budget-Verlust).`
+          : `Hebel Budget: Tagesbudget der Kampagne "${c.name}" anheben (${budgetPct} Prozentpunkte der verpassten Marken-Suchen gehen aufs Budget) - der zugehoerige Budget-Vorschlag liegt jeweils in der Freigabe-Queue.`,
     });
   }
 
@@ -875,6 +906,8 @@ export function computeBrandOtaFindings(data: AutopilotData, cfg: AutopilotConfi
         `Das Buchungsportal "${o.domain}" bietet auf die eigenen Marken-Suchanfragen mit: Es erscheint in ${o.overlapRate != null ? (o.overlapRate * 100).toFixed(0) + "%" : "n/a"} derselben Auktionen (Overlap ${o.overlapRate != null ? (o.overlapRate * 100).toFixed(0) + "%" : "n/a"}) ` +
         `und steht in ${o.outrankingShare != null ? (o.outrankingShare * 100).toFixed(0) + "%" : "n/a"} davon ueber der eigenen Anzeige (Outranking). ` +
         `Jeder Gast, der so beim Portal statt direkt bucht, kostet spaeter Kommission - Brand-Sichtbarkeit verteidigen lohnt sich doppelt.`,
+      recommendation:
+        `Brand verteidigen: eigene Marken-Keywords exakt (Exact Match) abdecken, Sitelinks/Erweiterungen ausbauen und den Direktbuchungs-Vorteil (Bestpreis, flexible Storno) prominent in den Anzeigentext nehmen.`,
     });
   }
   return out;
@@ -909,6 +942,7 @@ export type PlannedAction = {
   before: string;
   after: string;
   rationale: string;
+  recommendation?: string; // Befunde: konkrete Empfehlungs-Massnahme fuer den Menschen
   estimatedImpact?: string;
   exec?:
     | { kind: "negative"; campaign: string; term: string }
@@ -1181,7 +1215,7 @@ export type AutopilotRunSummary = {
   // Phase 2: Kandidaten fuer semantische Negatives (Kosten > 0, 0 Conv. im
   // Lag-Fenster, NICHT von der Kostenregel erfasst; max 200 nach Kosten).
   semanticCandidates?: Array<{ term: string; campaign: string; adGroup: string; costChf: number; clicks: number }>;
-  actions: Array<{ class: string; type: string; entity: string; status: string; rationale: string }>;
+  actions: Array<{ class: string; type: string; entity: string; status: string; rationale: string; recommendation?: string }>;
 };
 
 function slugify(s: string): string {
@@ -1435,9 +1469,10 @@ export async function runAutopilot(clientId: string, opts?: { dryRun?: boolean }
         client_id: clientId, customer_id: customerId, run_id: runId,
         action_type: a.type, action_class: a.actionClass, entity: a.entity,
         before_value: a.before, after_value: a.after, rationale: a.rationale,
+        recommendation: a.recommendation ?? null,
         status: "report-only",
       });
-      base.actions.push({ class: a.actionClass, type: a.type, entity: a.entity, status: "report-only", rationale: a.rationale });
+      base.actions.push({ class: a.actionClass, type: a.type, entity: a.entity, status: "report-only", rationale: a.rationale, recommendation: a.recommendation });
     }
   }
   return base;

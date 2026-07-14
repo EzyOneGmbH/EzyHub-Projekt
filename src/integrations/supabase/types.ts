@@ -176,6 +176,7 @@ export type Database = {
           entity: string | null
           id: string
           rationale: string | null
+          recommendation: string | null
           run_id: string
           status: string
         }
@@ -191,6 +192,7 @@ export type Database = {
           entity?: string | null
           id?: string
           rationale?: string | null
+          recommendation?: string | null
           run_id: string
           status?: string
         }
@@ -206,6 +208,7 @@ export type Database = {
           entity?: string | null
           id?: string
           rationale?: string | null
+          recommendation?: string | null
           run_id?: string
           status?: string
         }

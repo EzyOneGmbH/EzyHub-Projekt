@@ -382,6 +382,11 @@ export default function AdsAutopilotPanel({ selectedClient }) {
                   <span style={{ color: P.textDim, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 480 }}>
                     {f.rationale || ""}
                   </span>
+                  {f.recommendation && (
+                    <span style={{ flexBasis: "100%", color: P.green, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      → {f.recommendation}
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
@@ -417,6 +422,13 @@ export default function AdsAutopilotPanel({ selectedClient }) {
                 </div>
               </div>
             )}
+            <div style={{ marginTop: 14 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: P.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Empfohlene Massnahme</div>
+              <div style={{ fontSize: 13, color: P.green, marginTop: 4, lineHeight: 1.55 }}>
+                {findingDetail.recommendation ||
+                  "Für diesen Befund wurde noch keine Massnahme formuliert (Lauf vor der Umstellung) — der nächste Lauf liefert sie mit."}
+              </div>
+            </div>
             <div style={{ marginTop: 14 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: P.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Einordnung</div>
               <div style={{ fontSize: 13, color: P.textMuted, marginTop: 4, lineHeight: 1.55 }}>

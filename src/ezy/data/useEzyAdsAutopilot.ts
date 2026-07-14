@@ -27,6 +27,7 @@ export type AdsChangelogRow = {
   before_value: string | null;
   after_value: string | null;
   rationale: string | null;
+  recommendation: string | null;
   status: string;
   created_at: string;
 };
