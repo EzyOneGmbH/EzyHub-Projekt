@@ -167,7 +167,7 @@ function ModelDistribution({ models }) {
 function TrendCard({ data }) {
   return (
     <div className="rounded-xl border p-5" style={CARD}>
-      <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Entwicklung · 6 Monate</h3>
+      <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Entwicklung · 12 Monate</h3>
       <div className="mt-3" style={{ height: 200 }}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>

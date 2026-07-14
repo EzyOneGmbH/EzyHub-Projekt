@@ -128,12 +128,15 @@ export async function loadAIVisibility(
     fetchAllPromptRows(rep.id),
     sb.from("ai_visibility_sources").select("*").eq("report_id", rep.id).order("mentions", { ascending: false }),
     sb.from("ai_visibility_attribution").select("*").eq("report_id", rep.id).order("sessions", { ascending: false }),
+    // Trend: genug Reports fuer 12 MONATE laden (taegliche Snapshots + rueck-
+    // datierte Backfill-Monate); Monats-Aggregation passiert unten in JS.
     sb
       .from("ai_visibility_reports")
       .select("snapshot_date, mentions, citations, cited_pages")
       .eq("client_id", clientId)
+      .gte("snapshot_date", new Date(Date.now() - 370 * 864e5).toISOString().slice(0, 10))
       .order("snapshot_date", { ascending: false })
-      .limit(6),
+      .limit(1000),
     sb.from("ai_visibility_sov").select("*").eq("report_id", rep.id).order("share", { ascending: false }),
   ]);
   const modelRows = models.data ?? [];
@@ -166,15 +169,24 @@ export async function loadAIVisibility(
       citations: kpi(Number(rep.citations ?? 0), Number(rep.citations_delta ?? 0)),
       citedPages: kpi(Number(rep.cited_pages ?? 0), Number(rep.cited_pages_delta ?? 0)),
     },
-    trend: (history.data ?? [])
-      .slice()
-      .reverse() // chronologisch
-      .map((h: any) => ({
-        m: monShort(String(h.snapshot_date)),
-        mentions: Number(h.mentions ?? 0),
-        citations: Number(h.citations ?? 0),
-        pages: Number(h.cited_pages ?? 0),
-      })),
+    // Monats-Trend (12 Monate): je Monat der NEUESTE Report (Reports kommen
+    // snapshot_date-absteigend -> erster Treffer je Monat gewinnt).
+    trend: (() => {
+      const perMonth = new Map<string, any>();
+      for (const h of history.data ?? []) {
+        const key = String(h.snapshot_date).slice(0, 7); // YYYY-MM
+        if (!perMonth.has(key)) perMonth.set(key, h);
+      }
+      return [...perMonth.entries()]
+        .sort(([a], [b]) => a.localeCompare(b)) // chronologisch
+        .slice(-12)
+        .map(([, h]: [string, any]) => ({
+          m: monShort(String(h.snapshot_date)),
+          mentions: Number(h.mentions ?? 0),
+          citations: Number(h.citations ?? 0),
+          pages: Number(h.cited_pages ?? 0),
+        }));
+    })(),
     models: modelRows.map((m: any) => ({
       name: String(m.model_name ?? ""),
       layer: m.layer === "custom" ? "custom" : "macro",
