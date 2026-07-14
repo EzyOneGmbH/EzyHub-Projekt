@@ -122,6 +122,7 @@ export async function exchangeCode(code: string): Promise<TokenResponse> {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
+    signal: AbortSignal.timeout(20_000),
   });
   if (!res.ok) {
     const t = await res.text().catch(() => "");
@@ -142,6 +143,9 @@ export async function refreshAccessToken(refreshToken: string): Promise<TokenRes
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
+    // Ohne Timeout kann ein hängender Token-Refresh GANZE Sync-Läufe endlos
+    // blockieren (beobachtet 2026-07-13/14: aivis-sync für Ezy Hotel hing >40min).
+    signal: AbortSignal.timeout(20_000),
   });
   if (!res.ok) {
     const t = await res.text().catch(() => "");
