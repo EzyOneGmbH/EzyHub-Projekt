@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SetPasswordRouteImport } from './routes/set-password'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as HealthRouteImport } from './routes/health'
@@ -72,6 +73,7 @@ import { Route as ApiAdminTeamRouteImport } from './routes/api/admin.team'
 import { Route as ApiAdminSetCanonryProjectRouteImport } from './routes/api/admin.set-canonry-project'
 import { Route as ApiAdminRankSnapshotRouteImport } from './routes/api/admin.rank-snapshot'
 import { Route as ApiAdminPopulateRouteImport } from './routes/api/admin.populate'
+import { Route as ApiAdminOnboardingSnapshotRouteImport } from './routes/api/admin.onboarding-snapshot'
 import { Route as ApiAdminGtmRouteImport } from './routes/api/admin.gtm'
 import { Route as ApiAdminGbpRouteImport } from './routes/api/admin.gbp'
 import { Route as ApiAdminEwwwProvisionRouteImport } from './routes/api/admin.ewww-provision'
@@ -112,6 +114,11 @@ const SignupRoute = SignupRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SetPasswordRoute = SetPasswordRouteImport.update({
+  id: '/set-password',
+  path: '/set-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const McpRoute = McpRouteImport.update({
@@ -420,6 +427,12 @@ const ApiAdminPopulateRoute = ApiAdminPopulateRouteImport.update({
   path: '/api/admin/populate',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminOnboardingSnapshotRoute =
+  ApiAdminOnboardingSnapshotRouteImport.update({
+    id: '/api/admin/onboarding-snapshot',
+    path: '/api/admin/onboarding-snapshot',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAdminGtmRoute = ApiAdminGtmRouteImport.update({
   id: '/api/admin/gtm',
   path: '/api/admin/gtm',
@@ -571,6 +584,7 @@ export interface FileRoutesByFullPath {
   '/health': typeof HealthRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
+  '/set-password': typeof SetPasswordRoute
   '/settings': typeof SettingsRouteWithChildren
   '/signup': typeof SignupRoute
   '/tasks': typeof TasksRouteWithChildren
@@ -604,6 +618,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
+  '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
@@ -662,6 +677,7 @@ export interface FileRoutesByTo {
   '/health': typeof HealthRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
+  '/set-password': typeof SetPasswordRoute
   '/settings': typeof SettingsRouteWithChildren
   '/signup': typeof SignupRoute
   '/tasks': typeof TasksRouteWithChildren
@@ -695,6 +711,7 @@ export interface FileRoutesByTo {
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
+  '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
@@ -754,6 +771,7 @@ export interface FileRoutesById {
   '/health': typeof HealthRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
+  '/set-password': typeof SetPasswordRoute
   '/settings': typeof SettingsRouteWithChildren
   '/signup': typeof SignupRoute
   '/tasks': typeof TasksRouteWithChildren
@@ -787,6 +805,7 @@ export interface FileRoutesById {
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
+  '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
@@ -847,6 +866,7 @@ export interface FileRouteTypes {
     | '/health'
     | '/login'
     | '/mcp'
+    | '/set-password'
     | '/settings'
     | '/signup'
     | '/tasks'
@@ -880,6 +900,7 @@ export interface FileRouteTypes {
     | '/api/admin/ewww-provision'
     | '/api/admin/gbp'
     | '/api/admin/gtm'
+    | '/api/admin/onboarding-snapshot'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
     | '/api/admin/set-canonry-project'
@@ -938,6 +959,7 @@ export interface FileRouteTypes {
     | '/health'
     | '/login'
     | '/mcp'
+    | '/set-password'
     | '/settings'
     | '/signup'
     | '/tasks'
@@ -971,6 +993,7 @@ export interface FileRouteTypes {
     | '/api/admin/ewww-provision'
     | '/api/admin/gbp'
     | '/api/admin/gtm'
+    | '/api/admin/onboarding-snapshot'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
     | '/api/admin/set-canonry-project'
@@ -1029,6 +1052,7 @@ export interface FileRouteTypes {
     | '/health'
     | '/login'
     | '/mcp'
+    | '/set-password'
     | '/settings'
     | '/signup'
     | '/tasks'
@@ -1062,6 +1086,7 @@ export interface FileRouteTypes {
     | '/api/admin/ewww-provision'
     | '/api/admin/gbp'
     | '/api/admin/gtm'
+    | '/api/admin/onboarding-snapshot'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
     | '/api/admin/set-canonry-project'
@@ -1121,6 +1146,7 @@ export interface RootRouteChildren {
   HealthRoute: typeof HealthRoute
   LoginRoute: typeof LoginRoute
   McpRoute: typeof McpRoute
+  SetPasswordRoute: typeof SetPasswordRoute
   SettingsRoute: typeof SettingsRouteWithChildren
   SignupRoute: typeof SignupRoute
   TasksRoute: typeof TasksRouteWithChildren
@@ -1150,6 +1176,7 @@ export interface RootRouteChildren {
   ApiAdminEwwwProvisionRoute: typeof ApiAdminEwwwProvisionRoute
   ApiAdminGbpRoute: typeof ApiAdminGbpRoute
   ApiAdminGtmRoute: typeof ApiAdminGtmRoute
+  ApiAdminOnboardingSnapshotRoute: typeof ApiAdminOnboardingSnapshotRoute
   ApiAdminPopulateRoute: typeof ApiAdminPopulateRoute
   ApiAdminRankSnapshotRoute: typeof ApiAdminRankSnapshotRoute
   ApiAdminSetCanonryProjectRoute: typeof ApiAdminSetCanonryProjectRoute
@@ -1219,6 +1246,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/set-password': {
+      id: '/set-password'
+      path: '/set-password'
+      fullPath: '/set-password'
+      preLoaderRoute: typeof SetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mcp': {
@@ -1641,6 +1675,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminPopulateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/onboarding-snapshot': {
+      id: '/api/admin/onboarding-snapshot'
+      path: '/api/admin/onboarding-snapshot'
+      fullPath: '/api/admin/onboarding-snapshot'
+      preLoaderRoute: typeof ApiAdminOnboardingSnapshotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/gtm': {
       id: '/api/admin/gtm'
       path: '/api/admin/gtm'
@@ -1882,6 +1923,7 @@ const rootRouteChildren: RootRouteChildren = {
   HealthRoute: HealthRoute,
   LoginRoute: LoginRoute,
   McpRoute: McpRoute,
+  SetPasswordRoute: SetPasswordRoute,
   SettingsRoute: SettingsRouteWithChildren,
   SignupRoute: SignupRoute,
   TasksRoute: TasksRouteWithChildren,
@@ -1912,6 +1954,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminEwwwProvisionRoute: ApiAdminEwwwProvisionRoute,
   ApiAdminGbpRoute: ApiAdminGbpRoute,
   ApiAdminGtmRoute: ApiAdminGtmRoute,
+  ApiAdminOnboardingSnapshotRoute: ApiAdminOnboardingSnapshotRoute,
   ApiAdminPopulateRoute: ApiAdminPopulateRoute,
   ApiAdminRankSnapshotRoute: ApiAdminRankSnapshotRoute,
   ApiAdminSetCanonryProjectRoute: ApiAdminSetCanonryProjectRoute,
