@@ -130,6 +130,59 @@ const FINDING_INFO = {
 };
 const findingGroup = (t) => FINDING_INFO[t]?.gruppe || "Weitere";
 
+// Offene Massnahmen (Empfehlungen): deutsches Label + Laien-Erklaerung je Typ -
+// WAS ist das Problem (Problemklasse) und WAS ist generell zu tun (Massnahmenart).
+// Der konkrete Fall steht zusaetzlich in rationale/expected_impact der Empfehlung.
+const RECO_INFO = {
+  bid_target_adjustment: {
+    label: "Gebotsziel anpassen",
+    problem: "Das hinterlegte Ziel der automatischen Gebotssteuerung (Ziel-ROAS oder Ziel-CPA) passt nicht zur tatsächlichen Leistung: Ein zu ehrgeiziges Ziel drosselt die Auslieferung, ein zu lasches verschenkt Effizienz.",
+    todo: "Das Ziel in den Gebotsstrategie-Einstellungen der Kampagne in die vorgeschlagene Richtung anpassen und die Wirkung 2–3 Wochen beobachten. Die Strategie selbst NICHT wechseln.",
+  },
+  bid_strategy_change: {
+    label: "Gebotsstrategie prüfen",
+    problem: "Die gewählte Gebotsstrategie passt nicht zur Datenlage oder Zielsetzung (z. B. Wert-Optimierung ohne Conversion-Werte, oder Optimierung auf Anzahl statt auf Wert).",
+    todo: "Einen Strategie-Wechsel prüfen — kein Muss. Achtung: Jeder Wechsel wirft die Kampagne in die Lernphase zurück, also nur mit klarem Test und Messfenster umsetzen.",
+  },
+  bid_signal_gap: {
+    label: "Fehlendes Optimierungssignal",
+    problem: "Der automatischen Gebotssteuerung fehlt die Datengrundlage: zu wenige Conversions, fehlende Conversion-Werte oder ein Tracking-Problem. Ohne Signal optimiert das System praktisch blind.",
+    todo: "Zuerst die Ursache beheben (Conversion-Setup/Tracking prüfen, Kampagnen-Struktur verengen), BEVOR an den Geboten gedreht wird.",
+  },
+  asset_replace: {
+    label: "Anzeigentext austauschen",
+    problem: "Anzeigenbausteine (Titel/Beschreibungen) sind von Google als schwach bewertet — das drückt die Anzeigenqualität und damit die Auslieferung.",
+    todo: "Die genannten schwachen Texte durch die vorgeschlagenen Alternativen ersetzen (Google-Ads-Oberfläche/Editor). Google testet neue Varianten automatisch aus.",
+  },
+  asset_coverage: {
+    label: "Fehlende Anzeigen/Assets",
+    problem: "Einer Anzeigengruppe fehlt eine aktive Anzeige oder einer Performance-Max-Gruppe fehlt ein Asset-Typ (z. B. Video). Dann liefert Google weniger aus oder generiert selbst Ersatz.",
+    todo: "Die fehlende Anzeige bzw. den fehlenden Asset-Typ ergänzen.",
+  },
+  asset_pinning: {
+    label: "Über-Pinning lösen",
+    problem: "Zu viele fixierte (gepinnte) Positionen nehmen Google die Flexibilität, die beste Kombination auszuspielen — das kann die Anzeigenqualität senken.",
+    todo: "Nicht zwingende Pins lösen; nur die wirklich schützenswerte Botschaft fixiert lassen.",
+  },
+  keyword_add: {
+    label: "Keyword-Lücke schliessen",
+    problem: "Es gibt Suchbegriffe mit echter Nachfrage (Volumen belegt), für die keine passende Anzeige läuft — das sind verschenkte Buchungen.",
+    todo: "Das Keyword in der passenden Anzeigengruppe mit sinnvollem Match-Type ergänzen. Die Forecast-Zahlen sind Schätzwerte, kein garantierter Ertrag.",
+  },
+  keyword_pause: {
+    label: "Keyword pausieren",
+    problem: "Ein Keyword kostet über seine gesamte Laufzeit dauerhaft Geld, ohne eine einzige Buchung zu bringen — belegter Streuverlust.",
+    todo: "Das Keyword pausieren (nicht löschen, damit die Historie erhalten bleibt). Das Budget arbeitet dann in den konvertierenden Keywords.",
+  },
+  keyword_match_change: {
+    label: "Match-Type / Kannibalisierung",
+    problem: "Derselbe Suchbegriff läuft über mehrere Kampagnen/Gruppen (die Kampagnen überbieten sich gegenseitig) oder ein zu breiter Match-Type zieht unpassende Anfragen an.",
+    todo: "Match-Types verengen bzw. den Begriff eindeutig einer Kampagne zuordnen (ggf. gegenseitige Ausschlüsse setzen).",
+  },
+  other: { label: "Massnahme", problem: "", todo: "Siehe Begründung und vorgeschlagene Massnahme." },
+};
+const recoLabel = (t) => RECO_INFO[t]?.label || t;
+
 function daysUntil(iso) {
   if (!iso) return null;
   return Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000);
@@ -224,6 +277,7 @@ export default function AdsAutopilotPanel({ selectedClient }) {
     useEzyAdsAutopilot(clientId, 80); // Befunde (~15/Lauf) + Eingriffe brauchen mehr als 30 Zeilen
   const [detail, setDetail] = React.useState(null);
   const [findingDetail, setFindingDetail] = React.useState(null);
+  const [recoDetail, setRecoDetail] = React.useState(null);
 
   if (!clientId) return null;
 
@@ -366,23 +420,30 @@ export default function AdsAutopilotPanel({ selectedClient }) {
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {recommendations.map((r) => (
-            <div key={r.id} style={{ border: `1px solid ${P.border}`, borderRadius: 10, padding: 12 }}>
+            <div
+              key={r.id}
+              onClick={() => setRecoDetail(r)}
+              title="Klicken für Erklärung: Problem & was zu tun ist"
+              style={{ border: `1px solid ${P.border}`, borderRadius: 10, padding: 12, cursor: "pointer" }}
+            >
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                    <Badge color={P.green} bg={P.greenDim}>{r.recommendation_type}</Badge>
+                    <Badge color={P.green} bg={P.greenDim}>{recoLabel(r.recommendation_type)}</Badge>
                     <span style={{ color: P.text, fontWeight: 600, fontSize: 14 }}>{r.title}</span>
                   </div>
                   <div style={{ fontSize: 12, color: P.textMuted, marginTop: 4 }}>{r.entity}</div>
-                  {r.rationale && <div style={{ fontSize: 12, color: P.textDim, marginTop: 4 }}>{r.rationale}</div>}
+                  {RECO_INFO[r.recommendation_type]?.problem && (
+                    <div style={{ fontSize: 12, color: P.textDim, marginTop: 4 }}>
+                      {RECO_INFO[r.recommendation_type].problem}
+                    </div>
+                  )}
                   {r.expected_impact && (
                     <div style={{ fontSize: 12, color: P.accent, marginTop: 4 }}>Erwartet: {r.expected_impact}</div>
                   )}
-                  <div style={{ fontSize: 11, color: P.textDim, marginTop: 4 }}>
-                    Erstmals: {new Date(r.created_at).toLocaleDateString("de-CH")} · zuletzt gesehen: {r.last_seen_run}
-                  </div>
+                  <div style={{ fontSize: 11, color: P.textDim, marginTop: 6 }}>Klicken für Erklärung &amp; Details</div>
                 </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }} onClick={(e) => e.stopPropagation()}>
                   <Btn
                     variant="approve"
                     disabled={busyId === r.id}
@@ -411,6 +472,91 @@ export default function AdsAutopilotPanel({ selectedClient }) {
           ))}
         </div>
       </div>
+
+      {recoDetail && (
+        <div
+          onClick={() => setRecoDetail(null)}
+          style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(10,10,16,0.7)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 14, padding: 20, maxWidth: 580, width: "100%", maxHeight: "85vh", overflowY: "auto" }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+              <div>
+                <Badge color={P.green} bg={P.greenDim}>{recoLabel(recoDetail.recommendation_type)}</Badge>
+                <div style={{ fontSize: 15, fontWeight: 700, color: P.text, marginTop: 8 }}>{recoDetail.title}</div>
+                <div style={{ fontSize: 12, color: P.textMuted, marginTop: 4 }}>{recoDetail.entity}</div>
+              </div>
+              <button onClick={() => setRecoDetail(null)} style={{ background: "transparent", border: "none", color: P.textMuted, fontSize: 20, cursor: "pointer", lineHeight: 1 }} aria-label="Schliessen">×</button>
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: P.orange, textTransform: "uppercase", letterSpacing: 0.5 }}>Was ist das Problem?</div>
+              <div style={{ fontSize: 13, color: P.text, marginTop: 4, lineHeight: 1.55 }}>
+                {RECO_INFO[recoDetail.recommendation_type]?.problem || "—"}
+              </div>
+            </div>
+            <div style={{ marginTop: 14 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: P.green, textTransform: "uppercase", letterSpacing: 0.5 }}>Was ist zu tun?</div>
+              <div style={{ fontSize: 13, color: P.text, marginTop: 4, lineHeight: 1.55 }}>
+                {RECO_INFO[recoDetail.recommendation_type]?.todo || "Siehe vorgeschlagene Massnahme."}
+              </div>
+              <div style={{ fontSize: 13, color: P.textMuted, marginTop: 6, lineHeight: 1.55 }}>
+                <b style={{ color: P.text }}>Konkret hier:</b> {recoDetail.title}
+              </div>
+            </div>
+            {recoDetail.rationale && (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: P.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Begründung & Datenlage</div>
+                <div style={{ fontSize: 13, color: P.textDim, marginTop: 4, lineHeight: 1.55 }}>{recoDetail.rationale}</div>
+              </div>
+            )}
+            {recoDetail.expected_impact && (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: P.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Erwartete Wirkung</div>
+                <div style={{ fontSize: 13, color: P.accent, marginTop: 4, lineHeight: 1.55 }}>{recoDetail.expected_impact}</div>
+              </div>
+            )}
+            <div style={{ marginTop: 14 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: P.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Herkunft & Ablauf</div>
+              <div style={{ fontSize: 13, color: P.textMuted, marginTop: 4, lineHeight: 1.55 }}>
+                Erstmals erkannt am {new Date(recoDetail.created_at).toLocaleDateString("de-CH")}, zuletzt bestätigt im Lauf {recoDetail.last_seen_run}.
+                Die Umsetzung ist manuell — der Autopilot ändert hier nichts. Nach der Umsetzung „Umgesetzt" markieren, dann misst der
+                Autopilot die Wirkung (14/30 Tage) und weist ein Ergebnis aus.
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 18 }}>
+              <Btn onClick={() => setRecoDetail(null)}>Schliessen</Btn>
+              <Btn
+                variant="reject"
+                disabled={busyId === recoDetail.id}
+                onClick={async () => {
+                  const note = window.prompt("Verworfen — warum? (Pflicht fuer den Verlauf):", "");
+                  if (note === null) return;
+                  await markRecommendation(recoDetail.id, "dismissed", note || undefined);
+                  setRecoDetail(null);
+                }}
+              >
+                Verworfen
+              </Btn>
+              <Btn
+                variant="approve"
+                disabled={busyId === recoDetail.id}
+                onClick={async () => {
+                  const note = window.prompt("Umgesetzt — optionale Notiz (was/wann):", "");
+                  if (note === null) return;
+                  await markRecommendation(recoDetail.id, "implemented", note || undefined);
+                  setRecoDetail(null);
+                }}
+              >
+                {busyId === recoDetail.id ? "..." : "Umgesetzt"}
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Befunde des letzten Laufs (report-only): dokumentiert, kein Eingriff */}
       <div style={{ marginTop: 20 }}>
