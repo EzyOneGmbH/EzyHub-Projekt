@@ -8825,6 +8825,206 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Team-/Mitarbeiter-Verwaltung (RBAC, 2026-07-15). Nur SuperAdmin(owner)/admin.
+// Mitarbeiter (role member) sehen NUR zugewiesene Kunden (RLS) und koennen keine
+// Kunden-Einstellungen aendern. Anlage nur hier (kein Self-Signup).
+// ─────────────────────────────────────────────────────────────────────────────
+function TeamPage({ clients }) {
+  const toast = useToast();
+  const { role: myRole } = useAuth();
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("member");
+  const [busy, setBusy] = useState(false);
+  const [expanded, setExpanded] = useState(null); // userId, dessen Kunden-Zuweisung offen ist
+  const [draftAccess, setDraftAccess] = useState(new Set());
+
+  const callTeam = useCallback(async (body) => {
+    const token = (await supabase.auth.getSession()).data.session?.access_token;
+    const r = await fetch("/api/admin/team", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token || ""}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return r.json().catch(() => ({ error: "Antwort ungültig" }));
+  }, []);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const j = await callTeam({ action: "list" });
+    if (j.ok) setUsers(j.users || []);
+    else toast(j.error || "Laden fehlgeschlagen", "error");
+    setLoading(false);
+  }, [callTeam, toast]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const invite = async () => {
+    if (!inviteEmail.trim()) return;
+    setBusy(true);
+    const j = await callTeam({ action: "invite", email: inviteEmail.trim(), role: inviteRole });
+    setBusy(false);
+    if (j.ok) {
+      toast(`Einladung an ${inviteEmail} gesendet`, "success");
+      setInviteEmail("");
+      await load();
+    } else toast(j.error || "Einladung fehlgeschlagen", "error");
+  };
+  const setRole = async (userId, r) => {
+    const j = await callTeam({ action: "setRole", userId, role: r });
+    if (j.ok) { toast("Rolle aktualisiert", "success"); await load(); }
+    else toast(j.error || "Fehlgeschlagen", "error");
+  };
+  const remove = async (userId, email) => {
+    if (!window.confirm(`${email || "Nutzer"} aus dem Team entfernen?`)) return;
+    const j = await callTeam({ action: "remove", userId });
+    if (j.ok) { toast("Entfernt", "success"); await load(); }
+    else toast(j.error || "Fehlgeschlagen", "error");
+  };
+  const openAssign = (u) => {
+    setExpanded(u.userId);
+    setDraftAccess(new Set(u.clientIds || []));
+  };
+  const saveAssign = async (userId) => {
+    setBusy(true);
+    const j = await callTeam({ action: "assign", userId, clientIds: [...draftAccess] });
+    setBusy(false);
+    if (j.ok) { toast(`${j.assigned} Kunden zugewiesen`, "success"); setExpanded(null); await load(); }
+    else toast(j.error || "Fehlgeschlagen", "error");
+  };
+  const roleLabel = { owner: "SuperAdmin", admin: "Admin", member: "Mitarbeiter", viewer: "Nur-Lesen" };
+  const roleColor = { owner: C.pink, admin: C.accent, member: C.green, viewer: C.textDim };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div>
+        <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Team</h2>
+        <p style={{ fontSize: 12, color: C.textMuted, margin: "4px 0 0" }}>
+          Mitarbeiter anlegen und pro Kunde freischalten. Mitarbeiter sehen nur zugewiesene Kunden
+          und können keine Kunden-Einstellungen ändern.
+        </p>
+      </div>
+
+      {/* Einladen */}
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Mitarbeiter einladen</div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <Inp label="E-Mail" value={inviteEmail} onChange={setInviteEmail} placeholder="mitarbeiter@firma.ch" />
+          </div>
+          <div style={{ minWidth: 160 }}>
+            <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>Rolle</div>
+            <select
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value)}
+              style={{ width: "100%", padding: "9px 10px", borderRadius: 8, background: C.surface, color: C.text, border: `1px solid ${C.border}`, fontSize: 13 }}
+            >
+              <option value="member">Mitarbeiter (Audits + zugewiesene Kunden)</option>
+              <option value="viewer">Nur-Lesen (zugewiesene Kunden)</option>
+              {myRole === "owner" && <option value="admin">Admin (alle Kunden, volle Rechte)</option>}
+            </select>
+          </div>
+          <Btn onClick={invite} disabled={busy || !inviteEmail.trim()}>
+            {busy ? "…" : "Einladen"}
+          </Btn>
+        </div>
+        <p style={{ fontSize: 11, color: C.textDim, margin: "8px 0 0" }}>
+          Die Person erhält eine E-Mail zum Passwort-Setzen. Selbstregistrierung ist deaktiviert.
+        </p>
+      </div>
+
+      {/* Nutzerliste */}
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
+          Nutzer ({users.length})
+        </div>
+        {loading ? (
+          <div style={{ color: C.textMuted, fontSize: 13 }}>Lädt…</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {users.map((u) => (
+              <div key={u.userId} style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>{u.email || u.userId.slice(0, 8)}</span>
+                  <Badge color={roleColor[u.role] || C.textDim}>{roleLabel[u.role] || u.role}</Badge>
+                  {u.self && <Badge color={C.blue}>Du</Badge>}
+                  {u.role !== "owner" && u.role !== "admin" && (
+                    <span style={{ fontSize: 11, color: C.textMuted }}>
+                      {u.clientIds.length} von {clients.length} Kunden
+                    </span>
+                  )}
+                  {(u.role === "owner" || u.role === "admin") && (
+                    <span style={{ fontSize: 11, color: C.textMuted }}>alle Kunden</span>
+                  )}
+                  <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+                    {!u.self && u.role !== "owner" && u.role !== "admin" && (
+                      <Btn variant="secondary" size="sm" onClick={() => openAssign(u)}>Kunden zuweisen</Btn>
+                    )}
+                    {!u.self && u.role !== "owner" && (
+                      <select
+                        value={u.role}
+                        onChange={(e) => setRole(u.userId, e.target.value)}
+                        style={{ padding: "5px 8px", borderRadius: 7, background: C.surface, color: C.text, border: `1px solid ${C.border}`, fontSize: 12 }}
+                      >
+                        <option value="member">Mitarbeiter</option>
+                        <option value="viewer">Nur-Lesen</option>
+                        {myRole === "owner" && <option value="admin">Admin</option>}
+                      </select>
+                    )}
+                    {!u.self && u.role !== "owner" && (
+                      <Btn variant="danger" size="sm" onClick={() => remove(u.userId, u.email)}>Entfernen</Btn>
+                    )}
+                  </div>
+                </div>
+                {expanded === u.userId && (
+                  <div style={{ marginTop: 10, borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>
+                    <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 8 }}>
+                      Welche Kunden darf {u.email || "dieser Mitarbeiter"} sehen?
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 6, marginBottom: 10 }}>
+                      {clients.map((c) => {
+                        const on = draftAccess.has(c.id);
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() =>
+                              setDraftAccess((prev) => {
+                                const n = new Set(prev);
+                                if (n.has(c.id)) n.delete(c.id); else n.add(c.id);
+                                return n;
+                              })
+                            }
+                            style={{
+                              textAlign: "left", padding: "7px 10px", borderRadius: 8, cursor: "pointer", fontSize: 12,
+                              border: `1px solid ${on ? C.accent : C.border}`,
+                              background: on ? C.accentDim : "transparent",
+                              color: on ? C.accentLight : C.text,
+                            }}
+                          >
+                            {on ? "☑" : "☐"} {c.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                      <Btn variant="secondary" size="sm" onClick={() => setExpanded(null)}>Abbrechen</Btn>
+                      <Btn size="sm" onClick={() => saveAssign(u.userId)} disabled={busy}>Speichern</Btn>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ClientsPage({
   clients,
   selectedClientId,
@@ -11622,6 +11822,7 @@ const NAV = [
   { id: "content", label: "Content", icon: FileText },
   { id: "reports", label: "Reports", icon: TrendingUp },
   { id: "clients", label: "Clients", icon: Users },
+  { id: "team", label: "Team", icon: Users }, // nur owner/admin (RBAC 2026-07-15)
   { id: "settings", label: "Einstellungen", icon: Settings },
 ];
 
@@ -11638,16 +11839,16 @@ function loadUiState() {
 }
 function App() {
   const isMobile = useMediaQuery("(max-width: 760px)");
-  const { role } = useAuth();
+  const { role, isOrgAdmin } = useAuth();
   // viewer = read-only customer report: dashboards only, no tools/clients/settings.
   const isViewer = role === "viewer";
-  // Viewer (Kunde) sieht nur Dashboard + die eigenen Reports.
+  // Team-Verwaltung nur fuer SuperAdmin(owner)/admin (RBAC 2026-07-15).
   const nav = useMemo(
     () =>
       isViewer
         ? NAV.filter((n) => n.id === "dashboard" || n.id === "reports")
-        : NAV.filter((n) => n.id !== "reports"), // Team: Reports in Content integriert
-    [isViewer],
+        : NAV.filter((n) => n.id !== "reports" && (n.id !== "team" || isOrgAdmin)),
+    [isViewer, isOrgAdmin],
   );
   const ezy = useEzyClients();
   const clients = useMemo(() => ezy.clients.map((c) => normalizeClientShape(c)), [ezy.clients]);
@@ -12388,6 +12589,7 @@ function App() {
               customerDefaults={customerDefaults}
             />
           )}
+          {isOrgAdmin && page === "team" && <TeamPage clients={clients} />}
           {!isViewer && page === "settings" && (
             <SettingsPage
               tools={tools}

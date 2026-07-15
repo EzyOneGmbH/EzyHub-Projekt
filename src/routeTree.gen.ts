@@ -44,6 +44,7 @@ import { Route as ApiGoogleGa4ConversionsRouteImport } from './routes/api/google
 import { Route as ApiGoogleGa4CompareRouteImport } from './routes/api/google.ga4-compare'
 import { Route as ApiGoogleConnectionRouteImport } from './routes/api/google.connection'
 import { Route as ApiGoogleCallbackRouteImport } from './routes/api/google.callback'
+import { Route as ApiGoogleAdsRecommendationStatusRouteImport } from './routes/api/google.ads-recommendation-status'
 import { Route as ApiGoogleAdsDataRouteImport } from './routes/api/google.ads-data'
 import { Route as ApiGoogleAdsCustomersRouteImport } from './routes/api/google.ads-customers'
 import { Route as ApiGoogleAdsAutopilotRunRouteImport } from './routes/api/google.ads-autopilot-run'
@@ -67,6 +68,7 @@ import { Route as ApiAgentApprovalsRouteImport } from './routes/api/agent.approv
 import { Route as ApiAgentAgentsRouteImport } from './routes/api/agent.agents'
 import { Route as ApiAdminWpPublishRouteImport } from './routes/api/admin.wp-publish'
 import { Route as ApiAdminWpDeployRouteImport } from './routes/api/admin.wp-deploy'
+import { Route as ApiAdminTeamRouteImport } from './routes/api/admin.team'
 import { Route as ApiAdminSetCanonryProjectRouteImport } from './routes/api/admin.set-canonry-project'
 import { Route as ApiAdminRankSnapshotRouteImport } from './routes/api/admin.rank-snapshot'
 import { Route as ApiAdminPopulateRouteImport } from './routes/api/admin.populate'
@@ -82,11 +84,10 @@ import { Route as ApiAdminAivisSyncRouteImport } from './routes/api/admin.aivis-
 import { Route as ApiAdminAgentRunRouteImport } from './routes/api/admin.agent-run'
 import { Route as ApiAdminAdsSemanticNegativesRouteImport } from './routes/api/admin.ads-semantic-negatives'
 import { Route as ApiAdminAdsScorecardRouteImport } from './routes/api/admin.ads-scorecard'
-import { Route as ApiAdminAdsOutcomeReviewRouteImport } from './routes/api/admin.ads-outcome-review'
-import { Route as ApiAdminAdsGuardianRouteImport } from './routes/api/admin.ads-guardian'
 import { Route as ApiAdminAdsRecommendationsRouteImport } from './routes/api/admin.ads-recommendations'
 import { Route as ApiAdminAdsRecommendationStatusRouteImport } from './routes/api/admin.ads-recommendation-status'
-import { Route as ApiGoogleAdsRecommendationStatusRouteImport } from './routes/api/google.ads-recommendation-status'
+import { Route as ApiAdminAdsOutcomeReviewRouteImport } from './routes/api/admin.ads-outcome-review'
+import { Route as ApiAdminAdsGuardianRouteImport } from './routes/api/admin.ads-guardian'
 import { Route as ApiAdminAdsClientsRouteImport } from './routes/api/admin.ads-clients'
 import { Route as ApiAdminAdsAutopilotRunRouteImport } from './routes/api/admin.ads-autopilot-run'
 import { Route as ApiAdminAdsAutopilotProposalRouteImport } from './routes/api/admin.ads-autopilot-proposal'
@@ -275,6 +276,12 @@ const ApiGoogleCallbackRoute = ApiGoogleCallbackRouteImport.update({
   path: '/api/google/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGoogleAdsRecommendationStatusRoute =
+  ApiGoogleAdsRecommendationStatusRouteImport.update({
+    id: '/api/google/ads-recommendation-status',
+    path: '/api/google/ads-recommendation-status',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiGoogleAdsDataRoute = ApiGoogleAdsDataRouteImport.update({
   id: '/api/google/ads-data',
   path: '/api/google/ads-data',
@@ -392,6 +399,11 @@ const ApiAdminWpDeployRoute = ApiAdminWpDeployRouteImport.update({
   path: '/api/admin/wp-deploy',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminTeamRoute = ApiAdminTeamRouteImport.update({
+  id: '/api/admin/team',
+  path: '/api/admin/team',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminSetCanonryProjectRoute =
   ApiAdminSetCanonryProjectRouteImport.update({
     id: '/api/admin/set-canonry-project',
@@ -469,6 +481,18 @@ const ApiAdminAdsScorecardRoute = ApiAdminAdsScorecardRouteImport.update({
   path: '/api/admin/ads-scorecard',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminAdsRecommendationsRoute =
+  ApiAdminAdsRecommendationsRouteImport.update({
+    id: '/api/admin/ads-recommendations',
+    path: '/api/admin/ads-recommendations',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAdminAdsRecommendationStatusRoute =
+  ApiAdminAdsRecommendationStatusRouteImport.update({
+    id: '/api/admin/ads-recommendation-status',
+    path: '/api/admin/ads-recommendation-status',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAdminAdsOutcomeReviewRoute =
   ApiAdminAdsOutcomeReviewRouteImport.update({
     id: '/api/admin/ads-outcome-review',
@@ -478,21 +502,6 @@ const ApiAdminAdsOutcomeReviewRoute =
 const ApiAdminAdsGuardianRoute = ApiAdminAdsGuardianRouteImport.update({
   id: '/api/admin/ads-guardian',
   path: '/api/admin/ads-guardian',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAdminAdsRecommendationsRoute = ApiAdminAdsRecommendationsRouteImport.update({
-  id: '/api/admin/ads-recommendations',
-  path: '/api/admin/ads-recommendations',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAdminAdsRecommendationStatusRoute = ApiAdminAdsRecommendationStatusRouteImport.update({
-  id: '/api/admin/ads-recommendation-status',
-  path: '/api/admin/ads-recommendation-status',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiGoogleAdsRecommendationStatusRoute = ApiGoogleAdsRecommendationStatusRouteImport.update({
-  id: '/api/google/ads-recommendation-status',
-  path: '/api/google/ads-recommendation-status',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminAdsClientsRoute = ApiAdminAdsClientsRouteImport.update({
@@ -580,10 +589,9 @@ export interface FileRoutesByFullPath {
   '/api/admin/ads-autopilot-run': typeof ApiAdminAdsAutopilotRunRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
   '/api/admin/ads-guardian': typeof ApiAdminAdsGuardianRoute
-  '/api/admin/ads-recommendations': typeof ApiAdminAdsRecommendationsRoute
-  '/api/admin/ads-recommendation-status': typeof ApiAdminAdsRecommendationStatusRoute
-  '/api/google/ads-recommendation-status': typeof ApiGoogleAdsRecommendationStatusRoute
   '/api/admin/ads-outcome-review': typeof ApiAdminAdsOutcomeReviewRoute
+  '/api/admin/ads-recommendation-status': typeof ApiAdminAdsRecommendationStatusRoute
+  '/api/admin/ads-recommendations': typeof ApiAdminAdsRecommendationsRoute
   '/api/admin/ads-scorecard': typeof ApiAdminAdsScorecardRoute
   '/api/admin/ads-semantic-negatives': typeof ApiAdminAdsSemanticNegativesRoute
   '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
@@ -599,6 +607,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
+  '/api/admin/team': typeof ApiAdminTeamRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
@@ -622,6 +631,7 @@ export interface FileRoutesByFullPath {
   '/api/google/ads-autopilot-run': typeof ApiGoogleAdsAutopilotRunRoute
   '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
   '/api/google/ads-data': typeof ApiGoogleAdsDataRoute
+  '/api/google/ads-recommendation-status': typeof ApiGoogleAdsRecommendationStatusRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
   '/api/google/ga4-compare': typeof ApiGoogleGa4CompareRoute
@@ -670,10 +680,9 @@ export interface FileRoutesByTo {
   '/api/admin/ads-autopilot-run': typeof ApiAdminAdsAutopilotRunRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
   '/api/admin/ads-guardian': typeof ApiAdminAdsGuardianRoute
-  '/api/admin/ads-recommendations': typeof ApiAdminAdsRecommendationsRoute
-  '/api/admin/ads-recommendation-status': typeof ApiAdminAdsRecommendationStatusRoute
-  '/api/google/ads-recommendation-status': typeof ApiGoogleAdsRecommendationStatusRoute
   '/api/admin/ads-outcome-review': typeof ApiAdminAdsOutcomeReviewRoute
+  '/api/admin/ads-recommendation-status': typeof ApiAdminAdsRecommendationStatusRoute
+  '/api/admin/ads-recommendations': typeof ApiAdminAdsRecommendationsRoute
   '/api/admin/ads-scorecard': typeof ApiAdminAdsScorecardRoute
   '/api/admin/ads-semantic-negatives': typeof ApiAdminAdsSemanticNegativesRoute
   '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
@@ -689,6 +698,7 @@ export interface FileRoutesByTo {
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
+  '/api/admin/team': typeof ApiAdminTeamRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
@@ -712,6 +722,7 @@ export interface FileRoutesByTo {
   '/api/google/ads-autopilot-run': typeof ApiGoogleAdsAutopilotRunRoute
   '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
   '/api/google/ads-data': typeof ApiGoogleAdsDataRoute
+  '/api/google/ads-recommendation-status': typeof ApiGoogleAdsRecommendationStatusRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
   '/api/google/ga4-compare': typeof ApiGoogleGa4CompareRoute
@@ -761,10 +772,9 @@ export interface FileRoutesById {
   '/api/admin/ads-autopilot-run': typeof ApiAdminAdsAutopilotRunRoute
   '/api/admin/ads-clients': typeof ApiAdminAdsClientsRoute
   '/api/admin/ads-guardian': typeof ApiAdminAdsGuardianRoute
-  '/api/admin/ads-recommendations': typeof ApiAdminAdsRecommendationsRoute
-  '/api/admin/ads-recommendation-status': typeof ApiAdminAdsRecommendationStatusRoute
-  '/api/google/ads-recommendation-status': typeof ApiGoogleAdsRecommendationStatusRoute
   '/api/admin/ads-outcome-review': typeof ApiAdminAdsOutcomeReviewRoute
+  '/api/admin/ads-recommendation-status': typeof ApiAdminAdsRecommendationStatusRoute
+  '/api/admin/ads-recommendations': typeof ApiAdminAdsRecommendationsRoute
   '/api/admin/ads-scorecard': typeof ApiAdminAdsScorecardRoute
   '/api/admin/ads-semantic-negatives': typeof ApiAdminAdsSemanticNegativesRoute
   '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
@@ -780,6 +790,7 @@ export interface FileRoutesById {
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
+  '/api/admin/team': typeof ApiAdminTeamRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
@@ -803,6 +814,7 @@ export interface FileRoutesById {
   '/api/google/ads-autopilot-run': typeof ApiGoogleAdsAutopilotRunRoute
   '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
   '/api/google/ads-data': typeof ApiGoogleAdsDataRoute
+  '/api/google/ads-recommendation-status': typeof ApiGoogleAdsRecommendationStatusRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
   '/api/google/ga4-compare': typeof ApiGoogleGa4CompareRoute
@@ -853,10 +865,9 @@ export interface FileRouteTypes {
     | '/api/admin/ads-autopilot-run'
     | '/api/admin/ads-clients'
     | '/api/admin/ads-guardian'
-    | '/api/admin/ads-recommendations'
-    | '/api/admin/ads-recommendation-status'
-    | '/api/google/ads-recommendation-status'
     | '/api/admin/ads-outcome-review'
+    | '/api/admin/ads-recommendation-status'
+    | '/api/admin/ads-recommendations'
     | '/api/admin/ads-scorecard'
     | '/api/admin/ads-semantic-negatives'
     | '/api/admin/agent-run'
@@ -872,6 +883,7 @@ export interface FileRouteTypes {
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
     | '/api/admin/set-canonry-project'
+    | '/api/admin/team'
     | '/api/admin/wp-deploy'
     | '/api/admin/wp-publish'
     | '/api/agent/agents'
@@ -895,6 +907,7 @@ export interface FileRouteTypes {
     | '/api/google/ads-autopilot-run'
     | '/api/google/ads-customers'
     | '/api/google/ads-data'
+    | '/api/google/ads-recommendation-status'
     | '/api/google/callback'
     | '/api/google/connection'
     | '/api/google/ga4-compare'
@@ -943,10 +956,9 @@ export interface FileRouteTypes {
     | '/api/admin/ads-autopilot-run'
     | '/api/admin/ads-clients'
     | '/api/admin/ads-guardian'
-    | '/api/admin/ads-recommendations'
-    | '/api/admin/ads-recommendation-status'
-    | '/api/google/ads-recommendation-status'
     | '/api/admin/ads-outcome-review'
+    | '/api/admin/ads-recommendation-status'
+    | '/api/admin/ads-recommendations'
     | '/api/admin/ads-scorecard'
     | '/api/admin/ads-semantic-negatives'
     | '/api/admin/agent-run'
@@ -962,6 +974,7 @@ export interface FileRouteTypes {
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
     | '/api/admin/set-canonry-project'
+    | '/api/admin/team'
     | '/api/admin/wp-deploy'
     | '/api/admin/wp-publish'
     | '/api/agent/agents'
@@ -985,6 +998,7 @@ export interface FileRouteTypes {
     | '/api/google/ads-autopilot-run'
     | '/api/google/ads-customers'
     | '/api/google/ads-data'
+    | '/api/google/ads-recommendation-status'
     | '/api/google/callback'
     | '/api/google/connection'
     | '/api/google/ga4-compare'
@@ -1033,10 +1047,9 @@ export interface FileRouteTypes {
     | '/api/admin/ads-autopilot-run'
     | '/api/admin/ads-clients'
     | '/api/admin/ads-guardian'
-    | '/api/admin/ads-recommendations'
-    | '/api/admin/ads-recommendation-status'
-    | '/api/google/ads-recommendation-status'
     | '/api/admin/ads-outcome-review'
+    | '/api/admin/ads-recommendation-status'
+    | '/api/admin/ads-recommendations'
     | '/api/admin/ads-scorecard'
     | '/api/admin/ads-semantic-negatives'
     | '/api/admin/agent-run'
@@ -1052,6 +1065,7 @@ export interface FileRouteTypes {
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
     | '/api/admin/set-canonry-project'
+    | '/api/admin/team'
     | '/api/admin/wp-deploy'
     | '/api/admin/wp-publish'
     | '/api/agent/agents'
@@ -1075,6 +1089,7 @@ export interface FileRouteTypes {
     | '/api/google/ads-autopilot-run'
     | '/api/google/ads-customers'
     | '/api/google/ads-data'
+    | '/api/google/ads-recommendation-status'
     | '/api/google/callback'
     | '/api/google/connection'
     | '/api/google/ga4-compare'
@@ -1120,10 +1135,9 @@ export interface RootRouteChildren {
   ApiAdminAdsAutopilotRunRoute: typeof ApiAdminAdsAutopilotRunRoute
   ApiAdminAdsClientsRoute: typeof ApiAdminAdsClientsRoute
   ApiAdminAdsGuardianRoute: typeof ApiAdminAdsGuardianRoute
-  ApiAdminAdsRecommendationsRoute: typeof ApiAdminAdsRecommendationsRoute
-  ApiAdminAdsRecommendationStatusRoute: typeof ApiAdminAdsRecommendationStatusRoute
-  ApiGoogleAdsRecommendationStatusRoute: typeof ApiGoogleAdsRecommendationStatusRoute
   ApiAdminAdsOutcomeReviewRoute: typeof ApiAdminAdsOutcomeReviewRoute
+  ApiAdminAdsRecommendationStatusRoute: typeof ApiAdminAdsRecommendationStatusRoute
+  ApiAdminAdsRecommendationsRoute: typeof ApiAdminAdsRecommendationsRoute
   ApiAdminAdsScorecardRoute: typeof ApiAdminAdsScorecardRoute
   ApiAdminAdsSemanticNegativesRoute: typeof ApiAdminAdsSemanticNegativesRoute
   ApiAdminAgentRunRoute: typeof ApiAdminAgentRunRoute
@@ -1139,6 +1153,7 @@ export interface RootRouteChildren {
   ApiAdminPopulateRoute: typeof ApiAdminPopulateRoute
   ApiAdminRankSnapshotRoute: typeof ApiAdminRankSnapshotRoute
   ApiAdminSetCanonryProjectRoute: typeof ApiAdminSetCanonryProjectRoute
+  ApiAdminTeamRoute: typeof ApiAdminTeamRoute
   ApiAdminWpDeployRoute: typeof ApiAdminWpDeployRoute
   ApiAdminWpPublishRoute: typeof ApiAdminWpPublishRoute
   ApiAgentAgentsRoute: typeof ApiAgentAgentsRoute
@@ -1162,6 +1177,7 @@ export interface RootRouteChildren {
   ApiGoogleAdsAutopilotRunRoute: typeof ApiGoogleAdsAutopilotRunRoute
   ApiGoogleAdsCustomersRoute: typeof ApiGoogleAdsCustomersRoute
   ApiGoogleAdsDataRoute: typeof ApiGoogleAdsDataRoute
+  ApiGoogleAdsRecommendationStatusRoute: typeof ApiGoogleAdsRecommendationStatusRoute
   ApiGoogleCallbackRoute: typeof ApiGoogleCallbackRoute
   ApiGoogleConnectionRoute: typeof ApiGoogleConnectionRoute
   ApiGoogleGa4CompareRoute: typeof ApiGoogleGa4CompareRoute
@@ -1429,6 +1445,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGoogleCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/google/ads-recommendation-status': {
+      id: '/api/google/ads-recommendation-status'
+      path: '/api/google/ads-recommendation-status'
+      fullPath: '/api/google/ads-recommendation-status'
+      preLoaderRoute: typeof ApiGoogleAdsRecommendationStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/google/ads-data': {
       id: '/api/google/ads-data'
       path: '/api/google/ads-data'
@@ -1590,6 +1613,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminWpDeployRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/team': {
+      id: '/api/admin/team'
+      path: '/api/admin/team'
+      fullPath: '/api/admin/team'
+      preLoaderRoute: typeof ApiAdminTeamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/set-canonry-project': {
       id: '/api/admin/set-canonry-project'
       path: '/api/admin/set-canonry-project'
@@ -1695,20 +1725,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminAdsScorecardRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/admin/ads-outcome-review': {
-      id: '/api/admin/ads-outcome-review'
-      path: '/api/admin/ads-outcome-review'
-      fullPath: '/api/admin/ads-outcome-review'
-      preLoaderRoute: typeof ApiAdminAdsOutcomeReviewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/admin/ads-guardian': {
-      id: '/api/admin/ads-guardian'
-      path: '/api/admin/ads-guardian'
-      fullPath: '/api/admin/ads-guardian'
-      preLoaderRoute: typeof ApiAdminAdsGuardianRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/admin/ads-recommendations': {
       id: '/api/admin/ads-recommendations'
       path: '/api/admin/ads-recommendations'
@@ -1723,11 +1739,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminAdsRecommendationStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/google/ads-recommendation-status': {
-      id: '/api/google/ads-recommendation-status'
-      path: '/api/google/ads-recommendation-status'
-      fullPath: '/api/google/ads-recommendation-status'
-      preLoaderRoute: typeof ApiGoogleAdsRecommendationStatusRouteImport
+    '/api/admin/ads-outcome-review': {
+      id: '/api/admin/ads-outcome-review'
+      path: '/api/admin/ads-outcome-review'
+      fullPath: '/api/admin/ads-outcome-review'
+      preLoaderRoute: typeof ApiAdminAdsOutcomeReviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/ads-guardian': {
+      id: '/api/admin/ads-guardian'
+      path: '/api/admin/ads-guardian'
+      fullPath: '/api/admin/ads-guardian'
+      preLoaderRoute: typeof ApiAdminAdsGuardianRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/ads-clients': {
@@ -1874,10 +1897,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminAdsAutopilotRunRoute: ApiAdminAdsAutopilotRunRoute,
   ApiAdminAdsClientsRoute: ApiAdminAdsClientsRoute,
   ApiAdminAdsGuardianRoute: ApiAdminAdsGuardianRoute,
-  ApiAdminAdsRecommendationsRoute: ApiAdminAdsRecommendationsRoute,
-  ApiAdminAdsRecommendationStatusRoute: ApiAdminAdsRecommendationStatusRoute,
-  ApiGoogleAdsRecommendationStatusRoute: ApiGoogleAdsRecommendationStatusRoute,
   ApiAdminAdsOutcomeReviewRoute: ApiAdminAdsOutcomeReviewRoute,
+  ApiAdminAdsRecommendationStatusRoute: ApiAdminAdsRecommendationStatusRoute,
+  ApiAdminAdsRecommendationsRoute: ApiAdminAdsRecommendationsRoute,
   ApiAdminAdsScorecardRoute: ApiAdminAdsScorecardRoute,
   ApiAdminAdsSemanticNegativesRoute: ApiAdminAdsSemanticNegativesRoute,
   ApiAdminAgentRunRoute: ApiAdminAgentRunRoute,
@@ -1893,6 +1915,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminPopulateRoute: ApiAdminPopulateRoute,
   ApiAdminRankSnapshotRoute: ApiAdminRankSnapshotRoute,
   ApiAdminSetCanonryProjectRoute: ApiAdminSetCanonryProjectRoute,
+  ApiAdminTeamRoute: ApiAdminTeamRoute,
   ApiAdminWpDeployRoute: ApiAdminWpDeployRoute,
   ApiAdminWpPublishRoute: ApiAdminWpPublishRoute,
   ApiAgentAgentsRoute: ApiAgentAgentsRoute,
@@ -1916,6 +1939,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGoogleAdsAutopilotRunRoute: ApiGoogleAdsAutopilotRunRoute,
   ApiGoogleAdsCustomersRoute: ApiGoogleAdsCustomersRoute,
   ApiGoogleAdsDataRoute: ApiGoogleAdsDataRoute,
+  ApiGoogleAdsRecommendationStatusRoute: ApiGoogleAdsRecommendationStatusRoute,
   ApiGoogleCallbackRoute: ApiGoogleCallbackRoute,
   ApiGoogleConnectionRoute: ApiGoogleConnectionRoute,
   ApiGoogleGa4CompareRoute: ApiGoogleGa4CompareRoute,

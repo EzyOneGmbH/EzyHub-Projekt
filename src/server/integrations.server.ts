@@ -73,3 +73,22 @@ export async function canRunAudits(userId: string, organizationId: string): Prom
   const role = (data as any)?.role;
   return role === "owner" || role === "admin" || role === "member";
 }
+
+/**
+ * Server-side check: is this user owner/admin in the given org? Mirrors
+ * public.is_org_admin(_org). Used to gate team-/user-management (RBAC).
+ * Returns the role too, so callers can distinguish owner from admin.
+ */
+export async function orgRoleOf(userId: string, organizationId: string): Promise<string | null> {
+  const { data } = await supabaseAdmin
+    .from("app_users")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  return ((data as any)?.role as string) ?? null;
+}
+export async function isOrgAdmin(userId: string, organizationId: string): Promise<boolean> {
+  const role = await orgRoleOf(userId, organizationId);
+  return role === "owner" || role === "admin";
+}
