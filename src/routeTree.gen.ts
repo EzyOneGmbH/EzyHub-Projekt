@@ -72,6 +72,7 @@ import { Route as ApiAdminWpDeployRouteImport } from './routes/api/admin.wp-depl
 import { Route as ApiAdminTeamRouteImport } from './routes/api/admin.team'
 import { Route as ApiAdminSetCanonryProjectRouteImport } from './routes/api/admin.set-canonry-project'
 import { Route as ApiAdminRankSnapshotRouteImport } from './routes/api/admin.rank-snapshot'
+import { Route as ApiAdminOnboardingSnapshotRouteImport } from './routes/api/admin.onboarding-snapshot'
 import { Route as ApiAdminPopulateRouteImport } from './routes/api/admin.populate'
 import { Route as ApiAdminOnboardingSnapshotRouteImport } from './routes/api/admin.onboarding-snapshot'
 import { Route as ApiAdminGtmRouteImport } from './routes/api/admin.gtm'
@@ -422,6 +423,12 @@ const ApiAdminRankSnapshotRoute = ApiAdminRankSnapshotRouteImport.update({
   path: '/api/admin/rank-snapshot',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminOnboardingSnapshotRoute =
+  ApiAdminOnboardingSnapshotRouteImport.update({
+    id: '/api/admin/onboarding-snapshot',
+    path: '/api/admin/onboarding-snapshot',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAdminPopulateRoute = ApiAdminPopulateRouteImport.update({
   id: '/api/admin/populate',
   path: '/api/admin/populate',
@@ -621,6 +628,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
+  '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
   '/api/admin/team': typeof ApiAdminTeamRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
@@ -714,6 +722,7 @@ export interface FileRoutesByTo {
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
+  '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
   '/api/admin/team': typeof ApiAdminTeamRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
@@ -808,6 +817,7 @@ export interface FileRoutesById {
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
+  '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
   '/api/admin/team': typeof ApiAdminTeamRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
@@ -903,6 +913,7 @@ export interface FileRouteTypes {
     | '/api/admin/onboarding-snapshot'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
+    | '/api/admin/onboarding-snapshot'
     | '/api/admin/set-canonry-project'
     | '/api/admin/team'
     | '/api/admin/wp-deploy'
@@ -996,6 +1007,7 @@ export interface FileRouteTypes {
     | '/api/admin/onboarding-snapshot'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
+    | '/api/admin/onboarding-snapshot'
     | '/api/admin/set-canonry-project'
     | '/api/admin/team'
     | '/api/admin/wp-deploy'
@@ -1089,6 +1101,7 @@ export interface FileRouteTypes {
     | '/api/admin/onboarding-snapshot'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
+    | '/api/admin/onboarding-snapshot'
     | '/api/admin/set-canonry-project'
     | '/api/admin/team'
     | '/api/admin/wp-deploy'
@@ -1179,6 +1192,7 @@ export interface RootRouteChildren {
   ApiAdminOnboardingSnapshotRoute: typeof ApiAdminOnboardingSnapshotRoute
   ApiAdminPopulateRoute: typeof ApiAdminPopulateRoute
   ApiAdminRankSnapshotRoute: typeof ApiAdminRankSnapshotRoute
+  ApiAdminOnboardingSnapshotRoute: typeof ApiAdminOnboardingSnapshotRoute
   ApiAdminSetCanonryProjectRoute: typeof ApiAdminSetCanonryProjectRoute
   ApiAdminTeamRoute: typeof ApiAdminTeamRoute
   ApiAdminWpDeployRoute: typeof ApiAdminWpDeployRoute
@@ -1668,6 +1682,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminRankSnapshotRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/onboarding-snapshot': {
+      id: '/api/admin/onboarding-snapshot'
+      path: '/api/admin/onboarding-snapshot'
+      fullPath: '/api/admin/onboarding-snapshot'
+      preLoaderRoute: typeof ApiAdminOnboardingSnapshotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/populate': {
       id: '/api/admin/populate'
       path: '/api/admin/populate'
@@ -1957,6 +1978,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminOnboardingSnapshotRoute: ApiAdminOnboardingSnapshotRoute,
   ApiAdminPopulateRoute: ApiAdminPopulateRoute,
   ApiAdminRankSnapshotRoute: ApiAdminRankSnapshotRoute,
+  ApiAdminOnboardingSnapshotRoute: ApiAdminOnboardingSnapshotRoute,
   ApiAdminSetCanonryProjectRoute: ApiAdminSetCanonryProjectRoute,
   ApiAdminTeamRoute: ApiAdminTeamRoute,
   ApiAdminWpDeployRoute: ApiAdminWpDeployRoute,
