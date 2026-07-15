@@ -72,6 +72,7 @@ import { Route as ApiAdminWpDeployRouteImport } from './routes/api/admin.wp-depl
 import { Route as ApiAdminTeamRouteImport } from './routes/api/admin.team'
 import { Route as ApiAdminSetCanonryProjectRouteImport } from './routes/api/admin.set-canonry-project'
 import { Route as ApiAdminRankSnapshotRouteImport } from './routes/api/admin.rank-snapshot'
+import { Route as ApiAdminOnboardingPendingRouteImport } from './routes/api/admin.onboarding-pending'
 import { Route as ApiAdminAiCitationsRouteImport } from './routes/api/admin.ai-citations'
 import { Route as ApiAdminOnboardingSnapshotRouteImport } from './routes/api/admin.onboarding-snapshot'
 import { Route as ApiAdminPopulateRouteImport } from './routes/api/admin.populate'
@@ -424,6 +425,12 @@ const ApiAdminRankSnapshotRoute = ApiAdminRankSnapshotRouteImport.update({
   path: '/api/admin/rank-snapshot',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminOnboardingPendingRoute =
+  ApiAdminOnboardingPendingRouteImport.update({
+    id: '/api/admin/onboarding-pending',
+    path: '/api/admin/onboarding-pending',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAdminAiCitationsRoute =
   ApiAdminAiCitationsRouteImport.update({
     id: '/api/admin/ai-citations',
@@ -635,6 +642,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
+  '/api/admin/onboarding-pending': typeof ApiAdminOnboardingPendingRoute
   '/api/admin/ai-citations': typeof ApiAdminAiCitationsRoute
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
@@ -730,6 +738,7 @@ export interface FileRoutesByTo {
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
+  '/api/admin/onboarding-pending': typeof ApiAdminOnboardingPendingRoute
   '/api/admin/ai-citations': typeof ApiAdminAiCitationsRoute
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
@@ -826,6 +835,7 @@ export interface FileRoutesById {
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
+  '/api/admin/onboarding-pending': typeof ApiAdminOnboardingPendingRoute
   '/api/admin/ai-citations': typeof ApiAdminAiCitationsRoute
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
@@ -923,6 +933,7 @@ export interface FileRouteTypes {
     | '/api/admin/onboarding-snapshot'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
+    | '/api/admin/onboarding-pending'
     | '/api/admin/ai-citations'
     | '/api/admin/onboarding-snapshot'
     | '/api/admin/set-canonry-project'
@@ -1018,6 +1029,7 @@ export interface FileRouteTypes {
     | '/api/admin/onboarding-snapshot'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
+    | '/api/admin/onboarding-pending'
     | '/api/admin/ai-citations'
     | '/api/admin/onboarding-snapshot'
     | '/api/admin/set-canonry-project'
@@ -1113,6 +1125,7 @@ export interface FileRouteTypes {
     | '/api/admin/onboarding-snapshot'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
+    | '/api/admin/onboarding-pending'
     | '/api/admin/ai-citations'
     | '/api/admin/onboarding-snapshot'
     | '/api/admin/set-canonry-project'
@@ -1205,6 +1218,7 @@ export interface RootRouteChildren {
   ApiAdminOnboardingSnapshotRoute: typeof ApiAdminOnboardingSnapshotRoute
   ApiAdminPopulateRoute: typeof ApiAdminPopulateRoute
   ApiAdminRankSnapshotRoute: typeof ApiAdminRankSnapshotRoute
+  ApiAdminOnboardingPendingRoute: typeof ApiAdminOnboardingPendingRoute
   ApiAdminAiCitationsRoute: typeof ApiAdminAiCitationsRoute
   ApiAdminOnboardingSnapshotRoute: typeof ApiAdminOnboardingSnapshotRoute
   ApiAdminSetCanonryProjectRoute: typeof ApiAdminSetCanonryProjectRoute
@@ -1696,6 +1710,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminRankSnapshotRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/onboarding-pending': {
+      id: '/api/admin/onboarding-pending'
+      path: '/api/admin/onboarding-pending'
+      fullPath: '/api/admin/onboarding-pending'
+      preLoaderRoute: typeof ApiAdminOnboardingPendingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/ai-citations': {
       id: '/api/admin/ai-citations'
       path: '/api/admin/ai-citations'
@@ -1999,6 +2020,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminOnboardingSnapshotRoute: ApiAdminOnboardingSnapshotRoute,
   ApiAdminPopulateRoute: ApiAdminPopulateRoute,
   ApiAdminRankSnapshotRoute: ApiAdminRankSnapshotRoute,
+  ApiAdminOnboardingPendingRoute: ApiAdminOnboardingPendingRoute,
   ApiAdminAiCitationsRoute: ApiAdminAiCitationsRoute,
   ApiAdminOnboardingSnapshotRoute: ApiAdminOnboardingSnapshotRoute,
   ApiAdminSetCanonryProjectRoute: ApiAdminSetCanonryProjectRoute,
