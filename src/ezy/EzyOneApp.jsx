@@ -10775,6 +10775,10 @@ function stripAgentSpecs(text) {
 const WEEKDAY_SHORT = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 
 function ActivityPage({ selectedClient, clients }) {
+  // Kostenübersicht ist ausschliesslich fuer den SuperAdmin (owner) sichtbar –
+  // Admins und Mitarbeiter sehen sie nicht (RBAC 2026-07-15).
+  const { role } = useAuth();
+  const isOwner = role === "owner";
   const [data, setData] = useState({ runs: [], running: 0, schedules: [], uptime: [], uptimeDown: 0, costs: null });
   const [approvals, setApprovals] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -10867,8 +10871,8 @@ function ActivityPage({ selectedClient, clients }) {
 
       {err && <div style={{ fontSize: 12, color: C.red }}>{err}</div>}
 
-      {/* API-Kosten */}
-      {costs && (
+      {/* API-Kosten – nur SuperAdmin (owner) */}
+      {isOwner && costs && (
         <div>
           <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>
             API-Kosten
@@ -11444,6 +11448,9 @@ function EzyPilotButton() {
 }
 
 function AgentsPage({ selectedClient }) {
+  // Kosten sind nur fuer den SuperAdmin (owner) sichtbar (RBAC 2026-07-15).
+  const { role } = useAuth();
+  const isOwner = role === "owner";
   const clientId = selectedClient?.id || "global";
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -11770,7 +11777,7 @@ function AgentsPage({ selectedClient }) {
                 {runResult?.id === a.id && (
                   <div style={{ background: C.bg, border: `1px solid ${runResult.ok ? C.border : C.red}55`, borderRadius: 8, padding: 10, fontSize: 12, color: C.text, whiteSpace: "pre-wrap", maxHeight: 320, overflow: "auto" }}>
                     {runResult.text}
-                    {runResult.ok && runResult.cost != null && (
+                    {isOwner && runResult.ok && runResult.cost != null && (
                       <div style={{ fontSize: 10, color: C.textMuted, marginTop: 6 }}>Kosten: ${Number(runResult.cost).toFixed(3)}</div>
                     )}
                   </div>
