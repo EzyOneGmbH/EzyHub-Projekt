@@ -10,7 +10,8 @@ import { isProviderEnabled, canRunAudits } from "@/server/integrations.server";
 const Body = z.object({
   clientId: z.string().uuid(),
   days: z.number().int().min(1).max(90).default(28),
-  rowLimit: z.number().int().min(1).max(500).default(50),
+  // GSC erlaubt bis 25000 Zeilen je Abfrage; Default 1000 statt bisher 50.
+  rowLimit: z.number().int().min(1).max(25000).default(1000),
 });
 
 async function authedUser(request: Request) {

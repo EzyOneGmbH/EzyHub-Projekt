@@ -33,7 +33,7 @@ export const gscKeywordImport = createServerFn({ method: "POST" })
       .object({
         clientId: z.string().uuid(),
         days: z.number().int().min(1).max(90).default(28),
-        rowLimit: z.number().int().min(1).max(500).default(50),
+        rowLimit: z.number().int().min(1).max(25000).default(1000),
       })
       .parse(d),
   )
