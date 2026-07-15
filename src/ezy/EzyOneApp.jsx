@@ -11842,12 +11842,17 @@ function App() {
   const { role, isOrgAdmin } = useAuth();
   // viewer = read-only customer report: dashboards only, no tools/clients/settings.
   const isViewer = role === "viewer";
-  // Team-Verwaltung nur fuer SuperAdmin(owner)/admin (RBAC 2026-07-15).
+  // Team + Einstellungen nur fuer SuperAdmin(owner)/admin (RBAC 2026-07-15).
+  // Mitarbeiter (member/viewer) duerfen keine Kunden-Einstellungen sehen/aendern.
   const nav = useMemo(
     () =>
       isViewer
         ? NAV.filter((n) => n.id === "dashboard" || n.id === "reports")
-        : NAV.filter((n) => n.id !== "reports" && (n.id !== "team" || isOrgAdmin)),
+        : NAV.filter(
+            (n) =>
+              n.id !== "reports" &&
+              ((n.id !== "team" && n.id !== "settings") || isOrgAdmin),
+          ),
     [isViewer, isOrgAdmin],
   );
   const ezy = useEzyClients();
@@ -11881,6 +11886,11 @@ function App() {
   useEffect(() => {
     if (isViewer && page !== "dashboard" && page !== "reports") setPage("dashboard");
   }, [isViewer, page]);
+  // Mitarbeiter (kein Admin) haben keinen Zugriff auf Einstellungen/Team –
+  // auch nicht per direkter URL/localStorage-Wiederherstellung.
+  useEffect(() => {
+    if (!isOrgAdmin && (page === "settings" || page === "team")) setPage("dashboard");
+  }, [isOrgAdmin, page]);
   // „Aktivität" → Agenten-Tab, „Reports" (Team) → Content-Tab integriert.
   // Viewer behalten ihren eigenen Reports-Tab.
   useEffect(() => {
@@ -12013,14 +12023,16 @@ function App() {
   // maSSgebliche, geraeteuebergreifend zuverlaessige Quelle — er wird bei jedem
   // Laden aus Supabase gelesen. Der localStorage-basierte defaultsHook ist nur
   // Fallback (fix 2026-07-14: Einstellungen wirkten nur auf dem Geraet, auf dem
-  // sie gesetzt wurden). "runs" bleibt immer sichtbar.
+  // sie gesetzt wurden). "runs" (Agent-Läufe) ist für Admins immer sichtbar,
+  // für Mitarbeiter (member/viewer) hingegen ausgeblendet (RBAC 2026-07-15).
   const effectiveVisibleTabs = useMemo(() => {
     const fromClient = Array.isArray(client?.defaults?.visibleTabs) && client.defaults.visibleTabs.length
       ? client.defaults.visibleTabs
       : null;
     const base = fromClient || customerDefaults.visibleTabs || ["seo", "aivis", "conversions"];
-    return base.includes("runs") ? base : [...base, "runs"];
-  }, [client?.defaults?.visibleTabs, customerDefaults.visibleTabs]);
+    const withRuns = base.includes("runs") ? base : [...base, "runs"];
+    return isOrgAdmin ? withRuns : withRuns.filter((t) => t !== "runs");
+  }, [client?.defaults?.visibleTabs, customerDefaults.visibleTabs, isOrgAdmin]);
   const visibleTabs = useMemo(
     () =>
       TABS.filter((t) => {
@@ -12590,7 +12602,7 @@ function App() {
             />
           )}
           {isOrgAdmin && page === "team" && <TeamPage clients={clients} />}
-          {!isViewer && page === "settings" && (
+          {isOrgAdmin && page === "settings" && (
             <SettingsPage
               tools={tools}
               onToggleTool={toggleTool}
