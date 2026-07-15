@@ -8539,7 +8539,7 @@ function onboardingConnections(tabsSet, servicesSet) {
       key: "gsc",
       label: "Google Search Console",
       reason: why([tabsSet.has("seo") && "Dashboard SEO", servicesSet.has("gsc") && "Dienst Search Console"]),
-      action: "Google-Konto im Kunden-Panel verbinden und die GSC-Property eintragen.",
+      action: "Oben „Mit Google verbinden“ klicken und die GSC-Property eintragen.",
       field: "gscSiteUrl",
       placeholder: "sc-domain:example.com",
     });
@@ -8548,7 +8548,7 @@ function onboardingConnections(tabsSet, servicesSet) {
       key: "ga4",
       label: "Google Analytics 4",
       reason: why([tabsSet.has("conversions") && "Dashboard Conversions", servicesSet.has("ga4") && "Dienst GA4"]),
-      action: "Google-Konto im Kunden-Panel verbinden und die GA4-Property-ID eintragen.",
+      action: "Oben „Mit Google verbinden“ klicken und die GA4-Property-ID eintragen.",
       field: "ga4PropertyId",
       placeholder: "z. B. 123456789",
     });
@@ -8557,7 +8557,7 @@ function onboardingConnections(tabsSet, servicesSet) {
       key: "google-ads",
       label: "Google Ads",
       reason: why([tabsSet.has("ads") && "Dashboard Google Ads", servicesSet.has("google-ads") && "Dienst Google Ads"]),
-      action: "Google-Konto verbinden und die Ads-Customer-ID im Kunden-Panel hinterlegen.",
+      action: "Oben „Mit Google verbinden“ klicken; die Ads-Customer-ID hinterlegst du im Kunden-Panel.",
     });
   if (tabsSet.has("aivis") || servicesSet.has("canonry"))
     out.push({
@@ -8598,6 +8598,11 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
   const [draft, setDraft] = useState(clientFormFromClient());
   const [tabsSel, setTabsSel] = useState(new Set(DEFAULT_CUSTOMER_DEFAULTS.visibleTabs));
   const [created, setCreated] = useState(null);
+  // Google-OAuth direkt im Wizard (User-Wunsch 2026-07-15): sobald der Kunde
+  // angelegt ist, kann die Google-Verbindung (GSC/GA4/Ads) hier gestartet
+  // werden — gleicher Flow wie im Kunden-Panel (Popup + Status-Poll).
+  const [gConn, setGConn] = useState(null); // null=unbekannt, {connected,email}
+  const [gBusy, setGBusy] = useState(false);
   useEffect(() => {
     if (open) {
       setStep(1);
@@ -8605,8 +8610,48 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
       setDraft(clientFormFromClient());
       setTabsSel(new Set(DEFAULT_CUSTOMER_DEFAULTS.visibleTabs));
       setCreated(null);
+      setGConn(null);
+      setGBusy(false);
     }
   }, [open]);
+  const loadGoogleConn = async (clientId) => {
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const r = await fetch("/api/google/connection", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId }),
+      });
+      const j = await r.json().catch(() => null);
+      if (r.ok && j) setGConn(j);
+    } catch { /* Status unbekannt */ }
+  };
+  useEffect(() => {
+    if (step === 3 && created?.id) loadGoogleConn(created.id);
+  }, [step, created?.id]);
+  const connectGoogle = async () => {
+    if (!created?.id || gBusy) return;
+    setGBusy(true);
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const res = await fetch(`/api/google/oauth/start?client_id=${encodeURIComponent(created.id)}`, {
+        headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.url) throw new Error(json.error || `HTTP ${res.status}`);
+      const popup = window.open(json.url, "google-oauth", "width=520,height=640");
+      const t = setInterval(async () => {
+        if (popup?.closed) {
+          clearInterval(t);
+          await loadGoogleConn(created.id);
+          setGBusy(false);
+        }
+      }, 800);
+    } catch (e) {
+      toast(String(e?.message || e), "error");
+      setGBusy(false);
+    }
+  };
   const set = (k) => (v) => setDraft((p) => ({ ...p, [k]: v }));
   const toggleTab = (id) =>
     setTabsSel((prev) => {
@@ -8784,8 +8829,44 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
         <>
           <p style={{ fontSize: 12, color: C.textMuted, margin: "0 0 12px" }}>
             Basierend auf deiner Auswahl braucht <strong style={{ color: C.text }}>{created?.name || draft.name}</strong> diese
-            Verbindungen. Properties kannst du direkt hier eintragen; OAuth-Verbindungen (Google) laufen im Kunden-Panel.
+            Verbindungen. Properties kannst du direkt hier eintragen.
           </p>
+          {connections.some((c) => ["gsc", "ga4", "google-ads", "gbp"].includes(c.key)) && (
+            <div
+              style={{
+                border: `1px solid ${gConn?.connected ? C.green : C.accent}`,
+                borderRadius: 12,
+                padding: "12px 14px",
+                background: gConn?.connected ? `${C.green}14` : C.accentDim,
+                marginBottom: 12,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 10,
+                flexWrap: "wrap",
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>
+                  Google-Konto {gConn?.connected ? "verbunden ✓" : "verbinden"}
+                </div>
+                <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>
+                  {gConn?.connected
+                    ? `Verbunden${gConn?.email ? ` als ${gConn.email}` : ""} — GSC, GA4 & Ads können jetzt Daten liefern.`
+                    : "Eine Verbindung deckt Search Console, Analytics (GA4) und Google Ads gemeinsam ab."}
+                </div>
+              </div>
+              {gConn?.connected ? (
+                <Btn variant="secondary" onClick={connectGoogle} disabled={gBusy}>
+                  {gBusy ? "Wartet auf Google…" : "Neu verbinden"}
+                </Btn>
+              ) : (
+                <Btn onClick={connectGoogle} disabled={gBusy}>
+                  {gBusy ? "Wartet auf Google…" : "Mit Google verbinden"}
+                </Btn>
+              )}
+            </div>
+          )}
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {connections.length === 0 && (
               <div style={{ fontSize: 13, color: C.textMuted, padding: 12, background: C.surface, borderRadius: 10 }}>
