@@ -8844,6 +8844,12 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
   // werden — gleicher Flow wie im Kunden-Panel (Popup + Status-Poll).
   const [gConn, setGConn] = useState(null); // null=unbekannt, {connected,email}
   const [gBusy, setGBusy] = useState(false);
+  // Aus Google geladene Auswahllisten (User-Wunsch 2026-07-15): nach dem
+  // Verbinden GSC-Properties + GA4-Properties abrufen, damit sie per Dropdown
+  // ausgewaehlt statt manuell eingetippt werden. null=noch nicht geladen.
+  const [gRes, setGRes] = useState({ gsc: null, ga4: null });
+  const [gResBusy, setGResBusy] = useState(false);
+  const [gResErr, setGResErr] = useState("");
   useEffect(() => {
     if (open) {
       setStep(1);
@@ -8853,6 +8859,9 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
       setCreated(null);
       setGConn(null);
       setGBusy(false);
+      setGRes({ gsc: null, ga4: null });
+      setGResBusy(false);
+      setGResErr("");
     }
   }, [open]);
   const loadGoogleConn = async (clientId) => {
@@ -8903,6 +8912,44 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
       return next;
     });
   const connections = onboardingConnections(tabsSel, draft.services || new Set());
+
+  // Laedt die verfuegbaren Google-Ressourcen (GSC-Sites, GA4-Properties) des
+  // verbundenen Kontos, damit sie ausgewaehlt statt eingetippt werden koennen.
+  const loadGoogleResources = async () => {
+    if (!created?.id || gResBusy) return;
+    setGResBusy(true);
+    setGResErr("");
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const headers = { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" };
+      const body = JSON.stringify({ clientId: created.id });
+      const needGsc = connections.some((c) => c.key === "gsc");
+      const needGa4 = connections.some((c) => c.key === "ga4");
+      const [gsc, ga4] = await Promise.all([
+        needGsc ? fetch("/api/google/gsc-sites", { method: "POST", headers, body }).then((r) => r.json()).catch(() => null) : Promise.resolve(null),
+        needGa4 ? fetch("/api/google/ga4-properties", { method: "POST", headers, body }).then((r) => r.json()).catch(() => null) : Promise.resolve(null),
+      ]);
+      setGRes({
+        gsc: gsc?.ok ? gsc.sites || [] : needGsc ? [] : null,
+        ga4: ga4?.ok ? ga4.properties || [] : needGa4 ? [] : null,
+      });
+      const errs = [];
+      if (needGsc && gsc && !gsc.ok) errs.push(`GSC: ${gsc.error}`);
+      if (needGa4 && ga4 && !ga4.ok) errs.push(`GA4: ${ga4.error}`);
+      if (errs.length) setGResErr(errs.join(" · "));
+    } catch (e) {
+      setGResErr(String(e?.message || e));
+    } finally {
+      setGResBusy(false);
+    }
+  };
+  // Sobald in Schritt 3 verbunden ist, Auswahllisten einmal automatisch laden.
+  useEffect(() => {
+    if (step === 3 && gConn?.connected && created?.id && gRes.gsc === null && gRes.ga4 === null && !gResBusy) {
+      void loadGoogleResources();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, gConn?.connected, created?.id]);
 
   const createClient = async () => {
     if (busy) return;
@@ -9108,6 +9155,11 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
               )}
             </div>
           )}
+          {gResErr && (
+            <div style={{ fontSize: 12, color: C.red, marginBottom: 10 }}>
+              Google-Ressourcen konnten nicht geladen werden: {gResErr}
+            </div>
+          )}
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {connections.length === 0 && (
               <div style={{ fontSize: 13, color: C.textMuted, padding: 12, background: C.surface, borderRadius: 10 }}>
@@ -9124,11 +9176,51 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
                   ))}
                 </div>
                 <div style={{ fontSize: 12, color: C.textMuted, marginTop: 4 }}>{c.action}</div>
-                {c.field && (
-                  <div style={{ marginTop: 8, maxWidth: 320 }}>
-                    <Inp label={c.key === "gsc" ? "GSC Property" : "GA4 Property ID"} value={draft[c.field]} onChange={set(c.field)} placeholder={c.placeholder} />
-                  </div>
-                )}
+                {c.field && (() => {
+                  const list = c.key === "gsc" ? gRes.gsc : c.key === "ga4" ? gRes.ga4 : null;
+                  const hasList = Array.isArray(list) && list.length > 0;
+                  const fieldLabel = c.key === "gsc" ? "GSC Property" : "GA4 Property ID";
+                  return (
+                    <div style={{ marginTop: 8, maxWidth: 440 }}>
+                      {gConn?.connected && hasList ? (
+                        <label style={{ display: "block" }}>
+                          <span style={{ fontSize: 12, color: C.textMuted }}>{fieldLabel} — aus Google wählen</span>
+                          <select
+                            value={draft[c.field]}
+                            onChange={(e) => set(c.field)(e.target.value)}
+                            style={{ width: "100%", marginTop: 4, background: C.card, color: C.text, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+                          >
+                            <option value="">— auswählen —</option>
+                            {list.map((o) => {
+                              const val = c.key === "gsc" ? o.url : o.id;
+                              const lbl = c.key === "gsc"
+                                ? o.url
+                                : `${o.account ? `${o.account} · ` : ""}${o.displayName || o.id} (${o.id})`;
+                              return <option key={val} value={val}>{lbl}</option>;
+                            })}
+                          </select>
+                        </label>
+                      ) : (
+                        <Inp label={fieldLabel} value={draft[c.field]} onChange={set(c.field)} placeholder={c.placeholder} />
+                      )}
+                      {gConn?.connected && (
+                        <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <button
+                            type="button"
+                            onClick={loadGoogleResources}
+                            disabled={gResBusy}
+                            style={{ fontSize: 11, color: C.accentLight, background: "none", border: "none", cursor: gResBusy ? "default" : "pointer", padding: 0 }}
+                          >
+                            {gResBusy ? "Lädt aus Google…" : hasList ? "↻ Neu aus Google laden" : "Aus Google laden"}
+                          </button>
+                          {Array.isArray(list) && list.length === 0 && !gResBusy && (
+                            <span style={{ fontSize: 11, color: C.textDim }}>Keine gefunden — manuell eintragen.</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             ))}
           </div>
