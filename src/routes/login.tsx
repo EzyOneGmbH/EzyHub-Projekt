@@ -52,7 +52,7 @@ function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-md rounded-xl border border-border bg-card p-8 shadow-sm">
         <Link to="/" className="flex items-center gap-2 font-bold text-foreground">
-          <Sparkles className="h-5 w-5 text-primary" /> EZY ONE TOOL
+          <Sparkles className="h-5 w-5 text-primary" /> EzyHub
         </Link>
         <h1 className="mt-6 text-2xl font-bold text-foreground">Anmelden</h1>
         <p className="mt-1 text-sm text-muted-foreground">Willkommen zurück.</p>

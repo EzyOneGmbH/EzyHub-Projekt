@@ -76,11 +76,11 @@ function SetPasswordPage() {
       <div style={{ width: "100%", maxWidth: 400, background: "#151823", border: "1px solid #262a3a", borderRadius: 16, padding: 32 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
           <Sparkles size={22} color="#8b7cff" />
-          <span style={{ fontSize: 18, fontWeight: 700, color: "#e2e4f0" }}>EZY ONE</span>
+          <span style={{ fontSize: 18, fontWeight: 700, color: "#e2e4f0" }}>EzyHub</span>
         </div>
         <h1 style={{ fontSize: 20, fontWeight: 700, color: "#e2e4f0", margin: "8px 0 4px" }}>Passwort festlegen</h1>
         <p style={{ fontSize: 13, color: "#8a94a8", margin: "0 0 20px" }}>
-          Lege dein persönliches Passwort fest, um dein EZY ONE-Konto zu aktivieren.
+          Lege dein persönliches Passwort fest, um dein EzyHub-Konto zu aktivieren.
         </p>
 
         {!ready ? (
