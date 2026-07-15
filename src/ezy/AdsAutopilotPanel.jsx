@@ -9,10 +9,10 @@ import { useEzyAdsAutopilot } from "./data/useEzyAdsAutopilot";
 const P = {
   card: "#181923",
   border: "#252636",
-  text: "#e2e4f0",
-  textMuted: "#8b8da3",
-  textDim: "#5c5e72",
-  accent: "#6c5ce7",
+  text: "#f0f1f8",       // heller (war #e2e4f0)
+  textMuted: "#c2c4d6",  // deutlich heller lesbar (war #8b8da3)
+  textDim: "#9fa1b8",    // heller, aber sekundaer erkennbar (war #5c5e72)
+  accent: "#8b7dff",     // heller Akzent fuer bessere Lesbarkeit (war #6c5ce7)
   green: "#10b981",
   greenDim: "rgba(16,185,129,0.12)",
   red: "#ef4444",
