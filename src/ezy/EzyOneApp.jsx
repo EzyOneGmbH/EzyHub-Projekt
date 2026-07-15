@@ -7,6 +7,7 @@ import {
   useRef,
   useMemo,
   Component,
+  Fragment,
 } from "react";
 import {
   LineChart,
@@ -2537,6 +2538,151 @@ function LiveEmptyState({ title, hint }) {
     </div>
   );
 }
+// Modul 1 (M1.5): Onboarding-Review. Nur bei vorhandener onboarding_scan-Zeile.
+// Vorschlag aus automatischem Scan — nichts ist aktiv, bis der Mensch uebernimmt.
+const CLIENT_TYPES = [
+  { v: "generic", l: "Allgemein" }, { v: "hotel", l: "Hotel" }, { v: "gastro", l: "Gastro" },
+  { v: "local_service", l: "Lokaler Dienstleister" }, { v: "ngo", l: "NPO / NGO" }, { v: "ecommerce", l: "E-Commerce" },
+];
+function OnboardingPanel({ selectedClient }) {
+  const { run, refresh } = useEzyLatestRun(selectedClient?.id, "onboarding_scan");
+  const res = run?.result;
+  const [selKw, setSelKw] = useState(null);
+  const [selOrg, setSelOrg] = useState({});
+  const [selLoc, setSelLoc] = useState({});
+  const [ctype, setCtype] = useState("");
+  const [brandStr, setBrandStr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState("");
+  useEffect(() => {
+    if (!res) return;
+    const money = new Set((res.suggestions?.moneyKeywordCandidates || []).map((s) => String(s).toLowerCase()));
+    const ranked = res.topRanked || [];
+    const top3 = [...ranked].sort((a, b) => (b.searchVolume || 0) - (a.searchVolume || 0)).slice(0, 3).map((k) => k.kw.toLowerCase());
+    const pre = {};
+    ranked.forEach((k) => { if (money.has(k.kw.toLowerCase()) || top3.includes(k.kw.toLowerCase())) pre[k.kw] = true; });
+    setSelKw(pre);
+    setCtype(res.suggestions?.clientType || "generic");
+    setBrandStr((res.suggestions?.brandTerms || []).join(", "));
+  }, [run?.id]);
+  if (!res || selKw === null) return null;
+  const counts = res.counts || {};
+  const changes = res.changes;
+  const kwList = res.topRanked || [];
+  const orgList = res.topOrganicCompetitors || [];
+  const locList = res.topLocalCompetitors || [];
+  const moneySet = new Set((res.suggestions?.moneyKeywordCandidates || []).map((s) => String(s).toLowerCase()));
+  const Counter = ({ label, n }) => (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px" }}>
+      <div style={{ fontSize: 22, fontWeight: 700, color: C.text }}>{n ?? 0}</div>
+      <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{label}</div>
+    </div>
+  );
+  async function apply() {
+    setBusy(true); setDone("");
+    try {
+      const brand_terms = brandStr.split(",").map((s) => s.trim()).filter(Boolean);
+      const keywords = kwList.filter((k) => selKw[k.kw]).map((k) => k.kw);
+      const { error: cErr } = await supabase.from("clients").update({ brand_terms, client_type: ctype }).eq("id", selectedClient.id);
+      if (cErr) throw cErr;
+      // Ausgewaehlte Keywords zur Uebernahme markieren; der agent-service wendet
+      // sie beim naechsten Onboarding-Tick auf die BESTEHENDE keyword-setup-Route
+      // an (Browser erreicht den localhost-Dienst nicht direkt).
+      const applied = { keywords, brand_terms, client_type: ctype, at: new Date().toISOString(), processed: false };
+      await supabase.from("audit_runs").update({ result: { ...res, applied } }).eq("id", run.id);
+      setDone(`Uebernommen am ${new Date().toLocaleDateString("de-CH")} — ${keywords.length} Keywords zur Aufnahme markiert, Kundentyp/Brand-Terms gesetzt.`);
+      await refresh();
+    } catch (e) {
+      setDone("Fehler: " + String(e?.message || e).slice(0, 140));
+    } finally { setBusy(false); }
+  }
+  const alreadyApplied = res.applied?.at;
+  return (
+    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 18, display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Onboarding-Vorschlag</div>
+      <div style={{ fontSize: 12, color: C.orange, background: C.orangeDim, border: `1px solid ${C.orange}44`, borderRadius: 8, padding: "8px 12px" }}>
+        Vorschlag aus automatischem Scan — nichts ist aktiv, bis du uebernimmst.
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 10 }}>
+        <Counter label="Ranked Keywords" n={counts.ranked} />
+        <Counter label="Keyword-Ideen" n={counts.ideas} />
+        <Counter label="Organische Wettbewerber" n={counts.organicCompetitors} />
+        <Counter label="Lokale Wettbewerber" n={counts.localCompetitors} />
+      </div>
+      {changes && (changes.newRankedMoneyKw?.length || changes.lostRankings?.length || changes.newOrganicCompetitors?.length) ? (
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", fontSize: 12, color: C.textMuted }}>
+          <b style={{ color: C.text }}>Seit letztem Scan:</b> {changes.newRankedMoneyKw?.length || 0} neu rankende Money-KW · {changes.lostRankings?.length || 0} verlorene Rankings · {changes.newOrganicCompetitors?.length || 0} neue Wettbewerber. <span style={{ color: C.textDim }}>Details in der Wunsch-Queue.</span>
+        </div>
+      ) : null}
+      {/* Keyword-Universum */}
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 6 }}>Keyword-Universum</div>
+        <div style={{ maxHeight: 260, overflowY: "auto", border: `1px solid ${C.border}`, borderRadius: 8 }}>
+          {kwList.map((k, i) => (
+            <label key={i} style={{ display: "grid", gridTemplateColumns: "24px 1fr auto auto auto", alignItems: "center", gap: 8, padding: "6px 10px", borderTop: i ? `1px solid ${C.border}` : "none", fontSize: 12, cursor: "pointer" }}>
+              <input type="checkbox" checked={!!selKw[k.kw]} onChange={() => setSelKw((s) => ({ ...s, [k.kw]: !s[k.kw] }))} />
+              <span style={{ color: C.text }}>{moneySet.has(k.kw.toLowerCase()) ? <Badge color={C.green}>Money</Badge> : null} {k.kw}</span>
+              <span title="Position ist eine Labs-Schaetzung, keine Live-Messung"><Badge color={C.blue}>Labs-Schaetzung</Badge></span>
+              <span style={{ color: C.textMuted }}>Pos {k.position ?? "—"}</span>
+              <span style={{ color: C.textDim }}>{k.searchVolume ?? "—"} · {k.intent || "—"}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+      {/* Organische Wettbewerber */}
+      {orgList.length ? (
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 6 }}>Organische Wettbewerber</div>
+          <div style={{ border: `1px solid ${C.border}`, borderRadius: 8 }}>
+            {orgList.map((o, i) => (
+              <label key={i} style={{ display: "grid", gridTemplateColumns: "24px 1fr auto auto", alignItems: "center", gap: 8, padding: "6px 10px", borderTop: i ? `1px solid ${C.border}` : "none", fontSize: 12, cursor: "pointer" }}>
+                <input type="checkbox" checked={!!selOrg[o.domain]} onChange={() => setSelOrg((s) => ({ ...s, [o.domain]: !s[o.domain] }))} />
+                <span style={{ color: C.text }}>{o.domain}</span>
+                <span style={{ color: C.textDim }}>{o.commonKeywords ?? "—"} KW</span>
+                <span style={{ color: C.textDim }}>Ø {o.avgPosition ?? "—"}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {/* Lokale Wettbewerber */}
+      {locList.length ? (
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 6 }}>Lokale Wettbewerber</div>
+          <div style={{ border: `1px solid ${C.border}`, borderRadius: 8 }}>
+            {locList.map((l, i) => (
+              <label key={i} style={{ display: "grid", gridTemplateColumns: "24px 1fr auto auto auto", alignItems: "center", gap: 8, padding: "6px 10px", borderTop: i ? `1px solid ${C.border}` : "none", fontSize: 12, cursor: "pointer" }}>
+                <input type="checkbox" checked={!!selLoc[l.cid || l.title]} onChange={() => setSelLoc((s) => ({ ...s, [l.cid || l.title]: !s[l.cid || l.title] }))} />
+                <span style={{ color: C.text }}>{l.title}</span>
+                <span style={{ color: C.textDim }}>★ {l.rating ?? "—"}</span>
+                <span style={{ color: C.textDim }}>{l.votesCount ?? 0} Bew.</span>
+                <span style={{ color: C.textDim }}>{l.city || "—"}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {/* Kundentyp + Brand-Terms + Uebernehmen */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
+        <div>
+          <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }} title={res.suggestions?.clientTypeReason || ""}>Kundentyp ⓘ</div>
+          <select value={ctype} onChange={(e) => setCtype(e.target.value)} style={{ background: C.card, color: C.text, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", fontSize: 12 }}>
+            {CLIENT_TYPES.map((t) => <option key={t.v} value={t.v}>{t.l}</option>)}
+          </select>
+        </div>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>Brand-Terms (Komma-getrennt)</div>
+          <input value={brandStr} onChange={(e) => setBrandStr(e.target.value)} style={{ width: "100%", background: C.card, color: C.text, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", fontSize: 12 }} />
+        </div>
+        <button onClick={apply} disabled={busy} style={{ background: `linear-gradient(135deg,${C.accent},${C.blue})`, color: "#fff", border: "none", borderRadius: 8, padding: "9px 16px", fontSize: 13, fontWeight: 600, cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}>
+          {busy ? "Uebernehme…" : "Ausgewaehlte uebernehmen"}
+        </button>
+      </div>
+      {done ? <div style={{ fontSize: 12, color: done.startsWith("Fehler") ? C.red : C.green }}>{done}</div> : null}
+      {alreadyApplied && !done ? <div style={{ fontSize: 11, color: C.textDim }}>Zuletzt uebernommen am {new Date(alreadyApplied).toLocaleDateString("de-CH")}.</div> : null}
+    </div>
+  );
+}
 function SeoDashboard({ selectedClient, dateRange }) {
   const { run, refresh: refreshAhrefs } = useEzyLatestRun(selectedClient?.id, "ahrefs");
   const live = run ? ahrefsKpisFromResult(run.result) : null;
@@ -2632,6 +2778,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
   };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <OnboardingPanel selectedClient={selectedClient} />
       {rank && (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div
@@ -4450,7 +4597,101 @@ function AiVisibilityTab({ selectedClient }) {
   // Backend/Loader zusammengeführt (Canonry-Provider fließen in die Modell-Verteilung,
   // -Quellen, -Konkurrenten). Kein separater GEO-Tab / keine gestapelte Sektion mehr.
   if (loading) return <AIVisibilitySkeleton />;
-  return <AIVisibilityReport data={data && !error ? data : null} convRows={convRows} />;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <AIVisibilityReport data={data && !error ? data : null} convRows={convRows} />
+      <AiCitationsPanel selectedClient={selectedClient} />
+    </div>
+  );
+}
+
+// Modul 2 (M2.5): Sub-Bereich "AI-Zitationen" im KI-Tab. Nur bei vorhandener
+// ai_citations-Zeile. Additiv — bestehender KI-Tab-Inhalt bleibt unveraendert.
+function AiCitationsPanel({ selectedClient }) {
+  const { run } = useEzyLatestRun(selectedClient?.id, "ai_citations");
+  const [open, setOpen] = useState({});
+  const r = run?.result;
+  if (!r || !Array.isArray(r.queries) || !r.queries.length) return null;
+  const agg = r.aggregate || {};
+  const delta = agg.citedDelta7;
+  const deltaUp = typeof delta === "string" && delta.startsWith("+") && delta !== "+0";
+  const deltaDown = typeof delta === "string" && delta.startsWith("-");
+  const pct = (v) => (v == null ? "—" : (Math.round(v * 1000) / 10).toFixed(1) + " %");
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 18, display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>AI-Zitationen</div>
+          <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>
+            In {agg.queriesCited ?? 0} von {agg.queriesTracked ?? r.queries.length} KI-Abfragen zitiert
+            {delta ? (
+              <span style={{ marginLeft: 8, color: deltaUp ? C.green : deltaDown ? C.red : C.textMuted, fontWeight: 600 }}>
+                {deltaUp ? "▲" : deltaDown ? "▼" : "→"} {delta} ggü. Vorwoche
+              </span>
+            ) : null}
+          </div>
+        </div>
+        <span title="Kleine KMU sind anfangs oft nicht oder niedrig zitiert. Der Wert liegt im Trend ueber Zeit, waehrend GEO-Massnahmen greifen." style={{ fontSize: 11, color: C.textDim, cursor: "help" }}>
+          KI-Sicht (Stadt-/Kategorie-Ebene) ⓘ
+        </span>
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <thead>
+            <tr style={{ color: C.textMuted, textAlign: "left" }}>
+              <th style={{ padding: "6px 8px", fontWeight: 500 }}>Abfrage</th>
+              <th style={{ padding: "6px 8px", fontWeight: 500 }}>Zitiert</th>
+              <th style={{ padding: "6px 8px", fontWeight: 500 }}>Rang</th>
+              <th style={{ padding: "6px 8px", fontWeight: 500 }}>Anteil</th>
+              <th style={{ padding: "6px 8px", fontWeight: 500 }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {r.queries.map((q, i) => {
+              const notCitedPrimary = q.isPrimary && !q.clientCited && !q.noData;
+              const isOpen = open[i];
+              return (
+                <Fragment key={i}>
+                  <tr style={{ borderTop: `1px solid ${C.border}`, background: notCitedPrimary ? C.redDim : "transparent" }}>
+                    <td style={{ padding: "8px" }}>
+                      {q.isPrimary ? <Badge color={C.accent}>Primaer</Badge> : null} <span style={{ color: C.text }}>{q.query}</span>
+                      {q.noData ? <span style={{ color: C.textDim, marginLeft: 6 }}>(keine KI-Daten)</span> : null}
+                    </td>
+                    <td style={{ padding: "8px" }}>
+                      <Badge color={q.clientCited ? C.green : C.red}>{q.clientCited ? "Ja" : "Nein"}</Badge>
+                    </td>
+                    <td style={{ padding: "8px", color: C.text }}>{q.clientRank ?? "—"}</td>
+                    <td style={{ padding: "8px", color: C.text }}>{pct(q.clientShare)}</td>
+                    <td style={{ padding: "8px" }}>
+                      {(q.topCitedDomains || []).length ? (
+                        <button onClick={() => setOpen((o) => ({ ...o, [i]: !o[i] }))} style={{ background: "transparent", border: "none", color: C.accentLight, cursor: "pointer", fontSize: 12 }}>
+                          {isOpen ? "Quellen ▲" : "Quellen ▼"}
+                        </button>
+                      ) : null}
+                    </td>
+                  </tr>
+                  {isOpen && (q.topCitedDomains || []).length ? (
+                    <tr style={{ background: C.surface }}>
+                      <td colSpan={5} style={{ padding: "8px 12px" }}>
+                        <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 6 }}>Top-zitierte Quellen (Wettbewerb um KI-Zitationen):</div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                          {q.topCitedDomains.map((d, k) => (
+                            <span key={k} style={{ fontSize: 11, color: C.text, background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: "3px 8px" }}>
+                              {d.domain} <span style={{ color: C.textDim }}>{d.mentions}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 function AiVisibilityDashboard({ selectedClient }) {
@@ -8539,7 +8780,7 @@ function onboardingConnections(tabsSet, servicesSet) {
       key: "gsc",
       label: "Google Search Console",
       reason: why([tabsSet.has("seo") && "Dashboard SEO", servicesSet.has("gsc") && "Dienst Search Console"]),
-      action: "Google-Konto im Kunden-Panel verbinden und die GSC-Property eintragen.",
+      action: "Oben „Mit Google verbinden“ klicken und die GSC-Property eintragen.",
       field: "gscSiteUrl",
       placeholder: "sc-domain:example.com",
     });
@@ -8548,7 +8789,7 @@ function onboardingConnections(tabsSet, servicesSet) {
       key: "ga4",
       label: "Google Analytics 4",
       reason: why([tabsSet.has("conversions") && "Dashboard Conversions", servicesSet.has("ga4") && "Dienst GA4"]),
-      action: "Google-Konto im Kunden-Panel verbinden und die GA4-Property-ID eintragen.",
+      action: "Oben „Mit Google verbinden“ klicken und die GA4-Property-ID eintragen.",
       field: "ga4PropertyId",
       placeholder: "z. B. 123456789",
     });
@@ -8557,7 +8798,7 @@ function onboardingConnections(tabsSet, servicesSet) {
       key: "google-ads",
       label: "Google Ads",
       reason: why([tabsSet.has("ads") && "Dashboard Google Ads", servicesSet.has("google-ads") && "Dienst Google Ads"]),
-      action: "Google-Konto verbinden und die Ads-Customer-ID im Kunden-Panel hinterlegen.",
+      action: "Oben „Mit Google verbinden“ klicken; die Ads-Customer-ID hinterlegst du im Kunden-Panel.",
     });
   if (tabsSet.has("aivis") || servicesSet.has("canonry"))
     out.push({
@@ -8598,6 +8839,17 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
   const [draft, setDraft] = useState(clientFormFromClient());
   const [tabsSel, setTabsSel] = useState(new Set(DEFAULT_CUSTOMER_DEFAULTS.visibleTabs));
   const [created, setCreated] = useState(null);
+  // Google-OAuth direkt im Wizard (User-Wunsch 2026-07-15): sobald der Kunde
+  // angelegt ist, kann die Google-Verbindung (GSC/GA4/Ads) hier gestartet
+  // werden — gleicher Flow wie im Kunden-Panel (Popup + Status-Poll).
+  const [gConn, setGConn] = useState(null); // null=unbekannt, {connected,email}
+  const [gBusy, setGBusy] = useState(false);
+  // Aus Google geladene Auswahllisten (User-Wunsch 2026-07-15): nach dem
+  // Verbinden GSC-Properties + GA4-Properties abrufen, damit sie per Dropdown
+  // ausgewaehlt statt manuell eingetippt werden. null=noch nicht geladen.
+  const [gRes, setGRes] = useState({ gsc: null, ga4: null });
+  const [gResBusy, setGResBusy] = useState(false);
+  const [gResErr, setGResErr] = useState("");
   useEffect(() => {
     if (open) {
       setStep(1);
@@ -8605,8 +8857,51 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
       setDraft(clientFormFromClient());
       setTabsSel(new Set(DEFAULT_CUSTOMER_DEFAULTS.visibleTabs));
       setCreated(null);
+      setGConn(null);
+      setGBusy(false);
+      setGRes({ gsc: null, ga4: null });
+      setGResBusy(false);
+      setGResErr("");
     }
   }, [open]);
+  const loadGoogleConn = async (clientId) => {
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const r = await fetch("/api/google/connection", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId }),
+      });
+      const j = await r.json().catch(() => null);
+      if (r.ok && j) setGConn(j);
+    } catch { /* Status unbekannt */ }
+  };
+  useEffect(() => {
+    if (step === 3 && created?.id) loadGoogleConn(created.id);
+  }, [step, created?.id]);
+  const connectGoogle = async () => {
+    if (!created?.id || gBusy) return;
+    setGBusy(true);
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const res = await fetch(`/api/google/oauth/start?client_id=${encodeURIComponent(created.id)}`, {
+        headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.url) throw new Error(json.error || `HTTP ${res.status}`);
+      const popup = window.open(json.url, "google-oauth", "width=520,height=640");
+      const t = setInterval(async () => {
+        if (popup?.closed) {
+          clearInterval(t);
+          await loadGoogleConn(created.id);
+          setGBusy(false);
+        }
+      }, 800);
+    } catch (e) {
+      toast(String(e?.message || e), "error");
+      setGBusy(false);
+    }
+  };
   const set = (k) => (v) => setDraft((p) => ({ ...p, [k]: v }));
   const toggleTab = (id) =>
     setTabsSel((prev) => {
@@ -8617,6 +8912,44 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
       return next;
     });
   const connections = onboardingConnections(tabsSel, draft.services || new Set());
+
+  // Laedt die verfuegbaren Google-Ressourcen (GSC-Sites, GA4-Properties) des
+  // verbundenen Kontos, damit sie ausgewaehlt statt eingetippt werden koennen.
+  const loadGoogleResources = async () => {
+    if (!created?.id || gResBusy) return;
+    setGResBusy(true);
+    setGResErr("");
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const headers = { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" };
+      const body = JSON.stringify({ clientId: created.id });
+      const needGsc = connections.some((c) => c.key === "gsc");
+      const needGa4 = connections.some((c) => c.key === "ga4");
+      const [gsc, ga4] = await Promise.all([
+        needGsc ? fetch("/api/google/gsc-sites", { method: "POST", headers, body }).then((r) => r.json()).catch(() => null) : Promise.resolve(null),
+        needGa4 ? fetch("/api/google/ga4-properties", { method: "POST", headers, body }).then((r) => r.json()).catch(() => null) : Promise.resolve(null),
+      ]);
+      setGRes({
+        gsc: gsc?.ok ? gsc.sites || [] : needGsc ? [] : null,
+        ga4: ga4?.ok ? ga4.properties || [] : needGa4 ? [] : null,
+      });
+      const errs = [];
+      if (needGsc && gsc && !gsc.ok) errs.push(`GSC: ${gsc.error}`);
+      if (needGa4 && ga4 && !ga4.ok) errs.push(`GA4: ${ga4.error}`);
+      if (errs.length) setGResErr(errs.join(" · "));
+    } catch (e) {
+      setGResErr(String(e?.message || e));
+    } finally {
+      setGResBusy(false);
+    }
+  };
+  // Sobald in Schritt 3 verbunden ist, Auswahllisten einmal automatisch laden.
+  useEffect(() => {
+    if (step === 3 && gConn?.connected && created?.id && gRes.gsc === null && gRes.ga4 === null && !gResBusy) {
+      void loadGoogleResources();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, gConn?.connected, created?.id]);
 
   const createClient = async () => {
     if (busy) return;
@@ -8784,8 +9117,49 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
         <>
           <p style={{ fontSize: 12, color: C.textMuted, margin: "0 0 12px" }}>
             Basierend auf deiner Auswahl braucht <strong style={{ color: C.text }}>{created?.name || draft.name}</strong> diese
-            Verbindungen. Properties kannst du direkt hier eintragen; OAuth-Verbindungen (Google) laufen im Kunden-Panel.
+            Verbindungen. Properties kannst du direkt hier eintragen.
           </p>
+          {connections.some((c) => ["gsc", "ga4", "google-ads", "gbp"].includes(c.key)) && (
+            <div
+              style={{
+                border: `1px solid ${gConn?.connected ? C.green : C.accent}`,
+                borderRadius: 12,
+                padding: "12px 14px",
+                background: gConn?.connected ? `${C.green}14` : C.accentDim,
+                marginBottom: 12,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 10,
+                flexWrap: "wrap",
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>
+                  Google-Konto {gConn?.connected ? "verbunden ✓" : "verbinden"}
+                </div>
+                <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>
+                  {gConn?.connected
+                    ? `Verbunden${gConn?.email ? ` als ${gConn.email}` : ""} — GSC, GA4 & Ads können jetzt Daten liefern.`
+                    : "Eine Verbindung deckt Search Console, Analytics (GA4) und Google Ads gemeinsam ab."}
+                </div>
+              </div>
+              {gConn?.connected ? (
+                <Btn variant="secondary" onClick={connectGoogle} disabled={gBusy}>
+                  {gBusy ? "Wartet auf Google…" : "Neu verbinden"}
+                </Btn>
+              ) : (
+                <Btn onClick={connectGoogle} disabled={gBusy}>
+                  {gBusy ? "Wartet auf Google…" : "Mit Google verbinden"}
+                </Btn>
+              )}
+            </div>
+          )}
+          {gResErr && (
+            <div style={{ fontSize: 12, color: C.red, marginBottom: 10 }}>
+              Google-Ressourcen konnten nicht geladen werden: {gResErr}
+            </div>
+          )}
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {connections.length === 0 && (
               <div style={{ fontSize: 13, color: C.textMuted, padding: 12, background: C.surface, borderRadius: 10 }}>
@@ -8802,11 +9176,51 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
                   ))}
                 </div>
                 <div style={{ fontSize: 12, color: C.textMuted, marginTop: 4 }}>{c.action}</div>
-                {c.field && (
-                  <div style={{ marginTop: 8, maxWidth: 320 }}>
-                    <Inp label={c.key === "gsc" ? "GSC Property" : "GA4 Property ID"} value={draft[c.field]} onChange={set(c.field)} placeholder={c.placeholder} />
-                  </div>
-                )}
+                {c.field && (() => {
+                  const list = c.key === "gsc" ? gRes.gsc : c.key === "ga4" ? gRes.ga4 : null;
+                  const hasList = Array.isArray(list) && list.length > 0;
+                  const fieldLabel = c.key === "gsc" ? "GSC Property" : "GA4 Property ID";
+                  return (
+                    <div style={{ marginTop: 8, maxWidth: 440 }}>
+                      {gConn?.connected && hasList ? (
+                        <label style={{ display: "block" }}>
+                          <span style={{ fontSize: 12, color: C.textMuted }}>{fieldLabel} — aus Google wählen</span>
+                          <select
+                            value={draft[c.field]}
+                            onChange={(e) => set(c.field)(e.target.value)}
+                            style={{ width: "100%", marginTop: 4, background: C.card, color: C.text, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+                          >
+                            <option value="">— auswählen —</option>
+                            {list.map((o) => {
+                              const val = c.key === "gsc" ? o.url : o.id;
+                              const lbl = c.key === "gsc"
+                                ? o.url
+                                : `${o.account ? `${o.account} · ` : ""}${o.displayName || o.id} (${o.id})`;
+                              return <option key={val} value={val}>{lbl}</option>;
+                            })}
+                          </select>
+                        </label>
+                      ) : (
+                        <Inp label={fieldLabel} value={draft[c.field]} onChange={set(c.field)} placeholder={c.placeholder} />
+                      )}
+                      {gConn?.connected && (
+                        <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <button
+                            type="button"
+                            onClick={loadGoogleResources}
+                            disabled={gResBusy}
+                            style={{ fontSize: 11, color: C.accentLight, background: "none", border: "none", cursor: gResBusy ? "default" : "pointer", padding: 0 }}
+                          >
+                            {gResBusy ? "Lädt aus Google…" : hasList ? "↻ Neu aus Google laden" : "Aus Google laden"}
+                          </button>
+                          {Array.isArray(list) && list.length === 0 && !gResBusy && (
+                            <span style={{ fontSize: 11, color: C.textDim }}>Keine gefunden — manuell eintragen.</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             ))}
           </div>
@@ -10694,6 +11108,10 @@ function stripAgentSpecs(text) {
 const WEEKDAY_SHORT = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 
 function ActivityPage({ selectedClient, clients }) {
+  // Kostenübersicht ist ausschliesslich fuer den SuperAdmin (owner) sichtbar –
+  // Admins und Mitarbeiter sehen sie nicht (RBAC 2026-07-15).
+  const { role } = useAuth();
+  const isOwner = role === "owner";
   const [data, setData] = useState({ runs: [], running: 0, schedules: [], uptime: [], uptimeDown: 0, costs: null });
   const [approvals, setApprovals] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -10786,8 +11204,8 @@ function ActivityPage({ selectedClient, clients }) {
 
       {err && <div style={{ fontSize: 12, color: C.red }}>{err}</div>}
 
-      {/* API-Kosten */}
-      {costs && (
+      {/* API-Kosten – nur SuperAdmin (owner) */}
+      {isOwner && costs && (
         <div>
           <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>
             API-Kosten
@@ -11363,6 +11781,9 @@ function EzyPilotButton() {
 }
 
 function AgentsPage({ selectedClient }) {
+  // Kosten sind nur fuer den SuperAdmin (owner) sichtbar (RBAC 2026-07-15).
+  const { role } = useAuth();
+  const isOwner = role === "owner";
   const clientId = selectedClient?.id || "global";
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -11689,7 +12110,7 @@ function AgentsPage({ selectedClient }) {
                 {runResult?.id === a.id && (
                   <div style={{ background: C.bg, border: `1px solid ${runResult.ok ? C.border : C.red}55`, borderRadius: 8, padding: 10, fontSize: 12, color: C.text, whiteSpace: "pre-wrap", maxHeight: 320, overflow: "auto" }}>
                     {runResult.text}
-                    {runResult.ok && runResult.cost != null && (
+                    {isOwner && runResult.ok && runResult.cost != null && (
                       <div style={{ fontSize: 10, color: C.textMuted, marginTop: 6 }}>Kosten: ${Number(runResult.cost).toFixed(3)}</div>
                     )}
                   </div>
@@ -11842,12 +12263,17 @@ function App() {
   const { role, isOrgAdmin } = useAuth();
   // viewer = read-only customer report: dashboards only, no tools/clients/settings.
   const isViewer = role === "viewer";
-  // Team-Verwaltung nur fuer SuperAdmin(owner)/admin (RBAC 2026-07-15).
+  // Team + Einstellungen nur fuer SuperAdmin(owner)/admin (RBAC 2026-07-15).
+  // Mitarbeiter (member/viewer) duerfen keine Kunden-Einstellungen sehen/aendern.
   const nav = useMemo(
     () =>
       isViewer
         ? NAV.filter((n) => n.id === "dashboard" || n.id === "reports")
-        : NAV.filter((n) => n.id !== "reports" && (n.id !== "team" || isOrgAdmin)),
+        : NAV.filter(
+            (n) =>
+              n.id !== "reports" &&
+              ((n.id !== "team" && n.id !== "settings") || isOrgAdmin),
+          ),
     [isViewer, isOrgAdmin],
   );
   const ezy = useEzyClients();
@@ -11881,6 +12307,11 @@ function App() {
   useEffect(() => {
     if (isViewer && page !== "dashboard" && page !== "reports") setPage("dashboard");
   }, [isViewer, page]);
+  // Mitarbeiter (kein Admin) haben keinen Zugriff auf Einstellungen/Team –
+  // auch nicht per direkter URL/localStorage-Wiederherstellung.
+  useEffect(() => {
+    if (!isOrgAdmin && (page === "settings" || page === "team")) setPage("dashboard");
+  }, [isOrgAdmin, page]);
   // „Aktivität" → Agenten-Tab, „Reports" (Team) → Content-Tab integriert.
   // Viewer behalten ihren eigenen Reports-Tab.
   useEffect(() => {
@@ -12013,14 +12444,16 @@ function App() {
   // maSSgebliche, geraeteuebergreifend zuverlaessige Quelle — er wird bei jedem
   // Laden aus Supabase gelesen. Der localStorage-basierte defaultsHook ist nur
   // Fallback (fix 2026-07-14: Einstellungen wirkten nur auf dem Geraet, auf dem
-  // sie gesetzt wurden). "runs" bleibt immer sichtbar.
+  // sie gesetzt wurden). "runs" (Agent-Läufe) ist für Admins immer sichtbar,
+  // für Mitarbeiter (member/viewer) hingegen ausgeblendet (RBAC 2026-07-15).
   const effectiveVisibleTabs = useMemo(() => {
     const fromClient = Array.isArray(client?.defaults?.visibleTabs) && client.defaults.visibleTabs.length
       ? client.defaults.visibleTabs
       : null;
     const base = fromClient || customerDefaults.visibleTabs || ["seo", "aivis", "conversions"];
-    return base.includes("runs") ? base : [...base, "runs"];
-  }, [client?.defaults?.visibleTabs, customerDefaults.visibleTabs]);
+    const withRuns = base.includes("runs") ? base : [...base, "runs"];
+    return isOrgAdmin ? withRuns : withRuns.filter((t) => t !== "runs");
+  }, [client?.defaults?.visibleTabs, customerDefaults.visibleTabs, isOrgAdmin]);
   const visibleTabs = useMemo(
     () =>
       TABS.filter((t) => {
@@ -12590,7 +13023,7 @@ function App() {
             />
           )}
           {isOrgAdmin && page === "team" && <TeamPage clients={clients} />}
-          {!isViewer && page === "settings" && (
+          {isOrgAdmin && page === "settings" && (
             <SettingsPage
               tools={tools}
               onToggleTool={toggleTool}

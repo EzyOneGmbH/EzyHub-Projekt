@@ -97,7 +97,12 @@ export const Route = createFileRoute("/api/admin/team")({
           const myRole = await orgRoleOf(user.id, orgId);
           if (role === "admin" && myRole !== "owner")
             return Response.json({ error: "Nur der SuperAdmin darf Admins anlegen." }, { status: 403 });
-          const { data: inv, error: invErr } = await supabaseAdmin.auth.admin.inviteUserByEmail(d.email);
+          const origin = (() => {
+            try { return new URL(request.url).origin; } catch { return process.env.PUBLIC_SITE_URL || ""; }
+          })();
+          const { data: inv, error: invErr } = await supabaseAdmin.auth.admin.inviteUserByEmail(d.email, {
+            redirectTo: origin ? `${origin}/set-password` : undefined,
+          });
           let newUserId = inv?.user?.id;
           if (invErr || !newUserId) {
             // Nutzer existiert evtl. schon -> per E-Mail auflösen.
@@ -121,6 +126,37 @@ export const Route = createFileRoute("/api/admin/team")({
             ? (await supabaseAdmin.from("app_users").update({ role }).eq("id", existing.id)).error
             : (await supabaseAdmin.from("app_users").insert({ user_id: newUserId, organization_id: orgId, role })).error;
           if (upErr) return Response.json({ error: upErr.message }, { status: 500 });
+
+          // Ein Signup-Trigger legt fuer neue Auth-User automatisch eine EIGENE
+          // (leere) Organisation an und macht sie zum owner -> die App wuerde
+          // dann diese leere Org waehlen und der Mitarbeiter saehe nichts.
+          // Aufraeumen: fremde Mitgliedschaften des neuen Nutzers entfernen, wenn
+          // deren Org keine Kunden hat (= die persoenliche Auto-Org).
+          try {
+            const { data: others } = await supabaseAdmin
+              .from("app_users")
+              .select("organization_id")
+              .eq("user_id", newUserId)
+              .neq("organization_id", orgId);
+            for (const o of others || []) {
+              const oid = (o as any).organization_id as string;
+              const { count } = await supabaseAdmin
+                .from("clients")
+                .select("id", { count: "exact", head: true })
+                .eq("organization_id", oid);
+              if (!count) {
+                await supabaseAdmin.from("app_users").delete().eq("user_id", newUserId).eq("organization_id", oid);
+                // Org nur loeschen, wenn danach keine Mitglieder mehr uebrig sind.
+                const { count: remaining } = await supabaseAdmin
+                  .from("app_users")
+                  .select("id", { count: "exact", head: true })
+                  .eq("organization_id", oid);
+                if (!remaining) await supabaseAdmin.from("organizations").delete().eq("id", oid);
+              }
+            }
+          } catch {
+            /* Aufraeumen best-effort; die Mitgliedschaft in orgId steht bereits */
+          }
           return Response.json({ ok: true, userId: newUserId, role, invited: !invErr });
         }
 

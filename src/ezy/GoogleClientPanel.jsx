@@ -145,7 +145,7 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
     const jobs = [
       ["Ahrefs", "/api/ahrefs/overview", { clientId }],
       ["Core Web Vitals", "/api/google/pagespeed", { clientId }],
-      ["GSC", "/api/google/gsc-import", { clientId, days: 28, rowLimit: 50 }],
+      ["GSC", "/api/google/gsc-import", { clientId, days: 28, rowLimit: 1000 }],
       ["GA4", "/api/google/ga4-summary", { clientId, days: 28 }],
       ["GA4 Traffic", "/api/google/ga4-traffic", { clientId, days: 28 }],
       ["GA4 Conversions", "/api/google/ga4-conversions", { clientId, days: 28 }],
@@ -253,7 +253,7 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
     try {
       const r = await authedFetch("/api/google/gsc-import", {
         method: "POST",
-        body: JSON.stringify({ clientId, days: 28, rowLimit: 50 }),
+        body: JSON.stringify({ clientId, days: 28, rowLimit: 1000 }),
       });
       const json = await r.json();
       if (!json.ok) throw new Error(json.error || "Fehler");

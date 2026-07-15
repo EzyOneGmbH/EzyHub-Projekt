@@ -2,7 +2,6 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,7 +52,7 @@ function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-md rounded-xl border border-border bg-card p-8 shadow-sm">
         <Link to="/" className="flex items-center gap-2 font-bold text-foreground">
-          <Sparkles className="h-5 w-5 text-primary" /> EZY ONE TOOL
+          <Sparkles className="h-5 w-5 text-primary" /> EzyHub
         </Link>
         <h1 className="mt-6 text-2xl font-bold text-foreground">Anmelden</h1>
         <p className="mt-1 text-sm text-muted-foreground">Willkommen zurück.</p>
@@ -84,39 +83,10 @@ function LoginPage() {
           </Button>
         </form>
 
-        <div className="my-6 flex items-center gap-3">
-          <div className="h-px flex-1 bg-border" />
-          <span className="text-xs text-muted-foreground">oder</span>
-          <div className="h-px flex-1 bg-border" />
-        </div>
-
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full"
-          onClick={async () => {
-            const returnTo = next
-              ? `${window.location.origin}${next}`
-              : window.location.origin;
-            const result = await lovable.auth.signInWithOAuth("google", {
-              redirect_uri: returnTo,
-            });
-            if (result.error) {
-              toast.error(result.error.message ?? "Google-Anmeldung fehlgeschlagen");
-              return;
-            }
-            if (result.redirected) return;
-            goNext();
-          }}
-        >
-          Mit Google fortfahren
-        </Button>
-
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          Kein Konto?{" "}
-          <Link to="/signup" className="font-medium text-primary hover:underline">
-            Registrieren
-          </Link>
+        {/* Zugang nur per Einladung (RBAC 2026-07-15): Google-Login + Self-Signup
+            bewusst entfernt. Neue Nutzer legt der SuperAdmin ueber Team an. */}
+        <p className="mt-6 text-center text-xs text-muted-foreground">
+          Der Zugang erfolgt ausschließlich per Einladung.
         </p>
       </div>
     </div>

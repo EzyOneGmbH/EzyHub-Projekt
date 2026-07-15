@@ -282,7 +282,7 @@ async function jobGsc(c: any, uid: string, days: number) {
       startDate: start,
       endDate: end,
       dimensions: ["query"],
-      rowLimit: 50,
+      rowLimit: 1000, // vorher 50 -> Summen-Totale untererfassten Klicks/Impressionen
       orderBy: [{ field: "clicks", descending: true }],
     }),
   });
