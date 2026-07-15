@@ -1023,6 +1023,33 @@ export type Database = {
           },
         ]
       }
+      client_access: {
+        Row: {
+          client_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          organization_id: string
+          user_id: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          organization_id: string
+          user_id: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          organization_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       app_users: {
         Row: {
           created_at: string
