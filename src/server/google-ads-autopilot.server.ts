@@ -340,17 +340,27 @@ export async function fetchAutopilotData(
     data.meta.avgCpaChf = convSum > 0 ? costSum / convSum : null;
 
     // Phase 1.4 Datenkonsistenz: unabhaengige Konto-Summe (customer-Ressource)
-    // gegen die Kampagnen-Summe pruefen; >5% Abweichung -> Abbruch.
+    // gegen die Kampagnen-Summe pruefen; >5% Abweichung -> Abbruch. WICHTIG:
+    // gegen die Summe ALLER Kampagnen (jeder Status) vergleichen, nicht nur der
+    // ENABLED - sonst tripped jede pausierte Kampagne mit Spend im 30T-Fenster
+    // faelschlich das Gate (Fehlalarm B5 15.07.: Konto 1220 vs ENABLED 1119).
+    // Die Analyse selbst nutzt weiter costSum (nur ENABLED).
     const custRows = await search(
       ctx,
       `SELECT metrics.cost_micros FROM customer WHERE segments.date DURING LAST_30_DAYS`,
     );
     const custCost = Number(custRows?.[0]?.metrics?.costMicros ?? 0) / MICROS;
-    const ref = Math.max(custCost, costSum);
-    if (ref > 1 && Math.abs(custCost - costSum) / ref > MAX_SPEND_DIVERGENCE) {
+    const allCampRows = await search(
+      ctx,
+      `SELECT metrics.cost_micros FROM campaign WHERE segments.date DURING LAST_30_DAYS`,
+    );
+    let allCampCost = 0;
+    for (const r of allCampRows) allCampCost += Number(r.metrics?.costMicros ?? 0) / MICROS;
+    const ref = Math.max(custCost, allCampCost);
+    if (ref > 1 && Math.abs(custCost - allCampCost) / ref > MAX_SPEND_DIVERGENCE) {
       return {
         ok: false,
-        error: `Datenkonsistenz verletzt: Konto-Spend CHF ${custCost.toFixed(2)} vs Kampagnen-Summe CHF ${costSum.toFixed(2)} (> ${MAX_SPEND_DIVERGENCE * 100}% Abweichung) - Run abgebrochen, keine Teilausfuehrung.`,
+        error: `Datenkonsistenz verletzt: Konto-Spend CHF ${custCost.toFixed(2)} vs Summe ALLER Kampagnen CHF ${allCampCost.toFixed(2)} (> ${MAX_SPEND_DIVERGENCE * 100}% Abweichung) - Run abgebrochen, keine Teilausfuehrung.`,
       };
     }
 
