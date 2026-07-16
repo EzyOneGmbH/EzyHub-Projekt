@@ -734,11 +734,19 @@ async function judgeAnswers(brand: string, comps: string[], items: Array<{ i: nu
   const hint = comps.length ? `Bekannte Konkurrenten (nutze diese Schreibweise, ergänze neue): ${comps.join(", ")}. ` : "";
   const head = `Du bewertest KI-Antworten für die Zielmarke "${brand}". ${hint}Für JEDE Antwort ein Objekt:\n{"i":<nr>,"mentioned":true|false (wird die Zielmarke genannt?),"cited":true|false (wird ihre Website/Domain als Quelle genannt/verlinkt?),"position":"top"|"list"|"passing"|"none" (top=klare Top-Empfehlung, list=eine von mehreren gleichrangig, passing=nur Randnotiz, none=nicht genannt),"sentiment":"pos"|"neu"|"neg"|null (Tonalität ggü. der Zielmarke),"competitors":["andere genannte Firmen/Marken OHNE die Zielmarke, max 8"],"sources":["explizit genannte Quell-URLs, max 8"]}\nSei streng: Substring-Zufallstreffer sind KEINE Erwähnung. Antworte NUR mit JSON-Array.\n\n`;
   // Judge in Blöcken -> skaliert auf beliebig viele Prompts (ohne Token-Limit zu sprengen).
+  // Blöcke PARALLEL (2026-07-16): sequenziell traf jeder Block die volle
+  // Failover-Kette (bis 120s je Provider) — 15 Blöcke x haengender Erst-
+  // Provider = ~30 Min > Hosting-Kap (~10 Min), der Lauf starb vor dem
+  // Report-Write. Parallel = Wall-Clock einer einzigen Ketten-Traversierung.
   const CHUNK = 12;
   const map: Record<number, any> = {};
-  for (let off = 0; off < items.length; off += CHUNK) {
-    const list = items.slice(off, off + CHUNK).map((a) => `#${a.i} [${a.platform}] ${String(a.text).slice(0, 650)}`).join("\n---\n");
-    const text = await askUtility(head + list, 4000); // Failover-Kette: Claude -> DeepSeek -> ...
+  const chunks: Array<typeof items> = [];
+  for (let off = 0; off < items.length; off += CHUNK) chunks.push(items.slice(off, off + CHUNK));
+  const texts = await Promise.all(chunks.map((ch) => {
+    const list = ch.map((a) => `#${a.i} [${a.platform}] ${String(a.text).slice(0, 650)}`).join("\n---\n");
+    return askUtility(head + list, 4000).catch(() => null); // Failover-Kette: Claude -> DeepSeek -> ...
+  }));
+  for (const text of texts) {
     if (!text) continue;
     const arr = parseJson(text);
     if (Array.isArray(arr)) for (const e of arr) map[Number(e.i)] = e;
@@ -805,7 +813,13 @@ async function jobPromptRunner(c: any, sbAny: any, fixedComps: string[] = []) {
   if (!rows.length) return { skipped: "keine Engine-Antworten", seeded };
 
   // A) LLM-Judge über alle Antworten; Fallback = Regex, falls Judge ausfällt.
-  const judged = await judgeAnswers(c.name, fixedComps, rows.map((r) => ({ i: r.i, platform: r.platform, text: r.text })));
+  // Harte Gesamt-Deadline (2026-07-16): der Judge darf den Lauf nie ueber das
+  // Hosting-Kap (~10 Min) schieben — lieber Regex-Fallback als toter Lauf.
+  const judged = await withDeadline(
+    judgeAnswers(c.name, fixedComps, rows.map((r) => ({ i: r.i, platform: r.platform, text: r.text }))),
+    5 * 60_000,
+    "judge",
+  ).catch(() => null);
   const evals = rows.map((r) => {
     const j = judged?.[r.i];
     if (j) {
