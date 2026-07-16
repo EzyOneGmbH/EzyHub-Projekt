@@ -211,6 +211,7 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
+const BUILD_TAG = "2026-07-16-diag2"; // Deploy-Verifikation via GET-Antwort
 let diagLog: string[] = [];
 let diagWrite: ((log: string[]) => void) | null = null;
 function diag(m: string) {
@@ -1474,11 +1475,12 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             .select("id, status, started_at, finished_at, clients")
             .order("started_at", { ascending: false })
             .limit(20);
-          return Response.json({ ok: true, runs: data || [] });
+          // build: Deploy-Verifikation (welcher Stand serviert wird).
+          return Response.json({ ok: true, build: BUILD_TAG, runs: data || [] });
         }
         const { data } = await sb.from("ai_visibility_sync_runs").select("*").eq("id", runId).maybeSingle();
         if (!data) return Response.json({ ok: false, error: "runId unbekannt" }, { status: 404 });
-        return Response.json({ ok: true, run: data });
+        return Response.json({ ok: true, build: BUILD_TAG, run: data });
       },
     },
   },
