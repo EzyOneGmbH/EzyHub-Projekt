@@ -4607,11 +4607,22 @@ function AiVisibilityTab({ selectedClient }) {
 
 // Modul 2 (M2.5): Sub-Bereich "AI-Zitationen" im KI-Tab. Nur bei vorhandener
 // ai_citations-Zeile. Additiv — bestehender KI-Tab-Inhalt bleibt unveraendert.
+const CORPUS_LABELS = {
+  "ch-de": "Heimmarkt (Google AI, CH/de)",
+  "ch-fr": "Heimmarkt (Google AI, CH/fr)",
+  "ch-it": "Heimmarkt (Google AI, CH/it)",
+  "int-en": "International (ChatGPT, US/en)",
+};
 function AiCitationsPanel({ selectedClient }) {
   const { run } = useEzyLatestRun(selectedClient?.id, "ai_citations");
   const [open, setOpen] = useState({});
+  const [corpusFilter, setCorpusFilter] = useState("alle");
   const r = run?.result;
   if (!r || !Array.isArray(r.queries) || !r.queries.length) return null;
+  // Dual-Korpus (2026-07-16): alte Zeilen ohne corpusId = int-en.
+  const allRows = r.queries.map((q) => ({ ...q, corpusId: q.corpusId || "int-en" }));
+  const corpusIds = [...new Set(allRows.map((q) => q.corpusId))];
+  const rows = corpusFilter === "alle" ? allRows : allRows.filter((q) => q.corpusId === corpusFilter);
   const agg = r.aggregate || {};
   const delta = agg.citedDelta7;
   const deltaUp = typeof delta === "string" && delta.startsWith("+") && delta !== "+0";
@@ -4635,11 +4646,23 @@ function AiCitationsPanel({ selectedClient }) {
           KI-Sicht (Stadt-/Kategorie-Ebene) ⓘ
         </span>
       </div>
+      {r.note ? <div style={{ fontSize: 11, color: C.textDim, fontStyle: "italic" }}>{r.note}</div> : null}
+      {corpusIds.length > 1 ? (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {["alle", ...corpusIds].map((cid) => (
+            <button key={cid} onClick={() => setCorpusFilter(cid)}
+              style={{ background: corpusFilter === cid ? C.accentDim : "transparent", color: corpusFilter === cid ? C.accentLight : C.textMuted, border: `1px solid ${corpusFilter === cid ? C.accent : C.border}`, borderRadius: 8, padding: "4px 10px", fontSize: 11, cursor: "pointer" }}>
+              {cid === "alle" ? "Alle Korpora" : (CORPUS_LABELS[cid] || cid)}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
           <thead>
             <tr style={{ color: C.textMuted, textAlign: "left" }}>
               <th style={{ padding: "6px 8px", fontWeight: 500 }}>Abfrage</th>
+              <th style={{ padding: "6px 8px", fontWeight: 500 }}>Korpus</th>
               <th style={{ padding: "6px 8px", fontWeight: 500 }}>Zitiert</th>
               <th style={{ padding: "6px 8px", fontWeight: 500 }}>Rang</th>
               <th style={{ padding: "6px 8px", fontWeight: 500 }}>Anteil</th>
@@ -4647,7 +4670,7 @@ function AiCitationsPanel({ selectedClient }) {
             </tr>
           </thead>
           <tbody>
-            {r.queries.map((q, i) => {
+            {rows.map((q, i) => {
               const notCitedPrimary = q.isPrimary && !q.clientCited && !q.noData;
               const isOpen = open[i];
               return (
@@ -4656,6 +4679,11 @@ function AiCitationsPanel({ selectedClient }) {
                     <td style={{ padding: "8px" }}>
                       {q.isPrimary ? <Badge color={C.accent}>Primaer</Badge> : null} <span style={{ color: C.text }}>{q.query}</span>
                       {q.noData ? <span style={{ color: C.textDim, marginLeft: 6 }}>(keine KI-Daten)</span> : null}
+                    </td>
+                    <td style={{ padding: "8px" }}>
+                      <span title={CORPUS_LABELS[q.corpusId] || q.corpusId} style={{ fontSize: 11, color: C.textMuted }}>
+                        {q.corpusId === "int-en" ? "International" : q.corpusId.startsWith("ch-") ? "Heimmarkt " + q.corpusId.slice(3).toUpperCase() : q.corpusId}
+                      </span>
                     </td>
                     <td style={{ padding: "8px" }}>
                       <Badge color={q.clientCited ? C.green : C.red}>{q.clientCited ? "Ja" : "Nein"}</Badge>
@@ -4672,7 +4700,7 @@ function AiCitationsPanel({ selectedClient }) {
                   </tr>
                   {isOpen && (q.topCitedDomains || []).length ? (
                     <tr style={{ background: C.surface }}>
-                      <td colSpan={5} style={{ padding: "8px 12px" }}>
+                      <td colSpan={6} style={{ padding: "8px 12px" }}>
                         <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 6 }}>Top-zitierte Quellen (Wettbewerb um KI-Zitationen):</div>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                           {q.topCitedDomains.map((d, k) => (

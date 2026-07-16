@@ -10,6 +10,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 const Query = z.object({
   query: z.string(),
+  corpusId: z.string().optional(), // Dual-Korpus 2026-07-16; fehlt = int-en (alt)
   isPrimary: z.boolean().optional(),
   totalMentions: z.number().optional(),
   clientCited: z.boolean().optional(),
@@ -24,6 +25,7 @@ const Query = z.object({
 const Body = z.object({
   client: z.string().min(1), // slug
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  note: z.string().optional(), // kundenspezifischer UI-Hinweis (z.B. Campagnola/Tessin)
   queries: z.array(Query).default([]),
   aggregate: z.object({
     queriesTracked: z.number().int(),
@@ -84,6 +86,7 @@ export const Route = createFileRoute("/api/admin/ai-citations")({
           date: d.date,
           queries: d.queries,
           aggregate: d.aggregate,
+          ...(d.note ? { note: d.note } : {}),
         };
 
         // Upsert je client+date: bestehende ai_citations-Zeile desselben Tages updaten.
