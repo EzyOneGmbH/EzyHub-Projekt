@@ -782,11 +782,18 @@ async function jobPromptRunner(c: any, sbAny: any, fixedComps: string[] = []) {
   // Alle Engines × Prompts.
   const rows: any[] = [];
   const engineErrors: Record<string, string> = {};
-  for (const eng of PROMPT_ENGINES) {
+  // Engines PARALLEL (2026-07-16): sequenziell summierten sich langsame
+  // Provider auf >10 Min und das Hosting kappte den Request vor der 20-Min-
+  // Job-Deadline (Run-Zeile blieb "running"). Parallel erhoeht die Last pro
+  // Provider nicht — jede Engine stellt weiterhin nur ihre eigenen Prompts.
+  const engineAnswers = await Promise.all(PROMPT_ENGINES.map(async (eng) => {
     // Harte Deadline je Call: AbortSignal wird von der Runtime ignoriert
     // (2026-07-14 verifiziert) — ohne Promise.race haengt EIN toter Provider-
     // Call den gesamten Lauf endlos.
     const answers = await Promise.all(defs.map((d: any) => withDeadline(eng.ask(d.prompt), 120_000, `ask:${eng.name}`).catch(() => null)));
+    return { eng, answers };
+  }));
+  for (const { eng, answers } of engineAnswers) {
     answers.forEach((a: any, i) => {
       if (!a || !a.text) {
         if (a?.error && !engineErrors[eng.name]) engineErrors[eng.name] = a.error;
