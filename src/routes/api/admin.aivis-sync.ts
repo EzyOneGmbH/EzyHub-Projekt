@@ -56,7 +56,13 @@ async function semrush(params: Record<string, string>): Promise<string[][] | nul
   const key = process.env.SEMRUSH_API_KEY;
   if (!key) return null;
   try {
-    const r = await fetch("https://api.semrush.com/?" + new URLSearchParams({ ...params, key }).toString(), { signal: AbortSignal.timeout(20_000) });
+    // withDeadline zusaetzlich zum AbortSignal: die Runtime ignoriert
+    // AbortSignal (2026-07-14 verifiziert) — ohne Race haengt der Lauf hier.
+    const r = await withDeadline(
+      fetch("https://api.semrush.com/?" + new URLSearchParams({ ...params, key }).toString(), { signal: AbortSignal.timeout(20_000) }),
+      25_000,
+      "semrush",
+    );
     if (!r.ok) return null;
     const lines = (await r.text()).trim().split(/\r?\n/).filter(Boolean);
     return lines.length < 2 ? [] : lines.slice(1).map((l) => l.split(";"));
@@ -199,6 +205,17 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
     p.finally(() => clearTimeout(t)),
     new Promise<T>((_, rej) => { t = setTimeout(() => rej(new Error(`${label}: Deadline ${Math.round(ms / 1000)}s überschritten`)), ms); }),
   ]);
+}
+
+// DIAGNOSE (2026-07-16, temporaer): Laeufe sterben stumm am Hosting-Kap —
+// Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
+// damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
+// simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
+let diagLog: string[] = [];
+let diagWrite: ((log: string[]) => void) | null = null;
+function diag(m: string) {
+  diagLog.push(new Date().toISOString().slice(11, 19) + " " + m);
+  try { diagWrite?.(diagLog); } catch { /* Diagnose darf nie den Lauf brechen */ }
 }
 
 async function dfsSerp(auth: string, kind: "organic" | "ai_mode", keyword: string, loc: { code: number; lang: string }) {
@@ -783,6 +800,7 @@ async function jobPromptRunner(c: any, sbAny: any, fixedComps: string[] = []) {
     seeded += s.defs.length;
   }
   if (!defs.length) return { skipped: `Seeding fehlgeschlagen: ${seedError || "unbekannt"}` };
+  diag(`prompts: ${defs.length} defs geladen (seeded ${seeded})`);
 
   const nameRe = new RegExp(String(c.name || "").trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
   const domain = cleanDomain(c.domain);
@@ -810,6 +828,7 @@ async function jobPromptRunner(c: any, sbAny: any, fixedComps: string[] = []) {
       rows.push({ i: rows.length, def: defs[i], platform: eng.name, text: a.text });
     });
   }
+  diag(`prompts: Engines fertig (${rows.length} Antworten)`);
   if (!rows.length) return { skipped: "keine Engine-Antworten", seeded };
 
   // A) LLM-Judge über alle Antworten; Fallback = Regex, falls Judge ausfällt.
@@ -820,6 +839,7 @@ async function jobPromptRunner(c: any, sbAny: any, fixedComps: string[] = []) {
     5 * 60_000,
     "judge",
   ).catch(() => null);
+  diag(`prompts: Judge fertig (${judged ? Object.keys(judged).length : "Fallback Regex"})`);
   const evals = rows.map((r) => {
     const j = judged?.[r.i];
     if (j) {
@@ -1112,6 +1132,10 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             params: { client: sel ?? null, all: !!all, jobs: jobs ?? null, mode, months, force: !!force, minIntervalDays, serpKeywords: serpKeywords ?? null },
           });
         }
+        diagLog = [];
+        diagWrite = syncRunId
+          ? (log) => { void sb.from("ai_visibility_sync_runs").update({ result: { phases: log } }).eq("id", syncRunId); }
+          : null;
 
         // Kernverarbeitung — synchron aufgerufen ODER als Hintergrund-Lauf (async:true).
         const runAll = async () => {
@@ -1148,10 +1172,12 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             }
 
             // Konkurrentenliste (Fixliste, editierbar) + Semrush-Organik -> beide Layer.
+            diag(`${c.name}: Gate ok, lade Konkurrenten`);
             const db = semrushDb(c.country);
             const { data: compRows } = await sb
               .from("ai_visibility_competitors").select("name").eq("client_id", c.id).eq("active", true);
             const semrushComps = await semrushCompetitors(cleanDomain(c.domain), db);
+            diag(`${c.name}: semrush ok (${semrushComps.length})`);
             const ca: any = wanted.includes("canonry") ? await jobCanonry(c) : null;
             const hasCa = ca && !ca.skipped;
             const canonryComps: string[] = hasCa ? ca.competitors : [];
@@ -1170,9 +1196,11 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             const at: any = wanted.includes("attribution")
               ? await withDeadline(jobAttribution(c), 5 * 60_000, "attribution").catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }))
               : null;
+            diag(`${c.name}: starte prompts-Job`);
             const pr: any = wanted.includes("prompts")
               ? await withDeadline(jobPromptRunner(c, sb, fixedComps), 20 * 60_000, "prompts").catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }))
               : null;
+            diag(`${c.name}: prompts-Job fertig (${pr?.skipped ? "skipped: " + pr.skipped : "answered " + pr?.answered})`);
             const sa: any = wanted.includes("serp_ai")
               ? await withDeadline(jobSerpAi(c, serpKeywords), 25 * 60_000, "serp_ai").catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }))
               : null;
@@ -1330,11 +1358,21 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 const promptInserts = pr.promptRows.map((p: any) => ({ ...p, report_id: reportId, client_id: c.id }));
                 for (let off = 0; off < promptInserts.length; off += 500)
                   await sb.from("ai_visibility_prompts").insert(promptInserts.slice(off, off + 500));
+                diag(`${c.name}: prompt-Zeilen geschrieben (${promptInserts.length})`);
                 // Semrush: echte Suchvolumina in die Themen (füllt die AI-Vol.-Spalte).
+                // PARALLEL + Gesamt-Deadline (2026-07-16): sequenziell konnten
+                // ~30 haengende Semrush-Calls den Lauf >10 Min ueber das
+                // Hosting-Kap schieben — Volumina sind nice-to-have, nie toedlich.
                 if (process.env.SEMRUSH_API_KEY) {
+                  const vols = await withDeadline(
+                    Promise.all(pr.topics.map((t: any) => semrushVolume(t.topic, db).catch(() => 0))),
+                    60_000,
+                    "semrush-volumes",
+                  ).catch(() => null);
                   let vf = 0;
-                  for (const t of pr.topics) { t.volume = await semrushVolume(t.topic, db); if (t.volume > 0) vf++; }
+                  if (vols) pr.topics.forEach((t: any, i: number) => { t.volume = Number(vols[i] || 0); if (t.volume > 0) vf++; });
                   (jr.semrush as any).volumesFilled = vf;
+                  diag(`${c.name}: semrush-Volumina ${vols ? "ok (" + vf + ")" : "Deadline — uebersprungen"}`);
                 }
                 if (pr.topics.length)
                   await sb.from("ai_visibility_topics").insert(
@@ -1411,7 +1449,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         try {
           const payload = await runAll();
           if (syncRunId)
-            await sb.from("ai_visibility_sync_runs").update({ status: "done", finished_at: new Date().toISOString(), result: payload }).eq("id", syncRunId);
+            await sb.from("ai_visibility_sync_runs").update({ status: "done", finished_at: new Date().toISOString(), result: { ...payload, phases: diagLog } }).eq("id", syncRunId);
           return Response.json(payload);
         } catch (err) {
           if (syncRunId)
