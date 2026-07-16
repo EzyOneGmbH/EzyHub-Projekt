@@ -1133,8 +1133,10 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
           });
         }
         diagLog = [];
+        // .then() erzwingt die Ausfuehrung: Supabase-Builder sind lazy und
+        // laufen NUR bei await/.then — ein blosses void feuert nie.
         diagWrite = syncRunId
-          ? (log) => { void sb.from("ai_visibility_sync_runs").update({ result: { phases: log } }).eq("id", syncRunId); }
+          ? (log) => { sb.from("ai_visibility_sync_runs").update({ result: { phases: log } }).eq("id", syncRunId).then(() => {}, () => {}); }
           : null;
 
         // Kernverarbeitung — synchron aufgerufen ODER als Hintergrund-Lauf (async:true).
