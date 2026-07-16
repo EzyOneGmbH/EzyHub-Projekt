@@ -4619,8 +4619,9 @@ function AiCitationsPanel({ selectedClient }) {
   const [corpusFilter, setCorpusFilter] = useState("alle");
   const r = run?.result;
   if (!r || !Array.isArray(r.queries) || !r.queries.length) return null;
-  // Dual-Korpus (2026-07-16): alte Zeilen ohne corpusId = int-en.
-  const allRows = r.queries.map((q) => ({ ...q, corpusId: q.corpusId || "int-en" }));
+  // Dual-Korpus (2026-07-16): alte Zeilen ohne corpusId = ch-de (Datenbefund:
+  // der alte Lauf sendete bereits google/Switzerland/de = CH-Korpus).
+  const allRows = r.queries.map((q) => ({ ...q, corpusId: q.corpusId || "ch-de" }));
   const corpusIds = [...new Set(allRows.map((q) => q.corpusId))];
   const rows = corpusFilter === "alle" ? allRows : allRows.filter((q) => q.corpusId === corpusFilter);
   const agg = r.aggregate || {};
