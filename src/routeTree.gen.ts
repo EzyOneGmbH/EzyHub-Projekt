@@ -22,6 +22,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as ContentRouteImport } from './routes/content'
 import { Route as AssistantRouteImport } from './routes/assistant'
+import { Route as LlmUeberblickRouteImport } from './routes/llm-ueberblick'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TasksIdRouteImport } from './routes/tasks.$id'
 import { Route as SettingsApiRouteImport } from './routes/settings.api'
@@ -72,6 +73,7 @@ import { Route as ApiAdminWpDeployRouteImport } from './routes/api/admin.wp-depl
 import { Route as ApiAdminTeamRouteImport } from './routes/api/admin.team'
 import { Route as ApiAdminSetCanonryProjectRouteImport } from './routes/api/admin.set-canonry-project'
 import { Route as ApiAdminRankSnapshotRouteImport } from './routes/api/admin.rank-snapshot'
+import { Route as ApiAdminLlmResponsesRouteImport } from './routes/api/admin.llm-responses'
 import { Route as ApiAdminClientContextRouteImport } from './routes/api/admin.client-context'
 import { Route as ApiAdminOnboardingPendingRouteImport } from './routes/api/admin.onboarding-pending'
 import { Route as ApiAdminAiCitationsRouteImport } from './routes/api/admin.ai-citations'
@@ -168,6 +170,11 @@ const ContentRoute = ContentRouteImport.update({
 const AssistantRoute = AssistantRouteImport.update({
   id: '/assistant',
   path: '/assistant',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LlmUeberblickRoute = LlmUeberblickRouteImport.update({
+  id: 'C:/Program Files/Git/llm-ueberblick',
+  path: 'C:/Program Files/Git/llm-ueberblick',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -426,6 +433,12 @@ const ApiAdminRankSnapshotRoute = ApiAdminRankSnapshotRouteImport.update({
   path: '/api/admin/rank-snapshot',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminLlmResponsesRoute =
+  ApiAdminLlmResponsesRouteImport.update({
+    id: '/api/admin/llm-responses',
+    path: '/api/admin/llm-responses',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAdminClientContextRoute =
   ApiAdminClientContextRouteImport.update({
     id: '/api/admin/client-context',
@@ -604,6 +617,7 @@ const ApiGoogleOauthStartRoute = ApiGoogleOauthStartRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/assistant': typeof AssistantRoute
+  '/llm-ueberblick': typeof LlmUeberblickRoute
   '/content': typeof ContentRouteWithChildren
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
@@ -649,6 +663,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
+  '/api/admin/llm-responses': typeof ApiAdminLlmResponsesRoute
   '/api/admin/client-context': typeof ApiAdminClientContextRoute
   '/api/admin/onboarding-pending': typeof ApiAdminOnboardingPendingRoute
   '/api/admin/ai-citations': typeof ApiAdminAiCitationsRoute
@@ -701,6 +716,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/assistant': typeof AssistantRoute
+  '/llm-ueberblick': typeof LlmUeberblickRoute
   '/content': typeof ContentRouteWithChildren
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
@@ -746,6 +762,7 @@ export interface FileRoutesByTo {
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
+  '/api/admin/llm-responses': typeof ApiAdminLlmResponsesRoute
   '/api/admin/client-context': typeof ApiAdminClientContextRoute
   '/api/admin/onboarding-pending': typeof ApiAdminOnboardingPendingRoute
   '/api/admin/ai-citations': typeof ApiAdminAiCitationsRoute
@@ -799,6 +816,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/assistant': typeof AssistantRoute
+  '/llm-ueberblick': typeof LlmUeberblickRoute
   '/content': typeof ContentRouteWithChildren
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
@@ -844,6 +862,7 @@ export interface FileRoutesById {
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
+  '/api/admin/llm-responses': typeof ApiAdminLlmResponsesRoute
   '/api/admin/client-context': typeof ApiAdminClientContextRoute
   '/api/admin/onboarding-pending': typeof ApiAdminOnboardingPendingRoute
   '/api/admin/ai-citations': typeof ApiAdminAiCitationsRoute
@@ -898,6 +917,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/assistant'
+    | '/llm-ueberblick'
     | '/content'
     | '/customers'
     | '/dashboard'
@@ -943,6 +963,7 @@ export interface FileRouteTypes {
     | '/api/admin/onboarding-snapshot'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
+    | '/api/admin/llm-responses'
     | '/api/admin/client-context'
     | '/api/admin/onboarding-pending'
     | '/api/admin/ai-citations'
@@ -995,6 +1016,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/assistant'
+    | '/llm-ueberblick'
     | '/content'
     | '/customers'
     | '/dashboard'
@@ -1040,6 +1062,7 @@ export interface FileRouteTypes {
     | '/api/admin/onboarding-snapshot'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
+    | '/api/admin/llm-responses'
     | '/api/admin/client-context'
     | '/api/admin/onboarding-pending'
     | '/api/admin/ai-citations'
@@ -1092,6 +1115,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/assistant'
+    | '/llm-ueberblick'
     | '/content'
     | '/customers'
     | '/dashboard'
@@ -1137,6 +1161,7 @@ export interface FileRouteTypes {
     | '/api/admin/onboarding-snapshot'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
+    | '/api/admin/llm-responses'
     | '/api/admin/client-context'
     | '/api/admin/onboarding-pending'
     | '/api/admin/ai-citations'
@@ -1190,6 +1215,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AssistantRoute: typeof AssistantRoute
+  LlmUeberblickRoute: typeof LlmUeberblickRoute
   ContentRoute: typeof ContentRouteWithChildren
   CustomersRoute: typeof CustomersRouteWithChildren
   DashboardRoute: typeof DashboardRoute
@@ -1231,6 +1257,7 @@ export interface RootRouteChildren {
   ApiAdminOnboardingSnapshotRoute: typeof ApiAdminOnboardingSnapshotRoute
   ApiAdminPopulateRoute: typeof ApiAdminPopulateRoute
   ApiAdminRankSnapshotRoute: typeof ApiAdminRankSnapshotRoute
+  ApiAdminLlmResponsesRoute: typeof ApiAdminLlmResponsesRoute
   ApiAdminClientContextRoute: typeof ApiAdminClientContextRoute
   ApiAdminOnboardingPendingRoute: typeof ApiAdminOnboardingPendingRoute
   ApiAdminAiCitationsRoute: typeof ApiAdminAiCitationsRoute
@@ -1372,6 +1399,13 @@ declare module '@tanstack/react-router' {
       path: '/assistant'
       fullPath: '/assistant'
       preLoaderRoute: typeof AssistantRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/llm-ueberblick': {
+      id: '/llm-ueberblick'
+      path: '/llm-ueberblick'
+      fullPath: '/llm-ueberblick'
+      preLoaderRoute: typeof LlmUeberblickRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -1724,6 +1758,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminRankSnapshotRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/llm-responses': {
+      id: '/api/admin/llm-responses'
+      path: '/api/admin/llm-responses'
+      fullPath: '/api/admin/llm-responses'
+      preLoaderRoute: typeof ApiAdminLlmResponsesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/client-context': {
       id: '/api/admin/client-context'
       path: '/api/admin/client-context'
@@ -1999,6 +2040,7 @@ const TasksRouteWithChildren = TasksRoute._addFileChildren(TasksRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AssistantRoute: AssistantRoute,
+  LlmUeberblickRoute: LlmUeberblickRoute,
   ContentRoute: ContentRouteWithChildren,
   CustomersRoute: CustomersRouteWithChildren,
   DashboardRoute: DashboardRoute,
@@ -2041,6 +2083,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminOnboardingSnapshotRoute: ApiAdminOnboardingSnapshotRoute,
   ApiAdminPopulateRoute: ApiAdminPopulateRoute,
   ApiAdminRankSnapshotRoute: ApiAdminRankSnapshotRoute,
+  ApiAdminLlmResponsesRoute: ApiAdminLlmResponsesRoute,
   ApiAdminClientContextRoute: ApiAdminClientContextRoute,
   ApiAdminOnboardingPendingRoute: ApiAdminOnboardingPendingRoute,
   ApiAdminAiCitationsRoute: ApiAdminAiCitationsRoute,
