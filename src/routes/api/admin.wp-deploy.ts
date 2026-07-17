@@ -249,7 +249,10 @@ export const Route = createFileRoute("/api/admin/wp-deploy")({
         }
         const body: Record<string, any> = {};
         for (const f of spec.fields) if (d[f] !== undefined) body[f] = d[f];
-        const r = await wpFetch<any>(conn, spec.path, { method: "POST", body });
+        // Self-Update schreibt die ganze Plugin-Datei (~85KB) + OPcache/Cache-Purge —
+        // auf langsamen Origins (TIMEOUT) dauert das laenger als die 20s-Default.
+        const timeoutMs = d.action === "plugin-self-update" ? 180_000 : undefined;
+        const r = await wpFetch<any>(conn, spec.path, { method: "POST", body, timeoutMs });
         if (!r.ok) return Response.json({ ok: false, error: r.error });
         return Response.json({ ok: true, result: r.data });
       },

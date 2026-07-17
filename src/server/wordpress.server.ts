@@ -50,7 +50,7 @@ function authHeader(conn: WpConnection): string {
 export async function wpFetch<T = any>(
   conn: WpConnection,
   path: string,
-  options?: { method?: string; body?: any; query?: Record<string, string | number> },
+  options?: { method?: string; body?: any; query?: Record<string, string | number>; timeoutMs?: number },
 ): Promise<{ ok: boolean; status: number; data: T | null; error?: string }> {
   // Build a URL for either permalink mode: "pretty" => /wp-json{path},
   // "plain" => /?rest_route={path} (works when pretty permalinks are off).
@@ -77,7 +77,9 @@ export async function wpFetch<T = any>(
         ...(options?.body ? { "Content-Type": "application/json" } : {}),
       },
       body: options?.body ? JSON.stringify(options.body) : undefined,
-      signal: AbortSignal.timeout(20_000),
+      // Default 20s; langsame Origins (z.B. TIMEOUT) brauchen fuer schwere
+      // Schreib-Aktionen (plugin-self-update, 85KB-Payload) laenger.
+      signal: AbortSignal.timeout(options?.timeoutMs ?? 20_000),
     });
     const text = await res.text();
     let json: any = null;

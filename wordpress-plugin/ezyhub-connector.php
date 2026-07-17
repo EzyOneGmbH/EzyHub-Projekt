@@ -2,7 +2,7 @@
 /**
  * Plugin Name: EzyHub Connector
  * Description: Lässt EzyHub technische SEO-Maßnahmen autonom deployen — <head>-Injektion (JSON-LD, OG, Meta), llms.txt, Seiten-Meta, Canonical/Noindex, robots.txt, Sitemap-Optimierung, Bild-Alt-Texte und Elementor-Editing (Headings + Text-Widgets) mit automatischem Backup/Restore. Auth via Application Passwords (manage_options). Alle Änderungen reversibel.
- * Version: 1.9.11
+ * Version: 1.9.12
  * Author: EzyOne GmbH
  * License: GPL-2.0+
  */
@@ -14,6 +14,30 @@ class EzyHub_Connector {
     const OPT_LLMS     = 'ezyhub_llms_txt';
     const OPT_ROBOTS   = 'ezyhub_robots_txt';
     const NS           = 'ezyhub/v1';
+    // Muss mit dem Plugin-Header uebereinstimmen. /status meldete frueher eine
+    // hartcodierte, nie mitgepflegte Zahl ('1.9.6') — das erzeugte falsche
+    // Versions-Drift-Diagnosen.
+    const VERSION      = '1.9.12';
+
+    // ── Elementor-Widget-Map (v1.9.12) ────────────────────────────────────────
+    // Blind-Spot-Fix: /elementor/headings matchte nur widgetType 'heading' —
+    // alle EzyOne-Kunden nutzen aber Woodmart, dessen Titel-Widget 'wd_title'
+    // heisst. Die leere Liste wurde von Agenten als "nicht via Connector
+    // erreichbar" fehlgedeutet (blockierte u.a. AVA-24, FIH-10). Die Map nennt
+    // je Widget-Typ die settings-Felder fuer Text bzw. Heading-Tag.
+    private const EL_HEADING_TYPES = [
+        'heading'  => ['title' => 'title', 'tag' => 'header_size', 'tagDefault' => 'h2'],
+        // Woodmart: Feld 'tag'; ohne Wert rendert class-title.php default h4.
+        'wd_title' => ['title' => 'title', 'tag' => 'tag', 'tagDefault' => 'h4'],
+    ];
+    // Text-Widgets: Kandidaten-Felder je Typ — beim Lesen gewinnt das erste
+    // vorhandene Feld; beim Schreiben wird NUR ein bereits vorhandenes Feld
+    // beschrieben (kein spekulatives Anlegen falscher Keys).
+    private const EL_TEXT_TYPES = [
+        'text-editor'   => ['editor'],
+        'wd_text_block' => ['text', 'content'],
+        'wd_infobox'    => ['content', 'text'],
+    ];
 
     public function __construct() {
         add_action('rest_api_init', [$this, 'routes']);
@@ -214,7 +238,8 @@ class EzyHub_Connector {
         register_rest_route(self::NS, '/status', ['methods' => 'GET', 'permission_callback' => $auth, 'callback' => function () {
             $head = get_option(self::OPT_HEAD, []);
             return [
-                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => '1.9.6',
+                'ok' => true, 'plugin' => 'ezyhub-connector', 'version' => self::VERSION,
+                'phpVersion' => PHP_VERSION,
                 'headKeys' => is_array($head) ? array_keys($head) : [],
                 'llmsBytes' => strlen((string) get_option(self::OPT_LLMS, '')),
                 'robotsBytes' => strlen((string) get_option(self::OPT_ROBOTS, '')),
@@ -482,13 +507,17 @@ class EzyHub_Connector {
             if (!$data) return ['ok' => true, 'elementor' => false, 'headings' => []];
             $tree = json_decode($data, true);
             $headings = [];
-            $walk = function ($els) use (&$walk, &$headings) {
+            $map = self::EL_HEADING_TYPES;
+            $walk = function ($els) use (&$walk, &$headings, $map) {
                 foreach ((array) $els as $el) {
-                    if (($el['widgetType'] ?? '') === 'heading') {
+                    $type = $el['widgetType'] ?? '';
+                    if (isset($map[$type])) {
+                        $m = $map[$type];
                         $headings[] = [
-                            'widgetId' => $el['id'] ?? '',
-                            'tag' => $el['settings']['header_size'] ?? 'h2',
-                            'title' => wp_strip_all_tags($el['settings']['title'] ?? ''),
+                            'widgetId'   => $el['id'] ?? '',
+                            'widgetType' => $type,
+                            'tag'        => $el['settings'][$m['tag']] ?? $m['tagDefault'],
+                            'title'      => wp_strip_all_tags($el['settings'][$m['title']] ?? ''),
                         ];
                     }
                     if (!empty($el['elements'])) $walk($el['elements']);
@@ -498,21 +527,30 @@ class EzyHub_Connector {
             return ['ok' => true, 'elementor' => true, 'headings' => $headings];
         }]);
 
-        // ── Elementor: surgically set a heading widget's tag (h1..h6) — text unchanged ──
+        // ── Elementor: surgically set a heading widget's tag (h1..h6) and/or title ──
+        // Kennt alle Typen aus EL_HEADING_TYPES (core 'heading' + Woodmart 'wd_title').
         register_rest_route(self::NS, '/elementor/set-heading', ['methods' => 'POST', 'permission_callback' => $auth, 'callback' => function ($r) {
             $id = intval($r['postId'] ?? 0);
             $widgetId = sanitize_text_field($r['widgetId'] ?? '');
             $tag = strtolower(sanitize_text_field($r['tag'] ?? ''));
-            if (!$id || !$widgetId || !in_array($tag, ['h1','h2','h3','h4','h5','h6'], true))
-                return new WP_Error('bad', 'postId, widgetId, tag(h1-h6) erforderlich', ['status' => 400]);
+            $title = (string) ($r['title'] ?? '');
+            if ($tag !== '' && !in_array($tag, ['h1','h2','h3','h4','h5','h6'], true))
+                return new WP_Error('bad_tag', 'tag muss h1-h6 sein', ['status' => 400]);
+            if (!$id || !$widgetId || ($tag === '' && $title === ''))
+                return new WP_Error('bad', 'postId, widgetId und tag(h1-h6) und/oder title erforderlich', ['status' => 400]);
+            if ($title !== '') $title = wp_kses_post($title);
             $data = get_post_meta($id, '_elementor_data', true);
             if (!$data) return new WP_Error('no_elementor', 'Keine Elementor-Daten', ['status' => 404]);
             $tree = json_decode($data, true);
             $changed = false;
-            $walk = function (&$els) use (&$walk, $widgetId, $tag, &$changed) {
+            $map = self::EL_HEADING_TYPES;
+            $walk = function (&$els) use (&$walk, $widgetId, $tag, $title, &$changed, $map) {
                 foreach ($els as &$el) {
-                    if (($el['id'] ?? '') === $widgetId && ($el['widgetType'] ?? '') === 'heading') {
-                        $el['settings']['header_size'] = $tag; $changed = true;
+                    $type = $el['widgetType'] ?? '';
+                    if (($el['id'] ?? '') === $widgetId && isset($map[$type])) {
+                        $m = $map[$type];
+                        if ($tag !== '')   { $el['settings'][$m['tag']] = $tag; $changed = true; }
+                        if ($title !== '') { $el['settings'][$m['title']] = $title; $changed = true; }
                     }
                     if (!empty($el['elements'])) $walk($el['elements']);
                 }
@@ -521,7 +559,7 @@ class EzyHub_Connector {
             if (!$changed) return new WP_Error('not_found', 'Heading-Widget nicht gefunden', ['status' => 404]);
             $this->backup_elementor($id);
             $this->save_elementor($id, $tree);
-            return ['ok' => true, 'postId' => $id, 'widgetId' => $widgetId, 'tag' => $tag];
+            return ['ok' => true, 'postId' => $id, 'widgetId' => $widgetId, 'tag' => $tag ?: null, 'titleChanged' => $title !== ''];
         }]);
 
         // ── Elementor: read text-editor widgets (id + HTML) ──
@@ -532,10 +570,17 @@ class EzyHub_Connector {
             if (!$data) return ['ok' => true, 'elementor' => false, 'widgets' => []];
             $tree = json_decode($data, true);
             $widgets = [];
-            $walk = function ($els) use (&$walk, &$widgets) {
+            $map = self::EL_TEXT_TYPES;
+            $walk = function ($els) use (&$walk, &$widgets, $map) {
                 foreach ((array) $els as $el) {
-                    if (($el['widgetType'] ?? '') === 'text-editor') {
-                        $widgets[] = ['widgetId' => $el['id'] ?? '', 'html' => $el['settings']['editor'] ?? ''];
+                    $type = $el['widgetType'] ?? '';
+                    if (isset($map[$type])) {
+                        // Erstes vorhandenes Kandidaten-Feld gewinnt.
+                        $field = null; $html = '';
+                        foreach ($map[$type] as $cand) {
+                            if (isset($el['settings'][$cand])) { $field = $cand; $html = $el['settings'][$cand]; break; }
+                        }
+                        $widgets[] = ['widgetId' => $el['id'] ?? '', 'widgetType' => $type, 'field' => $field, 'html' => $html];
                     }
                     if (!empty($el['elements'])) $walk($el['elements']);
                 }
@@ -555,20 +600,28 @@ class EzyHub_Connector {
             $data = get_post_meta($id, '_elementor_data', true);
             if (!$data) return new WP_Error('no_elementor', 'Keine Elementor-Daten', ['status' => 404]);
             $tree = json_decode($data, true);
-            $changed = false;
-            $walk = function (&$els) use (&$walk, $widgetId, $html, &$changed) {
+            $changed = false; $fieldUsed = null;
+            $map = self::EL_TEXT_TYPES;
+            $walk = function (&$els) use (&$walk, $widgetId, $html, &$changed, &$fieldUsed, $map) {
                 foreach ($els as &$el) {
-                    if (($el['id'] ?? '') === $widgetId && ($el['widgetType'] ?? '') === 'text-editor') {
-                        $el['settings']['editor'] = $html; $changed = true;
+                    $type = $el['widgetType'] ?? '';
+                    if (($el['id'] ?? '') === $widgetId && isset($map[$type])) {
+                        // Nur ein VORHANDENES Kandidaten-Feld beschreiben — nie einen
+                        // falschen Key anlegen (Woodmart-Feldnamen variieren je Widget).
+                        foreach ($map[$type] as $cand) {
+                            if (isset($el['settings'][$cand])) {
+                                $el['settings'][$cand] = $html; $changed = true; $fieldUsed = $cand; break;
+                            }
+                        }
                     }
                     if (!empty($el['elements'])) $walk($el['elements']);
                 }
             };
             $walk($tree);
-            if (!$changed) return new WP_Error('not_found', 'Text-Widget nicht gefunden', ['status' => 404]);
+            if (!$changed) return new WP_Error('not_found', 'Text-Widget nicht gefunden (oder kein bekanntes Text-Feld vorhanden)', ['status' => 404]);
             $this->backup_elementor($id);
             $this->save_elementor($id, $tree);
-            return ['ok' => true, 'postId' => $id, 'widgetId' => $widgetId];
+            return ['ok' => true, 'postId' => $id, 'widgetId' => $widgetId, 'field' => $fieldUsed];
         }]);
 
         // ── Elementor: list backups for a post ──
