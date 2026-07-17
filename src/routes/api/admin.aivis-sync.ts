@@ -211,7 +211,19 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
-const BUILD_TAG = "2026-07-16-diag2"; // Deploy-Verifikation via GET-Antwort
+const BUILD_TAG = "2026-07-17-conc"; // Deploy-Verifikation via GET-Antwort
+
+// Begrenzte Parallelitaet: volle Promise.all-Salven (30+ Calls gleichzeitig
+// je Provider) loesten 429/529 aus (Claude "Overloaded", Gemini/Perplexity
+// Teilausfaelle, 2026-07-17). Worker-Pool statt Salve.
+async function pMap<T, R>(items: T[], fn: (t: T, i: number) => Promise<R>, conc: number): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let idx = 0;
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(conc, items.length)) }, async () => {
+    while (idx < items.length) { const i = idx++; out[i] = await fn(items[i], i); }
+  }));
+  return out;
+}
 let diagLog: string[] = [];
 let diagWrite: ((log: string[]) => void) | null = null;
 function diag(m: string) {
@@ -760,10 +772,10 @@ async function judgeAnswers(brand: string, comps: string[], items: Array<{ i: nu
   const map: Record<number, any> = {};
   const chunks: Array<typeof items> = [];
   for (let off = 0; off < items.length; off += CHUNK) chunks.push(items.slice(off, off + CHUNK));
-  const texts = await Promise.all(chunks.map((ch) => {
+  const texts = await pMap(chunks, (ch) => {
     const list = ch.map((a) => `#${a.i} [${a.platform}] ${String(a.text).slice(0, 650)}`).join("\n---\n");
     return askUtility(head + list, 4000).catch(() => null); // Failover-Kette: Claude -> DeepSeek -> ...
-  }));
+  }, 3); // max 3 Judge-Bloecke gleichzeitig (529 "Overloaded" bei voller Salve)
   for (const text of texts) {
     if (!text) continue;
     const arr = parseJson(text);
@@ -816,8 +828,16 @@ async function jobPromptRunner(c: any, sbAny: any, fixedComps: string[] = []) {
   const engineAnswers = await Promise.all(PROMPT_ENGINES.map(async (eng) => {
     // Harte Deadline je Call: AbortSignal wird von der Runtime ignoriert
     // (2026-07-14 verifiziert) — ohne Promise.race haengt EIN toter Provider-
-    // Call den gesamten Lauf endlos.
-    const answers = await Promise.all(defs.map((d: any) => withDeadline(eng.ask(d.prompt), 120_000, `ask:${eng.name}`).catch(() => null)));
+    // Call den gesamten Lauf endlos. Max 6 gleichzeitig je Provider (429/529).
+    const ask = (d: any) => withDeadline(eng.ask(d.prompt), 120_000, `ask:${eng.name}`).catch(() => null);
+    const answers = await pMap(defs, ask, 6);
+    // Ein Retry-Durchgang fuer leere Antworten (Rate-Limit-Erholung), gedrosselt.
+    const misses = answers.map((a: any, i: number) => (!a || !a.text ? i : -1)).filter((i) => i >= 0);
+    if (misses.length && misses.length < defs.length) {
+      await new Promise((r) => setTimeout(r, 4000));
+      const retries = await pMap(misses, (i: number) => ask(defs[i]), 3);
+      retries.forEach((a: any, k: number) => { if (a && a.text) answers[misses[k]] = a; });
+    }
     return { eng, answers };
   }));
   for (const { eng, answers } of engineAnswers) {
@@ -1468,6 +1488,20 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
           return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
         const sb = supabaseAdmin as any;
+        // ?pending=1: Kunden mit aktivem KI-Sichtbarkeits-Tab, aber noch OHNE
+        // Report — Grundlage fuer die automatische Erstbefuellung (agent-service
+        // pollt und triggert je Kunde die kurzen Einzeljob-Laeufe).
+        if (new URL(request.url).searchParams.get("pending")) {
+          const { data: cls } = await sb.from("clients").select("id, name, domain");
+          const pending: any[] = [];
+          for (const c of cls || []) {
+            const svc = await getEnabledServices(c.id);
+            if (!(svc.canonry || svc.perplexity)) continue;
+            const { data: rep } = await sb.from("ai_visibility_reports").select("id").eq("client_id", c.id).limit(1).maybeSingle();
+            if (!rep) pending.push({ id: c.id, name: c.name, domain: c.domain });
+          }
+          return Response.json({ ok: true, build: BUILD_TAG, pending });
+        }
         const runId = new URL(request.url).searchParams.get("run") || "";
         if (!runId) {
           const { data } = await sb
