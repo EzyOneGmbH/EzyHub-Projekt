@@ -219,7 +219,7 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
-const BUILD_TAG = "2026-07-17-chunk3"; // Deploy-Verifikation via GET-Antwort
+const BUILD_TAG = "2026-07-17-chunk4"; // Deploy-Verifikation via GET-Antwort
 
 // Begrenzte Parallelitaet: volle Promise.all-Salven (30+ Calls gleichzeitig
 // je Provider) loesten 429/529 aus (Claude "Overloaded", Gemini/Perplexity
@@ -734,15 +734,16 @@ const SEED_CHUNK = 25;
 async function seedPromptDefs(
   c: any,
   sbAny: any,
-  opts: { count?: number; existing?: string[] } = {},
+  opts: { count?: number; existing?: string[]; angle?: string } = {},
 ): Promise<{ defs: any[]; error?: string }> {
   const count = Math.min(SEED_CHUNK, Math.max(1, opts.count ?? PROMPT_TARGET));
   const existing = (opts.existing ?? []).map((p) => String(p).trim()).filter(Boolean);
   const avoid = existing.length
     ? `\nBereits vorhandene Prompts (erzeuge KEINE Duplikate und keine nahen Umformulierungen davon, sondern NEUE Blickwinkel/Nischen):\n${existing.map((p) => `- ${p}`).join("\n")}\n`
     : "";
+  const angle = opts.angle ? `\nDIESER DURCHGANG: ${opts.angle}.` : "";
   const text = await askUtility(
-    `Du bist SEO/GEO-Analyst. Erzeuge ${count} realistische Suchanfragen (Prompts), die echte potenzielle Kunden an KI-Assistenten stellen und bei denen die Firma "${c.name}" (${cleanDomain(c.domain)}, Markt ${c.country || "CH"}) idealerweise empfohlen werden sollte. Decke bewusst ab: (a) generische Empfehlungsfragen ("bestes …"), (b) direkte Vergleichs-/Alternativfragen ("Alternativen zu …", "X oder Y"), (c) Long-Tail/Nischen mit spezifischen Anforderungen, (d) transaktionale und (e) lokale Fragen je Land. Mische Sprachen passend zum Markt (v. a. ${c.language || "de"}) und Länder (Schweiz/Deutschland/Österreich/Italien/International). WICHTIG: Prompts dürfen den Firmennamen NICHT enthalten (außer max. 1 Navigations-Prompt).${avoid} Antworte NUR mit JSON-Array: [{"prompt":"...","topic":"kurzes Themen-Label","intent":"Kommerziell|Informativ|Transaktional|Navigativ","country":"Schweiz|Deutschland|Österreich|Italien|International"}]`,
+    `Du bist SEO/GEO-Analyst. Erzeuge ${count} realistische Suchanfragen (Prompts), die echte potenzielle Kunden an KI-Assistenten stellen und bei denen die Firma "${c.name}" (${cleanDomain(c.domain)}, Markt ${c.country || "CH"}) idealerweise empfohlen werden sollte. Decke bewusst ab: (a) generische Empfehlungsfragen ("bestes …"), (b) direkte Vergleichs-/Alternativfragen ("Alternativen zu …", "X oder Y"), (c) Long-Tail/Nischen mit spezifischen Anforderungen, (d) transaktionale und (e) lokale Fragen je Land. Mische Sprachen passend zum Markt (v. a. ${c.language || "de"}) und Länder (Schweiz/Deutschland/Österreich/Italien/International). WICHTIG: Prompts dürfen den Firmennamen NICHT enthalten (außer max. 1 Navigations-Prompt).${angle}${avoid} Antworte NUR mit JSON-Array: [{"prompt":"...","topic":"kurzes Themen-Label","intent":"Kommerziell|Informativ|Transaktional|Navigativ","country":"Schweiz|Deutschland|Österreich|Italien|International"}]`,
     4000,
   );
   if (!text) return { defs: [], error: "kein Modell verfügbar (Seeding)" };
@@ -814,19 +815,36 @@ async function jobPromptRunner(
     defs.push(...(page ?? []));
     if (!page || page.length < 1000) break;
   }
-  // Nachsäen bis zum Ziel — in Etappen (SEED_CHUNK je LLM-Aufruf), damit auch
-  // hohe Ziele zuverlässig erreicht werden. Bestehende bleiben unverändert.
+  // Nachsäen bis zum Ziel — NUR bei explizitem promptTarget (Seed-Vorlauf)
+  // oder leerem Bestand (neuer Kunde). Etappen-Requests säen NICHT mit, sonst
+  // wachsen die Defs mitten in der Pagination und die Etappe reisst das Kap.
+  // Hartnäckig: wechselnde Blickwinkel je Durchgang, weil der LLM sonst nur
+  // Dubletten liefert und der Ausbau bei ~50 % hängen bleibt.
   const target = Math.max(1, opts.target ?? PROMPT_TARGET);
   let seeded = 0;
   let seedError: string | undefined;
-  while (defs.length < target) {
-    const s = await seedPromptDefs(c, sbAny, {
-      count: target - defs.length,
-      existing: defs.map((d: any) => d.prompt),
-    });
-    if (!s.defs.length) { seedError = s.error; break; } // LLM liefert nichts Neues mehr
-    defs = [...defs, ...s.defs];
-    seeded += s.defs.length;
+  if (opts.target != null || !defs.length) {
+    const ANGLES = [
+      "Fokus: saisonale und anlassbezogene Fragen (Feiertage, Events, Jahreszeiten, Geschenke)",
+      "Fokus: Preis-, Budget- und Vergleichsfragen (günstig vs. Premium, Preis-Leistung)",
+      "Fokus: sehr spezifische Long-Tail-Nischen und Sonderwünsche",
+      "Fokus: verschiedene Zielgruppen (Familien, Paare, Business, Senioren, Touristen, Einsteiger)",
+      "Fokus: situationsgetriebene Fragen (kurzfristig, mit Haustier, Gruppen, barrierefrei, Wetter)",
+      "Fokus: Umgebungs-, Anreise- und Kombinationsfragen je Land/Region",
+    ];
+    let attempt = 0, zero = 0;
+    while (defs.length < target && attempt < 6 && zero < 3) {
+      const s = await seedPromptDefs(c, sbAny, {
+        count: target - defs.length,
+        existing: defs.map((d: any) => d.prompt),
+        angle: ANGLES[attempt % ANGLES.length],
+      });
+      attempt += 1;
+      if (!s.defs.length) { zero += 1; seedError = s.error; continue; }
+      zero = 0;
+      defs = [...defs, ...s.defs];
+      seeded += s.defs.length;
+    }
   }
   if (!defs.length) return { skipped: `Seeding fehlgeschlagen: ${seedError || "unbekannt"}` };
 
