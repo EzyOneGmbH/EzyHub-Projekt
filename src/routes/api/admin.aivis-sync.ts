@@ -219,7 +219,7 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
-const BUILD_TAG = "2026-07-17-chunk"; // Deploy-Verifikation via GET-Antwort
+const BUILD_TAG = "2026-07-17-chunk2"; // Deploy-Verifikation via GET-Antwort
 
 // Begrenzte Parallelitaet: volle Promise.all-Salven (30+ Calls gleichzeitig
 // je Provider) loesten 429/529 aus (Claude "Overloaded", Gemini/Perplexity
@@ -832,7 +832,9 @@ async function jobPromptRunner(
   // Chunking (2026-07-17): mehr als ~30 Prompts reissen das ~300s-Gateway-Kap.
   // Mit promptOffset fragt dieser Request nur defs[offset, offset+CHUNK); der
   // Aufrufer loopt bis `next` null ist. Aggregation erst im letzten Häppchen.
-  const CHUNK = Math.max(5, Number(process.env.AIVIS_PROMPT_CHUNK ?? 30) || 30);
+  // 20 je Etappe = 2 Wellen à max 90s (conc 10) + Judge — passt unter das Kap.
+  // 30 riss es bei websearch-lastigen Prompts (B5: Engines allein 4:21).
+  const CHUNK = Math.max(5, Number(process.env.AIVIS_PROMPT_CHUNK ?? 20) || 20);
   const allDefs = defs;
   const chunked = opts.offset != null;
   const offset = chunked ? Math.min(opts.offset as number, allDefs.length) : 0;
