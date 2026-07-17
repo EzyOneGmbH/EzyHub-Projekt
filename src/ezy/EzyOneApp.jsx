@@ -3376,6 +3376,52 @@ function SeoDashboard({ selectedClient, dateRange }) {
           hint="Braucht mindestens 2 Ahrefs-Läufe im gewählten Zeitraum — Datumsfilter weiter fassen oder auf die nächsten automatischen Läufe warten."
         />
       ) : null}
+      {/* Datenquellen-Übersicht (User-Wunsch 2026-07-17): welches Widget bezieht
+          seine Daten aus welchem Kanal — inkl. Stand des letzten Abrufs je Quelle. */}
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, color: C.textMuted }}>
+          Datenquellen der Widgets
+        </div>
+        <div style={{ fontSize: 11, color: C.textDim, marginBottom: 12 }}>
+          Welcher Block bezieht seine Daten aus welchem Kanal · „Letzter Abruf" = Stand des jüngsten Daten-Laufs für diesen Kunden.
+        </div>
+        <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+          <table style={{ width: "100%", minWidth: 560, borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ color: C.textDim, textAlign: "left" }}>
+                <th style={{ padding: "6px 8px" }}>Widget</th>
+                <th style={{ padding: "6px 8px" }}>Kanal / Quelle</th>
+                <th style={{ padding: "6px 8px", textAlign: "right" }}>Letzter Abruf</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                ["Rankings (Top 3 · Top 10 · Tabelle)", "DataForSEO Rank-Tracking", rankRun],
+                ["SEO-KPIs (Traffic, Visibility, Authority, Keywords, Backlinks)", "Ahrefs", run],
+                ["Switzerland Traffic", "Google Analytics 4", trafRun],
+                ["Brand/Non-Brand-Split · Positions-Buckets · Top-Suchanfragen", "Google Search Console", gscQRun || gscRun],
+                ["Ranking-Verteilung", "Google Search Console", gscRun],
+                ["Core Web Vitals (LCP, INP, CLS, Performance)", "Google PageSpeed (CrUX/Lighthouse)", psiRun],
+                ["Verweisende Domains", "Ahrefs", run],
+                ["Meistbesuchte Seiten", "Google Analytics 4", trafRun],
+                ["Entwicklung (Trend)", "Ahrefs (Verlauf der Audit-Läufe)", run],
+              ].map(([widget, source, r]) => (
+                <tr key={widget} style={{ borderTop: `1px solid ${C.border}` }}>
+                  <td style={{ padding: "6px 8px", color: C.text }}>{widget}</td>
+                  <td style={{ padding: "6px 8px", color: C.textMuted }}>{source}</td>
+                  <td style={{ padding: "6px 8px", textAlign: "right", color: r ? C.textMuted : C.orange }}>
+                    {r
+                      ? new Date(r.started_at || r.created_at).toLocaleDateString("de-CH", {
+                          day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+                        })
+                      : "keine Daten"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
