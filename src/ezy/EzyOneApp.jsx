@@ -2683,6 +2683,19 @@ function OnboardingPanel({ selectedClient }) {
     </div>
   );
 }
+// Einheitliches SEO-Layout über alle Kunden (User-Wunsch 2026-07-17):
+// Sektionen verschwinden nicht mehr bei fehlenden Daten, sondern zeigen einen
+// Platzhalter mit dem konkreten nächsten Schritt — so sieht das Dashboard bei
+// jedem Kunden gleich aus und Lücken sind sofort als Handlungsbedarf erkennbar.
+function SectionPlaceholder({ title, hint }) {
+  return (
+    <div style={{ background: C.card, border: `1px dashed ${C.border}`, borderRadius: 14, padding: 16, opacity: 0.85 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: C.textMuted, marginBottom: 4 }}>{title}</div>
+      <div style={{ fontSize: 12, color: C.textDim }}>{hint}</div>
+    </div>
+  );
+}
+
 function SeoDashboard({ selectedClient, dateRange }) {
   const { run, refresh: refreshAhrefs } = useEzyLatestRun(selectedClient?.id, "ahrefs");
   const live = run ? ahrefsKpisFromResult(run.result) : null;
@@ -2745,15 +2758,8 @@ function SeoDashboard({ selectedClient, dateRange }) {
   const hasCwv =
     isOn("seo.cwv") &&
     Boolean(psi && (psi.lcp != null || psi.cls != null || psi.performanceScore != null));
-  const hasAnyKpi = traffic + keywords + score + visibility > 0 || hasGsc || hasCwv;
-  if (!hasAnyKpi) {
-    return (
-      <LiveEmptyState
-        title="Noch keine SEO-Daten"
-        hint="Verbinde GSC/Ahrefs oder starte einen Audit-Lauf, um Traffic, Visibility, Authority und Keywords live zu sehen."
-      />
-    );
-  }
+  // Einheitliches Layout: auch ohne jegliche Daten rendert der Tab dieselben
+  // Sektionen (als Platzhalter mit nächstem Schritt) statt eines Leerzustands.
   // B1: Rankings-Zeilen sortiert — Money-Keywords zuerst, dann nach Position.
   const rankRows = rank
     ? [...(rank.keywords || [])].sort((a, b) => {
@@ -2779,7 +2785,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <OnboardingPanel selectedClient={selectedClient} />
-      {rank && (
+      {rank ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div
             style={{
@@ -2854,6 +2860,11 @@ function SeoDashboard({ selectedClient, dateRange }) {
             </div>
           </div>
         </div>
+      ) : (
+        <SectionPlaceholder
+          title="Rankings (Keyword-Tracking)"
+          hint="Für diesen Kunden ist noch kein Rank-Tracking eingerichtet — Keyword-Set im Rank-Tracking hinterlegen, dann erscheinen hier Top-3/Top-10, Veränderungen und die Rankings-Tabelle."
+        />
       )}
       {isOn("seo.ahrefs") && (
       <div
@@ -3078,6 +3089,18 @@ function SeoDashboard({ selectedClient, dateRange }) {
           )}
         </>
       )}
+      {isOn("seo.gsc") && !gscQ && !hasGsc && (
+        <SectionPlaceholder
+          title="Search Console (Klicks, Impressionen, Suchanfragen)"
+          hint="Noch keine GSC-Daten — Google im Kunden-Panel verbinden, GSC-Property eintragen und einen Import/Sammel-Lauf starten."
+        />
+      )}
+      {isOn("seo.cwv") && !hasCwv && (
+        <SectionPlaceholder
+          title="Core Web Vitals (LCP, INP, CLS, Performance)"
+          hint="Noch keine PageSpeed-Daten — Sammel-Lauf im Google-Panel starten; bei Seiten mit wenig Traffic können CrUX-Felddaten fehlen (dann Labordaten)."
+        />
+      )}
       {hasCwv && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {cwvOrigin && (
@@ -3142,8 +3165,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
         </div>
         </div>
       )}
-      {((isOn("seo.gsc") && rankingDist.length > 0) ||
-        (isOn("seo.ahrefs") && refdomainsSeries.length >= 2)) && (
+      {(isOn("seo.gsc") || isOn("seo.ahrefs")) && (
         <div
           style={{
             display: "grid",
@@ -3151,6 +3173,18 @@ function SeoDashboard({ selectedClient, dateRange }) {
             gap: 14,
           }}
         >
+          {isOn("seo.gsc") && rankingDist.length === 0 && (
+            <SectionPlaceholder
+              title="Ranking-Verteilung"
+              hint="Erscheint, sobald der GSC-Import Positionsdaten liefert (Google verbinden + Property eintragen)."
+            />
+          )}
+          {isOn("seo.ahrefs") && refdomainsSeries.length < 2 && (
+            <SectionPlaceholder
+              title="Verweisende Domains"
+              hint="Braucht mindestens 2 wöchentliche Ahrefs-Datenpunkte — füllt sich automatisch mit den nächsten Läufen."
+            />
+          )}
           {isOn("seo.gsc") && rankingDist.length > 0 && (
             <div
               style={{
@@ -3250,6 +3284,12 @@ function SeoDashboard({ selectedClient, dateRange }) {
           )}
         </div>
       )}
+      {topPages.length === 0 && (
+        <SectionPlaceholder
+          title="Meistbesuchte Seiten (GA4)"
+          hint="Noch keine GA4-Traffic-Daten — Google verbinden, GA4-Property eintragen und einen Sammel-Lauf starten."
+        />
+      )}
       {topPages.length > 0 && (
         <div
           style={{
@@ -3330,12 +3370,12 @@ function SeoDashboard({ selectedClient, dateRange }) {
             </LineChart>
           </ResponsiveContainer>
         </div>
-      ) : (
-        <LiveEmptyState
-          title="Charts & Tabellen folgen mit Live-Provider-Daten"
-          hint="Sobald GSC-Import und Ahrefs-Audit-Läufe Zeitreihen, Top-Keywords und Top-Pages liefern, erscheinen hier die Detail-Charts."
+      ) : isOn("seo.trend") ? (
+        <SectionPlaceholder
+          title="Entwicklung (Traffic · Visibility · Keywords)"
+          hint="Braucht mindestens 2 Ahrefs-Läufe im gewählten Zeitraum — Datumsfilter weiter fassen oder auf die nächsten automatischen Läufe warten."
         />
-      )}
+      ) : null}
     </div>
   );
 }
