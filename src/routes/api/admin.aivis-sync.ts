@@ -219,7 +219,7 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
-const BUILD_TAG = "2026-07-17-chunk2"; // Deploy-Verifikation via GET-Antwort
+const BUILD_TAG = "2026-07-17-chunk3"; // Deploy-Verifikation via GET-Antwort
 
 // Begrenzte Parallelitaet: volle Promise.all-Salven (30+ Calls gleichzeitig
 // je Provider) loesten 429/529 aus (Claude "Overloaded", Gemini/Perplexity
@@ -722,7 +722,8 @@ const domOf = (u: string) => { try { return new URL(u).hostname.replace(/^www\./
 // Liegt der Bestand darunter, stockt der Prompt-Runner beim nächsten Lauf
 // automatisch auf. Das ist ein MINIMUM (Untergrenze fürs Nachsäen), keine
 // Anzeige-/Lauf-Grenze: gefahren und angezeigt werden immer ALLE aktiven Prompts.
-const PROMPT_TARGET = Math.max(1, Number(process.env.AIVIS_PROMPT_TARGET ?? 30) || 30);
+// 100 je Kunde (Entscheid 2026-07-17); Läufe laufen dank Chunking in Etappen.
+const PROMPT_TARGET = Math.max(1, Number(process.env.AIVIS_PROMPT_TARGET ?? 100) || 100);
 
 // Pro LLM-Aufruf säen wir höchstens 25 Prompts (Zuverlässigkeit der JSON-
 // Antwort) — höhere Ziele werden per Schleife in Etappen erreicht.
