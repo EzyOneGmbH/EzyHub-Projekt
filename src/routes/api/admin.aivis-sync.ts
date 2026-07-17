@@ -31,6 +31,14 @@ const Body = z.object({
   mode: z.enum(["live", "backfill"]).default("live"), // backfill = Ahrefs/GA4-Historie
   months: z.number().int().min(1).max(12).default(6),  // Backfill-Tiefe
   async: z.boolean().default(false), // true = sofort 202 + runId, Verarbeitung im Hintergrund
+  // Prompt-Chunking (2026-07-17): das ~300s-Gateway-Kap begrenzt EINEN Request
+  // auf ~30 Prompts. promptOffset teilt den prompts-Job in Häppchen: jeder
+  // Request fragt max AIVIS_PROMPT_CHUNK Defs ab Offset; die Antwort nennt
+  // `next` (nächster Offset oder null). Aggregation (Themen/SoV/Parts) läuft
+  // erst im letzten Häppchen über ALLE Zeilen des Tagesreports.
+  promptOffset: z.number().int().min(0).optional(),
+  // Seed-Ziel für diesen Kunden (überschreibt AIVIS_PROMPT_TARGET, default 30).
+  promptTarget: z.number().int().min(1).max(200).optional(),
 });
 
 // Async-Design: fire-and-forget IM Prozess wird vom Hosting nach der Response
@@ -211,7 +219,7 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
-const BUILD_TAG = "2026-07-17-conc3"; // Deploy-Verifikation via GET-Antwort
+const BUILD_TAG = "2026-07-17-chunk"; // Deploy-Verifikation via GET-Antwort
 
 // Begrenzte Parallelitaet: volle Promise.all-Salven (30+ Calls gleichzeitig
 // je Provider) loesten 429/529 aus (Claude "Overloaded", Gemini/Perplexity
@@ -785,7 +793,12 @@ async function judgeAnswers(brand: string, comps: string[], items: Array<{ i: nu
   return Object.keys(map).length ? map : null;
 }
 
-async function jobPromptRunner(c: any, sbAny: any, fixedComps: string[] = []) {
+async function jobPromptRunner(
+  c: any,
+  sbAny: any,
+  fixedComps: string[] = [],
+  opts: { offset?: number; target?: number; snapshot?: string } = {},
+) {
   // ALLE aktiven Prompts blockweise laden — kein Limit (PostgREST kappt
   // einzelne Queries bei 1000 Zeilen, deshalb range-Schleife).
   let defs: any[] = [];
@@ -802,11 +815,12 @@ async function jobPromptRunner(c: any, sbAny: any, fixedComps: string[] = []) {
   }
   // Nachsäen bis zum Ziel — in Etappen (SEED_CHUNK je LLM-Aufruf), damit auch
   // hohe Ziele zuverlässig erreicht werden. Bestehende bleiben unverändert.
+  const target = Math.max(1, opts.target ?? PROMPT_TARGET);
   let seeded = 0;
   let seedError: string | undefined;
-  while (defs.length < PROMPT_TARGET) {
+  while (defs.length < target) {
     const s = await seedPromptDefs(c, sbAny, {
-      count: PROMPT_TARGET - defs.length,
+      count: target - defs.length,
       existing: defs.map((d: any) => d.prompt),
     });
     if (!s.defs.length) { seedError = s.error; break; } // LLM liefert nichts Neues mehr
@@ -814,7 +828,19 @@ async function jobPromptRunner(c: any, sbAny: any, fixedComps: string[] = []) {
     seeded += s.defs.length;
   }
   if (!defs.length) return { skipped: `Seeding fehlgeschlagen: ${seedError || "unbekannt"}` };
-  diag(`prompts: ${defs.length} defs geladen (seeded ${seeded})`);
+
+  // Chunking (2026-07-17): mehr als ~30 Prompts reissen das ~300s-Gateway-Kap.
+  // Mit promptOffset fragt dieser Request nur defs[offset, offset+CHUNK); der
+  // Aufrufer loopt bis `next` null ist. Aggregation erst im letzten Häppchen.
+  const CHUNK = Math.max(5, Number(process.env.AIVIS_PROMPT_CHUNK ?? 30) || 30);
+  const allDefs = defs;
+  const chunked = opts.offset != null;
+  const offset = chunked ? Math.min(opts.offset as number, allDefs.length) : 0;
+  const slice = chunked ? allDefs.slice(offset, offset + CHUNK) : allDefs;
+  if (!slice.length) return { skipped: `promptOffset ${offset} >= ${allDefs.length} Defs` };
+  const next = chunked && offset + slice.length < allDefs.length ? offset + slice.length : null;
+  defs = slice;
+  diag(`prompts: ${allDefs.length} defs geladen (seeded ${seeded}${chunked ? `, Häppchen ${offset}–${offset + slice.length}` : ""})`);
 
   const nameRe = new RegExp(String(c.name || "").trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
   const domain = cleanDomain(c.domain);
@@ -900,6 +926,53 @@ async function jobPromptRunner(c: any, sbAny: any, fixedComps: string[] = []) {
     };
   });
 
+  // Nicht-letztes Häppchen: nur Zeilen liefern, KEINE Aggregation — die
+  // rechnet erst das letzte Häppchen über alle Antworten des Tages.
+  if (next != null) {
+    const byEnginePart: Record<string, number> = {};
+    for (const r of rows) byEnginePart[r.platform] = (byEnginePart[r.platform] || 0) + 1;
+    return {
+      promptRows, seeded, answered: rows.length, byEngine: byEnginePart, engineErrors,
+      partial: true, chunk: { offset, next, total: allDefs.length },
+    };
+  }
+
+  // Letztes Häppchen (offset > 0): frühere Häppchen aus der DB dazuladen,
+  // damit SoV/Themen/Modelle/Quellen über ALLE Antworten des Tages rechnen.
+  if (chunked && offset > 0 && opts.snapshot) {
+    const { data: repRow } = await sbAny
+      .from("ai_visibility_reports").select("id")
+      .eq("client_id", c.id).eq("snapshot_date", opts.snapshot).maybeSingle();
+    if (repRow) {
+      const prior: any[] = [];
+      for (let from = 0; ; from += 1000) {
+        const { data: page } = await sbAny
+          .from("ai_visibility_prompts").select("*")
+          .eq("report_id", repRow.id).order("id", { ascending: true }).range(from, from + 999);
+        prior.push(...(page ?? []));
+        if (!page || page.length < 1000) break;
+      }
+      const defMeta = new Map(allDefs.map((d: any) => [d.prompt, d]));
+      const currentKeys = new Set(rows.map((r) => `${r.def.prompt}·${r.platform}`));
+      let merged = 0;
+      for (const p of prior) {
+        if (currentKeys.has(`${p.prompt}·${p.platform}`)) continue;
+        const d = defMeta.get(p.prompt) || { prompt: p.prompt, country: p.country, intent: p.intent };
+        rows.push({ i: -1, def: d, platform: p.platform, text: String(p.response || "") });
+        evals.push({
+          mentioned: p.status != null,
+          cited: p.status === "Referenziert",
+          position: p.position || (p.status != null ? "list" : "none"),
+          sentiment: p.sentiment ?? null,
+          competitors: Array.isArray(p.competitors) ? p.competitors.map(String) : [],
+          sources: urlListIn(String(p.response || "")),
+        });
+        merged += 1;
+      }
+      diag(`prompts: letzte Etappe — ${merged} frühere Antworten für Aggregation dazugeladen`);
+    }
+  }
+
   // C) Share-of-Voice: eigene Marke vs. Konkurrenten über alle Antworten.
   const compTally: Record<string, { name: string; n: number }> = {};
   const selfMentions = evals.filter((e) => e.mentioned).length;
@@ -965,6 +1038,7 @@ async function jobPromptRunner(c: any, sbAny: any, fixedComps: string[] = []) {
 
   return {
     promptRows, customModels, topics, sov, customSources, learnedComps,
+    chunk: chunked ? { offset, next: null as number | null, total: allDefs.length } : null,
     seeded, answered: rows.length, byEngine, engineErrors,
     mentions: customModels.reduce((a, m) => a + m.mentions, 0),
     selfShare: sov[0]?.share ?? 0,
@@ -1118,7 +1192,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         const parsed = Body.safeParse(await request.json().catch(() => ({})));
         if (!parsed.success)
           return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
-        const { client: sel, all, jobs, minIntervalDays, force, mode, months, serpKeywords, async: runAsync } = parsed.data;
+        const { client: sel, all, jobs, minIntervalDays, force, mode, months, serpKeywords, async: runAsync, promptOffset, promptTarget } = parsed.data;
         const wanted = jobs && jobs.length ? jobs : (["brand_radar", "attribution", "prompts", "canonry", "serp_ai"] as const);
 
         const query = supabaseAdmin
@@ -1224,7 +1298,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               : null;
             diag(`${c.name}: starte prompts-Job`);
             const pr: any = wanted.includes("prompts")
-              ? await withDeadline(jobPromptRunner(c, sb, fixedComps), 20 * 60_000, "prompts").catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }))
+              ? await withDeadline(jobPromptRunner(c, sb, fixedComps, { offset: promptOffset, target: promptTarget, snapshot }), 20 * 60_000, "prompts").catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }))
               : null;
             diag(`${c.name}: prompts-Job fertig (${pr?.skipped ? "skipped: " + pr.skipped : "answered " + pr?.answered})`);
             const sa: any = wanted.includes("serp_ai")
@@ -1237,12 +1311,15 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               : "skipped";
             jr.brand_radar = br ? (br.skipped ? { skipped: br.skipped } : { mentions: br.mentions, citations: br.citations, pages: br.citedPagesCount, errors: br.errors?.length || 0 }) : "skipped";
             jr.attribution = at ? (at.skipped || at.error ? at : { engines: at.engines.length }) : "skipped";
-            jr.prompts = pr ? (pr.skipped ? { skipped: pr.skipped, seeded: pr.seeded } : { answered: pr.answered, byEngine: pr.byEngine, engineErrors: pr.engineErrors, mentions: pr.mentions, seeded: pr.seeded, topics: pr.topics.length, selfShare: pr.selfShare, sov: pr.sov?.length, judged: pr.judged, learned: pr.learnedComps?.length }) : "skipped";
+            jr.prompts = pr ? (pr.skipped ? { skipped: pr.skipped, seeded: pr.seeded } : { answered: pr.answered, byEngine: pr.byEngine, engineErrors: pr.engineErrors, mentions: pr.mentions, seeded: pr.seeded, topics: pr.topics?.length, selfShare: pr.selfShare, sov: pr.sov?.length, judged: pr.judged, learned: pr.learnedComps?.length, next: pr.chunk?.next ?? null, total: pr.chunk?.total ?? null, partial: !!pr.partial }) : "skipped";
             jr.canonry = ca ? (ca.skipped ? { skipped: ca.skipped } : { models: ca.models.length, mentions: ca.mentions, sources: ca.sources.length }) : "skipped";
             jr.semrush = { keyPresent: !!process.env.SEMRUSH_API_KEY, competitors: semrushComps.length, volumesFilled: 0 };
 
             const hasBr = br && !br.skipped;
             const hasPr = pr && !pr.skipped && pr.promptRows?.length;
+            // Teil-Häppchen (Chunking): Zeilen anhängen, aber Aggregate
+            // (Themen/SoV/Quellen/parts.pr) erst im letzten Häppchen schreiben.
+            const prPartial = !!(hasPr && pr.partial);
             const hasSa = sa && !sa.skipped;
             if (hasBr || hasPr || hasCa || hasSa) {
               // MERGE-MODELL (2026-07-14): Jeder Lauf legt seinen Beitrag in
@@ -1260,7 +1337,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               if (hasBr) newParts.br = { mentions: br.mentions, citations: br.citations, pages: br.citedPagesCount, models: br.models };
               if (hasCa) newParts.ca = { mentions: ca.mentions, models: ca.models };
               if (hasSa) newParts.sa = { mentions: sa.mentions, citations: Number(sa.citations || 0), pages: sa.citedPages?.length || 0, models: sa.models };
-              if (hasPr) newParts.pr = { mentions: pr.mentions, selfShare: pr.selfShare ?? 0, posQ: pr.positionQuality ?? 0, models: pr.customModels };
+              if (hasPr && !prPartial) newParts.pr = { mentions: pr.mentions, selfShare: pr.selfShare ?? 0, posQ: pr.positionQuality ?? 0, models: pr.customModels };
               const parts: any = { ...((existingRep?.parts as any) || {}), ...newParts };
               if (Object.keys(parts).length > Object.keys(newParts).length)
                 jr.note = `Merge: bestehende Anteile bewahrt (${Object.keys(parts).filter((k) => !newParts[k]).join(",")})`;
@@ -1375,21 +1452,32 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
 
               // Prompts + Themen + SoV + Quellen + Auto-Learning (Custom-Layer).
               if (hasPr) {
-                await sb.from("ai_visibility_prompts").delete().eq("report_id", reportId);
-                await sb.from("ai_visibility_topics").delete().eq("report_id", reportId);
-                await sb.from("ai_visibility_sov").delete().eq("report_id", reportId);
-                await sb.from("ai_visibility_sources").delete().eq("report_id", reportId).eq("layer", "custom");
+                // Chunking: nur das ERSTE Häppchen (offset 0 bzw. ungechunkt)
+                // räumt die alten Zeilen ab; Folge-Häppchen hängen an. Vor dem
+                // Anhängen die eigene Slice löschen (Wiederholungs-Idempotenz).
+                const isFirstChunk = !pr.chunk || pr.chunk.offset === 0;
+                if (isFirstChunk) {
+                  await sb.from("ai_visibility_prompts").delete().eq("report_id", reportId);
+                } else {
+                  const slicePrompts = [...new Set(pr.promptRows.map((p: any) => String(p.prompt)))];
+                  await sb.from("ai_visibility_prompts").delete().eq("report_id", reportId).in("prompt", slicePrompts);
+                }
+                if (!prPartial) {
+                  await sb.from("ai_visibility_topics").delete().eq("report_id", reportId);
+                  await sb.from("ai_visibility_sov").delete().eq("report_id", reportId);
+                  await sb.from("ai_visibility_sources").delete().eq("report_id", reportId).eq("layer", "custom");
+                }
                 // Blockweise einfügen — bei vielen Prompts × Engines bleibt
                 // der einzelne Request sonst zu groß.
                 const promptInserts = pr.promptRows.map((p: any) => ({ ...p, report_id: reportId, client_id: c.id }));
                 for (let off = 0; off < promptInserts.length; off += 500)
                   await sb.from("ai_visibility_prompts").insert(promptInserts.slice(off, off + 500));
-                diag(`${c.name}: prompt-Zeilen geschrieben (${promptInserts.length})`);
+                diag(`${c.name}: prompt-Zeilen geschrieben (${promptInserts.length}${pr.chunk ? `, Häppchen ab ${pr.chunk.offset}` : ""})`);
                 // Semrush: echte Suchvolumina in die Themen (füllt die AI-Vol.-Spalte).
                 // PARALLEL + Gesamt-Deadline (2026-07-16): sequenziell konnten
                 // ~30 haengende Semrush-Calls den Lauf >10 Min ueber das
                 // Hosting-Kap schieben — Volumina sind nice-to-have, nie toedlich.
-                if (process.env.SEMRUSH_API_KEY) {
+                if (process.env.SEMRUSH_API_KEY && !prPartial) {
                   const vols = await withDeadline(
                     Promise.all(pr.topics.map((t: any) => semrushVolume(t.topic, db).catch(() => 0))),
                     60_000,
@@ -1400,22 +1488,22 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                   (jr.semrush as any).volumesFilled = vf;
                   diag(`${c.name}: semrush-Volumina ${vols ? "ok (" + vf + ")" : "Deadline — uebersprungen"}`);
                 }
-                if (pr.topics.length)
+                if (pr.topics?.length && !prPartial)
                   await sb.from("ai_visibility_topics").insert(
                     pr.topics.map((t: any) => ({ ...t, report_id: reportId, client_id: c.id })),
                   );
                 // C) Share-of-Voice
-                if (pr.sov?.length)
+                if (pr.sov?.length && !prPartial)
                   await sb.from("ai_visibility_sov").insert(
                     pr.sov.map((s: any) => ({ report_id: reportId, client_id: c.id, brand: s.brand, is_self: s.is_self, mentions: s.mentions, share: s.share })),
                   );
                 // E) Quellen aus den Antworten (Custom-Layer)
-                if (pr.customSources?.length)
+                if (pr.customSources?.length && !prPartial)
                   await sb.from("ai_visibility_sources").insert(
                     pr.customSources.map((s: any) => ({ report_id: reportId, client_id: c.id, domain: s.domain, mentions: s.mentions, share: 0, urls: 0, traffic: 0, layer: "custom" })),
                   );
                 // Auto-Learning: neue Konkurrenten in die Fixliste (source='auto').
-                if (pr.learnedComps?.length)
+                if (pr.learnedComps?.length && !prPartial)
                   await sb.from("ai_visibility_competitors").upsert(
                     pr.learnedComps.map((n: string) => ({ client_id: c.id, name: n, source: "auto", active: true })),
                     { onConflict: "client_id,name", ignoreDuplicates: true },
