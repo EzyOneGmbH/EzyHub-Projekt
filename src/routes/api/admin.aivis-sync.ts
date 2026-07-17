@@ -211,7 +211,7 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
-const BUILD_TAG = "2026-07-17-conc2"; // Deploy-Verifikation via GET-Antwort
+const BUILD_TAG = "2026-07-17-conc3"; // Deploy-Verifikation via GET-Antwort
 
 // Begrenzte Parallelitaet: volle Promise.all-Salven (30+ Calls gleichzeitig
 // je Provider) loesten 429/529 aus (Claude "Overloaded", Gemini/Perplexity
@@ -829,14 +829,16 @@ async function jobPromptRunner(c: any, sbAny: any, fixedComps: string[] = []) {
   const engineAnswers = await Promise.all(PROMPT_ENGINES.map(async (eng) => {
     // Harte Deadline je Call: AbortSignal wird von der Runtime ignoriert
     // (2026-07-14 verifiziert) — ohne Promise.race haengt EIN toter Provider-
-    // Call den gesamten Lauf endlos. Max 6 gleichzeitig je Provider (429/529).
-    const ask = (d: any) => withDeadline(eng.ask(d.prompt), 120_000, `ask:${eng.name}`).catch(() => null);
-    const answers = await pMap(defs, ask, 6);
+    // Call den gesamten Lauf endlos. Max 10 gleichzeitig je Provider, 90s je
+    // Ask: der GESAMTE Lauf muss unter das ~300s-Gateway-Kap; websearch-lastige
+    // Prompts (B5) brauchten bei conc 6/120s allein 4+ Min fuer die Engines.
+    const ask = (d: any) => withDeadline(eng.ask(d.prompt), 90_000, `ask:${eng.name}`).catch(() => null);
+    const answers = await pMap(defs, ask, 10);
     // Ein Retry-Durchgang fuer leere Antworten (Rate-Limit-Erholung), gedrosselt.
     const misses = answers.map((a: any, i: number) => (!a || !a.text ? i : -1)).filter((i) => i >= 0);
     if (misses.length && misses.length < defs.length) {
       await new Promise((r) => setTimeout(r, 2000));
-      const retries = await pMap(misses, (i: number) => ask(defs[i]), 3);
+      const retries = await pMap(misses, (i: number) => ask(defs[i]), 5);
       retries.forEach((a: any, k: number) => { if (a && a.text) answers[misses[k]] = a; });
     }
     return { eng, answers };
