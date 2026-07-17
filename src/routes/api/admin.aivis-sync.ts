@@ -1491,17 +1491,28 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
           return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
         const sb = supabaseAdmin as any;
-        // ?pending=1: Kunden mit aktivem KI-Sichtbarkeits-Tab, aber noch OHNE
-        // Report — Grundlage fuer die automatische Erstbefuellung (agent-service
-        // pollt und triggert je Kunde die kurzen Einzeljob-Laeufe).
+        // ?pending=1: Kunden mit aktivem KI-Sichtbarkeits-Tab, die Daten
+        // brauchen — ohne jeglichen Report (missing:["all"]) ODER deren
+        // NEUESTER Report unvollstaendig ist (pr/sa-Part fehlt, z. B. weil
+        // eine Stage am ~300s-Gateway-Kap starb; Fall Embassy 2026-07-17).
+        // Der agent-service-Tick faehrt dann gezielt nur die fehlenden Stages.
         if (new URL(request.url).searchParams.get("pending")) {
           const { data: cls } = await sb.from("clients").select("id, name, domain");
           const pending: any[] = [];
           for (const c of cls || []) {
             const svc = await getEnabledServices(c.id);
             if (!(svc.canonry || svc.perplexity)) continue;
-            const { data: rep } = await sb.from("ai_visibility_reports").select("id").eq("client_id", c.id).limit(1).maybeSingle();
-            if (!rep) pending.push({ id: c.id, name: c.name, domain: c.domain });
+            const { data: rep } = await sb
+              .from("ai_visibility_reports").select("id, parts")
+              .eq("client_id", c.id)
+              .order("snapshot_date", { ascending: false })
+              .limit(1).maybeSingle();
+            if (!rep) { pending.push({ id: c.id, name: c.name, domain: c.domain, missing: ["all"] }); continue; }
+            const parts: any = rep.parts || {};
+            const missing: string[] = [];
+            if (!parts.pr) missing.push("pr");
+            if (!parts.sa) missing.push("sa");
+            if (missing.length) pending.push({ id: c.id, name: c.name, domain: c.domain, missing });
           }
           return Response.json({ ok: true, build: BUILD_TAG, pending });
         }
