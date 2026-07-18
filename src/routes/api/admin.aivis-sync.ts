@@ -221,7 +221,7 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
-const BUILD_TAG = "2026-07-18-brandhist2"; // Deploy-Verifikation via GET-Antwort
+const BUILD_TAG = "2026-07-18-brandhist3"; // Deploy-Verifikation via GET-Antwort
 
 // ── Score v2 (2026-07-18): Sättigung statt harter Deckel ─────────────────────
 // Konstanten in src/lib/score-config.json (REFs, Gewichte, Glättung, Judge).
@@ -1457,20 +1457,24 @@ async function jobBrandBackfill(c: any, sbAny: any, months: number) {
   for (const m of todo) {
     if (processed >= cfg.monthsPerRequest) break; // Etappe voll — Aufrufer loopt
     processed += 1;
-    // order_by: NUR relevance|volume erlaubt (Feld-Lektion 2026-07-18) —
-    // wir lassen es weg; die Monats-Slices machen die zeitliche Ordnung.
+    // Feld-Lektionen (2026-07-18, doc-verifiziert): ai-responses kennt KEIN
+    // date_from/to — nur EIN `date` (Stichtag, YYYY-MM-DD) = Korpus-Snapshot
+    // zu diesem Datum; Zeilen tragen last_updated. select-Felder: question,
+    // response(10 Units), volume, country, links, search_queries, tags,
+    // data_source, last_updated. order_by nur relevance|volume. data_source
+    // als Komma-String. Monats-Punkt = Snapshot am Monatsende.
     const r = await brandRadar("ai-responses", {
-      select: "date,data_source,response",
+      select: "last_updated,data_source,response",
       brand,
-      data_source: SOURCES.map((s) => s.ds),
-      date_from: m.from,
-      date_to: m.to,
+      data_source: SOURCES.map((s) => s.ds).join(","),
+      date: m.to,
       limit: Math.max(1, cfg.maxAnswersPerMonth), // Kosten-/Mengendeckel (10 Units/Zeile)
+      search_volume_type: "ask_volume",
     }, key);
     if (!r.ok) { errors.push(`${m.key}: ${r.error}`); continue; } // Monat bleibt offen -> Retry möglich
-    const raw: any[] = (r.data?.responses ?? r.data?.items ?? r.data?.metrics ?? []) as any[];
+    const raw: any[] = (r.data?.ai_responses ?? r.data?.responses ?? r.data?.items ?? []) as any[];
     const answers = raw
-      .map((x: any) => ({ date: String(x.date || m.from), engine: SOURCES.find((s) => s.ds === x.data_source)?.name || String(x.data_source || "KI"), text: String(x.response || "") }))
+      .map((x: any) => ({ date: String(x.last_updated || m.to), engine: SOURCES.find((s) => s.ds === x.data_source)?.name || String(x.data_source || "KI"), text: String(x.response || "") }))
       .filter((a) => a.text.length > 40)
       .slice(0, cfg.maxAnswersPerMonth);
     if (raw.length >= cfg.maxAnswersPerMonth) diag(`brand-backfill ${m.key}: Deckel greift (${cfg.maxAnswersPerMonth} Antworten)`);
