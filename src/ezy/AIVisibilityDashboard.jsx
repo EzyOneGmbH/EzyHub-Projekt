@@ -805,13 +805,30 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
         {/* Top row: score + KPIs (Header entfällt — Tab-Kopf der App zeigt Titel + Kunde) */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
           <div className="rounded-xl border p-5 lg:col-span-1" style={CARD}>
-            <ScoreRing value={d.score} delta={d.scoreDelta} modelCount={d.models.length} />
+            <ScoreRing value={d.score} delta={d.versionSwitch ? 0 : d.scoreDelta} modelCount={d.models.length} />
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:col-span-3">
             <Kpi icon={Eye} label="Erwähnungen" color={C.indigo} {...d.kpis.mentions} />
             <Kpi icon={Quote} label="Citations" color={C.teal} {...d.kpis.citations} />
             <Kpi icon={FileText} label="Referenzierte Seiten" color={C.amber} value={d.kpis.citedPages.value} delta={d.kpis.citedPages.delta} prev={d.kpis.citedPages.prev} />
           </div>
+        </div>
+
+        {/* Score v2: Messumstellungs-Marker, Heimmarkt-Split, Vergleichs-Hinweis */}
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]" style={{ color: C.sub }}>
+          {d.versionSwitch && (
+            <span className="rounded-full border px-2 py-0.5" style={{ borderColor: C.amber, color: C.amber }}>
+              Messung umgestellt am {d.versionSwitch} — Veränderungen starten neu
+            </span>
+          )}
+          {d.brHomeSplit && (
+            <span className="rounded-full border px-2 py-0.5" style={{ borderColor: C.line }}>
+              KI-Antwort-Korpus: Heimmarkt CH {d.brHomeSplit.home} · International {d.brHomeSplit.intl}
+            </span>
+          )}
+          <span>
+            Der Score vergleicht die Sichtbarkeit eines Kunden über die Zeit. Vergleiche zwischen Kunden sind nur eingeschränkt möglich (unterschiedliche Keyword- und Marktbasis).
+          </span>
         </div>
 
         {/* Mid row: trend + distribution */}

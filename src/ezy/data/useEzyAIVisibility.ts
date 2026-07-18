@@ -31,6 +31,10 @@ export type AIVisibilityData = {
   date: string;
   score: number;
   scoreDelta: number;
+  scoreRaw?: number;                   // ungedeckelter v2-Wert (Trend/Diagnose)
+  measurementVersion?: string;         // Mess-Version (Score v2)
+  versionSwitch?: string | null;       // Datum der Messumstellung -> Delta-Sperre + UI-Marker
+  brHomeSplit?: { home: number; intl: number } | null; // Ahrefs-Erwähnungen Heimmarkt CH vs. International
   kpis: { mentions: Kpi; citations: Kpi; citedPages: Kpi };
   trend: { m: string; mentions: number; citations: number; pages: number }[];
   models: {
@@ -158,12 +162,31 @@ export async function loadAIVisibility(
     if (r.intent) intentTotals[r.intent] = (intentTotals[r.intent] || 0) + 1;
   }
 
+  // Score v2: Versionswechsel-Marker + Heimmarkt-Split aus den Report-Parts.
+  const repParts: any = rep.parts || {};
+  const versionSwitch: string | null = repParts?.meta?.versionSwitch ?? null;
+  let brHomeSplit: { home: number; intl: number } | null = null;
+  if (Array.isArray(repParts?.br?.models)) {
+    let home = 0, intl = 0;
+    for (const m of repParts.br.models) {
+      for (const [land, v] of Object.entries(m?.byCountry || {})) {
+        if (land === "Schweiz") home += Number(v || 0);
+        else intl += Number(v || 0);
+      }
+    }
+    if (home + intl > 0) brHomeSplit = { home, intl };
+  }
+
   return {
     client: clientLabel || String(rep.market ?? ""),
     market: String(rep.market ?? ""),
     date: deCH(String(rep.snapshot_date)),
     score: Number(rep.score ?? 0),
     scoreDelta: Number(rep.score_delta ?? 0),
+    scoreRaw: rep.score_raw != null ? Number(rep.score_raw) : undefined,
+    measurementVersion: rep.measurement_version ?? undefined,
+    versionSwitch,
+    brHomeSplit,
     kpis: {
       mentions: kpi(Number(rep.mentions ?? 0), Number(rep.mentions_delta ?? 0)),
       citations: kpi(Number(rep.citations ?? 0), Number(rep.citations_delta ?? 0)),

@@ -6,6 +6,8 @@ import { getGoogleAccessToken } from "@/server/google-tokens.server";
 import { redactSecrets } from "@/server/google-oauth.server";
 import { getEnabledServices } from "@/server/integrations.server";
 import { normalizeCanonryBase } from "@/lib/canonry-url";
+import SCORE_CFG from "@/lib/score-config.json";
+import JUDGE_ANCHORS from "@/lib/judge-calibration.json";
 
 // AI-Visibility-Ingestion, Stufe 1 (Makro-Layer + Attribution). Befüllt die
 // ai_visibility_*-Tabellen server-seitig (service_role; n8n kommt nicht an die
@@ -219,7 +221,56 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
-const BUILD_TAG = "2026-07-17-chunk4"; // Deploy-Verifikation via GET-Antwort
+const BUILD_TAG = "2026-07-18-score-v2"; // Deploy-Verifikation via GET-Antwort
+
+// ── Score v2 (2026-07-18): Sättigung statt harter Deckel ─────────────────────
+// Konstanten in src/lib/score-config.json (REFs, Gewichte, Glättung, Judge).
+// scoreV1 (Referenz, NICHT löschen — alte Formel bis 2026-07-17):
+//   score = min(100, round(26*log10(1+mentions) + 20*log10(1+citations)
+//         + 12*log10(1+citedPages) + 0.18*selfShare + 0.12*posQ))
+const MEASUREMENT_VERSION: string = SCORE_CFG.measurementVersion;
+const sat = (x: number, ref: number) => Math.min(1, Math.log10(1 + Math.max(0, x)) / Math.log10(1 + ref));
+const satRaw = (x: number, ref: number) => Math.log10(1 + Math.max(0, x)) / Math.log10(1 + ref);
+function scoreV2Terms(f: (x: number, ref: number) => number, m: number, cit: number, pages: number, sovPct: number, posQPct: number): number {
+  const W = SCORE_CFG.weights, R = SCORE_CFG.refs;
+  return W.mentions * f(m, R.M_REF) + W.citations * f(cit, R.C_REF) + W.citedPages * f(pages, R.R_REF)
+    + W.sov * (sovPct / 100) + W.posQual * (posQPct / 100);
+}
+
+// URL-Normalisierung fürs br/sa-Dedupe: Host lowercase, utm_* raus, kein
+// trailing slash. Engine-Familie: google-aio aus br und sa = EINE Familie —
+// br liefert Seiten quellen-aggregiert, deshalb dedupet die URL-Identität.
+function normUrl(u: string): string | null {
+  try {
+    const x = new URL(String(u));
+    x.hostname = x.hostname.toLowerCase().replace(/^www\./, "");
+    const keep = [...x.searchParams.entries()].filter(([k]) => !/^utm_/i.test(k));
+    x.search = keep.length ? "?" + keep.map(([k, v]) => `${k}=${v}`).join("&") : "";
+    x.hash = "";
+    return (x.origin + x.pathname).replace(/\/$/, "") + x.search;
+  } catch { return null; }
+}
+
+// Wrapper-Redirects (Vertex-Lektion): Gemini-Grounding- und Bing-Klick-URLs
+// zeigen auf Zwischenhosts — als Quelle zählt IMMER der aufgelöste Zielhost.
+const WRAPPER_HOSTS = ["vertexaisearch.cloud.google.com", "bing.com"];
+const isWrapperUrl = (u: string) => {
+  const d = domOf(u);
+  if (!d) return false;
+  if (d === "vertexaisearch.cloud.google.com") return true;
+  return (d === "bing.com" || d.endsWith(".bing.com")) && /\/ck\//.test(u);
+};
+async function resolveWrapper(u: string, cache: Map<string, string | null>): Promise<string | null> {
+  if (cache.has(u)) return cache.get(u) ?? null;
+  let out: string | null = null;
+  try {
+    const r = await fetch(u, { method: "GET", redirect: "manual", signal: AbortSignal.timeout(10_000) });
+    const loc = r.headers.get("location");
+    if (loc && !isWrapperUrl(loc)) out = loc;
+  } catch { /* resolved:false — Wrapper wird verworfen, nie als Quelle gezählt */ }
+  cache.set(u, out);
+  return out;
+}
 
 // Begrenzte Parallelitaet: volle Promise.all-Salven (30+ Calls gleichzeitig
 // je Provider) loesten 429/529 aus (Claude "Overloaded", Gemini/Perplexity
@@ -594,38 +645,39 @@ const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5";
 const PARSE_MODEL = process.env.ANTHROPIC_PARSE_MODEL ?? "claude-haiku-4-5-20251001";
 const urlsIn = (t: string) => (t.match(/https?:\/\/[^\s)\]"']+/g) || []).length;
 
-async function askClaude(prompt: string, maxTokens = 600): Promise<{ text: string; sources: number; error?: string } | null> {
+async function askClaude(prompt: string, maxTokens = 600, temperature?: number): Promise<{ text: string; sources: number; model?: string; error?: string } | null> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return null;
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
-    body: JSON.stringify({ model: ANTHROPIC_MODEL, max_tokens: maxTokens, messages: [{ role: "user", content: prompt }] }),
+    body: JSON.stringify({ model: ANTHROPIC_MODEL, max_tokens: maxTokens, messages: [{ role: "user", content: prompt }], ...(temperature != null ? { temperature } : {}) }),
     signal: AbortSignal.timeout(90_000),
   });
   if (!r.ok) return { text: "", sources: 0, error: `Claude HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 140)}` };
   const j: any = await r.json().catch(() => null);
   const text = (j?.content ?? []).map((b: any) => b?.text ?? "").join(" ").trim();
-  return text ? { text, sources: urlsIn(text) } : null;
+  // j.model = aufgelöster Modell-Snapshot (nie nur der Alias aus der Anfrage)
+  return text ? { text, sources: urlsIn(text), model: String(j?.model || ANTHROPIC_MODEL) } : null;
 }
 
-async function askPerplexity(prompt: string, maxTokens = 600): Promise<{ text: string; sources: number } | null> {
+async function askPerplexity(prompt: string, maxTokens = 600, temperature?: number): Promise<{ text: string; sources: number; model?: string } | null> {
   const key = process.env.PERPLEXITY_API_KEY;
   if (!key) return null;
   const r = await fetch("https://api.perplexity.ai/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "sonar", messages: [{ role: "user", content: prompt }], max_tokens: maxTokens }),
+    body: JSON.stringify({ model: "sonar", messages: [{ role: "user", content: prompt }], max_tokens: maxTokens, ...(temperature != null ? { temperature } : {}) }),
     signal: AbortSignal.timeout(60_000),
   });
   if (!r.ok) return null;
   const j: any = await r.json().catch(() => null);
   const text = String(j?.choices?.[0]?.message?.content ?? "").trim();
   const cits = Array.isArray(j?.citations) ? j.citations.length : urlsIn(text);
-  return text ? { text, sources: cits } : null;
+  return text ? { text, sources: cits, model: String(j?.model || "sonar") } : null;
 }
 
-async function askGemini(prompt: string, maxTokens = 600): Promise<{ text: string; sources: number } | null> {
+async function askGemini(prompt: string, maxTokens = 600, temperature?: number): Promise<{ text: string; sources: number; model?: string } | null> {
   const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!key) return null;
   const r = await fetch(
@@ -635,7 +687,7 @@ async function askGemini(prompt: string, maxTokens = 600): Promise<{ text: strin
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: maxTokens, thinkingConfig: { thinkingBudget: 0 } },
+        generationConfig: { maxOutputTokens: maxTokens, thinkingConfig: { thinkingBudget: 0 }, ...(temperature != null ? { temperature } : {}) },
       }),
       signal: AbortSignal.timeout(60_000),
     },
@@ -643,7 +695,7 @@ async function askGemini(prompt: string, maxTokens = 600): Promise<{ text: strin
   if (!r.ok) return { text: "", sources: 0, error: `Gemini HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 140)}` } as any;
   const j: any = await r.json().catch(() => null);
   const text = (j?.candidates?.[0]?.content?.parts ?? []).map((p: any) => p?.text ?? "").join(" ").trim();
-  return text ? { text, sources: urlsIn(text) } : null;
+  return text ? { text, sources: urlsIn(text), model: String(j?.modelVersion || "gemini-2.5-flash") } : null;
 }
 
 // OpenAI-kompatible Chat-APIs (ChatGPT / Grok / DeepSeek) — ein Helfer.
@@ -653,7 +705,8 @@ async function askOpenAICompat(
   model: string,
   prompt: string,
   maxTokens = 600,
-): Promise<{ text: string; sources: number } | null> {
+  temperature?: number,
+): Promise<{ text: string; sources: number; model?: string } | null> {
   if (!key) return null;
   // OpenAI (gpt-5.x/o-Modelle) verlangt max_completion_tokens; Grok/DeepSeek nutzen max_tokens.
   const tokenParam = url.includes("api.openai.com")
@@ -662,13 +715,13 @@ async function askOpenAICompat(
   const r = await fetch(url, {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], ...tokenParam }),
+    body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], ...tokenParam, ...(temperature != null ? { temperature } : {}) }),
     signal: AbortSignal.timeout(60_000),
   });
   if (!r.ok) return { text: "", sources: 0, error: `HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 140)}` } as any;
   const j: any = await r.json().catch(() => null);
   const text = String(j?.choices?.[0]?.message?.content ?? "").trim();
-  return text ? { text, sources: urlsIn(text) } : null;
+  return text ? { text, sources: urlsIn(text), model: String(j?.model || model) } : null;
 }
 
 // Engines aktivieren sich automatisch, sobald der jeweilige Key in der Env liegt.
@@ -693,19 +746,26 @@ const PROMPT_ENGINES: Array<{ name: string; ask: (p: string) => Promise<{ text: 
 // Utility-LLM für interne Aufgaben (Seeding, Judge) mit Failover-Kette: bei
 // leerem Guthaben/Fehler automatisch das nächste verfügbare Modell. So bricht
 // v2 nicht ab, nur weil EIN Anbieter (z. B. Claude) gerade kein Guthaben hat.
-async function askUtility(prompt: string, maxTokens = 2000): Promise<string | null> {
+async function askUtilityMeta(prompt: string, maxTokens = 2000, temperature?: number): Promise<{ text: string; model: string } | null> {
   const chain: Array<() => Promise<any>> = [
-    () => askClaude(prompt, maxTokens),
-    () => askOpenAICompat("https://api.deepseek.com/chat/completions", process.env.DEEPSEEK_API_KEY, process.env.DEEPSEEK_MODEL ?? "deepseek-chat", prompt, maxTokens),
-    () => askOpenAICompat("https://api.x.ai/v1/chat/completions", process.env.XAI_API_KEY || process.env.GROK_API_KEY, process.env.XAI_MODEL ?? "grok-4", prompt, maxTokens),
-    () => askPerplexity(prompt, maxTokens),
-    () => askOpenAICompat("https://api.openai.com/v1/chat/completions", process.env.OPENAI_API_KEY, process.env.OPENAI_MODEL ?? "gpt-5.1", prompt, maxTokens),
-    () => askGemini(prompt, maxTokens),
+    () => askClaude(prompt, maxTokens, temperature),
+    () => askOpenAICompat("https://api.deepseek.com/chat/completions", process.env.DEEPSEEK_API_KEY, process.env.DEEPSEEK_MODEL ?? "deepseek-chat", prompt, maxTokens, temperature),
+    () => askOpenAICompat("https://api.x.ai/v1/chat/completions", process.env.XAI_API_KEY || process.env.GROK_API_KEY, process.env.XAI_MODEL ?? "grok-4", prompt, maxTokens, temperature),
+    () => askPerplexity(prompt, maxTokens, temperature),
+    () => askOpenAICompat("https://api.openai.com/v1/chat/completions", process.env.OPENAI_API_KEY, process.env.OPENAI_MODEL ?? "gpt-5.1", prompt, maxTokens, temperature),
+    () => askGemini(prompt, maxTokens, temperature),
   ];
   for (const fn of chain) {
-    try { const r = await withDeadline(fn(), 120_000, "utility-llm"); if (r && r.text) return r.text as string; } catch { /* nächstes Modell */ }
+    try {
+      const r = await withDeadline(fn(), 120_000, "utility-llm");
+      if (r && r.text) return { text: r.text as string, model: String(r.model || "unbekannt") };
+    } catch { /* nächstes Modell */ }
   }
   return null;
+}
+async function askUtility(prompt: string, maxTokens = 2000): Promise<string | null> {
+  const r = await askUtilityMeta(prompt, maxTokens);
+  return r?.text ?? null;
 }
 
 // JSON aus LLM-Antworten robust extrahieren (Codefences etc.).
@@ -769,6 +829,31 @@ async function seedPromptDefs(
   return { defs: data || [] };
 }
 
+// Judge-Kalibrierung (Score v2): 20 handgelabelte reale Antworten
+// (src/lib/judge-calibration.json). Läuft automatisch, wenn der Judge mit
+// einem Modell außerhalb der Baseline geantwortet hat — Übereinstimmung
+// (mentioned+cited exakt) in % wird geloggt; unter der Schwelle: Warnung
+// im Report statt stiller Drift.
+async function runJudgeCalibration(): Promise<{ pct: number; n: number } | null> {
+  const byBrand = new Map<string, Array<{ i: number; platform: string; text: string; exp: any }>>();
+  (JUDGE_ANCHORS as any[]).forEach((a: any, i: number) => {
+    const arr = byBrand.get(a.brand) || [];
+    arr.push({ i, platform: a.platform, text: a.text, exp: a.expected });
+    byBrand.set(a.brand, arr);
+  });
+  let ok = 0, n = 0;
+  const groups = [...byBrand.entries()];
+  await pMap(groups, async ([brand, items]) => {
+    const res = await judgeAnswers(brand, [], items.map((x) => ({ i: x.i, platform: x.platform, text: x.text }))).catch(() => null);
+    for (const x of items) {
+      const j = res?.map?.[x.i];
+      n += 1;
+      if (j && !!j.mentioned === !!x.exp.mentioned && !!j.cited === !!x.exp.cited) ok += 1;
+    }
+  }, 3);
+  return n ? { pct: Math.round((ok / n) * 100), n } : null;
+}
+
 // LLM-Judge (A): jede Antwort strukturiert bewerten statt Regex.
 async function judgeAnswers(brand: string, comps: string[], items: Array<{ i: number; platform: string; text: string }>) {
   const hint = comps.length ? `Bekannte Konkurrenten (nutze diese Schreibweise, ergänze neue): ${comps.join(", ")}. ` : "";
@@ -782,17 +867,21 @@ async function judgeAnswers(brand: string, comps: string[], items: Array<{ i: nu
   const map: Record<number, any> = {};
   const chunks: Array<typeof items> = [];
   for (let off = 0; off < items.length; off += CHUNK) chunks.push(items.slice(off, off + CHUNK));
-  const texts = await pMap(chunks, (ch) => {
+  // Judge-Härtung (Score v2): temperature 0 (deterministisch) + aufgelöste
+  // Modell-Snapshot-Namen je Bewertungs-Block festhalten (nie nur Alias).
+  const results = await pMap(chunks, (ch) => {
     const list = ch.map((a) => `#${a.i} [${a.platform}] ${String(a.text).slice(0, 650)}`).join("\n---\n");
-    return askUtility(head + list, 4000).catch(() => null); // Failover-Kette: Claude -> DeepSeek -> ...
+    return askUtilityMeta(head + list, 4000, SCORE_CFG.judge.temperature).catch(() => null); // Failover-Kette: Claude -> DeepSeek -> ...
   }, 5); // max 5 Judge-Bloecke gleichzeitig — Kompromiss: volle Salve gab 529,
   // aber Laeufe muessen unter das ~300s-Gateway-Kap (2 Kunden rissen es bei 3)
-  for (const text of texts) {
-    if (!text) continue;
-    const arr = parseJson(text);
+  const models = new Set<string>();
+  for (const r of results) {
+    if (!r?.text) continue;
+    models.add(r.model);
+    const arr = parseJson(r.text);
     if (Array.isArray(arr)) for (const e of arr) map[Number(e.i)] = e;
   }
-  return Object.keys(map).length ? map : null;
+  return Object.keys(map).length ? { map, models: [...models] } : null;
 }
 
 async function jobPromptRunner(
@@ -905,12 +994,14 @@ async function jobPromptRunner(
   // A) LLM-Judge über alle Antworten; Fallback = Regex, falls Judge ausfällt.
   // Harte Gesamt-Deadline (2026-07-16): der Judge darf den Lauf nie ueber das
   // Hosting-Kap (~10 Min) schieben — lieber Regex-Fallback als toter Lauf.
-  const judged = await withDeadline(
+  const judgeRes = await withDeadline(
     judgeAnswers(c.name, fixedComps, rows.map((r) => ({ i: r.i, platform: r.platform, text: r.text }))),
     5 * 60_000,
     "judge",
   ).catch(() => null);
-  diag(`prompts: Judge fertig (${judged ? Object.keys(judged).length : "Fallback Regex"})`);
+  const judged = judgeRes?.map ?? null;
+  const judgeModels: string[] = judgeRes?.models ?? [];
+  diag(`prompts: Judge fertig (${judged ? Object.keys(judged).length : "Fallback Regex"}${judgeModels.length ? ", " + judgeModels.join("+") : ""})`);
   const evals = rows.map((r) => {
     const j = judged?.[r.i];
     if (j) {
@@ -994,6 +1085,18 @@ async function jobPromptRunner(
     }
   }
 
+  // Judge-Kalibrierung: nur im letzten Häppchen und nur bei Modell-Wechsel
+  // (Judge antwortete mit einem Modell außerhalb der Baseline).
+  let judgeCalibration: { pct: number; n: number } | null = null;
+  const baseline: string[] = SCORE_CFG.judge.baselineModels || [];
+  if (judgeModels.length && judgeModels.some((m) => !baseline.some((b) => m.startsWith(b)))) {
+    judgeCalibration = await withDeadline(runJudgeCalibration(), 90_000, "judge-calibration").catch(() => null);
+    if (judgeCalibration) {
+      const warn = judgeCalibration.pct < SCORE_CFG.judge.calibrationThresholdPct;
+      diag(`prompts: Judge-Kalibrierung ${judgeCalibration.pct}% (${judgeCalibration.n} Anker)${warn ? ` ⚠️ unter ${SCORE_CFG.judge.calibrationThresholdPct}%` : ""}`);
+    }
+  }
+
   // C) Share-of-Voice: eigene Marke vs. Konkurrenten über alle Antworten.
   const compTally: Record<string, { name: string; n: number }> = {};
   const selfMentions = evals.filter((e) => e.mentioned).length;
@@ -1022,8 +1125,22 @@ async function jobPromptRunner(
   const learnedComps = compList.filter((cc) => cc.n >= 2 && !fixedLower.has(cc.name.toLowerCase())).map((cc) => cc.name);
 
   // E) Quellen aus den Antworten (Custom-Layer) nach Domain aggregiert.
+  // Wrapper-Audit (Score v2): Gemini-Grounding- (vertexaisearch) und Bing-
+  // Klick-URLs werden aufgelöst — der Wrapper-Host zählt NIE als Quelle.
   const srcTally: Record<string, number> = {};
-  for (const e of evals) for (const u of e.sources) { const dd = domOf(u); if (dd) srcTally[dd] = (srcTally[dd] || 0) + 1; }
+  const wrapCache = new Map<string, string | null>();
+  let wrapBudget = 40; // Auflösungs-Deckel je Lauf (10s-Fetches, 300s-Kap schützen)
+  for (const e of evals) for (const u of e.sources) {
+    let uu = u;
+    if (isWrapperUrl(u)) {
+      if (!wrapCache.has(u) && wrapBudget-- <= 0) continue; // resolved:false — verwerfen
+      const res = await resolveWrapper(u, wrapCache);
+      if (!res) continue;
+      uu = res;
+    }
+    const dd = domOf(uu);
+    if (dd) srcTally[dd] = (srcTally[dd] || 0) + 1;
+  }
   const customSources = Object.entries(srcTally)
     .map(([dom, n]) => ({ domain: dom, mentions: n, layer: "custom" }))
     .sort((a, b) => b.mentions - a.mentions)
@@ -1065,6 +1182,8 @@ async function jobPromptRunner(
     selfShare: sov[0]?.share ?? 0,
     positionQuality: Math.round(positionQuality * 100),
     judged: !!judged,
+    judgeModels,
+    judgeCalibration,
   };
 }
 
@@ -1106,7 +1225,11 @@ async function jobCanonry(c: any) {
   const srcRows = (Array.isArray(srcArr) ? srcArr : []).map((s: any) => ({
     domain: String(s?.domain || s?.host || domOf(s?.url || "") || "").replace(/^www\./, ""),
     mentions: Number(s?.cited ?? s?.count ?? s?.citations ?? s?.mentions ?? 0),
-  })).filter((s: any) => s.domain).slice(0, 15);
+  }))
+    // Wrapper-Audit (Score v2): Canonry liefert nur Domains (keine URL zum
+    // Aufloesen) — Wrapper-Hosts werden verworfen statt als Quelle gezaehlt.
+    .filter((s: any) => s.domain && !WRAPPER_HOSTS.some((w) => s.domain === w || s.domain.endsWith("." + w)))
+    .slice(0, 15);
   // Konkurrenten (best-effort).
   const compArr: any[] = Array.isArray(competitors) ? competitors : ((competitors as any)?.competitors || (competitors as any)?.data || []);
   const comps = (Array.isArray(compArr) ? compArr : [])
@@ -1155,12 +1278,14 @@ async function jobBackfill(c: any, sb: any, months: number) {
   for (const mo of monthsList) {
     const mentions = byMonth[mo.key] ?? 0;
     const snapshot = `${mo.key}-01`;
-    const score = Math.min(100, Math.round(26 * Math.log10(1 + mentions))); // nur Mengen historisch verfügbar
+    // Score v2 (nur Mengen historisch verfügbar -> nur der Mentions-Term).
+    const score = Math.min(100, Math.round(SCORE_CFG.weights.mentions * sat(mentions, SCORE_CFG.refs.M_REF)));
+    const scoreRaw = Math.round(SCORE_CFG.weights.mentions * satRaw(mentions, SCORE_CFG.refs.M_REF) * 10) / 10;
     const { data: rep, error } = await sb
       .from("ai_visibility_reports")
       .upsert({
         client_id: c.id, market: c.country || null, snapshot_date: snapshot,
-        score, score_delta: score - prevScore,
+        score, score_delta: score - prevScore, score_raw: scoreRaw, measurement_version: MEASUREMENT_VERSION,
         mentions, mentions_delta: mentions - prevMentions,
         citations: 0, citations_delta: 0, cited_pages: 0, cited_pages_delta: 0,
       }, { onConflict: "client_id,snapshot_date" })
@@ -1355,41 +1480,91 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 .eq("snapshot_date", snapshot)
                 .maybeSingle();
               const newParts: any = {};
-              if (hasBr) newParts.br = { mentions: br.mentions, citations: br.citations, pages: br.citedPagesCount, models: br.models };
+              // S3: normalisierte URL-Listen je Schicht mitschreiben (Dedupe-Basis).
+              if (hasBr) newParts.br = {
+                mentions: br.mentions, citations: br.citations, pages: br.citedPagesCount, models: br.models,
+                urls: [...new Set((br.citedPages || []).map((p: any) => normUrl(p.url)).filter(Boolean))].slice(0, 300),
+              };
               if (hasCa) newParts.ca = { mentions: ca.mentions, models: ca.models };
-              if (hasSa) newParts.sa = { mentions: sa.mentions, citations: Number(sa.citations || 0), pages: sa.citedPages?.length || 0, models: sa.models };
-              if (hasPr && !prPartial) newParts.pr = { mentions: pr.mentions, selfShare: pr.selfShare ?? 0, posQ: pr.positionQuality ?? 0, models: pr.customModels };
+              if (hasSa) newParts.sa = {
+                mentions: sa.mentions, citations: Number(sa.citations || 0), pages: sa.citedPages?.length || 0, models: sa.models,
+                urls: [...new Set((sa.citedPages || []).map((u: any) => normUrl(u)).filter(Boolean))].slice(0, 300),
+              };
+              if (hasPr && !prPartial) newParts.pr = {
+                mentions: pr.mentions, selfShare: pr.selfShare ?? 0, posQ: pr.positionQuality ?? 0, models: pr.customModels,
+                judge: {
+                  models: pr.judgeModels || [], temperature: SCORE_CFG.judge.temperature,
+                  ...(pr.judgeCalibration ? { calibration: pr.judgeCalibration } : {}),
+                },
+              };
               const parts: any = { ...((existingRep?.parts as any) || {}), ...newParts };
               if (Object.keys(parts).length > Object.keys(newParts).length)
                 jr.note = `Merge: bestehende Anteile bewahrt (${Object.keys(parts).filter((k) => !newParts[k]).join(",")})`;
 
               const mentions = ["br", "ca", "sa", "pr"].reduce((a, k) => a + Number(parts[k]?.mentions || 0), 0);
-              // Citations/Seiten: Ahrefs-Korpus + eigener SERP-Check (getrennte
-              // Korpora; theoretische Doppelzählung derselben Seite akzeptiert).
-              const citations = Number(parts.br?.citations || 0) + Number(parts.sa?.citations || 0);
-              const citedPagesCount = Number(parts.br?.pages || 0) + Number(parts.sa?.pages || 0);
+              // S3-Dedupe: Ahrefs enthält AI Overviews, der eigene sa-Check misst
+              // AI Overviews — dieselbe (normalisierte) URL wird für die SCORE-
+              // Summe nur 1x gezählt. Rohwerte je Schicht bleiben in parts erhalten.
+              const brUrls: string[] | null = Array.isArray(parts.br?.urls) ? parts.br.urls : null;
+              const saUrls: string[] | null = Array.isArray(parts.sa?.urls) ? parts.sa.urls : null;
+              let citations = Number(parts.br?.citations || 0) + Number(parts.sa?.citations || 0);
+              let citedPagesCount = Number(parts.br?.pages || 0) + Number(parts.sa?.pages || 0);
+              if (brUrls && saUrls) {
+                const brSet = new Set(brUrls);
+                const saUnique = saUrls.filter((u) => !brSet.has(u));
+                citedPagesCount = new Set([...brUrls, ...saUrls]).size;
+                // sa-Zitierungen liegen nicht je URL vor -> anteilig über den
+                // Anteil der sa-URLs, die nicht schon im br-Korpus stehen.
+                const saShare = saUrls.length ? saUnique.length / saUrls.length : 1;
+                citations = Number(parts.br?.citations || 0) + Math.round(Number(parts.sa?.citations || 0) * saShare);
+              }
               const selfShare = Number(parts.pr?.selfShare || 0); // 0..100
               const posQ = Number(parts.pr?.posQ || 0); // 0..100
-              // Deltas vs. letztem Snapshot.
+
+              // S4-Glättung: rollierender Durchschnitt über die letzten
+              // smoothing.windowRuns pr-Läufe DERSELBEN Mess-Version.
+              let sovSmooth = selfShare, posQSmooth = posQ;
+              if (parts.pr) {
+                const { data: prevPr } = await sb
+                  .from("ai_visibility_reports")
+                  .select("parts")
+                  .eq("client_id", c.id)
+                  .eq("measurement_version", MEASUREMENT_VERSION)
+                  .lt("snapshot_date", snapshot)
+                  .not("parts->pr", "is", null)
+                  .order("snapshot_date", { ascending: false })
+                  .limit(Math.max(0, SCORE_CFG.smoothing.windowRuns - 1));
+                const sovVals = [selfShare, ...(prevPr || []).map((x: any) => Number(x.parts?.pr?.selfShare || 0))];
+                const posVals = [posQ, ...(prevPr || []).map((x: any) => Number(x.parts?.pr?.posQ || 0))];
+                sovSmooth = sovVals.reduce((a, b) => a + b, 0) / sovVals.length;
+                posQSmooth = posVals.reduce((a, b) => a + b, 0) / posVals.length;
+                parts.pr.sovSmooth = Math.round(sovSmooth * 10) / 10;
+                parts.pr.posQSmooth = Math.round(posQSmooth * 10) / 10;
+              }
+
+              // S2: Deltas NUR gegen den letzten Snapshot DERSELBEN Mess-Version.
               const { data: prev } = await sb
                 .from("ai_visibility_reports")
-                .select("mentions, citations, cited_pages, score")
+                .select("mentions, citations, cited_pages, score, measurement_version")
                 .eq("client_id", c.id)
+                .eq("measurement_version", MEASUREMENT_VERSION)
                 .lt("snapshot_date", snapshot)
                 .order("snapshot_date", { ascending: false })
                 .limit(1)
                 .maybeSingle();
-              // Score (TUNE, F): log-gedämpfte Mengen + Qualitäts-Boni.
-              const score = Math.min(
-                100,
-                Math.round(
-                  26 * Math.log10(1 + mentions) +
-                  20 * Math.log10(1 + citations) +
-                  12 * Math.log10(1 + citedPagesCount) +
-                  0.18 * selfShare +
-                  0.12 * posQ,
-                ),
-              );
+              let versionSwitch = false;
+              if (!prev) {
+                const { data: anyPrev } = await sb
+                  .from("ai_visibility_reports").select("id")
+                  .eq("client_id", c.id).lt("snapshot_date", snapshot).limit(1).maybeSingle();
+                versionSwitch = !!anyPrev; // Historie da, aber andere Version -> Delta-Sperre + UI-Marker
+              }
+              if (versionSwitch) parts.meta = { ...(parts.meta || {}), versionSwitch: snapshot };
+
+              // S1: Score v2 — Sättigung statt harter Deckel; scoreRaw ungedeckelt.
+              const scoreV2 = scoreV2Terms(sat, mentions, citations, citedPagesCount, sovSmooth, posQSmooth);
+              const scoreRaw = scoreV2Terms(satRaw, mentions, citations, citedPagesCount, sovSmooth, posQSmooth);
+              const score = Math.min(100, Math.round(scoreV2));
               const { data: rep, error: repErr } = await sb
                 .from("ai_visibility_reports")
                 .upsert(
@@ -1398,13 +1573,15 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                     market: c.country || null,
                     snapshot_date: snapshot,
                     score,
-                    score_delta: score - Number(prev?.score ?? 0),
+                    score_raw: Math.round(scoreRaw * 10) / 10,
+                    measurement_version: MEASUREMENT_VERSION,
+                    score_delta: versionSwitch ? null : score - Number(prev?.score ?? 0),
                     mentions,
-                    mentions_delta: mentions - Number(prev?.mentions ?? 0),
+                    mentions_delta: versionSwitch ? null : mentions - Number(prev?.mentions ?? 0),
                     citations,
-                    citations_delta: citations - Number(prev?.citations ?? 0),
+                    citations_delta: versionSwitch ? null : citations - Number(prev?.citations ?? 0),
                     cited_pages: citedPagesCount,
-                    cited_pages_delta: citedPagesCount - Number(prev?.cited_pages ?? 0),
+                    cited_pages_delta: versionSwitch ? null : citedPagesCount - Number(prev?.cited_pages ?? 0),
                     parts,
                   },
                   { onConflict: "client_id,snapshot_date" },
