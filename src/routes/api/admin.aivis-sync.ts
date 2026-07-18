@@ -221,7 +221,7 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
-const BUILD_TAG = "2026-07-18-brandhist"; // Deploy-Verifikation via GET-Antwort
+const BUILD_TAG = "2026-07-18-brandhist2"; // Deploy-Verifikation via GET-Antwort
 
 // ── Score v2 (2026-07-18): Sättigung statt harter Deckel ─────────────────────
 // Konstanten in src/lib/score-config.json (REFs, Gewichte, Glättung, Judge).
@@ -1457,6 +1457,8 @@ async function jobBrandBackfill(c: any, sbAny: any, months: number) {
   for (const m of todo) {
     if (processed >= cfg.monthsPerRequest) break; // Etappe voll — Aufrufer loopt
     processed += 1;
+    // order_by: NUR relevance|volume erlaubt (Feld-Lektion 2026-07-18) —
+    // wir lassen es weg; die Monats-Slices machen die zeitliche Ordnung.
     const r = await brandRadar("ai-responses", {
       select: "date,data_source,response",
       brand,
@@ -1464,7 +1466,6 @@ async function jobBrandBackfill(c: any, sbAny: any, months: number) {
       date_from: m.from,
       date_to: m.to,
       limit: Math.max(1, cfg.maxAnswersPerMonth), // Kosten-/Mengendeckel (10 Units/Zeile)
-      order_by: "date",
     }, key);
     if (!r.ok) { errors.push(`${m.key}: ${r.error}`); continue; } // Monat bleibt offen -> Retry möglich
     const raw: any[] = (r.data?.responses ?? r.data?.items ?? r.data?.metrics ?? []) as any[];
