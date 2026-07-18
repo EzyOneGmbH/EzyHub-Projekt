@@ -7,6 +7,6 @@
   "judge": {
     "temperature": 0,
     "calibrationThresholdPct": 85,
-    "baselineModels": ["claude-force-calib-test"]
+    "baselineModels": ["claude-sonnet-5", "deepseek-v4-flash"]
   }
 }
