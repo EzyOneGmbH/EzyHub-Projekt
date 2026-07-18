@@ -8,5 +8,10 @@
     "temperature": 0,
     "calibrationThresholdPct": 85,
     "baselineModels": ["claude-sonnet-5", "deepseek-v4-flash"]
+  },
+  "brandBackfill": {
+    "_doc": "Korpus-Backfill (Ahrefs Brand Radar): Antworten-Deckel je Kunde+Monat (10 Units je response-Zeile!) und Monate je Request (300s-Kap).",
+    "maxAnswersPerMonth": 30,
+    "monthsPerRequest": 2
   }
 }

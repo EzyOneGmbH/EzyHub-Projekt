@@ -49,6 +49,16 @@ export type AIVisibilityData = {
     advisory?: { text: string; date: string | null };
   } | null;
   brandPrompts?: AIPrompt[];
+  // Zeitreihe des Marken-Checks — ZWEI strikt getrennte Quellen:
+  // "eigene-prompts" (ab Erstlauf) und "korpus-backfill" (retro, Ahrefs-Archiv).
+  brandHistory?: {
+    date: string;
+    source: "eigene-prompts" | "korpus-backfill" | string;
+    provider: string;
+    faktentreueQuote: number | null;
+    tonalitaet: Record<string, number>;
+    answered: number;
+  }[];
   kpis: { mentions: Kpi; citations: Kpi; citedPages: Kpi };
   trend: { m: string; mentions: number; citations: number; pages: number }[];
   models: {
@@ -248,6 +258,22 @@ export async function loadAIVisibility(
       return p;
     }),
     brandCheck: (rep.parts as any)?.bc ?? null,
+    brandHistory: await (async () => {
+      const { data: hist } = await sb
+        .from("ai_visibility_brand_history")
+        .select("point_date, source, provider, data")
+        .eq("client_id", clientId)
+        .order("point_date", { ascending: true })
+        .limit(500);
+      return (hist ?? []).map((h: any) => ({
+        date: String(h.point_date),
+        source: String(h.source),
+        provider: String(h.provider || ""),
+        faktentreueQuote: h.data?.faktentreueQuote ?? null,
+        tonalitaet: h.data?.tonalitaetsVerteilung ?? {},
+        answered: Number(h.data?.answered ?? 0),
+      }));
+    })(),
     sources: (sources.data ?? []).map((s: any) => ({
       domain: String(s.domain ?? ""),
       mentions: Number(s.mentions ?? 0),

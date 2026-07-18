@@ -30,7 +30,7 @@ const Body = z.object({
   serpKeywords: z.number().int().min(0).max(25000).optional(), // pro Request: serp_ai-Keyword-Limit (0 = alle)
   minIntervalDays: z.number().int().min(0).max(60).default(6),
   force: z.boolean().optional(),
-  mode: z.enum(["live", "backfill"]).default("live"), // backfill = Ahrefs/GA4-Historie
+  mode: z.enum(["live", "backfill", "brand-backfill"]).default("live"), // backfill = Ahrefs/GA4-Historie; brand-backfill = Marken-Check-Korpus (retro)
   months: z.number().int().min(1).max(12).default(6),  // Backfill-Tiefe
   async: z.boolean().default(false), // true = sofort 202 + runId, Verarbeitung im Hintergrund
   // Prompt-Chunking (2026-07-17): das ~300s-Gateway-Kap begrenzt EINEN Request
@@ -221,7 +221,7 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
-const BUILD_TAG = "2026-07-18-brand"; // Deploy-Verifikation via GET-Antwort
+const BUILD_TAG = "2026-07-18-brandhist"; // Deploy-Verifikation via GET-Antwort
 
 // ── Score v2 (2026-07-18): Sättigung statt harter Deckel ─────────────────────
 // Konstanten in src/lib/score-config.json (REFs, Gewichte, Glättung, Judge).
@@ -1423,6 +1423,143 @@ async function jobPromptRunner(
   };
 }
 
+// ── H2: Marken-Check-Korpus-Backfill (Ahrefs Brand Radar, retro) ─────────────
+// Eigene Prompt-Läufe sind nicht rückwirkend erzeugbar — der Korpus liefert
+// die Vergangenheit: archivierte echte KI-Antworten mit Datum, darüber läuft
+// der Brand-Judge retroaktiv (promptType "brand-korpus"). Feldverifikation
+// 2026-07-18 (Changelog): ai-responses liefert date/data_source/response
+// (response = 10 Units je Zeile!), Tiefe ~12 Monate, Filter nur phrase_match.
+// Quelle strikt getrennt: source "korpus-backfill", provider "ahrefs-br" —
+// NIE mit der eigenen Linie gemischt, KEIN Einfluss auf Score/SoV/Version.
+async function jobBrandBackfill(c: any, sbAny: any, months: number) {
+  const key = process.env.AHREFS_API_KEY;
+  if (!key) return { skipped: "AHREFS_API_KEY fehlt" };
+  const cfg: any = (SCORE_CFG as any).brandBackfill || { maxAnswersPerMonth: 30, monthsPerRequest: 2 };
+  const brand = brandName(c);
+  const facts = await getBrandFacts(c, sbAny).catch(() => null);
+  const now = new Date();
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const monthsList: Array<{ key: string; from: string; to: string }> = [];
+  for (let k = 1; k <= months; k++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - k, 1);
+    const end = new Date(now.getFullYear(), now.getMonth() - k + 1, 0);
+    monthsList.push({ key: iso(d).slice(0, 7), from: iso(d), to: iso(end) });
+  }
+  // Idempotent/wiederaufnehmbar: vorhandene Monats-Punkte überspringen.
+  const { data: existing } = await sbAny
+    .from("ai_visibility_brand_history").select("point_date")
+    .eq("client_id", c.id).eq("source", "korpus-backfill").eq("provider", "ahrefs-br");
+  const have = new Set((existing || []).map((x: any) => String(x.point_date).slice(0, 7)));
+  const todo = monthsList.filter((m) => !have.has(m.key));
+  let processed = 0, rowsTotal = 0;
+  const doneMonths: string[] = [];
+  const errors: string[] = [];
+  for (const m of todo) {
+    if (processed >= cfg.monthsPerRequest) break; // Etappe voll — Aufrufer loopt
+    processed += 1;
+    const r = await brandRadar("ai-responses", {
+      select: "date,data_source,response",
+      brand,
+      data_source: SOURCES.map((s) => s.ds),
+      date_from: m.from,
+      date_to: m.to,
+      limit: Math.max(1, cfg.maxAnswersPerMonth), // Kosten-/Mengendeckel (10 Units/Zeile)
+      order_by: "date",
+    }, key);
+    if (!r.ok) { errors.push(`${m.key}: ${r.error}`); continue; } // Monat bleibt offen -> Retry möglich
+    const raw: any[] = (r.data?.responses ?? r.data?.items ?? r.data?.metrics ?? []) as any[];
+    const answers = raw
+      .map((x: any) => ({ date: String(x.date || m.from), engine: SOURCES.find((s) => s.ds === x.data_source)?.name || String(x.data_source || "KI"), text: String(x.response || "") }))
+      .filter((a) => a.text.length > 40)
+      .slice(0, cfg.maxAnswersPerMonth);
+    if (raw.length >= cfg.maxAnswersPerMonth) diag(`brand-backfill ${m.key}: Deckel greift (${cfg.maxAnswersPerMonth} Antworten)`);
+    rowsTotal += answers.length;
+    let data: any = {
+      monat: m.key, answered: answers.length, faktentreueQuote: null,
+      tonalitaetsVerteilung: {}, halluzinationen: [], konkurrenzNennungen: [], topQuellen: [], judge: null,
+    };
+    if (answers.length) {
+      const bj = await withDeadline(
+        judgeBrandAnswers(c.name, facts || {}, answers.map((a, i) => ({ i, platform: a.engine, text: a.text }))),
+        4 * 60_000, "brand-korpus-judge",
+      ).catch(() => ({ map: {} as Record<number, any>, models: [] as string[] }));
+      const evals = answers.map((a, i) => {
+        const j = (bj.map as any)[i] || {};
+        return {
+          faktentreue: ["korrekt", "teilweise", "falsch", "veraltet", "unbewertbar"].includes(j.faktentreue) ? j.faktentreue : "unbewertbar",
+          tonalitaet: ["positiv", "neutral", "negativ", "warnend"].includes(j.tonalitaet) ? j.tonalitaet : "neutral",
+          halluzination: j.halluzination ? String(j.halluzination).slice(0, 300) : null,
+          quellen: Array.isArray(j.quellen) ? j.quellen.map(String).slice(0, 8) : [],
+          konkurrenz: Array.isArray(j.konkurrenz) ? j.konkurrenz.map((x: any) => String(x).trim()).filter(Boolean).slice(0, 8) : [],
+        };
+      });
+      const rated = evals.filter((e) => e.faktentreue !== "unbewertbar");
+      const fktn: Record<string, number> = {};
+      for (const e of rated) fktn[e.faktentreue] = (fktn[e.faktentreue] || 0) + 1;
+      const ton: Record<string, number> = {};
+      for (const e of evals) ton[e.tonalitaet] = (ton[e.tonalitaet] || 0) + 1;
+      const kT: Record<string, { name: string; n: number }> = {};
+      for (const e of evals) for (const k2 of e.konkurrenz) { const kk = k2.toLowerCase(); (kT[kk] ??= { name: k2, n: 0 }).n += 1; }
+      const qT: Record<string, number> = {};
+      for (const e of evals) for (const q of e.quellen) {
+        const dd = /^https?:\/\//.test(q) ? domOf(q) : String(q).replace(/^www\./, "").toLowerCase() || null;
+        if (dd && !WRAPPER_HOSTS.some((w) => dd === w || dd.endsWith("." + w))) qT[dd] = (qT[dd] || 0) + 1;
+      }
+      data = {
+        monat: m.key, answered: answers.length,
+        // faktentreue NUR wo der Text genug hergibt — sonst null, nicht raten.
+        faktentreueQuote: rated.length >= 3 ? Math.round(((fktn["korrekt"] || 0) / rated.length) * 100) : null,
+        faktentreueVerteilung: fktn,
+        tonalitaetsVerteilung: ton,
+        halluzinationen: answers.map((a, i2) => ({ engine: a.engine, datum: a.date, zitat: evals[i2].halluzination })).filter((h) => h.zitat).slice(0, 10),
+        konkurrenzNennungen: Object.values(kT).sort((a, b) => b.n - a.n).slice(0, 10),
+        topQuellen: Object.entries(qT).map(([domain, n]) => ({ domain, n })).sort((a, b) => b.n - a.n).slice(0, 10),
+        judge: { models: bj.models, temperature: SCORE_CFG.judge.temperature, promptType: "brand-korpus" },
+      };
+    }
+    await sbAny.from("ai_visibility_brand_history").upsert({
+      client_id: c.id, point_date: m.from, source: "korpus-backfill", provider: "ahrefs-br",
+      data, updated_at: new Date().toISOString(),
+    }, { onConflict: "client_id,point_date,source,provider" });
+    doneMonths.push(m.key);
+    diag(`brand-backfill ${m.key}: ${answers.length} Antworten bewertet`);
+  }
+
+  // H3-Ausnahme: eine HEUTE aktive Halluzination, die im Korpus früher datiert,
+  // ergänzt das bestehende Advisory um "seit mindestens <monat>" (kein neuer Eintrag).
+  let since: string | null = null;
+  try {
+    const heute = new Date().toISOString().slice(0, 10);
+    const { data: todayRep } = await sbAny
+      .from("ai_visibility_reports").select("id, parts")
+      .eq("client_id", c.id).eq("snapshot_date", heute).maybeSingle();
+    const adv = (todayRep?.parts as any)?.bc?.advisory;
+    if (adv?.text && /Halluzination/i.test(adv.text)) {
+      const tokens = (String(adv.text).match(/[A-Za-zÄÖÜäöüß]{5,}/g) || []).map((t: string) => t.toLowerCase());
+      const { data: pts } = await sbAny
+        .from("ai_visibility_brand_history").select("point_date, data")
+        .eq("client_id", c.id).eq("source", "korpus-backfill").order("point_date", { ascending: true });
+      for (const p of pts || []) {
+        const hit = ((p.data as any)?.halluzinationen || []).some((h: any) =>
+          h.zitat && tokens.some((t: string) => String(h.zitat).toLowerCase().includes(t) && !["marken", "check", "antwort", "quelle", "empfehlung", "fakten", "website", "profilen", "aktualisieren", "richtigstellen", "halluzination"].includes(t)));
+        if (hit) { since = String(p.point_date).slice(0, 7); break; }
+      }
+      if (since && adv.since !== since) {
+        await sbAny.from("ai_visibility_reports").update({
+          parts: { ...(todayRep.parts as any), bc: { ...(todayRep.parts as any).bc, advisory: { ...adv, since } } },
+        }).eq("id", todayRep.id);
+        diag(`brand-backfill: Advisory ergänzt — seit mindestens ${since}`);
+      }
+    }
+  } catch { /* Ergänzung ist best effort */ }
+
+  return {
+    processed: doneMonths, remainingMonths: todo.length - processed, rows: rowsTotal,
+    unitsEst: rowsTotal * 10 + processed * 2, errors: errors.length ? errors : undefined,
+    since: since || undefined,
+  };
+}
+
 // ── Canonry: Live-Sweeps (per-Provider cited counts) in die eine Ansicht falten ─
 const CANONRY_LABEL: Record<string, string> = {
   openai: "ChatGPT", chatgpt: "ChatGPT", perplexity: "Perplexity", gemini: "Gemini",
@@ -1637,6 +1774,13 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               results.push({ client: c.name, domain: c.domain, jobs: jr });
               continue;
             }
+            // Marken-Check-Korpus-Backfill (H2): on-demand, etappenweise, dann fertig.
+            if (mode === "brand-backfill") {
+              jr.brandBackfill = await withDeadline(jobBrandBackfill(c, sb, months), 12 * 60_000, "brand-backfill")
+                .catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }));
+              results.push({ client: c.name, domain: c.domain, jobs: jr });
+              continue;
+            }
             // Freshness-Guard (Brand Radar kostet Units).
             if (!force && minIntervalDays > 0) {
               const since = new Date(Date.now() - minIntervalDays * 86400_000).toISOString().slice(0, 10);
@@ -1836,6 +1980,30 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 .single();
               if (repErr) throw new Error(repErr.message);
               const reportId: string = rep.id;
+
+              // H1: Marken-Check-Historie — jeder Lauf ein Zeitreihen-Punkt.
+              // Merge-Modell: Teilläufe desselben Tages upserten denselben
+              // Tagespunkt (Aggregat läuft ohnehin über alle Tageszeilen).
+              // Quelle "eigene-prompts" — NIE mit Korpus-Backfill mischen (H3).
+              if (hasPr && !prPartial && pr.brandCheck) {
+                await sb.from("ai_visibility_brand_history").upsert({
+                  client_id: c.id,
+                  point_date: snapshot,
+                  source: "eigene-prompts",
+                  provider: "",
+                  data: {
+                    faktentreueQuote: pr.brandCheck.faktentreueQuote,
+                    faktentreueVerteilung: pr.brandCheck.faktentreueVerteilung,
+                    tonalitaetsVerteilung: pr.brandCheck.tonalitaetsVerteilung,
+                    halluzinationen: pr.brandCheck.halluzinationen,
+                    konkurrenzNennungen: pr.brandCheck.konkurrenzNennungen,
+                    topQuellen: pr.brandCheck.topQuellen,
+                    answered: pr.brandCheck.answered,
+                    judge: pr.brandCheck.judge,
+                  },
+                  updated_at: new Date().toISOString(),
+                }, { onConflict: "client_id,point_date,source,provider" });
+              }
 
               // Modelle: IMMER aus den gemergten Parts neu aufbauen, per Modell-
               // NAME zusammengeführt (Summe der Mentions) -> keine Doppel-Zeilen.
@@ -2037,6 +2205,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             client: r.clients?.name || null,
             text: r.parts?.bc?.advisory?.text || null,
             date: r.parts?.bc?.advisory?.date || heute,
+            since: r.parts?.bc?.advisory?.since || null, // Korpus-Datierung (H3)
           })).filter((a: any) => a.client && a.text);
           return Response.json({ ok: true, build: BUILD_TAG, advisories });
         }

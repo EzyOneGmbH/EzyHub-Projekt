@@ -797,7 +797,61 @@ function SovCard({ rows }) {
 
 // ── Marken-Check (Brand-Prompts): Reputation/Faktentreue, klar getrennt vom Score ─
 const TON_COLORS = { positiv: C.up, neutral: C.sub, negativ: C.down || "#ef4444", warnend: C.amber };
-function BrandCheckCard({ bc, brand }) {
+
+// Mini-Trend: ZWEI strikt getrennte Linien-Segmente — Korpus-Backfill (retro,
+// gestrichelt/gedämpft) und eigene Messung (ab Erstlauf, kräftig). Nie gemischt.
+function BrandTrend({ history }) {
+  const pts = (history || []).filter((h) => h.answered > 0);
+  if (pts.length < 2) return null;
+  const eigene = pts.filter((h) => h.source === "eigene-prompts");
+  const korpus = pts.filter((h) => h.source === "korpus-backfill");
+  const erstlauf = eigene[0]?.date;
+  const W = 560, H = 64, PAD = 6;
+  const all = [...korpus, ...eigene];
+  const x = (i) => PAD + (i / Math.max(1, all.length - 1)) * (W - 2 * PAD);
+  const y = (v) => H - PAD - (Math.max(0, Math.min(100, v)) / 100) * (H - 2 * PAD);
+  const posShare = (h) => {
+    const t = Object.values(h.tonalitaet || {}).reduce((a, b) => a + Number(b), 0);
+    return t ? (Number(h.tonalitaet?.positiv || 0) / t) * 100 : 0;
+  };
+  const line = (arr, offset, val) =>
+    arr.map((h, i) => `${x(offset + i)},${y(val(h))}`).join(" ");
+  return (
+    <div className="border-t px-5 py-3" style={{ borderColor: C.line }}>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]" style={{ color: C.sub }}>
+        <span className="uppercase tracking-wide">Verlauf (Faktentreue % durchgezogen · Tonalität positiv % gepunktet)</span>
+        <span className="flex items-center gap-3">
+          {korpus.length > 0 && (
+            <span className="inline-flex items-center gap-1"><span className="inline-block h-0.5 w-4" style={{ background: C.sub }} />Korpus-Backfill (Ahrefs)</span>
+          )}
+          <span className="inline-flex items-center gap-1"><span className="inline-block h-0.5 w-4" style={{ background: C.indigo }} />eigene Messung{erstlauf ? ` ab ${erstlauf}` : ""}</span>
+        </span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="mt-1 w-full" style={{ maxHeight: 72 }}>
+        {korpus.length > 1 && (
+          <polyline points={line(korpus.filter((h) => h.faktentreueQuote != null), 0, (h) => h.faktentreueQuote)} fill="none" stroke={C.sub} strokeWidth="1.5" strokeDasharray="4 3" />
+        )}
+        {korpus.length > 1 && (
+          <polyline points={line(korpus, 0, posShare)} fill="none" stroke={C.sub} strokeWidth="1" strokeDasharray="1 3" />
+        )}
+        {eigene.length > 0 && (
+          <>
+            <polyline points={line(eigene.filter((h) => h.faktentreueQuote != null), korpus.length, (h) => h.faktentreueQuote)} fill="none" stroke={C.indigo} strokeWidth="2" />
+            <polyline points={line(eigene, korpus.length, posShare)} fill="none" stroke={C.indigo} strokeWidth="1" strokeDasharray="1 3" />
+            {korpus.length > 0 && (
+              <line x1={x(korpus.length) - 3} y1={PAD} x2={x(korpus.length) - 3} y2={H - PAD} stroke={C.amber} strokeWidth="1" strokeDasharray="2 2" />
+            )}
+          </>
+        )}
+      </svg>
+      {korpus.length > 0 && eigene.length > 0 && (
+        <div className="text-[10px]" style={{ color: C.amber }}>ab {erstlauf}: eigene Messung — davor Korpus-Archiv, getrennt erhoben</div>
+      )}
+    </div>
+  );
+}
+
+function BrandCheckCard({ bc, brand, history }) {
   if (!bc) return null;
   const tonTotal = Object.values(bc.tonalitaetsVerteilung || {}).reduce((a, b) => a + Number(b), 0) || 1;
   return (
@@ -811,8 +865,10 @@ function BrandCheckCard({ bc, brand }) {
       {bc.advisory?.text && (
         <div className="mx-5 mt-3 rounded-lg border px-3 py-2 text-xs" style={{ borderColor: C.amber, color: C.amber }}>
           {bc.advisory.text}
+          {bc.advisory.since ? ` (laut Korpus-Archiv seit mindestens ${bc.advisory.since})` : ""}
         </div>
       )}
+      <BrandTrend history={history} />
       <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-3">
         <div>
           <div className="text-[11px] uppercase tracking-wide" style={{ color: C.sub }}>Faktentreue</div>
@@ -945,7 +1001,7 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
         <div className="mt-4 grid grid-cols-1 gap-4">
           <TopicsTable rows={d.topics} />
           <PromptsTable prompts={d.prompts} opps={d.promptOpps} brand={d.client} brandPrompts={d.brandPrompts || []} />
-          <BrandCheckCard bc={d.brandCheck} brand={d.client} />
+          <BrandCheckCard bc={d.brandCheck} brand={d.client} history={d.brandHistory || []} />
           <SourcesTable rows={d.sources} />
         </div>
 
