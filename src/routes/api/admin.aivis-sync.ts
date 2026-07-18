@@ -221,7 +221,7 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
-const BUILD_TAG = "2026-07-18-brandhist3"; // Deploy-Verifikation via GET-Antwort
+const BUILD_TAG = "2026-07-19-daily"; // Deploy-Verifikation via GET-Antwort
 
 // ── Score v2 (2026-07-18): Sättigung statt harter Deckel ─────────────────────
 // Konstanten in src/lib/score-config.json (REFs, Gewichte, Glättung, Judge).
@@ -2227,7 +2227,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             const svc = await getEnabledServices(c.id);
             if (!(svc.canonry || svc.perplexity)) continue;
             const { data: rep } = await sb
-              .from("ai_visibility_reports").select("id, parts")
+              .from("ai_visibility_reports").select("id, parts, snapshot_date")
               .eq("client_id", c.id)
               .order("snapshot_date", { ascending: false })
               .limit(1).maybeSingle();
@@ -2236,6 +2236,10 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             const missing: string[] = [];
             if (!parts.pr) missing.push("pr");
             if (!parts.sa) missing.push("sa");
+            // Tages-Frische (2026-07-19): neuester Report ist von gestern oder
+            // älter -> voller Tageslauf fällig. Vorher liefen Läufe nur bei
+            // fehlenden/unvollständigen Reports — es gab KEINEN Tageszyklus.
+            if (!missing.length && String(rep.snapshot_date) < today()) missing.push("daily");
             if (missing.length) pending.push({ id: c.id, name: c.name, domain: c.domain, missing });
           }
           return Response.json({ ok: true, build: BUILD_TAG, pending });
