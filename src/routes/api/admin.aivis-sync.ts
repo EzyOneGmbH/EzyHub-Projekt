@@ -221,7 +221,7 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
-const BUILD_TAG = "2026-07-18-score-v2"; // Deploy-Verifikation via GET-Antwort
+const BUILD_TAG = "2026-07-18-brand"; // Deploy-Verifikation via GET-Antwort
 
 // ── Score v2 (2026-07-18): Sättigung statt harter Deckel ─────────────────────
 // Konstanten in src/lib/score-config.json (REFs, Gewichte, Glättung, Judge).
@@ -829,6 +829,82 @@ async function seedPromptDefs(
   return { defs: data || [] };
 }
 
+// ── Brand-Prompts (Marken-Check): Reputation/Faktentreue, NICHT Sichtbarkeit ─
+// Brand-Prompts fragen nach der Marke selbst — die Marke wird darin fast immer
+// genannt. Sie fliessen deshalb NIEMALS in SoV/Positions-Qualität/Score ein
+// (Semrush-Inflation). Merksatz: Markt-Prompts messen, OB man empfohlen wird;
+// Brand-Prompts messen, WAS über einen gesagt wird.
+async function seedBrandPrompts(c: any, sbAny: any): Promise<any[]> {
+  const terms: string[] = Array.isArray(c.brand_terms) && c.brand_terms.length ? c.brand_terms.map(String) : [String(c.name)];
+  const marke = terms[0] || String(c.name);
+  // Top-Konkurrent aus den pr-Daten (SoV) für den Vergleichs-Prompt.
+  const { data: topComp } = await sbAny
+    .from("ai_visibility_sov").select("brand").eq("client_id", c.id).eq("is_self", false)
+    .order("mentions", { ascending: false }).limit(1).maybeSingle();
+  const text = await askUtility(
+    `Du bist SEO/GEO-Analyst. Erzeuge 10 BRAND-Prompts für die Firma "${marke}" (${cleanDomain(c.domain)}, Markt ${c.country || "CH"}, Sprache ${c.language || "de"}) — realistische Fragen, die Nutzer KI-Assistenten ÜBER DIESE MARKE stellen. Decke diese Intents ab (je 1-2 Prompts, natürlich formuliert, Markenname enthalten): Erfahrungen/Bewertungen; empfehlenswert/seriös; was bietet die Firma an; Preise/Kosten; Öffnungszeiten/Kontakt (nur falls lokales Geschäft mit Standort); Vergleich "${marke} vs ${topComp?.brand || "der wichtigste Konkurrent"}"; wem gehört die Firma / wer steckt dahinter. Weitere Markenschreibweisen: ${terms.join(", ")}. Antworte NUR mit JSON-Array: [{"prompt":"...","topic":"Marken-Check","intent":"Navigativ","country":"${c.country === "CH" || !c.country ? "Schweiz" : "International"}"}]`,
+    2500,
+  );
+  const arr = parseJson(text || "");
+  if (!Array.isArray(arr) || !arr.length) return [];
+  const rows = arr.slice(0, 12).map((p: any) => ({
+    client_id: c.id,
+    prompt: String(p.prompt ?? "").slice(0, 500),
+    topic: "Marken-Check",
+    intent: "Navigativ",
+    country: String(p.country ?? "Schweiz").slice(0, 40),
+    language: c.language || "de",
+    prompt_type: "brand",
+    needs_review: true,
+  })).filter((r: any) => r.prompt.trim());
+  if (!rows.length) return [];
+  const { data } = await sbAny.from("ai_visibility_prompt_defs").insert(rows).select("*");
+  return data || [];
+}
+
+// Fakten-Kurzprofil je Kunde (brand_facts): Abgleichsbasis für den Brand-Judge.
+// Initial automatisch aus Name/Domain/Homepage generiert, needs_review=true.
+async function getBrandFacts(c: any, sbAny: any): Promise<any> {
+  const { data } = await sbAny.from("ai_visibility_brand_facts").select("facts").eq("client_id", c.id).maybeSingle();
+  if (data?.facts) return data.facts;
+  let siteText = "";
+  try {
+    const r = await fetch(`https://${cleanDomain(c.domain)}`, { signal: AbortSignal.timeout(8000), headers: { "User-Agent": "Mozilla/5.0 (EzyHub Brand-Facts)" } });
+    siteText = (await r.text()).replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 2500);
+  } catch { /* Profil dann nur aus Grundwissen */ }
+  const text = await askUtility(
+    `Erstelle ein kompaktes, faktisches Kurzprofil der Firma "${c.name}" (${cleanDomain(c.domain)}, ${c.country || "CH"}) als Abgleichsbasis für einen Fakten-Check. Nur belegbare Kernfakten, KEINE Vermutungen — Unbekanntes weglassen.${siteText ? ` Website-Auszug: ${siteText}` : ""} Antworte NUR mit JSON: {"angebot":"was die Firma anbietet","ort":"Standort(e)","kernfakten":["3-8 kurze Fakten"]}`,
+    1800,
+  );
+  const facts = parseJson(text || "") || { angebot: null, ort: null, kernfakten: [] };
+  await sbAny.from("ai_visibility_brand_facts").upsert({ client_id: c.id, facts, needs_review: true, updated_at: new Date().toISOString() });
+  diag(`prompts: brand-facts initial generiert (needsReview)`);
+  return facts;
+}
+
+// Brand-Judge (E2): bewertet WAS über die Marke gesagt wird — Faktentreue
+// gegen brand_facts, Tonalität, Halluzinationen (mit Zitat), Quellen,
+// Konkurrenz-Nennungen. temp 0 + Modell-Snapshot wie beim Markt-Judge.
+async function judgeBrandAnswers(brand: string, facts: any, items: Array<{ i: number; platform: string; text: string }>) {
+  const head = `Du prüfst KI-Antworten über die Marke "${brand}". Abgleichsbasis (Faktenprofil): ${JSON.stringify(facts).slice(0, 1200)}\nFür JEDE Antwort ein Objekt:\n{"i":<nr>,"faktentreue":"korrekt"|"teilweise"|"falsch"|"veraltet"|"unbewertbar","tonalitaet":"positiv"|"neutral"|"negativ"|"warnend","halluzination":"wörtliches Zitat der frei erfundenen Angabe"|null,"quellen":["explizit genannte Quell-URLs oder Domains, max 8"],"konkurrenz":["andere genannte Firmen/Marken OHNE die Zielmarke, max 8"]}\nSei streng: "falsch"/"veraltet" nur bei klarem Widerspruch zum Faktenprofil; Halluzination = konkrete erfundene Angabe (Adresse, Zahl, Angebot), nicht blosse Allgemeinheit. Antworte NUR mit JSON-Array.\n\n`;
+  const CHUNK = 8;
+  const map: Record<number, any> = {};
+  const chunks: Array<typeof items> = [];
+  for (let off = 0; off < items.length; off += CHUNK) chunks.push(items.slice(off, off + CHUNK));
+  const results = await pMap(chunks, (ch) => {
+    const list = ch.map((a) => `#${a.i} [${a.platform}] ${String(a.text).slice(0, 650)}`).join("\n---\n");
+    return askUtilityMeta(head + list, 4000, SCORE_CFG.judge.temperature).catch(() => null);
+  }, 4);
+  const models = new Set<string>();
+  for (const r of results) {
+    if (!r?.text) continue;
+    models.add(r.model);
+    const arr = parseJson(r.text);
+    if (Array.isArray(arr)) for (const e of arr) map[Number(e.i)] = e;
+  }
+  return { map, models: [...models] };
+}
+
 // Judge-Kalibrierung (Score v2): 20 handgelabelte reale Antworten
 // (src/lib/judge-calibration.json). Läuft automatisch, wenn der Judge mit
 // einem Modell außerhalb der Baseline geantwortet hat — Übereinstimmung
@@ -899,6 +975,9 @@ async function jobPromptRunner(
       .select("*")
       .eq("client_id", c.id)
       .eq("active", true)
+      // Markt VOR Brand ('markt' > 'brand' absteigend): Sichtbarkeits-Messung
+      // hat bei Teilläufen Priorität, Brand-Prompts laufen in den letzten Etappen.
+      .order("prompt_type", { ascending: false })
       .order("id", { ascending: true })
       .range(from, from + 999);
     defs.push(...(page ?? []));
@@ -912,7 +991,12 @@ async function jobPromptRunner(
   const target = Math.max(1, opts.target ?? PROMPT_TARGET);
   let seeded = 0;
   let seedError: string | undefined;
-  if (opts.target != null || !defs.length) {
+  // Ziel/Seeding zählt NUR Markt-Prompts; Brand-Prompts sind eine eigene,
+  // kleine Kategorie (8-12) mit eigenem Seeder.
+  let marktDefs = defs.filter((d: any) => (d.prompt_type || "markt") !== "brand");
+  let brandDefs = defs.filter((d: any) => d.prompt_type === "brand");
+  const seedingAllowed = opts.target != null || !defs.length;
+  if (seedingAllowed) {
     const ANGLES = [
       "Fokus: saisonale und anlassbezogene Fragen (Feiertage, Events, Jahreszeiten, Geschenke)",
       "Fokus: Preis-, Budget- und Vergleichsfragen (günstig vs. Premium, Preis-Leistung)",
@@ -922,19 +1006,26 @@ async function jobPromptRunner(
       "Fokus: Umgebungs-, Anreise- und Kombinationsfragen je Land/Region",
     ];
     let attempt = 0, zero = 0;
-    while (defs.length < target && attempt < 6 && zero < 3) {
+    while (marktDefs.length < target && attempt < 6 && zero < 3) {
       const s = await seedPromptDefs(c, sbAny, {
-        count: target - defs.length,
-        existing: defs.map((d: any) => d.prompt),
+        count: target - marktDefs.length,
+        existing: [...marktDefs, ...brandDefs].map((d: any) => d.prompt),
         angle: ANGLES[attempt % ANGLES.length],
       });
       attempt += 1;
       if (!s.defs.length) { zero += 1; seedError = s.error; continue; }
       zero = 0;
-      defs = [...defs, ...s.defs];
+      marktDefs = [...marktDefs, ...s.defs];
       seeded += s.defs.length;
     }
+    // Brand-Set (E1): einmalig 8-12 generieren, needsReview=true — Kuratur
+    // bleibt menschlich, der Lauf startet trotzdem (Aktivierungs-Absicht).
+    if (!brandDefs.length) {
+      const bs = await seedBrandPrompts(c, sbAny).catch(() => []);
+      if (bs.length) { brandDefs = bs; diag(`prompts: Brand-Set generiert (${bs.length}, needsReview)`); }
+    }
   }
+  defs = [...marktDefs, ...brandDefs];
   if (!defs.length) return { skipped: `Seeding fehlgeschlagen: ${seedError || "unbekannt"}` };
 
   // Chunking (2026-07-17): mehr als ~30 Prompts reissen das ~300s-Gateway-Kap.
@@ -979,17 +1070,21 @@ async function jobPromptRunner(
     }
     return { eng, answers };
   }));
+  // Brand-Antworten SEPARAT halten (Marken-Check): sie fliessen NIE in die
+  // Sichtbarkeits-Aggregate (SoV/PosQ/Mentions) — `rows` = NUR Markt-Zeilen.
+  const bRows: any[] = [];
   for (const { eng, answers } of engineAnswers) {
     answers.forEach((a: any, i) => {
       if (!a || !a.text) {
         if (a?.error && !engineErrors[eng.name]) engineErrors[eng.name] = a.error;
         return;
       }
-      rows.push({ i: rows.length, def: defs[i], platform: eng.name, text: a.text });
+      if ((defs[i]?.prompt_type || "markt") === "brand") bRows.push({ i: bRows.length, def: defs[i], platform: eng.name, text: a.text });
+      else rows.push({ i: rows.length, def: defs[i], platform: eng.name, text: a.text });
     });
   }
-  diag(`prompts: Engines fertig (${rows.length} Antworten)`);
-  if (!rows.length) return { skipped: "keine Engine-Antworten", seeded };
+  diag(`prompts: Engines fertig (${rows.length} Markt- + ${bRows.length} Brand-Antworten)`);
+  if (!rows.length && !bRows.length) return { skipped: "keine Engine-Antworten", seeded };
 
   // A) LLM-Judge über alle Antworten; Fallback = Regex, falls Judge ausfällt.
   // Harte Gesamt-Deadline (2026-07-16): der Judge darf den Lauf nie ueber das
@@ -1020,7 +1115,7 @@ async function jobPromptRunner(
   });
 
   // Prompt-Ergebnisse für die DB (mit Sentiment/Position).
-  const promptRows = rows.map((r, k) => {
+  const marktPromptRows = rows.map((r, k) => {
     const e = evals[k];
     return {
       prompt: r.def.prompt,
@@ -1035,16 +1130,62 @@ async function jobPromptRunner(
       sources_count: e.sources.length,
       response: r.text.slice(0, 1500),
       competitors: e.competitors,
+      prompt_type: "markt",
     };
   });
+
+  // Brand-Judge über die Brand-Antworten dieser Etappe (E2).
+  let bEvals: any[] = [];
+  let brandJudgeModels: string[] = [];
+  let brandFacts: any = null;
+  if (bRows.length) {
+    brandFacts = await getBrandFacts(c, sbAny).catch(() => null);
+    const bj = await withDeadline(
+      judgeBrandAnswers(c.name, brandFacts || {}, bRows.map((r) => ({ i: r.i, platform: r.platform, text: r.text }))),
+      4 * 60_000,
+      "brand-judge",
+    ).catch(() => ({ map: {} as Record<number, any>, models: [] as string[] }));
+    brandJudgeModels = bj.models;
+    bEvals = bRows.map((r) => {
+      const j = bj.map[r.i] || {};
+      return {
+        faktentreue: ["korrekt", "teilweise", "falsch", "veraltet", "unbewertbar"].includes(j.faktentreue) ? j.faktentreue : "unbewertbar",
+        tonalitaet: ["positiv", "neutral", "negativ", "warnend"].includes(j.tonalitaet) ? j.tonalitaet : "neutral",
+        halluzination: j.halluzination ? String(j.halluzination).slice(0, 300) : null,
+        quellen: Array.isArray(j.quellen) ? j.quellen.map(String).slice(0, 8) : urlListIn(r.text).slice(0, 8),
+        konkurrenz: Array.isArray(j.konkurrenz) ? j.konkurrenz.map((x: any) => String(x).trim()).filter(Boolean).slice(0, 8) : [],
+      };
+    });
+    diag(`prompts: Brand-Judge fertig (${bRows.length}${brandJudgeModels.length ? ", " + brandJudgeModels.join("+") : ""})`);
+  }
+  const brandPromptRows = bRows.map((r, k) => {
+    const e = bEvals[k] || {};
+    return {
+      prompt: r.def.prompt,
+      platform: r.platform,
+      country: r.def.country || "Schweiz",
+      status: null, // Erwähnt-Status ist bei Brand-Fragen trivial — bewusst leer
+      is_opportunity: false,
+      intent: r.def.intent || "Navigativ",
+      sentiment: null,
+      position: null,
+      brands_count: (e.konkurrenz || []).length,
+      sources_count: (e.quellen || []).length,
+      response: r.text.slice(0, 1500),
+      competitors: e.konkurrenz || [],
+      prompt_type: "brand",
+      brand_eval: { ...e, judge: { models: brandJudgeModels, temperature: SCORE_CFG.judge.temperature } },
+    };
+  });
+  const promptRows = [...marktPromptRows, ...brandPromptRows];
 
   // Nicht-letztes Häppchen: nur Zeilen liefern, KEINE Aggregation — die
   // rechnet erst das letzte Häppchen über alle Antworten des Tages.
   if (next != null) {
     const byEnginePart: Record<string, number> = {};
-    for (const r of rows) byEnginePart[r.platform] = (byEnginePart[r.platform] || 0) + 1;
+    for (const r of [...rows, ...bRows]) byEnginePart[r.platform] = (byEnginePart[r.platform] || 0) + 1;
     return {
-      promptRows, seeded, answered: rows.length, byEngine: byEnginePart, engineErrors,
+      promptRows, seeded, answered: rows.length + bRows.length, byEngine: byEnginePart, engineErrors,
       partial: true, chunk: { offset, next, total: allDefs.length },
     };
   }
@@ -1065,11 +1206,26 @@ async function jobPromptRunner(
         if (!page || page.length < 1000) break;
       }
       const defMeta = new Map(allDefs.map((d: any) => [d.prompt, d]));
-      const currentKeys = new Set(rows.map((r) => `${r.def.prompt}·${r.platform}`));
+      const currentKeys = new Set([...rows, ...bRows].map((r) => `${r.def.prompt}·${r.platform}`));
       let merged = 0;
       for (const p of prior) {
         if (currentKeys.has(`${p.prompt}·${p.platform}`)) continue;
         const d = defMeta.get(p.prompt) || { prompt: p.prompt, country: p.country, intent: p.intent };
+        // Brand-Zeilen früherer Etappen -> in den Marken-Check, NIE in die
+        // Sichtbarkeits-Aggregate.
+        if ((p.prompt_type || "markt") === "brand") {
+          bRows.push({ i: -1, def: d, platform: p.platform, text: String(p.response || "") });
+          const be = p.brand_eval || {};
+          bEvals.push({
+            faktentreue: be.faktentreue || "unbewertbar",
+            tonalitaet: be.tonalitaet || "neutral",
+            halluzination: be.halluzination ?? null,
+            quellen: Array.isArray(be.quellen) ? be.quellen : [],
+            konkurrenz: Array.isArray(be.konkurrenz) ? be.konkurrenz : [],
+          });
+          merged += 1;
+          continue;
+        }
         rows.push({ i: -1, def: d, platform: p.platform, text: String(p.response || "") });
         evals.push({
           mentioned: p.status != null,
@@ -1174,8 +1330,88 @@ async function jobPromptRunner(
   const byEngine: Record<string, number> = {};
   for (const r of rows) byEngine[r.platform] = (byEngine[r.platform] || 0) + 1;
 
+  // ── Marken-Check (E3): eigenes Aggregat, fliesst NICHT in den Score ────────
+  let brandCheck: any = null;
+  if (bRows.length) {
+    const rated = bEvals.filter((e) => e.faktentreue !== "unbewertbar");
+    const fktn: Record<string, number> = {};
+    for (const e of rated) fktn[e.faktentreue] = (fktn[e.faktentreue] || 0) + 1;
+    const ton: Record<string, number> = {};
+    for (const e of bEvals) ton[e.tonalitaet] = (ton[e.tonalitaet] || 0) + 1;
+    const halluzinationen = bRows
+      .map((r, k) => ({ engine: r.platform, prompt: r.def.prompt, zitat: bEvals[k]?.halluzination }))
+      .filter((h) => h.zitat).slice(0, 10);
+    // Quellen (nach Wrapper-Auflösung, S5-Mechanik) je Domain.
+    const qTally: Record<string, number> = {};
+    const bWrapCache = new Map<string, string | null>();
+    let bWrapBudget = 20;
+    for (const e of bEvals) for (const q of e.quellen || []) {
+      let u = String(q);
+      if (/^https?:\/\//.test(u) && isWrapperUrl(u)) {
+        if (!bWrapCache.has(u) && bWrapBudget-- <= 0) continue;
+        const res = await resolveWrapper(u, bWrapCache);
+        if (!res) continue;
+        u = res;
+      }
+      const dd = /^https?:\/\//.test(u) ? domOf(u) : String(u).replace(/^www\./, "").toLowerCase() || null;
+      if (dd && !WRAPPER_HOSTS.some((w) => dd === w || dd.endsWith("." + w))) qTally[dd] = (qTally[dd] || 0) + 1;
+    }
+    const topQuellen = Object.entries(qTally).map(([domain, n]) => ({ domain, n })).sort((a, b) => b.n - a.n).slice(0, 10);
+    // Konkurrenz-Nennungen in Brand-Antworten (Semrush-Effekt/Brand-Kaperung).
+    const kTally: Record<string, { name: string; n: number }> = {};
+    for (const e of bEvals) for (const k of e.konkurrenz || []) {
+      const kk = k.toLowerCase();
+      (kTally[kk] ??= { name: k, n: 0 }).n += 1;
+    }
+    const konkurrenzNennungen = Object.values(kTally).sort((a, b) => b.n - a.n).slice(0, 10);
+    const selfNennungen = bRows.filter((r) => nameRe.test(r.text)).length;
+    brandCheck = {
+      answered: bRows.length,
+      faktentreueQuote: rated.length ? Math.round(((fktn["korrekt"] || 0) / rated.length) * 100) : null,
+      faktentreueVerteilung: fktn,
+      tonalitaetsVerteilung: ton,
+      halluzinationen,
+      topQuellen,
+      konkurrenzNennungen,
+      selfNennungen,
+      judge: { models: brandJudgeModels, temperature: SCORE_CFG.judge.temperature },
+      ...(brandFacts ? {} : { hinweis: "brand-facts fehlten — Faktentreue eingeschränkt" }),
+    };
+
+    // E4: advisory-Signal für die Wunsch-Queue — max EIN Eintrag je Lauf.
+    let advisory: string | null = null;
+    const bad = bRows.map((r, k) => ({ r, e: bEvals[k] }))
+      .find((x) => ["falsch", "veraltet"].includes(x.e?.faktentreue) || x.e?.halluzination);
+    if (bad) {
+      const grund = bad.e.halluzination
+        ? `Halluzination: "${String(bad.e.halluzination).slice(0, 160)}"`
+        : `Faktentreue "${bad.e.faktentreue}" bei "${String(bad.r.def.prompt).slice(0, 80)}"`;
+      const quelle = (bad.e.quellen || [])[0];
+      advisory = `Marken-Check: KI-Antwort über ${c.name} auf ${bad.r.platform} — ${grund}${quelle ? ` — Quelle: ${String(quelle).slice(0, 80)}` : ""}. Empfehlung: Fakten auf Website/Profilen aktualisieren bzw. richtigstellen.`;
+    } else {
+      // Tonalität mehrheitlich negativ/warnend je Engine?
+      const perEngine: Record<string, { neg: number; total: number }> = {};
+      bRows.forEach((r, k) => {
+        const pe = (perEngine[r.platform] ??= { neg: 0, total: 0 });
+        pe.total += 1;
+        if (["negativ", "warnend"].includes(bEvals[k]?.tonalitaet)) pe.neg += 1;
+      });
+      const negEng = Object.entries(perEngine).find(([, v]) => v.total >= 3 && v.neg / v.total > 0.5);
+      if (negEng) {
+        advisory = `Marken-Check: Tonalität über ${c.name} auf ${negEng[0]} mehrheitlich negativ/warnend (${negEng[1].neg} von ${negEng[1].total} Antworten). Empfehlung: Ursache prüfen (Bewertungen/Presse) und gegensteuern.`;
+      } else {
+        const top = konkurrenzNennungen[0];
+        if (top && top.n > selfNennungen) {
+          advisory = `Marken-Check: Brand-Kaperung bei ${c.name} — "${top.name}" wird in Antworten auf Marken-Fragen häufiger genannt (${top.n}×) als die Marke selbst (${selfNennungen}×).`;
+        }
+      }
+    }
+    if (advisory) brandCheck.advisory = { text: advisory, date: opts.snapshot || null };
+    diag(`prompts: Marken-Check aggregiert (${bRows.length} Antworten${advisory ? ", 1 advisory" : ""})`);
+  }
+
   return {
-    promptRows, customModels, topics, sov, customSources, learnedComps,
+    promptRows, customModels, topics, sov, customSources, learnedComps, brandCheck,
     chunk: chunked ? { offset, next: null as number | null, total: allDefs.length } : null,
     seeded, answered: rows.length, byEngine, engineErrors,
     mentions: customModels.reduce((a, m) => a + m.mentions, 0),
@@ -1343,7 +1579,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
 
         const query = supabaseAdmin
           .from("clients")
-          .select("id, name, domain, organization_id, ga4_property, gsc_property, country, canonry_project");
+          .select("id, name, domain, organization_id, ga4_property, gsc_property, country, canonry_project, brand_terms, language");
         let clients: any[] = [];
         if (all) clients = (await query).data || [];
         else if (sel && isUuid(sel)) clients = (await query.eq("id", sel)).data || [];
@@ -1457,7 +1693,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               : "skipped";
             jr.brand_radar = br ? (br.skipped ? { skipped: br.skipped } : { mentions: br.mentions, citations: br.citations, pages: br.citedPagesCount, errors: br.errors?.length || 0 }) : "skipped";
             jr.attribution = at ? (at.skipped || at.error ? at : { engines: at.engines.length }) : "skipped";
-            jr.prompts = pr ? (pr.skipped ? { skipped: pr.skipped, seeded: pr.seeded } : { answered: pr.answered, byEngine: pr.byEngine, engineErrors: pr.engineErrors, mentions: pr.mentions, seeded: pr.seeded, topics: pr.topics?.length, selfShare: pr.selfShare, sov: pr.sov?.length, judged: pr.judged, learned: pr.learnedComps?.length, next: pr.chunk?.next ?? null, total: pr.chunk?.total ?? null, partial: !!pr.partial }) : "skipped";
+            jr.prompts = pr ? (pr.skipped ? { skipped: pr.skipped, seeded: pr.seeded } : { answered: pr.answered, byEngine: pr.byEngine, engineErrors: pr.engineErrors, mentions: pr.mentions, seeded: pr.seeded, topics: pr.topics?.length, selfShare: pr.selfShare, sov: pr.sov?.length, judged: pr.judged, learned: pr.learnedComps?.length, next: pr.chunk?.next ?? null, total: pr.chunk?.total ?? null, partial: !!pr.partial, brand: pr.brandCheck ? { answered: pr.brandCheck.answered, faktentreueQuote: pr.brandCheck.faktentreueQuote, advisory: !!pr.brandCheck.advisory } : null }) : "skipped";
             jr.canonry = ca ? (ca.skipped ? { skipped: ca.skipped } : { models: ca.models.length, mentions: ca.mentions, sources: ca.sources.length }) : "skipped";
             jr.semrush = { keyPresent: !!process.env.SEMRUSH_API_KEY, competitors: semrushComps.length, volumesFilled: 0 };
 
@@ -1497,6 +1733,16 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                   ...(pr.judgeCalibration ? { calibration: pr.judgeCalibration } : {}),
                 },
               };
+              // Marken-Check (E3): eigenes parts-Objekt, fliesst NICHT in den
+              // Score. advisory: Tages-Duplikatschutz — der erste Befund des
+              // Tages bleibt stehen, spätere Läufe überschreiben ihn nicht.
+              if (hasPr && !prPartial && pr.brandCheck) {
+                const prevAdvisory = (existingRep?.parts as any)?.bc?.advisory;
+                newParts.bc = {
+                  ...pr.brandCheck,
+                  ...(prevAdvisory && prevAdvisory.date === snapshot ? { advisory: prevAdvisory } : {}),
+                };
+              }
               const parts: any = { ...((existingRep?.parts as any) || {}), ...newParts };
               if (Object.keys(parts).length > Object.keys(newParts).length)
                 jr.note = `Merge: bestehende Anteile bewahrt (${Object.keys(parts).filter((k) => !newParts[k]).join(",")})`;
@@ -1777,6 +2023,24 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
           return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
         const sb = supabaseAdmin as any;
+        // ?brandAdvisory=1: heutige Marken-Check-Befunde (E4) — der
+        // agent-service-Tick holt sie ab und hängt sie an die Wunsch-Queue
+        // (Vault ist vom Server aus nicht erreichbar; Hash-Dedupe macht der Tick).
+        if (new URL(request.url).searchParams.get("brandAdvisory")) {
+          const heute = today();
+          const { data: reps } = await sb
+            .from("ai_visibility_reports")
+            .select("client_id, parts, clients!inner(name)")
+            .eq("snapshot_date", heute)
+            .not("parts->bc->advisory", "is", null);
+          const advisories = (reps || []).map((r: any) => ({
+            client: r.clients?.name || null,
+            text: r.parts?.bc?.advisory?.text || null,
+            date: r.parts?.bc?.advisory?.date || heute,
+          })).filter((a: any) => a.client && a.text);
+          return Response.json({ ok: true, build: BUILD_TAG, advisories });
+        }
+
         // ?pending=1: Kunden mit aktivem KI-Sichtbarkeits-Tab, die Daten
         // brauchen — ohne jeglichen Report (missing:["all"]) ODER deren
         // NEUESTER Report unvollstaendig ist (pr/sa-Part fehlt, z. B. weil

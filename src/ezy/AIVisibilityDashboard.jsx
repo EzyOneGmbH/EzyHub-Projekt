@@ -583,11 +583,11 @@ function pageNumbers(cur, pages) {
   return out;
 }
 
-function PromptsTable({ prompts, opps, brand }) {
+function PromptsTable({ prompts, opps, brand, brandPrompts = [] }) {
   const [tab, setTab] = useState("all");
   const [page, setPage] = useState(0);
   const allRows = [...prompts, ...opps.map((o) => ({ ...o, status: "Nicht erwähnt" }))];
-  const source = tab === "all" ? allRows : tab === "win" ? prompts : opps;
+  const source = tab === "all" ? allRows : tab === "win" ? prompts : tab === "brand" ? brandPrompts : opps;
   const opportunity = tab === "opp";
   const groups = groupPrompts(source);
   const pages = Math.max(1, Math.ceil(groups.length / PROMPTS_PAGE_SIZE));
@@ -598,7 +598,7 @@ function PromptsTable({ prompts, opps, brand }) {
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3" style={{ borderColor: C.line }}>
         <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Prompts</h3>
         <div className="flex rounded-lg border p-0.5" style={{ borderColor: C.line }}>
-          {[{ k: "all", t: "Alle Prompts" }, { k: "win", t: "Erfolgreichste Prompts" }, { k: "opp", t: "Prompt-Chancen" }].map((x) => (
+          {[{ k: "all", t: "Alle Prompts" }, { k: "win", t: "Erfolgreichste Prompts" }, { k: "opp", t: "Prompt-Chancen" }, ...(brandPrompts.length ? [{ k: "brand", t: "Marken-Prompts" }] : [])].map((x) => (
             <button key={x.k} onClick={() => { setTab(x.k); setPage(0); }}
               className="rounded-md px-2.5 py-1 text-xs font-medium transition focus:outline-none focus-visible:ring-2"
               style={{ background: tab === x.k ? C.indigo : "transparent", color: tab === x.k ? "#fff" : C.sub }}>
@@ -611,6 +611,8 @@ function PromptsTable({ prompts, opps, brand }) {
         <span>
           {tab === "all"
             ? `${groups.length} Prompts über alle KI-Modelle – Status je Modell für ${brand}. Zeile aufklappen für die echten Antworten.`
+            : tab === "brand"
+            ? `Fragen über die Marke selbst (Reputation/Faktentreue) – Auswertung im Marken-Check, fliesst nicht in den Score ein.`
             : opportunity
             ? `Prompts, bei denen Konkurrenten genannt werden – ${brand} aber nicht.`
             : `Prompts, in denen ${brand} erwähnt oder zitiert wird.`}
@@ -793,6 +795,78 @@ function SovCard({ rows }) {
   );
 }
 
+// ── Marken-Check (Brand-Prompts): Reputation/Faktentreue, klar getrennt vom Score ─
+const TON_COLORS = { positiv: C.up, neutral: C.sub, negativ: C.down || "#ef4444", warnend: C.amber };
+function BrandCheckCard({ bc, brand }) {
+  if (!bc) return null;
+  const tonTotal = Object.values(bc.tonalitaetsVerteilung || {}).reduce((a, b) => a + Number(b), 0) || 1;
+  return (
+    <div className="mt-4 rounded-xl border" style={CARD}>
+      <div className="border-b px-5 py-3" style={{ borderColor: C.line }}>
+        <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Marken-Check</h3>
+        <p className="mt-1 text-[11px]" style={{ color: C.sub }}>
+          Der Marken-Check misst, WAS KI-Systeme über die Marke sagen — nicht die Sichtbarkeit. Er fliesst nicht in den Score ein.
+        </p>
+      </div>
+      {bc.advisory?.text && (
+        <div className="mx-5 mt-3 rounded-lg border px-3 py-2 text-xs" style={{ borderColor: C.amber, color: C.amber }}>
+          {bc.advisory.text}
+        </div>
+      )}
+      <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-3">
+        <div>
+          <div className="text-[11px] uppercase tracking-wide" style={{ color: C.sub }}>Faktentreue</div>
+          <div className="mt-1 text-2xl font-semibold" style={{ color: C.ink }}>
+            {bc.faktentreueQuote != null ? `${bc.faktentreueQuote}%` : "–"}
+          </div>
+          <div className="mt-1 text-[11px]" style={{ color: C.sub }}>
+            {Object.entries(bc.faktentreueVerteilung || {}).map(([k, v]) => `${k} ${v}`).join(" · ") || "keine bewerteten Antworten"}
+          </div>
+        </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-wide" style={{ color: C.sub }}>Tonalität ({bc.answered} Antworten)</div>
+          <div className="mt-2 flex h-2 w-full overflow-hidden rounded-full" style={{ background: C.track }}>
+            {["positiv", "neutral", "negativ", "warnend"].map((k) => {
+              const v = Number(bc.tonalitaetsVerteilung?.[k] || 0);
+              return v > 0 ? <div key={k} style={{ width: `${(v / tonTotal) * 100}%`, background: TON_COLORS[k] }} /> : null;
+            })}
+          </div>
+          <div className="mt-1 flex flex-wrap gap-2 text-[11px]" style={{ color: C.sub }}>
+            {["positiv", "neutral", "negativ", "warnend"].map((k) => (
+              <span key={k} className="inline-flex items-center gap-1">
+                <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: TON_COLORS[k] }} />
+                {k} {Number(bc.tonalitaetsVerteilung?.[k] || 0)}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-wide" style={{ color: C.sub }}>Konkurrenz in Marken-Antworten</div>
+          <div className="mt-1 text-[12px]" style={{ color: C.ink }}>
+            {(bc.konkurrenzNennungen || []).slice(0, 5).map((k) => `${k.name} (${k.n}×)`).join(", ") || "keine"}
+          </div>
+          <div className="mt-1 text-[11px]" style={{ color: C.sub }}>{brand} selbst: {bc.selfNennungen}× genannt</div>
+        </div>
+      </div>
+      {(bc.halluzinationen?.length || 0) > 0 && (
+        <div className="border-t px-5 py-3" style={{ borderColor: C.line }}>
+          <div className="text-[11px] uppercase tracking-wide" style={{ color: C.sub }}>Halluzinationen / erfundene Angaben</div>
+          <ul className="mt-1 space-y-1 text-[12px]" style={{ color: C.ink }}>
+            {bc.halluzinationen.slice(0, 5).map((h, i) => (
+              <li key={i}><span className="font-medium">{h.engine}:</span> „{h.zitat}"</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {(bc.topQuellen?.length || 0) > 0 && (
+        <div className="border-t px-5 py-3 text-[11px]" style={{ borderColor: C.line, color: C.sub }}>
+          Quellen der Marken-Antworten: {bc.topQuellen.slice(0, 8).map((q) => `${q.domain} (${q.n})`).join(" · ")}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Shell ────────────────────────────────────────────────────────────────────
 export default function AIVisibilityDashboard({ data, convRows = [] }) {
   const d = data;
@@ -870,7 +944,8 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
         {/* Tables */}
         <div className="mt-4 grid grid-cols-1 gap-4">
           <TopicsTable rows={d.topics} />
-          <PromptsTable prompts={d.prompts} opps={d.promptOpps} brand={d.client} />
+          <PromptsTable prompts={d.prompts} opps={d.promptOpps} brand={d.client} brandPrompts={d.brandPrompts || []} />
+          <BrandCheckCard bc={d.brandCheck} brand={d.client} />
           <SourcesTable rows={d.sources} />
         </div>
 

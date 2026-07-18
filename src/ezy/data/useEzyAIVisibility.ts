@@ -35,6 +35,20 @@ export type AIVisibilityData = {
   measurementVersion?: string;         // Mess-Version (Score v2)
   versionSwitch?: string | null;       // Datum der Messumstellung -> Delta-Sperre + UI-Marker
   brHomeSplit?: { home: number; intl: number } | null; // Ahrefs-Erwähnungen Heimmarkt CH vs. International
+  // Marken-Check (Brand-Prompts): misst WAS KI-Systeme über die Marke sagen —
+  // fliesst nicht in den Score ein.
+  brandCheck?: {
+    answered: number;
+    faktentreueQuote: number | null;
+    faktentreueVerteilung: Record<string, number>;
+    tonalitaetsVerteilung: Record<string, number>;
+    halluzinationen: { engine: string; prompt: string; zitat: string }[];
+    topQuellen: { domain: string; n: number }[];
+    konkurrenzNennungen: { name: string; n: number }[];
+    selfNennungen: number;
+    advisory?: { text: string; date: string | null };
+  } | null;
+  brandPrompts?: AIPrompt[];
   kpis: { mentions: Kpi; citations: Kpi; citedPages: Kpi };
   trend: { m: string; mentions: number; citations: number; pages: number }[];
   models: {
@@ -224,8 +238,16 @@ export async function loadAIVisibility(
       vol: Number(t.volume ?? 0),
       intent: String(t.intent ?? ""),
     })),
-    prompts: promptRows.filter((r: any) => !r.is_opportunity).map((r: any) => mapPrompt(r, false)),
-    promptOpps: promptRows.filter((r: any) => r.is_opportunity).map((r: any) => mapPrompt(r, true)),
+    // Markt-Prompts (Sichtbarkeit); Brand-Prompts laufen separat in den Marken-Check.
+    prompts: promptRows.filter((r: any) => !r.is_opportunity && (r.prompt_type || "markt") !== "brand").map((r: any) => mapPrompt(r, false)),
+    promptOpps: promptRows.filter((r: any) => r.is_opportunity && (r.prompt_type || "markt") !== "brand").map((r: any) => mapPrompt(r, true)),
+    brandPrompts: promptRows.filter((r: any) => r.prompt_type === "brand").map((r: any) => {
+      const p = mapPrompt(r, false);
+      const be = r.brand_eval || {};
+      (p as any).brandEval = { faktentreue: be.faktentreue ?? null, tonalitaet: be.tonalitaet ?? null, halluzination: be.halluzination ?? null };
+      return p;
+    }),
+    brandCheck: (rep.parts as any)?.bc ?? null,
     sources: (sources.data ?? []).map((s: any) => ({
       domain: String(s.domain ?? ""),
       mentions: Number(s.mentions ?? 0),
