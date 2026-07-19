@@ -2376,6 +2376,47 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
           }
           return Response.json({ ok: true, build: BUILD_TAG, pending });
         }
+
+        // ?rankClients=1: Kunden mit freigeschaltetem SEO-Dashboard + GSC-Seed-
+        // Queries — der agent-service-Tick (rank-init) legt daraus automatisch
+        // Rank-Tracking-Sets an (User-Vorgabe 2026-07-19, Anlass B5: Rankings
+        // fehlten allen Kunden, die nie auf Keyword.com waren).
+        if (new URL(request.url).searchParams.get("rankClients")) {
+          const { data: cls } = await sb.from("clients").select("id, name, domain, brand_terms, metadata");
+          const out: any[] = [];
+          for (const c of cls || []) {
+            const tabs = c.metadata?.defaults?.visibleTabs;
+            // null/legacy = Org-Default (enthaelt seo); sonst muss "seo" drin sein.
+            const seoEnabled = !Array.isArray(tabs) || tabs.includes("seo");
+            if (!seoEnabled || !c.domain) continue;
+            const { data: gq } = await sb
+              .from("audit_runs").select("result")
+              .eq("client_id", c.id).eq("audit_type", "gsc_queries").eq("status", "succeeded")
+              .order("created_at", { ascending: false }).limit(1).maybeSingle();
+            const { data: gs } = gq?.result
+              ? { data: null }
+              : await sb
+                  .from("audit_runs").select("result")
+                  .eq("client_id", c.id).eq("audit_type", "gsc_summary").eq("status", "succeeded")
+                  .order("created_at", { ascending: false }).limit(1).maybeSingle();
+            const rows: any[] = gq?.result?.topNonbrandQueries || gs?.result?.topQueries || [];
+            const queries = rows
+              .map((q: any) => ({
+                query: String(q.query || "").trim(),
+                clicks: Number(q.clicks || 0),
+                impressions: Number(q.impressions || 0),
+              }))
+              .filter((q: any) => q.query.length > 2);
+            out.push({
+              id: c.id,
+              name: c.name,
+              domain: c.domain,
+              brandTerms: Array.isArray(c.brand_terms) ? c.brand_terms : [],
+              queries,
+            });
+          }
+          return Response.json({ ok: true, build: BUILD_TAG, clients: out });
+        }
         const runId = new URL(request.url).searchParams.get("run") || "";
         if (!runId) {
           const { data } = await sb
