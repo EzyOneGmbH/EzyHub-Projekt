@@ -15,6 +15,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SetPasswordRouteImport } from './routes/set-password'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as LlmUeberblickRouteImport } from './routes/llm-ueberblick'
 import { Route as HealthRouteImport } from './routes/health'
 import { Route as GithubStatusRouteImport } from './routes/github-status'
 import { Route as GeoRouteImport } from './routes/geo'
@@ -22,12 +23,12 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as ContentRouteImport } from './routes/content'
 import { Route as AssistantRouteImport } from './routes/assistant'
-import { Route as LlmUeberblickRouteImport } from './routes/llm-ueberblick'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TasksIdRouteImport } from './routes/tasks.$id'
 import { Route as SettingsApiRouteImport } from './routes/settings.api'
 import { Route as CustomersIdRouteImport } from './routes/customers.$id'
 import { Route as ContentIdRouteImport } from './routes/content.$id'
+import { Route as ApiClaudeSessionsRouteImport } from './routes/api/claude-sessions'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
@@ -73,13 +74,10 @@ import { Route as ApiAdminWpDeployRouteImport } from './routes/api/admin.wp-depl
 import { Route as ApiAdminTeamRouteImport } from './routes/api/admin.team'
 import { Route as ApiAdminSetCanonryProjectRouteImport } from './routes/api/admin.set-canonry-project'
 import { Route as ApiAdminRankSnapshotRouteImport } from './routes/api/admin.rank-snapshot'
-import { Route as ApiAdminLlmResponsesRouteImport } from './routes/api/admin.llm-responses'
-import { Route as ApiAdminClientContextRouteImport } from './routes/api/admin.client-context'
-import { Route as ApiAdminOnboardingPendingRouteImport } from './routes/api/admin.onboarding-pending'
-import { Route as ApiAdminAiCitationsRouteImport } from './routes/api/admin.ai-citations'
-import { Route as ApiAdminOnboardingSnapshotRouteImport } from './routes/api/admin.onboarding-snapshot'
 import { Route as ApiAdminPopulateRouteImport } from './routes/api/admin.populate'
 import { Route as ApiAdminOnboardingSnapshotRouteImport } from './routes/api/admin.onboarding-snapshot'
+import { Route as ApiAdminOnboardingPendingRouteImport } from './routes/api/admin.onboarding-pending'
+import { Route as ApiAdminLlmResponsesRouteImport } from './routes/api/admin.llm-responses'
 import { Route as ApiAdminGtmRouteImport } from './routes/api/admin.gtm'
 import { Route as ApiAdminGbpRouteImport } from './routes/api/admin.gbp'
 import { Route as ApiAdminEwwwProvisionRouteImport } from './routes/api/admin.ewww-provision'
@@ -88,7 +86,9 @@ import { Route as ApiAdminContentNoteRouteImport } from './routes/api/admin.cont
 import { Route as ApiAdminContentDecisionRouteImport } from './routes/api/admin.content-decision'
 import { Route as ApiAdminClientMetricsRouteImport } from './routes/api/admin.client-metrics'
 import { Route as ApiAdminClientDomainsRouteImport } from './routes/api/admin.client-domains'
+import { Route as ApiAdminClientContextRouteImport } from './routes/api/admin.client-context'
 import { Route as ApiAdminAivisSyncRouteImport } from './routes/api/admin.aivis-sync'
+import { Route as ApiAdminAiCitationsRouteImport } from './routes/api/admin.ai-citations'
 import { Route as ApiAdminAgentRunRouteImport } from './routes/api/admin.agent-run'
 import { Route as ApiAdminAdsSemanticNegativesRouteImport } from './routes/api/admin.ads-semantic-negatives'
 import { Route as ApiAdminAdsScorecardRouteImport } from './routes/api/admin.ads-scorecard'
@@ -137,6 +137,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LlmUeberblickRoute = LlmUeberblickRouteImport.update({
+  id: '/llm-ueberblick',
+  path: '/llm-ueberblick',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HealthRoute = HealthRouteImport.update({
   id: '/health',
   path: '/health',
@@ -172,11 +177,6 @@ const AssistantRoute = AssistantRouteImport.update({
   path: '/assistant',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LlmUeberblickRoute = LlmUeberblickRouteImport.update({
-  id: 'C:/Program Files/Git/llm-ueberblick',
-  path: 'C:/Program Files/Git/llm-ueberblick',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -201,6 +201,11 @@ const ContentIdRoute = ContentIdRouteImport.update({
   id: '/$id',
   path: '/$id',
   getParentRoute: () => ContentRoute,
+} as any)
+const ApiClaudeSessionsRoute = ApiClaudeSessionsRouteImport.update({
+  id: '/api/claude-sessions',
+  path: '/api/claude-sessions',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/admin/users',
@@ -433,36 +438,6 @@ const ApiAdminRankSnapshotRoute = ApiAdminRankSnapshotRouteImport.update({
   path: '/api/admin/rank-snapshot',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAdminLlmResponsesRoute =
-  ApiAdminLlmResponsesRouteImport.update({
-    id: '/api/admin/llm-responses',
-    path: '/api/admin/llm-responses',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiAdminClientContextRoute =
-  ApiAdminClientContextRouteImport.update({
-    id: '/api/admin/client-context',
-    path: '/api/admin/client-context',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiAdminOnboardingPendingRoute =
-  ApiAdminOnboardingPendingRouteImport.update({
-    id: '/api/admin/onboarding-pending',
-    path: '/api/admin/onboarding-pending',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiAdminAiCitationsRoute =
-  ApiAdminAiCitationsRouteImport.update({
-    id: '/api/admin/ai-citations',
-    path: '/api/admin/ai-citations',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiAdminOnboardingSnapshotRoute =
-  ApiAdminOnboardingSnapshotRouteImport.update({
-    id: '/api/admin/onboarding-snapshot',
-    path: '/api/admin/onboarding-snapshot',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const ApiAdminPopulateRoute = ApiAdminPopulateRouteImport.update({
   id: '/api/admin/populate',
   path: '/api/admin/populate',
@@ -474,6 +449,17 @@ const ApiAdminOnboardingSnapshotRoute =
     path: '/api/admin/onboarding-snapshot',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAdminOnboardingPendingRoute =
+  ApiAdminOnboardingPendingRouteImport.update({
+    id: '/api/admin/onboarding-pending',
+    path: '/api/admin/onboarding-pending',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAdminLlmResponsesRoute = ApiAdminLlmResponsesRouteImport.update({
+  id: '/api/admin/llm-responses',
+  path: '/api/admin/llm-responses',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminGtmRoute = ApiAdminGtmRouteImport.update({
   id: '/api/admin/gtm',
   path: '/api/admin/gtm',
@@ -514,9 +500,19 @@ const ApiAdminClientDomainsRoute = ApiAdminClientDomainsRouteImport.update({
   path: '/api/admin/client-domains',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminClientContextRoute = ApiAdminClientContextRouteImport.update({
+  id: '/api/admin/client-context',
+  path: '/api/admin/client-context',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminAivisSyncRoute = ApiAdminAivisSyncRouteImport.update({
   id: '/api/admin/aivis-sync',
   path: '/api/admin/aivis-sync',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminAiCitationsRoute = ApiAdminAiCitationsRouteImport.update({
+  id: '/api/admin/ai-citations',
+  path: '/api/admin/ai-citations',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminAgentRunRoute = ApiAdminAgentRunRouteImport.update({
@@ -617,13 +613,13 @@ const ApiGoogleOauthStartRoute = ApiGoogleOauthStartRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/assistant': typeof AssistantRoute
-  '/llm-ueberblick': typeof LlmUeberblickRoute
   '/content': typeof ContentRouteWithChildren
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/geo': typeof GeoRoute
   '/github-status': typeof GithubStatusRoute
   '/health': typeof HealthRoute
+  '/llm-ueberblick': typeof LlmUeberblickRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
   '/set-password': typeof SetPasswordRoute
@@ -633,6 +629,7 @@ export interface FileRoutesByFullPath {
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/users': typeof AdminUsersRoute
+  '/api/claude-sessions': typeof ApiClaudeSessionsRoute
   '/content/$id': typeof ContentIdRoute
   '/customers/$id': typeof CustomersIdRoute
   '/settings/api': typeof SettingsApiRoute
@@ -651,7 +648,9 @@ export interface FileRoutesByFullPath {
   '/api/admin/ads-scorecard': typeof ApiAdminAdsScorecardRoute
   '/api/admin/ads-semantic-negatives': typeof ApiAdminAdsSemanticNegativesRoute
   '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
+  '/api/admin/ai-citations': typeof ApiAdminAiCitationsRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
+  '/api/admin/client-context': typeof ApiAdminClientContextRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
   '/api/admin/content-decision': typeof ApiAdminContentDecisionRoute
@@ -660,14 +659,11 @@ export interface FileRoutesByFullPath {
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
+  '/api/admin/llm-responses': typeof ApiAdminLlmResponsesRoute
+  '/api/admin/onboarding-pending': typeof ApiAdminOnboardingPendingRoute
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
-  '/api/admin/llm-responses': typeof ApiAdminLlmResponsesRoute
-  '/api/admin/client-context': typeof ApiAdminClientContextRoute
-  '/api/admin/onboarding-pending': typeof ApiAdminOnboardingPendingRoute
-  '/api/admin/ai-citations': typeof ApiAdminAiCitationsRoute
-  '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
   '/api/admin/team': typeof ApiAdminTeamRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
@@ -716,13 +712,13 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/assistant': typeof AssistantRoute
-  '/llm-ueberblick': typeof LlmUeberblickRoute
   '/content': typeof ContentRouteWithChildren
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/geo': typeof GeoRoute
   '/github-status': typeof GithubStatusRoute
   '/health': typeof HealthRoute
+  '/llm-ueberblick': typeof LlmUeberblickRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
   '/set-password': typeof SetPasswordRoute
@@ -732,6 +728,7 @@ export interface FileRoutesByTo {
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/users': typeof AdminUsersRoute
+  '/api/claude-sessions': typeof ApiClaudeSessionsRoute
   '/content/$id': typeof ContentIdRoute
   '/customers/$id': typeof CustomersIdRoute
   '/settings/api': typeof SettingsApiRoute
@@ -750,7 +747,9 @@ export interface FileRoutesByTo {
   '/api/admin/ads-scorecard': typeof ApiAdminAdsScorecardRoute
   '/api/admin/ads-semantic-negatives': typeof ApiAdminAdsSemanticNegativesRoute
   '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
+  '/api/admin/ai-citations': typeof ApiAdminAiCitationsRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
+  '/api/admin/client-context': typeof ApiAdminClientContextRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
   '/api/admin/content-decision': typeof ApiAdminContentDecisionRoute
@@ -759,14 +758,11 @@ export interface FileRoutesByTo {
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
+  '/api/admin/llm-responses': typeof ApiAdminLlmResponsesRoute
+  '/api/admin/onboarding-pending': typeof ApiAdminOnboardingPendingRoute
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
-  '/api/admin/llm-responses': typeof ApiAdminLlmResponsesRoute
-  '/api/admin/client-context': typeof ApiAdminClientContextRoute
-  '/api/admin/onboarding-pending': typeof ApiAdminOnboardingPendingRoute
-  '/api/admin/ai-citations': typeof ApiAdminAiCitationsRoute
-  '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
   '/api/admin/team': typeof ApiAdminTeamRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
@@ -816,13 +812,13 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/assistant': typeof AssistantRoute
-  '/llm-ueberblick': typeof LlmUeberblickRoute
   '/content': typeof ContentRouteWithChildren
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/geo': typeof GeoRoute
   '/github-status': typeof GithubStatusRoute
   '/health': typeof HealthRoute
+  '/llm-ueberblick': typeof LlmUeberblickRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
   '/set-password': typeof SetPasswordRoute
@@ -832,6 +828,7 @@ export interface FileRoutesById {
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/users': typeof AdminUsersRoute
+  '/api/claude-sessions': typeof ApiClaudeSessionsRoute
   '/content/$id': typeof ContentIdRoute
   '/customers/$id': typeof CustomersIdRoute
   '/settings/api': typeof SettingsApiRoute
@@ -850,7 +847,9 @@ export interface FileRoutesById {
   '/api/admin/ads-scorecard': typeof ApiAdminAdsScorecardRoute
   '/api/admin/ads-semantic-negatives': typeof ApiAdminAdsSemanticNegativesRoute
   '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
+  '/api/admin/ai-citations': typeof ApiAdminAiCitationsRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
+  '/api/admin/client-context': typeof ApiAdminClientContextRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
   '/api/admin/content-decision': typeof ApiAdminContentDecisionRoute
@@ -859,14 +858,11 @@ export interface FileRoutesById {
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
+  '/api/admin/llm-responses': typeof ApiAdminLlmResponsesRoute
+  '/api/admin/onboarding-pending': typeof ApiAdminOnboardingPendingRoute
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
-  '/api/admin/llm-responses': typeof ApiAdminLlmResponsesRoute
-  '/api/admin/client-context': typeof ApiAdminClientContextRoute
-  '/api/admin/onboarding-pending': typeof ApiAdminOnboardingPendingRoute
-  '/api/admin/ai-citations': typeof ApiAdminAiCitationsRoute
-  '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
   '/api/admin/team': typeof ApiAdminTeamRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
@@ -917,13 +913,13 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/assistant'
-    | '/llm-ueberblick'
     | '/content'
     | '/customers'
     | '/dashboard'
     | '/geo'
     | '/github-status'
     | '/health'
+    | '/llm-ueberblick'
     | '/login'
     | '/mcp'
     | '/set-password'
@@ -933,6 +929,7 @@ export interface FileRouteTypes {
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/admin/users'
+    | '/api/claude-sessions'
     | '/content/$id'
     | '/customers/$id'
     | '/settings/api'
@@ -951,7 +948,9 @@ export interface FileRouteTypes {
     | '/api/admin/ads-scorecard'
     | '/api/admin/ads-semantic-negatives'
     | '/api/admin/agent-run'
+    | '/api/admin/ai-citations'
     | '/api/admin/aivis-sync'
+    | '/api/admin/client-context'
     | '/api/admin/client-domains'
     | '/api/admin/client-metrics'
     | '/api/admin/content-decision'
@@ -960,14 +959,11 @@ export interface FileRouteTypes {
     | '/api/admin/ewww-provision'
     | '/api/admin/gbp'
     | '/api/admin/gtm'
+    | '/api/admin/llm-responses'
+    | '/api/admin/onboarding-pending'
     | '/api/admin/onboarding-snapshot'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
-    | '/api/admin/llm-responses'
-    | '/api/admin/client-context'
-    | '/api/admin/onboarding-pending'
-    | '/api/admin/ai-citations'
-    | '/api/admin/onboarding-snapshot'
     | '/api/admin/set-canonry-project'
     | '/api/admin/team'
     | '/api/admin/wp-deploy'
@@ -1016,13 +1012,13 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/assistant'
-    | '/llm-ueberblick'
     | '/content'
     | '/customers'
     | '/dashboard'
     | '/geo'
     | '/github-status'
     | '/health'
+    | '/llm-ueberblick'
     | '/login'
     | '/mcp'
     | '/set-password'
@@ -1032,6 +1028,7 @@ export interface FileRouteTypes {
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/admin/users'
+    | '/api/claude-sessions'
     | '/content/$id'
     | '/customers/$id'
     | '/settings/api'
@@ -1050,7 +1047,9 @@ export interface FileRouteTypes {
     | '/api/admin/ads-scorecard'
     | '/api/admin/ads-semantic-negatives'
     | '/api/admin/agent-run'
+    | '/api/admin/ai-citations'
     | '/api/admin/aivis-sync'
+    | '/api/admin/client-context'
     | '/api/admin/client-domains'
     | '/api/admin/client-metrics'
     | '/api/admin/content-decision'
@@ -1059,14 +1058,11 @@ export interface FileRouteTypes {
     | '/api/admin/ewww-provision'
     | '/api/admin/gbp'
     | '/api/admin/gtm'
+    | '/api/admin/llm-responses'
+    | '/api/admin/onboarding-pending'
     | '/api/admin/onboarding-snapshot'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
-    | '/api/admin/llm-responses'
-    | '/api/admin/client-context'
-    | '/api/admin/onboarding-pending'
-    | '/api/admin/ai-citations'
-    | '/api/admin/onboarding-snapshot'
     | '/api/admin/set-canonry-project'
     | '/api/admin/team'
     | '/api/admin/wp-deploy'
@@ -1115,13 +1111,13 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/assistant'
-    | '/llm-ueberblick'
     | '/content'
     | '/customers'
     | '/dashboard'
     | '/geo'
     | '/github-status'
     | '/health'
+    | '/llm-ueberblick'
     | '/login'
     | '/mcp'
     | '/set-password'
@@ -1131,6 +1127,7 @@ export interface FileRouteTypes {
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/admin/users'
+    | '/api/claude-sessions'
     | '/content/$id'
     | '/customers/$id'
     | '/settings/api'
@@ -1149,7 +1146,9 @@ export interface FileRouteTypes {
     | '/api/admin/ads-scorecard'
     | '/api/admin/ads-semantic-negatives'
     | '/api/admin/agent-run'
+    | '/api/admin/ai-citations'
     | '/api/admin/aivis-sync'
+    | '/api/admin/client-context'
     | '/api/admin/client-domains'
     | '/api/admin/client-metrics'
     | '/api/admin/content-decision'
@@ -1158,14 +1157,11 @@ export interface FileRouteTypes {
     | '/api/admin/ewww-provision'
     | '/api/admin/gbp'
     | '/api/admin/gtm'
+    | '/api/admin/llm-responses'
+    | '/api/admin/onboarding-pending'
     | '/api/admin/onboarding-snapshot'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
-    | '/api/admin/llm-responses'
-    | '/api/admin/client-context'
-    | '/api/admin/onboarding-pending'
-    | '/api/admin/ai-citations'
-    | '/api/admin/onboarding-snapshot'
     | '/api/admin/set-canonry-project'
     | '/api/admin/team'
     | '/api/admin/wp-deploy'
@@ -1215,13 +1211,13 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AssistantRoute: typeof AssistantRoute
-  LlmUeberblickRoute: typeof LlmUeberblickRoute
   ContentRoute: typeof ContentRouteWithChildren
   CustomersRoute: typeof CustomersRouteWithChildren
   DashboardRoute: typeof DashboardRoute
   GeoRoute: typeof GeoRoute
   GithubStatusRoute: typeof GithubStatusRoute
   HealthRoute: typeof HealthRoute
+  LlmUeberblickRoute: typeof LlmUeberblickRoute
   LoginRoute: typeof LoginRoute
   McpRoute: typeof McpRoute
   SetPasswordRoute: typeof SetPasswordRoute
@@ -1231,6 +1227,7 @@ export interface RootRouteChildren {
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   AdminUsersRoute: typeof AdminUsersRoute
+  ApiClaudeSessionsRoute: typeof ApiClaudeSessionsRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
   ApiAdminAdsAutopilotApprovalsRoute: typeof ApiAdminAdsAutopilotApprovalsRoute
@@ -1245,7 +1242,9 @@ export interface RootRouteChildren {
   ApiAdminAdsScorecardRoute: typeof ApiAdminAdsScorecardRoute
   ApiAdminAdsSemanticNegativesRoute: typeof ApiAdminAdsSemanticNegativesRoute
   ApiAdminAgentRunRoute: typeof ApiAdminAgentRunRoute
+  ApiAdminAiCitationsRoute: typeof ApiAdminAiCitationsRoute
   ApiAdminAivisSyncRoute: typeof ApiAdminAivisSyncRoute
+  ApiAdminClientContextRoute: typeof ApiAdminClientContextRoute
   ApiAdminClientDomainsRoute: typeof ApiAdminClientDomainsRoute
   ApiAdminClientMetricsRoute: typeof ApiAdminClientMetricsRoute
   ApiAdminContentDecisionRoute: typeof ApiAdminContentDecisionRoute
@@ -1254,14 +1253,11 @@ export interface RootRouteChildren {
   ApiAdminEwwwProvisionRoute: typeof ApiAdminEwwwProvisionRoute
   ApiAdminGbpRoute: typeof ApiAdminGbpRoute
   ApiAdminGtmRoute: typeof ApiAdminGtmRoute
+  ApiAdminLlmResponsesRoute: typeof ApiAdminLlmResponsesRoute
+  ApiAdminOnboardingPendingRoute: typeof ApiAdminOnboardingPendingRoute
   ApiAdminOnboardingSnapshotRoute: typeof ApiAdminOnboardingSnapshotRoute
   ApiAdminPopulateRoute: typeof ApiAdminPopulateRoute
   ApiAdminRankSnapshotRoute: typeof ApiAdminRankSnapshotRoute
-  ApiAdminLlmResponsesRoute: typeof ApiAdminLlmResponsesRoute
-  ApiAdminClientContextRoute: typeof ApiAdminClientContextRoute
-  ApiAdminOnboardingPendingRoute: typeof ApiAdminOnboardingPendingRoute
-  ApiAdminAiCitationsRoute: typeof ApiAdminAiCitationsRoute
-  ApiAdminOnboardingSnapshotRoute: typeof ApiAdminOnboardingSnapshotRoute
   ApiAdminSetCanonryProjectRoute: typeof ApiAdminSetCanonryProjectRoute
   ApiAdminTeamRoute: typeof ApiAdminTeamRoute
   ApiAdminWpDeployRoute: typeof ApiAdminWpDeployRoute
@@ -1352,6 +1348,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/llm-ueberblick': {
+      id: '/llm-ueberblick'
+      path: '/llm-ueberblick'
+      fullPath: '/llm-ueberblick'
+      preLoaderRoute: typeof LlmUeberblickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/health': {
       id: '/health'
       path: '/health'
@@ -1401,13 +1404,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AssistantRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/llm-ueberblick': {
-      id: '/llm-ueberblick'
-      path: '/llm-ueberblick'
-      fullPath: '/llm-ueberblick'
-      preLoaderRoute: typeof LlmUeberblickRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -1442,6 +1438,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/content/$id'
       preLoaderRoute: typeof ContentIdRouteImport
       parentRoute: typeof ContentRoute
+    }
+    '/api/claude-sessions': {
+      id: '/api/claude-sessions'
+      path: '/api/claude-sessions'
+      fullPath: '/api/claude-sessions'
+      preLoaderRoute: typeof ApiClaudeSessionsRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/admin/users': {
       id: '/admin/users'
@@ -1758,41 +1761,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminRankSnapshotRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/admin/llm-responses': {
-      id: '/api/admin/llm-responses'
-      path: '/api/admin/llm-responses'
-      fullPath: '/api/admin/llm-responses'
-      preLoaderRoute: typeof ApiAdminLlmResponsesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/admin/client-context': {
-      id: '/api/admin/client-context'
-      path: '/api/admin/client-context'
-      fullPath: '/api/admin/client-context'
-      preLoaderRoute: typeof ApiAdminClientContextRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/admin/onboarding-pending': {
-      id: '/api/admin/onboarding-pending'
-      path: '/api/admin/onboarding-pending'
-      fullPath: '/api/admin/onboarding-pending'
-      preLoaderRoute: typeof ApiAdminOnboardingPendingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/admin/ai-citations': {
-      id: '/api/admin/ai-citations'
-      path: '/api/admin/ai-citations'
-      fullPath: '/api/admin/ai-citations'
-      preLoaderRoute: typeof ApiAdminAiCitationsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/admin/onboarding-snapshot': {
-      id: '/api/admin/onboarding-snapshot'
-      path: '/api/admin/onboarding-snapshot'
-      fullPath: '/api/admin/onboarding-snapshot'
-      preLoaderRoute: typeof ApiAdminOnboardingSnapshotRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/admin/populate': {
       id: '/api/admin/populate'
       path: '/api/admin/populate'
@@ -1805,6 +1773,20 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/onboarding-snapshot'
       fullPath: '/api/admin/onboarding-snapshot'
       preLoaderRoute: typeof ApiAdminOnboardingSnapshotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/onboarding-pending': {
+      id: '/api/admin/onboarding-pending'
+      path: '/api/admin/onboarding-pending'
+      fullPath: '/api/admin/onboarding-pending'
+      preLoaderRoute: typeof ApiAdminOnboardingPendingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/llm-responses': {
+      id: '/api/admin/llm-responses'
+      path: '/api/admin/llm-responses'
+      fullPath: '/api/admin/llm-responses'
+      preLoaderRoute: typeof ApiAdminLlmResponsesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/gtm': {
@@ -1863,11 +1845,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminClientDomainsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/client-context': {
+      id: '/api/admin/client-context'
+      path: '/api/admin/client-context'
+      fullPath: '/api/admin/client-context'
+      preLoaderRoute: typeof ApiAdminClientContextRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/aivis-sync': {
       id: '/api/admin/aivis-sync'
       path: '/api/admin/aivis-sync'
       fullPath: '/api/admin/aivis-sync'
       preLoaderRoute: typeof ApiAdminAivisSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/ai-citations': {
+      id: '/api/admin/ai-citations'
+      path: '/api/admin/ai-citations'
+      fullPath: '/api/admin/ai-citations'
+      preLoaderRoute: typeof ApiAdminAiCitationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/agent-run': {
@@ -2040,13 +2036,13 @@ const TasksRouteWithChildren = TasksRoute._addFileChildren(TasksRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AssistantRoute: AssistantRoute,
-  LlmUeberblickRoute: LlmUeberblickRoute,
   ContentRoute: ContentRouteWithChildren,
   CustomersRoute: CustomersRouteWithChildren,
   DashboardRoute: DashboardRoute,
   GeoRoute: GeoRoute,
   GithubStatusRoute: GithubStatusRoute,
   HealthRoute: HealthRoute,
+  LlmUeberblickRoute: LlmUeberblickRoute,
   LoginRoute: LoginRoute,
   McpRoute: McpRoute,
   SetPasswordRoute: SetPasswordRoute,
@@ -2057,6 +2053,7 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   AdminUsersRoute: AdminUsersRoute,
+  ApiClaudeSessionsRoute: ApiClaudeSessionsRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
   ApiAdminAdsAutopilotApprovalsRoute: ApiAdminAdsAutopilotApprovalsRoute,
@@ -2071,7 +2068,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminAdsScorecardRoute: ApiAdminAdsScorecardRoute,
   ApiAdminAdsSemanticNegativesRoute: ApiAdminAdsSemanticNegativesRoute,
   ApiAdminAgentRunRoute: ApiAdminAgentRunRoute,
+  ApiAdminAiCitationsRoute: ApiAdminAiCitationsRoute,
   ApiAdminAivisSyncRoute: ApiAdminAivisSyncRoute,
+  ApiAdminClientContextRoute: ApiAdminClientContextRoute,
   ApiAdminClientDomainsRoute: ApiAdminClientDomainsRoute,
   ApiAdminClientMetricsRoute: ApiAdminClientMetricsRoute,
   ApiAdminContentDecisionRoute: ApiAdminContentDecisionRoute,
@@ -2080,14 +2079,11 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminEwwwProvisionRoute: ApiAdminEwwwProvisionRoute,
   ApiAdminGbpRoute: ApiAdminGbpRoute,
   ApiAdminGtmRoute: ApiAdminGtmRoute,
+  ApiAdminLlmResponsesRoute: ApiAdminLlmResponsesRoute,
+  ApiAdminOnboardingPendingRoute: ApiAdminOnboardingPendingRoute,
   ApiAdminOnboardingSnapshotRoute: ApiAdminOnboardingSnapshotRoute,
   ApiAdminPopulateRoute: ApiAdminPopulateRoute,
   ApiAdminRankSnapshotRoute: ApiAdminRankSnapshotRoute,
-  ApiAdminLlmResponsesRoute: ApiAdminLlmResponsesRoute,
-  ApiAdminClientContextRoute: ApiAdminClientContextRoute,
-  ApiAdminOnboardingPendingRoute: ApiAdminOnboardingPendingRoute,
-  ApiAdminAiCitationsRoute: ApiAdminAiCitationsRoute,
-  ApiAdminOnboardingSnapshotRoute: ApiAdminOnboardingSnapshotRoute,
   ApiAdminSetCanonryProjectRoute: ApiAdminSetCanonryProjectRoute,
   ApiAdminTeamRoute: ApiAdminTeamRoute,
   ApiAdminWpDeployRoute: ApiAdminWpDeployRoute,
@@ -2136,3 +2132,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
