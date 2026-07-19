@@ -30,7 +30,10 @@ const Body = z.object({
   serpKeywords: z.number().int().min(0).max(25000).optional(), // pro Request: serp_ai-Keyword-Limit (0 = alle)
   minIntervalDays: z.number().int().min(0).max(60).default(6),
   force: z.boolean().optional(),
-  mode: z.enum(["live", "backfill", "brand-backfill"]).default("live"), // backfill = Ahrefs/GA4-Historie; brand-backfill = Marken-Check-Korpus (retro)
+  // live | backfill (Monats-Reports Historie) | brand-backfill (Marken-Check-
+  // Korpus retro) | citations-backfill (Citations+referenzierte Seiten retro
+  // in bestehende Monats-Reports — Erwähnungen bleiben unangetastet)
+  mode: z.enum(["live", "backfill", "brand-backfill", "citations-backfill"]).default("live"),
   months: z.number().int().min(1).max(12).default(6),  // Backfill-Tiefe
   async: z.boolean().default(false), // true = sofort 202 + runId, Verarbeitung im Hintergrund
   // Prompt-Chunking (2026-07-17): das ~300s-Gateway-Kap begrenzt EINEN Request
@@ -256,7 +259,7 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
-const BUILD_TAG = "2026-07-19-dfs-v3"; // Deploy-Verifikation via GET-Antwort
+const BUILD_TAG = "2026-07-19-cit-bf"; // Deploy-Verifikation via GET-Antwort
 
 // ── Score v2 (2026-07-18): Sättigung statt harter Deckel ─────────────────────
 // Konstanten in src/lib/score-config.json (REFs, Gewichte, Glättung, Judge).
@@ -1682,6 +1685,65 @@ async function jobBrandBackfill(c: any, sbAny: any, months: number, provider: st
   };
 }
 
+// Korpus-Citations eines Monats: Antworten im first_response_at-Fenster, die
+// die Kunden-Domain als Quelle führen -> citations (Quellen-Nennungen) +
+// distinct referenzierte eigene URLs. Gemeinsamer Helfer für den Retro-
+// Backfill (citations-backfill) und die Monats-Historie neuer Kunden.
+async function dfsMonthCitations(domain: string, lang: string, from: string, nextStart: string): Promise<{ ok: boolean; citations: number; pages: number; error?: string }> {
+  const r = await dfsAiCall("ai_optimization/llm_mentions/search/live", {
+    target: [{ domain }],
+    location_name: "Switzerland", language_code: lang, limit: 100,
+    filters: [["first_response_at", ">=", `${from} 00:00:00 +00:00`], "and", ["first_response_at", "<", `${nextStart} 00:00:00 +00:00`]],
+  });
+  if (!r.ok) return { ok: false, citations: 0, pages: 0, error: r.error };
+  const items: any[] = (r.result?.[0]?.items ?? []) as any[];
+  let citations = 0;
+  const urls = new Set<string>();
+  for (const it of items) {
+    for (const s of it.sources || []) {
+      const d = String(s.domain || "").replace(/^www\./, "").toLowerCase();
+      if (d === domain || d.endsWith("." + domain)) {
+        citations += 1;
+        const u = normUrl(String(s.url || ""));
+        if (u) urls.add(u);
+      }
+    }
+  }
+  return { ok: true, citations, pages: urls.size };
+}
+
+// ── citations-backfill (2026-07-19): Citations + referenzierte Seiten retro ──
+// Die Monats-Historie vor dem Go-Live hatte beide Felder bewusst auf 0 (keine
+// Quelle damals). Der DFS-Korpus gibt sie ~7 Monate rückwirkend her — dieser
+// Job füllt NUR citations/cited_pages in BESTEHENDE Monats-Reports; Erwähnungen
+// und alles andere bleiben unangetastet. Idempotent (rechnet je Lauf neu).
+async function jobCitationsBackfill(c: any, sbAny: any, months: number) {
+  if (!dfsAuth()) return { skipped: "DATAFORSEO-Creds fehlen" };
+  const domain = cleanDomain(c.domain);
+  if (!domain) return { skipped: "keine Domain" };
+  const lang = (c.language || "de").slice(0, 2);
+  const now = new Date();
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  let updated = 0, skippedMonths = 0;
+  const errors: string[] = [];
+  const filled: Record<string, { citations: number; pages: number }> = {};
+  for (let k = 1; k <= months; k++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - k, 1);
+    const snapshot = iso(d);
+    const nextStart = iso(new Date(now.getFullYear(), now.getMonth() - k + 1, 1));
+    const { data: rep } = await sbAny
+      .from("ai_visibility_reports").select("id")
+      .eq("client_id", c.id).eq("snapshot_date", snapshot).maybeSingle();
+    if (!rep) { skippedMonths += 1; continue; } // nur bestehende Monatspunkte füllen
+    const m = await dfsMonthCitations(domain, lang, snapshot, nextStart);
+    if (!m.ok) { errors.push(`${snapshot.slice(0, 7)}: ${m.error}`); continue; }
+    await sbAny.from("ai_visibility_reports").update({ citations: m.citations, cited_pages: m.pages }).eq("id", rep.id);
+    filled[snapshot.slice(0, 7)] = { citations: m.citations, pages: m.pages };
+    updated += 1;
+  }
+  return { updated, skippedMonths, filled, errors: errors.length ? errors : undefined, quelle: "dataforseo-korpus (~7 Monate Tiefe)" };
+}
+
 // ── Canonry: Live-Sweeps (per-Provider cited counts) in die eine Ansicht falten ─
 const CANONRY_LABEL: Record<string, string> = {
   openai: "ChatGPT", chatgpt: "ChatGPT", perplexity: "Perplexity", gemini: "Gemini",
@@ -1779,16 +1841,20 @@ async function jobBackfill(c: any, sb: any, months: number) {
   for (const mo of monthsList) {
     const mentions = byMonth[mo.key] ?? 0;
     const snapshot = `${mo.key}-01`;
-    // Score v2 (nur Mengen historisch verfügbar -> nur der Mentions-Term).
-    const score = Math.min(100, Math.round(SCORE_CFG.weights.mentions * sat(mentions, SCORE_CFG.refs.M_REF)));
-    const scoreRaw = Math.round(SCORE_CFG.weights.mentions * satRaw(mentions, SCORE_CFG.refs.M_REF) * 10) / 10;
+    // Citations + referenzierte Seiten desselben Monats aus dem Korpus
+    // (2026-07-19: vorher hart 0 — Lücke, die im Trend als Null-Linie stand).
+    const nextStart = new Date(mo.y, mo.m + 1, 1).toISOString().slice(0, 10);
+    const cit = await dfsMonthCitations(cleanDomain(c.domain), (c.language || "de").slice(0, 2), snapshot, nextStart).catch(() => ({ ok: false, citations: 0, pages: 0 }));
+    // Score (nur historisch verfügbare Terme: Mentions + Korpus-Citations/Seiten).
+    const score = Math.min(100, Math.round(scoreV2Terms(sat, mentions, cit.citations, cit.pages, 0, 0)));
+    const scoreRaw = Math.round(scoreV2Terms(satRaw, mentions, cit.citations, cit.pages, 0, 0) * 10) / 10;
     const { data: rep, error } = await sb
       .from("ai_visibility_reports")
       .upsert({
         client_id: c.id, market: c.country || null, snapshot_date: snapshot,
         score, score_delta: score - prevScore, score_raw: scoreRaw, measurement_version: MEASUREMENT_VERSION,
         mentions, mentions_delta: mentions - prevMentions,
-        citations: 0, citations_delta: 0, cited_pages: 0, cited_pages_delta: 0,
+        citations: cit.citations, citations_delta: 0, cited_pages: cit.pages, cited_pages_delta: 0,
       }, { onConflict: "client_id,snapshot_date" })
       .select("id").single();
     if (error || !rep) continue;
@@ -1899,6 +1965,13 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             // Backfill-Modus: rückwirkende Monats-Reports (Ahrefs/GA4), dann fertig.
             if (mode === "backfill") {
               jr.backfill = await jobBackfill(c, sb, months);
+              results.push({ client: c.name, domain: c.domain, jobs: jr });
+              continue;
+            }
+            // Citations/Seiten-Retro (nur bestehende Monats-Reports), dann fertig.
+            if (mode === "citations-backfill") {
+              jr.citationsBackfill = await withDeadline(jobCitationsBackfill(c, sb, months), 8 * 60_000, "citations-backfill")
+                .catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }));
               results.push({ client: c.name, domain: c.domain, jobs: jr });
               continue;
             }
