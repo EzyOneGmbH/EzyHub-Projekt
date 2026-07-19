@@ -537,19 +537,92 @@ function EngineChip({ e }) {
   );
 }
 
-// Quellen-Links aus dem Antwort-Text ziehen (eine URL je Domain, Reihenfolge
-// des Auftretens) — die Prompt-Messung speichert nur einen Quellen-ZÄHLER,
-// die konkreten Links stehen im Antwort-Text (v. a. Perplexity/Gemini).
-function extractSources(text) {
-  const urls = String(text || "").match(/https?:\/\/[^\s)\]}>"',;]+/g) || [];
-  const seen = new Map();
-  for (const u of urls) {
-    try {
-      const d = new URL(u).hostname.replace(/^www\./, "");
-      if (d && !seen.has(d)) seen.set(d, u);
-    } catch { /* kaputte URL im Text — ignorieren */ }
+// Leichte Markdown-Aufbereitung der Modell-Antworten (User-Wunsch 2026-07-19):
+// **fett**, [Label](URL)- und nackte Links klickbar — ohne externe Library.
+function InlineMd({ text }) {
+  const s = String(text || "");
+  const rx = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|\*\*([^*]+)\*\*|(https?:\/\/[^\s)\]}>"',;]+)/g;
+  const out = [];
+  let last = 0, m, k = 0;
+  while ((m = rx.exec(s))) {
+    if (m.index > last) out.push(s.slice(last, m.index));
+    if (m[1]) {
+      out.push(
+        <a key={k++} href={m[2]} target="_blank" rel="noreferrer" className="underline" style={{ color: C.indigo }}>{m[1]}</a>,
+      );
+    } else if (m[3]) {
+      out.push(<b key={k++} style={{ color: C.ink }}>{m[3]}</b>);
+    } else {
+      const label = m[4].replace(/^https?:\/\/(www\.)?/, "");
+      out.push(
+        <a key={k++} href={m[4]} target="_blank" rel="noreferrer" className="break-all underline" style={{ color: C.indigo }}>
+          {label.length > 48 ? `${label.slice(0, 45)}…` : label}
+        </a>,
+      );
+    }
+    last = rx.lastIndex;
   }
-  return [...seen.entries()].map(([domain, url]) => ({ domain, url }));
+  if (last < s.length) out.push(s.slice(last));
+  return <>{out}</>;
+}
+
+// Blockebene: Überschriften (#…), Aufzählungen (-/*/•), nummerierte Listen,
+// Absätze — macht aus dem Roh-Text der Engines eine lesbare Antwort.
+function AnswerBlocks({ text }) {
+  const lines = String(text || "").split(/\r?\n/);
+  const blocks = [];
+  let list = null;
+  const flush = () => { if (list) { blocks.push(list); list = null; } };
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) { flush(); continue; }
+    const mUl = line.match(/^[-*•]\s+(.*)/);
+    const mOl = line.match(/^\d+[.)]\s+(.*)/);
+    const mH = line.match(/^#{1,4}\s+(.*)/);
+    if (mUl) {
+      if (!list || list.type !== "ul") { flush(); list = { type: "ul", items: [] }; }
+      list.items.push(mUl[1]);
+    } else if (mOl) {
+      if (!list || list.type !== "ol") { flush(); list = { type: "ol", items: [] }; }
+      list.items.push(mOl[1]);
+    } else if (mH) {
+      flush();
+      blocks.push({ type: "h", text: mH[1] });
+    } else {
+      flush();
+      blocks.push({ type: "p", text: line });
+    }
+  }
+  flush();
+  return (
+    <div className="flex flex-col gap-2.5">
+      {blocks.map((b, i) =>
+        b.type === "h" ? (
+          <div key={i} className="text-[13px] font-semibold" style={{ color: C.ink }}><InlineMd text={b.text} /></div>
+        ) : b.type === "p" ? (
+          <p key={i} className="text-[13px] leading-relaxed" style={{ color: C.ink }}><InlineMd text={b.text} /></p>
+        ) : b.type === "ul" ? (
+          <ul key={i} className="flex flex-col gap-1.5">
+            {b.items.map((it, j) => (
+              <li key={j} className="flex gap-2 text-[13px] leading-relaxed" style={{ color: C.ink }}>
+                <span className="mt-[7px] inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: C.indigo }} />
+                <span className="min-w-0"><InlineMd text={it} /></span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <ol key={i} className="flex flex-col gap-1.5">
+            {b.items.map((it, j) => (
+              <li key={j} className="flex gap-2 text-[13px] leading-relaxed" style={{ color: C.ink }}>
+                <span className="w-5 shrink-0 text-right font-semibold tabular-nums" style={{ color: C.indigo }}>{j + 1}.</span>
+                <span className="min-w-0"><InlineMd text={it} /></span>
+              </li>
+            ))}
+          </ol>
+        ),
+      )}
+    </div>
+  );
 }
 
 // Prompt-Detail als Pop-up (User-Wunsch 2026-07-19, Semrush-Vorbild):
@@ -558,7 +631,6 @@ function extractSources(text) {
 function PromptDetailModal({ g, opportunity, onClose }) {
   const [tab, setTab] = useState(0);
   const e = g.engines[Math.min(tab, g.engines.length - 1)] || {};
-  const sources = extractSources(e.response);
   useEffect(() => {
     const h = (ev) => ev.key === "Escape" && onClose();
     window.addEventListener("keydown", h);
@@ -612,45 +684,8 @@ function PromptDetailModal({ g, opportunity, onClose }) {
             })}
           </div>
         </div>
-        <div className="grid min-h-0 flex-1 overflow-y-auto md:grid-cols-[240px_1fr]">
-          <aside className="border-b p-4 md:border-b-0 md:border-r" style={{ borderColor: C.line, background: C.cardAlt }}>
-            <div className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.sub }}>Quellen</div>
-            {sources.length ? (
-              <ul className="mt-2 flex flex-col gap-1.5">
-                {sources.map((s) => (
-                  <li key={s.domain}>
-                    <a
-                      href={s.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 break-all text-xs font-medium hover:underline"
-                      style={{ color: C.indigo }}
-                    >
-                      {s.domain} <ExternalLink size={11} className="shrink-0" />
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-2 text-xs" style={{ color: C.sub }}>
-                Keine Quellen-Links in der Antwort
-                {typeof e.sources === "number" && e.sources > 0 ? ` (Messung: ${e.sources} Quellen)` : ""}.
-              </p>
-            )}
-            {e.comps?.length > 0 && (
-              <>
-                <div className="mt-4 text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.sub }}>
-                  {opportunity ? "Genannte Konkurrenten" : "Mit-genannt"}
-                </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {e.comps.map((c) => (
-                    <span key={c} className="rounded px-1.5 py-0.5 text-[11px]" style={{ background: C.track, color: C.ink }}>{c}</span>
-                  ))}
-                </div>
-              </>
-            )}
-          </aside>
-          <section className="min-w-0 p-5">
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <section className="p-5">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
               <StatusPill s={e.status} />
               {e.position && (
@@ -665,9 +700,21 @@ function PromptDetailModal({ g, opportunity, onClose }) {
               )}
             </div>
             {e.response ? (
-              <p className="mt-3 whitespace-pre-wrap text-[13px] leading-relaxed" style={{ color: C.ink }}>{e.response}</p>
+              <div className="mt-3 rounded-lg border p-4" style={{ borderColor: C.line, background: C.cardAlt }}>
+                <AnswerBlocks text={e.response} />
+              </div>
             ) : (
               <p className="mt-3 text-xs" style={{ color: C.sub }}>Keine Antwort gespeichert.</p>
+            )}
+            {e.comps?.length > 0 && (
+              <div className="mt-4 flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px]" style={{ color: C.sub }}>
+                  {opportunity ? "Genannte Konkurrenten:" : "Mit-genannt:"}
+                </span>
+                {e.comps.map((c) => (
+                  <span key={c} className="rounded px-1.5 py-0.5 text-[11px]" style={{ background: C.track, color: C.ink }}>{c}</span>
+                ))}
+              </div>
             )}
           </section>
         </div>
