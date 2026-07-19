@@ -2808,6 +2808,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
   // 10er-Pagination der GSC-Suchbegriff-Tabellen (User-Wunsch 2026-07-19).
   const [gscQPage, setGscQPage] = useState(0);
   const [gscFbPage, setGscFbPage] = useState(0);
+  const [rankPage, setRankPage] = useState(0);
   // B1: Rankings-Zeilen sortiert — Money-Keywords zuerst, dann nach Position.
   const rankRows = rank
     ? [...(rank.keywords || [])].sort((a, b) => {
@@ -2876,7 +2877,12 @@ function SeoDashboard({ selectedClient, dateRange }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {rankRows.map((k, i) => (
+                  {rankRows
+                    .slice(
+                      Math.min(rankPage, Math.ceil(rankRows.length / 10) - 1) * 10,
+                      Math.min(rankPage, Math.ceil(rankRows.length / 10) - 1) * 10 + 10,
+                    )
+                    .map((k, i) => (
                     <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
                       <td style={{ padding: "6px 8px", color: C.text }}>
                         {k.isMoney && (
@@ -2906,6 +2912,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
                 </tbody>
               </table>
             </div>
+            <SeoPager page={rankPage} setPage={setRankPage} total={rankRows.length} unit="Keywords" />
           </div>
         </div>
       ) : (
