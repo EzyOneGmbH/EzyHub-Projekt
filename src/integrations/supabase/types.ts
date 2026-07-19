@@ -275,6 +275,95 @@ export type Database = {
           },
         ]
       }
+      ads_guardian_log: {
+        Row: {
+          checked_at: string
+          client_id: string
+          findings: Json
+          id: string
+          status: string
+        }
+        Insert: {
+          checked_at?: string
+          client_id: string
+          findings?: Json
+          id?: string
+          status: string
+        }
+        Update: {
+          checked_at?: string
+          client_id?: string
+          findings?: Json
+          id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_guardian_log_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ads_outcome_reviews: {
+        Row: {
+          action_type: string
+          avoided_waste_chf: number | null
+          changelog_id: string
+          client_id: string
+          confounders: Json
+          id: string
+          metric_after: Json
+          metric_before: Json
+          review_window: string
+          reviewed_at: string
+          verdict: string
+        }
+        Insert: {
+          action_type: string
+          avoided_waste_chf?: number | null
+          changelog_id: string
+          client_id: string
+          confounders?: Json
+          id?: string
+          metric_after?: Json
+          metric_before?: Json
+          review_window: string
+          reviewed_at?: string
+          verdict: string
+        }
+        Update: {
+          action_type?: string
+          avoided_waste_chf?: number | null
+          changelog_id?: string
+          client_id?: string
+          confounders?: Json
+          id?: string
+          metric_after?: Json
+          metric_before?: Json
+          review_window?: string
+          reviewed_at?: string
+          verdict?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_outcome_reviews_changelog_id_fkey"
+            columns: ["changelog_id"]
+            isOneToOne: false
+            referencedRelation: "ads_changelog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ads_outcome_reviews_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ads_recommendation_outcomes: {
         Row: {
           after_value: number | null
@@ -397,95 +486,6 @@ export type Database = {
           },
         ]
       }
-      ads_guardian_log: {
-        Row: {
-          checked_at: string
-          client_id: string
-          findings: Json
-          id: string
-          status: string
-        }
-        Insert: {
-          checked_at?: string
-          client_id: string
-          findings?: Json
-          id?: string
-          status: string
-        }
-        Update: {
-          checked_at?: string
-          client_id?: string
-          findings?: Json
-          id?: string
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ads_guardian_log_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ads_outcome_reviews: {
-        Row: {
-          action_type: string
-          avoided_waste_chf: number | null
-          changelog_id: string
-          client_id: string
-          confounders: Json
-          id: string
-          metric_after: Json
-          metric_before: Json
-          review_window: string
-          reviewed_at: string
-          verdict: string
-        }
-        Insert: {
-          action_type: string
-          avoided_waste_chf?: number | null
-          changelog_id: string
-          client_id: string
-          confounders?: Json
-          id?: string
-          metric_after?: Json
-          metric_before?: Json
-          review_window: string
-          reviewed_at?: string
-          verdict: string
-        }
-        Update: {
-          action_type?: string
-          avoided_waste_chf?: number | null
-          changelog_id?: string
-          client_id?: string
-          confounders?: Json
-          id?: string
-          metric_after?: Json
-          metric_before?: Json
-          review_window?: string
-          reviewed_at?: string
-          verdict?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ads_outcome_reviews_changelog_id_fkey"
-            columns: ["changelog_id"]
-            isOneToOne: false
-            referencedRelation: "ads_changelog"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ads_outcome_reviews_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       agent_runs: {
         Row: {
           agent_name: string
@@ -554,6 +554,7 @@ export type Database = {
           client_id: string
           conversions: number | null
           engine: string
+          events: Json
           id: string
           report_id: string
           sessions: number | null
@@ -562,6 +563,7 @@ export type Database = {
           client_id: string
           conversions?: number | null
           engine: string
+          events?: Json
           id?: string
           report_id: string
           sessions?: number | null
@@ -570,6 +572,7 @@ export type Database = {
           client_id?: string
           conversions?: number | null
           engine?: string
+          events?: Json
           id?: string
           report_id?: string
           sessions?: number | null
@@ -587,6 +590,73 @@ export type Database = {
             columns: ["report_id"]
             isOneToOne: false
             referencedRelation: "ai_visibility_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_visibility_brand_facts: {
+        Row: {
+          client_id: string
+          facts: Json
+          needs_review: boolean
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          facts: Json
+          needs_review?: boolean
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          facts?: Json
+          needs_review?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_visibility_brand_facts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: true
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_visibility_brand_history: {
+        Row: {
+          client_id: string
+          data: Json
+          id: string
+          point_date: string
+          provider: string
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          data: Json
+          id?: string
+          point_date: string
+          provider?: string
+          source: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          data?: Json
+          id?: string
+          point_date?: string
+          provider?: string
+          source?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_visibility_brand_history_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
             referencedColumns: ["id"]
           },
         ]
@@ -719,7 +789,9 @@ export type Database = {
           id: string
           intent: string | null
           language: string | null
+          needs_review: boolean
           prompt: string
+          prompt_type: string
           topic: string | null
         }
         Insert: {
@@ -730,7 +802,9 @@ export type Database = {
           id?: string
           intent?: string | null
           language?: string | null
+          needs_review?: boolean
           prompt: string
+          prompt_type?: string
           topic?: string | null
         }
         Update: {
@@ -741,7 +815,9 @@ export type Database = {
           id?: string
           intent?: string | null
           language?: string | null
+          needs_review?: boolean
           prompt?: string
+          prompt_type?: string
           topic?: string | null
         }
         Relationships: [
@@ -756,6 +832,7 @@ export type Database = {
       }
       ai_visibility_prompts: {
         Row: {
+          brand_eval: Json | null
           brands_count: number | null
           client_id: string
           competitors: string[] | null
@@ -766,6 +843,7 @@ export type Database = {
           platform: string | null
           position: string | null
           prompt: string
+          prompt_type: string
           report_id: string
           response: string | null
           sentiment: string | null
@@ -773,6 +851,7 @@ export type Database = {
           status: string | null
         }
         Insert: {
+          brand_eval?: Json | null
           brands_count?: number | null
           client_id: string
           competitors?: string[] | null
@@ -783,6 +862,7 @@ export type Database = {
           platform?: string | null
           position?: string | null
           prompt: string
+          prompt_type?: string
           report_id: string
           response?: string | null
           sentiment?: string | null
@@ -790,6 +870,7 @@ export type Database = {
           status?: string | null
         }
         Update: {
+          brand_eval?: Json | null
           brands_count?: number | null
           client_id?: string
           competitors?: string[] | null
@@ -800,6 +881,7 @@ export type Database = {
           platform?: string | null
           position?: string | null
           prompt?: string
+          prompt_type?: string
           report_id?: string
           response?: string | null
           sentiment?: string | null
@@ -833,10 +915,13 @@ export type Database = {
           created_at: string | null
           id: string
           market: string | null
+          measurement_version: string | null
           mentions: number | null
           mentions_delta: number | null
+          parts: Json | null
           score: number
           score_delta: number | null
+          score_raw: number | null
           snapshot_date: string
         }
         Insert: {
@@ -848,10 +933,13 @@ export type Database = {
           created_at?: string | null
           id?: string
           market?: string | null
+          measurement_version?: string | null
           mentions?: number | null
           mentions_delta?: number | null
+          parts?: Json | null
           score: number
           score_delta?: number | null
+          score_raw?: number | null
           snapshot_date: string
         }
         Update: {
@@ -863,10 +951,13 @@ export type Database = {
           created_at?: string | null
           id?: string
           market?: string | null
+          measurement_version?: string | null
           mentions?: number | null
           mentions_delta?: number | null
+          parts?: Json | null
           score?: number
           score_delta?: number | null
+          score_raw?: number | null
           snapshot_date?: string
         }
         Relationships: [
@@ -975,6 +1066,39 @@ export type Database = {
           },
         ]
       }
+      ai_visibility_sync_runs: {
+        Row: {
+          clients: Json | null
+          error: string | null
+          finished_at: string | null
+          id: string
+          params: Json | null
+          result: Json | null
+          started_at: string
+          status: string
+        }
+        Insert: {
+          clients?: Json | null
+          error?: string | null
+          finished_at?: string | null
+          id: string
+          params?: Json | null
+          result?: Json | null
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          clients?: Json | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          params?: Json | null
+          result?: Json | null
+          started_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
       ai_visibility_topics: {
         Row: {
           client_id: string
@@ -1022,33 +1146,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      client_access: {
-        Row: {
-          client_id: string
-          created_at: string
-          created_by: string | null
-          id: string
-          organization_id: string
-          user_id: string
-        }
-        Insert: {
-          client_id: string
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          organization_id: string
-          user_id: string
-        }
-        Update: {
-          client_id?: string
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          organization_id?: string
-          user_id?: string
-        }
-        Relationships: []
       }
       app_users: {
         Row: {
@@ -1151,6 +1248,75 @@ export type Database = {
           },
         ]
       }
+      claude_sessions: {
+        Row: {
+          label: string | null
+          last_seen_at: string
+          session_id: string
+          source: string | null
+          started_at: string
+          status: string
+        }
+        Insert: {
+          label?: string | null
+          last_seen_at?: string
+          session_id: string
+          source?: string | null
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          label?: string | null
+          last_seen_at?: string
+          session_id?: string
+          source?: string | null
+          started_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      client_access: {
+        Row: {
+          client_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          organization_id: string
+          user_id: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          organization_id: string
+          user_id: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          organization_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_access_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_access_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_integrations: {
         Row: {
           client_id: string
@@ -1203,6 +1369,7 @@ export type Database = {
         Row: {
           brand_terms: string[]
           canonry_project: string | null
+          client_type: string
           country: string | null
           created_at: string
           created_by: string
@@ -1223,6 +1390,7 @@ export type Database = {
         Insert: {
           brand_terms?: string[]
           canonry_project?: string | null
+          client_type?: string
           country?: string | null
           created_at?: string
           created_by: string
@@ -1243,6 +1411,7 @@ export type Database = {
         Update: {
           brand_terms?: string[]
           canonry_project?: string | null
+          client_type?: string
           country?: string | null
           created_at?: string
           created_by?: string
@@ -1849,6 +2018,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      has_client_access: { Args: { _client_id: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
