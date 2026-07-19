@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -536,6 +537,146 @@ function EngineChip({ e }) {
   );
 }
 
+// Quellen-Links aus dem Antwort-Text ziehen (eine URL je Domain, Reihenfolge
+// des Auftretens) — die Prompt-Messung speichert nur einen Quellen-ZÄHLER,
+// die konkreten Links stehen im Antwort-Text (v. a. Perplexity/Gemini).
+function extractSources(text) {
+  const urls = String(text || "").match(/https?:\/\/[^\s)\]}>"',;]+/g) || [];
+  const seen = new Map();
+  for (const u of urls) {
+    try {
+      const d = new URL(u).hostname.replace(/^www\./, "");
+      if (d && !seen.has(d)) seen.set(d, u);
+    } catch { /* kaputte URL im Text — ignorieren */ }
+  }
+  return [...seen.entries()].map(([domain, url]) => ({ domain, url }));
+}
+
+// Prompt-Detail als Pop-up (User-Wunsch 2026-07-19, Semrush-Vorbild):
+// Header = Prompt + Modell-Tabs (Status-Punkt je Engine), linke Spalte =
+// Quellen + Mit-genannt, rechte Spalte = Antwort mit Status/Position/Tonalität.
+function PromptDetailModal({ g, opportunity, onClose }) {
+  const [tab, setTab] = useState(0);
+  const e = g.engines[Math.min(tab, g.engines.length - 1)] || {};
+  const sources = extractSources(e.response);
+  useEffect(() => {
+    const h = (ev) => ev.key === "Escape" && onClose();
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.6)" }}
+      onClick={onClose}
+    >
+      <div
+        className="flex w-full max-w-4xl flex-col overflow-hidden rounded-xl border"
+        style={{ ...CARD, maxHeight: "85vh" }}
+        onClick={(ev) => ev.stopPropagation()}
+      >
+        <div className="border-b px-5 py-4" style={{ borderColor: C.line }}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold leading-snug" style={{ color: C.ink }}>{g.prompt}</h3>
+              {g.country && <div className="mt-0.5 text-[11px]" style={{ color: C.sub }}>{g.country}</div>}
+            </div>
+            <button
+              onClick={onClose}
+              aria-label="Schliessen"
+              className="shrink-0 rounded-md border px-2 py-1 text-xs transition hover:brightness-125"
+              style={{ borderColor: C.line, color: C.sub }}
+            >
+              ✕
+            </button>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {g.engines.map((en, i) => {
+              const c = STATUS_COLOR(en.status);
+              const active = i === Math.min(tab, g.engines.length - 1);
+              return (
+                <button
+                  key={en.platform}
+                  onClick={() => setTab(i)}
+                  className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition"
+                  style={{
+                    borderColor: active ? C.indigo : C.line,
+                    background: active ? `${C.indigo}22` : "transparent",
+                    color: active ? C.indigo : C.sub,
+                  }}
+                >
+                  <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: c }} />
+                  {en.platform}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="grid min-h-0 flex-1 overflow-y-auto md:grid-cols-[240px_1fr]">
+          <aside className="border-b p-4 md:border-b-0 md:border-r" style={{ borderColor: C.line, background: C.cardAlt }}>
+            <div className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.sub }}>Quellen</div>
+            {sources.length ? (
+              <ul className="mt-2 flex flex-col gap-1.5">
+                {sources.map((s) => (
+                  <li key={s.domain}>
+                    <a
+                      href={s.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 break-all text-xs font-medium hover:underline"
+                      style={{ color: C.indigo }}
+                    >
+                      {s.domain} <ExternalLink size={11} className="shrink-0" />
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-xs" style={{ color: C.sub }}>
+                Keine Quellen-Links in der Antwort
+                {typeof e.sources === "number" && e.sources > 0 ? ` (Messung: ${e.sources} Quellen)` : ""}.
+              </p>
+            )}
+            {e.comps?.length > 0 && (
+              <>
+                <div className="mt-4 text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.sub }}>
+                  {opportunity ? "Genannte Konkurrenten" : "Mit-genannt"}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {e.comps.map((c) => (
+                    <span key={c} className="rounded px-1.5 py-0.5 text-[11px]" style={{ background: C.track, color: C.ink }}>{c}</span>
+                  ))}
+                </div>
+              </>
+            )}
+          </aside>
+          <section className="min-w-0 p-5">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <StatusPill s={e.status} />
+              {e.position && (
+                <span className="text-[11px]" style={{ color: C.sub }}>
+                  Position: <b style={{ color: C.ink }}>{POS_LABEL[e.position] || e.position}</b>
+                </span>
+              )}
+              {e.sentiment && (
+                <span className="text-[11px]" style={{ color: C.sub }}>
+                  Tonalität: <b style={{ color: SENT_COLOR(e.sentiment) }}>{SENT_LABEL[e.sentiment] || e.sentiment}</b>
+                </span>
+              )}
+            </div>
+            {e.response ? (
+              <p className="mt-3 whitespace-pre-wrap text-[13px] leading-relaxed" style={{ color: C.ink }}>{e.response}</p>
+            ) : (
+              <p className="mt-3 text-xs" style={{ color: C.sub }}>Keine Antwort gespeichert.</p>
+            )}
+          </section>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 function PromptGroupRow({ g, opportunity }) {
   const [open, setOpen] = useState(false);
   const rate = g.total ? Math.round((g.mentioned / g.total) * 100) : 0;
@@ -544,15 +685,11 @@ function PromptGroupRow({ g, opportunity }) {
       <tr
         className="border-t cursor-pointer transition-colors hover:bg-white/5"
         style={{ borderColor: C.line }}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => setOpen(true)}
       >
         <td className="px-5 py-3 align-top">
           <div className="flex items-start gap-2">
-            <ChevronRight
-              size={14}
-              className="mt-0.5 shrink-0 transition-transform"
-              style={{ color: C.sub, transform: open ? "rotate(90deg)" : "none" }}
-            />
+            <ChevronRight size={14} className="mt-0.5 shrink-0" style={{ color: C.sub }} />
             <div className="min-w-0">
               <span style={{ color: C.ink }}>{g.prompt}</span>
               <div className="mt-1.5 flex flex-wrap gap-1">
@@ -578,43 +715,7 @@ function PromptGroupRow({ g, opportunity }) {
           </td>
         )}
       </tr>
-      {open && (
-        <tr style={{ background: C.cardAlt }}>
-          <td colSpan={opportunity ? 2 : 3} className="px-5 pb-3.5 pt-0">
-            <div className="ml-6 flex flex-col gap-2">
-              {g.engines.map((e) => (
-                <div key={e.platform} className="rounded-lg border p-3" style={{ borderColor: C.line, background: C.card }}>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <PlatformTag p={e.platform} />
-                      <StatusPill s={e.status} />
-                    </div>
-                    {(e.position || e.sentiment) && (
-                      <div className="flex items-center gap-x-3 text-[11px]" style={{ color: C.sub }}>
-                        {e.position && <span>Position: <b style={{ color: C.ink }}>{POS_LABEL[e.position] || e.position}</b></span>}
-                        {e.sentiment && <span>Tonalität: <b style={{ color: SENT_COLOR(e.sentiment) }}>{SENT_LABEL[e.sentiment] || e.sentiment}</b></span>}
-                      </div>
-                    )}
-                  </div>
-                  {e.response && (
-                    <p className="mt-2 text-[13px] leading-relaxed" style={{ color: C.ink }}>{e.response}</p>
-                  )}
-                  {e.comps?.length > 0 && (
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      <span className="text-[11px]" style={{ color: C.sub }}>
-                        {opportunity ? "Genannte Konkurrenten:" : "Mit-genannt:"}
-                      </span>
-                      {e.comps.map((c) => (
-                        <span key={c} className="rounded px-1.5 py-0.5 text-[11px]" style={{ background: C.track, color: C.ink }}>{c}</span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </td>
-        </tr>
-      )}
+      {open && <PromptDetailModal g={g} opportunity={opportunity} onClose={() => setOpen(false)} />}
     </>
   );
 }
