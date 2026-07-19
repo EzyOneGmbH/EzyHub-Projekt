@@ -205,7 +205,13 @@ const intentColor = (i) => ({
   Informativ: C.indigo, Navigativ: C.sub,
 }[i] || C.sub);
 
+const TOPICS_PAGE_SIZE = 10;
 function TopicsTable({ rows }) {
+  // 10er-Pagination wie bei den Prompts (User-Wunsch 2026-07-19).
+  const [page, setPage] = useState(0);
+  const pages = Math.max(1, Math.ceil(rows.length / TOPICS_PAGE_SIZE));
+  const cur = Math.min(page, pages - 1);
+  const pageRows = rows.slice(cur * TOPICS_PAGE_SIZE, (cur + 1) * TOPICS_PAGE_SIZE);
   return (
     <div className="rounded-xl border" style={CARD}>
       <div className="border-b px-5 py-3" style={{ borderColor: C.line }}>
@@ -223,7 +229,7 @@ function TopicsTable({ rows }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {pageRows.map((r) => (
               <tr key={r.topic} className="border-t" style={{ borderColor: C.line }}>
                 <td className="px-5 py-2.5" style={{ color: C.ink }}>{r.topic}</td>
                 <td className="px-3 py-2.5 text-right">
@@ -247,6 +253,51 @@ function TopicsTable({ rows }) {
           </tbody>
         </table>
       </div>
+      {pages > 1 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t px-5 py-3" style={{ borderColor: C.line }}>
+          <span className="text-[11px]" style={{ color: C.sub }}>
+            {cur * TOPICS_PAGE_SIZE + 1}–{Math.min(rows.length, (cur + 1) * TOPICS_PAGE_SIZE)} von {rows.length} Themen
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage(Math.max(0, cur - 1))}
+              disabled={cur === 0}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border transition disabled:opacity-35"
+              style={{ borderColor: C.line, color: C.sub }}
+              aria-label="Vorherige Seite"
+            >
+              <ChevronLeft size={14} />
+            </button>
+            {pageNumbers(cur, pages).map((p, i) =>
+              p === "…" ? (
+                <span key={`e${i}`} className="px-1 text-xs" style={{ color: C.sub }}>…</span>
+              ) : (
+                <button
+                  key={p}
+                  onClick={() => setPage(p)}
+                  className="h-7 min-w-7 rounded-md px-1.5 text-xs font-medium tabular-nums transition"
+                  style={{
+                    background: p === cur ? C.indigo : "transparent",
+                    color: p === cur ? "#fff" : C.sub,
+                    border: `1px solid ${p === cur ? C.indigo : C.line}`,
+                  }}
+                >
+                  {p + 1}
+                </button>
+              ),
+            )}
+            <button
+              onClick={() => setPage(Math.min(pages - 1, cur + 1))}
+              disabled={cur >= pages - 1}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border transition disabled:opacity-35"
+              style={{ borderColor: C.line, color: C.sub }}
+              aria-label="Nächste Seite"
+            >
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
