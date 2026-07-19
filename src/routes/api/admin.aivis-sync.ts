@@ -2382,24 +2382,57 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         // Rank-Tracking-Sets an (User-Vorgabe 2026-07-19, Anlass B5: Rankings
         // fehlten allen Kunden, die nie auf Keyword.com waren).
         if (new URL(request.url).searchParams.get("rankClients")) {
-          const { data: cls } = await sb.from("clients").select("id, name, domain, brand_terms, metadata");
+          const { data: cls } = await sb.from("clients").select("id, name, domain, gsc_property, brand_terms, metadata");
           const out: any[] = [];
           for (const c of cls || []) {
             const tabs = c.metadata?.defaults?.visibleTabs;
             // null/legacy = Org-Default (enthaelt seo); sonst muss "seo" drin sein.
             const seoEnabled = !Array.isArray(tabs) || tabs.includes("seo");
             if (!seoEnabled || !c.domain) continue;
-            const { data: gq } = await sb
-              .from("audit_runs").select("result")
-              .eq("client_id", c.id).eq("audit_type", "gsc_queries").eq("status", "succeeded")
-              .order("created_at", { ascending: false }).limit(1).maybeSingle();
-            const { data: gs } = gq?.result
-              ? { data: null }
-              : await sb
-                  .from("audit_runs").select("result")
-                  .eq("client_id", c.id).eq("audit_type", "gsc_summary").eq("status", "succeeded")
-                  .order("created_at", { ascending: false }).limit(1).maybeSingle();
-            const rows: any[] = gq?.result?.topNonbrandQueries || gs?.result?.topQueries || [];
+            // Seed-Quelle seit 2026-07-19 (Top-250-Ausbau): GSC LIVE (28 Tage,
+            // Top 250 nach Klicks) — die gespeicherten Listen (top 20/25) sind
+            // nur noch Fallback, wenn GSC nicht verbunden ist oder fehlschlaegt.
+            let rows: any[] = [];
+            if (c.gsc_property) {
+              try {
+                const { accessToken } = await getGoogleAccessToken(c.id);
+                const end = new Date(Date.now() - 3 * 864e5); // GSC-Puffer heute-3
+                const start = new Date(end.getTime() - 28 * 864e5);
+                const fmt = (d: Date) => d.toISOString().slice(0, 10);
+                const gr = await fetch(
+                  `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(c.gsc_property)}/searchAnalytics/query`,
+                  {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      startDate: fmt(start), endDate: fmt(end),
+                      dimensions: ["query"], rowLimit: 250,
+                      orderBy: [{ field: "clicks", descending: true }],
+                    }),
+                    signal: AbortSignal.timeout(30_000),
+                  },
+                );
+                if (gr.ok) {
+                  const gj: any = await gr.json().catch(() => ({}));
+                  rows = (gj.rows || []).map((r: any) => ({
+                    query: r.keys?.[0], clicks: r.clicks, impressions: r.impressions,
+                  }));
+                }
+              } catch { /* Fallback unten */ }
+            }
+            if (!rows.length) {
+              const { data: gq } = await sb
+                .from("audit_runs").select("result")
+                .eq("client_id", c.id).eq("audit_type", "gsc_queries").eq("status", "succeeded")
+                .order("created_at", { ascending: false }).limit(1).maybeSingle();
+              const { data: gs } = gq?.result
+                ? { data: null }
+                : await sb
+                    .from("audit_runs").select("result")
+                    .eq("client_id", c.id).eq("audit_type", "gsc_summary").eq("status", "succeeded")
+                    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+              rows = gq?.result?.topNonbrandQueries || gs?.result?.topQueries || [];
+            }
             const queries = rows
               .map((q: any) => ({
                 query: String(q.query || "").trim(),
