@@ -2687,6 +2687,51 @@ function OnboardingPanel({ selectedClient }) {
 // Sektionen verschwinden nicht mehr bei fehlenden Daten, sondern zeigen einen
 // Platzhalter mit dem konkreten nächsten Schritt — so sieht das Dashboard bei
 // jedem Kunden gleich aus und Lücken sind sofort als Handlungsbedarf erkennbar.
+// 10er-Seitenwechsler wie bei den Prompts im KI-Tab (User-Wunsch 2026-07-19),
+// hier mit den Inline-Styles des SEO-Dashboards.
+function seoPageNums(cur, pages) {
+  const set = new Set([0, pages - 1, cur - 1, cur, cur + 1]);
+  const nums = [...set].filter((n) => n >= 0 && n < pages).sort((a, b) => a - b);
+  const out = [];
+  for (let i = 0; i < nums.length; i++) {
+    if (i > 0 && nums[i] - nums[i - 1] > 1) out.push("…");
+    out.push(nums[i]);
+  }
+  return out;
+}
+function SeoPager({ page, setPage, total, pageSize = 10, unit = "Einträge" }) {
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  const cur = Math.min(page, pages - 1);
+  if (pages <= 1) return null;
+  const btn = (active) => ({
+    height: 26, minWidth: 26, padding: "0 6px", borderRadius: 8, cursor: "pointer",
+    fontSize: 12, fontWeight: 600, fontVariantNumeric: "tabular-nums",
+    border: `1px solid ${active ? C.accent : C.border}`,
+    background: active ? `${C.accent}22` : "transparent",
+    color: active ? C.accent : C.textMuted,
+  });
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 10 }}>
+      <span style={{ fontSize: 11, color: C.textDim }}>
+        {cur * pageSize + 1}–{Math.min(total, (cur + 1) * pageSize)} von {total} {unit}
+      </span>
+      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <button onClick={() => setPage(Math.max(0, cur - 1))} disabled={cur === 0} aria-label="Vorherige Seite"
+          style={{ ...btn(false), opacity: cur === 0 ? 0.35 : 1 }}>‹</button>
+        {seoPageNums(cur, pages).map((p, i) =>
+          p === "…" ? (
+            <span key={`e${i}`} style={{ fontSize: 12, color: C.textDim, padding: "0 2px" }}>…</span>
+          ) : (
+            <button key={p} onClick={() => setPage(p)} style={btn(p === cur)}>{p + 1}</button>
+          ),
+        )}
+        <button onClick={() => setPage(Math.min(pages - 1, cur + 1))} disabled={cur >= pages - 1} aria-label="Nächste Seite"
+          style={{ ...btn(false), opacity: cur >= pages - 1 ? 0.35 : 1 }}>›</button>
+      </div>
+    </div>
+  );
+}
+
 function SectionPlaceholder({ title, hint }) {
   return (
     <div style={{ background: C.card, border: `1px dashed ${C.border}`, borderRadius: 14, padding: 16, opacity: 0.85 }}>
@@ -2760,6 +2805,9 @@ function SeoDashboard({ selectedClient, dateRange }) {
     Boolean(psi && (psi.lcp != null || psi.cls != null || psi.performanceScore != null));
   // Einheitliches Layout: auch ohne jegliche Daten rendert der Tab dieselben
   // Sektionen (als Platzhalter mit nächstem Schritt) statt eines Leerzustands.
+  // 10er-Pagination der GSC-Suchbegriff-Tabellen (User-Wunsch 2026-07-19).
+  const [gscQPage, setGscQPage] = useState(0);
+  const [gscFbPage, setGscFbPage] = useState(0);
   // B1: Rankings-Zeilen sortiert — Money-Keywords zuerst, dann nach Position.
   const rankRows = rank
     ? [...(rank.keywords || [])].sort((a, b) => {
@@ -2996,7 +3044,12 @@ function SeoDashboard({ selectedClient, dateRange }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {gscQ.topNonbrandQueries.slice(0, 10).map((q, i) => (
+                    {gscQ.topNonbrandQueries
+                      .slice(
+                        Math.min(gscQPage, Math.ceil(gscQ.topNonbrandQueries.length / 10) - 1) * 10,
+                        Math.min(gscQPage, Math.ceil(gscQ.topNonbrandQueries.length / 10) - 1) * 10 + 10,
+                      )
+                      .map((q, i) => (
                       <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
                         <td style={{ padding: "6px 8px", color: C.text }}>{q.query}</td>
                         <td style={{ padding: "6px 8px", textAlign: "right" }}>{q.clicks}</td>
@@ -3007,6 +3060,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
                   </tbody>
                 </table>
               </div>
+              <SeoPager page={gscQPage} setPage={setGscQPage} total={gscQ.topNonbrandQueries.length} unit="Suchanfragen" />
             </div>
           )}
         </div>
@@ -3069,7 +3123,12 @@ function SeoDashboard({ selectedClient, dateRange }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {gsc.topQueries.slice(0, 15).map((q, i) => (
+                    {gsc.topQueries
+                      .slice(
+                        Math.min(gscFbPage, Math.ceil(gsc.topQueries.length / 10) - 1) * 10,
+                        Math.min(gscFbPage, Math.ceil(gsc.topQueries.length / 10) - 1) * 10 + 10,
+                      )
+                      .map((q, i) => (
                       <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
                         <td style={{ padding: "6px 8px", color: C.text }}>{q.query}</td>
                         <td style={{ padding: "6px 8px", textAlign: "right" }}>{q.clicks}</td>
@@ -3085,6 +3144,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
                   </tbody>
                 </table>
               </div>
+              <SeoPager page={gscFbPage} setPage={setGscFbPage} total={gsc.topQueries.length} unit="Suchbegriffe" />
             </div>
           )}
         </>

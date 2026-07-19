@@ -314,7 +314,9 @@ async function jobGsc(c: any, uid: string, days: number) {
       ctr: t.impressions > 0 ? t.clicks / t.impressions : 0,
       position: t.impressions > 0 ? t.posSum / t.impressions : 0,
     },
-    topQueries: keywords.slice(0, 25),
+    // Top 250 (2026-07-19): Dashboard paginiert 10er-weise; mehr Tiefe fuer
+    // Suchbegriff-Tabelle + Rank-Seed-Fallback.
+    topQueries: keywords.slice(0, 250),
   };
   await insertRun({
     client_id: c.id,
@@ -394,7 +396,7 @@ async function jobGscQueries(c: any, uid: string, days: number) {
     brand,
     nonbrand,
     buckets_nonbrand: buckets,
-    topNonbrandQueries: nonbrandRows.slice(0, 20),
+    topNonbrandQueries: nonbrandRows.slice(0, 250), // Top 250 (2026-07-19), Dashboard paginiert 10er-weise
   };
   await insertRun({
     client_id: c.id,
