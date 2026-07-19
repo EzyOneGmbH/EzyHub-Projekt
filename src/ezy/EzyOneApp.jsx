@@ -3781,6 +3781,24 @@ function ConvDashboard({ selectedClient, dateRange }) {
   const conv = convRun ? ga4ConversionsFromResult(convRun.result) : null;
   const traf = trafRun ? ga4TrafficFromResult(trafRun.result) : null;
   const days = dateRange?.days || 30;
+  // Filter-Tabs der Conversion-Liste (User-Wunsch 2026-07-19): Purchase =
+  // Kauf-/Checkout-Events, Lead-Anfragen = alles Übrige (Formulare, Lead-,
+  // Telefon-/Mail-/Maps-Events). Klassifiziert am rohen GA4-eventName.
+  const [convFilter, setConvFilter] = useState("alle");
+  const isPurchaseEvent = (r) =>
+    /purchase|checkout|transaction|kauf|buchung|booking/i.test(String(r?.eventName || r?.description || ""));
+  const convRowsFiltered = useMemo(() => {
+    const rows = conv?.rows || [];
+    if (convFilter === "purchase") return rows.filter(isPurchaseEvent);
+    if (convFilter === "lead") return rows.filter((r) => !isPurchaseEvent(r));
+    return rows;
+  }, [conv?.rows, convFilter]);
+  const convEventsFiltered = useMemo(() => {
+    const evs = conv?.events || [];
+    if (convFilter === "purchase") return evs.filter(isPurchaseEvent);
+    if (convFilter === "lead") return evs.filter((e) => !isPurchaseEvent(e));
+    return evs;
+  }, [conv?.events, convFilter]);
   const ga4 = ga4Raw;
   useEffect(() => {
     const interval = setInterval(() => {
@@ -4268,8 +4286,40 @@ function ConvDashboard({ selectedClient, dateRange }) {
             padding: 16,
           }}
         >
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}>
-            Alle Conversions
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.textMuted }}>
+              Alle Conversions
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              {(() => {
+                const base = conv.rows.length > 0 ? conv.rows : conv.events;
+                const sum = (arr) => arr.reduce((a, x) => a + (Number(x.count) || 0), 0);
+                const purch = base.filter(isPurchaseEvent);
+                const leads = base.filter((x) => !isPurchaseEvent(x));
+                return [
+                  ["alle", "Alle", sum(base)],
+                  ["purchase", "Purchase", sum(purch)],
+                  ["lead", "Lead-Anfragen", sum(leads)],
+                ].map(([key, label, n]) => (
+                  <button
+                    key={key}
+                    onClick={() => setConvFilter(key)}
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      padding: "4px 12px",
+                      borderRadius: 999,
+                      cursor: "pointer",
+                      border: `1px solid ${convFilter === key ? C.accent : C.border}`,
+                      background: convFilter === key ? `${C.accent}22` : "transparent",
+                      color: convFilter === key ? C.accent : C.textMuted,
+                    }}
+                  >
+                    {label} ({n.toLocaleString("de-CH")})
+                  </button>
+                ));
+              })()}
+            </div>
           </div>
           <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", maxHeight: 460, overflowY: "auto" }}>
             {conv.rows.length > 0 ? (
@@ -4286,7 +4336,14 @@ function ConvDashboard({ selectedClient, dateRange }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {conv.rows.slice(0, 60).map((r, i) => (
+                  {convRowsFiltered.length === 0 && (
+                    <tr>
+                      <td colSpan={7} style={{ padding: "12px 8px", color: C.textDim }}>
+                        Keine {convFilter === "purchase" ? "Purchase-Conversions" : "Lead-Anfragen"} im Zeitraum.
+                      </td>
+                    </tr>
+                  )}
+                  {convRowsFiltered.slice(0, 60).map((r, i) => (
                     <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
                       <td style={{ padding: "6px 8px", color: C.text, fontWeight: 600 }}>{r.description}</td>
                       <td style={{ padding: "6px 8px", color: C.textMuted }}>
@@ -4316,7 +4373,14 @@ function ConvDashboard({ selectedClient, dateRange }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {conv.events.slice(0, 15).map((e, i) => (
+                  {convEventsFiltered.length === 0 && (
+                    <tr>
+                      <td colSpan={2} style={{ padding: "12px 8px", color: C.textDim }}>
+                        Keine {convFilter === "purchase" ? "Purchase-Conversions" : "Lead-Anfragen"} im Zeitraum.
+                      </td>
+                    </tr>
+                  )}
+                  {convEventsFiltered.slice(0, 15).map((e, i) => (
                     <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
                       <td style={{ padding: "6px 8px", color: C.text }}>{e.eventName}</td>
                       <td style={{ padding: "6px 8px", textAlign: "right" }}>
