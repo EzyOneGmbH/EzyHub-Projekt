@@ -29,7 +29,8 @@ const ACTIONS: Record<string, { method: "GET" | "POST"; path: string; fields: st
   "elementor-set-heading": {
     method: "POST",
     path: "/ezyhub/v1/elementor/set-heading",
-    fields: ["postId", "widgetId", "tag"],
+    // "title" seit Connector v1.9.12 (Widget-Map): erlaubt H1-Text-Korrekturen
+    fields: ["postId", "widgetId", "tag", "title"],
   },
   "elementor-text-widgets": {
     method: "GET",
