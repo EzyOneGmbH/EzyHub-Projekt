@@ -41,6 +41,8 @@ const Body = z.object({
   promptOffset: z.number().int().min(0).optional(),
   // Seed-Ziel für diesen Kunden (überschreibt AIVIS_PROMPT_TARGET, default 30).
   promptTarget: z.number().int().min(1).max(200).optional(),
+  // Korpus-Provider für mode brand-backfill (Standard: dataforseo seit 2026-07-19).
+  backfillProvider: z.enum(["dataforseo", "ahrefs-br"]).default("dataforseo"),
 });
 
 // Async-Design: fire-and-forget IM Prozess wird vom Hosting nach der Response
@@ -206,6 +208,39 @@ function dfsAuth(): string | null {
   return "Basic " + Buffer.from(`${login}:${pass}`).toString("base64");
 }
 
+// Generischer DataForSEO-Live-Call (AI-Optimization-APIs). Shapes live
+// verifiziert 2026-07-19: llm_mentions/search liefert items[] mit platform,
+// model_name, question, answer (Volltext), sources[{domain,url,title}],
+// ai_search_volume, first/last_response_at; ai_keyword_data liefert items[]
+// mit keyword, ai_search_volume, ai_monthly_searches.
+async function dfsAiCall(path: string, task: any): Promise<{ ok: boolean; result?: any; error?: string }> {
+  const auth = dfsAuth();
+  if (!auth) return { ok: false, error: "DATAFORSEO_LOGIN/PASSWORD fehlt" };
+  try {
+    const r = await fetch(`https://api.dataforseo.com/v3/${path}`, {
+      method: "POST",
+      headers: { Authorization: auth, "Content-Type": "application/json" },
+      body: JSON.stringify([task]),
+      signal: AbortSignal.timeout(60_000),
+    });
+    const j: any = await r.json().catch(() => null);
+    const t = j?.tasks?.[0];
+    if (!r.ok || !t) return { ok: false, error: `HTTP ${r.status}` };
+    if (Number(t.status_code) >= 40000) return { ok: false, error: `${t.status_code}: ${String(t.status_message || "").slice(0, 140)}` };
+    return { ok: true, result: t.result };
+  } catch (e) {
+    return { ok: false, error: String((e as any)?.message || e).slice(0, 140) };
+  }
+}
+
+// Plattform-Keys der LLM-Mentions-API -> Anzeigenamen (Korpus: ChatGPT + Google).
+const DFS_LLM_LABEL: Record<string, string> = {
+  chat_gpt: "ChatGPT", chatgpt: "ChatGPT",
+  google: "Google AI Overviews", google_ai_overview: "Google AI Overviews", google_ai_overviews: "Google AI Overviews",
+  google_ai_mode: "Google AI Mode",
+};
+const dfsLlmLabel = (k: string) => DFS_LLM_LABEL[String(k).toLowerCase()] || (k ? k.charAt(0).toUpperCase() + k.slice(1) : "KI");
+
 // Harte Deadline UNABHÄNGIG vom AbortSignal: Beobachtung 2026-07-14 — serp_ai
 // hing trotz AbortSignal.timeout endlos (Runtime ignoriert das Signal bei
 // toten Verbindungen). Promise.race garantiert, dass jeder Call terminiert.
@@ -221,7 +256,7 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
-const BUILD_TAG = "2026-07-19-daily"; // Deploy-Verifikation via GET-Antwort
+const BUILD_TAG = "2026-07-19-dfs-v3"; // Deploy-Verifikation via GET-Antwort
 
 // ── Score v2 (2026-07-18): Sättigung statt harter Deckel ─────────────────────
 // Konstanten in src/lib/score-config.json (REFs, Gewichte, Glättung, Judge).
@@ -538,6 +573,63 @@ async function jobBrandRadar(c: any, comps: string[] = []) {
     } else errors.push(`cited-pages: ${r.error}`);
   }
 
+  const mentions = models.reduce((a, m) => a + m.mentions, 0);
+  return { models, mentions, citations, citedPagesCount: citedPages.length, citedPages, errors };
+}
+
+// ── br-Schicht NEU (2026-07-19): DataForSEO LLM Mentions statt Ahrefs BR ────
+// Entscheid: Ahrefs komplett raus aus der KI-Sichtbarkeit. Der DFS-Korpus
+// deckt ChatGPT + Google AI Overviews/AI Mode ab (weniger Engines als Ahrefs,
+// dafür CH-Heimmarkt-stark) — Instrumentierungswechsel => measurementVersion
+// v3 (Delta-Sperre + UI-Marker greifen automatisch). jobBrandRadar (Ahrefs)
+// bleibt als Referenz im Code, wird aber nicht mehr aufgerufen.
+async function jobBrandRadarDfs(c: any, comps: string[] = []) {
+  const brand = brandName(c);
+  const domain = cleanDomain(c.domain);
+  const lang = (c.language || "de").slice(0, 2);
+  const errors: string[] = [];
+
+  // 1) Marken-Erwähnungen je Plattform (word_match — partial_match traf
+  //    Substrings wie "Studioformate", live verifiziert 2026-07-19).
+  const models: Array<{ name: string; mentions: number; byCountry: Record<string, number> }> = [];
+  let chMentions = 0;
+  const agg = await dfsAiCall("ai_optimization/llm_mentions/aggregated_metrics/live", {
+    target: [{ keyword: brand, match_type: "word_match", search_scope: ["answer"] }],
+    location_name: "Switzerland", language_code: lang,
+  });
+  if (agg.ok) {
+    const total = agg.result?.[0]?.total || {};
+    for (const p of total.platform || []) {
+      const m = Number(p.mentions || 0);
+      if (m > 0) models.push({ name: dfsLlmLabel(p.key), mentions: m, byCountry: { Schweiz: m } });
+      chMentions += m;
+    }
+  } else errors.push(`aggregated_metrics: ${agg.error}`);
+
+  // 2) Citations + referenzierte eigene Seiten: Antworten, die die eigene
+  //    Domain als Quelle führen (search mit domain-Target).
+  let citations = 0;
+  const pageTally: Record<string, number> = {};
+  if (domain) {
+    const cite = await dfsAiCall("ai_optimization/llm_mentions/search/live", {
+      target: [{ domain }],
+      location_name: "Switzerland", language_code: lang, limit: 100,
+    });
+    if (cite.ok) {
+      const items: any[] = (cite.result?.[0]?.items ?? cite.result?.items ?? []) as any[];
+      for (const it of items) {
+        const own = (it.sources || []).filter((s: any) => {
+          const d = String(s.domain || "").replace(/^www\./, "").toLowerCase();
+          return d === domain || d.endsWith("." + domain);
+        });
+        if (own.length) {
+          citations += own.length;
+          for (const s of own) { const u = normUrl(String(s.url || "")); if (u) pageTally[u] = (pageTally[u] || 0) + 1; }
+        }
+      }
+    } else errors.push(`search(domain): ${cite.error}`);
+  }
+  const citedPages = Object.entries(pageTally).map(([url, responses]) => ({ url, responses }));
   const mentions = models.reduce((a, m) => a + m.mentions, 0);
   return { models, mentions, citations, citedPagesCount: citedPages.length, citedPages, errors };
 }
@@ -1431,24 +1523,27 @@ async function jobPromptRunner(
 // (response = 10 Units je Zeile!), Tiefe ~12 Monate, Filter nur phrase_match.
 // Quelle strikt getrennt: source "korpus-backfill", provider "ahrefs-br" —
 // NIE mit der eigenen Linie gemischt, KEIN Einfluss auf Score/SoV/Version.
-async function jobBrandBackfill(c: any, sbAny: any, months: number) {
-  const key = process.env.AHREFS_API_KEY;
-  if (!key) return { skipped: "AHREFS_API_KEY fehlt" };
+async function jobBrandBackfill(c: any, sbAny: any, months: number, provider: string = "dataforseo") {
+  // Provider "dataforseo" (Standard seit 2026-07-19, Ahrefs-Ablösung) oder
+  // "ahrefs-br" (Referenz/Alt — 12 Monate Tiefe, kostet Units).
+  if (provider === "ahrefs-br" && !process.env.AHREFS_API_KEY) return { skipped: "AHREFS_API_KEY fehlt" };
+  if (provider === "dataforseo" && !dfsAuth()) return { skipped: "DATAFORSEO-Creds fehlen" };
+  const key = process.env.AHREFS_API_KEY || "";
   const cfg: any = (SCORE_CFG as any).brandBackfill || { maxAnswersPerMonth: 30, monthsPerRequest: 2 };
   const brand = brandName(c);
   const facts = await getBrandFacts(c, sbAny).catch(() => null);
   const now = new Date();
   const iso = (d: Date) => d.toISOString().slice(0, 10);
-  const monthsList: Array<{ key: string; from: string; to: string }> = [];
+  const monthsList: Array<{ key: string; from: string; to: string; y: number; m: number }> = [];
   for (let k = 1; k <= months; k++) {
     const d = new Date(now.getFullYear(), now.getMonth() - k, 1);
     const end = new Date(now.getFullYear(), now.getMonth() - k + 1, 0);
-    monthsList.push({ key: iso(d).slice(0, 7), from: iso(d), to: iso(end) });
+    monthsList.push({ key: iso(d).slice(0, 7), from: iso(d), to: iso(end), y: d.getFullYear(), m: d.getMonth() });
   }
   // Idempotent/wiederaufnehmbar: vorhandene Monats-Punkte überspringen.
   const { data: existing } = await sbAny
     .from("ai_visibility_brand_history").select("point_date")
-    .eq("client_id", c.id).eq("source", "korpus-backfill").eq("provider", "ahrefs-br");
+    .eq("client_id", c.id).eq("source", "korpus-backfill").eq("provider", provider);
   const have = new Set((existing || []).map((x: any) => String(x.point_date).slice(0, 7)));
   const todo = monthsList.filter((m) => !have.has(m.key));
   let processed = 0, rowsTotal = 0;
@@ -1457,24 +1552,46 @@ async function jobBrandBackfill(c: any, sbAny: any, months: number) {
   for (const m of todo) {
     if (processed >= cfg.monthsPerRequest) break; // Etappe voll — Aufrufer loopt
     processed += 1;
-    // Feld-Lektionen (2026-07-18, doc-verifiziert): ai-responses kennt KEIN
-    // date_from/to — nur EIN `date` (Stichtag, YYYY-MM-DD) = Korpus-Snapshot
-    // zu diesem Datum; Zeilen tragen last_updated. select-Felder: question,
-    // response(10 Units), volume, country, links, search_queries, tags,
-    // data_source, last_updated. order_by nur relevance|volume. data_source
-    // als Komma-String. Monats-Punkt = Snapshot am Monatsende.
-    const r = await brandRadar("ai-responses", {
-      select: "last_updated,data_source,response",
-      brand,
-      data_source: SOURCES.map((s) => s.ds).join(","),
-      date: m.to,
-      limit: Math.max(1, cfg.maxAnswersPerMonth), // Kosten-/Mengendeckel (10 Units/Zeile)
-      search_volume_type: "ask_volume",
-    }, key);
-    if (!r.ok) { errors.push(`${m.key}: ${r.error}`); continue; } // Monat bleibt offen -> Retry möglich
-    const raw: any[] = (r.data?.ai_responses ?? r.data?.responses ?? r.data?.items ?? []) as any[];
+    let raw: any[] = [];
+    if (provider === "dataforseo") {
+      // DFS-Korpus (Standard seit 2026-07-19): Antworten mit first_response_at
+      // im Monatsfenster (CH-Heimmarkt; Tiefe ~7 Monate, ältere Monate leer).
+      const nextM = new Date(m.y, m.m + 1, 1).toISOString().slice(0, 10);
+      const r = await dfsAiCall("ai_optimization/llm_mentions/search/live", {
+        target: [{ keyword: brand, match_type: "word_match", search_scope: ["answer"] }],
+        location_name: "Switzerland", language_code: (c.language || "de").slice(0, 2),
+        limit: Math.max(1, cfg.maxAnswersPerMonth),
+        filters: [["first_response_at", ">=", `${m.from} 00:00:00 +00:00`], "and", ["first_response_at", "<", `${nextM} 00:00:00 +00:00`]],
+      });
+      if (!r.ok) { errors.push(`${m.key}: ${r.error}`); continue; } // Monat bleibt offen -> Retry möglich
+      raw = ((r.result?.[0]?.items ?? []) as any[]).map((x: any) => ({
+        last_updated: String(x.first_response_at || m.to).slice(0, 10),
+        data_source: x.model_name || x.platform,
+        response: x.answer,
+      }));
+    } else {
+      // Ahrefs-Referenzpfad (Feld-Lektionen 2026-07-18, doc-verifiziert):
+      // nur date-Stichtag (kein from/to), Zeilen tragen last_updated,
+      // response = 10 Units je Zeile, order_by nur relevance|volume.
+      const r = await brandRadar("ai-responses", {
+        select: "last_updated,data_source,response",
+        brand,
+        data_source: SOURCES.map((s) => s.ds).join(","),
+        date: m.to,
+        limit: Math.max(1, cfg.maxAnswersPerMonth), // Kosten-/Mengendeckel (10 Units/Zeile)
+        search_volume_type: "ask_volume",
+      }, key);
+      if (!r.ok) { errors.push(`${m.key}: ${r.error}`); continue; } // Monat bleibt offen -> Retry möglich
+      raw = (r.data?.ai_responses ?? r.data?.responses ?? r.data?.items ?? []) as any[];
+    }
     const answers = raw
-      .map((x: any) => ({ date: String(x.last_updated || m.to), engine: SOURCES.find((s) => s.ds === x.data_source)?.name || String(x.data_source || "KI"), text: String(x.response || "") }))
+      .map((x: any) => ({
+        date: String(x.last_updated || m.to),
+        engine: provider === "dataforseo"
+          ? dfsLlmLabel(String(x.data_source || ""))
+          : (SOURCES.find((s) => s.ds === x.data_source)?.name || String(x.data_source || "KI")),
+        text: String(x.response || ""),
+      }))
       .filter((a) => a.text.length > 40)
       .slice(0, cfg.maxAnswersPerMonth);
     if (raw.length >= cfg.maxAnswersPerMonth) diag(`brand-backfill ${m.key}: Deckel greift (${cfg.maxAnswersPerMonth} Antworten)`);
@@ -1523,7 +1640,7 @@ async function jobBrandBackfill(c: any, sbAny: any, months: number) {
       };
     }
     await sbAny.from("ai_visibility_brand_history").upsert({
-      client_id: c.id, point_date: m.from, source: "korpus-backfill", provider: "ahrefs-br",
+      client_id: c.id, point_date: m.from, source: "korpus-backfill", provider,
       data, updated_at: new Date().toISOString(),
     }, { onConflict: "client_id,point_date,source,provider" });
     doneMonths.push(m.key);
@@ -1621,8 +1738,7 @@ async function jobCanonry(c: any) {
 // gefüllt sind. NICHT backfillbar: Custom-Layer (Prompts/SoV/Sentiment) — die
 // wachsen ab jetzt vorwärts.
 async function jobBackfill(c: any, sb: any, months: number) {
-  const key = process.env.AHREFS_API_KEY;
-  if (!key && !c.ga4_property) return { skipped: "weder Ahrefs-Key noch GA4" };
+  if (!dfsAuth() && !c.ga4_property) return { skipped: "weder DataForSEO-Creds noch GA4" };
   const brand = brandName(c);
   const now = new Date();
   const mk = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -1635,17 +1751,24 @@ async function jobBackfill(c: any, sb: any, months: number) {
   const dateFrom = `${monthsList[0].key}-01`;
   const dateTo = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10); // letzter Tag Vormonat
 
-  // Ahrefs Mentions-History (1 Call, alle Quellen) -> Level je Monat (letzter Punkt).
+  // Erwähnungs-Historie je Monat — seit 2026-07-19 aus dem DataForSEO-LLM-
+  // Mentions-Korpus (Ahrefs raus aus der KI-Sichtbarkeit, Entscheid im Chat).
+  // Tiefe des CH-Korpus: ~7 Monate (aeltere Monate bleiben 0); ein search-Call
+  // je Monat, gezaehlt wird ueber first_response_at-Fenster.
   const byMonth: Record<string, number> = {};
-  if (key) {
-    const r = await brandRadar("mentions-history", {
-      date_from: dateFrom, date_to: dateTo,
-      data_source: SOURCES.map((s) => s.ds).join(","),
-      brand,
-    }, key);
-    if (r.ok) {
-      const pts = ((r.data?.metrics ?? []) as any[]).slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
-      for (const p of pts) byMonth[String(p.date).slice(0, 7)] = Number(p.mentions ?? 0); // asc -> letzter gewinnt
+  {
+    const lang = (c.language || "de").slice(0, 2);
+    for (const mo of monthsList) {
+      const from = `${mo.key}-01 00:00:00 +00:00`;
+      const nextM = new Date(mo.y, mo.m + 1, 1).toISOString().slice(0, 10);
+      const r = await dfsAiCall("ai_optimization/llm_mentions/search/live", {
+        target: [{ keyword: brand, match_type: "word_match", search_scope: ["answer"] }],
+        location_name: "Switzerland", language_code: lang, limit: 100,
+        filters: [["first_response_at", ">=", from], "and", ["first_response_at", "<", `${nextM} 00:00:00 +00:00`]],
+      });
+      if (!r.ok) continue; // Monat bleibt 0 — Korpus-Tiefe ~7 Monate
+      const items: any[] = (r.result?.[0]?.items ?? []) as any[];
+      byMonth[mo.key] = items.length;
     }
   }
 
@@ -1716,7 +1839,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         const parsed = Body.safeParse(await request.json().catch(() => ({})));
         if (!parsed.success)
           return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
-        const { client: sel, all, jobs, minIntervalDays, force, mode, months, serpKeywords, async: runAsync, promptOffset, promptTarget } = parsed.data;
+        const { client: sel, all, jobs, minIntervalDays, force, mode, months, serpKeywords, async: runAsync, promptOffset, promptTarget, backfillProvider } = parsed.data;
         const wanted = jobs && jobs.length ? jobs : (["brand_radar", "attribution", "prompts", "canonry", "serp_ai"] as const);
 
         const query = supabaseAdmin
@@ -1781,7 +1904,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             }
             // Marken-Check-Korpus-Backfill (H2): on-demand, etappenweise, dann fertig.
             if (mode === "brand-backfill") {
-              jr.brandBackfill = await withDeadline(jobBrandBackfill(c, sb, months), 12 * 60_000, "brand-backfill")
+              jr.brandBackfill = await withDeadline(jobBrandBackfill(c, sb, months, backfillProvider), 12 * 60_000, "brand-backfill")
                 .catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }));
               results.push({ client: c.name, domain: c.domain, jobs: jr });
               continue;
@@ -1822,7 +1945,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
 
             // Job-Level-Deadlines (wie serp_ai): kein Job darf den Lauf endlos halten.
             const br: any = wanted.includes("brand_radar")
-              ? await withDeadline(jobBrandRadar(c, fixedComps), 6 * 60_000, "brand_radar").catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }))
+              ? await withDeadline(jobBrandRadarDfs(c, fixedComps), 6 * 60_000, "brand_radar").catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }))
               : null;
             const at: any = wanted.includes("attribution")
               ? await withDeadline(jobAttribution(c), 5 * 60_000, "attribution").catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }))
@@ -2090,20 +2213,29 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 for (let off = 0; off < promptInserts.length; off += 500)
                   await sb.from("ai_visibility_prompts").insert(promptInserts.slice(off, off + 500));
                 diag(`${c.name}: prompt-Zeilen geschrieben (${promptInserts.length}${pr.chunk ? `, Häppchen ab ${pr.chunk.offset}` : ""})`);
-                // Semrush: echte Suchvolumina in die Themen (füllt die AI-Vol.-Spalte).
-                // PARALLEL + Gesamt-Deadline (2026-07-16): sequenziell konnten
-                // ~30 haengende Semrush-Calls den Lauf >10 Min ueber das
-                // Hosting-Kap schieben — Volumina sind nice-to-have, nie toedlich.
-                if (process.env.SEMRUSH_API_KEY && !prPartial) {
-                  const vols = await withDeadline(
-                    Promise.all(pr.topics.map((t: any) => semrushVolume(t.topic, db).catch(() => 0))),
+                // AI-Suchvolumen in die Themen (seit 2026-07-19 DataForSEO
+                // AI Keyword Data statt Semrush): misst, wie oft solche Fragen
+                // tatsächlich an KI-Tools gehen — EIN Call für alle Themen.
+                if (!prPartial && pr.topics?.length) {
+                  const vr = await withDeadline(
+                    dfsAiCall("ai_optimization/ai_keyword_data/keywords_search_volume/live", {
+                      keywords: pr.topics.slice(0, 500).map((t: any) => String(t.topic).slice(0, 80)),
+                      language_code: (c.language || "de").slice(0, 2),
+                      location_name: "Switzerland",
+                    }),
                     60_000,
-                    "semrush-volumes",
+                    "ai-volumes",
                   ).catch(() => null);
                   let vf = 0;
-                  if (vols) pr.topics.forEach((t: any, i: number) => { t.volume = Number(vols[i] || 0); if (t.volume > 0) vf++; });
+                  const items: any[] = (vr && (vr as any).ok ? ((vr as any).result?.[0]?.items ?? []) : []) as any[];
+                  const volByKw = new Map(items.map((i: any) => [String(i.keyword || "").toLowerCase(), Number(i.ai_search_volume || 0)]));
+                  pr.topics.forEach((t: any) => {
+                    t.volume = volByKw.get(String(t.topic).slice(0, 80).toLowerCase()) || 0;
+                    if (t.volume > 0) vf++;
+                  });
                   (jr.semrush as any).volumesFilled = vf;
-                  diag(`${c.name}: semrush-Volumina ${vols ? "ok (" + vf + ")" : "Deadline — uebersprungen"}`);
+                  (jr.semrush as any).quelle = "dataforseo-ai";
+                  diag(`${c.name}: AI-Volumina ${items.length ? "ok (" + vf + " > 0)" : "keine Daten"}`);
                 }
                 if (pr.topics?.length && !prPartial)
                   await sb.from("ai_visibility_topics").insert(
