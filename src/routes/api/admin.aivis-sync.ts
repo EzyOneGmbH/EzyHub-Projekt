@@ -259,7 +259,7 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
-const BUILD_TAG = "2026-07-19-cit-bf"; // Deploy-Verifikation via GET-Antwort
+const BUILD_TAG = "2026-07-20-korpus-breit"; // Deploy-Verifikation via GET-Antwort
 
 // ── Score v2 (2026-07-18): Sättigung statt harter Deckel ─────────────────────
 // Konstanten in src/lib/score-config.json (REFs, Gewichte, Glättung, Judge).
@@ -592,33 +592,39 @@ async function jobBrandRadarDfs(c: any, comps: string[] = []) {
   const lang = (c.language || "de").slice(0, 2);
   const errors: string[] = [];
 
-  // 1) Marken-Erwähnungen je Plattform (word_match — partial_match traf
-  //    Substrings wie "Studioformate", live verifiziert 2026-07-19).
-  const models: Array<{ name: string; mentions: number; byCountry: Record<string, number> }> = [];
-  let chMentions = 0;
-  const agg = await dfsAiCall("ai_optimization/llm_mentions/aggregated_metrics/live", {
-    target: [{ keyword: brand, match_type: "word_match", search_scope: ["answer"] }],
-    location_name: "Switzerland", language_code: lang,
-  });
-  if (agg.ok) {
+  // 1) Marken-Erwähnungen je Plattform × DACH-Markt (Option B, 2026-07-20:
+  //    vorher nur CH — jetzt CH/DE/AT; word_match, weil partial_match
+  //    Substrings wie "Studioformate" traf, live verifiziert 2026-07-19).
+  const modelAgg: Record<string, { name: string; mentions: number; byCountry: Record<string, number> }> = {};
+  for (const loc of [{ location_name: "Switzerland", land: "Schweiz" }, { location_name: "Germany", land: "Deutschland" }, { location_name: "Austria", land: "Österreich" }]) {
+    const agg = await dfsAiCall("ai_optimization/llm_mentions/aggregated_metrics/live", {
+      target: [{ keyword: brand, match_type: "word_match", search_scope: ["answer"] }],
+      location_name: loc.location_name, language_code: lang,
+    });
+    if (!agg.ok) { errors.push(`aggregated_metrics/${loc.land}: ${agg.error}`); continue; }
     const total = agg.result?.[0]?.total || {};
     for (const p of total.platform || []) {
       const m = Number(p.mentions || 0);
-      if (m > 0) models.push({ name: dfsLlmLabel(p.key), mentions: m, byCountry: { Schweiz: m } });
-      chMentions += m;
+      if (m <= 0) continue;
+      const name = dfsLlmLabel(p.key);
+      const e = (modelAgg[name] ??= { name, mentions: 0, byCountry: {} });
+      e.mentions += m;
+      e.byCountry[loc.land] = (e.byCountry[loc.land] || 0) + m;
     }
-  } else errors.push(`aggregated_metrics: ${agg.error}`);
+  }
+  const models = Object.values(modelAgg);
 
   // 2) Citations + referenzierte eigene Seiten: Antworten, die die eigene
-  //    Domain als Quelle führen (search mit domain-Target).
+  //    Domain als Quelle führen — über beide Plattformen × DACH-Märkte.
   let citations = 0;
   const pageTally: Record<string, number> = {};
   if (domain) {
-    const cite = await dfsAiCall("ai_optimization/llm_mentions/search/live", {
-      target: [{ domain }],
-      location_name: "Switzerland", language_code: lang, limit: 100,
-    });
-    if (cite.ok) {
+    for (const slice of DFS_CORPUS_SLICES) {
+      const cite = await dfsAiCall("ai_optimization/llm_mentions/search/live", {
+        target: [{ domain }],
+        platform: slice.platform, location_name: slice.location_name, language_code: slice.language_code, limit: 100,
+      });
+      if (!cite.ok) { errors.push(`search(${slice.platform}/${slice.land}): ${cite.error}`); continue; }
       const items: any[] = (cite.result?.[0]?.items ?? cite.result?.items ?? []) as any[];
       for (const it of items) {
         const own = (it.sources || []).filter((s: any) => {
@@ -630,7 +636,7 @@ async function jobBrandRadarDfs(c: any, comps: string[] = []) {
           for (const s of own) { const u = normUrl(String(s.url || "")); if (u) pageTally[u] = (pageTally[u] || 0) + 1; }
         }
       }
-    } else errors.push(`search(domain): ${cite.error}`);
+    }
   }
   const citedPages = Object.entries(pageTally).map(([url, responses]) => ({ url, responses }));
   const mentions = models.reduce((a, m) => a + m.mentions, 0);
@@ -1685,30 +1691,47 @@ async function jobBrandBackfill(c: any, sbAny: any, months: number, provider: st
   };
 }
 
+// Korpus-Breite (Option B, 2026-07-20): explizit BEIDE Plattformen des
+// LLM-Mentions-Korpus (chat_gpt + google) über die drei DACH-Märkte —
+// vorher wurde nur CH ohne Plattform-Angabe abgefragt (dünne Treffer).
+const DFS_CORPUS_SLICES: Array<{ platform: string; location_name: string; language_code: string; land: string }> = [
+  { platform: "google", location_name: "Switzerland", language_code: "de", land: "Schweiz" },
+  { platform: "chat_gpt", location_name: "Switzerland", language_code: "de", land: "Schweiz" },
+  { platform: "google", location_name: "Germany", language_code: "de", land: "Deutschland" },
+  { platform: "chat_gpt", location_name: "Germany", language_code: "de", land: "Deutschland" },
+  { platform: "google", location_name: "Austria", language_code: "de", land: "Österreich" },
+  { platform: "chat_gpt", location_name: "Austria", language_code: "de", land: "Österreich" },
+];
+
 // Korpus-Citations eines Monats: Antworten im first_response_at-Fenster, die
 // die Kunden-Domain als Quelle führen -> citations (Quellen-Nennungen) +
 // distinct referenzierte eigene URLs. Gemeinsamer Helfer für den Retro-
 // Backfill (citations-backfill) und die Monats-Historie neuer Kunden.
 async function dfsMonthCitations(domain: string, lang: string, from: string, nextStart: string): Promise<{ ok: boolean; citations: number; pages: number; error?: string }> {
-  const r = await dfsAiCall("ai_optimization/llm_mentions/search/live", {
-    target: [{ domain }],
-    location_name: "Switzerland", language_code: lang, limit: 100,
-    filters: [["first_response_at", ">=", `${from} 00:00:00 +00:00`], "and", ["first_response_at", "<", `${nextStart} 00:00:00 +00:00`]],
-  });
-  if (!r.ok) return { ok: false, citations: 0, pages: 0, error: r.error };
-  const items: any[] = (r.result?.[0]?.items ?? []) as any[];
   let citations = 0;
   const urls = new Set<string>();
-  for (const it of items) {
-    for (const s of it.sources || []) {
-      const d = String(s.domain || "").replace(/^www\./, "").toLowerCase();
-      if (d === domain || d.endsWith("." + domain)) {
-        citations += 1;
-        const u = normUrl(String(s.url || ""));
-        if (u) urls.add(u);
+  const errors: string[] = [];
+  for (const slice of DFS_CORPUS_SLICES) {
+    const r = await dfsAiCall("ai_optimization/llm_mentions/search/live", {
+      target: [{ domain }],
+      platform: slice.platform, location_name: slice.location_name, language_code: slice.language_code, limit: 100,
+      filters: [["first_response_at", ">=", `${from} 00:00:00 +00:00`], "and", ["first_response_at", "<", `${nextStart} 00:00:00 +00:00`]],
+    });
+    if (!r.ok) { errors.push(`${slice.platform}/${slice.land}: ${r.error}`); continue; }
+    const items: any[] = (r.result?.[0]?.items ?? []) as any[];
+    for (const it of items) {
+      for (const s of it.sources || []) {
+        const d = String(s.domain || "").replace(/^www\./, "").toLowerCase();
+        if (d === domain || d.endsWith("." + domain)) {
+          citations += 1;
+          const u = normUrl(String(s.url || ""));
+          if (u) urls.add(u);
+        }
       }
     }
   }
+  // Nur als Fehler werten, wenn ALLE Slices scheitern (Teilausfälle zählen weiter).
+  if (errors.length >= DFS_CORPUS_SLICES.length) return { ok: false, citations: 0, pages: 0, error: errors[0] };
   return { ok: true, citations, pages: urls.size };
 }
 
@@ -1819,18 +1842,21 @@ async function jobBackfill(c: any, sb: any, months: number) {
   // je Monat, gezaehlt wird ueber first_response_at-Fenster.
   const byMonth: Record<string, number> = {};
   {
-    const lang = (c.language || "de").slice(0, 2);
     for (const mo of monthsList) {
       const from = `${mo.key}-01 00:00:00 +00:00`;
       const nextM = new Date(mo.y, mo.m + 1, 1).toISOString().slice(0, 10);
-      const r = await dfsAiCall("ai_optimization/llm_mentions/search/live", {
-        target: [{ keyword: brand, match_type: "word_match", search_scope: ["answer"] }],
-        location_name: "Switzerland", language_code: lang, limit: 100,
-        filters: [["first_response_at", ">=", from], "and", ["first_response_at", "<", `${nextM} 00:00:00 +00:00`]],
-      });
-      if (!r.ok) continue; // Monat bleibt 0 — Korpus-Tiefe ~7 Monate
-      const items: any[] = (r.result?.[0]?.items ?? []) as any[];
-      byMonth[mo.key] = items.length;
+      let n = 0;
+      // Option B (2026-07-20): beide Plattformen × DACH-Märkte statt nur CH.
+      for (const slice of DFS_CORPUS_SLICES) {
+        const r = await dfsAiCall("ai_optimization/llm_mentions/search/live", {
+          target: [{ keyword: brand, match_type: "word_match", search_scope: ["answer"] }],
+          platform: slice.platform, location_name: slice.location_name, language_code: slice.language_code, limit: 100,
+          filters: [["first_response_at", ">=", from], "and", ["first_response_at", "<", `${nextM} 00:00:00 +00:00`]],
+        });
+        if (!r.ok) continue; // Slice fällt aus — Rest zählt weiter
+        n += ((r.result?.[0]?.items ?? []) as any[]).length;
+      }
+      byMonth[mo.key] = n; // Korpus-Tiefe ~7 Monate — ältere Monate bleiben 0
     }
   }
 
