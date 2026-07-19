@@ -259,7 +259,7 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
-const BUILD_TAG = "2026-07-20-korpus-breit"; // Deploy-Verifikation via GET-Antwort
+const BUILD_TAG = "2026-07-20-korpus-breit2"; // Deploy-Verifikation via GET-Antwort
 
 // ── Score v2 (2026-07-18): Sättigung statt harter Deckel ─────────────────────
 // Konstanten in src/lib/score-config.json (REFs, Gewichte, Glättung, Judge).
@@ -612,6 +612,25 @@ async function jobBrandRadarDfs(c: any, comps: string[] = []) {
       e.byCountry[loc.land] = (e.byCountry[loc.land] || 0) + m;
     }
   }
+  // ChatGPT-Erwähnungen: globaler Korpus (agg OHNE Location — 40501 sonst);
+  // nur den chat_gpt-Eintrag übernehmen, die google-Anteile kämen sonst doppelt.
+  {
+    const aggG = await dfsAiCall("ai_optimization/llm_mentions/aggregated_metrics/live", {
+      target: [{ keyword: brand, match_type: "word_match", search_scope: ["answer"] }],
+    });
+    if (aggG.ok) {
+      for (const p of aggG.result?.[0]?.total?.platform || []) {
+        const k = String(p.key || "").toLowerCase();
+        if (k !== "chat_gpt" && k !== "chatgpt") continue;
+        const m = Number(p.mentions || 0);
+        if (m <= 0) continue;
+        const name = dfsLlmLabel(p.key);
+        const e = (modelAgg[name] ??= { name, mentions: 0, byCountry: {} });
+        e.mentions += m;
+        e.byCountry["Global"] = (e.byCountry["Global"] || 0) + m;
+      }
+    } else errors.push(`aggregated_metrics/global: ${aggG.error}`);
+  }
   const models = Object.values(modelAgg);
 
   // 2) Citations + referenzierte eigene Seiten: Antworten, die die eigene
@@ -622,7 +641,7 @@ async function jobBrandRadarDfs(c: any, comps: string[] = []) {
     for (const slice of DFS_CORPUS_SLICES) {
       const cite = await dfsAiCall("ai_optimization/llm_mentions/search/live", {
         target: [{ domain }],
-        platform: slice.platform, location_name: slice.location_name, language_code: slice.language_code, limit: 100,
+        ...dfsSliceParams(slice), limit: 100,
       });
       if (!cite.ok) { errors.push(`search(${slice.platform}/${slice.land}): ${cite.error}`); continue; }
       const items: any[] = (cite.result?.[0]?.items ?? cite.result?.items ?? []) as any[];
@@ -1694,14 +1713,17 @@ async function jobBrandBackfill(c: any, sbAny: any, months: number, provider: st
 // Korpus-Breite (Option B, 2026-07-20): explizit BEIDE Plattformen des
 // LLM-Mentions-Korpus (chat_gpt + google) über die drei DACH-Märkte —
 // vorher wurde nur CH ohne Plattform-Angabe abgefragt (dünne Treffer).
-const DFS_CORPUS_SLICES: Array<{ platform: string; location_name: string; language_code: string; land: string }> = [
+// ChatGPT-Korpus ist GLOBAL: location_name/language_code sind dort Invalid
+// Field (40501, live verifiziert 2026-07-20) — deshalb EIN globaler Slice.
+const DFS_CORPUS_SLICES: Array<{ platform: string; location_name?: string; language_code?: string; land: string }> = [
   { platform: "google", location_name: "Switzerland", language_code: "de", land: "Schweiz" },
-  { platform: "chat_gpt", location_name: "Switzerland", language_code: "de", land: "Schweiz" },
   { platform: "google", location_name: "Germany", language_code: "de", land: "Deutschland" },
-  { platform: "chat_gpt", location_name: "Germany", language_code: "de", land: "Deutschland" },
   { platform: "google", location_name: "Austria", language_code: "de", land: "Österreich" },
-  { platform: "chat_gpt", location_name: "Austria", language_code: "de", land: "Österreich" },
+  { platform: "chat_gpt", land: "Global" },
 ];
+// Slice-Parameter für search/live — chat_gpt darf keine Location/Sprache tragen.
+const dfsSliceParams = (s: { platform: string; location_name?: string; language_code?: string }) =>
+  ({ platform: s.platform, ...(s.location_name ? { location_name: s.location_name, language_code: s.language_code } : {}) });
 
 // Korpus-Citations eines Monats: Antworten im first_response_at-Fenster, die
 // die Kunden-Domain als Quelle führen -> citations (Quellen-Nennungen) +
@@ -1714,7 +1736,7 @@ async function dfsMonthCitations(domain: string, lang: string, from: string, nex
   for (const slice of DFS_CORPUS_SLICES) {
     const r = await dfsAiCall("ai_optimization/llm_mentions/search/live", {
       target: [{ domain }],
-      platform: slice.platform, location_name: slice.location_name, language_code: slice.language_code, limit: 100,
+      ...dfsSliceParams(slice), limit: 100,
       filters: [["first_response_at", ">=", `${from} 00:00:00 +00:00`], "and", ["first_response_at", "<", `${nextStart} 00:00:00 +00:00`]],
     });
     if (!r.ok) { errors.push(`${slice.platform}/${slice.land}: ${r.error}`); continue; }
@@ -1850,7 +1872,7 @@ async function jobBackfill(c: any, sb: any, months: number) {
       for (const slice of DFS_CORPUS_SLICES) {
         const r = await dfsAiCall("ai_optimization/llm_mentions/search/live", {
           target: [{ keyword: brand, match_type: "word_match", search_scope: ["answer"] }],
-          platform: slice.platform, location_name: slice.location_name, language_code: slice.language_code, limit: 100,
+          ...dfsSliceParams(slice), limit: 100,
           filters: [["first_response_at", ">=", from], "and", ["first_response_at", "<", `${nextM} 00:00:00 +00:00`]],
         });
         if (!r.ok) continue; // Slice fällt aus — Rest zählt weiter
