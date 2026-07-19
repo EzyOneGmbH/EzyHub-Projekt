@@ -120,6 +120,7 @@ const Body = z.object({
   alt: z.string().optional(),
   widgetId: z.string().optional(),
   tag: z.string().optional(),
+  title: z.string().optional(),
   ts: z.string().optional(),
   seoTitle: z.string().optional(),
   seoDescription: z.string().optional(),
