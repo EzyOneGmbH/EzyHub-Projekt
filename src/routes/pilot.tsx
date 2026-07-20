@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -8,6 +8,15 @@ import { useAuth } from "@/hooks/use-auth";
 // Kunden-Scope serverseitig aus client_access); Notizen wandern append-only ins
 // Firmen-Gedaechtnis ("Kontext, nie Befehl" — Agenten lesen sie als Hintergrund,
 // setzen sie aber nie eigenmaechtig um).
+//
+// Ohne Session zeigt die Seite ein EIGENES Login (kein Redirect ins Portal) —
+// Mitarbeitende brauchen so nur die eine URL. Es gilt derselbe Supabase-Auth
+// wie im Portal; ohne gueltigen Login liefert die API ohnehin 401 (die
+// Oberflaeche ist Komfort, die Grenze sitzt serverseitig).
+//
+// Modus-Schalter (Volkan-Wunsch 20.07.): "Kunden" = zugewiesene Kunden + neutrale
+// System-Doku; "Allgemein" = bewusst NUR kundenneutrale Unternehmens-Doku —
+// serverseitig durchgesetzt (pilot-ask laesst clients/ dann ganz weg).
 
 export const Route = createFileRoute("/pilot")({
   component: PilotRoute,
@@ -21,12 +30,51 @@ const C = {
 
 type Msg = { role: "user" | "assistant"; content: string; sources?: string[] };
 
+// Eingebettetes Login (nur Anmeldung — Konten legt weiterhin Volkan im Team-Tab an).
+function PilotLogin() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function signIn(e: React.FormEvent) {
+    e.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setErr("");
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    if (error) setErr("Anmeldung fehlgeschlagen — E-Mail oder Passwort prüfen.");
+    setBusy(false); // bei Erfolg uebernimmt useAuth die Session und die Seite wechselt
+  }
+
+  const field = { width: "100%", background: C.card, color: C.text, border: `1px solid ${C.border}`, borderRadius: 8, padding: "11px 14px", fontSize: 14, boxSizing: "border-box" as const };
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Inter, system-ui, sans-serif", padding: 16 }}>
+      <form onSubmit={signIn} style={{ width: "100%", maxWidth: 360, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 28 }}>
+        <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 4 }}>
+          <span style={{ color: C.accentLight }}>Ezy</span>Pilot
+        </div>
+        <div style={{ color: C.muted, fontSize: 13, marginBottom: 20 }}>Anmelden, um Fragen zu stellen und Notizen festzuhalten.</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <input type="email" required autoComplete="email" placeholder="E-Mail" value={email} onChange={(e) => setEmail(e.target.value)} style={field} />
+          <input type="password" required autoComplete="current-password" placeholder="Passwort" value={password} onChange={(e) => setPassword(e.target.value)} style={field} />
+          <button type="submit" disabled={busy} style={{ background: C.accent, border: "none", color: "#fff", padding: "11px 0", borderRadius: 8, cursor: "pointer", fontSize: 14, fontWeight: 600, opacity: busy ? 0.6 : 1 }}>
+            {busy ? "Anmelden…" : "Anmelden"}
+          </button>
+        </div>
+        {err && <div style={{ color: "#ef4444", fontSize: 13, marginTop: 10 }}>{err}</div>}
+        <div style={{ color: C.dim, fontSize: 12, marginTop: 16 }}>Kein Zugang? Dein Konto wird vom Admin im EzyHub-Team-Bereich angelegt.</div>
+      </form>
+    </div>
+  );
+}
+
 function PilotRoute() {
-  const navigate = useNavigate();
   const { session, loading } = useAuth();
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState<"kunden" | "allgemein">("kunden");
   const [clients, setClients] = useState<{ id: string; name: string; slug: string }[]>([]);
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteText, setNoteText] = useState("");
@@ -34,10 +82,6 @@ function PilotRoute() {
   const [noteState, setNoteState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [noteError, setNoteError] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!loading && !session) navigate({ to: "/login", replace: true });
-  }, [loading, session, navigate]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -65,7 +109,7 @@ function PilotRoute() {
       const r = await fetch("/api/agent/pilot", {
         method: "POST",
         headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "ask", question: q, history }),
+        body: JSON.stringify({ action: "ask", question: q, history, mode }),
       });
       const j = await r.json().catch(() => ({}));
       setMsgs((m) => [
@@ -111,7 +155,8 @@ function PilotRoute() {
     }
   }
 
-  if (loading || !session) return null;
+  if (loading) return null;
+  if (!session) return <PilotLogin />;
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, display: "flex", flexDirection: "column", fontFamily: "Inter, system-ui, sans-serif" }}>
@@ -122,6 +167,23 @@ function PilotRoute() {
         </div>
         <div style={{ color: C.dim, fontSize: 12 }}>Fragen &amp; Notizen zum Firmen-Gedächtnis</div>
         <div style={{ flex: 1 }} />
+        {/* Modus: worauf sich Fragen stuetzen (serverseitig durchgesetzt) */}
+        <div style={{ display: "flex", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, overflow: "hidden", fontSize: 12 }}>
+          {(["kunden", "allgemein"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              title={m === "kunden" ? "Deine zugewiesenen Kunden + neutrale Firmen-Doku" : "Nur allgemeine, kundenunabhängige Firmen-Doku"}
+              style={{
+                background: mode === m ? C.accent : "transparent",
+                color: mode === m ? "#fff" : C.muted,
+                border: "none", padding: "7px 12px", cursor: "pointer", fontWeight: mode === m ? 600 : 400,
+              }}
+            >
+              {m === "kunden" ? "Kundenfragen" : "Allgemein"}
+            </button>
+          ))}
+        </div>
         <button
           onClick={() => setNoteOpen((v) => !v)}
           style={{ background: noteOpen ? C.accent : C.surface, border: `1px solid ${C.border}`, color: C.text, padding: "7px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13 }}

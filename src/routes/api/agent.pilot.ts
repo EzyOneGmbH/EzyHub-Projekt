@@ -132,6 +132,9 @@ export const Route = createFileRoute("/api/agent/pilot")({
             body: JSON.stringify({
               question: String(body.question || ""),
               history: Array.isArray(body.history) ? body.history.slice(-12) : [],
+              // "allgemein" = bewusst OHNE Kundenunterlagen antworten (nur
+              // kundenneutrale System-Doku); alles andere = Kunden-Modus.
+              mode: body.mode === "allgemein" ? "allgemein" : "kunden",
               allowedSlugs: scope.allowedSlugs,
               isOwner: scope.isOwner,
             }),
