@@ -131,6 +131,13 @@ async function fetchAllPromptRows(reportId: string): Promise<any[]> {
   }
 }
 
+// Sitzungs-Cache (2026-07-21): Das Dashboard feuert ~10 Abfragen je Öffnung.
+// Statt jedes Mal ALLES zu laden, entscheidet EINE Mini-Abfrage (Report-Kopf),
+// ob sich etwas geändert hat — unverändert => Cache; geändert => Vollreload.
+// Der Report wird bei jedem Messlauf upsertet (Score/Mentions/Parts ändern
+// sich), damit ist der Kopf ein verlässlicher Änderungs-Marker.
+const AIVIS_CACHE = new Map<string, { key: string; data: AIVisibilityData }>();
+
 export async function loadAIVisibility(
   clientId: string,
   clientLabel?: string,
@@ -148,6 +155,12 @@ export async function loadAIVisibility(
   if (error) throw new Error(error.message);
   const rep: any = reports?.[0];
   if (!rep) return null; // Empty-State: noch kein Report für diesen Kunden
+
+  // Änderungs-Marker: gleicher Report-Stand -> alles aus dem Cache (0 weitere Abfragen).
+  const cacheId = `${clientId}|${date || "latest"}`;
+  const cacheKey = `${rep.id}|${rep.score}|${rep.mentions}|${rep.citations}|${rep.cited_pages}|${JSON.stringify(rep.parts?.pr?.mentions ?? null)}|${JSON.stringify(rep.parts?.bc?.answered ?? null)}`;
+  const hit = AIVIS_CACHE.get(cacheId);
+  if (hit && hit.key === cacheKey) return hit.data;
 
   // 2) Kind-Tabellen parallel (client_id-Filter zusätzlich -> nutzt die RLS-Policy direkt).
   const [models, topics, prompts, sources, attribution, history, sovRes] = await Promise.all([
@@ -201,7 +214,7 @@ export async function loadAIVisibility(
     if (home + intl > 0) brHomeSplit = { home, intl };
   }
 
-  return {
+  const result: AIVisibilityData = {
     client: clientLabel || String(rep.market ?? ""),
     market: String(rep.market ?? ""),
     date: deCH(String(rep.snapshot_date)),
@@ -315,6 +328,8 @@ export async function loadAIVisibility(
       }))
       .sort((a: any, b: any) => b.share - a.share),
   };
+  AIVIS_CACHE.set(cacheId, { key: cacheKey, data: result });
+  return result;
 }
 
 export function useEzyAIVisibility(clientId?: string, clientLabel?: string) {

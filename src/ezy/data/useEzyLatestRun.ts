@@ -12,6 +12,12 @@ export type LatestRun = {
   created_at: string;
 } | null;
 
+// Sitzungs-Cache (2026-07-21): audit_runs-Zeilen (z. B. rankings) ändern sich
+// höchstens einmal je Messlauf — Tab-/Kunden-Wechsel innerhalb weniger Minuten
+// müssen nicht erneut abfragen. Kurzer TTL, damit frische Pushes zeitnah sichtbar sind.
+const RUN_CACHE = new Map<string, { at: number; run: LatestRun }>();
+const RUN_CACHE_TTL_MS = 3 * 60 * 1000;
+
 /** Latest succeeded audit_runs row of a given audit_type for a client. */
 export function useEzyLatestRun(
   clientId: string | undefined,
@@ -25,6 +31,12 @@ export function useEzyLatestRun(
       setRun(null);
       return;
     }
+    const cacheId = `${clientId}|${auditType}`;
+    const hit = RUN_CACHE.get(cacheId);
+    if (hit && Date.now() - hit.at < RUN_CACHE_TTL_MS) {
+      setRun(hit.run);
+      return;
+    }
     setLoading(true);
     try {
       const { data } = await supabase
@@ -36,7 +48,9 @@ export function useEzyLatestRun(
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      setRun((data as LatestRun) || null);
+      const row = (data as LatestRun) || null;
+      RUN_CACHE.set(cacheId, { at: Date.now(), run: row });
+      setRun(row);
     } catch {
       setRun(null);
     } finally {
