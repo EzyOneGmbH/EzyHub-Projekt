@@ -259,7 +259,7 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
-const BUILD_TAG = "2026-07-20-korpus-breit3"; // Deploy-Verifikation via GET-Antwort
+const BUILD_TAG = "2026-07-21-engine-health"; // Deploy-Verifikation via GET-Antwort
 
 // ── Score v2 (2026-07-18): Sättigung statt harter Deckel ─────────────────────
 // Konstanten in src/lib/score-config.json (REFs, Gewichte, Glättung, Judge).
@@ -2452,6 +2452,26 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
           return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
         const sb = supabaseAdmin as any;
+        // ?engineHealth=1: welche der Mess-Engines haben HEUTE keine einzige
+        // Antwort geliefert? (Guthaben/Quota fallen sonst still aus — Claude
+        // 19.07. via HTTP 400 "credit balance", Perplexity via 401 quota.)
+        if (new URL(request.url).searchParams.get("engineHealth")) {
+          const heute = today();
+          const { data: reps } = await sb
+            .from("ai_visibility_reports").select("id").eq("snapshot_date", heute);
+          const ids = (reps || []).map((r: any) => r.id);
+          const gesehen = new Set<string>();
+          if (ids.length) {
+            for (let off = 0; off < ids.length; off += 50) {
+              const { data: rows } = await sb
+                .from("ai_visibility_prompts").select("platform").in("report_id", ids.slice(off, off + 50));
+              for (const r of rows || []) gesehen.add(String(r.platform));
+            }
+          }
+          const missing = PROMPT_ENGINES.map((e) => e.name).filter((n) => !gesehen.has(n));
+          return Response.json({ ok: true, build: BUILD_TAG, date: heute, present: [...gesehen], missing, reports: ids.length });
+        }
+
         // ?brandAdvisory=1: heutige Marken-Check-Befunde (E4) — der
         // agent-service-Tick holt sie ab und hängt sie an die Wunsch-Queue
         // (Vault ist vom Server aus nicht erreichbar; Hash-Dedupe macht der Tick).
