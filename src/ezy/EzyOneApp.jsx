@@ -2809,13 +2809,32 @@ function SeoDashboard({ selectedClient, dateRange }) {
   const [gscQPage, setGscQPage] = useState(0);
   const [gscFbPage, setGscFbPage] = useState(0);
   const [rankPage, setRankPage] = useState(0);
-  // B1: Rankings-Zeilen sortiert — Money-Keywords zuerst, dann nach Position.
-  const rankRows = rank
-    ? [...(rank.keywords || [])].sort((a, b) => {
-        if (!!b.isMoney !== !!a.isMoney) return b.isMoney ? 1 : -1;
-        return (a.pos ?? 999) - (b.pos ?? 999);
-      })
-    : [];
+  // Sortierung der Rankings-Tabelle (User-Wunsch 2026-07-19): Spaltenklick wechselt.
+  // [0]=Spalte, [1]=asc (true) oder desc (false). Default: Position asc.
+  const [rankSort, setRankSort] = useState(["pos", true]);
+  const toggleRankSort = (col) => {
+    setRankSort(([c, asc]) => (c === col ? [col, !asc] : [col, true]));
+    setRankPage(0);
+  };
+  const rankRows = useMemo(() => {
+    if (!rank) return [];
+    const rows = [...(rank.keywords || [])];
+    const [col, asc] = rankSort;
+    const dir = asc ? 1 : -1;
+    const delta7 = (k) => (k.posPrev7 != null && k.pos != null ? k.posPrev7 - k.pos : null);
+    const delta28 = (k) => (k.posPrev28 != null && k.pos != null ? k.posPrev28 - k.pos : null);
+    rows.sort((a, b) => {
+      let av, bv;
+      if (col === "kw") { av = String(a.kw || "").toLowerCase(); bv = String(b.kw || "").toLowerCase(); return dir * av.localeCompare(bv); }
+      if (col === "pos") { av = a.pos ?? 999; bv = b.pos ?? 999; }
+      else if (col === "d7") { av = delta7(a) ?? -999; bv = delta7(b) ?? -999; }
+      else if (col === "d28") { av = delta28(a) ?? -999; bv = delta28(b) ?? -999; }
+      else if (col === "vol") { av = a.volume ?? -1; bv = b.volume ?? -1; }
+      else { av = 0; bv = 0; }
+      return dir * (av - bv);
+    });
+    return rows;
+  }, [rank, rankSort]);
   const fmtDelta = (cur, prev) => {
     if (cur == null || prev == null) return null;
     return prev - cur; // Position kleiner = besser -> positives Delta = Verbesserung
@@ -2868,12 +2887,31 @@ function SeoDashboard({ selectedClient, dateRange }) {
               <table style={{ width: "100%", minWidth: 560, borderCollapse: "collapse", fontSize: 13 }}>
                 <thead>
                   <tr style={{ color: C.textDim, textAlign: "left" }}>
-                    <th style={{ padding: "6px 8px" }}>Keyword</th>
-                    <th style={{ padding: "6px 8px", textAlign: "right" }}>Position</th>
-                    <th style={{ padding: "6px 8px", textAlign: "right" }}>Δ 7T</th>
-                    <th style={{ padding: "6px 8px", textAlign: "right" }}>Δ 28T</th>
-                    <th style={{ padding: "6px 8px" }}>URL</th>
-                    <th style={{ padding: "6px 8px", textAlign: "right" }}>Volumen</th>
+                    {[
+                      ["kw", "Keyword", "left"],
+                      ["pos", "Position", "right"],
+                      ["d7", "Δ 7T", "right"],
+                      ["d28", "Δ 28T", "right"],
+                      [null, "URL", "left"],
+                      ["vol", "Volumen", "right"],
+                    ].map(([col, label, align]) => (
+                      <th
+                        key={label}
+                        onClick={col ? () => toggleRankSort(col) : undefined}
+                        title={col ? "Klicken zum Sortieren" : undefined}
+                        style={{
+                          padding: "6px 8px",
+                          textAlign: align,
+                          cursor: col ? "pointer" : "default",
+                          userSelect: "none",
+                          whiteSpace: "nowrap",
+                          color: rankSort[0] === col ? C.accent : undefined,
+                        }}
+                      >
+                        {label}
+                        {rankSort[0] === col ? (rankSort[1] ? " ▲" : " ▼") : ""}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
