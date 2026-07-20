@@ -242,7 +242,12 @@ function TopicsTable({ rows }) {
                   </span>
                 </td>
                 <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: C.ink }}>{r.mentions}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: C.sub }}>{nf(r.vol)}</td>
+                {/* "–" = keine Volumen-Daten (AI-Suchvolumen existiert nur für
+                    gängige Suchbegriffe) — bewusst NICHT 0 anzeigen. */}
+                <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: C.sub }}
+                    title={r.vol == null ? "Für dieses Thema liegt kein KI-Suchvolumen vor" : "Geschätzte monatliche Anfragen an KI-Systeme"}>
+                  {r.vol == null ? "–" : nf(r.vol)}
+                </td>
                 <td className="px-5 py-2.5">
                   <span className="rounded-full px-2 py-0.5 text-[11px] font-medium"
                     style={{ background: `${intentColor(r.intent)}26`, color: intentColor(r.intent) }}>

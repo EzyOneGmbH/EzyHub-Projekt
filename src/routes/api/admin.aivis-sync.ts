@@ -259,7 +259,7 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
-const BUILD_TAG = "2026-07-21-serp-spar"; // Deploy-Verifikation via GET-Antwort
+const BUILD_TAG = "2026-07-21-aivol"; // Deploy-Verifikation via GET-Antwort
 
 // ── Score v2 (2026-07-18): Sättigung statt harter Deckel ─────────────────────
 // Konstanten in src/lib/score-config.json (REFs, Gewichte, Glättung, Judge).
@@ -2341,26 +2341,58 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 // AI-Suchvolumen in die Themen (seit 2026-07-19 DataForSEO
                 // AI Keyword Data statt Semrush): misst, wie oft solche Fragen
                 // tatsächlich an KI-Tools gehen — EIN Call für alle Themen.
+                // AI-Suchvolumen (2026-07-21 überarbeitet): Themen-Labels sind
+                // LLM-Kurzbezeichnungen ("Agriturismo vs Landhotel") — dafür
+                // kennt DataForSEO praktisch nie ein Volumen (live belegt).
+                // Deshalb: ECHTE Kunden-Keywords (GSC) abfragen und einem Thema
+                // per Wort-Überlappung zuordnen; ohne Datenlage bleibt volume
+                // NULL ("–" im UI) statt 0 ("keine Nachfrage").
                 if (!prPartial && pr.topics?.length) {
+                  const gscPairs = await gscTopQueryCountryPairs(c, 200).catch(() => []);
+                  const gscKws = [...new Set(gscPairs.map((p: any) => String(p.kw).toLowerCase().trim()))].slice(0, 150);
+                  const kandidaten = [...new Set([
+                    ...pr.topics.map((t: any) => String(t.topic).slice(0, 80).toLowerCase().trim()),
+                    ...gscKws,
+                  ])].filter(Boolean).slice(0, 400);
                   const vr = await withDeadline(
                     dfsAiCall("ai_optimization/ai_keyword_data/keywords_search_volume/live", {
-                      keywords: pr.topics.slice(0, 500).map((t: any) => String(t.topic).slice(0, 80)),
+                      keywords: kandidaten,
                       language_code: (c.language || "de").slice(0, 2),
                       location_name: "Switzerland",
                     }),
                     60_000,
                     "ai-volumes",
                   ).catch(() => null);
-                  let vf = 0;
                   const items: any[] = (vr && (vr as any).ok ? ((vr as any).result?.[0]?.items ?? []) : []) as any[];
-                  const volByKw = new Map(items.map((i: any) => [String(i.keyword || "").toLowerCase(), Number(i.ai_search_volume || 0)]));
+                  // Nur Keywords MIT Datenlage; alles andere bleibt unbekannt.
+                  const treffer = items
+                    .filter((i: any) => Number(i.ai_search_volume || 0) > 0)
+                    .map((i: any) => ({ kw: String(i.keyword || "").toLowerCase(), vol: Number(i.ai_search_volume) }));
+                  const volByKw = new Map(treffer.map((t) => [t.kw, t.vol]));
+                  const wortSet = (s: string) => new Set(String(s).toLowerCase().match(/[\p{L}\d]{3,}/gu) || []);
+                  let vf = 0;
                   pr.topics.forEach((t: any) => {
-                    t.volume = volByKw.get(String(t.topic).slice(0, 80).toLowerCase()) || 0;
-                    if (t.volume > 0) vf++;
+                    const label = String(t.topic).slice(0, 80).toLowerCase();
+                    let vol = volByKw.get(label) ?? null;
+                    if (vol == null) {
+                      // Bestes passendes Kunden-Keyword: alle Keyword-Wörter
+                      // müssen im Thema vorkommen; bei mehreren gewinnt das
+                      // spezifischste (meiste Wörter), dann das grösste Volumen.
+                      const tw = wortSet(label);
+                      let best: { n: number; vol: number } | null = null;
+                      for (const cand of treffer) {
+                        const cw = [...wortSet(cand.kw)];
+                        if (!cw.length || !cw.every((w) => tw.has(w))) continue;
+                        if (!best || cw.length > best.n || (cw.length === best.n && cand.vol > best.vol)) best = { n: cw.length, vol: cand.vol };
+                      }
+                      vol = best ? best.vol : null;
+                    }
+                    t.volume = vol; // null = keine Daten (UI zeigt "–")
+                    if (vol != null) vf++;
                   });
                   (jr.semrush as any).volumesFilled = vf;
-                  (jr.semrush as any).quelle = "dataforseo-ai";
-                  diag(`${c.name}: AI-Volumina ${items.length ? "ok (" + vf + " > 0)" : "keine Daten"}`);
+                  (jr.semrush as any).quelle = "dataforseo-ai (Themen + GSC-Keywords)";
+                  diag(`${c.name}: AI-Volumina ${vf}/${pr.topics.length} Themen (aus ${treffer.length} Keywords mit Daten)`);
                 }
                 if (pr.topics?.length && !prPartial)
                   await sb.from("ai_visibility_topics").insert(

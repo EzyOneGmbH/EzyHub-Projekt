@@ -68,7 +68,7 @@ export type AIVisibilityData = {
     sov: number;
     byCountry: Record<string, number>;
   }[];
-  topics: { topic: string; vis: number; mentions: number; vol: number; intent: string }[];
+  topics: { topic: string; vis: number; mentions: number; vol: number | null; intent: string }[];
   prompts: AIPrompt[];
   promptOpps: AIPrompt[];
   sources: { domain: string; mentions: number; share: number; urls: number; traffic: number }[];
@@ -245,7 +245,9 @@ export async function loadAIVisibility(
       topic: String(t.topic ?? ""),
       vis: Number(t.visibility ?? 0),
       mentions: Number(t.mentions ?? 0),
-      vol: Number(t.volume ?? 0),
+      // null = keine Volumen-Daten (AI-Suchvolumen gibt es nur für gängige
+      // Suchbegriffe) — im UI "–", NICHT 0 ("keine Nachfrage").
+      vol: t.volume == null ? null : Number(t.volume),
       intent: String(t.intent ?? ""),
     })),
     // Markt-Prompts (Sichtbarkeit); Brand-Prompts laufen separat in den Marken-Check.
