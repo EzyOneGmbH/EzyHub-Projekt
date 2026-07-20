@@ -2952,14 +2952,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
                     )
                     .map((k, i) => (
                     <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
-                      <td style={{ padding: "6px 8px", color: C.text }}>
-                        {k.isMoney && (
-                          <span style={{ marginRight: 6 }}>
-                            <Badge color={C.pink}>Money</Badge>
-                          </span>
-                        )}
-                        {k.kw}
-                      </td>
+                      <td style={{ padding: "6px 8px", color: C.text }}>{k.kw}</td>
                       <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 600 }}>
                         {k.pos != null ? k.pos : "> 100"}
                       </td>
@@ -12240,6 +12233,26 @@ function AgentsPage({ selectedClient }) {
     setBusy(false);
   };
 
+  // Autonomie-Schalter (2026-07-20): "autonom" = darf deployen (qa-gate),
+  // "report" = hartes Deploy-Verbot im agent-service (buildAgentPrompt) —
+  // der Agent analysiert und legt Freigabe-Punkte an, setzt aber nichts um.
+  const toggleAutonomy = async (a) => {
+    const next = a.autonomy === "report" ? "autonom" : "report";
+    try {
+      const r = await ezyFetch(`/api/agent/agents?clientId=${encodeURIComponent(clientId)}`, {
+        method: "POST",
+        headers: JSON_HEAD,
+        body: JSON.stringify({ id: a.id, clientId, autonomy: next }),
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || "Fehler");
+      await load();
+      setMsg(next === "report" ? `„${a.name}" arbeitet jetzt NUR-REPORT (keine Deploys).` : `„${a.name}" arbeitet jetzt AUTONOM (Deploys via QA-Gate erlaubt).`);
+    } catch (e) {
+      setMsg(String(e?.message || e));
+    }
+  };
+
   const del = async (id) => {
     if (!window.confirm("Agent wirklich löschen?")) return;
     try {
@@ -12366,6 +12379,25 @@ function AgentsPage({ selectedClient }) {
             </div>
           </div>
           <div>
+            <div style={lbl}>Arbeitsmodus</div>
+            <div style={{ display: "flex", gap: 0, border: `1px solid ${C.border}`, borderRadius: 8, overflow: "hidden", width: "fit-content" }}>
+              {[["autonom", "🤖 Autonom (deployt via QA-Gate)"], ["report", "📋 Nur Report (keine Deploys)"]].map(([val, label]) => (
+                <button
+                  key={val}
+                  onClick={() => setEditing((p) => ({ ...p, autonomy: val }))}
+                  style={{
+                    background: (editing.autonomy === "report" ? "report" : "autonom") === val ? (val === "report" ? C.orange || "#f59e0b" : C.green) : "transparent",
+                    color: (editing.autonomy === "report" ? "report" : "autonom") === val ? "#fff" : C.textMuted,
+                    border: "none", padding: "8px 14px", cursor: "pointer", fontSize: 12, fontWeight: 600,
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 4 }}>„Nur Report" wird im agent-service hart durchgesetzt: der Agent analysiert und legt Freigabe-Punkte an, verändert aber nichts an Kundensystemen — auch keine bereits freigegebenen Punkte.</div>
+          </div>
+          <div>
             <div style={lbl}>Beschreibung (optional)</div>
             <input style={inputStyle} value={editing.description} onChange={(e) => setEditing((p) => ({ ...p, description: e.target.value }))} placeholder="Wofür ist dieser Agent?" />
           </div>
@@ -12405,7 +12437,21 @@ function AgentsPage({ selectedClient }) {
                     <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{a.name}</div>
                     {a.description && <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>{a.description}</div>}
                   </div>
-                  <Badge color={C.blue}>{(AGENT_MODELS.find((m) => m.id === a.model)?.label || a.model || "").split(" ")[0]}</Badge>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+                    <Badge color={C.blue}>{(AGENT_MODELS.find((m) => m.id === a.model)?.label || a.model || "").split(" ")[0]}</Badge>
+                    <button
+                      onClick={() => toggleAutonomy(a)}
+                      title={a.autonomy === "report" ? "Klick: auf Autonom umschalten (Deploys via QA-Gate erlaubt)" : "Klick: auf Nur-Report umschalten (hartes Deploy-Verbot)"}
+                      style={{
+                        background: a.autonomy === "report" ? "rgba(245,158,11,.15)" : "rgba(16,185,129,.15)",
+                        color: a.autonomy === "report" ? "#f59e0b" : C.green,
+                        border: `1px solid ${a.autonomy === "report" ? "#f59e0b55" : C.green + "55"}`,
+                        borderRadius: 6, padding: "3px 8px", cursor: "pointer", fontSize: 11, fontWeight: 700,
+                      }}
+                    >
+                      {a.autonomy === "report" ? "📋 Nur Report" : "🤖 Autonom"}
+                    </button>
+                  </div>
                 </div>
                 {a.skills?.length > 0 && (
                   <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
