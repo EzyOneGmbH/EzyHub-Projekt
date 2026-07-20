@@ -2835,6 +2835,36 @@ function SeoDashboard({ selectedClient, dateRange }) {
     });
     return rows;
   }, [rank, rankSort]);
+  // Sortierung der GSC-Suchbegriff-Tabellen (User-Wunsch 2026-07-20): wie Rankings.
+  // Erstklick: Query/Pos. aufsteigend, Metriken (Klicks/Impr./CTR) absteigend.
+  const [gscQSort, setGscQSort] = useState(["clicks", false]);
+  const toggleGscQSort = (col) => {
+    setGscQSort(([c, asc]) => (c === col ? [col, !asc] : [col, col === "query" || col === "pos"]));
+    setGscQPage(0);
+  };
+  const [gscFbSort, setGscFbSort] = useState(["clicks", false]);
+  const toggleGscFbSort = (col) => {
+    setGscFbSort(([c, asc]) => (c === col ? [col, !asc] : [col, col === "query" || col === "pos"]));
+    setGscFbPage(0);
+  };
+  const sortQueries = (rows, [col, asc]) => {
+    const dir = asc ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      if (col === "query") {
+        return dir * String(a.query || "").toLowerCase().localeCompare(String(b.query || "").toLowerCase());
+      }
+      if (col === "pos") return dir * ((a.position ?? 999) - (b.position ?? 999));
+      return dir * ((a[col] ?? -1) - (b[col] ?? -1));
+    });
+  };
+  const gscQRows = useMemo(
+    () => (gscQ && Array.isArray(gscQ.topNonbrandQueries) ? sortQueries(gscQ.topNonbrandQueries, gscQSort) : []),
+    [gscQ, gscQSort],
+  );
+  const gscFbRows = useMemo(
+    () => (gsc && Array.isArray(gsc.topQueries) ? sortQueries(gsc.topQueries, gscFbSort) : []),
+    [gsc, gscFbSort],
+  );
   const fmtDelta = (cur, prev) => {
     if (cur == null || prev == null) return null;
     return prev - cur; // Position kleiner = besser -> positives Delta = Verbesserung
@@ -3082,17 +3112,36 @@ function SeoDashboard({ selectedClient, dateRange }) {
                 <table style={{ width: "100%", minWidth: 480, borderCollapse: "collapse", fontSize: 13 }}>
                   <thead>
                     <tr style={{ color: C.textDim, textAlign: "left" }}>
-                      <th style={{ padding: "6px 8px" }}>Query</th>
-                      <th style={{ padding: "6px 8px", textAlign: "right" }}>Klicks</th>
-                      <th style={{ padding: "6px 8px", textAlign: "right" }}>Impr.</th>
-                      <th style={{ padding: "6px 8px", textAlign: "right" }}>Pos.</th>
+                      {[
+                        ["query", "Query", "left"],
+                        ["clicks", "Klicks", "right"],
+                        ["impressions", "Impr.", "right"],
+                        ["pos", "Pos.", "right"],
+                      ].map(([col, label, align]) => (
+                        <th
+                          key={label}
+                          onClick={() => toggleGscQSort(col)}
+                          title="Klicken zum Sortieren"
+                          style={{
+                            padding: "6px 8px",
+                            textAlign: align,
+                            cursor: "pointer",
+                            userSelect: "none",
+                            whiteSpace: "nowrap",
+                            color: gscQSort[0] === col ? C.accent : undefined,
+                          }}
+                        >
+                          {label}
+                          {gscQSort[0] === col ? (gscQSort[1] ? " ▲" : " ▼") : ""}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {gscQ.topNonbrandQueries
+                    {gscQRows
                       .slice(
-                        Math.min(gscQPage, Math.ceil(gscQ.topNonbrandQueries.length / 10) - 1) * 10,
-                        Math.min(gscQPage, Math.ceil(gscQ.topNonbrandQueries.length / 10) - 1) * 10 + 10,
+                        Math.min(gscQPage, Math.ceil(gscQRows.length / 10) - 1) * 10,
+                        Math.min(gscQPage, Math.ceil(gscQRows.length / 10) - 1) * 10 + 10,
                       )
                       .map((q, i) => (
                       <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
@@ -3160,18 +3209,37 @@ function SeoDashboard({ selectedClient, dateRange }) {
                 <table style={{ width: "100%", minWidth: 480, borderCollapse: "collapse", fontSize: 13 }}>
                   <thead>
                     <tr style={{ color: C.textDim, textAlign: "left" }}>
-                      <th style={{ padding: "6px 8px" }}>Query</th>
-                      <th style={{ padding: "6px 8px", textAlign: "right" }}>Klicks</th>
-                      <th style={{ padding: "6px 8px", textAlign: "right" }}>Impr.</th>
-                      <th style={{ padding: "6px 8px", textAlign: "right" }}>CTR</th>
-                      <th style={{ padding: "6px 8px", textAlign: "right" }}>Pos.</th>
+                      {[
+                        ["query", "Query", "left"],
+                        ["clicks", "Klicks", "right"],
+                        ["impressions", "Impr.", "right"],
+                        ["ctr", "CTR", "right"],
+                        ["pos", "Pos.", "right"],
+                      ].map(([col, label, align]) => (
+                        <th
+                          key={label}
+                          onClick={() => toggleGscFbSort(col)}
+                          title="Klicken zum Sortieren"
+                          style={{
+                            padding: "6px 8px",
+                            textAlign: align,
+                            cursor: "pointer",
+                            userSelect: "none",
+                            whiteSpace: "nowrap",
+                            color: gscFbSort[0] === col ? C.accent : undefined,
+                          }}
+                        >
+                          {label}
+                          {gscFbSort[0] === col ? (gscFbSort[1] ? " ▲" : " ▼") : ""}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {gsc.topQueries
+                    {gscFbRows
                       .slice(
-                        Math.min(gscFbPage, Math.ceil(gsc.topQueries.length / 10) - 1) * 10,
-                        Math.min(gscFbPage, Math.ceil(gsc.topQueries.length / 10) - 1) * 10 + 10,
+                        Math.min(gscFbPage, Math.ceil(gscFbRows.length / 10) - 1) * 10,
+                        Math.min(gscFbPage, Math.ceil(gscFbRows.length / 10) - 1) * 10 + 10,
                       )
                       .map((q, i) => (
                       <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
