@@ -2108,6 +2108,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               if (hasSa) newParts.sa = {
                 mentions: sa.mentions, citations: Number(sa.citations || 0), pages: sa.citedPages?.length || 0, models: sa.models,
                 urls: [...new Set((sa.citedPages || []).map((u: any) => normUrl(u)).filter(Boolean))].slice(0, 300),
+                gemessenAm: snapshot, // echtes Messdatum (SERP-Drosselung)
               };
               if (hasPr && !prPartial) newParts.pr = {
                 mentions: pr.mentions, selfShare: pr.selfShare ?? 0, posQ: pr.positionQuality ?? 0, models: pr.customModels,
@@ -2129,6 +2130,18 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               const parts: any = { ...((existingRep?.parts as any) || {}), ...newParts };
               if (Object.keys(parts).length > Object.keys(newParts).length)
                 jr.note = `Merge: bestehende Anteile bewahrt (${Object.keys(parts).filter((k) => !newParts[k]).join(",")})`;
+              // SERP-Drosselung (2026-07-21): läuft an diesem Tag kein SERP-
+              // Check, übernimmt der Tagesreport den letzten sa-Stand
+              // (Score-Kontinuität); gemessenAm bleibt das echte Messdatum.
+              if (!parts.sa) {
+                const { data: prevSaRep } = await sb
+                  .from("ai_visibility_reports").select("snapshot_date, parts")
+                  .eq("client_id", c.id).lt("snapshot_date", snapshot)
+                  .not("parts->sa", "is", null)
+                  .order("snapshot_date", { ascending: false }).limit(1).maybeSingle();
+                const ps = (prevSaRep?.parts as any)?.sa;
+                if (ps) parts.sa = { ...ps, gemessenAm: ps.gemessenAm || String(prevSaRep.snapshot_date), uebernommen: true };
+              }
 
               const mentions = ["br", "ca", "sa", "pr"].reduce((a, k) => a + Number(parts[k]?.mentions || 0), 0);
               // S3-Dedupe: Ahrefs enthält AI Overviews, der eigene sa-Check misst
@@ -2477,12 +2490,21 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             if (!rep) { pending.push({ id: c.id, name: c.name, domain: c.domain, missing: ["all"] }); continue; }
             const parts: any = rep.parts || {};
             const missing: string[] = [];
+            // SERP-Drosselung (2026-07-21): sa ist nur FÄLLIG, wenn die letzte
+            // ECHTE Messung (gemessenAm; übernommene Stände zählen nicht)
+            // älter als serp.intervalDays ist — grösster DFS-Dauerposten.
+            const saMeasured = parts.sa?.uebernommen ? String(parts.sa?.gemessenAm || "") : (parts.sa ? String(parts.sa.gemessenAm || rep.snapshot_date) : "");
+            const saAgeDays = saMeasured ? Math.floor((Date.parse(today()) - Date.parse(saMeasured)) / 86400_000) : 999;
+            const saDue = saAgeDays >= Math.max(1, Number((SCORE_CFG as any).serp?.intervalDays ?? 2));
             if (!parts.pr) missing.push("pr");
-            if (!parts.sa) missing.push("sa");
+            if (!parts.sa && saDue) missing.push("sa");
             // Tages-Frische (2026-07-19): neuester Report ist von gestern oder
             // älter -> voller Tageslauf fällig. Vorher liefen Läufe nur bei
             // fehlenden/unvollständigen Reports — es gab KEINEN Tageszyklus.
-            if (!missing.length && String(rep.snapshot_date) < today()) missing.push("daily");
+            if (!missing.length && String(rep.snapshot_date) < today()) {
+              missing.push("daily");
+              if (saDue) missing.push("sa"); // SERP nur im fälligen Rhythmus mitfahren
+            }
             if (missing.length) pending.push({ id: c.id, name: c.name, domain: c.domain, missing });
           }
           return Response.json({ ok: true, build: BUILD_TAG, pending });
