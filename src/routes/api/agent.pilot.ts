@@ -70,6 +70,7 @@ export const Route = createFileRoute("/api/agent/pilot")({
                 clientSlug: String(body.clientSlug || ""),
                 text: String(body.text || ""),
                 topic: String(body.topic || ""),
+                secret: body.secret === true, // vertraulich: nur owner/admin lesen
                 author: user.email || user.id,
                 allowedSlugs: scope.allowedSlugs,
                 isOwner: scope.isOwner,

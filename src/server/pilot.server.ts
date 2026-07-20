@@ -105,6 +105,7 @@ export async function pilotNoteUpstream(opts: {
   clientSlug: string;
   text: string;
   topic?: string;
+  secret?: boolean;
   author: string;
   scope: PilotScope;
 }) {
@@ -117,6 +118,7 @@ export async function pilotNoteUpstream(opts: {
       clientSlug: opts.clientSlug,
       text: opts.text,
       topic: opts.topic || "",
+      secret: opts.secret === true,
       author: opts.author,
       allowedSlugs: opts.scope.allowedSlugs,
       isOwner: opts.scope.isOwner,

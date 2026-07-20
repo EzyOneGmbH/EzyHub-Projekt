@@ -81,6 +81,7 @@ function PilotRoute() {
   const [noteText, setNoteText] = useState("");
   const [noteSlug, setNoteSlug] = useState("allgemein");
   const [noteTopic, setNoteTopic] = useState("");
+  const [noteSecret, setNoteSecret] = useState(false);
   const [noteState, setNoteState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [noteError, setNoteError] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
@@ -145,6 +146,7 @@ function PilotRoute() {
           clientSlug: noteSlug,
           text: noteText.trim(),
           topic: noteSlug === "allgemein" ? noteTopic.trim() : "",
+          secret: noteSecret,
         }),
       });
       const j = await r.json().catch(() => ({}));
@@ -251,6 +253,13 @@ function PilotRoute() {
               {noteState === "saving" ? "Speichert…" : noteState === "saved" ? "Gespeichert ✓" : "Speichern"}
             </button>
           </div>
+          <label
+            title="Vertrauliche Notizen kann nach dem Speichern nur noch der Admin (Volkan) lesen — auch du selbst nicht mehr über den EzyPilot. Sie erscheinen nie auf geteilten Themen-Seiten."
+            style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 12, color: noteSecret ? C.accentLight : C.dim, cursor: "pointer", width: "fit-content" }}
+          >
+            <input type="checkbox" checked={noteSecret} onChange={(e) => setNoteSecret(e.target.checked)} style={{ accentColor: C.accent }} />
+            🔒 Vertraulich — nur für Admins lesbar
+          </label>
           {noteState === "error" && <div style={{ color: "#ef4444", fontSize: 12, marginTop: 6 }}>{noteError}</div>}
         </div>
       )}

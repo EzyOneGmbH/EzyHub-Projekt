@@ -22,9 +22,12 @@ export default defineTool({
     client_slug: z.string().min(1).max(80).describe("Kunden-Slug (z.B. 'faith-in-humanity') oder 'allgemein'."),
     text: z.string().min(4).max(4000).describe("Die Notiz (kundenneutral formulieren bei 'allgemein')."),
     topic: z.string().max(80).optional().describe("Nur bei 'allgemein': Thema, z.B. 'Onboarding' — erzeugt/erweitert eine Themen-Seite."),
+    secret: z.boolean().optional().describe(
+      "true = vertraulich: nach dem Speichern nur noch fuer owner/admin lesbar (auch nicht mehr fuer die einreichende Person). Nur setzen, wenn der Nutzer es ausdruecklich als vertraulich/geheim bezeichnet.",
+    ),
   },
   annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false },
-  handler: async ({ client_slug, text, topic }, ctx) => {
+  handler: async ({ client_slug, text, topic, secret }, ctx) => {
     if (!ctx.isAuthenticated()) {
       return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
     }
@@ -39,6 +42,7 @@ export default defineTool({
       clientSlug: client_slug,
       text,
       topic,
+      secret: secret === true,
       author: ctx.getUserEmail() || userId,
       scope,
     });
