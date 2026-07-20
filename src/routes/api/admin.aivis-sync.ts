@@ -259,7 +259,7 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
-const BUILD_TAG = "2026-07-21-engine-health"; // Deploy-Verifikation via GET-Antwort
+const BUILD_TAG = "2026-07-21-serp-spar"; // Deploy-Verifikation via GET-Antwort
 
 // ── Score v2 (2026-07-18): Sättigung statt harter Deckel ─────────────────────
 // Konstanten in src/lib/score-config.json (REFs, Gewichte, Glättung, Judge).
@@ -420,7 +420,8 @@ async function jobSerpAi(c: any, limitOverride?: number) {
   } catch (e) {
     return { skipped: `DataForSEO nicht erreichbar: ${String((e as any)?.message || e).slice(0, 100)}` };
   }
-  const kwLimit = limitOverride ?? DFS_SERP_KEYWORDS;
+  // Keyword-Deckel: expliziter Override > score-config.serp.keywords > Env-Default.
+  const kwLimit = limitOverride ?? Number((SCORE_CFG as any).serp?.keywords ?? DFS_SERP_KEYWORDS) ?? DFS_SERP_KEYWORDS;
   const allPairs = await gscTopQueryCountryPairs(c, kwLimit || 25000); // 0 = alle
   if (!allPairs.length) return { skipped: "keine GSC-Keywords (gsc_property/Google-Verbindung prüfen)" };
   // Nur Länder mit bekannter DataForSEO-Location; Rest zählen statt raten.

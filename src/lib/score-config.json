@@ -5,8 +5,9 @@
   "refs": { "M_REF": 120, "C_REF": 80, "R_REF": 50 },
   "smoothing": { "windowRuns": 4 },
   "serp": {
-    "_doc": "SERP-Check (sa-Schicht) ist der groesste DataForSEO-Dauerposten — laeuft nur alle N Tage; dazwischen wird der letzte Stand uebernommen (gemessenAm bleibt das echte Messdatum).",
-    "intervalDays": 2
+    "_doc": "SERP-Check (sa-Schicht) ist der groesste DataForSEO-Dauerposten. Gemessen 2026-07-21: ~2 USD je Kunde und Volllauf mit 60 Keywords => 12 Kunden taeglich ~25 USD. Deshalb gedrosselt: alle 3 Tage, 25 Keywords (Top-Keywords tragen die Sichtbarkeit). Erwartung ~4-5 USD/Tag. Zwischentage uebernehmen den letzten Stand (gemessenAm = echtes Messdatum).",
+    "intervalDays": 3,
+    "keywords": 25
   },
   "judge": {
     "temperature": 0,
