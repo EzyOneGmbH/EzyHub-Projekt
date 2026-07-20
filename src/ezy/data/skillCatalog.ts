@@ -840,5 +840,78 @@ export const SKILL_CATALOG: SkillCatalogEntry[] = [
     "category": "skills-ads",
     "description": "A/B test design and experiment planning for paid advertising. Structured hypothesis framework, statistical significance calculator.",
     "note": null
+  },
+  // --- ezy-reaktivierung (GEO-Reaktivierungsmaschine, 2026-07-20, manuell ergaenzt) ---
+  {
+    "id": "skill:reaktivierung",
+    "skill": "reaktivierung",
+    "label": "reaktivierung",
+    "plugin": "ezy-reaktivierung",
+    "category": "skills-reaktivierung",
+    "description": "Orchestrator der GEO-Reaktivierungsmaschine: Pipeline Pipedrive -> Kohorte -> GEO-Check -> Screenshot -> Outlook-Entwurf (nie Autoversand) -> Nachfass.",
+    "note": "langer Lauf"
+  },
+  {
+    "id": "skill:kohorte",
+    "skill": "kohorte",
+    "label": "kohorte",
+    "plugin": "ezy-reaktivierung",
+    "category": "skills-reaktivierung",
+    "description": "Kohorten-Filter: Pipedrive-Datenmodell, Ein-/Ausschlussregeln (Bestandskunden, aktiver Verkauf, Absagen), Segmente, Dedupe.",
+    "note": null
+  },
+  {
+    "id": "skill:geo-check",
+    "skill": "geo-check",
+    "label": "geo-check",
+    "plugin": "ezy-reaktivierung",
+    "category": "skills-reaktivierung",
+    "description": "Ort/Kategorie via LLM, natuerlicher GEO-Prompt, Auftauchen-Check (Firma empfohlen = ueberspringen).",
+    "note": null
+  },
+  {
+    "id": "skill:screenshot",
+    "skill": "screenshot",
+    "label": "screenshot",
+    "plugin": "ezy-reaktivierung",
+    "category": "skills-reaktivierung",
+    "description": "ChatGPT-Beweis-Screenshot: HTML-Karte -> Edge Headless PNG -> Bottom-Trim.",
+    "note": null
+  },
+  {
+    "id": "skill:entwurf",
+    "skill": "entwurf",
+    "label": "entwurf",
+    "plugin": "ezy-reaktivierung",
+    "category": "skills-reaktivierung",
+    "description": "Namens-Prozess, Mail-Vorlagen, Signatur, Outlook-Entwurf via Microsoft Graph, Alias-Round-Robin.",
+    "note": "benoetigt Graph/Pipedrive-Keys (lokal)"
+  },
+  {
+    "id": "skill:nachfass",
+    "skill": "nachfass",
+    "label": "nachfass",
+    "plugin": "ezy-reaktivierung",
+    "category": "skills-reaktivierung",
+    "description": "Pipedrive-Notizen + Anruf-Tasks nach Versand (EzyOne + Hospit), idempotent.",
+    "note": "benoetigt Graph/Pipedrive-Keys (lokal)"
+  },
+  {
+    "id": "skill:nightly",
+    "skill": "nightly",
+    "label": "nightly",
+    "plugin": "ezy-reaktivierung",
+    "category": "skills-reaktivierung",
+    "description": "03:00-Nachtlauf (max. 150 Entwuerfe), ueberwachter Testlauf vor Scharfschalten.",
+    "note": "lokaler Windows-Task"
+  },
+  {
+    "id": "skill:qa",
+    "skill": "qa",
+    "label": "qa",
+    "plugin": "ezy-reaktivierung",
+    "category": "skills-reaktivierung",
+    "description": "Verifikations-Checkliste nach jedem Batch (Namen, Branchen, Attachments, Verteilung).",
+    "note": null
   }
 ];
