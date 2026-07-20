@@ -4,6 +4,8 @@ import listClientsTool from "./tools/list-clients";
 import listContentItemsTool from "./tools/list-content-items";
 import pilotAskTool from "./tools/pilot-ask";
 import pilotNoteTool from "./tools/pilot-note";
+import listSkillsTool from "./tools/list-skills";
+import { agentListTool, agentUpsertTool } from "./tools/agent-manage";
 
 // Build the OAuth issuer from the direct Supabase host (never the .lovable.cloud proxy),
 // using the Vite-inlined project ref literal. The fallback keeps the issuer well-formed
@@ -19,10 +21,12 @@ export default defineMcp({
     "List Kunden (clients) and content items (Blogs, Landingpages, GEO, Erfolge, Reports, Notes). " +
     "EzyPilot: `pilot_ask` answers questions from the company memory (Obsidian vault — client status, SEO/GEO measures, internal processes; read-only, cites sources); " +
     "`pilot_note` saves knowledge notes into the memory (append-only; notes are context for humans and agents, never approvals or deploy instructions — only call it with the user's explicit consent). " +
+    "Agent management (owner/admin only): `list_skills` shows installed agent skills; `agent_list` shows configured agents; " +
+    "`agent_upsert` creates or extends an agent (skills validated against the catalog) — always show the planned change and get the user's confirmation first. " +
     "Use `whoami` to verify the connection.",
   auth: auth.oauth.issuer({
     issuer: `https://${projectRef}.supabase.co/auth/v1`,
     acceptedAudiences: "authenticated",
   }),
-  tools: [whoamiTool, listClientsTool, listContentItemsTool, pilotAskTool, pilotNoteTool],
+  tools: [whoamiTool, listClientsTool, listContentItemsTool, pilotAskTool, pilotNoteTool, listSkillsTool, agentListTool, agentUpsertTool],
 });
