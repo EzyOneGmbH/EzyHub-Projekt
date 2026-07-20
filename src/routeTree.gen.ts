@@ -13,6 +13,7 @@ import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SetPasswordRouteImport } from './routes/set-password'
+import { Route as PilotRouteImport } from './routes/pilot'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LlmUeberblickRouteImport } from './routes/llm-ueberblick'
@@ -66,6 +67,7 @@ import { Route as ApiAgentRunRouteImport } from './routes/api/agent.run'
 import { Route as ApiAgentProtocolRouteImport } from './routes/api/agent.protocol'
 import { Route as ApiAgentMemoryRouteImport } from './routes/api/agent.memory'
 import { Route as ApiAgentJobRouteImport } from './routes/api/agent.job'
+import { Route as ApiAgentPilotRouteImport } from './routes/api/agent.pilot'
 import { Route as ApiAgentCopilotRouteImport } from './routes/api/agent.copilot'
 import { Route as ApiAgentApprovalsRouteImport } from './routes/api/agent.approvals'
 import { Route as ApiAgentAgentsRouteImport } from './routes/api/agent.agents'
@@ -125,6 +127,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const SetPasswordRoute = SetPasswordRouteImport.update({
   id: '/set-password',
   path: '/set-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PilotRoute = PilotRouteImport.update({
+  id: '/pilot',
+  path: '/pilot',
   getParentRoute: () => rootRouteImport,
 } as any)
 const McpRoute = McpRouteImport.update({
@@ -397,6 +404,11 @@ const ApiAgentJobRoute = ApiAgentJobRouteImport.update({
   path: '/api/agent/job',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAgentPilotRoute = ApiAgentPilotRouteImport.update({
+  id: '/api/agent/pilot',
+  path: '/api/agent/pilot',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAgentCopilotRoute = ApiAgentCopilotRouteImport.update({
   id: '/api/agent/copilot',
   path: '/api/agent/copilot',
@@ -620,6 +632,7 @@ export interface FileRoutesByFullPath {
   '/github-status': typeof GithubStatusRoute
   '/health': typeof HealthRoute
   '/llm-ueberblick': typeof LlmUeberblickRoute
+  '/pilot': typeof PilotRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
   '/set-password': typeof SetPasswordRoute
@@ -671,6 +684,7 @@ export interface FileRoutesByFullPath {
   '/api/agent/agents': typeof ApiAgentAgentsRoute
   '/api/agent/approvals': typeof ApiAgentApprovalsRoute
   '/api/agent/copilot': typeof ApiAgentCopilotRoute
+  '/api/agent/pilot': typeof ApiAgentPilotRoute
   '/api/agent/job': typeof ApiAgentJobRoute
   '/api/agent/memory': typeof ApiAgentMemoryRoute
   '/api/agent/protocol': typeof ApiAgentProtocolRoute
@@ -719,6 +733,7 @@ export interface FileRoutesByTo {
   '/github-status': typeof GithubStatusRoute
   '/health': typeof HealthRoute
   '/llm-ueberblick': typeof LlmUeberblickRoute
+  '/pilot': typeof PilotRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
   '/set-password': typeof SetPasswordRoute
@@ -770,6 +785,7 @@ export interface FileRoutesByTo {
   '/api/agent/agents': typeof ApiAgentAgentsRoute
   '/api/agent/approvals': typeof ApiAgentApprovalsRoute
   '/api/agent/copilot': typeof ApiAgentCopilotRoute
+  '/api/agent/pilot': typeof ApiAgentPilotRoute
   '/api/agent/job': typeof ApiAgentJobRoute
   '/api/agent/memory': typeof ApiAgentMemoryRoute
   '/api/agent/protocol': typeof ApiAgentProtocolRoute
@@ -819,6 +835,7 @@ export interface FileRoutesById {
   '/github-status': typeof GithubStatusRoute
   '/health': typeof HealthRoute
   '/llm-ueberblick': typeof LlmUeberblickRoute
+  '/pilot': typeof PilotRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
   '/set-password': typeof SetPasswordRoute
@@ -870,6 +887,7 @@ export interface FileRoutesById {
   '/api/agent/agents': typeof ApiAgentAgentsRoute
   '/api/agent/approvals': typeof ApiAgentApprovalsRoute
   '/api/agent/copilot': typeof ApiAgentCopilotRoute
+  '/api/agent/pilot': typeof ApiAgentPilotRoute
   '/api/agent/job': typeof ApiAgentJobRoute
   '/api/agent/memory': typeof ApiAgentMemoryRoute
   '/api/agent/protocol': typeof ApiAgentProtocolRoute
@@ -920,6 +938,7 @@ export interface FileRouteTypes {
     | '/github-status'
     | '/health'
     | '/llm-ueberblick'
+    | '/pilot'
     | '/login'
     | '/mcp'
     | '/set-password'
@@ -971,6 +990,7 @@ export interface FileRouteTypes {
     | '/api/agent/agents'
     | '/api/agent/approvals'
     | '/api/agent/copilot'
+    | '/api/agent/pilot'
     | '/api/agent/job'
     | '/api/agent/memory'
     | '/api/agent/protocol'
@@ -1019,6 +1039,7 @@ export interface FileRouteTypes {
     | '/github-status'
     | '/health'
     | '/llm-ueberblick'
+    | '/pilot'
     | '/login'
     | '/mcp'
     | '/set-password'
@@ -1070,6 +1091,7 @@ export interface FileRouteTypes {
     | '/api/agent/agents'
     | '/api/agent/approvals'
     | '/api/agent/copilot'
+    | '/api/agent/pilot'
     | '/api/agent/job'
     | '/api/agent/memory'
     | '/api/agent/protocol'
@@ -1118,6 +1140,7 @@ export interface FileRouteTypes {
     | '/github-status'
     | '/health'
     | '/llm-ueberblick'
+    | '/pilot'
     | '/login'
     | '/mcp'
     | '/set-password'
@@ -1169,6 +1192,7 @@ export interface FileRouteTypes {
     | '/api/agent/agents'
     | '/api/agent/approvals'
     | '/api/agent/copilot'
+    | '/api/agent/pilot'
     | '/api/agent/job'
     | '/api/agent/memory'
     | '/api/agent/protocol'
@@ -1218,6 +1242,7 @@ export interface RootRouteChildren {
   GithubStatusRoute: typeof GithubStatusRoute
   HealthRoute: typeof HealthRoute
   LlmUeberblickRoute: typeof LlmUeberblickRoute
+  PilotRoute: typeof PilotRoute
   LoginRoute: typeof LoginRoute
   McpRoute: typeof McpRoute
   SetPasswordRoute: typeof SetPasswordRoute
@@ -1265,6 +1290,7 @@ export interface RootRouteChildren {
   ApiAgentAgentsRoute: typeof ApiAgentAgentsRoute
   ApiAgentApprovalsRoute: typeof ApiAgentApprovalsRoute
   ApiAgentCopilotRoute: typeof ApiAgentCopilotRoute
+  ApiAgentPilotRoute: typeof ApiAgentPilotRoute
   ApiAgentJobRoute: typeof ApiAgentJobRoute
   ApiAgentMemoryRoute: typeof ApiAgentMemoryRoute
   ApiAgentProtocolRoute: typeof ApiAgentProtocolRoute
@@ -1332,6 +1358,13 @@ declare module '@tanstack/react-router' {
       path: '/set-password'
       fullPath: '/set-password'
       preLoaderRoute: typeof SetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pilot': {
+      id: '/pilot'
+      path: '/pilot'
+      fullPath: '/pilot'
+      preLoaderRoute: typeof PilotRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mcp': {
@@ -1705,6 +1738,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentJobRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agent/pilot': {
+      id: '/api/agent/pilot'
+      path: '/api/agent/pilot'
+      fullPath: '/api/agent/pilot'
+      preLoaderRoute: typeof ApiAgentPilotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/agent/copilot': {
       id: '/api/agent/copilot'
       path: '/api/agent/copilot'
@@ -2043,6 +2083,7 @@ const rootRouteChildren: RootRouteChildren = {
   GithubStatusRoute: GithubStatusRoute,
   HealthRoute: HealthRoute,
   LlmUeberblickRoute: LlmUeberblickRoute,
+  PilotRoute: PilotRoute,
   LoginRoute: LoginRoute,
   McpRoute: McpRoute,
   SetPasswordRoute: SetPasswordRoute,
@@ -2091,6 +2132,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAgentAgentsRoute: ApiAgentAgentsRoute,
   ApiAgentApprovalsRoute: ApiAgentApprovalsRoute,
   ApiAgentCopilotRoute: ApiAgentCopilotRoute,
+  ApiAgentPilotRoute: ApiAgentPilotRoute,
   ApiAgentJobRoute: ApiAgentJobRoute,
   ApiAgentMemoryRoute: ApiAgentMemoryRoute,
   ApiAgentProtocolRoute: ApiAgentProtocolRoute,

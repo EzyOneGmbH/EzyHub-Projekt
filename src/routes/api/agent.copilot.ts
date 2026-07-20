@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 // EzyHub Co-Pilot: a single, always-available Opus 4.8 assistant that answers
 // data/portal questions, helps build agents (emits agent-spec blocks the UI can
@@ -66,6 +67,21 @@ async function getUser(request: Request) {
   return data.user;
 }
 
+// RBAC-Gate (2026-07-20): Der Co-Pilot ist ein VOLLER Agent (Bash, WP-Publish,
+// Vault-Schreibzugriff via Dateisystem — an der client_access-RLS vorbei) und
+// darf deshalb nur von owner/admin genutzt werden. Mitarbeiter bekommen den
+// werkzeuglosen, scope-begrenzten /api/agent/pilot (Seite /pilot).
+async function isAdminUser(request: Request) {
+  const user = await getUser(request);
+  if (!user) return false;
+  const { data: me } = await supabaseAdmin
+    .from("app_users")
+    .select("role")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  return ["owner", "admin"].includes(String((me as any)?.role || ""));
+}
+
 function svc() {
   const base = process.env.AGENT_BASE_URL;
   const secret = process.env.AGENT_SHARED_SECRET;
@@ -108,7 +124,7 @@ export const Route = createFileRoute("/api/agent/copilot")({
       GET: async ({ request }) => {
         const s = svc();
         if (!s) return Response.json({ ok: false, error: "Agent service not configured" }, { status: 503 });
-        if (!(await getUser(request))) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        if (!(await isAdminUser(request))) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
         try {
           const agentId = await ensureCopilot(s.base, s.secret);
           if (!agentId) return Response.json({ ok: false, error: "Co-Pilot konnte nicht angelegt werden" });
@@ -122,7 +138,7 @@ export const Route = createFileRoute("/api/agent/copilot")({
       POST: async ({ request }) => {
         const s = svc();
         if (!s) return Response.json({ ok: false, error: "Agent service not configured" }, { status: 503 });
-        if (!(await getUser(request))) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        if (!(await isAdminUser(request))) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
         const body = await request.json().catch(() => ({}));
         try {
           const agentId = await ensureCopilot(s.base, s.secret);

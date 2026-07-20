@@ -13328,7 +13328,25 @@ function App() {
             </>
           )}
           {!isViewer && page === "copilot" && (
-            <EzyPilotPage selectedClient={client} />
+            // RBAC 2026-07-20: der volle EzyPilot-Agent (Bash/WP-Publish/Vault)
+            // ist owner/admin vorbehalten; Mitarbeiter bekommen den werkzeug-
+            // losen, kunden-scoped Frage-&-Notiz-Piloten unter /pilot.
+            isOrgAdmin ? (
+              <EzyPilotPage selectedClient={client} />
+            ) : (
+              <div style={{ padding: 40, textAlign: "center", color: C.muted }}>
+                <div style={{ fontSize: 18, color: C.text, marginBottom: 8 }}>EzyPilot für Mitarbeitende</div>
+                <div style={{ marginBottom: 20 }}>
+                  Dein EzyPilot beantwortet Fragen zu deinen Kunden und nimmt Notizen ins Firmen-Gedächtnis auf.
+                </div>
+                <a
+                  href="/pilot"
+                  style={{ display: "inline-block", background: C.accent, color: "#fff", padding: "10px 22px", borderRadius: 8, textDecoration: "none", fontWeight: 600 }}
+                >
+                  EzyPilot öffnen
+                </a>
+              </div>
+            )
           )}
         </div>
       </main>
