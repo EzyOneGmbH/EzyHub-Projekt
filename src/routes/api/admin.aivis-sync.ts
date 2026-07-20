@@ -259,7 +259,7 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
-const BUILD_TAG = "2026-07-20-korpus-breit2"; // Deploy-Verifikation via GET-Antwort
+const BUILD_TAG = "2026-07-20-korpus-breit3"; // Deploy-Verifikation via GET-Antwort
 
 // ── Score v2 (2026-07-18): Sättigung statt harter Deckel ─────────────────────
 // Konstanten in src/lib/score-config.json (REFs, Gewichte, Glättung, Judge).
@@ -612,25 +612,12 @@ async function jobBrandRadarDfs(c: any, comps: string[] = []) {
       e.byCountry[loc.land] = (e.byCountry[loc.land] || 0) + m;
     }
   }
-  // ChatGPT-Erwähnungen: globaler Korpus (agg OHNE Location — 40501 sonst);
-  // nur den chat_gpt-Eintrag übernehmen, die google-Anteile kämen sonst doppelt.
-  {
-    const aggG = await dfsAiCall("ai_optimization/llm_mentions/aggregated_metrics/live", {
-      target: [{ keyword: brand, match_type: "word_match", search_scope: ["answer"] }],
-    });
-    if (aggG.ok) {
-      for (const p of aggG.result?.[0]?.total?.platform || []) {
-        const k = String(p.key || "").toLowerCase();
-        if (k !== "chat_gpt" && k !== "chatgpt") continue;
-        const m = Number(p.mentions || 0);
-        if (m <= 0) continue;
-        const name = dfsLlmLabel(p.key);
-        const e = (modelAgg[name] ??= { name, mentions: 0, byCountry: {} });
-        e.mentions += m;
-        e.byCountry["Global"] = (e.byCountry["Global"] || 0) + m;
-      }
-    } else errors.push(`aggregated_metrics/global: ${aggG.error}`);
-  }
+  // BEWUSST KEIN globaler ChatGPT-Erwähnungs-Aggregat (Generika-Falle,
+  // 2026-07-20 live belegt): word_match auf den globalen EN-Korpus traf bei
+  // Wortmarken die PHRASE — "faith in humanity" 9'971 Redewendungs-Treffer,
+  // "Benedict" 13'080 (Eggs Benedict). Erwähnungen (Score-Input!) bleiben
+  // deshalb auf dem DACH-Google-Korpus; der globale ChatGPT-Korpus fliesst
+  // nur DOMAIN-basiert in die Citations-Slices ein (eindeutig, keine Generika).
   const models = Object.values(modelAgg);
 
   // 2) Citations + referenzierte eigene Seiten: Antworten, die die eigene
@@ -1868,8 +1855,11 @@ async function jobBackfill(c: any, sb: any, months: number) {
       const from = `${mo.key}-01 00:00:00 +00:00`;
       const nextM = new Date(mo.y, mo.m + 1, 1).toISOString().slice(0, 10);
       let n = 0;
-      // Option B (2026-07-20): beide Plattformen × DACH-Märkte statt nur CH.
-      for (const slice of DFS_CORPUS_SLICES) {
+      // Option B (2026-07-20): DACH-Märkte statt nur CH — aber NUR google:
+      // der globale ChatGPT-Korpus trifft bei Wortmarken die Phrase
+      // (Generika-Falle "faith in humanity"/"Benedict") und würde die
+      // Erwähnungs-Historie verfälschen.
+      for (const slice of DFS_CORPUS_SLICES.filter((s) => s.platform === "google")) {
         const r = await dfsAiCall("ai_optimization/llm_mentions/search/live", {
           target: [{ keyword: brand, match_type: "word_match", search_scope: ["answer"] }],
           ...dfsSliceParams(slice), limit: 100,
