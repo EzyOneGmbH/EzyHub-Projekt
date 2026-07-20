@@ -76,9 +76,11 @@ function PilotRoute() {
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<"kunden" | "allgemein">("kunden");
   const [clients, setClients] = useState<{ id: string; name: string; slug: string }[]>([]);
+  const [topics, setTopics] = useState<{ slug: string; title: string }[]>([]);
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [noteSlug, setNoteSlug] = useState("allgemein");
+  const [noteTopic, setNoteTopic] = useState("");
   const [noteState, setNoteState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [noteError, setNoteError] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
@@ -94,7 +96,10 @@ function PilotRoute() {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       const j = await r.json().catch(() => ({}));
-      if (j.ok) setClients(j.clients || []);
+      if (j.ok) {
+        setClients(j.clients || []);
+        setTopics(j.topics || []);
+      }
     })();
   }, [session]);
 
@@ -135,7 +140,12 @@ function PilotRoute() {
       const r = await fetch("/api/agent/pilot", {
         method: "POST",
         headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "note", clientSlug: noteSlug, text: noteText.trim() }),
+        body: JSON.stringify({
+          action: "note",
+          clientSlug: noteSlug,
+          text: noteText.trim(),
+          topic: noteSlug === "allgemein" ? noteTopic.trim() : "",
+        }),
       });
       const j = await r.json().catch(() => ({}));
       if (j.ok) {
@@ -209,6 +219,23 @@ function PilotRoute() {
                 <option key={c.slug} value={c.slug}>{c.name}</option>
               ))}
             </select>
+            {noteSlug === "allgemein" && (
+              <>
+                <input
+                  list="pilot-themen"
+                  value={noteTopic}
+                  onChange={(e) => setNoteTopic(e.target.value)}
+                  placeholder="Thema (optional), z.B. Onboarding"
+                  title="Mit Thema entsteht eine eigene Wissensseite (system/themen/…) samt Index-Eintrag; ohne Thema landet die Notiz in der allgemeinen Notizliste."
+                  style={{ background: C.card, color: C.text, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", fontSize: 13, width: 190 }}
+                />
+                <datalist id="pilot-themen">
+                  {topics.map((t) => (
+                    <option key={t.slug} value={t.title} />
+                  ))}
+                </datalist>
+              </>
+            )}
             <textarea
               value={noteText}
               onChange={(e) => setNoteText(e.target.value)}

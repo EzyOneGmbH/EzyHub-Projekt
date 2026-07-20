@@ -85,13 +85,27 @@ function throttled(userId: string): boolean {
 export const Route = createFileRoute("/api/agent/pilot")({
   server: {
     handlers: {
-      // GET -> Scope fuers UI (Kundenliste fuer den Notiz-Dialog)
+      // GET -> Scope fuers UI (Kundenliste + vorhandene Allgemein-Themen)
       GET: async ({ request }) => {
         const user = await getUser(request);
         if (!user) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
         const scope = await pilotScope(user.id);
         if (!scope) return Response.json({ ok: false, error: "Kein Organisations-Zugang." }, { status: 403 });
-        return Response.json({ ok: true, isOwner: scope.isOwner, clients: scope.clients });
+        let topics: { slug: string; title: string }[] = [];
+        const s = svc();
+        if (s) {
+          try {
+            const r = await fetch(`${s.base}/pilot-topics`, {
+              headers: { Authorization: `Bearer ${s.secret}` },
+              signal: AbortSignal.timeout(10_000),
+            });
+            const j = await r.json().catch(() => ({}));
+            if (j.ok) topics = j.topics || [];
+          } catch {
+            /* Themenliste ist Komfort — ohne sie funktioniert der Rest */
+          }
+        }
+        return Response.json({ ok: true, isOwner: scope.isOwner, clients: scope.clients, topics });
       },
 
       // POST { action: "ask", question, history } | { action: "note", clientSlug, text }
@@ -116,6 +130,7 @@ export const Route = createFileRoute("/api/agent/pilot")({
               body: JSON.stringify({
                 clientSlug: String(body.clientSlug || ""),
                 text: String(body.text || ""),
+                topic: String(body.topic || ""),
                 author: user.email || user.id,
                 allowedSlugs: scope.allowedSlugs,
                 isOwner: scope.isOwner,
