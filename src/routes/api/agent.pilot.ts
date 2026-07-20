@@ -1,24 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { pilotScope, pilotThrottled as throttled, svc } from "@/server/pilot.server";
 
 // EzyPilot fuer Mitarbeiter (2026-07-20): schlanker Proxy auf den werkzeuglosen
 // Lese-Dienst des agent-service (/pilot-ask) + den Notiz-Kanal (/pilot-note,
-// "Kontext, nie Befehl"). SICHERHEITSKERN: Rolle und Kunden-Scope werden HIER
-// serverseitig aus Supabase abgeleitet (app_users.role + client_access) und an
-// den agent-service durchgereicht — niemals aus dem Request-Body. Ein
-// manipulierter Client kann seinen Scope dadurch nicht aufziehen.
-
-// Gleiche Slug-Ableitung wie admin.client-context (Kundenname -> Vault-Ordner).
-function slugifyName(s: string): string {
-  return String(s || "")
-    .toLowerCase()
-    .replace(/ä/g, "ae")
-    .replace(/ö/g, "oe")
-    .replace(/ü/g, "ue")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
+// "Kontext, nie Befehl"). SICHERHEITSKERN: Rolle und Kunden-Scope werden
+// serverseitig aus Supabase abgeleitet (pilot.server.ts — geteilt mit den
+// MCP-Tools pilot_ask/pilot_note) und an den agent-service durchgereicht —
+// niemals aus dem Request-Body. Ein manipulierter Client kann seinen Scope
+// dadurch nicht aufziehen.
 
 async function getUser(request: Request) {
   const url = process.env.SUPABASE_URL;
@@ -29,57 +19,6 @@ async function getUser(request: Request) {
   });
   const { data } = await sb.auth.getUser();
   return data.user;
-}
-
-function svc() {
-  const base = process.env.AGENT_BASE_URL;
-  const secret = process.env.AGENT_SHARED_SECRET;
-  return base && secret ? { base: base.replace(/\/+$/, ""), secret } : null;
-}
-
-// Scope des Aufrufers: Rolle + zugewiesene Kunden (id/name/slug).
-async function pilotScope(userId: string) {
-  const { data: me } = await supabaseAdmin
-    .from("app_users")
-    .select("organization_id, role")
-    .eq("user_id", userId)
-    .maybeSingle();
-  const orgId = (me as any)?.organization_id as string | undefined;
-  if (!orgId) return null;
-  const role = String((me as any)?.role || "");
-  const isOwner = role === "owner" || role === "admin";
-
-  let clientIds: string[] | null = null; // null = alle (owner/admin)
-  if (!isOwner) {
-    const { data: access } = await supabaseAdmin
-      .from("client_access")
-      .select("client_id")
-      .eq("user_id", userId)
-      .eq("organization_id", orgId);
-    clientIds = (access || []).map((a: any) => a.client_id);
-  }
-
-  let q = supabaseAdmin.from("clients").select("id, name");
-  if (clientIds) q = clientIds.length ? q.in("id", clientIds) : q.in("id", ["00000000-0000-0000-0000-000000000000"]);
-  const { data: clients } = await q;
-  const list = (clients || []).map((c: any) => ({ id: c.id, name: c.name, slug: slugifyName(c.name) }));
-  return { isOwner, role, clients: list, allowedSlugs: list.map((c) => c.slug) };
-}
-
-// Einfache Drossel pro Nutzer (In-Memory, pro Server-Instanz): 30 Aktionen/Std.
-const RATE_MAX = 30;
-const RATE_WINDOW_MS = 60 * 60 * 1000;
-const rateLog = new Map<string, number[]>();
-function throttled(userId: string): boolean {
-  const now = Date.now();
-  const hits = (rateLog.get(userId) || []).filter((t) => now - t < RATE_WINDOW_MS);
-  if (hits.length >= RATE_MAX) {
-    rateLog.set(userId, hits);
-    return true;
-  }
-  hits.push(now);
-  rateLog.set(userId, hits);
-  return false;
 }
 
 export const Route = createFileRoute("/api/agent/pilot")({
