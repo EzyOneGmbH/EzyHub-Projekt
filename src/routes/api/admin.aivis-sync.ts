@@ -593,6 +593,14 @@ async function jobBrandRadar(c: any, comps: string[] = []) {
 // score-config.json (mentionExcludes); deren Treffer werden abgezogen.
 const mentionExcludes = (brand: string): string[] =>
   ((SCORE_CFG as any).mentionExcludes || {})[brand.toLowerCase()] || [];
+// mentionTargets (2026-07-21): Wortmarken wie "Benedict" (Schule) treffen als
+// word_match Promis/Serien/Formeln (Cumberbatch, Bridgerton, Harris-Benedict —
+// 2'624 Fehltreffer, live belegt). Override liefert praezise Marken-Phrasen
+// ("benedict schule"); Default bleibt der Markenname selbst.
+const mentionTargets = (brand: string): string[] => {
+  const t = ((SCORE_CFG as any).mentionTargets || {})[brand.toLowerCase()];
+  return Array.isArray(t) && t.length ? t.map(String) : [brand];
+};
 
 async function jobBrandRadarDfs(c: any, comps: string[] = []) {
   const brand = brandName(c);
@@ -600,6 +608,7 @@ async function jobBrandRadarDfs(c: any, comps: string[] = []) {
   const lang = (c.language || "de").slice(0, 2);
   const errors: string[] = [];
   const excludes = mentionExcludes(brand);
+  const targets = mentionTargets(brand).map((k) => ({ keyword: k, match_type: "word_match", search_scope: ["answer"] }));
 
   // 1) Marken-Erwähnungen je Plattform × DACH-Markt (Option B, 2026-07-20:
   //    vorher nur CH — jetzt CH/DE/AT; word_match, weil partial_match
@@ -607,7 +616,7 @@ async function jobBrandRadarDfs(c: any, comps: string[] = []) {
   const modelAgg: Record<string, { name: string; mentions: number; byCountry: Record<string, number> }> = {};
   for (const loc of [{ location_name: "Switzerland", land: "Schweiz" }, { location_name: "Germany", land: "Deutschland" }, { location_name: "Austria", land: "Österreich" }]) {
     const agg = await dfsAiCall("ai_optimization/llm_mentions/aggregated_metrics/live", {
-      target: [{ keyword: brand, match_type: "word_match", search_scope: ["answer"] }],
+      target: targets,
       location_name: loc.location_name, language_code: lang,
     });
     if (!agg.ok) { errors.push(`aggregated_metrics/${loc.land}: ${agg.error}`); continue; }
@@ -1873,6 +1882,7 @@ async function jobBackfill(c: any, sb: any, months: number) {
   const byMonth: Record<string, number> = {};
   {
     const excludes = mentionExcludes(brand);
+    const targets = mentionTargets(brand).map((k) => ({ keyword: k, match_type: "word_match", search_scope: ["answer"] }));
     for (const mo of monthsList) {
       const from = `${mo.key}-01 00:00:00 +00:00`;
       const nextM = new Date(mo.y, mo.m + 1, 1).toISOString().slice(0, 10);
@@ -1884,7 +1894,7 @@ async function jobBackfill(c: any, sb: any, months: number) {
       for (const slice of DFS_CORPUS_SLICES.filter((s) => s.platform === "google")) {
         const monthFilters = [["first_response_at", ">=", from], "and", ["first_response_at", "<", `${nextM} 00:00:00 +00:00`]];
         const r = await dfsAiCall("ai_optimization/llm_mentions/search/live", {
-          target: [{ keyword: brand, match_type: "word_match", search_scope: ["answer"] }],
+          target: targets,
           ...dfsSliceParams(slice), limit: 100,
           filters: monthFilters,
         });
