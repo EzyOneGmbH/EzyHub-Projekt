@@ -1,0 +1,12 @@
+{
+  "_doc": "LLM-Preise je 1 Mio Token (USD, input/output) — Grundlage der Token-Kostenerfassung (api_cost_daily). SCHÄTZWERTE, bei Preisänderung hier anpassen. Zuordnung per Engine-Label (Claude/ChatGPT/Grok/DeepSeek/Perplexity/Gemini); der Judge/Seeder wird demselben Label zugeordnet, das geantwortet hat. Stand 2026-07-21.",
+  "prices": {
+    "Claude":     { "in": 3.0,  "out": 15.0 },
+    "ChatGPT":    { "in": 1.25, "out": 10.0 },
+    "Grok":       { "in": 3.0,  "out": 15.0 },
+    "DeepSeek":   { "in": 0.28, "out": 0.42 },
+    "Perplexity": { "in": 1.0,  "out": 1.0 },
+    "Gemini":     { "in": 0.30, "out": 2.50 }
+  },
+  "fallback": { "in": 1.0, "out": 3.0 }
+}

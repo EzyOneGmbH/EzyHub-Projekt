@@ -8,6 +8,35 @@ import { getEnabledServices } from "@/server/integrations.server";
 import { normalizeCanonryBase } from "@/lib/canonry-url";
 import SCORE_CFG from "@/lib/score-config.json";
 import JUDGE_ANCHORS from "@/lib/judge-calibration.json";
+import COST_CFG from "@/lib/cost-config.json";
+
+// ── LLM-Token-Kostenerfassung (2026-07-21) ──────────────────────────────────
+// Provider-Billing-APIs sind hinter Admin-Keys gesperrt — deshalb rechnen wir
+// selbst: jede Antwort trägt Token-Zahlen, × hinterlegter Preis (cost-config).
+// Summiert im Speicher (COST_ACC), am Job-Ende idempotent in api_cost_daily
+// (RPC add_api_cost) geflusht. Kein Admin-Key nötig, exakt statt geschätzt.
+const COST_ACC: Record<string, { calls: number; in: number; out: number; cost: number }> = {};
+function recordUsage(label: string, tokIn: number, tokOut: number) {
+  const p = (COST_CFG.prices as any)[label] || COST_CFG.fallback;
+  const cost = (Math.max(0, tokIn) / 1e6) * p.in + (Math.max(0, tokOut) / 1e6) * p.out;
+  const e = (COST_ACC[label] ??= { calls: 0, in: 0, out: 0, cost: 0 });
+  e.calls += 1; e.in += Math.max(0, tokIn); e.out += Math.max(0, tokOut); e.cost += cost;
+}
+async function flushCost(sbAny: any) {
+  const labels = Object.keys(COST_ACC);
+  if (!labels.length) return;
+  const day = today();
+  for (const label of labels) {
+    const e = COST_ACC[label];
+    delete COST_ACC[label];
+    try {
+      await sbAny.rpc("add_api_cost", {
+        p_day: day, p_provider: label, p_calls: e.calls,
+        p_in: e.in, p_out: e.out, p_cost: Math.round(e.cost * 1e6) / 1e6,
+      });
+    } catch { /* Kostenerfassung darf den Lauf nie scheitern lassen */ }
+  }
+}
 
 // AI-Visibility-Ingestion, Stufe 1 (Makro-Layer + Attribution). Befüllt die
 // ai_visibility_*-Tabellen server-seitig (service_role; n8n kommt nicht an die
@@ -259,7 +288,7 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
-const BUILD_TAG = "2026-07-21-aivol"; // Deploy-Verifikation via GET-Antwort
+const BUILD_TAG = "2026-07-21-costlog"; // Deploy-Verifikation via GET-Antwort
 
 // ── Score v2 (2026-07-18): Sättigung statt harter Deckel ─────────────────────
 // Konstanten in src/lib/score-config.json (REFs, Gewichte, Glättung, Judge).
@@ -794,6 +823,7 @@ async function askClaude(prompt: string, maxTokens = 600, temperature?: number):
   if (!r.ok) return { text: "", sources: 0, error: `Claude HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 140)}` };
   const j: any = await r.json().catch(() => null);
   const text = (j?.content ?? []).map((b: any) => b?.text ?? "").join(" ").trim();
+  recordUsage("Claude", Number(j?.usage?.input_tokens || 0), Number(j?.usage?.output_tokens || 0));
   // j.model = aufgelöster Modell-Snapshot (nie nur der Alias aus der Anfrage)
   return text ? { text, sources: urlsIn(text), model: String(j?.model || ANTHROPIC_MODEL) } : null;
 }
@@ -810,6 +840,7 @@ async function askPerplexity(prompt: string, maxTokens = 600, temperature?: numb
   if (!r.ok) return null;
   const j: any = await r.json().catch(() => null);
   const text = String(j?.choices?.[0]?.message?.content ?? "").trim();
+  recordUsage("Perplexity", Number(j?.usage?.prompt_tokens || 0), Number(j?.usage?.completion_tokens || 0));
   const cits = Array.isArray(j?.citations) ? j.citations.length : urlsIn(text);
   return text ? { text, sources: cits, model: String(j?.model || "sonar") } : null;
 }
@@ -832,6 +863,7 @@ async function askGemini(prompt: string, maxTokens = 600, temperature?: number):
   if (!r.ok) return { text: "", sources: 0, error: `Gemini HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 140)}` } as any;
   const j: any = await r.json().catch(() => null);
   const text = (j?.candidates?.[0]?.content?.parts ?? []).map((p: any) => p?.text ?? "").join(" ").trim();
+  recordUsage("Gemini", Number(j?.usageMetadata?.promptTokenCount || 0), Number(j?.usageMetadata?.candidatesTokenCount || 0));
   return text ? { text, sources: urlsIn(text), model: String(j?.modelVersion || "gemini-2.5-flash") } : null;
 }
 
@@ -858,6 +890,9 @@ async function askOpenAICompat(
   if (!r.ok) return { text: "", sources: 0, error: `HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 140)}` } as any;
   const j: any = await r.json().catch(() => null);
   const text = String(j?.choices?.[0]?.message?.content ?? "").trim();
+  // Label aus dem Endpoint ableiten (ein Helfer für ChatGPT/Grok/DeepSeek).
+  const label = url.includes("api.openai.com") ? "ChatGPT" : url.includes("x.ai") ? "Grok" : url.includes("deepseek") ? "DeepSeek" : "OpenAICompat";
+  recordUsage(label, Number(j?.usage?.prompt_tokens || 0), Number(j?.usage?.completion_tokens || 0));
   return text ? { text, sources: urlsIn(text), model: String(j?.model || model) } : null;
 }
 
@@ -2046,6 +2081,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             // Backfill-Modus: rückwirkende Monats-Reports (Ahrefs/GA4), dann fertig.
             if (mode === "backfill") {
               jr.backfill = await jobBackfill(c, sb, months);
+              await flushCost(sb);
               results.push({ client: c.name, domain: c.domain, jobs: jr });
               continue;
             }
@@ -2053,6 +2089,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             if (mode === "citations-backfill") {
               jr.citationsBackfill = await withDeadline(jobCitationsBackfill(c, sb, months), 8 * 60_000, "citations-backfill")
                 .catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }));
+              await flushCost(sb);
               results.push({ client: c.name, domain: c.domain, jobs: jr });
               continue;
             }
@@ -2060,6 +2097,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             if (mode === "brand-backfill") {
               jr.brandBackfill = await withDeadline(jobBrandBackfill(c, sb, months, backfillProvider), 12 * 60_000, "brand-backfill")
                 .catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }));
+              await flushCost(sb);
               results.push({ client: c.name, domain: c.domain, jobs: jr });
               continue;
             }
@@ -2109,6 +2147,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               ? await withDeadline(jobPromptRunner(c, sb, fixedComps, { offset: promptOffset, target: promptTarget, snapshot }), 20 * 60_000, "prompts").catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }))
               : null;
             diag(`${c.name}: prompts-Job fertig (${pr?.skipped ? "skipped: " + pr.skipped : "answered " + pr?.answered})`);
+            await flushCost(sb); // LLM-Token-Kosten dieses Laufs persistieren
             const sa: any = wanted.includes("serp_ai")
               ? await withDeadline(jobSerpAi(c, serpKeywords), 25 * 60_000, "serp_ai").catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }))
               : null;
@@ -2527,6 +2566,23 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
           return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
         const sb = supabaseAdmin as any;
+        // ?costReport=YYYY-MM-DD (oder 1 = heute): LLM-Token-Kosten des Tages
+        // aus api_cost_daily — der agent-service holt das für die Abend-Mail.
+        const costParam = new URL(request.url).searchParams.get("costReport");
+        if (costParam) {
+          const tag = /^\d{4}-\d{2}-\d{2}$/.test(costParam) ? costParam : today();
+          const { data: rows } = await sb
+            .from("api_cost_daily").select("provider, calls, tokens_in, tokens_out, cost_usd")
+            .eq("day", tag).order("cost_usd", { ascending: false });
+          const providers = (rows || []).map((r: any) => ({
+            provider: r.provider, calls: Number(r.calls || 0),
+            tokensIn: Number(r.tokens_in || 0), tokensOut: Number(r.tokens_out || 0),
+            costUsd: Math.round(Number(r.cost_usd || 0) * 100) / 100,
+          }));
+          const total = Math.round(providers.reduce((a: number, p: any) => a + p.costUsd, 0) * 100) / 100;
+          return Response.json({ ok: true, day: tag, providers, totalUsd: total });
+        }
+
         // ?engineHealth=1: welche der Mess-Engines haben HEUTE keine einzige
         // Antwort geliefert? (Guthaben/Quota fallen sonst still aus — Claude
         // 19.07. via HTTP 400 "credit balance", Perplexity via 401 quota.)
