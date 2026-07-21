@@ -12,7 +12,14 @@ export type SkillCatalogEntry = {
   note: string | null;
 };
 
-export const SKILL_CATALOG: SkillCatalogEntry[] = [
+// Vorerst deaktivierte Plugins: Eintraege bleiben unten im Katalog erhalten, werden aber
+// nicht exportiert (keine Tool-Tiles, kein list_skills, keine agent_upsert-Validierung).
+// Zum Aktivieren den Plugin-Namen aus DISABLED_PLUGINS entfernen.
+const DISABLED_PLUGINS = new Set<string>([
+  "ezy-reaktivierung", // GEO-Reaktivierungsmaschine — in Arbeit, noch nicht fertig konfiguriert/getestet
+]);
+
+const SKILL_CATALOG_ALL: SkillCatalogEntry[] = [
   {
     "id": "skill:seo",
     "skill": "seo",
@@ -915,3 +922,7 @@ export const SKILL_CATALOG: SkillCatalogEntry[] = [
     "note": null
   }
 ];
+
+export const SKILL_CATALOG: SkillCatalogEntry[] = SKILL_CATALOG_ALL.filter(
+  (s) => !DISABLED_PLUGINS.has(s.plugin),
+);
