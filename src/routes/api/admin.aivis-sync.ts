@@ -587,11 +587,19 @@ async function jobBrandRadar(c: any, comps: string[] = []) {
 // dafür CH-Heimmarkt-stark) — Instrumentierungswechsel => measurementVersion
 // v3 (Delta-Sperre + UI-Marker greifen automatisch). jobBrandRadar (Ahrefs)
 // bleibt als Referenz im Code, wird aber nicht mehr aufgerufen.
+// Generika-Abzug (2026-07-21): Wortmarken, die zugleich in generischen Phrasen
+// stecken, zaehlen sonst die Phrase mit — "Benedict" traf 3'041x, ueberwiegend
+// "Eggs Benedict" (auch im DACH-Google-Korpus). Ausschluss-Phrasen je Marke in
+// score-config.json (mentionExcludes); deren Treffer werden abgezogen.
+const mentionExcludes = (brand: string): string[] =>
+  ((SCORE_CFG as any).mentionExcludes || {})[brand.toLowerCase()] || [];
+
 async function jobBrandRadarDfs(c: any, comps: string[] = []) {
   const brand = brandName(c);
   const domain = cleanDomain(c.domain);
   const lang = (c.language || "de").slice(0, 2);
   const errors: string[] = [];
+  const excludes = mentionExcludes(brand);
 
   // 1) Marken-Erwähnungen je Plattform × DACH-Markt (Option B, 2026-07-20:
   //    vorher nur CH — jetzt CH/DE/AT; word_match, weil partial_match
@@ -603,11 +611,23 @@ async function jobBrandRadarDfs(c: any, comps: string[] = []) {
       location_name: loc.location_name, language_code: lang,
     });
     if (!agg.ok) { errors.push(`aggregated_metrics/${loc.land}: ${agg.error}`); continue; }
-    const total = agg.result?.[0]?.total || {};
-    for (const p of total.platform || []) {
-      const m = Number(p.mentions || 0);
+    const byPlatform: Record<string, number> = {};
+    for (const p of (agg.result?.[0]?.total || {}).platform || []) byPlatform[p.key] = Number(p.mentions || 0);
+    // Generika-Abzug: aggregierte Phrasen-Treffer (z.B. "Eggs Benedict") je
+    // Plattform abziehen; Antworten mit Marke UND Phrase gehen dabei bewusst
+    // mit unter (konservativ — besser zu wenig als Generika mitzaehlen).
+    for (const phrase of excludes) {
+      const ex = await dfsAiCall("ai_optimization/llm_mentions/aggregated_metrics/live", {
+        target: [{ keyword: phrase, match_type: "word_match", search_scope: ["answer"] }],
+        location_name: loc.location_name, language_code: lang,
+      });
+      if (!ex.ok) { errors.push(`excl(${phrase}/${loc.land}): ${ex.error}`); continue; }
+      for (const p of (ex.result?.[0]?.total || {}).platform || [])
+        byPlatform[p.key] = Math.max(0, (byPlatform[p.key] || 0) - Number(p.mentions || 0));
+    }
+    for (const [key, m] of Object.entries(byPlatform)) {
       if (m <= 0) continue;
-      const name = dfsLlmLabel(p.key);
+      const name = dfsLlmLabel(key);
       const e = (modelAgg[name] ??= { name, mentions: 0, byCountry: {} });
       e.mentions += m;
       e.byCountry[loc.land] = (e.byCountry[loc.land] || 0) + m;
@@ -1852,6 +1872,7 @@ async function jobBackfill(c: any, sb: any, months: number) {
   // je Monat, gezaehlt wird ueber first_response_at-Fenster.
   const byMonth: Record<string, number> = {};
   {
+    const excludes = mentionExcludes(brand);
     for (const mo of monthsList) {
       const from = `${mo.key}-01 00:00:00 +00:00`;
       const nextM = new Date(mo.y, mo.m + 1, 1).toISOString().slice(0, 10);
@@ -1861,13 +1882,24 @@ async function jobBackfill(c: any, sb: any, months: number) {
       // (Generika-Falle "faith in humanity"/"Benedict") und würde die
       // Erwähnungs-Historie verfälschen.
       for (const slice of DFS_CORPUS_SLICES.filter((s) => s.platform === "google")) {
+        const monthFilters = [["first_response_at", ">=", from], "and", ["first_response_at", "<", `${nextM} 00:00:00 +00:00`]];
         const r = await dfsAiCall("ai_optimization/llm_mentions/search/live", {
           target: [{ keyword: brand, match_type: "word_match", search_scope: ["answer"] }],
           ...dfsSliceParams(slice), limit: 100,
-          filters: [["first_response_at", ">=", from], "and", ["first_response_at", "<", `${nextM} 00:00:00 +00:00`]],
+          filters: monthFilters,
         });
         if (!r.ok) continue; // Slice fällt aus — Rest zählt weiter
-        n += ((r.result?.[0]?.items ?? []) as any[]).length;
+        let sliceN = ((r.result?.[0]?.items ?? []) as any[]).length;
+        // Generika-Abzug analog br-Schicht (z.B. "Eggs Benedict").
+        for (const phrase of excludes) {
+          const ex = await dfsAiCall("ai_optimization/llm_mentions/search/live", {
+            target: [{ keyword: phrase, match_type: "word_match", search_scope: ["answer"] }],
+            ...dfsSliceParams(slice), limit: 100,
+            filters: monthFilters,
+          });
+          if (ex.ok) sliceN = Math.max(0, sliceN - ((ex.result?.[0]?.items ?? []) as any[]).length);
+        }
+        n += sliceN;
       }
       byMonth[mo.key] = n; // Korpus-Tiefe ~7 Monate — ältere Monate bleiben 0
     }
