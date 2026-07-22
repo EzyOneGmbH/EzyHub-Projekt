@@ -20,10 +20,11 @@ import { redactSecrets } from "@/server/google-oauth.server";
 const Body = z.object({
   client: z.string().optional(), // Name (ilike) oder uuid
   all: z.boolean().optional(),
-  jobs: z.array(z.enum(["discover", "metrics", "inspect"])).optional(),
+  jobs: z.array(z.enum(["discover", "metrics", "inspect", "backfill"])).optional(),
   perPage: z.number().int().min(1).max(100).default(100), // WP-Posts pro Seite
   maxPages: z.number().int().min(1).max(20).default(10), // WP-Pagination-Cap
   inspectLimit: z.number().int().min(1).max(200).default(50), // URL-Inspections je Kunde
+  backfillDays: z.number().int().min(28).max(480).default(90), // GSC-Historie (max ~16 Monate)
 });
 
 const isUuid = (s: string) =>
@@ -267,6 +268,89 @@ async function jobMetrics(c: any) {
   };
 }
 
+// ── 2b) Backfill: GSC-Historie einmalig nachladen (date+page, N Tage) ────────
+// Grund (22.07., Hotel Baeren): Die Messung beginnt erst mit der Kunden-
+// Anbindung — ein 500 Tage alter Artikel stand nach 4 Messtagen auf "Zu wenig
+// Daten", obwohl GSC die Historie laengst kennt. Dieser Job fuellt
+// content_metrics rueckwirkend, ohne bestehende Sync-Tage zu ueberschreiben
+// (ignoreDuplicates). Es werden Zeilen fuer ALLE Tage geschrieben (auch
+// 0-Impression-Tage): die Coverage-Zaehlung (measured_days_28) braucht sie,
+// sonst blieben genau die unsichtbaren Artikel auf "Zu wenig Daten" haengen.
+// GA4 wird nicht rueckgefuellt (sekundaer; fehlende Spalten -> Insert-Default 0).
+async function jobBackfill(c: any, days: number) {
+  if (!c.gsc_property) return { skipped: "keine GSC-Property" };
+  const { data: items } = await supabaseAdmin
+    .from("content_items")
+    .select("id, target_url")
+    .eq("client_id", c.id)
+    .eq("status", "published")
+    .eq("content_type", "blog")
+    .not("target_url", "is", null);
+  if (!items || !items.length) return { skipped: "keine Artikel" };
+  let token: string | null = null;
+  try {
+    token = (await getGoogleAccessToken(c.id)).accessToken;
+  } catch (e) {
+    return { error: "Google-Token: " + redactSecrets(e) };
+  }
+  const end = refDate(); // letzter vollstaendiger GSC-Tag
+  const startD = new Date();
+  startD.setDate(startD.getDate() - 3 - days);
+  const start = startD.toISOString().slice(0, 10);
+  const gscUrl = `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(
+    c.gsc_property,
+  )}/searchAnalytics/query`;
+  const byDayUrl = new Map<string, any>();
+  for (let startRow = 0; startRow < 75_000; startRow += 25_000) {
+    const r = await fetch(gscUrl, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        startDate: start,
+        endDate: end,
+        dimensions: ["date", "page"],
+        rowLimit: 25_000,
+        startRow,
+      }),
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (!r.ok)
+      return { error: `GSC HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 120)}` };
+    const j = (await r.json()) as any;
+    const rows = j.rows ?? [];
+    for (const row of rows) byDayUrl.set(`${row.keys?.[0] ?? ""}|${normUrl(row.keys?.[1] ?? "")}`, row);
+    if (rows.length < 25_000) break;
+  }
+  const allDays: string[] = [];
+  for (const d = new Date(start); d.toISOString().slice(0, 10) <= end; d.setDate(d.getDate() + 1))
+    allDays.push(d.toISOString().slice(0, 10));
+  const rows: any[] = [];
+  for (const it of items) {
+    const key = normUrl(it.target_url);
+    for (const day of allDays) {
+      const g = byDayUrl.get(`${day}|${key}`);
+      rows.push({
+        content_item_id: it.id,
+        captured_on: day,
+        position: g ? g.position ?? null : null,
+        impressions: g ? Math.round(g.impressions ?? 0) : 0,
+        clicks: g ? Math.round(g.clicks ?? 0) : 0,
+        ctr: g ? g.ctr ?? null : null,
+      });
+    }
+  }
+  let written = 0;
+  for (let i = 0; i < rows.length; i += 2000) {
+    const chunk = rows.slice(i, i + 2000);
+    const { error } = await supabaseAdmin
+      .from("content_metrics")
+      .upsert(chunk as never, { onConflict: "content_item_id,captured_on", ignoreDuplicates: true });
+    if (error) return { error: error.message, written };
+    written += chunk.length;
+  }
+  return { articles: items.length, days: allDays.length, rows: rows.length, from: start, to: end };
+}
+
 // ── 3) Inspect: GSC URL-Inspection-API -> echtes Google-Index-Urteil ────────
 // NICHT im Default-Jobset (Quota 2000/Tag je Property) — explizit anfordern.
 // Kandidaten-Reihenfolge: Artikel OHNE primary_keyword zuerst (Proxy fuer
@@ -343,7 +427,7 @@ export const Route = createFileRoute("/api/admin/content-sync")({
         const parsed = Body.safeParse(await request.json().catch(() => ({})));
         if (!parsed.success)
           return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
-        const { client: sel, all, jobs, perPage, maxPages, inspectLimit } = parsed.data;
+        const { client: sel, all, jobs, perPage, maxPages, inspectLimit, backfillDays } = parsed.data;
         const wanted = jobs && jobs.length ? jobs : (["discover", "metrics"] as const);
 
         const query = supabaseAdmin
@@ -366,6 +450,7 @@ export const Route = createFileRoute("/api/admin/content-sync")({
               if (j === "discover") jr.discover = await jobDiscover(c, perPage, maxPages);
               else if (j === "metrics") jr.metrics = await jobMetrics(c);
               else if (j === "inspect") jr.inspect = await jobInspect(c, inspectLimit);
+              else if (j === "backfill") jr.backfill = await jobBackfill(c, backfillDays);
             } catch (e) {
               jr[j] = { error: redactSecrets(e) };
             }
