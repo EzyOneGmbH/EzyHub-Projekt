@@ -8743,7 +8743,6 @@ function ContentPage({ clients, items, onSaveContent, selectedClient }) {
           tabs={[
             { id: "all", label: "Alle" },
             { id: "win", label: "Erfolge" },
-            { id: "blog", label: "Blog" },
             { id: "audit", label: "Audit" },
             { id: "note", label: "Notes" },
             { id: "report", label: "Berichte" },
@@ -8752,9 +8751,7 @@ function ContentPage({ clients, items, onSaveContent, selectedClient }) {
           onChange={setFilter}
         />
       </div>
-      {filter === "blog" ? (
-        <RefreshRadar selectedClient={selectedClient} />
-      ) : filter === "report" ? (
+      {filter === "report" ? (
         <ReportsPage items={items} selectedClient={selectedClient} />
       ) : (
       <div
@@ -9111,6 +9108,7 @@ function OnboardingCard({ client, onUpdated }) {
 const ONBOARD_TABS = [
   { id: "overview", label: "Übersicht", hint: "KPIs, Health, Frische" },
   { id: "seo", label: "SEO", hint: "Rankings, GSC, CWV, Ahrefs" },
+  { id: "blog", label: "Blog", hint: "Blog-Artikel & Refresh-Radar" },
   { id: "aivis", label: "KI-Sichtbarkeit", hint: "AI-Citations (Canonry)" },
   { id: "conversions", label: "Conversions", hint: "GA4, Kanäle, Umsatz" },
   { id: "ads", label: "Google Ads", hint: "Kampagnen, Autopilot" },
@@ -10587,6 +10585,7 @@ function SettingsPage({
                   {[
                     { id: "overview", label: "Übersicht", icon: BarChart3 },
                     { id: "seo", label: "SEO", icon: Globe },
+                    { id: "blog", label: "Blog", icon: PenTool },
                     { id: "aivis", label: "KI-Sichtbarkeit", icon: Bot },
                     { id: "conversions", label: "Conversions", icon: DollarSign },
                     { id: "ads", label: "Ads", icon: Megaphone },
@@ -12617,6 +12616,7 @@ function AgentRunsPanel({ selectedClient }) {
 const TABS = [
   { id: "overview", label: "Übersicht", icon: BarChart3 },
   { id: "seo", label: "SEO", icon: Globe },
+  { id: "blog", label: "Blog", icon: PenTool },
   { id: "aivis", label: "KI-Sichtbarkeit", icon: Bot },
   { id: "conversions", label: "Conversions", icon: DollarSign },
   { id: "ads", label: "Ads", icon: Megaphone },
@@ -12627,6 +12627,8 @@ const TABS = [
 const TAB_SERVICE = {
   overview: null,
   seo: null,
+  blog: null, // Refresh-Radar: opt-in rein über die Tab-Auswahl je Kunde
+
   aivis: ["canonry", "perplexity"], // enthält jetzt auch die Canonry-Live-Sweeps
   conversions: ["ga4"],
   ads: ["google-ads"],
@@ -13356,7 +13358,9 @@ function App() {
                         ? "Übersicht"
                         : tab === "seo"
                           ? "SEO Dashboard"
-                          : tab === "aivis"
+                          : tab === "blog"
+                            ? "Blog"
+                            : tab === "aivis"
                               ? "KI-Sichtbarkeit"
                               : tab === "ads"
                                 ? "Ads Dashboard"
@@ -13379,6 +13383,7 @@ function App() {
                 <>
                   {tab === "overview" && <OverviewDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
                   {tab === "seo" && <SeoDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
+                  {tab === "blog" && <RefreshRadar selectedClient={client} />}
                   {tab === "aivis" && <AiVisibilityTab selectedClient={client} dateRange={dateRangeWithCompare} />}
                   {tab === "conversions" && <ConvDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
                   {tab === "ads" && (
