@@ -29,6 +29,7 @@ import { Route as TasksIdRouteImport } from './routes/tasks.$id'
 import { Route as SettingsApiRouteImport } from './routes/settings.api'
 import { Route as CustomersIdRouteImport } from './routes/customers.$id'
 import { Route as ContentIdRouteImport } from './routes/content.$id'
+import { Route as ApiContentRefreshBriefRouteImport } from './routes/api/content.refresh-brief'
 import { Route as ApiClaudeSessionsRouteImport } from './routes/api/claude-sessions'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
@@ -208,6 +209,11 @@ const ContentIdRoute = ContentIdRouteImport.update({
   id: '/$id',
   path: '/$id',
   getParentRoute: () => ContentRoute,
+} as any)
+const ApiContentRefreshBriefRoute = ApiContentRefreshBriefRouteImport.update({
+  id: '/api/content/refresh-brief',
+  path: '/api/content/refresh-brief',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiClaudeSessionsRoute = ApiClaudeSessionsRouteImport.update({
   id: '/api/claude-sessions',
@@ -643,6 +649,7 @@ export interface FileRoutesByFullPath {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/users': typeof AdminUsersRoute
   '/api/claude-sessions': typeof ApiClaudeSessionsRoute
+  '/api/content/refresh-brief': typeof ApiContentRefreshBriefRoute
   '/content/$id': typeof ContentIdRoute
   '/customers/$id': typeof CustomersIdRoute
   '/settings/api': typeof SettingsApiRoute
@@ -744,6 +751,7 @@ export interface FileRoutesByTo {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/users': typeof AdminUsersRoute
   '/api/claude-sessions': typeof ApiClaudeSessionsRoute
+  '/api/content/refresh-brief': typeof ApiContentRefreshBriefRoute
   '/content/$id': typeof ContentIdRoute
   '/customers/$id': typeof CustomersIdRoute
   '/settings/api': typeof SettingsApiRoute
@@ -846,6 +854,7 @@ export interface FileRoutesById {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/users': typeof AdminUsersRoute
   '/api/claude-sessions': typeof ApiClaudeSessionsRoute
+  '/api/content/refresh-brief': typeof ApiContentRefreshBriefRoute
   '/content/$id': typeof ContentIdRoute
   '/customers/$id': typeof CustomersIdRoute
   '/settings/api': typeof SettingsApiRoute
@@ -949,6 +958,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/admin/users'
     | '/api/claude-sessions'
+    | '/api/content/refresh-brief'
     | '/content/$id'
     | '/customers/$id'
     | '/settings/api'
@@ -1050,6 +1060,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/admin/users'
     | '/api/claude-sessions'
+    | '/api/content/refresh-brief'
     | '/content/$id'
     | '/customers/$id'
     | '/settings/api'
@@ -1151,6 +1162,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/admin/users'
     | '/api/claude-sessions'
+    | '/api/content/refresh-brief'
     | '/content/$id'
     | '/customers/$id'
     | '/settings/api'
@@ -1253,6 +1265,7 @@ export interface RootRouteChildren {
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   AdminUsersRoute: typeof AdminUsersRoute
   ApiClaudeSessionsRoute: typeof ApiClaudeSessionsRoute
+  ApiContentRefreshBriefRoute: typeof ApiContentRefreshBriefRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
   ApiAdminAdsAutopilotApprovalsRoute: typeof ApiAdminAdsAutopilotApprovalsRoute
@@ -1477,6 +1490,13 @@ declare module '@tanstack/react-router' {
       path: '/api/claude-sessions'
       fullPath: '/api/claude-sessions'
       preLoaderRoute: typeof ApiClaudeSessionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/content/refresh-brief': {
+      id: '/api/content/refresh-brief'
+      path: '/api/content/refresh-brief'
+      fullPath: '/api/content/refresh-brief'
+      preLoaderRoute: typeof ApiContentRefreshBriefRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/users': {
@@ -2095,6 +2115,7 @@ const rootRouteChildren: RootRouteChildren = {
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   AdminUsersRoute: AdminUsersRoute,
   ApiClaudeSessionsRoute: ApiClaudeSessionsRoute,
+  ApiContentRefreshBriefRoute: ApiContentRefreshBriefRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
   ApiAdminAdsAutopilotApprovalsRoute: ApiAdminAdsAutopilotApprovalsRoute,

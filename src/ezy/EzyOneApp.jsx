@@ -8403,6 +8403,25 @@ function RefreshRadar({ selectedClient }) {
   const [onlyAction, setOnlyAction] = useState(false);
   const [detail, setDetail] = useState(null);
   const [playbook, setPlaybook] = useState(null); // Zeile fuer Massnahmen-Pop-up
+  // Artikel-spezifische KI-Empfehlung je content_item_id: {loading|text|error}.
+  // Bleibt im State gecacht, damit erneutes Oeffnen nicht erneut generiert (Kosten).
+  const [briefs, setBriefs] = useState({});
+  const generateBrief = useCallback(async (row) => {
+    setBriefs((p) => ({ ...p, [row.id]: { loading: true } }));
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const r = await fetch("/api/content/refresh-brief", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: selectedClient.id, contentItemId: row.id }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+      setBriefs((p) => ({ ...p, [row.id]: { text: j.content } }));
+    } catch (e) {
+      setBriefs((p) => ({ ...p, [row.id]: { error: e?.message || "Analyse fehlgeschlagen" } }));
+    }
+  }, [selectedClient?.id]);
   // Google-Verbindungsstatus: erklaert "keine Metriken" ehrlich (Token fehlt/abgelaufen)
   // statt sie als "kein Traffic" aussehen zu lassen. null = unbekannt -> kein Banner.
   const [gConn, setGConn] = useState(null);
@@ -8553,6 +8572,39 @@ function RefreshRadar({ selectedClient }) {
               <div style={{ padding: "10px 14px", borderRadius: 10, background: C.green + "14", border: `1px solid ${C.green}44`, fontSize: 12.5, color: C.text, lineHeight: 1.55 }}>
                 <b style={{ color: C.green }}>Fertig, wenn:</b> {pb.exit}
               </div>
+              {(() => {
+                const brief = briefs[playbook.id];
+                return (
+                  <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                        Konkrete Empfehlung für diesen Artikel
+                      </div>
+                      {!brief?.text ? (
+                        <Btn variant="secondary" size="sm" icon={Sparkles} disabled={!!brief?.loading} onClick={() => generateBrief(playbook)}>
+                          {brief?.loading ? "Analysiere…" : brief?.error ? "Nochmal versuchen" : "Mit KI erstellen"}
+                        </Btn>
+                      ) : null}
+                    </div>
+                    {brief?.loading ? (
+                      <div style={{ fontSize: 12.5, color: C.textMuted, lineHeight: 1.55 }}>
+                        Der Artikel wird live von der Kundenseite geladen und zusammen mit den 28-Tage-Zahlen analysiert — dauert ca. 20–30 Sekunden…
+                      </div>
+                    ) : brief?.error ? (
+                      <div style={{ fontSize: 12.5, color: C.red, lineHeight: 1.55 }}>{brief.error}</div>
+                    ) : brief?.text ? (
+                      <div
+                        style={{ fontSize: 13, color: C.text, lineHeight: 1.65, maxHeight: 340, overflowY: "auto", padding: "4px 2px" }}
+                        dangerouslySetInnerHTML={{ __html: markdownToHtml(brief.text) }}
+                      />
+                    ) : (
+                      <div style={{ fontSize: 12.5, color: C.textMuted, lineHeight: 1.55 }}>
+                        Lädt den Live-Artikel (Title, Meta, Überschriften) und die GSC-Zahlen und erstellt daraus einen Massnahmenplan mit konkreten Formulierungsvorschlägen — z. B. neue Title-Varianten, fehlende Themen-Abschnitte oder zu aktualisierende Inhalte.
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </Modal>
         );
