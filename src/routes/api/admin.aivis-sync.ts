@@ -837,7 +837,9 @@ async function askPerplexity(prompt: string, maxTokens = 600, temperature?: numb
     body: JSON.stringify({ model: "sonar", messages: [{ role: "user", content: prompt }], max_tokens: maxTokens, ...(temperature != null ? { temperature } : {}) }),
     signal: AbortSignal.timeout(60_000),
   });
-  if (!r.ok) return null;
+  // Fehlertext durchreichen statt null — sonst ist ein Quota-401 von "kein Key"
+  // nicht zu unterscheiden (siehe engineProbe).
+  if (!r.ok) return { text: "", sources: 0, error: `Perplexity HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 140)}` } as any;
   const j: any = await r.json().catch(() => null);
   const text = String(j?.choices?.[0]?.message?.content ?? "").trim();
   recordUsage("Perplexity", Number(j?.usage?.prompt_tokens || 0), Number(j?.usage?.completion_tokens || 0));
@@ -2601,6 +2603,30 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
           }
           const missing = PROMPT_ENGINES.map((e) => e.name).filter((n) => !gesehen.has(n));
           return Response.json({ ok: true, build: BUILD_TAG, date: heute, present: [...gesehen], missing, reports: ids.length });
+        }
+
+        // ?engineProbe=1: jede Engine einmal minimal anpingen und den ECHTEN
+        // HTTP-Status zurückgeben. engineHealth zeigt nur, DASS eine Engine
+        // schweigt — nie WARUM, weil die ask*-Helfer den Fehlertext bloss
+        // zurückgeben und der Runner ihn verwirft. Ohne diese Probe endet jede
+        // Ausfall-Diagnose beim Raten (Guthaben? Key? Quota? Modellname?).
+        if (new URL(request.url).searchParams.get("engineProbe")) {
+          const probes = await Promise.all(
+            PROMPT_ENGINES.map(async (e) => {
+              const t0 = Date.now();
+              try {
+                const r: any = await e.ask("ping");
+                const ms = Date.now() - t0;
+                if (r === null) return { engine: e.name, ok: false, ms, grund: "kein Key gesetzt ODER leere Antwort" };
+                if (r.error) return { engine: e.name, ok: false, ms, grund: String(r.error) };
+                return { engine: e.name, ok: true, ms, model: r.model ?? null };
+              } catch (err) {
+                return { engine: e.name, ok: false, ms: Date.now() - t0, grund: redactSecrets(err) };
+              }
+            }),
+          );
+          await flushCost(sb);
+          return Response.json({ ok: true, build: BUILD_TAG, probes });
         }
 
         // ?brandAdvisory=1: heutige Marken-Check-Befunde (E4) — der
