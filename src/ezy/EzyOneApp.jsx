@@ -8292,7 +8292,7 @@ const REC_META = {
   stable_hold:       { t: "Stabil",                            c: C.green,     a: "Nichts tun" },
   monitor:           { t: "Beobachten",                        c: C.textMuted, a: "Beobachten" },
   maturing_wait:     { t: "Reift noch",                        c: C.textDim,   a: "Warten (< 30 Tage)" },
-  insufficient_data: { t: "Zu wenig Daten",                    c: C.textDim,   a: "Beobachten, kein Urteil" },
+  insufficient_data: { t: "Zu wenig Daten",                    c: C.textDim,   a: "Beobachten, kein Urteil (Messfenster füllt sich noch)" },
   unpublished:       { t: "Unpubliziert",                      c: C.textDim,   a: "—" },
 };
 const ACTION_RECS = ["tech_fix", "ctr_fix", "push_expand", "refresh_decay", "consolidate", "ceiling_new_kw"];
@@ -8528,7 +8528,7 @@ function RefreshRadar({ selectedClient }) {
                   <div style={{ padding: "0 18px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                       <div style={{ fontSize: 12.5, color: C.textMuted }}>
-                        <b style={{ color: rec.c }}>{rec.t}</b>{rec.a ? ` — ${rec.a}` : ""} · Klicks 28T: <b style={{ color: C.text }}>{r.clicks_28 ?? 0}</b> (Peak {r.peak_clicks_28 ?? 0}) · Ø-Pos: {r.position_28 ?? "—"} · Impr 28T: {r.impr_28 ?? 0}{r.language ? ` · ${String(r.language).toUpperCase()}` : ""}
+                        <b style={{ color: rec.c }}>{rec.t}</b>{rec.a ? ` — ${rec.a}` : ""} · Klicks 28T: <b style={{ color: C.text }}>{r.clicks_28 ?? 0}</b> (Peak {r.peak_clicks_28 ?? 0}) · Ø-Pos: {r.position_28 ?? "—"} · Impr 28T: {r.impr_28 ?? 0}{r.measured_days_28 != null && r.measured_days_28 < 28 ? ` · erst ${r.measured_days_28} von 28 Messtagen` : ""}{r.language ? ` · ${String(r.language).toUpperCase()}` : ""}
                       </div>
                       {REC_PLAYBOOK[r.recommendation] ? (
                         <Btn variant="secondary" size="sm" onClick={() => setPlaybook(r)}>Maßnahme anzeigen</Btn>
