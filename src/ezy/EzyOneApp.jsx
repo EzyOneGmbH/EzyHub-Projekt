@@ -8289,13 +8289,14 @@ const REC_META = {
   push_expand:       { t: "Striking Distance – ausbauen",      c: C.accent,    a: "Content erweitern, E-E-A-T, Intent schärfen" },
   ctr_fix:           { t: "Title/Meta optimieren",             c: C.cyan,      a: "Snippet überarbeiten (kein Volltext-Refresh)" },
   ceiling_new_kw:    { t: "Keyword-Ceiling – neues Ziel",      c: C.orange,    a: "Nicht refreshen – neues KW/Strategie" },
+  low_visibility:    { t: "Kaum sichtbar",                     c: C.orange,    a: "Sichtbarkeit aufbauen: Keyword-Fokus, Intent, interne Links" },
   stable_hold:       { t: "Stabil",                            c: C.green,     a: "Nichts tun" },
   monitor:           { t: "Beobachten",                        c: C.textMuted, a: "Beobachten" },
   maturing_wait:     { t: "Reift noch",                        c: C.textDim,   a: "Warten (< 30 Tage)" },
   insufficient_data: { t: "Zu wenig Daten",                    c: C.textDim,   a: "Beobachten, kein Urteil (Messfenster füllt sich noch)" },
   unpublished:       { t: "Unpubliziert",                      c: C.textDim,   a: "—" },
 };
-const ACTION_RECS = ["tech_fix", "ctr_fix", "push_expand", "refresh_decay", "consolidate", "ceiling_new_kw"];
+const ACTION_RECS = ["tech_fix", "ctr_fix", "push_expand", "refresh_decay", "consolidate", "ceiling_new_kw", "low_visibility"];
 // Massnahmen-Playbook je Empfehlung (Kurzfassung von content-fix-playbook/fix-procedures.md)
 // fuer das Mitarbeiter-Pop-up: Befund -> konkrete Schritte -> Exit-Kriterium.
 const REC_PLAYBOOK = {
@@ -8347,6 +8348,17 @@ const REC_PLAYBOOK = {
       "An Technik/SEO übergeben — an diesem Artikel KEINE Text-Änderung vornehmen.",
     ],
     exit: "Übergabe/Ticket an Technik erstellt; Artikel bleibt unverändert.",
+  },
+  low_visibility: {
+    befund: "Über 90 Tage publiziert und volle Messabdeckung, aber unter 100 Impressionen in 28 Tagen — Google zeigt den Artikel kaum. Meist kein Technik-, sondern ein Relevanz-Problem (Keyword ohne Nachfrage, Intent-Mismatch, fehlende interne Links).",
+    schritte: [
+      "Indexierung einmal bestätigen (GSC URL-Prüfung). Nicht indexiert → als Technik-Fall behandeln.",
+      "Saisonalität prüfen: Winterthemen sind im Sommer natürlich unsichtbar — dann nur für die Saison terminieren, nichts ändern.",
+      "Ziel-Keyword hinterfragen: hat es Suchvolumen, und deckt der Artikel die Suchintention (Format, Tiefe)? GSC-Top-Query mit dem gemeinten Thema vergleichen.",
+      "Interne Links von starken Seiten (Startseite, Hub-Seiten) auf den Artikel setzen — unsichtbare Artikel sind oft Waisen.",
+      "Title/H1 auf das Ziel-Keyword schärfen; ggf. auf ein nachgefragtes, angrenzendes Keyword erweitern.",
+    ],
+    exit: "Massnahmen live; Re-Check in 6–8 Wochen mit Ziel >100 Impressionen/28 Tage.",
   },
   ceiling_new_kw: {
     befund: "Rankt bereits top, aber das Keyword hat zu wenig Suchvolumen — ein Refresh bringt hier nichts mehr.",

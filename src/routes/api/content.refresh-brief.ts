@@ -44,6 +44,8 @@ const REC_FOCUS: Record<string, string> = {
     "Kein Text-Problem: pruefe Indexierung/interne Verlinkung. Liste die konkreten Pruefschritte (GSC-URL-Pruefung, interne Links, Sitemap) — KEINE Textaenderungen vorschlagen.",
   ceiling_new_kw:
     "Rankt bereits top, Keyword-Volumen ist zu klein. Schlage 3-5 angrenzende, groessere Ziel-Keywords/Themen vor, die zum Artikelthema passen, und ob Erweiterung oder neuer Artikel sinnvoller ist. KEINEN Refresh dieses Artikels empfehlen.",
+  low_visibility:
+    "Der Artikel ist alt genug und die Messung vollstaendig, aber Google spielt ihn kaum aus (<100 Impressionen/28T). Beurteile zuerst Saisonalitaet (Thema vs. Jahreszeit!) — dann: passt das Ziel-Keyword (Nachfrage? Intent?), welche konkreten internen Link-Quellen fehlen, und wie waeren Title/H1 auf ein nachgefragtes Keyword zu schaerfen? Konkrete Keyword-Alternativen mit Begruendung nennen.",
 };
 
 // Live-Snapshot des Artikels: Title-Tag, Meta-Description, H2/H3, grobe Wortzahl.

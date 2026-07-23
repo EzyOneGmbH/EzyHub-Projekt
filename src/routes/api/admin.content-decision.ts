@@ -9,9 +9,9 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 // (ADMIN_AUTOMATION_SECRET) — gleiche Architektur wie content-sync/aivis-sync.
 // Die View ist bereits blog-only + published (content_type='blog').
 
-const ACTIONABLE = ["tech_fix", "ctr_fix", "push_expand", "refresh_decay", "consolidate", "ceiling_new_kw"];
+const ACTIONABLE = ["tech_fix", "ctr_fix", "push_expand", "refresh_decay", "consolidate", "ceiling_new_kw", "low_visibility"];
 // Dringlichkeit: Technik/Kannibalisierung zuerst, dann Decay, dann Ausbau/CTR.
-const ORDER: Record<string, number> = { tech_fix: 1, consolidate: 2, refresh_decay: 3, push_expand: 4, ctr_fix: 5, ceiling_new_kw: 6 };
+const ORDER: Record<string, number> = { tech_fix: 1, consolidate: 2, refresh_decay: 3, push_expand: 4, ctr_fix: 5, ceiling_new_kw: 6, low_visibility: 7 };
 
 export const Route = createFileRoute("/api/admin/content-decision")({
   server: {
