@@ -288,7 +288,7 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
-const BUILD_TAG = "2026-07-21-costlog"; // Deploy-Verifikation via GET-Antwort
+const BUILD_TAG = "2026-07-23-relevanz"; // Deploy-Verifikation via GET-Antwort
 
 // ── Score v2 (2026-07-18): Sättigung statt harter Deckel ─────────────────────
 // Konstanten in src/lib/score-config.json (REFs, Gewichte, Glättung, Judge).
@@ -968,7 +968,7 @@ const SEED_CHUNK = 25;
 async function seedPromptDefs(
   c: any,
   sbAny: any,
-  opts: { count?: number; existing?: string[]; angle?: string } = {},
+  opts: { count?: number; existing?: string[]; angle?: string; facts?: any } = {},
 ): Promise<{ defs: any[]; error?: string }> {
   const count = Math.min(SEED_CHUNK, Math.max(1, opts.count ?? PROMPT_TARGET));
   const existing = (opts.existing ?? []).map((p) => String(p).trim()).filter(Boolean);
@@ -976,8 +976,16 @@ async function seedPromptDefs(
     ? `\nBereits vorhandene Prompts (erzeuge KEINE Duplikate und keine nahen Umformulierungen davon, sondern NEUE Blickwinkel/Nischen):\n${existing.map((p) => `- ${p}`).join("\n")}\n`
     : "";
   const angle = opts.angle ? `\nDIESER DURCHGANG: ${opts.angle}.` : "";
+  // ERDUNG auf Fakten (Prävention Fehl-Seeding, 2026-07-23): OHNE Faktenprofil
+  // rät der LLM aus Name+Domain, was die Firma macht — bei nicht selbsterklärenden
+  // Namen fatal (JAG AG = Prozessanlagen/Robotik wurde als Uhrenhändler geseedet,
+  // 100 Uhren-Prompts). Mit angebot/kernfakten kann er das Feld nicht mehr erfinden.
+  const f = opts.facts;
+  const factsBlock = f && (f.angebot || (Array.isArray(f.kernfakten) && f.kernfakten.length))
+    ? `\nWAS DIE FIRMA TATSÄCHLICH MACHT (verbindlich, halte dich strikt daran — erfinde KEINE fremde Branche): ${f.angebot ? "Angebot: " + f.angebot + ". " : ""}${Array.isArray(f.kernfakten) && f.kernfakten.length ? "Fakten: " + f.kernfakten.join(" | ") : ""}\nDie Prompts MÜSSEN zum oben genannten Angebot passen — Fragen aus einer fremden Branche sind falsch.\n`
+    : "";
   const text = await askUtility(
-    `Du bist SEO/GEO-Analyst. Erzeuge ${count} realistische Suchanfragen (Prompts), die echte potenzielle Kunden an KI-Assistenten stellen und bei denen die Firma "${c.name}" (${cleanDomain(c.domain)}, Markt ${c.country || "CH"}) idealerweise empfohlen werden sollte. Decke bewusst ab: (a) generische Empfehlungsfragen ("bestes …"), (b) direkte Vergleichs-/Alternativfragen ("Alternativen zu …", "X oder Y"), (c) Long-Tail/Nischen mit spezifischen Anforderungen, (d) transaktionale und (e) lokale Fragen je Land. Mische Sprachen passend zum Markt (v. a. ${c.language || "de"}) und Länder (Schweiz/Deutschland/Österreich/Italien/International). WICHTIG: Prompts dürfen den Firmennamen NICHT enthalten (außer max. 1 Navigations-Prompt).${angle}${avoid} Antworte NUR mit JSON-Array: [{"prompt":"...","topic":"kurzes Themen-Label","intent":"Kommerziell|Informativ|Transaktional|Navigativ","country":"Schweiz|Deutschland|Österreich|Italien|International"}]`,
+    `Du bist SEO/GEO-Analyst. Erzeuge ${count} realistische Suchanfragen (Prompts), die echte potenzielle Kunden an KI-Assistenten stellen und bei denen die Firma "${c.name}" (${cleanDomain(c.domain)}, Markt ${c.country || "CH"}) idealerweise empfohlen werden sollte.${factsBlock} Decke bewusst ab: (a) generische Empfehlungsfragen ("bestes …"), (b) direkte Vergleichs-/Alternativfragen ("Alternativen zu …", "X oder Y"), (c) Long-Tail/Nischen mit spezifischen Anforderungen, (d) transaktionale und (e) lokale Fragen je Land. Mische Sprachen passend zum Markt (v. a. ${c.language || "de"}) und Länder (Schweiz/Deutschland/Österreich/Italien/International). WICHTIG: Prompts dürfen den Firmennamen NICHT enthalten (außer max. 1 Navigations-Prompt).${angle}${avoid} Antworte NUR mit JSON-Array: [{"prompt":"...","topic":"kurzes Themen-Label","intent":"Kommerziell|Informativ|Transaktional|Navigativ","country":"Schweiz|Deutschland|Österreich|Italien|International"}]`,
     4000,
   );
   if (!text) return { defs: [], error: "kein Modell verfügbar (Seeding)" };
@@ -1054,6 +1062,64 @@ async function getBrandFacts(c: any, sbAny: any): Promise<any> {
   await sbAny.from("ai_visibility_brand_facts").upsert({ client_id: c.id, facts, needs_review: true, updated_at: new Date().toISOString() });
   diag(`prompts: brand-facts initial generiert (needsReview)`);
   return facts;
+}
+
+// ── Relevanz-Selbstcheck (Prävention Fehl-Seeding, 2026-07-23) ───────────────
+// Gleicht aktive MARKT-Prompts gegen das Faktenprofil ab und deaktiviert
+// thematisch fremde (active=false + needs_review=true). Fängt sowohl neue
+// Halluzinationen als auch Altlasten (JAG: 100 Uhren-Prompts für einen
+// Robotik-Integrator). KONSERVATIV: nur eindeutig fremde Branche wird geflaggt,
+// im Zweifel bleibt der Prompt aktiv — lieber ein Fehltreffer stehen lassen als
+// einen guten Prompt fälschlich abschalten.
+async function auditPromptRelevance(
+  c: any, sbAny: any, facts?: any,
+): Promise<{ checked: number; flagged: number; skipped?: string; flaggedPrompts?: string[] }> {
+  const f = facts ?? await getBrandFacts(c, sbAny).catch(() => null);
+  if (!f || (!f.angebot && !(Array.isArray(f.kernfakten) && f.kernfakten.length)))
+    return { checked: 0, flagged: 0, skipped: "kein Faktenprofil" };
+  // Nur aktive Markt-Prompts (Brand-Prompts nennen die Marke direkt, sind per
+  // Definition on-topic).
+  let defs: any[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data: page } = await sbAny
+      .from("ai_visibility_prompt_defs").select("id, prompt, prompt_type, active")
+      .eq("client_id", c.id).eq("active", true).range(from, from + 999);
+    defs.push(...(page ?? []));
+    if (!page || page.length < 1000) break;
+  }
+  const markt = defs.filter((d: any) => (d.prompt_type || "markt") !== "brand");
+  if (!markt.length) return { checked: 0, flagged: 0, skipped: "keine aktiven Markt-Prompts" };
+  const factsText = `${f.angebot ? "Angebot: " + f.angebot + ". " : ""}${Array.isArray(f.kernfakten) && f.kernfakten.length ? "Fakten: " + f.kernfakten.join(" | ") : ""}`;
+  const flaggedIds: string[] = [];
+  // In Blöcken (Token-Budget + Robustheit); Index-basiert, nicht per UUID.
+  for (let off = 0; off < markt.length; off += 60) {
+    const block = markt.slice(off, off + 60);
+    const listing = block.map((d: any, i: number) => `${i}: ${d.prompt}`).join("\n");
+    const text = await askUtility(
+      `Firma "${c.name}". WAS SIE MACHT: ${factsText}\n\nUnten nummerierte Kunden-Suchanfragen. Nenne NUR die Nummern, deren THEMA in einer klar ANDEREN Branche liegt als das Angebot der Firma (z. B. Uhren-Fragen bei einem Industrie-/Robotik-Anbieter). Allgemeine oder entfernt verwandte Fragen zählen NICHT als fremd — im Zweifel WEGLASSEN. Antworte NUR mit JSON: {"fremd":[<Nummern>]}\n\n${listing}`,
+      1200,
+    );
+    const parsed = parseJson(text || "") || {};
+    const idx: number[] = Array.isArray(parsed.fremd) ? parsed.fremd : [];
+    for (const n of idx) {
+      const d = block[Number(n)];
+      if (d?.id) flaggedIds.push(d.id);
+    }
+  }
+  if (flaggedIds.length) {
+    // Blockweise deaktivieren + zur Prüfung markieren (nie löschen — reversibel).
+    for (let i = 0; i < flaggedIds.length; i += 200) {
+      await sbAny.from("ai_visibility_prompt_defs")
+        .update({ active: false, needs_review: true })
+        .in("id", flaggedIds.slice(i, i + 200));
+    }
+  }
+  diag(`relevanz-audit ${c.name}: ${flaggedIds.length}/${markt.length} fremde Markt-Prompts deaktiviert`);
+  const flaggedSet = new Set(flaggedIds);
+  return {
+    checked: markt.length, flagged: flaggedIds.length,
+    flaggedPrompts: markt.filter((d: any) => flaggedSet.has(d.id)).map((d: any) => d.prompt),
+  };
 }
 
 // Brand-Judge (E2): bewertet WAS über die Marke gesagt wird — Faktentreue
@@ -1171,6 +1237,9 @@ async function jobPromptRunner(
   let brandDefs = defs.filter((d: any) => d.prompt_type === "brand");
   const seedingAllowed = opts.target != null || !defs.length;
   if (seedingAllowed) {
+    // Faktenprofil VOR dem Markt-Seeding sicherstellen und dem Seeder mitgeben —
+    // erdet die Generierung, damit keine fremde Branche erfunden wird.
+    const seedFacts = await getBrandFacts(c, sbAny).catch(() => null);
     const ANGLES = [
       "Fokus: saisonale und anlassbezogene Fragen (Feiertage, Events, Jahreszeiten, Geschenke)",
       "Fokus: Preis-, Budget- und Vergleichsfragen (günstig vs. Premium, Preis-Leistung)",
@@ -1185,6 +1254,7 @@ async function jobPromptRunner(
         count: target - marktDefs.length,
         existing: [...marktDefs, ...brandDefs].map((d: any) => d.prompt),
         angle: ANGLES[attempt % ANGLES.length],
+        facts: seedFacts,
       });
       attempt += 1;
       if (!s.defs.length) { zero += 1; seedError = s.error; continue; }
@@ -1197,6 +1267,19 @@ async function jobPromptRunner(
     if (!brandDefs.length) {
       const bs = await seedBrandPrompts(c, sbAny).catch(() => []);
       if (bs.length) { brandDefs = bs; diag(`prompts: Brand-Set generiert (${bs.length}, needsReview)`); }
+    }
+    // Relevanz-Selbstcheck direkt nach dem Seeding: fremd-thematische Markt-
+    // Prompts sofort deaktivieren, damit sie gar nicht erst gemessen/angezeigt
+    // werden. Die geflaggten fliegen auch aus diesem Lauf raus.
+    if (seedFacts) {
+      const audit = await auditPromptRelevance(c, sbAny, seedFacts).catch(() => null);
+      if (audit?.flagged) {
+        const { data: stillActive } = await sbAny
+          .from("ai_visibility_prompt_defs").select("id").eq("client_id", c.id).eq("active", true);
+        const okIds = new Set((stillActive ?? []).map((r: any) => r.id));
+        marktDefs = marktDefs.filter((d: any) => okIds.has(d.id));
+        diag(`prompts: Relevanz-Audit entfernte ${audit.flagged} fremde Prompts aus dem Lauf`);
+      }
     }
   }
   defs = [...marktDefs, ...brandDefs];
@@ -2627,6 +2710,53 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
           );
           await flushCost(sb);
           return Response.json({ ok: true, build: BUILD_TAG, probes });
+        }
+
+        // ?relevanceAudit=<name|id|all>: Markt-Prompts gegen das Faktenprofil
+        // prüfen und thematisch fremde deaktivieren (Prävention/Reparatur Fehl-
+        // Seeding). Räumt auch die heutigen Report-Zeilen der geflaggten Prompts
+        // ab, damit das Dashboard sofort sauber ist. GET, damit einfach triggerbar.
+        {
+          const raParam = new URL(request.url).searchParams.get("relevanceAudit");
+          if (raParam) {
+            const { data: cls } = await sb.from("clients").select("id, name, domain");
+            let targets = cls || [];
+            if (raParam !== "all") {
+              const q = raParam.toLowerCase();
+              targets = targets.filter((c: any) => String(c.id) === raParam || String(c.name || "").toLowerCase().includes(q));
+            } else {
+              // "all" = nur Kunden mit aktivem KI-Sichtbarkeits-Service.
+              const active: any[] = [];
+              for (const c of targets) {
+                const svc = await getEnabledServices(c.id);
+                if (svc.canonry || svc.perplexity) active.push(c);
+              }
+              targets = active;
+            }
+            const results: any[] = [];
+            for (const c of targets) {
+              const audit = await auditPromptRelevance(c, sb).catch((e) => ({ checked: 0, flagged: 0, skipped: redactSecrets(e) }));
+              let purged = 0;
+              const flagged = (audit as any).flaggedPrompts as string[] | undefined;
+              if (flagged && flagged.length) {
+                // Heutige Report-Zeilen der geflaggten Prompts entfernen.
+                const { data: reps } = await sb
+                  .from("ai_visibility_reports").select("id").eq("client_id", c.id).eq("snapshot_date", today());
+                const repIds = (reps || []).map((r: any) => r.id);
+                if (repIds.length) {
+                  for (let i = 0; i < flagged.length; i += 100) {
+                    const { count } = await sb.from("ai_visibility_prompts")
+                      .delete({ count: "exact" })
+                      .in("report_id", repIds).in("prompt", flagged.slice(i, i + 100));
+                    purged += Number(count || 0);
+                  }
+                }
+              }
+              results.push({ client: c.name, checked: (audit as any).checked, flagged: (audit as any).flagged, purgedRows: purged, skipped: (audit as any).skipped, examples: (flagged || []).slice(0, 8) });
+            }
+            await flushCost(sb);
+            return Response.json({ ok: true, build: BUILD_TAG, results });
+          }
         }
 
         // ?brandAdvisory=1: heutige Marken-Check-Befunde (E4) — der

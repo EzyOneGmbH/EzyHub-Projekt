@@ -69,6 +69,7 @@ export type AIVisibilityData = {
     byCountry: Record<string, number>;
   }[];
   topics: { topic: string; vis: number; mentions: number; vol: number | null; intent: string }[];
+  promptsNeedsReview?: number;
   prompts: AIPrompt[];
   promptOpps: AIPrompt[];
   sources: { domain: string; mentions: number; share: number; urls: number; traffic: number }[];
@@ -163,7 +164,7 @@ export async function loadAIVisibility(
   if (hit && hit.key === cacheKey) return hit.data;
 
   // 2) Kind-Tabellen parallel (client_id-Filter zusätzlich -> nutzt die RLS-Policy direkt).
-  const [models, topics, prompts, sources, attribution, history, sovRes] = await Promise.all([
+  const [models, topics, prompts, sources, attribution, history, sovRes, reviewCount] = await Promise.all([
     sb.from("ai_visibility_models").select("*").eq("report_id", rep.id),
     sb.from("ai_visibility_topics").select("*").eq("report_id", rep.id).order("visibility", { ascending: false }),
     fetchAllPromptRows(rep.id),
@@ -179,6 +180,9 @@ export async function loadAIVisibility(
       .order("snapshot_date", { ascending: false })
       .limit(1000),
     sb.from("ai_visibility_sov").select("*").eq("report_id", rep.id).order("share", { ascending: false }),
+    // Zur Prüfung markierte Prompt-Defs (needs_review): frisch geseedet ODER vom
+    // Relevanz-Audit als fremd deaktiviert — Transparenz-Banner im Prompts-Tab.
+    sb.from("ai_visibility_prompt_defs").select("id", { count: "exact", head: true }).eq("client_id", clientId).eq("needs_review", true),
   ]);
   const modelRows = models.data ?? [];
   const modelIds = modelRows.map((m: any) => m.id);
@@ -263,6 +267,8 @@ export async function loadAIVisibility(
       vol: t.volume == null ? null : Number(t.volume),
       intent: String(t.intent ?? ""),
     })),
+    // Zur Prüfung markierte Prompt-Defs (Fehl-Seeding-Prävention): Banner im UI.
+    promptsNeedsReview: Number(reviewCount?.count ?? 0),
     // Markt-Prompts (Sichtbarkeit); Brand-Prompts laufen separat in den Marken-Check.
     prompts: promptRows.filter((r: any) => !r.is_opportunity && (r.prompt_type || "markt") !== "brand").map((r: any) => mapPrompt(r, false)),
     promptOpps: promptRows.filter((r: any) => r.is_opportunity && (r.prompt_type || "markt") !== "brand").map((r: any) => mapPrompt(r, true)),

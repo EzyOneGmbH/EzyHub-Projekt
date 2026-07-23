@@ -787,7 +787,7 @@ function pageNumbers(cur, pages) {
   return out;
 }
 
-function PromptsTable({ prompts, opps, brand, brandPrompts = [] }) {
+function PromptsTable({ prompts, opps, brand, brandPrompts = [], needsReview = 0 }) {
   const [tab, setTab] = useState("all");
   const [page, setPage] = useState(0);
   const allRows = [...prompts, ...opps.map((o) => ({ ...o, status: "Nicht erwähnt" }))];
@@ -811,6 +811,16 @@ function PromptsTable({ prompts, opps, brand, brandPrompts = [] }) {
           ))}
         </div>
       </div>
+      {needsReview > 0 && (
+        <div className="mx-5 mt-3 flex items-start gap-2 rounded-lg border px-3 py-2 text-[11px]"
+          style={{ borderColor: "#f0c36d", background: "#fdf6e3", color: "#8a6d1b" }}>
+          <span aria-hidden>⚠️</span>
+          <span>
+            <strong>{needsReview} {needsReview === 1 ? "Prompt wartet" : "Prompts warten"} auf Prüfung.</strong>{" "}
+            Frisch generierte oder vom Relevanz-Check als themenfremd deaktivierte Prompts – sie werden nicht gemessen, bis sie bestätigt sind. So landen keine falschen Prompts (z. B. aus einer fremden Branche) im Dashboard.
+          </span>
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-2 px-5 pt-2 text-[11px]" style={{ color: C.sub }}>
         <span>
           {tab === "all"
@@ -1204,7 +1214,7 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
         {/* Tables */}
         <div className="mt-4 grid grid-cols-1 gap-4">
           <TopicsTable rows={d.topics} />
-          <PromptsTable prompts={d.prompts} opps={d.promptOpps} brand={d.client} brandPrompts={d.brandPrompts || []} />
+          <PromptsTable prompts={d.prompts} opps={d.promptOpps} brand={d.client} brandPrompts={d.brandPrompts || []} needsReview={d.promptsNeedsReview || 0} />
           <BrandCheckCard bc={d.brandCheck} brand={d.client} history={d.brandHistory || []} />
           <SourcesTable rows={d.sources} />
         </div>
