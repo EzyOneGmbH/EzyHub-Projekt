@@ -11897,7 +11897,10 @@ function EzyPilotProvider({ selectedClient, clients, tools, children }) {
       const start = await startRes.json().catch(() => ({}));
       if (!start.jobId) throw new Error(start.error || "Start fehlgeschlagen");
       let out = null;
-      for (let i = 0; i < 180; i++) {
+      // 450 x 2s = 15 Min — muss ueber dem Backend-Limit (AGENT_TIMEOUT 10 Min)
+      // liegen. Vorfall 23.07.: Lauf wurde nach 365s fertig, altes UI-Limit war
+      // 360s — die fertige Antwort ging verloren.
+      for (let i = 0; i < 450; i++) {
         await new Promise((r) => setTimeout(r, 2000));
         const pr = await fetch(`/api/agent/run-agent?jobId=${encodeURIComponent(start.jobId)}`, {
           headers: { Authorization: `Bearer ${session?.access_token || ""}` },
@@ -11906,7 +11909,7 @@ function EzyPilotProvider({ selectedClient, clients, tools, children }) {
         if (pj.status === "done") { out = pj; break; }
         if (pj.status === "error") throw new Error(pj.error || "Agent-Fehler");
       }
-      if (!out) throw new Error("Zeitüberschreitung");
+      if (!out) throw new Error("Zeitüberschreitung nach 15 Minuten — der Lauf wurde abgebrochen oder hängt. Bitte die Nachricht erneut senden; der Chat-Verlauf bleibt erhalten.");
       const full = out.result || "";
       updateConv(convId, (c) => ({
         ...c,
