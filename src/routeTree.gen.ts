@@ -17,6 +17,10 @@ import { Route as PilotRouteImport } from './routes/pilot'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LlmUeberblickRouteImport } from './routes/llm-ueberblick'
+import { Route as AdminRouteImport } from './routes/admin'
+import { Route as ReaktRouteImport } from './routes/reakt'
+import { Route as EzyperformanceRouteImport } from './routes/ezyperformance'
+import { Route as EzyrankRouteImport } from './routes/ezyrank'
 import { Route as EzyaiRouteImport } from './routes/ezyai'
 import { Route as AppsRouteImport } from './routes/apps'
 import { Route as HealthRouteImport } from './routes/health'
@@ -155,6 +159,26 @@ const AppsRoute = AppsRouteImport.update({
 const EzyaiRoute = EzyaiRouteImport.update({
   id: '/ezyai',
   path: '/ezyai',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EzyrankRoute = EzyrankRouteImport.update({
+  id: '/ezyrank',
+  path: '/ezyrank',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EzyperformanceRoute = EzyperformanceRouteImport.update({
+  id: '/ezyperformance',
+  path: '/ezyperformance',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReaktRoute = ReaktRouteImport.update({
+  id: '/reakt',
+  path: '/reakt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LlmUeberblickRoute = LlmUeberblickRouteImport.update({
@@ -651,6 +675,10 @@ export interface FileRoutesByFullPath {
   '/health': typeof HealthRoute
   '/apps': typeof AppsRoute
   '/ezyai': typeof EzyaiRoute
+  '/ezyrank': typeof EzyrankRoute
+  '/ezyperformance': typeof EzyperformanceRoute
+  '/reakt': typeof ReaktRoute
+  '/admin': typeof AdminRoute
   '/llm-ueberblick': typeof LlmUeberblickRoute
   '/pilot': typeof PilotRoute
   '/login': typeof LoginRoute
@@ -755,6 +783,10 @@ export interface FileRoutesByTo {
   '/health': typeof HealthRoute
   '/apps': typeof AppsRoute
   '/ezyai': typeof EzyaiRoute
+  '/ezyrank': typeof EzyrankRoute
+  '/ezyperformance': typeof EzyperformanceRoute
+  '/reakt': typeof ReaktRoute
+  '/admin': typeof AdminRoute
   '/llm-ueberblick': typeof LlmUeberblickRoute
   '/pilot': typeof PilotRoute
   '/login': typeof LoginRoute
@@ -860,6 +892,10 @@ export interface FileRoutesById {
   '/health': typeof HealthRoute
   '/apps': typeof AppsRoute
   '/ezyai': typeof EzyaiRoute
+  '/ezyrank': typeof EzyrankRoute
+  '/ezyperformance': typeof EzyperformanceRoute
+  '/reakt': typeof ReaktRoute
+  '/admin': typeof AdminRoute
   '/llm-ueberblick': typeof LlmUeberblickRoute
   '/pilot': typeof PilotRoute
   '/login': typeof LoginRoute
@@ -966,6 +1002,10 @@ export interface FileRouteTypes {
     | '/health'
     | '/apps'
     | '/ezyai'
+    | '/ezyrank'
+    | '/ezyperformance'
+    | '/reakt'
+    | '/admin'
     | '/llm-ueberblick'
     | '/pilot'
     | '/login'
@@ -1070,6 +1110,10 @@ export interface FileRouteTypes {
     | '/health'
     | '/apps'
     | '/ezyai'
+    | '/ezyrank'
+    | '/ezyperformance'
+    | '/reakt'
+    | '/admin'
     | '/llm-ueberblick'
     | '/pilot'
     | '/login'
@@ -1174,6 +1218,10 @@ export interface FileRouteTypes {
     | '/health'
     | '/apps'
     | '/ezyai'
+    | '/ezyrank'
+    | '/ezyperformance'
+    | '/reakt'
+    | '/admin'
     | '/llm-ueberblick'
     | '/pilot'
     | '/login'
@@ -1279,6 +1327,10 @@ export interface RootRouteChildren {
   HealthRoute: typeof HealthRoute
   AppsRoute: typeof AppsRoute
   EzyaiRoute: typeof EzyaiRoute
+  EzyrankRoute: typeof EzyrankRoute
+  EzyperformanceRoute: typeof EzyperformanceRoute
+  ReaktRoute: typeof ReaktRoute
+  AdminRoute: typeof AdminRoute
   LlmUeberblickRoute: typeof LlmUeberblickRoute
   PilotRoute: typeof PilotRoute
   LoginRoute: typeof LoginRoute
@@ -1432,6 +1484,34 @@ declare module '@tanstack/react-router' {
       path: '/ezyai'
       fullPath: '/ezyai'
       preLoaderRoute: typeof EzyaiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ezyrank': {
+      id: '/ezyrank'
+      path: '/ezyrank'
+      fullPath: '/ezyrank'
+      preLoaderRoute: typeof EzyrankRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ezyperformance': {
+      id: '/ezyperformance'
+      path: '/ezyperformance'
+      fullPath: '/ezyperformance'
+      preLoaderRoute: typeof EzyperformanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reakt': {
+      id: '/reakt'
+      path: '/reakt'
+      fullPath: '/reakt'
+      preLoaderRoute: typeof ReaktRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/llm-ueberblick': {
@@ -2144,6 +2224,10 @@ const rootRouteChildren: RootRouteChildren = {
   HealthRoute: HealthRoute,
   AppsRoute: AppsRoute,
   EzyaiRoute: EzyaiRoute,
+  EzyrankRoute: EzyrankRoute,
+  EzyperformanceRoute: EzyperformanceRoute,
+  ReaktRoute: ReaktRoute,
+  AdminRoute: AdminRoute,
   LlmUeberblickRoute: LlmUeberblickRoute,
   PilotRoute: PilotRoute,
   LoginRoute: LoginRoute,

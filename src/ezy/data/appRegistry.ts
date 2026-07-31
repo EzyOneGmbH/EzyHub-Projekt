@@ -26,7 +26,7 @@ export const EZY_APPS: EzyAppDef[] = [
     icon: "🔍",
     color: "#38bdf8",
     tint: "rgba(56,189,248,.15)",
-    href: "/dashboard?app=seo",
+    href: "/ezyrank", // Phase 3: eigene App-Route
   },
   {
     id: "geo",
@@ -44,7 +44,7 @@ export const EZY_APPS: EzyAppDef[] = [
     icon: "📢",
     color: "#fb923c",
     tint: "rgba(251,146,60,.15)",
-    href: "/dashboard?app=ads",
+    href: "/ezyperformance", // Phase 3: eigene App-Route
   },
   {
     id: "reakt",
@@ -53,7 +53,7 @@ export const EZY_APPS: EzyAppDef[] = [
     icon: "✉️",
     color: "#34d399",
     tint: "rgba(52,211,153,.15)",
-    href: "/dashboard?app=reakt",
+    href: "/reakt", // Phase 3: Interims-Route (echte UI kommt in Phase 4)
   },
   {
     id: "admin",
@@ -62,10 +62,41 @@ export const EZY_APPS: EzyAppDef[] = [
     icon: "⚙️",
     color: "#94a3b8",
     tint: "rgba(148,163,184,.15)",
-    href: "/dashboard?app=admin",
+    href: "/admin", // Phase 3: eigene App-Route
     adminOnly: true,
   },
 ];
+
+/** Phase 3 (31.07.): EzyOneApp wird zur Engine — jeder Scope filtert die
+ *  Haupt-Navigation (pages) und die Dashboard-Tabs (tabs) der jeweiligen App.
+ *  Conversions bewusst in EzyRank UND EzyPerformance (Volkan-Entscheid 31.07.).
+ *  copilot/tools bleiben app-übergreifend verfügbar. */
+export const APP_SCOPES: Record<string, { pages: string[]; tabs: string[]; primary: string; home: string }> = {
+  seo: {
+    pages: ["dashboard", "copilot", "tasks", "tools", "content"],
+    tabs: ["overview", "seo", "blog", "conversions"],
+    primary: "seo", // umgeht die Kunden-Tab-Auswahl (Kern-Tab der App)
+    home: "/ezyrank",
+  },
+  ads: {
+    pages: ["dashboard", "copilot", "tools"],
+    tabs: ["overview", "ads", "conversions"],
+    primary: "ads",
+    home: "/ezyperformance",
+  },
+  reakt: {
+    pages: ["dashboard"],
+    tabs: ["runs"],
+    primary: "runs",
+    home: "/reakt",
+  },
+  admin: {
+    pages: ["dashboard", "clients", "team", "agents", "settings", "copilot", "tools"],
+    tabs: ["runs"],
+    primary: "runs",
+    home: "/admin",
+  },
+};
 
 /** Startzustand in der heutigen EzyOneApp je App (Phase-1-Deep-Link).
  *  geo fehlt bewusst: EzyAI ist seit Phase 2 eine eigene Route (/ezyai) —

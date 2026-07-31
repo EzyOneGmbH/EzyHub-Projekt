@@ -106,7 +106,7 @@ import { useEzyToolSettings, toolProvider } from "@/ezy/data/useEzyToolSettings"
 import { ServicesPicker, ServicesPanel } from "@/ezy/components/ServicesPanel";
 import { DEFAULT_ON_SERVICES } from "@/lib/services";
 import { useEzyDashboardConfig } from "@/ezy/data/useEzyDashboardConfig";
-import { EZY_APPS, APP_START, currentAppOf } from "@/ezy/data/appRegistry";
+import { EZY_APPS, APP_START, APP_SCOPES, currentAppOf } from "@/ezy/data/appRegistry";
 import { useAppAccess } from "@/ezy/data/useAppAccess";
 import { executeTool as runToolLive } from "@/ezy/data/runTool";
 import { useEzyAuditHistory } from "@/ezy/data/useEzyAuditHistory";
@@ -12774,7 +12774,11 @@ function loadUiState() {
   } catch {}
   return {};
 }
-function App() {
+function App({ appScope = null }) {
+  // Phase 3 (31.07.): appScope macht den Monolithen zur Engine — die Routen
+  // /ezyrank /ezyperformance /reakt /admin mounten dieselbe App mit gefilterter
+  // Navigation + Tabs (APP_SCOPES). Ohne Scope: Legacy-Vollansicht (nur Viewer).
+  const scope = appScope ? APP_SCOPES[appScope] : null;
   const isMobile = useMediaQuery("(max-width: 760px)");
   const { role, isOrgAdmin } = useAuth();
   // viewer = read-only customer report: dashboards only, no tools/clients/settings.
@@ -12788,9 +12792,10 @@ function App() {
         : NAV.filter(
             (n) =>
               n.id !== "reports" &&
-              ((n.id !== "team" && n.id !== "settings") || isOrgAdmin),
+              ((n.id !== "team" && n.id !== "settings") || isOrgAdmin) &&
+              (!scope || scope.pages.includes(n.id)), // Phase 3: App-Scope
           ),
-    [isViewer, isOrgAdmin],
+    [isViewer, isOrgAdmin, scope],
   );
   const ezy = useEzyClients();
   const clients = useMemo(() => ezy.clients.map((c) => normalizeClientShape(c)), [ezy.clients]);
@@ -12849,6 +12854,14 @@ function App() {
   useEffect(() => {
     if (!isOrgAdmin && (page === "settings" || page === "team")) setPage("dashboard");
   }, [isOrgAdmin, page]);
+  // Phase 3: der (App-übergreifend gemerkte) UI-Stand darf nicht aus dem Scope
+  // der aktuellen App herausführen — sonst zeigt EzyPerformance z. B. "clients".
+  useEffect(() => {
+    if (scope && !scope.pages.includes(page)) setPage(scope.pages[0]);
+  }, [scope, page]);
+  useEffect(() => {
+    if (scope && page === "dashboard" && !scope.tabs.includes(tab)) setTab(scope.primary);
+  }, [scope, page, tab]);
   // „Aktivität" → Agenten-Tab, „Reports" (Team) → Content-Tab integriert.
   // Viewer behalten ihren eigenen Reports-Tab.
   useEffect(() => {
@@ -12997,15 +13010,22 @@ function App() {
   const visibleTabs = useMemo(
     () =>
       TABS.filter((t) => {
-        // 1) manuelle Tab-Auswahl (Kunden-Datensatz bevorzugt)
-        if (!effectiveVisibleTabs.includes(t.id)) return false;
+        // 0) Phase 3: App-Scope — nur Tabs der jeweiligen App
+        if (scope && !scope.tabs.includes(t.id)) return false;
+        // runs bleibt RBAC-geschützt (nur owner/admin), auch im Scope-Modus
+        if (t.id === "runs" && !isOrgAdmin) return false;
+        // 1) manuelle Tab-Auswahl (Kunden-Datensatz bevorzugt) — der PRIMÄR-Tab
+        //    einer App umgeht sie, sonst wäre z. B. EzyPerformance bei Kunden
+        //    ohne "ads" in der Tab-Auswahl komplett leer (Service-Gate reicht).
+        const isPrimary = scope && scope.primary === t.id;
+        if (!isPrimary && !effectiveVisibleTabs.includes(t.id)) return false;
         // 2) Service-Gate: Tab nur, wenn ein zugehöriger Dienst aktiv ist.
         //    Während Services laden NICHT ausblenden (kein Flackern).
         const req = TAB_SERVICE[t.id];
         if (!req || svc.loading) return true;
         return req.some((k) => svc.enabled?.[k]);
       }),
-    [effectiveVisibleTabs, svc.enabled, svc.loading],
+    [effectiveVisibleTabs, svc.enabled, svc.loading, scope, isOrgAdmin],
   );
   useEffect(() => {
     if (visibleTabs.length > 0 && !visibleTabs.some((t) => t.id === tab)) {
@@ -13137,7 +13157,7 @@ function App() {
             >
               <span style={{ fontSize: 14, lineHeight: 1, letterSpacing: 1 }}>⣿</span>
               {!collapsed && (() => {
-                const cur = EZY_APPS.find((a) => a.id === currentAppOf(page, tab));
+                const cur = EZY_APPS.find((a) => a.id === (appScope || currentAppOf(page, tab)));
                 return <span style={{ color: cur?.color || C.text }}>{cur?.name || "Apps"}</span>;
               })()}
             </button>
@@ -13153,7 +13173,7 @@ function App() {
                   Apps wechseln
                 </div>
                 {EZY_APPS.filter((a) => appAccess.canOpen(a.id)).map((a) => {
-                  const active = currentAppOf(page, tab) === a.id;
+                  const active = (appScope || currentAppOf(page, tab)) === a.id;
                   return (
                     <a
                       key={a.id}
@@ -13793,9 +13813,9 @@ function App() {
   );
 }
 
-const W = () => (
+const W = ({ appScope = null }) => (
   <ToastProvider>
-    <App />
+    <App appScope={appScope} />
   </ToastProvider>
 );
 export default W;
