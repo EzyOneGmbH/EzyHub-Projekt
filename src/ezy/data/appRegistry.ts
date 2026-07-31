@@ -71,12 +71,13 @@ export const EZY_APPS: EzyAppDef[] = [
  *  Haupt-Navigation (pages) und die Dashboard-Tabs (tabs) der jeweiligen App.
  *  Conversions bewusst in EzyRank UND EzyPerformance (Volkan-Entscheid 31.07.).
  *  copilot/tools bleiben app-übergreifend verfügbar. */
-export const APP_SCOPES: Record<string, { pages: string[]; tabs: string[]; primary: string; home: string }> = {
+export const APP_SCOPES: Record<string, { pages: string[]; tabs: string[]; primary: string; home: string; services?: string[] }> = {
   seo: {
     pages: ["dashboard", "copilot", "tasks", "tools", "content"],
     tabs: ["overview", "seo", "blog", "conversions"],
     primary: "seo", // umgeht die Kunden-Tab-Auswahl (Kern-Tab der App)
     home: "/ezyrank",
+    // kein services-Filter: SEO ist das Kernprodukt — alle Kunden sichtbar
   },
   ads: {
     // Volkan 01.08.: NUR Ads — ohne Übersicht/Conversions (Conversions lebt in EzyRank)
@@ -84,6 +85,7 @@ export const APP_SCOPES: Record<string, { pages: string[]; tabs: string[]; prima
     tabs: ["ads"],
     primary: "ads",
     home: "/ezyperformance",
+    services: ["google-ads"], // nur Kunden mit aktiviertem Google-Ads-Service
   },
   reakt: {
     pages: ["dashboard"],

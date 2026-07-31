@@ -108,6 +108,7 @@ import { DEFAULT_ON_SERVICES } from "@/lib/services";
 import { useEzyDashboardConfig } from "@/ezy/data/useEzyDashboardConfig";
 import { EZY_APPS, APP_START, APP_SCOPES, currentAppOf } from "@/ezy/data/appRegistry";
 import { useAppAccess } from "@/ezy/data/useAppAccess";
+import { useEzyServiceMatrix } from "@/ezy/data/useEzyServiceMatrix";
 import { executeTool as runToolLive } from "@/ezy/data/runTool";
 import { useEzyAuditHistory } from "@/ezy/data/useEzyAuditHistory";
 import { useEzyAgentRuns } from "@/ezy/data/useEzyAgentRuns";
@@ -12798,7 +12799,13 @@ function App({ appScope = null }) {
     [isViewer, isOrgAdmin, scope],
   );
   const ezy = useEzyClients();
-  const clients = useMemo(() => ezy.clients.map((c) => normalizeClientShape(c)), [ezy.clients]);
+  // Service-Filter je App (01.08.): EzyPerformance zeigt nur Kunden mit
+  // aktiviertem google-ads-Service (scope.services); ohne Filter alle Kunden.
+  const svcMatrix = useEzyServiceMatrix();
+  const clients = useMemo(() => {
+    const all = ezy.clients.map((c) => normalizeClientShape(c));
+    return scope?.services ? all.filter((c) => svcMatrix.hasService(c.id, scope.services)) : all;
+  }, [ezy.clients, scope, svcMatrix.hasService]);
   const ui0 = useMemo(() => loadUiState(), []); // letzter UI-Stand aus localStorage
   const [clientId, setClientId] = useState(ui0.clientId || "");
   useEffect(() => {

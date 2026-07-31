@@ -5,6 +5,7 @@ import { useAppAccess } from "@/ezy/data/useAppAccess";
 import { EZY_APPS } from "@/ezy/data/appRegistry";
 import { useEzyClients } from "@/ezy/data/useEzyClients";
 import { useEzyServiceSettings } from "@/ezy/data/useEzyServiceSettings";
+import { useEzyServiceMatrix } from "@/ezy/data/useEzyServiceMatrix";
 import { AiVisibilityTab } from "@/ezy/EzyOneApp.jsx";
 
 export const Route = createFileRoute("/ezyai")({
@@ -42,7 +43,12 @@ function EzyAiApp() {
     if (!accessLoading && session && !canOpen("geo")) window.location.replace("/apps");
   }, [accessLoading, session, canOpen]);
 
-  const clients = ezy.clients || [];
+  // Nur Kunden mit aktiver KI-Sichtbarkeit (canonry|perplexity) anbieten (01.08.)
+  const svcMatrix = useEzyServiceMatrix();
+  const clients = useMemo(
+    () => (ezy.clients || []).filter((c: any) => svcMatrix.hasService(c.id, ["canonry", "perplexity"])),
+    [ezy.clients, svcMatrix.hasService],
+  );
   const client = useMemo(
     () => clients.find((c: any) => c.id === clientId) || clients[0] || null,
     [clients, clientId],
