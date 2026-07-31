@@ -90,7 +90,12 @@ function ReaktApp() {
 
   return (
     <div style={{ minHeight: "100vh", background: S.bg, color: S.txt, fontFamily: '"Segoe UI",system-ui,-apple-system,sans-serif' }}>
-      <header style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 18px", background: S.panel, borderBottom: `1px solid ${S.line}`, position: "sticky", top: 0, zIndex: 100 }}>
+      {/* Mobile (01.08.): Header umbricht, engere Paddings, Karten einspaltig */}
+      <style>{`@media(max-width:640px){
+        .reakt-head{flex-wrap:wrap!important;gap:8px!important;padding:8px 10px!important}
+        .reakt-main{padding:14px 10px 48px!important}
+      }`}</style>
+      <header className="reakt-head" style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 18px", background: S.panel, borderBottom: `1px solid ${S.line}`, position: "sticky", top: 0, zIndex: 100 }}>
         <div style={{ position: "relative" }}>
           <button onClick={() => setSwOpen((v) => !v)} title="App wechseln"
             style={{ background: "none", border: "none", color: S.mut, fontSize: 16, cursor: "pointer", padding: "6px 8px", borderRadius: 8, letterSpacing: 1 }}>⣿</button>
@@ -124,7 +129,7 @@ function ReaktApp() {
         </button>
       </header>
 
-      <main style={{ maxWidth: 1100, margin: "0 auto", padding: "22px 18px 60px", display: "flex", flexDirection: "column", gap: 18 }}>
+      <main className="reakt-main" style={{ maxWidth: 1100, margin: "0 auto", padding: "22px 18px 60px", display: "flex", flexDirection: "column", gap: 18 }}>
         {err && (
           <div style={{ background: "rgba(248,113,113,.1)", border: `1px solid ${S.red}45`, borderRadius: 12, padding: "12px 16px", fontSize: 13 }}>
             ⚠️ {err}

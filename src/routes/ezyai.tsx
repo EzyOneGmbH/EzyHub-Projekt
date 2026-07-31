@@ -58,8 +58,15 @@ function EzyAiApp() {
 
   return (
     <div style={{ minHeight: "100vh", background: S.bg, color: S.txt, fontFamily: '"Segoe UI",system-ui,-apple-system,sans-serif' }}>
+      {/* Mobile (01.08.): Header umbricht, Kunden-Select volle Breite, engere Paddings */}
+      <style>{`@media(max-width:640px){
+        .ezyai-head{flex-wrap:wrap!important;gap:8px!important;padding:8px 10px!important}
+        .ezyai-head-right{margin-left:0!important;width:100%!important}
+        .ezyai-head-right select{flex:1;max-width:none!important}
+        .ezyai-main{padding:14px 10px 48px!important}
+      }`}</style>
       {/* App-Header */}
-      <header style={{
+      <header className="ezyai-head" style={{
         display: "flex", alignItems: "center", gap: 14, padding: "10px 18px",
         background: S.panel, borderBottom: `1px solid ${S.line}`,
         position: "sticky", top: 0, zIndex: 100,
@@ -106,7 +113,7 @@ function EzyAiApp() {
           </div>
         </div>
 
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+        <div className="ezyai-head-right" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
           <a href="/llm-ueberblick" style={{ fontSize: 12, color: S.mut, textDecoration: "none", border: `1px solid ${S.line}`, borderRadius: 8, padding: "6px 12px" }}>
             LLM-Überblick
           </a>
@@ -123,7 +130,7 @@ function EzyAiApp() {
       </header>
 
       {/* Inhalt */}
-      <main style={{ maxWidth: 1280, margin: "0 auto", padding: "22px 18px 60px" }}>
+      <main className="ezyai-main" style={{ maxWidth: 1280, margin: "0 auto", padding: "22px 18px 60px" }}>
         {ezy.loading && !clients.length ? (
           <div style={{ color: S.mut, fontSize: 13, padding: 60, textAlign: "center" }}>Lade Kunden…</div>
         ) : !client ? (

@@ -13332,6 +13332,40 @@ function App({ appScope = null }) {
             className="header-left"
             style={{ display: "flex", alignItems: "center", gap: 16, minWidth: 0 }}
           >
+            {/* Mobile-App-Wechsler (01.08.): die Sidebar (inkl. ⣿-Switcher) ist
+                unter 760px ausgeblendet — ohne dieses Select wären die Apps auf
+                dem Handy unerreichbar. */}
+            {isMobile && !isViewer && (
+              <select
+                aria-label="App wechseln"
+                value={appScope || currentAppOf(page, tab)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === "__launcher") { window.location.href = "/apps"; return; }
+                  const a = EZY_APPS.find((x) => x.id === v);
+                  if (a) window.location.href = a.href;
+                }}
+                style={{
+                  background: C.card,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 10,
+                  padding: "8px 8px",
+                  color: C.text,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  fontFamily: "inherit",
+                  outline: "none",
+                  maxWidth: 130,
+                }}
+              >
+                {EZY_APPS.filter((a) => appAccess.canOpen(a.id)).map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.icon} {a.name}
+                  </option>
+                ))}
+                <option value="__launcher">✦ Launcher</option>
+              </select>
+            )}
             {isMobile && (
               <select
                 aria-label="Navigation"

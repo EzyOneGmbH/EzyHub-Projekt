@@ -2,7 +2,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useAppAccess } from "@/ezy/data/useAppAccess";
-import { EZY_APPS, type EzyAppDef } from "@/ezy/data/appRegistry";
+import { EZY_APPS, type EzyAppDef, type EzyAppId } from "@/ezy/data/appRegistry";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/apps")({
   component: AppsLauncher,
@@ -17,6 +18,41 @@ function AppsLauncher() {
   const { session, loading, role, signOut, user } = useAuth();
   const { canOpen, loading: accessLoading } = useAppAccess();
   const [hover, setHover] = useState<string | null>(null);
+  // Feinschliff (01.08.): Live-Badges auf den Kacheln — offene Entwürfe der
+  // Reaktivierungsmaschine + offene Freigaben (Admin). Fehler = still kein Badge.
+  const [badges, setBadges] = useState<Partial<Record<EzyAppId, string>>>({});
+  useEffect(() => {
+    if (loading || !session || accessLoading) return;
+    let alive = true;
+    (async () => {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const H = { Authorization: `Bearer ${token || ""}` };
+      const jobs: Array<Promise<void>> = [];
+      if (canOpen("reakt")) jobs.push(
+        fetch("/api/agent/reakt?what=status", { headers: H })
+          .then((r) => r.json())
+          .then((j) => {
+            if (!alive || !j?.ok) return;
+            let n = 0;
+            for (const w of j.waves || []) n += Number(w?.byStatus?.ENTWURF || 0);
+            if (n > 0) setBadges((b) => ({ ...b, reakt: `${n} Entwürfe` }));
+          })
+          .catch(() => { /* still: kein Badge */ }),
+      );
+      if (canOpen("admin")) jobs.push(
+        fetch("/api/agent/approvals", { headers: H })
+          .then((r) => r.json())
+          .then((j) => {
+            if (!alive) return;
+            const n = Number(j?.openCount || 0);
+            if (n > 0) setBadges((b) => ({ ...b, admin: `${n} Freigaben` }));
+          })
+          .catch(() => { /* still: kein Badge */ }),
+      );
+      await Promise.all(jobs);
+    })();
+    return () => { alive = false; };
+  }, [loading, session, accessLoading, canOpen]);
 
   useEffect(() => {
     if (!loading && !session) navigate({ to: "/login", search: { next: undefined }, replace: true });
@@ -50,8 +86,16 @@ function AppsLauncher() {
           cursor: allowed ? "pointer" : "not-allowed",
           transition: "border-color .15s, transform .15s",
           transform: isHover ? "translateY(-2px)" : "none",
+          position: "relative",
         }}
       >
+        {allowed && badges[a.id] && (
+          <span style={{
+            position: "absolute", top: 12, right: 12, fontSize: 10.5, fontWeight: 700,
+            color: a.color, background: a.tint, border: `1px solid ${a.color}40`,
+            borderRadius: 99, padding: "3px 9px", letterSpacing: ".02em",
+          }}>{badges[a.id]}</span>
+        )}
         <div style={{
           width: 38, height: 38, borderRadius: 9, background: a.tint,
           display: "flex", alignItems: "center", justifyContent: "center",
@@ -67,12 +111,14 @@ function AppsLauncher() {
   };
 
   return (
-    <div style={{
+    <div className="launcher-page" style={{
       minHeight: "100vh", background: S.bg, color: S.txt,
       fontFamily: '"Segoe UI",system-ui,-apple-system,sans-serif',
       display: "flex", flexDirection: "column", alignItems: "center",
       padding: "9vh 24px 40px",
     }}>
+      {/* Mobile (01.08.): weniger Kopfraum, volle Breite */}
+      <style>{`@media(max-width:600px){.launcher-page{padding:20px 14px 32px!important}}`}</style>
       <div style={{ width: "100%", maxWidth: 880 }}>
         <div style={{ textAlign: "center", marginBottom: 34 }}>
           <div style={{ fontWeight: 700, fontSize: 21 }}>
