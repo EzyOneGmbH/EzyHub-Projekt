@@ -2805,10 +2805,13 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             const saDue = saAgeDays >= Math.max(1, Number((SCORE_CFG as any).serp?.intervalDays ?? 2));
             if (!parts.pr) missing.push("pr");
             if (!parts.sa && saDue) missing.push("sa");
-            // Tages-Frische (2026-07-19): neuester Report ist von gestern oder
-            // älter -> voller Tageslauf fällig. Vorher liefen Läufe nur bei
-            // fehlenden/unvollständigen Reports — es gab KEINEN Tageszyklus.
-            if (!missing.length && String(rep.snapshot_date) < today()) {
+            // Tages-Frische (2026-07-19) -> Kosten-Drosselung (2026-07-31):
+            // voller Lauf nicht mehr täglich, sondern erst wenn der neueste
+            // Report AIVIS_FRESHNESS_DAYS alt ist (default 3 ≈ 2–3 Läufe/Woche).
+            // Größter LLM-Dauerposten: alle aktiven Prompts × 6 Engines je Lauf.
+            const freshDays = Math.max(1, Number(process.env.AIVIS_FRESHNESS_DAYS ?? 3) || 3);
+            const repAgeDays = Math.floor((Date.parse(today()) - Date.parse(String(rep.snapshot_date))) / 86400_000);
+            if (!missing.length && repAgeDays >= freshDays) {
               missing.push("daily");
               if (saDue) missing.push("sa"); // SERP nur im fälligen Rhythmus mitfahren
             }
