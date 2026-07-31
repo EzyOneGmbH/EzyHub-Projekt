@@ -899,6 +899,13 @@ async function askOpenAICompat(
 }
 
 // Engines aktivieren sich automatisch, sobald der jeweilige Key in der Env liegt.
+// Grok-Drosselung (2026-07-31): teuerster Provider (~44 % der LLM-Kosten 22.–31.07.)
+// und zugleich der unzuverlässigste — misst nur noch WÖCHENTLICH mit. Fenster
+// Mo–Mi (UTC): der Tageszyklus läuft alle 3 Tage, damit fällt je Kunde genau
+// ein Lauf pro Woche ins Fenster. Abschaltbar via AIVIS_GROK_WEEKLY=0.
+const GROK_WEEKLY = String(process.env.AIVIS_GROK_WEEKLY ?? "1") !== "0";
+const grokDueToday = () => { const wd = new Date().getUTCDay(); return wd >= 1 && wd <= 3; };
+const activePromptEngines = () => PROMPT_ENGINES.filter((e) => e.name !== "Grok" || !GROK_WEEKLY || grokDueToday());
 const PROMPT_ENGINES: Array<{ name: string; ask: (p: string) => Promise<{ text: string; sources: number } | null> }> = [
   { name: "Claude", ask: askClaude },
   { name: "Perplexity", ask: askPerplexity },
@@ -1310,7 +1317,7 @@ async function jobPromptRunner(
   // Provider auf >10 Min und das Hosting kappte den Request vor der 20-Min-
   // Job-Deadline (Run-Zeile blieb "running"). Parallel erhoeht die Last pro
   // Provider nicht — jede Engine stellt weiterhin nur ihre eigenen Prompts.
-  const engineAnswers = await Promise.all(PROMPT_ENGINES.map(async (eng) => {
+  const engineAnswers = await Promise.all(activePromptEngines().map(async (eng) => {
     // Harte Deadline je Call: AbortSignal wird von der Runtime ignoriert
     // (2026-07-14 verifiziert) — ohne Promise.race haengt EIN toter Provider-
     // Call den gesamten Lauf endlos. Max 10 gleichzeitig je Provider, 90s je
@@ -2684,7 +2691,8 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               for (const r of rows || []) gesehen.add(String(r.platform));
             }
           }
-          const missing = PROMPT_ENGINES.map((e) => e.name).filter((n) => !gesehen.has(n));
+          // Grok nur an seinen Mess-Tagen als "fehlend" werten (sonst täglicher Fehlalarm).
+          const missing = activePromptEngines().map((e) => e.name).filter((n) => !gesehen.has(n));
           return Response.json({ ok: true, build: BUILD_TAG, date: heute, present: [...gesehen], missing, reports: ids.length });
         }
 
