@@ -79,8 +79,9 @@ export const APP_SCOPES: Record<string, { pages: string[]; tabs: string[]; prima
     home: "/ezyrank",
   },
   ads: {
+    // Volkan 01.08.: NUR Ads — ohne Übersicht/Conversions (Conversions lebt in EzyRank)
     pages: ["dashboard", "copilot", "tools"],
-    tabs: ["overview", "ads", "conversions"],
+    tabs: ["ads"],
     primary: "ads",
     home: "/ezyperformance",
   },

@@ -13496,7 +13496,9 @@ function App({ appScope = null }) {
                 </div>
               )}
             </div>
-            {page === "dashboard" && visibleTabs.length > 0 && <TabBar tabs={visibleTabs} active={tab} onChange={setTab} />}
+            {/* Tab-Leiste erst ab 2 Ansichten (01.08.): Ein-Tab-Apps wie
+                EzyPerformance/Reaktivierung zeigen den Inhalt direkt. */}
+            {page === "dashboard" && visibleTabs.length > 1 && <TabBar tabs={visibleTabs} active={tab} onChange={setTab} />}
             {page !== "dashboard" && (
               <div
                 style={{
