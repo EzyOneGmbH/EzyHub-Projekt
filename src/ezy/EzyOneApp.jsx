@@ -4901,7 +4901,9 @@ const AIVIS_WINDOWS = [
 ];
 // KI-Sichtbarkeit: neues Report-Dashboard (ai_visibility_*-Tabellen), solange
 // kein Report existiert Fallback auf die bestehende Canonry-Ansicht darunter.
-function AiVisibilityTab({ selectedClient }) {
+// Phase 2 (31.07.): auch von der eigenständigen EzyAI-App (/ezyai) genutzt —
+// Komponente umgezogen statt neu gebaut; hier bleibt nur noch der Export.
+export function AiVisibilityTab({ selectedClient }) {
   const { data, loading, error } = useEzyAIVisibility(
     selectedClient?.id,
     selectedClient?.domain || selectedClient?.name,
@@ -12732,7 +12734,7 @@ const TABS = [
   { id: "overview", label: "Übersicht", icon: BarChart3 },
   { id: "seo", label: "SEO", icon: Globe },
   { id: "blog", label: "Blog", icon: PenTool },
-  { id: "aivis", label: "KI-Sichtbarkeit", icon: Bot },
+  // aivis: seit Phase 2 eigene EzyAI-App unter /ezyai (Tab entfernt 31.07.)
   { id: "conversions", label: "Conversions", icon: DollarSign },
   { id: "ads", label: "Ads", icon: Megaphone },
   { id: "runs", label: "Agent-Läufe", icon: Clock },
@@ -12744,7 +12746,6 @@ const TAB_SERVICE = {
   seo: null,
   blog: null, // Refresh-Radar: opt-in rein über die Tab-Auswahl je Kunde
 
-  aivis: ["canonry", "perplexity"], // enthält jetzt auch die Canonry-Live-Sweeps
   conversions: ["ga4"],
   ads: ["google-ads"],
   runs: null, // Lauf-Nachweis: immer sichtbar
@@ -12822,8 +12823,13 @@ function App() {
     try { return new URLSearchParams(window.location.search).get("app"); } catch { return null; }
   }, []);
   const appStart = (appParam && APP_START[appParam]) || null;
+  // Phase 2: EzyAI lebt unter /ezyai — alte ?app=geo-Links dorthin umleiten.
+  useEffect(() => {
+    if (appParam === "geo") window.location.replace("/ezyai");
+  }, [appParam]);
   const [page, setPage] = useState(appStart?.page || ui0.page || "dashboard");
-  const [tab, setTab] = useState(appStart?.tab || ui0.tab || "seo");
+  // gemerkter aivis-Tab aus der Zeit vor Phase 2 → SEO (Tab existiert nicht mehr)
+  const [tab, setTab] = useState(appStart?.tab || (ui0.tab === "aivis" ? "seo" : ui0.tab) || "seo");
   useEffect(() => {
     // Param nach dem Einstieg aus der URL nehmen, damit Reload/Bookmark wieder
     // beim gemerkten UI-Stand landet statt ewig in der Deep-Link-Ansicht.
@@ -13577,7 +13583,7 @@ function App() {
                   {tab === "overview" && <OverviewDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
                   {tab === "seo" && <SeoDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
                   {tab === "blog" && <RefreshRadar selectedClient={client} />}
-                  {tab === "aivis" && <AiVisibilityTab selectedClient={client} dateRange={dateRangeWithCompare} />}
+                  {/* aivis: seit Phase 2 in der EzyAI-App (/ezyai) */}
                   {tab === "conversions" && <ConvDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
                   {tab === "ads" && (
                     <>

@@ -17,6 +17,7 @@ import { Route as PilotRouteImport } from './routes/pilot'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LlmUeberblickRouteImport } from './routes/llm-ueberblick'
+import { Route as EzyaiRouteImport } from './routes/ezyai'
 import { Route as AppsRouteImport } from './routes/apps'
 import { Route as HealthRouteImport } from './routes/health'
 import { Route as GithubStatusRouteImport } from './routes/github-status'
@@ -149,6 +150,11 @@ const LoginRoute = LoginRouteImport.update({
 const AppsRoute = AppsRouteImport.update({
   id: '/apps',
   path: '/apps',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EzyaiRoute = EzyaiRouteImport.update({
+  id: '/ezyai',
+  path: '/ezyai',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LlmUeberblickRoute = LlmUeberblickRouteImport.update({
@@ -644,6 +650,7 @@ export interface FileRoutesByFullPath {
   '/github-status': typeof GithubStatusRoute
   '/health': typeof HealthRoute
   '/apps': typeof AppsRoute
+  '/ezyai': typeof EzyaiRoute
   '/llm-ueberblick': typeof LlmUeberblickRoute
   '/pilot': typeof PilotRoute
   '/login': typeof LoginRoute
@@ -747,6 +754,7 @@ export interface FileRoutesByTo {
   '/github-status': typeof GithubStatusRoute
   '/health': typeof HealthRoute
   '/apps': typeof AppsRoute
+  '/ezyai': typeof EzyaiRoute
   '/llm-ueberblick': typeof LlmUeberblickRoute
   '/pilot': typeof PilotRoute
   '/login': typeof LoginRoute
@@ -851,6 +859,7 @@ export interface FileRoutesById {
   '/github-status': typeof GithubStatusRoute
   '/health': typeof HealthRoute
   '/apps': typeof AppsRoute
+  '/ezyai': typeof EzyaiRoute
   '/llm-ueberblick': typeof LlmUeberblickRoute
   '/pilot': typeof PilotRoute
   '/login': typeof LoginRoute
@@ -956,6 +965,7 @@ export interface FileRouteTypes {
     | '/github-status'
     | '/health'
     | '/apps'
+    | '/ezyai'
     | '/llm-ueberblick'
     | '/pilot'
     | '/login'
@@ -1059,6 +1069,7 @@ export interface FileRouteTypes {
     | '/github-status'
     | '/health'
     | '/apps'
+    | '/ezyai'
     | '/llm-ueberblick'
     | '/pilot'
     | '/login'
@@ -1162,6 +1173,7 @@ export interface FileRouteTypes {
     | '/github-status'
     | '/health'
     | '/apps'
+    | '/ezyai'
     | '/llm-ueberblick'
     | '/pilot'
     | '/login'
@@ -1266,6 +1278,7 @@ export interface RootRouteChildren {
   GithubStatusRoute: typeof GithubStatusRoute
   HealthRoute: typeof HealthRoute
   AppsRoute: typeof AppsRoute
+  EzyaiRoute: typeof EzyaiRoute
   LlmUeberblickRoute: typeof LlmUeberblickRoute
   PilotRoute: typeof PilotRoute
   LoginRoute: typeof LoginRoute
@@ -1412,6 +1425,13 @@ declare module '@tanstack/react-router' {
       path: '/apps'
       fullPath: '/apps'
       preLoaderRoute: typeof AppsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ezyai': {
+      id: '/ezyai'
+      path: '/ezyai'
+      fullPath: '/ezyai'
+      preLoaderRoute: typeof EzyaiRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/llm-ueberblick': {
@@ -2123,6 +2143,7 @@ const rootRouteChildren: RootRouteChildren = {
   GithubStatusRoute: GithubStatusRoute,
   HealthRoute: HealthRoute,
   AppsRoute: AppsRoute,
+  EzyaiRoute: EzyaiRoute,
   LlmUeberblickRoute: LlmUeberblickRoute,
   PilotRoute: PilotRoute,
   LoginRoute: LoginRoute,

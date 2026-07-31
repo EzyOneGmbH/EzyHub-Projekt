@@ -16,11 +16,13 @@ export type EzyAppDef = {
   adminOnly?: boolean;
 };
 
+// Produktnamen (Volkan 31.07.): EzyRank/EzyAI/EzyPerformance = etablierte
+// Produktlinien (awork-Projekttypen); Reaktivierung/Admin haben keine.
 export const EZY_APPS: EzyAppDef[] = [
   {
     id: "seo",
-    name: "SEO-Suite",
-    desc: "Rankings, GSC-Suchbegriffe, Blog / Refresh-Radar, Conversions",
+    name: "EzyRank",
+    desc: "SEO: Rankings, GSC-Suchbegriffe, Blog / Refresh-Radar, Conversions",
     icon: "🔍",
     color: "#38bdf8",
     tint: "rgba(56,189,248,.15)",
@@ -28,17 +30,17 @@ export const EZY_APPS: EzyAppDef[] = [
   },
   {
     id: "geo",
-    name: "KI-Sichtbarkeit",
-    desc: "aivis-Score, 6-Engine-Prompts, Marken-Check, LLM-Überblick",
+    name: "EzyAI",
+    desc: "KI-Sichtbarkeit: aivis-Score, 6-Engine-Prompts, Marken-Check",
     icon: "🤖",
     color: "#a78bfa",
     tint: "rgba(167,139,250,.15)",
-    href: "/dashboard?app=geo",
+    href: "/ezyai", // Phase 2: eigene App-Route (vorher /dashboard?app=geo)
   },
   {
     id: "ads",
-    name: "Ads",
-    desc: "Google-Ads-Dashboard, Autopilot-Reports, Budgets",
+    name: "EzyPerformance",
+    desc: "Ads: Google-Ads-Dashboard, Autopilot-Reports, Budgets",
     icon: "📢",
     color: "#fb923c",
     tint: "rgba(251,146,60,.15)",
@@ -65,10 +67,11 @@ export const EZY_APPS: EzyAppDef[] = [
   },
 ];
 
-/** Startzustand in der heutigen EzyOneApp je App (Phase-1-Deep-Link). */
-export const APP_START: Record<EzyAppId, { page: string; tab?: string }> = {
+/** Startzustand in der heutigen EzyOneApp je App (Phase-1-Deep-Link).
+ *  geo fehlt bewusst: EzyAI ist seit Phase 2 eine eigene Route (/ezyai) —
+ *  alte ?app=geo-Links leitet EzyOneApp dorthin um. */
+export const APP_START: Record<string, { page: string; tab?: string }> = {
   seo: { page: "dashboard", tab: "seo" },
-  geo: { page: "dashboard", tab: "aivis" },
   ads: { page: "dashboard", tab: "ads" },
   reakt: { page: "dashboard", tab: "runs" },
   admin: { page: "clients" },
@@ -78,7 +81,6 @@ export const APP_START: Record<EzyAppId, { page: string; tab?: string }> = {
 export function currentAppOf(page: string, tab: string): EzyAppId {
   if (page === "clients" || page === "team" || page === "settings" || page === "agents") return "admin";
   if (page === "dashboard") {
-    if (tab === "aivis") return "geo";
     if (tab === "ads") return "ads";
     if (tab === "runs") return "reakt";
   }
