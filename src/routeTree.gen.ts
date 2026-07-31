@@ -78,6 +78,7 @@ import { Route as ApiAgentPilotRouteImport } from './routes/api/agent.pilot'
 import { Route as ApiAgentCopilotRouteImport } from './routes/api/agent.copilot'
 import { Route as ApiAgentApprovalsRouteImport } from './routes/api/agent.approvals'
 import { Route as ApiAgentAgentsRouteImport } from './routes/api/agent.agents'
+import { Route as ApiAgentReaktRouteImport } from './routes/api/agent.reakt'
 import { Route as ApiAdminWpPublishRouteImport } from './routes/api/admin.wp-publish'
 import { Route as ApiAdminWpDeployRouteImport } from './routes/api/admin.wp-deploy'
 import { Route as ApiAdminTeamRouteImport } from './routes/api/admin.team'
@@ -461,6 +462,11 @@ const ApiAgentApprovalsRoute = ApiAgentApprovalsRouteImport.update({
   path: '/api/agent/approvals',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAgentReaktRoute = ApiAgentReaktRouteImport.update({
+  id: '/api/agent/reakt',
+  path: '/api/agent/reakt',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAgentAgentsRoute = ApiAgentAgentsRouteImport.update({
   id: '/api/agent/agents',
   path: '/api/agent/agents',
@@ -730,6 +736,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/team': typeof ApiAdminTeamRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
+  '/api/agent/reakt': typeof ApiAgentReaktRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
   '/api/agent/approvals': typeof ApiAgentApprovalsRoute
   '/api/agent/copilot': typeof ApiAgentCopilotRoute
@@ -838,6 +845,7 @@ export interface FileRoutesByTo {
   '/api/admin/team': typeof ApiAdminTeamRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
+  '/api/agent/reakt': typeof ApiAgentReaktRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
   '/api/agent/approvals': typeof ApiAgentApprovalsRoute
   '/api/agent/copilot': typeof ApiAgentCopilotRoute
@@ -947,6 +955,7 @@ export interface FileRoutesById {
   '/api/admin/team': typeof ApiAdminTeamRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
+  '/api/agent/reakt': typeof ApiAgentReaktRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
   '/api/agent/approvals': typeof ApiAgentApprovalsRoute
   '/api/agent/copilot': typeof ApiAgentCopilotRoute
@@ -1057,6 +1066,7 @@ export interface FileRouteTypes {
     | '/api/admin/team'
     | '/api/admin/wp-deploy'
     | '/api/admin/wp-publish'
+    | '/api/agent/reakt'
     | '/api/agent/agents'
     | '/api/agent/approvals'
     | '/api/agent/copilot'
@@ -1165,6 +1175,7 @@ export interface FileRouteTypes {
     | '/api/admin/team'
     | '/api/admin/wp-deploy'
     | '/api/admin/wp-publish'
+    | '/api/agent/reakt'
     | '/api/agent/agents'
     | '/api/agent/approvals'
     | '/api/agent/copilot'
@@ -1273,6 +1284,7 @@ export interface FileRouteTypes {
     | '/api/admin/team'
     | '/api/admin/wp-deploy'
     | '/api/admin/wp-publish'
+    | '/api/agent/reakt'
     | '/api/agent/agents'
     | '/api/agent/approvals'
     | '/api/agent/copilot'
@@ -1379,6 +1391,7 @@ export interface RootRouteChildren {
   ApiAdminWpDeployRoute: typeof ApiAdminWpDeployRoute
   ApiAdminWpPublishRoute: typeof ApiAdminWpPublishRoute
   ApiAgentAgentsRoute: typeof ApiAgentAgentsRoute
+  ApiAgentReaktRoute: typeof ApiAgentReaktRoute
   ApiAgentApprovalsRoute: typeof ApiAgentApprovalsRoute
   ApiAgentCopilotRoute: typeof ApiAgentCopilotRoute
   ApiAgentPilotRoute: typeof ApiAgentPilotRoute
@@ -1899,6 +1912,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentApprovalsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agent/reakt': {
+      id: '/api/agent/reakt'
+      path: '/api/agent/reakt'
+      fullPath: '/api/agent/reakt'
+      preLoaderRoute: typeof ApiAgentReaktRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/agent/agents': {
       id: '/api/agent/agents'
       path: '/api/agent/agents'
@@ -2277,6 +2297,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminWpDeployRoute: ApiAdminWpDeployRoute,
   ApiAdminWpPublishRoute: ApiAdminWpPublishRoute,
   ApiAgentAgentsRoute: ApiAgentAgentsRoute,
+  ApiAgentReaktRoute: ApiAgentReaktRoute,
   ApiAgentApprovalsRoute: ApiAgentApprovalsRoute,
   ApiAgentCopilotRoute: ApiAgentCopilotRoute,
   ApiAgentPilotRoute: ApiAgentPilotRoute,
