@@ -15,7 +15,9 @@ function IndexRedirect() {
 
   useEffect(() => {
     if (loading) return;
-    navigate({ to: session ? "/dashboard" : "/login", replace: true });
+    // Plattform-Umbau Phase 1: eingeloggte Nutzer landen im App-Launcher
+    // (Viewer werden dort direkt zum Dashboard weitergeleitet).
+    navigate({ to: session ? "/apps" : "/login", replace: true });
   }, [loading, session, navigate]);
 
   return null;

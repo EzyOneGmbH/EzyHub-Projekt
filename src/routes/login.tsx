@@ -25,7 +25,7 @@ function LoginPage() {
   const { next } = Route.useSearch();
   const goNext = () => {
     if (next) window.location.href = next;
-    else navigate({ to: "/dashboard" });
+    else navigate({ to: "/apps" }); // Plattform-Umbau Phase 1: Launcher statt Dashboard
   };
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

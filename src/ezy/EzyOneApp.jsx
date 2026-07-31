@@ -106,6 +106,8 @@ import { useEzyToolSettings, toolProvider } from "@/ezy/data/useEzyToolSettings"
 import { ServicesPicker, ServicesPanel } from "@/ezy/components/ServicesPanel";
 import { DEFAULT_ON_SERVICES } from "@/lib/services";
 import { useEzyDashboardConfig } from "@/ezy/data/useEzyDashboardConfig";
+import { EZY_APPS, APP_START, currentAppOf } from "@/ezy/data/appRegistry";
+import { useAppAccess } from "@/ezy/data/useAppAccess";
 import { executeTool as runToolLive } from "@/ezy/data/runTool";
 import { useEzyAuditHistory } from "@/ezy/data/useEzyAuditHistory";
 import { useEzyAgentRuns } from "@/ezy/data/useEzyAgentRuns";
@@ -9653,7 +9655,7 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
 // ─────────────────────────────────────────────────────────────────────────────
 function TeamPage({ clients }) {
   const toast = useToast();
-  const { role: myRole } = useAuth();
+  const { role: myRole, organizationId } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -9718,6 +9720,27 @@ function TeamPage({ clients }) {
   };
   const roleLabel = { owner: "SuperAdmin", admin: "Admin", member: "Mitarbeiter", viewer: "Nur-Lesen" };
   const roleColor = { owner: C.pink, admin: C.accent, member: C.green, viewer: C.textDim };
+
+  // App-Zugriffe (Plattform-Umbau Phase 1, 2026-07-31): welcher Member darf
+  // welche Apps im Launcher öffnen. Direkt via Supabase (RLS: org-admin-write);
+  // owner/admin sehen implizit alles und tauchen hier nicht auf.
+  const [appAccessMap, setAppAccessMap] = useState({}); // userId -> Set(app)
+  const loadAppAccess = useCallback(async () => {
+    const { data } = await supabase.from("app_access").select("user_id, app");
+    const m = {};
+    for (const r of data || []) (m[r.user_id] = m[r.user_id] || new Set()).add(r.app);
+    setAppAccessMap(m);
+  }, []);
+  useEffect(() => { void loadAppAccess(); }, [loadAppAccess]);
+  const toggleApp = async (userId, app) => {
+    const has = appAccessMap[userId]?.has(app);
+    const q = has
+      ? supabase.from("app_access").delete().eq("user_id", userId).eq("app", app)
+      : supabase.from("app_access").insert({ user_id: userId, organization_id: organizationId, app });
+    const { error } = await q;
+    if (error) toast(error.message || "App-Zugriff fehlgeschlagen", "error");
+    await loadAppAccess();
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -9800,6 +9823,31 @@ function TeamPage({ clients }) {
                     )}
                   </div>
                 </div>
+                {u.role !== "owner" && u.role !== "admin" && (
+                  <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 11, color: C.textMuted, marginRight: 2 }}>Apps:</span>
+                    {EZY_APPS.filter((a) => !a.adminOnly).map((a) => {
+                      const on = appAccessMap[u.userId]?.has(a.id);
+                      return (
+                        <button
+                          key={a.id}
+                          type="button"
+                          onClick={() => toggleApp(u.userId, a.id)}
+                          title={on ? `${a.name} entziehen` : `${a.name} freischalten`}
+                          style={{
+                            display: "inline-flex", alignItems: "center", gap: 5,
+                            padding: "4px 10px", borderRadius: 99, cursor: "pointer", fontSize: 11.5,
+                            border: `1px solid ${on ? a.color : C.border}`,
+                            background: on ? a.tint : "transparent",
+                            color: on ? a.color : C.textDim,
+                          }}
+                        >
+                          {a.icon} {a.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
                 {expanded === u.userId && (
                   <div style={{ marginTop: 10, borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>
                     <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 8 }}>
@@ -12768,8 +12816,24 @@ function App() {
   const profileHook = useEzyProfile();
   const defaultsHook = useEzyDefaults(client?.id);
   const contentHook = useEzyContent();
-  const [page, setPage] = useState(ui0.page || "dashboard");
-  const [tab, setTab] = useState(ui0.tab || "seo");
+  // Plattform-Umbau Phase 1 (2026-07-31): ?app=<id> vom Launcher übersteuert
+  // den letzten UI-Stand und springt in die Start-Ansicht der gewählten App.
+  const appParam = useMemo(() => {
+    try { return new URLSearchParams(window.location.search).get("app"); } catch { return null; }
+  }, []);
+  const appStart = (appParam && APP_START[appParam]) || null;
+  const [page, setPage] = useState(appStart?.page || ui0.page || "dashboard");
+  const [tab, setTab] = useState(appStart?.tab || ui0.tab || "seo");
+  useEffect(() => {
+    // Param nach dem Einstieg aus der URL nehmen, damit Reload/Bookmark wieder
+    // beim gemerkten UI-Stand landet statt ewig in der Deep-Link-Ansicht.
+    if (!appParam) return;
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.delete("app");
+      window.history.replaceState({}, "", u.pathname + (u.search || ""));
+    } catch { /* egal */ }
+  }, [appParam]);
   // Viewers (Kunden) dürfen Dashboard + ihre Reports sehen, sonst nichts.
   useEffect(() => {
     if (isViewer && page !== "dashboard" && page !== "reports") setPage("dashboard");
@@ -12787,6 +12851,9 @@ function App() {
   }, [page, isViewer]);
   const [cdd, setCdd] = useState(false);
   const [showTools, setShowTools] = useState(false);
+  // App-Switcher (Plattform-Umbau Phase 1)
+  const appAccess = useAppAccess();
+  const [swOpen, setSwOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [dateRange, setDateRange] = useState(() => {
     const now = new Date();
@@ -13047,6 +13114,65 @@ function App() {
             </div>
           )}
         </div>
+        {/* App-Switcher (Plattform-Umbau Phase 1, 2026-07-31): Atlassian-Muster —
+            Raster-Button unter dem Logo, Dropdown mit erlaubten Apps + Launcher. */}
+        {!isViewer && (
+          <div style={{ position: "relative", borderBottom: `1px solid ${C.border}`, padding: "8px 10px" }}>
+            <button
+              onClick={() => setSwOpen((v) => !v)}
+              title="App wechseln"
+              style={{
+                width: "100%", display: "flex", alignItems: "center", gap: 9,
+                background: swOpen ? C.surface2 || "rgba(255,255,255,.04)" : "none",
+                border: "none", borderRadius: 8, padding: collapsed ? "8px 6px" : "8px 10px",
+                color: C.text, cursor: "pointer", fontSize: 12.5, fontWeight: 600,
+                justifyContent: collapsed ? "center" : "flex-start",
+              }}
+            >
+              <span style={{ fontSize: 14, lineHeight: 1, letterSpacing: 1 }}>⣿</span>
+              {!collapsed && (() => {
+                const cur = EZY_APPS.find((a) => a.id === currentAppOf(page, tab));
+                return <span style={{ color: cur?.color || C.text }}>{cur?.name || "Apps"}</span>;
+              })()}
+            </button>
+            {swOpen && (
+              <div
+                style={{
+                  position: "absolute", top: "100%", left: 10, zIndex: 200, width: 236,
+                  background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12,
+                  padding: 8, boxShadow: "0 14px 44px rgba(0,0,0,.55)",
+                }}
+              >
+                <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".08em", color: C.textMuted, padding: "4px 10px 8px", fontWeight: 700 }}>
+                  Apps wechseln
+                </div>
+                {EZY_APPS.filter((a) => appAccess.canOpen(a.id)).map((a) => {
+                  const active = currentAppOf(page, tab) === a.id;
+                  return (
+                    <a
+                      key={a.id}
+                      href={a.href}
+                      onClick={(e) => { if (active) { e.preventDefault(); setSwOpen(false); } }}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
+                        borderRadius: 8, fontSize: 13, textDecoration: "none",
+                        color: active ? a.color : C.text,
+                        background: active ? a.tint : "none",
+                      }}
+                    >
+                      <span style={{ width: 24, height: 24, borderRadius: 6, background: a.tint, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>{a.icon}</span>
+                      {a.name}
+                    </a>
+                  );
+                })}
+                <div style={{ borderTop: `1px solid ${C.border}`, margin: "8px 4px" }} />
+                <a href="/apps" style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8, fontSize: 12.5, textDecoration: "none", color: C.textMuted }}>
+                  ✦ Zum Launcher
+                </a>
+              </div>
+            )}
+          </div>
+        )}
         <nav style={{ flex: 1, padding: "12px 8px" }}>
           {nav.map((n) => {
             const I = n.icon;

@@ -17,6 +17,7 @@ import { Route as PilotRouteImport } from './routes/pilot'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LlmUeberblickRouteImport } from './routes/llm-ueberblick'
+import { Route as AppsRouteImport } from './routes/apps'
 import { Route as HealthRouteImport } from './routes/health'
 import { Route as GithubStatusRouteImport } from './routes/github-status'
 import { Route as GeoRouteImport } from './routes/geo'
@@ -143,6 +144,11 @@ const McpRoute = McpRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppsRoute = AppsRouteImport.update({
+  id: '/apps',
+  path: '/apps',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LlmUeberblickRoute = LlmUeberblickRouteImport.update({
@@ -637,6 +643,7 @@ export interface FileRoutesByFullPath {
   '/geo': typeof GeoRoute
   '/github-status': typeof GithubStatusRoute
   '/health': typeof HealthRoute
+  '/apps': typeof AppsRoute
   '/llm-ueberblick': typeof LlmUeberblickRoute
   '/pilot': typeof PilotRoute
   '/login': typeof LoginRoute
@@ -739,6 +746,7 @@ export interface FileRoutesByTo {
   '/geo': typeof GeoRoute
   '/github-status': typeof GithubStatusRoute
   '/health': typeof HealthRoute
+  '/apps': typeof AppsRoute
   '/llm-ueberblick': typeof LlmUeberblickRoute
   '/pilot': typeof PilotRoute
   '/login': typeof LoginRoute
@@ -842,6 +850,7 @@ export interface FileRoutesById {
   '/geo': typeof GeoRoute
   '/github-status': typeof GithubStatusRoute
   '/health': typeof HealthRoute
+  '/apps': typeof AppsRoute
   '/llm-ueberblick': typeof LlmUeberblickRoute
   '/pilot': typeof PilotRoute
   '/login': typeof LoginRoute
@@ -946,6 +955,7 @@ export interface FileRouteTypes {
     | '/geo'
     | '/github-status'
     | '/health'
+    | '/apps'
     | '/llm-ueberblick'
     | '/pilot'
     | '/login'
@@ -1048,6 +1058,7 @@ export interface FileRouteTypes {
     | '/geo'
     | '/github-status'
     | '/health'
+    | '/apps'
     | '/llm-ueberblick'
     | '/pilot'
     | '/login'
@@ -1150,6 +1161,7 @@ export interface FileRouteTypes {
     | '/geo'
     | '/github-status'
     | '/health'
+    | '/apps'
     | '/llm-ueberblick'
     | '/pilot'
     | '/login'
@@ -1253,6 +1265,7 @@ export interface RootRouteChildren {
   GeoRoute: typeof GeoRoute
   GithubStatusRoute: typeof GithubStatusRoute
   HealthRoute: typeof HealthRoute
+  AppsRoute: typeof AppsRoute
   LlmUeberblickRoute: typeof LlmUeberblickRoute
   PilotRoute: typeof PilotRoute
   LoginRoute: typeof LoginRoute
@@ -1392,6 +1405,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/apps': {
+      id: '/apps'
+      path: '/apps'
+      fullPath: '/apps'
+      preLoaderRoute: typeof AppsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/llm-ueberblick': {
@@ -2102,6 +2122,7 @@ const rootRouteChildren: RootRouteChildren = {
   GeoRoute: GeoRoute,
   GithubStatusRoute: GithubStatusRoute,
   HealthRoute: HealthRoute,
+  AppsRoute: AppsRoute,
   LlmUeberblickRoute: LlmUeberblickRoute,
   PilotRoute: PilotRoute,
   LoginRoute: LoginRoute,
