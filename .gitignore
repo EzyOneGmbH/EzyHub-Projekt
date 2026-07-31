@@ -45,3 +45,6 @@ dist-ssr
 
 # Plugin-ZIP-Build-Artefakte
 wordpress-plugin/_build/
+
+# lokale Editier-Backups nie einchecken
+*.bak-*
