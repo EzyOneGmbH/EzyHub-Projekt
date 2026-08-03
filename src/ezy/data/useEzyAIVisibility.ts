@@ -24,6 +24,11 @@ export type AIPrompt = {
   sources: number;
   response: string;
   comps: string[];
+  // Phase-2-Felder (03.08.) — erst ab dem nächsten Messlauf befüllt:
+  topic?: string;                              // Themen-Label der Prompt-Def
+  sourceUrls?: string[];                       // zitierte Quell-URLs
+  checkedAt?: string;                          // Messzeitpunkt der Antwort
+  compPositions?: { n: string; p: string }[];  // Rival-Positionen (Judge H)
 };
 
 export type AIVisibilityData = {
@@ -78,6 +83,9 @@ export type AIVisibilityData = {
   // Domain-Zitier-Trend (03.08., Searchable "Top Domains"): je Monat der neueste
   // Report, dessen Quellen-Zeilen — Top-Domains als Mehrlinien-Serie.
   sourceTrend?: { months: string[]; series: { domain: string; values: number[] }[] };
+  // Query-Fanout light (03.08.): Google-Folgefragen (PAA) + verwandte Suchen je
+  // GSC-Keyword aus dem serp_ai-Lauf — bewusst KEINE KI-internen Sub-Queries.
+  fanout?: { kw: string; country: string; questions: string[]; related: string[] }[];
   attribution: {
     engine: string;
     sessions: number;
@@ -117,6 +125,14 @@ function mapPrompt(r: any, opportunity: boolean): AIPrompt {
   if (r.sentiment) p.sentiment = String(r.sentiment);
   if (r.position) p.position = String(r.position);
   if (r.intent) p.intent = String(r.intent); // Funnel-Ansicht (Searchable-Nachbau 08/2026)
+  if (r.topic) p.topic = String(r.topic);
+  if (Array.isArray(r.source_urls) && r.source_urls.length) p.sourceUrls = r.source_urls.map(String);
+  if (r.checked_at) p.checkedAt = String(r.checked_at);
+  if (Array.isArray(r.comp_positions) && r.comp_positions.length) {
+    p.compPositions = r.comp_positions
+      .map((x: any) => ({ n: String(x?.n || ""), p: String(x?.p || "list") }))
+      .filter((x: any) => x.n);
+  }
   return p;
 }
 
@@ -310,6 +326,7 @@ export async function loadAIVisibility(
       return p;
     }),
     brandCheck: (rep.parts as any)?.bc ?? null,
+    fanout: Array.isArray((rep.parts as any)?.sa?.fanout) ? (rep.parts as any).sa.fanout : undefined,
     brandHistory: await (async () => {
       const { data: hist } = await sb
         .from("ai_visibility_brand_history")

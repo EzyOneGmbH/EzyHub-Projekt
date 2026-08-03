@@ -479,12 +479,25 @@ async function jobSerpAi(c: any, limitOverride?: number) {
   const errors: string[] = [];
   const aio = { checked: 0, present: 0, cited: 0, citations: 0, keywords: [] as string[], byCountry: {} as Record<string, number> };
   const aim = { checked: 0, present: 0, cited: 0, citations: 0, keywords: [] as string[], byCountry: {} as Record<string, number> };
+  // Query-Fanout light (03.08.): Googles Folgefragen (People Also Ask) + verwandte
+  // Suchen aus den OHNEHIN bezahlten organic-Calls — 0 Zusatzkosten. Bewusst als
+  // Google-Folgefragen beschriftet, NICHT als KI-interne Sub-Queries (die liefert
+  // DataForSEO nicht — geprüft 03.08.).
+  const fanout = new Map<string, { kw: string; country: string; questions: string[]; related: string[] }>();
   // Parallel in Blöcken — bei "alle Keywords" sonst zu langsam (2 Calls je Paar).
   const checkPair = async (p: { kw: string; a3: string }) => {
     const loc = DFS_LOC_BY_A3[p.a3] || homeLoc;
     const jobs = [
       withDeadline(dfsSerp(auth, "organic", p.kw, loc), 90_000, "dfs organic").then((items) => {
         aio.checked++;
+        // Fanout light: PAA-Fragen + verwandte Suchen einsammeln (max 200 Keywords).
+        if (fanout.size < 200) {
+          const paa = (items as any[]).find((i: any) => i?.type === "people_also_ask");
+          const rel = (items as any[]).find((i: any) => i?.type === "related_searches");
+          const questions = Array.isArray(paa?.items) ? paa.items.map((x: any) => String(x?.title || "")).filter(Boolean).slice(0, 8) : [];
+          const related = Array.isArray(rel?.items) ? rel.items.map((x: any) => (typeof x === "string" ? x : String(x?.title || ""))).filter(Boolean).slice(0, 8) : [];
+          if (questions.length || related.length) fanout.set(`${p.kw}|${loc.name}`, { kw: p.kw, country: loc.name, questions, related });
+        }
         const el = (items as any[]).find((i: any) => i?.type === "ai_overview");
         if (el) {
           aio.present++;
@@ -537,6 +550,7 @@ async function jobSerpAi(c: any, limitOverride?: number) {
     ...(Object.keys(skippedCountries).length ? { skippedCountries } : {}),
     aio,
     aim,
+    fanout: [...fanout.values()],
     errors,
   };
 }
@@ -1180,7 +1194,7 @@ async function runJudgeCalibration(): Promise<{ pct: number; n: number } | null>
 // LLM-Judge (A): jede Antwort strukturiert bewerten statt Regex.
 async function judgeAnswers(brand: string, comps: string[], items: Array<{ i: number; platform: string; text: string }>) {
   const hint = comps.length ? `Bekannte Konkurrenten (nutze diese Schreibweise, ergänze neue): ${comps.join(", ")}. ` : "";
-  const head = `Du bewertest KI-Antworten für die Zielmarke "${brand}". ${hint}Für JEDE Antwort ein Objekt:\n{"i":<nr>,"mentioned":true|false (wird die Zielmarke genannt?),"cited":true|false (wird ihre Website/Domain als Quelle genannt/verlinkt?),"position":"top"|"list"|"passing"|"none" (top=klare Top-Empfehlung, list=eine von mehreren gleichrangig, passing=nur Randnotiz, none=nicht genannt),"sentiment":"pos"|"neu"|"neg"|null (Tonalität ggü. der Zielmarke),"competitors":["andere genannte Firmen/Marken OHNE die Zielmarke, max 8"],"sources":["explizit genannte Quell-URLs, max 8"]}\nSei streng: Substring-Zufallstreffer sind KEINE Erwähnung. Antworte NUR mit JSON-Array.\n\n`;
+  const head = `Du bewertest KI-Antworten für die Zielmarke "${brand}". ${hint}Für JEDE Antwort ein Objekt:\n{"i":<nr>,"mentioned":true|false (wird die Zielmarke genannt?),"cited":true|false (wird ihre Website/Domain als Quelle genannt/verlinkt?),"position":"top"|"list"|"passing"|"none" (top=klare Top-Empfehlung, list=eine von mehreren gleichrangig, passing=nur Randnotiz, none=nicht genannt),"sentiment":"pos"|"neu"|"neg"|null (Tonalität ggü. der Zielmarke),"competitors":["andere genannte Firmen/Marken OHNE die Zielmarke, max 8"],"comp_positions":[{"n":"<Konkurrent aus competitors>","p":"top"|"list"|"passing"}] (Position JEDES genannten Konkurrenten, gleiche Skala),"sources":["explizit genannte Quell-URLs, max 8"]}\nSei streng: Substring-Zufallstreffer sind KEINE Erwähnung. Antworte NUR mit JSON-Array.\n\n`;
   // Judge in Blöcken -> skaliert auf beliebig viele Prompts (ohne Token-Limit zu sprengen).
   // Blöcke PARALLEL (2026-07-16): sequenziell traf jeder Block die volle
   // Failover-Kette (bis 120s je Provider) — 15 Blöcke x haengender Erst-
@@ -1370,12 +1384,19 @@ async function jobPromptRunner(
         position: ["top", "list", "passing", "none"].includes(j.position) ? j.position : (j.mentioned ? "list" : "none"),
         sentiment: ["pos", "neu", "neg"].includes(j.sentiment) ? j.sentiment : null,
         competitors: Array.isArray(j.competitors) ? j.competitors.map((x: any) => String(x).trim()).filter(Boolean).slice(0, 8) : [],
+        // Rival-Positionen (H, 03.08.): {n: Name, p: top|list|passing} je Konkurrent.
+        compPositions: Array.isArray(j.comp_positions)
+          ? j.comp_positions
+              .map((x: any) => ({ n: String(x?.n || "").trim(), p: ["top", "list", "passing"].includes(x?.p) ? x.p : "list" }))
+              .filter((x: any) => x.n)
+              .slice(0, 8)
+          : [],
         sources: Array.isArray(j.sources) ? j.sources.map(String) : urlListIn(r.text),
       };
     }
     const cited = domain ? r.text.toLowerCase().includes(domain.toLowerCase()) : false;
     const mentioned = nameRe.test(r.text) || cited;
-    return { mentioned, cited, position: mentioned ? "list" : "none", sentiment: null as string | null, competitors: [] as string[], sources: urlListIn(r.text) };
+    return { mentioned, cited, position: mentioned ? "list" : "none", sentiment: null as string | null, competitors: [] as string[], compPositions: [] as any[], sources: urlListIn(r.text) };
   });
 
   // Prompt-Ergebnisse für die DB (mit Sentiment/Position).
@@ -1395,6 +1416,11 @@ async function jobPromptRunner(
       response: r.text.slice(0, 1500),
       competitors: e.competitors,
       prompt_type: "markt",
+      // Phase-2-Ausbau (03.08.): Thema/URLs/Zeitstempel/Rival-Positionen je Antwort.
+      topic: r.def.topic || null,
+      source_urls: e.sources.slice(0, 20),
+      checked_at: new Date().toISOString(),
+      comp_positions: e.compPositions?.length ? e.compPositions : null,
     };
   });
 
@@ -1439,6 +1465,9 @@ async function jobPromptRunner(
       competitors: e.konkurrenz || [],
       prompt_type: "brand",
       brand_eval: { ...e, judge: { models: brandJudgeModels, temperature: SCORE_CFG.judge.temperature } },
+      topic: r.def.topic || null,
+      source_urls: (e.quellen || []).slice(0, 20),
+      checked_at: new Date().toISOString(),
     };
   });
   const promptRows = [...marktPromptRows, ...brandPromptRows];
@@ -1497,7 +1526,8 @@ async function jobPromptRunner(
           position: p.position || (p.status != null ? "list" : "none"),
           sentiment: p.sentiment ?? null,
           competitors: Array.isArray(p.competitors) ? p.competitors.map(String) : [],
-          sources: urlListIn(String(p.response || "")),
+          compPositions: Array.isArray(p.comp_positions) ? p.comp_positions : [],
+          sources: Array.isArray(p.source_urls) && p.source_urls.length ? p.source_urls.map(String) : urlListIn(String(p.response || "")),
         });
         merged += 1;
       }
@@ -1641,6 +1671,41 @@ async function jobPromptRunner(
       judge: { models: brandJudgeModels, temperature: SCORE_CFG.judge.temperature },
       ...(brandFacts ? {} : { hinweis: "brand-facts fehlten — Faktentreue eingeschränkt" }),
     };
+
+    // Brand Perception (I, 03.08., Searchable-Parität): je Engine Stärken/Schwächen
+    // aus den echten Antworten verdichten — EIN Judge-Call, kein Zusatz je Prompt.
+    try {
+      const perEngine = new Map<string, string[]>();
+      for (const r of bRows) {
+        const arr = perEngine.get(r.platform) || [];
+        if (arr.length < 3) { arr.push(String(r.text).slice(0, 500)); perEngine.set(r.platform, arr); }
+      }
+      rows.forEach((r, k) => {
+        if (!evals[k]?.mentioned) return;
+        const arr = perEngine.get(r.platform) || [];
+        if (arr.length < 3) { arr.push(String(r.text).slice(0, 500)); perEngine.set(r.platform, arr); }
+      });
+      if (perEngine.size) {
+        const blocks = [...perEngine.entries()].map(([eng, texts]) => `### ${eng}\n${texts.join("\n--\n")}`).join("\n\n");
+        const pRes = await withDeadline(askUtilityMeta(
+          `Wie nimmt jedes KI-System die Marke "${c.name}" wahr? Analysiere NUR die folgenden echten Antworten je System. Für JEDES System ein Objekt:\n{"engine":"<Name>","staerken":["max 4 kurze Stärken-Phrasen (wörtlich belegbar)"],"schwaechen":["max 4 kurze Schwächen/Einschränkungen"],"zusammenfassung":"1 Satz, deutsch"}\nNichts erfinden — nur was in den Antworten steht. Antworte NUR mit JSON-Array.\n\n${blocks}`,
+          2500, SCORE_CFG.judge.temperature,
+        ), 90_000, "perception-judge").catch(() => null);
+        const pArr = pRes?.text ? parseJson(pRes.text) : null;
+        if (Array.isArray(pArr) && pArr.length) {
+          brandCheck.perception = pArr
+            .map((p: any) => ({
+              engine: String(p?.engine || "").slice(0, 40),
+              staerken: Array.isArray(p?.staerken) ? p.staerken.map(String).slice(0, 4) : [],
+              schwaechen: Array.isArray(p?.schwaechen) ? p.schwaechen.map(String).slice(0, 4) : [],
+              zusammenfassung: String(p?.zusammenfassung || "").slice(0, 300),
+            }))
+            .filter((p: any) => p.engine)
+            .slice(0, 10);
+          diag(`prompts: Perception-Judge fertig (${brandCheck.perception.length} Engines)`);
+        }
+      }
+    } catch { /* Perception ist Zusatz — nie den Lauf gefährden */ }
 
     // E4: advisory-Signal für die Wunsch-Queue — max EIN Eintrag je Lauf.
     let advisory: string | null = null;
@@ -2281,6 +2346,8 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               if (hasCa) newParts.ca = { mentions: ca.mentions, models: ca.models };
               if (hasSa) newParts.sa = {
                 mentions: sa.mentions, citations: Number(sa.citations || 0), pages: sa.citedPages?.length || 0, models: sa.models,
+                // Query-Fanout light (03.08.): Google-Folgefragen je Keyword (PAA/related).
+                ...(Array.isArray(sa.fanout) && sa.fanout.length ? { fanout: sa.fanout.slice(0, 200) } : {}),
                 urls: [...new Set((sa.citedPages || []).map((u: any) => normUrl(u)).filter(Boolean))].slice(0, 300),
                 gemessenAm: snapshot, // echtes Messdatum (SERP-Drosselung)
               };

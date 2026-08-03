@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { Fragment, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -79,6 +79,15 @@ const C = {
 const CARD = { background: C.card, borderColor: C.line };
 
 const nf = (n) => new Intl.NumberFormat("de-CH").format(n);
+// Relative Zeit ("vor 3 Std.") für den Antwort-Zeitstempel (checked_at, ab 03.08.).
+const relTime = (iso) => {
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return "";
+  const h = Math.floor(ms / 36e5);
+  if (h < 1) return "vor <1 Std.";
+  if (h < 48) return `vor ${h} Std.`;
+  return `vor ${Math.floor(h / 24)} Tagen`;
+};
 const POS_LABEL = { top: "Top-Empfehlung", list: "in Liste", passing: "Randnotiz", none: "nicht genannt" };
 const SENT_LABEL = { pos: "positiv", neu: "neutral", neg: "negativ" };
 const SENT_COLOR = (s) => ({ pos: "#10b981", neu: "#8b8da3", neg: "#ef4444" }[s] || "#8b8da3");
@@ -255,10 +264,28 @@ const intentColor = (i) => ({
 
 const TOPICS_PAGE_SIZE = 10;
 // Themen-Tab-Panel (03.08., Searchable-Parität): Suche + Umschalter Treemap/Tabelle.
-function TopicsPanel({ rows }) {
+function TopicsPanel({ rows, prompts }) {
   const [view, setView] = useState("beides"); // beides | treemap | tabelle
   const [q, setQ] = useState("");
-  const shown = q.trim() ? (rows || []).filter((t) => t.topic.toLowerCase().includes(q.trim().toLowerCase())) : rows || [];
+  // Ø-Position je Thema (O, 03.08.): aus den Prompt-Positionen, sobald der
+  // Messlauf topic je Antwort schreibt (top=3, list=2, passing=1).
+  const posByTopic = new Map();
+  for (const p of prompts || []) {
+    if (!p.topic || !p.status || p.status === "Nicht erwähnt") continue;
+    const v = { top: 3, list: 2, passing: 1 }[p.position] || 0;
+    if (!v) continue;
+    const t = posByTopic.get(p.topic) || { sum: 0, n: 0 };
+    t.sum += v; t.n += 1; posByTopic.set(p.topic, t);
+  }
+  const posLabel = (topic) => {
+    const t = posByTopic.get(topic);
+    if (!t || !t.n) return null;
+    const avg = t.sum / t.n;
+    return avg >= 2.5 ? "Top-Empfehlung" : avg >= 1.5 ? "in Liste" : "Randnotiz";
+  };
+  const hasPos = posByTopic.size > 0;
+  const enriched = (rows || []).map((t) => ({ ...t, avgPosLabel: posLabel(t.topic) }));
+  const shown = q.trim() ? enriched.filter((t) => t.topic.toLowerCase().includes(q.trim().toLowerCase())) : enriched;
   return (
     <div className="mt-4 grid grid-cols-1 gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -280,12 +307,12 @@ function TopicsPanel({ rows }) {
         </div>
       </div>
       {view !== "tabelle" && <TopicTreemap rows={shown} />}
-      {view !== "treemap" && <TopicsTable rows={shown} />}
+      {view !== "treemap" && <TopicsTable rows={shown} hasPos={hasPos} />}
     </div>
   );
 }
 
-function TopicsTable({ rows }) {
+function TopicsTable({ rows, hasPos = false }) {
   // 10er-Pagination wie bei den Prompts (User-Wunsch 2026-07-19).
   const [page, setPage] = useState(0);
   const pages = Math.max(1, Math.ceil(rows.length / TOPICS_PAGE_SIZE));
@@ -306,6 +333,7 @@ function TopicsTable({ rows }) {
               <th className="px-5 py-2 font-medium">Thema</th>
               <th className="px-3 py-2 text-right font-medium">Sichtbar.</th>
               <th className="px-3 py-2 text-right font-medium">Erwähn.</th>
+              {hasPos && <th className="px-3 py-2 text-center font-medium">Ø-Position</th>}
               <th className="px-3 py-2 text-right font-medium">AI-Vol.</th>
               <th className="px-5 py-2 font-medium">Intent</th>
             </tr>
@@ -323,6 +351,11 @@ function TopicsTable({ rows }) {
                   </span>
                 </td>
                 <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: C.ink }}>{r.mentions}</td>
+                {hasPos && (
+                  <td className="px-3 py-2.5 text-center text-[11.5px]" style={{ color: r.avgPosLabel ? C.ink : C.sub }}>
+                    {r.avgPosLabel || "—"}
+                  </td>
+                )}
                 {/* "–" = keine Volumen-Daten (AI-Suchvolumen existiert nur für
                     gängige Suchbegriffe) — bewusst NICHT 0 anzeigen. */}
                 <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: C.sub }}
@@ -909,7 +942,10 @@ function PromptGroupRow({ g, opportunity }) {
             <ChevronRight size={14} className="mt-0.5 shrink-0 transition-transform" style={{ color: C.sub, transform: expanded ? "rotate(90deg)" : "none" }} />
             <div className="min-w-0">
               <span className="font-medium" style={{ color: C.ink }}>{g.prompt}</span>
-              <span className="ml-2 text-[11px]" style={{ color: C.sub }}>{g.engines.length} Antworten · {g.country}</span>
+              <span className="ml-2 text-[11px]" style={{ color: C.sub }}>
+                {g.engines.length} Antworten · {g.country}
+                {g.engines[0]?.checkedAt && ` · ${relTime(g.engines[0].checkedAt)}`}
+              </span>
             </div>
           </div>
         </td>
@@ -1574,6 +1610,27 @@ function PositionHeadToHead({ prompts, sov, brand }) {
     return { engine: e, n: rows.length, top: (c.top / n) * 100, list: (c.list / n) * 100, passing: (c.passing / n) * 100, none: (c.none / n) * 100 };
   }).filter((r) => r.n > 0);
 
+  // Rival-Positions-Matrix (H, 03.08.): Marken × Position — erst befüllt, wenn
+  // der Judge comp_positions liefert (ab dem Messlauf nach dem 03.08.).
+  const withRivalPos = all.filter((p) => Array.isArray(p.compPositions) && p.compPositions.length);
+  const brandMatrix = (() => {
+    if (!withRivalPos.length) return [];
+    const total = all.length || 1;
+    const tally = new Map();
+    const bump = (name, pos, self) => {
+      const t = tally.get(name) || { name, self, top: 0, list: 0, passing: 0, seen: 0 };
+      t[pos] = (t[pos] || 0) + 1; t.seen += 1; tally.set(name, t);
+    };
+    for (const p of all) {
+      if (p.status && p.status !== "Nicht erwähnt" && p.position && p.position !== "none") bump(brand, p.position, true);
+      for (const cp of p.compPositions || []) bump(cp.n, ["top", "list", "passing"].includes(cp.p) ? cp.p : "list", false);
+    }
+    return [...tally.values()]
+      .sort((a, b) => (b.self ? 1 : 0) - (a.self ? 1 : 0) || b.seen - a.seen)
+      .slice(0, 8)
+      .map((t) => ({ ...t, topP: (t.top / total) * 100, listP: (t.list / total) * 100, passingP: (t.passing / total) * 100, noneP: ((total - t.seen) / total) * 100 }));
+  })();
+
   const comps = (sov || []).filter((s) => !s.isSelf).slice(0, 5);
   const [rivalIdx, setRivalIdx] = useState(0);
   const rival = comps[Math.min(rivalIdx, Math.max(0, comps.length - 1))] || null;
@@ -1587,7 +1644,7 @@ function PositionHeadToHead({ prompts, sov, brand }) {
   return (
     <div className="grid grid-cols-1 gap-4">
       {matrix.length > 0 && (
-        <RCard icon={Hash} title="Antwort-Position" info="Wo die eigene Marke in den KI-Antworten steht: Top-Empfehlung, in einer Liste, Randnotiz oder nicht genannt — je KI-System." desc="Wo die Marke in KI-Antworten erscheint" footer={`${all.length} Antworten · nur eigene Marke (Konkurrenz-Positionen werden nicht erhoben)`} legend={<HeatLegend from="Niedrig" to="Hoch" />} pad={false}>
+        <RCard icon={Hash} title="Antwort-Position" info="Wo die eigene Marke in den KI-Antworten steht: Top-Empfehlung, in einer Liste, Randnotiz oder nicht genannt — je KI-System." desc="Wo die Marke in KI-Antworten erscheint" footer={`${all.length} Antworten · eigene Marke je KI-System${withRivalPos.length ? "" : " (Konkurrenz-Positionen ab dem nächsten Messlauf)"}`} legend={<HeatLegend from="Niedrig" to="Hoch" />} pad={false}>
         <div className="overflow-x-auto">
           <table className="w-full text-[12px]" style={{ borderCollapse: "collapse" }}>
             <thead>
@@ -1612,6 +1669,36 @@ function PositionHeadToHead({ prompts, sov, brand }) {
             </tbody>
           </table>
         </div>
+        </RCard>
+      )}
+      {brandMatrix.length > 1 && (
+        <RCard icon={Hash} title="Positions-Verteilung nach Marke" info="Wo jede Marke in denselben KI-Antworten erscheint — Rival-Positionen bewertet der Judge seit dem 03.08.2026." desc="Marken im Positions-Vergleich (Searchable Position Distribution)" footer={`${withRivalPos.length} Antworten mit Rival-Bewertung`} legend={<HeatLegend from="Niedrig" to="Hoch" />} pad={false}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[12px]" style={{ borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ color: C.sub }}>
+                  <th className="px-5 py-2 text-left font-medium">Marke</th>
+                  <th className="px-3 py-2 text-center font-medium">Top-Empfehlung</th>
+                  <th className="px-3 py-2 text-center font-medium">In Liste</th>
+                  <th className="px-3 py-2 text-center font-medium">Randnotiz</th>
+                  <th className="px-3 py-2 text-center font-medium">Nicht genannt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {brandMatrix.map((r) => (
+                  <tr key={r.name} style={{ borderTop: `1px solid ${C.line}`, background: r.self ? "rgba(108,92,231,.05)" : "transparent" }}>
+                    <td className="px-5 py-2 font-semibold" style={{ color: r.self ? C.indigo : C.ink }}>
+                      {r.name}{r.self && <span className="ml-2 rounded px-1.5 py-0.5 text-[9.5px] font-bold" style={{ background: C.indigo, color: "#fff" }}>DU</span>}
+                    </td>
+                    <HeatCell pct={r.topP} />
+                    <HeatCell pct={r.listP} />
+                    <HeatCell pct={r.passingP} />
+                    <td className="px-3 py-2 text-center text-[11.5px] tabular-nums" style={{ color: C.sub }}>{Math.round(r.noneP)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </RCard>
       )}
       {rival && (
@@ -1645,6 +1732,250 @@ function PositionHeadToHead({ prompts, sov, brand }) {
         </RCard>
       )}
     </div>
+  );
+}
+
+// Standorte (03.08., Searchable "Location"): Kachel-Karte Europas — jedes Land
+// eine geografisch platzierte Kachel, Farbe = Erwähnungs-Anteil. Bewusst als
+// Kachel-Raster statt echter Landkarte (keine Karten-Library, keine Geo-Daten).
+const TILE_POS = [
+  ["Norwegen", 3, 0], ["Schweden", 4, 0], ["Finnland", 5, 0],
+  ["Irland", 0, 1], ["Grossbritannien", 1, 1], ["Dänemark", 3, 1], ["Polen", 4, 1],
+  ["Belgien", 1, 2], ["Niederlande", 2, 2], ["Deutschland", 3, 2], ["Tschechien", 4, 2],
+  ["Frankreich", 1, 3], ["Schweiz", 2, 3], ["Österreich", 3, 3], ["Ungarn", 4, 3],
+  ["Portugal", 0, 4], ["Spanien", 1, 4], ["Italien", 2, 4], ["Kroatien", 3, 4], ["Griechenland", 4, 4],
+];
+function LocationPanel({ countries }) {
+  const rows = (countries || []).filter((c) => c.value > 0);
+  const total = rows.reduce((a, c) => a + c.value, 0) || 1;
+  const valueOf = (name) => rows.find((c) => c.name.toLowerCase() === name.toLowerCase())?.value || 0;
+  const placed = new Set(TILE_POS.map(([n]) => n.toLowerCase()));
+  const others = rows.filter((c) => !placed.has(c.name.toLowerCase()));
+  const shade = (v) => {
+    if (!v) return { bg: C.track, fg: C.sub };
+    const share = v / total;
+    return share >= 0.4 ? { bg: "#6c5ce7", fg: "#fff" } : share >= 0.15 ? { bg: "#9d92ee", fg: "#fff" } : { bg: "#d9d4f8", fg: "#3b3667" };
+  };
+  const COLS = 6, ROWS = 5, S = 74, GAP = 6;
+  return (
+    <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <RCard icon={Layers} title="Regionen-Karte" info="Kachel-Karte: jedes Land eine geografisch angeordnete Kachel, Farbe nach Anteil der KI-Erwähnungen. Länder ausserhalb Europas erscheinen als eigene Kacheln darunter." desc="Wo KI-Antworten die Marke erwähnen" footer={`${rows.length} Regionen · ${nf(total)} Erwähnungen`}>
+        <svg viewBox={`0 0 ${COLS * (S + GAP)} ${ROWS * (S + GAP)}`} className="w-full" style={{ maxHeight: 340 }}>
+          {TILE_POS.map(([name, cx, cy]) => {
+            const v = valueOf(name);
+            const f = shade(v);
+            return (
+              <g key={name}>
+                <rect x={cx * (S + GAP)} y={cy * (S + GAP)} width={S} height={S} rx="8" fill={f.bg}>
+                  <title>{`${name}: ${v ? `${nf(v)} Erwähnungen (${Math.round((v / total) * 100)} %)` : "keine Erwähnungen"}`}</title>
+                </rect>
+                <text x={cx * (S + GAP) + S / 2} y={cy * (S + GAP) + (v ? S / 2 - 4 : S / 2 + 3)} textAnchor="middle" fontSize="9.5" fontWeight="600" fill={f.fg}>
+                  {name.length > 11 ? name.slice(0, 10) + "…" : name}
+                </text>
+                {v > 0 && (
+                  <text x={cx * (S + GAP) + S / 2} y={cy * (S + GAP) + S / 2 + 13} textAnchor="middle" fontSize="12" fontWeight="700" fill={f.fg}>{nf(v)}</text>
+                )}
+              </g>
+            );
+          })}
+        </svg>
+        {others.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {others.map((c) => {
+              const f = shade(c.value);
+              return (
+                <span key={c.name} className="rounded-lg px-3 py-2 text-[11px] font-semibold" style={{ background: f.bg, color: f.fg }}>
+                  {c.name} · {nf(c.value)}
+                </span>
+              );
+            })}
+          </div>
+        )}
+      </RCard>
+      <RCard icon={Hash} title="Regionen" info="Erwähnungen und Anteil je Herkunftsregion der KI-Anfragen." desc="Erwähnungen nach Region" footer={`${rows.length} Regionen`} pad={false}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-[12px]" style={{ borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ color: C.sub }}>
+                <th className="px-5 py-2 text-left font-medium">Region</th>
+                <th className="px-3 py-2 text-right font-medium">Erwähnungen</th>
+                <th className="px-5 py-2 text-right font-medium">Anteil</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((c) => (
+                <tr key={c.name} style={{ borderTop: `1px solid ${C.line}` }}>
+                  <td className="px-5 py-2 font-semibold" style={{ color: C.ink }}>{c.name}</td>
+                  <td className="px-3 py-2 text-right tabular-nums" style={{ color: C.ink }}>{nf(c.value)}</td>
+                  <td className="px-5 py-2 text-right tabular-nums" style={{ color: C.sub }}>{Math.round((c.value / total) * 100)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </RCard>
+    </div>
+  );
+}
+
+// Folgefragen (03.08., ehrliche Query-Fanout-Annäherung): Googles "People Also
+// Ask"-Fragen + verwandte Suchen je GSC-Keyword — KEINE KI-internen Sub-Queries.
+function FanoutPanel({ fanout }) {
+  const [q, setQ] = useState("");
+  const rows = (fanout || []).filter((f) =>
+    !q.trim() || f.kw.toLowerCase().includes(q.trim().toLowerCase()) ||
+    (f.questions || []).some((x) => x.toLowerCase().includes(q.trim().toLowerCase())),
+  );
+  return (
+    <div className="mt-4">
+      <RCard icon={MessageSquare} title="Google-Folgefragen" info="Welche Folgefragen (People Also Ask) und verwandte Suchen Google zu den eigenen Keywords zeigt — erhoben in der AIO/AI-Mode-Messung ohne Zusatzkosten. Das sind Googles Folgefragen, nicht die internen Sub-Queries der KI-Systeme." desc="Folgefragen & verwandte Suchen zu den eigenen Keywords" footer={`${rows.length} Keywords mit Folgefragen`} legend={
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Suchen…"
+          className="h-7 w-36 rounded-md border px-2 text-xs focus:outline-none"
+          style={{ borderColor: C.line, background: C.card, color: C.ink }} />
+      }>
+        <div className="grid grid-cols-1 gap-3">
+          {rows.slice(0, 40).map((f) => (
+            <div key={`${f.kw}|${f.country}`} className="rounded-lg border p-3" style={{ borderColor: C.line, background: C.cardAlt }}>
+              <div className="text-[12.5px] font-semibold" style={{ color: C.ink }}>{f.kw} <span className="font-normal text-[10.5px]" style={{ color: C.sub }}>· {f.country}</span></div>
+              {(f.questions || []).length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {f.questions.map((x) => <span key={x} className="rounded-md px-2 py-0.5 text-[11px]" style={{ background: "#e8e4fb", color: "#4c3fa8" }}>{x}</span>)}
+                </div>
+              )}
+              {(f.related || []).length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {f.related.map((x) => <span key={x} className="rounded-md px-2 py-0.5 text-[11px]" style={{ background: C.track, color: C.sub }}>{x}</span>)}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        {rows.length > 40 && <p className="mt-2 text-[11px]" style={{ color: C.sub }}>Top 40 von {rows.length} Keywords angezeigt — Suche nutzen zum Eingrenzen.</p>}
+      </RCard>
+    </div>
+  );
+}
+
+// URL-Ebene der Quellen (L, 03.08., Searchable "All URLs"): jede zitierte URL
+// einzeln, nach Domain gruppierbar — Daten ab dem Messlauf nach dem 03.08.
+function UrlsTable({ prompts }) {
+  const [q, setQ] = useState("");
+  const [groupBy, setGroupBy] = useState(false);
+  const tally = new Map();
+  for (const p of prompts || []) {
+    for (const u of p.sourceUrls || []) {
+      if (!/^https?:\/\//i.test(u)) continue;
+      const t = tally.get(u) || { url: u, n: 0, engines: new Set() };
+      t.n += 1; t.engines.add(p.platform); tally.set(u, t);
+    }
+  }
+  let rows = [...tally.values()].sort((a, b) => b.n - a.n);
+  if (!rows.length) return null;
+  const domOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
+  if (q.trim()) rows = rows.filter((r) => r.url.toLowerCase().includes(q.trim().toLowerCase()));
+  const shown = rows.slice(0, 100);
+  const grouped = groupBy
+    ? [...shown.reduce((m, r) => { const d = domOf(r.url); (m.get(d) || m.set(d, []).get(d)).push(r); return m; }, new Map()).entries()]
+    : null;
+  const Row = ({ r }) => (
+    <tr className="border-t" style={{ borderColor: C.line }}>
+      <td className="px-5 py-2">
+        <a href={r.url} target="_blank" rel="noreferrer" className="inline-flex max-w-full items-center gap-2 font-medium" style={{ color: C.indigo }}>
+          <DomainFavicon domain={domOf(r.url)} />
+          <span className="truncate" style={{ maxWidth: 480 }}>{r.url}</span>
+          <ExternalLink size={11} className="shrink-0" />
+        </a>
+      </td>
+      <td className="px-3 py-2 text-right tabular-nums" style={{ color: C.ink }}>{r.n}</td>
+      <td className="px-5 py-2 text-right text-[11px]" style={{ color: C.sub }}>{[...r.engines].join(", ")}</td>
+    </tr>
+  );
+  return (
+    <div className="rounded-xl border" style={{ ...CARD, boxShadow: "0 1px 2px rgba(0,0,0,.04)" }}>
+      <div className="flex flex-wrap items-center gap-2 border-b px-5 py-3" style={{ borderColor: C.line }}>
+        <Link2 size={15} style={{ color: C.sub }} />
+        <h3 className="text-[13px] font-semibold" style={{ color: C.ink }}>Zitierte URLs</h3>
+        <span title="Jede in KI-Antworten zitierte URL einzeln — erfasst ab dem Messlauf vom 03.08.2026." style={{ color: C.sub, cursor: "help", display: "inline-flex" }}><Info size={13} /></span>
+        <span className="truncate text-[12px]" style={{ color: C.sub }}>· Einzelne Seiten statt nur Domains</span>
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={() => setGroupBy((v) => !v)} className="h-7 rounded-md border px-2 text-xs font-medium" style={{ borderColor: groupBy ? C.indigo : C.line, color: groupBy ? C.indigo : C.sub, background: C.card }}>
+            Nach Domain gruppieren
+          </button>
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="URL suchen…"
+            className="h-7 w-40 rounded-md border px-2 text-xs focus:outline-none focus-visible:ring-2"
+            style={{ borderColor: C.line, background: C.card, color: C.ink }} />
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-[11px] uppercase tracking-wide" style={{ color: C.sub }}>
+              <th className="px-5 py-2 font-medium">URL</th>
+              <th className="px-3 py-2 text-right font-medium">Zitate</th>
+              <th className="px-5 py-2 text-right font-medium">KI-Systeme</th>
+            </tr>
+          </thead>
+          <tbody>
+            {grouped
+              ? grouped.map(([dom, rs]) => (
+                  <Fragment key={dom}>
+                    <tr style={{ background: C.cardAlt }}>
+                      <td colSpan={3} className="px-5 py-1.5 text-[11px] font-bold" style={{ color: C.sub }}>{dom} · {rs.length} URLs</td>
+                    </tr>
+                    {rs.map((r) => <Row key={r.url} r={r} />)}
+                  </Fragment>
+                ))
+              : shown.map((r) => <Row key={r.url} r={r} />)}
+          </tbody>
+        </table>
+      </div>
+      <div className="border-t px-5 py-2 text-[11px]" style={{ borderColor: C.line, color: C.sub }}>
+        {rows.length > 100 ? `Top 100 von ${rows.length} URLs` : `${rows.length} URLs`}
+      </div>
+    </div>
+  );
+}
+
+// Brand Perception (I, 03.08., Searchable-Parität): wie jedes KI-System die
+// Marke wahrnimmt — Stärken grün, Schwächen rot, Engine per Pill wählbar.
+// Erscheint erst, wenn der Messlauf perception geschrieben hat.
+function BrandPerceptionCard({ perception, brand }) {
+  const list = Array.isArray(perception) ? perception.filter((p) => p.engine) : [];
+  const [idx, setIdx] = useState(0);
+  if (!list.length) return null;
+  const cur = list[Math.min(idx, list.length - 1)];
+  return (
+    <RCard icon={Eye} title="Brand Perception" info="Verdichtet aus den echten KI-Antworten des letzten Messlaufs: Was hebt das jeweilige KI-System an der Marke hervor, was schränkt es ein?" desc={`Wie KI-Systeme ${brand} wahrnehmen`} footer={`${list.length} KI-Systeme bewertet`} legend={
+      <div className="flex flex-wrap gap-1">
+        {list.map((p, i) => (
+          <button key={p.engine} onClick={() => setIdx(i)}
+            className="rounded-full border px-2 py-0.5 text-[10.5px] font-medium transition focus:outline-none"
+            style={{ borderColor: i === idx ? C.indigo : C.line, background: i === idx ? C.indigo : C.card, color: i === idx ? "#fff" : C.sub }}>
+            {p.engine}
+          </button>
+        ))}
+      </div>
+    }>
+      {cur.zusammenfassung && <p className="text-[13px] leading-relaxed" style={{ color: C.ink }}>{cur.zusammenfassung}</p>}
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+          <div className="text-[10.5px] font-bold uppercase tracking-wide" style={{ color: C.up }}>Stärken</div>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {(cur.staerken || []).length ? cur.staerken.map((s) => (
+              <span key={s} className="rounded-md px-2 py-1 text-[11.5px]" style={{ background: "#d1fae5", color: "#065f46" }}>{s}</span>
+            )) : <span className="text-[11.5px]" style={{ color: C.sub }}>—</span>}
+          </div>
+        </div>
+        <div>
+          <div className="text-[10.5px] font-bold uppercase tracking-wide" style={{ color: C.down }}>Schwächen / Einschränkungen</div>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {(cur.schwaechen || []).length ? cur.schwaechen.map((s) => (
+              <span key={s} className="rounded-md px-2 py-1 text-[11.5px]" style={{ background: "#fee2e2", color: "#b91c1c" }}>{s}</span>
+            )) : <span className="text-[11.5px]" style={{ color: C.sub }}>—</span>}
+          </div>
+        </div>
+      </div>
+    </RCard>
   );
 }
 
@@ -1982,11 +2313,16 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
   const d = data;
   const [tab, setTab] = useState("uebersicht");
   const [modelF, setModelF] = useState("alle");
+  const [topicF, setTopicF] = useState("alle"); // Themen-Filter (C) — greift, sobald der Messlauf topic je Prompt schreibt
   if (!d) return <AIVisibilityEmpty />;
 
   const platforms = [...new Set([...(d.prompts || []), ...(d.promptOpps || [])].map((p) => p.platform).filter(Boolean))].sort();
-  const fP = modelF === "alle" ? d.prompts : (d.prompts || []).filter((p) => p.platform === modelF);
-  const fO = modelF === "alle" ? d.promptOpps : (d.promptOpps || []).filter((p) => p.platform === modelF);
+  const topicsAvail = [...new Set([...(d.prompts || []), ...(d.promptOpps || [])].map((p) => p.topic).filter(Boolean))].sort();
+  const byFilter = (arr) => (arr || [])
+    .filter((p) => modelF === "alle" || p.platform === modelF)
+    .filter((p) => topicF === "alle" || p.topic === topicF);
+  const fP = byFilter(d.prompts);
+  const fO = byFilter(d.promptOpps);
   // Intent-Verteilung aus den (gefilterten) Prompt-Zeilen — ersetzt das
   // vorberechnete promptIntent, damit der Modell-Filter greift.
   const intentCounts = {};
@@ -2009,6 +2345,8 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
     { id: "quellen", label: "Quellen" },
     { id: "themen", label: "Themen" },
     { id: "prompts", label: "Prompts" },
+    ...(Array.isArray(d.fanout) && d.fanout.length ? [{ id: "folgefragen", label: "Folgefragen" }] : []),
+    ...(Array.isArray(d.countries) && d.countries.length ? [{ id: "standorte", label: "Standorte" }] : []),
     ...(hasConv ? [{ id: "conversions", label: "Conversions" }] : []),
   ];
 
@@ -2053,9 +2391,21 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
               {platforms.map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
           )}
-          {modelF !== "alle" && (
+          {topicsAvail.length > 1 && (
+            <select
+              value={topicF}
+              onChange={(e) => setTopicF(e.target.value)}
+              className="rounded-full border px-2.5 py-1 text-[11.5px]"
+              style={{ borderColor: topicF === "alle" ? C.line : C.indigo, background: C.card, color: topicF === "alle" ? C.sub : C.indigo }}
+              title="Wirkt auf Kaufreise, Position, Intent und Prompts"
+            >
+              <option value="alle">Alle Themen</option>
+              {topicsAvail.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          )}
+          {(modelF !== "alle" || topicF !== "alle") && (
             <span className="rounded-full px-2.5 py-1" style={{ background: C.cardAlt }}>
-              Filter aktiv: nur {modelF} (Score/KPIs bleiben Gesamtwerte)
+              Filter aktiv: {[modelF !== "alle" ? `nur ${modelF}` : null, topicF !== "alle" ? `Thema „${topicF}"` : null].filter(Boolean).join(" · ")} (Score/KPIs bleiben Gesamtwerte)
             </span>
           )}
           {d.versionSwitch && (
@@ -2144,7 +2494,10 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
         )}
 
         {tab === "marke" && (
-          <BrandCheckCard bc={d.brandCheck} brand={d.client} history={d.brandHistory || []} />
+          <div className="mt-0 grid grid-cols-1 gap-4">
+            <BrandPerceptionCard perception={d.brandCheck?.perception} brand={d.client} />
+            <BrandCheckCard bc={d.brandCheck} brand={d.client} history={d.brandHistory || []} />
+          </div>
         )}
 
         {tab === "quellen" && (
@@ -2152,10 +2505,11 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
             <DomainTrendCard trend={d.sourceTrend} />
             <CitedTypesCard sources={d.sources} ownDomain={d.domain} />
             <SourcesTable rows={d.sources} />
+            <UrlsTable prompts={[...(d.prompts || []), ...(d.brandPrompts || [])]} />
           </div>
         )}
 
-        {tab === "themen" && <TopicsPanel rows={d.topics} />}
+        {tab === "themen" && <TopicsPanel rows={d.topics} prompts={[...(fP || []), ...(fO || [])]} />}
 
         {tab === "prompts" && (
           <div className="mt-4 grid grid-cols-1 gap-4">
@@ -2163,6 +2517,10 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
             <PromptsTable prompts={fP} opps={fO} brand={d.client} brandPrompts={d.brandPrompts || []} needsReview={d.promptsNeedsReview || 0} />
           </div>
         )}
+
+        {tab === "folgefragen" && <FanoutPanel fanout={d.fanout} />}
+
+        {tab === "standorte" && <LocationPanel countries={d.countries} />}
 
         {tab === "conversions" && (
           <div className="mt-4">
