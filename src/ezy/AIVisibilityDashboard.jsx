@@ -1137,6 +1137,189 @@ function BrandCheckCard({ bc, brand, history }) {
   );
 }
 
+// ── Decision Journey (Searchable-Nachbau 08/2026): Erwähnungsrate je Funnel-
+// Stufe. Datenbasis: Judge-Intent je Markt-Prompt-Antwort (bereits erhoben).
+const FUNNEL_STAGES = [
+  { id: "tofu", label: "Informieren (TOFU)", hint: "Optionen recherchieren, Grundlagen verstehen", intents: ["Informativ", "informational"] },
+  { id: "mofu", label: "Vergleichen (MOFU)", hint: "Anbieter eingrenzen, Angebote vergleichen", intents: ["Kommerziell", "commercial"] },
+  { id: "bofu", label: "Entscheiden (BOFU)", hint: "kauf-/buchungsbereit, gezielte Suche", intents: ["Transaktional", "transactional", "Navigativ", "navigational"] },
+];
+function funnelVerdict(rate) {
+  if (rate == null) return { label: "keine Daten", color: C.sub };
+  if (rate < 5) return { label: "Kritisch", color: "#ef4444" };
+  if (rate < 15) return { label: "Schwach", color: C.amber };
+  return { label: "Solide", color: "#10b981" };
+}
+function FunnelCard({ prompts, opps }) {
+  const rows = [...(prompts || []), ...(opps || [])].filter((p) => p.intent);
+  if (!rows.length) return null;
+  const stages = FUNNEL_STAGES.map((s) => {
+    const inStage = rows.filter((p) => s.intents.includes(p.intent));
+    const mentioned = inStage.filter((p) => p.status && p.status !== "Nicht erwähnt").length;
+    const rate = inStage.length ? Math.round((mentioned / inStage.length) * 1000) / 10 : null;
+    return { ...s, total: inStage.length, mentioned, rate };
+  });
+  const maxRate = Math.max(1, ...stages.map((s) => s.rate || 0));
+  return (
+    <div className="rounded-xl border p-5" style={CARD}>
+      <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Kaufreise (Decision Journey)</h3>
+      <p className="mt-1 text-[11px]" style={{ color: C.sub }}>
+        Wie oft die Marke je Phase der Kundenreise in KI-Antworten auftaucht — Basis: Suchintention der Prompts.
+      </p>
+      <div className="mt-4 space-y-3">
+        {stages.map((s) => {
+          const v = funnelVerdict(s.rate);
+          return (
+            <div key={s.id}>
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-[12px] font-medium" style={{ color: C.ink }}>{s.label}</span>
+                <span className="text-[11px] font-semibold" style={{ color: v.color }}>{v.label}</span>
+              </div>
+              <div className="mt-1 flex items-center gap-3">
+                <div className="h-2 flex-1 overflow-hidden rounded-full" style={{ background: C.track }}>
+                  <div className="h-full rounded-full" style={{ width: `${s.rate == null ? 0 : Math.max(3, (s.rate / maxRate) * 100)}%`, background: v.color }} />
+                </div>
+                <span className="w-24 text-right text-[11px] tabular-nums" style={{ color: C.sub }}>
+                  {s.rate == null ? "–" : `${s.rate}%`} · {s.mentioned}/{s.total}
+                </span>
+              </div>
+              <div className="mt-0.5 text-[10px]" style={{ color: C.sub }}>{s.hint}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Positions-Verteilung + Head-to-Head (Searchable-Nachbau 08/2026) ─────────
+function PositionHeadToHead({ prompts, sov, brand }) {
+  const answered = (prompts || []).filter((p) => p.status && p.status !== "Nicht erwähnt");
+  const posCounts = { top: 0, list: 0, passing: 0 };
+  for (const p of answered) if (p.position && posCounts[p.position] != null) posCounts[p.position]++;
+  const posTotal = posCounts.top + posCounts.list + posCounts.passing;
+
+  const comps = (sov || []).filter((s) => !s.isSelf).slice(0, 5);
+  const [rivalIdx, setRivalIdx] = useState(0);
+  const rival = comps[Math.min(rivalIdx, Math.max(0, comps.length - 1))] || null;
+  const all = prompts || [];
+  const rivalRows = rival ? all.filter((p) => (p.comps || []).some((c) => c.toLowerCase() === rival.brand.toLowerCase())) : [];
+  const selfRows = answered;
+  const selfRate = all.length ? Math.round((selfRows.length / all.length) * 1000) / 10 : 0;
+  const rivalRate = all.length ? Math.round((rivalRows.length / all.length) * 1000) / 10 : 0;
+  const selfShare = (sov || []).find((s) => s.isSelf)?.share ?? null;
+
+  if (!posTotal && !rival) return null;
+  const POS_COLORS = { top: "#10b981", list: C.indigo, passing: C.amber };
+  return (
+    <div className="rounded-xl border p-5" style={CARD}>
+      <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Antwort-Position & Direktvergleich</h3>
+      <p className="mt-1 text-[11px]" style={{ color: C.sub }}>
+        Wo die Marke in KI-Antworten steht — und wie sie im 1:1 gegen einen Konkurrenten abschneidet.
+      </p>
+      {posTotal > 0 && (
+        <div className="mt-4">
+          <div className="flex h-3 w-full overflow-hidden rounded-full" style={{ background: C.track }}>
+            {["top", "list", "passing"].map((k) => posCounts[k] > 0 && (
+              <div key={k} style={{ width: `${(posCounts[k] / posTotal) * 100}%`, background: POS_COLORS[k] }} title={`${POS_LABEL[k]}: ${posCounts[k]}`} />
+            ))}
+          </div>
+          <div className="mt-1 flex flex-wrap gap-3 text-[11px]" style={{ color: C.sub }}>
+            {["top", "list", "passing"].map((k) => (
+              <span key={k} className="inline-flex items-center gap-1">
+                <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: POS_COLORS[k] }} />
+                {POS_LABEL[k]} {posCounts[k]} ({Math.round((posCounts[k] / posTotal) * 100)}%)
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      {rival && (
+        <div className="mt-4 border-t pt-3" style={{ borderColor: C.line }}>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] uppercase tracking-wide" style={{ color: C.sub }}>Head-to-Head</span>
+            <select
+              value={rivalIdx}
+              onChange={(e) => setRivalIdx(Number(e.target.value))}
+              className="rounded-md border px-2 py-1 text-[11px]"
+              style={{ borderColor: C.line, background: C.card, color: C.ink }}
+            >
+              {comps.map((c, i) => <option key={c.brand} value={i}>{c.brand}</option>)}
+            </select>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-4">
+            {[{ name: brand, rate: selfRate, share: selfShare, self: true }, { name: rival.brand, rate: rivalRate, share: rival.share, self: false }].map((b) => (
+              <div key={b.name} className="rounded-lg border p-3" style={{ borderColor: b.self ? C.indigo : C.line }}>
+                <div className="truncate text-[12px] font-semibold" style={{ color: b.self ? C.indigo : C.ink }}>{b.name}{b.self ? " (du)" : ""}</div>
+                <div className="mt-1 text-xl font-semibold tabular-nums" style={{ color: C.ink }}>{b.rate}%</div>
+                <div className="text-[10px]" style={{ color: C.sub }}>Präsenz in KI-Antworten</div>
+                {b.share != null && <div className="mt-1 text-[11px] tabular-nums" style={{ color: C.sub }}>Share of Voice: {b.share}%</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Zitierquellen-Typologie + Gap (Searchable-Nachbau 08/2026, Heuristik) ────
+const SOURCE_TYPE_RULES = [
+  { type: "Video (YouTube)", re: /(^|\.)youtube\.com$|(^|\.)youtu\.be$|(^|\.)vimeo\.com$/ },
+  { type: "Community/Forum", re: /(^|\.)reddit\.com$|(^|\.)quora\.com$|forum/ },
+  { type: "Wiki", re: /wikipedia\.org$|(^|\.)wikidata\.org$/ },
+  { type: "Social", re: /(^|\.)linkedin\.com$|(^|\.)instagram\.com$|(^|\.)facebook\.com$|(^|\.)tiktok\.com$|(^|\.)pinterest\./ },
+  { type: "Verzeichnis & Reviews", re: /(^|\.)tripadvisor\.|(^|\.)booking\.com$|(^|\.)yelp\.|(^|\.)local\.ch$|(^|\.)search\.ch$|(^|\.)trustpilot\.|vergleich|(^|\.)maps\.google\./ },
+  { type: "Presse/News", re: /(^|\.)nzz\.ch$|(^|\.)blick\.ch$|(^|\.)20min\.ch$|(^|\.)srf\.ch$|(^|\.)watson\.ch$|(^|\.)handelszeitung\.ch$|zeitung|news/ },
+];
+function classifySourceDomain(domain, ownHost) {
+  const d = String(domain || "").toLowerCase().replace(/^www\./, "");
+  if (ownHost && (d === ownHost || d.endsWith("." + ownHost))) return "Eigene Website";
+  for (const r of SOURCE_TYPE_RULES) if (r.re.test(d)) return r.type;
+  return "Artikel/Website";
+}
+function CitedTypesCard({ sources, ownDomain }) {
+  const rows = sources || [];
+  if (!rows.length) return null;
+  const ownHost = String(ownDomain || "").toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+  const byType = {};
+  let total = 0;
+  for (const s of rows) {
+    const t = classifySourceDomain(s.domain, ownHost);
+    (byType[t] = byType[t] || { mentions: 0, own: 0, domains: [] }).mentions += s.mentions || 1;
+    byType[t].domains.push(s.domain);
+    if (t === "Eigene Website") byType[t].own += s.mentions || 1;
+    total += s.mentions || 1;
+  }
+  const entries = Object.entries(byType).sort((a, b) => b[1].mentions - a[1].mentions);
+  const gaps = entries.filter(([t]) => t !== "Eigene Website" && t !== "Artikel/Website").filter(([t, v]) => v.own === 0).slice(0, 3);
+  const TYPE_COLORS = [C.indigo, C.teal, C.amber, C.violet, "#10b981", "#ef4444", C.sub, "#f472b6"];
+  return (
+    <div className="rounded-xl border p-5" style={CARD}>
+      <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Was KI-Antworten zitieren (Content-Typen)</h3>
+      <p className="mt-1 text-[11px]" style={{ color: C.sub }}>
+        Typ-Klassifikation der zitierten Domains (Heuristik) — zeigt, welche Content-Formate in dieser Branche als Quelle dienen.
+      </p>
+      <div className="mt-4 space-y-2">
+        {entries.slice(0, 8).map(([t, v], i) => (
+          <div key={t} className="flex items-center gap-3">
+            <span className="w-44 truncate text-[12px]" style={{ color: t === "Eigene Website" ? C.indigo : C.ink }}>{t}</span>
+            <div className="h-2 flex-1 overflow-hidden rounded-full" style={{ background: C.track }}>
+              <div className="h-full rounded-full" style={{ width: `${Math.max(2, (v.mentions / total) * 100)}%`, background: TYPE_COLORS[i % TYPE_COLORS.length] }} />
+            </div>
+            <span className="w-14 text-right text-[11px] tabular-nums" style={{ color: C.sub }}>{Math.round((v.mentions / total) * 1000) / 10}%</span>
+          </div>
+        ))}
+      </div>
+      {gaps.length > 0 && (
+        <div className="mt-3 rounded-lg border px-3 py-2 text-[11px]" style={{ borderColor: C.amber, color: C.amber }}>
+          Lücke: In {gaps.map(([t]) => `„${t}"`).join(", ")} wird zitiert — aber nie die eigene Marke. Content-Chance für den nächsten Maßnahmenplan.
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Shell ────────────────────────────────────────────────────────────────────
 export default function AIVisibilityDashboard({ data, convRows = [] }) {
   const d = data;
@@ -1199,6 +1382,12 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
           />
         </div>
 
+        {/* Kaufreise + Position/Head-to-Head (Searchable-Nachbau 08/2026) */}
+        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <FunnelCard prompts={d.prompts} opps={d.promptOpps} />
+          <PositionHeadToHead prompts={d.prompts} sov={d.sov} brand={d.client} />
+        </div>
+
         {/* Share of Voice (nur wenn Konkurrenten erkannt) */}
         {Array.isArray(d.sov) && d.sov.length > 1 && (
           <div className="mt-4">
@@ -1216,6 +1405,7 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
           <TopicsTable rows={d.topics} />
           <PromptsTable prompts={d.prompts} opps={d.promptOpps} brand={d.client} brandPrompts={d.brandPrompts || []} needsReview={d.promptsNeedsReview || 0} />
           <BrandCheckCard bc={d.brandCheck} brand={d.client} history={d.brandHistory || []} />
+          <CitedTypesCard sources={d.sources} ownDomain={d.domain} />
           <SourcesTable rows={d.sources} />
         </div>
 

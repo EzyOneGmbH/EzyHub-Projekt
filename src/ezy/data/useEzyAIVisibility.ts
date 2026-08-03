@@ -19,6 +19,7 @@ export type AIPrompt = {
   status?: string;
   sentiment?: string; // 'pos' | 'neu' | 'neg'
   position?: string;  // 'top' | 'list' | 'passing' | 'none'
+  intent?: string;    // Informativ | Kommerziell | Transaktional | Navigativ (+ Alt-engl.)
   brands: number;
   sources: number;
   response: string;
@@ -27,6 +28,7 @@ export type AIPrompt = {
 
 export type AIVisibilityData = {
   client: string;
+  domain?: string; // für Eigene-Website-Erkennung in der Quellen-Typologie
   market: string;
   date: string;
   score: number;
@@ -111,6 +113,7 @@ function mapPrompt(r: any, opportunity: boolean): AIPrompt {
   if (!opportunity && r.status) p.status = String(r.status); // bei Chancen weglassen
   if (r.sentiment) p.sentiment = String(r.sentiment);
   if (r.position) p.position = String(r.position);
+  if (r.intent) p.intent = String(r.intent); // Funnel-Ansicht (Searchable-Nachbau 08/2026)
   return p;
 }
 
@@ -220,6 +223,9 @@ export async function loadAIVisibility(
 
   const result: AIVisibilityData = {
     client: clientLabel || String(rep.market ?? ""),
+    // Domain für die Zitierquellen-Typologie (Eigene-Website-Erkennung):
+    // clientLabel ist per Aufrufer-Konvention domain||name — nur echte Domains übernehmen.
+    domain: clientLabel && clientLabel.includes(".") ? clientLabel : "",
     market: String(rep.market ?? ""),
     date: deCH(String(rep.snapshot_date)),
     score: Number(rep.score ?? 0),

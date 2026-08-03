@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useAppAccess } from "@/ezy/data/useAppAccess";
 import { EZY_APPS } from "@/ezy/data/appRegistry";
@@ -7,6 +8,174 @@ import { useEzyClients } from "@/ezy/data/useEzyClients";
 import { useEzyServiceSettings } from "@/ezy/data/useEzyServiceSettings";
 import { useEzyServiceMatrix } from "@/ezy/data/useEzyServiceMatrix";
 import { AiVisibilityTab } from "@/ezy/EzyOneApp.jsx";
+
+// ── KI-Crawler-Karte (Searchable-Nachbau ⑤, Beta 08/2026) ────────────────────
+// Zeigt Bot-Besuche der letzten 7 Tage aus ai_crawler_hits (Ingest-Endpoint
+// /api/admin/ai-crawler-ingest). Rollout des Erfassungs-Snippets auf Kunden-
+// Websites läuft über den normalen Freigabe-Workflow — nie autonom.
+function CrawlerCard({ clientId, S }: { clientId: string; S: Record<string, string> }) {
+  const [rows, setRows] = useState<Array<{ bot: string; url: string; at: string }> | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const since = new Date(Date.now() - 7 * 864e5).toISOString();
+    (supabase as any)
+      .from("ai_crawler_hits")
+      .select("bot, url, at")
+      .eq("client_id", clientId)
+      .gte("at", since)
+      .order("at", { ascending: false })
+      .limit(1000)
+      .then(({ data }: any) => { if (alive) setRows(data ?? []); });
+    return () => { alive = false; };
+  }, [clientId]);
+  if (rows === null) return null;
+  const byBot: Record<string, number> = {};
+  const byUrl: Record<string, number> = {};
+  for (const r of rows) { byBot[r.bot] = (byBot[r.bot] || 0) + 1; byUrl[r.url] = (byUrl[r.url] || 0) + 1; }
+  const bots = Object.entries(byBot).sort((a, b) => b[1] - a[1]);
+  const urls = Object.entries(byUrl).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  return (
+    <div style={{ background: S.panel, border: `1px solid ${S.line}`, borderRadius: 14, padding: 18, marginTop: 18 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+        <div style={{ fontWeight: 700, fontSize: 13.5 }}>KI-Crawler auf der Website</div>
+        <span style={{ fontSize: 10, color: S.app, border: `1px solid ${S.app}55`, borderRadius: 99, padding: "1px 8px" }}>Beta</span>
+        <span style={{ marginLeft: "auto", fontSize: 11, color: S.mut }}>letzte 7 Tage</span>
+      </div>
+      {rows.length === 0 ? (
+        <div style={{ fontSize: 12, color: S.mut, marginTop: 10 }}>
+          Noch keine Daten — das Erfassungs-Snippet ist auf dieser Kunden-Website noch nicht ausgerollt
+          (Rollout läuft über den Freigabe-Workflow).
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 14, marginTop: 12 }}>
+          <div>
+            <div style={{ fontSize: 11, color: S.mut, textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 6 }}>Besuche je Bot ({rows.length})</div>
+            {bots.map(([b, n]) => (
+              <div key={b} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "3px 0", borderBottom: `1px solid ${S.line}` }}>
+                <span>{b}</span><span style={{ color: S.mut }}>{n}</span>
+              </div>
+            ))}
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: S.mut, textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 6 }}>Meistgecrawlte Seiten</div>
+            {urls.map(([u, n]) => (
+              <div key={u} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 11.5, padding: "3px 0", borderBottom: `1px solid ${S.line}` }}>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u}</span><span style={{ color: S.mut }}>{n}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Prompt-Kuration (Searchable-Nachbau 08/2026) ─────────────────────────────
+// Vorgeschlagen (needs_review) annehmen/ablehnen, Aktiv/Archiviert schalten —
+// Archivieren stoppt Messkosten ohne Datenverlust. Schreibt direkt auf
+// ai_visibility_prompt_defs (RLS: Org-Mitglieder dürfen pflegen).
+type PromptDef = { id: string; prompt: string; topic: string | null; intent: string | null; active: boolean; needs_review: boolean; prompt_type: string | null };
+
+function PromptCurationPanel({ clientId, onClose, S }: { clientId: string; onClose: () => void; S: Record<string, string> }) {
+  const [defs, setDefs] = useState<PromptDef[] | null>(null);
+  const [view, setView] = useState<"review" | "active" | "archived">("review");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const { data, error } = await (supabase as any)
+      .from("ai_visibility_prompt_defs")
+      .select("id, prompt, topic, intent, active, needs_review, prompt_type")
+      .eq("client_id", clientId)
+      .order("created_at", { ascending: false });
+    if (error) setErr(error.message);
+    else setDefs((data ?? []) as PromptDef[]);
+  }, [clientId]);
+  useEffect(() => { void load(); }, [load]);
+
+  const update = async (id: string, patch: Partial<PromptDef>) => {
+    setBusy(id); setErr(null);
+    const { error } = await (supabase as any).from("ai_visibility_prompt_defs").update(patch).eq("id", id);
+    if (error) setErr(error.message);
+    await load();
+    setBusy(null);
+  };
+
+  const all = defs ?? [];
+  const groups = {
+    review: all.filter((d) => d.needs_review),
+    active: all.filter((d) => d.active && !d.needs_review),
+    archived: all.filter((d) => !d.active && !d.needs_review),
+  };
+  const rows = groups[view];
+  const tabBtn = (id: "review" | "active" | "archived", label: string, n: number, warn?: boolean) => (
+    <button key={id} onClick={() => setView(id)}
+      style={{ padding: "5px 12px", borderRadius: 99, fontSize: 12, cursor: "pointer", border: `1px solid ${view === id ? S.app : S.line}`, background: view === id ? S.appTint : "transparent", color: view === id ? S.app : warn && n > 0 ? "#fbbf24" : S.mut }}>
+      {label} {n}
+    </button>
+  );
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,.55)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()}
+        style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: "min(680px,100vw)", background: S.bg, borderLeft: `1px solid ${S.line}`, display: "flex", flexDirection: "column" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: `1px solid ${S.line}` }}>
+          <div style={{ fontWeight: 700, fontSize: 14.5 }}>Prompts verwalten</div>
+          <div style={{ display: "flex", gap: 6, marginLeft: 8 }}>
+            {tabBtn("review", "Vorgeschlagen", groups.review.length, true)}
+            {tabBtn("active", "Aktiv", groups.active.length)}
+            {tabBtn("archived", "Archiviert", groups.archived.length)}
+          </div>
+          <button onClick={onClose} style={{ marginLeft: "auto", background: "none", border: "none", color: S.mut, fontSize: 18, cursor: "pointer" }}>✕</button>
+        </div>
+        <div style={{ padding: "8px 18px", fontSize: 11, color: S.mut, borderBottom: `1px solid ${S.line}` }}>
+          Nur <b style={{ color: S.txt }}>aktive</b> Prompts laufen im Messzyklus (Kosten!). Archivieren behält die Historie. „Vorgeschlagen" = vom Seeder/Relevanz-Audit zur Prüfung markiert.
+        </div>
+        {err && <div style={{ margin: "10px 18px 0", padding: "8px 12px", borderRadius: 8, border: "1px solid #f8717155", color: "#f87171", fontSize: 12 }}>{err}</div>}
+        <div style={{ flex: 1, overflowY: "auto", padding: "10px 18px 24px" }}>
+          {defs === null ? (
+            <div style={{ color: S.mut, fontSize: 13, padding: 20 }}>Lade…</div>
+          ) : rows.length === 0 ? (
+            <div style={{ color: S.mut, fontSize: 13, padding: 20 }}>Keine Einträge in dieser Ansicht.</div>
+          ) : rows.map((d) => (
+            <div key={d.id} style={{ border: `1px solid ${S.line}`, borderRadius: 10, padding: "10px 12px", marginBottom: 8, background: S.panel }}>
+              <div style={{ fontSize: 12.5, lineHeight: 1.45 }}>{d.prompt}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                {d.topic && <span style={{ fontSize: 10.5, color: S.mut, border: `1px solid ${S.line}`, borderRadius: 99, padding: "2px 8px" }}>{d.topic}</span>}
+                {d.intent && <span style={{ fontSize: 10.5, color: S.mut, border: `1px solid ${S.line}`, borderRadius: 99, padding: "2px 8px" }}>{d.intent}</span>}
+                {d.prompt_type === "brand" && <span style={{ fontSize: 10.5, color: "#a78bfa", border: "1px solid #a78bfa55", borderRadius: 99, padding: "2px 8px" }}>Marken-Check</span>}
+                <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+                  {d.needs_review ? (
+                    <>
+                      <button disabled={busy === d.id} onClick={() => update(d.id, { needs_review: false, active: true })}
+                        style={{ padding: "4px 12px", borderRadius: 8, fontSize: 11.5, cursor: "pointer", border: `1px solid ${S.app}`, background: "transparent", color: S.app }}>
+                        ✓ Annehmen
+                      </button>
+                      <button disabled={busy === d.id} onClick={() => update(d.id, { needs_review: false, active: false })}
+                        style={{ padding: "4px 12px", borderRadius: 8, fontSize: 11.5, cursor: "pointer", border: `1px solid ${S.line}`, background: "transparent", color: S.mut }}>
+                        Archivieren
+                      </button>
+                    </>
+                  ) : d.active ? (
+                    <button disabled={busy === d.id} onClick={() => update(d.id, { active: false })}
+                      style={{ padding: "4px 12px", borderRadius: 8, fontSize: 11.5, cursor: "pointer", border: `1px solid ${S.line}`, background: "transparent", color: S.mut }}>
+                      Archivieren
+                    </button>
+                  ) : (
+                    <button disabled={busy === d.id} onClick={() => update(d.id, { active: true })}
+                      style={{ padding: "4px 12px", borderRadius: 8, fontSize: 11.5, cursor: "pointer", border: `1px solid ${S.app}`, background: "transparent", color: S.app }}>
+                      Aktivieren
+                    </button>
+                  )}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export const Route = createFileRoute("/ezyai")({
   component: EzyAiApp,
@@ -28,6 +197,7 @@ function EzyAiApp() {
   const { canOpen, loading: accessLoading } = useAppAccess();
   const ezy = useEzyClients();
   const [swOpen, setSwOpen] = useState(false);
+  const [curOpen, setCurOpen] = useState(false); // Prompt-Kuration (Nachbau 08/2026)
   const [clientId, setClientId] = useState(() => {
     try { return localStorage.getItem(CLIENT_LS) || ""; } catch { return ""; }
   });
@@ -120,6 +290,9 @@ function EzyAiApp() {
         </div>
 
         <div className="ezyai-head-right" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={() => setCurOpen(true)} style={{ fontSize: 12, color: S.mut, background: "none", cursor: "pointer", border: `1px solid ${S.line}`, borderRadius: 8, padding: "6px 12px" }}>
+            Prompts verwalten
+          </button>
           <a href="/llm-ueberblick" style={{ fontSize: 12, color: S.mut, textDecoration: "none", border: `1px solid ${S.line}`, borderRadius: 8, padding: "6px 12px" }}>
             LLM-Überblick
           </a>
@@ -153,9 +326,13 @@ function EzyAiApp() {
             </div>
           </div>
         ) : (
-          <AiVisibilityTab selectedClient={client} />
+          <>
+            <AiVisibilityTab selectedClient={client} />
+            <CrawlerCard clientId={client.id} S={S} />
+          </>
         )}
       </main>
+      {curOpen && client?.id && <PromptCurationPanel clientId={client.id} onClose={() => setCurOpen(false)} S={S} />}
     </div>
   );
 }
