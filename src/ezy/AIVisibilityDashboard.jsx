@@ -7,7 +7,7 @@ import {
 import {
   Sparkles, TrendingUp, TrendingDown, Quote, FileText, Eye,
   ExternalLink, MousePointerClick, ChevronRight, ChevronLeft, MessageSquareQuote,
-  Filter, Hash, Layers, Link2, Info, MessageSquare, Swords, Tags,
+  Filter, Hash, Layers, Link2, Info, MessageSquare, Swords, Tags, Crosshair,
 } from "lucide-react";
 
 // ── Karten-Shell im Searchable-Muster (03.08.2026): Icon + Titel + ⓘ-Tooltip
@@ -863,6 +863,92 @@ function PromptGroupRow({ g, opportunity }) {
   );
 }
 
+// Prompt Performance Matrix (Searchable-Doku „visibility-tracking"): Streudiagramm
+// X = Erwähnungsquote, Y = Ø-Position, Blasengrösse = Anzahl zitierter Quellen
+// (Searchable nutzt Suchvolumen — wir haben keins je Prompt, Quellen sind der
+// ehrliche Ersatz), Farbe = Suchintention.
+const INTENT_COLOR = {
+  kommerziell: C.violet, commercial: C.violet,
+  informativ: C.indigo, informational: C.indigo,
+  transaktional: C.teal, transactional: C.teal,
+  navigativ: C.amber, navigational: C.amber,
+};
+const POS_SCORE = { top: 3, list: 2, passing: 1 };
+
+function PromptMatrix({ prompts, opps }) {
+  const groups = groupPrompts([...(prompts || []), ...(opps || []).map((o) => ({ ...o, status: "Nicht erwähnt" }))]);
+  const dots = groups.map((g) => {
+    const rate = g.total ? (g.mentioned / g.total) * 100 : 0;
+    const posVals = g.engines.map((e) => POS_SCORE[e.position] || 0);
+    const avgPos = posVals.length ? posVals.reduce((a, b) => a + b, 0) / posVals.length : 0;
+    const srcSum = g.engines.reduce((a, e) => a + (Number(e.sources) || 0), 0);
+    const intent = (g.engines.find((e) => e.intent)?.intent || "").toLowerCase();
+    return { prompt: g.prompt, country: g.country, rate, avgPos, srcSum, intent, mentioned: g.mentioned, total: g.total };
+  });
+  if (dots.length < 3) return null;
+  const W = 560, H = 290, PL = 42, PR = 14, PT = 18, PB = 34;
+  const maxSrc = Math.max(1, ...dots.map((d) => d.srcSum));
+  const x = (rate) => PL + (rate / 100) * (W - PL - PR);
+  const y = (pos) => PT + (1 - pos / 3) * (H - PT - PB);
+  const r = (src) => 4 + Math.sqrt(src / maxSrc) * 9;
+  const intents = [...new Set(dots.map((d) => d.intent).filter((i) => INTENT_COLOR[i]))];
+  const QUAD = [
+    { tx: PL + 8, ty: PT + 12, anchor: "start", t: "Ausbaufähig" },       // selten erwähnt, gut platziert
+    { tx: W - PR - 8, ty: PT + 12, anchor: "end", t: "Top-Performer" },   // oft erwähnt, gut platziert
+    { tx: PL + 8, ty: H - PB - 6, anchor: "start", t: "Aufbau nötig" },   // selten erwähnt, schwach
+    { tx: W - PR - 8, ty: H - PB - 6, anchor: "end", t: "Schwach platziert" },
+  ];
+  return (
+    <RCard
+      icon={Crosshair}
+      title="Prompt Performance Matrix"
+      info="Jede Blase = ein Prompt. X-Achse: Anteil der KI-Antworten mit Erwähnung. Y-Achse: durchschnittliche Position (Top-Empfehlung > in Liste > Randnotiz). Blasengrösse: Anzahl zitierter Quellen. Farbe: Suchintention."
+      desc="Erwähnungsquote × Position je Prompt — Blase antippen für Details"
+      footer={`${dots.length} Prompts`}
+    >
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 300 }}>
+        {/* Quadranten-Hilfslinien */}
+        <line x1={x(50)} x2={x(50)} y1={PT} y2={H - PB} stroke={C.line} strokeWidth="1" strokeDasharray="3 3" />
+        <line x1={PL} x2={W - PR} y1={y(1.5)} y2={y(1.5)} stroke={C.line} strokeWidth="1" strokeDasharray="3 3" />
+        <line x1={PL} x2={W - PR} y1={H - PB} y2={H - PB} stroke={C.line} strokeWidth="1" />
+        <line x1={PL} x2={PL} y1={PT} y2={H - PB} stroke={C.line} strokeWidth="1" />
+        {QUAD.map((q) => (
+          <text key={q.t} x={q.tx} y={q.ty} textAnchor={q.anchor} fontSize="9.5" fontWeight="600" fill={C.sub} opacity="0.65">{q.t}</text>
+        ))}
+        {/* Achsen-Beschriftung */}
+        {[0, 50, 100].map((v) => (
+          <text key={v} x={x(v)} y={H - PB + 14} textAnchor="middle" fontSize="9" fill={C.sub}>{v}%</text>
+        ))}
+        {[["Top", 3], ["Liste", 2], ["Rand", 1]].map(([t, v]) => (
+          <text key={t} x={PL - 6} y={y(v) + 3} textAnchor="end" fontSize="9" fill={C.sub}>{t}</text>
+        ))}
+        <text x={(PL + W - PR) / 2} y={H - 4} textAnchor="middle" fontSize="9.5" fill={C.sub}>Erwähnungsquote</text>
+        {/* Blasen — grösste zuerst, damit kleine anklickbar oben liegen */}
+        {[...dots].sort((a, b) => b.srcSum - a.srcSum).map((d, i) => (
+          <circle
+            key={`${d.prompt}·${d.country}·${i}`}
+            cx={x(d.rate)} cy={y(d.avgPos)} r={r(d.srcSum)}
+            fill={INTENT_COLOR[d.intent] || C.sub} fillOpacity="0.55"
+            stroke={INTENT_COLOR[d.intent] || C.sub} strokeWidth="1"
+          >
+            <title>{`${d.prompt}\nErwähnt: ${d.mentioned}/${d.total} (${Math.round(d.rate)} %) · Quellen: ${d.srcSum}${d.intent ? ` · ${d.intent}` : ""}`}</title>
+          </circle>
+        ))}
+      </svg>
+      {intents.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-3 text-[10.5px]" style={{ color: C.sub }}>
+          {intents.map((i) => (
+            <span key={i} className="inline-flex items-center gap-1.5 capitalize">
+              <span className="inline-block h-2 w-2 rounded-full" style={{ background: INTENT_COLOR[i] }} />{i}
+            </span>
+          ))}
+          <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-full" style={{ background: C.sub }} />ohne Intent</span>
+        </div>
+      )}
+    </RCard>
+  );
+}
+
 // Seitengröße der Prompt-Tabelle: 10 Prompts je Seite, blätterbar.
 const PROMPTS_PAGE_SIZE = 10;
 
@@ -1441,6 +1527,15 @@ function CitedTypesCard({ sources, ownDomain }) {
 
 // Visibility-Tab Zeile 1 links: grosse Score-Zahl + Verlaufslinie (bei uns
 // ehrlich: Monats-Score-Historie statt 7-Tage — der Zyklus läuft alle 3 Tage).
+// Score-Interpretation (Searchable-Schwellen 70/40): Status + konkrete Empfehlung
+// direkt am Score, damit der Wert ohne Playbook-Blick handlungsleitend ist.
+const SCORE_GUIDE = (s) =>
+  s >= 70
+    ? { label: "Stark", color: C.up, bg: "#d1fae5", tip: "Content-Qualität halten und auf verwandte Themen ausweiten." }
+    : s >= 40
+    ? { label: "Moderat", color: C.amber, bg: "#fdf6e3", tip: "Inhalte vertiefen: umfassender schreiben, Beispiele und Expertenwissen ergänzen." }
+    : { label: "Niedrig", color: C.down, bg: "#fee2e2", tip: "Grundlagen aufbauen: Kernthemen-Content erstellen, strukturierte Daten und Quellen-Autorität stärken." };
+
 function VisibilityHero({ score, delta, history }) {
   const pts = (history || []).filter((h) => h.score != null).slice(-12);
   const W = 520, H = 150, PAD = 8;
@@ -1451,12 +1546,23 @@ function VisibilityHero({ score, delta, history }) {
   return (
     <RCard icon={Eye} title="Sichtbarkeit" info="Sichtbarkeits-Score der Marke über alle gemessenen KI-Systeme; Verlauf = Monatswerte." desc="Score-Trend über alle KI-Systeme" footer={`${pts.length} Monatspunkte`}>
       <div className="text-[11px] uppercase tracking-wide" style={{ color: C.sub }}>Sichtbarkeits-Score</div>
-      <div className="mt-0.5 flex items-baseline gap-2">
+      <div className="mt-0.5 flex flex-wrap items-baseline gap-2">
         <span className="text-3xl font-bold tabular-nums" style={{ color: C.ink }}>{score}</span>
         {delta !== 0 && delta != null && (
           <span className="text-sm font-semibold" style={{ color: delta > 0 ? C.up : C.down }}>{delta > 0 ? `+${delta}` : delta}</span>
         )}
+        {score != null && (
+          <span className="rounded-full px-2 py-0.5 text-[10.5px] font-bold" style={{ background: SCORE_GUIDE(score).bg, color: SCORE_GUIDE(score).color }}>
+            {SCORE_GUIDE(score).label}
+          </span>
+        )}
       </div>
+      {score != null && (
+        <p className="mt-1.5 text-[11.5px] leading-snug" style={{ color: C.sub }}>
+          <span className="font-semibold" style={{ color: SCORE_GUIDE(score).color }}>Empfehlung:</span>{" "}
+          {SCORE_GUIDE(score).tip}
+        </p>
+      )}
       {pts.length > 1 && (
         <svg viewBox={`0 0 ${W} ${H}`} className="mt-2 w-full" style={{ maxHeight: 150 }}>
           {[0.25, 0.5, 0.75].map((f) => (
@@ -1761,7 +1867,8 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
         )}
 
         {tab === "prompts" && (
-          <div className="mt-4">
+          <div className="mt-4 grid grid-cols-1 gap-4">
+            <PromptMatrix prompts={fP} opps={fO} />
             <PromptsTable prompts={fP} opps={fO} brand={d.client} brandPrompts={d.brandPrompts || []} needsReview={d.promptsNeedsReview || 0} />
           </div>
         )}
