@@ -782,44 +782,82 @@ function PromptDetailModal({ g, opportunity, onClose }) {
   );
 }
 
+// Ja/Nein-Pill (Searchable All-Responses-Muster: grünes ✓ / rotes ✕)
+function YesNoPill({ yes }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-bold"
+      style={{ background: yes ? "#d1fae5" : "#fee2e2", color: yes ? "#065f46" : "#b91c1c" }}>
+      {yes ? "✓ Ja" : "✕ Nein"}
+    </span>
+  );
+}
+// All-Responses-Optik (03.08.): Gruppe aufklappbar, je Engine EINE Zeile mit
+// Erwähnt?/Zitiert?/Position/Marken/Quellen — Detail-Modal weiter per Klick.
 function PromptGroupRow({ g, opportunity }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false);      // Detail-Modal (Antwort-Volltexte)
+  const [expanded, setExpanded] = useState(false); // Inline-Engine-Zeilen
   const rate = g.total ? Math.round((g.mentioned / g.total) * 100) : 0;
   return (
     <>
       <tr
-        className="border-t cursor-pointer transition-colors hover:bg-white/5"
-        style={{ borderColor: C.line }}
-        onClick={() => setOpen(true)}
+        className="border-t cursor-pointer transition-colors"
+        style={{ borderColor: C.line, background: expanded ? C.cardAlt : "transparent" }}
+        onClick={() => setExpanded((v) => !v)}
       >
-        <td className="px-5 py-3 align-top">
+        <td className="px-5 py-3 align-top" colSpan={4}>
           <div className="flex items-start gap-2">
-            <ChevronRight size={14} className="mt-0.5 shrink-0" style={{ color: C.sub }} />
+            <ChevronRight size={14} className="mt-0.5 shrink-0 transition-transform" style={{ color: C.sub, transform: expanded ? "rotate(90deg)" : "none" }} />
             <div className="min-w-0">
-              <span style={{ color: C.ink }}>{g.prompt}</span>
-              <div className="mt-1.5 flex flex-wrap gap-1">
-                {g.engines.map((e) => (
-                  <EngineChip key={e.platform} e={e} />
-                ))}
-              </div>
+              <span className="font-medium" style={{ color: C.ink }}>{g.prompt}</span>
+              <span className="ml-2 text-[11px]" style={{ color: C.sub }}>{g.engines.length} Antworten · {g.country}</span>
             </div>
           </div>
         </td>
-        <td className="px-3 py-3 align-top text-xs" style={{ color: C.sub }}>{g.country}</td>
-        {!opportunity && (
-          <td className="px-5 py-3 align-top">
-            <div className="flex items-center justify-end gap-2">
-              <div className="h-1.5 w-16 overflow-hidden rounded-full" style={{ background: C.track }}>
-                <div
-                  className="h-full rounded-full"
-                  style={{ width: `${rate}%`, background: rate >= 50 ? C.up : rate > 0 ? C.indigo : C.amber }}
-                />
-              </div>
-              <span className="w-9 text-right text-xs tabular-nums" style={{ color: C.ink }}>{g.mentioned}/{g.total}</span>
-            </div>
-          </td>
-        )}
+        <td className="px-3 py-3 align-top" colSpan={2}>
+          <div className="flex items-center justify-end gap-2">
+            {!opportunity && (
+              <>
+                <div className="h-1.5 w-16 overflow-hidden rounded-full" style={{ background: C.track }}>
+                  <div className="h-full rounded-full" style={{ width: `${rate}%`, background: rate >= 50 ? C.up : rate > 0 ? C.indigo : C.amber }} />
+                </div>
+                <span className="w-9 text-right text-xs tabular-nums" style={{ color: C.ink }}>{g.mentioned}/{g.total}</span>
+              </>
+            )}
+            <button
+              onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+              className="rounded-md border px-2 py-0.5 text-[10.5px]"
+              style={{ borderColor: C.line, color: C.sub, background: C.card }}
+            >
+              Volltexte
+            </button>
+          </div>
+        </td>
       </tr>
+      {expanded && g.engines.map((e) => {
+        const mentioned = e.status && e.status !== "Nicht erwähnt";
+        const cited = e.status === "Referenziert";
+        const snippet = String(e.response || "").replace(/\s+/g, " ").slice(0, 110);
+        return (
+          <tr key={e.platform} className="border-t" style={{ borderColor: C.line }}>
+            <td className="py-2 pl-11 pr-3 align-top">
+              <div className="flex items-start gap-2">
+                <span className="mt-0.5 inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: STATUS_COLOR(e.status || "Nicht erwähnt") }} />
+                <div className="min-w-0">
+                  <span className="text-[12px] font-semibold" style={{ color: C.ink }}>{e.platform}</span>
+                  {snippet && <span className="ml-2 text-[11.5px]" style={{ color: C.sub }}>{snippet}{(e.response || "").length > 110 ? "…" : ""}</span>}
+                </div>
+              </div>
+            </td>
+            <td className="px-3 py-2 text-center align-top"><YesNoPill yes={mentioned} /></td>
+            <td className="px-3 py-2 text-center align-top"><YesNoPill yes={cited} /></td>
+            <td className="px-3 py-2 text-center align-top text-[11.5px]" style={{ color: mentioned ? C.ink : C.sub }}>
+              {mentioned && e.position ? (POS_LABEL[e.position] || "—") : "—"}
+            </td>
+            <td className="px-3 py-2 text-center align-top text-[11.5px] tabular-nums" style={{ color: C.sub }}>{e.brands || "—"}</td>
+            <td className="px-3 py-2 text-center align-top text-[11.5px] tabular-nums" style={{ color: C.sub }}>{e.sources || "—"}</td>
+          </tr>
+        );
+      })}
       {open && <PromptDetailModal g={g} opportunity={opportunity} onClose={() => setOpen(false)} />}
     </>
   );
@@ -897,9 +935,12 @@ function PromptsTable({ prompts, opps, brand, brandPrompts = [], needsReview = 0
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-[11px] uppercase tracking-wide" style={{ color: C.sub }}>
-              <th className="px-5 py-2 font-medium">Prompt &amp; Modelle</th>
-              <th className="px-3 py-2 font-medium">Land</th>
-              {!opportunity && <th className="px-5 py-2 text-right font-medium">Abdeckung</th>}
+              <th className="px-5 py-2 font-medium">KI-Antwort</th>
+              <th className="px-3 py-2 text-center font-medium">Erwähnt?</th>
+              <th className="px-3 py-2 text-center font-medium">Zitiert?</th>
+              <th className="px-3 py-2 text-center font-medium">Position</th>
+              <th className="px-3 py-2 text-center font-medium">Marken</th>
+              <th className="px-3 py-2 text-center font-medium">Quellen</th>
             </tr>
           </thead>
           <tbody>
