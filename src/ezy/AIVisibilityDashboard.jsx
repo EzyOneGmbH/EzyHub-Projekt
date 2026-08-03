@@ -7,7 +7,48 @@ import {
 import {
   Sparkles, TrendingUp, TrendingDown, Quote, FileText, Eye,
   ExternalLink, MousePointerClick, ChevronRight, ChevronLeft, MessageSquareQuote,
+  Filter, Hash, Layers, Link2, Info, MessageSquare, Swords, Tags,
 } from "lucide-react";
+
+// ── Karten-Shell im Searchable-Muster (03.08.2026): Icon + Titel + ⓘ-Tooltip
+// + gedämpfte Beschreibung im Kopf; Fußzeile mit Stand-Text + optionaler
+// Legende/Aktion. Einheitliche Optik für alle Report-Karten.
+function RCard({ icon: Icon, title, info, desc, footer, legend, children, pad = true }) {
+  return (
+    <div className="rounded-xl border" style={{ ...CARD, boxShadow: "0 1px 2px rgba(0,0,0,.04)" }}>
+      <div className="flex items-center gap-2 border-b px-5 py-3" style={{ borderColor: C.line }}>
+        {Icon && <Icon size={15} style={{ color: C.sub, flexShrink: 0 }} />}
+        <h3 className="text-[13px] font-semibold" style={{ color: C.ink }}>{title}</h3>
+        {info && (
+          <span title={info} style={{ color: C.sub, cursor: "help", display: "inline-flex" }}>
+            <Info size={13} />
+          </span>
+        )}
+        {desc && <span className="truncate text-[12px]" style={{ color: C.sub }}>· {desc}</span>}
+      </div>
+      <div className={pad ? "px-5 py-4" : ""}>{children}</div>
+      {(footer || legend) && (
+        <div className="flex items-center justify-between border-t px-5 py-2.5 text-[11px]" style={{ borderColor: C.line, color: C.sub }}>
+          <span>{footer || ""}</span>
+          {legend || null}
+        </div>
+      )}
+    </div>
+  );
+}
+// Weak→Strong-Farblegende (Searchable-Fußzeilen-Muster)
+function HeatLegend({ from = "Schwach", to = "Stark" }) {
+  const cols = ["#fecaca", "#fed7aa", "#fde68a", "#bbf7d0", "#6ee7b7"];
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {from}
+      <span className="inline-flex overflow-hidden rounded-sm">
+        {cols.map((c) => <span key={c} style={{ width: 14, height: 8, background: c, display: "inline-block" }} />)}
+      </span>
+      {to}
+    </span>
+  );
+}
 
 /**
  * EzyHub — AI Visibility Dashboard (Hybrid)
@@ -168,8 +209,13 @@ function ModelDistribution({ models }) {
 
 function TrendCard({ data }) {
   return (
-    <div className="rounded-xl border p-5" style={CARD}>
-      <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Entwicklung · 12 Monate</h3>
+    <div className="rounded-xl border p-5" style={{ ...CARD, boxShadow: "0 1px 2px rgba(0,0,0,.04)" }}>
+      <div className="flex items-center gap-2">
+        <TrendingUp size={15} style={{ color: C.sub }} />
+        <h3 className="text-[13px] font-semibold" style={{ color: C.ink }}>Entwicklung</h3>
+        <span title="Monatlicher Verlauf von Erwähnungen, Citations und referenzierten Seiten (je Monat der neueste Report)." style={{ color: C.sub, cursor: "help", display: "inline-flex" }}><Info size={13} /></span>
+        <span className="text-[12px]" style={{ color: C.sub }}>· 12 Monate</span>
+      </div>
       <div className="mt-3" style={{ height: 200 }}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
@@ -215,9 +261,12 @@ function TopicsTable({ rows }) {
   const cur = Math.min(page, pages - 1);
   const pageRows = rows.slice(cur * TOPICS_PAGE_SIZE, (cur + 1) * TOPICS_PAGE_SIZE);
   return (
-    <div className="rounded-xl border" style={CARD}>
-      <div className="border-b px-5 py-3" style={{ borderColor: C.line }}>
-        <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Erfolgreichste Themen</h3>
+    <div className="rounded-xl border" style={{ ...CARD, boxShadow: "0 1px 2px rgba(0,0,0,.04)" }}>
+      <div className="flex items-center gap-2 border-b px-5 py-3" style={{ borderColor: C.line }}>
+        <Tags size={15} style={{ color: C.sub }} />
+        <h3 className="text-[13px] font-semibold" style={{ color: C.ink }}>Erfolgreichste Themen</h3>
+        <span title="Themen-Cluster der Prompts mit Sichtbarkeit, Erwähnungen und KI-Suchvolumen." style={{ color: C.sub, cursor: "help", display: "inline-flex" }}><Info size={13} /></span>
+        <span className="truncate text-[12px]" style={{ color: C.sub }}>· Sichtbarkeit je Themen-Cluster</span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -311,9 +360,12 @@ function TopicsTable({ rows }) {
 
 function SourcesTable({ rows }) {
   return (
-    <div className="rounded-xl border" style={CARD}>
-      <div className="border-b px-5 py-3" style={{ borderColor: C.line }}>
-        <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Referenzierte Quellen</h3>
+    <div className="rounded-xl border" style={{ ...CARD, boxShadow: "0 1px 2px rgba(0,0,0,.04)" }}>
+      <div className="flex items-center gap-2 border-b px-5 py-3" style={{ borderColor: C.line }}>
+        <Link2 size={15} style={{ color: C.sub }} />
+        <h3 className="text-[13px] font-semibold" style={{ color: C.ink }}>Referenzierte Quellen</h3>
+        <span title="Alle Domains, die in KI-Antworten als Quelle verlinkt oder genannt wurden." style={{ color: C.sub, cursor: "help", display: "inline-flex" }}><Info size={13} /></span>
+        <span className="truncate text-[12px]" style={{ color: C.sub }}>· Jede zitierte Domain über alle KI-Antworten</span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -987,10 +1039,8 @@ export function AIVisibilityEmpty({ message }) {
 function SovCard({ rows }) {
   const max = Math.max(...rows.map((r) => r.mentions), 1);
   return (
-    <div className="rounded-xl border p-5" style={CARD}>
-      <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Share of Voice</h3>
-      <p className="mt-0.5 text-xs" style={{ color: C.sub }}>Nennungen im Vergleich zu Konkurrenten – über alle KI-Antworten</p>
-      <div className="mt-4 space-y-2.5">
+    <RCard icon={MessageSquare} title="Share of Voice" info="Anteil der Marken-Nennungen im Vergleich zu erkannten Konkurrenten über alle KI-Antworten." desc="Marke vs. Konkurrenten" footer={`${rows.length} Marken im Vergleich`} legend={<HeatLegend from="Wenig" to="Viel" />}>
+      <div className="space-y-2.5">
         {rows.map((r) => (
           <div key={r.brand} className="flex items-center gap-3">
             <div className="w-44 shrink-0 truncate text-xs font-medium" style={{ color: r.isSelf ? C.ink : C.sub }}>
@@ -1006,7 +1056,7 @@ function SovCard({ rows }) {
           </div>
         ))}
       </div>
-    </div>
+    </RCard>
   );
 }
 
@@ -1151,6 +1201,9 @@ function funnelVerdict(rate) {
   if (rate < 15) return { label: "Schwach", color: C.amber };
   return { label: "Solide", color: "#10b981" };
 }
+// Weiche Füllfarben je Urteil (Searchable-Trapez-Optik)
+const FUNNEL_FILL = { Kritisch: "#fecdd3", Schwach: "#fed7aa", Solide: "#bbf7d0", "keine Daten": "#eceae3" };
+const FUNNEL_TEXT = { Kritisch: "#be123c", Schwach: "#b45309", Solide: "#047857", "keine Daten": "#8a877e" };
 function FunnelCard({ prompts, opps }) {
   const rows = [...(prompts || []), ...(opps || [])].filter((p) => p.intent);
   if (!rows.length) return null;
@@ -1160,105 +1213,131 @@ function FunnelCard({ prompts, opps }) {
     const rate = inStage.length ? Math.round((mentioned / inStage.length) * 1000) / 10 : null;
     return { ...s, total: inStage.length, mentioned, rate };
   });
-  const maxRate = Math.max(1, ...stages.map((s) => s.rate || 0));
+  // Trapez-Breiten: oben breit, nach unten schmaler (klassische Funnel-Silhouette)
+  const widths = [100, 78, 58];
   return (
-    <div className="rounded-xl border p-5" style={CARD}>
-      <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Kaufreise (Decision Journey)</h3>
-      <p className="mt-1 text-[11px]" style={{ color: C.sub }}>
-        Wie oft die Marke je Phase der Kundenreise in KI-Antworten auftaucht — Basis: Suchintention der Prompts.
-      </p>
-      <div className="mt-4 space-y-3">
-        {stages.map((s) => {
+    <RCard icon={Filter} title="Kaufreise" info="Erwähnungsrate je Phase der Kundenreise, abgeleitet aus der Suchintention der Prompts (Judge-Klassifikation)." desc="Erwähnungsrate je Funnel-Phase über alle KI-Systeme" footer={`${rows.length} Prompt-Antworten ausgewertet`} legend={<HeatLegend />}>
+      <div className="flex flex-col gap-2.5">
+        {stages.map((s, i) => {
           const v = funnelVerdict(s.rate);
+          const w = widths[i];
+          const inset = (100 - w) / 2;
           return (
-            <div key={s.id}>
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-[12px] font-medium" style={{ color: C.ink }}>{s.label}</span>
-                <span className="text-[11px] font-semibold" style={{ color: v.color }}>{v.label}</span>
-              </div>
-              <div className="mt-1 flex items-center gap-3">
-                <div className="h-2 flex-1 overflow-hidden rounded-full" style={{ background: C.track }}>
-                  <div className="h-full rounded-full" style={{ width: `${s.rate == null ? 0 : Math.max(3, (s.rate / maxRate) * 100)}%`, background: v.color }} />
+            <div key={s.id} className="flex items-center gap-4">
+              <div className="flex-1" style={{ maxWidth: "52%" }}>
+                <div
+                  className="flex items-center justify-center py-4 text-[15px] font-bold tabular-nums"
+                  style={{
+                    background: FUNNEL_FILL[v.label] || C.track,
+                    color: FUNNEL_TEXT[v.label] || C.ink,
+                    clipPath: `polygon(${inset}% 0, ${100 - inset}% 0, ${100 - inset - 4}% 100%, ${inset + 4}% 100%)`,
+                  }}
+                >
+                  {s.rate == null ? "–" : `${s.rate}%`}
                 </div>
-                <span className="w-24 text-right text-[11px] tabular-nums" style={{ color: C.sub }}>
-                  {s.rate == null ? "–" : `${s.rate}%`} · {s.mentioned}/{s.total}
-                </span>
               </div>
-              <div className="mt-0.5 text-[10px]" style={{ color: C.sub }}>{s.hint}</div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[12.5px] font-semibold" style={{ color: C.ink }}>{s.label}</span>
+                  <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: FUNNEL_FILL[v.label], color: FUNNEL_TEXT[v.label] }}>{v.label}</span>
+                </div>
+                <div className="mt-0.5 text-[11px]" style={{ color: C.sub }}>{s.hint}</div>
+                <div className="mt-0.5 text-[10.5px] tabular-nums" style={{ color: C.sub }}>{s.mentioned} von {s.total} Antworten erwähnen die Marke</div>
+              </div>
             </div>
           );
         })}
       </div>
-    </div>
+    </RCard>
   );
 }
 
-// ── Positions-Verteilung + Head-to-Head (Searchable-Nachbau 08/2026) ─────────
+// ── Positions-Matrix + Head-to-Head (Searchable-Optik 08/2026) ───────────────
+// Heatmap-Zelle: grüne Intensität nach Anteil (Searchable-Muster)
+function HeatCell({ pct }) {
+  if (pct == null || pct === 0) return <td className="px-3 py-2 text-center text-[11px]" style={{ color: C.sub }}>—</td>;
+  const bg = pct >= 60 ? "#6ee7b7" : pct >= 35 ? "#a7f3d0" : pct >= 15 ? "#d1fae5" : "#ecfdf5";
+  return (
+    <td className="px-3 py-2 text-center text-[11.5px] font-semibold tabular-nums" style={{ background: bg, color: "#065f46" }}>
+      {Math.round(pct)}%
+    </td>
+  );
+}
 function PositionHeadToHead({ prompts, sov, brand }) {
-  const answered = (prompts || []).filter((p) => p.status && p.status !== "Nicht erwähnt");
-  const posCounts = { top: 0, list: 0, passing: 0 };
-  for (const p of answered) if (p.position && posCounts[p.position] != null) posCounts[p.position]++;
-  const posTotal = posCounts.top + posCounts.list + posCounts.passing;
+  const all = prompts || [];
+  // Matrix: Engine × Antwort-Position der EIGENEN Marke (Konkurrenz-Positionen
+  // erhebt der Judge nicht — nur ehrliche Daten zeigen, keine Fake-Zeilen).
+  const engines = [...new Set(all.map((p) => p.platform).filter(Boolean))].sort();
+  const matrix = engines.map((e) => {
+    const rows = all.filter((p) => p.platform === e);
+    const c = { top: 0, list: 0, passing: 0, none: 0 };
+    for (const p of rows) {
+      if (!p.status || p.status === "Nicht erwähnt") c.none++;
+      else if (p.position && c[p.position] != null) c[p.position]++;
+      else c.list++;
+    }
+    const n = rows.length || 1;
+    return { engine: e, n: rows.length, top: (c.top / n) * 100, list: (c.list / n) * 100, passing: (c.passing / n) * 100, none: (c.none / n) * 100 };
+  }).filter((r) => r.n > 0);
 
   const comps = (sov || []).filter((s) => !s.isSelf).slice(0, 5);
   const [rivalIdx, setRivalIdx] = useState(0);
   const rival = comps[Math.min(rivalIdx, Math.max(0, comps.length - 1))] || null;
-  const all = prompts || [];
+  const answered = all.filter((p) => p.status && p.status !== "Nicht erwähnt");
   const rivalRows = rival ? all.filter((p) => (p.comps || []).some((c) => c.toLowerCase() === rival.brand.toLowerCase())) : [];
-  const selfRows = answered;
-  const selfRate = all.length ? Math.round((selfRows.length / all.length) * 1000) / 10 : 0;
+  const selfRate = all.length ? Math.round((answered.length / all.length) * 1000) / 10 : 0;
   const rivalRate = all.length ? Math.round((rivalRows.length / all.length) * 1000) / 10 : 0;
   const selfShare = (sov || []).find((s) => s.isSelf)?.share ?? null;
+  if (!matrix.length && !rival) return null;
 
-  if (!posTotal && !rival) return null;
-  const POS_COLORS = { top: "#10b981", list: C.indigo, passing: C.amber };
   return (
-    <div className="rounded-xl border p-5" style={CARD}>
-      <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Antwort-Position & Direktvergleich</h3>
-      <p className="mt-1 text-[11px]" style={{ color: C.sub }}>
-        Wo die Marke in KI-Antworten steht — und wie sie im 1:1 gegen einen Konkurrenten abschneidet.
-      </p>
-      {posTotal > 0 && (
-        <div className="mt-4">
-          <div className="flex h-3 w-full overflow-hidden rounded-full" style={{ background: C.track }}>
-            {["top", "list", "passing"].map((k) => posCounts[k] > 0 && (
-              <div key={k} style={{ width: `${(posCounts[k] / posTotal) * 100}%`, background: POS_COLORS[k] }} title={`${POS_LABEL[k]}: ${posCounts[k]}`} />
-            ))}
-          </div>
-          <div className="mt-1 flex flex-wrap gap-3 text-[11px]" style={{ color: C.sub }}>
-            {["top", "list", "passing"].map((k) => (
-              <span key={k} className="inline-flex items-center gap-1">
-                <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: POS_COLORS[k] }} />
-                {POS_LABEL[k]} {posCounts[k]} ({Math.round((posCounts[k] / posTotal) * 100)}%)
-              </span>
-            ))}
-          </div>
+    <div className="grid grid-cols-1 gap-4">
+      {matrix.length > 0 && (
+        <RCard icon={Hash} title="Antwort-Position" info="Wo die eigene Marke in den KI-Antworten steht: Top-Empfehlung, in einer Liste, Randnotiz oder nicht genannt — je KI-System." desc="Wo die Marke in KI-Antworten erscheint" footer={`${all.length} Antworten · nur eigene Marke (Konkurrenz-Positionen werden nicht erhoben)`} legend={<HeatLegend from="Niedrig" to="Hoch" />} pad={false}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-[12px]" style={{ borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ color: C.sub }}>
+                <th className="px-5 py-2 text-left font-medium">KI-System</th>
+                <th className="px-3 py-2 text-center font-medium">Top-Empfehlung</th>
+                <th className="px-3 py-2 text-center font-medium">In Liste</th>
+                <th className="px-3 py-2 text-center font-medium">Randnotiz</th>
+                <th className="px-3 py-2 text-center font-medium">Nicht genannt</th>
+              </tr>
+            </thead>
+            <tbody>
+              {matrix.map((r) => (
+                <tr key={r.engine} style={{ borderTop: `1px solid ${C.line}` }}>
+                  <td className="px-5 py-2 font-semibold" style={{ color: C.ink }}>{r.engine}</td>
+                  <HeatCell pct={r.top} />
+                  <HeatCell pct={r.list} />
+                  <HeatCell pct={r.passing} />
+                  <td className="px-3 py-2 text-center text-[11.5px] tabular-nums" style={{ color: C.sub }}>{Math.round(r.none)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
+        </RCard>
       )}
       {rival && (
-        <div className="mt-4 border-t pt-3" style={{ borderColor: C.line }}>
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] uppercase tracking-wide" style={{ color: C.sub }}>Head-to-Head</span>
-            <select
-              value={rivalIdx}
-              onChange={(e) => setRivalIdx(Number(e.target.value))}
-              className="rounded-md border px-2 py-1 text-[11px]"
-              style={{ borderColor: C.line, background: C.card, color: C.ink }}
-            >
-              {comps.map((c, i) => <option key={c.brand} value={i}>{c.brand}</option>)}
-            </select>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-4">
+        <RCard icon={Swords} title="Head-to-Head" info="Direktvergleich der Präsenz in denselben KI-Antworten: eigene Marke gegen einen wählbaren Konkurrenten." desc={`${brand} im 1:1-Vergleich`} footer="Präsenz = Anteil der Antworten, in denen die Marke vorkommt" legend={
+          <select value={rivalIdx} onChange={(e) => setRivalIdx(Number(e.target.value))}
+            className="rounded-md border px-2 py-1 text-[11px]" style={{ borderColor: C.line, background: C.card, color: C.ink }}>
+            {comps.map((c, i) => <option key={c.brand} value={i}>{c.brand}</option>)}
+          </select>
+        }>
+          <div className="grid grid-cols-2 gap-4">
             {[{ name: brand, rate: selfRate, share: selfShare, self: true }, { name: rival.brand, rate: rivalRate, share: rival.share, self: false }].map((b) => (
-              <div key={b.name} className="rounded-lg border p-3" style={{ borderColor: b.self ? C.indigo : C.line }}>
+              <div key={b.name} className="rounded-lg border p-3" style={{ borderColor: b.self ? C.indigo : C.line, background: b.self ? "rgba(108,92,231,.04)" : "transparent" }}>
                 <div className="truncate text-[12px] font-semibold" style={{ color: b.self ? C.indigo : C.ink }}>{b.name}{b.self ? " (du)" : ""}</div>
-                <div className="mt-1 text-xl font-semibold tabular-nums" style={{ color: C.ink }}>{b.rate}%</div>
+                <div className="mt-1 text-2xl font-bold tabular-nums" style={{ color: C.ink }}>{b.rate}%</div>
                 <div className="text-[10px]" style={{ color: C.sub }}>Präsenz in KI-Antworten</div>
                 {b.share != null && <div className="mt-1 text-[11px] tabular-nums" style={{ color: C.sub }}>Share of Voice: {b.share}%</div>}
               </div>
             ))}
           </div>
-        </div>
+        </RCard>
       )}
     </div>
   );
@@ -1296,12 +1375,8 @@ function CitedTypesCard({ sources, ownDomain }) {
   const gaps = entries.filter(([t]) => t !== "Eigene Website" && t !== "Artikel/Website").filter(([t, v]) => v.own === 0).slice(0, 3);
   const TYPE_COLORS = [C.indigo, C.teal, C.amber, C.violet, "#10b981", "#ef4444", C.sub, "#f472b6"];
   return (
-    <div className="rounded-xl border p-5" style={CARD}>
-      <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Was KI-Antworten zitieren (Content-Typen)</h3>
-      <p className="mt-1 text-[11px]" style={{ color: C.sub }}>
-        Typ-Klassifikation der zitierten Domains (Heuristik) — zeigt, welche Content-Formate in dieser Branche als Quelle dienen.
-      </p>
-      <div className="mt-4 space-y-2">
+    <RCard icon={Layers} title="Content-Typen" info="Typ-Klassifikation der zitierten Domains (Heuristik): welche Content-Formate KI-Antworten in dieser Branche als Quelle nutzen." desc="Welche Inhalte zitiert werden" footer={`${rows.length} zitierte Domains klassifiziert`}>
+      <div className="space-y-2">
         {entries.slice(0, 8).map(([t, v], i) => (
           <div key={t} className="flex items-center gap-3">
             <span className="w-44 truncate text-[12px]" style={{ color: t === "Eigene Website" ? C.indigo : C.ink }}>{t}</span>
@@ -1313,11 +1388,11 @@ function CitedTypesCard({ sources, ownDomain }) {
         ))}
       </div>
       {gaps.length > 0 && (
-        <div className="mt-3 rounded-lg border px-3 py-2 text-[11px]" style={{ borderColor: C.amber, color: C.amber }}>
+        <div className="mt-3 rounded-lg px-3 py-2 text-[11px]" style={{ background: "#fef3c7", color: "#92400e" }}>
           Lücke: In {gaps.map(([t]) => `„${t}"`).join(", ")} wird zitiert — aber nie die eigene Marke. Content-Chance für den nächsten Maßnahmenplan.
         </div>
       )}
-    </div>
+    </RCard>
   );
 }
 
