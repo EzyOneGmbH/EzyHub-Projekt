@@ -1322,93 +1322,177 @@ function CitedTypesCard({ sources, ownDomain }) {
 }
 
 // ── Shell ────────────────────────────────────────────────────────────────────
+// Sub-Tabs + Filterzeile (Searchable-Muster, 03.08.2026): statt einer langen
+// Scroll-Seite navigiert der Report in Bereichen; der Modell-Filter wirkt auf
+// alle prompt-basierten Karten (Kaufreise, Position, Intent, Prompts) —
+// Report-Kennzahlen (Score/KPIs/Trend) sind Lauf-Aggregate und bleiben ungefiltert.
 export default function AIVisibilityDashboard({ data, convRows = [] }) {
   const d = data;
+  const [tab, setTab] = useState("uebersicht");
+  const [modelF, setModelF] = useState("alle");
   if (!d) return <AIVisibilityEmpty />;
+
+  const platforms = [...new Set([...(d.prompts || []), ...(d.promptOpps || [])].map((p) => p.platform).filter(Boolean))].sort();
+  const fP = modelF === "alle" ? d.prompts : (d.prompts || []).filter((p) => p.platform === modelF);
+  const fO = modelF === "alle" ? d.promptOpps : (d.promptOpps || []).filter((p) => p.platform === modelF);
+  // Intent-Verteilung aus den (gefilterten) Prompt-Zeilen — ersetzt das
+  // vorberechnete promptIntent, damit der Modell-Filter greift.
+  const intentCounts = {};
+  for (const p of [...(fP || []), ...(fO || [])]) if (p.intent) intentCounts[p.intent] = (intentCounts[p.intent] || 0) + 1;
+  const intentData = Object.entries(intentCounts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+
+  const hasBrand = !!d.brandCheck;
+  const hasConv = Array.isArray(d.attribution) && d.attribution.length > 0;
+  const TABS = [
+    { id: "uebersicht", label: "Sichtbarkeit" },
+    { id: "erwaehnungen", label: "Erwähnungen & Wettbewerb" },
+    ...(hasBrand ? [{ id: "marke", label: "Marke" }] : []),
+    { id: "quellen", label: "Quellen" },
+    { id: "themen", label: "Themen" },
+    { id: "prompts", label: "Prompts" },
+    ...(hasConv ? [{ id: "conversions", label: "Conversions" }] : []),
+  ];
 
   return (
     <div className="w-full" style={{ background: C.page, color: C.ink }}>
       <div className="mx-auto max-w-6xl">
 
-        {/* Top row: score + KPIs (Header entfällt — Tab-Kopf der App zeigt Titel + Kunde) */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-          <div className="rounded-xl border p-5 lg:col-span-1" style={CARD}>
-            <ScoreRing value={d.score} delta={d.versionSwitch ? 0 : d.scoreDelta} modelCount={d.models.length} />
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:col-span-3">
-            <Kpi icon={Eye} label="Erwähnungen" color={C.indigo} {...d.kpis.mentions} />
-            <Kpi icon={Quote} label="Citations" color={C.teal} {...d.kpis.citations} />
-            <Kpi icon={FileText} label="Referenzierte Seiten" color={C.amber} value={d.kpis.citedPages.value} delta={d.kpis.citedPages.delta} prev={d.kpis.citedPages.prev} />
+        {/* Sub-Tab-Leiste (Searchable-Look: Underline, hell) */}
+        <div className="border-b" style={{ borderColor: C.line }}>
+          <div className="flex flex-wrap items-center gap-1 overflow-x-auto">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className="whitespace-nowrap px-3 py-2 text-[13px]"
+                style={{
+                  color: tab === t.id ? C.ink : C.sub,
+                  fontWeight: tab === t.id ? 700 : 500,
+                  borderBottom: `2px solid ${tab === t.id ? C.ink : "transparent"}`,
+                  marginBottom: -1,
+                  background: "none", border: "none", borderBottomStyle: "solid", cursor: "pointer",
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Score v2: Messumstellungs-Marker, Heimmarkt-Split, Vergleichs-Hinweis */}
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]" style={{ color: C.sub }}>
+        {/* Filterzeile */}
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-[11.5px]" style={{ color: C.sub }}>
+          <span className="rounded-full border px-2.5 py-1" style={{ borderColor: C.line }}>Stand {d.date}</span>
+          {platforms.length > 1 && (
+            <select
+              value={modelF}
+              onChange={(e) => setModelF(e.target.value)}
+              className="rounded-full border px-2.5 py-1 text-[11.5px]"
+              style={{ borderColor: modelF === "alle" ? C.line : C.indigo, background: C.card, color: modelF === "alle" ? C.sub : C.indigo }}
+              title="Wirkt auf Kaufreise, Position, Intent und Prompts"
+            >
+              <option value="alle">Alle Modelle</option>
+              {platforms.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          )}
+          {modelF !== "alle" && (
+            <span className="rounded-full px-2.5 py-1" style={{ background: C.cardAlt }}>
+              Filter aktiv: nur {modelF} (Score/KPIs bleiben Gesamtwerte)
+            </span>
+          )}
           {d.versionSwitch && (
             <span className="rounded-full border px-2 py-0.5" style={{ borderColor: C.amber, color: C.amber }}>
-              Messung umgestellt am {d.versionSwitch} — Veränderungen starten neu
+              Messung umgestellt am {d.versionSwitch}
             </span>
           )}
-          {d.brHomeSplit && (
-            <span className="rounded-full border px-2 py-0.5" style={{ borderColor: C.line }}>
-              KI-Antwort-Korpus: Heimmarkt CH {d.brHomeSplit.home} · International {d.brHomeSplit.intl}
-            </span>
-          )}
-          <span>
-            Der Score vergleicht die Sichtbarkeit eines Kunden über die Zeit. Vergleiche zwischen Kunden sind nur eingeschränkt möglich (unterschiedliche Keyword- und Marktbasis).
-          </span>
         </div>
 
-        {/* Mid row: trend + distribution */}
-        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <TrendCard data={d.trend} />
-          <ModelDistribution models={d.models} />
-        </div>
+        {tab === "uebersicht" && (
+          <>
+            <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-4">
+              <div className="rounded-xl border p-5 lg:col-span-1" style={CARD}>
+                <ScoreRing value={d.score} delta={d.versionSwitch ? 0 : d.scoreDelta} modelCount={d.models.length} />
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:col-span-3">
+                <Kpi icon={Eye} label="Erwähnungen" color={C.indigo} {...d.kpis.mentions} />
+                <Kpi icon={Quote} label="Citations" color={C.teal} {...d.kpis.citations} />
+                <Kpi icon={FileText} label="Referenzierte Seiten" color={C.amber} value={d.kpis.citedPages.value} delta={d.kpis.citedPages.delta} prev={d.kpis.citedPages.prev} />
+              </div>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]" style={{ color: C.sub }}>
+              {d.brHomeSplit && (
+                <span className="rounded-full border px-2 py-0.5" style={{ borderColor: C.line }}>
+                  KI-Antwort-Korpus: Heimmarkt CH {d.brHomeSplit.home} · International {d.brHomeSplit.intl}
+                </span>
+              )}
+              <span>
+                Der Score vergleicht die Sichtbarkeit eines Kunden über die Zeit. Vergleiche zwischen Kunden sind nur eingeschränkt möglich.
+              </span>
+            </div>
+            <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <TrendCard data={d.trend} />
+              <ModelDistribution models={d.models} />
+            </div>
+            <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <DonutCard
+                title="Erwähnungen nach Land"
+                subtitle={`Herkunft der Anfragen · ${d.date}`}
+                data={d.countries}
+                palette={[C.indigo, C.teal, C.amber, C.violet, C.sub]}
+                centerLabel="Erwähnungen"
+              />
+              <DonutCard
+                title="Prompts nach Intent"
+                subtitle={modelF === "alle" ? "Suchintention der Prompts" : `Suchintention · nur ${modelF}`}
+                data={intentData}
+                palette={[C.violet, C.indigo, C.teal, C.sub, C.amber]}
+                centerLabel="Prompts"
+              />
+            </div>
+          </>
+        )}
 
-        {/* Geo + Intent */}
-        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <DonutCard
-            title="Erwähnungen nach Land"
-            subtitle={`Herkunft der Anfragen · ${d.date}`}
-            data={d.countries}
-            palette={[C.indigo, C.teal, C.amber, C.violet, C.sub]}
-            centerLabel="Erwähnungen"
-          />
-          <DonutCard
-            title="Prompts nach Intent"
-            subtitle="Suchintention der Prompts"
-            data={d.promptIntent}
-            palette={[C.violet, C.indigo, C.teal, C.sub, C.amber]}
-            centerLabel="Prompts"
-          />
-        </div>
+        {tab === "erwaehnungen" && (
+          <>
+            <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <FunnelCard prompts={fP} opps={fO} />
+              <PositionHeadToHead prompts={fP} sov={d.sov} brand={d.client} />
+            </div>
+            {Array.isArray(d.sov) && d.sov.length > 1 && (
+              <div className="mt-4">
+                <SovCard rows={d.sov} />
+              </div>
+            )}
+          </>
+        )}
 
-        {/* Kaufreise + Position/Head-to-Head (Searchable-Nachbau 08/2026) */}
-        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <FunnelCard prompts={d.prompts} opps={d.promptOpps} />
-          <PositionHeadToHead prompts={d.prompts} sov={d.sov} brand={d.client} />
-        </div>
+        {tab === "marke" && (
+          <BrandCheckCard bc={d.brandCheck} brand={d.client} history={d.brandHistory || []} />
+        )}
 
-        {/* Share of Voice (nur wenn Konkurrenten erkannt) */}
-        {Array.isArray(d.sov) && d.sov.length > 1 && (
-          <div className="mt-4">
-            <SovCard rows={d.sov} />
+        {tab === "quellen" && (
+          <div className="mt-4 grid grid-cols-1 gap-4">
+            <CitedTypesCard sources={d.sources} ownDomain={d.domain} />
+            <SourcesTable rows={d.sources} />
           </div>
         )}
 
-        {/* Attribution */}
-        <div className="mt-4">
-          <AttributionStrip rows={d.attribution} convRows={convRows} />
-        </div>
+        {tab === "themen" && (
+          <div className="mt-4">
+            <TopicsTable rows={d.topics} />
+          </div>
+        )}
 
-        {/* Tables */}
-        <div className="mt-4 grid grid-cols-1 gap-4">
-          <TopicsTable rows={d.topics} />
-          <PromptsTable prompts={d.prompts} opps={d.promptOpps} brand={d.client} brandPrompts={d.brandPrompts || []} needsReview={d.promptsNeedsReview || 0} />
-          <BrandCheckCard bc={d.brandCheck} brand={d.client} history={d.brandHistory || []} />
-          <CitedTypesCard sources={d.sources} ownDomain={d.domain} />
-          <SourcesTable rows={d.sources} />
-        </div>
+        {tab === "prompts" && (
+          <div className="mt-4">
+            <PromptsTable prompts={fP} opps={fO} brand={d.client} brandPrompts={d.brandPrompts || []} needsReview={d.promptsNeedsReview || 0} />
+          </div>
+        )}
+
+        {tab === "conversions" && (
+          <div className="mt-4">
+            <AttributionStrip rows={d.attribution} convRows={convRows} />
+          </div>
+        )}
 
         <p className="mt-6 text-center text-[11px]" style={{ color: C.sub }}>
           EzyHub · AI Visibility · {d.market} · {d.date}
