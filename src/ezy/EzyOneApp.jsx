@@ -143,31 +143,33 @@ const toolHasLiveProvider = (id) => toolProvider(id) !== null;
 // ═══════════════════════════════════════════════════════════════════════════
 // DESIGN SYSTEM
 // ═══════════════════════════════════════════════════════════════════════════
+// Light Studio (2026-08-03, Volkan: hell à la Searchable) — vorher Dark Premium.
+// Text-Akzente bewusst dunkler als die Dark-Werte (Lesbarkeit auf hellem Grund).
 const C = {
-  bg: "#0a0b0f",
-  surface: "#12131a",
-  card: "#181923",
-  cardHover: "#1e1f2e",
-  border: "#252636",
-  borderHover: "#35364a",
-  text: "#e2e4f0",
-  textMuted: "#8b8da3",
-  textDim: "#5c5e72",
+  bg: "#f7f6f2",
+  surface: "#fdfcfa",
+  card: "#ffffff",
+  cardHover: "#f4f3ee",
+  border: "#e8e6df",
+  borderHover: "#d8d5cb",
+  text: "#1c1c1e",
+  textMuted: "#6e6c64",
+  textDim: "#a5a29a",
   accent: "#6c5ce7",
-  accentLight: "#a78bfa",
-  accentDim: "rgba(108,92,231,0.15)",
-  green: "#10b981",
+  accentLight: "#5b4bd6",
+  accentDim: "rgba(108,92,231,0.10)",
+  green: "#0f9d6c",
   greenDim: "rgba(16,185,129,0.12)",
-  red: "#ef4444",
-  redDim: "rgba(239,68,68,0.12)",
-  blue: "#3b82f6",
-  blueDim: "rgba(59,130,246,0.12)",
-  orange: "#f59e0b",
+  red: "#dc2626",
+  redDim: "rgba(239,68,68,0.10)",
+  blue: "#2563eb",
+  blueDim: "rgba(59,130,246,0.10)",
+  orange: "#d97706",
   orangeDim: "rgba(245,158,11,0.12)",
-  cyan: "#06b6d4",
-  cyanDim: "rgba(6,182,212,0.12)",
-  pink: "#ec4899",
-  pinkDim: "rgba(236,72,153,0.12)",
+  cyan: "#0891b2",
+  cyanDim: "rgba(6,182,212,0.10)",
+  pink: "#db2777",
+  pinkDim: "rgba(236,72,153,0.10)",
 };
 const AI_COLORS = {
   ChatGPT: "#10b981",
@@ -13156,7 +13158,7 @@ function App({ appScope = null }) {
               title="App wechseln"
               style={{
                 width: "100%", display: "flex", alignItems: "center", gap: 9,
-                background: swOpen ? C.surface2 || "rgba(255,255,255,.04)" : "none",
+                background: swOpen ? "rgba(0,0,0,.05)" : "none",
                 border: "none", borderRadius: 8, padding: collapsed ? "8px 6px" : "8px 10px",
                 color: C.text, cursor: "pointer", fontSize: 12.5, fontWeight: 600,
                 justifyContent: collapsed ? "center" : "flex-start",

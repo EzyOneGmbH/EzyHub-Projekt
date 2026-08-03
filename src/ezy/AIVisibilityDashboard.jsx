@@ -20,19 +20,20 @@ import {
  */
 
 // ── Tokens (dunkel, angeglichen an EzyOneApps C-Palette) ─────────────────────
+// Light Studio (2026-08-03): hell à la Searchable — erbt hellen App-Hintergrund.
 const C = {
-  page: "transparent", // erbt den dunklen App-Hintergrund
-  card: "#181923",
-  cardAlt: "#12131a", // aufgeklappte Zeilen / subtile Panels
-  track: "#252636",   // Balken-/Fortschritt-Hintergrund, Chips
-  ink: "#e2e4f0",     // Haupttext
-  sub: "#8b8da3",     // gedämpft
-  line: "#252636",    // Rahmen
+  page: "transparent",
+  card: "#ffffff",
+  cardAlt: "#f7f6f2",  // aufgeklappte Zeilen / subtile Panels
+  track: "#ecebe4",    // Balken-/Fortschritt-Hintergrund, Chips
+  ink: "#1c1c1e",      // Haupttext
+  sub: "#6e6c64",      // gedämpft
+  line: "#e8e6df",     // Rahmen
   indigo: "#6c5ce7",
-  teal: "#14b8a6",
-  amber: "#f59e0b",
-  violet: "#a78bfa",
-  up: "#10b981", down: "#ef4444",
+  teal: "#0d9488",
+  amber: "#d97706",
+  violet: "#7c5cf0",
+  up: "#0f9d6c", down: "#dc2626",
 };
 const CARD = { background: C.card, borderColor: C.line };
 

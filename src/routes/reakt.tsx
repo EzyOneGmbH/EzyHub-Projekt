@@ -13,10 +13,11 @@ export const Route = createFileRoute("/reakt")({
 // Entwürfe/Zeitplan über den Proxy /api/agent/reakt vom Cloud-PC.
 // EISERNE REGEL: diese UI kann NIE senden — Entwürfe öffnet man in Outlook,
 // nur der 03:00-Zeitplan lässt sich (mit Bestätigung) schalten.
+// Light Studio (2026-08-03): hell à la Searchable
 const S = {
-  bg: "#0f1411", panel: "#141b17", line: "#24312a",
-  txt: "#e8f2ec", mut: "#8aa697", app: "#34d399", appTint: "rgba(52,211,153,.15)",
-  warn: "#fbbf24", red: "#f87171",
+  bg: "#f7f6f2", panel: "#ffffff", line: "#e8e6df",
+  txt: "#1c1c1e", mut: "#6e6c64", app: "#059669", appTint: "rgba(5,150,105,.10)",
+  warn: "#b45309", red: "#dc2626",
 };
 
 type Wave = { file: string; rows: number; byStatus: Record<string, number>; modified: string | null };
@@ -100,7 +101,7 @@ function ReaktApp() {
           <button onClick={() => setSwOpen((v) => !v)} title="App wechseln"
             style={{ background: "none", border: "none", color: S.mut, fontSize: 16, cursor: "pointer", padding: "6px 8px", borderRadius: 8, letterSpacing: 1 }}>⣿</button>
           {swOpen && (
-            <div style={{ position: "absolute", top: "100%", left: 0, zIndex: 200, width: 240, background: S.panel, border: `1px solid ${S.line}`, borderRadius: 12, padding: 8, boxShadow: "0 14px 44px rgba(0,0,0,.55)" }}>
+            <div style={{ position: "absolute", top: "100%", left: 0, zIndex: 200, width: 240, background: S.panel, border: `1px solid ${S.line}`, borderRadius: 12, padding: 8, boxShadow: "0 14px 44px rgba(0,0,0,.14)" }}>
               <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".08em", color: S.mut, padding: "4px 10px 8px", fontWeight: 700 }}>Apps wechseln</div>
               {EZY_APPS.filter((a) => canOpen(a.id)).map((a) => {
                 const active = a.id === "reakt";

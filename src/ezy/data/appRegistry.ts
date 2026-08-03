@@ -24,8 +24,8 @@ export const EZY_APPS: EzyAppDef[] = [
     name: "EzyRank",
     desc: "SEO: Rankings, GSC-Suchbegriffe, Blog / Refresh-Radar, Conversions",
     icon: "🔍",
-    color: "#38bdf8",
-    tint: "rgba(56,189,248,.15)",
+    color: "#0284c7", // Light Studio: kräftigere Akzente für hellen Grund (03.08.)
+    tint: "rgba(2,132,199,.10)",
     href: "/ezyrank", // Phase 3: eigene App-Route
   },
   {
@@ -33,8 +33,8 @@ export const EZY_APPS: EzyAppDef[] = [
     name: "EzyAI",
     desc: "KI-Sichtbarkeit: aivis-Score, 6-Engine-Prompts, Marken-Check",
     icon: "🤖",
-    color: "#a78bfa",
-    tint: "rgba(167,139,250,.15)",
+    color: "#7c3aed",
+    tint: "rgba(124,58,237,.10)",
     href: "/ezyai", // Phase 2: eigene App-Route (vorher /dashboard?app=geo)
   },
   {
@@ -42,8 +42,8 @@ export const EZY_APPS: EzyAppDef[] = [
     name: "EzyPerformance",
     desc: "Ads: Google-Ads-Dashboard, Autopilot-Reports, Budgets",
     icon: "📢",
-    color: "#fb923c",
-    tint: "rgba(251,146,60,.15)",
+    color: "#ea580c",
+    tint: "rgba(234,88,12,.10)",
     href: "/ezyperformance", // Phase 3: eigene App-Route
   },
   {
@@ -51,8 +51,8 @@ export const EZY_APPS: EzyAppDef[] = [
     name: "Reaktivierung",
     desc: "GEO-Beweis-Kampagnen: Läufe, Entwürfe, Zeitplan",
     icon: "✉️",
-    color: "#34d399",
-    tint: "rgba(52,211,153,.15)",
+    color: "#059669",
+    tint: "rgba(5,150,105,.10)",
     href: "/reakt", // Phase 3: Interims-Route (echte UI kommt in Phase 4)
   },
   {
@@ -60,8 +60,8 @@ export const EZY_APPS: EzyAppDef[] = [
     name: "Admin",
     desc: "Kunden & Services, Team & Zugriffe, Agenten, Einstellungen",
     icon: "⚙️",
-    color: "#94a3b8",
-    tint: "rgba(148,163,184,.15)",
+    color: "#64748b",
+    tint: "rgba(100,116,139,.12)",
     href: "/admin", // Phase 3: eigene App-Route
     adminOnly: true,
   },

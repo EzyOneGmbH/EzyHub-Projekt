@@ -116,7 +116,7 @@ function PromptCurationPanel({ clientId, onClose, S }: { clientId: string; onClo
   );
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,.55)" }} onClick={onClose}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(30,28,24,.35)" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()}
         style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: "min(680px,100vw)", background: S.bg, borderLeft: `1px solid ${S.line}`, display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: `1px solid ${S.line}` }}>
@@ -185,9 +185,10 @@ export const Route = createFileRoute("/ezyai")({
 // Die Fach-Komponente (AiVisibilityTab) ist aus dem Dashboard UMGEZOGEN, nicht
 // neu gebaut — diese Route liefert nur die App-Shell drumherum (Header mit
 // App-Switcher, Kunden-Auswahl, Service-Gate). Muster für Phase 3.
+// Light Studio (2026-08-03): hell à la Searchable
 const S = {
-  bg: "#0f1117", panel: "#151824", line: "#232a3a",
-  txt: "#e8eaf2", mut: "#8a92a6", app: "#a78bfa", appTint: "rgba(167,139,250,.15)",
+  bg: "#f7f6f2", panel: "#ffffff", line: "#e8e6df",
+  txt: "#1c1c1e", mut: "#6e6c64", app: "#7c3aed", appTint: "rgba(124,58,237,.10)",
 };
 const CLIENT_LS = "ezyai.clientId";
 
@@ -257,7 +258,7 @@ function EzyAiApp() {
             <div style={{
               position: "absolute", top: "100%", left: 0, zIndex: 200, width: 240,
               background: S.panel, border: `1px solid ${S.line}`, borderRadius: 12,
-              padding: 8, boxShadow: "0 14px 44px rgba(0,0,0,.55)",
+              padding: 8, boxShadow: "0 14px 44px rgba(0,0,0,.14)",
             }}>
               <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".08em", color: S.mut, padding: "4px 10px 8px", fontWeight: 700 }}>Apps wechseln</div>
               {EZY_APPS.filter((a) => canOpen(a.id)).map((a) => {

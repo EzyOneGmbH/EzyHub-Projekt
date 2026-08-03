@@ -63,9 +63,10 @@ function AppsLauncher() {
 
   if (loading || !session || role === "viewer") return null;
 
+  // Light Studio (2026-08-03): hell à la Searchable
   const S = {
-    bg: "#0b0e14", panel: "#12161f", panel2: "#181d29", line: "#232a3a",
-    txt: "#e8eaf2", mut: "#8a92a6", acc: "#8b8df5",
+    bg: "#f7f6f2", panel: "#ffffff", panel2: "#ffffff", line: "#e8e6df",
+    txt: "#1c1c1e", mut: "#6e6c64", acc: "#6c5ce7",
   };
 
   const tile = (a: EzyAppDef) => {
@@ -82,7 +83,8 @@ function AppsLauncher() {
           display: "block", textDecoration: "none", color: S.txt,
           background: S.panel2, borderRadius: 12, padding: 18,
           border: `1px solid ${isHover ? a.color : S.line}`,
-          opacity: allowed ? 1 : 0.45,
+          boxShadow: isHover ? "0 8px 28px rgba(0,0,0,.08)" : "0 1px 2px rgba(0,0,0,.04)",
+          opacity: allowed ? 1 : 0.5,
           cursor: allowed ? "pointer" : "not-allowed",
           transition: "border-color .15s, transform .15s",
           transform: isHover ? "translateY(-2px)" : "none",
@@ -103,7 +105,7 @@ function AppsLauncher() {
         }}>{a.icon}</div>
         <div style={{ fontWeight: 700, fontSize: 15.5, color: a.color, marginBottom: 4 }}>{a.name}</div>
         <div style={{ fontSize: 12.5, color: S.mut, lineHeight: 1.5 }}>{a.desc}</div>
-        <div style={{ marginTop: 10, fontSize: 11, color: allowed ? S.mut : "#fbbf24" }}>
+        <div style={{ marginTop: 10, fontSize: 11, color: allowed ? S.mut : "#b45309" }}>
           {allowed ? "Öffnen →" : "🔒 kein Zugriff — beim Admin anfragen"}
         </div>
       </a>
