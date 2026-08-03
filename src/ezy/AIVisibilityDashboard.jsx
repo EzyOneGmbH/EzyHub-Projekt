@@ -254,6 +254,37 @@ const intentColor = (i) => ({
 }[i] || C.sub);
 
 const TOPICS_PAGE_SIZE = 10;
+// Themen-Tab-Panel (03.08., Searchable-Parität): Suche + Umschalter Treemap/Tabelle.
+function TopicsPanel({ rows }) {
+  const [view, setView] = useState("beides"); // beides | treemap | tabelle
+  const [q, setQ] = useState("");
+  const shown = q.trim() ? (rows || []).filter((t) => t.topic.toLowerCase().includes(q.trim().toLowerCase())) : rows || [];
+  return (
+    <div className="mt-4 grid grid-cols-1 gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Themen durchsuchen…"
+          className="h-8 w-52 rounded-md border px-2 text-xs focus:outline-none focus-visible:ring-2"
+          style={{ borderColor: C.line, background: C.card, color: C.ink }}
+        />
+        <div className="flex rounded-lg border p-0.5" style={{ borderColor: C.line, background: C.card }}>
+          {[["beides", "Beides"], ["treemap", "Treemap"], ["tabelle", "Tabelle"]].map(([k, t]) => (
+            <button key={k} onClick={() => setView(k)}
+              className="rounded-md px-2.5 py-1 text-xs font-medium transition focus:outline-none"
+              style={{ background: view === k ? C.indigo : "transparent", color: view === k ? "#fff" : C.sub }}>
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
+      {view !== "tabelle" && <TopicTreemap rows={shown} />}
+      {view !== "treemap" && <TopicsTable rows={shown} />}
+    </div>
+  );
+}
+
 function TopicsTable({ rows }) {
   // 10er-Pagination wie bei den Prompts (User-Wunsch 2026-07-19).
   const [page, setPage] = useState(0);
@@ -358,14 +389,39 @@ function TopicsTable({ rows }) {
   );
 }
 
+// Domain-Favicon mit Fallback auf Initial-Chip (Google-s2-Dienst).
+function DomainFavicon({ domain }) {
+  const [imgOk, setImgOk] = useState(true);
+  if (imgOk) {
+    return (
+      <img src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`} alt=""
+        width={16} height={16} className="shrink-0 rounded-sm" loading="lazy" onError={() => setImgOk(false)} />
+    );
+  }
+  return (
+    <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-[9px] font-bold text-white" style={{ background: C.sub }}>
+      {String(domain).charAt(0).toUpperCase()}
+    </span>
+  );
+}
+
 function SourcesTable({ rows }) {
+  const [q, setQ] = useState(""); // Suche (Searchable-Parität 03.08.)
+  const shown = q.trim() ? rows.filter((r) => r.domain.toLowerCase().includes(q.trim().toLowerCase())) : rows;
   return (
     <div className="rounded-xl border" style={{ ...CARD, boxShadow: "0 1px 2px rgba(0,0,0,.04)" }}>
-      <div className="flex items-center gap-2 border-b px-5 py-3" style={{ borderColor: C.line }}>
+      <div className="flex flex-wrap items-center gap-2 border-b px-5 py-3" style={{ borderColor: C.line }}>
         <Link2 size={15} style={{ color: C.sub }} />
         <h3 className="text-[13px] font-semibold" style={{ color: C.ink }}>Referenzierte Quellen</h3>
         <span title="Alle Domains, die in KI-Antworten als Quelle verlinkt oder genannt wurden." style={{ color: C.sub, cursor: "help", display: "inline-flex" }}><Info size={13} /></span>
         <span className="truncate text-[12px]" style={{ color: C.sub }}>· Jede zitierte Domain über alle KI-Antworten</span>
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Domain suchen…"
+          className="ml-auto h-7 w-40 rounded-md border px-2 text-xs focus:outline-none focus-visible:ring-2"
+          style={{ borderColor: C.line, background: C.card, color: C.ink }}
+        />
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -379,10 +435,11 @@ function SourcesTable({ rows }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {shown.map((r) => (
               <tr key={r.domain} className="border-t" style={{ borderColor: C.line }}>
                 <td className="px-5 py-2.5">
-                  <span className="inline-flex items-center gap-1.5 font-medium" style={{ color: C.indigo }}>
+                  <span className="inline-flex items-center gap-2 font-medium" style={{ color: C.indigo }}>
+                    <DomainFavicon domain={r.domain} />
                     {r.domain} <ExternalLink size={11} />
                   </span>
                 </td>
@@ -782,6 +839,49 @@ function PromptDetailModal({ g, opportunity, onClose }) {
   );
 }
 
+// Engine-Favicon (Searchable-Optik): bekanntes KI-System -> echtes Favicon,
+// unbekannt -> farbiger Status-Punkt wie bisher.
+const ENGINE_DOMAIN = [
+  ["chatgpt", "openai.com"], ["gpt", "openai.com"], ["openai", "openai.com"],
+  ["claude", "claude.ai"], ["gemini", "gemini.google.com"], ["perplexity", "perplexity.ai"],
+  ["grok", "x.ai"], ["deepseek", "deepseek.com"], ["copilot", "copilot.microsoft.com"],
+  ["aio", "google.com"], ["ai-mode", "google.com"], ["ai mode", "google.com"], ["google", "google.com"],
+  ["llama", "meta.com"], ["mistral", "mistral.ai"],
+];
+const engineDomain = (platform) => {
+  const p = String(platform || "").toLowerCase();
+  return ENGINE_DOMAIN.find(([k]) => p.includes(k))?.[1];
+};
+function EngineFavicon({ platform, status }) {
+  const [imgOk, setImgOk] = useState(true);
+  const dom = engineDomain(platform);
+  if (dom && imgOk) {
+    return (
+      <img src={`https://www.google.com/s2/favicons?domain=${dom}&sz=32`} alt="" width={16} height={16}
+        className="mt-0.5 shrink-0 rounded-sm" loading="lazy" onError={() => setImgOk(false)} />
+    );
+  }
+  return <span className="mt-0.5 inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: STATUS_COLOR(status || "Nicht erwähnt") }} />;
+}
+
+// Marken-Zelle: bis 3 Initial-Chips der mit-genannten Marken + "+N" (Searchable-Stapel).
+function BrandStack({ comps, total }) {
+  const names = (comps || []).slice(0, 3);
+  const rest = Math.max(0, (total ?? (comps || []).length) - names.length);
+  if (!names.length && !rest) return <span style={{ color: C.sub }}>—</span>;
+  return (
+    <span className="inline-flex items-center -space-x-1" title={(comps || []).join(", ")}>
+      {names.map((n) => (
+        <span key={n} className="inline-flex h-[16px] w-[16px] items-center justify-center rounded-full text-[9px] font-bold text-white ring-1 ring-white"
+          style={{ background: AVATAR_COLORS[[...String(n)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % AVATAR_COLORS.length] }}>
+          {String(n).charAt(0).toUpperCase()}
+        </span>
+      ))}
+      {rest > 0 && <span className="pl-1.5 text-[10px] tabular-nums" style={{ color: C.sub }}>+{rest}</span>}
+    </span>
+  );
+}
+
 // Ja/Nein-Pill (Searchable All-Responses-Muster: grünes ✓ / rotes ✕)
 function YesNoPill({ yes }) {
   return (
@@ -841,7 +941,7 @@ function PromptGroupRow({ g, opportunity }) {
           <tr key={e.platform} className="border-t" style={{ borderColor: C.line }}>
             <td className="py-2 pl-11 pr-3 align-top">
               <div className="flex items-start gap-2">
-                <span className="mt-0.5 inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: STATUS_COLOR(e.status || "Nicht erwähnt") }} />
+                <EngineFavicon platform={e.platform} status={e.status} />
                 <div className="min-w-0">
                   <span className="text-[12px] font-semibold" style={{ color: C.ink }}>{e.platform}</span>
                   {snippet && <span className="ml-2 text-[11.5px]" style={{ color: C.sub }}>{snippet}{(e.response || "").length > 110 ? "…" : ""}</span>}
@@ -853,7 +953,7 @@ function PromptGroupRow({ g, opportunity }) {
             <td className="px-3 py-2 text-center align-top text-[11.5px]" style={{ color: mentioned ? C.ink : C.sub }}>
               {mentioned && e.position ? (POS_LABEL[e.position] || "—") : "—"}
             </td>
-            <td className="px-3 py-2 text-center align-top text-[11.5px] tabular-nums" style={{ color: C.sub }}>{e.brands || "—"}</td>
+            <td className="px-3 py-2 text-center align-top text-[11.5px]"><BrandStack comps={e.comps} total={e.brands} /></td>
             <td className="px-3 py-2 text-center align-top text-[11.5px] tabular-nums" style={{ color: C.sub }}>{e.sources || "—"}</td>
           </tr>
         );
@@ -923,17 +1023,30 @@ function PromptMatrix({ prompts, opps }) {
           <text key={t} x={PL - 6} y={y(v) + 3} textAnchor="end" fontSize="9" fill={C.sub}>{t}</text>
         ))}
         <text x={(PL + W - PR) / 2} y={H - 4} textAnchor="middle" fontSize="9.5" fill={C.sub}>Erwähnungsquote</text>
-        {/* Blasen — grösste zuerst, damit kleine anklickbar oben liegen */}
-        {[...dots].sort((a, b) => b.srcSum - a.srcSum).map((d, i) => (
-          <circle
-            key={`${d.prompt}·${d.country}·${i}`}
-            cx={x(d.rate)} cy={y(d.avgPos)} r={r(d.srcSum)}
-            fill={INTENT_COLOR[d.intent] || C.sub} fillOpacity="0.55"
-            stroke={INTENT_COLOR[d.intent] || C.sub} strokeWidth="1"
-          >
-            <title>{`${d.prompt}\nErwähnt: ${d.mentioned}/${d.total} (${Math.round(d.rate)} %) · Quellen: ${d.srcSum}${d.intent ? ` · ${d.intent}` : ""}`}</title>
-          </circle>
-        ))}
+        {/* Blasen — grösste zuerst, damit kleine anklickbar oben liegen.
+            Identische Koordinaten (häufig: Quote 0/25/50 %, Position 0) werden
+            deterministisch spiralförmig entzerrt, sonst sieht man 1 statt 75. */}
+        {(() => {
+          const seen = new Map();
+          return [...dots].sort((a, b) => b.srcSum - a.srcSum).map((d, i) => {
+            const key = `${Math.round(d.rate)}|${d.avgPos.toFixed(2)}`;
+            const k = seen.get(key) || 0;
+            seen.set(key, k + 1);
+            const ang = k * 2.4, rad = 7 * Math.sqrt(k);
+            const cx = Math.min(W - PR - 4, Math.max(PL + 4, x(d.rate) + rad * Math.cos(ang)));
+            const cy = Math.min(H - PB - 4, Math.max(PT + 4, y(d.avgPos) + rad * Math.sin(ang)));
+            return (
+              <circle
+                key={`${d.prompt}·${d.country}·${i}`}
+                cx={cx} cy={cy} r={r(d.srcSum)}
+                fill={INTENT_COLOR[d.intent] || C.sub} fillOpacity="0.55"
+                stroke={INTENT_COLOR[d.intent] || C.sub} strokeWidth="1"
+              >
+                <title>{`${d.prompt}\nErwähnt: ${d.mentioned}/${d.total} (${Math.round(d.rate)} %) · Quellen: ${d.srcSum}${d.intent ? ` · ${d.intent}` : ""}`}</title>
+              </circle>
+            );
+          });
+        })()}
       </svg>
       {intents.length > 0 && (
         <div className="mt-2 flex flex-wrap items-center gap-3 text-[10.5px]" style={{ color: C.sub }}>
@@ -964,11 +1077,42 @@ function pageNumbers(cur, pages) {
   return out;
 }
 
+// CSV-Export (Searchable-Parität): flache Zeilen Prompt × Engine als Download.
+function promptsToCsv(rows) {
+  const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const head = ["Prompt", "Land", "KI-System", "Status", "Position", "Marken", "Quellen", "Antwort"];
+  const lines = rows.map((r) =>
+    [r.prompt, r.country, r.platform, r.status || "Nicht erwähnt", POS_LABEL[r.position] || "", r.brands ?? "", r.sources ?? "", String(r.response || "").slice(0, 500)].map(esc).join(";"),
+  );
+  return "﻿" + [head.map(esc).join(";"), ...lines].join("\r\n");
+}
+
 function PromptsTable({ prompts, opps, brand, brandPrompts = [], needsReview = 0 }) {
   const [tab, setTab] = useState("all");
   const [page, setPage] = useState(0);
+  const [q, setQ] = useState("");            // Suchfeld (Searchable-Parität)
+  const [statusF, setStatusF] = useState("alle"); // Status-Filter
   const allRows = [...prompts, ...opps.map((o) => ({ ...o, status: "Nicht erwähnt" }))];
-  const source = tab === "all" ? allRows : tab === "win" ? prompts : tab === "brand" ? brandPrompts : opps;
+  let source = tab === "all" ? allRows : tab === "win" ? prompts : tab === "brand" ? brandPrompts : opps;
+  if (q.trim()) {
+    const needle = q.trim().toLowerCase();
+    source = source.filter((r) => r.prompt.toLowerCase().includes(needle) || String(r.response || "").toLowerCase().includes(needle));
+  }
+  if (statusF !== "alle") {
+    source = source.filter((r) =>
+      statusF === "zitiert" ? r.status === "Referenziert"
+      : statusF === "erwaehnt" ? r.status && r.status !== "Nicht erwähnt"
+      : !r.status || r.status === "Nicht erwähnt",
+    );
+  }
+  const downloadCsv = () => {
+    const blob = new Blob([promptsToCsv(source)], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `ezyai-prompts-${brand.replace(/[^a-z0-9.-]+/gi, "_")}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
   const opportunity = tab === "opp";
   const groups = groupPrompts(source);
   const pages = Math.max(1, Math.ceil(groups.length / PROMPTS_PAGE_SIZE));
@@ -978,14 +1122,37 @@ function PromptsTable({ prompts, opps, brand, brandPrompts = [], needsReview = 0
     <div className="rounded-xl border" style={CARD}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3" style={{ borderColor: C.line }}>
         <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Prompts</h3>
-        <div className="flex rounded-lg border p-0.5" style={{ borderColor: C.line }}>
-          {[{ k: "all", t: "Alle Prompts" }, { k: "win", t: "Erfolgreichste Prompts" }, { k: "opp", t: "Prompt-Chancen" }, ...(brandPrompts.length ? [{ k: "brand", t: "Marken-Prompts" }] : [])].map((x) => (
-            <button key={x.k} onClick={() => { setTab(x.k); setPage(0); }}
-              className="rounded-md px-2.5 py-1 text-xs font-medium transition focus:outline-none focus-visible:ring-2"
-              style={{ background: tab === x.k ? C.indigo : "transparent", color: tab === x.k ? "#fff" : C.sub }}>
-              {x.t}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            value={q}
+            onChange={(e) => { setQ(e.target.value); setPage(0); }}
+            placeholder="Prompts durchsuchen…"
+            className="h-7 w-44 rounded-md border px-2 text-xs focus:outline-none focus-visible:ring-2"
+            style={{ borderColor: C.line, background: C.card, color: C.ink }}
+          />
+          <select
+            value={statusF}
+            onChange={(e) => { setStatusF(e.target.value); setPage(0); }}
+            className="h-7 rounded-md border px-1.5 text-xs focus:outline-none"
+            style={{ borderColor: C.line, background: C.card, color: C.sub }}
+          >
+            <option value="alle">Alle Status</option>
+            <option value="erwaehnt">Nur erwähnt</option>
+            <option value="zitiert">Nur zitiert</option>
+            <option value="nicht">Nicht erwähnt</option>
+          </select>
+          <button onClick={downloadCsv} className="h-7 rounded-md border px-2 text-xs font-medium" style={{ borderColor: C.line, color: C.sub, background: C.card }}>
+            CSV
+          </button>
+          <div className="flex rounded-lg border p-0.5" style={{ borderColor: C.line }}>
+            {[{ k: "all", t: "Alle Prompts" }, { k: "win", t: "Erfolgreichste Prompts" }, { k: "opp", t: "Prompt-Chancen" }, ...(brandPrompts.length ? [{ k: "brand", t: "Marken-Prompts" }] : [])].map((x) => (
+              <button key={x.k} onClick={() => { setTab(x.k); setPage(0); }}
+                className="rounded-md px-2.5 py-1 text-xs font-medium transition focus:outline-none focus-visible:ring-2"
+                style={{ background: tab === x.k ? C.indigo : "transparent", color: tab === x.k ? "#fff" : C.sub }}>
+                {x.t}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
       {needsReview > 0 && (
@@ -1464,20 +1631,83 @@ function PositionHeadToHead({ prompts, sov, brand }) {
               </div>
             ))}
           </div>
+          {/* Auto-Vergleichstext (Searchable-Parität, deterministisch aus den Zahlen — kein LLM) */}
+          <p className="mt-3 text-[11.5px] leading-relaxed" style={{ color: C.sub }}>
+            {selfRate > rivalRate
+              ? <>{brand} ist mit <strong style={{ color: C.ink }}>{selfRate} %</strong> Präsenz häufiger in KI-Antworten vertreten als {rival.brand} ({rivalRate} %).</>
+              : selfRate < rivalRate
+              ? <>{rival.brand} ist mit <strong style={{ color: C.ink }}>{rivalRate} %</strong> Präsenz häufiger in KI-Antworten vertreten als {brand} ({selfRate} %).</>
+              : <>{brand} und {rival.brand} sind mit je {selfRate} % gleich präsent.</>}
+            {selfShare != null && rival.share != null && (
+              <> Beim Share of Voice {selfShare > rival.share ? "führt" : selfShare < rival.share ? "liegt" : "gleichauf liegt"} {selfShare >= rival.share ? brand : rival.brand} mit {Math.max(selfShare, rival.share)} % gegenüber {Math.min(selfShare, rival.share)} %{selfShare < rival.share ? ` — ${rival.brand} wird pro Antwort öfter genannt, obwohl ${brand} ${selfRate >= rivalRate ? "häufiger vorkommt" : "seltener vorkommt"}` : ""}.</>
+            )}
+          </p>
         </RCard>
       )}
     </div>
   );
 }
 
+// Top-Domains-Trend (03.08., Searchable "Top Domains"): Zitierhäufigkeit der
+// Top-5-Domains je Monatsreport als Mehrlinien-Chart mit Favicon-Legende.
+const DOMAIN_TREND_COLORS = ["#6c5ce7", "#0d9488", "#d97706", "#dc2626", "#0284c7"];
+function DomainTrendCard({ trend }) {
+  const months = trend?.months || [];
+  const series = (trend?.series || []).filter((s) => s.values.some((v) => v > 0));
+  if (months.length < 2 || !series.length) return null;
+  const W = 560, H = 200, PAD = 8, AXL = 30, AXB = 16;
+  const maxV = Math.max(1, ...series.flatMap((s) => s.values));
+  const x = (i) => AXL + PAD + (i / Math.max(1, months.length - 1)) * (W - AXL - 2 * PAD);
+  const y = (v) => H - AXB - PAD - (v / maxV) * (H - AXB - 2 * PAD);
+  return (
+    <RCard icon={Link2} title="Top-Domains-Trend" info="Wie oft die fünf meistzitierten Domains je Monatsmessung in KI-Antworten als Quelle auftauchen." desc="Zitierhäufigkeit der Top-Domains über die Monate" footer={`${series.length} Domains · ${months.length} Monate`}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 210 }}>
+        {[0, 0.5, 1].map((f) => (
+          <g key={f}>
+            <line x1={AXL + PAD} x2={W - PAD} y1={y(f * maxV)} y2={y(f * maxV)} stroke={C.line} strokeWidth="1" />
+            <text x={AXL} y={y(f * maxV) + 3} textAnchor="end" fontSize="9" fill={C.sub}>{Math.round(f * maxV)}</text>
+          </g>
+        ))}
+        {months.map((m, i) => (
+          (months.length <= 6 || i === 0 || i === months.length - 1 || i === Math.floor(months.length / 2)) ? (
+            <text key={i} x={x(i)} y={H - 3} textAnchor="middle" fontSize="9" fill={C.sub}>{m}</text>
+          ) : null
+        ))}
+        {series.map((s, si) => (
+          <g key={s.domain}>
+            <polyline points={s.values.map((v, i) => `${x(i)},${y(v)}`).join(" ")} fill="none" stroke={DOMAIN_TREND_COLORS[si % DOMAIN_TREND_COLORS.length]} strokeWidth="2" />
+            <circle cx={x(s.values.length - 1)} cy={y(s.values[s.values.length - 1])} r="3" fill={DOMAIN_TREND_COLORS[si % DOMAIN_TREND_COLORS.length]} />
+          </g>
+        ))}
+      </svg>
+      <div className="mt-2 flex flex-wrap items-center gap-3 text-[10.5px]" style={{ color: C.sub }}>
+        {series.map((s, si) => (
+          <span key={s.domain} className="inline-flex items-center gap-1.5">
+            <span className="inline-block h-2 w-2 rounded-full" style={{ background: DOMAIN_TREND_COLORS[si % DOMAIN_TREND_COLORS.length] }} />
+            <DomainFavicon domain={s.domain} />
+            {s.domain}
+          </span>
+        ))}
+      </div>
+    </RCard>
+  );
+}
+
 // ── Zitierquellen-Typologie + Gap (Searchable-Nachbau 08/2026, Heuristik) ────
+// Feinere Typologie (03.08., Searchable hat 15 Typen): erste Regel gewinnt.
 const SOURCE_TYPE_RULES = [
   { type: "Video (YouTube)", re: /(^|\.)youtube\.com$|(^|\.)youtu\.be$|(^|\.)vimeo\.com$/ },
-  { type: "Community/Forum", re: /(^|\.)reddit\.com$|(^|\.)quora\.com$|forum/ },
-  { type: "Wiki", re: /wikipedia\.org$|(^|\.)wikidata\.org$/ },
-  { type: "Social", re: /(^|\.)linkedin\.com$|(^|\.)instagram\.com$|(^|\.)facebook\.com$|(^|\.)tiktok\.com$|(^|\.)pinterest\./ },
-  { type: "Verzeichnis & Reviews", re: /(^|\.)tripadvisor\.|(^|\.)booking\.com$|(^|\.)yelp\.|(^|\.)local\.ch$|(^|\.)search\.ch$|(^|\.)trustpilot\.|vergleich|(^|\.)maps\.google\./ },
-  { type: "Presse/News", re: /(^|\.)nzz\.ch$|(^|\.)blick\.ch$|(^|\.)20min\.ch$|(^|\.)srf\.ch$|(^|\.)watson\.ch$|(^|\.)handelszeitung\.ch$|zeitung|news/ },
+  { type: "Reddit/Forum", re: /(^|\.)reddit\.com$|(^|\.)quora\.com$|(^|\.)gutefrage\.net$|forum/ },
+  { type: "Wiki", re: /wikipedia\.org$|(^|\.)wikidata\.org$|(^|\.)wikivoyage\.org$/ },
+  { type: "LinkedIn", re: /(^|\.)linkedin\.com$/ },
+  { type: "Social (weitere)", re: /(^|\.)instagram\.com$|(^|\.)facebook\.com$|(^|\.)tiktok\.com$|(^|\.)pinterest\.|(^|\.)x\.com$|(^|\.)twitter\.com$/ },
+  { type: "Buchungsportal (OTA)", re: /(^|\.)booking\.com$|(^|\.)expedia\.|(^|\.)hotels\.com$|(^|\.)agoda\.|(^|\.)trivago\.|(^|\.)airbnb\.|(^|\.)hrs\.|(^|\.)ebookers\./ },
+  { type: "Bewertungen", re: /(^|\.)tripadvisor\.|(^|\.)trustpilot\.|(^|\.)yelp\.|(^|\.)holidaycheck\.|(^|\.)provenexpert\.|(^|\.)kununu\./ },
+  { type: "Vergleichsportal", re: /(^|\.)comparis\.ch$|(^|\.)check24\.|(^|\.)idealo\.|vergleich/ },
+  { type: "Verzeichnis", re: /(^|\.)local\.ch$|(^|\.)search\.ch$|(^|\.)gelbeseiten\.|(^|\.)yellowpages\.|(^|\.)maps\.google\./ },
+  { type: "Tourismus/Region", re: /(^|\.)myswitzerland\.com$|(^|\.)graubuenden\.ch$|(^|\.)stmoritz\.|(^|\.)engadin\.|(^|\.)pontresina\.|tourismus|tourism/ },
+  { type: "Ratgeber/How-To", re: /blog|ratgeber|guide|magazin|howto|how-to|tipps/ },
+  { type: "Presse/News", re: /(^|\.)nzz\.ch$|(^|\.)blick\.ch$|(^|\.)20min\.ch$|(^|\.)srf\.ch$|(^|\.)watson\.ch$|(^|\.)handelszeitung\.ch$|(^|\.)suedostschweiz\.ch$|zeitung|news/ },
 ];
 function classifySourceDomain(domain, ownHost) {
   const d = String(domain || "").toLowerCase().replace(/^www\./, "");
@@ -1538,10 +1768,11 @@ const SCORE_GUIDE = (s) =>
 
 function VisibilityHero({ score, delta, history }) {
   const pts = (history || []).filter((h) => h.score != null).slice(-12);
-  const W = 520, H = 150, PAD = 8;
+  // Achsen (Searchable-Parität 03.08.): links Skala, unten Monate.
+  const W = 520, H = 150, PAD = 8, AXL = 30, AXB = 16;
   const maxS = Math.max(10, ...pts.map((p) => p.score));
-  const x = (i) => PAD + (i / Math.max(1, pts.length - 1)) * (W - 2 * PAD);
-  const y = (v) => H - PAD - (v / maxS) * (H - 2 * PAD);
+  const x = (i) => AXL + PAD + (i / Math.max(1, pts.length - 1)) * (W - AXL - 2 * PAD);
+  const y = (v) => H - AXB - PAD - (v / maxS) * (H - AXB - 2 * PAD);
   const line = pts.map((p, i) => `${x(i)},${y(p.score)}`).join(" ");
   return (
     <RCard icon={Eye} title="Sichtbarkeit" info="Sichtbarkeits-Score der Marke über alle gemessenen KI-Systeme; Verlauf = Monatswerte." desc="Score-Trend über alle KI-Systeme" footer={`${pts.length} Monatspunkte`}>
@@ -1565,8 +1796,16 @@ function VisibilityHero({ score, delta, history }) {
       )}
       {pts.length > 1 && (
         <svg viewBox={`0 0 ${W} ${H}`} className="mt-2 w-full" style={{ maxHeight: 150 }}>
-          {[0.25, 0.5, 0.75].map((f) => (
-            <line key={f} x1={PAD} x2={W - PAD} y1={PAD + f * (H - 2 * PAD)} y2={PAD + f * (H - 2 * PAD)} stroke={C.line} strokeWidth="1" />
+          {[0, 0.5, 1].map((f) => (
+            <g key={f}>
+              <line x1={AXL + PAD} x2={W - PAD} y1={y(f * maxS)} y2={y(f * maxS)} stroke={C.line} strokeWidth="1" />
+              <text x={AXL} y={y(f * maxS) + 3} textAnchor="end" fontSize="9" fill={C.sub}>{Math.round(f * maxS)}</text>
+            </g>
+          ))}
+          {pts.map((p, i) => (
+            (pts.length <= 6 || i === 0 || i === pts.length - 1 || i === Math.floor(pts.length / 2)) && p.m ? (
+              <text key={i} x={x(i)} y={H - 3} textAnchor="middle" fontSize="9" fill={C.sub}>{p.m}</text>
+            ) : null
           ))}
           <polyline points={line} fill="none" stroke={C.indigo} strokeWidth="2" />
           <circle cx={x(pts.length - 1)} cy={y(pts[pts.length - 1].score)} r="3.5" fill={C.indigo} />
@@ -1579,7 +1818,31 @@ function VisibilityHero({ score, delta, history }) {
 // Visibility-Tab Zeile 1 rechts: Rankings — Marke vs. Konkurrenten.
 // Präsenz je Marke aus den Prompt-Zeilen (comps-Array); Sentiment nur für die
 // eigene Marke erhoben → Konkurrenz ehrlich mit „—".
-function RankingsTable({ prompts, sov, brand, sentimentPct }) {
+// Marken-Avatar: eigene Domain -> echtes Favicon, Konkurrenten -> Initial-Chip
+// (wir kennen von Rivalen nur Namen, keine Domains — ehrlich statt geraten).
+const AVATAR_COLORS = ["#6c5ce7", "#0d9488", "#d97706", "#7c5cf0", "#0284c7", "#dc2626", "#059669", "#b45309"];
+function BrandAvatar({ name, domain }) {
+  const [imgOk, setImgOk] = useState(true);
+  if (domain && imgOk) {
+    return (
+      <img
+        src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`}
+        alt="" width={18} height={18} className="rounded" loading="lazy"
+        onError={() => setImgOk(false)}
+      />
+    );
+  }
+  const c = AVATAR_COLORS[[...String(name)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % AVATAR_COLORS.length];
+  return (
+    <span className="inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded text-[10px] font-bold text-white" style={{ background: c }}>
+      {String(name).charAt(0).toUpperCase()}
+    </span>
+  );
+}
+
+function RankingsTable({ prompts, sov, brand, sentimentPct, domain }) {
+  // Sortierbare Spalten (Searchable-Parität): Klick auf Kopf toggelt Richtung.
+  const [sort, setSort] = useState({ key: "vis", dir: -1 });
   const all = prompts || [];
   const presence = (name, self) => {
     if (!all.length) return 0;
@@ -1591,18 +1854,30 @@ function RankingsTable({ prompts, sov, brand, sentimentPct }) {
   const rows = [
     { brand, self: true, vis: presence(brand, true), share: (sov || []).find((s) => s.isSelf)?.share ?? null, senti: sentimentPct },
     ...(sov || []).filter((s) => !s.isSelf).slice(0, 8).map((s) => ({ brand: s.brand, self: false, vis: presence(s.brand, false), share: s.share, senti: null })),
-  ].sort((a, b) => b.vis - a.vis);
+  ].sort((a, b) => sort.dir * (((a[sort.key] ?? -1) - (b[sort.key] ?? -1)) || a.brand.localeCompare(b.brand)));
+  const SortTh = ({ k, label, align = "right" }) => (
+    <th className={`px-3 py-2 text-${align} font-medium`}>
+      <button
+        onClick={() => setSort((s) => ({ key: k, dir: s.key === k ? -s.dir : -1 }))}
+        className="inline-flex items-center gap-0.5 focus:outline-none"
+        style={{ color: sort.key === k ? C.ink : C.sub }}
+      >
+        {label}
+        <span className="text-[8px]">{sort.key === k ? (sort.dir === -1 ? "▼" : "▲") : "↕"}</span>
+      </button>
+    </th>
+  );
   return (
-    <RCard icon={Hash} title="Rankings" info="Präsenzrate je Marke = Anteil der KI-Antworten, in denen die Marke vorkommt. Sentiment wird nur für die eigene Marke bewertet." desc="Marke im Vergleich zum Wettbewerb" footer={`${rows.length} Marken`} pad={false}>
+    <RCard icon={Hash} title="Rankings" info="Präsenzrate je Marke = Anteil der KI-Antworten, in denen die Marke vorkommt. Sentiment wird nur für die eigene Marke bewertet. Spalten sind per Klick sortierbar." desc="Marke im Vergleich zum Wettbewerb" footer={`${rows.length} Marken`} pad={false}>
       <div className="overflow-x-auto">
         <table className="w-full text-[12px]" style={{ borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ color: C.sub }}>
               <th className="px-5 py-2 text-left font-medium">#</th>
               <th className="px-3 py-2 text-left font-medium">Marke</th>
-              <th className="px-3 py-2 text-right font-medium">Präsenz</th>
-              <th className="px-3 py-2 text-right font-medium">SoV</th>
-              <th className="px-3 py-2 text-right font-medium">Sentiment</th>
+              <SortTh k="vis" label="Präsenz" />
+              <SortTh k="share" label="SoV" />
+              <SortTh k="senti" label="Sentiment" />
             </tr>
           </thead>
           <tbody>
@@ -1610,8 +1885,11 @@ function RankingsTable({ prompts, sov, brand, sentimentPct }) {
               <tr key={r.brand} style={{ borderTop: `1px solid ${C.line}`, background: r.self ? "rgba(108,92,231,.05)" : "transparent" }}>
                 <td className="px-5 py-2 tabular-nums" style={{ color: C.sub }}>{i + 1}</td>
                 <td className="px-3 py-2 font-semibold" style={{ color: r.self ? C.indigo : C.ink }}>
-                  {r.brand}
-                  {r.self && <span className="ml-2 rounded px-1.5 py-0.5 text-[9.5px] font-bold" style={{ background: C.indigo, color: "#fff" }}>DU</span>}
+                  <span className="inline-flex items-center gap-2">
+                    <BrandAvatar name={r.brand} domain={r.self ? domain : undefined} />
+                    {r.brand}
+                    {r.self && <span className="rounded px-1.5 py-0.5 text-[9.5px] font-bold" style={{ background: C.indigo, color: "#fff" }}>DU</span>}
+                  </span>
                 </td>
                 <td className="px-3 py-2 text-right font-semibold tabular-nums" style={{ color: C.ink }}>{r.vis}%</td>
                 <td className="px-3 py-2 text-right tabular-nums" style={{ color: C.sub }}>{r.share != null ? `${r.share}%` : "—"}</td>
@@ -1629,10 +1907,10 @@ function RankingsTable({ prompts, sov, brand, sentimentPct }) {
 // (Searchable zeigt 7 Tage — unsere Messbasis ist der Monats-Trend, ehrlich beschriftet).
 function MetricTrendCard({ icon, title, info, value, delta, series, color }) {
   const pts = (series || []).slice(-12);
-  const W = 520, H = 120, PAD = 8;
+  const W = 520, H = 120, PAD = 8, AXL = 30, AXB = 16;
   const maxV = Math.max(1, ...pts.map((p) => p.v));
-  const x = (i) => PAD + (i / Math.max(1, pts.length - 1)) * (W - 2 * PAD);
-  const y = (v) => H - PAD - (v / maxV) * (H - 2 * PAD);
+  const x = (i) => AXL + PAD + (i / Math.max(1, pts.length - 1)) * (W - AXL - 2 * PAD);
+  const y = (v) => H - AXB - PAD - (v / maxV) * (H - AXB - 2 * PAD);
   return (
     <RCard icon={icon} title={title} info={info} desc="Monats-Verlauf über alle KI-Systeme" footer={`${pts.length} Monate`}>
       <div className="text-[11px] uppercase tracking-wide" style={{ color: C.sub }}>{title} gesamt</div>
@@ -1644,8 +1922,16 @@ function MetricTrendCard({ icon, title, info, value, delta, series, color }) {
       </div>
       {pts.length > 1 && (
         <svg viewBox={`0 0 ${W} ${H}`} className="mt-2 w-full" style={{ maxHeight: 120 }}>
-          {[0.33, 0.66].map((f) => (
-            <line key={f} x1={PAD} x2={W - PAD} y1={PAD + f * (H - 2 * PAD)} y2={PAD + f * (H - 2 * PAD)} stroke={C.line} strokeWidth="1" />
+          {[0, 0.5, 1].map((f) => (
+            <g key={f}>
+              <line x1={AXL + PAD} x2={W - PAD} y1={y(f * maxV)} y2={y(f * maxV)} stroke={C.line} strokeWidth="1" />
+              <text x={AXL} y={y(f * maxV) + 3} textAnchor="end" fontSize="9" fill={C.sub}>{Math.round(f * maxV)}</text>
+            </g>
+          ))}
+          {pts.map((p, i) => (
+            (pts.length <= 6 || i === 0 || i === pts.length - 1 || i === Math.floor(pts.length / 2)) && p.m ? (
+              <text key={i} x={x(i)} y={H - 3} textAnchor="middle" fontSize="9" fill={C.sub}>{p.m}</text>
+            ) : null
           ))}
           <polyline points={pts.map((p, i) => `${x(i)},${y(p.v)}`).join(" ")} fill="none" stroke={color} strokeWidth="2" />
           <circle cx={x(pts.length - 1)} cy={y(pts[pts.length - 1].v)} r="3.5" fill={color} />
@@ -1804,7 +2090,7 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
             {/* Zeile 1 wie Searchable Visibility: Score-Verlauf | Rankings */}
             <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
               <VisibilityHero score={d.score} delta={d.versionSwitch ? 0 : d.scoreDelta} history={d.trend} />
-              <RankingsTable prompts={d.prompts} sov={d.sov} brand={d.client} sentimentPct={sentimentPct} />
+              <RankingsTable prompts={d.prompts} sov={d.sov} brand={d.client} sentimentPct={sentimentPct} domain={d.domain} />
             </div>
             <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
               <TrendCard data={d.trend} />
@@ -1825,6 +2111,15 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
                 palette={[C.violet, C.indigo, C.teal, C.sub, C.amber]}
                 centerLabel="Prompts"
               />
+              {Array.isArray(d.sov) && d.sov.length > 1 && (
+                <DonutCard
+                  title="Share of Voice"
+                  subtitle={`Marke vs. Konkurrenten · ${d.date}`}
+                  data={[...d.sov].sort((a, b) => (b.isSelf ? 1 : 0) - (a.isSelf ? 1 : 0) || b.share - a.share).slice(0, 8).map((s) => ({ name: s.isSelf ? `${s.brand} · Sie` : s.brand, value: s.share }))}
+                  palette={[C.indigo, "#8b8da3", "#a7a9b8", "#c1c2cc", "#6e6c64", "#54555f", "#9a9ba8", "#b5b6c2"]}
+                  centerLabel="SoV %"
+                />
+              )}
             </div>
           </>
         )}
@@ -1833,8 +2128,8 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
           <>
             {/* Zeile 1 wie Searchable Mentions & Citations: zwei Kennzahl-Trends */}
             <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <MetricTrendCard icon={MessageSquare} title="Erwähnungen" info="Wie oft die Marke in KI-Antworten genannt wird — Monatsverlauf über alle Systeme." value={d.kpis.mentions.value} delta={d.kpis.mentions.delta} series={(d.trend || []).map((t) => ({ v: t.mentions }))} color={C.indigo} />
-              <MetricTrendCard icon={Link2} title="Citations" info="Wie oft KI-Antworten die eigene Website als Quelle verlinken — Monatsverlauf." value={d.kpis.citations.value} delta={d.kpis.citations.delta} series={(d.trend || []).map((t) => ({ v: t.citations }))} color={C.teal} />
+              <MetricTrendCard icon={MessageSquare} title="Erwähnungen" info="Wie oft die Marke in KI-Antworten genannt wird — Monatsverlauf über alle Systeme." value={d.kpis.mentions.value} delta={d.kpis.mentions.delta} series={(d.trend || []).map((t) => ({ v: t.mentions, m: t.m }))} color={C.indigo} />
+              <MetricTrendCard icon={Link2} title="Citations" info="Wie oft KI-Antworten die eigene Website als Quelle verlinken — Monatsverlauf." value={d.kpis.citations.value} delta={d.kpis.citations.delta} series={(d.trend || []).map((t) => ({ v: t.citations, m: t.m }))} color={C.teal} />
             </div>
             <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
               <FunnelCard prompts={fP} opps={fO} />
@@ -1854,17 +2149,13 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
 
         {tab === "quellen" && (
           <div className="mt-4 grid grid-cols-1 gap-4">
+            <DomainTrendCard trend={d.sourceTrend} />
             <CitedTypesCard sources={d.sources} ownDomain={d.domain} />
             <SourcesTable rows={d.sources} />
           </div>
         )}
 
-        {tab === "themen" && (
-          <div className="mt-4 grid grid-cols-1 gap-4">
-            <TopicTreemap rows={d.topics} />
-            <TopicsTable rows={d.topics} />
-          </div>
-        )}
+        {tab === "themen" && <TopicsPanel rows={d.topics} />}
 
         {tab === "prompts" && (
           <div className="mt-4 grid grid-cols-1 gap-4">

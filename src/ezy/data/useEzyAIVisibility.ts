@@ -75,6 +75,9 @@ export type AIVisibilityData = {
   prompts: AIPrompt[];
   promptOpps: AIPrompt[];
   sources: { domain: string; mentions: number; share: number; urls: number; traffic: number }[];
+  // Domain-Zitier-Trend (03.08., Searchable "Top Domains"): je Monat der neueste
+  // Report, dessen Quellen-Zeilen — Top-Domains als Mehrlinien-Serie.
+  sourceTrend?: { months: string[]; series: { domain: string; values: number[] }[] };
   attribution: {
     engine: string;
     sessions: number;
@@ -177,7 +180,7 @@ export async function loadAIVisibility(
     // datierte Backfill-Monate); Monats-Aggregation passiert unten in JS.
     sb
       .from("ai_visibility_reports")
-      .select("snapshot_date, mentions, citations, cited_pages, score")
+      .select("id, snapshot_date, mentions, citations, cited_pages, score")
       .eq("client_id", clientId)
       .gte("snapshot_date", new Date(Date.now() - 370 * 864e5).toISOString().slice(0, 10))
       .order("snapshot_date", { ascending: false })
@@ -200,6 +203,37 @@ export async function loadAIVisibility(
     (byModel[r.model_id] ??= {})[r.country] = (byModel[r.model_id]?.[r.country] || 0) + Number(r.mentions ?? 0);
     countryTotals[r.country] = (countryTotals[r.country] || 0) + Number(r.mentions ?? 0);
   }
+  // Monats-Reports (je Monat der NEUESTE) — Basis für trend UND Domain-Trend.
+  const perMonthRep = new Map<string, any>();
+  for (const h of history.data ?? []) {
+    const key = String(h.snapshot_date).slice(0, 7); // YYYY-MM
+    if (!perMonthRep.has(key)) perMonthRep.set(key, h);
+  }
+  const monthlyReps = [...perMonthRep.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-12)
+    .map(([, h]) => h);
+  // Domain-Zitier-Trend (K): Quellen der Monats-Reports nachladen (max. 12 IDs).
+  const { data: histSources } = monthlyReps.length
+    ? await sb.from("ai_visibility_sources").select("report_id, domain, mentions").in("report_id", monthlyReps.map((h: any) => h.id))
+    : { data: [] as any[] };
+  const srcByRep = new Map<string, Map<string, number>>();
+  const srcTotals = new Map<string, number>();
+  for (const s of histSources ?? []) {
+    const rid = String(s.report_id), dom = String(s.domain || "");
+    if (!dom) continue;
+    (srcByRep.get(rid) ?? srcByRep.set(rid, new Map()).get(rid)!).set(dom, Number(s.mentions ?? 0));
+    srcTotals.set(dom, (srcTotals.get(dom) || 0) + Number(s.mentions ?? 0));
+  }
+  const topDomains = [...srcTotals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([d]) => d);
+  const sourceTrend = {
+    months: monthlyReps.map((h: any) => monShort(String(h.snapshot_date))),
+    series: topDomains.map((domain) => ({
+      domain,
+      values: monthlyReps.map((h: any) => srcByRep.get(String(h.id))?.get(domain) ?? 0),
+    })),
+  };
+
   const promptRows = prompts; // fetchAllPromptRows liefert bereits das Array
   const intentTotals: Record<string, number> = {};
   for (const r of promptRows) {
@@ -239,25 +273,15 @@ export async function loadAIVisibility(
       citations: kpi(Number(rep.citations ?? 0), Number(rep.citations_delta ?? 0)),
       citedPages: kpi(Number(rep.cited_pages ?? 0), Number(rep.cited_pages_delta ?? 0)),
     },
-    // Monats-Trend (12 Monate): je Monat der NEUESTE Report (Reports kommen
-    // snapshot_date-absteigend -> erster Treffer je Monat gewinnt).
-    trend: (() => {
-      const perMonth = new Map<string, any>();
-      for (const h of history.data ?? []) {
-        const key = String(h.snapshot_date).slice(0, 7); // YYYY-MM
-        if (!perMonth.has(key)) perMonth.set(key, h);
-      }
-      return [...perMonth.entries()]
-        .sort(([a], [b]) => a.localeCompare(b)) // chronologisch
-        .slice(-12)
-        .map(([, h]: [string, any]) => ({
-          m: monShort(String(h.snapshot_date)),
-          mentions: Number(h.mentions ?? 0),
-          citations: Number(h.citations ?? 0),
-          pages: Number(h.cited_pages ?? 0),
-          score: h.score != null ? Number(h.score) : null, // VisibilityHero (03.08.)
-        }));
-    })(),
+    // Monats-Trend (12 Monate): je Monat der NEUESTE Report (monthlyReps oben).
+    trend: monthlyReps.map((h: any) => ({
+      m: monShort(String(h.snapshot_date)),
+      mentions: Number(h.mentions ?? 0),
+      citations: Number(h.citations ?? 0),
+      pages: Number(h.cited_pages ?? 0),
+      score: h.score != null ? Number(h.score) : null, // VisibilityHero (03.08.)
+    })),
+    sourceTrend,
     models: modelRows.map((m: any) => ({
       name: String(m.model_name ?? ""),
       layer: m.layer === "custom" ? "custom" : "macro",
