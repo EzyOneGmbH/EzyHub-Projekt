@@ -194,7 +194,7 @@ const CLIENT_LS = "ezyai.clientId";
 
 function EzyAiApp() {
   const navigate = useNavigate();
-  const { session, loading: authLoading, role } = useAuth();
+  const { session, loading: authLoading, role, isOrgAdmin } = useAuth();
   const { canOpen, loading: accessLoading } = useAppAccess();
   const ezy = useEzyClients();
   const [swOpen, setSwOpen] = useState(false);
@@ -291,6 +291,28 @@ function EzyAiApp() {
         </div>
 
         <div className="ezyai-head-right" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+          {isOrgAdmin && client?.id && (
+            <button
+              onClick={async () => {
+                // Teilbarer Read-only-Report-Link (30 Tage gültig)
+                const token = (await supabase.auth.getSession()).data.session?.access_token;
+                const r = await fetch("/api/public/report", {
+                  method: "POST",
+                  headers: { Authorization: `Bearer ${token || ""}`, "Content-Type": "application/json" },
+                  body: JSON.stringify({ clientId: client.id, days: 30 }),
+                });
+                const j = await r.json().catch(() => ({}));
+                if (j?.ok && j.url) {
+                  const full = `${window.location.origin}${j.url}`;
+                  try { await navigator.clipboard.writeText(full); alert(`Report-Link kopiert (30 Tage gültig):\n${full}`); }
+                  catch { window.prompt("Report-Link (30 Tage gültig) — kopieren:", full); }
+                } else alert(j?.error || "Link konnte nicht erstellt werden");
+              }}
+              style={{ fontSize: 12, color: S.app, background: "none", cursor: "pointer", border: `1px solid ${S.app}55`, borderRadius: 8, padding: "6px 12px" }}
+            >
+              Report teilen
+            </button>
+          )}
           <button onClick={() => setCurOpen(true)} style={{ fontSize: 12, color: S.mut, background: "none", cursor: "pointer", border: `1px solid ${S.line}`, borderRadius: 8, padding: "6px 12px" }}>
             Prompts verwalten
           </button>

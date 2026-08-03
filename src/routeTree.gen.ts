@@ -78,6 +78,8 @@ import { Route as ApiAgentPilotRouteImport } from './routes/api/agent.pilot'
 import { Route as ApiAgentCopilotRouteImport } from './routes/api/agent.copilot'
 import { Route as ApiAgentApprovalsRouteImport } from './routes/api/agent.approvals'
 import { Route as ApiAgentAgentsRouteImport } from './routes/api/agent.agents'
+import { Route as ApiPublicReportRouteImport } from './routes/api/public.report'
+import { Route as RTokenRouteImport } from './routes/r.$token'
 import { Route as ApiAdminAiCrawlerIngestRouteImport } from './routes/api/admin.ai-crawler-ingest'
 import { Route as ApiAgentReaktRouteImport } from './routes/api/agent.reakt'
 import { Route as ApiAdminWpPublishRouteImport } from './routes/api/admin.wp-publish'
@@ -473,6 +475,16 @@ const ApiAdminAiCrawlerIngestRoute = ApiAdminAiCrawlerIngestRouteImport.update({
   path: '/api/admin/ai-crawler-ingest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicReportRoute = ApiPublicReportRouteImport.update({
+  id: '/api/public/report',
+  path: '/api/public/report',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RTokenRoute = RTokenRouteImport.update({
+  id: '/r/$token',
+  path: '/r/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAgentAgentsRoute = ApiAgentAgentsRouteImport.update({
   id: '/api/agent/agents',
   path: '/api/agent/agents',
@@ -744,6 +756,8 @@ export interface FileRoutesByFullPath {
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
   '/api/agent/reakt': typeof ApiAgentReaktRoute
   '/api/admin/ai-crawler-ingest': typeof ApiAdminAiCrawlerIngestRoute
+  '/api/public/report': typeof ApiPublicReportRoute
+  '/r/$token': typeof RTokenRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
   '/api/agent/approvals': typeof ApiAgentApprovalsRoute
   '/api/agent/copilot': typeof ApiAgentCopilotRoute
@@ -854,6 +868,8 @@ export interface FileRoutesByTo {
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
   '/api/agent/reakt': typeof ApiAgentReaktRoute
   '/api/admin/ai-crawler-ingest': typeof ApiAdminAiCrawlerIngestRoute
+  '/api/public/report': typeof ApiPublicReportRoute
+  '/r/$token': typeof RTokenRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
   '/api/agent/approvals': typeof ApiAgentApprovalsRoute
   '/api/agent/copilot': typeof ApiAgentCopilotRoute
@@ -965,6 +981,8 @@ export interface FileRoutesById {
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
   '/api/agent/reakt': typeof ApiAgentReaktRoute
   '/api/admin/ai-crawler-ingest': typeof ApiAdminAiCrawlerIngestRoute
+  '/api/public/report': typeof ApiPublicReportRoute
+  '/r/$token': typeof RTokenRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
   '/api/agent/approvals': typeof ApiAgentApprovalsRoute
   '/api/agent/copilot': typeof ApiAgentCopilotRoute
@@ -1077,6 +1095,8 @@ export interface FileRouteTypes {
     | '/api/admin/wp-publish'
     | '/api/agent/reakt'
     | '/api/admin/ai-crawler-ingest'
+    | '/api/public/report'
+    | '/r/$token'
     | '/api/agent/agents'
     | '/api/agent/approvals'
     | '/api/agent/copilot'
@@ -1187,6 +1207,8 @@ export interface FileRouteTypes {
     | '/api/admin/wp-publish'
     | '/api/agent/reakt'
     | '/api/admin/ai-crawler-ingest'
+    | '/api/public/report'
+    | '/r/$token'
     | '/api/agent/agents'
     | '/api/agent/approvals'
     | '/api/agent/copilot'
@@ -1297,6 +1319,8 @@ export interface FileRouteTypes {
     | '/api/admin/wp-publish'
     | '/api/agent/reakt'
     | '/api/admin/ai-crawler-ingest'
+    | '/api/public/report'
+    | '/r/$token'
     | '/api/agent/agents'
     | '/api/agent/approvals'
     | '/api/agent/copilot'
@@ -1403,6 +1427,8 @@ export interface RootRouteChildren {
   ApiAdminWpDeployRoute: typeof ApiAdminWpDeployRoute
   ApiAdminWpPublishRoute: typeof ApiAdminWpPublishRoute
   ApiAgentAgentsRoute: typeof ApiAgentAgentsRoute
+  ApiPublicReportRoute: typeof ApiPublicReportRoute
+  RTokenRoute: typeof RTokenRoute
   ApiAdminAiCrawlerIngestRoute: typeof ApiAdminAiCrawlerIngestRoute
   ApiAgentReaktRoute: typeof ApiAgentReaktRoute
   ApiAgentApprovalsRoute: typeof ApiAgentApprovalsRoute
@@ -1939,6 +1965,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminAiCrawlerIngestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/report': {
+      id: '/api/public/report'
+      path: '/api/public/report'
+      fullPath: '/api/public/report'
+      preLoaderRoute: typeof ApiPublicReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/r/$token': {
+      id: '/r/$token'
+      path: '/r/$token'
+      fullPath: '/r/$token'
+      preLoaderRoute: typeof RTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/agent/agents': {
       id: '/api/agent/agents'
       path: '/api/agent/agents'
@@ -2317,6 +2357,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminWpDeployRoute: ApiAdminWpDeployRoute,
   ApiAdminWpPublishRoute: ApiAdminWpPublishRoute,
   ApiAgentAgentsRoute: ApiAgentAgentsRoute,
+  ApiPublicReportRoute: ApiPublicReportRoute,
+  RTokenRoute: RTokenRoute,
   ApiAdminAiCrawlerIngestRoute: ApiAdminAiCrawlerIngestRoute,
   ApiAgentReaktRoute: ApiAgentReaktRoute,
   ApiAgentApprovalsRoute: ApiAgentApprovalsRoute,
