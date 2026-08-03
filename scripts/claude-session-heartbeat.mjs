@@ -21,7 +21,8 @@ try {
 } catch {
   // kein/kaputtes stdin-JSON — unten ggf. ueber Env weitermachen
 }
-const sessionId = hook.session_id || process.env.CLAUDE_SESSION_ID;
+const sessionId =
+  hook.session_id || process.env.CLAUDE_SESSION_ID || process.env.CLAUDE_CODE_SESSION_ID;
 if (!sessionId) process.exit(0);
 
 const cwd = hook.cwd || process.cwd();
