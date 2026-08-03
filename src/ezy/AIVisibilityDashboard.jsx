@@ -1396,6 +1396,150 @@ function CitedTypesCard({ sources, ownDomain }) {
   );
 }
 
+// ── Layout-Klon Searchable (03.08.2026, Tab-für-Tab-Parität) ─────────────────
+
+// Visibility-Tab Zeile 1 links: grosse Score-Zahl + Verlaufslinie (bei uns
+// ehrlich: Monats-Score-Historie statt 7-Tage — der Zyklus läuft alle 3 Tage).
+function VisibilityHero({ score, delta, history }) {
+  const pts = (history || []).filter((h) => h.score != null).slice(-12);
+  const W = 520, H = 150, PAD = 8;
+  const maxS = Math.max(10, ...pts.map((p) => p.score));
+  const x = (i) => PAD + (i / Math.max(1, pts.length - 1)) * (W - 2 * PAD);
+  const y = (v) => H - PAD - (v / maxS) * (H - 2 * PAD);
+  const line = pts.map((p, i) => `${x(i)},${y(p.score)}`).join(" ");
+  return (
+    <RCard icon={Eye} title="Sichtbarkeit" info="Sichtbarkeits-Score der Marke über alle gemessenen KI-Systeme; Verlauf = Monatswerte." desc="Score-Trend über alle KI-Systeme" footer={`${pts.length} Monatspunkte`}>
+      <div className="text-[11px] uppercase tracking-wide" style={{ color: C.sub }}>Sichtbarkeits-Score</div>
+      <div className="mt-0.5 flex items-baseline gap-2">
+        <span className="text-3xl font-bold tabular-nums" style={{ color: C.ink }}>{score}</span>
+        {delta !== 0 && delta != null && (
+          <span className="text-sm font-semibold" style={{ color: delta > 0 ? C.up : C.down }}>{delta > 0 ? `+${delta}` : delta}</span>
+        )}
+      </div>
+      {pts.length > 1 && (
+        <svg viewBox={`0 0 ${W} ${H}`} className="mt-2 w-full" style={{ maxHeight: 150 }}>
+          {[0.25, 0.5, 0.75].map((f) => (
+            <line key={f} x1={PAD} x2={W - PAD} y1={PAD + f * (H - 2 * PAD)} y2={PAD + f * (H - 2 * PAD)} stroke={C.line} strokeWidth="1" />
+          ))}
+          <polyline points={line} fill="none" stroke={C.indigo} strokeWidth="2" />
+          <circle cx={x(pts.length - 1)} cy={y(pts[pts.length - 1].score)} r="3.5" fill={C.indigo} />
+        </svg>
+      )}
+    </RCard>
+  );
+}
+
+// Visibility-Tab Zeile 1 rechts: Rankings — Marke vs. Konkurrenten.
+// Präsenz je Marke aus den Prompt-Zeilen (comps-Array); Sentiment nur für die
+// eigene Marke erhoben → Konkurrenz ehrlich mit „—".
+function RankingsTable({ prompts, sov, brand, sentimentPct }) {
+  const all = prompts || [];
+  const presence = (name, self) => {
+    if (!all.length) return 0;
+    const n = self
+      ? all.filter((p) => p.status && p.status !== "Nicht erwähnt").length
+      : all.filter((p) => (p.comps || []).some((c) => c.toLowerCase() === name.toLowerCase())).length;
+    return Math.round((n / all.length) * 100);
+  };
+  const rows = [
+    { brand, self: true, vis: presence(brand, true), share: (sov || []).find((s) => s.isSelf)?.share ?? null, senti: sentimentPct },
+    ...(sov || []).filter((s) => !s.isSelf).slice(0, 8).map((s) => ({ brand: s.brand, self: false, vis: presence(s.brand, false), share: s.share, senti: null })),
+  ].sort((a, b) => b.vis - a.vis);
+  return (
+    <RCard icon={Hash} title="Rankings" info="Präsenzrate je Marke = Anteil der KI-Antworten, in denen die Marke vorkommt. Sentiment wird nur für die eigene Marke bewertet." desc="Marke im Vergleich zum Wettbewerb" footer={`${rows.length} Marken`} pad={false}>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[12px]" style={{ borderCollapse: "collapse" }}>
+          <thead>
+            <tr style={{ color: C.sub }}>
+              <th className="px-5 py-2 text-left font-medium">#</th>
+              <th className="px-3 py-2 text-left font-medium">Marke</th>
+              <th className="px-3 py-2 text-right font-medium">Präsenz</th>
+              <th className="px-3 py-2 text-right font-medium">SoV</th>
+              <th className="px-3 py-2 text-right font-medium">Sentiment</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={r.brand} style={{ borderTop: `1px solid ${C.line}`, background: r.self ? "rgba(108,92,231,.05)" : "transparent" }}>
+                <td className="px-5 py-2 tabular-nums" style={{ color: C.sub }}>{i + 1}</td>
+                <td className="px-3 py-2 font-semibold" style={{ color: r.self ? C.indigo : C.ink }}>
+                  {r.brand}
+                  {r.self && <span className="ml-2 rounded px-1.5 py-0.5 text-[9.5px] font-bold" style={{ background: C.indigo, color: "#fff" }}>DU</span>}
+                </td>
+                <td className="px-3 py-2 text-right font-semibold tabular-nums" style={{ color: C.ink }}>{r.vis}%</td>
+                <td className="px-3 py-2 text-right tabular-nums" style={{ color: C.sub }}>{r.share != null ? `${r.share}%` : "—"}</td>
+                <td className="px-3 py-2 text-right tabular-nums" style={{ color: r.senti != null ? C.up : C.sub }}>{r.senti != null ? r.senti : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </RCard>
+  );
+}
+
+// Erwähnungen-Tab Zeile 1: Kennzahl gross + Delta + Monats-Verlaufslinie
+// (Searchable zeigt 7 Tage — unsere Messbasis ist der Monats-Trend, ehrlich beschriftet).
+function MetricTrendCard({ icon, title, info, value, delta, series, color }) {
+  const pts = (series || []).slice(-12);
+  const W = 520, H = 120, PAD = 8;
+  const maxV = Math.max(1, ...pts.map((p) => p.v));
+  const x = (i) => PAD + (i / Math.max(1, pts.length - 1)) * (W - 2 * PAD);
+  const y = (v) => H - PAD - (v / maxV) * (H - 2 * PAD);
+  return (
+    <RCard icon={icon} title={title} info={info} desc="Monats-Verlauf über alle KI-Systeme" footer={`${pts.length} Monate`}>
+      <div className="text-[11px] uppercase tracking-wide" style={{ color: C.sub }}>{title} gesamt</div>
+      <div className="mt-0.5 flex items-baseline gap-2">
+        <span className="text-3xl font-bold tabular-nums" style={{ color: C.ink }}>{value}</span>
+        {delta !== 0 && delta != null && (
+          <span className="text-sm font-semibold" style={{ color: delta > 0 ? C.up : C.down }}>{delta > 0 ? `+${delta}` : delta}</span>
+        )}
+      </div>
+      {pts.length > 1 && (
+        <svg viewBox={`0 0 ${W} ${H}`} className="mt-2 w-full" style={{ maxHeight: 120 }}>
+          {[0.33, 0.66].map((f) => (
+            <line key={f} x1={PAD} x2={W - PAD} y1={PAD + f * (H - 2 * PAD)} y2={PAD + f * (H - 2 * PAD)} stroke={C.line} strokeWidth="1" />
+          ))}
+          <polyline points={pts.map((p, i) => `${x(i)},${y(p.v)}`).join(" ")} fill="none" stroke={color} strokeWidth="2" />
+          <circle cx={x(pts.length - 1)} cy={y(pts[pts.length - 1].v)} r="3.5" fill={color} />
+        </svg>
+      )}
+    </RCard>
+  );
+}
+
+// Themen-Tab: Treemap-Mosaik — Kachelgrösse nach Erwähnungen, Farbe nach
+// Sichtbarkeit (grün hoch / beige mittel / rot niedrig — Searchable-Skala).
+function TopicTreemap({ rows }) {
+  const tops = (rows || []).slice(0, 9);
+  if (!tops.length) return null;
+  const fill = (vis) => (vis >= 25 ? { bg: "#34d399", fg: "#064e3b" } : vis >= 10 ? { bg: "#eceae3", fg: "#44423c" } : { bg: "#f16a6f", fg: "#ffffff" });
+  const [big, ...rest] = tops;
+  const Cell = ({ t, tall }) => {
+    const f = fill(t.vis);
+    return (
+      <div className="flex flex-col items-center justify-center rounded-lg px-2 text-center" style={{ background: f.bg, color: f.fg, minHeight: tall ? 210 : 100 }}>
+        <div className="text-[12px] font-semibold" style={{ maxWidth: "95%", overflow: "hidden", textOverflow: "ellipsis" }}>{t.topic}</div>
+        <div className="text-[15px] font-bold tabular-nums">{t.vis}%</div>
+      </div>
+    );
+  };
+  return (
+    <RCard icon={Tags} title="Themen-Verteilung" info="Kachelgrösse nach Erwähnungen, Farbe nach Sichtbarkeits-Quote je Thema." desc="Grösse = Erwähnungen · Farbe = Sichtbarkeit" footer={`${(rows || []).length} Themen`} legend={
+      <span className="inline-flex items-center gap-3">
+        <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: "#34d399" }} />hoch</span>
+        <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: "#d9d6cc" }} />mittel</span>
+        <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: "#f16a6f" }} />niedrig</span>
+      </span>
+    }>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="sm:row-span-2"><Cell t={big} tall /></div>
+        {rest.slice(0, 8).map((t) => <Cell key={t.topic} t={t} />)}
+      </div>
+    </RCard>
+  );
+}
+
 // ── Shell ────────────────────────────────────────────────────────────────────
 // Sub-Tabs + Filterzeile (Searchable-Muster, 03.08.2026): statt einer langen
 // Scroll-Seite navigiert der Report in Bereichen; der Modell-Filter wirkt auf
@@ -1415,6 +1559,13 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
   const intentCounts = {};
   for (const p of [...(fP || []), ...(fO || [])]) if (p.intent) intentCounts[p.intent] = (intentCounts[p.intent] || 0) + 1;
   const intentData = Object.entries(intentCounts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+
+  // Sentiment der eigenen Marke als Zahl (Rankings-Spalte, Searchable-Muster):
+  // Anteil positiver Bewertungen an allen bewerteten Antworten, 0–100.
+  const sentRows = (d.prompts || []).filter((p) => p.sentiment);
+  const sentimentPct = sentRows.length
+    ? Math.round((sentRows.filter((p) => p.sentiment === "pos").length / sentRows.length) * 100)
+    : null;
 
   const hasBrand = !!d.brandCheck;
   const hasConv = Array.isArray(d.attribution) && d.attribution.length > 0;
@@ -1503,6 +1654,11 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
                 Der Score vergleicht die Sichtbarkeit eines Kunden über die Zeit. Vergleiche zwischen Kunden sind nur eingeschränkt möglich.
               </span>
             </div>
+            {/* Zeile 1 wie Searchable Visibility: Score-Verlauf | Rankings */}
+            <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <VisibilityHero score={d.score} delta={d.versionSwitch ? 0 : d.scoreDelta} history={d.trend} />
+              <RankingsTable prompts={d.prompts} sov={d.sov} brand={d.client} sentimentPct={sentimentPct} />
+            </div>
             <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
               <TrendCard data={d.trend} />
               <ModelDistribution models={d.models} />
@@ -1528,6 +1684,11 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
 
         {tab === "erwaehnungen" && (
           <>
+            {/* Zeile 1 wie Searchable Mentions & Citations: zwei Kennzahl-Trends */}
+            <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <MetricTrendCard icon={MessageSquare} title="Erwähnungen" info="Wie oft die Marke in KI-Antworten genannt wird — Monatsverlauf über alle Systeme." value={d.kpis.mentions.value} delta={d.kpis.mentions.delta} series={(d.trend || []).map((t) => ({ v: t.mentions }))} color={C.indigo} />
+              <MetricTrendCard icon={Link2} title="Citations" info="Wie oft KI-Antworten die eigene Website als Quelle verlinken — Monatsverlauf." value={d.kpis.citations.value} delta={d.kpis.citations.delta} series={(d.trend || []).map((t) => ({ v: t.citations }))} color={C.teal} />
+            </div>
             <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
               <FunnelCard prompts={fP} opps={fO} />
               <PositionHeadToHead prompts={fP} sov={d.sov} brand={d.client} />
@@ -1552,7 +1713,8 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
         )}
 
         {tab === "themen" && (
-          <div className="mt-4">
+          <div className="mt-4 grid grid-cols-1 gap-4">
+            <TopicTreemap rows={d.topics} />
             <TopicsTable rows={d.topics} />
           </div>
         )}

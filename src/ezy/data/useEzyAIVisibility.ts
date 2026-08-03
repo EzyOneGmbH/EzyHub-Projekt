@@ -62,7 +62,7 @@ export type AIVisibilityData = {
     answered: number;
   }[];
   kpis: { mentions: Kpi; citations: Kpi; citedPages: Kpi };
-  trend: { m: string; mentions: number; citations: number; pages: number }[];
+  trend: { m: string; mentions: number; citations: number; pages: number; score?: number | null }[];
   models: {
     name: string;
     layer: "macro" | "custom";
@@ -177,7 +177,7 @@ export async function loadAIVisibility(
     // datierte Backfill-Monate); Monats-Aggregation passiert unten in JS.
     sb
       .from("ai_visibility_reports")
-      .select("snapshot_date, mentions, citations, cited_pages")
+      .select("snapshot_date, mentions, citations, cited_pages, score")
       .eq("client_id", clientId)
       .gte("snapshot_date", new Date(Date.now() - 370 * 864e5).toISOString().slice(0, 10))
       .order("snapshot_date", { ascending: false })
@@ -255,6 +255,7 @@ export async function loadAIVisibility(
           mentions: Number(h.mentions ?? 0),
           citations: Number(h.citations ?? 0),
           pages: Number(h.cited_pages ?? 0),
+          score: h.score != null ? Number(h.score) : null, // VisibilityHero (03.08.)
         }));
     })(),
     models: modelRows.map((m: any) => ({
