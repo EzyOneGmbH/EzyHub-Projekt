@@ -28,7 +28,7 @@ export type AIPrompt = {
   topic?: string;                              // Themen-Label der Prompt-Def
   sourceUrls?: string[];                       // zitierte Quell-URLs
   checkedAt?: string;                          // Messzeitpunkt der Antwort
-  compPositions?: { n: string; p: string; s?: string }[]; // Rival-Position + -Sentiment (Judge H, s ab 04.08.)
+  compPositions?: { n: string; p: string; s?: string; d?: string }[]; // Rival-Position/-Sentiment/-Domain (Judge H)
 };
 
 export type AIVisibilityData = {
@@ -133,7 +133,7 @@ function mapPrompt(r: any, opportunity: boolean): AIPrompt {
   if (r.checked_at) p.checkedAt = String(r.checked_at);
   if (Array.isArray(r.comp_positions) && r.comp_positions.length) {
     p.compPositions = r.comp_positions
-      .map((x: any) => ({ n: String(x?.n || ""), p: String(x?.p || "list"), ...(x?.s ? { s: String(x.s) } : {}) }))
+      .map((x: any) => ({ n: String(x?.n || ""), p: String(x?.p || "list"), ...(x?.s ? { s: String(x.s) } : {}), ...(x?.d ? { d: String(x.d) } : {}) }))
       .filter((x: any) => x.n);
   }
   return p;

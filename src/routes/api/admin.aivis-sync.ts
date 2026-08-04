@@ -1252,7 +1252,7 @@ async function runJudgeCalibration(): Promise<{ pct: number; n: number } | null>
 // LLM-Judge (A): jede Antwort strukturiert bewerten statt Regex.
 async function judgeAnswers(brand: string, comps: string[], items: Array<{ i: number; platform: string; text: string }>) {
   const hint = comps.length ? `Bekannte Konkurrenten (nutze diese Schreibweise, ergänze neue): ${comps.join(", ")}. ` : "";
-  const head = `Du bewertest KI-Antworten für die Zielmarke "${brand}". ${hint}Für JEDE Antwort ein Objekt:\n{"i":<nr>,"mentioned":true|false (wird die Zielmarke genannt?),"cited":true|false (wird ihre Website/Domain als Quelle genannt/verlinkt?),"position":"top"|"list"|"passing"|"none" (top=klare Top-Empfehlung, list=eine von mehreren gleichrangig, passing=nur Randnotiz, none=nicht genannt),"sentiment":"pos"|"neu"|"neg"|null (Tonalität ggü. der Zielmarke),"competitors":["NUR direkte Wettbewerber der Zielmarke (vergleichbares Angebot/gleiche Branche), max 8 — KEINE Produkt-/Möbelmarken, Software, Portale, Medien oder Grosskonzerne anderer Branchen"],"comp_positions":[{"n":"<Konkurrent aus competitors>","p":"top"|"list"|"passing","s":"pos"|"neu"|"neg"}] (Position + Tonalität JEDES genannten Konkurrenten, gleiche Skalen),"sources":["explizit genannte Quell-URLs, max 8"]}\nSei streng: Substring-Zufallstreffer sind KEINE Erwähnung. Antworte NUR mit JSON-Array.\n\n`;
+  const head = `Du bewertest KI-Antworten für die Zielmarke "${brand}". ${hint}Für JEDE Antwort ein Objekt:\n{"i":<nr>,"mentioned":true|false (wird die Zielmarke genannt?),"cited":true|false (wird ihre Website/Domain als Quelle genannt/verlinkt?),"position":"top"|"list"|"passing"|"none" (top=klare Top-Empfehlung, list=eine von mehreren gleichrangig, passing=nur Randnotiz, none=nicht genannt),"sentiment":"pos"|"neu"|"neg"|null (Tonalität ggü. der Zielmarke),"competitors":["NUR direkte Wettbewerber der Zielmarke (vergleichbares Angebot/gleiche Branche), max 8 — KEINE Produkt-/Möbelmarken, Software, Portale, Medien oder Grosskonzerne anderer Branchen"],"comp_positions":[{"n":"<Konkurrent aus competitors>","p":"top"|"list"|"passing","s":"pos"|"neu"|"neg","d":"offizielle Website-Domain des Konkurrenten, nur falls sicher bekannt (z.B. helvetas.org) — sonst weglassen"}] (Position + Tonalität JEDES genannten Konkurrenten, gleiche Skalen),"sources":["explizit genannte Quell-URLs, max 8"]}\nSei streng: Substring-Zufallstreffer sind KEINE Erwähnung. Antworte NUR mit JSON-Array.\n\n`;
   // Judge in Blöcken -> skaliert auf beliebig viele Prompts (ohne Token-Limit zu sprengen).
   // Blöcke PARALLEL (2026-07-16): sequenziell traf jeder Block die volle
   // Failover-Kette (bis 120s je Provider) — 15 Blöcke x haengender Erst-
@@ -1445,12 +1445,17 @@ async function jobPromptRunner(
         // Rival-Positionen (H, 03.08.): {n: Name, p: top|list|passing} je Konkurrent.
         compPositions: Array.isArray(j.comp_positions)
           ? j.comp_positions
-              .map((x: any) => ({
-                n: String(x?.n || "").trim(),
-                p: ["top", "list", "passing"].includes(x?.p) ? x.p : "list",
-                // Rival-Sentiment (04.08.): Tonalität je Konkurrent, gleiche Skala wie eigene Marke.
-                ...(["pos", "neu", "neg"].includes(x?.s) ? { s: x.s } : {}),
-              }))
+              .map((x: any) => {
+                // Rival-Domain (04.08., für echte Marken-Logos statt Rate-Kette).
+                const dom = String(x?.d || "").toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "").trim();
+                return {
+                  n: String(x?.n || "").trim(),
+                  p: ["top", "list", "passing"].includes(x?.p) ? x.p : "list",
+                  // Rival-Sentiment (04.08.): Tonalität je Konkurrent, gleiche Skala wie eigene Marke.
+                  ...(["pos", "neu", "neg"].includes(x?.s) ? { s: x.s } : {}),
+                  ...(dom.includes(".") && dom.length <= 80 ? { d: dom } : {}),
+                };
+              })
               .filter((x: any) => x.n)
               .slice(0, 8)
           : [],

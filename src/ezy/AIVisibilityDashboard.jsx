@@ -2302,8 +2302,20 @@ function VisibilityHero({ score, delta, history, daily }) {
 // DuckDuckGo-Favicons (liefert 404 bei Fehlversuch, anders als Google s2);
 // Initial-Chip nur noch als letzter Fallback.
 const AVATAR_COLORS = ["#6c5ce7", "#0d9488", "#d97706", "#7c5cf0", "#0284c7", "#dc2626", "#059669", "#b45309"];
+// Vom Judge gelieferte Rival-Domains (compPositions.d) — exakt statt geraten.
+// Modul-Registry, vom Dashboard bei jedem Datenload befüllt (kein Prop-Drilling).
+const BRAND_DOMAINS = new Map();
+const registerBrandDomains = (prompts) => {
+  for (const p of prompts || []) {
+    for (const cp of p.compPositions || []) {
+      if (cp.d && cp.n) BRAND_DOMAINS.set(String(cp.n).toLowerCase(), cp.d);
+    }
+  }
+};
 const guessDomains = (name, domain) => {
   if (domain) return [String(domain).toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "")];
+  const known = BRAND_DOMAINS.get(String(name || "").toLowerCase());
+  if (known) return [known];
   const n = String(name || "").toLowerCase()
     .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/é|è|ê/g, "e")
     .replace(/&/g, "").replace(/[^a-z0-9.]/g, "");
@@ -2566,6 +2578,8 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
   const [topicF, setTopicF] = useState("alle"); // Themen-Filter (C) — greift, sobald der Messlauf topic je Prompt schreibt
   const [countryF, setCountryF] = useState("alle"); // Standort-Filter (Searchable „Locations")
   if (!d) return <AIVisibilityEmpty />;
+  // Rival-Domains aus dem Judge für exakte Marken-Logos registrieren (04.08.).
+  registerBrandDomains(d.prompts);
 
   const platforms = [...new Set([...(d.prompts || []), ...(d.promptOpps || [])].map((p) => p.platform).filter(Boolean))].sort();
   const topicsAvail = [...new Set([...(d.prompts || []), ...(d.promptOpps || [])].map((p) => p.topic).filter(Boolean))].sort();
