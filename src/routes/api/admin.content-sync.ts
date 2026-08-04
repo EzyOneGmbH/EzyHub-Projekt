@@ -578,11 +578,42 @@ async function jobSitemaps(c: any, submitMode: boolean | "auto") {
       errors.push({ url, error: redactSecrets(e) });
     }
   }
+  // 4) Verwaiste Sitemaps aus der GSC entfernen.
+  // Anlass (FIH, 04.08.): Nach der Yoast-Installation ersetzte
+  // sitemap_index.xml die Core-Sitemap wp-sitemap.xml — die alte war aber in
+  // der GSC eingereicht und lieferte fortan einen Redirect, was dort als
+  // Fehler auflaeuft. Ohne dieses Aufraeumen bleibt bei jedem Sitemap-Wechsel
+  // eine Karteileiche zurueck.
+  // Bewusst konservativ: entfernt wird NUR, was die Website selbst nicht mehr
+  // deklariert UND live nicht mehr mit 200 antwortet. Eine voruebergehend
+  // nicht erreichbare Sitemap wird dadurch nicht geloescht.
+  const removed: string[] = [];
+  for (const s of submitted) {
+    if (declared.some((d) => normUrl(d) === normUrl(s))) continue; // weiterhin deklariert
+    let lebt = true;
+    try {
+      const probe = await fetch(s, { method: "HEAD", redirect: "manual", signal: AbortSignal.timeout(15_000) });
+      lebt = probe.status === 200;
+    } catch {
+      lebt = true; // im Zweifel NICHT loeschen
+    }
+    if (lebt) continue;
+    try {
+      const r = await fetch(`${base}/${encodeURIComponent(s)}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (r.ok) removed.push(s);
+    } catch { /* nicht kritisch */ }
+  }
+
   return {
     declared,
     submitted,
     missing,
     submittedNow,
+    ...(removed.length ? { removed } : {}),
     modus: submitMode === "auto" ? "autonom (SEO-Agent)" : "erzwungen",
     ...(scopeMissing ? { scopeMissing: true } : {}),
     ...(errors.length ? { errors } : {}),
