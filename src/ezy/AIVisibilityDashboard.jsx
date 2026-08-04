@@ -1985,6 +1985,7 @@ const DOMAIN_TREND_COLORS = ["#6c5ce7", "#0d9488", "#d97706", "#dc2626", "#0284c
 function DomainTrendCard({ trend }) {
   const months = trend?.months || [];
   const series = (trend?.series || []).filter((s) => s.values.some((v) => v > 0));
+  const [hover, setHover] = useState(null); // Maus-Zeitstrahl (04.08.)
   if (months.length < 2 || !series.length) return null;
   const W = 560, H = 200, PAD = 8, AXL = 30, AXB = 16;
   const maxV = Math.max(1, ...series.flatMap((s) => s.values));
@@ -1992,7 +1993,11 @@ function DomainTrendCard({ trend }) {
   const y = (v) => H - AXB - PAD - (v / maxV) * (H - AXB - 2 * PAD);
   return (
     <RCard icon={Link2} title="Top-Domains-Trend" info="Wie oft die fünf meistzitierten Domains je Monatsmessung in KI-Antworten als Quelle auftauchen." desc="Zitierhäufigkeit der Top-Domains über die Monate" footer={`${series.length} Domains · ${months.length} Monate`}>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 210 }}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 210 }}
+        onMouseMove={(e) => setHover(svgHoverIndex(e, W, AXL, PAD, months.length))}
+        onMouseLeave={() => setHover(null)}
+      >
         {[0, 0.5, 1].map((f) => (
           <g key={f}>
             <line x1={AXL + PAD} x2={W - PAD} y1={y(f * maxV)} y2={y(f * maxV)} stroke={C.line} strokeWidth="1" />
@@ -2010,6 +2015,18 @@ function DomainTrendCard({ trend }) {
             <circle cx={x(s.values.length - 1)} cy={y(s.values[s.values.length - 1])} r="3" fill={DOMAIN_TREND_COLORS[si % DOMAIN_TREND_COLORS.length]} />
           </g>
         ))}
+        {hover != null && months[hover] != null && (
+          <g pointerEvents="none">
+            <line x1={x(hover)} x2={x(hover)} y1={PAD} y2={H - AXB - PAD} stroke={C.sub} strokeWidth="1" strokeDasharray="3 3" />
+            {series.map((s, si) => (
+              <circle key={s.domain} cx={x(hover)} cy={y(s.values[hover])} r="3.5" fill={DOMAIN_TREND_COLORS[si % DOMAIN_TREND_COLORS.length]} stroke="#fff" strokeWidth="1" />
+            ))}
+            <HoverBox x={x(hover)} top={PAD} W={W} lines={[
+              { text: months[hover] },
+              ...series.map((s, si) => ({ text: `${s.domain}: ${s.values[hover]}`, color: ["#b9aefc", "#7dd8cb", "#f3c98a", "#f3a1a1", "#9cc8f0"][si % 5] })),
+            ]} />
+          </g>
+        )}
       </svg>
       <div className="mt-2 flex flex-wrap items-center gap-3 text-[10.5px]" style={{ color: C.sub }}>
         {series.map((s, si) => (
@@ -2088,6 +2105,28 @@ function CitedTypesCard({ sources, ownDomain }) {
 
 // Visibility-Tab Zeile 1 links: grosse Score-Zahl + Verlaufslinie (bei uns
 // ehrlich: Monats-Score-Historie statt 7-Tage — der Zyklus läuft alle 3 Tage).
+// Maus-Zeitstrahl (04.08., wie das "Entwicklung"-Chart): nächstgelegenen
+// Datenpunkt aus der Cursor-X-Position bestimmen + dunkle Werte-Box zeichnen.
+function svgHoverIndex(e, W, AXL, PAD, n) {
+  const r = e.currentTarget.getBoundingClientRect();
+  const vx = ((e.clientX - r.left) / r.width) * W;
+  const step = (W - AXL - 2 * PAD) / Math.max(1, n - 1);
+  return Math.min(n - 1, Math.max(0, Math.round((vx - AXL - PAD) / step)));
+}
+function HoverBox({ x, top, lines, W }) {
+  const w = 14 + Math.max(...lines.map((l) => l.text.length)) * 5.6;
+  const left = x + 10 + w > W ? x - w - 10 : x + 10;
+  const h = 8 + lines.length * 13;
+  return (
+    <g pointerEvents="none">
+      <rect x={left} y={top} width={w} height={h} rx="4" fill="#1c1c1e" fillOpacity="0.92" />
+      {lines.map((l, i) => (
+        <text key={i} x={left + 7} y={top + 13 + i * 13} fontSize="9.5" fontWeight={i === 0 ? 700 : 500} fill={l.color || "#fff"}>{l.text}</text>
+      ))}
+    </g>
+  );
+}
+
 // Score-Interpretation (Searchable-Schwellen 70/40): Status + konkrete Empfehlung
 // direkt am Score, damit der Wert ohne Playbook-Blick handlungsleitend ist.
 const SCORE_GUIDE = (s) =>
@@ -2104,6 +2143,7 @@ function VisibilityHero({ score, delta, history, daily }) {
   const monthPts = (history || []).filter((h) => h.score != null).slice(-12);
   const [range, setRange] = useState(dailyPts.length >= 3 ? "tage" : "monate");
   const [chart, setChart] = useState("linie");
+  const [hover, setHover] = useState(null); // Maus-Zeitstrahl (04.08.)
   const pts = range === "tage" && dailyPts.length >= 2 ? dailyPts : monthPts;
   const W = 520, H = 150, PAD = 8, AXL = 30, AXB = 16;
   const maxS = Math.max(10, ...pts.map((p) => p.score));
@@ -2154,7 +2194,11 @@ function VisibilityHero({ score, delta, history, daily }) {
         </p>
       )}
       {pts.length > 1 && (
-        <svg viewBox={`0 0 ${W} ${H}`} className="mt-2 w-full" style={{ maxHeight: 150 }}>
+        <svg
+          viewBox={`0 0 ${W} ${H}`} className="mt-2 w-full" style={{ maxHeight: 150 }}
+          onMouseMove={(e) => setHover(svgHoverIndex(e, W, AXL, PAD, pts.length))}
+          onMouseLeave={() => setHover(null)}
+        >
           {[0, 0.5, 1].map((f) => (
             <g key={f}>
               <line x1={AXL + PAD} x2={W - PAD} y1={y(f * maxS)} y2={y(f * maxS)} stroke={C.line} strokeWidth="1" />
@@ -2182,6 +2226,13 @@ function VisibilityHero({ score, delta, history, daily }) {
                 </circle>
               ))}
             </>
+          )}
+          {hover != null && pts[hover] && (
+            <g pointerEvents="none">
+              <line x1={x(hover)} x2={x(hover)} y1={PAD} y2={H - AXB - PAD} stroke={C.sub} strokeWidth="1" strokeDasharray="3 3" />
+              <circle cx={x(hover)} cy={y(pts[hover].score)} r="4" fill={C.indigo} stroke="#fff" strokeWidth="1.5" />
+              <HoverBox x={x(hover)} top={PAD} W={W} lines={[{ text: pts[hover].m }, { text: `Score ${pts[hover].score}`, color: "#b9aefc" }]} />
+            </g>
           )}
         </svg>
       )}
@@ -2327,6 +2378,7 @@ function RankingsTable({ prompts, sov, brand, sentimentPct, domain }) {
 // (Searchable zeigt 7 Tage — unsere Messbasis ist der Monats-Trend, ehrlich beschriftet).
 function MetricTrendCard({ icon, title, info, value, delta, series, color }) {
   const pts = (series || []).slice(-12);
+  const [hover, setHover] = useState(null); // Maus-Zeitstrahl (04.08.)
   const W = 520, H = 120, PAD = 8, AXL = 30, AXB = 16;
   const maxV = Math.max(1, ...pts.map((p) => p.v));
   const x = (i) => AXL + PAD + (i / Math.max(1, pts.length - 1)) * (W - AXL - 2 * PAD);
@@ -2341,7 +2393,11 @@ function MetricTrendCard({ icon, title, info, value, delta, series, color }) {
         )}
       </div>
       {pts.length > 1 && (
-        <svg viewBox={`0 0 ${W} ${H}`} className="mt-2 w-full" style={{ maxHeight: 120 }}>
+        <svg
+          viewBox={`0 0 ${W} ${H}`} className="mt-2 w-full" style={{ maxHeight: 120 }}
+          onMouseMove={(e) => setHover(svgHoverIndex(e, W, AXL, PAD, pts.length))}
+          onMouseLeave={() => setHover(null)}
+        >
           {[0, 0.5, 1].map((f) => (
             <g key={f}>
               <line x1={AXL + PAD} x2={W - PAD} y1={y(f * maxV)} y2={y(f * maxV)} stroke={C.line} strokeWidth="1" />
@@ -2355,6 +2411,13 @@ function MetricTrendCard({ icon, title, info, value, delta, series, color }) {
           ))}
           <polyline points={pts.map((p, i) => `${x(i)},${y(p.v)}`).join(" ")} fill="none" stroke={color} strokeWidth="2" />
           <circle cx={x(pts.length - 1)} cy={y(pts[pts.length - 1].v)} r="3.5" fill={color} />
+          {hover != null && pts[hover] && (
+            <g pointerEvents="none">
+              <line x1={x(hover)} x2={x(hover)} y1={PAD} y2={H - AXB - PAD} stroke={C.sub} strokeWidth="1" strokeDasharray="3 3" />
+              <circle cx={x(hover)} cy={y(pts[hover].v)} r="4" fill={color} stroke="#fff" strokeWidth="1.5" />
+              <HoverBox x={x(hover)} top={PAD} W={W} lines={[{ text: pts[hover].m || "" }, { text: `${title} ${nf(pts[hover].v)}` }]} />
+            </g>
+          )}
         </svg>
       )}
     </RCard>
