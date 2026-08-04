@@ -2311,7 +2311,7 @@ function RankingsTable({ prompts, sov, brand, sentimentPct, domain }) {
   };
   const rows = [
     { brand, self: true, vis: presence(brand, true), share: (sov || []).find((s) => s.isSelf)?.share ?? null, senti: sentimentPct, pos: avgPos(brand) },
-    ...(sov || []).filter((s) => !s.isSelf).slice(0, 8).map((s) => ({ brand: s.brand, self: false, vis: presence(s.brand, false), share: s.share, senti: rivalSenti(s.brand), pos: avgPos(s.brand) })),
+    ...(sov || []).filter((s) => !s.isSelf).map((s) => ({ brand: s.brand, self: false, vis: presence(s.brand, false), share: s.share, senti: rivalSenti(s.brand), pos: avgPos(s.brand) })),
   ].sort((a, b) => {
     // dir=-1 = "beste zuerst"; bei Position ist KLEINER besser, sonst grösser.
     const na = a[sort.key] ?? (sort.key === "pos" ? Infinity : -Infinity);
@@ -2333,10 +2333,10 @@ function RankingsTable({ prompts, sov, brand, sentimentPct, domain }) {
     </th>
   );
   return (
-    <RCard icon={Hash} title="Rankings" info="Präsenzrate je Marke = Anteil der KI-Antworten, in denen die Marke vorkommt. Sentiment = Anteil positiver Bewertungen (Konkurrenten ab 3 Bewertungen, seit 04.08. vom Judge miterhoben). Ø-Position: 1 = Top-Empfehlung, 2 = in Liste, 3 = Randnotiz. Spalten sind per Klick sortierbar." desc="Marke im Vergleich zum Wettbewerb" footer={`${rows.length} Marken`} pad={false}>
-      <div className="overflow-x-auto">
-        <table className="w-full text-[12px]" style={{ borderCollapse: "collapse" }}>
-          <thead>
+    <RCard icon={Hash} title="Rankings" info="Präsenzrate je Marke = Anteil der KI-Antworten, in denen die Marke vorkommt. Sentiment = Anteil positiver Bewertungen (Konkurrenten ab 3 Bewertungen, seit 04.08. vom Judge miterhoben). Ø-Position: 1 = Top-Empfehlung, 2 = in Liste, 3 = Randnotiz. Spalten sind per Klick sortierbar, die Liste scrollt." desc="Marke im Vergleich zum Wettbewerb" footer={`${rows.length} Marken`} pad={false}>
+      <div className="overflow-x-auto overflow-y-auto" style={{ maxHeight: 340 }}>
+        <table className="w-full text-[12px]" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
+          <thead className="sticky top-0 z-10" style={{ background: C.card, boxShadow: `0 1px 0 ${C.line}` }}>
             <tr style={{ color: C.sub }}>
               <th className="px-5 py-2 text-left font-medium">#</th>
               <th className="px-3 py-2 text-left font-medium">Marke</th>

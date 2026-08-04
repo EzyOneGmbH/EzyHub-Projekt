@@ -1143,6 +1143,64 @@ async function auditPromptRelevance(
   };
 }
 
+// Konkurrenten-Relevanz-Audit (04.08., Anlass: IKEA bei Studioforma): gleicht
+// Fixliste + aktuelle SoV-Marken gegen das Faktenprofil ab und deaktiviert
+// branchenfremde (reversibel, active=false = Ausschluss-Marker — der Prompt-
+// Runner filtert deaktivierte Namen künftig aus SoV/Auto-Learning heraus).
+// SoV-Zeilen der Deaktivierten werden entfernt, damit Rankings sofort sauber sind.
+async function auditCompetitorRelevance(
+  c: any, sbAny: any,
+): Promise<{ checked: number; flagged: number; skipped?: string; flaggedNames?: string[] }> {
+  const f = await getBrandFacts(c, sbAny).catch(() => null);
+  if (!f || (!f.angebot && !(Array.isArray(f.kernfakten) && f.kernfakten.length)))
+    return { checked: 0, flagged: 0, skipped: "kein Faktenprofil" };
+  const { data: comps } = await sbAny
+    .from("ai_visibility_competitors").select("id, name, active").eq("client_id", c.id);
+  const byLower = new Map<string, any>((comps ?? []).map((x: any) => [String(x.name).toLowerCase(), x]));
+  // Auch Marken prüfen, die nur in der aktuellen SoV stehen (Judge-Top-12 ohne Fixlisten-Eintrag).
+  const { data: rep } = await sbAny
+    .from("ai_visibility_reports").select("id").eq("client_id", c.id)
+    .order("snapshot_date", { ascending: false }).limit(1);
+  const { data: sovRows } = rep?.[0]
+    ? await sbAny.from("ai_visibility_sov").select("brand, is_self").eq("report_id", rep[0].id)
+    : { data: [] as any[] };
+  const items: Array<{ name: string; id?: string }> = [];
+  const seen = new Set<string>();
+  for (const x of comps ?? []) {
+    if (!x.active) continue; // bereits deaktiviert = bereits ausgeschlossen
+    const k = String(x.name).toLowerCase();
+    if (!seen.has(k)) { seen.add(k); items.push({ name: x.name, id: x.id }); }
+  }
+  for (const s of sovRows ?? []) {
+    if (s.is_self) continue;
+    const k = String(s.brand).toLowerCase();
+    if (byLower.get(k)?.active === false) continue;
+    if (!seen.has(k)) { seen.add(k); items.push({ name: String(s.brand), id: byLower.get(k)?.id }); }
+  }
+  if (!items.length) return { checked: 0, flagged: 0, skipped: "keine Konkurrenten" };
+  const factsText = `${f.angebot ? "Angebot: " + f.angebot + ". " : ""}${Array.isArray(f.kernfakten) && f.kernfakten.length ? "Fakten: " + f.kernfakten.join(" | ") : ""}`;
+  const listing = items.map((d, i) => `${i}: ${d.name}`).join("\n");
+  const text = await askUtility(
+    `Firma "${c.name}". WAS SIE MACHT: ${factsText}\n\nUnten nummerierte Marken, die als KONKURRENTEN dieser Firma geführt werden. Nenne NUR die Nummern, die KEINE direkten Wettbewerber sind — z. B. Marken einer klar anderen Branche, Produkt-/Möbelhersteller, Software, Buchungs-/Bewertungsportale, Medien oder generische Grosskonzerne (Beispiel: IKEA ist KEIN Konkurrent eines Architekturbüros). Echte Anbieter mit vergleichbarem Angebot im Zweifel BEHALTEN. Antworte NUR mit JSON: {"fremd":[<Nummern>]}\n\n${listing}`,
+    1200,
+  );
+  const parsed = parseJson(text || "") || {};
+  const idx: number[] = Array.isArray(parsed.fremd) ? parsed.fremd : [];
+  const flagged = idx.map((n) => items[Number(n)]).filter(Boolean);
+  for (const d of flagged) {
+    if (d.id) {
+      await sbAny.from("ai_visibility_competitors").update({ active: false }).eq("id", d.id);
+    } else {
+      // Ausschluss-Marker für Nur-SoV-Marken: inaktiver Fixlisten-Eintrag.
+      await sbAny.from("ai_visibility_competitors")
+        .upsert([{ client_id: c.id, name: d.name, active: false, source: "audit" }], { onConflict: "client_id,name" });
+    }
+    await sbAny.from("ai_visibility_sov").delete().eq("client_id", c.id).ilike("brand", d.name);
+  }
+  diag(`konkurrenten-audit ${c.name}: ${flagged.length}/${items.length} branchenfremde deaktiviert`);
+  return { checked: items.length, flagged: flagged.length, flaggedNames: flagged.map((d) => d.name) };
+}
+
 // Brand-Judge (E2): bewertet WAS über die Marke gesagt wird — Faktentreue
 // gegen brand_facts, Tonalität, Halluzinationen (mit Zitat), Quellen,
 // Konkurrenz-Nennungen. temp 0 + Modell-Snapshot wie beim Markt-Judge.
@@ -1194,7 +1252,7 @@ async function runJudgeCalibration(): Promise<{ pct: number; n: number } | null>
 // LLM-Judge (A): jede Antwort strukturiert bewerten statt Regex.
 async function judgeAnswers(brand: string, comps: string[], items: Array<{ i: number; platform: string; text: string }>) {
   const hint = comps.length ? `Bekannte Konkurrenten (nutze diese Schreibweise, ergänze neue): ${comps.join(", ")}. ` : "";
-  const head = `Du bewertest KI-Antworten für die Zielmarke "${brand}". ${hint}Für JEDE Antwort ein Objekt:\n{"i":<nr>,"mentioned":true|false (wird die Zielmarke genannt?),"cited":true|false (wird ihre Website/Domain als Quelle genannt/verlinkt?),"position":"top"|"list"|"passing"|"none" (top=klare Top-Empfehlung, list=eine von mehreren gleichrangig, passing=nur Randnotiz, none=nicht genannt),"sentiment":"pos"|"neu"|"neg"|null (Tonalität ggü. der Zielmarke),"competitors":["andere genannte Firmen/Marken OHNE die Zielmarke, max 8"],"comp_positions":[{"n":"<Konkurrent aus competitors>","p":"top"|"list"|"passing","s":"pos"|"neu"|"neg"}] (Position + Tonalität JEDES genannten Konkurrenten, gleiche Skalen),"sources":["explizit genannte Quell-URLs, max 8"]}\nSei streng: Substring-Zufallstreffer sind KEINE Erwähnung. Antworte NUR mit JSON-Array.\n\n`;
+  const head = `Du bewertest KI-Antworten für die Zielmarke "${brand}". ${hint}Für JEDE Antwort ein Objekt:\n{"i":<nr>,"mentioned":true|false (wird die Zielmarke genannt?),"cited":true|false (wird ihre Website/Domain als Quelle genannt/verlinkt?),"position":"top"|"list"|"passing"|"none" (top=klare Top-Empfehlung, list=eine von mehreren gleichrangig, passing=nur Randnotiz, none=nicht genannt),"sentiment":"pos"|"neu"|"neg"|null (Tonalität ggü. der Zielmarke),"competitors":["NUR direkte Wettbewerber der Zielmarke (vergleichbares Angebot/gleiche Branche), max 8 — KEINE Produkt-/Möbelmarken, Software, Portale, Medien oder Grosskonzerne anderer Branchen"],"comp_positions":[{"n":"<Konkurrent aus competitors>","p":"top"|"list"|"passing","s":"pos"|"neu"|"neg"}] (Position + Tonalität JEDES genannten Konkurrenten, gleiche Skalen),"sources":["explizit genannte Quell-URLs, max 8"]}\nSei streng: Substring-Zufallstreffer sind KEINE Erwähnung. Antworte NUR mit JSON-Array.\n\n`;
   // Judge in Blöcken -> skaliert auf beliebig viele Prompts (ohne Token-Limit zu sprengen).
   // Blöcke PARALLEL (2026-07-16): sequenziell traf jeder Block die volle
   // Failover-Kette (bis 120s je Provider) — 15 Blöcke x haengender Erst-
@@ -1553,11 +1611,17 @@ async function jobPromptRunner(
   }
 
   // C) Share-of-Voice: eigene Marke vs. Konkurrenten über alle Antworten.
+  // Ausschluss-Marker (04.08.): als branchenfremd deaktivierte Namen (Audit
+  // oder manuell) fliessen NIE in SoV/Auto-Learning — Anlass IKEA bei Studioforma.
+  const { data: inactiveComps } = await sbAny
+    .from("ai_visibility_competitors").select("name").eq("client_id", c.id).eq("active", false);
+  const excludedComps = new Set((inactiveComps ?? []).map((r: any) => String(r.name).toLowerCase()));
   const compTally: Record<string, { name: string; n: number }> = {};
   const selfMentions = evals.filter((e) => e.mentioned).length;
   for (const e of evals) {
     for (const name of e.competitors) {
       const kk = name.toLowerCase();
+      if (excludedComps.has(kk)) continue;
       (compTally[kk] ??= { name, n: 0 }).n += 1;
     }
   }
@@ -2833,6 +2897,35 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 }
               }
               results.push({ client: c.name, checked: (audit as any).checked, flagged: (audit as any).flagged, purgedRows: purged, skipped: (audit as any).skipped, examples: (flagged || []).slice(0, 8) });
+            }
+            await flushCost(sb);
+            return Response.json({ ok: true, build: BUILD_TAG, results });
+          }
+        }
+
+        // ?competitorAudit=<name|id|all>: Konkurrenten-Liste + SoV-Marken gegen
+        // das Faktenprofil prüfen, branchenfremde deaktivieren (Ausschluss-Marker)
+        // und deren SoV-Zeilen entfernen — Rankings sofort sauber (Anlass: IKEA).
+        {
+          const caParam = new URL(request.url).searchParams.get("competitorAudit");
+          if (caParam) {
+            const { data: cls } = await sb.from("clients").select("id, name, domain");
+            let targets = cls || [];
+            if (caParam !== "all") {
+              const q = caParam.toLowerCase();
+              targets = targets.filter((c: any) => String(c.id) === caParam || String(c.name || "").toLowerCase().includes(q));
+            } else {
+              const active: any[] = [];
+              for (const c of targets) {
+                const svc = await getEnabledServices(c.id);
+                if (svc.canonry || svc.perplexity) active.push(c);
+              }
+              targets = active;
+            }
+            const results: any[] = [];
+            for (const c of targets) {
+              const audit = await auditCompetitorRelevance(c, sb).catch((e) => ({ checked: 0, flagged: 0, skipped: redactSecrets(e) }));
+              results.push({ client: c.name, ...audit });
             }
             await flushCost(sb);
             return Response.json({ ok: true, build: BUILD_TAG, results });
