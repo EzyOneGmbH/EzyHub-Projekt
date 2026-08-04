@@ -4906,7 +4906,7 @@ const AIVIS_WINDOWS = [
 // kein Report existiert Fallback auf die bestehende Canonry-Ansicht darunter.
 // Phase 2 (31.07.): auch von der eigenständigen EzyAI-App (/ezyai) genutzt —
 // Komponente umgezogen statt neu gebaut; hier bleibt nur noch der Export.
-export function AiVisibilityTab({ selectedClient, tab, onTabChange, onTabGroups, chromeless }) {
+export function AiVisibilityTab({ selectedClient, navStyle }) {
   const { data, loading, error } = useEzyAIVisibility(
     selectedClient?.id,
     selectedClient?.domain || selectedClient?.name,
@@ -4922,8 +4922,7 @@ export function AiVisibilityTab({ selectedClient, tab, onTabChange, onTabGroups,
   if (loading) return <AIVisibilitySkeleton />;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <AIVisibilityReport data={data && !error ? data : null} convRows={convRows}
-        tab={tab} onTabChange={onTabChange} onTabGroups={onTabGroups} chromeless={chromeless} />
+      <AIVisibilityReport data={data && !error ? data : null} convRows={convRows} navStyle={navStyle} />
       <AiCitationsPanel selectedClient={selectedClient} />
     </div>
   );

@@ -2487,16 +2487,14 @@ function buildTabGroups(d) {
   ].map((g) => ({ ...g, items: g.items.filter(Boolean) })).filter((g) => g.items.length);
 }
 
-export default function AIVisibilityDashboard({ data, convRows = [], tab: tabProp, onTabChange, onTabGroups, chromeless = false }) {
+// navStyle: "sidebar" = eigene vertikale Nav (Standalone) · "topbar" = horizontale
+// Bereichs-Leiste im Content (eingebettet in die EzyAI-Shell, Searchable-Layout).
+export default function AIVisibilityDashboard({ data, convRows = [], navStyle = "sidebar" }) {
   const d = data;
-  const [tabInner, setTabInner] = useState("uebersicht");
-  const tab = tabProp ?? tabInner;              // controlled, wenn die Shell den Tab hält
-  const setTab = onTabChange ?? setTabInner;
+  const isTop = navStyle === "topbar";
+  const [tab, setTab] = useState("uebersicht");
   const [modelF, setModelF] = useState("alle");
   const [topicF, setTopicF] = useState("alle"); // Themen-Filter (C) — greift, sobald der Messlauf topic je Prompt schreibt
-  // Verfügbare Tab-Gruppen an die Shell melden (für die linke Seitenleiste).
-  const tabKey = buildTabGroups(d).flatMap((g) => g.items.map((i) => `${i.id}:${i.badge || 0}`)).join(",");
-  useEffect(() => { if (onTabGroups) onTabGroups(buildTabGroups(d)); }, [tabKey, onTabGroups]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!d) return <AIVisibilityEmpty />;
 
   const platforms = [...new Set([...(d.prompts || []), ...(d.promptOpps || [])].map((p) => p.platform).filter(Boolean))].sort();
@@ -2526,11 +2524,36 @@ export default function AIVisibilityDashboard({ data, convRows = [], tab: tabPro
 
   return (
     <div className="w-full" style={{ background: C.page, color: C.ink }}>
-      <div className={chromeless ? "" : "mx-auto max-w-6xl lg:flex lg:gap-6"}>
+      {/* topbar: horizontale Bereichs-Leiste im Content (Searchable-Layout) */}
+      {isTop && (
+        <div className="border-b" style={{ borderColor: C.line }}>
+          <div className="flex items-center gap-1 overflow-x-auto">
+            {TABS.map((t) => {
+              const on = tab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className="inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-2.5 text-[13px]"
+                  style={{
+                    color: on ? C.ink : C.sub, fontWeight: on ? 700 : 500,
+                    borderBottom: `2px solid ${on ? C.ink : "transparent"}`, marginBottom: -1,
+                    background: "none", border: "none", borderBottomStyle: "solid", cursor: "pointer",
+                  }}
+                >
+                  <t.icon size={14} style={{ color: on ? C.indigo : C.sub }} />
+                  {t.label}
+                  {t.badge > 0 && <span className="rounded-full px-1 text-[9px] font-bold" style={{ background: "#fdf6e3", color: "#8a6d1b" }}>{t.badge}</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      <div className={isTop ? "" : "mx-auto max-w-6xl lg:flex lg:gap-6"}>
 
-        {/* Seitenleiste (Desktop) — nur wenn die Shell die Nav NICHT übernimmt.
-            Gleiches Muster wie die EzyRank-Shell-Nav (accentDim/accentLight). */}
-        {!chromeless && (
+        {/* Seitenleiste (Desktop) — nur im Standalone-Modus (navStyle=sidebar). */}
+        {!isTop && (
         <aside className="hidden shrink-0 lg:block lg:w-52">
           <nav className="sticky top-4" style={{ padding: "12px 8px" }}>
             {TAB_GROUPS.map((g, gi) => (
@@ -2566,8 +2589,8 @@ export default function AIVisibilityDashboard({ data, convRows = [], tab: tabPro
         </aside>
         )}
 
-        {/* Mobile: horizontale Chip-Leiste (nur ohne Shell-Nav) */}
-        {!chromeless && (
+        {/* Mobile: horizontale Chip-Leiste (nur im Standalone-Modus) */}
+        {!isTop && (
         <div className="lg:hidden">
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
             {TABS.map((t) => {
@@ -2594,8 +2617,8 @@ export default function AIVisibilityDashboard({ data, convRows = [], tab: tabPro
         )}
 
       <div className="min-w-0 flex-1">
-        {/* Aktiver Bereich als Überschrift */}
-        <h2 className={`mt-1 text-lg font-bold ${chromeless ? "" : "hidden lg:block"}`} style={{ color: C.ink }}>{activeTab?.label}</h2>
+        {/* Aktiver Bereich als Überschrift (nur im Sidebar-Modus; topbar zeigt ihn schon) */}
+        {!isTop && <h2 className="mt-1 hidden text-lg font-bold lg:block" style={{ color: C.ink }}>{activeTab?.label}</h2>}
 
         {/* Filterzeile */}
         <div className="mt-3 flex flex-wrap items-center gap-2 text-[11.5px]" style={{ color: C.sub }}>
