@@ -29,7 +29,12 @@ const Body = z.object({
   // Bestand in wenigen Tagen durch und bleibt weit unter der GSC-Quota.
   inspectLimit: z.number().int().min(1).max(200).default(25),
   backfillDays: z.number().int().min(28).max(480).default(90), // GSC-Historie (max ~16 Monate)
-  submitSitemaps: z.boolean().default(true), // false => Sitemap-Job nur berichten
+  // Sitemap-Einreichung (Nutzerentscheid 04.08.):
+  //   "auto"  = nur bei Kunden mit autonom geschaltetem SEO-Agenten einreichen,
+  //             alle anderen nur beobachten. Das ist der Regelfall.
+  //   true    = erzwingen (bewusster Admin-Eingriff)
+  //   false   = nie einreichen, reiner Report
+  submitSitemaps: z.union([z.boolean(), z.literal("auto")]).default("auto"),
 });
 
 const isUuid = (s: string) =>
@@ -446,10 +451,17 @@ async function jobInspect(c: any, limit: number) {
 // Der Job liest die Sitemap-URLs aus der robots.txt des Kunden, vergleicht sie
 // mit den in der GSC eingereichten und reicht Fehlende per PUT nach.
 // submit=false => reiner Report, es wird nichts eingereicht.
-async function jobSitemaps(c: any, submit: boolean) {
+async function jobSitemaps(c: any, submitMode: boolean | "auto") {
   if (!c.gsc_property) return { skipped: "keine GSC-Property" };
   const domain = cleanDomain(c.domain);
   if (!domain) return { skipped: "keine Domain" };
+
+  // Autonomie-Gate: einreichen nur, wenn dieser Kunde einen SEO-Agenten hat,
+  // der auf autonom geschaltet ist (metadata.seo_autonom, gepflegt vom
+  // agent-service via /api/admin/client-flags). Kunden ohne Agent — z.B.
+  // Embassy Jewel — werden ausschliesslich beobachtet.
+  const autonom = (c.metadata as any)?.seo_autonom === true;
+  const submit = submitMode === "auto" ? autonom : submitMode;
 
   // 1) Sitemap-URLs der Website ermitteln (robots.txt ist die Selbstauskunft).
   // Dedupliziert: mehrere Kunden-robots.txt (ezyhotel.ch, timeout-memberclub.com)
@@ -509,7 +521,14 @@ async function jobSitemaps(c: any, submit: boolean) {
   }
 
   const missing = declared.filter((d) => !submitted.some((s) => normUrl(s) === normUrl(d)));
-  if (!submit) return { declared, submitted, missing, submittedNow: [] };
+  if (!submit)
+    return {
+      declared,
+      submitted,
+      missing,
+      submittedNow: [],
+      modus: submitMode === "auto" ? "beobachten (kein autonomer SEO-Agent)" : "beobachten (abgeschaltet)",
+    };
 
   // 3) Fehlende nachreichen (PUT ist idempotent; Google akzeptiert nur
   //    Sitemaps innerhalb der Property).
@@ -549,6 +568,7 @@ async function jobSitemaps(c: any, submit: boolean) {
     submitted,
     missing,
     submittedNow,
+    modus: submitMode === "auto" ? "autonom (SEO-Agent)" : "erzwungen",
     ...(scopeMissing ? { scopeMissing: true } : {}),
     ...(errors.length ? { errors } : {}),
   };
@@ -580,7 +600,9 @@ export const Route = createFileRoute("/api/admin/content-sync")({
 
         const query = supabaseAdmin
           .from("clients")
-          .select("id, name, domain, organization_id, gsc_property, ga4_property, language");
+          .select(
+            "id, name, domain, organization_id, gsc_property, ga4_property, language, metadata",
+          );
         let clients: any[] = [];
         if (all) clients = (await query).data || [];
         else if (sel && isUuid(sel)) clients = (await query.eq("id", sel)).data || [];
