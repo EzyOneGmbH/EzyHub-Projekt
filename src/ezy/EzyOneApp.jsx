@@ -4921,11 +4921,9 @@ export function AiVisibilityTab({ selectedClient, navStyle }) {
   // Backend/Loader zusammengeführt (Canonry-Provider fließen in die Modell-Verteilung,
   // -Quellen, -Konkurrenten). Kein separater GEO-Tab / keine gestapelte Sektion mehr.
   if (loading) return <AIVisibilitySkeleton />;
+  // AI-Zitationen-Panel (Modul 2, Stadt-/Kategorie-Ebene) auf Wunsch entfernt (04.08.).
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <AIVisibilityReport data={data && !error ? data : null} convRows={convRows} navStyle={navStyle} />
-      <AiCitationsPanel selectedClient={selectedClient} />
-    </div>
+    <AIVisibilityReport data={data && !error ? data : null} convRows={convRows} navStyle={navStyle} />
   );
 }
 
