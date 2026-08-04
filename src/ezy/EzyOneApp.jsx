@@ -36,6 +36,7 @@ import {
   Eye,
   FileText,
   Bot,
+  LayoutDashboard,
   Sparkles,
   Phone,
   Mail,
@@ -12809,7 +12810,9 @@ function App({ appScope = null }) {
             (n) =>
               n.id !== "reports" &&
               ((n.id !== "team" && n.id !== "settings") || isOrgAdmin) &&
-              (!scope || scope.pages.includes(n.id)), // Phase 3: App-Scope
+              (!scope || scope.pages.includes(n.id)) && // Phase 3: App-Scope
+              // copilot kommt über den Dashboard/Agent-Switcher (nicht doppelt in der Nav)
+              !(scope?.pages?.includes("copilot") && n.id === "copilot"),
           ),
     [isViewer, isOrgAdmin, scope],
   );
@@ -12855,6 +12858,10 @@ function App({ appScope = null }) {
     if (appParam === "geo") window.location.replace("/ezyai");
   }, [appParam]);
   const [page, setPage] = useState(appStart?.page || ui0.page || "dashboard");
+  // Dashboard/Agent-Switcher (04.08.): "Agent" = copilot-Seite, "Dashboard" =
+  // zurück zur zuletzt aktiven Nicht-Agent-Seite (Searchable-Muster).
+  const lastDashRef = useRef(page === "copilot" ? "dashboard" : page);
+  if (page !== "copilot") lastDashRef.current = page;
   // gemerkter aivis-Tab aus der Zeit vor Phase 2 → SEO (Tab existiert nicht mehr)
   const [tab, setTab] = useState(appStart?.tab || (ui0.tab === "aivis" ? "seo" : ui0.tab) || "seo");
   useEffect(() => {
@@ -13219,6 +13226,25 @@ function App({ appScope = null }) {
                 </a>
               </div>
             )}
+          </div>
+        )}
+        {/* Dashboard / Agent — Switcher (nur Apps mit EzyPilot: seo/ads). */}
+        {!isViewer && !collapsed && scope?.pages?.includes("copilot") && (
+          <div style={{ padding: "10px 12px", borderBottom: `1px solid ${C.border}` }}>
+            <div style={{ display: "flex", gap: 4, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: 3 }}>
+              {([["dashboard", "Dashboard", LayoutDashboard], ["agent", "Agent", Bot]]).map(([v, label, Icon]) => {
+                const on = v === "agent" ? page === "copilot" : page !== "copilot";
+                return (
+                  <button
+                    key={v}
+                    onClick={() => setPage(v === "agent" ? "copilot" : lastDashRef.current || "dashboard")}
+                    style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "7px 10px", borderRadius: 8, border: "none", cursor: "pointer", background: on ? C.surface : "transparent", color: on ? C.text : C.textMuted, fontSize: 12.5, fontWeight: on ? 700 : 500, boxShadow: on ? "0 1px 2px rgba(0,0,0,.06)" : "none", fontFamily: "inherit" }}
+                  >
+                    <Icon size={14} />{label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
         <nav style={{ flex: 1, padding: "12px 8px" }}>
