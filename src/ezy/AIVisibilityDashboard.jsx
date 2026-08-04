@@ -928,7 +928,7 @@ function YesNoPill({ yes }) {
 // Erwähnt?/Zitiert?/Position/Marken/Quellen — Detail-Modal weiter per Klick.
 function PromptGroupRow({ g, opportunity }) {
   const [open, setOpen] = useState(false);      // Detail-Modal (Antwort-Volltexte)
-  const [expanded, setExpanded] = useState(false); // Inline-Engine-Zeilen
+  const [expanded, setExpanded] = useState(true); // Searchable-Default (04.08.): aufgeklappt
   const rate = g.total ? Math.round((g.mentioned / g.total) * 100) : 0;
   return (
     <>
@@ -949,7 +949,7 @@ function PromptGroupRow({ g, opportunity }) {
             </div>
           </div>
         </td>
-        <td className="px-3 py-3 align-top" colSpan={2}>
+        <td className="px-3 py-3 align-top" colSpan={3}>
           <div className="flex items-center justify-end gap-2">
             {!opportunity && (
               <>
@@ -961,10 +961,10 @@ function PromptGroupRow({ g, opportunity }) {
             )}
             <button
               onClick={(e) => { e.stopPropagation(); setOpen(true); }}
-              className="rounded-md border px-2 py-0.5 text-[10.5px]"
-              style={{ borderColor: C.line, color: C.sub, background: C.card }}
+              className="rounded-md border px-2.5 py-1 text-[10.5px] font-medium"
+              style={{ borderColor: C.line, color: C.ink, background: C.card }}
             >
-              Volltexte
+              Details
             </button>
           </div>
         </td>
@@ -991,6 +991,7 @@ function PromptGroupRow({ g, opportunity }) {
             </td>
             <td className="px-3 py-2 text-center align-top text-[11.5px]"><BrandStack comps={e.comps} total={e.brands} /></td>
             <td className="px-3 py-2 text-center align-top text-[11.5px] tabular-nums" style={{ color: C.sub }}>{e.sources || "—"}</td>
+            <td className="px-3 py-2 text-center align-top text-[11px] whitespace-nowrap" style={{ color: C.sub }}>{e.checkedAt ? relTime(e.checkedAt) : "—"}</td>
           </tr>
         );
       })}
@@ -1157,7 +1158,10 @@ function PromptsTable({ prompts, opps, brand, brandPrompts = [], needsReview = 0
   return (
     <div className="rounded-xl border" style={CARD}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3" style={{ borderColor: C.line }}>
-        <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Prompts</h3>
+        <h3 className="flex items-baseline gap-2 text-sm font-semibold" style={{ color: C.ink }}>
+          Alle Antworten
+          <span className="text-[11.5px] font-normal" style={{ color: C.sub }}>· jede KI-Antwort über alle Prompts · {source.length} Antworten</span>
+        </h3>
         <div className="flex flex-wrap items-center gap-2">
           <input
             value={q}
@@ -1230,6 +1234,7 @@ function PromptsTable({ prompts, opps, brand, brandPrompts = [], needsReview = 0
               <th className="px-3 py-2 text-center font-medium">Position</th>
               <th className="px-3 py-2 text-center font-medium">Marken</th>
               <th className="px-3 py-2 text-center font-medium">Quellen</th>
+              <th className="px-3 py-2 text-center font-medium">Erstellt</th>
             </tr>
           </thead>
           <tbody>
@@ -2472,20 +2477,21 @@ function TopicTreemap({ rows }) {
 function buildTabGroups(d) {
   const hasBrand = !!d?.brandCheck;
   const hasConv = Array.isArray(d?.attribution) && d.attribution.length > 0;
+  // Prompts-Tab aufgelöst (04.08.): die All-Responses-Tabelle hängt jetzt am
+  // Ende des Erwähnungen-Tabs (Searchable-Aufbau) — Badge wandert mit.
   return [
     { group: "Analyse", items: [
       { id: "uebersicht", label: "Sichtbarkeit", icon: Eye },
-      { id: "erwaehnungen", label: "Erwähnungen", icon: Swords },
+      { id: "erwaehnungen", label: "Erwähnungen", icon: Swords, badge: d?.promptsNeedsReview || 0 },
       ...(hasBrand ? [{ id: "marke", label: "Marke", icon: Tags }] : []),
     ] },
     { group: "Inhalte", items: [
       { id: "quellen", label: "Quellen", icon: Link2 },
       { id: "themen", label: "Themen", icon: Layers },
     ] },
-    { group: "Prompts", items: [
-      { id: "prompts", label: "Prompts", icon: MessageSquareQuote, badge: d?.promptsNeedsReview || 0 },
-      ...(Array.isArray(d?.fanout) && d.fanout.length ? [{ id: "folgefragen", label: "Folgefragen", icon: MessageSquare }] : []),
-    ] },
+    ...(Array.isArray(d?.fanout) && d.fanout.length
+      ? [{ group: "Prompts", items: [{ id: "folgefragen", label: "Folgefragen", icon: MessageSquare }] }]
+      : []),
     { group: "Kontext", items: [
       ...(Array.isArray(d?.countries) && d.countries.length ? [{ id: "standorte", label: "Standorte", icon: MapPin }] : []),
       ...(hasConv ? [{ id: "conversions", label: "Conversions", icon: MousePointerClick }] : []),
@@ -2758,6 +2764,12 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
             </div>
             {/* Share-of-Voice-Karte hier auf Wunsch entfernt (04.08.) —
                 der SoV-Donut bleibt auf dem Sichtbarkeits-Tab. */}
+            {/* Prompts-Tab aufgelöst (04.08.): Matrix + All-Responses-Tabelle
+                hängen jetzt hier am Ende — wie Searchables Mentions & Citations. */}
+            <div className="mt-4 grid grid-cols-1 gap-4">
+              <PromptMatrix prompts={fP} opps={fO} />
+              <PromptsTable prompts={fP} opps={fO} brand={d.client} brandPrompts={d.brandPrompts || []} needsReview={d.promptsNeedsReview || 0} />
+            </div>
           </>
         )}
 
@@ -2779,12 +2791,6 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
 
         {tab === "themen" && <TopicsPanel rows={d.topics} prompts={[...(fP || []), ...(fO || [])]} />}
 
-        {tab === "prompts" && (
-          <div className="mt-4 grid grid-cols-1 gap-4">
-            <PromptMatrix prompts={fP} opps={fO} />
-            <PromptsTable prompts={fP} opps={fO} brand={d.client} brandPrompts={d.brandPrompts || []} needsReview={d.promptsNeedsReview || 0} />
-          </div>
-        )}
 
         {tab === "folgefragen" && <FanoutPanel fanout={d.fanout} />}
 
