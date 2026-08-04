@@ -452,14 +452,22 @@ async function jobSitemaps(c: any, submit: boolean) {
   if (!domain) return { skipped: "keine Domain" };
 
   // 1) Sitemap-URLs der Website ermitteln (robots.txt ist die Selbstauskunft).
+  // Dedupliziert: mehrere Kunden-robots.txt (ezyhotel.ch, timeout-memberclub.com)
+  // nennen dieselbe Sitemap doppelt — ohne Dedup wuerde sie zweimal
+  // eingereicht und zweimal als "fehlend" gemeldet.
+  const seen = new Set<string>();
   const declared: string[] = [];
+  const addDeclared = (u: string) => {
+    const key = normUrl(u);
+    if (key && !seen.has(key)) { seen.add(key); declared.push(u); }
+  };
   try {
     const rb = await fetch(`https://${domain}/robots.txt`, { signal: AbortSignal.timeout(15_000) });
     if (rb.ok) {
       const txt = await rb.text();
       for (const line of txt.split(/\r?\n/)) {
         const m = line.match(/^\s*sitemap\s*:\s*(\S+)/i);
-        if (m) declared.push(m[1].trim());
+        if (m) addDeclared(m[1].trim());
       }
     }
   } catch {
@@ -470,7 +478,7 @@ async function jobSitemaps(c: any, submit: boolean) {
     for (const cand of [`https://${domain}/wp-sitemap.xml`, `https://${domain}/sitemap_index.xml`]) {
       try {
         const r = await fetch(cand, { method: "HEAD", signal: AbortSignal.timeout(10_000) });
-        if (r.ok) { declared.push(cand); break; }
+        if (r.ok) { addDeclared(cand); break; }
       } catch { /* naechster Kandidat */ }
     }
   }
