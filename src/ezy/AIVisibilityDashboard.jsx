@@ -2740,7 +2740,7 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
               <MetricTrendCard icon={MessageSquare} title="Erwähnungen" info="Wie oft die Marke in KI-Antworten genannt wird — Monatsverlauf über alle Systeme." value={d.kpis.mentions.value} delta={d.kpis.mentions.delta} series={(d.trend || []).map((t) => ({ v: t.mentions, m: t.m }))} color={C.indigo} />
               <MetricTrendCard icon={Link2} title="Citations" info="Wie oft KI-Antworten die eigene Website als Quelle verlinken — Monatsverlauf." value={d.kpis.citations.value} delta={d.kpis.citations.delta} series={(d.trend || []).map((t) => ({ v: t.citations, m: t.m }))} color={C.teal} />
             </div>
-            <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="mt-4 grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
               <FunnelCard prompts={fP} opps={fO} />
               <PositionHeadToHead prompts={fP} sov={d.sov} brand={d.client} />
             </div>
