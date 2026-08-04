@@ -2519,58 +2519,64 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
     <div className="w-full" style={{ background: C.page, color: C.ink }}>
       <div className="mx-auto max-w-6xl lg:flex lg:gap-6">
 
-        {/* Seitenleiste (Desktop, Searchable-Look: gruppierte Nav) */}
+        {/* Seitenleiste (Desktop) — gleiches Muster wie die EzyRank-Shell-Nav:
+            accentDim-Hintergrund/accentLight-Text, Icon 18, Radius 10. */}
         <aside className="hidden shrink-0 lg:block lg:w-52">
-          <nav className="sticky top-4 space-y-4">
-            {TAB_GROUPS.map((g) => (
-              <div key={g.group}>
-                <div className="px-3 pb-1 text-[10.5px] font-semibold uppercase tracking-wider" style={{ color: C.sub }}>{g.group}</div>
-                <div className="space-y-0.5">
-                  {g.items.map((t) => {
-                    const Icon = t.icon;
-                    const on = tab === t.id;
-                    return (
-                      <button
-                        key={t.id}
-                        onClick={() => setTab(t.id)}
-                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13px] transition focus:outline-none focus-visible:ring-2"
-                        style={{ background: on ? C.track : "transparent", color: on ? C.ink : C.sub, fontWeight: on ? 600 : 500 }}
-                      >
-                        <Icon size={16} strokeWidth={on ? 2.4 : 2} style={{ color: on ? C.indigo : C.sub }} />
-                        <span className="min-w-0 flex-1 truncate">{t.label}</span>
-                        {t.badge > 0 && (
-                          <span className="rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums" style={{ background: "#fdf6e3", color: "#8a6d1b" }}>{t.badge}</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
+          <nav className="sticky top-4" style={{ padding: "12px 8px" }}>
+            {TAB_GROUPS.map((g, gi) => (
+              <div key={g.group} style={{ marginTop: gi ? 14 : 0 }}>
+                <div style={{ padding: "0 14px 6px", fontSize: 10.5, fontWeight: 600, letterSpacing: ".06em", textTransform: "uppercase", color: C.sub }}>{g.group}</div>
+                {g.items.map((t) => {
+                  const Icon = t.icon;
+                  const a = tab === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => setTab(t.id)}
+                      style={{
+                        width: "100%", display: "flex", alignItems: "center", gap: 12,
+                        padding: "10px 14px", borderRadius: 10, border: "none", cursor: "pointer",
+                        background: a ? "rgba(108,92,231,0.10)" : "transparent",
+                        color: a ? "#5b4bd6" : C.sub,
+                        fontSize: 13, fontWeight: a ? 600 : 400, marginBottom: 2,
+                        transition: "all .15s", fontFamily: "inherit",
+                      }}
+                    >
+                      <Icon size={18} />
+                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" }}>{t.label}</span>
+                      {t.badge > 0 && (
+                        <span className="rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums" style={{ background: "#fdf6e3", color: "#8a6d1b" }}>{t.badge}</span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             ))}
           </nav>
         </aside>
 
-        {/* Mobile: horizontale Tab-Leiste (Sidebar wäre zu hoch) */}
-        <div className="border-b lg:hidden" style={{ borderColor: C.line }}>
-          <div className="flex items-center gap-1 overflow-x-auto">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                className="inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-[13px]"
-                style={{
-                  color: tab === t.id ? C.ink : C.sub,
-                  fontWeight: tab === t.id ? 700 : 500,
-                  borderBottom: `2px solid ${tab === t.id ? C.ink : "transparent"}`,
-                  marginBottom: -1,
-                  background: "none", border: "none", borderBottomStyle: "solid", cursor: "pointer",
-                }}
-              >
-                <t.icon size={14} style={{ color: tab === t.id ? C.indigo : C.sub }} />
-                {t.label}
-                {t.badge > 0 && <span className="rounded-full px-1 text-[9px] font-bold" style={{ background: "#fdf6e3", color: "#8a6d1b" }}>{t.badge}</span>}
-              </button>
-            ))}
+        {/* Mobile: horizontale Chip-Leiste (accentDim-Pill wie die Shell-Nav) */}
+        <div className="lg:hidden">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+            {TABS.map((t) => {
+              const a = tab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className="inline-flex items-center gap-1.5 whitespace-nowrap text-[13px]"
+                  style={{
+                    padding: "8px 12px", borderRadius: 10, border: "none", cursor: "pointer",
+                    background: a ? "rgba(108,92,231,0.10)" : "transparent",
+                    color: a ? "#5b4bd6" : C.sub, fontWeight: a ? 600 : 400, fontFamily: "inherit",
+                  }}
+                >
+                  <t.icon size={16} />
+                  {t.label}
+                  {t.badge > 0 && <span className="rounded-full px-1 text-[9px] font-bold" style={{ background: "#fdf6e3", color: "#8a6d1b" }}>{t.badge}</span>}
+                </button>
+              );
+            })}
           </div>
         </div>
 
