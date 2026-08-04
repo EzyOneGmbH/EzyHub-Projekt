@@ -515,6 +515,7 @@ async function jobSitemaps(c: any, submit: boolean) {
   //    Sitemaps innerhalb der Property).
   const submittedNow: string[] = [];
   const errors: any[] = [];
+  let scopeMissing = false;
   for (const url of missing) {
     try {
       const r = await fetch(`${base}/${encodeURIComponent(url)}`, {
@@ -522,13 +523,35 @@ async function jobSitemaps(c: any, submit: boolean) {
         headers: { Authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(20_000),
       });
-      if (r.ok) submittedNow.push(url);
-      else errors.push({ url, error: `HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 120)}` });
+      if (r.ok) { submittedNow.push(url); continue; }
+      const body = (await r.text().catch(() => "")).slice(0, 200);
+      // Der haeufigste und einzig strukturelle Fehlerfall: unsere Google-
+      // Verbindung hat nur den Lese-Scope (webmasters.readonly). Einreichen
+      // braucht den Schreib-Scope (webmasters) — das erfordert eine neue
+      // Einwilligung je Kunde und ist nichts, was der Lauf selbst loesen kann.
+      // Deshalb hier als klarer Klartext-Hinweis statt als roher 403-Dump.
+      if (r.status === 403 && /insufficient authentication scopes/i.test(body)) {
+        scopeMissing = true;
+        errors.push({
+          url,
+          error:
+            "Google-Verbindung hat nur Lese-Rechte (webmasters.readonly). Zum Einreichen ist der Scope 'webmasters' noetig — Kunde muss die Google-Verbindung neu freigeben.",
+        });
+        continue;
+      }
+      errors.push({ url, error: `HTTP ${r.status}: ${body.slice(0, 120)}` });
     } catch (e) {
       errors.push({ url, error: redactSecrets(e) });
     }
   }
-  return { declared, submitted, missing, submittedNow, ...(errors.length ? { errors } : {}) };
+  return {
+    declared,
+    submitted,
+    missing,
+    submittedNow,
+    ...(scopeMissing ? { scopeMissing: true } : {}),
+    ...(errors.length ? { errors } : {}),
+  };
 }
 
 export const Route = createFileRoute("/api/admin/content-sync")({
