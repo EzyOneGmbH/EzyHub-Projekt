@@ -2495,13 +2495,16 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
   const [tab, setTab] = useState("uebersicht");
   const [modelF, setModelF] = useState("alle");
   const [topicF, setTopicF] = useState("alle"); // Themen-Filter (C) — greift, sobald der Messlauf topic je Prompt schreibt
+  const [countryF, setCountryF] = useState("alle"); // Standort-Filter (Searchable „Locations")
   if (!d) return <AIVisibilityEmpty />;
 
   const platforms = [...new Set([...(d.prompts || []), ...(d.promptOpps || [])].map((p) => p.platform).filter(Boolean))].sort();
   const topicsAvail = [...new Set([...(d.prompts || []), ...(d.promptOpps || [])].map((p) => p.topic).filter(Boolean))].sort();
+  const countriesAvail = [...new Set([...(d.prompts || []), ...(d.promptOpps || [])].map((p) => p.country).filter(Boolean))].sort();
   const byFilter = (arr) => (arr || [])
     .filter((p) => modelF === "alle" || p.platform === modelF)
-    .filter((p) => topicF === "alle" || p.topic === topicF);
+    .filter((p) => topicF === "alle" || p.topic === topicF)
+    .filter((p) => countryF === "alle" || p.country === countryF);
   const fP = byFilter(d.prompts);
   const fO = byFilter(d.promptOpps);
   // Intent-Verteilung aus den (gefilterten) Prompt-Zeilen — ersetzt das
@@ -2647,9 +2650,21 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
               {topicsAvail.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           )}
-          {(modelF !== "alle" || topicF !== "alle") && (
+          {countriesAvail.length > 1 && (
+            <select
+              value={countryF}
+              onChange={(e) => setCountryF(e.target.value)}
+              className="rounded-full border px-2.5 py-1 text-[11.5px]"
+              style={{ borderColor: countryF === "alle" ? C.line : C.indigo, background: C.card, color: countryF === "alle" ? C.sub : C.indigo }}
+              title="Standort-Filter (Herkunft der Anfragen) — wirkt auf Kaufreise, Position, Intent und Prompts"
+            >
+              <option value="alle">Alle Standorte</option>
+              {countriesAvail.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          )}
+          {(modelF !== "alle" || topicF !== "alle" || countryF !== "alle") && (
             <span className="rounded-full px-2.5 py-1" style={{ background: C.cardAlt }}>
-              Filter aktiv: {[modelF !== "alle" ? `nur ${modelF}` : null, topicF !== "alle" ? `Thema „${topicF}"` : null].filter(Boolean).join(" · ")} (Score/KPIs bleiben Gesamtwerte)
+              Filter aktiv: {[modelF !== "alle" ? `nur ${modelF}` : null, topicF !== "alle" ? `Thema „${topicF}"` : null, countryF !== "alle" ? `Standort ${countryF}` : null].filter(Boolean).join(" · ")} (Score/KPIs bleiben Gesamtwerte)
             </span>
           )}
           {d.versionSwitch && (
