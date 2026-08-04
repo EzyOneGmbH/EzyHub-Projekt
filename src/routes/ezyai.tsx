@@ -8,6 +8,13 @@ import { useEzyClients } from "@/ezy/data/useEzyClients";
 import { useEzyServiceSettings } from "@/ezy/data/useEzyServiceSettings";
 import { useEzyServiceMatrix } from "@/ezy/data/useEzyServiceMatrix";
 import { AiVisibilityTab } from "@/ezy/EzyOneApp.jsx";
+import { useEzyProfile } from "@/ezy/data/useEzyProfile";
+import { Search, LogOut } from "lucide-react";
+
+// Initialen aus einem Namen (Shell-Profilblock, wie in der EzyRank-Shell).
+function initials(name: string) {
+  return String(name || "?").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
+}
 
 // ── KI-Crawler-Karte (Searchable-Nachbau ⑤, Beta 08/2026) ────────────────────
 // Zeigt Bot-Besuche der letzten 7 Tage aus ai_crawler_hits (Ingest-Endpoint
@@ -189,16 +196,23 @@ export const Route = createFileRoute("/ezyai")({
 const S = {
   bg: "#f7f6f2", panel: "#ffffff", line: "#e8e6df",
   txt: "#1c1c1e", mut: "#6e6c64", app: "#7c3aed", appTint: "rgba(124,58,237,.10)",
+  // Shell-Nav (identisch zur EzyRank-Shell): accentDim/accentLight.
+  navAccent: "#5b4bd6", navDim: "rgba(108,92,231,0.10)",
 };
+const SIDEBAR_W = 256;
 const CLIENT_LS = "ezyai.clientId";
+type NavGroup = { group: string; items: Array<{ id: string; label: string; icon: any; badge?: number }> };
 
 function EzyAiApp() {
   const navigate = useNavigate();
   const { session, loading: authLoading, role, isOrgAdmin } = useAuth();
   const { canOpen, loading: accessLoading } = useAppAccess();
+  const { profile } = useEzyProfile();
   const ezy = useEzyClients();
   const [swOpen, setSwOpen] = useState(false);
   const [curOpen, setCurOpen] = useState(false); // Prompt-Kuration (Nachbau 08/2026)
+  const [tab, setTab] = useState("uebersicht");   // aktiver Bereich — jetzt in der Shell-Sidebar
+  const [navGroups, setNavGroups] = useState<NavGroup[]>([]); // vom Dashboard gemeldet
   const [clientId, setClientId] = useState(() => {
     try { return localStorage.getItem(CLIENT_LS) || ""; } catch { return ""; }
   });
@@ -233,128 +247,176 @@ function EzyAiApp() {
 
   if (authLoading || !session || role === "viewer") return null;
 
+  const shareReport = async () => {
+    const token = (await supabase.auth.getSession()).data.session?.access_token;
+    const r = await fetch("/api/public/report", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token || ""}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ clientId: client!.id, days: 30 }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (j?.ok && j.url) {
+      const full = `${window.location.origin}${j.url}`;
+      try { await navigator.clipboard.writeText(full); alert(`Report-Link kopiert (30 Tage gültig):\n${full}`); }
+      catch { window.prompt("Report-Link (30 Tage gültig) — kopieren:", full); }
+    } else alert(j?.error || "Link konnte nicht erstellt werden");
+  };
+
   return (
     <div style={{ minHeight: "100vh", background: S.bg, color: S.txt, fontFamily: '"Segoe UI",system-ui,-apple-system,sans-serif' }}>
-      {/* Mobile (01.08.): Header umbricht, Kunden-Select volle Breite, engere Paddings */}
-      <style>{`@media(max-width:640px){
-        .ezyai-head{flex-wrap:wrap!important;gap:8px!important;padding:8px 10px!important}
-        .ezyai-head-right{margin-left:0!important;width:100%!important}
-        .ezyai-head-right select{flex:1;max-width:none!important}
-        .ezyai-main{padding:14px 10px 48px!important}
-      }`}</style>
-      {/* App-Header */}
-      <header className="ezyai-head" style={{
-        display: "flex", alignItems: "center", gap: 14, padding: "10px 18px",
-        background: S.panel, borderBottom: `1px solid ${S.line}`,
-        position: "sticky", top: 0, zIndex: 100,
-      }}>
-        <div style={{ position: "relative" }}>
-          <button
-            onClick={() => setSwOpen((v) => !v)}
-            title="App wechseln"
-            style={{ background: "none", border: "none", color: S.mut, fontSize: 16, cursor: "pointer", padding: "6px 8px", borderRadius: 8, letterSpacing: 1 }}
-          >⣿</button>
-          {swOpen && (
-            <div style={{
-              position: "absolute", top: "100%", left: 0, zIndex: 200, width: 240,
-              background: S.panel, border: `1px solid ${S.line}`, borderRadius: 12,
-              padding: 8, boxShadow: "0 14px 44px rgba(0,0,0,.14)",
-            }}>
-              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".08em", color: S.mut, padding: "4px 10px 8px", fontWeight: 700 }}>Apps wechseln</div>
-              {EZY_APPS.filter((a) => canOpen(a.id)).map((a) => {
-                const active = a.id === "geo";
+      {/* Mobile (04.08.): Shell-Sidebar wird zur horizontalen Leiste oben. */}
+      <style>{`
+        .ezyai-shell{display:flex;min-height:100vh}
+        .ezyai-side{width:${SIDEBAR_W}px;flex-shrink:0;background:${S.panel};border-right:1px solid ${S.line};display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:50;overflow-y:auto}
+        .ezyai-body{flex:1;min-width:0;margin-left:${SIDEBAR_W}px}
+        .ezyai-mnav{display:none}
+        @media(max-width:900px){
+          .ezyai-side{display:none}
+          .ezyai-body{margin-left:0}
+          .ezyai-mnav{display:block;position:sticky;top:0;z-index:40;background:${S.panel};border-bottom:1px solid ${S.line};padding:8px 10px;overflow-x:auto}
+          .ezyai-chead{flex-wrap:wrap!important;gap:8px!important;padding:10px!important}
+          .ezyai-main{padding:14px 10px 48px!important}
+        }
+      `}</style>
+
+      <div className="ezyai-shell">
+        {/* ── Shell-Seitenleiste (identisch zur EzyRank-Shell) ─────────────── */}
+        <aside className="ezyai-side">
+          {/* Logo */}
+          <div style={{ padding: "20px 20px", borderBottom: `1px solid ${S.line}`, display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg,#6c5ce7,#0284c7)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: "#fff", flexShrink: 0 }}>EO</div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 15, letterSpacing: "-.3px" }}>EZY ONE</div>
+              <div style={{ fontSize: 10, color: S.mut }}>SEO &amp; GEO Platform</div>
+            </div>
+          </div>
+
+          {/* App-Switcher */}
+          <div style={{ position: "relative", borderBottom: `1px solid ${S.line}`, padding: "8px 10px" }}>
+            <button
+              onClick={() => setSwOpen((v) => !v)}
+              title="App wechseln"
+              style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, background: swOpen ? "rgba(0,0,0,.05)" : "none", border: "none", borderRadius: 8, padding: "8px 10px", color: S.app, cursor: "pointer", fontSize: 12.5, fontWeight: 600 }}
+            >
+              <span style={{ fontSize: 14, lineHeight: 1, letterSpacing: 1 }}>⣿</span>
+              <span style={{ color: S.app }}>EzyAI</span>
+            </button>
+            {swOpen && (
+              <div style={{ position: "absolute", top: "100%", left: 10, zIndex: 200, width: 236, background: S.panel, border: `1px solid ${S.line}`, borderRadius: 12, padding: 8, boxShadow: "0 14px 44px rgba(0,0,0,.14)" }}>
+                <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".08em", color: S.mut, padding: "4px 10px 8px", fontWeight: 700 }}>Apps wechseln</div>
+                {EZY_APPS.filter((a) => canOpen(a.id)).map((a) => {
+                  const active = a.id === "geo";
+                  return (
+                    <a key={a.id} href={a.href}
+                      onClick={(e) => { if (active) { e.preventDefault(); setSwOpen(false); } }}
+                      style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8, fontSize: 13, textDecoration: "none", color: active ? a.color : S.txt, background: active ? a.tint : "none" }}>
+                      <span style={{ width: 24, height: 24, borderRadius: 6, background: a.tint, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>{a.icon}</span>
+                      {a.name}
+                    </a>
+                  );
+                })}
+                <div style={{ borderTop: `1px solid ${S.line}`, margin: "8px 4px" }} />
+                <a href="/apps" style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8, fontSize: 12.5, textDecoration: "none", color: S.mut }}>✦ Zum Launcher</a>
+              </div>
+            )}
+          </div>
+
+          {/* Nav (Bereiche aus dem Dashboard) */}
+          <nav style={{ flex: 1, padding: "12px 8px" }}>
+            {navGroups.map((g, gi) => (
+              <div key={g.group} style={{ marginTop: gi ? 14 : 0 }}>
+                <div style={{ padding: "0 14px 6px", fontSize: 10.5, fontWeight: 600, letterSpacing: ".06em", textTransform: "uppercase", color: S.mut }}>{g.group}</div>
+                {g.items.map((t) => {
+                  const Icon = t.icon;
+                  const a = tab === t.id;
+                  return (
+                    <button key={t.id} onClick={() => setTab(t.id)}
+                      style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10, border: "none", cursor: "pointer", background: a ? S.navDim : "transparent", color: a ? S.navAccent : S.mut, fontSize: 13, fontWeight: a ? 600 : 400, marginBottom: 2, transition: "all .15s", fontFamily: "inherit" }}>
+                      <Icon size={18} />
+                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" }}>{t.label}</span>
+                      {t.badge && t.badge > 0 ? <span style={{ background: "#fdf6e3", color: "#8a6d1b", borderRadius: 99, padding: "1px 7px", fontSize: 10, fontWeight: 700 }}>{t.badge}</span> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </nav>
+
+          {/* Suche (öffnet Prompt-Kuration) */}
+          <div style={{ padding: "10px 12px", borderTop: `1px solid ${S.line}` }}>
+            <button onClick={() => setCurOpen(true)}
+              style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, background: S.bg, border: `1px solid ${S.line}`, cursor: "pointer", color: S.mut, fontSize: 12, fontFamily: "inherit" }}>
+              <Search size={13} />
+              Prompts verwalten
+            </button>
+          </div>
+
+          {/* Profil */}
+          <div style={{ padding: "12px 16px", borderTop: `1px solid ${S.line}`, display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: S.app, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#fff" }}>{initials(profile.name)}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: S.txt, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{profile.name || "—"}</div>
+              <div style={{ fontSize: 10, color: S.mut }}>{profile.role}</div>
+            </div>
+            <LogOut size={14} color={S.mut} style={{ cursor: "pointer" }} onClick={() => supabase.auth.signOut()} />
+          </div>
+        </aside>
+
+        {/* ── Content ──────────────────────────────────────────────────────── */}
+        <div className="ezyai-body">
+          {/* Mobile-Nav (horizontale Chips statt Shell-Sidebar) */}
+          <div className="ezyai-mnav">
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              {navGroups.flatMap((g) => g.items).map((t) => {
+                const Icon = t.icon;
+                const a = tab === t.id;
                 return (
-                  <a key={a.id} href={a.href}
-                    onClick={(e) => { if (active) { e.preventDefault(); setSwOpen(false); } }}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
-                      borderRadius: 8, fontSize: 13, textDecoration: "none",
-                      color: active ? a.color : S.txt, background: active ? a.tint : "none",
-                    }}>
-                    <span style={{ width: 24, height: 24, borderRadius: 6, background: a.tint, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>{a.icon}</span>
-                    {a.name}
-                  </a>
+                  <button key={t.id} onClick={() => setTab(t.id)}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", padding: "8px 12px", borderRadius: 10, border: "none", cursor: "pointer", background: a ? S.navDim : "transparent", color: a ? S.navAccent : S.mut, fontSize: 13, fontWeight: a ? 600 : 400, fontFamily: "inherit" }}>
+                    <Icon size={16} />{t.label}
+                  </button>
                 );
               })}
-              <div style={{ borderTop: `1px solid ${S.line}`, margin: "8px 4px" }} />
-              <a href="/apps" style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8, fontSize: 12.5, textDecoration: "none", color: S.mut }}>✦ Zum Launcher</a>
             </div>
-          )}
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-          <span style={{ width: 30, height: 30, borderRadius: 8, background: S.appTint, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>🤖</span>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 14.5, color: S.app, lineHeight: 1.1 }}>EzyAI</div>
-            <div style={{ fontSize: 10.5, color: S.mut }}>KI-Sichtbarkeit</div>
           </div>
-        </div>
 
-        <div className="ezyai-head-right" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
-          {isOrgAdmin && client?.id && (
-            <button
-              onClick={async () => {
-                // Teilbarer Read-only-Report-Link (30 Tage gültig)
-                const token = (await supabase.auth.getSession()).data.session?.access_token;
-                const r = await fetch("/api/public/report", {
-                  method: "POST",
-                  headers: { Authorization: `Bearer ${token || ""}`, "Content-Type": "application/json" },
-                  body: JSON.stringify({ clientId: client.id, days: 30 }),
-                });
-                const j = await r.json().catch(() => ({}));
-                if (j?.ok && j.url) {
-                  const full = `${window.location.origin}${j.url}`;
-                  try { await navigator.clipboard.writeText(full); alert(`Report-Link kopiert (30 Tage gültig):\n${full}`); }
-                  catch { window.prompt("Report-Link (30 Tage gültig) — kopieren:", full); }
-                } else alert(j?.error || "Link konnte nicht erstellt werden");
-              }}
-              style={{ fontSize: 12, color: S.app, background: "none", cursor: "pointer", border: `1px solid ${S.app}55`, borderRadius: 8, padding: "6px 12px" }}
+          {/* Kontext-Kopfzeile: Kunden-Auswahl + Aktionen */}
+          <header className="ezyai-chead" style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 22px", background: S.panel, borderBottom: `1px solid ${S.line}`, position: "sticky", top: 0, zIndex: 30 }}>
+            <select
+              value={client?.id || ""}
+              onChange={(e) => setClientId(e.target.value)}
+              style={{ padding: "7px 10px", borderRadius: 8, background: S.bg, color: S.txt, border: `1px solid ${S.line}`, fontSize: 13, maxWidth: 260 }}
             >
-              Report teilen
-            </button>
-          )}
-          <button onClick={() => setCurOpen(true)} style={{ fontSize: 12, color: S.mut, background: "none", cursor: "pointer", border: `1px solid ${S.line}`, borderRadius: 8, padding: "6px 12px" }}>
-            Prompts verwalten
-          </button>
-          <a href="/llm-ueberblick" style={{ fontSize: 12, color: S.mut, textDecoration: "none", border: `1px solid ${S.line}`, borderRadius: 8, padding: "6px 12px" }}>
-            LLM-Überblick
-          </a>
-          <select
-            value={client?.id || ""}
-            onChange={(e) => setClientId(e.target.value)}
-            style={{ padding: "7px 10px", borderRadius: 8, background: S.bg, color: S.txt, border: `1px solid ${S.line}`, fontSize: 13, maxWidth: 240 }}
-          >
-            {clients.map((c: any) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </div>
-      </header>
-
-      {/* Inhalt */}
-      <main className="ezyai-main" style={{ maxWidth: 1280, margin: "0 auto", padding: "22px 18px 60px" }}>
-        {ezy.loading && !clients.length ? (
-          <div style={{ color: S.mut, fontSize: 13, padding: 60, textAlign: "center" }}>Lade Kunden…</div>
-        ) : !client ? (
-          <div style={{ color: S.mut, fontSize: 13, padding: 60, textAlign: "center" }}>Keine Kunden zugewiesen.</div>
-        ) : !aivisOn ? (
-          <div style={{
-            background: S.panel, border: `1px solid ${S.line}`, borderRadius: 14,
-            padding: 40, textAlign: "center", maxWidth: 560, margin: "60px auto 0",
-          }}>
-            <div style={{ fontSize: 30, marginBottom: 12 }}>🤖</div>
-            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>KI-Sichtbarkeit ist für {client.name} nicht aktiviert</div>
-            <div style={{ fontSize: 13, color: S.mut }}>
-              Der Service lässt sich im Admin unter Kunden → Services (Canonry / Perplexity) einschalten.
+              {clients.map((c: any) => (<option key={c.id} value={c.id}>{c.name}</option>))}
+            </select>
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+              {isOrgAdmin && client?.id && (
+                <button onClick={shareReport} style={{ fontSize: 12, color: S.app, background: "none", cursor: "pointer", border: `1px solid ${S.app}55`, borderRadius: 8, padding: "6px 12px" }}>Report teilen</button>
+              )}
+              <a href="/llm-ueberblick" style={{ fontSize: 12, color: S.mut, textDecoration: "none", border: `1px solid ${S.line}`, borderRadius: 8, padding: "6px 12px" }}>LLM-Überblick</a>
             </div>
-          </div>
-        ) : (
-          <>
-            <AiVisibilityTab selectedClient={client} />
-            <CrawlerCard clientId={client.id} S={S} />
-          </>
-        )}
-      </main>
+          </header>
+
+          <main className="ezyai-main" style={{ maxWidth: 1180, margin: "0 auto", padding: "22px 22px 60px" }}>
+            {ezy.loading && !clients.length ? (
+              <div style={{ color: S.mut, fontSize: 13, padding: 60, textAlign: "center" }}>Lade Kunden…</div>
+            ) : !client ? (
+              <div style={{ color: S.mut, fontSize: 13, padding: 60, textAlign: "center" }}>Keine Kunden zugewiesen.</div>
+            ) : !aivisOn ? (
+              <div style={{ background: S.panel, border: `1px solid ${S.line}`, borderRadius: 14, padding: 40, textAlign: "center", maxWidth: 560, margin: "60px auto 0" }}>
+                <div style={{ fontSize: 30, marginBottom: 12 }}>🤖</div>
+                <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>KI-Sichtbarkeit ist für {client.name} nicht aktiviert</div>
+                <div style={{ fontSize: 13, color: S.mut }}>Der Service lässt sich im Admin unter Kunden → Services (Canonry / Perplexity) einschalten.</div>
+              </div>
+            ) : (
+              <>
+                <AiVisibilityTab selectedClient={client} tab={tab} onTabChange={setTab} onTabGroups={setNavGroups} chromeless />
+                <CrawlerCard clientId={client.id} S={S} />
+              </>
+            )}
+          </main>
+        </div>
+      </div>
       {curOpen && client?.id && <PromptCurationPanel clientId={client.id} onClose={() => setCurOpen(false)} S={S} />}
     </div>
   );

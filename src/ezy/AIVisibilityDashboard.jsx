@@ -2461,11 +2461,42 @@ function TopicTreemap({ rows }) {
 // Scroll-Seite navigiert der Report in Bereichen; der Modell-Filter wirkt auf
 // alle prompt-basierten Karten (Kaufreise, Position, Intent, Prompts) —
 // Report-Kennzahlen (Score/KPIs/Trend) sind Lauf-Aggregate und bleiben ungefiltert.
-export default function AIVisibilityDashboard({ data, convRows = [] }) {
+// Gruppierte Sub-Navigation (04.08., Searchable-Look). Ausgelagert, damit die
+// EzyAI-Shell (ezyai.tsx) dieselbe Nav in der linken Seitenleiste rendern kann.
+function buildTabGroups(d) {
+  const hasBrand = !!d?.brandCheck;
+  const hasConv = Array.isArray(d?.attribution) && d.attribution.length > 0;
+  return [
+    { group: "Analyse", items: [
+      { id: "uebersicht", label: "Sichtbarkeit", icon: Eye },
+      { id: "erwaehnungen", label: "Erwähnungen", icon: Swords },
+      ...(hasBrand ? [{ id: "marke", label: "Marke", icon: Tags }] : []),
+    ] },
+    { group: "Inhalte", items: [
+      { id: "quellen", label: "Quellen", icon: Link2 },
+      { id: "themen", label: "Themen", icon: Layers },
+    ] },
+    { group: "Prompts", items: [
+      { id: "prompts", label: "Prompts", icon: MessageSquareQuote, badge: d?.promptsNeedsReview || 0 },
+      ...(Array.isArray(d?.fanout) && d.fanout.length ? [{ id: "folgefragen", label: "Folgefragen", icon: MessageSquare }] : []),
+    ] },
+    { group: "Kontext", items: [
+      ...(Array.isArray(d?.countries) && d.countries.length ? [{ id: "standorte", label: "Standorte", icon: MapPin }] : []),
+      ...(hasConv ? [{ id: "conversions", label: "Conversions", icon: MousePointerClick }] : []),
+    ] },
+  ].map((g) => ({ ...g, items: g.items.filter(Boolean) })).filter((g) => g.items.length);
+}
+
+export default function AIVisibilityDashboard({ data, convRows = [], tab: tabProp, onTabChange, onTabGroups, chromeless = false }) {
   const d = data;
-  const [tab, setTab] = useState("uebersicht");
+  const [tabInner, setTabInner] = useState("uebersicht");
+  const tab = tabProp ?? tabInner;              // controlled, wenn die Shell den Tab hält
+  const setTab = onTabChange ?? setTabInner;
   const [modelF, setModelF] = useState("alle");
   const [topicF, setTopicF] = useState("alle"); // Themen-Filter (C) — greift, sobald der Messlauf topic je Prompt schreibt
+  // Verfügbare Tab-Gruppen an die Shell melden (für die linke Seitenleiste).
+  const tabKey = buildTabGroups(d).flatMap((g) => g.items.map((i) => `${i.id}:${i.badge || 0}`)).join(",");
+  useEffect(() => { if (onTabGroups) onTabGroups(buildTabGroups(d)); }, [tabKey, onTabGroups]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!d) return <AIVisibilityEmpty />;
 
   const platforms = [...new Set([...(d.prompts || []), ...(d.promptOpps || [])].map((p) => p.platform).filter(Boolean))].sort();
@@ -2488,39 +2519,18 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
     ? Math.round((sentRows.filter((p) => p.sentiment === "pos").length / sentRows.length) * 100)
     : null;
 
-  const hasBrand = !!d.brandCheck;
-  const hasConv = Array.isArray(d.attribution) && d.attribution.length > 0;
-  // Gruppierte Seitenleiste (04.08., Searchable-Look): Nav-Sektionen statt
-  // horizontaler Tab-Leiste. badge = kleiner Zähler wie bei Searchable.
-  const TAB_GROUPS = [
-    { group: "Analyse", items: [
-      { id: "uebersicht", label: "Sichtbarkeit", icon: Eye },
-      { id: "erwaehnungen", label: "Erwähnungen", icon: Swords },
-      ...(hasBrand ? [{ id: "marke", label: "Marke", icon: Tags }] : []),
-    ] },
-    { group: "Inhalte", items: [
-      { id: "quellen", label: "Quellen", icon: Link2 },
-      { id: "themen", label: "Themen", icon: Layers },
-    ] },
-    { group: "Prompts", items: [
-      { id: "prompts", label: "Prompts", icon: MessageSquareQuote, badge: d.promptsNeedsReview || 0 },
-      ...(Array.isArray(d.fanout) && d.fanout.length ? [{ id: "folgefragen", label: "Folgefragen", icon: MessageSquare }] : []),
-    ] },
-    { group: "Kontext", items: [
-      ...(Array.isArray(d.countries) && d.countries.length ? [{ id: "standorte", label: "Standorte", icon: MapPin }] : []),
-      ...(hasConv ? [{ id: "conversions", label: "Conversions", icon: MousePointerClick }] : []),
-    ] },
-  ].map((g) => ({ ...g, items: g.items.filter(Boolean) })).filter((g) => g.items.length);
+  const TAB_GROUPS = buildTabGroups(d);
   const TABS = TAB_GROUPS.flatMap((g) => g.items); // flache Liste für Mobile-Leiste
 
   const activeTab = TABS.find((t) => t.id === tab) || TABS[0];
 
   return (
     <div className="w-full" style={{ background: C.page, color: C.ink }}>
-      <div className="mx-auto max-w-6xl lg:flex lg:gap-6">
+      <div className={chromeless ? "" : "mx-auto max-w-6xl lg:flex lg:gap-6"}>
 
-        {/* Seitenleiste (Desktop) — gleiches Muster wie die EzyRank-Shell-Nav:
-            accentDim-Hintergrund/accentLight-Text, Icon 18, Radius 10. */}
+        {/* Seitenleiste (Desktop) — nur wenn die Shell die Nav NICHT übernimmt.
+            Gleiches Muster wie die EzyRank-Shell-Nav (accentDim/accentLight). */}
+        {!chromeless && (
         <aside className="hidden shrink-0 lg:block lg:w-52">
           <nav className="sticky top-4" style={{ padding: "12px 8px" }}>
             {TAB_GROUPS.map((g, gi) => (
@@ -2554,8 +2564,10 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
             ))}
           </nav>
         </aside>
+        )}
 
-        {/* Mobile: horizontale Chip-Leiste (accentDim-Pill wie die Shell-Nav) */}
+        {/* Mobile: horizontale Chip-Leiste (nur ohne Shell-Nav) */}
+        {!chromeless && (
         <div className="lg:hidden">
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
             {TABS.map((t) => {
@@ -2579,10 +2591,11 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
             })}
           </div>
         </div>
+        )}
 
       <div className="min-w-0 flex-1">
-        {/* Aktiver Bereich als Überschrift (Sidebar-Kontext) */}
-        <h2 className="mt-1 hidden text-lg font-bold lg:block" style={{ color: C.ink }}>{activeTab?.label}</h2>
+        {/* Aktiver Bereich als Überschrift */}
+        <h2 className={`mt-1 text-lg font-bold ${chromeless ? "" : "hidden lg:block"}`} style={{ color: C.ink }}>{activeTab?.label}</h2>
 
         {/* Filterzeile */}
         <div className="mt-3 flex flex-wrap items-center gap-2 text-[11.5px]" style={{ color: C.sub }}>
