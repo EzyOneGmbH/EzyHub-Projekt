@@ -2527,7 +2527,7 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
       {/* topbar: horizontale Bereichs-Leiste im Content (Searchable-Layout) */}
       {isTop && (
         <div className="border-b" style={{ borderColor: C.line }}>
-          <div className="flex items-center gap-1 overflow-x-auto">
+          <div className="flex items-center gap-1 overflow-x-auto overflow-y-hidden">
             {TABS.map((t) => {
               const on = tab === t.id;
               return (
