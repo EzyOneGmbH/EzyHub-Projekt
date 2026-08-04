@@ -1450,6 +1450,10 @@ export type Database = {
           customer_id: string | null
           hub: string | null
           id: string
+          index_checked_at: string | null
+          index_coverage: string | null
+          index_last_crawl: string | null
+          index_verdict: string | null
           intent: string | null
           keyword_volume: number | null
           keywords: string[] | null
@@ -1473,6 +1477,10 @@ export type Database = {
           customer_id?: string | null
           hub?: string | null
           id?: string
+          index_checked_at?: string | null
+          index_coverage?: string | null
+          index_last_crawl?: string | null
+          index_verdict?: string | null
           intent?: string | null
           keyword_volume?: number | null
           keywords?: string[] | null
@@ -1496,6 +1504,10 @@ export type Database = {
           customer_id?: string | null
           hub?: string | null
           id?: string
+          index_checked_at?: string | null
+          index_coverage?: string | null
+          index_last_crawl?: string | null
+          index_verdict?: string | null
           intent?: string | null
           keyword_volume?: number | null
           keywords?: string[] | null

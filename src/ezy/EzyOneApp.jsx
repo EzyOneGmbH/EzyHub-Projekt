@@ -8290,6 +8290,7 @@ function ContentEditor({ item, stCo, stLb, onBack, onSave }) {
 // Gate/Trend/Empfehlung werden in der DB berechnet (agentenunabhaengig); RLS via
 // SECURITY-DEFINER-Gate. Detail-Chart = content_metrics-Zeitreihe (recharts).
 const REC_META = {
+  not_indexed:       { t: "Nicht im Google-Index",             c: C.red,       a: "Auffindbarkeit herstellen – Content-Massnahmen wirken hier nicht" },
   refresh_decay:     { t: "Decay – Refresh fällig",            c: C.red,       a: "Freshness-Update gegen aktuelle SERP" },
   tech_fix:          { t: "Technik prüfen",                    c: C.blue,      a: "An Tech/Agent (Index/interne Links) – nicht Content" },
   consolidate:       { t: "Kannibalisierung – zusammenführen", c: C.pink,      a: "Zwei Artikel mergen" },
@@ -8303,10 +8304,22 @@ const REC_META = {
   insufficient_data: { t: "Zu wenig Daten",                    c: C.textDim,   a: "Beobachten, kein Urteil (Messfenster füllt sich noch)" },
   unpublished:       { t: "Unpubliziert",                      c: C.textDim,   a: "—" },
 };
-const ACTION_RECS = ["tech_fix", "ctr_fix", "push_expand", "refresh_decay", "consolidate", "ceiling_new_kw", "low_visibility"];
+const ACTION_RECS = ["not_indexed", "tech_fix", "ctr_fix", "push_expand", "refresh_decay", "consolidate", "ceiling_new_kw", "low_visibility"];
 // Massnahmen-Playbook je Empfehlung (Kurzfassung von content-fix-playbook/fix-procedures.md)
 // fuer das Mitarbeiter-Pop-up: Befund -> konkrete Schritte -> Exit-Kriterium.
 const REC_PLAYBOOK = {
+  not_indexed: {
+    befund:
+      "Google hat den Artikel nicht im Index — geprüft über die GSC-URL-Prüfung. Steht dort \"URL is unknown to Google\", hat Google die Seite noch nie gesehen: das ist ein Auffindbarkeits-Problem, kein Qualitätsproblem. Solange das so ist, bleibt JEDE Content-Massnahme wirkungslos.",
+    schritte: [
+      "Erreichbarkeit bestätigen: Seite liefert HTTP 200, kein noindex, Canonical zeigt auf sich selbst, robots.txt erlaubt den Zugriff.",
+      "Sitemap prüfen: Ist der Artikel in der Sitemap UND ist die Sitemap in der Search Console eingereicht? (Ein Eintrag in der robots.txt allein reicht Google oft nicht.)",
+      "Interne Verlinkung prüfen — der häufigste Grund: Verlinkt eine bereits indexierte Seite auf den Artikel? Eine Blog-Übersicht, die selbst nicht im Index ist, vererbt nichts. Links von starken, indexierten Seiten setzen.",
+      "In der GSC \"Indexierung beantragen\" für die betroffenen URLs auslösen (manuell, wirkt pro URL).",
+      "KEINEN Refresh und keine Title-Optimierung vornehmen — beides ändert am Indexstatus nichts.",
+    ],
+    exit: "Artikel in der GSC-URL-Prüfung auf \"URL ist auf Google\"; Re-Check in 2–3 Wochen.",
+  },
   ctr_fix: {
     befund: "Gute Position (Top 10), Impressionen vorhanden, aber kaum Klicks — das Problem sitzt im Snippet, nicht im Inhalt.",
     schritte: [

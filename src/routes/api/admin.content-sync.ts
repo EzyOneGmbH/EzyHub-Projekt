@@ -20,11 +20,16 @@ import { redactSecrets } from "@/server/google-oauth.server";
 const Body = z.object({
   client: z.string().optional(), // Name (ilike) oder uuid
   all: z.boolean().optional(),
-  jobs: z.array(z.enum(["discover", "metrics", "inspect", "backfill"])).optional(),
+  jobs: z.array(z.enum(["discover", "metrics", "inspect", "backfill", "sitemaps"])).optional(),
   perPage: z.number().int().min(1).max(100).default(100), // WP-Posts pro Seite
   maxPages: z.number().int().min(1).max(20).default(10), // WP-Pagination-Cap
-  inspectLimit: z.number().int().min(1).max(200).default(50), // URL-Inspections je Kunde
+  // URL-Inspections je Kunde und Lauf. Default bewusst 25: jede Inspection
+  // kostet ~1,5s, und der Lovable-Gateway kappt bei ~300s — mit 50 lief
+  // Studioforma (95 Artikel) im Test in den Timeout. 25/Lauf rotiert den
+  // Bestand in wenigen Tagen durch und bleibt weit unter der GSC-Quota.
+  inspectLimit: z.number().int().min(1).max(200).default(25),
   backfillDays: z.number().int().min(28).max(480).default(90), // GSC-Historie (max ~16 Monate)
+  submitSitemaps: z.boolean().default(true), // false => Sitemap-Job nur berichten
 });
 
 const isUuid = (s: string) =>
@@ -352,18 +357,26 @@ async function jobBackfill(c: any, days: number) {
 }
 
 // ── 3) Inspect: GSC URL-Inspection-API -> echtes Google-Index-Urteil ────────
-// NICHT im Default-Jobset (Quota 2000/Tag je Property) — explizit anfordern.
-// Kandidaten-Reihenfolge: Artikel OHNE primary_keyword zuerst (Proxy fuer
-// "unsichtbar", dort ist die Index-Frage am wichtigsten), dann der Rest.
+// Seit 04.08. IM Default-Jobset (mit kleinem Limit) und das Urteil wird in
+// content_items PERSISTIERT. Vorher lief der Job nie automatisch und sein
+// Ergebnis lebte nur im HTTP-Response — deshalb blieb monatelang unbemerkt,
+// dass bei Faith in Humanity KEIN einziger Artikel im Google-Index war.
+// Quota: 2000 Inspections/Tag je Property, wir bleiben mit dem Default-Limit
+// weit darunter.
+// Kandidaten-Reihenfolge: am laengsten nicht geprueft zuerst (nie geprueft
+// ganz vorn) — so rotiert der Regellauf ueber den gesamten Bestand, statt
+// immer dieselben Artikel zu befragen.
 async function jobInspect(c: any, limit: number) {
   if (!c.gsc_property) return { skipped: "keine GSC-Property" };
   const { data: items } = await supabaseAdmin
     .from("content_items")
-    .select("id, target_url, primary_keyword")
+    .select("id, target_url, index_checked_at")
     .eq("client_id", c.id)
     .eq("status", "published")
     .eq("content_type", "blog")
-    .not("target_url", "is", null);
+    .not("target_url", "is", null)
+    .order("index_checked_at", { ascending: true, nullsFirst: true })
+    .limit(limit);
   if (!items || !items.length) return { skipped: "keine Artikel" };
 
   let token: string | null = null;
@@ -373,11 +386,8 @@ async function jobInspect(c: any, limit: number) {
     return { error: "Google-Token: " + redactSecrets(e) };
   }
 
-  const picked = [...items]
-    .sort((a, b) => (a.primary_keyword ? 1 : 0) - (b.primary_keyword ? 1 : 0))
-    .slice(0, limit);
   const results: any[] = [];
-  for (const it of picked) {
+  for (const it of items) {
     try {
       const r = await fetch("https://searchconsole.googleapis.com/v1/urlInspection/index:inspect", {
         method: "POST",
@@ -386,15 +396,28 @@ async function jobInspect(c: any, limit: number) {
         signal: AbortSignal.timeout(20_000),
       });
       if (!r.ok) {
+        // Fehler NICHT als "nicht indexiert" speichern — sonst faerbt eine
+        // Quota-/Token-Stoerung das Dashboard rot. Zeile bleibt unveraendert.
         results.push({ url: it.target_url, error: `HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 120)}` });
         continue;
       }
       const j = (await r.json()) as any;
       const s = j?.inspectionResult?.indexStatusResult ?? {};
+      const verdict = s.verdict ?? null; // PASS = indexiert
+      const coverage = s.coverageState ?? null; // z.B. "URL is unknown to Google"
+      await supabaseAdmin
+        .from("content_items")
+        .update({
+          index_verdict: verdict,
+          index_coverage: coverage,
+          index_checked_at: nowIso(),
+          index_last_crawl: s.lastCrawlTime ?? null,
+        } as never)
+        .eq("id", it.id);
       results.push({
         url: it.target_url,
-        verdict: s.verdict ?? null, // PASS = indexiert
-        coverage: s.coverageState ?? null, // z.B. "Crawled - currently not indexed"
+        verdict,
+        coverage,
         robots: s.robotsTxtState ?? null,
         lastCrawl: s.lastCrawlTime ?? null,
         googleCanonical: s.googleCanonical ?? null,
@@ -407,8 +430,97 @@ async function jobInspect(c: any, limit: number) {
     inspected: results.length,
     indexed: results.filter((x) => x.verdict === "PASS").length,
     notIndexed: results.filter((x) => x.verdict && x.verdict !== "PASS").length,
+    // "unbekannt" ist der schwerwiegendste Fall: Google hat die URL nie
+    // gesehen — das ist ein Auffindbarkeits-, kein Qualitaetsproblem.
+    unknownToGoogle: results.filter((x) => /unknown to Google/i.test(x.coverage || "")).length,
     results,
   };
+}
+
+// ── 4) Sitemaps: in der Search Console eingereicht? ─────────────────────────
+// Zweiter Teil desselben Befunds: Bei FIH stand die Sitemap NUR in der
+// robots.txt. Google verarbeitet sie so zwar irgendwann, aber deutlich
+// traeger als eine eingereichte Sitemap — genau deshalb blieben die
+// Blogartikel unentdeckt, waehrend die (aelteren, verlinkten) Kernseiten
+// laengst im Index waren.
+// Der Job liest die Sitemap-URLs aus der robots.txt des Kunden, vergleicht sie
+// mit den in der GSC eingereichten und reicht Fehlende per PUT nach.
+// submit=false => reiner Report, es wird nichts eingereicht.
+async function jobSitemaps(c: any, submit: boolean) {
+  if (!c.gsc_property) return { skipped: "keine GSC-Property" };
+  const domain = cleanDomain(c.domain);
+  if (!domain) return { skipped: "keine Domain" };
+
+  // 1) Sitemap-URLs der Website ermitteln (robots.txt ist die Selbstauskunft).
+  const declared: string[] = [];
+  try {
+    const rb = await fetch(`https://${domain}/robots.txt`, { signal: AbortSignal.timeout(15_000) });
+    if (rb.ok) {
+      const txt = await rb.text();
+      for (const line of txt.split(/\r?\n/)) {
+        const m = line.match(/^\s*sitemap\s*:\s*(\S+)/i);
+        if (m) declared.push(m[1].trim());
+      }
+    }
+  } catch {
+    /* robots.txt optional — Fallback unten */
+  }
+  // Fallback: WordPress-Standard, wenn die robots.txt nichts nennt.
+  if (!declared.length) {
+    for (const cand of [`https://${domain}/wp-sitemap.xml`, `https://${domain}/sitemap_index.xml`]) {
+      try {
+        const r = await fetch(cand, { method: "HEAD", signal: AbortSignal.timeout(10_000) });
+        if (r.ok) { declared.push(cand); break; }
+      } catch { /* naechster Kandidat */ }
+    }
+  }
+  if (!declared.length) return { skipped: "keine Sitemap gefunden" };
+
+  let token: string | null = null;
+  try {
+    token = (await getGoogleAccessToken(c.id)).accessToken;
+  } catch (e) {
+    return { error: "Google-Token: " + redactSecrets(e) };
+  }
+  const base = `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(
+    c.gsc_property,
+  )}/sitemaps`;
+
+  // 2) Bereits eingereichte Sitemaps holen.
+  let submitted: string[] = [];
+  try {
+    const r = await fetch(base, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!r.ok) return { error: `GSC-Sitemapliste HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 120)}` };
+    const j = (await r.json()) as any;
+    submitted = (j.sitemap ?? []).map((s: any) => String(s.path || ""));
+  } catch (e) {
+    return { error: redactSecrets(e) };
+  }
+
+  const missing = declared.filter((d) => !submitted.some((s) => normUrl(s) === normUrl(d)));
+  if (!submit) return { declared, submitted, missing, submittedNow: [] };
+
+  // 3) Fehlende nachreichen (PUT ist idempotent; Google akzeptiert nur
+  //    Sitemaps innerhalb der Property).
+  const submittedNow: string[] = [];
+  const errors: any[] = [];
+  for (const url of missing) {
+    try {
+      const r = await fetch(`${base}/${encodeURIComponent(url)}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (r.ok) submittedNow.push(url);
+      else errors.push({ url, error: `HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 120)}` });
+    } catch (e) {
+      errors.push({ url, error: redactSecrets(e) });
+    }
+  }
+  return { declared, submitted, missing, submittedNow, ...(errors.length ? { errors } : {}) };
 }
 
 export const Route = createFileRoute("/api/admin/content-sync")({
@@ -427,8 +539,13 @@ export const Route = createFileRoute("/api/admin/content-sync")({
         const parsed = Body.safeParse(await request.json().catch(() => ({})));
         if (!parsed.success)
           return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
-        const { client: sel, all, jobs, perPage, maxPages, inspectLimit, backfillDays } = parsed.data;
-        const wanted = jobs && jobs.length ? jobs : (["discover", "metrics"] as const);
+        const { client: sel, all, jobs, perPage, maxPages, inspectLimit, backfillDays, submitSitemaps } =
+          parsed.data;
+        // Seit 04.08. gehoert die Indexpruefung zum Regellauf: ohne sie faellt
+        // nicht auf, wenn Google publizierte Artikel gar nicht kennt. inspect
+        // rotiert ueber den Bestand (aelteste Pruefung zuerst), sitemaps
+        // stellt sicher, dass Google die Sitemap ueberhaupt kennt.
+        const wanted = jobs && jobs.length ? jobs : (["discover", "metrics", "inspect", "sitemaps"] as const);
 
         const query = supabaseAdmin
           .from("clients")
@@ -451,6 +568,7 @@ export const Route = createFileRoute("/api/admin/content-sync")({
               else if (j === "metrics") jr.metrics = await jobMetrics(c);
               else if (j === "inspect") jr.inspect = await jobInspect(c, inspectLimit);
               else if (j === "backfill") jr.backfill = await jobBackfill(c, backfillDays);
+              else if (j === "sitemaps") jr.sitemaps = await jobSitemaps(c, submitSitemaps);
             } catch (e) {
               jr[j] = { error: redactSecrets(e) };
             }
