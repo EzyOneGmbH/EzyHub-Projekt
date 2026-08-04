@@ -105,6 +105,18 @@ const PLUGIN_SLUG_ALLOWLIST = new Set([
   "autoptimize",
   "webp-converter-for-media",
   "ezyhub-connector", // our own connector (activate remotely if only deactivated)
+  // Yoast SEO — aufgenommen 04.08.2026 auf ausdruecklichen Nutzerentscheid.
+  // Anlass (FIH): ohne SEO-Plugin erzeugt WordPress-Core Canonicals NUR fuer
+  // Einzelseiten — Archiv-/Beitragsseiten wie /blog/ bleiben ohne Canonical,
+  // und per-Seite-OG-Tags gibt es gar nicht (unser statisches head-Snippet
+  // kann das prinzipiell nicht leisten und lieferte auf JEDER Seite die
+  // Startseiten-OG-Daten aus).
+  // ACHTUNG bei der Installation: Yoast uebernimmt Titel-/Description-Ausgabe
+  // und ersetzt die Core-Sitemap durch sitemap_index.xml. Deshalb IMMER:
+  // inaktiv installieren -> bestehende Titel/Descriptions in
+  // _yoast_wpseo_title/_yoast_wpseo_metadesc uebertragen -> aktivieren ->
+  // gegen den Vorher-Zustand verifizieren -> Sitemap in der GSC nachziehen.
+  "wordpress-seo",
 ]);
 
 const Body = z.object({
