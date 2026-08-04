@@ -1476,7 +1476,9 @@ async function jobPromptRunner(
       position: e.position,
       brands_count: e.competitors.length + (e.mentioned ? 1 : 0),
       sources_count: e.sources.length,
-      response: r.text.slice(0, 1500),
+      // 6000 statt 1500 Zeichen (04.08.): der Judge bewertet den VOLLEN Text —
+      // bei 1500 lag die Markennennung oft im nicht gespeicherten Teil (User-Befund).
+      response: r.text.slice(0, 6000),
       competitors: e.competitors,
       prompt_type: "markt",
       // Phase-2-Ausbau (03.08.): Thema/URLs/Zeitstempel/Rival-Positionen je Antwort.
@@ -1524,7 +1526,9 @@ async function jobPromptRunner(
       position: null,
       brands_count: (e.konkurrenz || []).length,
       sources_count: (e.quellen || []).length,
-      response: r.text.slice(0, 1500),
+      // 6000 statt 1500 Zeichen (04.08.): der Judge bewertet den VOLLEN Text —
+      // bei 1500 lag die Markennennung oft im nicht gespeicherten Teil (User-Befund).
+      response: r.text.slice(0, 6000),
       competitors: e.konkurrenz || [],
       prompt_type: "brand",
       brand_eval: { ...e, judge: { models: brandJudgeModels, temperature: SCORE_CFG.judge.temperature } },

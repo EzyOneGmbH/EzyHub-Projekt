@@ -687,13 +687,26 @@ function EngineChip({ e }) {
 
 // Leichte Markdown-Aufbereitung der Modell-Antworten (User-Wunsch 2026-07-19):
 // **fett**, [Label](URL)- und nackte Links klickbar — ohne externe Library.
-function InlineMd({ text }) {
+function InlineMd({ text, highlight }) {
   const s = String(text || "");
   const rx = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|\*\*([^*]+)\*\*|(https?:\/\/[^\s)\]}>"',;]+)/g;
   const out = [];
   let last = 0, m, k = 0;
+  // Marken-Highlight (04.08.): Vorkommen der eigenen Marke gelb markieren —
+  // beantwortet direkt die Frage „WO steht die Marke in dieser Antwort?".
+  const pushText = (str) => {
+    if (!highlight || !str) { out.push(str); return; }
+    const hre = new RegExp(String(highlight).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+    let hl = 0, hm;
+    while ((hm = hre.exec(str))) {
+      if (hm.index > hl) out.push(str.slice(hl, hm.index));
+      out.push(<mark key={k++} style={{ background: "#fde68a", color: "#78350f", borderRadius: 3, padding: "0 2px", fontWeight: 600 }}>{hm[0]}</mark>);
+      hl = hre.lastIndex;
+    }
+    if (hl < str.length) out.push(str.slice(hl));
+  };
   while ((m = rx.exec(s))) {
-    if (m.index > last) out.push(s.slice(last, m.index));
+    if (m.index > last) pushText(s.slice(last, m.index));
     if (m[1]) {
       out.push(
         <a key={k++} href={m[2]} target="_blank" rel="noreferrer" className="underline" style={{ color: C.indigo }}>{m[1]}</a>,
@@ -710,13 +723,13 @@ function InlineMd({ text }) {
     }
     last = rx.lastIndex;
   }
-  if (last < s.length) out.push(s.slice(last));
+  if (last < s.length) pushText(s.slice(last));
   return <>{out}</>;
 }
 
 // Blockebene: Überschriften (#…), Aufzählungen (-/*/•), nummerierte Listen,
 // Absätze — macht aus dem Roh-Text der Engines eine lesbare Antwort.
-function AnswerBlocks({ text }) {
+function AnswerBlocks({ text, highlight }) {
   const lines = String(text || "").split(/\r?\n/);
   const blocks = [];
   let list = null;
@@ -746,15 +759,15 @@ function AnswerBlocks({ text }) {
     <div className="flex flex-col gap-2.5">
       {blocks.map((b, i) =>
         b.type === "h" ? (
-          <div key={i} className="text-[13px] font-semibold" style={{ color: C.ink }}><InlineMd text={b.text} /></div>
+          <div key={i} className="text-[13px] font-semibold" style={{ color: C.ink }}><InlineMd text={b.text} highlight={highlight} /></div>
         ) : b.type === "p" ? (
-          <p key={i} className="text-[13px] leading-relaxed" style={{ color: C.ink }}><InlineMd text={b.text} /></p>
+          <p key={i} className="text-[13px] leading-relaxed" style={{ color: C.ink }}><InlineMd text={b.text} highlight={highlight} /></p>
         ) : b.type === "ul" ? (
           <ul key={i} className="flex flex-col gap-1.5">
             {b.items.map((it, j) => (
               <li key={j} className="flex gap-2 text-[13px] leading-relaxed" style={{ color: C.ink }}>
                 <span className="mt-[7px] inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: C.indigo }} />
-                <span className="min-w-0"><InlineMd text={it} /></span>
+                <span className="min-w-0"><InlineMd text={it} highlight={highlight} /></span>
               </li>
             ))}
           </ul>
@@ -763,7 +776,7 @@ function AnswerBlocks({ text }) {
             {b.items.map((it, j) => (
               <li key={j} className="flex gap-2 text-[13px] leading-relaxed" style={{ color: C.ink }}>
                 <span className="w-5 shrink-0 text-right font-semibold tabular-nums" style={{ color: C.indigo }}>{j + 1}.</span>
-                <span className="min-w-0"><InlineMd text={it} /></span>
+                <span className="min-w-0"><InlineMd text={it} highlight={highlight} /></span>
               </li>
             ))}
           </ol>
@@ -776,7 +789,7 @@ function AnswerBlocks({ text }) {
 // Prompt-Detail als Pop-up (User-Wunsch 2026-07-19, Semrush-Vorbild):
 // Header = Prompt + Modell-Tabs (Status-Punkt je Engine), linke Spalte =
 // Quellen + Mit-genannt, rechte Spalte = Antwort mit Status/Position/Tonalität.
-function PromptDetailModal({ g, opportunity, onClose }) {
+function PromptDetailModal({ g, opportunity, brand, onClose }) {
   const [tab, setTab] = useState(0);
   const e = g.engines[Math.min(tab, g.engines.length - 1)] || {};
   useEffect(() => {
@@ -784,6 +797,19 @@ function PromptDetailModal({ g, opportunity, onClose }) {
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [onClose]);
+  // Erklärungs-Banner (04.08., User-Befund): Status sagt „erwähnt", aber die
+  // Marke steht nicht im gespeicherten Text — zwei ehrliche Gründe:
+  // (a) gespeicherte Fassung war gekappt (bis 04.08. nur 1500 Zeichen; der
+  //     Judge bewertet den VOLLEN Text), (b) „Referenziert" = Website als
+  //     Quelle verlinkt, das braucht keine Namensnennung im Fliesstext.
+  const mentioned = e.status && e.status !== "Nicht erwähnt";
+  const brandInText = brand && String(e.response || "").toLowerCase().includes(String(brand).toLowerCase());
+  const truncated = String(e.response || "").length >= 1450;
+  const explain = mentioned && !brandInText
+    ? (e.status === "Referenziert" && !truncated
+        ? `„Referenziert" heisst: Die Website von ${brand} ist in dieser Antwort als Quelle verlinkt — das kann auch ohne Namensnennung im Text passieren.`
+        : `Die Bewertung basiert auf der vollständigen KI-Antwort. Hier ist nur eine gekürzte Fassung gespeichert — die Nennung von ${brand} liegt im abgeschnittenen Teil. Ab dem nächsten Messlauf wird deutlich mehr Text gespeichert.`)
+    : null;
   return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -798,8 +824,10 @@ function PromptDetailModal({ g, opportunity, onClose }) {
         <div className="border-b px-5 py-4" style={{ borderColor: C.line }}>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h3 className="text-sm font-semibold leading-snug" style={{ color: C.ink }}>{g.prompt}</h3>
-              {g.country && <div className="mt-0.5 text-[11px]" style={{ color: C.sub }}>{g.country}</div>}
+              <h3 className="text-[15px] font-bold leading-snug" style={{ color: C.ink }}>{g.prompt}</h3>
+              {g.country && (
+                <span className="mt-1.5 inline-block rounded-full border px-2 py-0.5 text-[10.5px]" style={{ borderColor: C.line, color: C.sub }}>{g.country}</span>
+              )}
             </div>
             <button
               onClick={onClose}
@@ -818,15 +846,16 @@ function PromptDetailModal({ g, opportunity, onClose }) {
                 <button
                   key={en.platform}
                   onClick={() => setTab(i)}
-                  className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition"
+                  className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition"
                   style={{
                     borderColor: active ? C.indigo : C.line,
-                    background: active ? `${C.indigo}22` : "transparent",
+                    background: active ? `${C.indigo}14` : C.card,
                     color: active ? C.indigo : C.sub,
                   }}
                 >
-                  <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: c }} />
+                  <EngineFavicon platform={en.platform} status={en.status} />
                   {en.platform}
+                  <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: c }} />
                 </button>
               );
             })}
@@ -847,20 +876,38 @@ function PromptDetailModal({ g, opportunity, onClose }) {
                 </span>
               )}
             </div>
+            {explain && (
+              <div className="mt-3 flex items-start gap-2 rounded-lg border px-3 py-2 text-[11.5px] leading-relaxed"
+                style={{ borderColor: "#f0c36d", background: "#fdf6e3", color: "#8a6d1b" }}>
+                <Info size={14} className="mt-0.5 shrink-0" />
+                <span>{explain}</span>
+              </div>
+            )}
             {e.response ? (
-              <div className="mt-3 rounded-lg border p-4" style={{ borderColor: C.line, background: C.cardAlt }}>
-                <AnswerBlocks text={e.response} />
+              <div className="mt-3 rounded-xl border p-5" style={{ borderColor: C.line, background: "#fff" }}>
+                <AnswerBlocks text={e.response} highlight={brandInText ? brand : null} />
+                {truncated && (
+                  <div className="mt-3 border-t pt-2 text-[10.5px] italic" style={{ borderColor: C.line, color: C.sub }}>
+                    Gekürzte Fassung — die Bewertung basiert auf der vollständigen Antwort.
+                  </div>
+                )}
               </div>
             ) : (
               <p className="mt-3 text-xs" style={{ color: C.sub }}>Keine Antwort gespeichert.</p>
             )}
             {e.comps?.length > 0 && (
               <div className="mt-4 flex flex-wrap items-center gap-1.5">
-                <span className="text-[11px]" style={{ color: C.sub }}>
+                <span className="text-[11px] font-medium" style={{ color: C.sub }}>
                   {opportunity ? "Genannte Konkurrenten:" : "Mit-genannt:"}
                 </span>
                 {e.comps.map((c) => (
-                  <span key={c} className="rounded px-1.5 py-0.5 text-[11px]" style={{ background: C.track, color: C.ink }}>{c}</span>
+                  <span key={c} className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px]" style={{ borderColor: C.line, background: C.card, color: C.ink }}>
+                    <span className="inline-flex h-[14px] w-[14px] items-center justify-center rounded-full text-[8px] font-bold text-white"
+                      style={{ background: AVATAR_COLORS[[...String(c)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % AVATAR_COLORS.length] }}>
+                      {String(c).charAt(0).toUpperCase()}
+                    </span>
+                    {c}
+                  </span>
                 ))}
               </div>
             )}
@@ -926,7 +973,7 @@ function YesNoPill({ yes }) {
 }
 // All-Responses-Optik (03.08.): Gruppe aufklappbar, je Engine EINE Zeile mit
 // Erwähnt?/Zitiert?/Position/Marken/Quellen — Detail-Modal weiter per Klick.
-function PromptGroupRow({ g, opportunity }) {
+function PromptGroupRow({ g, opportunity, brand }) {
   const [open, setOpen] = useState(false);      // Detail-Modal (Antwort-Volltexte)
   const [expanded, setExpanded] = useState(true); // Searchable-Default (04.08.): aufgeklappt
   const rate = g.total ? Math.round((g.mentioned / g.total) * 100) : 0;
@@ -995,7 +1042,7 @@ function PromptGroupRow({ g, opportunity }) {
           </tr>
         );
       })}
-      {open && <PromptDetailModal g={g} opportunity={opportunity} onClose={() => setOpen(false)} />}
+      {open && <PromptDetailModal g={g} opportunity={opportunity} brand={brand} onClose={() => setOpen(false)} />}
     </>
   );
 }
@@ -1239,7 +1286,7 @@ function PromptsTable({ prompts, opps, brand, brandPrompts = [], needsReview = 0
           </thead>
           <tbody>
             {pageGroups.map((g) => (
-              <PromptGroupRow key={`${g.prompt}·${g.country}`} g={g} opportunity={opportunity} />
+              <PromptGroupRow key={`${g.prompt}·${g.country}`} g={g} opportunity={opportunity} brand={brand} />
             ))}
           </tbody>
         </table>
