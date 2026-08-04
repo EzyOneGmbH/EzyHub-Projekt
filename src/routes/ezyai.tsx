@@ -9,7 +9,7 @@ import { useEzyServiceSettings } from "@/ezy/data/useEzyServiceSettings";
 import { useEzyServiceMatrix } from "@/ezy/data/useEzyServiceMatrix";
 import { AiVisibilityTab } from "@/ezy/EzyOneApp.jsx";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
-import { Search, LogOut } from "lucide-react";
+import { Search, LogOut, Eye, Swords, Link2, Layers, MessageSquareQuote } from "lucide-react";
 
 // Initialen aus einem Namen (Shell-Profilblock, wie in der EzyRank-Shell).
 function initials(name: string) {
@@ -202,6 +202,21 @@ const S = {
 const SIDEBAR_W = 256;
 const CLIENT_LS = "ezyai.clientId";
 type NavGroup = { group: string; items: Array<{ id: string; label: string; icon: any; badge?: number }> };
+// Basis-Nav — sofort in der Sidebar sichtbar, während das Dashboard lädt.
+// onTabGroups verfeinert sie (Marke/Folgefragen/Standorte/Conversions je Kunde).
+const BASE_NAV: NavGroup[] = [
+  { group: "Analyse", items: [
+    { id: "uebersicht", label: "Sichtbarkeit", icon: Eye },
+    { id: "erwaehnungen", label: "Erwähnungen", icon: Swords },
+  ] },
+  { group: "Inhalte", items: [
+    { id: "quellen", label: "Quellen", icon: Link2 },
+    { id: "themen", label: "Themen", icon: Layers },
+  ] },
+  { group: "Prompts", items: [
+    { id: "prompts", label: "Prompts", icon: MessageSquareQuote },
+  ] },
+];
 
 function EzyAiApp() {
   const navigate = useNavigate();
@@ -212,7 +227,7 @@ function EzyAiApp() {
   const [swOpen, setSwOpen] = useState(false);
   const [curOpen, setCurOpen] = useState(false); // Prompt-Kuration (Nachbau 08/2026)
   const [tab, setTab] = useState("uebersicht");   // aktiver Bereich — jetzt in der Shell-Sidebar
-  const [navGroups, setNavGroups] = useState<NavGroup[]>([]); // vom Dashboard gemeldet
+  const [navGroups, setNavGroups] = useState<NavGroup[]>(BASE_NAV); // Basis sofort, Dashboard verfeinert
   const [clientId, setClientId] = useState(() => {
     try { return localStorage.getItem(CLIENT_LS) || ""; } catch { return ""; }
   });
