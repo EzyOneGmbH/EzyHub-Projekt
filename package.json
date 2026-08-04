@@ -54,6 +54,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "d3-geo": "^3.1.1",
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
@@ -68,9 +69,11 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.1",
+    "topojson-client": "^3.1.0",
     "tw-animate-css": "^1.3.4",
     "vaul": "^1.1.2",
     "vite-tsconfig-paths": "^6.0.2",
+    "world-atlas": "^2.0.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -97,5 +100,9 @@
   },
   "resolutions": {
     "postcss": ">=8.5.10"
+  },
+  "allowScripts": {
+    "esbuild@0.27.7": true,
+    "esbuild@0.27.3": true
   }
 }

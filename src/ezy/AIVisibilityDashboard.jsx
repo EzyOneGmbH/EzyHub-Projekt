@@ -1,5 +1,9 @@
 import React, { Fragment, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+// Echte Landkarte (04.08.): react-freie Geo-Bausteine — kein Peer-Dep-Risiko.
+import { geoNaturalEarth1, geoPath } from "d3-geo";
+import { feature as topoFeature } from "topojson-client";
+import worldTopo from "world-atlas/countries-110m.json";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -1789,64 +1793,128 @@ function PositionHeadToHead({ prompts, sov, brand, only }) {
   );
 }
 
-// Standorte (03.08., Searchable "Location"): Kachel-Karte Europas — jedes Land
-// eine geografisch platzierte Kachel, Farbe = Erwähnungs-Anteil. Bewusst als
-// Kachel-Raster statt echter Landkarte (keine Karten-Library, keine Geo-Daten).
-const TILE_POS = [
-  ["Norwegen", 3, 0], ["Schweden", 4, 0], ["Finnland", 5, 0],
-  ["Irland", 0, 1], ["Grossbritannien", 1, 1], ["Dänemark", 3, 1], ["Polen", 4, 1],
-  ["Belgien", 1, 2], ["Niederlande", 2, 2], ["Deutschland", 3, 2], ["Tschechien", 4, 2],
-  ["Frankreich", 1, 3], ["Schweiz", 2, 3], ["Österreich", 3, 3], ["Ungarn", 4, 3],
-  ["Portugal", 0, 4], ["Spanien", 1, 4], ["Italien", 2, 4], ["Kroatien", 3, 4], ["Griechenland", 4, 4],
-];
-function LocationPanel({ countries }) {
+// Standorte (04.08., echte Landkarte auf User-Wunsch): world-atlas-TopoJSON +
+// d3-geo, selbst als React-SVG gerendert (KEIN react-simple-maps — dessen
+// React-Peer-Deps sind ein Build-Risiko; d3-geo/topojson sind react-frei).
+// Klick auf ein Land öffnet die Detail-Ansicht (Erwähnungen je KI-System).
+// Deutsche Messdaten-Namen -> englische world-atlas-Feature-Namen.
+const DE2EN = {
+  schweiz: "Switzerland", deutschland: "Germany", "österreich": "Austria", oesterreich: "Austria",
+  frankreich: "France", italien: "Italy", spanien: "Spain", portugal: "Portugal",
+  niederlande: "Netherlands", belgien: "Belgium", polen: "Poland", tschechien: "Czechia",
+  ungarn: "Hungary", kroatien: "Croatia", griechenland: "Greece", "dänemark": "Denmark",
+  daenemark: "Denmark", schweden: "Sweden", norwegen: "Norway", finnland: "Finland",
+  irland: "Ireland", grossbritannien: "United Kingdom", "großbritannien": "United Kingdom",
+  indien: "India", usa: "United States of America", "vereinigte staaten": "United States of America",
+  kanada: "Canada", australien: "Australia", brasilien: "Brazil", china: "China", japan: "Japan",
+  "türkei": "Turkey", tuerkei: "Turkey", luxemburg: "Luxembourg", liechtenstein: "Liechtenstein",
+};
+// world-atlas einmal modulweit in GeoJSON-Features wandeln (177 Länder).
+const WORLD_FEATURES = topoFeature(worldTopo, worldTopo.objects.countries).features;
+
+function LocationPanel({ countries, models }) {
   const rows = (countries || []).filter((c) => c.value > 0);
   const total = rows.reduce((a, c) => a + c.value, 0) || 1;
-  const valueOf = (name) => rows.find((c) => c.name.toLowerCase() === name.toLowerCase())?.value || 0;
-  const placed = new Set(TILE_POS.map(([n]) => n.toLowerCase()));
-  const others = rows.filter((c) => !placed.has(c.name.toLowerCase()));
+  const [selected, setSelected] = useState(null); // deutscher Ländername
+  // deutsche Messnamen -> world-atlas-Feature + Wert
+  const valueByEn = new Map();
+  const deByEn = new Map();
+  const unmapped = [];
+  for (const c of rows) {
+    const en = DE2EN[c.name.toLowerCase()];
+    if (en) { valueByEn.set(en, c.value); deByEn.set(en, c.name); }
+    else unmapped.push(c); // z. B. "International"
+  }
+  const dataFeatures = WORLD_FEATURES.filter((f) => valueByEn.has(f.properties.name));
+  // Projektion auf die Länder mit Daten zoomen (mind. Europa-artiger Ausschnitt).
+  const W = 640, H = 400;
+  const projection = geoNaturalEarth1();
+  if (dataFeatures.length) {
+    projection.fitExtent([[16, 16], [W - 16, H - 16]], { type: "FeatureCollection", features: dataFeatures });
+    // Nie weiter reinzoomen als sinnvoll (ein einzelnes kleines Land würde riesig).
+    if (projection.scale() > 900) projection.scale(900);
+  } else {
+    projection.fitExtent([[16, 16], [W - 16, H - 16]], { type: "FeatureCollection", features: WORLD_FEATURES });
+  }
+  const path = geoPath(projection);
   const shade = (v) => {
-    if (!v) return { bg: C.track, fg: C.sub };
+    if (!v) return "#eceae4";
     const share = v / total;
-    return share >= 0.4 ? { bg: "#6c5ce7", fg: "#fff" } : share >= 0.15 ? { bg: "#9d92ee", fg: "#fff" } : { bg: "#d9d4f8", fg: "#3b3667" };
+    return share >= 0.4 ? "#6c5ce7" : share >= 0.15 ? "#9d92ee" : "#d9d4f8";
   };
-  const COLS = 6, ROWS = 5, S = 74, GAP = 6;
+  const selRow = selected ? rows.find((c) => c.name === selected) : null;
+  // Engine-Aufschlüsselung fürs gewählte Land (models[].byCountry — echte Daten).
+  const selEngines = selRow
+    ? (models || [])
+        .map((m) => ({ name: m.name, n: Number(m.byCountry?.[selRow.name] || 0) }))
+        .filter((x) => x.n > 0)
+        .sort((a, b) => b.n - a.n)
+    : [];
+  const selMax = Math.max(1, ...selEngines.map((x) => x.n));
   return (
-    <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <RCard icon={Layers} title="Regionen-Karte" info="Kachel-Karte: jedes Land eine geografisch angeordnete Kachel, Farbe nach Anteil der KI-Erwähnungen. Länder ausserhalb Europas erscheinen als eigene Kacheln darunter." desc="Wo KI-Antworten die Marke erwähnen" footer={`${rows.length} Regionen · ${nf(total)} Erwähnungen`}>
-        <svg viewBox={`0 0 ${COLS * (S + GAP)} ${ROWS * (S + GAP)}`} className="w-full" style={{ maxHeight: 340 }}>
-          {TILE_POS.map(([name, cx, cy]) => {
-            const v = valueOf(name);
-            const f = shade(v);
+    <div className="mt-4 grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+      <RCard icon={Layers} title="Regionen-Karte" info="Echte Landkarte (world-atlas): Länder nach Anteil der KI-Erwähnungen eingefärbt. Land anklicken für die Detail-Ansicht. Regionen ohne Länderzuordnung (z. B. International) erscheinen als Chips darunter." desc="Wo KI-Antworten die Marke erwähnen — Land anklicken" footer={`${rows.length} Regionen · ${nf(total)} Erwähnungen`}>
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 420 }}>
+          {WORLD_FEATURES.map((f) => {
+            const en = f.properties.name;
+            const v = valueByEn.get(en) || 0;
+            const de = deByEn.get(en);
+            const isSel = de && de === selected;
             return (
-              <g key={name}>
-                <rect x={cx * (S + GAP)} y={cy * (S + GAP)} width={S} height={S} rx="8" fill={f.bg}>
-                  <title>{`${name}: ${v ? `${nf(v)} Erwähnungen (${Math.round((v / total) * 100)} %)` : "keine Erwähnungen"}`}</title>
-                </rect>
-                <text x={cx * (S + GAP) + S / 2} y={cy * (S + GAP) + (v ? S / 2 - 4 : S / 2 + 3)} textAnchor="middle" fontSize="9.5" fontWeight="600" fill={f.fg}>
-                  {name.length > 11 ? name.slice(0, 10) + "…" : name}
-                </text>
-                {v > 0 && (
-                  <text x={cx * (S + GAP) + S / 2} y={cy * (S + GAP) + S / 2 + 13} textAnchor="middle" fontSize="12" fontWeight="700" fill={f.fg}>{nf(v)}</text>
-                )}
-              </g>
+              <path
+                key={en}
+                d={path(f) || undefined}
+                fill={shade(v)}
+                stroke={isSel ? "#1c1c1e" : "#ffffff"}
+                strokeWidth={isSel ? 1.5 : 0.5}
+                style={{ cursor: v ? "pointer" : "default", transition: "fill .15s" }}
+                onClick={() => { if (de) setSelected(de === selected ? null : de); }}
+              >
+                <title>{de ? `${de}: ${nf(v)} Erwähnungen (${Math.round((v / total) * 100)} %)` : en}</title>
+              </path>
             );
           })}
         </svg>
-        {others.length > 0 && (
+        {unmapped.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-2">
-            {others.map((c) => {
-              const f = shade(c.value);
-              return (
-                <span key={c.name} className="rounded-lg px-3 py-2 text-[11px] font-semibold" style={{ background: f.bg, color: f.fg }}>
-                  {c.name} · {nf(c.value)}
-                </span>
-              );
-            })}
+            {unmapped.map((c) => (
+              <span key={c.name} className="rounded-lg px-3 py-2 text-[11px] font-semibold" style={{ background: "#d9d4f8", color: "#3b3667" }}>
+                {c.name} · {nf(c.value)}
+              </span>
+            ))}
           </div>
         )}
       </RCard>
-      <RCard icon={Hash} title="Regionen" info="Erwähnungen und Anteil je Herkunftsregion der KI-Anfragen." desc="Erwähnungen nach Region" footer={`${rows.length} Regionen`} pad={false}>
+      {selRow ? (
+        <RCard icon={MapPin} title={selRow.name} info="Detail-Ansicht des gewählten Landes: Erwähnungen je KI-System aus der Messung. Zurück über den Alle-Regionen-Button." desc={`${nf(selRow.value)} Erwähnungen · ${Math.round((selRow.value / total) * 100)} % Anteil`} footer="Herkunft je KI-System" legend={
+          <button onClick={() => setSelected(null)} className="rounded-md border px-2 py-1 text-[11px]" style={{ borderColor: C.line, color: C.sub, background: C.card }}>
+            ← Alle Regionen
+          </button>
+        }>
+          {selEngines.length ? (
+            <div className="space-y-2">
+              {selEngines.map((x) => (
+                <div key={x.name} className="flex items-center gap-3">
+                  <span className="w-40 truncate text-[12px]" style={{ color: C.ink }}>{x.name}</span>
+                  <div className="h-2 flex-1 overflow-hidden rounded-full" style={{ background: C.track }}>
+                    <div className="h-full rounded-full" style={{ width: `${(x.n / selMax) * 100}%`, background: C.indigo }} />
+                  </div>
+                  <span className="w-10 text-right text-[11px] tabular-nums" style={{ color: C.sub }}>{nf(x.n)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[12px]" style={{ color: C.sub }}>Für dieses Land liegt keine Aufschlüsselung je KI-System vor.</p>
+          )}
+          <div className="mt-4 flex items-start gap-2 rounded-lg border px-3 py-2 text-[11px] leading-relaxed" style={{ borderColor: C.line, background: C.cardAlt, color: C.sub }}>
+            <Info size={13} className="mt-0.5 shrink-0" />
+            <span>
+              Kantone/Bundesländer: Die Messung erhebt die Herkunft aktuell auf <b style={{ color: C.ink }}>Land-Ebene</b> (die KI-Systeme werden je Land befragt). Eine Kantons-/Bundesland-Aufschlüsselung erfordert regionalisierte Messläufe — als Ausbau möglich, erhöht aber die Messkosten je Region.
+            </span>
+          </div>
+        </RCard>
+      ) : (
+      <RCard icon={Hash} title="Regionen" info="Erwähnungen und Anteil je Herkunftsregion der KI-Anfragen. Zeile oder Land anklicken für die Detail-Ansicht." desc="Erwähnungen nach Region — Zeile anklicken" footer={`${rows.length} Regionen`} pad={false}>
         <div className="overflow-x-auto">
           <table className="w-full text-[12px]" style={{ borderCollapse: "collapse" }}>
             <thead>
@@ -1858,7 +1926,7 @@ function LocationPanel({ countries }) {
             </thead>
             <tbody>
               {rows.map((c) => (
-                <tr key={c.name} style={{ borderTop: `1px solid ${C.line}` }}>
+                <tr key={c.name} className="cursor-pointer transition-colors hover:bg-black/[.03]" style={{ borderTop: `1px solid ${C.line}` }} onClick={() => setSelected(c.name)}>
                   <td className="px-5 py-2 font-semibold" style={{ color: C.ink }}>{c.name}</td>
                   <td className="px-3 py-2 text-right tabular-nums" style={{ color: C.ink }}>{nf(c.value)}</td>
                   <td className="px-5 py-2 text-right tabular-nums" style={{ color: C.sub }}>{Math.round((c.value / total) * 100)}%</td>
@@ -1868,6 +1936,7 @@ function LocationPanel({ countries }) {
           </table>
         </div>
       </RCard>
+      )}
     </div>
   );
 }
@@ -2865,7 +2934,7 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
 
         {tab === "folgefragen" && <FanoutPanel fanout={d.fanout} />}
 
-        {tab === "standorte" && <LocationPanel countries={d.countries} />}
+        {tab === "standorte" && <LocationPanel countries={d.countries} models={d.models} />}
 
         {tab === "conversions" && (
           <div className="mt-4">
