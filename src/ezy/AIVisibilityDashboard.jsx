@@ -7,7 +7,7 @@ import {
 import {
   Sparkles, TrendingUp, TrendingDown, Quote, FileText, Eye,
   ExternalLink, MousePointerClick, ChevronRight, ChevronLeft, MessageSquareQuote,
-  Filter, Hash, Layers, Link2, Info, MessageSquare, Swords, Tags, Crosshair,
+  Filter, Hash, Layers, Link2, Info, MessageSquare, Swords, Tags, Crosshair, MapPin,
 } from "lucide-react";
 
 // ── Karten-Shell im Searchable-Muster (03.08.2026): Icon + Titel + ⓘ-Tooltip
@@ -2490,30 +2490,74 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
 
   const hasBrand = !!d.brandCheck;
   const hasConv = Array.isArray(d.attribution) && d.attribution.length > 0;
-  const TABS = [
-    { id: "uebersicht", label: "Sichtbarkeit" },
-    { id: "erwaehnungen", label: "Erwähnungen & Wettbewerb" },
-    ...(hasBrand ? [{ id: "marke", label: "Marke" }] : []),
-    { id: "quellen", label: "Quellen" },
-    { id: "themen", label: "Themen" },
-    { id: "prompts", label: "Prompts" },
-    ...(Array.isArray(d.fanout) && d.fanout.length ? [{ id: "folgefragen", label: "Folgefragen" }] : []),
-    ...(Array.isArray(d.countries) && d.countries.length ? [{ id: "standorte", label: "Standorte" }] : []),
-    ...(hasConv ? [{ id: "conversions", label: "Conversions" }] : []),
-  ];
+  // Gruppierte Seitenleiste (04.08., Searchable-Look): Nav-Sektionen statt
+  // horizontaler Tab-Leiste. badge = kleiner Zähler wie bei Searchable.
+  const TAB_GROUPS = [
+    { group: "Analyse", items: [
+      { id: "uebersicht", label: "Sichtbarkeit", icon: Eye },
+      { id: "erwaehnungen", label: "Erwähnungen", icon: Swords },
+      ...(hasBrand ? [{ id: "marke", label: "Marke", icon: Tags }] : []),
+    ] },
+    { group: "Inhalte", items: [
+      { id: "quellen", label: "Quellen", icon: Link2 },
+      { id: "themen", label: "Themen", icon: Layers },
+    ] },
+    { group: "Prompts", items: [
+      { id: "prompts", label: "Prompts", icon: MessageSquareQuote, badge: d.promptsNeedsReview || 0 },
+      ...(Array.isArray(d.fanout) && d.fanout.length ? [{ id: "folgefragen", label: "Folgefragen", icon: MessageSquare }] : []),
+    ] },
+    { group: "Kontext", items: [
+      ...(Array.isArray(d.countries) && d.countries.length ? [{ id: "standorte", label: "Standorte", icon: MapPin }] : []),
+      ...(hasConv ? [{ id: "conversions", label: "Conversions", icon: MousePointerClick }] : []),
+    ] },
+  ].map((g) => ({ ...g, items: g.items.filter(Boolean) })).filter((g) => g.items.length);
+  const TABS = TAB_GROUPS.flatMap((g) => g.items); // flache Liste für Mobile-Leiste
+
+  const activeTab = TABS.find((t) => t.id === tab) || TABS[0];
 
   return (
     <div className="w-full" style={{ background: C.page, color: C.ink }}>
-      <div className="mx-auto max-w-6xl">
+      <div className="mx-auto max-w-6xl lg:flex lg:gap-6">
 
-        {/* Sub-Tab-Leiste (Searchable-Look: Underline, hell) */}
-        <div className="border-b" style={{ borderColor: C.line }}>
-          <div className="flex flex-wrap items-center gap-1 overflow-x-auto">
+        {/* Seitenleiste (Desktop, Searchable-Look: gruppierte Nav) */}
+        <aside className="hidden shrink-0 lg:block lg:w-52">
+          <nav className="sticky top-4 space-y-4">
+            {TAB_GROUPS.map((g) => (
+              <div key={g.group}>
+                <div className="px-3 pb-1 text-[10.5px] font-semibold uppercase tracking-wider" style={{ color: C.sub }}>{g.group}</div>
+                <div className="space-y-0.5">
+                  {g.items.map((t) => {
+                    const Icon = t.icon;
+                    const on = tab === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => setTab(t.id)}
+                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13px] transition focus:outline-none focus-visible:ring-2"
+                        style={{ background: on ? C.track : "transparent", color: on ? C.ink : C.sub, fontWeight: on ? 600 : 500 }}
+                      >
+                        <Icon size={16} strokeWidth={on ? 2.4 : 2} style={{ color: on ? C.indigo : C.sub }} />
+                        <span className="min-w-0 flex-1 truncate">{t.label}</span>
+                        {t.badge > 0 && (
+                          <span className="rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums" style={{ background: "#fdf6e3", color: "#8a6d1b" }}>{t.badge}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </nav>
+        </aside>
+
+        {/* Mobile: horizontale Tab-Leiste (Sidebar wäre zu hoch) */}
+        <div className="border-b lg:hidden" style={{ borderColor: C.line }}>
+          <div className="flex items-center gap-1 overflow-x-auto">
             {TABS.map((t) => (
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
-                className="whitespace-nowrap px-3 py-2 text-[13px]"
+                className="inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-[13px]"
                 style={{
                   color: tab === t.id ? C.ink : C.sub,
                   fontWeight: tab === t.id ? 700 : 500,
@@ -2522,11 +2566,17 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
                   background: "none", border: "none", borderBottomStyle: "solid", cursor: "pointer",
                 }}
               >
+                <t.icon size={14} style={{ color: tab === t.id ? C.indigo : C.sub }} />
                 {t.label}
+                {t.badge > 0 && <span className="rounded-full px-1 text-[9px] font-bold" style={{ background: "#fdf6e3", color: "#8a6d1b" }}>{t.badge}</span>}
               </button>
             ))}
           </div>
         </div>
+
+      <div className="min-w-0 flex-1">
+        {/* Aktiver Bereich als Überschrift (Sidebar-Kontext) */}
+        <h2 className="mt-1 hidden text-lg font-bold lg:block" style={{ color: C.ink }}>{activeTab?.label}</h2>
 
         {/* Filterzeile */}
         <div className="mt-3 flex flex-wrap items-center gap-2 text-[11.5px]" style={{ color: C.sub }}>
@@ -2683,6 +2733,7 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
         <p className="mt-6 text-center text-[11px]" style={{ color: C.sub }}>
           EzyHub · AI Visibility · {d.market} · {d.date}
         </p>
+      </div>
       </div>
     </div>
   );
