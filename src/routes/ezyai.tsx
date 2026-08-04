@@ -10,7 +10,7 @@ import { useEzyServiceMatrix } from "@/ezy/data/useEzyServiceMatrix";
 import { AiVisibilityTab } from "@/ezy/EzyOneApp.jsx";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
 import {
-  LogOut, LineChart, Zap, Activity, MessageSquare, GraduationCap,
+  Search, LogOut, LineChart, Zap, Activity, MessageSquare, GraduationCap,
   FileText, Lightbulb, Globe, AlertTriangle, LayoutDashboard, Bot, Sparkles,
 } from "lucide-react";
 
@@ -398,6 +398,15 @@ function EzyAiApp() {
             ))}
           </nav>
 
+          {/* Suche/Prompts (gleiche Position wie die ⌘K-Box der EzyRank-Shell) */}
+          <div style={{ padding: "10px 12px", borderTop: `1px solid ${S.line}` }}>
+            <button onClick={() => setCurOpen(true)}
+              style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, background: S.bg, border: `1px solid ${S.line}`, cursor: "pointer", color: S.mut, fontSize: 12, fontFamily: "inherit" }}>
+              <Search size={13} />
+              Prompts verwalten
+            </button>
+          </div>
+
           {/* Profil */}
           <div style={{ padding: "12px 16px", borderTop: `1px solid ${S.line}`, display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 32, height: 32, borderRadius: 8, background: S.app, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#fff" }}>{initials(profile.name)}</div>
@@ -443,7 +452,6 @@ function EzyAiApp() {
               {view === "agent" ? "Agent" : NAV_LABEL[section] || "AEO Insights"}
             </div>
             <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
-              <button onClick={() => setCurOpen(true)} style={{ fontSize: 12, color: S.mut, background: "none", cursor: "pointer", border: `1px solid ${S.line}`, borderRadius: 8, padding: "6px 12px" }}>Prompts verwalten</button>
               {isOrgAdmin && client?.id && (
                 <button onClick={shareReport} style={{ fontSize: 12, color: S.app, background: "none", cursor: "pointer", border: `1px solid ${S.app}55`, borderRadius: 8, padding: "6px 12px" }}>Report teilen</button>
               )}

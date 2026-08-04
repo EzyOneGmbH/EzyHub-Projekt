@@ -13228,6 +13228,23 @@ function App({ appScope = null }) {
             )}
           </div>
         )}
+        {/* Kunden-Auswahl in der Sidebar (Position wie EzyAI; Desktop). */}
+        {!collapsed && hasClients && (
+          <div style={{ padding: "10px 12px", borderBottom: `1px solid ${C.border}` }}>
+            <select
+              aria-label="Kunde"
+              value={showAll ? "__all" : (client?.id || "")}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === "__all") { setShowAll(true); } else { setClientId(v); setShowAll(false); }
+              }}
+              style={{ width: "100%", padding: "8px 10px", borderRadius: 8, background: C.bg, color: C.text, border: `1px solid ${C.border}`, fontSize: 13, fontFamily: "inherit", outline: "none" }}
+            >
+              {!isViewer && <option value="__all">Alle Kunden</option>}
+              {clients.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
+            </select>
+          </div>
+        )}
         {/* Dashboard / Agent — Switcher (nur Apps mit EzyPilot: seo/ads). */}
         {!isViewer && !collapsed && scope?.pages?.includes("copilot") && (
           <div style={{ padding: "10px 12px", borderBottom: `1px solid ${C.border}` }}>
@@ -13439,7 +13456,8 @@ function App({ appScope = null }) {
                 ))}
               </select>
             )}
-            <div style={{ position: "relative" }}>
+            {/* Kunden-Switcher: auf Desktop in der Sidebar (wie EzyAI), im Header nur mobil. */}
+            <div style={{ position: "relative", display: isMobile ? "block" : "none" }}>
               <button
                 onClick={() => setCdd(!cdd)}
                 style={{
