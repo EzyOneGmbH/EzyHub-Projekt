@@ -1593,7 +1593,9 @@ function HeatCell({ pct }) {
     </td>
   );
 }
-function PositionHeadToHead({ prompts, sov, brand }) {
+// only: "positions" = nur die Matrizen · "head2head" = nur der 1:1-Vergleich ·
+// undefined = beides (04.08.: Head-to-Head wird separat in die linke Spalte gelegt).
+function PositionHeadToHead({ prompts, sov, brand, only }) {
   const all = prompts || [];
   // Matrix: Engine × Antwort-Position der EIGENEN Marke (Konkurrenz-Positionen
   // erhebt der Judge nicht — nur ehrliche Daten zeigen, keine Fake-Zeilen).
@@ -1640,10 +1642,14 @@ function PositionHeadToHead({ prompts, sov, brand }) {
   const rivalRate = all.length ? Math.round((rivalRows.length / all.length) * 1000) / 10 : 0;
   const selfShare = (sov || []).find((s) => s.isSelf)?.share ?? null;
   if (!matrix.length && !rival) return null;
+  if (only === "head2head" && !rival) return null;
+  if (only === "positions" && !matrix.length && brandMatrix.length <= 1) return null;
+  const showPositions = only !== "head2head";
+  const showHead = only !== "positions";
 
   return (
     <div className="grid grid-cols-1 gap-4">
-      {matrix.length > 0 && (
+      {showPositions && matrix.length > 0 && (
         <RCard icon={Hash} title="Antwort-Position" info="Wo die eigene Marke in den KI-Antworten steht: Top-Empfehlung, in einer Liste, Randnotiz oder nicht genannt — je KI-System." desc="Wo die Marke in KI-Antworten erscheint" footer={`${all.length} Antworten · eigene Marke je KI-System${withRivalPos.length ? "" : " (Konkurrenz-Positionen ab dem nächsten Messlauf)"}`} legend={<HeatLegend from="Niedrig" to="Hoch" />} pad={false}>
         <div className="overflow-x-auto">
           <table className="w-full text-[12px]" style={{ borderCollapse: "collapse" }}>
@@ -1671,7 +1677,7 @@ function PositionHeadToHead({ prompts, sov, brand }) {
         </div>
         </RCard>
       )}
-      {brandMatrix.length > 1 && (
+      {showPositions && brandMatrix.length > 1 && (
         <RCard icon={Hash} title="Positions-Verteilung nach Marke" info="Wo jede Marke in denselben KI-Antworten erscheint — Rival-Positionen bewertet der Judge seit dem 03.08.2026." desc="Marken im Positions-Vergleich (Searchable Position Distribution)" footer={`${withRivalPos.length} Antworten mit Rival-Bewertung`} legend={<HeatLegend from="Niedrig" to="Hoch" />} pad={false}>
           <div className="overflow-x-auto">
             <table className="w-full text-[12px]" style={{ borderCollapse: "collapse" }}>
@@ -1701,7 +1707,7 @@ function PositionHeadToHead({ prompts, sov, brand }) {
           </div>
         </RCard>
       )}
-      {rival && (
+      {showHead && rival && (
         <RCard icon={Swords} title="Head-to-Head" info="Direktvergleich der Präsenz in denselben KI-Antworten: eigene Marke gegen einen wählbaren Konkurrenten." desc={`${brand} im 1:1-Vergleich`} footer="Präsenz = Anteil der Antworten, in denen die Marke vorkommt" legend={
           <select value={rivalIdx} onChange={(e) => setRivalIdx(Number(e.target.value))}
             className="rounded-md border px-2 py-1 text-[11px]" style={{ borderColor: C.line, background: C.card, color: C.ink }}>
@@ -2527,9 +2533,10 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
 
   return (
     <div className="w-full" style={{ background: C.page, color: C.ink }}>
-      {/* topbar: horizontale Bereichs-Leiste im Content (Searchable-Layout) */}
+      {/* topbar: horizontale Bereichs-Leiste im Content (Searchable-Layout).
+          Sticky (04.08.): bleibt beim Runterscrollen oben sichtbar. */}
       {isTop && (
-        <div className="border-b" style={{ borderColor: C.line }}>
+        <div className="border-b" style={{ borderColor: C.line, position: "sticky", top: isTop ? 53 : 0, zIndex: 20, background: "#f7f6f2" }}>
           <div className="flex items-center gap-1 overflow-x-auto overflow-y-hidden">
             {TABS.map((t) => {
               const on = tab === t.id;
@@ -2741,14 +2748,16 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
               <MetricTrendCard icon={Link2} title="Citations" info="Wie oft KI-Antworten die eigene Website als Quelle verlinken — Monatsverlauf." value={d.kpis.citations.value} delta={d.kpis.citations.delta} series={(d.trend || []).map((t) => ({ v: t.citations, m: t.m }))} color={C.teal} />
             </div>
             <div className="mt-4 grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-              <FunnelCard prompts={fP} opps={fO} />
-              <PositionHeadToHead prompts={fP} sov={d.sov} brand={d.client} />
-            </div>
-            {Array.isArray(d.sov) && d.sov.length > 1 && (
-              <div className="mt-4">
-                <SovCard rows={d.sov} />
+              {/* Linke Spalte: Kaufreise + Head-to-Head (füllt den bisherigen Leerraum) */}
+              <div className="grid grid-cols-1 gap-4">
+                <FunnelCard prompts={fP} opps={fO} />
+                <PositionHeadToHead prompts={fP} sov={d.sov} brand={d.client} only="head2head" />
               </div>
-            )}
+              {/* Rechte Spalte: Positions-Matrizen */}
+              <PositionHeadToHead prompts={fP} sov={d.sov} brand={d.client} only="positions" />
+            </div>
+            {/* Share-of-Voice-Karte hier auf Wunsch entfernt (04.08.) —
+                der SoV-Donut bleibt auf dem Sichtbarkeits-Tab. */}
           </>
         )}
 
