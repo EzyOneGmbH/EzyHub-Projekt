@@ -35,6 +35,12 @@ const Body = z.object({
   //   true    = erzwingen (bewusster Admin-Eingriff)
   //   false   = nie einreichen, reiner Report
   submitSitemaps: z.union([z.boolean(), z.literal("auto")]).default("auto"),
+  // Ad-hoc-Indexpruefung beliebiger URLs des Kunden (Diagnose). Ohne diesen
+  // Parameter prueft inspect wie gewohnt die Blogartikel aus content_items.
+  // Anlass: Bei FIH war die Frage "ist /blog/ selbst im Index?" nicht
+  // beantwortbar, weil /blog/ kein content_item ist — und eine site:-Abfrage
+  // ist dafuer kein Beweis. Ergebnis wird NICHT gespeichert (kein Artikel).
+  inspectUrls: z.array(z.string().url()).max(20).optional(),
 });
 
 const isUuid = (s: string) =>
@@ -371,17 +377,23 @@ async function jobBackfill(c: any, days: number) {
 // Kandidaten-Reihenfolge: am laengsten nicht geprueft zuerst (nie geprueft
 // ganz vorn) — so rotiert der Regellauf ueber den gesamten Bestand, statt
 // immer dieselben Artikel zu befragen.
-async function jobInspect(c: any, limit: number) {
+async function jobInspect(c: any, limit: number, urls?: string[]) {
   if (!c.gsc_property) return { skipped: "keine GSC-Property" };
-  const { data: items } = await supabaseAdmin
-    .from("content_items")
-    .select("id, target_url, index_checked_at")
-    .eq("client_id", c.id)
-    .eq("status", "published")
-    .eq("content_type", "blog")
-    .not("target_url", "is", null)
-    .order("index_checked_at", { ascending: true, nullsFirst: true })
-    .limit(limit);
+  // Ad-hoc-Modus: uebergebene URLs pruefen statt der Artikel aus dem Register.
+  // id = null markiert "gehoert zu keinem content_item" -> nicht speichern.
+  const items = urls?.length
+    ? urls.map((u) => ({ id: null as string | null, target_url: u, index_checked_at: null }))
+    : (
+        await supabaseAdmin
+          .from("content_items")
+          .select("id, target_url, index_checked_at")
+          .eq("client_id", c.id)
+          .eq("status", "published")
+          .eq("content_type", "blog")
+          .not("target_url", "is", null)
+          .order("index_checked_at", { ascending: true, nullsFirst: true })
+          .limit(limit)
+      ).data;
   if (!items || !items.length) return { skipped: "keine Artikel" };
 
   let token: string | null = null;
@@ -410,15 +422,18 @@ async function jobInspect(c: any, limit: number) {
       const s = j?.inspectionResult?.indexStatusResult ?? {};
       const verdict = s.verdict ?? null; // PASS = indexiert
       const coverage = s.coverageState ?? null; // z.B. "URL is unknown to Google"
-      await supabaseAdmin
-        .from("content_items")
-        .update({
-          index_verdict: verdict,
-          index_coverage: coverage,
-          index_checked_at: nowIso(),
-          index_last_crawl: s.lastCrawlTime ?? null,
-        } as never)
-        .eq("id", it.id);
+      // Nur echte Artikel fortschreiben — Ad-hoc-URLs haben keine Zeile.
+      if (it.id) {
+        await supabaseAdmin
+          .from("content_items")
+          .update({
+            index_verdict: verdict,
+            index_coverage: coverage,
+            index_checked_at: nowIso(),
+            index_last_crawl: s.lastCrawlTime ?? null,
+          } as never)
+          .eq("id", it.id);
+      }
       results.push({
         url: it.target_url,
         verdict,
@@ -590,8 +605,10 @@ export const Route = createFileRoute("/api/admin/content-sync")({
         const parsed = Body.safeParse(await request.json().catch(() => ({})));
         if (!parsed.success)
           return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
-        const { client: sel, all, jobs, perPage, maxPages, inspectLimit, backfillDays, submitSitemaps } =
-          parsed.data;
+        const {
+          client: sel, all, jobs, perPage, maxPages, inspectLimit, backfillDays,
+          submitSitemaps, inspectUrls,
+        } = parsed.data;
         // Seit 04.08. gehoert die Indexpruefung zum Regellauf: ohne sie faellt
         // nicht auf, wenn Google publizierte Artikel gar nicht kennt. inspect
         // rotiert ueber den Bestand (aelteste Pruefung zuerst), sitemaps
@@ -619,7 +636,7 @@ export const Route = createFileRoute("/api/admin/content-sync")({
             try {
               if (j === "discover") jr.discover = await jobDiscover(c, perPage, maxPages);
               else if (j === "metrics") jr.metrics = await jobMetrics(c);
-              else if (j === "inspect") jr.inspect = await jobInspect(c, inspectLimit);
+              else if (j === "inspect") jr.inspect = await jobInspect(c, inspectLimit, inspectUrls);
               else if (j === "backfill") jr.backfill = await jobBackfill(c, backfillDays);
               else if (j === "sitemaps") jr.sitemaps = await jobSitemaps(c, submitSitemaps);
             } catch (e) {
