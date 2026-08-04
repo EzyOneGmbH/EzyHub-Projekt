@@ -902,10 +902,7 @@ function PromptDetailModal({ g, opportunity, brand, onClose }) {
                 </span>
                 {e.comps.map((c) => (
                   <span key={c} className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px]" style={{ borderColor: C.line, background: C.card, color: C.ink }}>
-                    <span className="inline-flex h-[14px] w-[14px] items-center justify-center rounded-full text-[8px] font-bold text-white"
-                      style={{ background: AVATAR_COLORS[[...String(c)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % AVATAR_COLORS.length] }}>
-                      {String(c).charAt(0).toUpperCase()}
-                    </span>
+                    <BrandIcon name={c} size={14} />
                     {c}
                   </span>
                 ))}
@@ -952,9 +949,8 @@ function BrandStack({ comps, total }) {
   return (
     <span className="inline-flex items-center -space-x-1" title={(comps || []).join(", ")}>
       {names.map((n) => (
-        <span key={n} className="inline-flex h-[16px] w-[16px] items-center justify-center rounded-full text-[9px] font-bold text-white ring-1 ring-white"
-          style={{ background: AVATAR_COLORS[[...String(n)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % AVATAR_COLORS.length] }}>
-          {String(n).charAt(0).toUpperCase()}
+        <span key={n} className="inline-flex overflow-hidden rounded-full ring-1 ring-white">
+          <BrandIcon name={n} size={16} />
         </span>
       ))}
       {rest > 0 && <span className="pl-1.5 text-[10px] tabular-nums" style={{ color: C.sub }}>+{rest}</span>}
@@ -2301,27 +2297,41 @@ function VisibilityHero({ score, delta, history, daily }) {
 // Visibility-Tab Zeile 1 rechts: Rankings — Marke vs. Konkurrenten.
 // Präsenz je Marke aus den Prompt-Zeilen (comps-Array); Sentiment nur für die
 // eigene Marke erhoben → Konkurrenz ehrlich mit „—".
-// Marken-Avatar: eigene Domain -> echtes Favicon, Konkurrenten -> Initial-Chip
-// (wir kennen von Rivalen nur Namen, keine Domains — ehrlich statt geraten).
+// Marken-Icon (04.08., „bei allen Icons"): echte Favicons für ALLE Marken.
+// Von Rivalen kennen wir nur Namen → Domain-Rate-Kette Name→.ch→.com über
+// DuckDuckGo-Favicons (liefert 404 bei Fehlversuch, anders als Google s2);
+// Initial-Chip nur noch als letzter Fallback.
 const AVATAR_COLORS = ["#6c5ce7", "#0d9488", "#d97706", "#7c5cf0", "#0284c7", "#dc2626", "#059669", "#b45309"];
-function BrandAvatar({ name, domain }) {
-  const [imgOk, setImgOk] = useState(true);
-  if (domain && imgOk) {
+const guessDomains = (name, domain) => {
+  if (domain) return [String(domain).toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "")];
+  const n = String(name || "").toLowerCase()
+    .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/é|è|ê/g, "e")
+    .replace(/&/g, "").replace(/[^a-z0-9.]/g, "");
+  if (!n) return [];
+  if (n.includes(".")) return [n];
+  return [`${n}.ch`, `${n}.com`];
+};
+function BrandIcon({ name, domain, size = 18 }) {
+  const cands = guessDomains(name, domain);
+  const [idx, setIdx] = useState(0);
+  if (idx < cands.length) {
     return (
       <img
-        src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`}
-        alt="" width={18} height={18} className="rounded" loading="lazy"
-        onError={() => setImgOk(false)}
+        src={`https://icons.duckduckgo.com/ip3/${cands[idx]}.ico`}
+        alt="" width={size} height={size} className="shrink-0 rounded" loading="lazy"
+        onError={() => setIdx(idx + 1)}
       />
     );
   }
   const c = AVATAR_COLORS[[...String(name)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % AVATAR_COLORS.length];
   return (
-    <span className="inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded text-[10px] font-bold text-white" style={{ background: c }}>
+    <span className="inline-flex shrink-0 items-center justify-center rounded font-bold text-white"
+      style={{ background: c, width: size, height: size, fontSize: Math.max(8, size * 0.55) }}>
       {String(name).charAt(0).toUpperCase()}
     </span>
   );
 }
+const BrandAvatar = BrandIcon; // Rankings nutzen denselben Baustein
 
 function RankingsTable({ prompts, sov, brand, sentimentPct, domain }) {
   // Sortierbare Spalten (Searchable-Parität): Klick auf Kopf toggelt Richtung.
