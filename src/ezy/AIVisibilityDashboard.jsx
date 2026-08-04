@@ -2097,21 +2097,49 @@ const SCORE_GUIDE = (s) =>
     ? { label: "Moderat", color: C.amber, bg: "#fdf6e3", tip: "Inhalte vertiefen: umfassender schreiben, Beispiele und Expertenwissen ergänzen." }
     : { label: "Niedrig", color: C.down, bg: "#fee2e2", tip: "Grundlagen aufbauen: Kernthemen-Content erstellen, strukturierte Daten und Quellen-Autorität stärken." };
 
-function VisibilityHero({ score, delta, history }) {
-  const pts = (history || []).filter((h) => h.score != null).slice(-12);
-  // Achsen (Searchable-Parität 03.08.): links Skala, unten Monate.
+function VisibilityHero({ score, delta, history, daily }) {
+  // Tage/Monate + Linie/Balken (04.08., Searchable-Parität): Tagespunkte =
+  // echte Mess-Snapshots (3-Tage-Kadenz), Monate = je Monat der neueste Report.
+  const dailyPts = (daily || []).filter((h) => h.score != null).map((h) => ({ m: h.d, score: h.score }));
+  const monthPts = (history || []).filter((h) => h.score != null).slice(-12);
+  const [range, setRange] = useState(dailyPts.length >= 3 ? "tage" : "monate");
+  const [chart, setChart] = useState("linie");
+  const pts = range === "tage" && dailyPts.length >= 2 ? dailyPts : monthPts;
   const W = 520, H = 150, PAD = 8, AXL = 30, AXB = 16;
   const maxS = Math.max(10, ...pts.map((p) => p.score));
   const x = (i) => AXL + PAD + (i / Math.max(1, pts.length - 1)) * (W - AXL - 2 * PAD);
   const y = (v) => H - AXB - PAD - (v / maxS) * (H - AXB - 2 * PAD);
   const line = pts.map((p, i) => `${x(i)},${y(p.score)}`).join(" ");
+  const prev = pts.length > 1 ? pts[pts.length - 2].score : null;
+  const relDelta = prev ? Math.round(((score - prev) / prev) * 1000) / 10 : null;
+  const barW = Math.max(6, Math.min(28, ((W - AXL - 2 * PAD) / Math.max(1, pts.length)) - 6));
+  const Toggle = ({ value, set, options }) => (
+    <div className="flex rounded-md border p-0.5" style={{ borderColor: C.line, background: C.card }}>
+      {options.map(([k, t]) => (
+        <button key={k} onClick={() => set(k)} className="rounded px-1.5 py-0.5 text-[10px] font-medium focus:outline-none"
+          style={{ background: value === k ? C.track : "transparent", color: value === k ? C.ink : C.sub }}>
+          {t}
+        </button>
+      ))}
+    </div>
+  );
   return (
-    <RCard icon={Eye} title="Sichtbarkeit" info="Sichtbarkeits-Score der Marke über alle gemessenen KI-Systeme; Verlauf = Monatswerte." desc="Score-Trend über alle KI-Systeme" footer={`${pts.length} Monatspunkte`}>
+    <RCard icon={Eye} title="Sichtbarkeit" info="Sichtbarkeits-Score der Marke über alle gemessenen KI-Systeme. Tage = einzelne Messläufe (alle ~3 Tage), Monate = je Monat der neueste Stand." desc="Score-Trend über alle KI-Systeme" footer={range === "tage" ? `${pts.length} Messungen` : `${pts.length} Monatspunkte`} legend={
+      <div className="flex items-center gap-1.5">
+        {dailyPts.length >= 2 && <Toggle value={range} set={setRange} options={[["tage", "Tage"], ["monate", "Monate"]]} />}
+        <Toggle value={chart} set={setChart} options={[["linie", "〰"], ["balken", "▥"]]} />
+      </div>
+    }>
       <div className="text-[11px] uppercase tracking-wide" style={{ color: C.sub }}>Sichtbarkeits-Score</div>
       <div className="mt-0.5 flex flex-wrap items-baseline gap-2">
         <span className="text-3xl font-bold tabular-nums" style={{ color: C.ink }}>{score}</span>
         {delta !== 0 && delta != null && (
           <span className="text-sm font-semibold" style={{ color: delta > 0 ? C.up : C.down }}>{delta > 0 ? `+${delta}` : delta}</span>
+        )}
+        {relDelta != null && relDelta !== 0 && (
+          <span className="rounded px-1.5 py-0.5 text-[11px] font-bold tabular-nums" style={{ background: relDelta > 0 ? "#d1fae5" : "#fee2e2", color: relDelta > 0 ? "#065f46" : "#b91c1c" }}>
+            {relDelta > 0 ? "+" : ""}{relDelta}%
+          </span>
         )}
         {score != null && (
           <span className="rounded-full px-2 py-0.5 text-[10.5px] font-bold" style={{ background: SCORE_GUIDE(score).bg, color: SCORE_GUIDE(score).color }}>
@@ -2134,12 +2162,27 @@ function VisibilityHero({ score, delta, history }) {
             </g>
           ))}
           {pts.map((p, i) => (
-            (pts.length <= 6 || i === 0 || i === pts.length - 1 || i === Math.floor(pts.length / 2)) && p.m ? (
+            (pts.length <= 7 || i === 0 || i === pts.length - 1 || i === Math.floor(pts.length / 2)) && p.m ? (
               <text key={i} x={x(i)} y={H - 3} textAnchor="middle" fontSize="9" fill={C.sub}>{p.m}</text>
             ) : null
           ))}
-          <polyline points={line} fill="none" stroke={C.indigo} strokeWidth="2" />
-          <circle cx={x(pts.length - 1)} cy={y(pts[pts.length - 1].score)} r="3.5" fill={C.indigo} />
+          {chart === "balken" ? (
+            pts.map((p, i) => (
+              <rect key={i} x={x(i) - barW / 2} y={y(p.score)} width={barW} height={Math.max(1, H - AXB - PAD - y(p.score))} rx="2"
+                fill={C.indigo} fillOpacity={i === pts.length - 1 ? 1 : 0.55}>
+                <title>{`${p.m}: ${p.score}`}</title>
+              </rect>
+            ))
+          ) : (
+            <>
+              <polyline points={line} fill="none" stroke={C.indigo} strokeWidth="2" />
+              {pts.map((p, i) => (
+                <circle key={i} cx={x(i)} cy={y(p.score)} r={i === pts.length - 1 ? 3.5 : 2} fill={C.indigo} fillOpacity={i === pts.length - 1 ? 1 : 0.5}>
+                  <title>{`${p.m}: ${p.score}`}</title>
+                </circle>
+              ))}
+            </>
+          )}
         </svg>
       )}
     </RCard>
@@ -2182,10 +2225,35 @@ function RankingsTable({ prompts, sov, brand, sentimentPct, domain }) {
       : all.filter((p) => (p.comps || []).some((c) => c.toLowerCase() === name.toLowerCase())).length;
     return Math.round((n / all.length) * 100);
   };
+  // Ø-Position je Marke (04.08., Searchable "Avg Position"): 1=Top-Empfehlung,
+  // 2=in Liste, 3=Randnotiz — eigene Marke aus position, Rivalen aus comp_positions.
+  const POSN = { top: 1, list: 2, passing: 3 };
+  const posAgg = new Map();
+  const bumpPos = (name, p) => {
+    const v = POSN[p];
+    if (!v) return;
+    const t = posAgg.get(name.toLowerCase()) || { sum: 0, n: 0 };
+    t.sum += v; t.n += 1; posAgg.set(name.toLowerCase(), t);
+  };
+  for (const p of all) {
+    if (p.status && p.status !== "Nicht erwähnt") bumpPos(brand, p.position);
+    for (const cp of p.compPositions || []) bumpPos(cp.n, cp.p);
+  }
+  const avgPos = (name) => {
+    const t = posAgg.get(name.toLowerCase());
+    return t && t.n ? Math.round((t.sum / t.n) * 10) / 10 : null;
+  };
   const rows = [
-    { brand, self: true, vis: presence(brand, true), share: (sov || []).find((s) => s.isSelf)?.share ?? null, senti: sentimentPct },
-    ...(sov || []).filter((s) => !s.isSelf).slice(0, 8).map((s) => ({ brand: s.brand, self: false, vis: presence(s.brand, false), share: s.share, senti: null })),
-  ].sort((a, b) => sort.dir * (((a[sort.key] ?? -1) - (b[sort.key] ?? -1)) || a.brand.localeCompare(b.brand)));
+    { brand, self: true, vis: presence(brand, true), share: (sov || []).find((s) => s.isSelf)?.share ?? null, senti: sentimentPct, pos: avgPos(brand) },
+    ...(sov || []).filter((s) => !s.isSelf).slice(0, 8).map((s) => ({ brand: s.brand, self: false, vis: presence(s.brand, false), share: s.share, senti: null, pos: avgPos(s.brand) })),
+  ].sort((a, b) => {
+    // dir=-1 = "beste zuerst"; bei Position ist KLEINER besser, sonst grösser.
+    const na = a[sort.key] ?? (sort.key === "pos" ? Infinity : -Infinity);
+    const nb = b[sort.key] ?? (sort.key === "pos" ? Infinity : -Infinity);
+    const best = sort.key === "pos" ? na - nb : nb - na;
+    return (sort.dir === -1 ? best : -best) || a.brand.localeCompare(b.brand);
+  });
+  const hasPos = rows.some((r) => r.pos != null);
   const SortTh = ({ k, label, align = "right" }) => (
     <th className={`px-3 py-2 text-${align} font-medium`}>
       <button
@@ -2199,7 +2267,7 @@ function RankingsTable({ prompts, sov, brand, sentimentPct, domain }) {
     </th>
   );
   return (
-    <RCard icon={Hash} title="Rankings" info="Präsenzrate je Marke = Anteil der KI-Antworten, in denen die Marke vorkommt. Sentiment wird nur für die eigene Marke bewertet. Spalten sind per Klick sortierbar." desc="Marke im Vergleich zum Wettbewerb" footer={`${rows.length} Marken`} pad={false}>
+    <RCard icon={Hash} title="Rankings" info="Präsenzrate je Marke = Anteil der KI-Antworten, in denen die Marke vorkommt. Sentiment wird nur für die eigene Marke bewertet. Ø-Position: 1 = Top-Empfehlung, 2 = in Liste, 3 = Randnotiz (Judge bewertet alle Marken). Spalten sind per Klick sortierbar." desc="Marke im Vergleich zum Wettbewerb" footer={`${rows.length} Marken`} pad={false}>
       <div className="overflow-x-auto">
         <table className="w-full text-[12px]" style={{ borderCollapse: "collapse" }}>
           <thead>
@@ -2209,11 +2277,12 @@ function RankingsTable({ prompts, sov, brand, sentimentPct, domain }) {
               <SortTh k="vis" label="Präsenz" />
               <SortTh k="share" label="SoV" />
               <SortTh k="senti" label="Sentiment" />
+              {hasPos && <SortTh k="pos" label="Ø-Position" />}
             </tr>
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={r.brand} style={{ borderTop: `1px solid ${C.line}`, background: r.self ? "rgba(108,92,231,.05)" : "transparent" }}>
+              <tr key={r.brand} style={{ borderTop: `1px solid ${C.line}`, background: r.self ? "rgba(108,92,231,.05)" : i % 2 ? C.cardAlt : "transparent" }}>
                 <td className="px-5 py-2 tabular-nums" style={{ color: C.sub }}>{i + 1}</td>
                 <td className="px-3 py-2 font-semibold" style={{ color: r.self ? C.indigo : C.ink }}>
                   <span className="inline-flex items-center gap-2">
@@ -2225,6 +2294,11 @@ function RankingsTable({ prompts, sov, brand, sentimentPct, domain }) {
                 <td className="px-3 py-2 text-right font-semibold tabular-nums" style={{ color: C.ink }}>{r.vis}%</td>
                 <td className="px-3 py-2 text-right tabular-nums" style={{ color: C.sub }}>{r.share != null ? `${r.share}%` : "—"}</td>
                 <td className="px-3 py-2 text-right tabular-nums" style={{ color: r.senti != null ? C.up : C.sub }}>{r.senti != null ? r.senti : "—"}</td>
+                {hasPos && (
+                  <td className="px-3 py-2 text-right tabular-nums" title="1 = Top-Empfehlung · 2 = in Liste · 3 = Randnotiz" style={{ color: r.pos != null ? C.ink : C.sub }}>
+                    {r.pos != null ? `# ${r.pos.toFixed(1)}` : "—"}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -2439,7 +2513,7 @@ export default function AIVisibilityDashboard({ data, convRows = [] }) {
             </div>
             {/* Zeile 1 wie Searchable Visibility: Score-Verlauf | Rankings */}
             <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <VisibilityHero score={d.score} delta={d.versionSwitch ? 0 : d.scoreDelta} history={d.trend} />
+              <VisibilityHero score={d.score} delta={d.versionSwitch ? 0 : d.scoreDelta} history={d.trend} daily={d.versionSwitch ? [] : d.dailyTrend} />
               <RankingsTable prompts={d.prompts} sov={d.sov} brand={d.client} sentimentPct={sentimentPct} domain={d.domain} />
             </div>
             <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">

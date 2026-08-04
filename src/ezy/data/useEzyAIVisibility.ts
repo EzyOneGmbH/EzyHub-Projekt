@@ -68,6 +68,9 @@ export type AIVisibilityData = {
   }[];
   kpis: { mentions: Kpi; citations: Kpi; citedPages: Kpi };
   trend: { m: string; mentions: number; citations: number; pages: number; score?: number | null }[];
+  // Tages-Verlauf (04.08., Searchable-Parität): letzte 14 Mess-Snapshots einzeln
+  // (3-Tage-Kadenz => ~6 Wochen Fenster), für die Tage/Monate-Umschaltung im Hero.
+  dailyTrend?: { d: string; score: number | null; mentions: number }[];
   models: {
     name: string;
     layer: "macro" | "custom";
@@ -298,6 +301,15 @@ export async function loadAIVisibility(
       score: h.score != null ? Number(h.score) : null, // VisibilityHero (03.08.)
     })),
     sourceTrend,
+    // Letzte 14 einzelne Snapshots, chronologisch (history kommt absteigend).
+    dailyTrend: (history.data ?? [])
+      .slice(0, 14)
+      .reverse()
+      .map((h: any) => ({
+        d: new Date(String(h.snapshot_date) + "T00:00:00").toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit" }),
+        score: h.score != null ? Number(h.score) : null,
+        mentions: Number(h.mentions ?? 0),
+      })),
     models: modelRows.map((m: any) => ({
       name: String(m.model_name ?? ""),
       layer: m.layer === "custom" ? "custom" : "macro",
