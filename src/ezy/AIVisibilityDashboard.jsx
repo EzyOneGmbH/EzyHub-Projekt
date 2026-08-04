@@ -2243,9 +2243,24 @@ function RankingsTable({ prompts, sov, brand, sentimentPct, domain }) {
     const t = posAgg.get(name.toLowerCase());
     return t && t.n ? Math.round((t.sum / t.n) * 10) / 10 : null;
   };
+  // Rival-Sentiment (04.08.): Anteil positiver Judge-Bewertungen je Konkurrent
+  // (compPositions.s) — gleiche Skala wie die eigene Marke; ab 3 Bewertungen.
+  const sentAgg = new Map();
+  for (const p of all) {
+    for (const cp of p.compPositions || []) {
+      if (!cp.s) continue;
+      const t = sentAgg.get(cp.n.toLowerCase()) || { pos: 0, n: 0 };
+      if (cp.s === "pos") t.pos += 1;
+      t.n += 1; sentAgg.set(cp.n.toLowerCase(), t);
+    }
+  }
+  const rivalSenti = (name) => {
+    const t = sentAgg.get(name.toLowerCase());
+    return t && t.n >= 3 ? Math.round((t.pos / t.n) * 100) : null;
+  };
   const rows = [
     { brand, self: true, vis: presence(brand, true), share: (sov || []).find((s) => s.isSelf)?.share ?? null, senti: sentimentPct, pos: avgPos(brand) },
-    ...(sov || []).filter((s) => !s.isSelf).slice(0, 8).map((s) => ({ brand: s.brand, self: false, vis: presence(s.brand, false), share: s.share, senti: null, pos: avgPos(s.brand) })),
+    ...(sov || []).filter((s) => !s.isSelf).slice(0, 8).map((s) => ({ brand: s.brand, self: false, vis: presence(s.brand, false), share: s.share, senti: rivalSenti(s.brand), pos: avgPos(s.brand) })),
   ].sort((a, b) => {
     // dir=-1 = "beste zuerst"; bei Position ist KLEINER besser, sonst grösser.
     const na = a[sort.key] ?? (sort.key === "pos" ? Infinity : -Infinity);
@@ -2267,7 +2282,7 @@ function RankingsTable({ prompts, sov, brand, sentimentPct, domain }) {
     </th>
   );
   return (
-    <RCard icon={Hash} title="Rankings" info="Präsenzrate je Marke = Anteil der KI-Antworten, in denen die Marke vorkommt. Sentiment wird nur für die eigene Marke bewertet. Ø-Position: 1 = Top-Empfehlung, 2 = in Liste, 3 = Randnotiz (Judge bewertet alle Marken). Spalten sind per Klick sortierbar." desc="Marke im Vergleich zum Wettbewerb" footer={`${rows.length} Marken`} pad={false}>
+    <RCard icon={Hash} title="Rankings" info="Präsenzrate je Marke = Anteil der KI-Antworten, in denen die Marke vorkommt. Sentiment = Anteil positiver Bewertungen (Konkurrenten ab 3 Bewertungen, seit 04.08. vom Judge miterhoben). Ø-Position: 1 = Top-Empfehlung, 2 = in Liste, 3 = Randnotiz. Spalten sind per Klick sortierbar." desc="Marke im Vergleich zum Wettbewerb" footer={`${rows.length} Marken`} pad={false}>
       <div className="overflow-x-auto">
         <table className="w-full text-[12px]" style={{ borderCollapse: "collapse" }}>
           <thead>
@@ -2293,7 +2308,7 @@ function RankingsTable({ prompts, sov, brand, sentimentPct, domain }) {
                 </td>
                 <td className="px-3 py-2 text-right font-semibold tabular-nums" style={{ color: C.ink }}>{r.vis}%</td>
                 <td className="px-3 py-2 text-right tabular-nums" style={{ color: C.sub }}>{r.share != null ? `${r.share}%` : "—"}</td>
-                <td className="px-3 py-2 text-right tabular-nums" style={{ color: r.senti != null ? C.up : C.sub }}>{r.senti != null ? r.senti : "—"}</td>
+                <td className="px-3 py-2 text-right tabular-nums" style={{ color: r.senti == null ? C.sub : r.senti >= 50 ? C.up : C.amber }}>{r.senti != null ? r.senti : "—"}</td>
                 {hasPos && (
                   <td className="px-3 py-2 text-right tabular-nums" title="1 = Top-Empfehlung · 2 = in Liste · 3 = Randnotiz" style={{ color: r.pos != null ? C.ink : C.sub }}>
                     {r.pos != null ? `# ${r.pos.toFixed(1)}` : "—"}
