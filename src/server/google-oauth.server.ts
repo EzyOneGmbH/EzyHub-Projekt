@@ -1,7 +1,18 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 const SCOPES = [
-  "https://www.googleapis.com/auth/webmasters.readonly",
+  // webmasters (schreibend) statt webmasters.readonly — Entscheid 04.08.2026.
+  // Grund: Sitemaps in der Search Console EINREICHEN braucht Schreibrechte;
+  // mit readonly scheiterte der Sitemap-Job an HTTP 403 "insufficient
+  // authentication scopes". Der Schreib-Scope schliesst Lesen mit ein, daher
+  // ersetzt er den bisherigen und steht nicht zusaetzlich daneben.
+  //
+  // WICHTIG: Bestehende Verbindungen behalten ihre einmal erteilten Rechte —
+  // dieser Wert gilt erst fuer NEUE bzw. neu freigegebene Verbindungen. Jeder
+  // Kunde muss seine Google-Verbindung also einmal neu bestaetigen, sonst
+  // bleibt es beim Lesezugriff (und der Sitemap-Job meldet weiter
+  // scopeMissing).
+  "https://www.googleapis.com/auth/webmasters",
   "https://www.googleapis.com/auth/analytics.readonly",
   "https://www.googleapis.com/auth/adwords",
   "https://www.googleapis.com/auth/business.manage",
