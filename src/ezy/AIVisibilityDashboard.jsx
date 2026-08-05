@@ -1905,12 +1905,19 @@ function LocationPanel({ countries, models }) {
           })}
         </svg>
         {unmapped.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             {unmapped.map((c) => (
-              <span key={c.name} className="rounded-lg px-3 py-2 text-[11px] font-semibold" style={{ background: "#d9d4f8", color: "#3b3667" }}>
+              <span
+                key={c.name}
+                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-semibold"
+                style={{ background: "#d9d4f8", color: "#3b3667", cursor: "help" }}
+                title="Erwähnungen ohne Länderzuordnung — z. B. aus dem globalen ChatGPT-Korpus, der keine Herkunftsangabe mitliefert. Deshalb nicht auf der Karte einfärbbar."
+              >
                 {c.name} · {nf(c.value)}
+                <Info size={12} style={{ opacity: 0.7 }} />
               </span>
             ))}
+            <span className="text-[10.5px]" style={{ color: C.sub }}>= ohne Länderzuordnung (z. B. globaler ChatGPT-Korpus)</span>
           </div>
         )}
       </RCard>
