@@ -2006,7 +2006,19 @@ function ConversionRegions({ attribution }) {
     }
   }
   const rows = [...agg.values()].sort((a, b) => b.conv - a.conv);
-  if (!rows.length) return null; // keine Länder-Daten in den Conversion-Events
+  if (!rows.length) {
+    // Empty-State statt stillem Ausblenden (05.08.): erklärt, warum keine Karte da ist.
+    return (
+      <div className="mt-4">
+        <RCard icon={Layers} title="Conversions nach Region" info="Herkunftsländer der KI-Conversions aus GA4. Die Karte erscheint, sobald Conversions mit Herkunftsland vorliegen." desc="Wo KI-Besucher konvertieren" footer="Noch keine Daten">
+          <p className="py-6 text-center text-[12.5px]" style={{ color: C.sub }}>
+            Für diesen Kunden liegen noch keine KI-Conversions mit Herkunftsland vor.<br />
+            Die Regionen-Karte füllt sich automatisch, sobald GA4 Conversions aus KI-Quellen meldet.
+          </p>
+        </RCard>
+      </div>
+    );
+  }
   const total = rows.reduce((a, c) => a + c.conv, 0) || 1;
   const valueByEn = new Map(rows.filter((r) => r.en).map((r) => [r.en, r.conv]));
   const unmapped = rows.filter((r) => !r.en);
