@@ -3,6 +3,8 @@ import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { isProviderEnabled, canRunAudits } from "@/server/integrations.server";
+import { generateViaSubscription } from "@/server/claude-generate.server";
+import { recordApiCost } from "@/server/api-cost.server";
 
 // Artikel-spezifische Refresh-Empfehlung fuer das Playbook-Pop-up im Blog-Register.
 // Das generische Playbook sagt WIE man vorgeht — diese Route sagt WAS konkret an
@@ -186,36 +188,61 @@ FOKUS DEINES PLANS
 ${focus}`;
 
         let text = "";
-        try {
-          const res = await fetch("https://api.anthropic.com/v1/messages", {
-            method: "POST",
-            headers: {
-              "x-api-key": apiKey,
-              "anthropic-version": "2023-06-01",
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: ANTHROPIC_MODEL,
-              max_tokens: 2500,
-              system,
-              messages: [{ role: "user", content: userPrompt }],
-            }),
-          });
-          if (!res.ok) {
-            const t = await res.text().catch(() => "");
-            return Response.json(
-              { ok: false, error: redact(`Anthropic HTTP ${res.status}: ${t}`, secrets) },
-              { status: 502 },
-            );
+        // 1) Bevorzugt über den agent-service (Claude-Subscription) — verbraucht
+        //    KEIN API-Guthaben. Nicht erreichbar/leer -> Direktweg unten.
+        const viaSub = await generateViaSubscription({
+          system,
+          prompt: userPrompt,
+          model: ANTHROPIC_MODEL,
+          clientId: client.id,
+          clientName: client.name,
+          label: "Refresh-Brief",
+        });
+        if (viaSub?.text) text = viaSub.text.trim();
+
+        if (!text) {
+          // 2) Fallback: Direktaufruf über das API-Guthaben — der Verbrauch wird
+          //    jetzt in api_cost_daily geloggt (war vorher unsichtbar).
+          try {
+            const res = await fetch("https://api.anthropic.com/v1/messages", {
+              method: "POST",
+              headers: {
+                "x-api-key": apiKey,
+                "anthropic-version": "2023-06-01",
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                model: ANTHROPIC_MODEL,
+                max_tokens: 2500,
+                system,
+                messages: [{ role: "user", content: userPrompt }],
+              }),
+            });
+            if (!res.ok) {
+              const t = await res.text().catch(() => "");
+              return Response.json(
+                { ok: false, error: redact(`Anthropic HTTP ${res.status}: ${t}`, secrets) },
+                { status: 502 },
+              );
+            }
+            const json = (await res.json()) as {
+              content?: Array<{ type: string; text?: string }>;
+              usage?: { input_tokens?: number; output_tokens?: number };
+            };
+            text = (json.content ?? [])
+              .filter((b) => b.type === "text")
+              .map((b) => b.text ?? "")
+              .join("\n")
+              .trim();
+            const u = json.usage || {};
+            await recordApiCost({
+              provider: "Claude",
+              tokensIn: Number(u.input_tokens || 0),
+              tokensOut: Number(u.output_tokens || 0),
+            });
+          } catch (e) {
+            return Response.json({ ok: false, error: redact(e, secrets) }, { status: 500 });
           }
-          const json = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
-          text = (json.content ?? [])
-            .filter((b) => b.type === "text")
-            .map((b) => b.text ?? "")
-            .join("\n")
-            .trim();
-        } catch (e) {
-          return Response.json({ ok: false, error: redact(e, secrets) }, { status: 500 });
         }
 
         await supabaseAdmin.from("audit_runs").insert({
