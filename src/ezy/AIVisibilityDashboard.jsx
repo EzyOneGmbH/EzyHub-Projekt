@@ -1873,7 +1873,7 @@ function LocationPanel({ countries, models }) {
   const selMax = Math.max(1, ...selEngines.map((x) => x.n));
   return (
     <div className="mt-4 grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-      <RCard icon={Layers} title="Regionen-Karte" info="Echte Landkarte (world-atlas): Länder nach Anteil der KI-Erwähnungen eingefärbt. Land anklicken für die Detail-Ansicht. International = Erwähnungen ohne Länderzuordnung (z. B. globaler ChatGPT-Korpus) — als Chip unter der Karte, nicht einfärbbar." desc="Wo KI-Antworten die Marke erwähnen — Land anklicken" footer={`${rows.length} Regionen · ${nf(total)} Erwähnungen`} legend={
+      <RCard icon={Layers} title="Regionen-Karte" info="Echte Landkarte (world-atlas): Länder nach Anteil der KI-Erwähnungen eingefärbt. Land oder Chip anklicken für die Detail-Ansicht." desc="Wo KI-Antworten die Marke erwähnen — Land anklicken" footer={`${rows.length} Regionen · ${nf(total)} Erwähnungen`} legend={
         <div className="flex rounded-md border p-0.5" style={{ borderColor: C.line, background: C.card }}>
           {[["fokus", "Fokus"], ["welt", "Welt"]].map(([k, t]) => (
             <button key={k} onClick={() => setMapView(k)} className="rounded px-2 py-0.5 text-[10.5px] font-medium focus:outline-none"
@@ -1907,17 +1907,11 @@ function LocationPanel({ countries, models }) {
         {unmapped.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {unmapped.map((c) => (
-              <span
-                key={c.name}
-                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-semibold"
-                style={{ background: "#d9d4f8", color: "#3b3667", cursor: "help" }}
-                title="Erwähnungen ohne Länderzuordnung — z. B. aus dem globalen ChatGPT-Korpus, der keine Herkunftsangabe mitliefert. Deshalb nicht auf der Karte einfärbbar."
-              >
+              <span key={c.name} className="rounded-lg px-3 py-2 text-[11px] font-semibold" style={{ background: "#d9d4f8", color: "#3b3667", cursor: "pointer" }}
+                onClick={() => setSelected(c.name)}>
                 {c.name} · {nf(c.value)}
-                <Info size={12} style={{ opacity: 0.7 }} />
               </span>
             ))}
-            <span className="text-[10.5px]" style={{ color: C.sub }}>= ohne Länderzuordnung (z. B. globaler ChatGPT-Korpus)</span>
           </div>
         )}
       </RCard>
@@ -1942,12 +1936,14 @@ function LocationPanel({ countries, models }) {
           ) : (
             <p className="text-[12px]" style={{ color: C.sub }}>Für dieses Land liegt keine Aufschlüsselung je KI-System vor.</p>
           )}
-          <div className="mt-4 flex items-start gap-2 rounded-lg border px-3 py-2 text-[11px] leading-relaxed" style={{ borderColor: C.line, background: C.cardAlt, color: C.sub }}>
-            <Info size={13} className="mt-0.5 shrink-0" />
-            <span>
-              Kantone/Bundesländer: Die Messung erhebt die Herkunft aktuell auf <b style={{ color: C.ink }}>Land-Ebene</b> (die KI-Systeme werden je Land befragt). Eine Kantons-/Bundesland-Aufschlüsselung erfordert regionalisierte Messläufe — als Ausbau möglich, erhöht aber die Messkosten je Region.
-            </span>
-          </div>
+          {selRow.name === "International" && (
+            <div className="mt-4 flex items-start gap-2 rounded-lg border px-3 py-2 text-[11px] leading-relaxed" style={{ borderColor: C.line, background: C.cardAlt, color: C.sub }}>
+              <Info size={13} className="mt-0.5 shrink-0" />
+              <span>
+                <b style={{ color: C.ink }}>International</b> = Erwähnungen ohne Länderzuordnung — z. B. aus dem globalen ChatGPT-Korpus, der keine Herkunftsangabe mitliefert. Deshalb erscheinen sie nicht auf der Karte, sondern als eigene Region.
+              </span>
+            </div>
+          )}
         </RCard>
       ) : (
       <RCard icon={Hash} title="Regionen" info="Erwähnungen und Anteil je Herkunftsregion der KI-Anfragen. Zeile oder Land anklicken für die Detail-Ansicht." desc="Erwähnungen nach Region — Zeile anklicken" footer={`${rows.length} Regionen`} pad={false}>
