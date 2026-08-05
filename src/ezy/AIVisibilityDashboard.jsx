@@ -2893,9 +2893,8 @@ function buildTabGroups(d) {
       { id: "quellen", label: "Quellen", icon: Link2 },
       { id: "themen", label: "Themen", icon: Layers },
     ] },
-    ...(Array.isArray(d?.fanout) && d.fanout.length
-      ? [{ group: "Prompts", items: [{ id: "folgefragen", label: "Folgefragen", icon: MessageSquare }] }]
-      : []),
+    // Folgefragen-Tab entfernt (05.08., User-Entscheid); FanoutPanel bleibt
+    // ungenutzt im Code, d.fanout wird weiter gemessen.
     { group: "Kontext", items: [
       ...(Array.isArray(d?.countries) && d.countries.length ? [{ id: "standorte", label: "Standorte", icon: MapPin }] : []),
       ...(hasConv ? [{ id: "conversions", label: "Conversions", icon: MousePointerClick }] : []),
@@ -3198,7 +3197,6 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
         {tab === "themen" && <TopicsPanel rows={d.topics} prompts={[...(fP || []), ...(fO || [])]} />}
 
 
-        {tab === "folgefragen" && <FanoutPanel fanout={d.fanout} />}
 
         {tab === "standorte" && <LocationPanel countries={d.countries} models={d.models} />}
 
