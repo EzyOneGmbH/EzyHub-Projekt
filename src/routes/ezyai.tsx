@@ -425,14 +425,14 @@ function SiteHealthPanel({ clientId, S, mode }: { clientId: string; S: Record<st
   const [running, setRunning] = useState(false);
   const [err, setErr] = useState("");
 
-  const call = useCallback(async (method: "GET" | "POST") => {
+  const call = useCallback(async (method: "GET" | "POST", auditMode?: "quick" | "deep") => {
     const session = (await supabase.auth.getSession()).data.session;
     const init: RequestInit = { method, headers: { Authorization: `Bearer ${session?.access_token || ""}` } };
     let url = `/api/admin/site-health?client=${encodeURIComponent(clientId)}`;
     if (method === "POST") {
       url = "/api/admin/site-health";
       init.headers = { ...init.headers, "Content-Type": "application/json" };
-      init.body = JSON.stringify({ client: clientId });
+      init.body = JSON.stringify({ client: clientId, mode: auditMode || "quick" });
     }
     const r = await fetch(url, init);
     const j = await r.json().catch(() => ({}));
@@ -447,11 +447,12 @@ function SiteHealthPanel({ clientId, S, mode }: { clientId: string; S: Record<st
     return () => { alive = false; };
   }, [call]);
 
-  const runAudit = async () => {
-    setRunning(true); setErr("");
-    try { setAudit(await call("POST")); }
+  const [runningMode, setRunningMode] = useState<"quick" | "deep" | null>(null);
+  const runAudit = async (auditMode: "quick" | "deep") => {
+    setRunning(true); setRunningMode(auditMode); setErr("");
+    try { setAudit(await call("POST", auditMode)); }
     catch (e: any) { setErr(String(e?.message || e)); }
-    finally { setRunning(false); }
+    finally { setRunning(false); setRunningMode(null); }
   };
 
   const card: any = { background: S.panel, border: `1px solid ${S.line}`, borderRadius: 14, padding: 18 };
@@ -462,11 +463,20 @@ function SiteHealthPanel({ clientId, S, mode }: { clientId: string; S: Record<st
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <button onClick={runAudit} disabled={running}
+        <button onClick={() => runAudit("quick")} disabled={running}
           style={{ padding: "8px 16px", borderRadius: 10, border: "none", cursor: running ? "default" : "pointer", background: S.app, color: "#fff", fontSize: 13, fontWeight: 600, fontFamily: "inherit", opacity: running ? 0.6 : 1 }}>
-          {running ? "Audit läuft… (~10 s)" : audit ? "Erneut prüfen" : "Audit starten"}
+          {running && runningMode === "quick" ? "Quick-Audit läuft… (~10 s)" : "Quick-Audit"}
         </button>
-        {audit?.at && <span style={{ fontSize: 12, color: S.mut }}>Letzter Audit: {new Date(audit.at).toLocaleString("de-CH")} · {audit.url}</span>}
+        <button onClick={() => runAudit("deep")} disabled={running}
+          style={{ padding: "8px 16px", borderRadius: 10, border: `1px solid ${S.app}`, cursor: running ? "default" : "pointer", background: "transparent", color: S.app, fontSize: 13, fontWeight: 600, fontFamily: "inherit", opacity: running ? 0.6 : 1 }}>
+          {running && runningMode === "deep" ? "Tiefen-Audit läuft… (~1 Min)" : "Tiefen-Audit (bis 15 Seiten)"}
+        </button>
+        {audit?.at && (
+          <span style={{ fontSize: 12, color: S.mut }}>
+            Letzter Audit: {new Date(audit.at).toLocaleString("de-CH")} · {audit.url}
+            {audit.mode === "deep" && Array.isArray(audit.pages) && audit.pages.length > 1 ? ` · ${audit.pages.length} Seiten` : " · Startseite"}
+          </span>
+        )}
         {err && <span style={{ fontSize: 12, color: "#dc2626" }}>{err}</span>}
       </div>
 
@@ -476,7 +486,7 @@ function SiteHealthPanel({ clientId, S, mode }: { clientId: string; S: Record<st
         <div style={{ ...card, textAlign: "center", padding: 40 }}>
           <div style={{ fontSize: 30, marginBottom: 10 }}>🩺</div>
           <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6, color: S.txt }}>Noch kein Audit für diesen Kunden</div>
-          <div style={{ fontSize: 13, color: S.mut }}>„Audit starten" prüft Startseite, robots.txt, Sitemap und AI-Readiness — dauert rund 10 Sekunden, ohne Zusatzkosten.</div>
+          <div style={{ fontSize: 13, color: S.mut }}>Quick-Audit prüft Startseite, robots.txt, Sitemap und AI-Readiness (~10 s); der Tiefen-Audit nimmt bis zu 15 Unterseiten aus der Sitemap dazu (~1 Min). Beides ohne Zusatzkosten.</div>
         </div>
       ) : (
         <>
@@ -512,11 +522,50 @@ function SiteHealthPanel({ clientId, S, mode }: { clientId: string; S: Record<st
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 12.5, fontWeight: 600, color: S.txt }}>{i.label} <span style={{ fontWeight: 400, color: S.mut }}>— {i.detail}</span></div>
                     <div style={{ fontSize: 11.5, color: S.mut, marginTop: 2 }}>{i.tipp}</div>
+                    {Array.isArray(i.pages) && i.pages.length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                        {i.pages.slice(0, 6).map((p: string) => (
+                          <span key={p} style={{ fontSize: 10, color: S.mut, border: `1px solid ${S.line}`, borderRadius: 6, padding: "1px 6px", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p}</span>
+                        ))}
+                        {i.pages.length > 6 && <span style={{ fontSize: 10, color: S.mut }}>+{i.pages.length - 6} weitere</span>}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
             })}
           </div>
+
+          {/* Seiten-Tabelle (Tiefen-Audit) */}
+          {Array.isArray(audit.pages) && audit.pages.length > 1 && (
+            <div style={card}>
+              <div style={{ fontWeight: 700, fontSize: 13.5, color: S.txt, marginBottom: 8 }}>Geprüfte Seiten · {audit.pages.length}</div>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ color: S.mut, fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".04em", textAlign: "left" }}>
+                      <th style={{ padding: "5px 8px" }}>Seite</th>
+                      <th style={{ padding: "5px 8px", textAlign: "right" }}>Score</th>
+                      <th style={{ padding: "5px 8px", textAlign: "right" }}>Probleme</th>
+                      <th style={{ padding: "5px 8px", textAlign: "right" }}>HTTP</th>
+                      <th style={{ padding: "5px 8px", textAlign: "right" }}>Zeit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...audit.pages].sort((a: any, b: any) => a.score - b.score).map((p: any) => (
+                      <tr key={p.path} style={{ borderTop: `1px solid ${S.line}` }}>
+                        <td style={{ padding: "6px 8px", maxWidth: 340, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: S.txt }} title={p.title || p.path}>{p.path}</td>
+                        <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 700, color: scoreColor(p.score), fontVariantNumeric: "tabular-nums" }}>{p.score}</td>
+                        <td style={{ padding: "6px 8px", textAlign: "right", color: p.issues ? S.txt : S.mut, fontVariantNumeric: "tabular-nums" }}>{p.issues || "—"}</td>
+                        <td style={{ padding: "6px 8px", textAlign: "right", color: p.status === 200 ? S.mut : "#dc2626", fontVariantNumeric: "tabular-nums" }}>{p.status}</td>
+                        <td style={{ padding: "6px 8px", textAlign: "right", color: S.mut, fontVariantNumeric: "tabular-nums" }}>{p.ms} ms</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Check-Tabellen je Säule (nur im Site-Health-Modus) */}
           {mode === "health" && (
@@ -536,7 +585,7 @@ function SiteHealthPanel({ clientId, S, mode }: { clientId: string; S: Record<st
             </div>
           )}
           <div style={{ fontSize: 11, color: S.mut }}>
-            Basis: Startseite, robots.txt, llms.txt und Sitemap — Gewichtung Technik 30 % · Inhalt 35 % · AI-Readiness 35 %. Tiefen-Audits einzelner Unterseiten laufen weiterhin über die SEO-Agenten.
+            Basis: robots.txt, llms.txt, Sitemap und {audit.mode === "deep" ? "die geprüften Seiten" : "die Startseite"} — Gewichtung Technik 30 % · Inhalt 35 % · AI-Readiness 35 %. Umsetzung der Fixes läuft wie gewohnt über die SEO-Agenten mit Freigabe.
           </div>
         </>
       )}
