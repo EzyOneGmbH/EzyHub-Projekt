@@ -1833,8 +1833,9 @@ function LocationPanel({ countries, models }) {
   const dataFeatures = WORLD_FEATURES.filter((f) => valueByEn.has(f.properties.name));
   // Projektion auf die Länder mit Daten zoomen (mind. Europa-artiger Ausschnitt).
   const W = 640, H = 400;
+  const [mapView, setMapView] = useState("fokus"); // fokus = Daten-Länder · welt = ganze Karte
   const projection = geoNaturalEarth1();
-  if (dataFeatures.length) {
+  if (dataFeatures.length && mapView === "fokus") {
     // Fix 05.08.: fitExtent auf eine GEPUFFERTE Box um die Daten-Länder statt
     // nachträglichem scale-Cap — der Cap verschob nur den Maßstab, nicht das
     // Zentrum, und schob den Ausschnitt aus dem Bild (leere/abgeschnittene Karte).
@@ -1872,7 +1873,16 @@ function LocationPanel({ countries, models }) {
   const selMax = Math.max(1, ...selEngines.map((x) => x.n));
   return (
     <div className="mt-4 grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-      <RCard icon={Layers} title="Regionen-Karte" info="Echte Landkarte (world-atlas): Länder nach Anteil der KI-Erwähnungen eingefärbt. Land anklicken für die Detail-Ansicht. Regionen ohne Länderzuordnung (z. B. International) erscheinen als Chips darunter." desc="Wo KI-Antworten die Marke erwähnen — Land anklicken" footer={`${rows.length} Regionen · ${nf(total)} Erwähnungen`}>
+      <RCard icon={Layers} title="Regionen-Karte" info="Echte Landkarte (world-atlas): Länder nach Anteil der KI-Erwähnungen eingefärbt. Land anklicken für die Detail-Ansicht. International = Erwähnungen ohne Länderzuordnung (z. B. globaler ChatGPT-Korpus) — als Chip unter der Karte, nicht einfärbbar." desc="Wo KI-Antworten die Marke erwähnen — Land anklicken" footer={`${rows.length} Regionen · ${nf(total)} Erwähnungen`} legend={
+        <div className="flex rounded-md border p-0.5" style={{ borderColor: C.line, background: C.card }}>
+          {[["fokus", "Fokus"], ["welt", "Welt"]].map(([k, t]) => (
+            <button key={k} onClick={() => setMapView(k)} className="rounded px-2 py-0.5 text-[10.5px] font-medium focus:outline-none"
+              style={{ background: mapView === k ? C.track : "transparent", color: mapView === k ? C.ink : C.sub }}>
+              {t}
+            </button>
+          ))}
+        </div>
+      }>
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 420 }}>
           {WORLD_FEATURES.map((f) => {
             const en = f.properties.name;
