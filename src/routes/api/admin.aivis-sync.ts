@@ -901,13 +901,15 @@ const PARSE_MODEL = process.env.ANTHROPIC_PARSE_MODEL ?? "claude-haiku-4-5-20251
 const urlsIn = (t: string) => (t.match(/https?:\/\/[^\s)\]"']+/g) || []).length;
 
 async function askClaude(prompt: string, maxTokens = 600, temperature?: number): Promise<{ text: string; sources: number; model?: string; error?: string } | null> {
-  // Subscription-first (2026-08-05, User-Entscheid): Engine-ANTWORTEN (ohne
-  // gesetzte temperature) laufen über den agent-service (/generate) und damit
-  // über die Claude-Subscription statt über das API-Guthaben. Judge/Seed MIT
-  // temperature bleiben auf dem Direktweg — das SDK honoriert temperature nicht,
-  // und dort ist Determinismus wichtiger als die Kostenersparnis. Kill-Switch:
-  // AIVIS_CLAUDE_VIA_SUBSCRIPTION=0 schaltet zurück auf den reinen Key-Weg.
-  if (temperature == null && process.env.AIVIS_CLAUDE_VIA_SUBSCRIPTION !== "0") {
+  // Subscription-Routing (2026-08-05): OPT-IN, Default AUS. Getestet am 05.08. mit
+  // dem Voll-Durchlauf — die Subscription läuft nur über den Agent-SDK (/generate),
+  // und jede Antwort startet eine eigene SDK-Session: bei aivis-Volumen ~1 Claude-
+  // Antwort/Min + Dutzende Prozesse => für 100+ Prompts/Kunde unbrauchbar. Deshalb
+  // misst die Claude-Engine standardmäßig wieder über den schnellen API-Key
+  // (messages.create, hohe Parallelität). Wer die Subscription doch will (kleine
+  // Kadenz), setzt AIVIS_CLAUDE_VIA_SUBSCRIPTION=1. Nur Engine-ANTWORTEN (ohne
+  // temperature) wären betroffen; Judge/Seed liefen ohnehin nur direkt.
+  if (temperature == null && process.env.AIVIS_CLAUDE_VIA_SUBSCRIPTION === "1") {
     const viaSub = await generateViaSubscription({
       prompt,
       model: ANTHROPIC_MODEL,
