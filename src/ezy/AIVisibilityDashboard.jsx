@@ -531,10 +531,10 @@ function AttributionStrip({ rows, convRows = [] }) {
     <div className="rounded-xl border p-5" style={CARD}>
       <div className="flex items-center gap-2">
         <MousePointerClick size={15} style={{ color: C.teal }} />
-        <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Conversions</h3>
+        <h3 className="text-sm font-semibold" style={{ color: C.ink }}>Besucher</h3>
       </div>
       <p className="mt-0.5 text-xs" style={{ color: C.sub }}>
-        letzte 30 Tage · {nf(totalS)} Sessions · {totalC} Conversions
+        letzte 30 Tage · {nf(totalS)} Besucher · {totalC} Conversions
         {totalC > 0 && <span> · Kachel anklicken für das Conversion-Detail</span>}
       </p>
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -1988,32 +1988,58 @@ const WORLD_NAMES = new Set(WORLD_FEATURES.map((f) => f.properties.name));
 function ConversionRegions({ attribution }) {
   const [selected, setSelected] = useState(null); // EN-Feature-Name oder Chip-Label
   const [mapView, setMapView] = useState("fokus");
-  // Aggregation: Land -> Conversions/Wert + Engine-Split.
-  const agg = new Map(); // key = EN-Name (oder Roh-Label wenn nicht mappbar)
+  // Länder-Schlüssel normalisieren: GA4 liefert englische Namen, Messwerte deutsche.
+  const norm = (raw) => {
+    const en = WORLD_NAMES.has(raw) ? raw : (DE2EN[raw.toLowerCase()] && WORLD_NAMES.has(DE2EN[raw.toLowerCase()]) ? DE2EN[raw.toLowerCase()] : null);
+    return { en, key: en || (raw === "(not set)" ? "Ohne Zuordnung" : raw) };
+  };
+  // Aggregation 1: Land -> Besucher (GA4-Sessions) + Engine-Split.
+  const visAgg = new Map(); // key = EN-Name (oder Roh-Label wenn nicht mappbar)
+  for (const a of attribution || []) {
+    for (const v of a.visitors || []) {
+      const raw = String(v.country || "").trim();
+      if (!raw || !v.sessions) continue;
+      const { en, key } = norm(raw);
+      const t = visAgg.get(key) || { key, en, conv: 0, value: 0, engines: new Map() };
+      t.conv += Number(v.sessions || 0);
+      const e = t.engines.get(a.engine) || { conv: 0, value: 0 };
+      e.conv += Number(v.sessions || 0);
+      t.engines.set(a.engine, e);
+      visAgg.set(key, t);
+    }
+  }
+  // Aggregation 2: Land -> Conversions/Wert + Engine-Split.
+  const convAgg = new Map();
   for (const a of attribution || []) {
     for (const ev of a.events || []) {
       const raw = String(ev.country || "").trim();
       if (!raw || !ev.count) continue;
-      const en = WORLD_NAMES.has(raw) ? raw : (DE2EN[raw.toLowerCase()] && WORLD_NAMES.has(DE2EN[raw.toLowerCase()]) ? DE2EN[raw.toLowerCase()] : null);
-      const key = en || (raw === "(not set)" ? "Ohne Zuordnung" : raw);
-      const t = agg.get(key) || { key, en, conv: 0, value: 0, engines: new Map() };
+      const { en, key } = norm(raw);
+      const t = convAgg.get(key) || { key, en, conv: 0, value: 0, engines: new Map() };
       t.conv += Number(ev.count || 0);
       t.value += Number(ev.value || 0);
       const e = t.engines.get(a.engine) || { conv: 0, value: 0 };
       e.conv += Number(ev.count || 0); e.value += Number(ev.value || 0);
       t.engines.set(a.engine, e);
-      agg.set(key, t);
+      convAgg.set(key, t);
     }
   }
-  const rows = [...agg.values()].sort((a, b) => b.conv - a.conv);
-  if (!rows.length) {
+  const visRows = [...visAgg.values()].sort((a, b) => b.conv - a.conv);
+  const convRows2 = [...convAgg.values()].sort((a, b) => b.conv - a.conv);
+  // Metrik-Umschalter: Besucher (Standard, sobald Daten da) oder Conversions.
+  const [metric, setMetric] = useState(null);
+  const m = metric ?? (visRows.length ? "besucher" : "conversions");
+  const isVis = m === "besucher";
+  const rows = isVis ? visRows : convRows2;
+  const unit = isVis ? "Besucher" : "Conversions";
+  if (!visRows.length && !convRows2.length) {
     // Empty-State statt stillem Ausblenden (05.08.): erklärt, warum keine Karte da ist.
     return (
       <div className="mt-4">
-        <RCard icon={Layers} title="Conversions nach Region" info="Herkunftsländer der KI-Conversions aus GA4. Die Karte erscheint, sobald Conversions mit Herkunftsland vorliegen." desc="Wo KI-Besucher konvertieren" footer="Noch keine Daten">
+        <RCard icon={Layers} title="Besucher nach Region" info="Herkunftsländer der KI-Besucher und -Conversions aus GA4. Die Karte erscheint, sobald Daten mit Herkunftsland vorliegen." desc="Woher die KI-Besucher stammen" footer="Noch keine Daten">
           <p className="py-6 text-center text-[12.5px]" style={{ color: C.sub }}>
-            Für diesen Kunden liegen noch keine KI-Conversions mit Herkunftsland vor.<br />
-            Die Regionen-Karte füllt sich automatisch, sobald GA4 Conversions aus KI-Quellen meldet.
+            Für diesen Kunden liegen noch keine KI-Besucher mit Herkunftsland vor.<br />
+            Die Regionen-Karte füllt sich automatisch mit dem nächsten Attributions-Lauf.
           </p>
         </RCard>
       </div>
@@ -2041,10 +2067,12 @@ function ConversionRegions({ attribution }) {
     projection.fitExtent([[16, 16], [W - 16, H - 16]], { type: "FeatureCollection", features: WORLD_FEATURES });
   }
   const path = geoPath(projection);
+  // Besucher = blau, Conversions = grün.
+  const PAL = isVis ? ["#2563eb", "#8db2f2", "#d7e4fb"] : ["#059669", "#5db99a", "#c7e6da"];
   const shade = (v) => {
     if (!v) return "#eceae4";
     const share = v / total;
-    return share >= 0.4 ? "#059669" : share >= 0.15 ? "#5db99a" : "#c7e6da"; // grün = Conversions
+    return share >= 0.4 ? PAL[0] : share >= 0.15 ? PAL[1] : PAL[2];
   };
   const selRow = selected ? rows.find((r) => (r.en || r.key) === selected) : null;
   const selEngines = selRow
@@ -2053,14 +2081,25 @@ function ConversionRegions({ attribution }) {
   const selMax = Math.max(1, ...selEngines.map((x) => x.conv));
   return (
     <div className="mt-4 grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-      <RCard icon={Layers} title="Conversions nach Region" info="Herkunftsländer der KI-Conversions aus GA4. Land oder Chip anklicken für die Detail-Ansicht." desc="Wo KI-Besucher konvertieren — Land anklicken" footer={`${rows.length} Regionen · ${nf(total)} Conversions`} legend={
-        <div className="flex rounded-md border p-0.5" style={{ borderColor: C.line, background: C.card }}>
-          {[["fokus", "Fokus"], ["welt", "Welt"]].map(([k, t]) => (
-            <button key={k} onClick={() => setMapView(k)} className="rounded px-2 py-0.5 text-[10.5px] font-medium focus:outline-none"
-              style={{ background: mapView === k ? C.track : "transparent", color: mapView === k ? C.ink : C.sub }}>
-              {t}
-            </button>
-          ))}
+      <RCard icon={Layers} title={isVis ? "Besucher nach Region" : "Conversions nach Region"} info={isVis ? "Herkunftsländer der KI-Besucher (GA4-Sessions). Land oder Chip anklicken für die Detail-Ansicht." : "Herkunftsländer der KI-Conversions aus GA4. Land oder Chip anklicken für die Detail-Ansicht."} desc={isVis ? "Woher die KI-Besucher stammen — Land anklicken" : "Wo KI-Besucher konvertieren — Land anklicken"} footer={`${rows.length} Regionen · ${nf(total)} ${unit}`} legend={
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-md border p-0.5" style={{ borderColor: C.line, background: C.card }}>
+            {[["besucher", "Besucher", visRows.length], ["conversions", "Conversions", convRows2.length]].map(([k, t, has]) => (
+              <button key={k} onClick={() => { if (has) { setMetric(k); setSelected(null); } }} className="rounded px-2 py-0.5 text-[10.5px] font-medium focus:outline-none"
+                title={has ? undefined : "Noch keine Daten"}
+                style={{ background: m === k ? C.track : "transparent", color: has ? (m === k ? C.ink : C.sub) : "#c2beb4", cursor: has ? "pointer" : "default" }}>
+                {t}
+              </button>
+            ))}
+          </div>
+          <div className="flex rounded-md border p-0.5" style={{ borderColor: C.line, background: C.card }}>
+            {[["fokus", "Fokus"], ["welt", "Welt"]].map(([k, t]) => (
+              <button key={k} onClick={() => setMapView(k)} className="rounded px-2 py-0.5 text-[10.5px] font-medium focus:outline-none"
+                style={{ background: mapView === k ? C.track : "transparent", color: mapView === k ? C.ink : C.sub }}>
+                {t}
+              </button>
+            ))}
+          </div>
         </div>
       }>
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 420 }}>
@@ -2073,7 +2112,7 @@ function ConversionRegions({ attribution }) {
                 stroke={isSel ? "#1c1c1e" : "#ffffff"} strokeWidth={isSel ? 1.5 : 0.5}
                 style={{ cursor: v ? "pointer" : "default", transition: "fill .15s" }}
                 onClick={() => { if (v) setSelected(en === selected ? null : en); }}>
-                <title>{v ? `${EN2DE.get(en) || en}: ${nf(v)} Conversions (${Math.round((v / total) * 100)} %)` : en}</title>
+                <title>{v ? `${EN2DE.get(en) || en}: ${nf(v)} ${unit} (${Math.round((v / total) * 100)} %)` : en}</title>
               </path>
             );
           })}
@@ -2081,7 +2120,7 @@ function ConversionRegions({ attribution }) {
         {unmapped.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {unmapped.map((r) => (
-              <span key={r.key} className="rounded-lg px-3 py-2 text-[11px] font-semibold" style={{ background: "#c7e6da", color: "#065f46", cursor: "pointer" }}
+              <span key={r.key} className="rounded-lg px-3 py-2 text-[11px] font-semibold" style={{ background: PAL[2], color: isVis ? "#1e40af" : "#065f46", cursor: "pointer" }}
                 onClick={() => setSelected(r.key)}>
                 {r.key} · {nf(r.conv)}
               </span>
@@ -2090,7 +2129,7 @@ function ConversionRegions({ attribution }) {
         )}
       </RCard>
       {selRow ? (
-        <RCard icon={MapPin} title={display(selRow)} info="Conversions je KI-System im gewählten Land (GA4-Attribution)." desc={`${nf(selRow.conv)} Conversions${selRow.value > 0 ? ` · Wert ${nf(Math.round(selRow.value))}` : ""} · ${Math.round((selRow.conv / total) * 100)} % Anteil`} footer="Conversions je KI-System" legend={
+        <RCard icon={MapPin} title={display(selRow)} info={`${unit} je KI-System im gewählten Land (GA4-Attribution).`} desc={`${nf(selRow.conv)} ${unit}${selRow.value > 0 ? ` · Wert ${nf(Math.round(selRow.value))}` : ""} · ${Math.round((selRow.conv / total) * 100)} % Anteil`} footer={`${unit} je KI-System`} legend={
           <button onClick={() => setSelected(null)} className="rounded-md border px-2 py-1 text-[11px]" style={{ borderColor: C.line, color: C.sub, background: C.card }}>
             ← Alle Regionen
           </button>
@@ -2100,7 +2139,7 @@ function ConversionRegions({ attribution }) {
               <div key={x.name} className="flex items-center gap-3">
                 <span className="w-40 truncate text-[12px]" style={{ color: C.ink }}>{x.name}</span>
                 <div className="h-2 flex-1 overflow-hidden rounded-full" style={{ background: C.track }}>
-                  <div className="h-full rounded-full" style={{ width: `${(x.conv / selMax) * 100}%`, background: "#059669" }} />
+                  <div className="h-full rounded-full" style={{ width: `${(x.conv / selMax) * 100}%`, background: PAL[0] }} />
                 </div>
                 <span className="w-16 text-right text-[11px] tabular-nums" style={{ color: C.sub }}>{nf(x.conv)}{x.value > 0 ? ` · ${nf(Math.round(x.value))}` : ""}</span>
               </div>
@@ -2109,19 +2148,19 @@ function ConversionRegions({ attribution }) {
           {selRow.key === "Ohne Zuordnung" && (
             <div className="mt-4 flex items-start gap-2 rounded-lg border px-3 py-2 text-[11px] leading-relaxed" style={{ borderColor: C.line, background: C.cardAlt, color: C.sub }}>
               <Info size={13} className="mt-0.5 shrink-0" />
-              <span><b style={{ color: C.ink }}>Ohne Zuordnung</b> = GA4 konnte für diese Conversions kein Herkunftsland bestimmen („(not set)").</span>
+              <span><b style={{ color: C.ink }}>Ohne Zuordnung</b> = GA4 konnte für diese {unit} kein Herkunftsland bestimmen („(not set)").</span>
             </div>
           )}
         </RCard>
       ) : (
-        <RCard icon={Hash} title="Regionen" info="Conversions und Anteil je Herkunftsland. Zeile oder Land anklicken für die Detail-Ansicht." desc="Conversions nach Region — Zeile anklicken" footer={`${rows.length} Regionen`} pad={false}>
+        <RCard icon={Hash} title="Regionen" info={`${unit} und Anteil je Herkunftsland. Zeile oder Land anklicken für die Detail-Ansicht.`} desc={`${unit} nach Region — Zeile anklicken`} footer={`${rows.length} Regionen`} pad={false}>
           <div className="overflow-x-auto">
             <table className="w-full text-[12px]" style={{ borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ color: C.sub }}>
                   <th className="px-5 py-2 text-left font-medium">Region</th>
-                  <th className="px-3 py-2 text-right font-medium">Conversions</th>
-                  <th className="px-3 py-2 text-right font-medium">Wert</th>
+                  <th className="px-3 py-2 text-right font-medium">{unit}</th>
+                  {!isVis && <th className="px-3 py-2 text-right font-medium">Wert</th>}
                   <th className="px-5 py-2 text-right font-medium">Anteil</th>
                 </tr>
               </thead>
@@ -2130,7 +2169,7 @@ function ConversionRegions({ attribution }) {
                   <tr key={r.key} className="cursor-pointer transition-colors hover:bg-black/[.03]" style={{ borderTop: `1px solid ${C.line}` }} onClick={() => setSelected(r.en || r.key)}>
                     <td className="px-5 py-2 font-semibold" style={{ color: C.ink }}>{display(r)}</td>
                     <td className="px-3 py-2 text-right tabular-nums" style={{ color: C.ink }}>{nf(r.conv)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums" style={{ color: C.sub }}>{r.value > 0 ? nf(Math.round(r.value)) : "—"}</td>
+                    {!isVis && <td className="px-3 py-2 text-right tabular-nums" style={{ color: C.sub }}>{r.value > 0 ? nf(Math.round(r.value)) : "—"}</td>}
                     <td className="px-5 py-2 text-right tabular-nums" style={{ color: C.sub }}>{Math.round((r.conv / total) * 100)}%</td>
                   </tr>
                 ))}

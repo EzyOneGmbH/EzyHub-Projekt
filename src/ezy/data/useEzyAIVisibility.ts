@@ -94,6 +94,8 @@ export type AIVisibilityData = {
     sessions: number;
     conv: number;
     events: { name: string; count: number; value: number; country: string; device: string; date: string }[];
+    // Besucher-Herkunft (05.08.): GA4-Sessions je Land (englische GA4-Namen)
+    visitors: { country: string; sessions: number }[];
   }[];
   countries: { name: string; value: number }[];
   promptIntent: { name: string; value: number }[];
@@ -377,6 +379,11 @@ export async function loadAIVisibility(
               date: String(e?.date ?? ""),
             }))
             .filter((e: any) => e.name)
+        : [],
+      visitors: Array.isArray(a.visitors)
+        ? a.visitors
+            .map((v: any) => ({ country: String(v?.country ?? ""), sessions: Number(v?.sessions ?? 0) }))
+            .filter((v: any) => v.sessions > 0)
         : [],
     })),
     countries: Object.entries(countryTotals)

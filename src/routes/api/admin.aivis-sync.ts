@@ -741,9 +741,11 @@ async function jobAttribution(c: any) {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
-          dimensions: [{ name: "sessionSource" }],
+          // country zusätzlich: liefert die Besucher-Herkunft je Engine
+          // (Totale werden hier selbst aufsummiert — sessions/keyEvents sind additiv).
+          dimensions: [{ name: "sessionSource" }, { name: "country" }],
           metrics: [{ name: "sessions" }, { name: "keyEvents" }],
-          limit: 250,
+          limit: 10000,
         }),
         signal: AbortSignal.timeout(30_000),
       },
@@ -754,13 +756,21 @@ async function jobAttribution(c: any) {
   if (!r.ok) return { error: `GA4 HTTP ${r.status}` };
   const json: any = await r.json().catch(() => ({}));
   const agg: Record<string, { sessions: number; conversions: number }> = {};
+  // Besucher-Herkunft je Engine: { Land(englisch, GA4) -> Sessions }
+  const visitors: Record<string, Record<string, number>> = {};
   for (const row of json.rows ?? []) {
     const src = String(row.dimensionValues?.[0]?.value ?? "");
     const eng = ENGINES.find((e) => e.re.test(src));
     if (!eng) continue;
+    const country = String(row.dimensionValues?.[1]?.value ?? "");
+    const sess = Number(row.metricValues?.[0]?.value ?? 0);
     agg[eng.name] ??= { sessions: 0, conversions: 0 };
-    agg[eng.name].sessions += Number(row.metricValues?.[0]?.value ?? 0);
+    agg[eng.name].sessions += sess;
     agg[eng.name].conversions += Number(row.metricValues?.[1]?.value ?? 0);
+    if (sess > 0) {
+      visitors[eng.name] ??= {};
+      visitors[eng.name][country] = (visitors[eng.name][country] ?? 0) + sess;
+    }
   }
   // Detail: WELCHE Key-Events (Conversion-Namen) je Engine ausgelöst wurden —
   // inkl. Land, Gerät, Datum und Wert (wie die Zeilen im Conversions-Tab).
@@ -816,7 +826,16 @@ async function jobAttribution(c: any) {
     } catch { /* Detail optional — Totale bleiben gültig */ }
   }
   return {
-    engines: Object.entries(agg).map(([engine, v]) => ({ engine, ...v, events: events[engine] ?? [] })),
+    engines: Object.entries(agg).map(([engine, v]) => ({
+      engine,
+      ...v,
+      events: events[engine] ?? [],
+      // Top-Länder der Besucher, absteigend, gedeckelt (jsonb klein halten)
+      visitors: Object.entries(visitors[engine] ?? {})
+        .map(([country, sessions]) => ({ country, sessions }))
+        .sort((a, b) => b.sessions - a.sessions)
+        .slice(0, 50),
+    })),
   };
 }
 
@@ -2776,6 +2795,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                     sessions: e.sessions,
                     conversions: e.conversions,
                     events: Array.isArray(e.events) ? e.events : [],
+                    visitors: Array.isArray(e.visitors) ? e.visitors : [],
                   })),
                 );
               }
