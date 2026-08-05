@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
 import { redactSecrets } from "@/server/google-oauth.server";
 import { getEnabledServices } from "@/server/integrations.server";
+import { generateViaSubscription } from "@/server/claude-generate.server";
 import { normalizeCanonryBase } from "@/lib/canonry-url";
 import SCORE_CFG from "@/lib/score-config.json";
 import JUDGE_ANCHORS from "@/lib/judge-calibration.json";
@@ -845,6 +846,27 @@ const PARSE_MODEL = process.env.ANTHROPIC_PARSE_MODEL ?? "claude-haiku-4-5-20251
 const urlsIn = (t: string) => (t.match(/https?:\/\/[^\s)\]"']+/g) || []).length;
 
 async function askClaude(prompt: string, maxTokens = 600, temperature?: number): Promise<{ text: string; sources: number; model?: string; error?: string } | null> {
+  // Subscription-first (2026-08-05, User-Entscheid): Engine-ANTWORTEN (ohne
+  // gesetzte temperature) laufen über den agent-service (/generate) und damit
+  // über die Claude-Subscription statt über das API-Guthaben. Judge/Seed MIT
+  // temperature bleiben auf dem Direktweg — das SDK honoriert temperature nicht,
+  // und dort ist Determinismus wichtiger als die Kostenersparnis. Kill-Switch:
+  // AIVIS_CLAUDE_VIA_SUBSCRIPTION=0 schaltet zurück auf den reinen Key-Weg.
+  if (temperature == null && process.env.AIVIS_CLAUDE_VIA_SUBSCRIPTION !== "0") {
+    const viaSub = await generateViaSubscription({
+      prompt,
+      model: ANTHROPIC_MODEL,
+      label: "aivis-Claude",
+      timeoutMs: 85_000, // unter dem 90s-Ask-Deadline des Runners bleiben
+    });
+    if (viaSub?.text) {
+      const u = viaSub.usage || {};
+      // Kosten sichtbar halten (Modellwert-Schätzung, wie bei allen Engines).
+      recordUsage("Claude", Number(u.input_tokens || 0), Number(u.output_tokens || 0));
+      return { text: viaSub.text, sources: urlsIn(viaSub.text), model: ANTHROPIC_MODEL };
+    }
+    // Subscription aus/leer/Limit/Timeout -> Direktweg unten (kein Mess-Loch).
+  }
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return null;
   const r = await fetch("https://api.anthropic.com/v1/messages", {
