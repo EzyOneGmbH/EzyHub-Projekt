@@ -74,10 +74,10 @@ const C = {
   ink: "#1c1c1e",      // Haupttext
   sub: "#6e6c64",      // gedämpft
   line: "#e8e6df",     // Rahmen
-  indigo: "#6c5ce7",
+  indigo: "#7c3aed", // Sidebar-Violett — EINE Akzentfarbe für alles Klickbare
   teal: "#0d9488",
   amber: "#d97706",
-  violet: "#7c5cf0",
+  violet: "#7c3aed",
   up: "#0f9d6c", down: "#dc2626",
 };
 const CARD = { background: C.card, borderColor: C.line };
@@ -387,7 +387,7 @@ function TopicsTable({ rows, hasPos = false }) {
               onClick={() => setPage(Math.max(0, cur - 1))}
               disabled={cur === 0}
               className="inline-flex h-7 w-7 items-center justify-center rounded-md border transition disabled:opacity-35"
-              style={{ borderColor: C.line, color: C.sub }}
+              style={{ borderColor: C.line, color: C.indigo }}
               aria-label="Vorherige Seite"
             >
               <ChevronLeft size={14} />
@@ -414,7 +414,7 @@ function TopicsTable({ rows, hasPos = false }) {
               onClick={() => setPage(Math.min(pages - 1, cur + 1))}
               disabled={cur >= pages - 1}
               className="inline-flex h-7 w-7 items-center justify-center rounded-md border transition disabled:opacity-35"
-              style={{ borderColor: C.line, color: C.sub }}
+              style={{ borderColor: C.line, color: C.indigo }}
               aria-label="Nächste Seite"
             >
               <ChevronRight size={14} />
@@ -1014,7 +1014,7 @@ function PromptGroupRow({ g, opportunity, brand }) {
             <button
               onClick={(e) => { e.stopPropagation(); setOpen(true); }}
               className="rounded-md border px-2.5 py-1 text-[10.5px] font-medium"
-              style={{ borderColor: C.line, color: C.ink, background: C.card }}
+              style={{ borderColor: C.line, color: C.indigo, background: C.card }}
             >
               Details
             </button>
@@ -1233,7 +1233,7 @@ function PromptsTable({ prompts, opps, brand, brandPrompts = [], needsReview = 0
             <option value="zitiert">Nur zitiert</option>
             <option value="nicht">Nicht erwähnt</option>
           </select>
-          <button onClick={downloadCsv} className="h-7 rounded-md border px-2 text-xs font-medium" style={{ borderColor: C.line, color: C.sub, background: C.card }}>
+          <button onClick={downloadCsv} className="h-7 rounded-md border px-2 text-xs font-medium" style={{ borderColor: C.line, color: C.indigo, background: C.card }}>
             CSV
           </button>
           <div className="flex rounded-lg border p-0.5" style={{ borderColor: C.line }}>
@@ -1306,7 +1306,7 @@ function PromptsTable({ prompts, opps, brand, brandPrompts = [], needsReview = 0
               onClick={() => setPage(Math.max(0, cur - 1))}
               disabled={cur === 0}
               className="inline-flex h-7 w-7 items-center justify-center rounded-md border transition disabled:opacity-35"
-              style={{ borderColor: C.line, color: C.sub }}
+              style={{ borderColor: C.line, color: C.indigo }}
               aria-label="Vorherige Seite"
             >
               <ChevronLeft size={14} />
@@ -1333,7 +1333,7 @@ function PromptsTable({ prompts, opps, brand, brandPrompts = [], needsReview = 0
               onClick={() => setPage(Math.min(pages - 1, cur + 1))}
               disabled={cur >= pages - 1}
               className="inline-flex h-7 w-7 items-center justify-center rounded-md border transition disabled:opacity-35"
-              style={{ borderColor: C.line, color: C.sub }}
+              style={{ borderColor: C.line, color: C.indigo }}
               aria-label="Nächste Seite"
             >
               <ChevronRight size={14} />
@@ -1877,7 +1877,7 @@ function LocationPanel({ countries, models }) {
         <div className="flex rounded-md border p-0.5" style={{ borderColor: C.line, background: C.card }}>
           {[["fokus", "Fokus"], ["welt", "Welt"]].map(([k, t]) => (
             <button key={k} onClick={() => setMapView(k)} className="rounded px-2 py-0.5 text-[10.5px] font-medium focus:outline-none"
-              style={{ background: mapView === k ? C.track : "transparent", color: mapView === k ? C.ink : C.sub }}>
+              style={{ background: mapView === k ? C.indigo : "transparent", color: mapView === k ? "#fff" : C.sub }}>
               {t}
             </button>
           ))}
@@ -1917,7 +1917,7 @@ function LocationPanel({ countries, models }) {
       </RCard>
       {selRow ? (
         <RCard icon={MapPin} title={selRow.name} info="Detail-Ansicht des gewählten Landes: Erwähnungen je KI-System aus der Messung. Zurück über den Alle-Regionen-Button." desc={`${nf(selRow.value)} Erwähnungen · ${Math.round((selRow.value / total) * 100)} % Anteil`} footer="Herkunft je KI-System" legend={
-          <button onClick={() => setSelected(null)} className="rounded-md border px-2 py-1 text-[11px]" style={{ borderColor: C.line, color: C.sub, background: C.card }}>
+          <button onClick={() => setSelected(null)} className="rounded-md border px-2 py-1 text-[11px]" style={{ borderColor: C.line, color: C.indigo, background: C.card }}>
             ← Alle Regionen
           </button>
         }>
@@ -2104,7 +2104,7 @@ function ConversionRegions({ attribution }) {
             {[["besucher", "Besucher", visRows.length], ["conversions", "Conversions", convRows2.length]].map(([k, t, has]) => (
               <button key={k} onClick={() => { if (has) { setMetric(k); setSelected(null); } }} className="rounded px-2 py-0.5 text-[10.5px] font-medium focus:outline-none"
                 title={has ? undefined : "Noch keine Daten"}
-                style={{ background: m === k ? C.track : "transparent", color: has ? (m === k ? C.ink : C.sub) : "#c2beb4", cursor: has ? "pointer" : "default" }}>
+                style={{ background: m === k ? C.indigo : "transparent", color: has ? (m === k ? "#fff" : C.sub) : "#c2beb4", cursor: has ? "pointer" : "default" }}>
                 {t}
               </button>
             ))}
@@ -2112,7 +2112,7 @@ function ConversionRegions({ attribution }) {
           <div className="flex rounded-md border p-0.5" style={{ borderColor: C.line, background: C.card }}>
             {[["fokus", "Fokus"], ["welt", "Welt"]].map(([k, t]) => (
               <button key={k} onClick={() => setMapView(k)} className="rounded px-2 py-0.5 text-[10.5px] font-medium focus:outline-none"
-                style={{ background: mapView === k ? C.track : "transparent", color: mapView === k ? C.ink : C.sub }}>
+                style={{ background: mapView === k ? C.indigo : "transparent", color: mapView === k ? "#fff" : C.sub }}>
                 {t}
               </button>
             ))}
@@ -2137,7 +2137,7 @@ function ConversionRegions({ attribution }) {
       </RCard>
       {selRow ? (
         <RCard icon={MapPin} title={display(selRow)} info={`${unit} je KI-System im gewählten Land (GA4-Attribution).`} desc={`${nf(selRow.conv)} ${unit}${selRow.value > 0 ? ` · Wert ${nf(Math.round(selRow.value))}` : ""} · ${Math.round((selRow.conv / total) * 100)} % Anteil`} footer={`${unit} je KI-System`} legend={
-          <button onClick={() => setSelected(null)} className="rounded-md border px-2 py-1 text-[11px]" style={{ borderColor: C.line, color: C.sub, background: C.card }}>
+          <button onClick={() => setSelected(null)} className="rounded-md border px-2 py-1 text-[11px]" style={{ borderColor: C.line, color: C.indigo, background: C.card }}>
             ← Alle Regionen
           </button>
         }>
@@ -2528,7 +2528,7 @@ function VisibilityHero({ score, delta, history, daily }) {
     <div className="flex rounded-md border p-0.5" style={{ borderColor: C.line, background: C.card }}>
       {options.map(([k, t]) => (
         <button key={k} onClick={() => set(k)} className="rounded px-1.5 py-0.5 text-[10px] font-medium focus:outline-none"
-          style={{ background: value === k ? C.track : "transparent", color: value === k ? C.ink : C.sub }}>
+          style={{ background: value === k ? C.indigo : "transparent", color: value === k ? "#fff" : C.sub }}>
           {t}
         </button>
       ))}
@@ -2722,7 +2722,7 @@ function RankingsTable({ prompts, sov, brand, sentimentPct, domain }) {
       <button
         onClick={() => setSort((s) => ({ key: k, dir: s.key === k ? -s.dir : -1 }))}
         className="inline-flex items-center gap-0.5 focus:outline-none"
-        style={{ color: sort.key === k ? C.ink : C.sub }}
+        style={{ color: sort.key === k ? C.indigo : C.sub }}
       >
         {label}
         <span className="text-[8px]">{sort.key === k ? (sort.dir === -1 ? "▼" : "▲") : "↕"}</span>
@@ -2942,7 +2942,7 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
                   style={{
                     color: on ? C.ink : C.sub, fontWeight: on ? 700 : 500,
                     background: "none", border: "none", cursor: "pointer",
-                    borderBottom: `2px solid ${on ? C.ink : "transparent"}`, marginBottom: -1,
+                    borderBottom: `2px solid ${on ? C.indigo : "transparent"}`, marginBottom: -1,
                   }}
                 >
                   <t.icon size={14} style={{ color: on ? C.indigo : C.sub }} />
@@ -2973,8 +2973,8 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
                       style={{
                         width: "100%", display: "flex", alignItems: "center", gap: 12,
                         padding: "10px 14px", borderRadius: 10, border: "none", cursor: "pointer",
-                        background: a ? "rgba(108,92,231,0.10)" : "transparent",
-                        color: a ? "#5b4bd6" : C.sub,
+                        background: a ? "rgba(124,58,237,0.10)" : "transparent",
+                        color: a ? "#7c3aed" : C.sub,
                         fontSize: 13, fontWeight: a ? 600 : 400, marginBottom: 2,
                         transition: "all .15s", fontFamily: "inherit",
                       }}
@@ -3006,8 +3006,8 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
                   className="inline-flex items-center gap-1.5 whitespace-nowrap text-[13px]"
                   style={{
                     padding: "8px 12px", borderRadius: 10, border: "none", cursor: "pointer",
-                    background: a ? "rgba(108,92,231,0.10)" : "transparent",
-                    color: a ? "#5b4bd6" : C.sub, fontWeight: a ? 600 : 400, fontFamily: "inherit",
+                    background: a ? "rgba(124,58,237,0.10)" : "transparent",
+                    color: a ? "#7c3aed" : C.sub, fontWeight: a ? 600 : 400, fontFamily: "inherit",
                   }}
                 >
                   <t.icon size={16} />
