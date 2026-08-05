@@ -524,6 +524,8 @@ function AttributionStrip({ rows, convRows = [] }) {
           country: e.country,
           device: e.device,
           count: e.count,
+          txn: e.txn,
+          currency: e.currency,
         }))
       : convRows.filter((r) => ATTR_SOURCE_RE[openRow.engine]?.test(String(r.source || "")))
     : [];
@@ -587,10 +589,13 @@ function AttributionStrip({ rows, convRows = [] }) {
                 <tbody>
                   {detailRows.slice(0, 30).map((r, i) => (
                     <tr key={i} className="border-t" style={{ borderColor: C.line }}>
-                      <td className="px-2 py-1.5 font-semibold" style={{ color: C.ink }}>{r.description || r.eventName || "—"}</td>
+                      <td className="px-2 py-1.5 font-semibold" style={{ color: C.ink }}>
+                        {r.description || r.eventName || "—"}
+                        {r.txn && <span className="ml-1.5 font-normal text-[11px]" style={{ color: C.sub }}>#{r.txn}</span>}
+                      </td>
                       <td className="px-2 py-1.5" style={{ color: C.sub }}>{fmtGa4Date(r.date)}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums" style={{ color: r.value > 0 ? C.up : C.sub }}>
-                        {r.value > 0 ? `${Math.round(r.value).toLocaleString("de-CH")} CHF` : "—"}
+                        {r.value > 0 ? `${Math.round(r.value).toLocaleString("de-CH")} ${r.currency || "CHF"}` : "—"}
                       </td>
                       <td className="px-2 py-1.5" style={{ color: C.sub }}>{r.country || "—"}</td>
                       <td className="px-2 py-1.5" style={{ color: C.sub }}>{r.device || "—"}</td>

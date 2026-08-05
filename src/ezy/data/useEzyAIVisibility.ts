@@ -93,7 +93,9 @@ export type AIVisibilityData = {
     engine: string;
     sessions: number;
     conv: number;
-    events: { name: string; count: number; value: number; country: string; device: string; date: string }[];
+    // txn = Buchungs-/Transaktions-ID (macht die Conversion zur Einzelzeile),
+    // currency = dl_currency des Buchungs-Setups; beide optional.
+    events: { name: string; count: number; value: number; country: string; device: string; date: string; txn?: string; currency?: string }[];
     // Besucher-Herkunft (05.08.): GA4-Sessions je Land (englische GA4-Namen)
     visitors: { country: string; sessions: number }[];
   }[];
@@ -377,6 +379,8 @@ export async function loadAIVisibility(
               country: String(e?.country ?? ""),
               device: String(e?.device ?? ""),
               date: String(e?.date ?? ""),
+              ...(e?.txn ? { txn: String(e.txn) } : {}),
+              ...(e?.currency ? { currency: String(e.currency) } : {}),
             }))
             .filter((e: any) => e.name)
         : [],

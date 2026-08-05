@@ -776,46 +776,84 @@ async function jobAttribution(c: any) {
   // Detail: WELCHE Key-Events (Conversion-Namen) je Engine ausgelöst wurden —
   // inkl. Land, Gerät, Datum und Wert (wie die Zeilen im Conversions-Tab).
   // Session-scoped über sessionSource (event-scoped landet oft in "(not set)").
-  const events: Record<string, Array<{ name: string; count: number; value: number; country: string; device: string; date: string }>> = {};
+  // Setup-Auto-Erkennung je Property: Buchungs-Setups (GTM) senden den Betrag
+  // NICHT als GA4-value/Umsatz, sondern als Custom Dimension dl_value — und
+  // dl_reservationid/transactionId vereinzelt die Conversions (statt Sammelzeile).
+  const events: Record<string, Array<{ name: string; count: number; value: number; country: string; device: string; date: string; txn?: string; currency?: string }>> = {};
   if (Object.values(agg).some((v) => v.conversions > 0)) {
     try {
-      const r2 = await fetch(
-        `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`,
-        {
+      const custom = new Set<string>();
+      try {
+        const rd = await fetch(
+          `https://analyticsadmin.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}/customDimensions?pageSize=200`,
+          { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15_000) },
+        );
+        if (rd.ok) {
+          const jd: any = await rd.json().catch(() => ({}));
+          for (const d of jd.customDimensions ?? []) if (d?.scope === "EVENT") custom.add(String(d.parameterName || ""));
+        }
+      } catch { /* Erkennung optional — Fallback unten deckt alles ab */ }
+      const hasDlValue = custom.has("dl_value");
+      const hasDlCurrency = custom.has("dl_currency");
+      // transactionId ist eingebaut (immer zulässig, "(not set)" ohne E-Commerce);
+      // dl_reservationid gewinnt, wo das Buchungs-Setup sie registriert hat.
+      const idDim = custom.has("dl_reservationid") ? "customEvent:dl_reservationid" : "transactionId";
+      const dims = (withCustom: boolean) => [
+        { name: "sessionSource" },
+        { name: "eventName" },
+        { name: "country" },
+        { name: "deviceCategory" },
+        { name: "date" },
+        ...(withCustom
+          ? [
+              { name: idDim },
+              ...(hasDlValue ? [{ name: "customEvent:dl_value" }] : []),
+              ...(hasDlCurrency ? [{ name: "customEvent:dl_currency" }] : []),
+            ]
+          : []),
+      ];
+      const runDetail = (withCustom: boolean) =>
+        fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
           body: JSON.stringify({
             dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
-            dimensions: [
-              { name: "sessionSource" },
-              { name: "eventName" },
-              { name: "country" },
-              { name: "deviceCategory" },
-              { name: "date" },
-            ],
+            dimensions: dims(withCustom),
             metrics: [{ name: "keyEvents" }, { name: "eventValue" }, { name: "totalRevenue" }],
-            limit: 2000,
+            limit: 5000,
           }),
           signal: AbortSignal.timeout(30_000),
-        },
-      );
+        });
+      let r2 = await runDetail(true);
+      // Unbekannte Custom-Dimension o. Ä. → einmal ohne Zusatz-Dimensionen.
+      if (!r2.ok) r2 = await runDetail(false);
       if (r2.ok) {
         const j2: any = await r2.json().catch(() => ({}));
+        const dh: string[] = (j2.dimensionHeaders ?? []).map((h: any) => String(h?.name ?? ""));
         for (const row of j2.rows ?? []) {
-          const dv = row.dimensionValues ?? [];
-          const src = String(dv[0]?.value ?? "");
+          const get = (nm: string) => {
+            const i = dh.indexOf(nm);
+            return i >= 0 ? String(row.dimensionValues?.[i]?.value ?? "") : "";
+          };
+          const src = get("sessionSource");
           const eng = ENGINES.find((e) => e.re.test(src));
           const n = Number(row.metricValues?.[0]?.value ?? 0);
           if (!eng || n <= 0) continue;
+          const idRaw = get(idDim);
+          const txn = idRaw && idRaw !== "(not set)" ? idRaw : undefined;
+          const cur = get("customEvent:dl_currency");
+          const dlVal = Number(get("customEvent:dl_value")) || 0;
           (events[eng.name] ??= []).push({
-            name: String(dv[1]?.value ?? ""),
+            name: get("eventName"),
             count: n,
-            // Betrag wie im Conversions-Tab: totalRevenue (Purchase-Umsatz),
-            // sonst eventValue (value-Parameter des Events).
-            value: Number(row.metricValues?.[2]?.value ?? 0) || Number(row.metricValues?.[1]?.value ?? 0),
-            country: String(dv[2]?.value ?? ""),
-            device: String(dv[3]?.value ?? ""),
-            date: String(dv[4]?.value ?? ""),
+            // Betrags-Kaskade: dl_value (Buchungs-Setup) > totalRevenue
+            // (Purchase-Umsatz) > eventValue (value-Parameter des Events).
+            value: dlVal || Number(row.metricValues?.[2]?.value ?? 0) || Number(row.metricValues?.[1]?.value ?? 0),
+            country: get("country"),
+            device: get("deviceCategory"),
+            date: get("date"),
+            ...(txn ? { txn } : {}),
+            ...(cur && cur !== "(not set)" ? { currency: cur } : {}),
           });
         }
         // neueste zuerst, pro Engine gedeckelt (jsonb klein halten)
