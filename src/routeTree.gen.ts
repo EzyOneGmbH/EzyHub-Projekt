@@ -97,6 +97,7 @@ import { Route as ApiAdminEwwwProvisionRouteImport } from './routes/api/admin.ew
 import { Route as ApiAdminContentSyncRouteImport } from './routes/api/admin.content-sync'
 import { Route as ApiAdminContentNoteRouteImport } from './routes/api/admin.content-note'
 import { Route as ApiAdminClientFlagsRouteImport } from './routes/api/admin.client-flags'
+import { Route as ApiAdminGa4ConversionsRouteImport } from './routes/api/admin.ga4-conversions'
 import { Route as ApiAdminContentDecisionRouteImport } from './routes/api/admin.content-decision'
 import { Route as ApiAdminClientMetricsRouteImport } from './routes/api/admin.client-metrics'
 import { Route as ApiAdminClientDomainsRouteImport } from './routes/api/admin.client-domains'
@@ -569,6 +570,11 @@ const ApiAdminClientFlagsRoute = ApiAdminClientFlagsRouteImport.update({
   path: '/api/admin/client-flags',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminGa4ConversionsRoute = ApiAdminGa4ConversionsRouteImport.update({
+  id: '/api/admin/ga4-conversions',
+  path: '/api/admin/ga4-conversions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminContentDecisionRoute = ApiAdminContentDecisionRouteImport.update({
   id: '/api/admin/content-decision',
   path: '/api/admin/content-decision',
@@ -748,6 +754,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/content-decision': typeof ApiAdminContentDecisionRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
   '/api/admin/client-flags': typeof ApiAdminClientFlagsRoute
+  '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/content-sync': typeof ApiAdminContentSyncRoute
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
@@ -861,6 +868,7 @@ export interface FileRoutesByTo {
   '/api/admin/content-decision': typeof ApiAdminContentDecisionRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
   '/api/admin/client-flags': typeof ApiAdminClientFlagsRoute
+  '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/content-sync': typeof ApiAdminContentSyncRoute
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
@@ -975,6 +983,7 @@ export interface FileRoutesById {
   '/api/admin/content-decision': typeof ApiAdminContentDecisionRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
   '/api/admin/client-flags': typeof ApiAdminClientFlagsRoute
+  '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/content-sync': typeof ApiAdminContentSyncRoute
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
@@ -1090,6 +1099,7 @@ export interface FileRouteTypes {
     | '/api/admin/content-decision'
     | '/api/admin/content-note'
     | '/api/admin/client-flags'
+    | '/api/admin/ga4-conversions'
     | '/api/admin/content-sync'
     | '/api/admin/ewww-provision'
     | '/api/admin/gbp'
@@ -1203,6 +1213,7 @@ export interface FileRouteTypes {
     | '/api/admin/content-decision'
     | '/api/admin/content-note'
     | '/api/admin/client-flags'
+    | '/api/admin/ga4-conversions'
     | '/api/admin/content-sync'
     | '/api/admin/ewww-provision'
     | '/api/admin/gbp'
@@ -1316,6 +1327,7 @@ export interface FileRouteTypes {
     | '/api/admin/content-decision'
     | '/api/admin/content-note'
     | '/api/admin/client-flags'
+    | '/api/admin/ga4-conversions'
     | '/api/admin/content-sync'
     | '/api/admin/ewww-provision'
     | '/api/admin/gbp'
@@ -1426,6 +1438,7 @@ export interface RootRouteChildren {
   ApiAdminContentDecisionRoute: typeof ApiAdminContentDecisionRoute
   ApiAdminContentNoteRoute: typeof ApiAdminContentNoteRoute
   ApiAdminClientFlagsRoute: typeof ApiAdminClientFlagsRoute
+  ApiAdminGa4ConversionsRoute: typeof ApiAdminGa4ConversionsRoute
   ApiAdminContentSyncRoute: typeof ApiAdminContentSyncRoute
   ApiAdminEwwwProvisionRoute: typeof ApiAdminEwwwProvisionRoute
   ApiAdminGbpRoute: typeof ApiAdminGbpRoute
@@ -2097,6 +2110,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminContentNoteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/ga4-conversions': {
+      id: '/api/admin/ga4-conversions'
+      path: '/api/admin/ga4-conversions'
+      fullPath: '/api/admin/ga4-conversions'
+      preLoaderRoute: typeof ApiAdminGa4ConversionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/client-flags': {
       id: '/api/admin/client-flags'
       path: '/api/admin/client-flags'
@@ -2364,6 +2384,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminContentDecisionRoute: ApiAdminContentDecisionRoute,
   ApiAdminContentNoteRoute: ApiAdminContentNoteRoute,
   ApiAdminClientFlagsRoute: ApiAdminClientFlagsRoute,
+  ApiAdminGa4ConversionsRoute: ApiAdminGa4ConversionsRoute,
   ApiAdminContentSyncRoute: ApiAdminContentSyncRoute,
   ApiAdminEwwwProvisionRoute: ApiAdminEwwwProvisionRoute,
   ApiAdminGbpRoute: ApiAdminGbpRoute,

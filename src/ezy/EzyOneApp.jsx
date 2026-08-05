@@ -10534,6 +10534,163 @@ function ClientsPage({
   );
 }
 
+// Conversions je Kunde (05.08.2026): zeigt die in GA4 erkannten Key-Events
+// (Anzahl 30 Tage, ob GA4 selbst Werte liefert) und erlaubt, pro Conversion
+// einen manuellen Wert zu hinterlegen. Der wirkt in der Attribution als
+// letzte Stufe der Betrags-Kaskade (dl_value > Umsatz > value > manuell).
+function ConversionValuesPanel({ client }) {
+  const toast = useToast();
+  const [state, setState] = useState({ loading: true, error: "", ga4: false, events: [], setup: null });
+  const [drafts, setDrafts] = useState({}); // event -> { value, currency }
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    if (!client?.id) return;
+    setState((s) => ({ ...s, loading: true, error: "" }));
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const r = await fetch(`/api/admin/ga4-conversions?client=${encodeURIComponent(client.id)}`, {
+        headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      setState({ loading: false, error: "", ga4: !!j.ga4, events: j.events || [], setup: j.setup || null });
+      setDrafts({});
+    } catch (e) {
+      setState((s) => ({ ...s, loading: false, error: String(e?.message || e) }));
+    }
+  };
+  useEffect(() => { load(); }, [client?.id]);
+
+  const draftOf = (ev) => drafts[ev.name] ?? { value: ev.manualValue || "", currency: ev.currency || "CHF" };
+  const setDraft = (name, patch) => setDrafts((d) => ({ ...d, [name]: { ...(d[name] ?? {}), ...patch } }));
+  const dirty = Object.keys(drafts).length > 0;
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const values = Object.entries(drafts).map(([event, d]) => ({
+        event,
+        value: Number(d.value) || 0,
+        currency: /^[A-Z]{3}$/.test(String(d.currency || "")) ? d.currency : "CHF",
+      }));
+      const r = await fetch("/api/admin/ga4-conversions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ client: client.id, values }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      toast("Conversion-Werte gespeichert — wirken ab dem nächsten Daten-Lauf", "success");
+      await load();
+    } catch (e) {
+      toast("Speichern fehlgeschlagen: " + String(e?.message || e), "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inpStyle = {
+    width: 90, padding: "6px 8px", borderRadius: 8, border: `1px solid ${C.border}`,
+    background: C.bg, color: C.text, fontSize: 13, fontFamily: "inherit", textAlign: "right",
+  };
+  return (
+    <div>
+      <h2 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 6px" }}>
+        Conversions{client?.name ? ` — ${client.name}` : ""}
+      </h2>
+      <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 16 }}>
+        Alle Conversions (Key-Events), die GA4 für diesen Kunden erkennt. Liefert GA4 selbst keinen
+        Betrag, kannst du hier pro Conversion einen Wert hinterlegen — er wird ab dem nächsten
+        Daten-Lauf automatisch angewendet.
+      </div>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22 }}>
+        {state.loading ? (
+          <div style={{ color: C.textMuted, fontSize: 13 }}>Lade GA4-Conversions…</div>
+        ) : state.error ? (
+          <div style={{ color: C.red || "#e05d5d", fontSize: 13 }}>{state.error}</div>
+        ) : !state.ga4 && !state.events.length ? (
+          <div style={{ color: C.textMuted, fontSize: 13 }}>
+            Für diesen Kunden ist kein GA4 verbunden — sobald die Verbindung steht, erscheinen die
+            erkannten Conversions hier automatisch.
+          </div>
+        ) : (
+          <>
+            {state.setup?.dlValue && (
+              <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 12 }}>
+                ✓ Diese Property sendet Buchungswerte bereits selbst (dl_value) — manuelle Werte sind
+                nur für Events nötig, die keinen eigenen Betrag tragen.
+              </div>
+            )}
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ color: C.textMuted, fontSize: 11, textTransform: "uppercase", letterSpacing: ".04em", textAlign: "left" }}>
+                    <th style={{ padding: "6px 8px" }}>Conversion</th>
+                    <th style={{ padding: "6px 8px", textAlign: "right" }}>30 Tage</th>
+                    <th style={{ padding: "6px 8px", textAlign: "right" }}>Wert aus GA4</th>
+                    <th style={{ padding: "6px 8px", textAlign: "right" }}>Manueller Wert</th>
+                    <th style={{ padding: "6px 8px" }}>Währung</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {state.events.map((ev) => {
+                    const d = draftOf(ev);
+                    return (
+                      <tr key={ev.name} style={{ borderTop: `1px solid ${C.border}` }}>
+                        <td style={{ padding: "8px", color: C.text, fontWeight: 600 }}>
+                          {ev.name}
+                          {!ev.isKeyEvent && (
+                            <span style={{ marginLeft: 8, fontSize: 10.5, color: C.textMuted, fontWeight: 400 }}>
+                              nicht als Key-Event markiert
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: "8px", textAlign: "right", color: C.text, fontVariantNumeric: "tabular-nums" }}>
+                          {ev.count30d.toLocaleString("de-CH")}
+                        </td>
+                        <td style={{ padding: "8px", textAlign: "right", color: ev.ga4Value > 0 ? C.green : C.textMuted, fontVariantNumeric: "tabular-nums" }}>
+                          {ev.ga4Value > 0 ? Math.round(ev.ga4Value).toLocaleString("de-CH") : "—"}
+                        </td>
+                        <td style={{ padding: "8px", textAlign: "right" }}>
+                          <input
+                            type="number" min="0" step="1" value={d.value}
+                            placeholder="0"
+                            onChange={(e) => setDraft(ev.name, { value: e.target.value, currency: d.currency })}
+                            style={inpStyle}
+                          />
+                        </td>
+                        <td style={{ padding: "8px" }}>
+                          <select
+                            value={d.currency}
+                            onChange={(e) => setDraft(ev.name, { value: d.value, currency: e.target.value })}
+                            style={{ ...inpStyle, width: 74, textAlign: "left" }}
+                          >
+                            {["CHF", "EUR", "USD", "GBP"].map((cu) => <option key={cu} value={cu}>{cu}</option>)}
+                          </select>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 12 }}>
+              <Btn icon={Save} onClick={save} disabled={!dirty || saving}>
+                {saving ? "Speichert…" : "Werte speichern"}
+              </Btn>
+              <span style={{ fontSize: 11.5, color: C.textMuted }}>
+                Wert 0 entfernt einen hinterlegten Betrag wieder.
+              </span>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // PAGE: SETTINGS (5 tabs)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -10558,6 +10715,7 @@ function SettingsPage({
   const sects = [
     ["profil", "Profil", Users],
     ["defaults", "Kunden-Einstellungen", Settings],
+    ["conversions", "Conversions", DollarSign],
     ["api", "API-Schlüssel", Key],
     ["skills", "Skills / Tools", Zap],
     ["dashboard", "Dashboard-Metriken", BarChart3],
@@ -10673,6 +10831,8 @@ function SettingsPage({
             </div>
           </div>
         )}
+
+        {sec === "conversions" && <ConversionValuesPanel client={selectedClient} />}
 
         {sec === "defaults" && (
           <div>

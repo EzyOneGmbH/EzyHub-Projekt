@@ -795,6 +795,17 @@ async function jobAttribution(c: any) {
       } catch { /* Erkennung optional — Fallback unten deckt alles ab */ }
       const hasDlValue = custom.has("dl_value");
       const hasDlCurrency = custom.has("dl_currency");
+      // Manuell hinterlegte Conversion-Werte (Admin-Bereich → Einstellungen →
+      // Conversions) — letzte Stufe der Betrags-Kaskade für Kunden, deren
+      // GA4 keine Werte sendet (Formular-Conversions o. Ä.).
+      const manual = new Map<string, { value: number; currency: string }>();
+      try {
+        const { data: mv } = await (supabaseAdmin as any)
+          .from("client_conversion_values")
+          .select("event_name, value, currency")
+          .eq("client_id", c.id);
+        for (const m of mv ?? []) manual.set(String(m.event_name), { value: Number(m.value), currency: String(m.currency || "CHF") });
+      } catch { /* optional */ }
       // transactionId ist eingebaut (immer zulässig, "(not set)" ohne E-Commerce);
       // dl_reservationid gewinnt, wo das Buchungs-Setup sie registriert hat.
       const idDim = custom.has("dl_reservationid") ? "customEvent:dl_reservationid" : "transactionId";
@@ -843,17 +854,23 @@ async function jobAttribution(c: any) {
           const txn = idRaw && idRaw !== "(not set)" ? idRaw : undefined;
           const cur = get("customEvent:dl_currency");
           const dlVal = Number(get("customEvent:dl_value")) || 0;
+          const evName = get("eventName");
+          const man = manual.get(evName);
+          // Betrags-Kaskade: dl_value (Buchungs-Setup) > totalRevenue
+          // (Purchase-Umsatz) > eventValue (value-Parameter) > manuell
+          // hinterlegter Wert je Conversion (× Anzahl).
+          const gaVal = dlVal || Number(row.metricValues?.[2]?.value ?? 0) || Number(row.metricValues?.[1]?.value ?? 0);
+          const val = gaVal || (man ? man.value * n : 0);
+          const curFinal = (cur && cur !== "(not set)" ? cur : "") || (!gaVal && man ? man.currency : "");
           (events[eng.name] ??= []).push({
-            name: get("eventName"),
+            name: evName,
             count: n,
-            // Betrags-Kaskade: dl_value (Buchungs-Setup) > totalRevenue
-            // (Purchase-Umsatz) > eventValue (value-Parameter des Events).
-            value: dlVal || Number(row.metricValues?.[2]?.value ?? 0) || Number(row.metricValues?.[1]?.value ?? 0),
+            value: val,
             country: get("country"),
             device: get("deviceCategory"),
             date: get("date"),
             ...(txn ? { txn } : {}),
-            ...(cur && cur !== "(not set)" ? { currency: cur } : {}),
+            ...(curFinal ? { currency: curFinal } : {}),
           });
         }
         // neueste zuerst, pro Engine gedeckelt (jsonb klein halten)
