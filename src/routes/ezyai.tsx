@@ -25,7 +25,7 @@ type NavItem = { id: string; label: string; icon: any; soon?: boolean; badge?: n
 const APP_NAV: Array<{ group: string; items: NavItem[] }> = [
   { group: "Analytics", items: [
     { id: "aeo-insights", label: "AEO Insights", icon: LineChart },
-    { id: "llm-analytics", label: "LLM Analytics", icon: Zap, soon: true },
+    { id: "llm-analytics", label: "LLM Analytics", icon: Zap },
     { id: "traffic", label: "Traffic", icon: Activity, soon: true },
   ] },
   { group: "Prompts", items: [
@@ -102,6 +102,306 @@ function CrawlerCard({ clientId, S }: { clientId: string; S: Record<string, stri
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── LLM Analytics (Searchable-Nachbau "/ai-traffic", 05.08.2026) ─────────────
+// Zwei Datenhälften wie bei Searchable: (1) KI-Crawler auf der Website aus
+// ai_crawler_hits (Log-Snippet, RLS-direkt gelesen), (2) KI-Referral-Besucher
+// aus GA4 via /api/admin/llm-traffic (Tages-Zeitreihe je Engine + Top-Seiten).
+const BOT_PLATFORM: Array<[RegExp, string]> = [
+  [/gptbot|oai-searchbot|chatgpt/i, "OpenAI"],
+  [/claude|anthropic/i, "Anthropic"],
+  [/perplexity/i, "Perplexity"],
+  [/google/i, "Google"],
+  [/meta-/i, "Meta"],
+  [/bytespider/i, "ByteDance"],
+  [/amazonbot/i, "Amazon"],
+  [/applebot/i, "Apple"],
+  [/cohere/i, "Cohere"],
+];
+const botPlatform = (b: string) => BOT_PLATFORM.find(([re]) => re.test(b))?.[1] || "Weitere";
+const ENGINE_COLORS: Record<string, string> = {
+  ChatGPT: "#10a37f", Perplexity: "#20808d", Gemini: "#4285f4", Claude: "#d97757",
+  Copilot: "#0b76b7", Grok: "#1c1c1e", DeepSeek: "#4d6bfe",
+};
+
+function LlmAnalyticsPanel({ clientId, S }: { clientId: string; S: Record<string, string> }) {
+  const [days, setDays] = useState(30);
+  const [hits, setHits] = useState<Array<{ bot: string; url: string; at: string }> | null>(null);
+  const [traffic, setTraffic] = useState<any>(null);
+  const [pageEngine, setPageEngine] = useState<string>("");
+
+  useEffect(() => {
+    let alive = true;
+    setHits(null);
+    const since = new Date(Date.now() - days * 864e5).toISOString();
+    (supabase as any)
+      .from("ai_crawler_hits")
+      .select("bot, url, at")
+      .eq("client_id", clientId)
+      .gte("at", since)
+      .order("at", { ascending: false })
+      .limit(5000)
+      .then(({ data }: any) => { if (alive) setHits(data ?? []); });
+    return () => { alive = false; };
+  }, [clientId, days]);
+
+  useEffect(() => {
+    let alive = true;
+    setTraffic(null);
+    (async () => {
+      try {
+        const session = (await supabase.auth.getSession()).data.session;
+        const r = await fetch(`/api/admin/llm-traffic?client=${encodeURIComponent(clientId)}&days=${days}`, {
+          headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+        });
+        const j = await r.json().catch(() => ({}));
+        if (alive) setTraffic(j.ok ? j : { ok: false, error: j.error || `HTTP ${r.status}` });
+      } catch (e: any) {
+        if (alive) setTraffic({ ok: false, error: String(e?.message || e) });
+      }
+    })();
+    return () => { alive = false; };
+  }, [clientId, days]);
+
+  // Lückenlose Tages-Skala (fehlende Tage = 0), GA4-Format YYYYMMDD.
+  const dayKeys = useMemo(() => {
+    const out: string[] = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 864e5);
+      out.push(`${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`);
+    }
+    return out;
+  }, [days]);
+  const dayLabel = (k: string) => `${k.slice(6, 8)}.${k.slice(4, 6)}.`;
+
+  const crawler = useMemo(() => {
+    const byDay: Record<string, number> = {};
+    const byBot: Record<string, { n: number; last: string }> = {};
+    const byUrl: Record<string, { n: number; bots: Record<string, number> }> = {};
+    for (const h of hits || []) {
+      const k = String(h.at || "").slice(0, 10).replace(/-/g, "");
+      byDay[k] = (byDay[k] || 0) + 1;
+      const b = byBot[h.bot] || { n: 0, last: h.at };
+      b.n++; if (h.at > b.last) b.last = h.at; byBot[h.bot] = b;
+      const u = byUrl[h.url] || { n: 0, bots: {} };
+      u.n++; u.bots[h.bot] = (u.bots[h.bot] || 0) + 1; byUrl[h.url] = u;
+    }
+    return {
+      byDay,
+      bots: Object.entries(byBot).sort((a, b) => b[1].n - a[1].n),
+      urls: Object.entries(byUrl).sort((a, b) => b[1].n - a[1].n).slice(0, 10),
+      total: (hits || []).length,
+    };
+  }, [hits]);
+
+  const engines: string[] = useMemo(
+    () => Object.entries((traffic?.totals || {}) as Record<string, any>).sort((a: any, b: any) => b[1].sessions - a[1].sessions).map(([k]) => k),
+    [traffic],
+  );
+  const refTotal = engines.reduce((a, k) => a + (traffic?.totals?.[k]?.sessions || 0), 0);
+  const refNew = engines.reduce((a, k) => a + (traffic?.totals?.[k]?.newUsers || 0), 0);
+  const platformCount = new Set([...crawler.bots.map(([b]) => botPlatform(b)), ...engines]).size;
+  const tsByDay = useMemo(() => {
+    const m = new Map<string, any>();
+    for (const p of traffic?.timeseries || []) m.set(String(p.date), p.byEngine || {});
+    return m;
+  }, [traffic]);
+  const pageEngines = Object.keys(traffic?.pagesByEngine || {});
+  const activePageEngine = pageEngine && pageEngines.includes(pageEngine) ? pageEngine : pageEngines[0] || "";
+
+  const card: any = { background: S.panel, border: `1px solid ${S.line}`, borderRadius: 14, padding: 18 };
+  const secTitle = (t: string, sub?: string) => (
+    <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10 }}>
+      <div style={{ fontWeight: 700, fontSize: 13.5, color: S.txt }}>{t}</div>
+      {sub && <span style={{ fontSize: 11, color: S.mut }}>{sub}</span>}
+    </div>
+  );
+
+  // Referral-Linienchart
+  const RW = 1000, RH = 190, RP = 8, RAXL = 34, RAXB = 16;
+  const refMax = Math.max(1, ...dayKeys.map((k) => engines.reduce((a, e) => Math.max(a, tsByDay.get(k)?.[e]?.sessions || 0), 0)));
+  const rx = (i: number) => RAXL + RP + (i / Math.max(1, dayKeys.length - 1)) * (RW - RAXL - 2 * RP);
+  const ry = (v: number) => RH - RAXB - RP - (v / refMax) * (RH - RAXB - 2 * RP);
+  // Crawler-Balkenchart
+  const CW = 1000, CH = 150, CP = 8, CAXL = 34, CAXB = 16;
+  const crMax = Math.max(1, ...dayKeys.map((k) => crawler.byDay[k] || 0));
+  const cx = (i: number) => CAXL + CP + (i / Math.max(1, dayKeys.length)) * (CW - CAXL - 2 * CP);
+  const cy = (v: number) => CH - CAXB - CP - (v / crMax) * (CH - CAXB - 2 * CP);
+  const barW = Math.max(2, (CW - CAXL - 2 * CP) / Math.max(1, dayKeys.length) - 2);
+  const labelEvery = Math.max(1, Math.ceil(dayKeys.length / 10));
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Zeitraum */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 12, color: S.mut }}>Zeitraum</span>
+        <div style={{ display: "flex", border: `1px solid ${S.line}`, borderRadius: 8, padding: 2, background: S.panel }}>
+          {[7, 30, 90].map((d) => (
+            <button key={d} onClick={() => setDays(d)}
+              style={{ padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, background: days === d ? S.app : "transparent", color: days === d ? "#fff" : S.mut }}>
+              {d} Tage
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* KPI-Zeile */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>
+        {[
+          ["Crawler-Besuche", hits === null ? "…" : crawler.total.toLocaleString("de-CH"), "KI-Bots auf der Website"],
+          ["KI-Besucher", traffic === null ? "…" : traffic.ga4 ? refTotal.toLocaleString("de-CH") : "—", "Sessions aus KI-Antworten (GA4)"],
+          ["Neue Besucher", traffic === null ? "…" : traffic.ga4 ? refNew.toLocaleString("de-CH") : "—", "davon erstmals auf der Website"],
+          ["Aktive Plattformen", String(platformCount), "Crawler + Referral kombiniert"],
+        ].map(([t, v, sub]) => (
+          <div key={t as string} style={card}>
+            <div style={{ fontSize: 11, color: S.mut, textTransform: "uppercase", letterSpacing: ".05em" }}>{t}</div>
+            <div style={{ fontSize: 26, fontWeight: 800, color: S.txt, marginTop: 4, fontVariantNumeric: "tabular-nums" }}>{v}</div>
+            <div style={{ fontSize: 11, color: S.mut, marginTop: 2 }}>{sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* KI-Besucher pro Tag (GA4) */}
+      <div style={card}>
+        {secTitle("KI-Besucher pro Tag", "Referral-Sessions aus ChatGPT, Perplexity & Co. (GA4)")}
+        {traffic === null ? (
+          <div style={{ fontSize: 12, color: S.mut, padding: 20 }}>Lade GA4-Daten…</div>
+        ) : !traffic.ga4 ? (
+          <div style={{ fontSize: 12, color: S.mut, padding: 12 }}>
+            Für diesen Kunden ist kein GA4 verbunden — die Besucher-Hälfte füllt sich, sobald die Verbindung steht.
+          </div>
+        ) : refTotal === 0 ? (
+          <div style={{ fontSize: 12, color: S.mut, padding: 12 }}>Im gewählten Zeitraum kamen keine Besucher aus KI-Antworten.</div>
+        ) : (
+          <>
+            <svg viewBox={`0 0 ${RW} ${RH}`} style={{ width: "100%", maxHeight: 240 }}>
+              {[0, 0.5, 1].map((f) => (
+                <g key={f}>
+                  <line x1={RAXL + RP} x2={RW - RP} y1={ry(f * refMax)} y2={ry(f * refMax)} stroke={S.line} strokeWidth={1} />
+                  <text x={RAXL} y={ry(f * refMax) + 3} textAnchor="end" fontSize={9} fill={S.mut}>{Math.round(f * refMax)}</text>
+                </g>
+              ))}
+              {dayKeys.map((k, i) => (i % labelEvery === 0 ? (
+                <text key={k} x={rx(i)} y={RH - 3} textAnchor="middle" fontSize={9} fill={S.mut}>{dayLabel(k)}</text>
+              ) : null))}
+              {engines.map((e) => (
+                <g key={e}>
+                  <polyline
+                    points={dayKeys.map((k, i) => `${rx(i)},${ry(tsByDay.get(k)?.[e]?.sessions || 0)}`).join(" ")}
+                    fill="none" stroke={ENGINE_COLORS[e] || S.app} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round"
+                  />
+                  <circle cx={rx(dayKeys.length - 1)} cy={ry(tsByDay.get(dayKeys[dayKeys.length - 1])?.[e]?.sessions || 0)} r={3} fill={ENGINE_COLORS[e] || S.app} />
+                </g>
+              ))}
+            </svg>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginTop: 8, fontSize: 11.5, color: S.mut }}>
+              {engines.map((e) => (
+                <span key={e} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 99, background: ENGINE_COLORS[e] || S.app, display: "inline-block" }} />
+                  {e} · {(traffic?.totals?.[e]?.sessions || 0).toLocaleString("de-CH")}
+                </span>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Crawler pro Tag */}
+      <div style={card}>
+        {secTitle("Crawler-Besuche pro Tag", "KI-Bots, die Seiten der Website abrufen (Log-Snippet)")}
+        {hits === null ? (
+          <div style={{ fontSize: 12, color: S.mut, padding: 20 }}>Lade Crawler-Daten…</div>
+        ) : crawler.total === 0 ? (
+          <div style={{ fontSize: 12, color: S.mut, padding: 12 }}>
+            Noch keine Daten — das Erfassungs-Snippet ist auf dieser Kunden-Website noch nicht ausgerollt
+            (Rollout läuft über den Freigabe-Workflow).
+          </div>
+        ) : (
+          <svg viewBox={`0 0 ${CW} ${CH}`} style={{ width: "100%", maxHeight: 190 }}>
+            {[0, 0.5, 1].map((f) => (
+              <g key={f}>
+                <line x1={CAXL + CP} x2={CW - CP} y1={cy(f * crMax)} y2={cy(f * crMax)} stroke={S.line} strokeWidth={1} />
+                <text x={CAXL} y={cy(f * crMax) + 3} textAnchor="end" fontSize={9} fill={S.mut}>{Math.round(f * crMax)}</text>
+              </g>
+            ))}
+            {dayKeys.map((k, i) => (i % labelEvery === 0 ? (
+              <text key={k} x={cx(i) + barW / 2} y={CH - 3} textAnchor="middle" fontSize={9} fill={S.mut}>{dayLabel(k)}</text>
+            ) : null))}
+            {dayKeys.map((k, i) => {
+              const v = crawler.byDay[k] || 0;
+              return v > 0 ? (
+                <rect key={k} x={cx(i)} y={cy(v)} width={barW} height={CH - CAXB - CP - cy(v)} rx={2} fill={S.app}>
+                  <title>{`${dayLabel(k)} ${v} Besuche`}</title>
+                </rect>
+              ) : null;
+            })}
+          </svg>
+        )}
+      </div>
+
+      {/* Tabellen-Grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 16 }}>
+        <div style={card}>
+          {secTitle("Meistgecrawlte Seiten", `${crawler.urls.length ? "Top " + crawler.urls.length : "—"}`)}
+          {crawler.urls.length === 0 ? (
+            <div style={{ fontSize: 12, color: S.mut }}>Noch keine Crawler-Daten.</div>
+          ) : crawler.urls.map(([u, info]) => {
+            const topBot = Object.entries(info.bots).sort((a, b) => b[1] - a[1])[0]?.[0] || "";
+            return (
+              <div key={u} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, padding: "5px 0", borderBottom: `1px solid ${S.line}` }}>
+                <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: S.txt }}>{u}</span>
+                <span style={{ fontSize: 10.5, color: S.mut, whiteSpace: "nowrap" }}>{botPlatform(topBot)}</span>
+                <span style={{ color: S.mut, fontVariantNumeric: "tabular-nums" }}>{info.n}</span>
+              </div>
+            );
+          })}
+        </div>
+        <div style={card}>
+          {secTitle("KI-Bots", `${crawler.bots.length ? crawler.bots.length + " aktiv" : "—"}`)}
+          {crawler.bots.length === 0 ? (
+            <div style={{ fontSize: 12, color: S.mut }}>Noch keine Crawler-Daten.</div>
+          ) : crawler.bots.map(([b, info]) => (
+            <div key={b} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, padding: "5px 0", borderBottom: `1px solid ${S.line}` }}>
+              <span style={{ flex: 1, color: S.txt }}>{b}</span>
+              <span style={{ fontSize: 10.5, color: S.mut }}>{botPlatform(b)}</span>
+              <span style={{ fontSize: 10.5, color: S.mut }}>{String(info.last).slice(0, 10)}</span>
+              <span style={{ color: S.mut, fontVariantNumeric: "tabular-nums" }}>{info.n}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Top-Referral-Seiten je Engine */}
+      <div style={card}>
+        {secTitle("Top-Seiten aus KI-Antworten", "Wohin KI-Besucher einsteigen (GA4-Landingpages)")}
+        {traffic === null ? (
+          <div style={{ fontSize: 12, color: S.mut, padding: 12 }}>Lade GA4-Daten…</div>
+        ) : !traffic.ga4 || pageEngines.length === 0 ? (
+          <div style={{ fontSize: 12, color: S.mut, padding: 12 }}>
+            {traffic?.ga4 ? "Im gewählten Zeitraum keine KI-Referral-Einstiege." : "Kein GA4 verbunden."}
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+              {pageEngines.map((e) => (
+                <button key={e} onClick={() => setPageEngine(e)}
+                  style={{ padding: "4px 10px", borderRadius: 99, border: `1px solid ${activePageEngine === e ? "transparent" : S.line}`, cursor: "pointer", fontFamily: "inherit", fontSize: 11.5, fontWeight: 600, background: activePageEngine === e ? S.app : "transparent", color: activePageEngine === e ? "#fff" : S.mut }}>
+                  {e}
+                </button>
+              ))}
+            </div>
+            {(traffic.pagesByEngine[activePageEngine] || []).map((p: any) => (
+              <div key={p.path} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, padding: "5px 0", borderBottom: `1px solid ${S.line}` }}>
+                <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: S.txt }}>{p.path}</span>
+                <span style={{ color: S.mut, fontVariantNumeric: "tabular-nums" }}>{p.sessions.toLocaleString("de-CH")}</span>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -477,6 +777,8 @@ function EzyAiApp() {
               <div style={{ color: S.mut, fontSize: 13, padding: 60, textAlign: "center" }}>Lade Kunden…</div>
             ) : !client ? (
               <div style={{ color: S.mut, fontSize: 13, padding: 60, textAlign: "center" }}>Keine Kunden zugewiesen.</div>
+            ) : section === "llm-analytics" ? (
+              <LlmAnalyticsPanel clientId={client.id} S={S} />
             ) : section !== "aeo-insights" ? (
               <div style={{ background: S.panel, border: `1px solid ${S.line}`, borderRadius: 14, padding: 40, textAlign: "center", maxWidth: 560, margin: "40px auto 0" }}>
                 <div style={{ fontSize: 30, marginBottom: 12 }}>🧭</div>
