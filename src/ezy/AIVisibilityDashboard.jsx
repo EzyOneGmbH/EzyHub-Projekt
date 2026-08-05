@@ -2359,14 +2359,23 @@ function BrandPerceptionCard({ perception, brand }) {
 // Top-5-Domains je Monatsreport als Mehrlinien-Chart mit Favicon-Legende.
 const DOMAIN_TREND_COLORS = ["#6c5ce7", "#0d9488", "#d97706", "#dc2626", "#0284c7"];
 function DomainTrendCard({ trend }) {
-  const months = trend?.months || [];
-  const series = (trend?.series || []).filter((s) => s.values.some((v) => v > 0));
   const [hover, setHover] = useState(null); // Maus-Zeitstrahl (04.08.)
+  const allMonths = trend?.months || [];
+  const allSeries = (trend?.series || []).filter((s) => s.values.some((v) => v > 0));
+  // Leere Vormonate abschneiden (05.08.): die Quellen-Messung startete später
+  // als der Report-Zeitraum — monatelange Null-Linien sagen nichts. Erster
+  // Monat mit irgendeinem Wert, ein Monat Anlauf davor bleibt als Kontext.
+  let first = allMonths.findIndex((_, i) => allSeries.some((s) => (s.values[i] || 0) > 0));
+  if (first < 0) first = 0;
+  const start = Math.max(0, first - 1);
+  const months = allMonths.slice(start);
+  const series = allSeries.map((s) => ({ ...s, values: s.values.slice(start) }));
   if (months.length < 2 || !series.length) return null;
   const W = 560, H = 200, PAD = 8, AXL = 30, AXB = 16;
   const maxV = Math.max(1, ...series.flatMap((s) => s.values));
   const x = (i) => AXL + PAD + (i / Math.max(1, months.length - 1)) * (W - AXL - 2 * PAD);
   const y = (v) => H - AXB - PAD - (v / maxV) * (H - AXB - 2 * PAD);
+  const labelEvery = months.length <= 8 ? 1 : Math.ceil(months.length / 8);
   return (
     <RCard icon={Link2} title="Top-Domains-Trend" info="Wie oft die fünf meistzitierten Domains je Monatsmessung in KI-Antworten als Quelle auftauchen." desc="Zitierhäufigkeit der Top-Domains über die Monate" footer={`${series.length} Domains · ${months.length} Monate`}>
       <svg
@@ -2381,14 +2390,16 @@ function DomainTrendCard({ trend }) {
           </g>
         ))}
         {months.map((m, i) => (
-          (months.length <= 6 || i === 0 || i === months.length - 1 || i === Math.floor(months.length / 2)) ? (
+          (i % labelEvery === 0 || i === months.length - 1) ? (
             <text key={i} x={x(i)} y={H - 3} textAnchor="middle" fontSize="9" fill={C.sub}>{m}</text>
           ) : null
         ))}
         {series.map((s, si) => (
           <g key={s.domain}>
-            <polyline points={s.values.map((v, i) => `${x(i)},${y(v)}`).join(" ")} fill="none" stroke={DOMAIN_TREND_COLORS[si % DOMAIN_TREND_COLORS.length]} strokeWidth="2" />
-            <circle cx={x(s.values.length - 1)} cy={y(s.values[s.values.length - 1])} r="3" fill={DOMAIN_TREND_COLORS[si % DOMAIN_TREND_COLORS.length]} />
+            <polyline points={s.values.map((v, i) => `${x(i)},${y(v)}`).join(" ")} fill="none" stroke={DOMAIN_TREND_COLORS[si % DOMAIN_TREND_COLORS.length]} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+            {(months.length <= 10 ? s.values : [s.values[s.values.length - 1]]).map((v, i) => (
+              <circle key={i} cx={x(months.length <= 10 ? i : s.values.length - 1)} cy={y(v)} r={months.length <= 10 ? 2.5 : 3} fill={DOMAIN_TREND_COLORS[si % DOMAIN_TREND_COLORS.length]} />
+            ))}
           </g>
         ))}
         {hover != null && months[hover] != null && (
