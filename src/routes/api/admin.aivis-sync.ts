@@ -920,21 +920,25 @@ async function askOpenAICompat(
 const GROK_WEEKLY = String(process.env.AIVIS_GROK_WEEKLY ?? "1") !== "0";
 const grokDueToday = () => { const wd = new Date().getUTCDay(); return wd >= 1 && wd <= 3; };
 const activePromptEngines = () => PROMPT_ENGINES.filter((e) => e.name !== "Grok" || !GROK_WEEKLY || grokDueToday());
+// Antwort-Länge (04.08., User-Befund „Antwort abgeschnitten"): der Default 600
+// Tokens ließ die KI mitten im Satz stoppen (~1500 Zeichen). 1500 Tokens ≈
+// ~3500–4000 Zeichen = vollständige Antworten. Env-Schalter für Kostenkontrolle.
+const ANSWER_MAX_TOKENS = Math.max(600, Number(process.env.AIVIS_ANSWER_TOKENS ?? 1500));
 const PROMPT_ENGINES: Array<{ name: string; ask: (p: string) => Promise<{ text: string; sources: number } | null> }> = [
-  { name: "Claude", ask: askClaude },
-  { name: "Perplexity", ask: askPerplexity },
-  { name: "Gemini", ask: askGemini },
+  { name: "Claude", ask: (p) => askClaude(p, ANSWER_MAX_TOKENS) },
+  { name: "Perplexity", ask: (p) => askPerplexity(p, ANSWER_MAX_TOKENS) },
+  { name: "Gemini", ask: (p) => askGemini(p, ANSWER_MAX_TOKENS) },
   {
     name: "ChatGPT",
-    ask: (p) => askOpenAICompat("https://api.openai.com/v1/chat/completions", process.env.OPENAI_API_KEY, process.env.OPENAI_MODEL ?? "gpt-5.1", p),
+    ask: (p) => askOpenAICompat("https://api.openai.com/v1/chat/completions", process.env.OPENAI_API_KEY, process.env.OPENAI_MODEL ?? "gpt-5.1", p, ANSWER_MAX_TOKENS),
   },
   {
     name: "Grok",
-    ask: (p) => askOpenAICompat("https://api.x.ai/v1/chat/completions", process.env.XAI_API_KEY || process.env.GROK_API_KEY, process.env.XAI_MODEL ?? "grok-4", p),
+    ask: (p) => askOpenAICompat("https://api.x.ai/v1/chat/completions", process.env.XAI_API_KEY || process.env.GROK_API_KEY, process.env.XAI_MODEL ?? "grok-4", p, ANSWER_MAX_TOKENS),
   },
   {
     name: "DeepSeek",
-    ask: (p) => askOpenAICompat("https://api.deepseek.com/chat/completions", process.env.DEEPSEEK_API_KEY, process.env.DEEPSEEK_MODEL ?? "deepseek-chat", p),
+    ask: (p) => askOpenAICompat("https://api.deepseek.com/chat/completions", process.env.DEEPSEEK_API_KEY, process.env.DEEPSEEK_MODEL ?? "deepseek-chat", p, ANSWER_MAX_TOKENS),
   },
 ];
 
@@ -1211,7 +1215,7 @@ async function judgeBrandAnswers(brand: string, facts: any, items: Array<{ i: nu
   const chunks: Array<typeof items> = [];
   for (let off = 0; off < items.length; off += CHUNK) chunks.push(items.slice(off, off + CHUNK));
   const results = await pMap(chunks, (ch) => {
-    const list = ch.map((a) => `#${a.i} [${a.platform}] ${String(a.text).slice(0, 650)}`).join("\n---\n");
+    const list = ch.map((a) => `#${a.i} [${a.platform}] ${String(a.text).slice(0, 3000)}`).join("\n---\n");
     return askUtilityMeta(head + list, 4000, SCORE_CFG.judge.temperature).catch(() => null);
   }, 4);
   const models = new Set<string>();
@@ -1265,7 +1269,7 @@ async function judgeAnswers(brand: string, comps: string[], items: Array<{ i: nu
   // Judge-Härtung (Score v2): temperature 0 (deterministisch) + aufgelöste
   // Modell-Snapshot-Namen je Bewertungs-Block festhalten (nie nur Alias).
   const results = await pMap(chunks, (ch) => {
-    const list = ch.map((a) => `#${a.i} [${a.platform}] ${String(a.text).slice(0, 650)}`).join("\n---\n");
+    const list = ch.map((a) => `#${a.i} [${a.platform}] ${String(a.text).slice(0, 3000)}`).join("\n---\n");
     return askUtilityMeta(head + list, 4000, SCORE_CFG.judge.temperature).catch(() => null); // Failover-Kette: Claude -> DeepSeek -> ...
   }, 5); // max 5 Judge-Bloecke gleichzeitig — Kompromiss: volle Salve gab 529,
   // aber Laeufe muessen unter das ~300s-Gateway-Kap (2 Kunden rissen es bei 3)
