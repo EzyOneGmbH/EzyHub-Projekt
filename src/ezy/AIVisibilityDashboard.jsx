@@ -2371,7 +2371,9 @@ function DomainTrendCard({ trend }) {
   const months = allMonths.slice(start);
   const series = allSeries.map((s) => ({ ...s, values: s.values.slice(start) }));
   if (months.length < 2 || !series.length) return null;
-  const W = 560, H = 200, PAD = 8, AXL = 30, AXB = 16;
+  // Breites Seitenverhältnis (05.08.): der Chart füllt die gesamte Kartenbreite
+  // statt schmal in der Mitte zu hängen (maxHeight deckelte das 560er-Format).
+  const W = 1100, H = 220, PAD = 8, AXL = 30, AXB = 16;
   const maxV = Math.max(1, ...series.flatMap((s) => s.values));
   const x = (i) => AXL + PAD + (i / Math.max(1, months.length - 1)) * (W - AXL - 2 * PAD);
   const y = (v) => H - AXB - PAD - (v / maxV) * (H - AXB - 2 * PAD);
@@ -2379,7 +2381,7 @@ function DomainTrendCard({ trend }) {
   return (
     <RCard icon={Link2} title="Top-Domains-Trend" info="Wie oft die fünf meistzitierten Domains je Monatsmessung in KI-Antworten als Quelle auftauchen." desc="Zitierhäufigkeit der Top-Domains über die Monate" footer={`${series.length} Domains · ${months.length} Monate`}>
       <svg
-        viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 210 }}
+        viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 260 }}
         onMouseMove={(e) => setHover(svgHoverIndex(e, W, AXL, PAD, months.length))}
         onMouseLeave={() => setHover(null)}
       >
