@@ -26,7 +26,7 @@ const APP_NAV: Array<{ group: string; items: NavItem[] }> = [
   { group: "Analytics", items: [
     { id: "aeo-insights", label: "AEO Insights", icon: LineChart },
     { id: "llm-analytics", label: "LLM Analytics", icon: Zap },
-    { id: "traffic", label: "Traffic", icon: Activity, soon: true },
+    { id: "traffic", label: "Traffic", icon: Activity },
   ] },
   { group: "Prompts", items: [
     { id: "your-prompts", label: "Your Prompts", icon: MessageSquare, soon: true },
@@ -402,6 +402,223 @@ function LlmAnalyticsPanel({ clientId, S }: { clientId: string; S: Record<string
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Traffic (Searchable-Nachbau "Traffic", 05.08.2026) ───────────────────────
+// Gesamt-Traffic-Blick als Ergänzung zu LLM Analytics: GA4-Kanäle je Tag,
+// Engagement-Vergleich KI vs. Organisch vs. Direkt (Searchable-Kernwidget)
+// und GSC-Klicks/Impressionen — alles live via /api/admin/traffic-overview.
+const CHANNEL_COLORS: Record<string, string> = {
+  "Organic Search": "#0f9d6c", "Direct": "#64748b", "Referral": "#d97706",
+  "Paid Search": "#dc2626", "Organic Social": "#7c3aed", "Email": "#0b76b7",
+  "Cross-network": "#b45309", "Unassigned": "#9ca3af",
+};
+const fmtDur = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, "0")}`;
+
+function TrafficPanel({ clientId, S }: { clientId: string; S: Record<string, string> }) {
+  const [days, setDays] = useState(30);
+  const [data, setData] = useState<any>(null);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    setData(null); setErr("");
+    (async () => {
+      try {
+        const session = (await supabase.auth.getSession()).data.session;
+        const r = await fetch(`/api/admin/traffic-overview?client=${encodeURIComponent(clientId)}&days=${days}`, {
+          headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
+        if (alive) setData(j);
+      } catch (e: any) {
+        if (alive) { setErr(String(e?.message || e)); setData({ ok: false }); }
+      }
+    })();
+    return () => { alive = false; };
+  }, [clientId, days]);
+
+  const card: any = { background: S.panel, border: `1px solid ${S.line}`, borderRadius: 14, padding: 18 };
+  const dayKeys = useMemo(() => {
+    const out: string[] = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 864e5);
+      out.push(`${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`);
+    }
+    return out;
+  }, [days]);
+  const dayLabel = (k: string) => `${k.slice(6, 8)}.${k.slice(4, 6)}.`;
+  const labelEvery = Math.max(1, Math.ceil(dayKeys.length / 10));
+
+  const chByDay = useMemo(() => {
+    const m = new Map<string, Record<string, number>>();
+    for (const p of data?.channels?.timeseries || []) m.set(String(p.date), p.byChannel || {});
+    return m;
+  }, [data]);
+  const topChannels: string[] = useMemo(
+    () => Object.entries((data?.channels?.totals || {}) as Record<string, number>).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k]) => k),
+    [data],
+  );
+  const totalSessions = Object.values((data?.channels?.totals || {}) as Record<string, number>).reduce((a, b) => a + b, 0);
+  const aiSeg = (data?.segments || []).find((s: any) => s.name === "KI-Antworten");
+  const aiShare = totalSessions && aiSeg ? Math.round((aiSeg.sessions / totalSessions) * 1000) / 10 : 0;
+
+  // GSC: normalisiert auf getrennte Skalen (Klicks-Balken links, Impressionen-Linie rechts)
+  const gscRows: any[] = data?.search?.timeseries || [];
+  const gscByDay = useMemo(() => new Map(gscRows.map((r) => [String(r.date).replace(/-/g, ""), r])), [gscRows]);
+
+  const W = 1000, H = 190, P = 8, AXL = 40, AXB = 16;
+  const chMax = Math.max(1, ...dayKeys.map((k) => topChannels.reduce((a, c) => Math.max(a, chByDay.get(k)?.[c] || 0), 0)));
+  const x = (i: number) => AXL + P + (i / Math.max(1, dayKeys.length - 1)) * (W - AXL - 2 * P);
+  const y = (v: number, max: number) => H - AXB - P - (v / max) * (H - AXB - 2 * P);
+  const clickMax = Math.max(1, ...gscRows.map((r) => r.clicks));
+  const impMax = Math.max(1, ...gscRows.map((r) => r.impressions));
+  const barW = Math.max(2, (W - AXL - 2 * P) / Math.max(1, dayKeys.length) - 2);
+  const bx = (i: number) => AXL + P + (i / Math.max(1, dayKeys.length)) * (W - AXL - 2 * P);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 12, color: S.mut }}>Zeitraum</span>
+        <div style={{ display: "flex", border: `1px solid ${S.line}`, borderRadius: 8, padding: 2, background: S.panel }}>
+          {[7, 30, 90].map((d) => (
+            <button key={d} onClick={() => setDays(d)}
+              style={{ padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, background: days === d ? S.app : "transparent", color: days === d ? "#fff" : S.mut }}>
+              {d} Tage
+            </button>
+          ))}
+        </div>
+        {err && <span style={{ fontSize: 12, color: "#dc2626" }}>{err}</span>}
+      </div>
+
+      {data === null ? (
+        <div style={{ ...card, color: S.mut, fontSize: 13 }}>Lade Traffic-Daten…</div>
+      ) : !data.ga4 && !data.gsc ? (
+        <div style={{ ...card, textAlign: "center", padding: 40 }}>
+          <div style={{ fontSize: 30, marginBottom: 10 }}>🔌</div>
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6, color: S.txt }}>Kein GA4/GSC verbunden</div>
+          <div style={{ fontSize: 13, color: S.mut }}>Sobald Google Analytics oder die Search Console für diesen Kunden verbunden ist, füllt sich dieser Bereich automatisch.</div>
+        </div>
+      ) : (
+        <>
+          {/* KPI-Zeile */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>
+            {[
+              ["Sessions", data.ga4 ? totalSessions.toLocaleString("de-CH") : "—", "alle Kanäle (GA4)"],
+              ["KI-Anteil", data.ga4 ? `${aiShare} %` : "—", aiSeg ? `${aiSeg.sessions.toLocaleString("de-CH")} Sessions aus KI-Antworten` : "keine KI-Sessions"],
+              ["Google-Klicks", data.gsc ? data.search.totals.clicks.toLocaleString("de-CH") : "—", data.gsc ? `${data.search.totals.impressions.toLocaleString("de-CH")} Impressionen` : "GSC nicht verbunden"],
+              ["Ø Position", data.gsc ? String(data.search.totals.position) : "—", data.gsc ? `CTR ${data.search.totals.ctr} %` : "GSC nicht verbunden"],
+            ].map(([t, v, sub]) => (
+              <div key={t as string} style={card}>
+                <div style={{ fontSize: 11, color: S.mut, textTransform: "uppercase", letterSpacing: ".05em" }}>{t}</div>
+                <div style={{ fontSize: 26, fontWeight: 800, color: S.txt, marginTop: 4, fontVariantNumeric: "tabular-nums" }}>{v}</div>
+                <div style={{ fontSize: 11, color: S.mut, marginTop: 2 }}>{sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Kanäle je Tag */}
+          {data.ga4 && topChannels.length > 0 && (
+            <div style={card}>
+              <div style={{ fontWeight: 700, fontSize: 13.5, color: S.txt, marginBottom: 10 }}>Besucher pro Tag nach Kanal</div>
+              <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxHeight: 240 }}>
+                {[0, 0.5, 1].map((f) => (
+                  <g key={f}>
+                    <line x1={AXL + P} x2={W - P} y1={y(f * chMax, chMax)} y2={y(f * chMax, chMax)} stroke={S.line} strokeWidth={1} />
+                    <text x={AXL} y={y(f * chMax, chMax) + 3} textAnchor="end" fontSize={9} fill={S.mut}>{Math.round(f * chMax)}</text>
+                  </g>
+                ))}
+                {dayKeys.map((k, i) => (i % labelEvery === 0 ? (
+                  <text key={k} x={x(i)} y={H - 3} textAnchor="middle" fontSize={9} fill={S.mut}>{dayLabel(k)}</text>
+                ) : null))}
+                {topChannels.map((c, ci) => (
+                  <polyline key={c}
+                    points={dayKeys.map((k, i) => `${x(i)},${y(chByDay.get(k)?.[c] || 0, chMax)}`).join(" ")}
+                    fill="none" stroke={CHANNEL_COLORS[c] || ["#7c3aed", "#0f9d6c", "#d97706", "#0b76b7", "#dc2626"][ci % 5]} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+                ))}
+              </svg>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginTop: 8, fontSize: 11.5, color: S.mut }}>
+                {topChannels.map((c, ci) => (
+                  <span key={c} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 99, background: CHANNEL_COLORS[c] || ["#7c3aed", "#0f9d6c", "#d97706", "#0b76b7", "#dc2626"][ci % 5], display: "inline-block" }} />
+                    {c} · {((data.channels.totals as any)[c] || 0).toLocaleString("de-CH")}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Engagement-Vergleich (Searchable-Kernwidget) */}
+          {data.ga4 && Array.isArray(data.segments) && data.segments.length > 0 && (
+            <div style={card}>
+              <div style={{ fontWeight: 700, fontSize: 13.5, color: S.txt, marginBottom: 4 }}>Engagement im Vergleich</div>
+              <div style={{ fontSize: 11.5, color: S.mut, marginBottom: 10 }}>Wie sich Besucher aus KI-Antworten gegenüber klassischen Kanälen verhalten.</div>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                  <thead>
+                    <tr style={{ color: S.mut, fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".04em", textAlign: "left" }}>
+                      <th style={{ padding: "6px 8px" }}>Segment</th>
+                      <th style={{ padding: "6px 8px", textAlign: "right" }}>Sessions</th>
+                      <th style={{ padding: "6px 8px", textAlign: "right" }}>Neue Besucher</th>
+                      <th style={{ padding: "6px 8px", textAlign: "right" }}>Ø Dauer</th>
+                      <th style={{ padding: "6px 8px", textAlign: "right" }}>Seiten/Session</th>
+                      <th style={{ padding: "6px 8px", textAlign: "right" }}>Engagement</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.segments.map((s: any) => (
+                      <tr key={s.name} style={{ borderTop: `1px solid ${S.line}`, background: s.name === "KI-Antworten" ? S.appTint : "transparent" }}>
+                        <td style={{ padding: "7px 8px", fontWeight: s.name === "KI-Antworten" ? 700 : 500, color: s.name === "KI-Antworten" ? S.app : S.txt }}>{s.name}</td>
+                        <td style={{ padding: "7px 8px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: S.txt }}>{s.sessions.toLocaleString("de-CH")}</td>
+                        <td style={{ padding: "7px 8px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: S.mut }}>{s.newUsers.toLocaleString("de-CH")}</td>
+                        <td style={{ padding: "7px 8px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: S.txt }}>{fmtDur(s.avgDurationSec)}</td>
+                        <td style={{ padding: "7px 8px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: S.txt }}>{s.pagesPerSession}</td>
+                        <td style={{ padding: "7px 8px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: S.txt }}>{s.engagementRate} %</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* GSC: Klicks + Impressionen */}
+          {data.gsc && gscRows.length > 0 && (
+            <div style={card}>
+              <div style={{ fontWeight: 700, fontSize: 13.5, color: S.txt, marginBottom: 10 }}>Google-Suche: Klicks & Impressionen</div>
+              <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxHeight: 240 }}>
+                {[0, 0.5, 1].map((f) => (
+                  <g key={f}>
+                    <line x1={AXL + P} x2={W - P} y1={y(f * clickMax, clickMax)} y2={y(f * clickMax, clickMax)} stroke={S.line} strokeWidth={1} />
+                    <text x={AXL} y={y(f * clickMax, clickMax) + 3} textAnchor="end" fontSize={9} fill={S.mut}>{Math.round(f * clickMax)}</text>
+                  </g>
+                ))}
+                {dayKeys.map((k, i) => (i % labelEvery === 0 ? (
+                  <text key={k} x={bx(i) + barW / 2} y={H - 3} textAnchor="middle" fontSize={9} fill={S.mut}>{dayLabel(k)}</text>
+                ) : null))}
+                {dayKeys.map((k, i) => {
+                  const v = (gscByDay.get(k) as any)?.clicks || 0;
+                  return v > 0 ? (
+                    <rect key={k} x={bx(i)} y={y(v, clickMax)} width={barW} height={H - AXB - P - y(v, clickMax)} rx={2} fill={S.app} opacity={0.85}>
+                      <title>{`${dayLabel(k)} ${v} Klicks`}</title>
+                    </rect>
+                  ) : null;
+                })}
+                <polyline
+                  points={dayKeys.map((k, i) => `${bx(i) + barW / 2},${y((gscByDay.get(k) as any)?.impressions || 0, impMax)}`).join(" ")}
+                  fill="none" stroke="#0f9d6c" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+              </svg>
+              <div style={{ display: "flex", gap: 16, marginTop: 8, fontSize: 11.5, color: S.mut }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: S.app, display: "inline-block" }} /> Klicks (linke Skala)</span>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: 99, background: "#0f9d6c", display: "inline-block" }} /> Impressionen (eigene Skala, max {impMax.toLocaleString("de-CH")})</span>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -966,6 +1183,8 @@ function EzyAiApp() {
               <div style={{ color: S.mut, fontSize: 13, padding: 60, textAlign: "center" }}>Keine Kunden zugewiesen.</div>
             ) : section === "llm-analytics" ? (
               <LlmAnalyticsPanel clientId={client.id} S={S} />
+            ) : section === "traffic" ? (
+              <TrafficPanel clientId={client.id} S={S} />
             ) : section === "site-health" || section === "issues" ? (
               <SiteHealthPanel clientId={client.id} S={S} mode={section === "issues" ? "issues" : "health"} />
             ) : section !== "aeo-insights" ? (
