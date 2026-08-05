@@ -167,7 +167,7 @@ const PAGE_CHECKS: Array<{
 ];
 
 // Sitemap → Seitenliste (eine Index-Ebene wird verfolgt).
-async function collectPages(base: string, domain: string, sitemap: Fetched, homeHtml: string, max = 15): Promise<string[]> {
+async function collectPages(base: string, domain: string, sitemap: Fetched, homeHtml: string, max = 50): Promise<string[]> {
   const urls = new Set<string>();
   const locs = (xml: string) => [...xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)].map((m) => m[1].trim());
   let sitemapXml = sitemap.ok ? sitemap.text : "";
@@ -265,13 +265,19 @@ export const Route = createFileRoute("/api/admin/site-health")({
         await pause(400);
         const sitemap = await fetchText(`${base}/sitemap.xml`, 10000);
 
-        // Seiten sammeln: Startseite immer; deep zusätzlich bis 15 Unterseiten.
+        // Seiten sammeln: Startseite immer; deep zusätzlich bis 50 Unterseiten.
+        // Zeit-Wächter: das Hosting kappt Requests bei ~300 s — bei Zeitknappheit
+        // (langsamer Hoster) wird ehrlich mit Teilergebnis abgebrochen.
+        const started = Date.now();
+        const TIME_BUDGET_MS = 220_000;
         const pageUrls: string[] = [base];
         if (mode === "deep") pageUrls.push(...await collectPages(base, domain, sitemap, home.text));
         const pageResults: Array<{ url: string; fetched: Fetched; metrics: PageMetrics | null }> = [
           { url: base, fetched: home, metrics: home.ok ? analyzeHtml(home.text, domain) : null },
         ];
+        let truncated = 0;
         for (const u of pageUrls.slice(1)) {
+          if (Date.now() - started > TIME_BUDGET_MS) { truncated = pageUrls.length - 1 - (pageResults.length - 1); break; }
           await pause(350);
           const f = await fetchText(u, 12000);
           pageResults.push({ url: u, fetched: f, metrics: f.ok ? analyzeHtml(f.text, domain) : null });
@@ -304,6 +310,12 @@ export const Route = createFileRoute("/api/admin/site-health")({
         push({ id: "lang", label: "Sprache im HTML deklariert", pillar: "technical", weight: 1, severity: "niedrig",
           tipp: "<html lang=…> setzen — hilft Suche und Screenreadern.",
           status: homeMetrics?.langAttr ? "ok" : "fail", detail: homeMetrics?.langAttr ? "vorhanden" : "fehlt" });
+        if (mode === "deep" && truncated > 0) {
+          // Gewicht 0: reine Info, verfälscht keinen Score.
+          push({ id: "coverage", label: "Seiten-Abdeckung des Tiefen-Audits", pillar: "technical", weight: 0, severity: "niedrig",
+            tipp: "Der Hoster antwortete langsam — der Audit stoppte am Zeitbudget. Erneut ausführen prüft wieder von vorn.",
+            status: "warn", detail: `${pageResults.length} geprüft, ${truncated} übersprungen (Zeitbudget)` });
+        }
         if (mode === "deep") {
           const broken = pageResults.filter((p) => !p.fetched.ok);
           push({ id: "pagesok", label: "Alle geprüften Seiten erreichbar", pillar: "technical", weight: 2, severity: "hoch",

@@ -469,7 +469,7 @@ function SiteHealthPanel({ clientId, S, mode }: { clientId: string; S: Record<st
         </button>
         <button onClick={() => runAudit("deep")} disabled={running}
           style={{ padding: "8px 16px", borderRadius: 10, border: `1px solid ${S.app}`, cursor: running ? "default" : "pointer", background: "transparent", color: S.app, fontSize: 13, fontWeight: 600, fontFamily: "inherit", opacity: running ? 0.6 : 1 }}>
-          {running && runningMode === "deep" ? "Tiefen-Audit läuft… (~1 Min)" : "Tiefen-Audit (bis 15 Seiten)"}
+          {running && runningMode === "deep" ? "Tiefen-Audit läuft… (~2 Min)" : "Tiefen-Audit (bis 50 Seiten)"}
         </button>
         {audit?.at && (
           <span style={{ fontSize: 12, color: S.mut }}>
@@ -486,7 +486,7 @@ function SiteHealthPanel({ clientId, S, mode }: { clientId: string; S: Record<st
         <div style={{ ...card, textAlign: "center", padding: 40 }}>
           <div style={{ fontSize: 30, marginBottom: 10 }}>🩺</div>
           <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6, color: S.txt }}>Noch kein Audit für diesen Kunden</div>
-          <div style={{ fontSize: 13, color: S.mut }}>Quick-Audit prüft Startseite, robots.txt, Sitemap und AI-Readiness (~10 s); der Tiefen-Audit nimmt bis zu 15 Unterseiten aus der Sitemap dazu (~1 Min). Beides ohne Zusatzkosten.</div>
+          <div style={{ fontSize: 13, color: S.mut }}>Quick-Audit prüft Startseite, robots.txt, Sitemap und AI-Readiness (~10 s); der Tiefen-Audit nimmt bis zu 50 Unterseiten aus der Sitemap dazu (~2 Min). Beides ohne Zusatzkosten.</div>
         </div>
       ) : (
         <>
