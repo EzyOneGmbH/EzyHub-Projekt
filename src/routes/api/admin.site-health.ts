@@ -185,8 +185,10 @@ async function collectPages(base: string, domain: string, sitemap: Fetched, home
       const p = new URL(u);
       if (!p.hostname.replace(/^www\./, "").endsWith(domain)) continue;
       if (/\.(jpg|jpeg|png|gif|webp|pdf|xml|svg)$/i.test(p.pathname)) continue;
-      if (p.pathname === "/" || p.pathname === "") continue;
-      urls.add(`https://${domain}${p.pathname}`);
+      // Trailing-Slash normalisieren, sonst wird /seite und /seite/ doppelt geprüft.
+      const norm = p.pathname.replace(/\/+$/, "");
+      if (!norm) continue;
+      urls.add(`https://${domain}${norm}`);
     } catch { /* kaputte URL überspringen */ }
   }
   // Fallback: interne Links der Startseite.
@@ -196,8 +198,10 @@ async function collectPages(base: string, domain: string, sitemap: Fetched, home
       let path = "";
       if (href.startsWith("/")) path = href;
       else if (href.includes(domain)) { try { path = new URL(href).pathname; } catch { continue; } }
-      if (!path || path === "/" || /\.(jpg|jpeg|png|gif|webp|pdf|xml|svg|zip)$/i.test(path)) continue;
-      urls.add(`https://${domain}${path}`);
+      if (!path || /\.(jpg|jpeg|png|gif|webp|pdf|xml|svg|zip)$/i.test(path)) continue;
+      const norm = path.replace(/\/+$/, "");
+      if (!norm) continue;
+      urls.add(`https://${domain}${norm}`);
     }
   }
   return [...urls]
