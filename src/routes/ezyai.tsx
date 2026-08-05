@@ -37,8 +37,8 @@ const APP_NAV: Array<{ group: string; items: NavItem[] }> = [
     { id: "opportunities", label: "Opportunities", icon: Lightbulb, soon: true },
   ] },
   { group: "On Page", items: [
-    { id: "site-health", label: "Site Health", icon: Globe, soon: true },
-    { id: "issues", label: "Issues", icon: AlertTriangle, soon: true },
+    { id: "site-health", label: "Site Health", icon: Globe },
+    { id: "issues", label: "Issues", icon: AlertTriangle },
   ] },
 ];
 const NAV_LABEL: Record<string, string> = Object.fromEntries(
@@ -402,6 +402,144 @@ function LlmAnalyticsPanel({ clientId, S }: { clientId: string; S: Record<string
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Site Health (Searchable-Nachbau "Site Audits", 05.08.2026) ───────────────
+// On-demand-Audit über /api/admin/site-health (kostenlose Live-Checks auf der
+// Kundendomain). Drei Säulen mit Searchable-Gewichten (Technical 30 % /
+// Content 35 % / AEO 35 %), Issue-Liste mit Severity. mode="issues" zeigt
+// dieselben Daten mit Fokus auf die Problemliste (Sidebar-Punkt "Issues").
+const SEV_STYLE: Record<string, { bg: string; fg: string; label: string }> = {
+  kritisch: { bg: "#fde8e8", fg: "#b91c1c", label: "Kritisch" },
+  hoch: { bg: "#fdf0e3", fg: "#b45309", label: "Hoch" },
+  mittel: { bg: "#fdf6e3", fg: "#8a6d1b", label: "Mittel" },
+  niedrig: { bg: "#e8f0fd", fg: "#1d4ed8", label: "Niedrig" },
+};
+const scoreColor = (v: number) => (v >= 90 ? "#0f9d6c" : v >= 70 ? "#6aa84f" : v >= 50 ? "#d97706" : v >= 30 ? "#ea580c" : "#dc2626");
+const scoreLabel = (v: number) => (v >= 90 ? "Ausgezeichnet" : v >= 70 ? "Gut" : v >= 50 ? "Befriedigend" : v >= 30 ? "Schlecht" : "Kritisch");
+
+function SiteHealthPanel({ clientId, S, mode }: { clientId: string; S: Record<string, string>; mode: "health" | "issues" }) {
+  const [audit, setAudit] = useState<any | undefined>(undefined); // undefined = lädt, null = keiner
+  const [running, setRunning] = useState(false);
+  const [err, setErr] = useState("");
+
+  const call = useCallback(async (method: "GET" | "POST") => {
+    const session = (await supabase.auth.getSession()).data.session;
+    const init: RequestInit = { method, headers: { Authorization: `Bearer ${session?.access_token || ""}` } };
+    let url = `/api/admin/site-health?client=${encodeURIComponent(clientId)}`;
+    if (method === "POST") {
+      url = "/api/admin/site-health";
+      init.headers = { ...init.headers, "Content-Type": "application/json" };
+      init.body = JSON.stringify({ client: clientId });
+    }
+    const r = await fetch(url, init);
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
+    return j.audit ?? null;
+  }, [clientId]);
+
+  useEffect(() => {
+    let alive = true;
+    setAudit(undefined); setErr("");
+    call("GET").then((a) => { if (alive) setAudit(a); }).catch((e) => { if (alive) { setErr(String(e?.message || e)); setAudit(null); } });
+    return () => { alive = false; };
+  }, [call]);
+
+  const runAudit = async () => {
+    setRunning(true); setErr("");
+    try { setAudit(await call("POST")); }
+    catch (e: any) { setErr(String(e?.message || e)); }
+    finally { setRunning(false); }
+  };
+
+  const card: any = { background: S.panel, border: `1px solid ${S.line}`, borderRadius: 14, padding: 18 };
+  const issues = audit?.issues || [];
+  const checks = audit?.checks || [];
+  const pillars: Array<[string, string]> = [["technical", "Technik"], ["content", "Inhalt"], ["aeo", "AI-Readiness"]];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <button onClick={runAudit} disabled={running}
+          style={{ padding: "8px 16px", borderRadius: 10, border: "none", cursor: running ? "default" : "pointer", background: S.app, color: "#fff", fontSize: 13, fontWeight: 600, fontFamily: "inherit", opacity: running ? 0.6 : 1 }}>
+          {running ? "Audit läuft… (~10 s)" : audit ? "Erneut prüfen" : "Audit starten"}
+        </button>
+        {audit?.at && <span style={{ fontSize: 12, color: S.mut }}>Letzter Audit: {new Date(audit.at).toLocaleString("de-CH")} · {audit.url}</span>}
+        {err && <span style={{ fontSize: 12, color: "#dc2626" }}>{err}</span>}
+      </div>
+
+      {audit === undefined ? (
+        <div style={{ ...card, color: S.mut, fontSize: 13 }}>Lade letzten Audit…</div>
+      ) : !audit ? (
+        <div style={{ ...card, textAlign: "center", padding: 40 }}>
+          <div style={{ fontSize: 30, marginBottom: 10 }}>🩺</div>
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6, color: S.txt }}>Noch kein Audit für diesen Kunden</div>
+          <div style={{ fontSize: 13, color: S.mut }}>„Audit starten" prüft Startseite, robots.txt, Sitemap und AI-Readiness — dauert rund 10 Sekunden, ohne Zusatzkosten.</div>
+        </div>
+      ) : (
+        <>
+          {/* Score-Karten */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>
+            {[["overall", "Gesamt-Score"], ...pillars].map(([k, label]) => {
+              const v = audit.scores?.[k] ?? 0;
+              return (
+                <div key={k} style={card}>
+                  <div style={{ fontSize: 11, color: S.mut, textTransform: "uppercase", letterSpacing: ".05em" }}>{label}</div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 4 }}>
+                    <span style={{ fontSize: 28, fontWeight: 800, color: scoreColor(v), fontVariantNumeric: "tabular-nums" }}>{v}</span>
+                    <span style={{ fontSize: 11.5, color: S.mut }}>/ 100 · {scoreLabel(v)}</span>
+                  </div>
+                  <div style={{ height: 5, borderRadius: 99, background: S.line, marginTop: 8, overflow: "hidden" }}>
+                    <div style={{ width: `${v}%`, height: "100%", borderRadius: 99, background: scoreColor(v) }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Issues */}
+          <div style={card}>
+            <div style={{ fontWeight: 700, fontSize: 13.5, color: S.txt, marginBottom: 10 }}>
+              {issues.length ? `${issues.length} ${issues.length === 1 ? "Problem" : "Probleme"} gefunden` : "Keine Probleme gefunden 🎉"}
+            </div>
+            {issues.map((i: any) => {
+              const sv = SEV_STYLE[i.severity] || SEV_STYLE.niedrig;
+              return (
+                <div key={i.id} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "9px 0", borderTop: `1px solid ${S.line}` }}>
+                  <span style={{ flexShrink: 0, fontSize: 10.5, fontWeight: 700, borderRadius: 99, padding: "2px 9px", background: sv.bg, color: sv.fg }}>{sv.label}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, color: S.txt }}>{i.label} <span style={{ fontWeight: 400, color: S.mut }}>— {i.detail}</span></div>
+                    <div style={{ fontSize: 11.5, color: S.mut, marginTop: 2 }}>{i.tipp}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Check-Tabellen je Säule (nur im Site-Health-Modus) */}
+          {mode === "health" && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 16 }}>
+              {pillars.map(([p, label]) => (
+                <div key={p} style={card}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: S.txt, marginBottom: 8 }}>{label} · {audit.scores?.[p] ?? 0}/100</div>
+                  {checks.filter((c: any) => c.pillar === p).map((c: any) => (
+                    <div key={c.id} style={{ display: "flex", gap: 8, alignItems: "baseline", fontSize: 12, padding: "4px 0", borderTop: `1px solid ${S.line}` }}>
+                      <span style={{ flexShrink: 0 }}>{c.status === "ok" ? "✅" : c.status === "warn" ? "⚠️" : "❌"}</span>
+                      <span style={{ flex: 1, color: S.txt }}>{c.label}</span>
+                      <span style={{ color: S.mut, fontSize: 11, textAlign: "right", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.detail}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{ fontSize: 11, color: S.mut }}>
+            Basis: Startseite, robots.txt, llms.txt und Sitemap — Gewichtung Technik 30 % · Inhalt 35 % · AI-Readiness 35 %. Tiefen-Audits einzelner Unterseiten laufen weiterhin über die SEO-Agenten.
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -779,6 +917,8 @@ function EzyAiApp() {
               <div style={{ color: S.mut, fontSize: 13, padding: 60, textAlign: "center" }}>Keine Kunden zugewiesen.</div>
             ) : section === "llm-analytics" ? (
               <LlmAnalyticsPanel clientId={client.id} S={S} />
+            ) : section === "site-health" || section === "issues" ? (
+              <SiteHealthPanel clientId={client.id} S={S} mode={section === "issues" ? "issues" : "health"} />
             ) : section !== "aeo-insights" ? (
               <div style={{ background: S.panel, border: `1px solid ${S.line}`, borderRadius: 14, padding: 40, textAlign: "center", maxWidth: 560, margin: "40px auto 0" }}>
                 <div style={{ fontSize: 30, marginBottom: 12 }}>🧭</div>

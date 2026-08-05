@@ -99,6 +99,7 @@ import { Route as ApiAdminContentNoteRouteImport } from './routes/api/admin.cont
 import { Route as ApiAdminClientFlagsRouteImport } from './routes/api/admin.client-flags'
 import { Route as ApiAdminGa4ConversionsRouteImport } from './routes/api/admin.ga4-conversions'
 import { Route as ApiAdminLlmTrafficRouteImport } from './routes/api/admin.llm-traffic'
+import { Route as ApiAdminSiteHealthRouteImport } from './routes/api/admin.site-health'
 import { Route as ApiAdminContentDecisionRouteImport } from './routes/api/admin.content-decision'
 import { Route as ApiAdminClientMetricsRouteImport } from './routes/api/admin.client-metrics'
 import { Route as ApiAdminClientDomainsRouteImport } from './routes/api/admin.client-domains'
@@ -581,6 +582,11 @@ const ApiAdminLlmTrafficRoute = ApiAdminLlmTrafficRouteImport.update({
   path: '/api/admin/llm-traffic',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminSiteHealthRoute = ApiAdminSiteHealthRouteImport.update({
+  id: '/api/admin/site-health',
+  path: '/api/admin/site-health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminContentDecisionRoute = ApiAdminContentDecisionRouteImport.update({
   id: '/api/admin/content-decision',
   path: '/api/admin/content-decision',
@@ -762,6 +768,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/client-flags': typeof ApiAdminClientFlagsRoute
   '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/llm-traffic': typeof ApiAdminLlmTrafficRoute
+  '/api/admin/site-health': typeof ApiAdminSiteHealthRoute
   '/api/admin/content-sync': typeof ApiAdminContentSyncRoute
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
@@ -877,6 +884,7 @@ export interface FileRoutesByTo {
   '/api/admin/client-flags': typeof ApiAdminClientFlagsRoute
   '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/llm-traffic': typeof ApiAdminLlmTrafficRoute
+  '/api/admin/site-health': typeof ApiAdminSiteHealthRoute
   '/api/admin/content-sync': typeof ApiAdminContentSyncRoute
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
@@ -993,6 +1001,7 @@ export interface FileRoutesById {
   '/api/admin/client-flags': typeof ApiAdminClientFlagsRoute
   '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/llm-traffic': typeof ApiAdminLlmTrafficRoute
+  '/api/admin/site-health': typeof ApiAdminSiteHealthRoute
   '/api/admin/content-sync': typeof ApiAdminContentSyncRoute
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
@@ -1110,6 +1119,7 @@ export interface FileRouteTypes {
     | '/api/admin/client-flags'
     | '/api/admin/ga4-conversions'
     | '/api/admin/llm-traffic'
+    | '/api/admin/site-health'
     | '/api/admin/content-sync'
     | '/api/admin/ewww-provision'
     | '/api/admin/gbp'
@@ -1225,6 +1235,7 @@ export interface FileRouteTypes {
     | '/api/admin/client-flags'
     | '/api/admin/ga4-conversions'
     | '/api/admin/llm-traffic'
+    | '/api/admin/site-health'
     | '/api/admin/content-sync'
     | '/api/admin/ewww-provision'
     | '/api/admin/gbp'
@@ -1340,6 +1351,7 @@ export interface FileRouteTypes {
     | '/api/admin/client-flags'
     | '/api/admin/ga4-conversions'
     | '/api/admin/llm-traffic'
+    | '/api/admin/site-health'
     | '/api/admin/content-sync'
     | '/api/admin/ewww-provision'
     | '/api/admin/gbp'
@@ -1452,6 +1464,7 @@ export interface RootRouteChildren {
   ApiAdminClientFlagsRoute: typeof ApiAdminClientFlagsRoute
   ApiAdminGa4ConversionsRoute: typeof ApiAdminGa4ConversionsRoute
   ApiAdminLlmTrafficRoute: typeof ApiAdminLlmTrafficRoute
+  ApiAdminSiteHealthRoute: typeof ApiAdminSiteHealthRoute
   ApiAdminContentSyncRoute: typeof ApiAdminContentSyncRoute
   ApiAdminEwwwProvisionRoute: typeof ApiAdminEwwwProvisionRoute
   ApiAdminGbpRoute: typeof ApiAdminGbpRoute
@@ -2123,6 +2136,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminContentNoteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/site-health': {
+      id: '/api/admin/site-health'
+      path: '/api/admin/site-health'
+      fullPath: '/api/admin/site-health'
+      preLoaderRoute: typeof ApiAdminSiteHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/llm-traffic': {
       id: '/api/admin/llm-traffic'
       path: '/api/admin/llm-traffic'
@@ -2406,6 +2426,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminClientFlagsRoute: ApiAdminClientFlagsRoute,
   ApiAdminGa4ConversionsRoute: ApiAdminGa4ConversionsRoute,
   ApiAdminLlmTrafficRoute: ApiAdminLlmTrafficRoute,
+  ApiAdminSiteHealthRoute: ApiAdminSiteHealthRoute,
   ApiAdminContentSyncRoute: ApiAdminContentSyncRoute,
   ApiAdminEwwwProvisionRoute: ApiAdminEwwwProvisionRoute,
   ApiAdminGbpRoute: ApiAdminGbpRoute,
