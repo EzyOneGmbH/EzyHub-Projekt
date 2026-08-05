@@ -808,7 +808,12 @@ function PromptDetailModal({ g, opportunity, brand, onClose }) {
   //     Quelle verlinkt, das braucht keine Namensnennung im Fliesstext.
   const mentioned = e.status && e.status !== "Nicht erwähnt";
   const brandInText = brand && String(e.response || "").toLowerCase().includes(String(brand).toLowerCase());
-  const truncated = String(e.response || "").length >= 1450;
+  // „Gekürzt"-Erkennung (05.08. präzisiert): NUR bei echter Kappung —
+  // (a) Speicher-Slice bei 6000 Zeichen erreicht, oder (b) Alt-Messung vor dem
+  // maxTokens-Fix (Token-Stopp landete exakt im Band 1450–1500). Lange, sauber
+  // beendete Antworten sind seit dem Fix der Normalfall — keine Fussnote mehr.
+  const respLen = String(e.response || "").length;
+  const truncated = respLen >= 5990 || (respLen >= 1450 && respLen <= 1500);
   const explain = mentioned && !brandInText
     ? (e.status === "Referenziert" && !truncated
         ? `„Referenziert" heisst: Die Website von ${brand} ist in dieser Antwort als Quelle verlinkt — das kann auch ohne Namensnennung im Text passieren.`
