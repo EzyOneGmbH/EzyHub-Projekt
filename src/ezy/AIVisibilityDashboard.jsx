@@ -1,7 +1,7 @@
 import React, { Fragment, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 // Echte Landkarte (04.08.): react-freie Geo-Bausteine — kein Peer-Dep-Risiko.
-import { geoNaturalEarth1, geoPath } from "d3-geo";
+import { geoNaturalEarth1, geoPath, geoBounds } from "d3-geo";
 import { feature as topoFeature } from "topojson-client";
 import worldTopo from "world-atlas/countries-110m.json";
 import {
@@ -1835,9 +1835,23 @@ function LocationPanel({ countries, models }) {
   const W = 640, H = 400;
   const projection = geoNaturalEarth1();
   if (dataFeatures.length) {
-    projection.fitExtent([[16, 16], [W - 16, H - 16]], { type: "FeatureCollection", features: dataFeatures });
-    // Nie weiter reinzoomen als sinnvoll (ein einzelnes kleines Land würde riesig).
-    if (projection.scale() > 900) projection.scale(900);
+    // Fix 05.08.: fitExtent auf eine GEPUFFERTE Box um die Daten-Länder statt
+    // nachträglichem scale-Cap — der Cap verschob nur den Maßstab, nicht das
+    // Zentrum, und schob den Ausschnitt aus dem Bild (leere/abgeschnittene Karte).
+    // MultiPoint statt Polygon: keine sphärische Winding-Falle.
+    const [[minX, minY], [maxX, maxY]] = geoBounds({ type: "FeatureCollection", features: dataFeatures });
+    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+    const spanX = Math.max(maxX - minX, 22) * 1.35; // Mindest-Ausschnitt + Rand-Kontext
+    const spanY = Math.max(maxY - minY, 14) * 1.35;
+    const lat = (v) => Math.max(-84, Math.min(84, v));
+    const box = {
+      type: "MultiPoint",
+      coordinates: [
+        [cx - spanX / 2, lat(cy - spanY / 2)], [cx + spanX / 2, lat(cy - spanY / 2)],
+        [cx + spanX / 2, lat(cy + spanY / 2)], [cx - spanX / 2, lat(cy + spanY / 2)],
+      ],
+    };
+    projection.fitExtent([[16, 16], [W - 16, H - 16]], box);
   } else {
     projection.fitExtent([[16, 16], [W - 16, H - 16]], { type: "FeatureCollection", features: WORLD_FEATURES });
   }
