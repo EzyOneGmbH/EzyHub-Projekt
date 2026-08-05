@@ -1989,8 +1989,26 @@ function ConversionRegions({ attribution }) {
   const [selected, setSelected] = useState(null); // EN-Feature-Name oder Chip-Label
   const [mapView, setMapView] = useState("fokus");
   // Länder-Schlüssel normalisieren: GA4 liefert englische Namen, Messwerte deutsche.
+  // GA4-Namen, die vom world-atlas-Feature-Namen abweichen:
+  const GA4_ALIAS = {
+    "united states": "United States of America",
+    "north macedonia": "Macedonia",
+    "türkiye": "Turkey",
+    "bosnia & herzegovina": "Bosnia and Herz.",
+    "dominican republic": "Dominican Rep.",
+    "congo - kinshasa": "Dem. Rep. Congo",
+    "congo - brazzaville": "Congo",
+    "myanmar (burma)": "Myanmar",
+  };
   const norm = (raw) => {
-    const en = WORLD_NAMES.has(raw) ? raw : (DE2EN[raw.toLowerCase()] && WORLD_NAMES.has(DE2EN[raw.toLowerCase()]) ? DE2EN[raw.toLowerCase()] : null);
+    const lo = raw.toLowerCase();
+    const en = WORLD_NAMES.has(raw)
+      ? raw
+      : GA4_ALIAS[lo] && WORLD_NAMES.has(GA4_ALIAS[lo])
+        ? GA4_ALIAS[lo]
+        : DE2EN[lo] && WORLD_NAMES.has(DE2EN[lo])
+          ? DE2EN[lo]
+          : null;
     return { en, key: en || (raw === "(not set)" ? "Ohne Zuordnung" : raw) };
   };
   // Aggregation 1: Land -> Besucher (GA4-Sessions) + Engine-Split.
@@ -2047,7 +2065,6 @@ function ConversionRegions({ attribution }) {
   }
   const total = rows.reduce((a, c) => a + c.conv, 0) || 1;
   const valueByEn = new Map(rows.filter((r) => r.en).map((r) => [r.en, r.conv]));
-  const unmapped = rows.filter((r) => !r.en);
   const display = (r) => (r.en ? EN2DE.get(r.en) || r.en : r.key);
   const dataFeatures = WORLD_FEATURES.filter((f) => valueByEn.has(f.properties.name));
   const W = 640, H = 400;
@@ -2117,16 +2134,6 @@ function ConversionRegions({ attribution }) {
             );
           })}
         </svg>
-        {unmapped.length > 0 && (
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {unmapped.map((r) => (
-              <span key={r.key} className="rounded-lg px-3 py-2 text-[11px] font-semibold" style={{ background: PAL[2], color: isVis ? "#1e40af" : "#065f46", cursor: "pointer" }}
-                onClick={() => setSelected(r.key)}>
-                {r.key} · {nf(r.conv)}
-              </span>
-            ))}
-          </div>
-        )}
       </RCard>
       {selRow ? (
         <RCard icon={MapPin} title={display(selRow)} info={`${unit} je KI-System im gewählten Land (GA4-Attribution).`} desc={`${nf(selRow.conv)} ${unit}${selRow.value > 0 ? ` · Wert ${nf(Math.round(selRow.value))}` : ""} · ${Math.round((selRow.conv / total) * 100)} % Anteil`} footer={`${unit} je KI-System`} legend={
