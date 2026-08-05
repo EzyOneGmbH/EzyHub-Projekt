@@ -2941,8 +2941,8 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
                   className="inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-2.5 text-[13px]"
                   style={{
                     color: on ? C.ink : C.sub, fontWeight: on ? 700 : 500,
+                    background: "none", border: "none", cursor: "pointer",
                     borderBottom: `2px solid ${on ? C.ink : "transparent"}`, marginBottom: -1,
-                    background: "none", border: "none", borderBottomStyle: "solid", cursor: "pointer",
                   }}
                 >
                   <t.icon size={14} style={{ color: on ? C.indigo : C.sub }} />
