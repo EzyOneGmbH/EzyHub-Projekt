@@ -142,18 +142,36 @@ export const Route = createFileRoute("/api/admin/traffic-overview")({
           }
         }
 
-        // ── GSC: Klicks/Impressionen je Tag ─────────────────────────────────
+        // ── GSC: Klicks/Impressionen je Tag + Top-Queries (Quadranten-Matrix) ─
         if (client.gsc_property) {
           try {
             const site = String(client.gsc_property);
             const end = new Date().toISOString().slice(0, 10);
             const start = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
-            const r = await fetch(`https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(site)}/searchAnalytics/query`, {
-              method: "POST",
-              headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ startDate: start, endDate: end, dimensions: ["date"], rowLimit: 500 }),
-              signal: AbortSignal.timeout(25_000),
-            });
+            const gscQuery = (body: any) =>
+              fetch(`https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(site)}/searchAnalytics/query`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                body: JSON.stringify({ startDate: start, endDate: end, ...body }),
+                signal: AbortSignal.timeout(25_000),
+              });
+            const [r, rq] = await Promise.all([
+              gscQuery({ dimensions: ["date"], rowLimit: 500 }),
+              gscQuery({ dimensions: ["query"], rowLimit: 250 }),
+            ]);
+            if (rq.ok) {
+              const jq: any = await rq.json().catch(() => ({}));
+              out.queries = (jq.rows ?? [])
+                .map((row: any) => ({
+                  query: String(row.keys?.[0] ?? ""),
+                  clicks: Number(row.clicks ?? 0),
+                  impressions: Number(row.impressions ?? 0),
+                  position: Math.round(Number(row.position ?? 0) * 10) / 10,
+                }))
+                .filter((q: any) => q.query)
+                .sort((a: any, b: any) => b.impressions - a.impressions)
+                .slice(0, 150);
+            }
             if (r.ok) {
               const j: any = await r.json().catch(() => ({}));
               const rows = (j.rows ?? []).map((row: any) => ({

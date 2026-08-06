@@ -417,6 +417,13 @@ const CHANNEL_COLORS: Record<string, string> = {
 };
 const fmtDur = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, "0")}`;
 
+// SEO×AEO-Quadranten (Searchable GSC-Doku): GSC-Keywords gegen die KI-Erwähnungs-
+// quote der thematisch passenden Mess-Prompts (Wortüberlappung wie beim
+// AI-Volumen-Feature). Schwellen: SEO hoch = Position ≤ 10, AEO hoch = ≥ 30 %.
+const QUAD_STOP = new Set(["der", "die", "das", "und", "oder", "für", "fuer", "mit", "von", "aus", "bei", "den", "dem", "des", "ein", "eine", "einen", "einem", "einer", "auf", "als", "was", "wie", "wer", "ist", "sind", "the", "for", "and", "was", "you", "your", "nach", "zum", "zur", "über", "ueber"]);
+const kwWords = (kw: string) => kw.toLowerCase().split(/[^a-zäöüéèà0-9]+/).filter((w) => w.length >= 3 && !QUAD_STOP.has(w));
+const stemOf = (w: string) => (w.length > 7 ? w.slice(0, 7) : w);
+
 function TrafficPanel({ clientId, S }: { clientId: string; S: Record<string, string> }) {
   const [days, setDays] = useState(30);
   const [data, setData] = useState<any>(null);
@@ -440,6 +447,51 @@ function TrafficPanel({ clientId, S }: { clientId: string; S: Record<string, str
     })();
     return () => { alive = false; };
   }, [clientId, days]);
+
+  // KI-Mess-Prompts des neuesten Reports (RLS-direkt) für die Quadranten-Matrix.
+  const [prompts, setPrompts] = useState<Array<{ text: string; mentioned: boolean }> | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setPrompts(null);
+    (async () => {
+      const { data: rep } = await (supabase as any)
+        .from("ai_visibility_reports").select("id").eq("client_id", clientId)
+        .order("snapshot_date", { ascending: false }).limit(1).maybeSingle();
+      if (!rep?.id) { if (alive) setPrompts([]); return; }
+      const rows: any[] = [];
+      for (let from = 0; ; from += 1000) {
+        const { data } = await (supabase as any)
+          .from("ai_visibility_prompts").select("prompt, topic, status")
+          .eq("report_id", rep.id).range(from, from + 999);
+        rows.push(...(data ?? []));
+        if (!data || data.length < 1000) break;
+      }
+      if (alive) setPrompts(rows.map((p) => ({
+        text: `${p.topic || ""} ${p.prompt || ""}`.toLowerCase(),
+        mentioned: p.status === "Erwähnt" || p.status === "Referenziert",
+      })));
+    })();
+    return () => { alive = false; };
+  }, [clientId]);
+
+  const quad = useMemo(() => {
+    const queries: any[] = data?.queries || [];
+    if (!queries.length || !prompts || !prompts.length) return null;
+    const pts = queries.slice(0, 80).map((q) => {
+      const stems = kwWords(q.query).map(stemOf);
+      if (!stems.length) return null;
+      const matched = prompts.filter((p) => stems.every((s) => p.text.includes(s)));
+      const aeo = matched.length ? Math.round((matched.filter((m) => m.mentioned).length / matched.length) * 100) : null;
+      return { ...q, aeo, matchedPrompts: matched.length };
+    }).filter(Boolean) as any[];
+    const measured = pts.filter((p) => p.aeo != null);
+    if (!measured.length) return null;
+    const bucket = (p: any) => (p.position <= 10 ? (p.aeo >= 30 ? "staerken" : "kiPotenzial") : p.aeo >= 30 ? "seoPotenzial" : "aufbau");
+    const buckets: Record<string, any[]> = { staerken: [], kiPotenzial: [], seoPotenzial: [], aufbau: [] };
+    for (const p of measured) buckets[bucket(p)].push(p);
+    for (const k of Object.keys(buckets)) buckets[k].sort((a, b) => b.impressions - a.impressions);
+    return { measured, buckets, unmeasured: pts.length - measured.length };
+  }, [data, prompts]);
 
   const card: any = { background: S.panel, border: `1px solid ${S.line}`, borderRadius: 14, padding: 18 };
   const dayKeys = useMemo(() => {
@@ -617,6 +669,77 @@ function TrafficPanel({ clientId, S }: { clientId: string; S: Record<string, str
               </div>
             </div>
           )}
+
+          {/* SEO × KI-Sichtbarkeit: Quadranten-Matrix (Searchable GSC-Kombination) */}
+          {quad && (() => {
+            const QW = 1000, QH = 300, QP = 14, QAXL = 40, QAXB = 24;
+            const qx = (pos: number) => QAXL + QP + ((30 - Math.min(pos, 30)) / 30) * (QW - QAXL - 2 * QP);
+            const qy = (aeo: number) => QH - QAXB - QP - (aeo / 100) * (QH - QAXB - 2 * QP);
+            const maxImp = Math.max(1, ...quad.measured.map((p: any) => p.impressions));
+            const rOf = (imp: number) => 3 + Math.sqrt(imp / maxImp) * 6;
+            const QCOLOR: Record<string, string> = { staerken: "#0f9d6c", kiPotenzial: "#7c3aed", seoPotenzial: "#0b76b7", aufbau: "#9ca3af" };
+            const bucketOf = (p: any) => (p.position <= 10 ? (p.aeo >= 30 ? "staerken" : "kiPotenzial") : p.aeo >= 30 ? "seoPotenzial" : "aufbau");
+            const QMETA: Array<[string, string, string]> = [
+              ["kiPotenzial", "KI-Potenzial", "Stark bei Google, kaum in KI-Antworten — beste Kandidaten für FAQ-/Antwort-Content"],
+              ["staerken", "Stärken", "Stark bei Google UND in KI-Antworten"],
+              ["seoPotenzial", "SEO-Potenzial", "In KI-Antworten präsent, aber nicht auf Google-Seite 1"],
+              ["aufbau", "Aufbau nötig", "Weder Google-Seite 1 noch KI-Präsenz"],
+            ];
+            return (
+              <div style={card}>
+                <div style={{ fontWeight: 700, fontSize: 13.5, color: S.txt, marginBottom: 4 }}>SEO × KI-Sichtbarkeit</div>
+                <div style={{ fontSize: 11.5, color: S.mut, marginBottom: 10 }}>
+                  Google-Keywords (GSC, nach Impressionen) gegen die KI-Erwähnungsquote der thematisch passenden Mess-Prompts.
+                  Schwellen: Google-Seite 1 (Position ≤ 10) · KI-Quote ≥ 30 %.
+                </div>
+                <svg viewBox={`0 0 ${QW} ${QH}`} style={{ width: "100%", maxHeight: 340 }}>
+                  {/* Quadranten-Hintergründe */}
+                  <rect x={qx(10)} y={qy(100)} width={QW - QP - qx(10)} height={qy(30) - qy(100)} fill="#0f9d6c" opacity={0.06} />
+                  <rect x={qx(10)} y={qy(30)} width={QW - QP - qx(10)} height={qy(0) - qy(30)} fill="#7c3aed" opacity={0.07} />
+                  <rect x={QAXL + QP} y={qy(100)} width={qx(10) - QAXL - QP} height={qy(30) - qy(100)} fill="#0b76b7" opacity={0.05} />
+                  <line x1={qx(10)} x2={qx(10)} y1={QP} y2={QH - QAXB - QP} stroke={S.line} strokeWidth={1.5} strokeDasharray="4 4" />
+                  <line x1={QAXL + QP} x2={QW - QP} y1={qy(30)} y2={qy(30)} stroke={S.line} strokeWidth={1.5} strokeDasharray="4 4" />
+                  {/* Achsen-Beschriftung */}
+                  <text x={QAXL + QP} y={QH - 6} fontSize={10} fill={S.mut}>← schwächere Google-Position</text>
+                  <text x={QW - QP} y={QH - 6} fontSize={10} fill={S.mut} textAnchor="end">Google-Seite 1 →</text>
+                  <text x={QAXL - 6} y={qy(100) + 8} fontSize={10} fill={S.mut} textAnchor="end">KI 100 %</text>
+                  <text x={QAXL - 6} y={qy(30) + 3} fontSize={10} fill={S.mut} textAnchor="end">30 %</text>
+                  <text x={QAXL - 6} y={qy(0)} fontSize={10} fill={S.mut} textAnchor="end">0 %</text>
+                  {/* Quadranten-Labels */}
+                  <text x={QW - QP - 6} y={qy(100) + 14} fontSize={10.5} fontWeight={700} fill="#0f9d6c" textAnchor="end">Stärken</text>
+                  <text x={QW - QP - 6} y={qy(0) - 8} fontSize={10.5} fontWeight={700} fill="#7c3aed" textAnchor="end">KI-Potenzial</text>
+                  <text x={QAXL + QP + 6} y={qy(100) + 14} fontSize={10.5} fontWeight={700} fill="#0b76b7">SEO-Potenzial</text>
+                  <text x={QAXL + QP + 6} y={qy(0) - 8} fontSize={10.5} fontWeight={700} fill="#9ca3af">Aufbau nötig</text>
+                  {quad.measured.map((p: any) => (
+                    <circle key={p.query} cx={qx(p.position)} cy={qy(p.aeo)} r={rOf(p.impressions)}
+                      fill={QCOLOR[bucketOf(p)]} opacity={0.75} stroke="#fff" strokeWidth={1}>
+                      <title>{`${p.query}\nGoogle-Position ${p.position} · ${p.impressions.toLocaleString("de-CH")} Impressionen\nKI-Quote ${p.aeo} % (${p.matchedPrompts} passende Prompts)`}</title>
+                    </circle>
+                  ))}
+                </svg>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: 12, marginTop: 12 }}>
+                  {QMETA.map(([key, title, desc]) => (
+                    <div key={key} style={{ border: `1px solid ${key === "kiPotenzial" ? QCOLOR[key] : S.line}`, borderRadius: 10, padding: 12 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: QCOLOR[key] }}>{title} · {quad.buckets[key].length}</div>
+                      <div style={{ fontSize: 10.5, color: S.mut, marginTop: 2, marginBottom: 6 }}>{desc}</div>
+                      {quad.buckets[key].slice(0, 6).map((p: any) => (
+                        <div key={p.query} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 11.5, padding: "3px 0", borderTop: `1px solid ${S.line}` }}>
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: S.txt }}>{p.query}</span>
+                          <span style={{ color: S.mut, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>#{p.position} · {p.aeo} %</span>
+                        </div>
+                      ))}
+                      {!quad.buckets[key].length && <div style={{ fontSize: 11, color: S.mut }}>—</div>}
+                    </div>
+                  ))}
+                </div>
+                {quad.unmeasured > 0 && (
+                  <div style={{ fontSize: 10.5, color: S.mut, marginTop: 8 }}>
+                    {quad.unmeasured} Keywords ohne thematisch passenden Mess-Prompt (nicht in der Matrix) — mehr Abdeckung entsteht über zusätzliche Prompts in „Prompts verwalten".
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </>
       )}
     </div>
