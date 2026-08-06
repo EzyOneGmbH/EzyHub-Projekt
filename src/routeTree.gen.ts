@@ -13,29 +13,29 @@ import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SetPasswordRouteImport } from './routes/set-password'
+import { Route as ReaktRouteImport } from './routes/reakt'
 import { Route as PilotRouteImport } from './routes/pilot'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LlmUeberblickRouteImport } from './routes/llm-ueberblick'
-import { Route as AdminRouteImport } from './routes/admin'
-import { Route as ReaktRouteImport } from './routes/reakt'
-import { Route as EzyperformanceRouteImport } from './routes/ezyperformance'
-import { Route as EzyrankRouteImport } from './routes/ezyrank'
-import { Route as EzyaiRouteImport } from './routes/ezyai'
-import { Route as AppsRouteImport } from './routes/apps'
 import { Route as HealthRouteImport } from './routes/health'
 import { Route as GithubStatusRouteImport } from './routes/github-status'
 import { Route as GeoRouteImport } from './routes/geo'
+import { Route as EzyrankRouteImport } from './routes/ezyrank'
+import { Route as EzyperformanceRouteImport } from './routes/ezyperformance'
+import { Route as EzyaiRouteImport } from './routes/ezyai'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as ContentRouteImport } from './routes/content'
 import { Route as AssistantRouteImport } from './routes/assistant'
+import { Route as AppsRouteImport } from './routes/apps'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TasksIdRouteImport } from './routes/tasks.$id'
 import { Route as SettingsApiRouteImport } from './routes/settings.api'
+import { Route as RTokenRouteImport } from './routes/r.$token'
 import { Route as CustomersIdRouteImport } from './routes/customers.$id'
 import { Route as ContentIdRouteImport } from './routes/content.$id'
-import { Route as ApiContentRefreshBriefRouteImport } from './routes/api/content.refresh-brief'
 import { Route as ApiClaudeSessionsRouteImport } from './routes/api/claude-sessions'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
@@ -43,6 +43,7 @@ import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]
 import { Route as ApiWordpressPublishRouteImport } from './routes/api/wordpress.publish'
 import { Route as ApiWordpressPostsRouteImport } from './routes/api/wordpress.posts'
 import { Route as ApiWordpressConnectionRouteImport } from './routes/api/wordpress.connection'
+import { Route as ApiPublicReportRouteImport } from './routes/api/public.report'
 import { Route as ApiPerplexitySearchRouteImport } from './routes/api/perplexity.search'
 import { Route as ApiLiveStatusRouteImport } from './routes/api/live.status'
 import { Route as ApiGooglePagespeedRouteImport } from './routes/api/google.pagespeed'
@@ -60,6 +61,7 @@ import { Route as ApiGoogleAdsDataRouteImport } from './routes/api/google.ads-da
 import { Route as ApiGoogleAdsCustomersRouteImport } from './routes/api/google.ads-customers'
 import { Route as ApiGoogleAdsAutopilotRunRouteImport } from './routes/api/google.ads-autopilot-run'
 import { Route as ApiGoogleAdsAutopilotDecideRouteImport } from './routes/api/google.ads-autopilot-decide'
+import { Route as ApiContentRefreshBriefRouteImport } from './routes/api/content.refresh-brief'
 import { Route as ApiCanonryCreateProjectRouteImport } from './routes/api/canonry.create-project'
 import { Route as ApiAworkUsersRouteImport } from './routes/api/awork.users'
 import { Route as ApiAworkTasksRouteImport } from './routes/api/awork.tasks'
@@ -71,41 +73,39 @@ import { Route as ApiAgentTemplatesRouteImport } from './routes/api/agent.templa
 import { Route as ApiAgentRunsRouteImport } from './routes/api/agent.runs'
 import { Route as ApiAgentRunAgentRouteImport } from './routes/api/agent.run-agent'
 import { Route as ApiAgentRunRouteImport } from './routes/api/agent.run'
+import { Route as ApiAgentReaktRouteImport } from './routes/api/agent.reakt'
 import { Route as ApiAgentProtocolRouteImport } from './routes/api/agent.protocol'
+import { Route as ApiAgentPilotRouteImport } from './routes/api/agent.pilot'
 import { Route as ApiAgentMemoryRouteImport } from './routes/api/agent.memory'
 import { Route as ApiAgentJobRouteImport } from './routes/api/agent.job'
-import { Route as ApiAgentPilotRouteImport } from './routes/api/agent.pilot'
 import { Route as ApiAgentCopilotRouteImport } from './routes/api/agent.copilot'
 import { Route as ApiAgentApprovalsRouteImport } from './routes/api/agent.approvals'
 import { Route as ApiAgentAgentsRouteImport } from './routes/api/agent.agents'
-import { Route as ApiPublicReportRouteImport } from './routes/api/public.report'
-import { Route as RTokenRouteImport } from './routes/r.$token'
-import { Route as ApiAdminAiCrawlerIngestRouteImport } from './routes/api/admin.ai-crawler-ingest'
-import { Route as ApiAgentReaktRouteImport } from './routes/api/agent.reakt'
 import { Route as ApiAdminWpPublishRouteImport } from './routes/api/admin.wp-publish'
 import { Route as ApiAdminWpDeployRouteImport } from './routes/api/admin.wp-deploy'
+import { Route as ApiAdminTrafficOverviewRouteImport } from './routes/api/admin.traffic-overview'
 import { Route as ApiAdminTeamRouteImport } from './routes/api/admin.team'
+import { Route as ApiAdminSiteHealthRouteImport } from './routes/api/admin.site-health'
 import { Route as ApiAdminSetCanonryProjectRouteImport } from './routes/api/admin.set-canonry-project'
 import { Route as ApiAdminRankSnapshotRouteImport } from './routes/api/admin.rank-snapshot'
 import { Route as ApiAdminPopulateRouteImport } from './routes/api/admin.populate'
 import { Route as ApiAdminOnboardingSnapshotRouteImport } from './routes/api/admin.onboarding-snapshot'
 import { Route as ApiAdminOnboardingPendingRouteImport } from './routes/api/admin.onboarding-pending'
+import { Route as ApiAdminLlmTrafficRouteImport } from './routes/api/admin.llm-traffic'
 import { Route as ApiAdminLlmResponsesRouteImport } from './routes/api/admin.llm-responses'
 import { Route as ApiAdminGtmRouteImport } from './routes/api/admin.gtm'
 import { Route as ApiAdminGbpRouteImport } from './routes/api/admin.gbp'
+import { Route as ApiAdminGa4ConversionsRouteImport } from './routes/api/admin.ga4-conversions'
 import { Route as ApiAdminEwwwProvisionRouteImport } from './routes/api/admin.ewww-provision'
 import { Route as ApiAdminContentSyncRouteImport } from './routes/api/admin.content-sync'
 import { Route as ApiAdminContentNoteRouteImport } from './routes/api/admin.content-note'
-import { Route as ApiAdminClientFlagsRouteImport } from './routes/api/admin.client-flags'
-import { Route as ApiAdminGa4ConversionsRouteImport } from './routes/api/admin.ga4-conversions'
-import { Route as ApiAdminLlmTrafficRouteImport } from './routes/api/admin.llm-traffic'
-import { Route as ApiAdminSiteHealthRouteImport } from './routes/api/admin.site-health'
-import { Route as ApiAdminTrafficOverviewRouteImport } from './routes/api/admin.traffic-overview'
 import { Route as ApiAdminContentDecisionRouteImport } from './routes/api/admin.content-decision'
 import { Route as ApiAdminClientMetricsRouteImport } from './routes/api/admin.client-metrics'
+import { Route as ApiAdminClientFlagsRouteImport } from './routes/api/admin.client-flags'
 import { Route as ApiAdminClientDomainsRouteImport } from './routes/api/admin.client-domains'
 import { Route as ApiAdminClientContextRouteImport } from './routes/api/admin.client-context'
 import { Route as ApiAdminAivisSyncRouteImport } from './routes/api/admin.aivis-sync'
+import { Route as ApiAdminAiCrawlerIngestRouteImport } from './routes/api/admin.ai-crawler-ingest'
 import { Route as ApiAdminAiCitationsRouteImport } from './routes/api/admin.ai-citations'
 import { Route as ApiAdminAgentRunRouteImport } from './routes/api/admin.agent-run'
 import { Route as ApiAdminAdsSemanticNegativesRouteImport } from './routes/api/admin.ads-semantic-negatives'
@@ -145,6 +145,11 @@ const SetPasswordRoute = SetPasswordRouteImport.update({
   path: '/set-password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ReaktRoute = ReaktRouteImport.update({
+  id: '/reakt',
+  path: '/reakt',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PilotRoute = PilotRouteImport.update({
   id: '/pilot',
   path: '/pilot',
@@ -158,36 +163,6 @@ const McpRoute = McpRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AppsRoute = AppsRouteImport.update({
-  id: '/apps',
-  path: '/apps',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EzyaiRoute = EzyaiRouteImport.update({
-  id: '/ezyai',
-  path: '/ezyai',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EzyrankRoute = EzyrankRouteImport.update({
-  id: '/ezyrank',
-  path: '/ezyrank',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EzyperformanceRoute = EzyperformanceRouteImport.update({
-  id: '/ezyperformance',
-  path: '/ezyperformance',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ReaktRoute = ReaktRouteImport.update({
-  id: '/reakt',
-  path: '/reakt',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminRoute = AdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LlmUeberblickRoute = LlmUeberblickRouteImport.update({
@@ -210,6 +185,21 @@ const GeoRoute = GeoRouteImport.update({
   path: '/geo',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EzyrankRoute = EzyrankRouteImport.update({
+  id: '/ezyrank',
+  path: '/ezyrank',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EzyperformanceRoute = EzyperformanceRouteImport.update({
+  id: '/ezyperformance',
+  path: '/ezyperformance',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EzyaiRoute = EzyaiRouteImport.update({
+  id: '/ezyai',
+  path: '/ezyai',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -230,6 +220,16 @@ const AssistantRoute = AssistantRouteImport.update({
   path: '/assistant',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppsRoute = AppsRouteImport.update({
+  id: '/apps',
+  path: '/apps',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -245,6 +245,11 @@ const SettingsApiRoute = SettingsApiRouteImport.update({
   path: '/api',
   getParentRoute: () => SettingsRoute,
 } as any)
+const RTokenRoute = RTokenRouteImport.update({
+  id: '/r/$token',
+  path: '/r/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CustomersIdRoute = CustomersIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -255,20 +260,15 @@ const ContentIdRoute = ContentIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => ContentRoute,
 } as any)
-const ApiContentRefreshBriefRoute = ApiContentRefreshBriefRouteImport.update({
-  id: '/api/content/refresh-brief',
-  path: '/api/content/refresh-brief',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiClaudeSessionsRoute = ApiClaudeSessionsRouteImport.update({
   id: '/api/claude-sessions',
   path: '/api/claude-sessions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminUsersRoute = AdminUsersRouteImport.update({
-  id: '/admin/users',
-  path: '/admin/users',
-  getParentRoute: () => rootRouteImport,
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AdminRoute,
 } as any)
 const Char91DotwellKnownChar93OauthProtectedResourceRoute =
   Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
@@ -295,6 +295,11 @@ const ApiWordpressPostsRoute = ApiWordpressPostsRouteImport.update({
 const ApiWordpressConnectionRoute = ApiWordpressConnectionRouteImport.update({
   id: '/api/wordpress/connection',
   path: '/api/wordpress/connection',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicReportRoute = ApiPublicReportRouteImport.update({
+  id: '/api/public/report',
+  path: '/api/public/report',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPerplexitySearchRoute = ApiPerplexitySearchRouteImport.update({
@@ -385,6 +390,11 @@ const ApiGoogleAdsAutopilotDecideRoute =
     path: '/api/google/ads-autopilot-decide',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiContentRefreshBriefRoute = ApiContentRefreshBriefRouteImport.update({
+  id: '/api/content/refresh-brief',
+  path: '/api/content/refresh-brief',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCanonryCreateProjectRoute = ApiCanonryCreateProjectRouteImport.update({
   id: '/api/canonry/create-project',
   path: '/api/canonry/create-project',
@@ -440,9 +450,19 @@ const ApiAgentRunRoute = ApiAgentRunRouteImport.update({
   path: '/api/agent/run',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAgentReaktRoute = ApiAgentReaktRouteImport.update({
+  id: '/api/agent/reakt',
+  path: '/api/agent/reakt',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAgentProtocolRoute = ApiAgentProtocolRouteImport.update({
   id: '/api/agent/protocol',
   path: '/api/agent/protocol',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAgentPilotRoute = ApiAgentPilotRouteImport.update({
+  id: '/api/agent/pilot',
+  path: '/api/agent/pilot',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAgentMemoryRoute = ApiAgentMemoryRouteImport.update({
@@ -455,11 +475,6 @@ const ApiAgentJobRoute = ApiAgentJobRouteImport.update({
   path: '/api/agent/job',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAgentPilotRoute = ApiAgentPilotRouteImport.update({
-  id: '/api/agent/pilot',
-  path: '/api/agent/pilot',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiAgentCopilotRoute = ApiAgentCopilotRouteImport.update({
   id: '/api/agent/copilot',
   path: '/api/agent/copilot',
@@ -468,26 +483,6 @@ const ApiAgentCopilotRoute = ApiAgentCopilotRouteImport.update({
 const ApiAgentApprovalsRoute = ApiAgentApprovalsRouteImport.update({
   id: '/api/agent/approvals',
   path: '/api/agent/approvals',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAgentReaktRoute = ApiAgentReaktRouteImport.update({
-  id: '/api/agent/reakt',
-  path: '/api/agent/reakt',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAdminAiCrawlerIngestRoute = ApiAdminAiCrawlerIngestRouteImport.update({
-  id: '/api/admin/ai-crawler-ingest',
-  path: '/api/admin/ai-crawler-ingest',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicReportRoute = ApiPublicReportRouteImport.update({
-  id: '/api/public/report',
-  path: '/api/public/report',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RTokenRoute = RTokenRouteImport.update({
-  id: '/r/$token',
-  path: '/r/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAgentAgentsRoute = ApiAgentAgentsRouteImport.update({
@@ -505,9 +500,19 @@ const ApiAdminWpDeployRoute = ApiAdminWpDeployRouteImport.update({
   path: '/api/admin/wp-deploy',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminTrafficOverviewRoute = ApiAdminTrafficOverviewRouteImport.update({
+  id: '/api/admin/traffic-overview',
+  path: '/api/admin/traffic-overview',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminTeamRoute = ApiAdminTeamRouteImport.update({
   id: '/api/admin/team',
   path: '/api/admin/team',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminSiteHealthRoute = ApiAdminSiteHealthRouteImport.update({
+  id: '/api/admin/site-health',
+  path: '/api/admin/site-health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminSetCanonryProjectRoute =
@@ -538,6 +543,11 @@ const ApiAdminOnboardingPendingRoute =
     path: '/api/admin/onboarding-pending',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAdminLlmTrafficRoute = ApiAdminLlmTrafficRouteImport.update({
+  id: '/api/admin/llm-traffic',
+  path: '/api/admin/llm-traffic',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminLlmResponsesRoute = ApiAdminLlmResponsesRouteImport.update({
   id: '/api/admin/llm-responses',
   path: '/api/admin/llm-responses',
@@ -551,6 +561,11 @@ const ApiAdminGtmRoute = ApiAdminGtmRouteImport.update({
 const ApiAdminGbpRoute = ApiAdminGbpRouteImport.update({
   id: '/api/admin/gbp',
   path: '/api/admin/gbp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminGa4ConversionsRoute = ApiAdminGa4ConversionsRouteImport.update({
+  id: '/api/admin/ga4-conversions',
+  path: '/api/admin/ga4-conversions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminEwwwProvisionRoute = ApiAdminEwwwProvisionRouteImport.update({
@@ -568,31 +583,6 @@ const ApiAdminContentNoteRoute = ApiAdminContentNoteRouteImport.update({
   path: '/api/admin/content-note',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAdminClientFlagsRoute = ApiAdminClientFlagsRouteImport.update({
-  id: '/api/admin/client-flags',
-  path: '/api/admin/client-flags',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAdminGa4ConversionsRoute = ApiAdminGa4ConversionsRouteImport.update({
-  id: '/api/admin/ga4-conversions',
-  path: '/api/admin/ga4-conversions',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAdminLlmTrafficRoute = ApiAdminLlmTrafficRouteImport.update({
-  id: '/api/admin/llm-traffic',
-  path: '/api/admin/llm-traffic',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAdminSiteHealthRoute = ApiAdminSiteHealthRouteImport.update({
-  id: '/api/admin/site-health',
-  path: '/api/admin/site-health',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAdminTrafficOverviewRoute = ApiAdminTrafficOverviewRouteImport.update({
-  id: '/api/admin/traffic-overview',
-  path: '/api/admin/traffic-overview',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiAdminContentDecisionRoute = ApiAdminContentDecisionRouteImport.update({
   id: '/api/admin/content-decision',
   path: '/api/admin/content-decision',
@@ -601,6 +591,11 @@ const ApiAdminContentDecisionRoute = ApiAdminContentDecisionRouteImport.update({
 const ApiAdminClientMetricsRoute = ApiAdminClientMetricsRouteImport.update({
   id: '/api/admin/client-metrics',
   path: '/api/admin/client-metrics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminClientFlagsRoute = ApiAdminClientFlagsRouteImport.update({
+  id: '/api/admin/client-flags',
+  path: '/api/admin/client-flags',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminClientDomainsRoute = ApiAdminClientDomainsRouteImport.update({
@@ -616,6 +611,11 @@ const ApiAdminClientContextRoute = ApiAdminClientContextRouteImport.update({
 const ApiAdminAivisSyncRoute = ApiAdminAivisSyncRouteImport.update({
   id: '/api/admin/aivis-sync',
   path: '/api/admin/aivis-sync',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminAiCrawlerIngestRoute = ApiAdminAiCrawlerIngestRouteImport.update({
+  id: '/api/admin/ai-crawler-ingest',
+  path: '/api/admin/ai-crawler-ingest',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminAiCitationsRoute = ApiAdminAiCitationsRouteImport.update({
@@ -720,23 +720,23 @@ const ApiGoogleOauthStartRoute = ApiGoogleOauthStartRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
+  '/apps': typeof AppsRoute
   '/assistant': typeof AssistantRoute
   '/content': typeof ContentRouteWithChildren
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
+  '/ezyai': typeof EzyaiRoute
+  '/ezyperformance': typeof EzyperformanceRoute
+  '/ezyrank': typeof EzyrankRoute
   '/geo': typeof GeoRoute
   '/github-status': typeof GithubStatusRoute
   '/health': typeof HealthRoute
-  '/apps': typeof AppsRoute
-  '/ezyai': typeof EzyaiRoute
-  '/ezyrank': typeof EzyrankRoute
-  '/ezyperformance': typeof EzyperformanceRoute
-  '/reakt': typeof ReaktRoute
-  '/admin': typeof AdminRoute
   '/llm-ueberblick': typeof LlmUeberblickRoute
-  '/pilot': typeof PilotRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
+  '/pilot': typeof PilotRoute
+  '/reakt': typeof ReaktRoute
   '/set-password': typeof SetPasswordRoute
   '/settings': typeof SettingsRouteWithChildren
   '/signup': typeof SignupRoute
@@ -745,9 +745,9 @@ export interface FileRoutesByFullPath {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/users': typeof AdminUsersRoute
   '/api/claude-sessions': typeof ApiClaudeSessionsRoute
-  '/api/content/refresh-brief': typeof ApiContentRefreshBriefRoute
   '/content/$id': typeof ContentIdRoute
   '/customers/$id': typeof CustomersIdRoute
+  '/r/$token': typeof RTokenRoute
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -765,41 +765,39 @@ export interface FileRoutesByFullPath {
   '/api/admin/ads-semantic-negatives': typeof ApiAdminAdsSemanticNegativesRoute
   '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
   '/api/admin/ai-citations': typeof ApiAdminAiCitationsRoute
+  '/api/admin/ai-crawler-ingest': typeof ApiAdminAiCrawlerIngestRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-context': typeof ApiAdminClientContextRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
+  '/api/admin/client-flags': typeof ApiAdminClientFlagsRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
   '/api/admin/content-decision': typeof ApiAdminContentDecisionRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
-  '/api/admin/client-flags': typeof ApiAdminClientFlagsRoute
-  '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
-  '/api/admin/llm-traffic': typeof ApiAdminLlmTrafficRoute
-  '/api/admin/site-health': typeof ApiAdminSiteHealthRoute
-  '/api/admin/traffic-overview': typeof ApiAdminTrafficOverviewRoute
   '/api/admin/content-sync': typeof ApiAdminContentSyncRoute
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
+  '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/llm-responses': typeof ApiAdminLlmResponsesRoute
+  '/api/admin/llm-traffic': typeof ApiAdminLlmTrafficRoute
   '/api/admin/onboarding-pending': typeof ApiAdminOnboardingPendingRoute
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
+  '/api/admin/site-health': typeof ApiAdminSiteHealthRoute
   '/api/admin/team': typeof ApiAdminTeamRoute
+  '/api/admin/traffic-overview': typeof ApiAdminTrafficOverviewRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
-  '/api/agent/reakt': typeof ApiAgentReaktRoute
-  '/api/admin/ai-crawler-ingest': typeof ApiAdminAiCrawlerIngestRoute
-  '/api/public/report': typeof ApiPublicReportRoute
-  '/r/$token': typeof RTokenRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
   '/api/agent/approvals': typeof ApiAgentApprovalsRoute
   '/api/agent/copilot': typeof ApiAgentCopilotRoute
-  '/api/agent/pilot': typeof ApiAgentPilotRoute
   '/api/agent/job': typeof ApiAgentJobRoute
   '/api/agent/memory': typeof ApiAgentMemoryRoute
+  '/api/agent/pilot': typeof ApiAgentPilotRoute
   '/api/agent/protocol': typeof ApiAgentProtocolRoute
+  '/api/agent/reakt': typeof ApiAgentReaktRoute
   '/api/agent/run': typeof ApiAgentRunRoute
   '/api/agent/run-agent': typeof ApiAgentRunAgentRoute
   '/api/agent/runs': typeof ApiAgentRunsRoute
@@ -811,6 +809,7 @@ export interface FileRoutesByFullPath {
   '/api/awork/tasks': typeof ApiAworkTasksRoute
   '/api/awork/users': typeof ApiAworkUsersRoute
   '/api/canonry/create-project': typeof ApiCanonryCreateProjectRoute
+  '/api/content/refresh-brief': typeof ApiContentRefreshBriefRoute
   '/api/google/ads-autopilot-decide': typeof ApiGoogleAdsAutopilotDecideRoute
   '/api/google/ads-autopilot-run': typeof ApiGoogleAdsAutopilotRunRoute
   '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
@@ -828,6 +827,7 @@ export interface FileRoutesByFullPath {
   '/api/google/pagespeed': typeof ApiGooglePagespeedRoute
   '/api/live/status': typeof ApiLiveStatusRoute
   '/api/perplexity/search': typeof ApiPerplexitySearchRoute
+  '/api/public/report': typeof ApiPublicReportRoute
   '/api/wordpress/connection': typeof ApiWordpressConnectionRoute
   '/api/wordpress/posts': typeof ApiWordpressPostsRoute
   '/api/wordpress/publish': typeof ApiWordpressPublishRoute
@@ -837,23 +837,23 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
+  '/apps': typeof AppsRoute
   '/assistant': typeof AssistantRoute
   '/content': typeof ContentRouteWithChildren
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
+  '/ezyai': typeof EzyaiRoute
+  '/ezyperformance': typeof EzyperformanceRoute
+  '/ezyrank': typeof EzyrankRoute
   '/geo': typeof GeoRoute
   '/github-status': typeof GithubStatusRoute
   '/health': typeof HealthRoute
-  '/apps': typeof AppsRoute
-  '/ezyai': typeof EzyaiRoute
-  '/ezyrank': typeof EzyrankRoute
-  '/ezyperformance': typeof EzyperformanceRoute
-  '/reakt': typeof ReaktRoute
-  '/admin': typeof AdminRoute
   '/llm-ueberblick': typeof LlmUeberblickRoute
-  '/pilot': typeof PilotRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
+  '/pilot': typeof PilotRoute
+  '/reakt': typeof ReaktRoute
   '/set-password': typeof SetPasswordRoute
   '/settings': typeof SettingsRouteWithChildren
   '/signup': typeof SignupRoute
@@ -862,9 +862,9 @@ export interface FileRoutesByTo {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/users': typeof AdminUsersRoute
   '/api/claude-sessions': typeof ApiClaudeSessionsRoute
-  '/api/content/refresh-brief': typeof ApiContentRefreshBriefRoute
   '/content/$id': typeof ContentIdRoute
   '/customers/$id': typeof CustomersIdRoute
+  '/r/$token': typeof RTokenRoute
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -882,41 +882,39 @@ export interface FileRoutesByTo {
   '/api/admin/ads-semantic-negatives': typeof ApiAdminAdsSemanticNegativesRoute
   '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
   '/api/admin/ai-citations': typeof ApiAdminAiCitationsRoute
+  '/api/admin/ai-crawler-ingest': typeof ApiAdminAiCrawlerIngestRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-context': typeof ApiAdminClientContextRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
+  '/api/admin/client-flags': typeof ApiAdminClientFlagsRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
   '/api/admin/content-decision': typeof ApiAdminContentDecisionRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
-  '/api/admin/client-flags': typeof ApiAdminClientFlagsRoute
-  '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
-  '/api/admin/llm-traffic': typeof ApiAdminLlmTrafficRoute
-  '/api/admin/site-health': typeof ApiAdminSiteHealthRoute
-  '/api/admin/traffic-overview': typeof ApiAdminTrafficOverviewRoute
   '/api/admin/content-sync': typeof ApiAdminContentSyncRoute
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
+  '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/llm-responses': typeof ApiAdminLlmResponsesRoute
+  '/api/admin/llm-traffic': typeof ApiAdminLlmTrafficRoute
   '/api/admin/onboarding-pending': typeof ApiAdminOnboardingPendingRoute
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
+  '/api/admin/site-health': typeof ApiAdminSiteHealthRoute
   '/api/admin/team': typeof ApiAdminTeamRoute
+  '/api/admin/traffic-overview': typeof ApiAdminTrafficOverviewRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
-  '/api/agent/reakt': typeof ApiAgentReaktRoute
-  '/api/admin/ai-crawler-ingest': typeof ApiAdminAiCrawlerIngestRoute
-  '/api/public/report': typeof ApiPublicReportRoute
-  '/r/$token': typeof RTokenRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
   '/api/agent/approvals': typeof ApiAgentApprovalsRoute
   '/api/agent/copilot': typeof ApiAgentCopilotRoute
-  '/api/agent/pilot': typeof ApiAgentPilotRoute
   '/api/agent/job': typeof ApiAgentJobRoute
   '/api/agent/memory': typeof ApiAgentMemoryRoute
+  '/api/agent/pilot': typeof ApiAgentPilotRoute
   '/api/agent/protocol': typeof ApiAgentProtocolRoute
+  '/api/agent/reakt': typeof ApiAgentReaktRoute
   '/api/agent/run': typeof ApiAgentRunRoute
   '/api/agent/run-agent': typeof ApiAgentRunAgentRoute
   '/api/agent/runs': typeof ApiAgentRunsRoute
@@ -928,6 +926,7 @@ export interface FileRoutesByTo {
   '/api/awork/tasks': typeof ApiAworkTasksRoute
   '/api/awork/users': typeof ApiAworkUsersRoute
   '/api/canonry/create-project': typeof ApiCanonryCreateProjectRoute
+  '/api/content/refresh-brief': typeof ApiContentRefreshBriefRoute
   '/api/google/ads-autopilot-decide': typeof ApiGoogleAdsAutopilotDecideRoute
   '/api/google/ads-autopilot-run': typeof ApiGoogleAdsAutopilotRunRoute
   '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
@@ -945,6 +944,7 @@ export interface FileRoutesByTo {
   '/api/google/pagespeed': typeof ApiGooglePagespeedRoute
   '/api/live/status': typeof ApiLiveStatusRoute
   '/api/perplexity/search': typeof ApiPerplexitySearchRoute
+  '/api/public/report': typeof ApiPublicReportRoute
   '/api/wordpress/connection': typeof ApiWordpressConnectionRoute
   '/api/wordpress/posts': typeof ApiWordpressPostsRoute
   '/api/wordpress/publish': typeof ApiWordpressPublishRoute
@@ -955,23 +955,23 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
+  '/apps': typeof AppsRoute
   '/assistant': typeof AssistantRoute
   '/content': typeof ContentRouteWithChildren
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
+  '/ezyai': typeof EzyaiRoute
+  '/ezyperformance': typeof EzyperformanceRoute
+  '/ezyrank': typeof EzyrankRoute
   '/geo': typeof GeoRoute
   '/github-status': typeof GithubStatusRoute
   '/health': typeof HealthRoute
-  '/apps': typeof AppsRoute
-  '/ezyai': typeof EzyaiRoute
-  '/ezyrank': typeof EzyrankRoute
-  '/ezyperformance': typeof EzyperformanceRoute
-  '/reakt': typeof ReaktRoute
-  '/admin': typeof AdminRoute
   '/llm-ueberblick': typeof LlmUeberblickRoute
-  '/pilot': typeof PilotRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
+  '/pilot': typeof PilotRoute
+  '/reakt': typeof ReaktRoute
   '/set-password': typeof SetPasswordRoute
   '/settings': typeof SettingsRouteWithChildren
   '/signup': typeof SignupRoute
@@ -980,9 +980,9 @@ export interface FileRoutesById {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/users': typeof AdminUsersRoute
   '/api/claude-sessions': typeof ApiClaudeSessionsRoute
-  '/api/content/refresh-brief': typeof ApiContentRefreshBriefRoute
   '/content/$id': typeof ContentIdRoute
   '/customers/$id': typeof CustomersIdRoute
+  '/r/$token': typeof RTokenRoute
   '/settings/api': typeof SettingsApiRoute
   '/tasks/$id': typeof TasksIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -1000,41 +1000,39 @@ export interface FileRoutesById {
   '/api/admin/ads-semantic-negatives': typeof ApiAdminAdsSemanticNegativesRoute
   '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
   '/api/admin/ai-citations': typeof ApiAdminAiCitationsRoute
+  '/api/admin/ai-crawler-ingest': typeof ApiAdminAiCrawlerIngestRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-context': typeof ApiAdminClientContextRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
+  '/api/admin/client-flags': typeof ApiAdminClientFlagsRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
   '/api/admin/content-decision': typeof ApiAdminContentDecisionRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
-  '/api/admin/client-flags': typeof ApiAdminClientFlagsRoute
-  '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
-  '/api/admin/llm-traffic': typeof ApiAdminLlmTrafficRoute
-  '/api/admin/site-health': typeof ApiAdminSiteHealthRoute
-  '/api/admin/traffic-overview': typeof ApiAdminTrafficOverviewRoute
   '/api/admin/content-sync': typeof ApiAdminContentSyncRoute
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
+  '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/llm-responses': typeof ApiAdminLlmResponsesRoute
+  '/api/admin/llm-traffic': typeof ApiAdminLlmTrafficRoute
   '/api/admin/onboarding-pending': typeof ApiAdminOnboardingPendingRoute
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
+  '/api/admin/site-health': typeof ApiAdminSiteHealthRoute
   '/api/admin/team': typeof ApiAdminTeamRoute
+  '/api/admin/traffic-overview': typeof ApiAdminTrafficOverviewRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
-  '/api/agent/reakt': typeof ApiAgentReaktRoute
-  '/api/admin/ai-crawler-ingest': typeof ApiAdminAiCrawlerIngestRoute
-  '/api/public/report': typeof ApiPublicReportRoute
-  '/r/$token': typeof RTokenRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
   '/api/agent/approvals': typeof ApiAgentApprovalsRoute
   '/api/agent/copilot': typeof ApiAgentCopilotRoute
-  '/api/agent/pilot': typeof ApiAgentPilotRoute
   '/api/agent/job': typeof ApiAgentJobRoute
   '/api/agent/memory': typeof ApiAgentMemoryRoute
+  '/api/agent/pilot': typeof ApiAgentPilotRoute
   '/api/agent/protocol': typeof ApiAgentProtocolRoute
+  '/api/agent/reakt': typeof ApiAgentReaktRoute
   '/api/agent/run': typeof ApiAgentRunRoute
   '/api/agent/run-agent': typeof ApiAgentRunAgentRoute
   '/api/agent/runs': typeof ApiAgentRunsRoute
@@ -1046,6 +1044,7 @@ export interface FileRoutesById {
   '/api/awork/tasks': typeof ApiAworkTasksRoute
   '/api/awork/users': typeof ApiAworkUsersRoute
   '/api/canonry/create-project': typeof ApiCanonryCreateProjectRoute
+  '/api/content/refresh-brief': typeof ApiContentRefreshBriefRoute
   '/api/google/ads-autopilot-decide': typeof ApiGoogleAdsAutopilotDecideRoute
   '/api/google/ads-autopilot-run': typeof ApiGoogleAdsAutopilotRunRoute
   '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
@@ -1063,6 +1062,7 @@ export interface FileRoutesById {
   '/api/google/pagespeed': typeof ApiGooglePagespeedRoute
   '/api/live/status': typeof ApiLiveStatusRoute
   '/api/perplexity/search': typeof ApiPerplexitySearchRoute
+  '/api/public/report': typeof ApiPublicReportRoute
   '/api/wordpress/connection': typeof ApiWordpressConnectionRoute
   '/api/wordpress/posts': typeof ApiWordpressPostsRoute
   '/api/wordpress/publish': typeof ApiWordpressPublishRoute
@@ -1074,23 +1074,23 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
+    | '/apps'
     | '/assistant'
     | '/content'
     | '/customers'
     | '/dashboard'
+    | '/ezyai'
+    | '/ezyperformance'
+    | '/ezyrank'
     | '/geo'
     | '/github-status'
     | '/health'
-    | '/apps'
-    | '/ezyai'
-    | '/ezyrank'
-    | '/ezyperformance'
-    | '/reakt'
-    | '/admin'
     | '/llm-ueberblick'
-    | '/pilot'
     | '/login'
     | '/mcp'
+    | '/pilot'
+    | '/reakt'
     | '/set-password'
     | '/settings'
     | '/signup'
@@ -1099,9 +1099,9 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/admin/users'
     | '/api/claude-sessions'
-    | '/api/content/refresh-brief'
     | '/content/$id'
     | '/customers/$id'
+    | '/r/$token'
     | '/settings/api'
     | '/tasks/$id'
     | '/.lovable/oauth/consent'
@@ -1119,41 +1119,39 @@ export interface FileRouteTypes {
     | '/api/admin/ads-semantic-negatives'
     | '/api/admin/agent-run'
     | '/api/admin/ai-citations'
+    | '/api/admin/ai-crawler-ingest'
     | '/api/admin/aivis-sync'
     | '/api/admin/client-context'
     | '/api/admin/client-domains'
+    | '/api/admin/client-flags'
     | '/api/admin/client-metrics'
     | '/api/admin/content-decision'
     | '/api/admin/content-note'
-    | '/api/admin/client-flags'
-    | '/api/admin/ga4-conversions'
-    | '/api/admin/llm-traffic'
-    | '/api/admin/site-health'
-    | '/api/admin/traffic-overview'
     | '/api/admin/content-sync'
     | '/api/admin/ewww-provision'
+    | '/api/admin/ga4-conversions'
     | '/api/admin/gbp'
     | '/api/admin/gtm'
     | '/api/admin/llm-responses'
+    | '/api/admin/llm-traffic'
     | '/api/admin/onboarding-pending'
     | '/api/admin/onboarding-snapshot'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
     | '/api/admin/set-canonry-project'
+    | '/api/admin/site-health'
     | '/api/admin/team'
+    | '/api/admin/traffic-overview'
     | '/api/admin/wp-deploy'
     | '/api/admin/wp-publish'
-    | '/api/agent/reakt'
-    | '/api/admin/ai-crawler-ingest'
-    | '/api/public/report'
-    | '/r/$token'
     | '/api/agent/agents'
     | '/api/agent/approvals'
     | '/api/agent/copilot'
-    | '/api/agent/pilot'
     | '/api/agent/job'
     | '/api/agent/memory'
+    | '/api/agent/pilot'
     | '/api/agent/protocol'
+    | '/api/agent/reakt'
     | '/api/agent/run'
     | '/api/agent/run-agent'
     | '/api/agent/runs'
@@ -1165,6 +1163,7 @@ export interface FileRouteTypes {
     | '/api/awork/tasks'
     | '/api/awork/users'
     | '/api/canonry/create-project'
+    | '/api/content/refresh-brief'
     | '/api/google/ads-autopilot-decide'
     | '/api/google/ads-autopilot-run'
     | '/api/google/ads-customers'
@@ -1182,6 +1181,7 @@ export interface FileRouteTypes {
     | '/api/google/pagespeed'
     | '/api/live/status'
     | '/api/perplexity/search'
+    | '/api/public/report'
     | '/api/wordpress/connection'
     | '/api/wordpress/posts'
     | '/api/wordpress/publish'
@@ -1191,23 +1191,23 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin'
+    | '/apps'
     | '/assistant'
     | '/content'
     | '/customers'
     | '/dashboard'
+    | '/ezyai'
+    | '/ezyperformance'
+    | '/ezyrank'
     | '/geo'
     | '/github-status'
     | '/health'
-    | '/apps'
-    | '/ezyai'
-    | '/ezyrank'
-    | '/ezyperformance'
-    | '/reakt'
-    | '/admin'
     | '/llm-ueberblick'
-    | '/pilot'
     | '/login'
     | '/mcp'
+    | '/pilot'
+    | '/reakt'
     | '/set-password'
     | '/settings'
     | '/signup'
@@ -1216,9 +1216,9 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/admin/users'
     | '/api/claude-sessions'
-    | '/api/content/refresh-brief'
     | '/content/$id'
     | '/customers/$id'
+    | '/r/$token'
     | '/settings/api'
     | '/tasks/$id'
     | '/.lovable/oauth/consent'
@@ -1236,41 +1236,39 @@ export interface FileRouteTypes {
     | '/api/admin/ads-semantic-negatives'
     | '/api/admin/agent-run'
     | '/api/admin/ai-citations'
+    | '/api/admin/ai-crawler-ingest'
     | '/api/admin/aivis-sync'
     | '/api/admin/client-context'
     | '/api/admin/client-domains'
+    | '/api/admin/client-flags'
     | '/api/admin/client-metrics'
     | '/api/admin/content-decision'
     | '/api/admin/content-note'
-    | '/api/admin/client-flags'
-    | '/api/admin/ga4-conversions'
-    | '/api/admin/llm-traffic'
-    | '/api/admin/site-health'
-    | '/api/admin/traffic-overview'
     | '/api/admin/content-sync'
     | '/api/admin/ewww-provision'
+    | '/api/admin/ga4-conversions'
     | '/api/admin/gbp'
     | '/api/admin/gtm'
     | '/api/admin/llm-responses'
+    | '/api/admin/llm-traffic'
     | '/api/admin/onboarding-pending'
     | '/api/admin/onboarding-snapshot'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
     | '/api/admin/set-canonry-project'
+    | '/api/admin/site-health'
     | '/api/admin/team'
+    | '/api/admin/traffic-overview'
     | '/api/admin/wp-deploy'
     | '/api/admin/wp-publish'
-    | '/api/agent/reakt'
-    | '/api/admin/ai-crawler-ingest'
-    | '/api/public/report'
-    | '/r/$token'
     | '/api/agent/agents'
     | '/api/agent/approvals'
     | '/api/agent/copilot'
-    | '/api/agent/pilot'
     | '/api/agent/job'
     | '/api/agent/memory'
+    | '/api/agent/pilot'
     | '/api/agent/protocol'
+    | '/api/agent/reakt'
     | '/api/agent/run'
     | '/api/agent/run-agent'
     | '/api/agent/runs'
@@ -1282,6 +1280,7 @@ export interface FileRouteTypes {
     | '/api/awork/tasks'
     | '/api/awork/users'
     | '/api/canonry/create-project'
+    | '/api/content/refresh-brief'
     | '/api/google/ads-autopilot-decide'
     | '/api/google/ads-autopilot-run'
     | '/api/google/ads-customers'
@@ -1299,6 +1298,7 @@ export interface FileRouteTypes {
     | '/api/google/pagespeed'
     | '/api/live/status'
     | '/api/perplexity/search'
+    | '/api/public/report'
     | '/api/wordpress/connection'
     | '/api/wordpress/posts'
     | '/api/wordpress/publish'
@@ -1308,23 +1308,23 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/admin'
+    | '/apps'
     | '/assistant'
     | '/content'
     | '/customers'
     | '/dashboard'
+    | '/ezyai'
+    | '/ezyperformance'
+    | '/ezyrank'
     | '/geo'
     | '/github-status'
     | '/health'
-    | '/apps'
-    | '/ezyai'
-    | '/ezyrank'
-    | '/ezyperformance'
-    | '/reakt'
-    | '/admin'
     | '/llm-ueberblick'
-    | '/pilot'
     | '/login'
     | '/mcp'
+    | '/pilot'
+    | '/reakt'
     | '/set-password'
     | '/settings'
     | '/signup'
@@ -1333,9 +1333,9 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/admin/users'
     | '/api/claude-sessions'
-    | '/api/content/refresh-brief'
     | '/content/$id'
     | '/customers/$id'
+    | '/r/$token'
     | '/settings/api'
     | '/tasks/$id'
     | '/.lovable/oauth/consent'
@@ -1353,41 +1353,39 @@ export interface FileRouteTypes {
     | '/api/admin/ads-semantic-negatives'
     | '/api/admin/agent-run'
     | '/api/admin/ai-citations'
+    | '/api/admin/ai-crawler-ingest'
     | '/api/admin/aivis-sync'
     | '/api/admin/client-context'
     | '/api/admin/client-domains'
+    | '/api/admin/client-flags'
     | '/api/admin/client-metrics'
     | '/api/admin/content-decision'
     | '/api/admin/content-note'
-    | '/api/admin/client-flags'
-    | '/api/admin/ga4-conversions'
-    | '/api/admin/llm-traffic'
-    | '/api/admin/site-health'
-    | '/api/admin/traffic-overview'
     | '/api/admin/content-sync'
     | '/api/admin/ewww-provision'
+    | '/api/admin/ga4-conversions'
     | '/api/admin/gbp'
     | '/api/admin/gtm'
     | '/api/admin/llm-responses'
+    | '/api/admin/llm-traffic'
     | '/api/admin/onboarding-pending'
     | '/api/admin/onboarding-snapshot'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
     | '/api/admin/set-canonry-project'
+    | '/api/admin/site-health'
     | '/api/admin/team'
+    | '/api/admin/traffic-overview'
     | '/api/admin/wp-deploy'
     | '/api/admin/wp-publish'
-    | '/api/agent/reakt'
-    | '/api/admin/ai-crawler-ingest'
-    | '/api/public/report'
-    | '/r/$token'
     | '/api/agent/agents'
     | '/api/agent/approvals'
     | '/api/agent/copilot'
-    | '/api/agent/pilot'
     | '/api/agent/job'
     | '/api/agent/memory'
+    | '/api/agent/pilot'
     | '/api/agent/protocol'
+    | '/api/agent/reakt'
     | '/api/agent/run'
     | '/api/agent/run-agent'
     | '/api/agent/runs'
@@ -1399,6 +1397,7 @@ export interface FileRouteTypes {
     | '/api/awork/tasks'
     | '/api/awork/users'
     | '/api/canonry/create-project'
+    | '/api/content/refresh-brief'
     | '/api/google/ads-autopilot-decide'
     | '/api/google/ads-autopilot-run'
     | '/api/google/ads-customers'
@@ -1416,6 +1415,7 @@ export interface FileRouteTypes {
     | '/api/google/pagespeed'
     | '/api/live/status'
     | '/api/perplexity/search'
+    | '/api/public/report'
     | '/api/wordpress/connection'
     | '/api/wordpress/posts'
     | '/api/wordpress/publish'
@@ -1426,32 +1426,31 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRouteWithChildren
+  AppsRoute: typeof AppsRoute
   AssistantRoute: typeof AssistantRoute
   ContentRoute: typeof ContentRouteWithChildren
   CustomersRoute: typeof CustomersRouteWithChildren
   DashboardRoute: typeof DashboardRoute
+  EzyaiRoute: typeof EzyaiRoute
+  EzyperformanceRoute: typeof EzyperformanceRoute
+  EzyrankRoute: typeof EzyrankRoute
   GeoRoute: typeof GeoRoute
   GithubStatusRoute: typeof GithubStatusRoute
   HealthRoute: typeof HealthRoute
-  AppsRoute: typeof AppsRoute
-  EzyaiRoute: typeof EzyaiRoute
-  EzyrankRoute: typeof EzyrankRoute
-  EzyperformanceRoute: typeof EzyperformanceRoute
-  ReaktRoute: typeof ReaktRoute
-  AdminRoute: typeof AdminRoute
   LlmUeberblickRoute: typeof LlmUeberblickRoute
-  PilotRoute: typeof PilotRoute
   LoginRoute: typeof LoginRoute
   McpRoute: typeof McpRoute
+  PilotRoute: typeof PilotRoute
+  ReaktRoute: typeof ReaktRoute
   SetPasswordRoute: typeof SetPasswordRoute
   SettingsRoute: typeof SettingsRouteWithChildren
   SignupRoute: typeof SignupRoute
   TasksRoute: typeof TasksRouteWithChildren
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
-  AdminUsersRoute: typeof AdminUsersRoute
   ApiClaudeSessionsRoute: typeof ApiClaudeSessionsRoute
-  ApiContentRefreshBriefRoute: typeof ApiContentRefreshBriefRoute
+  RTokenRoute: typeof RTokenRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
   ApiAdminAdsAutopilotApprovalsRoute: typeof ApiAdminAdsAutopilotApprovalsRoute
@@ -1467,41 +1466,39 @@ export interface RootRouteChildren {
   ApiAdminAdsSemanticNegativesRoute: typeof ApiAdminAdsSemanticNegativesRoute
   ApiAdminAgentRunRoute: typeof ApiAdminAgentRunRoute
   ApiAdminAiCitationsRoute: typeof ApiAdminAiCitationsRoute
+  ApiAdminAiCrawlerIngestRoute: typeof ApiAdminAiCrawlerIngestRoute
   ApiAdminAivisSyncRoute: typeof ApiAdminAivisSyncRoute
   ApiAdminClientContextRoute: typeof ApiAdminClientContextRoute
   ApiAdminClientDomainsRoute: typeof ApiAdminClientDomainsRoute
+  ApiAdminClientFlagsRoute: typeof ApiAdminClientFlagsRoute
   ApiAdminClientMetricsRoute: typeof ApiAdminClientMetricsRoute
   ApiAdminContentDecisionRoute: typeof ApiAdminContentDecisionRoute
   ApiAdminContentNoteRoute: typeof ApiAdminContentNoteRoute
-  ApiAdminClientFlagsRoute: typeof ApiAdminClientFlagsRoute
-  ApiAdminGa4ConversionsRoute: typeof ApiAdminGa4ConversionsRoute
-  ApiAdminLlmTrafficRoute: typeof ApiAdminLlmTrafficRoute
-  ApiAdminSiteHealthRoute: typeof ApiAdminSiteHealthRoute
-  ApiAdminTrafficOverviewRoute: typeof ApiAdminTrafficOverviewRoute
   ApiAdminContentSyncRoute: typeof ApiAdminContentSyncRoute
   ApiAdminEwwwProvisionRoute: typeof ApiAdminEwwwProvisionRoute
+  ApiAdminGa4ConversionsRoute: typeof ApiAdminGa4ConversionsRoute
   ApiAdminGbpRoute: typeof ApiAdminGbpRoute
   ApiAdminGtmRoute: typeof ApiAdminGtmRoute
   ApiAdminLlmResponsesRoute: typeof ApiAdminLlmResponsesRoute
+  ApiAdminLlmTrafficRoute: typeof ApiAdminLlmTrafficRoute
   ApiAdminOnboardingPendingRoute: typeof ApiAdminOnboardingPendingRoute
   ApiAdminOnboardingSnapshotRoute: typeof ApiAdminOnboardingSnapshotRoute
   ApiAdminPopulateRoute: typeof ApiAdminPopulateRoute
   ApiAdminRankSnapshotRoute: typeof ApiAdminRankSnapshotRoute
   ApiAdminSetCanonryProjectRoute: typeof ApiAdminSetCanonryProjectRoute
+  ApiAdminSiteHealthRoute: typeof ApiAdminSiteHealthRoute
   ApiAdminTeamRoute: typeof ApiAdminTeamRoute
+  ApiAdminTrafficOverviewRoute: typeof ApiAdminTrafficOverviewRoute
   ApiAdminWpDeployRoute: typeof ApiAdminWpDeployRoute
   ApiAdminWpPublishRoute: typeof ApiAdminWpPublishRoute
   ApiAgentAgentsRoute: typeof ApiAgentAgentsRoute
-  ApiPublicReportRoute: typeof ApiPublicReportRoute
-  RTokenRoute: typeof RTokenRoute
-  ApiAdminAiCrawlerIngestRoute: typeof ApiAdminAiCrawlerIngestRoute
-  ApiAgentReaktRoute: typeof ApiAgentReaktRoute
   ApiAgentApprovalsRoute: typeof ApiAgentApprovalsRoute
   ApiAgentCopilotRoute: typeof ApiAgentCopilotRoute
-  ApiAgentPilotRoute: typeof ApiAgentPilotRoute
   ApiAgentJobRoute: typeof ApiAgentJobRoute
   ApiAgentMemoryRoute: typeof ApiAgentMemoryRoute
+  ApiAgentPilotRoute: typeof ApiAgentPilotRoute
   ApiAgentProtocolRoute: typeof ApiAgentProtocolRoute
+  ApiAgentReaktRoute: typeof ApiAgentReaktRoute
   ApiAgentRunRoute: typeof ApiAgentRunRoute
   ApiAgentRunAgentRoute: typeof ApiAgentRunAgentRoute
   ApiAgentRunsRoute: typeof ApiAgentRunsRoute
@@ -1513,6 +1510,7 @@ export interface RootRouteChildren {
   ApiAworkTasksRoute: typeof ApiAworkTasksRoute
   ApiAworkUsersRoute: typeof ApiAworkUsersRoute
   ApiCanonryCreateProjectRoute: typeof ApiCanonryCreateProjectRoute
+  ApiContentRefreshBriefRoute: typeof ApiContentRefreshBriefRoute
   ApiGoogleAdsAutopilotDecideRoute: typeof ApiGoogleAdsAutopilotDecideRoute
   ApiGoogleAdsAutopilotRunRoute: typeof ApiGoogleAdsAutopilotRunRoute
   ApiGoogleAdsCustomersRoute: typeof ApiGoogleAdsCustomersRoute
@@ -1530,6 +1528,7 @@ export interface RootRouteChildren {
   ApiGooglePagespeedRoute: typeof ApiGooglePagespeedRoute
   ApiLiveStatusRoute: typeof ApiLiveStatusRoute
   ApiPerplexitySearchRoute: typeof ApiPerplexitySearchRoute
+  ApiPublicReportRoute: typeof ApiPublicReportRoute
   ApiWordpressConnectionRoute: typeof ApiWordpressConnectionRoute
   ApiWordpressPostsRoute: typeof ApiWordpressPostsRoute
   ApiWordpressPublishRoute: typeof ApiWordpressPublishRoute
@@ -1568,6 +1567,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reakt': {
+      id: '/reakt'
+      path: '/reakt'
+      fullPath: '/reakt'
+      preLoaderRoute: typeof ReaktRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pilot': {
       id: '/pilot'
       path: '/pilot'
@@ -1587,48 +1593,6 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/apps': {
-      id: '/apps'
-      path: '/apps'
-      fullPath: '/apps'
-      preLoaderRoute: typeof AppsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/ezyai': {
-      id: '/ezyai'
-      path: '/ezyai'
-      fullPath: '/ezyai'
-      preLoaderRoute: typeof EzyaiRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/ezyrank': {
-      id: '/ezyrank'
-      path: '/ezyrank'
-      fullPath: '/ezyrank'
-      preLoaderRoute: typeof EzyrankRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/ezyperformance': {
-      id: '/ezyperformance'
-      path: '/ezyperformance'
-      fullPath: '/ezyperformance'
-      preLoaderRoute: typeof EzyperformanceRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reakt': {
-      id: '/reakt'
-      path: '/reakt'
-      fullPath: '/reakt'
-      preLoaderRoute: typeof ReaktRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin': {
-      id: '/admin'
-      path: '/admin'
-      fullPath: '/admin'
-      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/llm-ueberblick': {
@@ -1659,6 +1623,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GeoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ezyrank': {
+      id: '/ezyrank'
+      path: '/ezyrank'
+      fullPath: '/ezyrank'
+      preLoaderRoute: typeof EzyrankRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ezyperformance': {
+      id: '/ezyperformance'
+      path: '/ezyperformance'
+      fullPath: '/ezyperformance'
+      preLoaderRoute: typeof EzyperformanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ezyai': {
+      id: '/ezyai'
+      path: '/ezyai'
+      fullPath: '/ezyai'
+      preLoaderRoute: typeof EzyaiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard': {
       id: '/dashboard'
       path: '/dashboard'
@@ -1687,6 +1672,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AssistantRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/apps': {
+      id: '/apps'
+      path: '/apps'
+      fullPath: '/apps'
+      preLoaderRoute: typeof AppsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -1707,6 +1706,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/api'
       preLoaderRoute: typeof SettingsApiRouteImport
       parentRoute: typeof SettingsRoute
+    }
+    '/r/$token': {
+      id: '/r/$token'
+      path: '/r/$token'
+      fullPath: '/r/$token'
+      preLoaderRoute: typeof RTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/customers/$id': {
       id: '/customers/$id'
@@ -1729,19 +1735,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiClaudeSessionsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/content/refresh-brief': {
-      id: '/api/content/refresh-brief'
-      path: '/api/content/refresh-brief'
-      fullPath: '/api/content/refresh-brief'
-      preLoaderRoute: typeof ApiContentRefreshBriefRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/admin/users': {
       id: '/admin/users'
-      path: '/admin/users'
+      path: '/users'
       fullPath: '/admin/users'
       preLoaderRoute: typeof AdminUsersRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/.well-known/oauth-protected-resource': {
       id: '/.well-known/oauth-protected-resource'
@@ -1776,6 +1775,13 @@ declare module '@tanstack/react-router' {
       path: '/api/wordpress/connection'
       fullPath: '/api/wordpress/connection'
       preLoaderRoute: typeof ApiWordpressConnectionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/report': {
+      id: '/api/public/report'
+      path: '/api/public/report'
+      fullPath: '/api/public/report'
+      preLoaderRoute: typeof ApiPublicReportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/perplexity/search': {
@@ -1897,6 +1903,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGoogleAdsAutopilotDecideRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/content/refresh-brief': {
+      id: '/api/content/refresh-brief'
+      path: '/api/content/refresh-brief'
+      fullPath: '/api/content/refresh-brief'
+      preLoaderRoute: typeof ApiContentRefreshBriefRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/canonry/create-project': {
       id: '/api/canonry/create-project'
       path: '/api/canonry/create-project'
@@ -1974,11 +1987,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentRunRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agent/reakt': {
+      id: '/api/agent/reakt'
+      path: '/api/agent/reakt'
+      fullPath: '/api/agent/reakt'
+      preLoaderRoute: typeof ApiAgentReaktRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/agent/protocol': {
       id: '/api/agent/protocol'
       path: '/api/agent/protocol'
       fullPath: '/api/agent/protocol'
       preLoaderRoute: typeof ApiAgentProtocolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/agent/pilot': {
+      id: '/api/agent/pilot'
+      path: '/api/agent/pilot'
+      fullPath: '/api/agent/pilot'
+      preLoaderRoute: typeof ApiAgentPilotRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/agent/memory': {
@@ -1995,13 +2022,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentJobRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/agent/pilot': {
-      id: '/api/agent/pilot'
-      path: '/api/agent/pilot'
-      fullPath: '/api/agent/pilot'
-      preLoaderRoute: typeof ApiAgentPilotRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/agent/copilot': {
       id: '/api/agent/copilot'
       path: '/api/agent/copilot'
@@ -2014,34 +2034,6 @@ declare module '@tanstack/react-router' {
       path: '/api/agent/approvals'
       fullPath: '/api/agent/approvals'
       preLoaderRoute: typeof ApiAgentApprovalsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/agent/reakt': {
-      id: '/api/agent/reakt'
-      path: '/api/agent/reakt'
-      fullPath: '/api/agent/reakt'
-      preLoaderRoute: typeof ApiAgentReaktRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/admin/ai-crawler-ingest': {
-      id: '/api/admin/ai-crawler-ingest'
-      path: '/api/admin/ai-crawler-ingest'
-      fullPath: '/api/admin/ai-crawler-ingest'
-      preLoaderRoute: typeof ApiAdminAiCrawlerIngestRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/report': {
-      id: '/api/public/report'
-      path: '/api/public/report'
-      fullPath: '/api/public/report'
-      preLoaderRoute: typeof ApiPublicReportRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/r/$token': {
-      id: '/r/$token'
-      path: '/r/$token'
-      fullPath: '/r/$token'
-      preLoaderRoute: typeof RTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/agent/agents': {
@@ -2065,11 +2057,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminWpDeployRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/traffic-overview': {
+      id: '/api/admin/traffic-overview'
+      path: '/api/admin/traffic-overview'
+      fullPath: '/api/admin/traffic-overview'
+      preLoaderRoute: typeof ApiAdminTrafficOverviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/team': {
       id: '/api/admin/team'
       path: '/api/admin/team'
       fullPath: '/api/admin/team'
       preLoaderRoute: typeof ApiAdminTeamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/site-health': {
+      id: '/api/admin/site-health'
+      path: '/api/admin/site-health'
+      fullPath: '/api/admin/site-health'
+      preLoaderRoute: typeof ApiAdminSiteHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/set-canonry-project': {
@@ -2107,6 +2113,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminOnboardingPendingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/llm-traffic': {
+      id: '/api/admin/llm-traffic'
+      path: '/api/admin/llm-traffic'
+      fullPath: '/api/admin/llm-traffic'
+      preLoaderRoute: typeof ApiAdminLlmTrafficRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/llm-responses': {
       id: '/api/admin/llm-responses'
       path: '/api/admin/llm-responses'
@@ -2126,6 +2139,13 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/gbp'
       fullPath: '/api/admin/gbp'
       preLoaderRoute: typeof ApiAdminGbpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/ga4-conversions': {
+      id: '/api/admin/ga4-conversions'
+      path: '/api/admin/ga4-conversions'
+      fullPath: '/api/admin/ga4-conversions'
+      preLoaderRoute: typeof ApiAdminGa4ConversionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/ewww-provision': {
@@ -2149,41 +2169,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminContentNoteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/admin/traffic-overview': {
-      id: '/api/admin/traffic-overview'
-      path: '/api/admin/traffic-overview'
-      fullPath: '/api/admin/traffic-overview'
-      preLoaderRoute: typeof ApiAdminTrafficOverviewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/admin/site-health': {
-      id: '/api/admin/site-health'
-      path: '/api/admin/site-health'
-      fullPath: '/api/admin/site-health'
-      preLoaderRoute: typeof ApiAdminSiteHealthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/admin/llm-traffic': {
-      id: '/api/admin/llm-traffic'
-      path: '/api/admin/llm-traffic'
-      fullPath: '/api/admin/llm-traffic'
-      preLoaderRoute: typeof ApiAdminLlmTrafficRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/admin/ga4-conversions': {
-      id: '/api/admin/ga4-conversions'
-      path: '/api/admin/ga4-conversions'
-      fullPath: '/api/admin/ga4-conversions'
-      preLoaderRoute: typeof ApiAdminGa4ConversionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/admin/client-flags': {
-      id: '/api/admin/client-flags'
-      path: '/api/admin/client-flags'
-      fullPath: '/api/admin/client-flags'
-      preLoaderRoute: typeof ApiAdminClientFlagsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/admin/content-decision': {
       id: '/api/admin/content-decision'
       path: '/api/admin/content-decision'
@@ -2196,6 +2181,13 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/client-metrics'
       fullPath: '/api/admin/client-metrics'
       preLoaderRoute: typeof ApiAdminClientMetricsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/client-flags': {
+      id: '/api/admin/client-flags'
+      path: '/api/admin/client-flags'
+      fullPath: '/api/admin/client-flags'
+      preLoaderRoute: typeof ApiAdminClientFlagsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/client-domains': {
@@ -2217,6 +2209,13 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/aivis-sync'
       fullPath: '/api/admin/aivis-sync'
       preLoaderRoute: typeof ApiAdminAivisSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/ai-crawler-ingest': {
+      id: '/api/admin/ai-crawler-ingest'
+      path: '/api/admin/ai-crawler-ingest'
+      fullPath: '/api/admin/ai-crawler-ingest'
+      preLoaderRoute: typeof ApiAdminAiCrawlerIngestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/ai-citations': {
@@ -2348,6 +2347,16 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AdminRouteChildren {
+  AdminUsersRoute: typeof AdminUsersRoute
+}
+
+const AdminRouteChildren: AdminRouteChildren = {
+  AdminUsersRoute: AdminUsersRoute,
+}
+
+const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
+
 interface ContentRouteChildren {
   ContentIdRoute: typeof ContentIdRoute
 }
@@ -2395,23 +2404,23 @@ const TasksRouteWithChildren = TasksRoute._addFileChildren(TasksRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRouteWithChildren,
+  AppsRoute: AppsRoute,
   AssistantRoute: AssistantRoute,
   ContentRoute: ContentRouteWithChildren,
   CustomersRoute: CustomersRouteWithChildren,
   DashboardRoute: DashboardRoute,
+  EzyaiRoute: EzyaiRoute,
+  EzyperformanceRoute: EzyperformanceRoute,
+  EzyrankRoute: EzyrankRoute,
   GeoRoute: GeoRoute,
   GithubStatusRoute: GithubStatusRoute,
   HealthRoute: HealthRoute,
-  AppsRoute: AppsRoute,
-  EzyaiRoute: EzyaiRoute,
-  EzyrankRoute: EzyrankRoute,
-  EzyperformanceRoute: EzyperformanceRoute,
-  ReaktRoute: ReaktRoute,
-  AdminRoute: AdminRoute,
   LlmUeberblickRoute: LlmUeberblickRoute,
-  PilotRoute: PilotRoute,
   LoginRoute: LoginRoute,
   McpRoute: McpRoute,
+  PilotRoute: PilotRoute,
+  ReaktRoute: ReaktRoute,
   SetPasswordRoute: SetPasswordRoute,
   SettingsRoute: SettingsRouteWithChildren,
   SignupRoute: SignupRoute,
@@ -2419,9 +2428,8 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
-  AdminUsersRoute: AdminUsersRoute,
   ApiClaudeSessionsRoute: ApiClaudeSessionsRoute,
-  ApiContentRefreshBriefRoute: ApiContentRefreshBriefRoute,
+  RTokenRoute: RTokenRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
   ApiAdminAdsAutopilotApprovalsRoute: ApiAdminAdsAutopilotApprovalsRoute,
@@ -2437,41 +2445,39 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminAdsSemanticNegativesRoute: ApiAdminAdsSemanticNegativesRoute,
   ApiAdminAgentRunRoute: ApiAdminAgentRunRoute,
   ApiAdminAiCitationsRoute: ApiAdminAiCitationsRoute,
+  ApiAdminAiCrawlerIngestRoute: ApiAdminAiCrawlerIngestRoute,
   ApiAdminAivisSyncRoute: ApiAdminAivisSyncRoute,
   ApiAdminClientContextRoute: ApiAdminClientContextRoute,
   ApiAdminClientDomainsRoute: ApiAdminClientDomainsRoute,
+  ApiAdminClientFlagsRoute: ApiAdminClientFlagsRoute,
   ApiAdminClientMetricsRoute: ApiAdminClientMetricsRoute,
   ApiAdminContentDecisionRoute: ApiAdminContentDecisionRoute,
   ApiAdminContentNoteRoute: ApiAdminContentNoteRoute,
-  ApiAdminClientFlagsRoute: ApiAdminClientFlagsRoute,
-  ApiAdminGa4ConversionsRoute: ApiAdminGa4ConversionsRoute,
-  ApiAdminLlmTrafficRoute: ApiAdminLlmTrafficRoute,
-  ApiAdminSiteHealthRoute: ApiAdminSiteHealthRoute,
-  ApiAdminTrafficOverviewRoute: ApiAdminTrafficOverviewRoute,
   ApiAdminContentSyncRoute: ApiAdminContentSyncRoute,
   ApiAdminEwwwProvisionRoute: ApiAdminEwwwProvisionRoute,
+  ApiAdminGa4ConversionsRoute: ApiAdminGa4ConversionsRoute,
   ApiAdminGbpRoute: ApiAdminGbpRoute,
   ApiAdminGtmRoute: ApiAdminGtmRoute,
   ApiAdminLlmResponsesRoute: ApiAdminLlmResponsesRoute,
+  ApiAdminLlmTrafficRoute: ApiAdminLlmTrafficRoute,
   ApiAdminOnboardingPendingRoute: ApiAdminOnboardingPendingRoute,
   ApiAdminOnboardingSnapshotRoute: ApiAdminOnboardingSnapshotRoute,
   ApiAdminPopulateRoute: ApiAdminPopulateRoute,
   ApiAdminRankSnapshotRoute: ApiAdminRankSnapshotRoute,
   ApiAdminSetCanonryProjectRoute: ApiAdminSetCanonryProjectRoute,
+  ApiAdminSiteHealthRoute: ApiAdminSiteHealthRoute,
   ApiAdminTeamRoute: ApiAdminTeamRoute,
+  ApiAdminTrafficOverviewRoute: ApiAdminTrafficOverviewRoute,
   ApiAdminWpDeployRoute: ApiAdminWpDeployRoute,
   ApiAdminWpPublishRoute: ApiAdminWpPublishRoute,
   ApiAgentAgentsRoute: ApiAgentAgentsRoute,
-  ApiPublicReportRoute: ApiPublicReportRoute,
-  RTokenRoute: RTokenRoute,
-  ApiAdminAiCrawlerIngestRoute: ApiAdminAiCrawlerIngestRoute,
-  ApiAgentReaktRoute: ApiAgentReaktRoute,
   ApiAgentApprovalsRoute: ApiAgentApprovalsRoute,
   ApiAgentCopilotRoute: ApiAgentCopilotRoute,
-  ApiAgentPilotRoute: ApiAgentPilotRoute,
   ApiAgentJobRoute: ApiAgentJobRoute,
   ApiAgentMemoryRoute: ApiAgentMemoryRoute,
+  ApiAgentPilotRoute: ApiAgentPilotRoute,
   ApiAgentProtocolRoute: ApiAgentProtocolRoute,
+  ApiAgentReaktRoute: ApiAgentReaktRoute,
   ApiAgentRunRoute: ApiAgentRunRoute,
   ApiAgentRunAgentRoute: ApiAgentRunAgentRoute,
   ApiAgentRunsRoute: ApiAgentRunsRoute,
@@ -2483,6 +2489,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAworkTasksRoute: ApiAworkTasksRoute,
   ApiAworkUsersRoute: ApiAworkUsersRoute,
   ApiCanonryCreateProjectRoute: ApiCanonryCreateProjectRoute,
+  ApiContentRefreshBriefRoute: ApiContentRefreshBriefRoute,
   ApiGoogleAdsAutopilotDecideRoute: ApiGoogleAdsAutopilotDecideRoute,
   ApiGoogleAdsAutopilotRunRoute: ApiGoogleAdsAutopilotRunRoute,
   ApiGoogleAdsCustomersRoute: ApiGoogleAdsCustomersRoute,
@@ -2500,6 +2507,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGooglePagespeedRoute: ApiGooglePagespeedRoute,
   ApiLiveStatusRoute: ApiLiveStatusRoute,
   ApiPerplexitySearchRoute: ApiPerplexitySearchRoute,
+  ApiPublicReportRoute: ApiPublicReportRoute,
   ApiWordpressConnectionRoute: ApiWordpressConnectionRoute,
   ApiWordpressPostsRoute: ApiWordpressPostsRoute,
   ApiWordpressPublishRoute: ApiWordpressPublishRoute,
