@@ -9920,6 +9920,100 @@ function TeamPage({ clients }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Admin-Umbau Teil 2 (06.08.): kundenbezogene Einstellungen im Kunden-Detail —
+// Sprache/Tonalität/Report-Template/Tab-Auswahl + Conversion-Werte. Vorher
+// unter Einstellungen (nur über den Kunden-Umschalter erreichbar), jetzt direkt
+// beim Kunden. Speichern schreibt wie die alte Settings-Seite DOPPELT:
+// customer_defaults (Hook, localStorage+DB) UND clients.metadata.defaults —
+// Letzteres ist die maßgebliche, geräteübergreifende Quelle des Tab-Filters
+// (fix 2026-07-14).
+// ─────────────────────────────────────────────────────────────────────────────
+function ClientSettingsPanel({ client, onUpsertClient }) {
+  const toast = useToast();
+  const defaultsHook = useEzyDefaults(client.id);
+  const [draft, setDraft] = useState(defaultsFromStored(defaultsHook.defaults));
+  useEffect(() => {
+    // Kunden-Datensatz bevorzugen (maßgebliche Quelle), sonst Hook-Stand.
+    const fromClient = client?.defaults && Object.keys(client.defaults).length ? client.defaults : null;
+    setDraft(defaultsFromStored(fromClient || defaultsHook.defaults));
+  }, [client.id, client?.defaults, defaultsHook.defaults]);
+  const saveAll = async () => {
+    const saved = await defaultsHook.save(draft);
+    try {
+      await onUpsertClient?.({ ...client, defaults: { ...(client.defaults || {}), ...(saved || draft) } });
+    } catch {
+      /* customer_defaults/localStorage haben bereits gespeichert */
+    }
+    toast(`Einstellungen für ${client.name} gespeichert`, "success");
+  };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px" }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>Kunden-Einstellungen</div>
+        <Inp
+          label="Standard-Sprache"
+          value={draft.language}
+          onChange={(v) => setDraft((p) => ({ ...p, language: v }))}
+          options={["Deutsch", "Englisch", "Französisch"]}
+        />
+        <Inp
+          label="Standard-Tonalität"
+          value={draft.tone}
+          onChange={(v) => setDraft((p) => ({ ...p, tone: v }))}
+          options={["Professionell", "Informativ", "Conversational"]}
+        />
+        <Inp
+          label="Report-Template"
+          value={draft.reportTemplate}
+          onChange={(v) => setDraft((p) => ({ ...p, reportTemplate: v }))}
+          options={["Standard", "Detailliert", "Executive Summary"]}
+        />
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 8 }}>Sichtbare Dashboard-Tabs</div>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            {[
+              { id: "overview", label: "Übersicht", icon: BarChart3 },
+              { id: "seo", label: "SEO", icon: Globe },
+              { id: "blog", label: "Blog", icon: PenTool },
+              { id: "aivis", label: "KI-Sichtbarkeit", icon: Bot },
+              { id: "conversions", label: "Conversions", icon: DollarSign },
+              { id: "ads", label: "Ads", icon: Megaphone },
+            ].map((t) => {
+              const on = (draft.visibleTabs || ["overview", "seo", "aivis", "conversions", "ads"]).includes(t.id);
+              return (
+                <label key={t.id} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    onChange={() => {
+                      const cur = draft.visibleTabs || ["overview", "seo", "aivis", "conversions", "ads"];
+                      const next = on ? cur.filter((x) => x !== t.id) : [...cur, t.id];
+                      setDraft((p) => ({ ...p, visibleTabs: next.length > 0 ? next : [t.id] }));
+                    }}
+                    style={{ accentColor: C.accent }}
+                  />
+                  <t.icon size={14} style={{ color: C.textMuted }} />
+                  <span style={{ fontSize: 13, color: C.text }}>{t.label}</span>
+                </label>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: 11, color: C.textMuted, marginTop: 6 }}>
+            Nur ausgewählte Tabs werden im Dashboard dieses Kunden angezeigt.
+          </div>
+        </div>
+        <Btn icon={Save} style={{ marginTop: 14 }} onClick={saveAll}>
+          Speichern
+        </Btn>
+      </div>
+      <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px" }}>
+        <ConversionValuesPanel client={client} />
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Admin-Umbau 06.08.: App-Zugriff & Portal je Kunde. Stufe 1 = App an/aus,
 // Stufe 2 = Funktions-Freischaltung (APP_FEATURES), Stufe 3 = Portal-Logins
 // (Rolle viewer, fest an diesen Kunden gebunden). Keine DB-Zeile = App aktiv
@@ -10460,9 +10554,11 @@ function ClientsPage({
                 { id: "kpis", label: "KPIs" },
                 { id: "notes", label: "Notizen" },
                 // Admin-Umbau 06.08.: Lauf-Nachweis + App-/Portal-Freischaltung
-                // leben jetzt beim Kunden (statt eigenem Admin-Dashboard).
+                // + Kunden-Einstellungen leben jetzt beim Kunden (statt eigenem
+                // Admin-Dashboard bzw. Einstellungen-mit-Kunden-Umschalter).
                 { id: "runs", label: "Agent-Läufe" },
                 { id: "access", label: "App-Zugriff" },
+                { id: "settings", label: "Einstellungen" },
               ]}
               active={dt}
               onChange={setDt}
@@ -10557,6 +10653,7 @@ function ClientsPage({
             )}
             {dt === "runs" && <AgentRunsPanel selectedClient={detail} />}
             {dt === "access" && <ClientAppAccessPanel client={detail} />}
+            {dt === "settings" && <ClientSettingsPanel client={detail} onUpsertClient={onUpsertClient} />}
             {dt === "kpis" &&
               (() => {
                 const hasData =
@@ -10980,15 +11077,14 @@ function SettingsPage({
   const toast = useToast();
   const [sec, setSec] = useState("profil");
   const [profileDraft, setProfileDraft] = useState(profile);
-  const [defaultsDraft, setDefaultsDraft] = useState(defaultsFromStored(customerDefaults));
   const live = useLiveIntegrations();
   const dash = useEzyDashboardConfig();
   useEffect(() => setProfileDraft(profile), [profile]);
-  useEffect(() => setDefaultsDraft(defaultsFromStored(customerDefaults)), [customerDefaults]);
+  // Admin-Umbau Teil 2 (06.08.): "Kunden-Einstellungen" + "Conversions" sind
+  // ins Kunden-Detail gezogen (Kunden → Kunde → Einstellungen) — hier bleiben
+  // nur noch organisationsweite Einstellungen, der Kunden-Umschalter entfällt.
   const sects = [
     ["profil", "Profil", Users],
-    ["defaults", "Kunden-Einstellungen", Settings],
-    ["conversions", "Conversions", DollarSign],
     ["api", "API-Schlüssel", Key],
     ["skills", "Skills / Tools", Zap],
     ["dashboard", "Dashboard-Metriken", BarChart3],
@@ -11037,6 +11133,10 @@ function SettingsPage({
             {l}
           </button>
         ))}
+        <div style={{ fontSize: 11, color: C.textDim, padding: "10px 14px", lineHeight: 1.5 }}>
+          Kundenbezogene Einstellungen (Sprache, Tabs, Conversions, App-Zugriff)
+          findest du im Kunden-Detail: Kunden → Kunde anklicken.
+        </div>
       </div>
       <div className="settings-panel" style={{ flex: 1, maxWidth: 640 }}>
         {sec === "profil" && (
@@ -11100,90 +11200,6 @@ function SettingsPage({
                 onClick={() => {
                   onSaveProfile(profileDraft);
                   toast("Profil gespeichert", "success");
-                }}
-              >
-                Speichern
-              </Btn>
-            </div>
-          </div>
-        )}
-
-        {sec === "conversions" && <ConversionValuesPanel client={selectedClient} />}
-
-        {sec === "defaults" && (
-          <div>
-            <h2 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 6px" }}>
-              Einstellungen{selectedClient?.name ? ` — ${selectedClient.name}` : ""}
-            </h2>
-            <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 16 }}>
-              Diese Einstellungen gelten nur für diesen Kunden. Wechsle den Kunden, um dessen Einstellungen zu bearbeiten.
-            </div>
-            <div
-              style={{
-                background: C.card,
-                border: `1px solid ${C.border}`,
-                borderRadius: 14,
-                padding: 22,
-              }}
-            >
-              <Inp
-                label="Standard-Sprache"
-                value={defaultsDraft.language}
-                onChange={(v) => setDefaultsDraft((p) => ({ ...p, language: v }))}
-                options={["Deutsch", "Englisch", "Französisch"]}
-              />
-              <Inp
-                label="Standard-Tonalität"
-                value={defaultsDraft.tone}
-                onChange={(v) => setDefaultsDraft((p) => ({ ...p, tone: v }))}
-                options={["Professionell", "Informativ", "Conversational"]}
-              />
-              <Inp
-                label="Report-Template"
-                value={defaultsDraft.reportTemplate}
-                onChange={(v) => setDefaultsDraft((p) => ({ ...p, reportTemplate: v }))}
-                options={["Standard", "Detailliert", "Executive Summary"]}
-              />
-              <div style={{ marginTop: 16 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 8 }}>Sichtbare Dashboard-Tabs</div>
-                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                  {[
-                    { id: "overview", label: "Übersicht", icon: BarChart3 },
-                    { id: "seo", label: "SEO", icon: Globe },
-                    { id: "blog", label: "Blog", icon: PenTool },
-                    { id: "aivis", label: "KI-Sichtbarkeit", icon: Bot },
-                    { id: "conversions", label: "Conversions", icon: DollarSign },
-                    { id: "ads", label: "Ads", icon: Megaphone },
-                  ].map((t) => {
-                    const on = (defaultsDraft.visibleTabs || ["overview", "seo", "aivis", "conversions", "ads"]).includes(t.id);
-                    return (
-                      <label key={t.id} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                        <input
-                          type="checkbox"
-                          checked={on}
-                          onChange={() => {
-                            const cur = defaultsDraft.visibleTabs || ["overview", "seo", "aivis", "conversions", "ads"];
-                            const next = on ? cur.filter((x) => x !== t.id) : [...cur, t.id];
-                            setDefaultsDraft((p) => ({ ...p, visibleTabs: next.length > 0 ? next : [t.id] }));
-                          }}
-                          style={{ accentColor: C.accent }}
-                        />
-                        <t.icon size={14} style={{ color: C.textMuted }} />
-                        <span style={{ fontSize: 13, color: C.text }}>{t.label}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-                <div style={{ fontSize: 11, color: C.textMuted, marginTop: 6 }}>
-                  Nur ausgewählte Tabs werden im Dashboard angezeigt.
-                </div>
-              </div>
-              <Btn
-                icon={Save}
-                style={{ marginTop: 16 }}
-                onClick={() => {
-                  onSaveDefaults(defaultsDraft);
-                  toast("Einstellungen für " + (selectedClient?.name || "Kunde") + " gespeichert", "success");
                 }}
               >
                 Speichern
@@ -13696,8 +13712,11 @@ function App({ appScope = null }) {
             )}
           </div>
         )}
-        {/* Kunden-Auswahl in der Sidebar (Position wie EzyAI; Desktop). */}
-        {!collapsed && hasClients && (
+        {/* Kunden-Auswahl in der Sidebar (Position wie EzyAI; Desktop).
+            Admin-Umbau Teil 2 (06.08.): im Admin überflüssig — alle kunden-
+            bezogenen Einstellungen leben im Kunden-Detail; nur die Agenten-
+            Seite (unter Einstellungen) braucht die Auswahl noch. */}
+        {!collapsed && hasClients && (appScope !== "admin" || page === "agents") && (
           <div style={{ padding: "10px 12px", borderBottom: `1px solid ${C.border}` }}>
             <select
               aria-label="Kunde"
@@ -13924,8 +13943,9 @@ function App({ appScope = null }) {
                 ))}
               </select>
             )}
-            {/* Kunden-Switcher: auf Desktop in der Sidebar (wie EzyAI), im Header nur mobil. */}
-            <div style={{ position: "relative", display: isMobile ? "block" : "none" }}>
+            {/* Kunden-Switcher: auf Desktop in der Sidebar (wie EzyAI), im Header nur mobil.
+                Im Admin ausgeblendet (außer Agenten-Seite) — siehe Sidebar-Kommentar. */}
+            <div style={{ position: "relative", display: isMobile && (appScope !== "admin" || page === "agents") ? "block" : "none" }}>
               <button
                 onClick={() => setCdd(!cdd)}
                 style={{
