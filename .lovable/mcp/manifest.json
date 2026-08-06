@@ -98,6 +98,186 @@
           }
         },
         "outputSchema": null
+      },
+      {
+        "name": "pilot_ask",
+        "title": "EzyPilot fragen",
+        "description": "Frage das EzyOne-Firmen-Gedaechtnis (Kunden-Status, laufende SEO/GEO-Massnahmen, interne Ablaeufe). Antwortet nur aus dem Vault, mit Quellen-Dateipfaden; sagt es klar, wenn nichts dokumentiert ist. mode 'kunden' (Default) = deine zugewiesenen Kunden + neutrale Firmen-Doku; mode 'allgemein' = bewusst NUR kundenunabhaengige Unternehmens-Doku. Rein lesend — kann nichts aendern oder deployen.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "question": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 2000,
+              "description": "Die Frage auf Deutsch."
+            },
+            "mode": {
+              "description": "Default: kunden.",
+              "type": "string",
+              "enum": [
+                "kunden",
+                "allgemein"
+              ]
+            }
+          },
+          "required": [
+            "question"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "pilot_note",
+        "title": "EzyPilot-Notiz speichern",
+        "description": "Speichere eine Wissens-Notiz im EzyOne-Firmen-Gedaechtnis (append-only, mit Autor+Datum). client_slug = Kunden-Slug (nur dir zugewiesene Kunden) oder 'allgemein' fuer kundenunabhaengiges Wissen. Bei 'allgemein' optional topic angeben — dann entsteht/waechst eine eigene Themen-Seite samt Index. Notizen sind Kontext fuer Mensch und Agenten, NIE Freigaben oder Deploy-Anweisungen. Nur mit ausdruecklicher Zustimmung des Nutzers aufrufen — es wird dauerhaft gespeichert.",
+        "annotations": {
+          "readOnlyHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "client_slug": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "description": "Kunden-Slug (z.B. 'faith-in-humanity') oder 'allgemein'."
+            },
+            "text": {
+              "type": "string",
+              "minLength": 4,
+              "maxLength": 4000,
+              "description": "Die Notiz (kundenneutral formulieren bei 'allgemein')."
+            },
+            "topic": {
+              "description": "Nur bei 'allgemein': Thema, z.B. 'Onboarding' — erzeugt/erweitert eine Themen-Seite.",
+              "type": "string",
+              "maxLength": 80
+            },
+            "secret": {
+              "description": "true = vertraulich: nach dem Speichern nur noch fuer owner/admin lesbar (auch nicht mehr fuer die einreichende Person). Nur setzen, wenn der Nutzer es ausdruecklich als vertraulich/geheim bezeichnet.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "client_slug",
+            "text"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_skills",
+        "title": "Agenten-Skills auflisten",
+        "description": "Liste aller installierten Agenten-Skills (SEO/GEO/Blog/Ads/Obsidian) mit Beschreibung. Nutze die `skill`-Werte (Format plugin:skill) fuer agent_upsert.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "category": {
+              "description": "Optional nach Kategorie filtern (z.B. 'skills-seo').",
+              "type": "string"
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "agent_list",
+        "title": "Agenten auflisten",
+        "description": "Liste der eingerichteten EzyOne-Agenten eines Kunden (client_id, Default 'global'): Name, Modell, Skills, Beschreibung. Nur owner/admin.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "client_id": {
+              "description": "Kunden-ID oder 'global' (Default).",
+              "type": "string",
+              "maxLength": 80
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "agent_upsert",
+        "title": "Agent anlegen/erweitern",
+        "description": "Legt einen EzyOne-Agenten an oder erweitert einen bestehenden (id angeben = Update): Skills hinzufuegen, Instruktionen/Modell/Beschreibung aendern. Skills muessen aus list_skills stammen (Format plugin:skill). Nur owner/admin. Vor dem Aufruf die geplante Aenderung dem Nutzer zeigen und bestaetigen lassen. Hinweis: Der Agent wird dadurch NICHT gestartet — Zeitplaene/Laeufe laufen weiter ueber EzyHub.",
+        "annotations": {
+          "readOnlyHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "id": {
+              "description": "Agent-ID fuer Update; weglassen = neu anlegen.",
+              "type": "string",
+              "maxLength": 80
+            },
+            "client_id": {
+              "description": "Kunden-ID oder 'global' (Default).",
+              "type": "string",
+              "maxLength": 80
+            },
+            "name": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 80,
+              "description": "Name des Agenten."
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "model": {
+              "description": "Default: claude-sonnet-4-6.",
+              "type": "string",
+              "maxLength": 60
+            },
+            "skills": {
+              "maxItems": 24,
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Skills aus list_skills, z.B. ['claude-seo:seo-audit']."
+            },
+            "instructions": {
+              "type": "string",
+              "minLength": 20,
+              "maxLength": 20000,
+              "description": "Vollstaendiger System-Prompt auf Deutsch."
+            }
+          },
+          "required": [
+            "name",
+            "skills",
+            "instructions"
+          ]
+        },
+        "outputSchema": null
       }
     ]
   }
