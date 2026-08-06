@@ -190,6 +190,20 @@ function brandName(c: any) {
   return String(c.name || "").trim() || cleanDomain(c.domain).split(".")[0];
 }
 
+// Kunden-Berechtigung für die EzyAI-Befüllung (06.08., Volkan): Service aktiv
+// (canonry|perplexity) UND keine explizite geo-Sperre in client_app_access
+// (Admin-Umbau 06.08.; kein Eintrag = erlaubt, enabled=false = gesperrt).
+// Anlass: Hotel Bernina wurde gemessen, obwohl EzyAI dort deaktiviert ist.
+async function aivisAllowed(sb: any, clientId: string): Promise<{ ok: boolean; grund?: string }> {
+  const svc = await getEnabledServices(clientId);
+  if (!(svc.canonry || svc.perplexity)) return { ok: false, grund: "KI-Sichtbarkeit nicht aktiv" };
+  try {
+    const { data } = await sb.from("client_app_access").select("enabled").eq("client_id", clientId).eq("app", "geo").maybeSingle();
+    if (data && data.enabled === false) return { ok: false, grund: "EzyAI für diesen Kunden deaktiviert (App-Zugriff)" };
+  } catch { /* Tabelle optional — dann zählt nur der Service-Schalter */ }
+  return { ok: true };
+}
+
 // ── Zusatz-Messmärkte (06.08., Anlass Morosani: Besucher aus 11 Ländern,
 // Messung nur DACH). Konfiguration je Kunde in score-config.intlMarkets —
 // bewusst opt-in: EN-Korpora sind bei Generika-Wortmarken gefährlich
@@ -2459,9 +2473,9 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
           try {
             // Gate: nur Kunden, bei denen KI-Sichtbarkeit aktiv ist (aivis-Tab =
             // canonry ODER perplexity in client_integrations = "in den Einstellungen").
-            const svc = await getEnabledServices(c.id);
-            if (!(svc.canonry || svc.perplexity)) {
-              results.push({ client: c.name, skipped: "KI-Sichtbarkeit nicht aktiv" });
+            const allowed = await aivisAllowed(sb, c.id);
+            if (!allowed.ok) {
+              results.push({ client: c.name, skipped: allowed.grund });
               continue;
             }
             // Backfill-Modus: rückwirkende Monats-Reports (Ahrefs/GA4), dann fertig.
@@ -3030,11 +3044,10 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               const q = raParam.toLowerCase();
               targets = targets.filter((c: any) => String(c.id) === raParam || String(c.name || "").toLowerCase().includes(q));
             } else {
-              // "all" = nur Kunden mit aktivem KI-Sichtbarkeits-Service.
+              // "all" = nur Kunden mit aktivem Service + EzyAI-App-Zugriff.
               const active: any[] = [];
               for (const c of targets) {
-                const svc = await getEnabledServices(c.id);
-                if (svc.canonry || svc.perplexity) active.push(c);
+                if ((await aivisAllowed(sb, c.id)).ok) active.push(c);
               }
               targets = active;
             }
@@ -3078,8 +3091,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             } else {
               const active: any[] = [];
               for (const c of targets) {
-                const svc = await getEnabledServices(c.id);
-                if (svc.canonry || svc.perplexity) active.push(c);
+                if ((await aivisAllowed(sb, c.id)).ok) active.push(c);
               }
               targets = active;
             }
@@ -3121,8 +3133,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
           const { data: cls } = await sb.from("clients").select("id, name, domain");
           const pending: any[] = [];
           for (const c of cls || []) {
-            const svc = await getEnabledServices(c.id);
-            if (!(svc.canonry || svc.perplexity)) continue;
+            if (!(await aivisAllowed(sb, c.id)).ok) continue;
             const { data: rep } = await sb
               .from("ai_visibility_reports").select("id, parts, snapshot_date")
               .eq("client_id", c.id)
