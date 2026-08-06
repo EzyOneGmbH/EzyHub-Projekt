@@ -204,8 +204,9 @@ const MARKET_DEFS: Record<string, { location_name: string; language_code: string
   es: { location_name: "Spain", language_code: "es", land: "Spanien" },
 };
 function intlMarketsFor(brand: string): Array<{ location_name: string; language_code: string; land: string }> {
-  const codes: string[] = ((SCORE_CFG as any).intlMarkets?.[brand.toLowerCase()] ?? []) as string[];
-  return codes.map((c) => MARKET_DEFS[c]).filter(Boolean);
+  const codes = (SCORE_CFG as any).intlMarkets?.[brand.toLowerCase()];
+  if (!Array.isArray(codes)) return [];
+  return codes.map((c: string) => MARKET_DEFS[c]).filter(Boolean);
 }
 
 // ── DataForSEO: eigener AI-Overview/AI-Mode-Tracker (Makro-Quelle 2) ─────────
