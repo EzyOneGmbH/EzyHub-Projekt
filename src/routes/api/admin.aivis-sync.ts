@@ -1114,21 +1114,31 @@ async function askViaDfs(engine: string, prompt: string): Promise<{ text: string
     .trim();
   return text ? { text, sources: urlsIn(text), model: `${String(row?.model_name || def.model)}@dataforseo` } : null;
 }
-// Wrapper: Direkt-API zuerst (billig); liefert sie keinen Text, übernimmt DFS.
-const withDfsFallback = (name: string, ask: (p: string) => Promise<any>) => async (p: string) => {
-  const r = await ask(p).catch(() => null);
+// Routing-Entscheid (06.08., Volkan): DataForSEO ist PRIMÄR für die 4
+// Mess-Engines — EIN Abrechnungskonto, keine rollierenden Prepaid-Ausfälle
+// mehr; die Direkt-API ist nur noch Fallback. Die ~4-5× höheren Antwort-
+// kosten sind bewusst in Kauf genommen (Volkan, 06.08.).
+// AIVIS_LLM_PRIMARY=direct dreht auf Direkt-zuerst zurück.
+const LLM_PRIMARY = (process.env.AIVIS_LLM_PRIMARY ?? "dfs").toLowerCase();
+const withDfsRouting = (name: string, direct: (p: string) => Promise<any>) => async (p: string) => {
+  if (LLM_PRIMARY === "dfs") {
+    const f = await askViaDfs(name, p);
+    if (f) return f;
+    return direct(p).catch(() => null);
+  }
+  const r = await direct(p).catch(() => null);
   if (r && r.text) return r;
   const f = await askViaDfs(name, p);
   return f ?? r;
 };
 
 const PROMPT_ENGINES: Array<{ name: string; ask: (p: string) => Promise<{ text: string; sources: number } | null> }> = [
-  { name: "Claude", ask: withDfsFallback("Claude", (p) => askClaude(p, ANSWER_MAX_TOKENS)) },
-  { name: "Perplexity", ask: withDfsFallback("Perplexity", (p) => askPerplexity(p, ANSWER_MAX_TOKENS)) },
-  { name: "Gemini", ask: withDfsFallback("Gemini", (p) => askGemini(p, ANSWER_MAX_TOKENS)) },
+  { name: "Claude", ask: withDfsRouting("Claude", (p) => askClaude(p, ANSWER_MAX_TOKENS)) },
+  { name: "Perplexity", ask: withDfsRouting("Perplexity", (p) => askPerplexity(p, ANSWER_MAX_TOKENS)) },
+  { name: "Gemini", ask: withDfsRouting("Gemini", (p) => askGemini(p, ANSWER_MAX_TOKENS)) },
   {
     name: "ChatGPT",
-    ask: withDfsFallback("ChatGPT", (p) => askOpenAICompat("https://api.openai.com/v1/chat/completions", process.env.OPENAI_API_KEY, process.env.OPENAI_MODEL ?? "gpt-5.1", p, ANSWER_MAX_TOKENS)),
+    ask: withDfsRouting("ChatGPT", (p) => askOpenAICompat("https://api.openai.com/v1/chat/completions", process.env.OPENAI_API_KEY, process.env.OPENAI_MODEL ?? "gpt-5.1", p, ANSWER_MAX_TOKENS)),
   },
   {
     name: "Grok",
