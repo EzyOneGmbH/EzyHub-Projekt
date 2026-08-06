@@ -28,12 +28,17 @@ const ENGINES: Array<{ name: string; re: RegExp }> = [
 const isOrganicBing = (src: string, channel: string) =>
   /(^|\.)bing\b/i.test(src) && !/copilot|chat|edgeservices/i.test(src) && /organic/i.test(channel);
 
-async function requireUser(request: Request): Promise<{ userClient: any } | Response> {
+async function requireUser(request: Request): Promise<{ userClient: any | null } | Response> {
+  // Admin-Secret-Fallback (06.08., konsistent mit site-health/traffic-overview):
+  // erlaubt Tests/Automatisierung ohne Browser-Session.
+  const admin = process.env.ADMIN_AUTOMATION_SECRET;
+  const auth = request.headers.get("authorization") || "";
+  if (admin && auth === `Bearer ${admin}`) return { userClient: null };
   const url = process.env.SUPABASE_URL;
   const anon = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
   if (!url || !anon) return Response.json({ ok: false, error: "Server not configured" }, { status: 503 });
   const userClient = createClient(url, anon, {
-    global: { headers: { Authorization: request.headers.get("authorization") ?? "" } },
+    global: { headers: { Authorization: auth } },
   });
   const { data } = await userClient.auth.getUser();
   if (!data.user) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
@@ -52,7 +57,8 @@ export const Route = createFileRoute("/api/admin/llm-traffic")({
         if (!/^[0-9a-f-]{36}$/i.test(clientId))
           return Response.json({ ok: false, error: "client (uuid) erforderlich" }, { status: 400 });
         // RLS-gefilterte Sicht: existiert der Kunde für diesen User?
-        const { data: client } = await auth.userClient
+        // (Admin-Secret: Voll-Zugriff via service_role)
+        const { data: client } = await (auth.userClient ?? (supabaseAdmin as any))
           .from("clients")
           .select("id, name, ga4_property")
           .eq("id", clientId)
