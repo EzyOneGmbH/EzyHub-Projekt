@@ -11,7 +11,7 @@ import {
 import {
   Sparkles, TrendingUp, TrendingDown, Quote, FileText, Eye,
   ExternalLink, MousePointerClick, ChevronRight, ChevronLeft, MessageSquareQuote,
-  Filter, Hash, Layers, Link2, Info, MessageSquare, Swords, Tags, Crosshair, MapPin,
+  Filter, Hash, Layers, Link2, Info, MessageSquare, Swords, Tags, Crosshair, MapPin, Search,
 } from "lucide-react";
 
 // ── Karten-Shell im Searchable-Muster (03.08.2026): Icon + Titel + ⓘ-Tooltip
@@ -2194,6 +2194,50 @@ function ConversionRegions({ attribution }) {
   );
 }
 
+// Google AI Overviews & AI Mode (06.08.): WELCHE Suchanfragen den Kunden
+// zitieren — SERP-Messung (keine Prompt-Antworten, deshalb eigene Karte
+// statt Zeilen in der Antworten-Tabelle). Daten aus parts.sa.aio/aim;
+// erscheint erst, sobald ein SERP-Lauf nach dem 06.08. die Details schrieb.
+function GoogleSerpAiCard({ serpAi, brand }) {
+  if (!serpAi || (!serpAi.aio && !serpAi.aim)) return null;
+  const cols = [
+    { key: "aio", label: "Google AI Overviews", data: serpAi.aio },
+    { key: "aim", label: "Google AI Mode", data: serpAi.aim },
+  ].filter((c) => c.data);
+  return (
+    <RCard icon={Sparkles} title="Google AI Overviews & AI Mode" info="Eigene SERP-Messung: Für die echten Google-Suchanfragen des Kunden (Search Console) wird geprüft, ob AI Overviews bzw. der AI Mode die Website zitieren. Das sind SERP-Zitate — keine Prompt-Antworten wie bei den Chat-Systemen oben." desc={`Bei welchen Suchanfragen Google-KI ${brand} zitiert`} footer={`Messung vom ${serpAi.gemessenAm || "—"}${serpAi.uebernommen ? " (letzter SERP-Check, Zwischentag)" : ""}`}>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {cols.map((c) => (
+          <div key={c.key}>
+            <div className="flex items-baseline gap-2">
+              <EngineFavicon platform="Google" />
+              <span className="text-[12.5px] font-bold" style={{ color: C.ink }}>{c.label}</span>
+            </div>
+            <div className="mt-1 text-[11.5px]" style={{ color: C.sub }}>
+              <b style={{ color: c.data.cited > 0 ? C.up : C.sub }}>{c.data.cited}</b> von {c.data.checked} geprüften Suchanfragen zitieren {brand}
+              {c.data.citations > 0 && <> · {c.data.citations} Quellen-Verlinkungen</>}
+            </div>
+            {c.data.keywords.length > 0 ? (
+              <div className="mt-2 overflow-y-auto rounded-lg border p-2" style={{ maxHeight: 240, borderColor: C.line, background: C.cardAlt }}>
+                {c.data.keywords.map((k) => (
+                  <div key={k} className="flex items-center gap-2 py-1 text-[12px]" style={{ color: C.ink, borderTop: `1px solid ${C.line}` }}>
+                    <Search size={11} style={{ color: C.sub, flexShrink: 0 }} />
+                    <span className="min-w-0 truncate">{k}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-2 rounded-lg border p-3 text-[11.5px]" style={{ borderColor: C.line, background: C.cardAlt, color: C.sub }}>
+                Im letzten Check wurde {brand} hier nicht zitiert{c.data.present > 0 ? ` — die KI-Box erschien bei ${c.data.present} Suchanfragen, zitierte aber andere Quellen` : ""}.
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </RCard>
+  );
+}
+
 // Folgefragen (03.08., ehrliche Query-Fanout-Annäherung): Googles "People Also
 // Ask"-Fragen + verwandte Suchen je GSC-Keyword — KEINE KI-internen Sub-Queries.
 function FanoutPanel({ fanout }) {
@@ -3174,6 +3218,7 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
             <div className="mt-4 grid grid-cols-1 gap-4">
               <PromptMatrix prompts={fP} opps={fO} />
               <PromptsTable prompts={fP} opps={fO} brand={d.client} brandPrompts={d.brandPrompts || []} needsReview={d.promptsNeedsReview || 0} />
+              <GoogleSerpAiCard serpAi={d.serpAi} brand={d.client} />
             </div>
           </>
         )}

@@ -2592,6 +2592,10 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 // Query-Fanout light (03.08.): Google-Folgefragen je Keyword (PAA/related).
                 ...(Array.isArray(sa.fanout) && sa.fanout.length ? { fanout: sa.fanout.slice(0, 200) } : {}),
                 urls: [...new Set((sa.citedPages || []).map((u: any) => normUrl(u)).filter(Boolean))].slice(0, 300),
+                // AIO/AI-Mode-Detail (06.08., für die Erwähnungen-Karte): WELCHE
+                // Suchanfragen zitieren den Kunden — bisher nur im Lauf-Response.
+                ...(sa.aio ? { aio: { checked: sa.aio.checked, present: sa.aio.present, cited: sa.aio.cited, citations: sa.aio.citations, keywords: (sa.aio.keywords || []).slice(0, 150) } } : {}),
+                ...(sa.aim ? { aim: { checked: sa.aim.checked, present: sa.aim.present, cited: sa.aim.cited, citations: sa.aim.citations, keywords: (sa.aim.keywords || []).slice(0, 150) } } : {}),
                 gemessenAm: snapshot, // echtes Messdatum (SERP-Drosselung)
               };
               if (hasPr && !prPartial) newParts.pr = {

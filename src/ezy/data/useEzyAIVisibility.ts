@@ -89,6 +89,14 @@ export type AIVisibilityData = {
   // Query-Fanout light (03.08.): Google-Folgefragen (PAA) + verwandte Suchen je
   // GSC-Keyword aus dem serp_ai-Lauf — bewusst KEINE KI-internen Sub-Queries.
   fanout?: { kw: string; country: string; questions: string[]; related: string[] }[];
+  // AIO/AI-Mode-Detail (06.08.): welche Google-Suchanfragen den Kunden zitieren
+  // (SERP-Messung, keine Prompt-Antworten) — für die Erwähnungen-Karte.
+  serpAi?: {
+    aio?: { checked: number; present: number; cited: number; citations: number; keywords: string[] };
+    aim?: { checked: number; present: number; cited: number; citations: number; keywords: string[] };
+    gemessenAm?: string;
+    uebernommen?: boolean;
+  };
   attribution: {
     engine: string;
     sessions: number;
@@ -343,6 +351,12 @@ export async function loadAIVisibility(
     }),
     brandCheck: (rep.parts as any)?.bc ?? null,
     fanout: Array.isArray((rep.parts as any)?.sa?.fanout) ? (rep.parts as any).sa.fanout : undefined,
+    serpAi: (() => {
+      const sa: any = (rep.parts as any)?.sa;
+      if (!sa || (!sa.aio && !sa.aim)) return undefined;
+      const pick = (x: any) => x ? { checked: Number(x.checked ?? 0), present: Number(x.present ?? 0), cited: Number(x.cited ?? 0), citations: Number(x.citations ?? 0), keywords: Array.isArray(x.keywords) ? x.keywords.map(String) : [] } : undefined;
+      return { aio: pick(sa.aio), aim: pick(sa.aim), gemessenAm: sa.gemessenAm ? String(sa.gemessenAm) : undefined, uebernommen: !!sa.uebernommen };
+    })(),
     brandHistory: await (async () => {
       const { data: hist } = await sb
         .from("ai_visibility_brand_history")
