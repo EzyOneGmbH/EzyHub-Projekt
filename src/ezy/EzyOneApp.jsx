@@ -107,7 +107,8 @@ import { useEzyToolSettings, toolProvider } from "@/ezy/data/useEzyToolSettings"
 import { ServicesPicker, ServicesPanel } from "@/ezy/components/ServicesPanel";
 import { DEFAULT_ON_SERVICES } from "@/lib/services";
 import { useEzyDashboardConfig } from "@/ezy/data/useEzyDashboardConfig";
-import { EZY_APPS, APP_START, APP_SCOPES, currentAppOf } from "@/ezy/data/appRegistry";
+import { EZY_APPS, APP_START, APP_SCOPES, APP_FEATURES, TAB_APP_FEATURE, currentAppOf } from "@/ezy/data/appRegistry";
+import { useClientAppAccess, appEnabledFor, featureEnabledFor } from "@/ezy/data/useClientAppAccess";
 import { useAppAccess } from "@/ezy/data/useAppAccess";
 import { useEzyServiceMatrix } from "@/ezy/data/useEzyServiceMatrix";
 import { executeTool as runToolLive } from "@/ezy/data/runTool";
@@ -9735,7 +9736,9 @@ function TeamPage({ clients }) {
     if (j.ok) { toast(`${j.assigned} Kunden zugewiesen`, "success"); setExpanded(null); await load(); }
     else toast(j.error || "Fehlgeschlagen", "error");
   };
-  const roleLabel = { owner: "SuperAdmin", admin: "Admin", member: "Mitarbeiter", viewer: "Nur-Lesen" };
+  // Admin-Umbau 06.08.: viewer = Kunden-Login (Portal) — kuratierte Sicht,
+  // Funktions-Freischaltung über Kunden-Detail → App-Zugriff.
+  const roleLabel = { owner: "SuperAdmin", admin: "Admin", member: "Mitarbeiter", viewer: "Kunde (Portal)" };
   const roleColor = { owner: C.pink, admin: C.accent, member: C.green, viewer: C.textDim };
 
   // App-Zugriffe (Plattform-Umbau Phase 1, 2026-07-31): welcher Member darf
@@ -9784,7 +9787,7 @@ function TeamPage({ clients }) {
               style={{ width: "100%", padding: "9px 10px", borderRadius: 8, background: C.surface, color: C.text, border: `1px solid ${C.border}`, fontSize: 13 }}
             >
               <option value="member">Mitarbeiter (Audits + zugewiesene Kunden)</option>
-              <option value="viewer">Nur-Lesen (zugewiesene Kunden)</option>
+              <option value="viewer">Kunde / Portal (nur freigeschaltete Funktionen)</option>
               {myRole === "owner" && <option value="admin">Admin (alle Kunden, volle Rechte)</option>}
             </select>
           </div>
@@ -9822,7 +9825,9 @@ function TeamPage({ clients }) {
                   )}
                   <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
                     {!u.self && u.role !== "owner" && u.role !== "admin" && (
-                      <Btn variant="secondary" size="sm" onClick={() => openAssign(u)}>Kunden zuweisen</Btn>
+                      <Btn variant="secondary" size="sm" onClick={() => (expanded === u.userId ? setExpanded(null) : openAssign(u))}>
+                        Berechtigungen
+                      </Btn>
                     )}
                     {!u.self && u.role !== "owner" && (
                       <select
@@ -9840,35 +9845,38 @@ function TeamPage({ clients }) {
                     )}
                   </div>
                 </div>
-                {u.role !== "owner" && u.role !== "admin" && (
-                  <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 11, color: C.textMuted, marginRight: 2 }}>Apps:</span>
-                    {EZY_APPS.filter((a) => !a.adminOnly).map((a) => {
-                      const on = appAccessMap[u.userId]?.has(a.id);
-                      return (
-                        <button
-                          key={a.id}
-                          type="button"
-                          onClick={() => toggleApp(u.userId, a.id)}
-                          title={on ? `${a.name} entziehen` : `${a.name} freischalten`}
-                          style={{
-                            display: "inline-flex", alignItems: "center", gap: 5,
-                            padding: "4px 10px", borderRadius: 99, cursor: "pointer", fontSize: 11.5,
-                            border: `1px solid ${on ? a.color : C.border}`,
-                            background: on ? a.tint : "transparent",
-                            color: on ? a.color : C.textDim,
-                          }}
-                        >
-                          {a.icon} {a.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                {/* Konsolidiert (Phase C, 06.08.): EIN Berechtigungen-Panel pro
+                    Person — Apps + Kunden zusammen, statt zwei Bedienstellen. */}
                 {expanded === u.userId && (
                   <div style={{ marginTop: 10, borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>
+                    <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 6 }}>
+                      Apps: welche Apps darf {u.email || "diese Person"} öffnen?
+                    </div>
+                    <div style={{ display: "flex", gap: 6, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
+                      {EZY_APPS.filter((a) => !a.adminOnly).map((a) => {
+                        const on = appAccessMap[u.userId]?.has(a.id);
+                        return (
+                          <button
+                            key={a.id}
+                            type="button"
+                            onClick={() => toggleApp(u.userId, a.id)}
+                            title={on ? `${a.name} entziehen` : `${a.name} freischalten`}
+                            style={{
+                              display: "inline-flex", alignItems: "center", gap: 5,
+                              padding: "4px 10px", borderRadius: 99, cursor: "pointer", fontSize: 11.5,
+                              border: `1px solid ${on ? a.color : C.border}`,
+                              background: on ? a.tint : "transparent",
+                              color: on ? a.color : C.textDim,
+                            }}
+                          >
+                            {a.icon} {a.name}
+                          </button>
+                        );
+                      })}
+                    </div>
                     <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 8 }}>
-                      Welche Kunden darf {u.email || "dieser Mitarbeiter"} sehen?
+                      Kunden: welche Kunden darf {u.email || "diese Person"} sehen?
+                      {u.role === "viewer" && " (Portal-Logins gehören zu genau EINEM Kunden)"}
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 6, marginBottom: 10 }}>
                       {clients.map((c) => {
@@ -9906,6 +9914,264 @@ function TeamPage({ clients }) {
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin-Umbau 06.08.: App-Zugriff & Portal je Kunde. Stufe 1 = App an/aus,
+// Stufe 2 = Funktions-Freischaltung (APP_FEATURES), Stufe 3 = Portal-Logins
+// (Rolle viewer, fest an diesen Kunden gebunden). Keine DB-Zeile = App aktiv
+// mit allen Funktionen (Legacy) — Häkchen materialisieren erst beim Ändern.
+// ─────────────────────────────────────────────────────────────────────────────
+function ClientAppAccessPanel({ client }) {
+  const toast = useToast();
+  const caa = useClientAppAccess();
+  const apps = EZY_APPS.filter((a) => !a.adminOnly);
+  const catalogOf = (appId) => APP_FEATURES[appId] || [];
+  const entryOf = (appId) => caa.map.get(client.id)?.get(appId) || null;
+
+  const toggleApp = async (appId) => {
+    const enabled = appEnabledFor(caa.map, client.id, appId);
+    const err = await caa.setAccess(client.id, appId, { enabled: !enabled });
+    if (err) toast(err, "error");
+  };
+  const toggleFeature = async (appId, featureId) => {
+    const cat = catalogOf(appId).map((f) => f.id);
+    const e = entryOf(appId);
+    // [] = alle Funktionen → beim ersten Abwählen die volle Liste materialisieren.
+    const current = e && e.features.length ? e.features : cat;
+    const next = current.includes(featureId)
+      ? current.filter((f) => f !== featureId)
+      : [...current, featureId];
+    const err = await caa.setAccess(client.id, appId, { features: next });
+    if (err) toast(err, "error");
+  };
+
+  // Portal-Logins (Rolle viewer) dieses Kunden über die Team-API.
+  const [portalUsers, setPortalUsers] = useState(null);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const callTeam = useCallback(async (body) => {
+    const token = (await supabase.auth.getSession()).data.session?.access_token;
+    const r = await fetch("/api/admin/team", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token || ""}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return r.json().catch(() => ({ error: "Antwort ungültig" }));
+  }, []);
+  const loadPortal = useCallback(async () => {
+    const j = await callTeam({ action: "list" });
+    if (j.ok)
+      setPortalUsers((j.users || []).filter((u) => u.role === "viewer" && (u.clientIds || []).includes(client.id)));
+  }, [callTeam, client.id]);
+  useEffect(() => { void loadPortal(); }, [loadPortal]);
+  const invitePortal = async () => {
+    if (!inviteEmail.trim()) return;
+    setBusy(true);
+    const j = await callTeam({ action: "invite", email: inviteEmail.trim(), role: "viewer", clientIds: [client.id] });
+    setBusy(false);
+    if (j.ok) { toast(`Portal-Einladung an ${inviteEmail} gesendet`, "success"); setInviteEmail(""); await loadPortal(); }
+    else toast(j.error || "Einladung fehlgeschlagen", "error");
+  };
+  const removePortal = async (u) => {
+    if (!window.confirm(`Portal-Zugang von ${u.email || "Nutzer"} entfernen?`)) return;
+    const j = await callTeam({ action: "remove", userId: u.userId });
+    if (j.ok) { toast("Portal-Zugang entfernt", "success"); await loadPortal(); }
+    else toast(j.error || "Fehlgeschlagen", "error");
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {caa.legacy && (
+        <div style={{ fontSize: 12, color: C.orange, border: `1px solid ${C.orange}44`, background: `${C.orange}11`, borderRadius: 10, padding: "8px 12px" }}>
+          Die Datenbank-Migration <code>client_app_portal</code> ist noch nicht angewendet — Freischaltungen
+          können noch nicht gespeichert werden (aktuell gilt: alle Apps/Funktionen aktiv).
+        </div>
+      )}
+      {apps.map((a) => {
+        const enabled = appEnabledFor(caa.map, client.id, a.id);
+        const cat = catalogOf(a.id);
+        return (
+          <div key={a.id} style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 15 }}>{a.icon}</span>
+              <span style={{ fontSize: 13.5, fontWeight: 700, color: C.text }}>{a.name}</span>
+              {!cat.length && <Badge color={C.textDim}>nur intern</Badge>}
+              <button
+                type="button"
+                onClick={() => toggleApp(a.id)}
+                disabled={caa.legacy}
+                title={enabled ? "App für diesen Kunden deaktivieren" : "App für diesen Kunden aktivieren"}
+                style={{
+                  marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "4px 12px", borderRadius: 99, cursor: caa.legacy ? "default" : "pointer",
+                  fontSize: 12, fontWeight: 600,
+                  border: `1px solid ${enabled ? a.color : C.border}`,
+                  background: enabled ? a.tint : "transparent",
+                  color: enabled ? a.color : C.textDim,
+                }}
+              >
+                {enabled ? "aktiv" : "inaktiv"}
+              </button>
+            </div>
+            {enabled && cat.length > 0 && (
+              <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+                {cat.map((f) => {
+                  const on = featureEnabledFor(caa.map, client.id, a.id, f.id);
+                  return (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => toggleFeature(a.id, f.id)}
+                      disabled={caa.legacy}
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 5,
+                        padding: "4px 10px", borderRadius: 99, cursor: caa.legacy ? "default" : "pointer", fontSize: 11.5,
+                        border: `1px solid ${on ? C.accent : C.border}`,
+                        background: on ? C.accentDim : "transparent",
+                        color: on ? C.accentLight : C.textDim,
+                      }}
+                    >
+                      {on ? "☑" : "☐"} {f.label}
+                    </button>
+                  );
+                })}
+                {!entryOf(a.id)?.features?.length && (
+                  <span style={{ fontSize: 11, color: C.textDim, alignSelf: "center" }}>alle Funktionen (Standard)</span>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Portal-Zugänge (Kunden-Logins, Rolle viewer) */}
+      <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px" }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 8 }}>Portal-Zugänge</div>
+        <p style={{ fontSize: 11.5, color: C.textMuted, margin: "0 0 10px" }}>
+          Kunden-Logins sehen ausschließlich die oben freigeschalteten Funktionen dieses Kunden — read-only,
+          ohne Agenten, Einstellungen oder interne Notizen.
+        </p>
+        {portalUsers === null ? (
+          <div style={{ fontSize: 12, color: C.textMuted }}>Lädt…</div>
+        ) : portalUsers.length === 0 ? (
+          <div style={{ fontSize: 12, color: C.textDim, marginBottom: 8 }}>Noch keine Portal-Zugänge.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+            {portalUsers.map((u) => (
+              <div key={u.userId} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Badge color={C.green}>aktiv</Badge>
+                <span style={{ fontSize: 12.5, color: C.text }}>{u.email || u.userId.slice(0, 8)}</span>
+                <Btn variant="danger" size="sm" style={{ marginLeft: "auto" }} onClick={() => removePortal(u)}>
+                  Sperren
+                </Btn>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+          <div style={{ flex: 1 }}>
+            <Inp label="E-Mail" value={inviteEmail} onChange={setInviteEmail} placeholder="kunde@firma.ch" />
+          </div>
+          <Btn size="sm" onClick={invitePortal} disabled={busy || !inviteEmail.trim()}>
+            {busy ? "…" : "Kunden-Login einladen"}
+          </Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Zugriffs-Matrix (Admin-Umbau 06.08.): Kunden × Apps auf einen Blick.
+// Zelle klicken = App an/aus; Kunde aufklappen = Funktions-Details + Portal.
+function MatrixPage({ clients }) {
+  const toast = useToast();
+  const caa = useClientAppAccess();
+  const [expanded, setExpanded] = useState(null); // clientId
+  const apps = EZY_APPS.filter((a) => !a.adminOnly);
+  const toggle = async (clientId, appId) => {
+    const err = await caa.setAccess(clientId, appId, {
+      enabled: !appEnabledFor(caa.map, clientId, appId),
+    });
+    if (err) toast(err, "error");
+  };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div>
+        <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Zugriffs-Matrix</h2>
+        <p style={{ fontSize: 12, color: C.textMuted, margin: "4px 0 0" }}>
+          Welcher Kunde erscheint in welcher App. Zelle klicken zum Umschalten; Kunde aufklappen für
+          Funktions-Freischaltung und Portal-Zugänge. Mitarbeiter-Rechte verwaltest du auf der Team-Seite.
+        </p>
+      </div>
+      {caa.legacy && (
+        <div style={{ fontSize: 12, color: C.orange, border: `1px solid ${C.orange}44`, background: `${C.orange}11`, borderRadius: 10, padding: "8px 12px" }}>
+          Migration <code>client_app_portal</code> noch nicht angewendet — die Matrix ist read-only
+          (alle Apps gelten als aktiv).
+        </div>
+      )}
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, overflowX: "auto" }}>
+        <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 560 }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: "left", fontSize: 11.5, color: C.textMuted, fontWeight: 600, padding: "6px 10px" }}>Kunde</th>
+              {apps.map((a) => (
+                <th key={a.id} style={{ fontSize: 11.5, color: C.textMuted, fontWeight: 600, padding: "6px 10px", whiteSpace: "nowrap" }}>
+                  {a.icon} {a.name}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {clients.map((c) => (
+              <Fragment key={c.id}>
+                <tr style={{ borderTop: `1px solid ${C.border}` }}>
+                  <td style={{ padding: "8px 10px" }}>
+                    <button
+                      type="button"
+                      onClick={() => setExpanded(expanded === c.id ? null : c.id)}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: C.text, fontSize: 13, fontWeight: 600, padding: 0, fontFamily: "inherit" }}
+                    >
+                      {expanded === c.id ? "▾" : "▸"} {c.name}
+                    </button>
+                  </td>
+                  {apps.map((a) => {
+                    const on = appEnabledFor(caa.map, c.id, a.id);
+                    return (
+                      <td key={a.id} style={{ textAlign: "center", padding: "8px 10px" }}>
+                        <button
+                          type="button"
+                          onClick={() => toggle(c.id, a.id)}
+                          disabled={caa.legacy}
+                          title={`${a.name} für ${c.name} ${on ? "deaktivieren" : "aktivieren"}`}
+                          style={{
+                            width: 26, height: 26, borderRadius: 7, cursor: caa.legacy ? "default" : "pointer",
+                            border: `1px solid ${on ? a.color : C.border}`,
+                            background: on ? a.tint : "transparent",
+                            color: on ? a.color : C.textDim,
+                            fontSize: 13, fontWeight: 700,
+                          }}
+                        >
+                          {on ? "✓" : "–"}
+                        </button>
+                      </td>
+                    );
+                  })}
+                </tr>
+                {expanded === c.id && (
+                  <tr>
+                    <td colSpan={apps.length + 1} style={{ padding: "4px 10px 14px" }}>
+                      <ClientAppAccessPanel client={c} />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -10193,6 +10459,10 @@ function ClientsPage({
                 { id: "overview", label: "Übersicht" },
                 { id: "kpis", label: "KPIs" },
                 { id: "notes", label: "Notizen" },
+                // Admin-Umbau 06.08.: Lauf-Nachweis + App-/Portal-Freischaltung
+                // leben jetzt beim Kunden (statt eigenem Admin-Dashboard).
+                { id: "runs", label: "Agent-Läufe" },
+                { id: "access", label: "App-Zugriff" },
               ]}
               active={dt}
               onChange={setDt}
@@ -10285,6 +10555,8 @@ function ClientsPage({
                 </div>
               </div>
             )}
+            {dt === "runs" && <AgentRunsPanel selectedClient={detail} />}
+            {dt === "access" && <ClientAppAccessPanel client={detail} />}
             {dt === "kpis" &&
               (() => {
                 const hasData =
@@ -10703,6 +10975,7 @@ function SettingsPage({
   customerDefaults,
   onSaveDefaults,
   onClientUpdated,
+  onOpenAgents = null,
 }) {
   const toast = useToast();
   const [sec, setSec] = useState("profil");
@@ -10719,6 +10992,9 @@ function SettingsPage({
     ["api", "API-Schlüssel", Key],
     ["skills", "Skills / Tools", Zap],
     ["dashboard", "Dashboard-Metriken", BarChart3],
+    // Admin-Umbau 06.08.: Agenten-Verwaltung wohnt jetzt hier (statt eigenem
+    // Nav-Punkt) — der Eintrag springt auf die (unveränderte) Agents-Seite.
+    ...(onOpenAgents ? [["agents", "Agenten & Automatisierung", Bot]] : []),
     ["about", "Über EZY ONE", Info],
   ];
   const providerRows = [
@@ -10739,7 +11015,7 @@ function SettingsPage({
         {sects.map(([id, l, I]) => (
           <button
             key={id}
-            onClick={() => setSec(id)}
+            onClick={() => (id === "agents" && onOpenAgents ? onOpenAgents() : setSec(id))}
             style={{
               width: "100%",
               display: "flex",
@@ -12165,7 +12441,7 @@ function EzyPilotProvider({ selectedClient, clients, tools, children }) {
           name: spec.name,
           description: spec.description || "",
           instructions: spec.instructions || "",
-          model: spec.model || "claude-opus-4-8",
+          model: spec.model || "claude-sonnet-4-6",
           skills: Array.isArray(spec.skills) ? spec.skills : [],
         }),
       });
@@ -12629,7 +12905,7 @@ function AgentsPage({ selectedClient }) {
                 ▦ Aus Vorlage
               </button>
             )}
-            <button onClick={() => setEditing({ name: "", description: "", instructions: "", model: "claude-opus-4-8", skills: [] })} style={btn(C.accent)}>
+            <button onClick={() => setEditing({ name: "", description: "", instructions: "", model: "claude-sonnet-4-6", skills: [] })} style={btn(C.accent)}>
               + Neuer Agent
             </button>
             {showTemplates && (
@@ -12933,8 +13209,9 @@ const NAV = [
   { id: "agents", label: "Agents", icon: Bot },
   { id: "content", label: "Content", icon: FileText },
   { id: "reports", label: "Reports", icon: TrendingUp },
-  { id: "clients", label: "Clients", icon: Users },
+  { id: "clients", label: "Kunden", icon: Users },
   { id: "team", label: "Team", icon: Users }, // nur owner/admin (RBAC 2026-07-15)
+  { id: "matrix", label: "Zugriffs-Matrix", icon: Key }, // nur owner/admin (Admin-Umbau 06.08.)
   { id: "settings", label: "Einstellungen", icon: Settings },
 ];
 
@@ -12960,28 +13237,36 @@ function App({ appScope = null }) {
   const isViewer = role === "viewer";
   // Team + Einstellungen nur fuer SuperAdmin(owner)/admin (RBAC 2026-07-15).
   // Mitarbeiter (member/viewer) duerfen keine Kunden-Einstellungen sehen/aendern.
-  const nav = useMemo(
+  const navBase = useMemo(
     () =>
       isViewer
         ? NAV.filter((n) => n.id === "dashboard" || n.id === "reports")
         : NAV.filter(
             (n) =>
               n.id !== "reports" &&
-              ((n.id !== "team" && n.id !== "settings") || isOrgAdmin) &&
+              ((n.id !== "team" && n.id !== "settings" && n.id !== "matrix") || isOrgAdmin) &&
               (!scope || scope.pages.includes(n.id)) && // Phase 3: App-Scope
+              // Admin-Umbau 06.08.: Agenten-Verwaltung liegt im Admin unter
+              // Einstellungen → Agenten & Automatisierung (Seite bleibt im Scope).
+              !(appScope === "admin" && n.id === "agents") &&
               // copilot kommt über den Dashboard/Agent-Switcher (nicht doppelt in der Nav)
               !(scope?.pages?.includes("copilot") && n.id === "copilot"),
           ),
-    [isViewer, isOrgAdmin, scope],
+    [isViewer, isOrgAdmin, scope, appScope],
   );
   const ezy = useEzyClients();
   // Service-Filter je App (01.08.): EzyPerformance zeigt nur Kunden mit
   // aktiviertem google-ads-Service (scope.services); ohne Filter alle Kunden.
   const svcMatrix = useEzyServiceMatrix();
+  // Admin-Umbau 06.08.: Kunde↔App-Freischaltung (client_app_access). Keine
+  // Zeile = App aktiv (Legacy). Admin-App zeigt immer alle Kunden.
+  const caa = useClientAppAccess();
   const clients = useMemo(() => {
     const all = ezy.clients.map((c) => normalizeClientShape(c));
-    return scope?.services ? all.filter((c) => svcMatrix.hasService(c.id, scope.services)) : all;
-  }, [ezy.clients, scope, svcMatrix.hasService]);
+    const svc = scope?.services ? all.filter((c) => svcMatrix.hasService(c.id, scope.services)) : all;
+    if (!appScope || appScope === "admin") return svc;
+    return svc.filter((c) => appEnabledFor(caa.map, c.id, appScope));
+  }, [ezy.clients, scope, svcMatrix.hasService, appScope, caa.map]);
   const ui0 = useMemo(() => loadUiState(), []); // letzter UI-Stand aus localStorage
   const [clientId, setClientId] = useState(ui0.clientId || "");
   useEffect(() => {
@@ -13001,6 +13286,15 @@ function App({ appScope = null }) {
   const client = useMemo(
     () => clients.find((entry) => entry.id === clientId) || clients[0] || emptyClient,
     [clientId, clients, emptyClient],
+  );
+  // Portal-Gating (06.08.): Kunden-Logins (viewer) sehen "Reports" nur, wenn
+  // die Funktion für ihren Kunden freigeschaltet ist (client_app_access).
+  const nav = useMemo(
+    () =>
+      isViewer && client?.id
+        ? navBase.filter((n) => n.id !== "reports" || featureEnabledFor(caa.map, client.id, "seo", "reports"))
+        : navBase,
+    [navBase, isViewer, client?.id, caa.map],
   );
   const profileHook = useEzyProfile();
   const defaultsHook = useEzyDefaults(client?.id);
@@ -13039,8 +13333,13 @@ function App({ appScope = null }) {
   // Mitarbeiter (kein Admin) haben keinen Zugriff auf Einstellungen/Team –
   // auch nicht per direkter URL/localStorage-Wiederherstellung.
   useEffect(() => {
-    if (!isOrgAdmin && (page === "settings" || page === "team")) setPage("dashboard");
+    if (!isOrgAdmin && (page === "settings" || page === "team" || page === "matrix")) setPage("dashboard");
   }, [isOrgAdmin, page]);
+  // Portal-Gating: Reports-Seite ohne Freischaltung → zurück aufs Dashboard.
+  useEffect(() => {
+    if (isViewer && page === "reports" && client?.id && !featureEnabledFor(caa.map, client.id, "seo", "reports"))
+      setPage("dashboard");
+  }, [isViewer, page, client?.id, caa.map]);
   // Phase 3: der (App-übergreifend gemerkte) UI-Stand darf nicht aus dem Scope
   // der aktuellen App herausführen — sonst zeigt EzyPerformance z. B. "clients".
   useEffect(() => {
@@ -13206,6 +13505,12 @@ function App({ appScope = null }) {
         if (scope && !scope.tabs.includes(t.id)) return false;
         // runs bleibt RBAC-geschützt (nur owner/admin), auch im Scope-Modus
         if (t.id === "runs" && !isOrgAdmin) return false;
+        // Portal-Gating (06.08.): Kunden-Logins (viewer) sehen nur Tabs, deren
+        // App+Funktion für den gewählten Kunden freigeschaltet ist.
+        if (isViewer && client?.id) {
+          const gate = TAB_APP_FEATURE[t.id];
+          if (gate && !featureEnabledFor(caa.map, client.id, gate.app, gate.feature)) return false;
+        }
         // 1) manuelle Tab-Auswahl (Kunden-Datensatz bevorzugt) — der PRIMÄR-Tab
         //    einer App umgeht sie, sonst wäre z. B. EzyPerformance bei Kunden
         //    ohne "ads" in der Tab-Auswahl komplett leer (Service-Gate reicht).
@@ -13217,7 +13522,7 @@ function App({ appScope = null }) {
         if (!req || svc.loading) return true;
         return req.some((k) => svc.enabled?.[k]);
       }),
-    [effectiveVisibleTabs, svc.enabled, svc.loading, scope, isOrgAdmin],
+    [effectiveVisibleTabs, svc.enabled, svc.loading, scope, isOrgAdmin, isViewer, client?.id, caa.map],
   );
   useEffect(() => {
     if (visibleTabs.length > 0 && !visibleTabs.some((t) => t.id === tab)) {
@@ -13910,6 +14215,7 @@ function App({ appScope = null }) {
             />
           )}
           {isOrgAdmin && page === "team" && <TeamPage clients={clients} />}
+          {isOrgAdmin && page === "matrix" && <MatrixPage clients={clients} />}
           {isOrgAdmin && page === "settings" && (
             <SettingsPage
               tools={tools}
@@ -13920,6 +14226,7 @@ function App({ appScope = null }) {
               customerDefaults={customerDefaults}
               onSaveDefaults={saveCustomerDefaults}
               onClientUpdated={ezy.reload}
+              onOpenAgents={appScope === "admin" ? () => setPage("agents") : null}
             />
           )}
           {!isViewer && page === "agents" && (

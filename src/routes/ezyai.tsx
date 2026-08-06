@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useAppAccess } from "@/ezy/data/useAppAccess";
+import { useClientAppAccess, appEnabledFor } from "@/ezy/data/useClientAppAccess";
 import { EZY_APPS } from "@/ezy/data/appRegistry";
 import { useEzyClients } from "@/ezy/data/useEzyClients";
 import { useEzyServiceSettings } from "@/ezy/data/useEzyServiceSettings";
@@ -1007,10 +1008,16 @@ function EzyAiApp() {
   }, [accessLoading, session, canOpen]);
 
   // Nur Kunden mit aktiver KI-Sichtbarkeit (canonry|perplexity) anbieten (01.08.)
+  // + Kunde↔App-Freischaltung (client_app_access, Admin-Umbau 06.08.):
+  // in der Zugriffs-Matrix deaktivierte Kunden erscheinen hier nicht.
   const svcMatrix = useEzyServiceMatrix();
+  const caa = useClientAppAccess();
   const clients = useMemo(
-    () => (ezy.clients || []).filter((c: any) => svcMatrix.hasService(c.id, ["canonry", "perplexity"])),
-    [ezy.clients, svcMatrix.hasService],
+    () =>
+      (ezy.clients || [])
+        .filter((c: any) => svcMatrix.hasService(c.id, ["canonry", "perplexity"]))
+        .filter((c: any) => appEnabledFor(caa.map, c.id, "geo")),
+    [ezy.clients, svcMatrix.hasService, caa.map],
   );
   const client = useMemo(
     () => clients.find((c: any) => c.id === clientId) || clients[0] || null,

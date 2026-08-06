@@ -99,11 +99,43 @@ export const APP_SCOPES: Record<string, { pages: string[]; tabs: string[]; prima
     home: "/reakt",
   },
   admin: {
-    pages: ["dashboard", "clients", "team", "agents", "settings", "copilot", "tools"],
-    tabs: ["runs"],
-    primary: "runs",
+    // Admin-Umbau (Volkan 06.08.): reiner Verwaltungs-Bereich — Dashboard/
+    // Copilot/AI-Tools raus. "agents" bleibt im Scope (erreichbar über
+    // Einstellungen → Agenten & Automatisierung), aber nicht in der Nav.
+    pages: ["clients", "team", "matrix", "settings", "agents"],
+    tabs: [],
+    primary: "clients",
     home: "/admin",
   },
+};
+
+/** Funktions-Katalog je App (Admin-Umbau 06.08.): welche Funktionen ein Kunde
+ *  freigeschaltet bekommen kann (client_app_access.features). Die IDs sind an
+ *  Dashboard-Tabs/Seiten der Engine ausgerichtet, damit das Portal-Gating
+ *  (Rolle viewer = Kunden-Login) sie direkt anwenden kann. Leerer Katalog
+ *  (reakt) = App ist rein intern und nie kundenfähig. */
+export const APP_FEATURES: Record<EzyAppId, Array<{ id: string; label: string }>> = {
+  seo: [
+    { id: "overview", label: "Übersicht" },
+    { id: "seo", label: "Rankings & GSC-Suchbegriffe" },
+    { id: "blog", label: "Blog / Refresh-Radar" },
+    { id: "conversions", label: "Conversions" },
+    { id: "reports", label: "Reports" },
+  ],
+  geo: [{ id: "aivis", label: "KI-Sichtbarkeit (EzyAI)" }],
+  ads: [{ id: "ads", label: "Ads-Dashboard" }],
+  reakt: [],
+  admin: [],
+};
+
+/** Welche Kundensichtbarkeits-App hinter einem Dashboard-Tab steht (Portal-
+ *  Gating): Tab sichtbar ⇔ App für den Kunden aktiv UND Feature freigeschaltet. */
+export const TAB_APP_FEATURE: Record<string, { app: EzyAppId; feature: string }> = {
+  overview: { app: "seo", feature: "overview" },
+  seo: { app: "seo", feature: "seo" },
+  blog: { app: "seo", feature: "blog" },
+  conversions: { app: "seo", feature: "conversions" },
+  ads: { app: "ads", feature: "ads" },
 };
 
 /** Startzustand in der heutigen EzyOneApp je App (Phase-1-Deep-Link).
@@ -118,7 +150,7 @@ export const APP_START: Record<string, { page: string; tab?: string }> = {
 
 /** Umkehrung für den Switcher: in welcher App steckt der Nutzer gerade? */
 export function currentAppOf(page: string, tab: string): EzyAppId {
-  if (page === "clients" || page === "team" || page === "settings" || page === "agents") return "admin";
+  if (page === "clients" || page === "team" || page === "matrix" || page === "settings" || page === "agents") return "admin";
   if (page === "dashboard") {
     if (tab === "ads") return "ads";
     if (tab === "runs") return "reakt";

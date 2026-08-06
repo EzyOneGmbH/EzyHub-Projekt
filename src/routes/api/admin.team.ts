@@ -10,7 +10,9 @@ import { isOrgAdmin, orgRoleOf } from "@/server/integrations.server";
 //
 // Aktionen (POST { action, ... }):
 //  - list                          -> Nutzer der Org + ihre Kunden-Zuweisungen
-//  - invite {email, role}          -> Mitarbeiter per E-Mail einladen (Passwort setzen)
+//  - invite {email, role, clientIds?} -> per E-Mail einladen (Passwort setzen);
+//    clientIds weist direkt Kunden zu — Portal-Logins (role viewer) werden so
+//    in EINEM Schritt an ihren Kunden gebunden (Admin-Umbau 06.08.)
 //  - setRole {userId, role}        -> Rolle ändern (nicht den eigenen Owner degradieren)
 //  - assign {userId, clientIds[]}  -> Kunden-Zuweisung setzen (ersetzt bestehende)
 //  - remove {userId}               -> aus der Org entfernen (+ Zuweisungen)
@@ -156,6 +158,24 @@ export const Route = createFileRoute("/api/admin/team")({
             }
           } catch {
             /* Aufraeumen best-effort; die Mitgliedschaft in orgId steht bereits */
+          }
+          // Direkt-Zuweisung von Kunden (Portal-Flow): nur Kunden dieser Org.
+          if (d.clientIds?.length) {
+            const { data: valid } = await supabaseAdmin
+              .from("clients")
+              .select("id")
+              .eq("organization_id", orgId)
+              .in("id", d.clientIds);
+            const rows = (valid || []).map((c: any) => ({
+              organization_id: orgId,
+              client_id: c.id,
+              user_id: newUserId!,
+              created_by: user.id,
+            }));
+            if (rows.length)
+              await supabaseAdmin
+                .from("client_access")
+                .upsert(rows, { onConflict: "user_id,client_id", ignoreDuplicates: true });
           }
           return Response.json({ ok: true, userId: newUserId, role, invited: !invErr });
         }
