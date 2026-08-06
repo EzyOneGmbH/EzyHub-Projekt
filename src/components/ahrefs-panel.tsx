@@ -44,7 +44,8 @@ export function AhrefsPanel({ clientId, domain }: Props) {
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <BarChart3 className="h-5 w-5 text-primary" />
-          <h2 className="font-semibold">Ahrefs Übersicht</h2>
+          <h2 className="font-semibold">Backlinks &amp; Autorität</h2>
+          <Badge variant="secondary">DataForSEO</Badge>
           {domain && <Badge variant="outline">{domain}</Badge>}
         </div>
         <Button onClick={run} disabled={loading || !domain} size="sm">
@@ -73,7 +74,7 @@ export function AhrefsPanel({ clientId, domain }: Props) {
           )}
           <div className="grid gap-3 sm:grid-cols-2">
             <Section
-              title="Domain Rating"
+              title="Autorität (DFS-Rank)"
               payload={data.domain_rating}
               error={data.errors?.domain_rating}
             />

@@ -1,63 +1,58 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
-import { isProviderEnabled, canRunAudits } from "@/server/integrations.server";
+import { canRunAudits } from "@/server/integrations.server";
+
+// Backlink-/Autoritäts-Übersicht — 2026-08-06 von Ahrefs auf DataForSEO abgelöst.
+// Ahrefs war die letzte Live-Quelle im Overview-Panel (die KI-Sichtbarkeit lief
+// schon seit 19.07. über DataForSEO). Route-Pfad bleibt /api/ahrefs/overview,
+// damit das Panel unverändert fetchen kann; die Daten kommen jetzt aus:
+//   - backlinks/summary/live      -> rank (DR-Ersatz) + Backlinks/Referring Domains
+//   - backlinks/history/live      -> Referring-Domains-Verlauf (90 Tage)
+//   - dataforseo_labs domain_rank_overview -> organischer Traffic/Keywords (Schätzung)
+// Metrik-Bruch bewusst: DFS-Rank/Link-Index ≠ Ahrefs -> Quelle im Ergebnis
+// gelabelt (source:"dataforseo"), Panel zeigt es an.
 
 const QuerySchema = z.object({
   clientId: z.string().uuid(),
 });
 
-function redact(input: unknown, secrets: Array<string | undefined>): string {
-  let s =
-    typeof input === "string" ? input : input instanceof Error ? input.message : String(input);
-  for (const v of secrets) {
-    if (!v || v.length < 4) continue;
-    s = s.split(v).join("***REDACTED***");
-  }
-  s = s.replace(/Bearer\s+[A-Za-z0-9\-_.=]+/gi, "Bearer ***REDACTED***");
-  return s.slice(0, 500);
+const DFS_BASE = "https://api.dataforseo.com/v3";
+
+function dfsAuth(): string | null {
+  const login = process.env.DATAFORSEO_LOGIN, pass = process.env.DATAFORSEO_PASSWORD;
+  if (!login || !pass) return null;
+  return "Basic " + Buffer.from(`${login}:${pass}`).toString("base64");
 }
 
-type SectionResult<T> =
-  | { ok: true; data: T }
-  | { ok: false; status?: number; error: string; rate_limited?: boolean };
+type SectionResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
-async function ahrefsFetch<T>(
+// Generischer DataForSEO-Live-Call (Basic-Auth, Task-Array-Body). Gibt das erste
+// result-Objekt zurück; Fehler (inkl. task-level status_code) werden gefangen.
+async function dfsCall<T = any>(
   path: string,
-  params: Record<string, string>,
-  apiKey: string,
-  secrets: Array<string | undefined>,
-  timeoutMs = 8000,
+  task: Record<string, unknown>,
+  auth: string,
+  timeoutMs = 12000,
 ): Promise<SectionResult<T>> {
-  const url = new URL(`https://api.ahrefs.com/v3/${path}`);
-  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetch(url.toString(), {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        Accept: "application/json",
-      },
+    const res = await fetch(`${DFS_BASE}/${path}`, {
+      method: "POST",
+      headers: { Authorization: auth, "Content-Type": "application/json" },
+      body: JSON.stringify([task]),
       signal: ctrl.signal,
     });
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      const rate_limited = res.status === 429;
-      return {
-        ok: false,
-        status: res.status,
-        rate_limited,
-        error: redact(
-          rate_limited ? `Ahrefs rate limit reached (HTTP 429)` : `HTTP ${res.status}: ${text}`,
-          secrets,
-        ),
-      };
+    const j: any = await res.json().catch(() => null);
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    const taskObj = j?.tasks?.[0];
+    if (!taskObj || (taskObj.status_code && taskObj.status_code >= 40000)) {
+      return { ok: false, error: `DFS ${taskObj?.status_code ?? "?"}: ${String(taskObj?.status_message ?? "kein Ergebnis").slice(0, 120)}` };
     }
-    const data = (await res.json().catch(() => null)) as T;
-    return { ok: true, data };
+    return { ok: true, data: (taskObj.result?.[0] ?? null) as T };
   } catch (e) {
-    return { ok: false, error: redact(e, secrets) };
+    return { ok: false, error: String((e as Error)?.message || e).slice(0, 120) };
   } finally {
     clearTimeout(t);
   }
@@ -67,10 +62,9 @@ export const Route = createFileRoute("/api/ahrefs/overview")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const apiKey = process.env.AHREFS_API_KEY;
-        const secrets = [apiKey];
-        if (!apiKey) {
-          return Response.json({ error: "AHREFS_API_KEY not configured" }, { status: 503 });
+        const auth = dfsAuth();
+        if (!auth) {
+          return Response.json({ error: "DATAFORSEO_LOGIN/PASSWORD not configured" }, { status: 503 });
         }
 
         const supabaseUrl = process.env.SUPABASE_URL;
@@ -128,85 +122,70 @@ export const Route = createFileRoute("/api/ahrefs/overview")({
             { status: 403 },
           );
         }
-        if (!(await isProviderEnabled(client.id, "ahrefs"))) {
-          return Response.json({ error: "Ahrefs für diesen Kunden deaktiviert." }, { status: 403 });
-        }
-        const domain = client.domain;
+        // Kein Ahrefs-Provider-Gate mehr — DataForSEO ist plattformweit (pay-per-call).
+        const domain = String(client.domain).replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/^www\./, "");
         const organizationId = client.organization_id;
+        const dateFrom = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
 
-        // Ahrefs has no data for "today" (rejects it as "bad date") -> use yesterday.
-        // mode "subdomains" so a bare domain also captures its www/host data.
-        const date = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-
-        // Parallel fetch core metrics. Each handles its own errors.
-        const [domainRating, backlinksStats, refdomains, metrics] = await Promise.all([
-          ahrefsFetch<unknown>(
-            "site-explorer/domain-rating",
-            { target: domain, date },
-            apiKey,
-            secrets,
-          ),
-          ahrefsFetch<unknown>(
-            "site-explorer/backlinks-stats",
-            { target: domain, date, mode: "subdomains" },
-            apiKey,
-            secrets,
-          ),
-          ahrefsFetch<unknown>(
-            "site-explorer/refdomains-history",
-            {
-              target: domain,
-              date_from: new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10),
-              history_grouping: "weekly",
-              mode: "subdomains",
-            },
-            apiKey,
-            secrets,
-          ),
-          ahrefsFetch<unknown>(
-            "site-explorer/metrics",
-            { target: domain, date, mode: "subdomains" },
-            apiKey,
-            secrets,
-          ),
+        // Parallel: Summary (rank + Backlinks), History (Refdomains 90d), Labs (organisch CH).
+        const [summary, history, labs] = await Promise.all([
+          dfsCall("backlinks/summary/live", { target: domain, include_subdomains: true, backlinks_status_type: "live" }, auth),
+          dfsCall("backlinks/history/live", { target: domain, date_from: dateFrom }, auth),
+          dfsCall("dataforseo_labs/google/domain_rank_overview/live", { target: domain, location_code: 2756, language_code: "de" }, auth),
         ]);
 
-        const rate_limited = [domainRating, backlinksStats, refdomains, metrics].some(
-          (r) => !r.ok && r.rate_limited,
-        );
+        // In die bestehenden Panel-Schlüssel mappen (Panel zeigt rohes JSON).
+        const s: any = summary.ok ? summary.data : null;
+        const domain_rating = s
+          ? { rank: s.rank ?? null, backlinks: s.backlinks ?? null, referring_domains: s.referring_domains ?? null, _hinweis: "DataForSEO-Rank (0–1000), ersetzt Ahrefs Domain Rating" }
+          : null;
+        const backlinks_stats = s
+          ? {
+              backlinks: s.backlinks ?? null,
+              referring_domains: s.referring_domains ?? null,
+              referring_main_domains: s.referring_main_domains ?? null,
+              referring_domains_nofollow: s.referring_domains_nofollow ?? null,
+              broken_backlinks: s.broken_backlinks ?? null,
+              referring_pages: s.referring_pages ?? null,
+            }
+          : null;
+        const histItems = history.ok ? ((history.data as any)?.items ?? []) : [];
+        const refdomains_history = history.ok
+          ? { items: (histItems as any[]).map((it) => ({ date: it.date, referring_domains: it.referring_domains, backlinks: it.backlinks })) }
+          : null;
+        const org = labs.ok ? ((labs.data as any)?.items?.[0]?.metrics?.organic ?? null) : null;
+        const metrics = org
+          ? { organic_traffic_etv: org.etv ?? null, organic_keywords: org.count ?? null, pos_1: org.pos_1 ?? null, pos_2_3: org.pos_2_3 ?? null, pos_4_10: org.pos_4_10 ?? null }
+          : null;
 
         const result = {
           generated_at: new Date().toISOString(),
           domain,
-          rate_limited,
-          domain_rating: domainRating.ok ? domainRating.data : null,
-          backlinks_stats: backlinksStats.ok ? backlinksStats.data : null,
-          refdomains_history: refdomains.ok ? refdomains.data : null,
-          metrics: metrics.ok ? metrics.data : null,
+          source: "dataforseo",
+          rate_limited: false,
+          domain_rating,
+          backlinks_stats,
+          refdomains_history,
+          metrics,
           errors: {
-            domain_rating: domainRating.ok ? null : domainRating.error,
-            backlinks_stats: backlinksStats.ok ? null : backlinksStats.error,
-            refdomains_history: refdomains.ok ? null : refdomains.error,
-            metrics: metrics.ok ? null : metrics.error,
+            domain_rating: summary.ok ? null : summary.error,
+            backlinks_stats: summary.ok ? null : summary.error,
+            refdomains_history: history.ok ? null : history.error,
+            metrics: labs.ok ? null : labs.error,
           },
         };
 
-        // Persist into audit_runs when we have a client + org context.
         if (clientId && organizationId) {
-          const allFailed = !domainRating.ok && !backlinksStats.ok && !refdomains.ok && !metrics.ok;
+          const allFailed = !summary.ok && !history.ok && !labs.ok;
           await admin.from("audit_runs").insert({
             client_id: clientId,
             organization_id: organizationId,
             triggered_by: user.id,
-            audit_type: "ahrefs",
+            audit_type: "ahrefs", // Feld-Kontinuität (Dashboard/Filter); Quelle steht in result.source
             status: allFailed ? "failed" : "succeeded",
             input: { domain },
             result: result as unknown as Record<string, unknown>,
-            error: allFailed
-              ? rate_limited
-                ? "Ahrefs rate limit"
-                : "All Ahrefs sections failed"
-              : null,
+            error: allFailed ? "Alle DataForSEO-Sektionen fehlgeschlagen" : null,
             started_at: new Date().toISOString(),
             finished_at: new Date().toISOString(),
           });
