@@ -549,6 +549,36 @@ export type Database = {
           },
         ]
       }
+      ai_crawler_hits: {
+        Row: {
+          at: string
+          bot: string
+          client_id: string
+          id: number
+          organization_id: string
+          status: number | null
+          url: string
+        }
+        Insert: {
+          at?: string
+          bot: string
+          client_id: string
+          id?: never
+          organization_id: string
+          status?: number | null
+          url: string
+        }
+        Update: {
+          at?: string
+          bot?: string
+          client_id?: string
+          id?: never
+          organization_id?: string
+          status?: number | null
+          url?: string
+        }
+        Relationships: []
+      }
       ai_visibility_attribution: {
         Row: {
           client_id: string
@@ -558,6 +588,7 @@ export type Database = {
           id: string
           report_id: string
           sessions: number | null
+          visitors: Json
         }
         Insert: {
           client_id: string
@@ -567,6 +598,7 @@ export type Database = {
           id?: string
           report_id: string
           sessions?: number | null
+          visitors?: Json
         }
         Update: {
           client_id?: string
@@ -576,6 +608,7 @@ export type Database = {
           id?: string
           report_id?: string
           sessions?: number | null
+          visitors?: Json
         }
         Relationships: [
           {
@@ -834,7 +867,9 @@ export type Database = {
         Row: {
           brand_eval: Json | null
           brands_count: number | null
+          checked_at: string | null
           client_id: string
+          comp_positions: Json | null
           competitors: string[] | null
           country: string | null
           id: string
@@ -847,13 +882,17 @@ export type Database = {
           report_id: string
           response: string | null
           sentiment: string | null
+          source_urls: string[] | null
           sources_count: number | null
           status: string | null
+          topic: string | null
         }
         Insert: {
           brand_eval?: Json | null
           brands_count?: number | null
+          checked_at?: string | null
           client_id: string
+          comp_positions?: Json | null
           competitors?: string[] | null
           country?: string | null
           id?: string
@@ -866,13 +905,17 @@ export type Database = {
           report_id: string
           response?: string | null
           sentiment?: string | null
+          source_urls?: string[] | null
           sources_count?: number | null
           status?: string | null
+          topic?: string | null
         }
         Update: {
           brand_eval?: Json | null
           brands_count?: number | null
+          checked_at?: string | null
           client_id?: string
+          comp_positions?: Json | null
           competitors?: string[] | null
           country?: string | null
           id?: string
@@ -885,8 +928,10 @@ export type Database = {
           report_id?: string
           response?: string | null
           sentiment?: string | null
+          source_urls?: string[] | null
           sources_count?: number | null
           status?: string | null
+          topic?: string | null
         }
         Relationships: [
           {
@@ -1147,6 +1192,57 @@ export type Database = {
           },
         ]
       }
+      api_cost_daily: {
+        Row: {
+          calls: number
+          cost_usd: number
+          day: string
+          provider: string
+          tokens_in: number
+          tokens_out: number
+          updated_at: string
+        }
+        Insert: {
+          calls?: number
+          cost_usd?: number
+          day: string
+          provider: string
+          tokens_in?: number
+          tokens_out?: number
+          updated_at?: string
+        }
+        Update: {
+          calls?: number
+          cost_usd?: number
+          day?: string
+          provider?: string
+          tokens_in?: number
+          tokens_out?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      app_access: {
+        Row: {
+          app: string
+          created_at: string
+          organization_id: string
+          user_id: string
+        }
+        Insert: {
+          app: string
+          created_at?: string
+          organization_id: string
+          user_id: string
+        }
+        Update: {
+          app?: string
+          created_at?: string
+          organization_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       app_users: {
         Row: {
           created_at: string
@@ -1313,6 +1409,86 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_app_access: {
+        Row: {
+          app: string
+          client_id: string
+          enabled: boolean
+          features: Json
+          id: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          app: string
+          client_id: string
+          enabled?: boolean
+          features?: Json
+          id?: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          app?: string
+          client_id?: string
+          enabled?: boolean
+          features?: Json
+          id?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_app_access_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_app_access_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_conversion_values: {
+        Row: {
+          client_id: string
+          currency: string
+          event_name: string
+          id: string
+          updated_at: string
+          value: number
+        }
+        Insert: {
+          client_id: string
+          currency?: string
+          event_name: string
+          id?: string
+          updated_at?: string
+          value?: number
+        }
+        Update: {
+          client_id?: string
+          currency?: string
+          event_name?: string
+          id?: string
+          updated_at?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_conversion_values_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
             referencedColumns: ["id"]
           },
         ]
@@ -1867,6 +2043,50 @@ export type Database = {
         }
         Relationships: []
       }
+      site_health_audits: {
+        Row: {
+          at: string
+          checks: Json
+          client_id: string
+          id: string
+          issues: Json
+          mode: string
+          pages: Json
+          scores: Json
+          url: string | null
+        }
+        Insert: {
+          at?: string
+          checks?: Json
+          client_id: string
+          id?: string
+          issues?: Json
+          mode?: string
+          pages?: Json
+          scores?: Json
+          url?: string | null
+        }
+        Update: {
+          at?: string
+          checks?: Json
+          client_id?: string
+          id?: string
+          issues?: Json
+          mode?: string
+          pages?: Json
+          scores?: Json
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_health_audits_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           assigned_to: string | null
@@ -1972,8 +2192,12 @@ export type Database = {
           hub: string | null
           id: string | null
           impr_28: number | null
+          index_checked_at: string | null
+          index_coverage: string | null
+          index_verdict: string | null
           language: string | null
           last_refresh_at: string | null
+          measured_days_28: number | null
           peak_clicks_28: number | null
           peak_position: number | null
           position_28: number | null
@@ -1997,6 +2221,17 @@ export type Database = {
       }
     }
     Functions: {
+      add_api_cost: {
+        Args: {
+          p_calls: number
+          p_cost: number
+          p_day: string
+          p_in: number
+          p_out: number
+          p_provider: string
+        }
+        Returns: undefined
+      }
       can_access_client: { Args: { _client_id: string }; Returns: boolean }
       can_run_audits: { Args: { _org: string }; Returns: boolean }
       get_content_dashboard: {
@@ -2010,8 +2245,12 @@ export type Database = {
           hub: string | null
           id: string | null
           impr_28: number | null
+          index_checked_at: string | null
+          index_coverage: string | null
+          index_verdict: string | null
           language: string | null
           last_refresh_at: string | null
+          measured_days_28: number | null
           peak_clicks_28: number | null
           peak_position: number | null
           position_28: number | null
