@@ -11,7 +11,10 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 const COPILOT_NAME = "EzyPilot";
 const COPILOT_LEGACY_NAMES = ["Ezy-Pilot", "EzyHub Co-Pilot"]; // rename-in-place to keep memory
-const COPILOT_MODEL = "claude-opus-4-8";
+// 2026-08-06: Opus -> Sonnet 4.6 (Kostenfix). Alle Agent-/Co-Pilot-Läufe zahlen
+// übers API-Guthaben (der OAuth-"Subscription"-Token ist kein gratis Max-Abo);
+// Opus ist ~5x teurer. Sonnet 4.6 ist für den Assistenten stark genug.
+const COPILOT_MODEL = "claude-sonnet-4-6";
 
 // All installed skills so the Co-Pilot can both USE them and recommend them when
 // designing new agents. Kept in sync with the SkillPicker catalog.
@@ -39,7 +42,7 @@ Deine drei Aufgaben:
 {
   "name": "Kurzer Name",
   "description": "Wofür ist der Agent (1 Satz)",
-  "model": "claude-opus-4-8",
+  "model": "claude-sonnet-4-6",
   "skills": ["claude-seo:seo-audit", "claude-obsidian:save"],
   "instructions": "Vollständiger System-Prompt für den Agenten auf Deutsch ..."
 }
