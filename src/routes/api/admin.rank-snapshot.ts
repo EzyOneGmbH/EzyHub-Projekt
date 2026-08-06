@@ -17,6 +17,10 @@ const Keyword = z.object({
   url: z.string().nullable().optional(),
   volume: z.number().nullable().optional(),
   isMoney: z.boolean().optional(),
+  // INT-Zweitmessung (06.08.): google.com USA/en, wöchentlich (Stores mit intl:true).
+  posIntl: z.number().int().min(1).nullable().optional(),
+  urlIntl: z.string().nullable().optional(),
+  volumeIntl: z.number().nullable().optional(),
 });
 
 const Body = z.object({

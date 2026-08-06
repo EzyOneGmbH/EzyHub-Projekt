@@ -2837,11 +2837,19 @@ function SeoDashboard({ selectedClient, dateRange }) {
       else if (col === "d7") { av = delta7(a) ?? -999; bv = delta7(b) ?? -999; }
       else if (col === "d28") { av = delta28(a) ?? -999; bv = delta28(b) ?? -999; }
       else if (col === "vol") { av = a.volume ?? -1; bv = b.volume ?? -1; }
+      else if (col === "posi") { av = a.posIntl ?? 999; bv = b.posIntl ?? 999; }
+      else if (col === "voli") { av = a.volumeIntl ?? -1; bv = b.volumeIntl ?? -1; }
       else { av = 0; bv = 0; }
       return dir * (av - bv);
     });
     return rows;
   }, [rank, rankSort]);
+  // INT-Zweitmessung (06.08.): Spalten nur zeigen, wenn der Kunde sie hat
+  // (Store intl:true → Snapshot enthält posIntl/volumeIntl).
+  const hasIntl = useMemo(
+    () => (rank?.keywords || []).some((k) => "posIntl" in k || "volumeIntl" in k),
+    [rank],
+  );
   // Sortierung der GSC-Suchbegriff-Tabellen (User-Wunsch 2026-07-20): wie Rankings.
   // Erstklick: Query/Pos. aufsteigend, Metriken (Klicks/Impr./CTR) absteigend.
   const [gscQSort, setGscQSort] = useState(["clicks", false]);
@@ -2919,6 +2927,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
           >
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}>
               Rankings ({rank.aggregate?.tracked ?? rankRows.length} Keywords · Stand {rank.date || "—"})
+              {hasIntl ? " · INT = google.com (USA/en, wöchentliche Messung)" : ""}
             </div>
             <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
               <table style={{ width: "100%", minWidth: 560, borderCollapse: "collapse", fontSize: 13 }}>
@@ -2927,10 +2936,13 @@ function SeoDashboard({ selectedClient, dateRange }) {
                     {[
                       ["kw", "Keyword", "left"],
                       ["pos", "Position", "right"],
+                      // INT-Spalten (google.com USA/en, wöchentliche Messung)
+                      ...(hasIntl ? [["posi", "Pos. INT", "right"]] : []),
                       ["d7", "Δ 7T", "right"],
                       ["d28", "Δ 28T", "right"],
                       [null, "URL", "left"],
                       ["vol", "Volumen", "right"],
+                      ...(hasIntl ? [["voli", "Vol. INT", "right"]] : []),
                     ].map(([col, label, align]) => (
                       <th
                         key={label}
@@ -2963,6 +2975,11 @@ function SeoDashboard({ selectedClient, dateRange }) {
                       <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 600 }}>
                         {k.pos != null ? k.pos : "> 100"}
                       </td>
+                      {hasIntl && (
+                        <td style={{ padding: "6px 8px", textAlign: "right" }} title={k.urlIntl || undefined}>
+                          {k.posIntl != null ? k.posIntl : "—"}
+                        </td>
+                      )}
                       <td style={{ padding: "6px 8px", textAlign: "right" }}>
                         <DeltaCell cur={k.pos} prev={k.posPrev7} />
                       </td>
@@ -2975,6 +2992,11 @@ function SeoDashboard({ selectedClient, dateRange }) {
                       <td style={{ padding: "6px 8px", textAlign: "right" }}>
                         {k.volume != null ? k.volume.toLocaleString("de-CH") : "—"}
                       </td>
+                      {hasIntl && (
+                        <td style={{ padding: "6px 8px", textAlign: "right", color: C.textMuted }}>
+                          {k.volumeIntl != null ? k.volumeIntl.toLocaleString("de-CH") : "—"}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
