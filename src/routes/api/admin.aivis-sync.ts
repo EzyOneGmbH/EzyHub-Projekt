@@ -757,7 +757,16 @@ async function jobBrandRadarDfs(c: any, comps: string[] = []) {
   }
   const citedPages = Object.entries(pageTally).map(([url, responses]) => ({ url, responses }));
   const mentions = models.reduce((a, m) => a + m.mentions, 0);
-  return { models, mentions, citations, citedPagesCount: citedPages.length, citedPages, errors };
+  // HOMONYM-WÄCHTER (Standard 06.08., Volkan): auffällig hohe Korpus-Mentions
+  // OHNE mentionTargets-Override sind fast immer Fremdtreffer gleichnamiger
+  // Betriebe/Begriffe (Belege 06.08.: Black Summit 1'864 US, Bernina 952,
+  // Ezy One 432 = easyJet-Code). Flag statt stillem Score-Einfluss.
+  const HOMONYM_GUARD = Number(process.env.AIVIS_HOMONYM_GUARD ?? 300);
+  const hasTargetOverride = Array.isArray(((SCORE_CFG as any).mentionTargets || {})[brand.toLowerCase()]);
+  const homonymVerdacht = !hasTargetOverride && mentions > HOMONYM_GUARD;
+  if (homonymVerdacht)
+    errors.push(`HOMONYM-VERDACHT: ${mentions} Korpus-Mentions ohne mentionTargets-Override (Schwelle ${HOMONYM_GUARD}) — Marke auf gleichnamige Fremdbetriebe prüfen und mentionTargets pflegen`);
+  return { models, mentions, citations, citedPagesCount: citedPages.length, citedPages, errors, ...(homonymVerdacht ? { homonymVerdacht } : {}) };
 }
 
 // ── GA4: AI-Referral-Sessions -> Conversions je Engine ──────────────────────
