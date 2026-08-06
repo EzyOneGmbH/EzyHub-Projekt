@@ -92,6 +92,7 @@ import { Route as ApiAdminPopulateRouteImport } from './routes/api/admin.populat
 import { Route as ApiAdminOnboardingSnapshotRouteImport } from './routes/api/admin.onboarding-snapshot'
 import { Route as ApiAdminOnboardingPendingRouteImport } from './routes/api/admin.onboarding-pending'
 import { Route as ApiAdminLlmTrafficRouteImport } from './routes/api/admin.llm-traffic'
+import { Route as ApiAdminAivisCompetitorsRouteImport } from './routes/api/admin.aivis-competitors'
 import { Route as ApiAdminLlmResponsesRouteImport } from './routes/api/admin.llm-responses'
 import { Route as ApiAdminGtmRouteImport } from './routes/api/admin.gtm'
 import { Route as ApiAdminGbpRouteImport } from './routes/api/admin.gbp'
@@ -543,6 +544,11 @@ const ApiAdminOnboardingPendingRoute =
     path: '/api/admin/onboarding-pending',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAdminAivisCompetitorsRoute = ApiAdminAivisCompetitorsRouteImport.update({
+  id: '/api/admin/aivis-competitors',
+  path: '/api/admin/aivis-competitors',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminLlmTrafficRoute = ApiAdminLlmTrafficRouteImport.update({
   id: '/api/admin/llm-traffic',
   path: '/api/admin/llm-traffic',
@@ -779,6 +785,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/llm-responses': typeof ApiAdminLlmResponsesRoute
+  '/api/admin/aivis-competitors': typeof ApiAdminAivisCompetitorsRoute
   '/api/admin/llm-traffic': typeof ApiAdminLlmTrafficRoute
   '/api/admin/onboarding-pending': typeof ApiAdminOnboardingPendingRoute
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
@@ -896,6 +903,7 @@ export interface FileRoutesByTo {
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/llm-responses': typeof ApiAdminLlmResponsesRoute
+  '/api/admin/aivis-competitors': typeof ApiAdminAivisCompetitorsRoute
   '/api/admin/llm-traffic': typeof ApiAdminLlmTrafficRoute
   '/api/admin/onboarding-pending': typeof ApiAdminOnboardingPendingRoute
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
@@ -1014,6 +1022,7 @@ export interface FileRoutesById {
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/llm-responses': typeof ApiAdminLlmResponsesRoute
+  '/api/admin/aivis-competitors': typeof ApiAdminAivisCompetitorsRoute
   '/api/admin/llm-traffic': typeof ApiAdminLlmTrafficRoute
   '/api/admin/onboarding-pending': typeof ApiAdminOnboardingPendingRoute
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
@@ -1480,6 +1489,7 @@ export interface RootRouteChildren {
   ApiAdminGbpRoute: typeof ApiAdminGbpRoute
   ApiAdminGtmRoute: typeof ApiAdminGtmRoute
   ApiAdminLlmResponsesRoute: typeof ApiAdminLlmResponsesRoute
+  ApiAdminAivisCompetitorsRoute: typeof ApiAdminAivisCompetitorsRoute
   ApiAdminLlmTrafficRoute: typeof ApiAdminLlmTrafficRoute
   ApiAdminOnboardingPendingRoute: typeof ApiAdminOnboardingPendingRoute
   ApiAdminOnboardingSnapshotRoute: typeof ApiAdminOnboardingSnapshotRoute
@@ -2113,6 +2123,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminOnboardingPendingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/aivis-competitors': {
+      id: '/api/admin/aivis-competitors'
+      path: '/api/admin/aivis-competitors'
+      fullPath: '/api/admin/aivis-competitors'
+      preLoaderRoute: typeof ApiAdminAivisCompetitorsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/llm-traffic': {
       id: '/api/admin/llm-traffic'
       path: '/api/admin/llm-traffic'
@@ -2459,6 +2476,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminGbpRoute: ApiAdminGbpRoute,
   ApiAdminGtmRoute: ApiAdminGtmRoute,
   ApiAdminLlmResponsesRoute: ApiAdminLlmResponsesRoute,
+  ApiAdminAivisCompetitorsRoute: ApiAdminAivisCompetitorsRoute,
   ApiAdminLlmTrafficRoute: ApiAdminLlmTrafficRoute,
   ApiAdminOnboardingPendingRoute: ApiAdminOnboardingPendingRoute,
   ApiAdminOnboardingSnapshotRoute: ApiAdminOnboardingSnapshotRoute,

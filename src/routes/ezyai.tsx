@@ -13,6 +13,7 @@ import { useEzyProfile } from "@/ezy/data/useEzyProfile";
 import {
   Search, LogOut, LineChart, Zap, Activity, MessageSquare, GraduationCap,
   FileText, Lightbulb, Globe, AlertTriangle, LayoutDashboard, Bot, Sparkles,
+  Trophy,
 } from "lucide-react";
 
 // Initialen aus einem Namen (Shell-Profilblock, wie in der EzyRank-Shell).
@@ -28,6 +29,9 @@ const APP_NAV: Array<{ group: string; items: NavItem[] }> = [
     { id: "aeo-insights", label: "AEO Insights", icon: LineChart },
     { id: "llm-analytics", label: "LLM Analytics", icon: Zap },
     { id: "traffic", label: "Traffic", icon: Activity },
+    // KI-Konkurrenz (06.08.): DataForSEO LLM-Mentions top_domains/top_pages —
+    // wer die KI-Antworten in den Mess-Themen des Kunden dominiert.
+    { id: "ki-konkurrenz", label: "KI-Konkurrenz", icon: Trophy },
   ] },
   { group: "Prompts", items: [
     { id: "your-prompts", label: "Your Prompts", icon: MessageSquare, soon: true },
@@ -670,6 +674,112 @@ function TrafficPanel({ clientId, S }: { clientId: string; S: Record<string, str
   );
 }
 
+// ── KI-Konkurrenz (06.08.2026, DataForSEO LLM Mentions) ──────────────────────
+// Zeigt je Plattform (Google AIO/AI-Mode vs. ChatGPT), welche Domains, Seiten
+// und Marken in den LLM-Antworten zu den Mess-Themen des Kunden am häufigsten
+// zitiert werden. Daten: /api/admin/aivis-competitors (Targets = aivis-Topics).
+function CompetitorsPanel({ clientId, S }: { clientId: string; S: Record<string, string> }) {
+  const [platform, setPlatform] = useState<"google" | "chat_gpt">("google");
+  const [data, setData] = useState<any>(null);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    setData(null); setErr("");
+    (async () => {
+      try {
+        const session = (await supabase.auth.getSession()).data.session;
+        const r = await fetch(`/api/admin/aivis-competitors?client=${encodeURIComponent(clientId)}&platform=${platform}`, {
+          headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
+        if (alive) setData(j);
+      } catch (e: any) {
+        if (alive) { setErr(String(e?.message || e)); setData({ ok: false }); }
+      }
+    })();
+    return () => { alive = false; };
+  }, [clientId, platform]);
+
+  const card: any = { background: S.panel, border: `1px solid ${S.line}`, borderRadius: 14, padding: 18 };
+  const ownHost = String(data?.client?.domain || "").replace(/^www\./, "").toLowerCase();
+  const isOwn = (key: string) => {
+    if (!ownHost) return false;
+    const h = key.replace(/^https?:\/\//, "").replace(/^www\./, "").toLowerCase();
+    return h === ownHost || h.startsWith(ownHost + "/");
+  };
+  const maxMentions = Math.max(1, ...((data?.domains as any[]) || []).map((d) => d.mentions));
+
+  const listCard = (title: string, sub: string, rows: Array<{ key: string; mentions: number; aiVolume: number }>, bar: boolean) => (
+    <div style={card}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10 }}>
+        <div style={{ fontWeight: 700, fontSize: 13.5, color: S.txt }}>{title}</div>
+        <span style={{ fontSize: 11, color: S.mut }}>{sub}</span>
+      </div>
+      {!rows.length ? (
+        <div style={{ fontSize: 12, color: S.mut }}>
+          Für die Mess-Themen dieses Kunden liefert die Mentions-Datenbank hier (noch) keine Daten —
+          der Korpus ist bei ChatGPT dünner als bei Google und wächst laufend.
+        </div>
+      ) : rows.map((r, i) => (
+        <div key={r.key} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12.5, padding: "6px 0", borderBottom: `1px solid ${S.line}` }}>
+          <span style={{ width: 18, textAlign: "right", color: S.mut, fontVariantNumeric: "tabular-nums" }}>{i + 1}.</span>
+          <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: isOwn(r.key) ? S.app : S.txt, fontWeight: isOwn(r.key) ? 700 : 500 }}>
+            {r.key}{isOwn(r.key) ? " ← dieser Kunde" : ""}
+          </span>
+          {bar && (
+            <span style={{ width: 90, height: 5, borderRadius: 99, background: S.line, overflow: "hidden", flexShrink: 0 }}>
+              <span style={{ display: "block", width: `${Math.round((r.mentions / maxMentions) * 100)}%`, height: "100%", background: isOwn(r.key) ? S.app : S.mut, borderRadius: 99 }} />
+            </span>
+          )}
+          <span style={{ color: S.txt, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }} title="Erwähnungen in LLM-Antworten">{r.mentions}×</span>
+          <span style={{ color: S.mut, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", fontSize: 11 }} title="AI-Suchvolumen der zugehörigen Prompts">{r.aiVolume.toLocaleString("de-CH")}</span>
+        </div>
+      ))}
+    </div>
+  );
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 12, color: S.mut }}>Plattform</span>
+        <div style={{ display: "flex", border: `1px solid ${S.line}`, borderRadius: 8, padding: 2, background: S.panel }}>
+          {([["google", "Google AIO / AI Mode"], ["chat_gpt", "ChatGPT"]] as const).map(([v, label]) => (
+            <button key={v} onClick={() => setPlatform(v)}
+              style={{ padding: "4px 12px", borderRadius: 6, border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, background: platform === v ? S.app : "transparent", color: platform === v ? "#fff" : S.mut }}>
+              {label}
+            </button>
+          ))}
+        </div>
+        {data?.targets?.length ? (
+          <span style={{ fontSize: 11, color: S.mut }}>Themen: {data.targets.slice(0, 5).join(" · ")}{data.targets.length > 5 ? ` (+${data.targets.length - 5})` : ""}</span>
+        ) : null}
+        {err && <span style={{ fontSize: 12, color: "#dc2626" }}>{err}</span>}
+      </div>
+      {data === null ? (
+        <div style={{ ...card, color: S.mut, fontSize: 13 }}>Lade KI-Konkurrenz-Daten…</div>
+      ) : !data.ok ? (
+        <div style={{ ...card, color: S.mut, fontSize: 13 }}>Daten derzeit nicht abrufbar{err ? ` — ${err}` : ""}.</div>
+      ) : (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 16 }}>
+            {listCard("Meistzitierte Domains", "wer die KI-Antworten dominiert", data.domains || [], true)}
+            {listCard("Meistzitierte Seiten", "die konkreten Quellen-URLs", data.pages || [], false)}
+          </div>
+          {Array.isArray(data.brands) && data.brands.length > 0 && (
+            listCard("Meistgenannte Marken", "Brand-Entitäten in den Antworten", data.brands, false)
+          )}
+          <div style={{ fontSize: 11, color: S.mut }}>
+            Quelle: DataForSEO LLM-Mentions-Datenbank (Targets = aivis-Mess-Themen, partial match).
+            Erwähnungen = Zitate in gespeicherten LLM-Antworten; zweite Zahl = AI-Suchvolumen der zugehörigen Prompts.
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Site Health (Searchable-Nachbau "Site Audits", 05.08.2026) ───────────────
 // On-demand-Audit über /api/admin/site-health (kostenlose Live-Checks auf der
 // Kundendomain). Drei Säulen mit Searchable-Gewichten (Technical 30 % /
@@ -1238,6 +1348,8 @@ function EzyAiApp() {
               <LlmAnalyticsPanel clientId={client.id} S={S} />
             ) : section === "traffic" ? (
               <TrafficPanel clientId={client.id} S={S} />
+            ) : section === "ki-konkurrenz" ? (
+              <CompetitorsPanel clientId={client.id} S={S} />
             ) : section === "site-health" || section === "issues" ? (
               <SiteHealthPanel clientId={client.id} S={S} mode={section === "issues" ? "issues" : "health"} />
             ) : section !== "aeo-insights" ? (
