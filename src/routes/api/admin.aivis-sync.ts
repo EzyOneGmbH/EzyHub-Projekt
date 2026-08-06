@@ -190,6 +190,24 @@ function brandName(c: any) {
   return String(c.name || "").trim() || cleanDomain(c.domain).split(".")[0];
 }
 
+// ── Zusatz-Messmärkte (06.08., Anlass Morosani: Besucher aus 11 Ländern,
+// Messung nur DACH). Konfiguration je Kunde in score-config.intlMarkets —
+// bewusst opt-in: EN-Korpora sind bei Generika-Wortmarken gefährlich
+// (Generika-Falle). land = deutsches Label für die Standorte-Karte (muss in
+// der DE2EN-Map des Dashboards existieren).
+const MARKET_DEFS: Record<string, { location_name: string; language_code: string; land: string }> = {
+  uk: { location_name: "United Kingdom", language_code: "en", land: "Grossbritannien" },
+  us: { location_name: "United States", language_code: "en", land: "USA" },
+  fr: { location_name: "France", language_code: "fr", land: "Frankreich" },
+  it: { location_name: "Italy", language_code: "it", land: "Italien" },
+  nl: { location_name: "Netherlands", language_code: "nl", land: "Niederlande" },
+  es: { location_name: "Spain", language_code: "es", land: "Spanien" },
+};
+function intlMarketsFor(brand: string): Array<{ location_name: string; language_code: string; land: string }> {
+  const codes: string[] = ((SCORE_CFG as any).intlMarkets?.[brand.toLowerCase()] ?? []) as string[];
+  return codes.map((c) => MARKET_DEFS[c]).filter(Boolean);
+}
+
 // ── DataForSEO: eigener AI-Overview/AI-Mode-Tracker (Makro-Quelle 2) ─────────
 // Copilot & Co. sind nicht per API abfragbar — aber Google AI Overviews und
 // AI Mode stehen in der Google-SERP. Wir prüfen die GSC-Top-Suchanfragen des
@@ -663,10 +681,17 @@ async function jobBrandRadarDfs(c: any, comps: string[] = []) {
   //    vorher nur CH — jetzt CH/DE/AT; word_match, weil partial_match
   //    Substrings wie "Studioformate" traf, live verifiziert 2026-07-19).
   const modelAgg: Record<string, { name: string; mentions: number; byCountry: Record<string, number> }> = {};
-  for (const loc of [{ location_name: "Switzerland", land: "Schweiz" }, { location_name: "Germany", land: "Deutschland" }, { location_name: "Austria", land: "Österreich" }]) {
+  // DACH immer (Kundensprache) + konfigurierte Zusatz-Märkte (eigene Sprache).
+  const mentionMarkets: Array<{ location_name: string; land: string; language_code?: string }> = [
+    { location_name: "Switzerland", land: "Schweiz" },
+    { location_name: "Germany", land: "Deutschland" },
+    { location_name: "Austria", land: "Österreich" },
+    ...intlMarketsFor(brand),
+  ];
+  for (const loc of mentionMarkets) {
     const agg = await dfsAiCall("ai_optimization/llm_mentions/aggregated_metrics/live", {
       target: targets,
-      location_name: loc.location_name, language_code: lang,
+      location_name: loc.location_name, language_code: loc.language_code || lang,
     });
     if (!agg.ok) { errors.push(`aggregated_metrics/${loc.land}: ${agg.error}`); continue; }
     const byPlatform: Record<string, number> = {};
@@ -677,7 +702,7 @@ async function jobBrandRadarDfs(c: any, comps: string[] = []) {
     for (const phrase of excludes) {
       const ex = await dfsAiCall("ai_optimization/llm_mentions/aggregated_metrics/live", {
         target: [{ keyword: phrase, match_type: "word_match", search_scope: ["answer"] }],
-        location_name: loc.location_name, language_code: lang,
+        location_name: loc.location_name, language_code: loc.language_code || lang,
       });
       if (!ex.ok) { errors.push(`excl(${phrase}/${loc.land}): ${ex.error}`); continue; }
       for (const p of (ex.result?.[0]?.total || {}).platform || [])
@@ -704,7 +729,13 @@ async function jobBrandRadarDfs(c: any, comps: string[] = []) {
   let citations = 0;
   const pageTally: Record<string, number> = {};
   if (domain) {
-    for (const slice of DFS_CORPUS_SLICES) {
+    // Citations sind DOMAIN-basiert (keine Generika-Falle) — Zusatz-Märkte
+    // dürfen hier bedenkenlos mitzählen.
+    const citationSlices = [
+      ...DFS_CORPUS_SLICES,
+      ...intlMarketsFor(brand).map((m) => ({ platform: "google", location_name: m.location_name, language_code: m.language_code, land: m.land })),
+    ];
+    for (const slice of citationSlices) {
       const cite = await dfsAiCall("ai_optimization/llm_mentions/search/live", {
         target: [{ domain }],
         ...dfsSliceParams(slice), limit: 100,

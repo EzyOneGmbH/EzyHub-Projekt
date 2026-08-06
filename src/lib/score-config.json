@@ -4,6 +4,8 @@
   "_docMentionExcludes": "Generika-Schutz (2026-07-21, gehoert zur v4-Basis; Keys = Markenname lowercase): mentionTargets ersetzt bei Wortmarken das nackte Brand-Wort durch praezise Phrasen (Benedict allein traf 2'624x Cumberbatch/Bridgerton/Harris-Benedict-Formel — 'benedict schule' = 82 echte); mentionExcludes zieht zusaetzlich Phrasen-Treffer ab (z.B. 'eggs benedict'). Beides wirkt in br-Schicht UND Monats-Backfill.",
   "mentionTargets": { "benedict": ["benedict schule", "benedict-schule"] },
   "mentionExcludes": {},
+  "_docIntlMarkets": "Zusatz-Messmaerkte je Kunde (Keys = Markenname lowercase = clients.name; Werte = Codes aus MARKET_DEFS in aivis-sync: uk/us/fr/it/nl/es). NUR fuer international ausgerichtete Kunden mit UNPROBLEMATISCHER Wortmarke eintragen — EN-Korpora treffen bei Generika-Namen Phrasen (Generika-Falle 2026-07-20, 'faith in humanity' 9971 Fehl-Treffer). Wirkt auf br-Erwaehnungen (Standorte-Karte) + Citations-Slices; KEINE zusaetzlichen Prompt-Laeufe (~100 DFS-Units je Markt und Lauf = Cents). ACHTUNG: Beim Eintragen steigt die Erwaehnungsbasis des Kunden — der erste Delta danach ist Basiswechsel, kein Marktsignal (kein globaler Versions-Bump, da opt-in je Kunde).",
+  "intlMarkets": { "morosani hotels": ["uk", "us", "fr", "it"] },
   "weights": { "mentions": 30, "citations": 22, "citedPages": 10, "sov": 22, "posQual": 16 },
   "refs": { "M_REF": 120, "C_REF": 80, "R_REF": 50 },
   "smoothing": { "windowRuns": 4 },
