@@ -1085,13 +1085,50 @@ const activePromptEngines = () => PROMPT_ENGINES.filter((e) => e.name !== "Grok"
 // Tokens ließ die KI mitten im Satz stoppen (~1500 Zeichen). 1500 Tokens ≈
 // ~3500–4000 Zeichen = vollständige Antworten. Env-Schalter für Kostenkontrolle.
 const ANSWER_MAX_TOKENS = Math.max(600, Number(process.env.AIVIS_ANSWER_TOKENS ?? 1500));
+
+// ── DataForSEO-LLM-Fallback (06.08., Volkan) ─────────────────────────────────
+// Fällt eine Direkt-Engine aus (leeres Prepaid-Konto: Anthropic meldet 400,
+// OpenAI 429, Perplexity 401), antwortet DataForSEO llm_responses mit
+// DEMSELBEN Modell (Parität live verifiziert 06.08.). ~4-5× teurer je Antwort
+// ($0.011 vs ~$0.002 bei gpt-5.1) — deshalb NUR Fallback, nie primär; die
+// Kosten laufen ins DFS-Konto (Balance-Wächter + Kosten-Digest greifen).
+// Env AIVIS_DFS_FALLBACK=0 schaltet den Fallback ab.
+const DFS_LLM_MAP: Record<string, { se: string; model: string }> = {
+  Claude: { se: "claude", model: "claude-sonnet-5" },
+  Perplexity: { se: "perplexity", model: "sonar" },
+  Gemini: { se: "gemini", model: "gemini-2.5-flash" },
+  ChatGPT: { se: "chat_gpt", model: "gpt-5.1" },
+};
+async function askViaDfs(engine: string, prompt: string): Promise<{ text: string; sources: number; model?: string } | null> {
+  if (process.env.AIVIS_DFS_FALLBACK === "0") return null;
+  const def = DFS_LLM_MAP[engine];
+  if (!def) return null;
+  // user_prompt-Limit der DFS-API: 500 Zeichen (Mess-Prompts liegen weit darunter).
+  const r = await dfsAiCall(`ai_optimization/${def.se}/llm_responses/live`, { user_prompt: prompt.slice(0, 500), model_name: def.model });
+  if (!r.ok) return null;
+  const row = (r.result ?? [])[0];
+  const text = ((row?.items ?? []) as any[])
+    .filter((it) => it?.type === "message")
+    .flatMap((it) => (it.sections ?? []).map((s: any) => String(s?.text ?? "")))
+    .join(" ")
+    .trim();
+  return text ? { text, sources: urlsIn(text), model: `${String(row?.model_name || def.model)}@dataforseo` } : null;
+}
+// Wrapper: Direkt-API zuerst (billig); liefert sie keinen Text, übernimmt DFS.
+const withDfsFallback = (name: string, ask: (p: string) => Promise<any>) => async (p: string) => {
+  const r = await ask(p).catch(() => null);
+  if (r && r.text) return r;
+  const f = await askViaDfs(name, p);
+  return f ?? r;
+};
+
 const PROMPT_ENGINES: Array<{ name: string; ask: (p: string) => Promise<{ text: string; sources: number } | null> }> = [
-  { name: "Claude", ask: (p) => askClaude(p, ANSWER_MAX_TOKENS) },
-  { name: "Perplexity", ask: (p) => askPerplexity(p, ANSWER_MAX_TOKENS) },
-  { name: "Gemini", ask: (p) => askGemini(p, ANSWER_MAX_TOKENS) },
+  { name: "Claude", ask: withDfsFallback("Claude", (p) => askClaude(p, ANSWER_MAX_TOKENS)) },
+  { name: "Perplexity", ask: withDfsFallback("Perplexity", (p) => askPerplexity(p, ANSWER_MAX_TOKENS)) },
+  { name: "Gemini", ask: withDfsFallback("Gemini", (p) => askGemini(p, ANSWER_MAX_TOKENS)) },
   {
     name: "ChatGPT",
-    ask: (p) => askOpenAICompat("https://api.openai.com/v1/chat/completions", process.env.OPENAI_API_KEY, process.env.OPENAI_MODEL ?? "gpt-5.1", p, ANSWER_MAX_TOKENS),
+    ask: withDfsFallback("ChatGPT", (p) => askOpenAICompat("https://api.openai.com/v1/chat/completions", process.env.OPENAI_API_KEY, process.env.OPENAI_MODEL ?? "gpt-5.1", p, ANSWER_MAX_TOKENS)),
   },
   {
     name: "Grok",
