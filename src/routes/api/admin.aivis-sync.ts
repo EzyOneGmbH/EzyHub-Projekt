@@ -144,16 +144,21 @@ const COUNTRIES: Array<{ code: string; name: string }> = [
   { code: "it", name: "Italien" },
 ];
 
-// GA4 sessionSource -> Engine-Label (erste Übereinstimmung gewinnt).
+// GA4 sessionSource -> Engine-Label (erste Übereinstimmung gewinnt;
+// edgeservices = Copilot-Verweise aus Edge/Windows).
 const ENGINES: Array<{ name: string; re: RegExp }> = [
   { name: "ChatGPT", re: /chatgpt|openai/i },
   { name: "Perplexity", re: /perplexity/i },
   { name: "Gemini", re: /gemini|bard/i },
   { name: "Claude", re: /claude|anthropic/i },
-  { name: "Copilot", re: /copilot|bing/i },
+  { name: "Copilot", re: /copilot|bing|edgeservices/i },
   { name: "Grok", re: /grok|x\.ai/i },
   { name: "DeepSeek", re: /deepseek/i },
 ];
+// Bing-Sonderfall (06.08.): plain "bing" aus der ORGANISCHEN Bing-Suche ist
+// klassisches SEO, kein KI-Traffic — sonst zählt Bing-SEO als Copilot.
+const isOrganicBing = (src: string, channel: string) =>
+  /(^|\.)bing\b/i.test(src) && !/copilot|chat|edgeservices/i.test(src) && /organic/i.test(channel);
 
 // Ahrefs v3 Brand Radar (live validiert): Pfade OHNE "-entities"-Suffix;
 // Arrays als CSV, `brand` als Plain-Name, nur `where` als JSON-String.
@@ -744,7 +749,8 @@ async function jobAttribution(c: any) {
           dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
           // country zusätzlich: liefert die Besucher-Herkunft je Engine
           // (Totale werden hier selbst aufsummiert — sessions/keyEvents sind additiv).
-          dimensions: [{ name: "sessionSource" }, { name: "country" }],
+          // channelGroup für den Bing-Sonderfall (organische Bing-Suche ≠ Copilot).
+          dimensions: [{ name: "sessionSource" }, { name: "country" }, { name: "sessionDefaultChannelGroup" }],
           metrics: [{ name: "sessions" }, { name: "keyEvents" }],
           limit: 10000,
         }),
@@ -763,6 +769,7 @@ async function jobAttribution(c: any) {
     const src = String(row.dimensionValues?.[0]?.value ?? "");
     const eng = ENGINES.find((e) => e.re.test(src));
     if (!eng) continue;
+    if (isOrganicBing(src, String(row.dimensionValues?.[2]?.value ?? ""))) continue;
     const country = String(row.dimensionValues?.[1]?.value ?? "");
     const sess = Number(row.metricValues?.[0]?.value ?? 0);
     agg[eng.name] ??= { sessions: 0, conversions: 0 };
@@ -815,6 +822,7 @@ async function jobAttribution(c: any) {
         { name: "country" },
         { name: "deviceCategory" },
         { name: "date" },
+        { name: "sessionDefaultChannelGroup" }, // Bing-Sonderfall (max 9 Dims mit Custom)
         ...(withCustom
           ? [
               { name: idDim },
@@ -849,7 +857,7 @@ async function jobAttribution(c: any) {
           const src = get("sessionSource");
           const eng = ENGINES.find((e) => e.re.test(src));
           const n = Number(row.metricValues?.[0]?.value ?? 0);
-          if (!eng || n <= 0) continue;
+          if (!eng || n <= 0 || isOrganicBing(src, get("sessionDefaultChannelGroup"))) continue;
           const idRaw = get(idDim);
           const txn = idRaw && idRaw !== "(not set)" ? idRaw : undefined;
           const cur = get("customEvent:dl_currency");
