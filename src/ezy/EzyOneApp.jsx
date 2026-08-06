@@ -9458,35 +9458,17 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
       <StepDots />
       {step === 1 && (
         <>
+          {/* Verschlankt (Volkan 06.08.): nur die Pflicht-Essentials. E-Mail/
+              Telefon/Budget/Standorte/Tags/Brand-Begriffe/Notizen bleiben im
+              Kunden-Editor („Bearbeiten") pflegbar; Umsatz-Modus ist fix
+              "revenue" (Umsatz-Tracking vollständig, Draft-Default) — keine
+              Auswahl mehr beim Onboarding. */}
           <div className="ezy-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <Inp label="Name" value={draft.name} onChange={set("name")} required />
             <Inp label="Domain" value={draft.domain} onChange={set("domain")} placeholder="example.com" required />
             <Inp label="Branche" value={draft.industry} onChange={set("industry")} />
             <Inp label="Status" value={draft.status} onChange={set("status")} options={["active", "paused"]} />
-            <Inp label="E-Mail" value={draft.contactEmail} onChange={set("contactEmail")} />
-            <Inp label="Telefon" value={draft.contactPhone} onChange={set("contactPhone")} />
-            <Inp label="Monatsbudget (CHF)" value={draft.monthlyBudget} onChange={set("monthlyBudget")} type="number" />
-            <Inp label="Standorte" value={draft.targetLocations} onChange={set("targetLocations")} placeholder="Schweiz, Zürich" />
-            <Inp label="Tags" value={draft.tags} onChange={set("tags")} placeholder="SEO, GEO, Content" />
-            <Inp label="Brand-Begriffe (GSC-Split)" value={draft.brandTerms} onChange={set("brandTerms")} placeholder="firmenname, firmen-name" />
           </div>
-          <div style={{ margin: "10px 0 4px" }}>
-            <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 6 }}>Umsatz-Modus</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              {[["revenue", "Umsatz-Tracking vollstaendig"], ["clicks", "nur Buchungsklicks"]].map(([val, label]) => (
-                <button key={val} type="button" onClick={() => setDraft((p) => ({ ...p, revenueMode: val }))}
-                  style={{
-                    padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                    border: `1px solid ${draft.revenueMode === val ? C.accent : C.border}`,
-                    background: draft.revenueMode === val ? C.accentDim : "transparent",
-                    color: draft.revenueMode === val ? C.accentLight : C.textMuted,
-                  }}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <Inp label="Notizen" value={draft.notes} onChange={set("notes")} textarea />
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
             <Btn variant="secondary" onClick={onClose}>Abbrechen</Btn>
             <Btn
