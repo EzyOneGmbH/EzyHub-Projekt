@@ -1413,6 +1413,51 @@ export type Database = {
           },
         ]
       }
+      client_app_access: {
+        Row: {
+          app: string
+          client_id: string
+          enabled: boolean
+          features: Json
+          id: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          app: string
+          client_id: string
+          enabled?: boolean
+          features?: Json
+          id?: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          app?: string
+          client_id?: string
+          enabled?: boolean
+          features?: Json
+          id?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_app_access_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_app_access_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_conversion_values: {
         Row: {
           client_id: string
