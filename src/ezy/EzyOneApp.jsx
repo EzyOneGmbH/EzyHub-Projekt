@@ -13753,6 +13753,43 @@ function App({ appScope = null }) {
         )}
         <nav style={{ flex: 1, padding: "12px 8px" }}>
           {nav.map((n) => {
+            // EzyRank (Volkan 06.08.): die Dashboard-Sub-Tabs (Übersicht/SEO/
+            // Blog/Conversions) wandern aus der oberen Tab-Leiste in die linke
+            // Navigation — der "Dashboard"-Punkt wird durch die Tabs ersetzt.
+            // visibleTabs respektiert bereits Scope, Tab-Auswahl und Service-Gates.
+            if (appScope === "seo" && n.id === "dashboard") {
+              return visibleTabs.map((t) => {
+                const T = t.icon;
+                const on = page === "dashboard" && tab === t.id;
+                return (
+                  <button
+                    key={`tab-${t.id}`}
+                    onClick={() => { setPage("dashboard"); setTab(t.id); }}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      padding: "10px 14px",
+                      borderRadius: 10,
+                      border: "none",
+                      cursor: "pointer",
+                      background: on ? C.accentDim : "transparent",
+                      color: on ? C.accentLight : C.textMuted,
+                      fontSize: 13,
+                      fontWeight: on ? 600 : 400,
+                      marginBottom: 2,
+                      transition: "all .15s",
+                      justifyContent: collapsed ? "center" : "flex-start",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    <T size={18} />
+                    {!collapsed && t.label}
+                  </button>
+                );
+              });
+            }
             const I = n.icon;
             const a = page === n.id;
             return (
@@ -14052,7 +14089,9 @@ function App({ appScope = null }) {
             </div>
             {/* Tab-Leiste erst ab 2 Ansichten (01.08.): Ein-Tab-Apps wie
                 EzyPerformance/Reaktivierung zeigen den Inhalt direkt. */}
-            {page === "dashboard" && visibleTabs.length > 1 && <TabBar tabs={visibleTabs} active={tab} onChange={setTab} />}
+            {/* EzyRank: Tabs leben in der linken Nav (06.08.) — Leiste bleibt in
+                anderen Scopes/Legacy UND mobil (dort gibt es keine Sidebar). */}
+            {page === "dashboard" && visibleTabs.length > 1 && (appScope !== "seo" || isMobile) && <TabBar tabs={visibleTabs} active={tab} onChange={setTab} />}
             {page !== "dashboard" && (
               <div
                 style={{
