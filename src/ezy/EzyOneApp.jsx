@@ -9901,6 +9901,54 @@ function TeamPage({ clients }) {
   );
 }
 
+// Tech-Stack-Erkennung (06.08., DataForSEO Domain Analytics): erkennt CMS/
+// Page-Builder/Server/Analytics der Kunden-Website auf Knopfdruck — fuer
+// Onboarding (welcher Connector passt?) und Speed-Empfehlungen (LiteSpeed?
+// Elementor = Minify-Sperre). Kein Auto-Fetch: kostet erst beim Klick.
+function TechStackCard({ domain }) {
+  const [data, setData] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const detect = async () => {
+    setBusy(true);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const r = await fetch(`/api/admin/tech-detect?domain=${encodeURIComponent(domain)}`, {
+        headers: { Authorization: `Bearer ${token || ""}` },
+      });
+      setData(await r.json().catch(() => ({ ok: false, error: "Antwort ungültig" })));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18, marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: data?.ok ? 10 : 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Tech-Stack</div>
+        <Btn variant="secondary" size="sm" style={{ marginLeft: "auto" }} onClick={detect} disabled={busy || !domain}>
+          {busy ? "Erkenne…" : data ? "Neu erkennen" : "Erkennen"}
+        </Btn>
+      </div>
+      {data && !data.ok && (
+        <div style={{ fontSize: 12, color: C.textMuted }}>Nicht erkennbar: {data.error || "unbekannter Fehler"}</div>
+      )}
+      {data?.ok && (
+        (data.groups || []).length === 0 ? (
+          <div style={{ fontSize: 12, color: C.textMuted }}>Keine Technologien in der Datenbank für {data.domain}.</div>
+        ) : (
+          (data.groups || []).map((g) => (
+            <div key={g.group} style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 11, color: C.textDim, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 4 }}>{g.group}</div>
+              <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                {g.items.map((t) => (<Badge key={t} color={C.blue}>{t}</Badge>))}
+              </div>
+            </div>
+          ))
+        )
+      )}
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Admin-Umbau Teil 2 (06.08.): kundenbezogene Einstellungen im Kunden-Detail —
 // Sprache/Tonalität/Report-Template/Tab-Auswahl + Conversion-Werte. Vorher
@@ -10559,6 +10607,7 @@ function ClientsPage({
           </div>
           <div style={{ padding: "18px 22px" }}>
             <OnboardingCard client={detail} onUpdated={onReload} />
+            <TechStackCard domain={detail.domain} />
             <div
               style={{
                 background: C.card,
