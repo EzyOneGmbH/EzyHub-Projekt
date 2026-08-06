@@ -71,13 +71,16 @@ export const EZY_APPS: EzyAppDef[] = [
  *  Haupt-Navigation (pages) und die Dashboard-Tabs (tabs) der jeweiligen App.
  *  Conversions bewusst in EzyRank UND EzyPerformance (Volkan-Entscheid 31.07.).
  *  copilot/tools bleiben app-übergreifend verfügbar. */
-export const APP_SCOPES: Record<string, { pages: string[]; tabs: string[]; primary: string; home: string; services?: string[] }> = {
+export const APP_SCOPES: Record<string, { pages: string[]; tabs: string[]; primary: string; home: string; services?: string[]; skillCats?: string[] }> = {
   seo: {
     pages: ["dashboard", "copilot", "tasks", "tools", "content"],
     tabs: ["overview", "seo", "blog", "conversions"],
     primary: "seo", // umgeht die Kunden-Tab-Auswahl (Kern-Tab der App)
     home: "/ezyrank",
     // kein services-Filter: SEO ist das Kernprodukt — alle Kunden sichtbar
+    // App-Split (Volkan 06.08.): EzyRank = SEO/Content — KEINE geo-(KI)- und
+    // keine Ads-Skills mehr; die leben in EzyAI bzw. EzyPerformance.
+    skillCats: ["audit", "technical", "content", "obsidian", "skills-seo", "skills-blog", "skills-obsidian"],
   },
   ads: {
     // Volkan 01.08.: NUR Ads — ohne Übersicht/Conversions (Conversions lebt in EzyRank)
@@ -86,6 +89,8 @@ export const APP_SCOPES: Record<string, { pages: string[]; tabs: string[]; prima
     primary: "ads",
     home: "/ezyperformance",
     services: ["google-ads"], // nur Kunden mit aktiviertem Google-Ads-Service
+    // App-Split (Volkan 06.08.): EzyPerformance = nur Ads-Skills.
+    skillCats: ["skills-ads"],
   },
   reakt: {
     pages: ["dashboard"],

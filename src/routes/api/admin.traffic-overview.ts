@@ -14,7 +14,14 @@ import { getGoogleAccessToken } from "@/server/google-tokens.server";
 //
 // Auth: eingeloggter User (RLS-Kundensicht) ODER Bearer ADMIN_AUTOMATION_SECRET.
 
-const AI_SOURCE_RE = /chatgpt|openai|perplexity|gemini|bard|claude|anthropic|copilot|bing.*chat|grok|x\.ai|deepseek/i;
+const AI_SOURCE_RE = /chatgpt|openai|perplexity|gemini|bard|claude|anthropic|copilot|bing.*chat|edgeservices|grok|x\.ai|deepseek/i;
+// Bing-Sonderfall (06.08., Volkan): plain "bing" als Quelle ist nur dann
+// KI-Traffic (Copilot-Verweis), wenn er NICHT aus der organischen Bing-Suche
+// kommt — sonst würde klassisches Bing-SEO als KI gezählt.
+const isAiTraffic = (src: string, channel: string) =>
+  AI_SOURCE_RE.test(src) ||
+  /ai assistant/i.test(channel) ||
+  (/(^|\.)bing\b/i.test(src) && !/organic/i.test(channel));
 
 async function requireAccess(request: Request): Promise<{ userClient: any | null } | Response> {
   const admin = process.env.ADMIN_AUTOMATION_SECRET;
@@ -125,7 +132,7 @@ export const Route = createFileRoute("/api/admin/traffic-overview")({
               const dur = Number(row.metricValues?.[2]?.value ?? 0);
               const pps = Number(row.metricValues?.[3]?.value ?? 0);
               const eng = Number(row.metricValues?.[4]?.value ?? 0);
-              const seg = AI_SOURCE_RE.test(src) ? "KI-Antworten"
+              const seg = isAiTraffic(src, ch) ? "KI-Antworten"
                 : /organic search/i.test(ch) ? "Organische Suche"
                 : /direct/i.test(ch) ? "Direkt"
                 : "Übrige Kanäle";

@@ -11,16 +11,22 @@ import { getGoogleAccessToken } from "@/server/google-tokens.server";
 //
 // Auth: eingeloggter EzyHub-User; Kunden-Sichtbarkeit über RLS (can_access_client).
 
-// GA4 sessionSource -> Engine-Label (identisch zur aivis-Attribution).
+// GA4 sessionSource -> Engine-Label (identisch zur aivis-Attribution;
+// edgeservices = Copilot-Verweise aus Edge/Windows).
 const ENGINES: Array<{ name: string; re: RegExp }> = [
   { name: "ChatGPT", re: /chatgpt|openai/i },
   { name: "Perplexity", re: /perplexity/i },
   { name: "Gemini", re: /gemini|bard/i },
   { name: "Claude", re: /claude|anthropic/i },
-  { name: "Copilot", re: /copilot|bing/i },
+  { name: "Copilot", re: /copilot|bing|edgeservices/i },
   { name: "Grok", re: /grok|x\.ai/i },
   { name: "DeepSeek", re: /deepseek/i },
 ];
+// Bing-Sonderfall (06.08.): plain "bing" aus der ORGANISCHEN Bing-Suche ist
+// klassisches SEO (EzyRank), kein KI-Traffic — nur Nicht-Organic-Bing zählt
+// als Copilot-Verweis.
+const isOrganicBing = (src: string, channel: string) =>
+  /(^|\.)bing\b/i.test(src) && !/copilot|chat|edgeservices/i.test(src) && /organic/i.test(channel);
 
 async function requireUser(request: Request): Promise<{ userClient: any } | Response> {
   const url = process.env.SUPABASE_URL;
@@ -71,12 +77,12 @@ export const Route = createFileRoute("/api/admin/llm-traffic")({
 
         const [tsRes, pgRes] = await Promise.all([
           run({
-            dimensions: [{ name: "date" }, { name: "sessionSource" }],
+            dimensions: [{ name: "date" }, { name: "sessionSource" }, { name: "sessionDefaultChannelGroup" }],
             metrics: [{ name: "sessions" }, { name: "newUsers" }],
             limit: 20000,
           }),
           run({
-            dimensions: [{ name: "landingPagePlusQueryString" }, { name: "sessionSource" }],
+            dimensions: [{ name: "landingPagePlusQueryString" }, { name: "sessionSource" }, { name: "sessionDefaultChannelGroup" }],
             metrics: [{ name: "sessions" }],
             limit: 10000,
           }),
@@ -90,8 +96,9 @@ export const Route = createFileRoute("/api/admin/llm-traffic")({
           for (const row of j.rows ?? []) {
             const date = String(row.dimensionValues?.[0]?.value ?? "");
             const src = String(row.dimensionValues?.[1]?.value ?? "");
+            const channel = String(row.dimensionValues?.[2]?.value ?? "");
             const eng = ENGINES.find((e) => e.re.test(src));
-            if (!eng || !date) continue;
+            if (!eng || !date || isOrganicBing(src, channel)) continue;
             const sessions = Number(row.metricValues?.[0]?.value ?? 0);
             const newUsers = Number(row.metricValues?.[1]?.value ?? 0);
             const day = byDay.get(date) ?? {};
@@ -118,9 +125,10 @@ export const Route = createFileRoute("/api/admin/llm-traffic")({
           for (const row of j.rows ?? []) {
             const path = String(row.dimensionValues?.[0]?.value ?? "");
             const src = String(row.dimensionValues?.[1]?.value ?? "");
+            const channel = String(row.dimensionValues?.[2]?.value ?? "");
             const eng = ENGINES.find((e) => e.re.test(src));
             const n = Number(row.metricValues?.[0]?.value ?? 0);
-            if (!eng || !path || n <= 0) continue;
+            if (!eng || !path || n <= 0 || isOrganicBing(src, channel)) continue;
             const key = `${eng.name}\\n${path}`;
             agg.set(key, (agg.get(key) ?? 0) + n);
           }

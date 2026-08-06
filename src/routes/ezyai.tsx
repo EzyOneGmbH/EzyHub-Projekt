@@ -505,31 +505,13 @@ function TrafficPanel({ clientId, S }: { clientId: string; S: Record<string, str
   const dayLabel = (k: string) => `${k.slice(6, 8)}.${k.slice(4, 6)}.`;
   const labelEvery = Math.max(1, Math.ceil(dayKeys.length / 10));
 
-  const chByDay = useMemo(() => {
-    const m = new Map<string, Record<string, number>>();
-    for (const p of data?.channels?.timeseries || []) m.set(String(p.date), p.byChannel || {});
-    return m;
-  }, [data]);
-  const topChannels: string[] = useMemo(
-    () => Object.entries((data?.channels?.totals || {}) as Record<string, number>).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k]) => k),
-    [data],
-  );
+  // App-Split (06.08., Volkan): EzyAI zeigt NUR die KI-Sicht — Kanal-Trends,
+  // GSC-Klicks & klassisches SEO leben in EzyRank. Die Gesamt-Sessions dienen
+  // hier nur als Bezugsgröße für den KI-Anteil.
   const totalSessions = Object.values((data?.channels?.totals || {}) as Record<string, number>).reduce((a, b) => a + b, 0);
   const aiSeg = (data?.segments || []).find((s: any) => s.name === "KI-Antworten");
   const aiShare = totalSessions && aiSeg ? Math.round((aiSeg.sessions / totalSessions) * 1000) / 10 : 0;
-
-  // GSC: normalisiert auf getrennte Skalen (Klicks-Balken links, Impressionen-Linie rechts)
-  const gscRows: any[] = data?.search?.timeseries || [];
-  const gscByDay = useMemo(() => new Map(gscRows.map((r) => [String(r.date).replace(/-/g, ""), r])), [gscRows]);
-
-  const W = 1000, H = 190, P = 8, AXL = 40, AXB = 16;
-  const chMax = Math.max(1, ...dayKeys.map((k) => topChannels.reduce((a, c) => Math.max(a, chByDay.get(k)?.[c] || 0), 0)));
-  const x = (i: number) => AXL + P + (i / Math.max(1, dayKeys.length - 1)) * (W - AXL - 2 * P);
-  const y = (v: number, max: number) => H - AXB - P - (v / max) * (H - AXB - 2 * P);
-  const clickMax = Math.max(1, ...gscRows.map((r) => r.clicks));
-  const impMax = Math.max(1, ...gscRows.map((r) => r.impressions));
-  const barW = Math.max(2, (W - AXL - 2 * P) / Math.max(1, dayKeys.length) - 2);
-  const bx = (i: number) => AXL + P + (i / Math.max(1, dayKeys.length)) * (W - AXL - 2 * P);
+  const orgSeg = (data?.segments || []).find((s: any) => s.name === "Organische Suche");
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -556,13 +538,13 @@ function TrafficPanel({ clientId, S }: { clientId: string; S: Record<string, str
         </div>
       ) : (
         <>
-          {/* KPI-Zeile */}
+          {/* KPI-Zeile — bewusst nur KI-Kennzahlen (Rest: EzyRank) */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>
             {[
-              ["Sessions", data.ga4 ? totalSessions.toLocaleString("de-CH") : "—", "alle Kanäle (GA4)"],
-              ["KI-Anteil", data.ga4 ? `${aiShare} %` : "—", aiSeg ? `${aiSeg.sessions.toLocaleString("de-CH")} Sessions aus KI-Antworten` : "keine KI-Sessions"],
-              ["Google-Klicks", data.gsc ? data.search.totals.clicks.toLocaleString("de-CH") : "—", data.gsc ? `${data.search.totals.impressions.toLocaleString("de-CH")} Impressionen` : "GSC nicht verbunden"],
-              ["Ø Position", data.gsc ? String(data.search.totals.position) : "—", data.gsc ? `CTR ${data.search.totals.ctr} %` : "GSC nicht verbunden"],
+              ["KI-Besucher", data.ga4 && aiSeg ? aiSeg.sessions.toLocaleString("de-CH") : "0", "Sessions aus KI-Antworten (inkl. Copilot/Bing AI)"],
+              ["KI-Anteil", data.ga4 ? `${aiShare} %` : "—", `an ${totalSessions.toLocaleString("de-CH")} Sessions gesamt`],
+              ["Ø Dauer (KI)", data.ga4 && aiSeg ? fmtDur(aiSeg.avgDurationSec) : "—", orgSeg ? `Organische Suche: ${fmtDur(orgSeg.avgDurationSec)}` : ""],
+              ["Engagement (KI)", data.ga4 && aiSeg ? `${aiSeg.engagementRate} %` : "—", orgSeg ? `Organische Suche: ${orgSeg.engagementRate} %` : ""],
             ].map(([t, v, sub]) => (
               <div key={t as string} style={card}>
                 <div style={{ fontSize: 11, color: S.mut, textTransform: "uppercase", letterSpacing: ".05em" }}>{t}</div>
@@ -571,37 +553,6 @@ function TrafficPanel({ clientId, S }: { clientId: string; S: Record<string, str
               </div>
             ))}
           </div>
-
-          {/* Kanäle je Tag */}
-          {data.ga4 && topChannels.length > 0 && (
-            <div style={card}>
-              <div style={{ fontWeight: 700, fontSize: 13.5, color: S.txt, marginBottom: 10 }}>Besucher pro Tag nach Kanal</div>
-              <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxHeight: 240 }}>
-                {[0, 0.5, 1].map((f) => (
-                  <g key={f}>
-                    <line x1={AXL + P} x2={W - P} y1={y(f * chMax, chMax)} y2={y(f * chMax, chMax)} stroke={S.line} strokeWidth={1} />
-                    <text x={AXL} y={y(f * chMax, chMax) + 3} textAnchor="end" fontSize={9} fill={S.mut}>{Math.round(f * chMax)}</text>
-                  </g>
-                ))}
-                {dayKeys.map((k, i) => (i % labelEvery === 0 ? (
-                  <text key={k} x={x(i)} y={H - 3} textAnchor="middle" fontSize={9} fill={S.mut}>{dayLabel(k)}</text>
-                ) : null))}
-                {topChannels.map((c, ci) => (
-                  <polyline key={c}
-                    points={dayKeys.map((k, i) => `${x(i)},${y(chByDay.get(k)?.[c] || 0, chMax)}`).join(" ")}
-                    fill="none" stroke={CHANNEL_COLORS[c] || ["#7c3aed", "#0f9d6c", "#d97706", "#0b76b7", "#dc2626"][ci % 5]} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-                ))}
-              </svg>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginTop: 8, fontSize: 11.5, color: S.mut }}>
-                {topChannels.map((c, ci) => (
-                  <span key={c} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: 99, background: CHANNEL_COLORS[c] || ["#7c3aed", "#0f9d6c", "#d97706", "#0b76b7", "#dc2626"][ci % 5], display: "inline-block" }} />
-                    {c} · {((data.channels.totals as any)[c] || 0).toLocaleString("de-CH")}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Engagement-Vergleich (Searchable-Kernwidget) */}
           {data.ga4 && Array.isArray(data.segments) && data.segments.length > 0 && (
@@ -633,39 +584,6 @@ function TrafficPanel({ clientId, S }: { clientId: string; S: Record<string, str
                     ))}
                   </tbody>
                 </table>
-              </div>
-            </div>
-          )}
-
-          {/* GSC: Klicks + Impressionen */}
-          {data.gsc && gscRows.length > 0 && (
-            <div style={card}>
-              <div style={{ fontWeight: 700, fontSize: 13.5, color: S.txt, marginBottom: 10 }}>Google-Suche: Klicks & Impressionen</div>
-              <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxHeight: 240 }}>
-                {[0, 0.5, 1].map((f) => (
-                  <g key={f}>
-                    <line x1={AXL + P} x2={W - P} y1={y(f * clickMax, clickMax)} y2={y(f * clickMax, clickMax)} stroke={S.line} strokeWidth={1} />
-                    <text x={AXL} y={y(f * clickMax, clickMax) + 3} textAnchor="end" fontSize={9} fill={S.mut}>{Math.round(f * clickMax)}</text>
-                  </g>
-                ))}
-                {dayKeys.map((k, i) => (i % labelEvery === 0 ? (
-                  <text key={k} x={bx(i) + barW / 2} y={H - 3} textAnchor="middle" fontSize={9} fill={S.mut}>{dayLabel(k)}</text>
-                ) : null))}
-                {dayKeys.map((k, i) => {
-                  const v = (gscByDay.get(k) as any)?.clicks || 0;
-                  return v > 0 ? (
-                    <rect key={k} x={bx(i)} y={y(v, clickMax)} width={barW} height={H - AXB - P - y(v, clickMax)} rx={2} fill={S.app} opacity={0.85}>
-                      <title>{`${dayLabel(k)} ${v} Klicks`}</title>
-                    </rect>
-                  ) : null;
-                })}
-                <polyline
-                  points={dayKeys.map((k, i) => `${bx(i) + barW / 2},${y((gscByDay.get(k) as any)?.impressions || 0, impMax)}`).join(" ")}
-                  fill="none" stroke="#0f9d6c" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-              </svg>
-              <div style={{ display: "flex", gap: 16, marginTop: 8, fontSize: 11.5, color: S.mut }}>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: S.app, display: "inline-block" }} /> Klicks (linke Skala)</span>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: 99, background: "#0f9d6c", display: "inline-block" }} /> Impressionen (eigene Skala, max {impMax.toLocaleString("de-CH")})</span>
               </div>
             </div>
           )}
@@ -740,6 +658,11 @@ function TrafficPanel({ clientId, S }: { clientId: string; S: Record<string, str
               </div>
             );
           })()}
+
+          <div style={{ fontSize: 11, color: S.mut }}>
+            EzyAI zeigt hier bewusst nur den KI-Traffic (inkl. Copilot/Bing AI). Kanal-Trends,
+            GSC-Klicks und SEO-Keywords findest du in EzyRank, Ads in EzyPerformance.
+          </div>
         </>
       )}
     </div>

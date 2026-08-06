@@ -13094,7 +13094,12 @@ function App({ appScope = null }) {
   const sw = isMobile ? 0 : collapsed ? 68 : 240;
   const toolSettings = useEzyToolSettings(client?.id);
   const svc = useEzyServiceSettings(client?.id); // aktive Dienste des Kunden (Tab-Gating)
-  const tools = useMemo(() => toolSettings.applyTo(ALL_TOOLS), [toolSettings]);
+  // App-Split (06.08., Volkan): jede App zeigt nur ihre Skill-Kategorien —
+  // EzyRank ohne geo/Ads, EzyPerformance nur Ads; Admin/Legacy sieht alles.
+  const tools = useMemo(() => {
+    const all = toolSettings.applyTo(ALL_TOOLS);
+    return scope?.skillCats ? all.filter((t) => scope.skillCats.includes(t.category)) : all;
+  }, [toolSettings, scope]);
   const enabledTools = useMemo(() => tools.filter((t) => t.enabled), [tools]);
   const toggleTool = useCallback(
     (id) => {
