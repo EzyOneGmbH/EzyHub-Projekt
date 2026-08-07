@@ -6,6 +6,7 @@ import { redactSecrets } from "@/server/google-oauth.server";
 import { normalizeCanonryBase } from "@/lib/canonry-url";
 import { fetchAdsSnapshot } from "@/server/google-ads.server";
 import { fetchAworkForClient } from "@/routes/api/awork.tasks";
+import { dfsAuth, fetchBacklinkOverview, normalizeDomain } from "@/server/backlink-overview.server";
 
 function slugify(s: string): string {
   return String(s || "")
@@ -212,61 +213,29 @@ async function jobPagespeed(c: any, uid: string, _days: number) {
   return { score: metrics.performanceScore, lcp: metrics.lcp ?? metrics.lcpLab, dataOrigin };
 }
 
-async function ahrefsCall(path: string, params: Record<string, string>, key: string) {
-  const u = new URL(`https://api.ahrefs.com/v3/${path}`);
-  for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
-  const r = await fetch(u, {
-    headers: { Authorization: `Bearer ${key}`, Accept: "application/json" },
-    signal: AbortSignal.timeout(12_000),
-  });
-  if (!r.ok) return { ok: false as const, error: `HTTP ${r.status}` };
-  return { ok: true as const, data: await r.json().catch(() => null) };
-}
 async function jobAhrefs(c: any, uid: string) {
-  const key = process.env.AHREFS_API_KEY;
-  if (!key) return { skipped: "AHREFS_API_KEY fehlt" };
-  const domain = String(c.domain || "").replace(/^https?:\/\//, "");
+  // 2026-08-07: von der Ahrefs-API auf DataForSEO umgestellt (Ahrefs-Ablösung
+  // 06.08.) — gleiche Abrufe/Result-Form wie /api/ahrefs/overview, geteilt über
+  // backlink-overview.server.ts. audit_type bleibt "ahrefs" (Feld-Kontinuität:
+  // Panel, Freshness-Guard und Dashboard-Filter lesen unverändert weiter).
+  const auth = dfsAuth();
+  if (!auth) return { skipped: "DATAFORSEO_LOGIN/PASSWORD fehlt" };
+  const domain = normalizeDomain(String(c.domain || ""));
   if (!domain) return { skipped: "keine Domain" };
-  // Ahrefs has no data for "today" (rejects it as "bad date") -> use yesterday.
-  // mode "subdomains" so a bare domain also captures its www/host data.
-  const date = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-  const from = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
-  const [dr, bl, rd, mt] = await Promise.all([
-    ahrefsCall("site-explorer/domain-rating", { target: domain, date }, key),
-    ahrefsCall("site-explorer/backlinks-stats", { target: domain, date, mode: "subdomains" }, key),
-    ahrefsCall(
-      "site-explorer/refdomains-history",
-      { target: domain, date_from: from, history_grouping: "weekly", mode: "subdomains" },
-      key,
-    ),
-    ahrefsCall("site-explorer/metrics", { target: domain, date, mode: "subdomains" }, key),
-  ]);
-  const result = {
-    generated_at: nowIso(),
-    domain,
-    domain_rating: dr.ok ? dr.data : null,
-    backlinks_stats: bl.ok ? bl.data : null,
-    refdomains_history: rd.ok ? rd.data : null,
-    metrics: mt.ok ? mt.data : null,
-    errors: {
-      domain_rating: dr.ok ? null : dr.error,
-      backlinks_stats: bl.ok ? null : bl.error,
-      refdomains_history: rd.ok ? null : rd.error,
-      metrics: mt.ok ? null : mt.error,
-    },
-  };
+  const { all_failed: allFailed, ...result } = await fetchBacklinkOverview(domain, auth);
   await insertRun({
     client_id: c.id,
     organization_id: c.organization_id,
     triggered_by: uid,
     audit_type: "ahrefs",
-    status: "succeeded",
+    status: allFailed ? "failed" : "succeeded",
     input: { domain },
     result,
+    error: allFailed ? "Alle DataForSEO-Sektionen fehlgeschlagen" : null,
     started_at: nowIso(),
     finished_at: nowIso(),
   });
-  return { ok: true };
+  return allFailed ? { error: "Alle DataForSEO-Sektionen fehlgeschlagen" } : { ok: true };
 }
 
 async function jobGsc(c: any, uid: string, days: number) {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,34 @@ export function AhrefsPanel({ clientId, domain }: Props) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  // true = Anzeige stammt aus dem letzten gespeicherten Lauf (audit_runs),
+  // false = frisch per Button abgerufen. Der Populate-Job befüllt audit_runs
+  // für alle Kunden, daher zeigt das Panel beim Öffnen sofort Daten.
+  const [fromStore, setFromStore] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: row } = await supabase
+        .from("audit_runs")
+        .select("result, finished_at")
+        .eq("client_id", clientId)
+        .eq("audit_type", "ahrefs")
+        .eq("status", "succeeded")
+        .order("finished_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      // Nur DataForSEO-Läufe automatisch anzeigen (alte Ahrefs-Ergebnisse haben
+      // eine andere Feldform und wären irreführend).
+      if (!cancelled && row?.result && (row.result as any).source === "dataforseo") {
+        setData(row.result);
+        setFromStore(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [clientId]);
 
   const run = async () => {
     setLoading(true);
@@ -32,6 +60,7 @@ export function AhrefsPanel({ clientId, domain }: Props) {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
       setData(json);
+      setFromStore(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -50,7 +79,7 @@ export function AhrefsPanel({ clientId, domain }: Props) {
         </div>
         <Button onClick={run} disabled={loading || !domain} size="sm">
           <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-          Daten abrufen
+          {data ? "Aktualisieren" : "Daten abrufen"}
         </Button>
       </div>
 
@@ -67,11 +96,6 @@ export function AhrefsPanel({ clientId, domain }: Props) {
 
       {data && (
         <div className="space-y-3">
-          {data.rate_limited && (
-            <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-amber-600">
-              Ahrefs Rate-Limit erreicht — bitte später erneut versuchen.
-            </div>
-          )}
           <div className="grid gap-3 sm:grid-cols-2">
             <Section
               title="Autorität (DFS-Rank)"
@@ -91,8 +115,10 @@ export function AhrefsPanel({ clientId, domain }: Props) {
             <Section title="Metrics" payload={data.metrics} error={data.errors?.metrics} />
           </div>
           <p className="text-xs text-muted-foreground">
-            Geprüft: {new Date(data.generated_at).toLocaleString("de-DE")} — Ergebnis in audit_runs
-            gespeichert.
+            {fromStore ? "Stand vom" : "Geprüft:"} {new Date(data.generated_at).toLocaleString("de-DE")}
+            {fromStore
+              ? " (gespeicherter Lauf — „Aktualisieren“ holt Live-Daten)"
+              : " — Ergebnis in audit_runs gespeichert."}
           </p>
         </div>
       )}
