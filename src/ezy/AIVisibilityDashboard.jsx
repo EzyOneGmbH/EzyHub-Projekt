@@ -1657,8 +1657,13 @@ function HeatCell({ pct }) {
 }
 // only: "positions" = nur die Matrizen · "head2head" = nur der 1:1-Vergleich ·
 // undefined = beides (04.08.: Head-to-Head wird separat in die linke Spalte gelegt).
-function PositionHeadToHead({ prompts, sov, brand, only }) {
-  const all = prompts || [];
+function PositionHeadToHead({ prompts, opps, sov, brand, only }) {
+  // Nenner-Fix (06.08., Volkan: "Präsenz immer 100%"): Nicht-erwähnte Prompts
+  // liegen als CHANCEN (is_opportunity) in einer eigenen Liste — ohne sie war
+  // die Grundgesamtheit nur "Antworten mit eigener Erwähnung" und die eigene
+  // Präsenz konstant 100 %. Chancen-Zeilen haben keinen status (→ zählen als
+  // "nicht genannt"), tragen aber comps/compPositions der Konkurrenz.
+  const all = [...(prompts || []), ...(opps || [])];
   // Matrix: Engine × Antwort-Position der EIGENEN Marke (Konkurrenz-Positionen
   // erhebt der Judge nicht — nur ehrliche Daten zeigen, keine Fake-Zeilen).
   const engines = [...new Set(all.map((p) => p.platform).filter(Boolean))].sort();
@@ -2724,10 +2729,13 @@ function BrandIcon({ name, domain, size = 18 }) {
 }
 const BrandAvatar = BrandIcon; // Rankings nutzen denselben Baustein
 
-function RankingsTable({ prompts, sov, brand, sentimentPct, domain }) {
+function RankingsTable({ prompts, opps, sov, brand, sentimentPct, domain }) {
   // Sortierbare Spalten (Searchable-Parität): Klick auf Kopf toggelt Richtung.
   const [sort, setSort] = useState({ key: "vis", dir: -1 });
-  const all = prompts || [];
+  // Nenner-Fix (06.08., Volkan: "Präsenz immer 100%"): Chancen (= Antworten
+  // OHNE eigene Erwähnung) gehören in die Grundgesamtheit, sonst ist die
+  // eigene Präsenz per Konstruktion 100 % und die Konkurrenz zu niedrig.
+  const all = [...(prompts || []), ...(opps || [])];
   const presence = (name, self) => {
     if (!all.length) return 0;
     const n = self
@@ -3161,7 +3169,7 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
             {/* Zeile 1 wie Searchable Visibility: Score-Verlauf | Rankings */}
             <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
               <VisibilityHero score={d.score} delta={d.versionSwitch ? 0 : d.scoreDelta} history={d.trend} daily={d.versionSwitch ? [] : d.dailyTrend} />
-              <RankingsTable prompts={d.prompts} sov={d.sov} brand={d.client} sentimentPct={sentimentPct} domain={d.domain} />
+              <RankingsTable prompts={d.prompts} opps={d.promptOpps} sov={d.sov} brand={d.client} sentimentPct={sentimentPct} domain={d.domain} />
             </div>
             <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
               <TrendCard data={d.trend} />
@@ -3206,10 +3214,10 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
               {/* Linke Spalte: Kaufreise + Head-to-Head (füllt den bisherigen Leerraum) */}
               <div className="grid grid-cols-1 gap-4">
                 <FunnelCard prompts={fP} opps={fO} />
-                <PositionHeadToHead prompts={fP} sov={d.sov} brand={d.client} only="head2head" />
+                <PositionHeadToHead prompts={fP} opps={fO} sov={d.sov} brand={d.client} only="head2head" />
               </div>
               {/* Rechte Spalte: Positions-Matrizen */}
-              <PositionHeadToHead prompts={fP} sov={d.sov} brand={d.client} only="positions" />
+              <PositionHeadToHead prompts={fP} opps={fO} sov={d.sov} brand={d.client} only="positions" />
             </div>
             {/* Share-of-Voice-Karte hier auf Wunsch entfernt (04.08.) —
                 der SoV-Donut bleibt auf dem Sichtbarkeits-Tab. */}
