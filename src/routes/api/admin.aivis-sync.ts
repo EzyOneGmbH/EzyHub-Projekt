@@ -74,6 +74,11 @@ const Body = z.object({
   promptOffset: z.number().int().min(0).optional(),
   // Seed-Ziel für diesen Kunden (überschreibt AIVIS_PROMPT_TARGET, default 30).
   promptTarget: z.number().int().min(1).max(200).optional(),
+  // Engine-Nachzieh-Modus (07.08., Anlass Grok-Wochentagsfilter): misst NUR
+  // die genannten Engines und ersetzt nur DEREN Zeilen — bestehende Antworten
+  // der übrigen Engines bleiben stehen, Aggregate rechnen am Ende über alles.
+  // Explizite Nennung übersteuert den Grok-Wochentagsfilter.
+  engines: z.array(z.enum(["Claude", "Perplexity", "Gemini", "ChatGPT", "Grok", "DeepSeek"])).min(1).optional(),
   // Korpus-Provider für mode brand-backfill (Standard: dataforseo seit 2026-07-19).
   backfillProvider: z.enum(["dataforseo", "ahrefs-br"]).default("dataforseo"),
 });
@@ -1495,7 +1500,7 @@ async function jobPromptRunner(
   c: any,
   sbAny: any,
   fixedComps: string[] = [],
-  opts: { offset?: number; target?: number; snapshot?: string } = {},
+  opts: { offset?: number; target?: number; snapshot?: string; engines?: string[] } = {},
 ) {
   // ALLE aktiven Prompts blockweise laden — kein Limit (PostgREST kappt
   // einzelne Queries bei 1000 Zeilen, deshalb range-Schleife).
@@ -1601,7 +1606,11 @@ async function jobPromptRunner(
   // Provider auf >10 Min und das Hosting kappte den Request vor der 20-Min-
   // Job-Deadline (Run-Zeile blieb "running"). Parallel erhoeht die Last pro
   // Provider nicht — jede Engine stellt weiterhin nur ihre eigenen Prompts.
-  const engineAnswers = await Promise.all(activePromptEngines().map(async (eng) => {
+  // Engine-Nachzieh-Modus: explizite Liste übersteuert den Grok-Wochentagsfilter.
+  const engineList = opts.engines?.length
+    ? PROMPT_ENGINES.filter((e) => opts.engines!.includes(e.name))
+    : activePromptEngines();
+  const engineAnswers = await Promise.all(engineList.map(async (eng) => {
     // Harte Deadline je Call: AbortSignal wird von der Runtime ignoriert
     // (2026-07-14 verifiziert) — ohne Promise.race haengt EIN toter Provider-
     // Call den gesamten Lauf endlos. Max 10 gleichzeitig je Provider, 90s je
@@ -1763,7 +1772,7 @@ async function jobPromptRunner(
     for (const r of [...rows, ...bRows]) byEnginePart[r.platform] = (byEnginePart[r.platform] || 0) + 1;
     return {
       promptRows, seeded, answered: rows.length + bRows.length, byEngine: byEnginePart, engineErrors,
-      partial: true, chunk: { offset, next, total: allDefs.length },
+      partial: true, chunk: { offset, next, total: allDefs.length }, engineFilter: opts.engines ?? null,
     };
   }
 
@@ -2032,6 +2041,7 @@ async function jobPromptRunner(
   return {
     promptRows, customModels, topics, sov, customSources, learnedComps, brandCheck,
     chunk: chunked ? { offset, next: null as number | null, total: allDefs.length } : null,
+    engineFilter: opts.engines ?? null,
     seeded, answered: rows.length, byEngine, engineErrors,
     mentions: customModels.reduce((a, m) => a + m.mentions, 0),
     selfShare: sov[0]?.share ?? 0,
@@ -2468,7 +2478,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         const parsed = Body.safeParse(await request.json().catch(() => ({})));
         if (!parsed.success)
           return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
-        const { client: sel, all, jobs, minIntervalDays, force, mode, months, serpKeywords, async: runAsync, promptOffset, promptTarget, backfillProvider } = parsed.data;
+        const { client: sel, all, jobs, minIntervalDays, force, mode, months, serpKeywords, async: runAsync, promptOffset, promptTarget, backfillProvider, engines: engineFilter } = parsed.data;
         const wanted = jobs && jobs.length ? jobs : (["brand_radar", "attribution", "prompts", "canonry", "serp_ai"] as const);
 
         const query = supabaseAdmin
@@ -2591,7 +2601,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               : null;
             diag(`${c.name}: starte prompts-Job`);
             const pr: any = wanted.includes("prompts")
-              ? await withDeadline(jobPromptRunner(c, sb, fixedComps, { offset: promptOffset, target: promptTarget, snapshot }), 20 * 60_000, "prompts").catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }))
+              ? await withDeadline(jobPromptRunner(c, sb, fixedComps, { offset: promptOffset, target: promptTarget, snapshot, engines: engineFilter }), 20 * 60_000, "prompts").catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }))
               : null;
             diag(`${c.name}: prompts-Job fertig (${pr?.skipped ? "skipped: " + pr.skipped : "answered " + pr?.answered})`);
             await flushCost(sb); // LLM-Token-Kosten dieses Laufs persistieren
@@ -2855,7 +2865,12 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 // räumt die alten Zeilen ab; Folge-Häppchen hängen an. Vor dem
                 // Anhängen die eigene Slice löschen (Wiederholungs-Idempotenz).
                 const isFirstChunk = !pr.chunk || pr.chunk.offset === 0;
-                if (isFirstChunk) {
+                if (Array.isArray(pr.engineFilter) && pr.engineFilter.length) {
+                  // Engine-Nachzieh-Modus: NUR die Zeilen der gefilterten Engines
+                  // ersetzen — Antworten der übrigen Engines bleiben stehen.
+                  const slicePrompts = [...new Set(pr.promptRows.map((p: any) => String(p.prompt)))];
+                  await sb.from("ai_visibility_prompts").delete().eq("report_id", reportId).in("platform", pr.engineFilter).in("prompt", slicePrompts);
+                } else if (isFirstChunk) {
                   await sb.from("ai_visibility_prompts").delete().eq("report_id", reportId);
                 } else {
                   const slicePrompts = [...new Set(pr.promptRows.map((p: any) => String(p.prompt)))];
