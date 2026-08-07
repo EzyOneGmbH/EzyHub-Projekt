@@ -985,7 +985,7 @@ function YesNoPill({ yes }) {
 // Erwähnt?/Zitiert?/Position/Marken/Quellen — Detail-Modal weiter per Klick.
 function PromptGroupRow({ g, opportunity, brand }) {
   const [open, setOpen] = useState(false);      // Detail-Modal (Antwort-Volltexte)
-  const [expanded, setExpanded] = useState(true); // Searchable-Default (04.08.): aufgeklappt
+  const [expanded, setExpanded] = useState(false); // Default zu (Volkan 06.08.); Klick auf die Zeile klappt auf
   const rate = g.total ? Math.round((g.mentioned / g.total) * 100) : 0;
   return (
     <>
