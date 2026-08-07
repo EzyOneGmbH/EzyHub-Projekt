@@ -143,7 +143,7 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
     }
     setBusy("all");
     const jobs = [
-      ["Ahrefs", "/api/ahrefs/overview", { clientId }],
+      ["Backlinks (DataForSEO)", "/api/ahrefs/overview", { clientId }],
       ["Core Web Vitals", "/api/google/pagespeed", { clientId }],
       ["GSC", "/api/google/gsc-import", { clientId, days: 28, rowLimit: 1000 }],
       ["GA4", "/api/google/ga4-summary", { clientId, days: 28 }],
@@ -427,7 +427,7 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
           <button
             onClick={runAll}
             disabled={!!busy}
-            title="Ahrefs · Core Web Vitals · GSC · GA4 in einem Lauf"
+            title="Backlinks · Core Web Vitals · GSC · GA4 in einem Lauf"
             style={btn({ background: "#059669", borderColor: "#059669", fontWeight: 700 }, !!busy)}
           >
             {busy === "all" ? "läuft…" : "⟳ Alle Daten aktualisieren"}

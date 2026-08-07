@@ -60,7 +60,7 @@ function HeatLegend({ from = "Schwach", to = "Stark" }) {
  * Layout/Charts wie in der Referenz — Farben auf die DUNKLE EzyOneApp-Palette
  * umgestellt, damit der KI-Tab optisch zum Rest der App passt. Daten kommen als
  * { data }-Prop im AIVisibilityData-Vertrag (src/ezy/data/useEzyAIVisibility.ts).
- * Jede Model-Zeile trägt `layer`: "macro" = Ahrefs Brand Radar,
+ * Jede Model-Zeile trägt `layer`: "macro" = Brand Radar (DataForSEO LLM-Mentions),
  * "custom" = Prompt-Runner (Claude/Grok/DeepSeek etc.).
  */
 
@@ -1479,7 +1479,7 @@ function BrandTrend({ history }) {
         <span className="uppercase tracking-wide">Verlauf (Faktentreue % durchgezogen · Tonalität positiv % gepunktet)</span>
         <span className="flex items-center gap-3">
           {korpus.length > 0 && (
-            <span className="inline-flex items-center gap-1"><span className="inline-block h-0.5 w-4" style={{ background: C.sub }} />Korpus-Backfill (Ahrefs)</span>
+            <span className="inline-flex items-center gap-1"><span className="inline-block h-0.5 w-4" style={{ background: C.sub }} />Korpus-Backfill (DataForSEO)</span>
           )}
           <span className="inline-flex items-center gap-1"><span className="inline-block h-0.5 w-4" style={{ background: C.indigo }} />eigene Messung{erstlauf ? ` ab ${erstlauf}` : ""}</span>
         </span>

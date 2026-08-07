@@ -17,7 +17,7 @@ type LiveStatus = {
     anthropic: ProbeResult;
     perplexity: ProbeResult;
     canonry: ProbeResult;
-    ahrefs: ProbeResult;
+    dataforseo: ProbeResult;
     google_oauth: ProbeResult;
   };
 };
@@ -139,12 +139,16 @@ async function probeCanonry(baseUrl?: string, key?: string): Promise<ProbeResult
   ]);
 }
 
-async function probeAhrefs(key?: string): Promise<ProbeResult> {
-  if (!key) return { configured: false, ok: false, error: "AHREFS_API_KEY not configured" };
+// 2026-08-07: Ahrefs-Probe durch DataForSEO ersetzt (Ahrefs-Ablösung 06.08.) —
+// appendix/user_data ist der leichtgewichtige Konto-/Balance-Check.
+async function probeDataForSEO(login?: string, pass?: string): Promise<ProbeResult> {
+  if (!login || !pass)
+    return { configured: false, ok: false, error: "DATAFORSEO_LOGIN/PASSWORD not configured" };
+  const basic = Buffer.from(`${login}:${pass}`).toString("base64");
   return timedFetch(
-    "https://api.ahrefs.com/v3/subscription-info/limits-and-usage",
-    { method: "GET", headers: { Authorization: `Bearer ${key}`, Accept: "application/json" } },
-    [key],
+    "https://api.dataforseo.com/v3/appendix/user_data",
+    { method: "GET", headers: { Authorization: `Basic ${basic}`, Accept: "application/json" } },
+    [pass, basic],
   );
 }
 
@@ -201,18 +205,19 @@ export const Route = createFileRoute("/api/live/status")({
         const perplexity = env.PERPLEXITY_API_KEY;
         const canonryBase = env.CANONRY_BASE_URL;
         const canonryKey = env.CANONRY_API_KEY;
-        const ahrefs = env.AHREFS_API_KEY;
+        const dfsLogin = env.DATAFORSEO_LOGIN;
+        const dfsPass = env.DATAFORSEO_PASSWORD;
         const gClientId = env.GOOGLE_CLIENT_ID;
         const gClientSecret = env.GOOGLE_CLIENT_SECRET;
         const gRedirect = env.GOOGLE_REDIRECT_URI;
 
-        const [g, o, a, p, c, ah] = await Promise.all([
+        const [g, o, a, p, c, dfs] = await Promise.all([
           probeGemini(gemini),
           probeOpenAI(openai),
           probeAnthropic(anthropic),
           probePerplexity(perplexity),
           probeCanonry(canonryBase, canonryKey),
-          probeAhrefs(ahrefs),
+          probeDataForSEO(dfsLogin, dfsPass),
         ]);
 
         const result: LiveStatus = {
@@ -223,7 +228,7 @@ export const Route = createFileRoute("/api/live/status")({
             anthropic: a,
             perplexity: p,
             canonry: c,
-            ahrefs: ah,
+            dataforseo: dfs,
             google_oauth: reportGoogleOAuth(gClientId, gClientSecret, gRedirect),
           },
         };

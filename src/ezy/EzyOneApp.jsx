@@ -3377,7 +3377,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
           {isOn("seo.ahrefs") && refdomainsSeries.length < 2 && (
             <SectionPlaceholder
               title="Verweisende Domains"
-              hint="Braucht mindestens 2 wöchentliche Ahrefs-Datenpunkte — füllt sich automatisch mit den nächsten Läufen."
+              hint="Braucht mindestens 2 DataForSEO-Datenpunkte — füllt sich automatisch mit den nächsten Läufen."
             />
           )}
           {isOn("seo.gsc") && rankingDist.length > 0 && (
@@ -3437,7 +3437,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
                 Verweisende Domains
               </div>
               <div style={{ fontSize: 11, color: C.textDim, marginBottom: 12 }}>
-                Wöchentlich (Ahrefs, letzte 90 Tage)
+                DataForSEO (Backlinks-Historie, letzte 90 Tage)
               </div>
               <ResponsiveContainer width="100%" height={240}>
                 <AreaChart data={refdomainsSeries}>
@@ -3568,7 +3568,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
       ) : isOn("seo.trend") ? (
         <SectionPlaceholder
           title="Entwicklung (Traffic · Visibility · Keywords)"
-          hint="Braucht mindestens 2 Ahrefs-Läufe im gewählten Zeitraum — Datumsfilter weiter fassen oder auf die nächsten automatischen Läufe warten."
+          hint="Braucht mindestens 2 Daten-Läufe (DataForSEO) im gewählten Zeitraum — Datumsfilter weiter fassen oder auf die nächsten automatischen Läufe warten."
         />
       ) : null}
       {/* Datenquellen-Übersicht (User-Wunsch 2026-07-17): welches Widget bezieht
@@ -3592,14 +3592,14 @@ function SeoDashboard({ selectedClient, dateRange }) {
             <tbody>
               {[
                 ["Rankings (Top 3 · Top 10 · Tabelle)", "DataForSEO Rank-Tracking", rankRun],
-                ["SEO-KPIs (Traffic, Visibility, Authority, Keywords, Backlinks)", "Ahrefs", run],
+                ["SEO-KPIs (Traffic, Visibility, Authority, Keywords, Backlinks)", "DataForSEO (Backlinks & Labs)", run],
                 ["Switzerland Traffic", "Google Analytics 4", trafRun],
                 ["Brand/Non-Brand-Split · Positions-Buckets · Top-Suchanfragen", "Google Search Console", gscQRun || gscRun],
                 ["Ranking-Verteilung", "Google Search Console", gscRun],
                 ["Core Web Vitals (LCP, INP, CLS, Performance)", "Google PageSpeed (CrUX/Lighthouse)", psiRun],
-                ["Verweisende Domains", "Ahrefs", run],
+                ["Verweisende Domains", "DataForSEO (Backlinks-Historie)", run],
                 ["Meistbesuchte Seiten", "Google Analytics 4", trafRun],
-                ["Entwicklung (Trend)", "Ahrefs (Verlauf der Audit-Läufe)", run],
+                ["Entwicklung (Trend)", "DataForSEO (Verlauf der Audit-Läufe)", run],
               ].map(([widget, source, r]) => (
                 <tr key={widget} style={{ borderTop: `1px solid ${C.border}` }}>
                   <td style={{ padding: "6px 8px", color: C.text }}>{widget}</td>
@@ -4649,7 +4649,7 @@ function OverviewDashboard({ selectedClient, dateRange }) {
     ? (Date.now() - new Date(populateMeta.created_at).getTime()) / 3600_000
     : null;
   const SOURCE_LABELS = {
-    ahrefs: "Ahrefs", gsc: "GSC", gsc_queries: "GSC-Queries", crux: "CWV",
+    ahrefs: "Backlinks (DFS)", gsc: "GSC", gsc_queries: "GSC-Queries", crux: "CWV",
     ga4: "GA4", ga4_traffic: "GA4-Traffic", ga4_conversions: "GA4-Conv.", canonry: "Canonry",
   };
   const fmtTs = (ts) => {
@@ -4663,7 +4663,7 @@ function OverviewDashboard({ selectedClient, dateRange }) {
     return (
       <LiveEmptyState
         title="Noch keine Übersichts-Daten"
-        hint="Starte den Sammel-Lauf im Google-Panel (Ahrefs · GSC · GA4 · GA4 Traffic · GA4 Conversions), damit hier Traffic, AI-Referenzen und Lead-Visits erscheinen."
+        hint="Starte den Sammel-Lauf im Google-Panel (Backlinks · GSC · GA4 · GA4 Traffic · GA4 Conversions), damit hier Traffic, AI-Referenzen und Lead-Visits erscheinen."
       />
     );
   }
@@ -9081,7 +9081,7 @@ function OnboardingCard({ client, onUpdated }) {
     String(client?.id || ""),
   );
   const steps = [
-    { ok: !!client?.domain, label: "Domain hinterlegt", hint: "Basis für Ahrefs & Core Web Vitals" },
+    { ok: !!client?.domain, label: "Domain hinterlegt", hint: "Basis für Backlinks & Core Web Vitals" },
     {
       ok: !!client?.canonryProject,
       label: "Canonry-Projekt (GEO)",
@@ -9213,7 +9213,7 @@ function OnboardingCard({ client, onUpdated }) {
 // ─────────────────────────────────────────────────────────────────────────────
 const ONBOARD_TABS = [
   { id: "overview", label: "Übersicht", hint: "KPIs, Health, Frische" },
-  { id: "seo", label: "SEO", hint: "Rankings, GSC, CWV, Ahrefs" },
+  { id: "seo", label: "SEO", hint: "Rankings, GSC, CWV, Backlinks" },
   { id: "blog", label: "Blog", hint: "Blog-Artikel & Refresh-Radar" },
   { id: "aivis", label: "KI-Sichtbarkeit", hint: "AI-Citations (Canonry)" },
   { id: "conversions", label: "Conversions", hint: "GA4, Kanäle, Umsatz" },
@@ -9656,7 +9656,7 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
             ))}
           </div>
           <p style={{ fontSize: 11, color: C.textDim, margin: "12px 0 0" }}>
-            Ahrefs, DataForSEO & Co. laufen über globale Schlüssel — dafür ist nichts zu tun.
+            DataForSEO & Co. laufen über globale Schlüssel — dafür ist nichts zu tun.
           </p>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 16 }}>
             <Btn variant="secondary" onClick={() => finish(false)} disabled={busy}>Später verbinden — fertig</Btn>
@@ -11151,7 +11151,7 @@ function SettingsPage({
     ["OpenAI", live.data?.providers?.openai, C.blue, Bot],
     ["Anthropic", live.data?.providers?.anthropic, C.pink, Bot],
     ["Perplexity", live.data?.providers?.perplexity, C.orange, Sparkles],
-    ["Ahrefs", live.data?.providers?.ahrefs, C.green, Link2],
+    ["DataForSEO", live.data?.providers?.dataforseo, C.green, Link2],
     ["Moz", null, C.textMuted, Database],
   ];
   const googleRows = [
@@ -11639,7 +11639,7 @@ function SettingsPage({
               [
                 "SEO",
                 [
-                  ["seo.ahrefs", "Ahrefs-KPIs (Traffic, Visibility, Authority, Keywords)"],
+                  ["seo.ahrefs", "Backlink-KPIs (Traffic, Visibility, Authority, Keywords)"],
                   ["seo.gsc", "Search Console (Klicks, Impressionen, CTR, Position, Top-Queries)"],
                   ["seo.cwv", "Core Web Vitals (LCP, INP, CLS, Performance)"],
                   ["seo.trend", "SEO-Trend-Chart"],
