@@ -1,4 +1,4 @@
-import React, { Fragment, useEffect, useState } from "react";
+import React, { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 // Echte Landkarte (04.08.): react-freie Geo-Bausteine — kein Peer-Dep-Risiko.
 import { geoNaturalEarth1, geoPath, geoBounds } from "d3-geo";
@@ -40,6 +40,26 @@ function RCard({ icon: Icon, title, info, desc, footer, legend, children, pad = 
     </div>
   );
 }
+// ── Mobile (08.08.): SVG-Charts in echter Containerbreite zeichnen ──────────
+// Bisher wurden feste viewBox-Breiten (520–1100) per width:100% skaliert — auf
+// Smartphones schrumpften Achsen-Labels auf ~3–6px. Der Hook misst den
+// Container (Callback-Ref, funktioniert auch bei konditionalem Mount) und
+// liefert die Zeichenbreite: mind. `min`, darunter scrollt der Chart im
+// overflow-x-Wrapper horizontal (gleiches Muster wie die Tabellen).
+function useChartWidth(fallback, min) {
+  const [w, setW] = useState(0);
+  const roRef = useRef(null);
+  const attach = useCallback((el) => {
+    if (roRef.current) { roRef.current.disconnect(); roRef.current = null; }
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver((es) => setW(es[0].contentRect.width));
+    ro.observe(el);
+    roRef.current = ro;
+  }, []);
+  const W = w > 40 ? Math.max(Math.round(w), min) : fallback;
+  return [attach, W];
+}
+
 // Weak→Strong-Farblegende (Searchable-Fußzeilen-Muster)
 function HeatLegend({ from = "Schwach", to = "Stark" }) {
   const cols = ["#fecaca", "#fed7aa", "#fde68a", "#bbf7d0", "#6ee7b7"];
@@ -1070,6 +1090,7 @@ const INTENT_COLOR = {
 const POS_SCORE = { top: 3, list: 2, passing: 1 };
 
 function PromptMatrix({ prompts, opps }) {
+  const [chartRef, W] = useChartWidth(560, 460);
   const groups = groupPrompts([...(prompts || []), ...(opps || []).map((o) => ({ ...o, status: "Nicht erwähnt" }))]);
   const dots = groups.map((g) => {
     const rate = g.total ? (g.mentioned / g.total) * 100 : 0;
@@ -1080,11 +1101,11 @@ function PromptMatrix({ prompts, opps }) {
     return { prompt: g.prompt, country: g.country, rate, avgPos, srcSum, intent, mentioned: g.mentioned, total: g.total };
   });
   if (dots.length < 3) return null;
-  const W = 560, H = 290, PL = 42, PR = 14, PT = 18, PB = 34;
+  const H = 290, PL = 42, PR = 14, PT = 18, PB = 34;
   const maxSrc = Math.max(1, ...dots.map((d) => d.srcSum));
   const x = (rate) => PL + (rate / 100) * (W - PL - PR);
   const y = (pos) => PT + (1 - pos / 3) * (H - PT - PB);
-  const r = (src) => 4 + Math.sqrt(src / maxSrc) * 9;
+  const r = (src) => 5 + Math.sqrt(src / maxSrc) * 11;
   const intents = [...new Set(dots.map((d) => d.intent).filter((i) => INTENT_COLOR[i]))];
   const QUAD = [
     { tx: PL + 8, ty: PT + 12, anchor: "start", t: "Ausbaufähig" },       // selten erwähnt, gut platziert
@@ -1100,23 +1121,24 @@ function PromptMatrix({ prompts, opps }) {
       desc="Erwähnungsquote × Position je Prompt — Blase antippen für Details"
       footer={`${dots.length} Prompts`}
     >
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 300 }}>
+      <div ref={chartRef} style={{ overflowX: "auto" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: W, display: "block" }}>
         {/* Quadranten-Hilfslinien */}
         <line x1={x(50)} x2={x(50)} y1={PT} y2={H - PB} stroke={C.line} strokeWidth="1" strokeDasharray="3 3" />
         <line x1={PL} x2={W - PR} y1={y(1.5)} y2={y(1.5)} stroke={C.line} strokeWidth="1" strokeDasharray="3 3" />
         <line x1={PL} x2={W - PR} y1={H - PB} y2={H - PB} stroke={C.line} strokeWidth="1" />
         <line x1={PL} x2={PL} y1={PT} y2={H - PB} stroke={C.line} strokeWidth="1" />
         {QUAD.map((q) => (
-          <text key={q.t} x={q.tx} y={q.ty} textAnchor={q.anchor} fontSize="9.5" fontWeight="600" fill={C.sub} opacity="0.65">{q.t}</text>
+          <text key={q.t} x={q.tx} y={q.ty} textAnchor={q.anchor} fontSize="11.5" fontWeight="600" fill={C.sub} opacity="0.65">{q.t}</text>
         ))}
         {/* Achsen-Beschriftung */}
         {[0, 50, 100].map((v) => (
-          <text key={v} x={x(v)} y={H - PB + 14} textAnchor="middle" fontSize="9" fill={C.sub}>{v}%</text>
+          <text key={v} x={x(v)} y={H - PB + 14} textAnchor="middle" fontSize="11" fill={C.sub}>{v}%</text>
         ))}
         {[["Top", 3], ["Liste", 2], ["Rand", 1]].map(([t, v]) => (
-          <text key={t} x={PL - 6} y={y(v) + 3} textAnchor="end" fontSize="9" fill={C.sub}>{t}</text>
+          <text key={t} x={PL - 6} y={y(v) + 3} textAnchor="end" fontSize="11" fill={C.sub}>{t}</text>
         ))}
-        <text x={(PL + W - PR) / 2} y={H - 4} textAnchor="middle" fontSize="9.5" fill={C.sub}>Erwähnungsquote</text>
+        <text x={(PL + W - PR) / 2} y={H - 4} textAnchor="middle" fontSize="11" fill={C.sub}>Erwähnungsquote</text>
         {/* Blasen — grösste zuerst, damit kleine anklickbar oben liegen.
             Identische Koordinaten (häufig: Quote 0/25/50 %, Position 0) werden
             deterministisch spiralförmig entzerrt, sonst sieht man 1 statt 75. */}
@@ -1142,6 +1164,7 @@ function PromptMatrix({ prompts, opps }) {
           });
         })()}
       </svg>
+      </div>
       {intents.length > 0 && (
         <div className="mt-2 flex flex-wrap items-center gap-3 text-[10.5px]" style={{ color: C.sub }}>
           {intents.map((i) => (
@@ -2409,6 +2432,7 @@ function BrandPerceptionCard({ perception, brand }) {
 const DOMAIN_TREND_COLORS = ["#6c5ce7", "#0d9488", "#d97706", "#dc2626", "#0284c7"];
 function DomainTrendCard({ trend }) {
   const [hover, setHover] = useState(null); // Maus-Zeitstrahl (04.08.)
+  const [chartRef, W] = useChartWidth(1100, 560);
   const allMonths = trend?.months || [];
   const allSeries = (trend?.series || []).filter((s) => s.values.some((v) => v > 0));
   // Leere Vormonate abschneiden (05.08.): die Quellen-Messung startete später
@@ -2422,15 +2446,16 @@ function DomainTrendCard({ trend }) {
   if (months.length < 2 || !series.length) return null;
   // Breites Seitenverhältnis (05.08.): der Chart füllt die gesamte Kartenbreite
   // statt schmal in der Mitte zu hängen (maxHeight deckelte das 560er-Format).
-  const W = 1100, H = 220, PAD = 8, AXL = 30, AXB = 16;
+  const H = 220, PAD = 8, AXL = 30, AXB = 16;
   const maxV = Math.max(1, ...series.flatMap((s) => s.values));
   const x = (i) => AXL + PAD + (i / Math.max(1, months.length - 1)) * (W - AXL - 2 * PAD);
   const y = (v) => H - AXB - PAD - (v / maxV) * (H - AXB - 2 * PAD);
   const labelEvery = months.length <= 8 ? 1 : Math.ceil(months.length / 8);
   return (
     <RCard icon={Link2} title="Top-Domains-Trend" info="Wie oft die fünf meistzitierten Domains je Monatsmessung in KI-Antworten als Quelle auftauchen." desc="Zitierhäufigkeit der Top-Domains über die Monate" footer={`${series.length} Domains · ${months.length} Monate`}>
+      <div ref={chartRef} style={{ overflowX: "auto" }}>
       <svg
-        viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 260 }}
+        viewBox={`0 0 ${W} ${H}`} style={{ width: W, display: "block" }}
         onMouseMove={(e) => setHover(svgHoverIndex(e, W, AXL, PAD, months.length))}
         onMouseLeave={() => setHover(null)}
       >
@@ -2466,6 +2491,7 @@ function DomainTrendCard({ trend }) {
           </g>
         )}
       </svg>
+      </div>
       <div className="mt-2 flex flex-wrap items-center gap-3 text-[10.5px]" style={{ color: C.sub }}>
         {series.map((s, si) => (
           <span key={s.domain} className="inline-flex items-center gap-1.5">
@@ -2582,8 +2608,9 @@ function VisibilityHero({ score, delta, history, daily }) {
   const [range, setRange] = useState(dailyPts.length >= 3 ? "tage" : "monate");
   const [chart, setChart] = useState("linie");
   const [hover, setHover] = useState(null); // Maus-Zeitstrahl (04.08.)
+  const [chartRef, W] = useChartWidth(520, 340);
   const pts = range === "tage" && dailyPts.length >= 2 ? dailyPts : monthPts;
-  const W = 520, H = 150, PAD = 8, AXL = 30, AXB = 16;
+  const H = 150, PAD = 8, AXL = 30, AXB = 16;
   const maxS = Math.max(10, ...pts.map((p) => p.score));
   const x = (i) => AXL + PAD + (i / Math.max(1, pts.length - 1)) * (W - AXL - 2 * PAD);
   const y = (v) => H - AXB - PAD - (v / maxS) * (H - AXB - 2 * PAD);
@@ -2632,8 +2659,9 @@ function VisibilityHero({ score, delta, history, daily }) {
         </p>
       )}
       {pts.length > 1 && (
+        <div ref={chartRef} className="mt-2" style={{ overflowX: "auto" }}>
         <svg
-          viewBox={`0 0 ${W} ${H}`} className="mt-2 w-full" style={{ maxHeight: 150 }}
+          viewBox={`0 0 ${W} ${H}`} style={{ width: W, display: "block" }}
           onMouseMove={(e) => setHover(svgHoverIndex(e, W, AXL, PAD, pts.length))}
           onMouseLeave={() => setHover(null)}
         >
@@ -2673,6 +2701,7 @@ function VisibilityHero({ score, delta, history, daily }) {
             </g>
           )}
         </svg>
+        </div>
       )}
     </RCard>
   );
@@ -2846,7 +2875,8 @@ function RankingsTable({ prompts, opps, sov, brand, sentimentPct, domain }) {
 function MetricTrendCard({ icon, title, info, value, delta, series, color }) {
   const pts = (series || []).slice(-12);
   const [hover, setHover] = useState(null); // Maus-Zeitstrahl (04.08.)
-  const W = 520, H = 120, PAD = 8, AXL = 30, AXB = 16;
+  const [chartRef, W] = useChartWidth(520, 340);
+  const H = 120, PAD = 8, AXL = 30, AXB = 16;
   const maxV = Math.max(1, ...pts.map((p) => p.v));
   const x = (i) => AXL + PAD + (i / Math.max(1, pts.length - 1)) * (W - AXL - 2 * PAD);
   const y = (v) => H - AXB - PAD - (v / maxV) * (H - AXB - 2 * PAD);
@@ -2860,8 +2890,9 @@ function MetricTrendCard({ icon, title, info, value, delta, series, color }) {
         )}
       </div>
       {pts.length > 1 && (
+        <div ref={chartRef} className="mt-2" style={{ overflowX: "auto" }}>
         <svg
-          viewBox={`0 0 ${W} ${H}`} className="mt-2 w-full" style={{ maxHeight: 120 }}
+          viewBox={`0 0 ${W} ${H}`} style={{ width: W, display: "block" }}
           onMouseMove={(e) => setHover(svgHoverIndex(e, W, AXL, PAD, pts.length))}
           onMouseLeave={() => setHover(null)}
         >
@@ -2886,6 +2917,7 @@ function MetricTrendCard({ icon, title, info, value, delta, series, color }) {
             </g>
           )}
         </svg>
+        </div>
       )}
     </RCard>
   );

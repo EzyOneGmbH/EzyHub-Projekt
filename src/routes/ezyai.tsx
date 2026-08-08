@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useAppAccess } from "@/ezy/data/useAppAccess";
@@ -19,6 +19,24 @@ import {
 // Initialen aus einem Namen (Shell-Profilblock, wie in der EzyRank-Shell).
 function initials(name: string) {
   return String(name || "?").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
+}
+
+// Mobile (08.08.): SVG-Charts in echter Containerbreite zeichnen — feste
+// viewBox-Breiten (1000px) schrumpften Achsen-Labels auf Smartphones auf ~3px.
+// Misst den Wrapper per Callback-Ref; unter `min` px scrollt der Chart
+// horizontal (Wrapper braucht overflowX:auto), wie bei den Tabellen.
+function useChartWidth(fallback: number, min: number): [(el: HTMLDivElement | null) => void, number] {
+  const [w, setW] = useState(0);
+  const roRef = useRef<ResizeObserver | null>(null);
+  const attach = useCallback((el: HTMLDivElement | null) => {
+    if (roRef.current) { roRef.current.disconnect(); roRef.current = null; }
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver((es) => setW(es[0].contentRect.width));
+    ro.observe(el);
+    roRef.current = ro;
+  }, []);
+  const W = w > 40 ? Math.max(Math.round(w), min) : fallback;
+  return [attach, W];
 }
 
 // App-Navigation der Sidebar (Searchable-Struktur). "AEO Insights" = heutiges
@@ -226,12 +244,14 @@ function LlmAnalyticsPanel({ clientId, S }: { clientId: string; S: Record<string
   );
 
   // Referral-Linienchart
-  const RW = 1000, RH = 190, RP = 8, RAXL = 34, RAXB = 16;
+  const [rwRef, RW] = useChartWidth(1000, 560);
+  const RH = 190, RP = 8, RAXL = 34, RAXB = 16;
   const refMax = Math.max(1, ...dayKeys.map((k) => engines.reduce((a, e) => Math.max(a, tsByDay.get(k)?.[e]?.sessions || 0), 0)));
   const rx = (i: number) => RAXL + RP + (i / Math.max(1, dayKeys.length - 1)) * (RW - RAXL - 2 * RP);
   const ry = (v: number) => RH - RAXB - RP - (v / refMax) * (RH - RAXB - 2 * RP);
   // Crawler-Balkenchart
-  const CW = 1000, CH = 150, CP = 8, CAXL = 34, CAXB = 16;
+  const [cwRef, CW] = useChartWidth(1000, 560);
+  const CH = 150, CP = 8, CAXL = 34, CAXB = 16;
   const crMax = Math.max(1, ...dayKeys.map((k) => crawler.byDay[k] || 0));
   const cx = (i: number) => CAXL + CP + (i / Math.max(1, dayKeys.length)) * (CW - CAXL - 2 * CP);
   const cy = (v: number) => CH - CAXB - CP - (v / crMax) * (CH - CAXB - 2 * CP);
@@ -282,7 +302,8 @@ function LlmAnalyticsPanel({ clientId, S }: { clientId: string; S: Record<string
           <div style={{ fontSize: 12, color: S.mut, padding: 12 }}>Im gewählten Zeitraum kamen keine Besucher aus KI-Antworten.</div>
         ) : (
           <>
-            <svg viewBox={`0 0 ${RW} ${RH}`} style={{ width: "100%", maxHeight: 240 }}>
+            <div ref={rwRef} style={{ overflowX: "auto" }}>
+            <svg viewBox={`0 0 ${RW} ${RH}`} style={{ width: RW, display: "block" }}>
               {[0, 0.5, 1].map((f) => (
                 <g key={f}>
                   <line x1={RAXL + RP} x2={RW - RP} y1={ry(f * refMax)} y2={ry(f * refMax)} stroke={S.line} strokeWidth={1} />
@@ -302,6 +323,7 @@ function LlmAnalyticsPanel({ clientId, S }: { clientId: string; S: Record<string
                 </g>
               ))}
             </svg>
+            </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginTop: 8, fontSize: 11.5, color: S.mut }}>
               {engines.map((e) => (
                 <span key={e} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -325,7 +347,8 @@ function LlmAnalyticsPanel({ clientId, S }: { clientId: string; S: Record<string
             (Rollout läuft über den Freigabe-Workflow).
           </div>
         ) : (
-          <svg viewBox={`0 0 ${CW} ${CH}`} style={{ width: "100%", maxHeight: 190 }}>
+          <div ref={cwRef} style={{ overflowX: "auto" }}>
+          <svg viewBox={`0 0 ${CW} ${CH}`} style={{ width: CW, display: "block" }}>
             {[0, 0.5, 1].map((f) => (
               <g key={f}>
                 <line x1={CAXL + CP} x2={CW - CP} y1={cy(f * crMax)} y2={cy(f * crMax)} stroke={S.line} strokeWidth={1} />
@@ -344,6 +367,7 @@ function LlmAnalyticsPanel({ clientId, S }: { clientId: string; S: Record<string
               ) : null;
             })}
           </svg>
+          </div>
         )}
       </div>
 
@@ -509,6 +533,7 @@ function TrafficPanel({ clientId, S }: { clientId: string; S: Record<string, str
   }, [days]);
   const dayLabel = (k: string) => `${k.slice(6, 8)}.${k.slice(4, 6)}.`;
   const labelEvery = Math.max(1, Math.ceil(dayKeys.length / 10));
+  const [qwRef, QW] = useChartWidth(1000, 640); // Quadranten-Matrix (mobil scrollbar)
 
   // App-Split (06.08., Volkan): EzyAI zeigt NUR die KI-Sicht — Kanal-Trends,
   // GSC-Klicks & klassisches SEO leben in EzyRank. Die Gesamt-Sessions dienen
@@ -595,7 +620,7 @@ function TrafficPanel({ clientId, S }: { clientId: string; S: Record<string, str
 
           {/* SEO × KI-Sichtbarkeit: Quadranten-Matrix (Searchable GSC-Kombination) */}
           {quad && (() => {
-            const QW = 1000, QH = 300, QP = 14, QAXL = 40, QAXB = 24;
+            const QH = 300, QP = 14, QAXL = 40, QAXB = 24;
             const qx = (pos: number) => QAXL + QP + ((30 - Math.min(pos, 30)) / 30) * (QW - QAXL - 2 * QP);
             const qy = (aeo: number) => QH - QAXB - QP - (aeo / 100) * (QH - QAXB - 2 * QP);
             const maxImp = Math.max(1, ...quad.measured.map((p: any) => p.impressions));
@@ -615,7 +640,8 @@ function TrafficPanel({ clientId, S }: { clientId: string; S: Record<string, str
                   Google-Keywords (GSC, nach Impressionen) gegen die KI-Erwähnungsquote der thematisch passenden Mess-Prompts.
                   Schwellen: Google-Seite 1 (Position ≤ 10) · KI-Quote ≥ 30 %.
                 </div>
-                <svg viewBox={`0 0 ${QW} ${QH}`} style={{ width: "100%", maxHeight: 340 }}>
+                <div ref={qwRef} style={{ overflowX: "auto" }}>
+                <svg viewBox={`0 0 ${QW} ${QH}`} style={{ width: QW, display: "block" }}>
                   {/* Quadranten-Hintergründe */}
                   <rect x={qx(10)} y={qy(100)} width={QW - QP - qx(10)} height={qy(30) - qy(100)} fill="#0f9d6c" opacity={0.06} />
                   <rect x={qx(10)} y={qy(30)} width={QW - QP - qx(10)} height={qy(0) - qy(30)} fill="#7c3aed" opacity={0.07} />
@@ -640,6 +666,7 @@ function TrafficPanel({ clientId, S }: { clientId: string; S: Record<string, str
                     </circle>
                   ))}
                 </svg>
+                </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: 12, marginTop: 12 }}>
                   {QMETA.map(([key, title, desc]) => (
                     <div key={key} style={{ border: `1px solid ${key === "kiPotenzial" ? QCOLOR[key] : S.line}`, borderRadius: 10, padding: 12 }}>
@@ -1169,7 +1196,9 @@ function EzyAiApp() {
           .ezyai-side{display:none}
           .ezyai-body{margin-left:0}
           .ezyai-mnav{display:block;position:sticky;top:0;z-index:40;background:${S.panel};border-bottom:1px solid ${S.line};padding:8px 10px;overflow-x:auto}
-          .ezyai-chead{flex-wrap:wrap!important;gap:8px!important;padding:10px!important}
+          /* Mobile (08.08.): nur die Chip-Nav bleibt sticky — Kopfzeile scrollt
+             mit, sonst fressen zwei fixierte Leisten ~110px Viewport-Höhe. */
+          .ezyai-chead{flex-wrap:wrap!important;gap:8px!important;padding:10px!important;position:static!important}
           .ezyai-main{padding:14px 10px 48px!important}
         }
       `}</style>
