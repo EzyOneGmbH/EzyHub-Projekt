@@ -2804,12 +2804,26 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
 
               // Modelle: IMMER aus den gemergten Parts neu aufbauen, per Modell-
               // NAME zusammengeführt (Summe der Mentions) -> keine Doppel-Zeilen.
+              // Custom-Modelle (06.08. Bugfix Studioforma): aus der Prompt-Tabelle
+              // aggregieren statt aus parts.pr.models — letzteres enthält nur die
+              // im aktuellen Lauf geprüften Engines und überschreibt die anderen.
+              const { data: dbCustom } = await sb
+                .from("ai_visibility_prompts")
+                .select("platform, status")
+                .eq("report_id", reportId)
+                .eq("is_opportunity", false)
+                .neq("prompt_type", "brand");
+              const dbCustomAgg: Record<string, number> = {};
+              for (const p of dbCustom || []) {
+                if (p.status && p.status !== "Nicht erwähnt") dbCustomAgg[p.platform] = (dbCustomAgg[p.platform] || 0) + 1;
+              }
+              const dbCustomModels = Object.entries(dbCustomAgg).map(([name, mentions]) => ({ name, mentions, byCountry: {} }));
               await sb.from("ai_visibility_models").delete().eq("report_id", reportId);
               const rawModels = [
                 ...((parts.br?.models || []).map((m: any) => ({ ...m, layer: "macro" }))),
                 ...((parts.ca?.models || []).map((m: any) => ({ ...m, layer: "macro" }))), // Canonry = Makro-Quelle
                 ...((parts.sa?.models || []).map((m: any) => ({ ...m, layer: "macro" }))), // eigener AI-Overview/AI-Mode-Check
-                ...((parts.pr?.models || []).map((m: any) => ({ ...m, layer: "custom" }))),
+                ...(dbCustomModels.map((m: any) => ({ ...m, layer: "custom" }))), // aus DB statt parts.pr
               ];
               const modelAgg: Record<string, { mentions: number; byCountry: Record<string, number>; layers: Set<string> }> = {};
               for (const m of rawModels) {
