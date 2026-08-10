@@ -66,6 +66,56 @@ function rowsOf(result: any): Array<{ key: string; mentions: number; aiVolume: n
   }).filter((r) => r.key);
 }
 
+// Gechunkte Live-Abfrage (10.08.): DataForSEO rechnet je Long-Tail-Target
+// ~5-7s und bricht bei ~50s intern ab (50000 Internal Error) — 10 Targets in
+// EINEM Task rissen das bei Kunden mit langen Themen-Phrasen (FiH); selbst 5
+// schwere Phrasen zusammen scheiterten im Live-Test. Kosten sind PRO TASK
+// (~0.10 USD, unabhängig von der Target-Zahl) — deshalb erst EIN Versuch mit
+// allen Targets (Normalfall, günstig) und nur bei Fehler der Fallback: max. 3
+// Targets pro Task (Worst Case ~21s), parallel, per key zusammengeführt.
+async function dfsLiveChunked(
+  path: string, targets: any[], platform: string,
+): Promise<{ ok: boolean; rows: Array<{ key: string; mentions: number; aiVolume: number }>; brands: any[]; error?: string; cost: number }> {
+  const first = await dfsLive(path, { target: targets, platform, items_list_limit: 10 });
+  let res: Array<{ ok: boolean; result?: any; error?: string; cost?: number }>;
+  if (first.ok || targets.length <= 3) {
+    res = [first];
+  } else {
+    const chunks: any[][] = [];
+    for (let i = 0; i < targets.length; i += 3) chunks.push(targets.slice(i, i + 3));
+    res = await Promise.all(chunks.map((t) =>
+      dfsLive(path, { target: t, platform, items_list_limit: 10 })));
+    res.push(first); // fürs Cost-Aggregat; first.ok ist false → zählt nicht als Treffer
+  }
+  const okRes = res.filter((r) => r.ok);
+  if (!okRes.length) return { ok: false, rows: [], brands: [], error: res[0]?.error, cost: 0 };
+  const byKey = new Map<string, { key: string; mentions: number; aiVolume: number }>();
+  const brandByKey = new Map<string, { key: string; mentions: number; aiVolume: number }>();
+  for (const r of okRes) {
+    for (const row of rowsOf(r.result)) {
+      const m = byKey.get(row.key);
+      if (m) { m.mentions += row.mentions; m.aiVolume += row.aiVolume; }
+      else byKey.set(row.key, { ...row });
+    }
+    for (const b of (r.result?.total?.brand_entities_title as any[]) || []) {
+      const key = String(b.key || "");
+      if (!key) continue;
+      const m = brandByKey.get(key);
+      const mentions = Number(b.mentions || 0), aiVolume = Number(b.ai_search_volume || 0);
+      if (m) { m.mentions += mentions; m.aiVolume += aiVolume; }
+      else brandByKey.set(key, { key, mentions, aiVolume });
+    }
+  }
+  const sortDesc = (a: any, b: any) => b.mentions - a.mentions;
+  return {
+    ok: true,
+    rows: [...byKey.values()].sort(sortDesc).slice(0, 10),
+    brands: [...brandByKey.values()].sort(sortDesc).slice(0, 10),
+    error: okRes.length < res.length ? res.find((r) => !r.ok)?.error : undefined,
+    cost: res.reduce((a, r) => a + (r.cost || 0), 0),
+  };
+}
+
 export const Route = createFileRoute("/api/admin/aivis-competitors")({
   server: {
     handlers: {
@@ -103,17 +153,12 @@ export const Route = createFileRoute("/api/admin/aivis-competitors")({
         if (!topics.length) topics = [client.name];
         const targets = topics.slice(0, 10).map((t) => ({ keyword: t, match_type: "partial_match" }));
 
-        const base = { target: targets, platform, items_list_limit: 10 };
         const [domains, pages] = await Promise.all([
-          dfsLive("ai_optimization/llm_mentions/top_domains/live", base),
-          dfsLive("ai_optimization/llm_mentions/top_pages/live", base),
+          dfsLiveChunked("ai_optimization/llm_mentions/top_domains/live", targets, platform),
+          dfsLiveChunked("ai_optimization/llm_mentions/top_pages/live", targets, platform),
         ]);
         if (!domains.ok && !pages.ok)
           return Response.json({ ok: false, error: domains.error || pages.error }, { status: 502 });
-
-        const brands = (((domains.result?.total?.brand_entities_title as any[]) || []))
-          .map((b) => ({ key: String(b.key || ""), mentions: Number(b.mentions || 0), aiVolume: Number(b.ai_search_volume || 0) }))
-          .filter((b) => b.key).slice(0, 10);
 
         return Response.json(
           {
@@ -121,9 +166,9 @@ export const Route = createFileRoute("/api/admin/aivis-competitors")({
             client: { id: client.id, name: client.name, domain: client.domain || "" },
             platform,
             targets: targets.map((t) => t.keyword),
-            domains: rowsOf(domains.result),
-            pages: rowsOf(pages.result),
-            brands,
+            domains: domains.rows,
+            pages: pages.rows,
+            brands: domains.brands,
             cost: (domains.cost || 0) + (pages.cost || 0),
           },
           { headers: { "Cache-Control": "no-store" } },
