@@ -171,8 +171,12 @@ export const Route = createFileRoute("/api/admin/aivis-competitors")({
         let usedTargets = targets;
         const empty = !domains.rows.length && !pages.rows.length && !domains.brands.length;
         if (empty) {
+          // Die Mentions-DB matcht Phrasen als Wortfolge: Einzelwörter treffen
+          // ("charity", "donation"), Mehrwort-Kombis fast nie ("water charity"
+          // = 0; Ausnahme sehr gängige Produkt-Phrasen wie "coffee machine").
+          // Deshalb Kern-BEGRIFFE statt Übersetzungen.
           const txt = await askUtility(
-            `Übersetze diese Such-Themen in kurze, gebräuchliche ENGLISCHE Suchbegriffe (je max. 4 Wörter, generisch statt wörtlich — "Günstiges Brunnengeschenk Schweiz" → "charity water donation"). Antworte NUR mit JSON-Array aus Strings, gleiche Reihenfolge:\n${JSON.stringify(topics.slice(0, 10))}`,
+            `Destilliere aus diesen Such-Themen die gebräuchlichsten ENGLISCHEN Kernbegriffe der Branche (bevorzugt EIN einzelnes Wort, max. 2 nur bei festen Begriffen wie "coffee machine"; generisch statt wörtlich — "Günstiges Brunnengeschenk Schweiz" → "charity"). Dubletten weglassen, 5-10 Begriffe. Antworte NUR mit JSON-Array aus Strings:\n${JSON.stringify(topics.slice(0, 10))}`,
             800,
           ).catch(() => null);
           const arr = (() => { const m = String(txt || "").match(/\[[\s\S]*\]/); try { return m ? JSON.parse(m[0]) : null; } catch { return null; } })();
