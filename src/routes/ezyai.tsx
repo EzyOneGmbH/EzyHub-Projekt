@@ -1400,7 +1400,7 @@ function EzyAiApp() {
               onChange={(e) => pickClient(e.target.value)}
               style={{ width: "100%", padding: "8px 10px", borderRadius: 8, background: S.bg, color: S.txt, border: `1px solid ${S.line}`, fontSize: 13, fontFamily: "inherit" }}
             >
-              <option value="__all">✦ Alle Kunden</option>
+              <option value="__all">Alle Kunden</option>
               {clients.map((c: any) => (<option key={c.id} value={c.id}>{c.name}</option>))}
             </select>
           </div>
@@ -1474,7 +1474,7 @@ function EzyAiApp() {
               ))}
               <select value={showAll ? "__all" : client?.id || ""} onChange={(e) => pickClient(e.target.value)}
                 style={{ marginLeft: "auto", padding: "6px 8px", borderRadius: 8, background: S.bg, color: S.txt, border: `1px solid ${S.line}`, fontSize: 12.5, maxWidth: 180 }}>
-                <option value="__all">✦ Alle Kunden</option>
+                <option value="__all">Alle Kunden</option>
                 {clients.map((c: any) => (<option key={c.id} value={c.id}>{c.name}</option>))}
               </select>
             </div>
