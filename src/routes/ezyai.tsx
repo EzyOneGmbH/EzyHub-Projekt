@@ -441,7 +441,7 @@ function LlmAnalyticsPanel({ clientId, S }: { clientId: string; S: Record<string
 // und GSC-Klicks/Impressionen — alles live via /api/admin/traffic-overview.
 const CHANNEL_COLORS: Record<string, string> = {
   "Organic Search": "#0f9d6c", "Direct": "#64748b", "Referral": "#d97706",
-  "Paid Search": "#dc2626", "Organic Social": "#7c3aed", "Email": "#0b76b7",
+  "Paid Search": "#dc2626", "Organic Social": "#B9009C", "Email": "#0b76b7",
   "Cross-network": "#b45309", "Unassigned": "#9ca3af",
 };
 const fmtDur = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, "0")}`;
@@ -625,7 +625,7 @@ function TrafficPanel({ clientId, S }: { clientId: string; S: Record<string, str
             const qy = (aeo: number) => QH - QAXB - QP - (aeo / 100) * (QH - QAXB - 2 * QP);
             const maxImp = Math.max(1, ...quad.measured.map((p: any) => p.impressions));
             const rOf = (imp: number) => 3 + Math.sqrt(imp / maxImp) * 6;
-            const QCOLOR: Record<string, string> = { staerken: "#0f9d6c", kiPotenzial: "#7c3aed", seoPotenzial: "#0b76b7", aufbau: "#9ca3af" };
+            const QCOLOR: Record<string, string> = { staerken: "#0f9d6c", kiPotenzial: "#77008C", seoPotenzial: "#0b76b7", aufbau: "#9ca3af" };
             const bucketOf = (p: any) => (p.position <= 10 ? (p.aeo >= 30 ? "staerken" : "kiPotenzial") : p.aeo >= 30 ? "seoPotenzial" : "aufbau");
             const QMETA: Array<[string, string, string]> = [
               ["kiPotenzial", "KI-Potenzial", "Stark bei Google, kaum in KI-Antworten — beste Kandidaten für FAQ-/Antwort-Content"],
@@ -644,7 +644,7 @@ function TrafficPanel({ clientId, S }: { clientId: string; S: Record<string, str
                 <svg viewBox={`0 0 ${QW} ${QH}`} style={{ width: QW, display: "block" }}>
                   {/* Quadranten-Hintergründe */}
                   <rect x={qx(10)} y={qy(100)} width={QW - QP - qx(10)} height={qy(30) - qy(100)} fill="#0f9d6c" opacity={0.06} />
-                  <rect x={qx(10)} y={qy(30)} width={QW - QP - qx(10)} height={qy(0) - qy(30)} fill="#7c3aed" opacity={0.07} />
+                  <rect x={qx(10)} y={qy(30)} width={QW - QP - qx(10)} height={qy(0) - qy(30)} fill="#77008C" opacity={0.07} />
                   <rect x={QAXL + QP} y={qy(100)} width={qx(10) - QAXL - QP} height={qy(30) - qy(100)} fill="#0b76b7" opacity={0.05} />
                   <line x1={qx(10)} x2={qx(10)} y1={QP} y2={QH - QAXB - QP} stroke={S.line} strokeWidth={1.5} strokeDasharray="4 4" />
                   <line x1={QAXL + QP} x2={QW - QP} y1={qy(30)} y2={qy(30)} stroke={S.line} strokeWidth={1.5} strokeDasharray="4 4" />
@@ -656,7 +656,7 @@ function TrafficPanel({ clientId, S }: { clientId: string; S: Record<string, str
                   <text x={QAXL - 6} y={qy(0)} fontSize={10} fill={S.mut} textAnchor="end">0 %</text>
                   {/* Quadranten-Labels */}
                   <text x={QW - QP - 6} y={qy(100) + 14} fontSize={10.5} fontWeight={700} fill="#0f9d6c" textAnchor="end">Stärken</text>
-                  <text x={QW - QP - 6} y={qy(0) - 8} fontSize={10.5} fontWeight={700} fill="#7c3aed" textAnchor="end">KI-Potenzial</text>
+                  <text x={QW - QP - 6} y={qy(0) - 8} fontSize={10.5} fontWeight={700} fill="#77008C" textAnchor="end">KI-Potenzial</text>
                   <text x={QAXL + QP + 6} y={qy(100) + 14} fontSize={10.5} fontWeight={700} fill="#0b76b7">SEO-Potenzial</text>
                   <text x={QAXL + QP + 6} y={qy(0) - 8} fontSize={10.5} fontWeight={700} fill="#9ca3af">Aufbau nötig</text>
                   {quad.measured.map((p: any) => (
@@ -1115,12 +1115,12 @@ export const Route = createFileRoute("/ezyai")({
 // Die Fach-Komponente (AiVisibilityTab) ist aus dem Dashboard UMGEZOGEN, nicht
 // neu gebaut — diese Route liefert nur die App-Shell drumherum (Header mit
 // App-Switcher, Kunden-Auswahl, Service-Gate). Muster für Phase 3.
-// Light Studio (2026-08-03): hell à la Searchable
+// Ezy One CD (2026-08-10): Pale Gray mit Purple-Bias, Purple #77008C als Akzent.
 const S = {
-  bg: "#f7f6f2", panel: "#ffffff", line: "#e8e6df",
-  txt: "#1c1c1e", mut: "#6e6c64", app: "#7c3aed", appTint: "rgba(124,58,237,.10)",
+  bg: "#f7f5f9", panel: "#ffffff", line: "#eae4ee",
+  txt: "#161217", mut: "#6d6473", app: "#77008C", appTint: "rgba(119,0,140,.09)",
   // Shell-Nav (identisch zur EzyRank-Shell): accentDim/accentLight.
-  navAccent: "#5b4bd6", navDim: "rgba(108,92,231,0.10)",
+  navAccent: "#B9009C", navDim: "rgba(119,0,140,0.09)",
 };
 const SIDEBAR_W = 256;
 const CLIENT_LS = "ezyai.clientId";
@@ -1214,9 +1214,11 @@ function EzyAiApp() {
         <aside className="ezyai-side">
           {/* Logo */}
           <div style={{ padding: "20px 20px", borderBottom: `1px solid ${S.line}`, display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg,#6c5ce7,#0284c7)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: "#fff", flexShrink: 0 }}>EO</div>
+            {/* CD-Symbol: Hexagon-Badge mit Marken-Gradient (#71008B→#B9009C). */}
+            <div style={{ width: 34, height: 38, clipPath: "polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)", background: "linear-gradient(135deg,#71008B,#B9009C)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: "#fff", flexShrink: 0, fontFamily: "'Kamerik 105',Poppins,sans-serif" }}>EO</div>
             <div>
-              <div style={{ fontWeight: 700, fontSize: 15, letterSpacing: "-.3px" }}>EZY ONE</div>
+              {/* CD: Wortmarke "Ezy One" — Sentence case, nie ALL CAPS. */}
+              <div style={{ fontWeight: 700, fontSize: 15, letterSpacing: "-.2px", fontFamily: "'Kamerik 105',Poppins,sans-serif" }}>Ezy One</div>
               <div style={{ fontSize: 10, color: S.mut }}>SEO &amp; GEO Platform</div>
             </div>
           </div>

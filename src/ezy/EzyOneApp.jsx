@@ -145,21 +145,24 @@ const toolHasLiveProvider = (id) => toolProvider(id) !== null;
 // ═══════════════════════════════════════════════════════════════════════════
 // DESIGN SYSTEM
 // ═══════════════════════════════════════════════════════════════════════════
-// Light Studio (2026-08-03, Volkan: hell à la Searchable) — vorher Dark Premium.
-// Text-Akzente bewusst dunkler als die Dark-Werte (Lesbarkeit auf hellem Grund).
+// Ezy One Corporate Design (2026-08-10, Brand Guideline 2025) — vorher "Light
+// Studio à la Searchable" (warmes Creme + generisches Violett). Jetzt: Pale Gray
+// #FCFCFC-Familie mit leichtem Purple-Bias, Smoky Black #0D0D0D als Tinte,
+// Purple #77008C als EINZIGE Akzentfarbe, Violet-Red #B9009C für Hover/Gradient
+// (CD-Gradient 135° #71008B→#B9009C). Semantikfarben (grün/rot/…) bleiben.
 const C = {
-  bg: "#f7f6f2",
-  surface: "#fdfcfa",
+  bg: "#f7f5f9",
+  surface: "#fcfbfd",
   card: "#ffffff",
-  cardHover: "#f4f3ee",
-  border: "#e8e6df",
-  borderHover: "#d8d5cb",
-  text: "#1c1c1e",
-  textMuted: "#6e6c64",
-  textDim: "#a5a29a",
-  accent: "#6c5ce7",
-  accentLight: "#5b4bd6",
-  accentDim: "rgba(108,92,231,0.10)",
+  cardHover: "#f5f1f7",
+  border: "#eae4ee",
+  borderHover: "#d8cede",
+  text: "#161217",
+  textMuted: "#6d6473",
+  textDim: "#a49dab",
+  accent: "#77008C",
+  accentLight: "#B9009C",
+  accentDim: "rgba(119,0,140,0.09)",
   green: "#0f9d6c",
   greenDim: "rgba(16,185,129,0.12)",
   red: "#dc2626",
@@ -181,7 +184,7 @@ const AI_COLORS = {
   Copilot: "#06b6d4",
   Grok: "#ec4899",
 };
-const CSS = `html,body,#root{min-height:100%;margin:0;overflow-x:hidden}*{box-sizing:border-box}@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}@keyframes slideUp{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}@keyframes fadeScale{from{transform:scale(.96);opacity:0}to{transform:scale(1);opacity:1}}@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}::selection{background:rgba(108,92,231,.3);color:#e2e4f0}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:${C.bg}}::-webkit-scrollbar-thumb{background:${C.border};border-radius:3px}@media(max-width:760px){.app-sidebar{display:none!important}.app-main{margin-left:0!important;min-width:0!important;width:100%!important}.app-header{align-items:flex-start!important;gap:10px!important}.header-left,.header-actions{width:100%;flex-wrap:wrap}.app-content{padding:16px 12px!important}.settings-shell{flex-direction:column!important;gap:16px!important}.settings-nav{width:100%!important;display:flex!important;overflow-x:auto;padding-bottom:4px}.settings-nav button{width:auto!important;white-space:nowrap;flex-shrink:0}.settings-panel{max-width:none!important}.client-toolbar{flex-direction:column!important;align-items:stretch!important}.client-toolbar>div{width:100%!important}.client-grid{grid-template-columns:minmax(0,1fr)!important}.ezy-form-grid{grid-template-columns:1fr!important}.kpi-grid{grid-template-columns:1fr!important}.kpi-grid>div{grid-column:auto!important}.client-drawer,.quick-audit-panel{width:100vw!important;max-width:100vw!important}.quick-audit-panel{padding:18px 14px!important}.cmd-palette{width:min(calc(100vw - 24px),520px)!important}.mobile-wrap{flex-wrap:wrap!important}.dash-kpis{grid-template-columns:1fr 1fr!important}.split-pane{grid-template-columns:1fr!important}.tabbar{flex-wrap:nowrap!important;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;max-width:100%}.tabbar::-webkit-scrollbar{display:none}.tabbar button{flex-shrink:0;white-space:nowrap}.tools-shell{flex-direction:column!important;gap:12px!important}.tools-cats{display:flex!important;flex-direction:row!important;width:100%!important;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:6px;padding-bottom:6px;scrollbar-width:none}.tools-cats::-webkit-scrollbar{display:none}.tools-cats>div:first-child{display:none}.tools-cats button{width:auto!important;flex-shrink:0;white-space:nowrap;margin-bottom:0!important}.google-props-grid{grid-template-columns:1fr!important}.ads-hero-head{flex-wrap:nowrap!important;align-items:flex-start!important}.ads-hero-head>button{flex:none!important}.ads-flow{display:grid!important;grid-template-columns:1fr 1fr!important;gap:14px 16px!important;align-items:start!important}.ads-arrow{display:none!important}.ads-roas{order:-1!important;grid-column:1/-1!important;flex-direction:row!important;align-items:baseline!important;justify-content:flex-start!important;gap:9px!important;padding:0!important}.ads-roas>div:last-child{margin-top:0!important}.ads-stat-right{text-align:left!important}.ads-flow .ads-val{font-size:24px!important}.app-content [style*="minmax(200px"],.app-content [style*="minmax(220px"],.app-content [style*="minmax(240px"]{grid-template-columns:1fr 1fr!important;gap:10px!important}.app-content [style*="minmax(320px"]{grid-template-columns:1fr!important}}@media(max-width:480px){.app-header{padding:8px 10px!important}.app-content{padding:12px 10px!important}.app-content [style*="minmax(200px"],.app-content [style*="minmax(220px"],.app-content [style*="minmax(240px"]{grid-template-columns:1fr!important}}`;
+const CSS = `html,body,#root{min-height:100%;margin:0;overflow-x:hidden}*{box-sizing:border-box}@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}@keyframes slideUp{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}@keyframes fadeScale{from{transform:scale(.96);opacity:0}to{transform:scale(1);opacity:1}}@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}::selection{background:rgba(119,0,140,.18);color:#161217}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:${C.bg}}::-webkit-scrollbar-thumb{background:${C.border};border-radius:3px}@media(max-width:760px){.app-sidebar{display:none!important}.app-main{margin-left:0!important;min-width:0!important;width:100%!important}.app-header{align-items:flex-start!important;gap:10px!important}.header-left,.header-actions{width:100%;flex-wrap:wrap}.app-content{padding:16px 12px!important}.settings-shell{flex-direction:column!important;gap:16px!important}.settings-nav{width:100%!important;display:flex!important;overflow-x:auto;padding-bottom:4px}.settings-nav button{width:auto!important;white-space:nowrap;flex-shrink:0}.settings-panel{max-width:none!important}.client-toolbar{flex-direction:column!important;align-items:stretch!important}.client-toolbar>div{width:100%!important}.client-grid{grid-template-columns:minmax(0,1fr)!important}.ezy-form-grid{grid-template-columns:1fr!important}.kpi-grid{grid-template-columns:1fr!important}.kpi-grid>div{grid-column:auto!important}.client-drawer,.quick-audit-panel{width:100vw!important;max-width:100vw!important}.quick-audit-panel{padding:18px 14px!important}.cmd-palette{width:min(calc(100vw - 24px),520px)!important}.mobile-wrap{flex-wrap:wrap!important}.dash-kpis{grid-template-columns:1fr 1fr!important}.split-pane{grid-template-columns:1fr!important}.tabbar{flex-wrap:nowrap!important;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;max-width:100%}.tabbar::-webkit-scrollbar{display:none}.tabbar button{flex-shrink:0;white-space:nowrap}.tools-shell{flex-direction:column!important;gap:12px!important}.tools-cats{display:flex!important;flex-direction:row!important;width:100%!important;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:6px;padding-bottom:6px;scrollbar-width:none}.tools-cats::-webkit-scrollbar{display:none}.tools-cats>div:first-child{display:none}.tools-cats button{width:auto!important;flex-shrink:0;white-space:nowrap;margin-bottom:0!important}.google-props-grid{grid-template-columns:1fr!important}.ads-hero-head{flex-wrap:nowrap!important;align-items:flex-start!important}.ads-hero-head>button{flex:none!important}.ads-flow{display:grid!important;grid-template-columns:1fr 1fr!important;gap:14px 16px!important;align-items:start!important}.ads-arrow{display:none!important}.ads-roas{order:-1!important;grid-column:1/-1!important;flex-direction:row!important;align-items:baseline!important;justify-content:flex-start!important;gap:9px!important;padding:0!important}.ads-roas>div:last-child{margin-top:0!important}.ads-stat-right{text-align:left!important}.ads-flow .ads-val{font-size:24px!important}.app-content [style*="minmax(200px"],.app-content [style*="minmax(220px"],.app-content [style*="minmax(240px"]{grid-template-columns:1fr 1fr!important;gap:10px!important}.app-content [style*="minmax(320px"]{grid-template-columns:1fr!important}}@media(max-width:480px){.app-header{padding:8px 10px!important}.app-content{padding:12px 10px!important}.app-content [style*="minmax(200px"],.app-content [style*="minmax(220px"],.app-content [style*="minmax(240px"]{grid-template-columns:1fr!important}}`;
 function downloadFile(content, type, filename) {
   const b = new Blob([content], { type });
   const u = URL.createObjectURL(b);
@@ -897,7 +900,7 @@ function Btn({
     lg: { padding: "10px 20px", fontSize: 13 },
   };
   const va = {
-    primary: { background: `linear-gradient(135deg,${C.accent},${C.blue})`, color: "#fff" },
+    primary: { background: `linear-gradient(135deg,#71008B,#B9009C)`, color: "#fff" },
     secondary: { background: C.card, color: C.text, border: `1px solid ${C.border}` },
     ghost: { background: "transparent", color: C.textMuted },
     danger: { background: C.redDim, color: C.red },
@@ -2682,7 +2685,7 @@ function OnboardingPanel({ selectedClient }) {
           <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>Brand-Terms (Komma-getrennt)</div>
           <input value={brandStr} onChange={(e) => setBrandStr(e.target.value)} style={{ width: "100%", background: C.card, color: C.text, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", fontSize: 12 }} />
         </div>
-        <button onClick={apply} disabled={busy} style={{ background: `linear-gradient(135deg,${C.accent},${C.blue})`, color: "#fff", border: "none", borderRadius: 8, padding: "9px 16px", fontSize: 13, fontWeight: 600, cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}>
+        <button onClick={apply} disabled={busy} style={{ background: `linear-gradient(135deg,#71008B,#B9009C)`, color: "#fff", border: "none", borderRadius: 8, padding: "9px 16px", fontSize: 13, fontWeight: 600, cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}>
           {busy ? "Uebernehme…" : "Ausgewaehlte uebernehmen"}
         </button>
       </div>
@@ -11145,7 +11148,7 @@ function SettingsPage({
     // Admin-Umbau 06.08.: Agenten-Verwaltung wohnt jetzt hier (statt eigenem
     // Nav-Punkt) — der Eintrag springt auf die (unveränderte) Agents-Seite.
     ...(onOpenAgents ? [["agents", "Agenten & Automatisierung", Bot]] : []),
-    ["about", "Über EZY ONE", Info],
+    ["about", "Über Ezy One", Info],
   ];
   const providerRows = [
     ["Gemini", live.data?.providers?.gemini, C.green, Bot],
@@ -11711,7 +11714,7 @@ function SettingsPage({
         )}
         {sec === "about" && (
           <div>
-            <h2 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 16px" }}>Über EZY ONE</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 16px" }}>Über Ezy One</h2>
             <div
               style={{
                 background: C.card,
@@ -11721,7 +11724,7 @@ function SettingsPage({
               }}
             >
               <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 4 }}>
-                EZY ONE Platform
+                Ezy One Platform
               </div>
               <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 16 }}>
                 Version 3.0 • Build 2026-04-20
@@ -13634,7 +13637,7 @@ function App({ appScope = null }) {
           fontFamily: "'DM Sans',sans-serif",
         }}
       >
-        Lädt EZY ONE…
+        Lädt Ezy One…
       </div>
     );
 
@@ -13643,7 +13646,8 @@ function App({ appScope = null }) {
     <div
       className="app-shell"
       style={{
-        fontFamily: "'DM Sans','Segoe UI',sans-serif",
+        // CD: Aceh Soft (Fließtext) — Nunito Sans als freier Ersatzschnitt.
+        fontFamily: "'Aceh Soft','Nunito Sans','Segoe UI',sans-serif",
         background: C.bg,
         color: C.text,
         minHeight: "100vh",
@@ -13654,7 +13658,7 @@ function App({ appScope = null }) {
       }}
     >
       <link
-        href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Nunito+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400&display=swap"
         rel="stylesheet"
       />
       <style>{CSS}</style>
@@ -13689,24 +13693,27 @@ function App({ appScope = null }) {
         >
           <div
             style={{
-              width: 36,
-              height: 36,
-              borderRadius: 10,
-              background: `linear-gradient(135deg,${C.accent},${C.blue})`,
+              // CD-Symbol: Hexagon-Badge mit Marken-Gradient (#71008B→#B9009C).
+              width: 34,
+              height: 38,
+              clipPath: "polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)",
+              background: "linear-gradient(135deg,#71008B,#B9009C)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: 800,
               color: "#fff",
               flexShrink: 0,
+              fontFamily: "'Kamerik 105',Poppins,sans-serif",
             }}
           >
             EO
           </div>
           {!collapsed && (
             <div>
-              <div style={{ fontWeight: 700, fontSize: 15, letterSpacing: "-.3px" }}>EZY ONE</div>
+              {/* CD: Wortmarke "Ezy One" — Sentence case, nie ALL CAPS. */}
+              <div style={{ fontWeight: 700, fontSize: 15, letterSpacing: "-.2px", fontFamily: "'Kamerik 105',Poppins,sans-serif" }}>Ezy One</div>
               <div style={{ fontSize: 10, color: C.textMuted }}>SEO & GEO Platform</div>
             </div>
           )}

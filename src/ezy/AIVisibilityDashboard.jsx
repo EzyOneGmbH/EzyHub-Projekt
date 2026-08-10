@@ -84,20 +84,21 @@ function HeatLegend({ from = "Schwach", to = "Stark" }) {
  * "custom" = Prompt-Runner (Claude/Grok/DeepSeek etc.).
  */
 
-// ── Tokens (dunkel, angeglichen an EzyOneApps C-Palette) ─────────────────────
-// Light Studio (2026-08-03): hell à la Searchable — erbt hellen App-Hintergrund.
+// ── Tokens (angeglichen an EzyOneApps C-Palette) ─────────────────────────────
+// Ezy One CD (2026-08-10): Pale Gray mit Purple-Bias, Purple #77008C als
+// EINE Akzentfarbe für alles Klickbare (vorher generisches #7c3aed-Violett).
 const C = {
   page: "transparent",
   card: "#ffffff",
-  cardAlt: "#f7f6f2",  // aufgeklappte Zeilen / subtile Panels
-  track: "#ecebe4",    // Balken-/Fortschritt-Hintergrund, Chips
-  ink: "#1c1c1e",      // Haupttext
-  sub: "#6e6c64",      // gedämpft
-  line: "#e8e6df",     // Rahmen
-  indigo: "#7c3aed", // Sidebar-Violett — EINE Akzentfarbe für alles Klickbare
+  cardAlt: "#f7f5f9",  // aufgeklappte Zeilen / subtile Panels
+  track: "#ede8f1",    // Balken-/Fortschritt-Hintergrund, Chips
+  ink: "#161217",      // Haupttext
+  sub: "#6d6473",      // gedämpft
+  line: "#eae4ee",     // Rahmen
+  indigo: "#77008C", // Marken-Purple — EINE Akzentfarbe für alles Klickbare
   teal: "#0d9488",
   amber: "#d97706",
-  violet: "#7c3aed",
+  violet: "#77008C",
   up: "#0f9d6c", down: "#dc2626",
 };
 const CARD = { background: C.card, borderColor: C.line };
@@ -1792,7 +1793,7 @@ function PositionHeadToHead({ prompts, opps, sov, brand, only }) {
               </thead>
               <tbody>
                 {brandMatrix.map((r) => (
-                  <tr key={r.name} style={{ borderTop: `1px solid ${C.line}`, background: r.self ? "rgba(108,92,231,.05)" : "transparent" }}>
+                  <tr key={r.name} style={{ borderTop: `1px solid ${C.line}`, background: r.self ? "rgba(119,0,140,.05)" : "transparent" }}>
                     <td className="px-5 py-2 font-semibold" style={{ color: r.self ? C.indigo : C.ink }}>
                       {r.name}{r.self && <span className="ml-2 rounded px-1.5 py-0.5 text-[9.5px] font-bold" style={{ background: C.indigo, color: "#fff" }}>DU</span>}
                     </td>
@@ -1816,7 +1817,7 @@ function PositionHeadToHead({ prompts, opps, sov, brand, only }) {
         }>
           <div className="grid grid-cols-2 gap-4">
             {[{ name: brand, rate: selfRate, share: selfShare, self: true }, { name: rival.brand, rate: rivalRate, share: rival.share, self: false }].map((b) => (
-              <div key={b.name} className="rounded-lg border p-3" style={{ borderColor: b.self ? C.indigo : C.line, background: b.self ? "rgba(108,92,231,.04)" : "transparent" }}>
+              <div key={b.name} className="rounded-lg border p-3" style={{ borderColor: b.self ? C.indigo : C.line, background: b.self ? "rgba(119,0,140,.04)" : "transparent" }}>
                 <div className="truncate text-[12px] font-semibold" style={{ color: b.self ? C.indigo : C.ink }}>{b.name}{b.self ? " (du)" : ""}</div>
                 <div className="mt-1 text-2xl font-bold tabular-nums" style={{ color: C.ink }}>{b.rate}%</div>
                 <div className="text-[10px]" style={{ color: C.sub }}>Präsenz in KI-Antworten</div>
@@ -1903,7 +1904,7 @@ function LocationPanel({ countries, models }) {
   const shade = (v) => {
     if (!v) return "#eceae4";
     const share = v / total;
-    return share >= 0.4 ? "#6c5ce7" : share >= 0.15 ? "#9d92ee" : "#d9d4f8";
+    return share >= 0.4 ? "#77008C" : share >= 0.15 ? "#b06cc0" : "#e4cfe9";
   };
   const selRow = selected ? rows.find((c) => c.name === selected) : null;
   // Engine-Aufschlüsselung fürs gewählte Land (models[].byCountry — echte Daten).
@@ -1937,7 +1938,7 @@ function LocationPanel({ countries, models }) {
                 key={en}
                 d={path(f) || undefined}
                 fill={shade(v)}
-                stroke={isSel ? "#1c1c1e" : "#ffffff"}
+                stroke={isSel ? "#161217" : "#ffffff"}
                 strokeWidth={isSel ? 1.5 : 0.5}
                 style={{ cursor: v ? "pointer" : "default", transition: "fill .15s" }}
                 onClick={() => { if (de) setSelected(de === selected ? null : de); }}
@@ -2169,7 +2170,7 @@ function ConversionRegions({ attribution }) {
             const isSel = en === selected;
             return (
               <path key={en} d={path(f) || undefined} fill={shade(v)}
-                stroke={isSel ? "#1c1c1e" : "#ffffff"} strokeWidth={isSel ? 1.5 : 0.5}
+                stroke={isSel ? "#161217" : "#ffffff"} strokeWidth={isSel ? 1.5 : 0.5}
                 style={{ cursor: v ? "pointer" : "default", transition: "fill .15s" }}
                 onClick={() => { if (v) setSelected(en === selected ? null : en); }}>
                 <title>{v ? `${EN2DE.get(en) || en}: ${nf(v)} ${unit} (${Math.round((v / total) * 100)} %)` : en}</title>
@@ -2439,7 +2440,7 @@ function BrandPerceptionCard({ perception, brand }) {
 
 // Top-Domains-Trend (03.08., Searchable "Top Domains"): Zitierhäufigkeit der
 // Top-5-Domains je Monatsreport als Mehrlinien-Chart mit Favicon-Legende.
-const DOMAIN_TREND_COLORS = ["#6c5ce7", "#0d9488", "#d97706", "#dc2626", "#0284c7"];
+const DOMAIN_TREND_COLORS = ["#77008C", "#0d9488", "#d97706", "#dc2626", "#0284c7"];
 function DomainTrendCard({ trend }) {
   const [hover, setHover] = useState(null); // Maus-Zeitstrahl (04.08.)
   const [chartRef, W] = useChartWidth(1100, 560);
@@ -2593,7 +2594,7 @@ function HoverBox({ x, top, lines, W }) {
   const h = 8 + lines.length * 13;
   return (
     <g pointerEvents="none">
-      <rect x={left} y={top} width={w} height={h} rx="4" fill="#1c1c1e" fillOpacity="0.92" />
+      <rect x={left} y={top} width={w} height={h} rx="4" fill="#161217" fillOpacity="0.92" />
       {lines.map((l, i) => (
         <text key={i} x={left + 7} y={top + 13 + i * 13} fontSize="9.5" fontWeight={i === 0 ? 700 : 500} fill={l.color || "#fff"}>{l.text}</text>
       ))}
@@ -2724,7 +2725,7 @@ function VisibilityHero({ score, delta, history, daily }) {
 // Von Rivalen kennen wir nur Namen → Domain-Rate-Kette Name→.ch→.com über
 // DuckDuckGo-Favicons (liefert 404 bei Fehlversuch, anders als Google s2);
 // Initial-Chip nur noch als letzter Fallback.
-const AVATAR_COLORS = ["#6c5ce7", "#0d9488", "#d97706", "#7c5cf0", "#0284c7", "#dc2626", "#059669", "#b45309"];
+const AVATAR_COLORS = ["#77008C", "#0d9488", "#d97706", "#B9009C", "#0284c7", "#dc2626", "#059669", "#b45309"];
 // Vom Judge gelieferte Rival-Domains (compPositions.d) — exakt statt geraten.
 // Modul-Registry, vom Dashboard bei jedem Datenload befüllt (kein Prop-Drilling).
 const BRAND_DOMAINS = new Map();
@@ -2854,7 +2855,7 @@ function RankingsTable({ prompts, opps, sov, brand, sentimentPct, domain }) {
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={r.brand} style={{ borderTop: `1px solid ${C.line}`, background: r.self ? "rgba(108,92,231,.05)" : i % 2 ? C.cardAlt : "transparent" }}>
+              <tr key={r.brand} style={{ borderTop: `1px solid ${C.line}`, background: r.self ? "rgba(119,0,140,.05)" : i % 2 ? C.cardAlt : "transparent" }}>
                 <td className="px-5 py-2 tabular-nums" style={{ color: C.sub }}>{i + 1}</td>
                 <td className="px-3 py-2 font-semibold" style={{ color: r.self ? C.indigo : C.ink }}>
                   <span className="inline-flex items-center gap-2">
@@ -3063,7 +3064,7 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
       {/* topbar: horizontale Bereichs-Leiste im Content (Searchable-Layout).
           Sticky (04.08.): bleibt beim Runterscrollen oben sichtbar. */}
       {isTop && (
-        <div className="border-b" style={{ borderColor: C.line, position: "sticky", top: isTop ? 53 : 0, zIndex: 20, background: "#f7f6f2" }}>
+        <div className="border-b" style={{ borderColor: C.line, position: "sticky", top: isTop ? 53 : 0, zIndex: 20, background: "#f7f5f9" }}>
           <div className="flex items-center gap-1 overflow-x-auto overflow-y-hidden">
             {TABS.map((t) => {
               const on = tab === t.id;
@@ -3106,8 +3107,8 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
                       style={{
                         width: "100%", display: "flex", alignItems: "center", gap: 12,
                         padding: "10px 14px", borderRadius: 10, border: "none", cursor: "pointer",
-                        background: a ? "rgba(124,58,237,0.10)" : "transparent",
-                        color: a ? "#7c3aed" : C.sub,
+                        background: a ? "rgba(119,0,140,0.09)" : "transparent",
+                        color: a ? "#77008C" : C.sub,
                         fontSize: 13, fontWeight: a ? 600 : 400, marginBottom: 2,
                         transition: "all .15s", fontFamily: "inherit",
                       }}
@@ -3139,8 +3140,8 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
                   className="inline-flex items-center gap-1.5 whitespace-nowrap text-[13px]"
                   style={{
                     padding: "8px 12px", borderRadius: 10, border: "none", cursor: "pointer",
-                    background: a ? "rgba(124,58,237,0.10)" : "transparent",
-                    color: a ? "#7c3aed" : C.sub, fontWeight: a ? 600 : 400, fontFamily: "inherit",
+                    background: a ? "rgba(119,0,140,0.09)" : "transparent",
+                    color: a ? "#77008C" : C.sub, fontWeight: a ? 600 : 400, fontFamily: "inherit",
                   }}
                 >
                   <t.icon size={16} />
@@ -3271,7 +3272,7 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
                   title="Share of Voice"
                   subtitle={`Marke vs. Konkurrenten · ${d.date}`}
                   data={[...d.sov].sort((a, b) => (b.isSelf ? 1 : 0) - (a.isSelf ? 1 : 0) || b.share - a.share).slice(0, 8).map((s) => ({ name: s.isSelf ? `${s.brand} · Sie` : s.brand, value: s.share }))}
-                  palette={[C.indigo, "#8b8da3", "#a7a9b8", "#c1c2cc", "#6e6c64", "#54555f", "#9a9ba8", "#b5b6c2"]}
+                  palette={[C.indigo, "#8b8da3", "#a7a9b8", "#c1c2cc", "#6d6473", "#54555f", "#9a9ba8", "#b5b6c2"]}
                   centerLabel="SoV %"
                 />
               )}

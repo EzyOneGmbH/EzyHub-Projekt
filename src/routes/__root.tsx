@@ -35,23 +35,34 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "EZY ONE — SEO & GEO Plattform" },
+      // CD 2025: Wortmarke "Ezy One" in Sentence case — nie ALL CAPS.
+      { title: "Ezy One — SEO & GEO Plattform" },
       {
         name: "description",
         content:
-          "EZY ONE: Multi-Kunden SEO & GEO Plattform mit Content-Editor, Live-Recherche und KI-Generierung.",
+          "Ezy One: Multi-Kunden SEO & GEO Plattform mit Content-Editor, Live-Recherche und KI-Generierung.",
       },
-      { property: "og:title", content: "EZY ONE — SEO & GEO Plattform" },
-      { property: "og:description", content: "EZY One Tool is a web application for SEO professionals to manage and analyze client data." },
+      { property: "og:title", content: "Ezy One — SEO & GEO Plattform" },
+      { property: "og:description", content: "Ezy One Tool is a web application for SEO professionals to manage and analyze client data." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:title", content: "EZY ONE — SEO & GEO Plattform" },
+      { name: "twitter:title", content: "Ezy One — SEO & GEO Plattform" },
       { name: "description", content: "EZY One Tool is a web application for SEO professionals to manage and analyze client data." },
       { name: "twitter:description", content: "EZY One Tool is a web application for SEO professionals to manage and analyze client data." },
       { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/1e78d1ac-dd30-4747-b980-b616516f2fdc/id-preview-0e7f9dca--3809d703-3b9d-49e8-a029-66c5c48795c6.lovable.app-1780249707839.png" },
       { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/1e78d1ac-dd30-4747-b980-b616516f2fdc/id-preview-0e7f9dca--3809d703-3b9d-49e8-a029-66c5c48795c6.lovable.app-1780249707839.png" },
     ],
-    links: [{ rel: "stylesheet", href: appCss }],
+    links: [
+      { rel: "stylesheet", href: appCss },
+      // CD-Typografie: Poppins ≈ Kamerik 105 (Titel), Nunito Sans ≈ Aceh Soft
+      // (Fließtext) — freie Ersatzschnitte, bis die Originale lizenziert vorliegen.
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Nunito+Sans:wght@400;500;600;700;800&display=swap",
+      },
+    ],
   }),
   shellComponent: RootShell,
   component: RootComponent,

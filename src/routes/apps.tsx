@@ -63,10 +63,10 @@ function AppsLauncher() {
 
   if (loading || !session || role === "viewer") return null;
 
-  // Light Studio (2026-08-03): hell à la Searchable
+  // Ezy One CD (2026-08-10): Pale Gray mit Purple-Bias, Purple #77008C Akzent.
   const S = {
-    bg: "#f7f6f2", panel: "#ffffff", panel2: "#ffffff", line: "#e8e6df",
-    txt: "#1c1c1e", mut: "#6e6c64", acc: "#6c5ce7",
+    bg: "#f7f5f9", panel: "#ffffff", panel2: "#ffffff", line: "#eae4ee",
+    txt: "#161217", mut: "#6d6473", acc: "#77008C",
   };
 
   const tile = (a: EzyAppDef) => {
@@ -115,7 +115,7 @@ function AppsLauncher() {
   return (
     <div className="launcher-page" style={{
       minHeight: "100vh", background: S.bg, color: S.txt,
-      fontFamily: '"Segoe UI",system-ui,-apple-system,sans-serif',
+      fontFamily: "'Aceh Soft','Nunito Sans','Segoe UI',system-ui,sans-serif",
       display: "flex", flexDirection: "column", alignItems: "center",
       padding: "9vh 24px 40px",
     }}>
@@ -123,10 +123,14 @@ function AppsLauncher() {
       <style>{`@media(max-width:600px){.launcher-page{padding:20px 14px 32px!important}}`}</style>
       <div style={{ width: "100%", maxWidth: 880 }}>
         <div style={{ textAlign: "center", marginBottom: 34 }}>
-          <div style={{ fontWeight: 700, fontSize: 21 }}>
-            ✦ Ezy<span style={{ color: S.acc }}>Hub</span>
+          {/* CD-Symbol: Hexagon-Badge + Wortmarke "Ezy One" (Sentence case). */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+            <div style={{ width: 34, height: 38, clipPath: "polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)", background: "linear-gradient(135deg,#71008B,#B9009C)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: "#fff", fontFamily: "'Kamerik 105',Poppins,sans-serif" }}>EO</div>
+            <div style={{ fontWeight: 700, fontSize: 21, fontFamily: "'Kamerik 105',Poppins,sans-serif" }}>
+              Ezy <span style={{ color: S.acc }}>One</span>
+            </div>
           </div>
-          <div style={{ color: S.mut, fontSize: 14, marginTop: 6 }}>Womit möchtest du arbeiten?</div>
+          <div style={{ color: S.mut, fontSize: 14, marginTop: 8 }}>Womit möchtest du arbeiten?</div>
         </div>
 
         <div style={{

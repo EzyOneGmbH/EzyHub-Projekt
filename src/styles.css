@@ -65,48 +65,51 @@
 
 :root {
   --radius: 0.75rem;
-  /* Light Studio (seit 2026-08-03, Volkan-Entscheid: hell à la Searchable) —
-     warmes Creme-Weiß, ruhige Typo, dezente Akzente. Vorher: Dark Premium. */
-  --background: oklch(0.975 0.004 85);
-  --foreground: oklch(0.22 0.012 260);
+  /* Ezy One Corporate Design (seit 2026-08-10, Brand Guideline 2025):
+     Pale Gray #FCFCFC Flächen mit leichtem Purple-Bias, Smoky Black #0D0D0D
+     Text, Primary Purple #77008C, Violet-Red #B9009C, Gradient 71008B→B9009C.
+     Vorher: "Light Studio à la Searchable" (Creme + generisches Violett). */
+  --background: oklch(0.983 0.004 320);
+  --foreground: oklch(0.2 0.012 320);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.22 0.012 260);
+  --card-foreground: oklch(0.2 0.012 320);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.22 0.012 260);
-  --primary: oklch(0.54 0.19 285);
+  --popover-foreground: oklch(0.2 0.012 320);
+  --primary: oklch(0.415 0.199 320); /* #77008C */
   --primary-foreground: oklch(0.99 0 0);
-  --primary-glow: oklch(0.64 0.2 295);
-  --secondary: oklch(0.945 0.006 85);
-  --secondary-foreground: oklch(0.22 0.012 260);
-  --muted: oklch(0.955 0.005 85);
-  --muted-foreground: oklch(0.5 0.015 260);
-  --accent: oklch(0.55 0.14 200);
+  --primary-glow: oklch(0.535 0.235 337.4); /* #B9009C */
+  --secondary: oklch(0.955 0.008 320);
+  --secondary-foreground: oklch(0.2 0.012 320);
+  --muted: oklch(0.958 0.006 320);
+  --muted-foreground: oklch(0.49 0.018 320);
+  --accent: oklch(0.535 0.235 337.4); /* #B9009C */
   --accent-foreground: oklch(0.99 0 0);
   --destructive: oklch(0.58 0.22 25);
   --destructive-foreground: oklch(0.99 0 0);
   --success: oklch(0.58 0.15 160);
   --warning: oklch(0.66 0.15 75);
-  --border: oklch(0 0 0 / 9%);
-  --input: oklch(0 0 0 / 12%);
-  --ring: oklch(0.54 0.19 285);
-  --chart-1: oklch(0.54 0.19 285);
-  --chart-2: oklch(0.55 0.14 200);
-  --chart-3: oklch(0.66 0.15 75);
-  --chart-4: oklch(0.58 0.15 160);
-  --chart-5: oklch(0.58 0.22 25);
-  --sidebar: oklch(0.99 0.002 85);
-  --sidebar-foreground: oklch(0.28 0.012 260);
-  --sidebar-primary: oklch(0.54 0.19 285);
+  --border: oklch(0.25 0.06 320 / 10%);
+  --input: oklch(0.25 0.06 320 / 13%);
+  --ring: oklch(0.415 0.199 320);
+  --chart-1: oklch(0.415 0.199 320); /* Purple */
+  --chart-2: oklch(0.535 0.235 337.4); /* Violet-Red */
+  --chart-3: oklch(0.55 0.11 195); /* Teal (Daten-Kontrast) */
+  --chart-4: oklch(0.66 0.15 75); /* Amber */
+  --chart-5: oklch(0.58 0.15 160); /* Grün */
+  --sidebar: oklch(0.992 0.002 320);
+  --sidebar-foreground: oklch(0.26 0.012 320);
+  --sidebar-primary: oklch(0.415 0.199 320);
   --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.945 0.006 85);
-  --sidebar-accent-foreground: oklch(0.22 0.012 260);
-  --sidebar-border: oklch(0 0 0 / 7%);
-  --sidebar-ring: oklch(0.54 0.19 285);
+  --sidebar-accent: oklch(0.955 0.008 320);
+  --sidebar-accent-foreground: oklch(0.2 0.012 320);
+  --sidebar-border: oklch(0.25 0.06 320 / 8%);
+  --sidebar-ring: oklch(0.415 0.199 320);
 
-  --gradient-primary: linear-gradient(135deg, var(--primary), var(--primary-glow));
-  --gradient-surface: linear-gradient(180deg, oklch(1 0 0), oklch(0.97 0.004 85));
-  --shadow-elegant: 0 10px 40px -10px oklch(0.54 0.19 285 / 0.18);
-  --shadow-card: 0 1px 2px oklch(0 0 0 / 0.04), 0 8px 30px -12px oklch(0 0 0 / 0.12);
+  /* CD-Gradient Linear #71008B → #B9009C */
+  --gradient-primary: linear-gradient(135deg, oklch(0.404 0.196 317.7), oklch(0.535 0.235 337.4));
+  --gradient-surface: linear-gradient(180deg, oklch(1 0 0), oklch(0.975 0.005 320));
+  --shadow-elegant: 0 10px 40px -10px oklch(0.415 0.199 320 / 0.2);
+  --shadow-card: 0 1px 2px oklch(0.21 0.1 321 / 0.05), 0 8px 30px -12px oklch(0.21 0.1 321 / 0.12);
 }
 
 @layer base {
@@ -119,9 +122,21 @@
     color: var(--color-foreground);
   }
   body {
+    /* CD-Radial (Guideline: #F2F2F2 → #77008C 20% → 0%) als dezenter Seiten-Wash. */
     background-image:
-      radial-gradient(ellipse 80% 50% at 50% -10%, oklch(0.72 0.18 280 / 0.15), transparent),
-      radial-gradient(ellipse 60% 40% at 100% 100%, oklch(0.7 0.18 200 / 0.08), transparent);
+      radial-gradient(ellipse 80% 50% at 50% -10%, oklch(0.415 0.199 320 / 0.08), transparent),
+      radial-gradient(ellipse 60% 40% at 100% 100%, oklch(0.535 0.235 337.4 / 0.05), transparent);
     background-attachment: fixed;
+    /* Aceh Soft (CD-Fließtext); Nunito Sans als lizenzfreier Ersatz, bis die
+       Original-Schnitte als Webfonts vorliegen. */
+    font-family: "Aceh Soft", "Nunito Sans", "Segoe UI", system-ui, sans-serif;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    /* Kamerik 105 (CD-Titel); Poppins als nächstliegender freier Schnitt. */
+    font-family: "Kamerik 105", Poppins, "Nunito Sans", "Segoe UI", sans-serif;
+    letter-spacing: -0.01em;
   }
 }

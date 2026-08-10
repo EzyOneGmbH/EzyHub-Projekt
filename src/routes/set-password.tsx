@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Sparkles } from "lucide-react";
 
 // Passwort setzen — Ziel des Einladungs-/Recovery-Links (RBAC 2026-07-15).
 // supabase-js (detectSessionInUrl) tauscht den Token aus dem URL-Hash automatisch
@@ -72,11 +71,12 @@ function SetPasswordPage() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0b0d14", padding: 20 }}>
-      <div style={{ width: "100%", maxWidth: 400, background: "#151823", border: "1px solid #262a3a", borderRadius: 16, padding: 32 }}>
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0b0410", padding: 20 }}>
+      <div style={{ width: "100%", maxWidth: 400, background: "#1c1024", border: "1px solid #302039", borderRadius: 16, padding: 32 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-          <Sparkles size={22} color="#8b7cff" />
-          <span style={{ fontSize: 18, fontWeight: 700, color: "#e2e4f0" }}>EzyHub</span>
+          {/* CD-Symbol: Hexagon-Badge + Wortmarke "Ezy One". */}
+          <span aria-hidden style={{ width: 26, height: 29, clipPath: "polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)", background: "linear-gradient(135deg,#71008B,#B9009C)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: "#fff" }}>EO</span>
+          <span style={{ fontSize: 18, fontWeight: 700, color: "#ece6f0" }}>Ezy One</span>
         </div>
         <h1 style={{ fontSize: 20, fontWeight: 700, color: "#e2e4f0", margin: "8px 0 4px" }}>Passwort festlegen</h1>
         <p style={{ fontSize: 13, color: "#8a94a8", margin: "0 0 20px" }}>

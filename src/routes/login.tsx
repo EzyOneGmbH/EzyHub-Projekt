@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Sparkles } from "lucide-react";
 
 export const Route = createFileRoute("/login")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -51,8 +50,16 @@ function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-md rounded-xl border border-border bg-card p-8 shadow-sm">
-        <Link to="/" className="flex items-center gap-2 font-bold text-foreground">
-          <Sparkles className="h-5 w-5 text-primary" /> EzyHub
+        <Link to="/" className="flex items-center gap-2.5 font-bold text-foreground">
+          {/* CD-Symbol: Hexagon-Badge + Wortmarke "Ezy One". */}
+          <span
+            aria-hidden
+            className="flex items-center justify-center text-[11px] font-extrabold text-white"
+            style={{ width: 26, height: 29, clipPath: "polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)", background: "linear-gradient(135deg,#71008B,#B9009C)" }}
+          >
+            EO
+          </span>
+          Ezy One
         </Link>
         <h1 className="mt-6 text-2xl font-bold text-foreground">Anmelden</h1>
         <p className="mt-1 text-sm text-muted-foreground">Willkommen zurück.</p>

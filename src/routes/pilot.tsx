@@ -22,10 +22,12 @@ export const Route = createFileRoute("/pilot")({
   component: PilotRoute,
 });
 
+// Ezy One CD Dark (2026-08-10): Aubergine-Töne (CD-Gradient #331738→#040004),
+// Violet-Red-Akzent statt generischem Violett.
 const C = {
-  bg: "#0a0b0f", card: "#181923", border: "#252636", text: "#e2e4f0",
-  muted: "#8b8da3", dim: "#5c5e72", accent: "#6c5ce7", accentLight: "#a78bfa",
-  green: "#10b981", surface: "#12131a",
+  bg: "#0b0410", card: "#1c1024", border: "#302039", text: "#ece6f0",
+  muted: "#a396ad", dim: "#6d5f78", accent: "#B9009C", accentLight: "#e07bd3",
+  green: "#10b981", surface: "#140a1a",
 };
 
 type Msg = { role: "user" | "assistant"; content: string; sources?: string[] };

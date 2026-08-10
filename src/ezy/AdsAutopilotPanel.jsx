@@ -12,7 +12,7 @@ const P = {
   text: "#f0f1f8",       // heller (war #e2e4f0)
   textMuted: "#c2c4d6",  // deutlich heller lesbar (war #8b8da3)
   textDim: "#9fa1b8",    // heller, aber sekundaer erkennbar (war #5c5e72)
-  accent: "#8b7dff",     // heller Akzent fuer bessere Lesbarkeit (war #6c5ce7)
+  accent: "#e07bd3",     // Ezy One CD: helles Violet-Red auf dunklem Grund (war #8b7dff)
   green: "#10b981",
   greenDim: "rgba(16,185,129,0.12)",
   red: "#ef4444",
