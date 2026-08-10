@@ -1,5 +1,4 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
 import { AuthProvider } from "@/hooks/use-auth";
 import { Toaster } from "@/components/ui/sonner";
 import {
@@ -84,65 +83,6 @@ function RootShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-// CD-Pattern interaktiv (Volkan 10.08.): die Hexagon-Waben leuchten in einem
-// weichen Radius um den Mauszeiger in Marken-Magenta auf. Eine fixe Overlay-
-// Ebene (pointer-events:none) trägt dieselbe Waben-Kachel wie der Hintergrund,
-// sichtbar nur innerhalb einer radialen CSS-Mask, deren Zentrum per rAF dem
-// Cursor folgt — keine React-Re-Renders, kein Layout-Thrash. Touch-Geräte und
-// prefers-reduced-motion bekommen den Effekt bewusst nicht.
-const HEX_GLOW_TILE = `url("data:image/svg+xml,%3Csvg width='28' height='49' viewBox='0 0 28 49' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M13.99 9.25l13 7.5v15l-13 7.5L1 31.75v-15l12.99-7.5zM3 17.9v12.7l10.99 6.34 11-6.35V17.9l-11-6.34L3 17.9zM0 15l12.98-7.5V0h-2v6.35L0 12.69v2.3zm0 18.5L12.98 41v8h-2v-6.85L0 35.81v-2.3zM15 0v7.5L27.99 15H28v-2.31h-.01L17 6.35V0h-2zm0 49v-8l12.99-7.5H28v2.31h-.01L17 42.15V49h-2z' fill='%23B9009C' fill-opacity='0.28' fill-rule='evenodd'/%3E%3C/svg%3E")`;
-
-function HexCursorGlow() {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    if (!window.matchMedia?.("(pointer: fine)").matches) return;
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-    let raf = 0;
-    const onMove = (e: MouseEvent) => {
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        raf = 0;
-        el.style.setProperty("--hx", `${e.clientX}px`);
-        el.style.setProperty("--hy", `${e.clientY}px`);
-        el.style.opacity = "1";
-      });
-    };
-    const onLeave = () => {
-      el.style.opacity = "0";
-    };
-    window.addEventListener("mousemove", onMove, { passive: true });
-    document.documentElement.addEventListener("mouseleave", onLeave);
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      document.documentElement.removeEventListener("mouseleave", onLeave);
-      if (raf) cancelAnimationFrame(raf);
-    };
-  }, []);
-  const mask = "radial-gradient(circle 220px at var(--hx, -400px) var(--hy, -400px), black 0%, rgba(0,0,0,.55) 45%, transparent 72%)";
-  return (
-    <div
-      ref={ref}
-      aria-hidden
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 9999,
-        pointerEvents: "none",
-        backgroundImage: HEX_GLOW_TILE,
-        WebkitMaskImage: mask,
-        maskImage: mask,
-        opacity: 0,
-        transition: "opacity .35s ease",
-        // multiply: leuchtet auf hellen Flächen als sattes Magenta, lässt
-        // Text/Karten lesbar und bleibt auf dunklen Seiten unaufdringlich.
-        mixBlendMode: "multiply",
-      }}
-    />
-  );
-}
-
 function RootComponent() {
   const missing = getMissingSupabaseEnv();
   if (missing.length > 0) {
@@ -156,7 +96,6 @@ function RootComponent() {
   return (
     <AuthProvider>
       <Outlet />
-      <HexCursorGlow />
       <Toaster />
     </AuthProvider>
   );

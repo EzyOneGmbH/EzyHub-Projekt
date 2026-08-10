@@ -100,6 +100,7 @@ import { ezyFetch } from "@/ezy/data/api";
 import { useAuth } from "@/hooks/use-auth";
 import { useEzyClients } from "@/ezy/data/useEzyClients";
 import { loadSharedRange, saveSharedRange, useRangeData } from "@/ezy/data/rangeStore";
+import { HexGlowLayer } from "@/ezy/HexGlow";
 import { useEzyDefaults } from "@/ezy/data/useEzyDefaults";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
 import { useEzyContent } from "@/ezy/data/useEzyContent";
@@ -13947,6 +13948,7 @@ function App({ appScope = null }) {
         fontFamily: "'Aceh Soft','Nunito Sans','Segoe UI',sans-serif",
         backgroundColor: C.bg,
         backgroundImage: HEX_BG,
+        position: "relative", // Bezug für die Hexagon-Glow-Hintergrund-Ebene
         color: C.text,
         minHeight: "100vh",
         display: "flex",
@@ -13960,6 +13962,8 @@ function App({ appScope = null }) {
         rel="stylesheet"
       />
       <style>{CSS}</style>
+      {/* Hexagon-Glow: Hintergrund-Ebene (zIndex 0) — Inhalt liegt darüber. */}
+      <HexGlowLayer />
 
       {/* Sidebar */}
       <aside
@@ -14265,7 +14269,7 @@ function App({ appScope = null }) {
 
       <main
         className="app-main"
-        style={{ marginLeft: sw, flex: 1, transition: "margin-left .2s", minWidth: 0 }}
+        style={{ marginLeft: sw, flex: 1, transition: "margin-left .2s", minWidth: 0, position: "relative", zIndex: 1 }}
       >
         <header
           className="app-header"

@@ -11,6 +11,7 @@ import { useEzyServiceMatrix } from "@/ezy/data/useEzyServiceMatrix";
 import { AiVisibilityTab } from "@/ezy/EzyOneApp.jsx";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
 import { loadSharedRange, saveSharedRange, cacheGet, cachePut, RANGE_TTL_MS } from "@/ezy/data/rangeStore";
+import { HexGlowLayer } from "@/ezy/HexGlow";
 import {
   Search, LogOut, LineChart, Zap, Activity, MessageSquare, GraduationCap,
   FileText, Lightbulb, Globe, AlertTriangle, LayoutDashboard, Bot, Sparkles,
@@ -1331,10 +1332,12 @@ function EzyAiApp() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: S.bg, backgroundImage: HEX_BG, color: S.txt, fontFamily: "'Aceh Soft','Nunito Sans','Segoe UI',system-ui,sans-serif" }}>
+    <div style={{ minHeight: "100vh", backgroundColor: S.bg, backgroundImage: HEX_BG, position: "relative", color: S.txt, fontFamily: "'Aceh Soft','Nunito Sans','Segoe UI',system-ui,sans-serif" }}>
+      {/* Hexagon-Glow: Hintergrund-Ebene — .ezyai-shell liegt darüber (z1). */}
+      <HexGlowLayer />
       {/* Mobile (04.08.): Shell-Sidebar wird zur horizontalen Leiste oben. */}
       <style>{`
-        .ezyai-shell{display:flex;min-height:100vh}
+        .ezyai-shell{display:flex;min-height:100vh;position:relative;z-index:1}
         .ezyai-side{width:${SIDEBAR_W}px;flex-shrink:0;background:${S.panel};border-right:1px solid ${S.line};display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:50;overflow-y:auto}
         .ezyai-body{flex:1;min-width:0;margin-left:${SIDEBAR_W}px}
         .ezyai-mnav{display:none}
