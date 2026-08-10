@@ -1420,9 +1420,11 @@ function EzyAiApp() {
             </div>
           </div>
 
-          {/* App-Nav (Searchable-Struktur; AEO Insights aktiv, Rest In Vorbereitung) */}
+          {/* App-Nav (AEO Insights aktiv, Rest In Vorbereitung). Bei "Alle
+              Kunden" (Agentur-Übersicht) bleibt die Navigation bewusst leer —
+              die Bereiche sind kundenspezifisch (Volkan 10.08.). */}
           <nav style={{ flex: 1, padding: "12px 8px", overflowY: "auto" }}>
-            {APP_NAV.map((g, gi) => (
+            {!showAll && APP_NAV.map((g, gi) => (
               <div key={g.group} style={{ marginTop: gi ? 14 : 0 }}>
                 <div style={{ padding: "0 14px 6px", fontSize: 10.5, fontWeight: 600, letterSpacing: ".06em", textTransform: "uppercase", color: S.mut }}>{g.group}</div>
                 {g.items.map((t) => {
@@ -1478,8 +1480,9 @@ function EzyAiApp() {
                 {clients.map((c: any) => (<option key={c.id} value={c.id}>{c.name}</option>))}
               </select>
             </div>
+            {/* Bereichs-Chips nur mit gewähltem Kunden — "Alle Kunden" = leer. */}
             <div style={{ display: "flex", gap: 6, alignItems: "center", overflowX: "auto" }}>
-              {APP_NAV.flatMap((g) => g.items).map((t) => {
+              {!showAll && APP_NAV.flatMap((g) => g.items).map((t) => {
                 const Icon = t.icon;
                 const a = view === "dashboard" && section === t.id;
                 return (

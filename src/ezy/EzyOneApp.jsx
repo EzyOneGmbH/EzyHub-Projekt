@@ -14115,7 +14115,10 @@ function App({ appScope = null }) {
           </div>
         )}
         <nav style={{ flex: 1, padding: "12px 8px" }}>
-          {nav.map((n) => {
+          {/* "Alle Kunden" (Volkan 10.08.): in EzyRank/EzyPerformance bleibt die
+              linke Navigation leer — alle Punkte sind kundenspezifisch. Admin
+              behält seine (Verwaltungs-)Navigation. */}
+          {!(showAll && (appScope === "seo" || appScope === "ads")) && nav.map((n) => {
             // EzyRank (Volkan 06.08.): die Dashboard-Sub-Tabs (Übersicht/SEO/
             // Blog/Conversions) wandern aus der oberen Tab-Leiste in die linke
             // Navigation — der "Dashboard"-Punkt wird durch die Tabs ersetzt.
