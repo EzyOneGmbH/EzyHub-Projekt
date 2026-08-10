@@ -29,6 +29,8 @@ const C = {
   muted: "#a396ad", dim: "#6d5f78", accent: "#B9009C", accentLight: "#e07bd3",
   green: "#10b981", surface: "#140a1a",
 };
+// CD-Pattern: Hexagon-Waben-Mesh, sehr dezent (5% Violet-Red auf Dunkel).
+const HEX_BG = `url("data:image/svg+xml,%3Csvg width='28' height='49' viewBox='0 0 28 49' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M13.99 9.25l13 7.5v15l-13 7.5L1 31.75v-15l12.99-7.5zM3 17.9v12.7l10.99 6.34 11-6.35V17.9l-11-6.34L3 17.9zM0 15l12.98-7.5V0h-2v6.35L0 12.69v2.3zm0 18.5L12.98 41v8h-2v-6.85L0 35.81v-2.3zM15 0v7.5L27.99 15H28v-2.31h-.01L17 6.35V0h-2zm0 49v-8l12.99-7.5H28v2.31h-.01L17 42.15V49h-2z' fill='%23B9009C' fill-opacity='0.05' fill-rule='evenodd'/%3E%3C/svg%3E")`;
 
 type Msg = { role: "user" | "assistant"; content: string; sources?: string[] };
 
@@ -51,7 +53,7 @@ function PilotLogin() {
 
   const field = { width: "100%", background: C.card, color: C.text, border: `1px solid ${C.border}`, borderRadius: 8, padding: "11px 14px", fontSize: 14, boxSizing: "border-box" as const };
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Inter, system-ui, sans-serif", padding: 16 }}>
+    <div style={{ minHeight: "100vh", backgroundColor: C.bg, backgroundImage: HEX_BG, color: C.text, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Inter, system-ui, sans-serif", padding: 16 }}>
       <form onSubmit={signIn} style={{ width: "100%", maxWidth: 360, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 28 }}>
         <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 4 }}>
           <span style={{ color: C.accentLight }}>Ezy</span>Pilot
@@ -173,7 +175,7 @@ function PilotRoute() {
   if (!session) return <PilotLogin />;
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, display: "flex", flexDirection: "column", fontFamily: "Inter, system-ui, sans-serif" }}>
+    <div style={{ minHeight: "100vh", backgroundColor: C.bg, backgroundImage: HEX_BG, color: C.text, display: "flex", flexDirection: "column", fontFamily: "Inter, system-ui, sans-serif" }}>
       {/* Kopf */}
       <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ fontWeight: 700, fontSize: 16 }}>

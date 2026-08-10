@@ -122,10 +122,12 @@
     color: var(--color-foreground);
   }
   body {
-    /* CD-Radial (Guideline: #F2F2F2 → #77008C 20% → 0%) als dezenter Seiten-Wash. */
+    /* CD-Radial (Guideline: #F2F2F2 → #77008C 20% → 0%) als dezenter Seiten-Wash
+       + CD-Pattern: durchgehendes Hexagon-Waben-Mesh, sehr dezent (4% Purple). */
     background-image:
       radial-gradient(ellipse 80% 50% at 50% -10%, oklch(0.415 0.199 320 / 0.08), transparent),
-      radial-gradient(ellipse 60% 40% at 100% 100%, oklch(0.535 0.235 337.4 / 0.05), transparent);
+      radial-gradient(ellipse 60% 40% at 100% 100%, oklch(0.535 0.235 337.4 / 0.05), transparent),
+      url("data:image/svg+xml,%3Csvg width='28' height='49' viewBox='0 0 28 49' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M13.99 9.25l13 7.5v15l-13 7.5L1 31.75v-15l12.99-7.5zM3 17.9v12.7l10.99 6.34 11-6.35V17.9l-11-6.34L3 17.9zM0 15l12.98-7.5V0h-2v6.35L0 12.69v2.3zm0 18.5L12.98 41v8h-2v-6.85L0 35.81v-2.3zM15 0v7.5L27.99 15H28v-2.31h-.01L17 6.35V0h-2zm0 49v-8l12.99-7.5H28v2.31h-.01L17 42.15V49h-2z' fill='%2377008C' fill-opacity='0.04' fill-rule='evenodd'/%3E%3C/svg%3E");
     background-attachment: fixed;
     /* Aceh Soft (CD-Fließtext); Nunito Sans als lizenzfreier Ersatz, bis die
        Original-Schnitte als Webfonts vorliegen. */
