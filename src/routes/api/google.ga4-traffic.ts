@@ -13,6 +13,9 @@ import { isProviderEnabled, canRunAudits } from "@/server/integrations.server";
 const Body = z.object({
   clientId: z.string().uuid(),
   days: z.number().int().min(1).max(90).default(28),
+  // Datumsfilter-Abfragen (2026-08-10): persist:false liest nur — kein
+  // audit_runs-Insert, damit Filterwechsel die Agent-Snapshots nicht ersetzen.
+  persist: z.boolean().default(true),
 });
 
 // Source hostnames that indicate an AI assistant / answer-engine referral.
@@ -234,6 +237,7 @@ export const Route = createFileRoute("/api/google/ga4-traffic")({
           };
 
           try {
+            if (parsed.data.persist)
             await supabaseAdmin.from("audit_runs").insert({
               client_id: client.id,
               organization_id: client.organization_id,

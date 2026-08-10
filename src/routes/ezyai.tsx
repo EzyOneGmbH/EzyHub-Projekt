@@ -10,6 +10,7 @@ import { useEzyServiceSettings } from "@/ezy/data/useEzyServiceSettings";
 import { useEzyServiceMatrix } from "@/ezy/data/useEzyServiceMatrix";
 import { AiVisibilityTab } from "@/ezy/EzyOneApp.jsx";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
+import { loadSharedRange, saveSharedRange, cacheGet, cachePut, RANGE_TTL_MS } from "@/ezy/data/rangeStore";
 import {
   Search, LogOut, LineChart, Zap, Activity, MessageSquare, GraduationCap,
   FileText, Lightbulb, Globe, AlertTriangle, LayoutDashboard, Bot, Sparkles,
@@ -151,7 +152,13 @@ const ENGINE_COLORS: Record<string, string> = {
 };
 
 function LlmAnalyticsPanel({ clientId, S }: { clientId: string; S: Record<string, string> }) {
-  const [days, setDays] = useState(30);
+  // Geteilter Zeitraum über alle Apps (2026-08-10): Init aus dem Range-Store
+  // (auf die Panel-Stufen 7/30/90 gerundet), Änderungen wandern zurück.
+  const [days, setDaysRaw] = useState(() => nearestPanelDays(loadSharedRange()?.days));
+  const setDays = (d: number) => {
+    setDaysRaw(d);
+    saveSharedRange({ label: `${d} Tage`, days: d, preset: `${d}d` });
+  };
   const [hits, setHits] = useState<Array<{ bot: string; url: string; at: string }> | null>(null);
   const [traffic, setTraffic] = useState<any>(null);
   const [pageEngine, setPageEngine] = useState<string>("");
@@ -173,7 +180,12 @@ function LlmAnalyticsPanel({ clientId, S }: { clientId: string; S: Record<string
 
   useEffect(() => {
     let alive = true;
-    setTraffic(null);
+    // Range-Cache (2026-08-10): gecachten Stand SOFORT zeigen; ist er frisch
+    // (< TTL), entfällt der Netz-Call ganz — sonst still im Hintergrund laden.
+    const cacheKey = `llm-traffic:${clientId}:${days}`;
+    const cached = cacheGet(cacheKey);
+    setTraffic(cached ? cached.data : null);
+    if (cached && Date.now() - cached.at < RANGE_TTL_MS) return;
     (async () => {
       try {
         const session = (await supabase.auth.getSession()).data.session;
@@ -181,9 +193,11 @@ function LlmAnalyticsPanel({ clientId, S }: { clientId: string; S: Record<string
           headers: { Authorization: `Bearer ${session?.access_token || ""}` },
         });
         const j = await r.json().catch(() => ({}));
-        if (alive) setTraffic(j.ok ? j : { ok: false, error: j.error || `HTTP ${r.status}` });
+        if (j.ok) cachePut(cacheKey, j);
+        // Fehler ersetzen einen vorhandenen Cache-Stand nicht (SWR-Prinzip).
+        if (alive && (j.ok || !cached)) setTraffic(j.ok ? j : { ok: false, error: j.error || `HTTP ${r.status}` });
       } catch (e: any) {
-        if (alive) setTraffic({ ok: false, error: String(e?.message || e) });
+        if (alive && !cached) setTraffic({ ok: false, error: String(e?.message || e) });
       }
     })();
     return () => { alive = false; };
@@ -453,14 +467,29 @@ const QUAD_STOP = new Set(["der", "die", "das", "und", "oder", "für", "fuer", "
 const kwWords = (kw: string) => kw.toLowerCase().split(/[^a-zäöüéèà0-9]+/).filter((w) => w.length >= 3 && !QUAD_STOP.has(w));
 const stemOf = (w: string) => (w.length > 7 ? w.slice(0, 7) : w);
 
+// Panel-Zeitraum: geteilten Store-Wert auf die Stufen 7/30/90 runden.
+function nearestPanelDays(d?: number | null): number {
+  if (!d || !Number.isFinite(d)) return 30;
+  return [7, 30, 90].reduce((a, b) => (Math.abs(b - d) < Math.abs(a - d) ? b : a), 30);
+}
+
 function TrafficPanel({ clientId, S }: { clientId: string; S: Record<string, string> }) {
-  const [days, setDays] = useState(30);
+  // Geteilter Zeitraum über alle Apps (2026-08-10) + Range-Cache (SWR).
+  const [days, setDaysRaw] = useState(() => nearestPanelDays(loadSharedRange()?.days));
+  const setDays = (d: number) => {
+    setDaysRaw(d);
+    saveSharedRange({ label: `${d} Tage`, days: d, preset: `${d}d` });
+  };
   const [data, setData] = useState<any>(null);
   const [err, setErr] = useState("");
 
   useEffect(() => {
     let alive = true;
-    setData(null); setErr("");
+    setErr("");
+    const cacheKey = `traffic-overview:${clientId}:${days}`;
+    const cached = cacheGet(cacheKey);
+    setData(cached ? cached.data : null);
+    if (cached && Date.now() - cached.at < RANGE_TTL_MS) return;
     (async () => {
       try {
         const session = (await supabase.auth.getSession()).data.session;
@@ -469,9 +498,11 @@ function TrafficPanel({ clientId, S }: { clientId: string; S: Record<string, str
         });
         const j = await r.json().catch(() => ({}));
         if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
+        cachePut(cacheKey, j);
         if (alive) setData(j);
       } catch (e: any) {
-        if (alive) { setErr(String(e?.message || e)); setData({ ok: false }); }
+        // Fehler ersetzen einen vorhandenen Cache-Stand nicht (SWR-Prinzip).
+        if (alive && !cached) { setErr(String(e?.message || e)); setData({ ok: false }); }
       }
     })();
     return () => { alive = false; };

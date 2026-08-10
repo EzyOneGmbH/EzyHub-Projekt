@@ -99,6 +99,7 @@ import {
 import { ezyFetch } from "@/ezy/data/api";
 import { useAuth } from "@/hooks/use-auth";
 import { useEzyClients } from "@/ezy/data/useEzyClients";
+import { loadSharedRange, saveSharedRange, useRangeData } from "@/ezy/data/rangeStore";
 import { useEzyDefaults } from "@/ezy/data/useEzyDefaults";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
 import { useEzyContent } from "@/ezy/data/useEzyContent";
@@ -1482,6 +1483,35 @@ function seriesDelta(series, key, range) {
 
 // Live GA4 comparison hook — fetches real current vs compare totals from GA4 for
 // the selected date range + comparison period. Returns { data, deltas }.
+// Live-GA4 im gewählten Zeitraum (Datumsfilter-Fix 2026-08-10): holt
+// summary/conversions/traffic mit persist:false (kein audit_runs-Insert) und
+// cached per (Endpoint, Kunde, Tage) — SWR über rangeStore, Filterwechsel sind
+// nach dem ersten Laden instant. days=null deaktiviert (z. B. Custom-Zeitraum
+// in der Vergangenheit → Snapshot-Fallback bleibt maßgeblich).
+function useLiveGa4(clientId, endpoint, days) {
+  const d = days ? Math.min(90, Math.max(1, Math.round(days))) : null;
+  return useRangeData(
+    clientId && d ? `ga4:${endpoint}:${clientId}:${d}` : null,
+    async () => {
+      const session = (await supabase.auth.getSession()).data.session;
+      const r = await fetch(`/api/google/${endpoint}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId, days: d, persist: false }),
+      });
+      const j = await r.json().catch(() => null);
+      return j?.ok ? j : null;
+    },
+  );
+}
+// Live-Zeitraum nur, wenn das Fenster "bis heute" reicht — ein Custom-Zeitraum,
+// der in der Vergangenheit endet, lässt sich über die days-APIs nicht abbilden.
+const liveDaysFor = (dateRange) => {
+  if (!dateRange?.days) return 30;
+  const end = dateRange.end ? new Date(dateRange.end).getTime() : Date.now();
+  return Date.now() - end < 54e6 /* ~15h Toleranz */ ? dateRange.days : null;
+};
+
 function useGa4Compare(clientId, dateRange) {
   const [data, setData] = useState(null);
   const compareKey = dateRange?.compare
@@ -2788,7 +2818,14 @@ function SeoDashboard({ selectedClient, dateRange }) {
   const psi = psiRun ? pagespeedKpisFromResult(psiRun.result) : null;
   const cwvOrigin = psiRun?.result?.metrics?.dataOrigin || null; // B5a
   const { run: trafRun, refresh: refreshTraf } = useEzyLatestRun(selectedClient?.id, "ga4_traffic");
-  const traf = trafRun ? ga4TrafficFromResult(trafRun.result) : null;
+  // Datumsfilter-Fix (2026-08-10): Live-Traffic im gewählten Zeitraum (gecacht),
+  // Snapshot-Fallback wie gehabt.
+  const { data: liveTrafRes } = useLiveGa4(selectedClient?.id, "ga4-traffic", liveDaysFor(dateRange));
+  const traf = liveTrafRes
+    ? ga4TrafficFromResult(liveTrafRes)
+    : trafRun
+      ? ga4TrafficFromResult(trafRun.result)
+      : null;
   useEffect(() => {
     const interval = setInterval(() => {
       refreshAhrefs();
@@ -3979,10 +4016,20 @@ function ConvDashboard({ selectedClient, dateRange }) {
     "ga4_conversions",
   );
   const { run: trafRun, refresh: refreshTraf } = useEzyLatestRun(selectedClient?.id, "ga4_traffic");
-  const ga4Raw = run ? ga4KpisFromResult(run.result) : null;
-  const conv = convRun ? ga4ConversionsFromResult(convRun.result) : null;
-  const traf = trafRun ? ga4TrafficFromResult(trafRun.result) : null;
   const days = dateRange?.days || 30;
+  // Datumsfilter-Fix (2026-08-10): Live-GA4 im gewählten Zeitraum (gecacht,
+  // persist:false); der Agent-Snapshot bleibt Fallback (kein GA4 / Fehler /
+  // Custom-Zeitraum in der Vergangenheit).
+  const liveDays = liveDaysFor(dateRange);
+  const { data: liveSum } = useLiveGa4(selectedClient?.id, "ga4-summary", liveDays);
+  const { data: liveConvRes } = useLiveGa4(selectedClient?.id, "ga4-conversions", liveDays);
+  const { data: liveTrafRes } = useLiveGa4(selectedClient?.id, "ga4-traffic", liveDays);
+  const sumRes = liveSum || run?.result || null;
+  const convRes = liveConvRes || convRun?.result || null;
+  const trafRes = liveTrafRes || trafRun?.result || null;
+  const ga4Raw = sumRes ? ga4KpisFromResult(sumRes) : null;
+  const conv = convRes ? ga4ConversionsFromResult(convRes) : null;
+  const traf = trafRes ? ga4TrafficFromResult(trafRes) : null;
   // Filter-Tabs der Conversion-Liste (User-Wunsch 2026-07-19): Purchase =
   // Kauf-/Checkout-Events, Lead-Anfragen = alles Übrige (Formulare, Lead-,
   // Telefon-/Mail-/Maps-Events). Klassifiziert am rohen GA4-eventName.
@@ -4019,10 +4066,10 @@ function ConvDashboard({ selectedClient, dateRange }) {
   const convSeries = useMemo(() => (conv?.series || []).slice(-days), [conv?.series, days]);
   const googleVsAi = traf?.googleVsAi || null;
   // Dashboard-Ausbau 2026-07-11: B3 Kanal-Split (neues channels-Feld) + B5b Umsatz-Modus.
-  const channels = Array.isArray(convRun?.result?.channels)
-    ? convRun.result.channels
-    : Array.isArray(trafRun?.result?.channels) && trafRun.result.channels.some((ch) => ch.conversions != null)
-      ? trafRun.result.channels
+  const channels = Array.isArray(convRes?.channels)
+    ? convRes.channels
+    : Array.isArray(trafRes?.channels) && trafRes.channels.some((ch) => ch.conversions != null)
+      ? trafRes.channels
       : null;
   const channelTotalSessions = channels ? channels.reduce((a, ch) => a + (ch.sessions || 0), 0) : 0;
   const organicChannel = channels ? channels.find((ch) => /^organic search$/i.test(ch.channel)) : null;
@@ -13441,10 +13488,25 @@ function App({ appScope = null }) {
   const [swOpen, setSwOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [dateRange, setDateRange] = useState(() => {
+    // Geteilter Zeitraum über alle Apps (2026-08-10) + Custom-Restore-Fix:
+    // eigene Zeiträume kommen mit exakten start/end aus dem Store zurück
+    // (vorher wurden nur label+days gespeichert und der Restore verfälschte
+    // den Zeitraum auf "letzte N Tage bis heute").
+    const shared = loadSharedRange();
+    if (shared?.preset === "custom" && shared.start && shared.end) {
+      return {
+        label: shared.label,
+        days: shared.days,
+        start: new Date(shared.start),
+        end: new Date(shared.end),
+        preset: "custom",
+      };
+    }
     const now = new Date();
-    const days = ui0.dateRange?.days || 30;
-    const label = ui0.dateRange?.label || "30 Tage";
-    return { label, days, start: new Date(now.getTime() - days * 24 * 60 * 60 * 1000), end: now };
+    const days = shared?.days || ui0.dateRange?.days || 30;
+    const label = shared?.label || ui0.dateRange?.label || "30 Tage";
+    const preset = shared?.preset || `${days}d`;
+    return { label, days, start: new Date(now.getTime() - days * 24 * 60 * 60 * 1000), end: now, preset };
   });
   const [compareMode, setCompareMode] = useState(ui0.compareMode || "none");
   // Enrich the dateRange with a computed comparison period so dashboards can use it.
@@ -13467,6 +13529,17 @@ function App({ appScope = null }) {
       );
     } catch {}
   }, [page, tab, clientId, dateRange.label, dateRange.days, compareMode]);
+  // Geteilter Zeitraum (2026-08-10): jede Änderung wandert in den App-übergreifenden
+  // Store — EzyAI & Co. lesen denselben Stand. Custom-Zeiträume mit exakten Daten.
+  useEffect(() => {
+    saveSharedRange({
+      label: dateRange.label,
+      days: dateRange.days,
+      preset: dateRange.preset || `${dateRange.days}d`,
+      start: dateRange.preset === "custom" && dateRange.start ? new Date(dateRange.start).toISOString() : undefined,
+      end: dateRange.preset === "custom" && dateRange.end ? new Date(dateRange.end).toISOString() : undefined,
+    });
+  }, [dateRange]);
   const [showAll, setShowAll] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
   const toast = useToast();
