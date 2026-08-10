@@ -10,6 +10,9 @@ import { isProviderEnabled, canRunAudits } from "@/server/integrations.server";
 const Body = z.object({
   clientId: z.string().uuid(),
   days: z.number().int().min(1).max(90).default(28),
+  // Datumsfilter-Abfragen (2026-08-11): persist:false liest nur — kein
+  // Canonry-Push, kein audit_runs-Insert (Agent-Snapshots bleiben unberührt).
+  persist: z.boolean().default(true),
   // GSC erlaubt bis 25000 Zeilen je Abfrage; Default 1000 statt bisher 50.
   rowLimit: z.number().int().min(1).max(25000).default(1000),
 });
@@ -153,7 +156,9 @@ export const Route = createFileRoute("/api/google/gsc-import")({
           };
           const canonryBase = process.env.CANONRY_BASE_URL;
           const canonryKey = process.env.CANONRY_API_KEY;
-          if (!(await isProviderEnabled(client.id, "canonry"))) {
+          if (!parsed.data.persist) {
+            canonryStatus = { ok: false, error: "übersprungen (Nur-Lese-Abfrage)" };
+          } else if (!(await isProviderEnabled(client.id, "canonry"))) {
             canonryStatus = { ok: false, error: "Canonry für diesen Kunden deaktiviert." };
           } else if (!client.canonry_project) {
             canonryStatus = { ok: false, error: "Kein Canonry-Projekt-Slug gesetzt." };
@@ -209,6 +214,7 @@ export const Route = createFileRoute("/api/google/gsc-import")({
             topQueries: keywords.slice(0, 25),
           };
           try {
+            if (parsed.data.persist)
             await supabaseAdmin.from("audit_runs").insert({
               client_id: client.id,
               organization_id: client.organization_id,
@@ -230,6 +236,9 @@ export const Route = createFileRoute("/api/google/gsc-import")({
             sample: keywords.slice(0, 10),
             canonry: canonryStatus,
             gsc: gscSummary.metrics,
+            // Datumsfilter (2026-08-11): volle Summary im run.result-Format,
+            // damit das Dashboard gscKpisFromResult direkt anwenden kann.
+            ...gscSummary,
           });
         } catch (e) {
           return Response.json({ ok: false, error: redactSecrets(e) });

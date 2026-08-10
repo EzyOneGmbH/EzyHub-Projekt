@@ -3030,7 +3030,11 @@ function SeoDashboard({ selectedClient, dateRange }) {
     })
     .reverse(), [runs, startDate]);
   const { run: gscRun, refresh: refreshGsc } = useEzyLatestRun(selectedClient?.id, "gsc_summary");
-  const gsc = gscRun ? gscKpisFromResult(gscRun.result) : null;
+  // Datumsfilter (2026-08-11): GSC-KPIs live im gewählten Zeitraum (Nur-Lese-
+  // Abfrage, gecacht); Agent-Snapshot bleibt Fallback.
+  const { data: liveGsc } = useLiveGa4(selectedClient?.id, "gsc-import", liveDaysFor(dateRange));
+  const gscRes = liveGsc || gscRun?.result || null;
+  const gsc = gscRes ? gscKpisFromResult(gscRes) : null;
   // Dashboard-Ausbau 2026-07-11: B1 Rankings (agent-service Rank-Store) + B2 GSC-Split.
   const { run: rankRun } = useEzyLatestRun(selectedClient?.id, "rankings");
   const rank = rankRun?.result || null;
@@ -3065,7 +3069,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
   const visibility = Number(live?.visibility ?? selectedClient?.visibility ?? 0);
   const backlinks = Number(live?.backlinks ?? 0);
   const refdomainsSeries = run ? ahrefsRefdomainsSeriesFromResult(run.result) : [];
-  const rankingDist = gscRun ? gscRankingDistributionFromResult(gscRun.result) : [];
+  const rankingDist = gscRes ? gscRankingDistributionFromResult(gscRes) : [];
   const RANK_COLORS = [C.accent, C.blue, C.green, C.orange, C.textDim];
   const topPages = traf?.topPages || [];
   const chSessions = (traf?.countries || []).find((c) =>
