@@ -2532,11 +2532,14 @@ function DTable({ columns, data }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // DASHBOARDS (preserved)
 // ═══════════════════════════════════════════════════════════════════════════
-function AgencyOverview({ clients, onSelect }) {
+function AgencyOverview({ clients, onSelect, appScope = null }) {
   // Kachel-Kennzahlen (Volkan 10.08.): Top-3/Top-10 aus dem letzten
   // rankings-Lauf (result.aggregate), organischer Traffic aus dem letzten
   // ahrefs-Lauf (DataForSEO organic_traffic_etv). Batch: EINE Query je Typ
   // mit JSON-Teilpfad-Select statt 14 Einzel-Fetches mit vollen Payloads.
+  // EzyPerformance (Volkan 10.08.): im Ads-Scope stattdessen Werbebudget /
+  // ROAS / Umsatz aus dem letzten google_ads-Snapshot — gleiches Batch-Muster.
+  const isAds = appScope === "ads";
   const [stats, setStats] = useState({});
   useEffect(() => {
     let alive = true;
@@ -2544,6 +2547,30 @@ function AgencyOverview({ clients, onSelect }) {
     if (!ids.length) return;
     (async () => {
       try {
+        if (isAds) {
+          const { data } = await supabase
+            .from("audit_runs")
+            .select("client_id, created_at, t:result->totals, roas:result->roas")
+            .in("client_id", ids)
+            .eq("audit_type", "google_ads")
+            .eq("status", "succeeded")
+            .order("created_at", { ascending: false })
+            .limit(200);
+          if (!alive) return;
+          const next = {};
+          for (const row of data || []) {
+            if (next[row.client_id]) continue; // erste Zeile = neuester Snapshot
+            const t = row.t || {};
+            next[row.client_id] = {
+              budget: Number(t.cost ?? 0) || 0,
+              revenue: Number(t.conversionValue ?? 0) || 0,
+              roas: Number(row.roas ?? 0) || 0,
+              date: String(row.created_at || "").slice(0, 10),
+            };
+          }
+          setStats(next);
+          return;
+        }
         const [rankRes, seoRes] = await Promise.all([
           supabase
             .from("audit_runs")
@@ -2597,9 +2624,29 @@ function AgencyOverview({ clients, onSelect }) {
     };
   }, [clients]);
   // Kacheln nach Score absteigend, dann alphabetisch — beste Kunden zuerst.
+  // Ads-Scope: nach Umsatz absteigend (Score ist eine SEO-Kennzahl).
   const tiles = [...clients].sort(
-    (a, b) => b.score - a.score || a.name.localeCompare(b.name),
+    isAds
+      ? (a, b) =>
+          (stats[b.id]?.revenue ?? -1) - (stats[a.id]?.revenue ?? -1) ||
+          a.name.localeCompare(b.name)
+      : (a, b) => b.score - a.score || a.name.localeCompare(b.name),
   );
+  // Kachel-Metriken je Scope; Werte vorformatiert (CHF im Label, damit die
+  // 3er-Spalte nicht umbricht).
+  const numCH = (n) => Math.round(Number(n || 0)).toLocaleString("de-CH");
+  const tileMetrics = (st) =>
+    isAds
+      ? [
+          { label: "Werbebudget (CHF)", value: st ? numCH(st.budget) : null },
+          { label: "ROAS", value: st ? `${Number(st.roas || 0).toFixed(2).replace(".", ",")}×` : null },
+          { label: "Umsatz (CHF)", value: st ? numCH(st.revenue) : null },
+        ]
+      : [
+          { label: "Top 3", value: st?.top3 != null ? st.top3.toLocaleString("de-CH") : null },
+          { label: "Top 10", value: st?.top10 != null ? st.top10.toLocaleString("de-CH") : null },
+          { label: "Org. Traffic", value: st?.traffic != null ? st.traffic.toLocaleString("de-CH") : null },
+        ];
   return (
     <>
       {/* Kunden-Kacheln (Volkan 10.08.): bei "Alle Kunden" werden alle
@@ -2719,14 +2766,10 @@ function AgencyOverview({ clients, onSelect }) {
                 )}
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
-                {[
-                  { label: "Top 3", value: st?.top3 },
-                  { label: "Top 10", value: st?.top10 },
-                  { label: "Org. Traffic", value: st?.traffic },
-                ].map((m) => (
+                {tileMetrics(st).map((m) => (
                   <div key={m.label}>
                     <div style={{ fontSize: 15, fontWeight: 700, color: C.text, fontVariantNumeric: "tabular-nums" }}>
-                      {m.value != null ? m.value.toLocaleString("de-CH") : "—"}
+                      {m.value ?? "—"}
                     </div>
                     <div style={{ fontSize: 10, color: C.textMuted }}>{m.label}</div>
                   </div>
@@ -14557,6 +14600,7 @@ function App({ appScope = null }) {
               {showAll && (
                 <AgencyOverview
                   clients={clients}
+                  appScope={appScope}
                   onSelect={(id) => {
                     setClientId(id);
                     setShowAll(false);
