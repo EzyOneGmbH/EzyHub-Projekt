@@ -213,17 +213,26 @@ export const Route = createFileRoute("/api/admin/aivis-competitors")({
         };
 
         // Cache-Write additiv; Fehler hier dürfen die Antwort nie kippen.
+        // triggered_by ist NOT NULL → Org-Owner wie in ai-citations/llm-responses.
         try {
-          await sbA.from("audit_runs").insert({
-            organization_id: client.organization_id,
-            client_id: clientId,
-            audit_type: CACHE_TYPE,
-            status: "succeeded",
-            input: { platform, terms },
-            result: payload,
-            started_at: new Date().toISOString(),
-            finished_at: new Date().toISOString(),
-          });
+          const { data: users } = await sbA
+            .from("app_users").select("user_id, role")
+            .eq("organization_id", client.organization_id).limit(20);
+          const owner = (users || []).find((u: any) => ["owner", "admin"].includes(u.role)) || (users || [])[0];
+          if (owner) {
+            const { error: insErr } = await sbA.from("audit_runs").insert({
+              organization_id: client.organization_id,
+              client_id: clientId,
+              triggered_by: owner.user_id,
+              audit_type: CACHE_TYPE,
+              status: "succeeded",
+              input: { platform, terms },
+              result: payload,
+              started_at: new Date().toISOString(),
+              finished_at: new Date().toISOString(),
+            });
+            if (insErr) console.warn("ki_konkurrenz cache-write:", insErr.message);
+          }
         } catch { /* Cache ist Komfort */ }
 
         return Response.json(payload, { headers: { "Cache-Control": "no-store" } });
