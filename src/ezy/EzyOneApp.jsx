@@ -4007,7 +4007,7 @@ function GeoDashboard({ selectedClient, dateRange }) {
         <>
           <div
             style={{
-              background: `linear-gradient(135deg,${C.greenDim},${C.blueDim})`,
+              background: `linear-gradient(135deg,${C.greenDim},${C.blueDim}), ${C.card}`,
               border: `1px solid ${C.green}35`,
               borderRadius: 16,
               padding: "20px 22px",
@@ -4557,7 +4557,7 @@ function ConvDashboard({ selectedClient, dateRange }) {
       {isOn("conv.revenue") && revenue > 0 && !clicksMode && (
         <div
           style={{
-            background: `linear-gradient(135deg,${C.accent}22,${C.green}15)`,
+            background: `linear-gradient(135deg,${C.accent}22,${C.green}15), ${C.card}`,
             border: `1px solid ${C.accent}40`,
             borderRadius: 14,
             padding: "24px 28px",
@@ -5874,7 +5874,7 @@ function AdsDashboard({ selectedClient, dateRange }) {
       {/* ===== EBENE 1 — HERO ===== */}
       <div
         style={{
-          background: `linear-gradient(135deg,${C.orange}1f,${C.card})`,
+          background: `linear-gradient(135deg,${C.orange}1f,${C.card}), ${C.card}`,
           border: `1px solid ${C.border}`,
           borderRadius: 16,
           padding: "26px 30px 24px",
@@ -11597,7 +11597,7 @@ function SettingsPage({
               <>
                 <div
                   style={{
-                    background: `linear-gradient(135deg,${live.data?.canonry?.configured && live.data?.canonry?.reachable && live.data?.canonry?.authenticated ? C.greenDim : C.orangeDim},${C.blueDim})`,
+                    background: `linear-gradient(135deg,${live.data?.canonry?.configured && live.data?.canonry?.reachable && live.data?.canonry?.authenticated ? C.greenDim : C.orangeDim},${C.blueDim}), ${C.card}`,
                     border: `1px solid ${live.data?.canonry?.configured && live.data?.canonry?.reachable && live.data?.canonry?.authenticated ? C.green : C.orange}35`,
                     borderRadius: 12,
                     padding: "16px 18px",
