@@ -152,14 +152,8 @@ const ENGINE_COLORS: Record<string, string> = {
   Copilot: "#0b76b7", Grok: "#1c1c1e", DeepSeek: "#4d6bfe",
 };
 
-function LlmAnalyticsPanel({ clientId, S }: { clientId: string; S: Record<string, string> }) {
-  // Geteilter Zeitraum über alle Apps (2026-08-10): Init aus dem Range-Store
-  // (auf die Panel-Stufen 7/30/90 gerundet), Änderungen wandern zurück.
-  const [days, setDaysRaw] = useState(() => nearestPanelDays(loadSharedRange()?.days));
-  const setDays = (d: number) => {
-    setDaysRaw(d);
-    saveSharedRange({ label: `${d} Tage`, days: d, preset: `${d}d` });
-  };
+function LlmAnalyticsPanel({ clientId, S, days }: { clientId: string; S: Record<string, string>; days: number }) {
+  // Zeitraum kommt zentral aus dem Header (Volkan 10.08., Layout wie EzyRank).
   const [hits, setHits] = useState<Array<{ bot: string; url: string; at: string }> | null>(null);
   const [traffic, setTraffic] = useState<any>(null);
   const [pageEngine, setPageEngine] = useState<string>("");
@@ -275,18 +269,6 @@ function LlmAnalyticsPanel({ clientId, S }: { clientId: string; S: Record<string
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* Zeitraum */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 12, color: S.mut }}>Zeitraum</span>
-        <div style={{ display: "flex", border: `1px solid ${S.line}`, borderRadius: 8, padding: 2, background: S.panel }}>
-          {[7, 30, 90].map((d) => (
-            <button key={d} onClick={() => setDays(d)}
-              style={{ padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, background: days === d ? S.app : "transparent", color: days === d ? "#fff" : S.mut }}>
-              {d} Tage
-            </button>
-          ))}
-        </div>
-      </div>
 
       {/* KPI-Zeile */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>
@@ -474,13 +456,8 @@ function nearestPanelDays(d?: number | null): number {
   return [7, 30, 90].reduce((a, b) => (Math.abs(b - d) < Math.abs(a - d) ? b : a), 30);
 }
 
-function TrafficPanel({ clientId, S }: { clientId: string; S: Record<string, string> }) {
-  // Geteilter Zeitraum über alle Apps (2026-08-10) + Range-Cache (SWR).
-  const [days, setDaysRaw] = useState(() => nearestPanelDays(loadSharedRange()?.days));
-  const setDays = (d: number) => {
-    setDaysRaw(d);
-    saveSharedRange({ label: `${d} Tage`, days: d, preset: `${d}d` });
-  };
+function TrafficPanel({ clientId, S, days }: { clientId: string; S: Record<string, string>; days: number }) {
+  // Zeitraum kommt zentral aus dem Header (Volkan 10.08., Layout wie EzyRank).
   const [data, setData] = useState<any>(null);
   const [err, setErr] = useState("");
 
@@ -577,18 +554,7 @@ function TrafficPanel({ clientId, S }: { clientId: string; S: Record<string, str
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 12, color: S.mut }}>Zeitraum</span>
-        <div style={{ display: "flex", border: `1px solid ${S.line}`, borderRadius: 8, padding: 2, background: S.panel }}>
-          {[7, 30, 90].map((d) => (
-            <button key={d} onClick={() => setDays(d)}
-              style={{ padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, background: days === d ? S.app : "transparent", color: days === d ? "#fff" : S.mut }}>
-              {d} Tage
-            </button>
-          ))}
-        </div>
-        {err && <span style={{ fontSize: 12, color: "#dc2626" }}>{err}</span>}
-      </div>
+      {err && <div style={{ fontSize: 12, color: "#dc2626" }}>{err}</div>}
 
       {data === null ? (
         <div style={{ ...card, color: S.mut, fontSize: 13 }}>Lade Traffic-Daten…</div>
@@ -1270,6 +1236,10 @@ function EzyAiApp() {
   const [curOpen, setCurOpen] = useState(false); // Prompt-Kuration (Nachbau 08/2026)
   const [view, setView] = useState<"dashboard" | "agent">("dashboard"); // Dashboard/Agent-Switcher
   const [section, setSection] = useState("aeo-insights"); // aktiver Sidebar-App-Bereich
+  // Zeitraum zentral im Header (Volkan 10.08., Layout wie EzyRank): EINE Quelle
+  // für alle Panels, geteilt über alle Apps (Range-Store).
+  const [days, setDaysRaw] = useState(() => nearestPanelDays(loadSharedRange()?.days));
+  const setDays = (d: number) => { setDaysRaw(d); saveSharedRange({ label: `${d} Tage`, days: d, preset: `${d}d` }); };
   const [clientId, setClientId] = useState(() => {
     try { return localStorage.getItem(CLIENT_LS) || ""; } catch { return ""; }
   });
@@ -1502,9 +1472,18 @@ function EzyAiApp() {
 
           {/* Kontext-Kopfzeile: Bereichs-Titel + Aktionen (Kunde ist jetzt in der Sidebar) */}
           <header className="ezyai-chead" style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 22px", background: S.panel, borderBottom: `1px solid ${S.line}`, position: "sticky", top: 0, zIndex: 30 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: S.txt }}>
-              {view === "agent" ? "Agent" : showAll ? "Agentur-Übersicht" : NAV_LABEL[section] || "Insights"}
-            </div>
+            {/* Filter statt Titel im Header (Volkan 10.08., wie EzyRank) —
+                der Bereichs-Titel steht jetzt im Body. */}
+            {view !== "agent" && !showAll && (
+              <div style={{ display: "flex", alignItems: "center", gap: 2, background: S.bg, border: `1px solid ${S.line}`, borderRadius: 10, padding: 3 }}>
+                {[7, 30, 90].map((d) => (
+                  <button key={d} onClick={() => setDays(d)}
+                    style={{ padding: "6px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12.5, fontWeight: 600, background: days === d ? S.appTint : "transparent", color: days === d ? S.app : S.mut }}>
+                    {d} Tage
+                  </button>
+                ))}
+              </div>
+            )}
             <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
               {isOrgAdmin && client?.id && !showAll && (
                 <button onClick={shareReport} style={{ fontSize: 12, color: S.app, background: "none", cursor: "pointer", border: `1px solid ${S.app}55`, borderRadius: 8, padding: "6px 12px" }}>Report teilen</button>
@@ -1514,6 +1493,17 @@ function EzyAiApp() {
           </header>
 
           <main className="ezyai-main" style={{ maxWidth: 1180, margin: "0 auto", padding: "22px 22px 60px" }}>
+            {/* Bereichs-Titel im Body (Volkan 10.08., Layout wie EzyRank). */}
+            {view !== "agent" && (
+              <div style={{ marginBottom: 18 }}>
+                <h1 style={{ fontSize: 30, fontWeight: 800, margin: 0, letterSpacing: "-.5px" }}>{showAll ? "Agentur-Übersicht" : NAV_LABEL[section] || "Insights"}</h1>
+                {!showAll && client && (
+                  <div style={{ fontSize: 13.5, color: S.mut, marginTop: 4 }}>
+                    {client.name}{(client as { domain?: string }).domain ? ` — ${(client as { domain?: string }).domain}` : ""} • {days} Tage
+                  </div>
+                )}
+              </div>
+            )}
             {view === "agent" ? (
               <div style={{ background: S.panel, border: `1px solid ${S.line}`, borderRadius: 14, padding: 40, textAlign: "center", maxWidth: 560, margin: "40px auto 0" }}>
                 <div style={{ width: 52, height: 52, borderRadius: 14, background: S.appTint, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
@@ -1534,9 +1524,9 @@ function EzyAiApp() {
             ) : !client ? (
               <div style={{ color: S.mut, fontSize: 13, padding: 60, textAlign: "center" }}>Keine Kunden zugewiesen.</div>
             ) : section === "llm-analytics" ? (
-              <LlmAnalyticsPanel clientId={client.id} S={S} />
+              <LlmAnalyticsPanel clientId={client.id} S={S} days={days} />
             ) : section === "traffic" ? (
-              <TrafficPanel clientId={client.id} S={S} />
+              <TrafficPanel clientId={client.id} S={S} days={days} />
             ) : section === "ki-konkurrenz" ? (
               <CompetitorsPanel clientId={client.id} S={S} />
             ) : section === "site-health" || section === "issues" ? (
