@@ -2995,6 +2995,10 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
   const [modelF, setModelF] = useState("alle");
   const [topicF, setTopicF] = useState("alle"); // Themen-Filter (C) — greift, sobald der Messlauf topic je Prompt schreibt
   const [countryF, setCountryF] = useState("alle"); // Standort-Filter (Searchable „Locations")
+  // Branded-Filter (Searchable „Branded & Unbranded", Volkan 10.08.): Marken-
+  // Prompts optional in die Präsenz-Sicht einbeziehen. Score/KPIs bleiben
+  // bewusst Markt-only, damit die Historie vergleichbar bleibt.
+  const [brandedF, setBrandedF] = useState("markt");
   if (!d) return <AIVisibilityEmpty />;
   // Rival-Domains aus dem Judge für exakte Marken-Logos registrieren (04.08.).
   registerBrandDomains(d.prompts);
@@ -3008,6 +3012,17 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
     .filter((p) => countryF === "alle" || p.country === countryF);
   const fP = byFilter(d.prompts);
   const fO = byFilter(d.promptOpps);
+  // Branded & Unbranded: Marken-Prompt-Zeilen haben dieselbe Form wie Markt-
+  // Zeilen — erwähnte laufen als Prompts, nicht erwähnte als Chancen in den
+  // Nenner. Wirkt auf Rankings, Kaufreise, Antwort-Position und Head-to-Head.
+  const isMention = (p) => p.status && p.status !== "Nicht erwähnt";
+  const branded = brandedF === "beide" && (d.brandPrompts || []).length > 0;
+  const fB = byFilter(d.brandPrompts);
+  const fPB = branded ? [...fP, ...fB.filter(isMention)] : fP;
+  const fOB = branded ? [...fO, ...fB.filter((p) => !isMention(p))] : fO;
+  // Rankings rechnet bewusst ungefiltert (Gesamtwerte) — eigener Merge-Pool.
+  const rankP = branded ? [...(d.prompts || []), ...(d.brandPrompts || []).filter(isMention)] : d.prompts;
+  const rankO = branded ? [...(d.promptOpps || []), ...(d.brandPrompts || []).filter((p) => !isMention(p))] : d.promptOpps;
   // Intent-Verteilung aus den (gefilterten) Prompt-Zeilen — ersetzt das
   // vorberechnete promptIntent, damit der Modell-Filter greift.
   const intentCounts = {};
@@ -3164,9 +3179,21 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
               {countriesAvail.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
           )}
-          {(modelF !== "alle" || topicF !== "alle" || countryF !== "alle") && (
+          {(d.brandPrompts || []).length > 0 && (
+            <select
+              value={brandedF}
+              onChange={(e) => setBrandedF(e.target.value)}
+              className="rounded-full border px-2.5 py-1 text-[11.5px]"
+              style={{ borderColor: brandedF === "markt" ? C.line : C.indigo, background: C.card, color: brandedF === "markt" ? C.sub : C.indigo }}
+              title="Searchable-Sicht: Marken-Prompts (Fragen über die Marke selbst) in Rankings, Kaufreise, Position und Head-to-Head einbeziehen. Score und KPIs bleiben Markt-only."
+            >
+              <option value="markt">Nur Markt-Prompts</option>
+              <option value="beide">Branded & Unbranded</option>
+            </select>
+          )}
+          {(modelF !== "alle" || topicF !== "alle" || countryF !== "alle" || branded) && (
             <span className="rounded-full px-2.5 py-1" style={{ background: C.cardAlt }}>
-              Filter aktiv: {[modelF !== "alle" ? `nur ${modelF}` : null, topicF !== "alle" ? `Thema „${topicF}"` : null, countryF !== "alle" ? `Standort ${countryF}` : null].filter(Boolean).join(" · ")} (Score/KPIs bleiben Gesamtwerte)
+              Filter aktiv: {[modelF !== "alle" ? `nur ${modelF}` : null, topicF !== "alle" ? `Thema „${topicF}"` : null, countryF !== "alle" ? `Standort ${countryF}` : null, branded ? "inkl. Marken-Prompts (Branded)" : null].filter(Boolean).join(" · ")} (Score/KPIs bleiben Gesamtwerte)
             </span>
           )}
           {d.versionSwitch && (
@@ -3201,7 +3228,7 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
             {/* Zeile 1 wie Searchable Visibility: Score-Verlauf | Rankings */}
             <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
               <VisibilityHero score={d.score} delta={d.versionSwitch ? 0 : d.scoreDelta} history={d.trend} daily={d.versionSwitch ? [] : d.dailyTrend} />
-              <RankingsTable prompts={d.prompts} opps={d.promptOpps} sov={d.sov} brand={d.client} sentimentPct={sentimentPct} domain={d.domain} />
+              <RankingsTable prompts={rankP} opps={rankO} sov={d.sov} brand={d.client} sentimentPct={sentimentPct} domain={d.domain} />
             </div>
             <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
               <TrendCard data={d.trend} />
@@ -3245,11 +3272,11 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
             <div className="mt-4 grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
               {/* Linke Spalte: Kaufreise + Head-to-Head (füllt den bisherigen Leerraum) */}
               <div className="grid grid-cols-1 gap-4">
-                <FunnelCard prompts={fP} opps={fO} />
-                <PositionHeadToHead prompts={fP} opps={fO} sov={d.sov} brand={d.client} only="head2head" />
+                <FunnelCard prompts={fPB} opps={fOB} />
+                <PositionHeadToHead prompts={fPB} opps={fOB} sov={d.sov} brand={d.client} only="head2head" />
               </div>
               {/* Rechte Spalte: Positions-Matrizen */}
-              <PositionHeadToHead prompts={fP} opps={fO} sov={d.sov} brand={d.client} only="positions" />
+              <PositionHeadToHead prompts={fPB} opps={fOB} sov={d.sov} brand={d.client} only="positions" />
             </div>
             {/* Share-of-Voice-Karte hier auf Wunsch entfernt (04.08.) —
                 der SoV-Donut bleibt auf dem Sichtbarkeits-Tab. */}
