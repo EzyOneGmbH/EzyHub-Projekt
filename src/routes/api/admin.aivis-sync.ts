@@ -1745,7 +1745,11 @@ async function jobPromptRunner(
       prompt: r.def.prompt,
       platform: r.platform,
       country: r.def.country || "Schweiz",
-      status: null, // Erwähnt-Status ist bei Brand-Fragen trivial — bewusst leer
+      // Erwähnt-Status seit 10.08. auch bei Brand-Zeilen (Branded-&-Unbranded-
+      // Sicht im Dashboard braucht ihn; vorher bewusst NULL). Simple Text-
+      // Erkennung genügt — bei Marken-Fragen ist die Nennung trivial.
+      status: domain && r.text.toLowerCase().includes(domain.toLowerCase())
+        ? "Referenziert" : nameRe.test(r.text) ? "Erwähnt" : "Nicht erwähnt",
       is_opportunity: false,
       intent: r.def.intent || "Navigativ",
       sentiment: null,

@@ -3016,7 +3016,13 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
   // Branded & Unbranded: Marken-Prompt-Zeilen haben dieselbe Form wie Markt-
   // Zeilen — erwähnte laufen als Prompts, nicht erwähnte als Chancen in den
   // Nenner. Wirkt auf Rankings, Kaufreise, Antwort-Position und Head-to-Head.
-  const isMention = (p) => p.status && p.status !== "Nicht erwähnt";
+  // Brand-Zeilen tragen historisch KEINEN status (Brand-Judge schreibt nur
+  // brand_eval) → Fallback: Markenname im Antwort-Text (10.08., Studioforma
+  // 49/50 Brand-Antworten nennen die Marke, alle status=NULL).
+  const brandNeedle = String(d.client || "").toLowerCase().split(".")[0];
+  const isMention = (p) => p.status
+    ? p.status !== "Nicht erwähnt"
+    : !!brandNeedle && String(p.response || "").toLowerCase().includes(brandNeedle);
   const branded = brandedF === "beide" && (d.brandPrompts || []).length > 0;
   const fB = byFilter(d.brandPrompts);
   const fPB = branded ? [...fP, ...fB.filter(isMention)] : fP;
