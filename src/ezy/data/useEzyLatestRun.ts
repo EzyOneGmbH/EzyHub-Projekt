@@ -75,36 +75,44 @@ export function ahrefsKpisFromResult(result: any): {
 } {
   const r = result || {};
   // Ahrefs API nests as { domain_rating: { domain_rating: { domain_rating: 26.0, ahrefs_rank: ... } } }
+  // DataForSEO (source:"dataforseo", seit 06.08.2026): { domain_rating: { rank },
+  //   backlinks_stats: { backlinks, referring_domains }, metrics: { organic_traffic_etv, organic_keywords } }
   const drNode = r.domain_rating?.domain_rating ?? r.domain_rating ?? {};
   const dr =
     (typeof drNode === "number" ? drNode : drNode?.domain_rating) ??
     r.domain_rating?.domain?.domain_rating ??
+    r.domain_rating?.rank ??
     0;
   const m = r.metrics?.metrics ?? r.metrics ?? {};
-  // backlinks-stats: { metrics: { all_time, all_time_refdomains, live, live_refdomains } }
+  // backlinks-stats: Ahrefs { metrics: { all_time, live, live_refdomains } } | DFS { backlinks, referring_domains }
   const bl = r.backlinks_stats?.metrics ?? r.backlinks_stats ?? {};
   return {
-    traffic: Number(m.org_traffic ?? m.paid_traffic ?? 0) || 0,
-    keywords: Number(m.org_keywords ?? m.paid_keywords ?? 0) || 0,
+    traffic:
+      Number(m.org_traffic ?? m.paid_traffic ?? 0) ||
+      Math.round(Number(m.organic_traffic_etv ?? 0)) ||
+      0,
+    keywords: Number(m.org_keywords ?? m.paid_keywords ?? m.organic_keywords ?? 0) || 0,
     score: Number(dr) || 0,
-    visibility: Number(bl.live_refdomains ?? 0) || 0,
-    backlinks: Number(bl.live ?? bl.all_time ?? 0) || 0,
+    visibility: Number(bl.live_refdomains ?? bl.referring_domains ?? 0) || 0,
+    backlinks: Number(bl.live ?? bl.all_time ?? bl.backlinks ?? 0) || 0,
   };
 }
 
 /**
- * Weekly referring-domains trend from an Ahrefs overview result.
+ * Weekly referring-domains trend from a backlink overview result.
  * Ahrefs refdomains-history: { refdomains: [{ date, refdomains }] }.
+ * DataForSEO (seit 06.08.2026): { items: [{ date, referring_domains, backlinks }] }.
  */
 export function ahrefsRefdomainsSeriesFromResult(
   result: any,
 ): Array<{ date: string; refdomains: number }> {
-  const rows = result?.refdomains_history?.refdomains;
+  const rows =
+    result?.refdomains_history?.refdomains ?? result?.refdomains_history?.items;
   if (!Array.isArray(rows)) return [];
   return rows
     .map((row: any) => ({
-      date: String(row?.date ?? ""),
-      refdomains: Number(row?.refdomains ?? 0) || 0,
+      date: String(row?.date ?? "").slice(0, 10),
+      refdomains: Number(row?.refdomains ?? row?.referring_domains ?? 0) || 0,
     }))
     .filter((row) => row.date);
 }
