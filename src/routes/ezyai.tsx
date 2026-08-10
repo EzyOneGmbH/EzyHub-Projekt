@@ -1495,10 +1495,10 @@ function EzyAiApp() {
           <main className="ezyai-main" style={{ maxWidth: 1180, margin: "0 auto", padding: "22px 22px 60px" }}>
             {/* Bereichs-Titel im Body (Volkan 10.08., Layout wie EzyRank). */}
             {view !== "agent" && (
-              <div style={{ marginBottom: 18 }}>
-                <h1 style={{ fontSize: 30, fontWeight: 800, margin: 0, letterSpacing: "-.5px" }}>{showAll ? "Agentur-Übersicht" : NAV_LABEL[section] || "Insights"}</h1>
+              <div style={{ marginBottom: 20 }}>
+                <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>{showAll ? "Agentur-Übersicht" : NAV_LABEL[section] || "Insights"}</h1>
                 {!showAll && client && (
-                  <div style={{ fontSize: 13.5, color: S.mut, marginTop: 4 }}>
+                  <div style={{ fontSize: 13, color: S.mut, marginTop: 4 }}>
                     {client.name}{(client as { domain?: string }).domain ? ` — ${(client as { domain?: string }).domain}` : ""} • {days} Tage
                   </div>
                 )}
