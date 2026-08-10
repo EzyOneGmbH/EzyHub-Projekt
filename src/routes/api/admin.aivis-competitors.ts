@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { askUtility } from "./admin.aivis-sync";
 
 // KI-Konkurrenz (06.08.2026, DataForSEO LLM Mentions top_domains/top_pages):
 // GET ?client=<uuid>&platform=google|chat_gpt liefert, welche Domains/Seiten
@@ -153,19 +154,50 @@ export const Route = createFileRoute("/api/admin/aivis-competitors")({
         if (!topics.length) topics = [client.name];
         const targets = topics.slice(0, 10).map((t) => ({ keyword: t, match_type: "partial_match" }));
 
-        const [domains, pages] = await Promise.all([
+        let [domains, pages] = await Promise.all([
           dfsLiveChunked("ai_optimization/llm_mentions/top_domains/live", targets, platform),
           dfsLiveChunked("ai_optimization/llm_mentions/top_pages/live", targets, platform),
         ]);
         if (!domains.ok && !pages.ok)
           return Response.json({ ok: false, error: domains.error || pages.error }, { status: 502 });
 
+        // Sprach-Fallback (10.08., live verifiziert): der LLM-Mentions-Korpus
+        // ist praktisch rein englisch — selbst "Kaffeemaschine"/"Krankenkasse"
+        // liefern 0 Treffer, "coffee machine" sofort Daten. Bleiben die
+        // (deutschen) Themen komplett leer, werden sie einmal auf Englisch
+        // übersetzt und erneut gemessen — als klar gekennzeichnete
+        // internationale Sicht statt eines dauerhaft leeren Tabs.
+        let note: string | undefined;
+        let usedTargets = targets;
+        const empty = !domains.rows.length && !pages.rows.length && !domains.brands.length;
+        if (empty) {
+          const txt = await askUtility(
+            `Übersetze diese Such-Themen in kurze, gebräuchliche ENGLISCHE Suchbegriffe (je max. 4 Wörter, generisch statt wörtlich — "Günstiges Brunnengeschenk Schweiz" → "charity water donation"). Antworte NUR mit JSON-Array aus Strings, gleiche Reihenfolge:\n${JSON.stringify(topics.slice(0, 10))}`,
+            800,
+          ).catch(() => null);
+          const arr = (() => { const m = String(txt || "").match(/\[[\s\S]*\]/); try { return m ? JSON.parse(m[0]) : null; } catch { return null; } })();
+          const en = Array.isArray(arr) ? [...new Set(arr.map((s: any) => String(s).trim()).filter((s: string) => s.length >= 3))].slice(0, 10) : [];
+          if (en.length) {
+            const targetsEn = en.map((t) => ({ keyword: t, match_type: "partial_match" }));
+            const [dEn, pEn] = await Promise.all([
+              dfsLiveChunked("ai_optimization/llm_mentions/top_domains/live", targetsEn, platform),
+              dfsLiveChunked("ai_optimization/llm_mentions/top_pages/live", targetsEn, platform),
+            ]);
+            if ((dEn.ok || pEn.ok) && (dEn.rows.length || pEn.rows.length || dEn.brands.length)) {
+              dEn.cost += (domains.cost || 0); pEn.cost += (pages.cost || 0);
+              domains = dEn; pages = pEn; usedTargets = targetsEn;
+              note = "Die Mentions-Datenbank deckt deutschsprachige Themen (noch) nicht ab — gezeigt wird die internationale Sicht über die englisch übersetzten Themen.";
+            }
+          }
+        }
+
         return Response.json(
           {
             ok: true,
             client: { id: client.id, name: client.name, domain: client.domain || "" },
             platform,
-            targets: targets.map((t) => t.keyword),
+            targets: usedTargets.map((t) => t.keyword),
+            note,
             domains: domains.rows,
             pages: pages.rows,
             brands: domains.brands,

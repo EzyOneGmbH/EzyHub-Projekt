@@ -790,6 +790,12 @@ function CompetitorsPanel({ clientId, S }: { clientId: string; S: Record<string,
         <div style={{ ...card, color: S.mut, fontSize: 13 }}>Daten derzeit nicht abrufbar{err ? ` — ${err}` : ""}.</div>
       ) : (
         <>
+          {data.note && (
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 8, borderRadius: 10, border: "1px solid #f0c36d", background: "#fdf6e3", color: "#8a6d1b", padding: "8px 12px", fontSize: 12 }}>
+              <span aria-hidden>🌐</span>
+              <span>{data.note}</span>
+            </div>
+          )}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 16 }}>
             {listCard("Meistzitierte Domains", "wer die KI-Antworten dominiert", data.domains || [], true)}
             {listCard("Meistzitierte Seiten", "die konkreten Quellen-URLs", data.pages || [], false)}

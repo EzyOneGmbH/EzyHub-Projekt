@@ -1175,7 +1175,9 @@ async function askUtilityMeta(prompt: string, maxTokens = 2000, temperature?: nu
   }
   return null;
 }
-async function askUtility(prompt: string, maxTokens = 2000): Promise<string | null> {
+// export (10.08.): auch die KI-Konkurrenz-Route (aivis-competitors) nutzt den
+// Utility-LLM — gleiche Provider-Kette + Kosten-Logging statt Doppel-Code.
+export async function askUtility(prompt: string, maxTokens = 2000): Promise<string | null> {
   const r = await askUtilityMeta(prompt, maxTokens);
   return r?.text ?? null;
 }
