@@ -2996,9 +2996,10 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
   const [topicF, setTopicF] = useState("alle"); // Themen-Filter (C) — greift, sobald der Messlauf topic je Prompt schreibt
   const [countryF, setCountryF] = useState("alle"); // Standort-Filter (Searchable „Locations")
   // Branded-Filter (Searchable „Branded & Unbranded", Volkan 10.08.): Marken-
-  // Prompts optional in die Präsenz-Sicht einbeziehen. Score/KPIs bleiben
-  // bewusst Markt-only, damit die Historie vergleichbar bleibt.
-  const [brandedF, setBrandedF] = useState("markt");
+  // Prompts in die Präsenz-Sicht einbeziehen — seit 10.08. DEFAULT für alle
+  // Kunden (Volkan). Score/KPIs bleiben Markt-only, damit die Historie
+  // vergleichbar bleibt.
+  const [brandedF, setBrandedF] = useState("beide");
   if (!d) return <AIVisibilityEmpty />;
   // Rival-Domains aus dem Judge für exakte Marken-Logos registrieren (04.08.).
   registerBrandDomains(d.prompts);
@@ -3184,16 +3185,16 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
               value={brandedF}
               onChange={(e) => setBrandedF(e.target.value)}
               className="rounded-full border px-2.5 py-1 text-[11.5px]"
-              style={{ borderColor: brandedF === "markt" ? C.line : C.indigo, background: C.card, color: brandedF === "markt" ? C.sub : C.indigo }}
-              title="Searchable-Sicht: Marken-Prompts (Fragen über die Marke selbst) in Rankings, Kaufreise, Position und Head-to-Head einbeziehen. Score und KPIs bleiben Markt-only."
+              style={{ borderColor: brandedF === "beide" ? C.line : C.indigo, background: C.card, color: brandedF === "beide" ? C.sub : C.indigo }}
+              title="Marken-Prompts (Fragen über die Marke selbst) in Rankings, Kaufreise, Position und Head-to-Head einbeziehen — Standard (Searchable-Sicht). Score und KPIs bleiben Markt-only."
             >
-              <option value="markt">Nur Markt-Prompts</option>
               <option value="beide">Branded & Unbranded</option>
+              <option value="markt">Nur Markt-Prompts</option>
             </select>
           )}
-          {(modelF !== "alle" || topicF !== "alle" || countryF !== "alle" || branded) && (
+          {(modelF !== "alle" || topicF !== "alle" || countryF !== "alle" || (brandedF === "markt" && (d.brandPrompts || []).length > 0)) && (
             <span className="rounded-full px-2.5 py-1" style={{ background: C.cardAlt }}>
-              Filter aktiv: {[modelF !== "alle" ? `nur ${modelF}` : null, topicF !== "alle" ? `Thema „${topicF}"` : null, countryF !== "alle" ? `Standort ${countryF}` : null, branded ? "inkl. Marken-Prompts (Branded)" : null].filter(Boolean).join(" · ")} (Score/KPIs bleiben Gesamtwerte)
+              Filter aktiv: {[modelF !== "alle" ? `nur ${modelF}` : null, topicF !== "alle" ? `Thema „${topicF}"` : null, countryF !== "alle" ? `Standort ${countryF}` : null, brandedF === "markt" && (d.brandPrompts || []).length > 0 ? "ohne Marken-Prompts (nur Markt)" : null].filter(Boolean).join(" · ")} (Score/KPIs bleiben Gesamtwerte)
             </span>
           )}
           {d.versionSwitch && (
