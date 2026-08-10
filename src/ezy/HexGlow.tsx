@@ -20,11 +20,17 @@ const TILE_SVG =
   `<path d='M13.99 9.25l13 7.5v15l-13 7.5L1 31.75v-15l12.99-7.5zM3 17.9v12.7l10.99 6.34 11-6.35V17.9l-11-6.34L3 17.9zM0 15l12.98-7.5V0h-2v6.35L0 12.69v2.3zm0 18.5L12.98 41v8h-2v-6.85L0 35.81v-2.3zM15 0v7.5L27.99 15H28v-2.31h-.01L17 6.35V0h-2zm0 49v-8l12.99-7.5H28v2.31h-.01L17 42.15V49h-2z' fill='%23B9009C' fill-rule='evenodd'/></svg>`;
 
 const LIFE_MS = 1050; // Nachleuchtdauer je Punkt (~1s)
-const MAX_ALPHA = 0.34; // Leuchtstärke im Kern (auf hellem Grund gut sichtbar, Text bleibt lesbar)
-const R_START = 85; // Fleck-Radius beim Auftreffen …
+const MAX_ALPHA = 0.22; // gedimmt (Volkan 10.08.); Text bleibt jederzeit lesbar
+const R_START = 85; // Wirkungs-Radius beim Auftreffen …
 const R_END = 150; // … weitet sich beim Ausklingen (Wave)
 const MIN_DIST = 12; // neuer Punkt erst ab dieser Cursor-Distanz (Dichte der Spur)
 const MAX_POINTS = 90;
+// Hexagon-Gitter der 28×49-Kachel (Hero-Pattern): Zellzentren liegen bei
+// (14a, 24.5b − 0.25) mit (a+b) gerade. Damit leuchten DISKRET ganze Waben
+// auf statt eines weichen Flecks (Volkan 10.08.).
+const CELL_X = 14;
+const CELL_Y = 24.5;
+const CELL_R = 16; // Kreis deckt eine ganze Wabe (Umkreis 15) ab; Stanze schneidet exakt
 
 export function HexGlowLayer() {
   const anchorRef = useRef<HTMLDivElement>(null);
@@ -72,21 +78,44 @@ export function HexGlowLayer() {
       ctx.clearRect(0, 0, vw, vh);
       if (!pts.length) return; // Spur verloschen → Schleife schläft bis zur nächsten Bewegung
       const rect = anchor.getBoundingClientRect();
-      // 1) Intensitätskarte: radiale Flecken, Alpha sinkt & Radius wächst mit dem Alter.
+      // 1) Intensität PRO WABE: jeden Energie-Punkt aufs Hex-Gitter quantisieren
+      //    und je Zelle die stärkste Intensität sammeln — eine Wabe leuchtet
+      //    einheitlich als Ganzes und glimmt als Ganzes aus.
+      const cells = new Map<string, { cx: number; cy: number; a: number }>();
       for (const p of pts) {
         const age = (now - p.born) / LIFE_MS;
-        const a = MAX_ALPHA * (1 - age) * (1 - age); // quadratisch = "langsames Ausglimmen"
-        if (a <= 0.004) continue;
+        const pa = MAX_ALPHA * (1 - age) * (1 - age); // quadratisch = "langsames Ausglimmen"
+        if (pa <= 0.004) continue;
         const r = R_START + (R_END - R_START) * age;
-        const sx = p.x + rect.left;
-        const sy = p.y + rect.top;
-        if (sx < -r || sy < -r || sx > vw + r || sy > vh + r) continue;
-        const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
-        g.addColorStop(0, `rgba(255,255,255,${a})`);
-        g.addColorStop(0.55, `rgba(255,255,255,${a * 0.55})`);
-        g.addColorStop(1, "rgba(255,255,255,0)");
-        ctx.fillStyle = g;
-        ctx.fillRect(sx - r, sy - r, r * 2, r * 2);
+        const a0 = Math.floor((p.x - r) / CELL_X);
+        const a1 = Math.ceil((p.x + r) / CELL_X);
+        const b0 = Math.floor((p.y + 0.25 - r) / CELL_Y);
+        const b1 = Math.ceil((p.y + 0.25 + r) / CELL_Y);
+        for (let a = a0; a <= a1; a++) {
+          for (let b = b0; b <= b1; b++) {
+            if ((a + b) % 2 !== 0) continue;
+            const cx = a * CELL_X;
+            const cy = b * CELL_Y - 0.25;
+            const dx = cx - p.x;
+            const dy = cy - p.y;
+            const d = Math.sqrt(dx * dx + dy * dy);
+            if (d > r) continue;
+            const ca = pa * (1 - (d / r) * (d / r)); // weiche Welle zum Rand
+            if (ca <= 0.004) continue;
+            const key = `${a},${b}`;
+            const prev = cells.get(key);
+            if (!prev || ca > prev.a) cells.set(key, { cx, cy, a: ca });
+          }
+        }
+      }
+      for (const c of cells.values()) {
+        const sx = c.cx + rect.left;
+        const sy = c.cy + rect.top;
+        if (sx < -CELL_R || sy < -CELL_R || sx > vw + CELL_R || sy > vh + CELL_R) continue;
+        ctx.fillStyle = `rgba(255,255,255,${c.a})`;
+        ctx.beginPath();
+        ctx.arc(sx, sy, CELL_R, 0, Math.PI * 2);
+        ctx.fill();
       }
       // 2) Waben-Stanze: Kachel deckungsgleich zum CSS-Pattern des Containers.
       if (pattern) {
