@@ -14180,6 +14180,36 @@ function App({ appScope = null }) {
                 </span>
               </div>
             )}
+            {/* Filter/Aktionen links neben dem Titel (Volkan 10.08.): Zeitraum,
+                Vergleich, Export, Aktualisieren aus dem rechten Cluster nach links
+                verschoben — EzyPilot/Audit/Glocke bleiben rechts. */}
+            <div
+              className="header-filters"
+              style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}
+            >
+              {page !== "tasks" && <DateRangePicker value={dateRange} onChange={setDateRange} />}
+              {page === "dashboard" && <ComparePicker value={compareMode} onChange={setCompareMode} />}
+              {page === "dashboard" && (
+                <Btn
+                  variant="secondary"
+                  size="md"
+                  icon={Download}
+                  onClick={() => exportCSV(toast, client)}
+                  disabled={!hasClients}
+                >
+                  Export
+                </Btn>
+              )}
+              <Btn
+                variant="secondary"
+                size="md"
+                icon={RefreshCw}
+                onClick={refreshAll}
+                title="Daten aktualisieren"
+              >
+                {isMobile ? null : "Aktualisieren"}
+              </Btn>
+            </div>
           </div>
           <div
             className="header-actions"
@@ -14190,28 +14220,6 @@ function App({ appScope = null }) {
               justifyContent: isMobile ? "flex-start" : "flex-end",
             }}
           >
-            {page !== "tasks" && <DateRangePicker value={dateRange} onChange={setDateRange} />}
-            {page === "dashboard" && <ComparePicker value={compareMode} onChange={setCompareMode} />}
-            {page === "dashboard" && (
-              <Btn
-                variant="secondary"
-                size="md"
-                icon={Download}
-                onClick={() => exportCSV(toast, client)}
-                disabled={!hasClients}
-              >
-                Export
-              </Btn>
-            )}
-            <Btn
-              variant="secondary"
-              size="md"
-              icon={RefreshCw}
-              onClick={refreshAll}
-              title="Daten aktualisieren"
-            >
-              {isMobile ? null : "Aktualisieren"}
-            </Btn>
             {!isViewer && <EzyPilotButton />}
             <Btn icon={Zap} onClick={() => setShowTools(true)}>
               Audit
