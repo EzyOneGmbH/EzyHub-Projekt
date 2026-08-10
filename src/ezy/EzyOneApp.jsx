@@ -261,7 +261,8 @@ const DEFAULT_CUSTOMER_DEFAULTS = {
   language: "Deutsch",
   tone: "Professionell",
   reportTemplate: "Standard",
-  visibleTabs: ["overview", "seo", "aivis", "conversions", "ads", "runs"],
+  // "overview" entfernt (Volkan 10.08.): Übersicht-Tab existiert nicht mehr.
+  visibleTabs: ["seo", "aivis", "conversions", "ads", "runs"],
 };
 function readStoredJson(key, fallback) {
   if (typeof window === "undefined") return fallback;
@@ -9212,7 +9213,7 @@ function OnboardingCard({ client, onUpdated }) {
 // Schritt 3 sammelt Properties und verlinkt ins Kunden-Panel fuer OAuth.
 // ─────────────────────────────────────────────────────────────────────────────
 const ONBOARD_TABS = [
-  { id: "overview", label: "Übersicht", hint: "KPIs, Health, Frische" },
+  // "overview" entfernt (Volkan 10.08.): Übersicht-Tab existiert nicht mehr.
   { id: "seo", label: "SEO", hint: "Rankings, GSC, CWV, Backlinks" },
   { id: "blog", label: "Blog", hint: "Blog-Artikel & Refresh-Radar" },
   { id: "aivis", label: "KI-Sichtbarkeit", hint: "AI-Citations (Canonry)" },
@@ -10024,7 +10025,7 @@ function ClientSettingsPanel({ client, onUpsertClient }) {
           <div style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 8 }}>Sichtbare Dashboard-Tabs</div>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             {[
-              { id: "overview", label: "Übersicht", icon: BarChart3 },
+              // "overview" entfernt (Volkan 10.08.): Übersicht-Tab existiert nicht mehr.
               { id: "seo", label: "SEO", icon: Globe },
               { id: "blog", label: "Blog", icon: PenTool },
               { id: "aivis", label: "KI-Sichtbarkeit", icon: Bot },
@@ -13251,7 +13252,8 @@ function AgentRunsPanel({ selectedClient }) {
 }
 
 const TABS = [
-  { id: "overview", label: "Übersicht", icon: BarChart3 },
+  // "overview" entfernt (Volkan 10.08.): Übersicht-Tab existiert nicht mehr,
+  // EzyRank (und Portal) starten direkt im SEO-Tab.
   { id: "seo", label: "SEO", icon: Globe },
   { id: "blog", label: "Blog", icon: PenTool },
   // aivis: seit Phase 2 eigene EzyAI-App unter /ezyai (Tab entfernt 31.07.)
@@ -13383,8 +13385,11 @@ function App({ appScope = null }) {
   // zurück zur zuletzt aktiven Nicht-Agent-Seite (Searchable-Muster).
   const lastDashRef = useRef(page === "copilot" ? "dashboard" : page);
   if (page !== "copilot") lastDashRef.current = page;
-  // gemerkter aivis-Tab aus der Zeit vor Phase 2 → SEO (Tab existiert nicht mehr)
-  const [tab, setTab] = useState(appStart?.tab || (ui0.tab === "aivis" ? "seo" : ui0.tab) || "seo");
+  // gemerkte Tabs, die nicht mehr existieren (aivis seit Phase 2, overview seit
+  // 10.08.) → SEO, damit der Einstieg direkt im SEO-Tab landet.
+  const [tab, setTab] = useState(
+    appStart?.tab || (ui0.tab === "aivis" || ui0.tab === "overview" ? "seo" : ui0.tab) || "seo",
+  );
   useEffect(() => {
     // Param nach dem Einstieg aus der URL nehmen, damit Reload/Bookmark wieder
     // beim gemerkten UI-Stand landet statt ewig in der Deep-Link-Ansicht.

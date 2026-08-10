@@ -74,7 +74,8 @@ export const EZY_APPS: EzyAppDef[] = [
 export const APP_SCOPES: Record<string, { pages: string[]; tabs: string[]; primary: string; home: string; services?: string[]; skillCats?: string[] }> = {
   seo: {
     pages: ["dashboard", "copilot", "tasks", "tools", "content"],
-    tabs: ["overview", "seo", "blog", "conversions"],
+    // Volkan 10.08.: Übersicht-Tab raus — EzyRank startet direkt im SEO-Tab.
+    tabs: ["seo", "blog", "conversions"],
     primary: "seo", // umgeht die Kunden-Tab-Auswahl (Kern-Tab der App)
     home: "/ezyrank",
     // kein services-Filter: SEO ist das Kernprodukt — alle Kunden sichtbar
@@ -116,7 +117,8 @@ export const APP_SCOPES: Record<string, { pages: string[]; tabs: string[]; prima
  *  (reakt) = App ist rein intern und nie kundenfähig. */
 export const APP_FEATURES: Record<EzyAppId, Array<{ id: string; label: string }>> = {
   seo: [
-    { id: "overview", label: "Übersicht" },
+    // "overview" entfernt (Volkan 10.08.): der Übersicht-Tab existiert in
+    // EzyRank nicht mehr — TAB_APP_FEATURE behält den Eintrag fürs Gating alter Stände.
     { id: "seo", label: "Rankings & GSC-Suchbegriffe" },
     { id: "blog", label: "Blog / Refresh-Radar" },
     { id: "conversions", label: "Conversions" },
