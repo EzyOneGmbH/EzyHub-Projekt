@@ -14281,7 +14281,12 @@ function App({ appScope = null }) {
           style={{
             position: "sticky",
             top: 0,
-            zIndex: 40,
+            // z60 > Sidebar (z50), Fix 11.08.: der Header ist ein Stacking-
+            // Kontext — seine Dropdowns (Datum/Vergleich, z60 intern) waren
+            // sonst auf Header-Niveau gedeckelt und wurden von der Sidebar
+            // abgeschnitten, sobald das Popup über deren Kante ragte.
+            // Header und Sidebar überlappen sich räumlich nie (marginLeft).
+            zIndex: 60,
             background: `${C.bg}ee`,
             backdropFilter: "blur(12px)",
             borderBottom: `1px solid ${C.border}`,
