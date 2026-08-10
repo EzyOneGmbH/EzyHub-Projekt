@@ -4931,7 +4931,7 @@ const AIVIS_WINDOWS = [
 // kein Report existiert Fallback auf die bestehende Canonry-Ansicht darunter.
 // Phase 2 (31.07.): auch von der eigenständigen EzyAI-App (/ezyai) genutzt —
 // Komponente umgezogen statt neu gebaut; hier bleibt nur noch der Export.
-export function AiVisibilityTab({ selectedClient, navStyle }) {
+export function AiVisibilityTab({ selectedClient, navStyle, onReviewPrompts }) {
   const { data, loading, error } = useEzyAIVisibility(
     selectedClient?.id,
     selectedClient?.domain || selectedClient?.name,
@@ -4947,7 +4947,7 @@ export function AiVisibilityTab({ selectedClient, navStyle }) {
   if (loading) return <AIVisibilitySkeleton />;
   // AI-Zitationen-Panel (Modul 2, Stadt-/Kategorie-Ebene) auf Wunsch entfernt (04.08.).
   return (
-    <AIVisibilityReport data={data && !error ? data : null} convRows={convRows} navStyle={navStyle} />
+    <AIVisibilityReport data={data && !error ? data : null} convRows={convRows} navStyle={navStyle} onReviewPrompts={onReviewPrompts} />
   );
 }
 

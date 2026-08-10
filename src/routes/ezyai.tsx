@@ -1395,7 +1395,7 @@ function EzyAiApp() {
               </div>
             ) : (
               <>
-                <AiVisibilityTab selectedClient={client} navStyle="topbar" />
+                <AiVisibilityTab selectedClient={client} navStyle="topbar" onReviewPrompts={() => setCurOpen(true)} />
                 <CrawlerCard clientId={client.id} S={S} />
               </>
             )}

@@ -1204,7 +1204,7 @@ function promptsToCsv(rows) {
   return "﻿" + [head.map(esc).join(";"), ...lines].join("\r\n");
 }
 
-function PromptsTable({ prompts, opps, brand, brandPrompts = [], needsReview = 0 }) {
+function PromptsTable({ prompts, opps, brand, brandPrompts = [], needsReview = 0, onReview }) {
   const [tab, setTab] = useState("all");
   const [page, setPage] = useState(0);
   const [q, setQ] = useState("");            // Suchfeld (Searchable-Parität)
@@ -1276,13 +1276,23 @@ function PromptsTable({ prompts, opps, brand, brandPrompts = [], needsReview = 0
         </div>
       </div>
       {needsReview > 0 && (
-        <div className="mx-5 mt-3 flex items-start gap-2 rounded-lg border px-3 py-2 text-[11px]"
-          style={{ borderColor: "#f0c36d", background: "#fdf6e3", color: "#8a6d1b" }}>
+        <div
+          role={onReview ? "button" : undefined}
+          tabIndex={onReview ? 0 : undefined}
+          onClick={onReview}
+          onKeyDown={onReview ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onReview(); } } : undefined}
+          className="mx-5 mt-3 flex items-start gap-2 rounded-lg border px-3 py-2 text-[11px]"
+          style={{ borderColor: "#f0c36d", background: "#fdf6e3", color: "#8a6d1b", cursor: onReview ? "pointer" : undefined }}>
           <span aria-hidden>⚠️</span>
-          <span>
+          <span className="flex-1">
             <strong>{needsReview} {needsReview === 1 ? "Prompt wartet" : "Prompts warten"} auf Prüfung.</strong>{" "}
             Frisch generierte oder vom Relevanz-Check als themenfremd deaktivierte Prompts – sie werden nicht gemessen, bis sie bestätigt sind. So landen keine falschen Prompts (z. B. aus einer fremden Branche) im Dashboard.
           </span>
+          {onReview && (
+            <span className="whitespace-nowrap font-semibold underline" style={{ alignSelf: "center" }}>
+              Jetzt prüfen →
+            </span>
+          )}
         </div>
       )}
       <div className="flex flex-wrap items-center justify-between gap-2 px-5 pt-2 text-[11px]" style={{ color: C.sub }}>
@@ -2988,7 +2998,7 @@ function buildTabGroups(d) {
 
 // navStyle: "sidebar" = eigene vertikale Nav (Standalone) · "topbar" = horizontale
 // Bereichs-Leiste im Content (eingebettet in die EzyAI-Shell, Searchable-Layout).
-export default function AIVisibilityDashboard({ data, convRows = [], navStyle = "sidebar" }) {
+export default function AIVisibilityDashboard({ data, convRows = [], navStyle = "sidebar", onReviewPrompts }) {
   const d = data;
   const isTop = navStyle === "topbar";
   const [tab, setTab] = useState("uebersicht");
@@ -3291,7 +3301,7 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
                 hängen jetzt hier am Ende — wie Searchables Mentions & Citations. */}
             <div className="mt-4 grid grid-cols-1 gap-4">
               <PromptMatrix prompts={fP} opps={fO} />
-              <PromptsTable prompts={fP} opps={fO} brand={d.client} brandPrompts={d.brandPrompts || []} needsReview={d.promptsNeedsReview || 0} />
+              <PromptsTable prompts={fP} opps={fO} brand={d.client} brandPrompts={d.brandPrompts || []} needsReview={d.promptsNeedsReview || 0} onReview={onReviewPrompts} />
               <GoogleSerpAiCard serpAi={d.serpAi} brand={d.client} />
             </div>
           </>
