@@ -91,10 +91,17 @@ export const Route = createFileRoute("/api/admin/aivis-competitors")({
         if (rep?.id) {
           const { data: prompts } = await db
             .from("ai_visibility_prompts").select("topic").eq("report_id", rep.id).limit(1000);
-          topics = [...new Set((prompts || []).map((p: any) => String(p.topic || "").trim()).filter((t: string) => t.length >= 3))] as string[];
+          // Häufigste Themen zuerst — DataForSEO erlaubt max. 10 target-Items
+          // (40501 bei mehr; fiel erst bei Kunden mit >10 Themen auf).
+          const freq = new Map<string, number>();
+          for (const p of prompts || []) {
+            const t = String(p.topic || "").trim();
+            if (t.length >= 3) freq.set(t, (freq.get(t) || 0) + 1);
+          }
+          topics = [...freq.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t);
         }
         if (!topics.length) topics = [client.name];
-        const targets = topics.slice(0, 30).map((t) => ({ keyword: t, match_type: "partial_match" }));
+        const targets = topics.slice(0, 10).map((t) => ({ keyword: t, match_type: "partial_match" }));
 
         const base = { target: targets, platform, items_list_limit: 10 };
         const [domains, pages] = await Promise.all([
