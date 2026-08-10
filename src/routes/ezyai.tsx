@@ -44,7 +44,7 @@ function useChartWidth(fallback: number, min: number): [(el: HTMLDivElement | nu
 type NavItem = { id: string; label: string; icon: any; soon?: boolean; badge?: number };
 const APP_NAV: Array<{ group: string; items: NavItem[] }> = [
   { group: "Analytics", items: [
-    { id: "aeo-insights", label: "AEO Insights", icon: LineChart },
+    { id: "aeo-insights", label: "Insights", icon: LineChart },
     { id: "llm-analytics", label: "LLM Analytics", icon: Zap },
     { id: "traffic", label: "Traffic", icon: Activity },
     // KI-Konkurrenz (06.08.): DataForSEO LLM-Mentions top_domains/top_pages —
@@ -1355,7 +1355,7 @@ function EzyAiApp() {
           {/* Kontext-Kopfzeile: Bereichs-Titel + Aktionen (Kunde ist jetzt in der Sidebar) */}
           <header className="ezyai-chead" style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 22px", background: S.panel, borderBottom: `1px solid ${S.line}`, position: "sticky", top: 0, zIndex: 30 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: S.txt }}>
-              {view === "agent" ? "Agent" : NAV_LABEL[section] || "AEO Insights"}
+              {view === "agent" ? "Agent" : NAV_LABEL[section] || "Insights"}
             </div>
             <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
               {isOrgAdmin && client?.id && (
@@ -1395,7 +1395,7 @@ function EzyAiApp() {
               <div style={{ background: S.panel, border: `1px solid ${S.line}`, borderRadius: 14, padding: 40, textAlign: "center", maxWidth: 560, margin: "40px auto 0" }}>
                 <div style={{ fontSize: 30, marginBottom: 12 }}>🧭</div>
                 <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>{NAV_LABEL[section]} — in Vorbereitung</div>
-                <div style={{ fontSize: 13, color: S.mut }}>Dieser Bereich wird noch konfiguriert. Der volle KI-Sichtbarkeits-Report liegt unter „AEO Insights".</div>
+                <div style={{ fontSize: 13, color: S.mut }}>Dieser Bereich wird noch konfiguriert. Der volle KI-Sichtbarkeits-Report liegt unter „Insights".</div>
               </div>
             ) : !aivisOn ? (
               <div style={{ background: S.panel, border: `1px solid ${S.line}`, borderRadius: 14, padding: 40, textAlign: "center", maxWidth: 560, margin: "60px auto 0" }}>
