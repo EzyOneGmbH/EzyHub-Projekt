@@ -2533,40 +2533,76 @@ function DTable({ columns, data }) {
 // DASHBOARDS (preserved)
 // ═══════════════════════════════════════════════════════════════════════════
 function AgencyOverview({ clients, onSelect }) {
-  const ac = clients.filter((c) => c.status === "active").length;
-  const as = clients.length
-    ? Math.round(clients.reduce((s, c) => s + c.score, 0) / clients.length)
-    : 0;
+  // Kachel-Kennzahlen (Volkan 10.08.): Top-3/Top-10 aus dem letzten
+  // rankings-Lauf (result.aggregate), organischer Traffic aus dem letzten
+  // ahrefs-Lauf (DataForSEO organic_traffic_etv). Batch: EINE Query je Typ
+  // mit JSON-Teilpfad-Select statt 14 Einzel-Fetches mit vollen Payloads.
+  const [stats, setStats] = useState({});
+  useEffect(() => {
+    let alive = true;
+    const ids = clients.map((c) => c.id).filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+    if (!ids.length) return;
+    (async () => {
+      try {
+        const [rankRes, seoRes] = await Promise.all([
+          supabase
+            .from("audit_runs")
+            .select("client_id, created_at, agg:result->aggregate")
+            .in("client_id", ids)
+            .eq("audit_type", "rankings")
+            .eq("status", "succeeded")
+            .order("created_at", { ascending: false })
+            .limit(200),
+          supabase
+            .from("audit_runs")
+            .select("client_id, created_at, m:result->metrics")
+            .in("client_id", ids)
+            .eq("audit_type", "ahrefs")
+            .eq("status", "succeeded")
+            .order("created_at", { ascending: false })
+            .limit(200),
+        ]);
+        if (!alive) return;
+        const next = {};
+        for (const row of rankRes.data || []) {
+          if (next[row.client_id]?.top3 != null) continue; // erste Zeile = neuester Lauf
+          const a = row.agg || {};
+          next[row.client_id] = {
+            ...next[row.client_id],
+            top3: Number(a.top3 ?? 0) || 0,
+            top10: Number(a.top10 ?? 0) || 0,
+          };
+        }
+        for (const row of seoRes.data || []) {
+          if (next[row.client_id]?.traffic != null) continue;
+          const m = row.m?.metrics ?? row.m ?? {}; // Ahrefs nested / DataForSEO flach
+          next[row.client_id] = {
+            ...next[row.client_id],
+            traffic:
+              Number(m.org_traffic ?? 0) ||
+              Math.round(Number(m.organic_traffic_etv ?? 0)) ||
+              0,
+          };
+        }
+        setStats(next);
+      } catch {
+        /* Kacheln zeigen dann — */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [clients]);
   // Kacheln nach Score absteigend, dann alphabetisch — beste Kunden zuerst.
   const tiles = [...clients].sort(
     (a, b) => b.score - a.score || a.name.localeCompare(b.name),
   );
   return (
     <>
-      <div
-        className="dash-kpis"
-        style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 20 }}
-      >
-        <KpiCard icon={Users} label="Aktive Kunden" value={ac} color={C.accent} />
-        <KpiCard icon={Eye} label="Ø Score" value={as} suffix="/100" color={C.blue} />
-        <KpiCard
-          icon={Bot}
-          label="AI Visitors"
-          value={clients.reduce((s, c) => s + c.aiVisitors, 0)}
-          change={18}
-          color={C.green}
-        />
-        <KpiCard
-          icon={DollarSign}
-          label="Revenue"
-          value={`CHF ${(clients.reduce((s, c) => s + c.revenue, 0) / 1000).toFixed(0)}k`}
-          change={14}
-          color={C.orange}
-        />
-      </div>
       {/* Kunden-Kacheln (Volkan 10.08.): bei "Alle Kunden" werden alle
           berechtigten Kunden als anklickbare Kacheln gezeigt — ein Klick öffnet
-          das Dashboard des jeweiligen Kunden. */}
+          das Dashboard des jeweiligen Kunden. Die frühere KPI-Karten-Reihe
+          (Aktive Kunden / Ø Score / AI Visitors / Revenue) ist entfernt. */}
       <div
         style={{
           display: "flex",
@@ -2680,12 +2716,14 @@ function AgencyOverview({ clients, onSelect }) {
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
                 {[
-                  { label: "Score", value: `${c.score}/100` },
-                  { label: "AI Visitors", value: c.aiVisitors.toLocaleString("de-CH") },
-                  { label: "Keywords", value: c.keywords.toLocaleString("de-CH") },
+                  { label: "Top 3", value: stats[c.id]?.top3 },
+                  { label: "Top 10", value: stats[c.id]?.top10 },
+                  { label: "Org. Traffic", value: stats[c.id]?.traffic },
                 ].map((m) => (
                   <div key={m.label}>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{m.value}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>
+                      {m.value != null ? m.value.toLocaleString("de-CH") : "—"}
+                    </div>
                     <div style={{ fontSize: 10, color: C.textMuted }}>{m.label}</div>
                   </div>
                 ))}
