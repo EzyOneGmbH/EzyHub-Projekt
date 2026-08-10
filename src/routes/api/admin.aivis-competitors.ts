@@ -7,14 +7,25 @@ import { askUtility } from "./admin.aivis-sync";
 // GET ?client=<uuid>&platform=google|chat_gpt liefert, welche Domains/Seiten
 // in den LLM-Antworten zu den Mess-Themen des Kunden am häufigsten zitiert
 // werden — die "Wer gewinnt die KI-Antworten in deinem Markt"-Sicht.
-// Targets = die Topics der aivis-Prompts des neuesten Reports (max 30).
+//
+// Umbau 10.08.2026 nach Live-Vermessung des Mentions-Korpus:
+// - Der Korpus ist praktisch REIN ENGLISCH ("Kaffeemaschine"/"Krankenkasse"
+//   = 0 Treffer, "coffee machine" sofort Daten) → Themen werden per Utility-
+//   LLM zu 5 englischen KERNBEGRIFFEN destilliert (bevorzugt Einzelwörter:
+//   "charity" trifft, "water charity" nicht).
+// - EIN Begriff ohne Treffer leert das GESAMTE Ergebnis (6 gute + 1 toter
+//   = 0 Items) → bei leerem Batch werden die Begriffe einzeln abgefragt und
+//   die Treffer per key zusammengeführt.
+// - >10 Targets → 40501; lange Phrasen-Kombis → 50000 (internes ~50s-Limit).
+// - Kosten sind PRO TASK (~0.10 USD) → 24h-Cache je Kunde+Plattform in
+//   audit_runs (audit_type ki_konkurrenz), ?refresh=1 erzwingt neu.
 // Die Mentions-DB kennt KEINEN location-Parameter (Länder stecken als
-// Aggregat-Split in der Antwort); Antwort-Shape live verifiziert 2026-08-06:
-// result[0].items[] = { key: domain|url, platform:[{mentions, ai_search_volume}] },
-// result[0].total.brand_entities_title = meist-genannte Marken.
+// Aggregat-Split in der Antwort).
 //
 // Auth: eingeloggter EzyHub-User (RLS via can_access_client) oder
 // ADMIN_AUTOMATION_SECRET (konsistent mit llm-traffic/site-health).
+
+const BUILD = "2026-08-10-core-terms";
 
 async function requireUser(request: Request): Promise<{ userClient: any | null } | Response> {
   const admin = process.env.ADMIN_AUTOMATION_SECRET;
@@ -55,67 +66,70 @@ async function dfsLive(path: string, task: any): Promise<{ ok: boolean; result?:
   }
 }
 
-// Aggregat-Zeile: mentions/ai_search_volume stecken je Eintrag im platform-Split.
+// Aggregat-Zeile: mentions/ai_search_volume stecken je Eintrag im platform-
+// bzw. location-Split (die API liefert je nach Filter das eine oder andere).
 function rowsOf(result: any): Array<{ key: string; mentions: number; aiVolume: number }> {
   return ((result?.items as any[]) || []).map((it) => {
-    const plat = Array.isArray(it.platform) ? it.platform : [];
+    const split = Array.isArray(it.platform) ? it.platform : Array.isArray(it.location) ? it.location : [];
     return {
       key: String(it.key || ""),
-      mentions: plat.reduce((a: number, p: any) => a + Number(p.mentions || 0), 0),
-      aiVolume: plat.reduce((a: number, p: any) => a + Number(p.ai_search_volume || 0), 0),
+      mentions: split.reduce((a: number, p: any) => a + Number(p.mentions || 0), 0),
+      aiVolume: split.reduce((a: number, p: any) => a + Number(p.ai_search_volume || 0), 0),
     };
   }).filter((r) => r.key);
 }
 
-// Gechunkte Live-Abfrage (10.08.): DataForSEO rechnet je Long-Tail-Target
-// ~5-7s und bricht bei ~50s intern ab (50000 Internal Error) — 10 Targets in
-// EINEM Task rissen das bei Kunden mit langen Themen-Phrasen (FiH); selbst 5
-// schwere Phrasen zusammen scheiterten im Live-Test. Kosten sind PRO TASK
-// (~0.10 USD, unabhängig von der Target-Zahl) — deshalb erst EIN Versuch mit
-// allen Targets (Normalfall, günstig) und nur bei Fehler der Fallback: max. 3
-// Targets pro Task (Worst Case ~21s), parallel, per key zusammengeführt.
-async function dfsLiveChunked(
-  path: string, targets: any[], platform: string,
-): Promise<{ ok: boolean; rows: Array<{ key: string; mentions: number; aiVolume: number }>; brands: any[]; error?: string; cost: number }> {
-  const first = await dfsLive(path, { target: targets, platform, items_list_limit: 10 });
-  let res: Array<{ ok: boolean; result?: any; error?: string; cost?: number }>;
-  if (first.ok || targets.length <= 3) {
-    res = [first];
-  } else {
-    const chunks: any[][] = [];
-    for (let i = 0; i < targets.length; i += 3) chunks.push(targets.slice(i, i + 3));
-    res = await Promise.all(chunks.map((t) =>
-      dfsLive(path, { target: t, platform, items_list_limit: 10 })));
-    res.push(first); // fürs Cost-Aggregat; first.ok ist false → zählt nicht als Treffer
+type Row = { key: string; mentions: number; aiVolume: number };
+function mergeInto(map: Map<string, Row>, rows: Row[]) {
+  for (const row of rows) {
+    const m = map.get(row.key);
+    if (m) { m.mentions += row.mentions; m.aiVolume += row.aiVolume; }
+    else map.set(row.key, { ...row });
   }
-  const okRes = res.filter((r) => r.ok);
-  if (!okRes.length) return { ok: false, rows: [], brands: [], error: res[0]?.error, cost: 0 };
-  const byKey = new Map<string, { key: string; mentions: number; aiVolume: number }>();
-  const brandByKey = new Map<string, { key: string; mentions: number; aiVolume: number }>();
-  for (const r of okRes) {
-    for (const row of rowsOf(r.result)) {
-      const m = byKey.get(row.key);
-      if (m) { m.mentions += row.mentions; m.aiVolume += row.aiVolume; }
-      else byKey.set(row.key, { ...row });
-    }
-    for (const b of (r.result?.total?.brand_entities_title as any[]) || []) {
-      const key = String(b.key || "");
-      if (!key) continue;
-      const m = brandByKey.get(key);
-      const mentions = Number(b.mentions || 0), aiVolume = Number(b.ai_search_volume || 0);
-      if (m) { m.mentions += mentions; m.aiVolume += aiVolume; }
-      else brandByKey.set(key, { key, mentions, aiVolume });
-    }
+}
+function brandsOf(result: any): Row[] {
+  return (((result?.total?.brand_entities_title as any[]) || []))
+    .map((b) => ({ key: String(b.key || ""), mentions: Number(b.mentions || 0), aiVolume: Number(b.ai_search_volume || 0) }))
+    .filter((b) => b.key);
+}
+
+// Erst EIN Batch-Task mit allen Begriffen (günstig); bleibt er leer oder
+// scheitert er, Einzel-Abfragen je Begriff parallel + Merge — tote Begriffe
+// fallen dabei einfach weg statt alles zu leeren.
+async function queryTerms(
+  path: string, terms: string[], platform: string,
+): Promise<{ ok: boolean; rows: Row[]; brands: Row[]; error?: string; cost: number; singles: boolean }> {
+  const mk = (kws: string[]) => ({
+    target: kws.map((k) => ({ keyword: k, match_type: "partial_match" })),
+    platform, items_list_limit: 10,
+  });
+  const batch = await dfsLive(path, mk(terms));
+  let cost = batch.cost || 0;
+  if (batch.ok && ((batch.result?.items || []).length || brandsOf(batch.result).length)) {
+    return { ok: true, rows: rowsOf(batch.result).slice(0, 10), brands: brandsOf(batch.result).slice(0, 10), cost, singles: false };
   }
-  const sortDesc = (a: any, b: any) => b.mentions - a.mentions;
+  const singles = await Promise.all(terms.map((t) => dfsLive(path, mk([t]))));
+  const rowMap = new Map<string, Row>(), brandMap = new Map<string, Row>();
+  let anyOk = false;
+  for (const s of singles) {
+    cost += s.cost || 0;
+    if (!s.ok) continue;
+    anyOk = true;
+    mergeInto(rowMap, rowsOf(s.result));
+    mergeInto(brandMap, brandsOf(s.result));
+  }
+  const byMentions = (a: Row, b: Row) => b.mentions - a.mentions;
+  if (!anyOk && !batch.ok) return { ok: false, rows: [], brands: [], error: batch.error || singles.find((s) => !s.ok)?.error, cost, singles: true };
   return {
     ok: true,
-    rows: [...byKey.values()].sort(sortDesc).slice(0, 10),
-    brands: [...brandByKey.values()].sort(sortDesc).slice(0, 10),
-    error: okRes.length < res.length ? res.find((r) => !r.ok)?.error : undefined,
-    cost: res.reduce((a, r) => a + (r.cost || 0), 0),
+    rows: [...rowMap.values()].sort(byMentions).slice(0, 10),
+    brands: [...brandMap.values()].sort(byMentions).slice(0, 10),
+    cost, singles: true,
   };
 }
+
+const CACHE_TYPE = "ki_konkurrenz";
+const CACHE_MS = 24 * 3600 * 1000;
 
 export const Route = createFileRoute("/api/admin/aivis-competitors")({
   server: {
@@ -126,15 +140,30 @@ export const Route = createFileRoute("/api/admin/aivis-competitors")({
         const u = new URL(request.url);
         const clientId = u.searchParams.get("client") || "";
         const platform = u.searchParams.get("platform") === "chat_gpt" ? "chat_gpt" : "google";
+        const refresh = u.searchParams.get("refresh") === "1";
         if (!/^[0-9a-f-]{36}$/i.test(clientId))
           return Response.json({ ok: false, error: "client (uuid) erforderlich" }, { status: 400 });
 
+        // Zugriff prüft die RLS-Sicht des eingeloggten Users (oder Admin-Secret).
         const db = auth.userClient ?? (supabaseAdmin as any);
         const { data: client } = await db
-          .from("clients").select("id, name, domain").eq("id", clientId).maybeSingle();
+          .from("clients").select("id, name, domain, organization_id").eq("id", clientId).maybeSingle();
         if (!client) return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
 
-        // Themen des neuesten aivis-Reports als Mess-Targets.
+        // 24h-Cache (audit_runs) — Kosten sind pro DataForSEO-Task.
+        const sbA = supabaseAdmin as any;
+        if (!refresh) {
+          const since = new Date(Date.now() - CACHE_MS).toISOString();
+          const { data: cached } = await sbA
+            .from("audit_runs").select("result, created_at")
+            .eq("client_id", clientId).eq("audit_type", CACHE_TYPE).eq("status", "succeeded")
+            .eq("input->>platform", platform).gte("created_at", since)
+            .order("created_at", { ascending: false }).limit(1).maybeSingle();
+          if (cached?.result?.ok)
+            return Response.json({ ...cached.result, cached: true, cachedAt: cached.created_at }, { headers: { "Cache-Control": "no-store" } });
+        }
+
+        // Themen des neuesten aivis-Reports, häufigste zuerst.
         const { data: rep } = await db
           .from("ai_visibility_reports").select("id").eq("client_id", clientId)
           .order("snapshot_date", { ascending: false }).limit(1).maybeSingle();
@@ -142,8 +171,6 @@ export const Route = createFileRoute("/api/admin/aivis-competitors")({
         if (rep?.id) {
           const { data: prompts } = await db
             .from("ai_visibility_prompts").select("topic").eq("report_id", rep.id).limit(1000);
-          // Häufigste Themen zuerst — DataForSEO erlaubt max. 10 target-Items
-          // (40501 bei mehr; fiel erst bei Kunden mit >10 Themen auf).
           const freq = new Map<string, number>();
           for (const p of prompts || []) {
             const t = String(p.topic || "").trim();
@@ -152,72 +179,54 @@ export const Route = createFileRoute("/api/admin/aivis-competitors")({
           topics = [...freq.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t);
         }
         if (!topics.length) topics = [client.name];
-        const targets = topics.slice(0, 10).map((t) => ({ keyword: t, match_type: "partial_match" }));
 
-        let [domains, pages] = await Promise.all([
-          dfsLiveChunked("ai_optimization/llm_mentions/top_domains/live", targets, platform),
-          dfsLiveChunked("ai_optimization/llm_mentions/top_pages/live", targets, platform),
+        // 5 englische Kernbegriffe der Branche destillieren (Korpus-Realität).
+        const txt = await askUtility(
+          `Destilliere aus diesen Such-Themen der Firma "${client.name}" die 5 gebräuchlichsten ENGLISCHEN Kernbegriffe ihrer Branche (bevorzugt EIN einzelnes gängiges Wort, max. 2 nur bei festen Begriffen wie "coffee machine"; generisch statt wörtlich — "Günstiges Brunnengeschenk Schweiz" → "charity"). Keine Dubletten, keine seltenen Wörter. Antworte NUR mit JSON-Array aus 5 Strings:\n${JSON.stringify(topics.slice(0, 15))}`,
+          600,
+        ).catch(() => null);
+        const arr = (() => { const m = String(txt || "").match(/\[[\s\S]*\]/); try { return m ? JSON.parse(m[0]) : null; } catch { return null; } })();
+        const terms = Array.isArray(arr)
+          ? [...new Set(arr.map((s: any) => String(s).trim()).filter((s: string) => s.length >= 3))].slice(0, 5)
+          : [];
+        if (!terms.length)
+          return Response.json({ ok: false, error: "Kernbegriffe nicht ableitbar (Utility-LLM)" }, { status: 502 });
+
+        const [domains, pages] = await Promise.all([
+          queryTerms("ai_optimization/llm_mentions/top_domains/live", terms, platform),
+          queryTerms("ai_optimization/llm_mentions/top_pages/live", terms, platform),
         ]);
         if (!domains.ok && !pages.ok)
           return Response.json({ ok: false, error: domains.error || pages.error }, { status: 502 });
 
-        // Sprach-Fallback (10.08., live verifiziert): der LLM-Mentions-Korpus
-        // ist praktisch rein englisch — selbst "Kaffeemaschine"/"Krankenkasse"
-        // liefern 0 Treffer, "coffee machine" sofort Daten. Bleiben die
-        // (deutschen) Themen komplett leer, werden sie einmal auf Englisch
-        // übersetzt und erneut gemessen — als klar gekennzeichnete
-        // internationale Sicht statt eines dauerhaft leeren Tabs.
-        let note: string | undefined;
-        let usedTargets = targets;
-        // Debug-Sicht (10.08.): build + was der Sprach-Fallback getan hat —
-        // ohne das ist "leer" von "Fallback lief nicht" extern nicht
-        // unterscheidbar (kostete beim 12b5fb5-Rollout eine Debug-Runde).
-        const fb: any = { tried: false };
-        const empty = !domains.rows.length && !pages.rows.length && !domains.brands.length;
-        if (empty) {
-          fb.tried = true;
-          // Die Mentions-DB matcht Phrasen als Wortfolge: Einzelwörter treffen
-          // ("charity", "donation"), Mehrwort-Kombis fast nie ("water charity"
-          // = 0; Ausnahme sehr gängige Produkt-Phrasen wie "coffee machine").
-          // Deshalb Kern-BEGRIFFE statt Übersetzungen.
-          const txt = await askUtility(
-            `Destilliere aus diesen Such-Themen die gebräuchlichsten ENGLISCHEN Kernbegriffe der Branche (bevorzugt EIN einzelnes Wort, max. 2 nur bei festen Begriffen wie "coffee machine"; generisch statt wörtlich — "Günstiges Brunnengeschenk Schweiz" → "charity"). Dubletten weglassen, 5-10 Begriffe. Antworte NUR mit JSON-Array aus Strings:\n${JSON.stringify(topics.slice(0, 10))}`,
-            800,
-          ).catch(() => null);
-          const arr = (() => { const m = String(txt || "").match(/\[[\s\S]*\]/); try { return m ? JSON.parse(m[0]) : null; } catch { return null; } })();
-          const en = Array.isArray(arr) ? [...new Set(arr.map((s: any) => String(s).trim()).filter((s: string) => s.length >= 3))].slice(0, 10) : [];
-          fb.en = en; fb.llmOk = !!txt;
-          if (en.length) {
-            const targetsEn = en.map((t) => ({ keyword: t, match_type: "partial_match" }));
-            const [dEn, pEn] = await Promise.all([
-              dfsLiveChunked("ai_optimization/llm_mentions/top_domains/live", targetsEn, platform),
-              dfsLiveChunked("ai_optimization/llm_mentions/top_pages/live", targetsEn, platform),
-            ]);
-            fb.enRows = { domains: dEn.rows.length, pages: pEn.rows.length, brands: dEn.brands.length, dErr: dEn.error, pErr: pEn.error };
-            if ((dEn.ok || pEn.ok) && (dEn.rows.length || pEn.rows.length || dEn.brands.length)) {
-              dEn.cost += (domains.cost || 0); pEn.cost += (pages.cost || 0);
-              domains = dEn; pages = pEn; usedTargets = targetsEn;
-              note = "Die Mentions-Datenbank deckt deutschsprachige Themen (noch) nicht ab — gezeigt wird die internationale Sicht über die englisch übersetzten Themen.";
-            }
-          }
-        }
+        const payload = {
+          ok: true,
+          build: BUILD,
+          client: { id: client.id, name: client.name, domain: client.domain || "" },
+          platform,
+          targets: terms,
+          note: "Messung über englische Kernbegriffe der Branche — der LLM-Mentions-Korpus von DataForSEO ist englischsprachig (internationale Sicht). Aktualisierung max. 1×/Tag.",
+          domains: domains.rows,
+          pages: pages.rows,
+          brands: domains.brands,
+          cost: (domains.cost || 0) + (pages.cost || 0),
+        };
 
-        return Response.json(
-          {
-            ok: true,
-            build: "2026-08-10-lang-fallback",
-            client: { id: client.id, name: client.name, domain: client.domain || "" },
-            platform,
-            targets: usedTargets.map((t) => t.keyword),
-            note,
-            fallback: fb,
-            domains: domains.rows,
-            pages: pages.rows,
-            brands: domains.brands,
-            cost: (domains.cost || 0) + (pages.cost || 0),
-          },
-          { headers: { "Cache-Control": "no-store" } },
-        );
+        // Cache-Write additiv; Fehler hier dürfen die Antwort nie kippen.
+        try {
+          await sbA.from("audit_runs").insert({
+            organization_id: client.organization_id,
+            client_id: clientId,
+            audit_type: CACHE_TYPE,
+            status: "succeeded",
+            input: { platform, terms },
+            result: payload,
+            started_at: new Date().toISOString(),
+            finished_at: new Date().toISOString(),
+          });
+        } catch { /* Cache ist Komfort */ }
+
+        return Response.json(payload, { headers: { "Cache-Control": "no-store" } });
       },
     },
   },
