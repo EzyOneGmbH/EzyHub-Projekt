@@ -4292,11 +4292,17 @@ function ConvDashboard({ selectedClient, dateRange }) {
   const convSeries = useMemo(() => (conv?.series || []).slice(-days), [conv?.series, days]);
   const googleVsAi = traf?.googleVsAi || null;
   // Dashboard-Ausbau 2026-07-11: B3 Kanal-Split (neues channels-Feld) + B5b Umsatz-Modus.
-  const channels = Array.isArray(convRes?.channels)
+  // Datumsfilter-Regression (10.-11.08.): die Live-Antwort verdrängte den
+  // Agent-Snapshot, hatte aber KEIN channels-Feld -> Kanäle-Widget verschwand.
+  // Live-Route liefert channels jetzt mit; zusätzlich Snapshot-Fallback, damit
+  // das Widget nie wieder an einer lückenhaften Live-Antwort hängt.
+  const channels = Array.isArray(convRes?.channels) && convRes.channels.length
     ? convRes.channels
-    : Array.isArray(trafRes?.channels) && trafRes.channels.some((ch) => ch.conversions != null)
-      ? trafRes.channels
-      : null;
+    : Array.isArray(convRun?.result?.channels) && convRun.result.channels.length
+      ? convRun.result.channels
+      : Array.isArray(trafRes?.channels) && trafRes.channels.some((ch) => ch.conversions != null)
+        ? trafRes.channels
+        : null;
   const channelTotalSessions = channels ? channels.reduce((a, ch) => a + (ch.sessions || 0), 0) : 0;
   const organicChannel = channels ? channels.find((ch) => /^organic search$/i.test(ch.channel)) : null;
   const organicShare =
@@ -4313,7 +4319,9 @@ function ConvDashboard({ selectedClient, dateRange }) {
   const avgSession = Number(ga4?.averageSessionDuration || 0);
   const ga4Conversions = Number(ga4?.conversions || 0);
   const ga4Revenue = Number(ga4?.totalRevenue || 0);
-  const ga4SeriesRaw = ga4?.series || [];
+  // Serien-Fallback (11.08.): liefert die Live-Antwort keine Tagesreihe,
+  // greift der Agent-Snapshot — sonst verschwindet der Traffic-Verlauf.
+  const ga4SeriesRaw = ga4?.series?.length ? ga4.series : run?.result?.series || [];
   const ga4Series = useMemo(() => ga4SeriesRaw.slice(-days), [ga4SeriesRaw, days]);
   // Live GA4 comparison (real YoY/MoM) — falls back to series-based deltas if unavailable.
   const { data: cmpData, deltas: liveDeltas } = useGa4Compare(selectedClient?.id, dateRange);

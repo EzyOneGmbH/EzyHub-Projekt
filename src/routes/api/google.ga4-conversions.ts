@@ -212,6 +212,42 @@ export const Route = createFileRoute("/api/google/ga4-conversions")({
             }
           }
 
+          // Kanal-Split (Datumsfilter-Fix 2026-08-11): der Agent-Snapshot hatte
+          // channels immer dabei — seit die Live-Antwort den Snapshot im
+          // Dashboard verdrängt (10.08.), verschwand das Kanäle-Widget, weil
+          // dieses Feld hier fehlte. Gleiche Form wie im populate-Job.
+          let channels: Array<Record<string, number | string>> = [];
+          try {
+            const ch = await callGa4({
+              dateRanges,
+              dimensions: [{ name: "sessionDefaultChannelGroup" }],
+              metrics: [{ name: "sessions" }, { name: "conversions" }, { name: "totalRevenue" }],
+              orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+            });
+            channels = (ch.rows ?? []).map((r) => ({
+              channel: r.dimensionValues?.[0]?.value ?? "(other)",
+              sessions: Number(r.metricValues?.[0]?.value ?? 0),
+              conversions: Number(r.metricValues?.[1]?.value ?? 0),
+              revenue: Number(r.metricValues?.[2]?.value ?? 0),
+            }));
+          } catch {
+            // Fallback ohne conversions/revenue (ältere Properties): nur sessions.
+            try {
+              const ch = await callGa4({
+                dateRanges,
+                dimensions: [{ name: "sessionDefaultChannelGroup" }],
+                metrics: [{ name: "sessions" }],
+                orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+              });
+              channels = (ch.rows ?? []).map((r) => ({
+                channel: r.dimensionValues?.[0]?.value ?? "(other)",
+                sessions: Number(r.metricValues?.[0]?.value ?? 0),
+              }));
+            } catch {
+              /* optional */
+            }
+          }
+
           const result = {
             days: parsed.data.days,
             breakdown,
@@ -220,6 +256,7 @@ export const Route = createFileRoute("/api/google/ga4-conversions")({
             revenue,
             purchases,
             series,
+            channels,
           };
 
           try {
