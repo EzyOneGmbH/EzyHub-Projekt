@@ -13946,9 +13946,7 @@ function App({ appScope = null }) {
       style={{
         // CD: Aceh Soft (Fließtext) — Nunito Sans als freier Ersatzschnitt.
         fontFamily: "'Aceh Soft','Nunito Sans','Segoe UI',sans-serif",
-        backgroundColor: C.bg,
-        backgroundImage: HEX_BG,
-        position: "relative", // Bezug für die Hexagon-Glow-Hintergrund-Ebene
+        position: "relative", // Bezug für Grund-/Glow-Unterlage (beide zIndex -1)
         color: C.text,
         minHeight: "100vh",
         display: "flex",
@@ -13962,7 +13960,10 @@ function App({ appScope = null }) {
         rel="stylesheet"
       />
       <style>{CSS}</style>
-      {/* Hexagon-Glow: Hintergrund-Ebene (zIndex 0) — Inhalt liegt darüber. */}
+      {/* Grundfarbe + Waben-Pattern als -1-Unterlage; Glow ebenfalls -1 (danach
+          im DOM = darüber). Inhalt bleibt unangehoben — Dropdowns/Sidebar-Stacking
+          wie vor dem Pattern-Umbau (Fix 10.08. abends). */}
+      <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: -1, backgroundColor: C.bg, backgroundImage: HEX_BG, pointerEvents: "none" }} />
       <HexGlowLayer />
 
       {/* Sidebar */}
@@ -14269,7 +14270,7 @@ function App({ appScope = null }) {
 
       <main
         className="app-main"
-        style={{ marginLeft: sw, flex: 1, transition: "margin-left .2s", minWidth: 0, position: "relative", zIndex: 1 }}
+        style={{ marginLeft: sw, flex: 1, transition: "margin-left .2s", minWidth: 0 }}
       >
         <header
           className="app-header"

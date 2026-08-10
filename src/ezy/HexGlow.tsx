@@ -172,8 +172,13 @@ export function HexGlowLayer() {
     };
   }, []);
   return (
-    <div ref={anchorRef} aria-hidden style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none" }}>
-      {/* fixed füllt den Viewport, bleibt aber im Stacking der Ebene (z0) — nie über Widgets. */}
+    // zIndex -1 (Fix 10.08. abends): liegt unter ALLEM Inhalt, ohne dass der
+    // Inhalt angehoben werden muss — ein zIndex:1 auf dem Hauptbereich hatte
+    // einen Stacking-Kontext erzeugt und Dropdowns (z60) unter der fixen
+    // Sidebar (z50) gefangen (Datumsfilter unlesbar). Voraussetzung: der
+    // Shell-Container selbst ist transparent; Grundfarbe + Waben-Pattern
+    // liegen auf einer eigenen Unterlage-Ebene (ebenfalls -1, vor dieser).
+    <div ref={anchorRef} aria-hidden style={{ position: "absolute", inset: 0, zIndex: -1, pointerEvents: "none" }}>
       <canvas ref={canvasRef} style={{ position: "fixed", top: 0, left: 0, pointerEvents: "none" }} />
     </div>
   );

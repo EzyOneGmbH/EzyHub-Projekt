@@ -1332,12 +1332,14 @@ function EzyAiApp() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: S.bg, backgroundImage: HEX_BG, position: "relative", color: S.txt, fontFamily: "'Aceh Soft','Nunito Sans','Segoe UI',system-ui,sans-serif" }}>
-      {/* Hexagon-Glow: Hintergrund-Ebene — .ezyai-shell liegt darüber (z1). */}
+    <div style={{ minHeight: "100vh", position: "relative", color: S.txt, fontFamily: "'Aceh Soft','Nunito Sans','Segoe UI',system-ui,sans-serif" }}>
+      {/* Grund + Pattern als -1-Unterlage, Glow ebenfalls -1 (Fix 10.08. abends:
+          Inhalt bleibt unangehoben, Popups/Sidebar-Stacking unverändert). */}
+      <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: -1, backgroundColor: S.bg, backgroundImage: HEX_BG, pointerEvents: "none" }} />
       <HexGlowLayer />
       {/* Mobile (04.08.): Shell-Sidebar wird zur horizontalen Leiste oben. */}
       <style>{`
-        .ezyai-shell{display:flex;min-height:100vh;position:relative;z-index:1}
+        .ezyai-shell{display:flex;min-height:100vh}
         .ezyai-side{width:${SIDEBAR_W}px;flex-shrink:0;background:${S.panel};border-right:1px solid ${S.line};display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:50;overflow-y:auto}
         .ezyai-body{flex:1;min-width:0;margin-left:${SIDEBAR_W}px}
         .ezyai-mnav{display:none}
