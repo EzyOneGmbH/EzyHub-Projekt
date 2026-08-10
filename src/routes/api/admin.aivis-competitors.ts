@@ -169,8 +169,13 @@ export const Route = createFileRoute("/api/admin/aivis-competitors")({
         // internationale Sicht statt eines dauerhaft leeren Tabs.
         let note: string | undefined;
         let usedTargets = targets;
+        // Debug-Sicht (10.08.): build + was der Sprach-Fallback getan hat —
+        // ohne das ist "leer" von "Fallback lief nicht" extern nicht
+        // unterscheidbar (kostete beim 12b5fb5-Rollout eine Debug-Runde).
+        const fb: any = { tried: false };
         const empty = !domains.rows.length && !pages.rows.length && !domains.brands.length;
         if (empty) {
+          fb.tried = true;
           // Die Mentions-DB matcht Phrasen als Wortfolge: Einzelwörter treffen
           // ("charity", "donation"), Mehrwort-Kombis fast nie ("water charity"
           // = 0; Ausnahme sehr gängige Produkt-Phrasen wie "coffee machine").
@@ -181,12 +186,14 @@ export const Route = createFileRoute("/api/admin/aivis-competitors")({
           ).catch(() => null);
           const arr = (() => { const m = String(txt || "").match(/\[[\s\S]*\]/); try { return m ? JSON.parse(m[0]) : null; } catch { return null; } })();
           const en = Array.isArray(arr) ? [...new Set(arr.map((s: any) => String(s).trim()).filter((s: string) => s.length >= 3))].slice(0, 10) : [];
+          fb.en = en; fb.llmOk = !!txt;
           if (en.length) {
             const targetsEn = en.map((t) => ({ keyword: t, match_type: "partial_match" }));
             const [dEn, pEn] = await Promise.all([
               dfsLiveChunked("ai_optimization/llm_mentions/top_domains/live", targetsEn, platform),
               dfsLiveChunked("ai_optimization/llm_mentions/top_pages/live", targetsEn, platform),
             ]);
+            fb.enRows = { domains: dEn.rows.length, pages: pEn.rows.length, brands: dEn.brands.length, dErr: dEn.error, pErr: pEn.error };
             if ((dEn.ok || pEn.ok) && (dEn.rows.length || pEn.rows.length || dEn.brands.length)) {
               dEn.cost += (domains.cost || 0); pEn.cost += (pages.cost || 0);
               domains = dEn; pages = pEn; usedTargets = targetsEn;
@@ -198,10 +205,12 @@ export const Route = createFileRoute("/api/admin/aivis-competitors")({
         return Response.json(
           {
             ok: true,
+            build: "2026-08-10-lang-fallback",
             client: { id: client.id, name: client.name, domain: client.domain || "" },
             platform,
             targets: usedTargets.map((t) => t.keyword),
             note,
+            fallback: fb,
             domains: domains.rows,
             pages: pages.rows,
             brands: domains.brands,
