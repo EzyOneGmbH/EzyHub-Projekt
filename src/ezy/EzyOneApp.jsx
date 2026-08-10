@@ -2532,33 +2532,169 @@ function DTable({ columns, data }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // DASHBOARDS (preserved)
 // ═══════════════════════════════════════════════════════════════════════════
-function AgencyOverview({ clients }) {
+function AgencyOverview({ clients, onSelect }) {
   const ac = clients.filter((c) => c.status === "active").length;
   const as = clients.length
     ? Math.round(clients.reduce((s, c) => s + c.score, 0) / clients.length)
     : 0;
+  // Kacheln nach Score absteigend, dann alphabetisch — beste Kunden zuerst.
+  const tiles = [...clients].sort(
+    (a, b) => b.score - a.score || a.name.localeCompare(b.name),
+  );
   return (
-    <div
-      className="dash-kpis"
-      style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 20 }}
-    >
-      <KpiCard icon={Users} label="Aktive Kunden" value={ac} color={C.accent} />
-      <KpiCard icon={Eye} label="Ø Score" value={as} suffix="/100" color={C.blue} />
-      <KpiCard
-        icon={Bot}
-        label="AI Visitors"
-        value={clients.reduce((s, c) => s + c.aiVisitors, 0)}
-        change={18}
-        color={C.green}
-      />
-      <KpiCard
-        icon={DollarSign}
-        label="Revenue"
-        value={`CHF ${(clients.reduce((s, c) => s + c.revenue, 0) / 1000).toFixed(0)}k`}
-        change={14}
-        color={C.orange}
-      />
-    </div>
+    <>
+      <div
+        className="dash-kpis"
+        style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 20 }}
+      >
+        <KpiCard icon={Users} label="Aktive Kunden" value={ac} color={C.accent} />
+        <KpiCard icon={Eye} label="Ø Score" value={as} suffix="/100" color={C.blue} />
+        <KpiCard
+          icon={Bot}
+          label="AI Visitors"
+          value={clients.reduce((s, c) => s + c.aiVisitors, 0)}
+          change={18}
+          color={C.green}
+        />
+        <KpiCard
+          icon={DollarSign}
+          label="Revenue"
+          value={`CHF ${(clients.reduce((s, c) => s + c.revenue, 0) / 1000).toFixed(0)}k`}
+          change={14}
+          color={C.orange}
+        />
+      </div>
+      {/* Kunden-Kacheln (Volkan 10.08.): bei "Alle Kunden" werden alle
+          berechtigten Kunden als anklickbare Kacheln gezeigt — ein Klick öffnet
+          das Dashboard des jeweiligen Kunden. */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          margin: "4px 2px 12px",
+        }}
+      >
+        <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: C.text }}>Kunden</h2>
+        <span style={{ fontSize: 12, color: C.textMuted }}>
+          {clients.length} berechtigt
+        </span>
+      </div>
+      <div
+        className="agency-client-grid"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+          gap: 14,
+        }}
+      >
+        {tiles.map((c) => {
+          const on = c.status === "active";
+          return (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => onSelect?.(c.id)}
+              style={{
+                textAlign: "left",
+                display: "flex",
+                flexDirection: "column",
+                gap: 12,
+                background: C.card,
+                border: `1px solid ${C.border}`,
+                borderRadius: 14,
+                padding: 16,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                transition: "border-color .15s, box-shadow .15s, transform .15s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = C.accent;
+                e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,.08)";
+                e.currentTarget.style.transform = "translateY(-2px)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = C.border;
+                e.currentTarget.style.boxShadow = "none";
+                e.currentTarget.style.transform = "none";
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                <div
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 10,
+                    flexShrink: 0,
+                    background: C.accentDim,
+                    color: C.accentLight,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 13,
+                    fontWeight: 700,
+                  }}
+                >
+                  {initialsFromName(c.name)}
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: C.text,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {c.name || "—"}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: C.textMuted,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {c.domain || "keine Domain"}
+                  </div>
+                </div>
+                <span
+                  title={on ? "Aktiv" : "Pausiert"}
+                  style={{
+                    flexShrink: 0,
+                    fontSize: 10,
+                    fontWeight: 600,
+                    padding: "3px 8px",
+                    borderRadius: 999,
+                    color: on ? C.green : C.textMuted,
+                    background: on ? `${C.green}22` : C.cardHover,
+                    border: `1px solid ${on ? `${C.green}55` : C.border}`,
+                  }}
+                >
+                  {on ? "Aktiv" : "Pausiert"}
+                </span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+                {[
+                  { label: "Score", value: `${c.score}/100` },
+                  { label: "AI Visitors", value: c.aiVisitors.toLocaleString("de-CH") },
+                  { label: "Keywords", value: c.keywords.toLocaleString("de-CH") },
+                ].map((m) => (
+                  <div key={m.label}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{m.value}</div>
+                    <div style={{ fontSize: 10, color: C.textMuted }}>{m.label}</div>
+                  </div>
+                ))}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </>
   );
 }
 function LiveEmptyState({ title, hint }) {
@@ -14376,7 +14512,15 @@ function App({ appScope = null }) {
                   )}
                 </p>
               </div>
-              {showAll && <AgencyOverview clients={clients} />}
+              {showAll && (
+                <AgencyOverview
+                  clients={clients}
+                  onSelect={(id) => {
+                    setClientId(id);
+                    setShowAll(false);
+                  }}
+                />
+              )}
               {!showAll && (
                 <>
                   {tab === "overview" && <OverviewDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
