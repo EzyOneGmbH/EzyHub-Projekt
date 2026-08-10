@@ -13947,6 +13947,10 @@ function App({ appScope = null }) {
         // CD: Aceh Soft (Fließtext) — Nunito Sans als freier Ersatzschnitt.
         fontFamily: "'Aceh Soft','Nunito Sans','Segoe UI',sans-serif",
         position: "relative", // Bezug für Grund-/Glow-Unterlage (beide zIndex -1)
+        // isolation: eigener Stacking-Kontext — die -1-Ebenen liegen dadurch
+        // HINTER dem Shell-Inhalt, aber VOR dem (deckenden) body-Hintergrund.
+        // Ohne das landen sie im Root-Kontext unter dem body-Grund = unsichtbar.
+        isolation: "isolate",
         color: C.text,
         minHeight: "100vh",
         display: "flex",

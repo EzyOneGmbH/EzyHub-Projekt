@@ -116,7 +116,7 @@ function AppsLauncher() {
   return (
     <div className="launcher-page" style={{
       // CD-Pattern: Hexagon-Waben-Mesh, sehr dezent (4% Purple).
-      minHeight: "100vh", color: S.txt, position: "relative",
+      minHeight: "100vh", color: S.txt, position: "relative", isolation: "isolate",
       fontFamily: "'Aceh Soft','Nunito Sans','Segoe UI',system-ui,sans-serif",
       display: "flex", flexDirection: "column", alignItems: "center",
       padding: "9vh 24px 40px",

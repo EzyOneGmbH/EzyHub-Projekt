@@ -1302,7 +1302,7 @@ function EzyAiApp() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", position: "relative", color: S.txt, fontFamily: "'Aceh Soft','Nunito Sans','Segoe UI',system-ui,sans-serif" }}>
+    <div style={{ minHeight: "100vh", position: "relative", isolation: "isolate", color: S.txt, fontFamily: "'Aceh Soft','Nunito Sans','Segoe UI',system-ui,sans-serif" }}>
       {/* Grund + Pattern als -1-Unterlage, Glow ebenfalls -1 (Fix 10.08. abends:
           Inhalt bleibt unangehoben, Popups/Sidebar-Stacking unverändert). */}
       <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: -1, backgroundColor: S.bg, backgroundImage: HEX_BG, pointerEvents: "none" }} />
