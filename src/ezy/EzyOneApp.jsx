@@ -2571,6 +2571,8 @@ function AgencyOverview({ clients, onSelect }) {
             ...next[row.client_id],
             top3: Number(a.top3 ?? 0) || 0,
             top10: Number(a.top10 ?? 0) || 0,
+            // Datum-Chip wie in der EzyAI-Übersicht: letzter Messlauf.
+            date: String(row.created_at || "").slice(0, 10),
           };
         }
         for (const row of seoRes.data || []) {
@@ -2582,6 +2584,7 @@ function AgencyOverview({ clients, onSelect }) {
               Number(m.org_traffic ?? 0) ||
               Math.round(Number(m.organic_traffic_etv ?? 0)) ||
               0,
+            date: next[row.client_id]?.date || String(row.created_at || "").slice(0, 10),
           };
         }
         setStats(next);
@@ -2625,7 +2628,7 @@ function AgencyOverview({ clients, onSelect }) {
         }}
       >
         {tiles.map((c) => {
-          const on = c.status === "active";
+          const st = stats[c.id];
           return (
             <button
               key={c.id}
@@ -2698,30 +2701,31 @@ function AgencyOverview({ clients, onSelect }) {
                     {c.domain || "keine Domain"}
                   </div>
                 </div>
-                <span
-                  title={on ? "Aktiv" : "Pausiert"}
-                  style={{
-                    flexShrink: 0,
-                    fontSize: 10,
-                    fontWeight: 600,
-                    padding: "3px 8px",
-                    borderRadius: 999,
-                    color: on ? C.green : C.textMuted,
-                    background: on ? `${C.green}22` : C.cardHover,
-                    border: `1px solid ${on ? `${C.green}55` : C.border}`,
-                  }}
-                >
-                  {on ? "Aktiv" : "Pausiert"}
-                </span>
+                {/* Datum-Chip wie in der EzyAI-Übersicht (10.08.): letzter Messlauf. */}
+                {st?.date && (
+                  <span
+                    title={`Letzter Messlauf: ${st.date}`}
+                    style={{
+                      flexShrink: 0,
+                      fontSize: 10,
+                      color: C.textMuted,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 999,
+                      padding: "3px 8px",
+                    }}
+                  >
+                    {st.date.slice(8, 10)}.{st.date.slice(5, 7)}.
+                  </span>
+                )}
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
                 {[
-                  { label: "Top 3", value: stats[c.id]?.top3 },
-                  { label: "Top 10", value: stats[c.id]?.top10 },
-                  { label: "Org. Traffic", value: stats[c.id]?.traffic },
+                  { label: "Top 3", value: st?.top3 },
+                  { label: "Top 10", value: st?.top10 },
+                  { label: "Org. Traffic", value: st?.traffic },
                 ].map((m) => (
                   <div key={m.label}>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: C.text, fontVariantNumeric: "tabular-nums" }}>
                       {m.value != null ? m.value.toLocaleString("de-CH") : "—"}
                     </div>
                     <div style={{ fontSize: 10, color: C.textMuted }}>{m.label}</div>
