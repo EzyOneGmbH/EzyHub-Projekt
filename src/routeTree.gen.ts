@@ -84,6 +84,7 @@ import { Route as ApiAgentAgentsRouteImport } from './routes/api/agent.agents'
 import { Route as ApiAdminWpPublishRouteImport } from './routes/api/admin.wp-publish'
 import { Route as ApiAdminWpDeployRouteImport } from './routes/api/admin.wp-deploy'
 import { Route as ApiAdminTrafficOverviewRouteImport } from './routes/api/admin.traffic-overview'
+import { Route as ApiAdminTechDetectRouteImport } from './routes/api/admin.tech-detect'
 import { Route as ApiAdminTeamRouteImport } from './routes/api/admin.team'
 import { Route as ApiAdminSiteHealthRouteImport } from './routes/api/admin.site-health'
 import { Route as ApiAdminSetCanonryProjectRouteImport } from './routes/api/admin.set-canonry-project'
@@ -92,8 +93,6 @@ import { Route as ApiAdminPopulateRouteImport } from './routes/api/admin.populat
 import { Route as ApiAdminOnboardingSnapshotRouteImport } from './routes/api/admin.onboarding-snapshot'
 import { Route as ApiAdminOnboardingPendingRouteImport } from './routes/api/admin.onboarding-pending'
 import { Route as ApiAdminLlmTrafficRouteImport } from './routes/api/admin.llm-traffic'
-import { Route as ApiAdminAivisCompetitorsRouteImport } from './routes/api/admin.aivis-competitors'
-import { Route as ApiAdminTechDetectRouteImport } from './routes/api/admin.tech-detect'
 import { Route as ApiAdminLlmResponsesRouteImport } from './routes/api/admin.llm-responses'
 import { Route as ApiAdminGtmRouteImport } from './routes/api/admin.gtm'
 import { Route as ApiAdminGbpRouteImport } from './routes/api/admin.gbp'
@@ -107,6 +106,7 @@ import { Route as ApiAdminClientFlagsRouteImport } from './routes/api/admin.clie
 import { Route as ApiAdminClientDomainsRouteImport } from './routes/api/admin.client-domains'
 import { Route as ApiAdminClientContextRouteImport } from './routes/api/admin.client-context'
 import { Route as ApiAdminAivisSyncRouteImport } from './routes/api/admin.aivis-sync'
+import { Route as ApiAdminAivisCompetitorsRouteImport } from './routes/api/admin.aivis-competitors'
 import { Route as ApiAdminAiCrawlerIngestRouteImport } from './routes/api/admin.ai-crawler-ingest'
 import { Route as ApiAdminAiCitationsRouteImport } from './routes/api/admin.ai-citations'
 import { Route as ApiAdminAgentRunRouteImport } from './routes/api/admin.agent-run'
@@ -507,6 +507,11 @@ const ApiAdminTrafficOverviewRoute = ApiAdminTrafficOverviewRouteImport.update({
   path: '/api/admin/traffic-overview',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminTechDetectRoute = ApiAdminTechDetectRouteImport.update({
+  id: '/api/admin/tech-detect',
+  path: '/api/admin/tech-detect',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminTeamRoute = ApiAdminTeamRouteImport.update({
   id: '/api/admin/team',
   path: '/api/admin/team',
@@ -545,16 +550,6 @@ const ApiAdminOnboardingPendingRoute =
     path: '/api/admin/onboarding-pending',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiAdminTechDetectRoute = ApiAdminTechDetectRouteImport.update({
-  id: '/api/admin/tech-detect',
-  path: '/api/admin/tech-detect',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAdminAivisCompetitorsRoute = ApiAdminAivisCompetitorsRouteImport.update({
-  id: '/api/admin/aivis-competitors',
-  path: '/api/admin/aivis-competitors',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiAdminLlmTrafficRoute = ApiAdminLlmTrafficRouteImport.update({
   id: '/api/admin/llm-traffic',
   path: '/api/admin/llm-traffic',
@@ -625,6 +620,12 @@ const ApiAdminAivisSyncRoute = ApiAdminAivisSyncRouteImport.update({
   path: '/api/admin/aivis-sync',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminAivisCompetitorsRoute =
+  ApiAdminAivisCompetitorsRouteImport.update({
+    id: '/api/admin/aivis-competitors',
+    path: '/api/admin/aivis-competitors',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAdminAiCrawlerIngestRoute = ApiAdminAiCrawlerIngestRouteImport.update({
   id: '/api/admin/ai-crawler-ingest',
   path: '/api/admin/ai-crawler-ingest',
@@ -778,6 +779,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
   '/api/admin/ai-citations': typeof ApiAdminAiCitationsRoute
   '/api/admin/ai-crawler-ingest': typeof ApiAdminAiCrawlerIngestRoute
+  '/api/admin/aivis-competitors': typeof ApiAdminAivisCompetitorsRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-context': typeof ApiAdminClientContextRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
@@ -791,8 +793,6 @@ export interface FileRoutesByFullPath {
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/llm-responses': typeof ApiAdminLlmResponsesRoute
-  '/api/admin/tech-detect': typeof ApiAdminTechDetectRoute
-  '/api/admin/aivis-competitors': typeof ApiAdminAivisCompetitorsRoute
   '/api/admin/llm-traffic': typeof ApiAdminLlmTrafficRoute
   '/api/admin/onboarding-pending': typeof ApiAdminOnboardingPendingRoute
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
@@ -801,6 +801,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
   '/api/admin/site-health': typeof ApiAdminSiteHealthRoute
   '/api/admin/team': typeof ApiAdminTeamRoute
+  '/api/admin/tech-detect': typeof ApiAdminTechDetectRoute
   '/api/admin/traffic-overview': typeof ApiAdminTrafficOverviewRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
@@ -897,6 +898,7 @@ export interface FileRoutesByTo {
   '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
   '/api/admin/ai-citations': typeof ApiAdminAiCitationsRoute
   '/api/admin/ai-crawler-ingest': typeof ApiAdminAiCrawlerIngestRoute
+  '/api/admin/aivis-competitors': typeof ApiAdminAivisCompetitorsRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-context': typeof ApiAdminClientContextRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
@@ -910,8 +912,6 @@ export interface FileRoutesByTo {
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/llm-responses': typeof ApiAdminLlmResponsesRoute
-  '/api/admin/tech-detect': typeof ApiAdminTechDetectRoute
-  '/api/admin/aivis-competitors': typeof ApiAdminAivisCompetitorsRoute
   '/api/admin/llm-traffic': typeof ApiAdminLlmTrafficRoute
   '/api/admin/onboarding-pending': typeof ApiAdminOnboardingPendingRoute
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
@@ -920,6 +920,7 @@ export interface FileRoutesByTo {
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
   '/api/admin/site-health': typeof ApiAdminSiteHealthRoute
   '/api/admin/team': typeof ApiAdminTeamRoute
+  '/api/admin/tech-detect': typeof ApiAdminTechDetectRoute
   '/api/admin/traffic-overview': typeof ApiAdminTrafficOverviewRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
@@ -1017,6 +1018,7 @@ export interface FileRoutesById {
   '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
   '/api/admin/ai-citations': typeof ApiAdminAiCitationsRoute
   '/api/admin/ai-crawler-ingest': typeof ApiAdminAiCrawlerIngestRoute
+  '/api/admin/aivis-competitors': typeof ApiAdminAivisCompetitorsRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-context': typeof ApiAdminClientContextRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
@@ -1030,8 +1032,6 @@ export interface FileRoutesById {
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/llm-responses': typeof ApiAdminLlmResponsesRoute
-  '/api/admin/tech-detect': typeof ApiAdminTechDetectRoute
-  '/api/admin/aivis-competitors': typeof ApiAdminAivisCompetitorsRoute
   '/api/admin/llm-traffic': typeof ApiAdminLlmTrafficRoute
   '/api/admin/onboarding-pending': typeof ApiAdminOnboardingPendingRoute
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
@@ -1040,6 +1040,7 @@ export interface FileRoutesById {
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
   '/api/admin/site-health': typeof ApiAdminSiteHealthRoute
   '/api/admin/team': typeof ApiAdminTeamRoute
+  '/api/admin/tech-detect': typeof ApiAdminTechDetectRoute
   '/api/admin/traffic-overview': typeof ApiAdminTrafficOverviewRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
@@ -1138,6 +1139,7 @@ export interface FileRouteTypes {
     | '/api/admin/agent-run'
     | '/api/admin/ai-citations'
     | '/api/admin/ai-crawler-ingest'
+    | '/api/admin/aivis-competitors'
     | '/api/admin/aivis-sync'
     | '/api/admin/client-context'
     | '/api/admin/client-domains'
@@ -1159,6 +1161,7 @@ export interface FileRouteTypes {
     | '/api/admin/set-canonry-project'
     | '/api/admin/site-health'
     | '/api/admin/team'
+    | '/api/admin/tech-detect'
     | '/api/admin/traffic-overview'
     | '/api/admin/wp-deploy'
     | '/api/admin/wp-publish'
@@ -1255,6 +1258,7 @@ export interface FileRouteTypes {
     | '/api/admin/agent-run'
     | '/api/admin/ai-citations'
     | '/api/admin/ai-crawler-ingest'
+    | '/api/admin/aivis-competitors'
     | '/api/admin/aivis-sync'
     | '/api/admin/client-context'
     | '/api/admin/client-domains'
@@ -1276,6 +1280,7 @@ export interface FileRouteTypes {
     | '/api/admin/set-canonry-project'
     | '/api/admin/site-health'
     | '/api/admin/team'
+    | '/api/admin/tech-detect'
     | '/api/admin/traffic-overview'
     | '/api/admin/wp-deploy'
     | '/api/admin/wp-publish'
@@ -1372,6 +1377,7 @@ export interface FileRouteTypes {
     | '/api/admin/agent-run'
     | '/api/admin/ai-citations'
     | '/api/admin/ai-crawler-ingest'
+    | '/api/admin/aivis-competitors'
     | '/api/admin/aivis-sync'
     | '/api/admin/client-context'
     | '/api/admin/client-domains'
@@ -1393,6 +1399,7 @@ export interface FileRouteTypes {
     | '/api/admin/set-canonry-project'
     | '/api/admin/site-health'
     | '/api/admin/team'
+    | '/api/admin/tech-detect'
     | '/api/admin/traffic-overview'
     | '/api/admin/wp-deploy'
     | '/api/admin/wp-publish'
@@ -1485,6 +1492,7 @@ export interface RootRouteChildren {
   ApiAdminAgentRunRoute: typeof ApiAdminAgentRunRoute
   ApiAdminAiCitationsRoute: typeof ApiAdminAiCitationsRoute
   ApiAdminAiCrawlerIngestRoute: typeof ApiAdminAiCrawlerIngestRoute
+  ApiAdminAivisCompetitorsRoute: typeof ApiAdminAivisCompetitorsRoute
   ApiAdminAivisSyncRoute: typeof ApiAdminAivisSyncRoute
   ApiAdminClientContextRoute: typeof ApiAdminClientContextRoute
   ApiAdminClientDomainsRoute: typeof ApiAdminClientDomainsRoute
@@ -1498,8 +1506,6 @@ export interface RootRouteChildren {
   ApiAdminGbpRoute: typeof ApiAdminGbpRoute
   ApiAdminGtmRoute: typeof ApiAdminGtmRoute
   ApiAdminLlmResponsesRoute: typeof ApiAdminLlmResponsesRoute
-  ApiAdminTechDetectRoute: typeof ApiAdminTechDetectRoute
-  ApiAdminAivisCompetitorsRoute: typeof ApiAdminAivisCompetitorsRoute
   ApiAdminLlmTrafficRoute: typeof ApiAdminLlmTrafficRoute
   ApiAdminOnboardingPendingRoute: typeof ApiAdminOnboardingPendingRoute
   ApiAdminOnboardingSnapshotRoute: typeof ApiAdminOnboardingSnapshotRoute
@@ -1508,6 +1514,7 @@ export interface RootRouteChildren {
   ApiAdminSetCanonryProjectRoute: typeof ApiAdminSetCanonryProjectRoute
   ApiAdminSiteHealthRoute: typeof ApiAdminSiteHealthRoute
   ApiAdminTeamRoute: typeof ApiAdminTeamRoute
+  ApiAdminTechDetectRoute: typeof ApiAdminTechDetectRoute
   ApiAdminTrafficOverviewRoute: typeof ApiAdminTrafficOverviewRoute
   ApiAdminWpDeployRoute: typeof ApiAdminWpDeployRoute
   ApiAdminWpPublishRoute: typeof ApiAdminWpPublishRoute
@@ -2084,6 +2091,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminTrafficOverviewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/tech-detect': {
+      id: '/api/admin/tech-detect'
+      path: '/api/admin/tech-detect'
+      fullPath: '/api/admin/tech-detect'
+      preLoaderRoute: typeof ApiAdminTechDetectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/team': {
       id: '/api/admin/team'
       path: '/api/admin/team'
@@ -2131,20 +2145,6 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/onboarding-pending'
       fullPath: '/api/admin/onboarding-pending'
       preLoaderRoute: typeof ApiAdminOnboardingPendingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/admin/tech-detect': {
-      id: '/api/admin/tech-detect'
-      path: '/api/admin/tech-detect'
-      fullPath: '/api/admin/tech-detect'
-      preLoaderRoute: typeof ApiAdminTechDetectRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/admin/aivis-competitors': {
-      id: '/api/admin/aivis-competitors'
-      path: '/api/admin/aivis-competitors'
-      fullPath: '/api/admin/aivis-competitors'
-      preLoaderRoute: typeof ApiAdminAivisCompetitorsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/llm-traffic': {
@@ -2243,6 +2243,13 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/aivis-sync'
       fullPath: '/api/admin/aivis-sync'
       preLoaderRoute: typeof ApiAdminAivisSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/aivis-competitors': {
+      id: '/api/admin/aivis-competitors'
+      path: '/api/admin/aivis-competitors'
+      fullPath: '/api/admin/aivis-competitors'
+      preLoaderRoute: typeof ApiAdminAivisCompetitorsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/ai-crawler-ingest': {
@@ -2480,6 +2487,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminAgentRunRoute: ApiAdminAgentRunRoute,
   ApiAdminAiCitationsRoute: ApiAdminAiCitationsRoute,
   ApiAdminAiCrawlerIngestRoute: ApiAdminAiCrawlerIngestRoute,
+  ApiAdminAivisCompetitorsRoute: ApiAdminAivisCompetitorsRoute,
   ApiAdminAivisSyncRoute: ApiAdminAivisSyncRoute,
   ApiAdminClientContextRoute: ApiAdminClientContextRoute,
   ApiAdminClientDomainsRoute: ApiAdminClientDomainsRoute,
@@ -2493,8 +2501,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminGbpRoute: ApiAdminGbpRoute,
   ApiAdminGtmRoute: ApiAdminGtmRoute,
   ApiAdminLlmResponsesRoute: ApiAdminLlmResponsesRoute,
-  ApiAdminTechDetectRoute: ApiAdminTechDetectRoute,
-  ApiAdminAivisCompetitorsRoute: ApiAdminAivisCompetitorsRoute,
   ApiAdminLlmTrafficRoute: ApiAdminLlmTrafficRoute,
   ApiAdminOnboardingPendingRoute: ApiAdminOnboardingPendingRoute,
   ApiAdminOnboardingSnapshotRoute: ApiAdminOnboardingSnapshotRoute,
@@ -2503,6 +2509,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminSetCanonryProjectRoute: ApiAdminSetCanonryProjectRoute,
   ApiAdminSiteHealthRoute: ApiAdminSiteHealthRoute,
   ApiAdminTeamRoute: ApiAdminTeamRoute,
+  ApiAdminTechDetectRoute: ApiAdminTechDetectRoute,
   ApiAdminTrafficOverviewRoute: ApiAdminTrafficOverviewRoute,
   ApiAdminWpDeployRoute: ApiAdminWpDeployRoute,
   ApiAdminWpPublishRoute: ApiAdminWpPublishRoute,
