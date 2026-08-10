@@ -1360,6 +1360,73 @@ async function auditPromptRelevance(
   };
 }
 
+// ── Auto-Kuration der Prüf-Queue (10.08.2026) ────────────────────────────────
+// Klare Fälle automatisch entscheiden, damit nur echte Zweifelsfälle auf
+// menschliche Freigabe warten: (1) Brand-Prompts, die einen Markenbegriff
+// enthalten, sind per Definition on-topic → sofort freigeben (kein LLM).
+// (2) Rest per konservativem 3-Wege-Check gegen das Faktenprofil: "passt" →
+// aktivieren, "fremd" → archivieren (reversibel, Tab Archiviert), "unklar" →
+// bleibt in der Queue. Ohne Faktenprofil wird NICHTS entschieden.
+async function autoCuratePrompts(
+  c: any, sbAny: any, facts?: any,
+): Promise<{ pending: number; approved: number; archived: number; unclear: number; skipped?: string; archivedIds?: string[] }> {
+  const { data: pend } = await sbAny
+    .from("ai_visibility_prompt_defs")
+    .select("id, prompt, prompt_type, active")
+    .eq("client_id", c.id).eq("needs_review", true).limit(1000);
+  const pending: any[] = pend ?? [];
+  if (!pending.length) return { pending: 0, approved: 0, archived: 0, unclear: 0 };
+
+  const terms: string[] = (Array.isArray(c.brand_terms) && c.brand_terms.length ? c.brand_terms : [c.name])
+    .map((t: any) => String(t).trim().toLowerCase()).filter(Boolean);
+  const hasBrand = (p: string) => { const s = p.toLowerCase(); return terms.some((t) => s.includes(t)); };
+
+  const approveIds: string[] = [];
+  const archiveIds: string[] = [];
+  // (1) Brand-Prompts mit Markenbegriff: deterministisch freigeben.
+  const rest: any[] = [];
+  for (const d of pending) {
+    if (d.prompt_type === "brand" && hasBrand(String(d.prompt || ""))) approveIds.push(d.id);
+    else rest.push(d);
+  }
+  // (2) LLM-Check nur für den Rest — und nur mit Faktenprofil als Erdung.
+  const f = facts ?? await getBrandFacts(c, sbAny).catch(() => null);
+  const hasFacts = f && (f.angebot || (Array.isArray(f.kernfakten) && f.kernfakten.length));
+  if (rest.length && hasFacts) {
+    const factsText = `${f.angebot ? "Angebot: " + f.angebot + ". " : ""}${Array.isArray(f.kernfakten) && f.kernfakten.length ? "Fakten: " + f.kernfakten.join(" | ") : ""}`;
+    for (let off = 0; off < rest.length; off += 40) {
+      const block = rest.slice(off, off + 40);
+      const listing = block.map((d: any, i: number) => `${i}: ${d.prompt}`).join("\n");
+      const text = await askUtility(
+        `Firma "${c.name}". WAS SIE MACHT: ${factsText}\n\nUnten nummerierte Kunden-Suchanfragen, die zur Prüfung anstehen. Ordne JEDE Nummer genau einem Urteil zu:\n- "passt": Thema gehört KLAR zum Angebot der Firma\n- "fremd": Thema liegt KLAR in einer anderen Branche\n- "unklar": alles dazwischen — im geringsten Zweifel IMMER "unklar" (ein Mensch entscheidet dann)\nAntworte NUR mit JSON: {"passt":[<Nummern>],"fremd":[<Nummern>]} — nicht genannte Nummern gelten als unklar.\n\n${listing}`,
+        1200,
+      );
+      const parsed = parseJson(text || "") || {};
+      for (const n of Array.isArray(parsed.passt) ? parsed.passt : []) {
+        const d = block[Number(n)]; if (d?.id) approveIds.push(d.id);
+      }
+      for (const n of Array.isArray(parsed.fremd) ? parsed.fremd : []) {
+        const d = block[Number(n)]; if (d?.id && !approveIds.includes(d.id)) archiveIds.push(d.id);
+      }
+    }
+  }
+  for (let i = 0; i < approveIds.length; i += 200) {
+    await sbAny.from("ai_visibility_prompt_defs")
+      .update({ needs_review: false, active: true }).in("id", approveIds.slice(i, i + 200));
+  }
+  for (let i = 0; i < archiveIds.length; i += 200) {
+    await sbAny.from("ai_visibility_prompt_defs")
+      .update({ needs_review: false, active: false }).in("id", archiveIds.slice(i, i + 200));
+  }
+  const unclear = pending.length - approveIds.length - archiveIds.length;
+  diag(`auto-kuration ${c.name}: ${approveIds.length} freigegeben, ${archiveIds.length} archiviert, ${unclear} bleiben zur Prüfung`);
+  return {
+    pending: pending.length, approved: approveIds.length, archived: archiveIds.length, unclear,
+    skipped: rest.length && !hasFacts ? "kein Faktenprofil — nur Brand-Regel angewandt" : undefined,
+    archivedIds: archiveIds,
+  };
+}
+
 // Konkurrenten-Relevanz-Audit (04.08., Anlass: IKEA bei Studioforma): gleicht
 // Fixliste + aktuelle SoV-Marken gegen das Faktenprofil ab und deaktiviert
 // branchenfremde (reversibel, active=false = Ausschluss-Marker — der Prompt-
@@ -1576,6 +1643,17 @@ async function jobPromptRunner(
         marktDefs = marktDefs.filter((d: any) => okIds.has(d.id));
         diag(`prompts: Relevanz-Audit entfernte ${audit.flagged} fremde Prompts aus dem Lauf`);
       }
+    }
+  }
+  // Auto-Kuration der Prüf-Queue (10.08.): klare Fälle selbst entscheiden,
+  // nur Unklares bleibt für Menschen. Nur in Etappe 0, damit Teilläufe die
+  // Def-Liste nicht mitten in der Pagination verändern.
+  if (!opts.offset) {
+    const cur = await autoCuratePrompts(c, sbAny).catch(() => null);
+    if (cur?.archivedIds?.length) {
+      const gone = new Set(cur.archivedIds);
+      marktDefs = marktDefs.filter((d: any) => !gone.has(d.id));
+      brandDefs = brandDefs.filter((d: any) => !gone.has(d.id));
     }
   }
   defs = [...marktDefs, ...brandDefs];
@@ -3113,6 +3191,35 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
           );
           await flushCost(sb);
           return Response.json({ ok: true, build: BUILD_TAG, probes });
+        }
+
+        // ?promptAutoCurate=<name|id|all>: Prüf-Queue automatisch kuratieren —
+        // klare Fälle freigeben/archivieren, nur Unklares bleibt zur manuellen
+        // Prüfung. Läuft auch in jedem Prompt-Lauf (Etappe 0); dieser Trigger
+        // ist für den sofortigen Bestands-Abbau. GET, damit einfach triggerbar.
+        {
+          const acParam = new URL(request.url).searchParams.get("promptAutoCurate");
+          if (acParam) {
+            const { data: cls } = await sb.from("clients").select("id, name, domain, brand_terms");
+            let targets = cls || [];
+            if (acParam !== "all") {
+              const q = acParam.toLowerCase();
+              targets = targets.filter((c: any) => String(c.id) === acParam || String(c.name || "").toLowerCase().includes(q));
+            } else {
+              const active: any[] = [];
+              for (const c of targets) {
+                if ((await aivisAllowed(sb, c.id)).ok) active.push(c);
+              }
+              targets = active;
+            }
+            const results: any[] = [];
+            for (const c of targets) {
+              const cur = await autoCuratePrompts(c, sb).catch((e) => ({ pending: -1, approved: 0, archived: 0, unclear: 0, skipped: redactSecrets(e) }));
+              results.push({ client: c.name, ...cur, archivedIds: undefined });
+            }
+            await flushCost(sb);
+            return Response.json({ ok: true, build: BUILD_TAG, results });
+          }
         }
 
         // ?relevanceAudit=<name|id|all>: Markt-Prompts gegen das Faktenprofil
