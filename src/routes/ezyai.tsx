@@ -1138,6 +1138,107 @@ function PromptCurationPanel({ clientId, onClose, S }: { clientId: string; onClo
   );
 }
 
+// ── Agentur-Übersicht (Volkan 10.08., analog EzyRank) ────────────────────────
+// "Alle Kunden": alle berechtigten Kunden als anklickbare Kacheln mit
+// KI-Sichtbarkeit / Erwähnungen / Citations aus dem jeweils neuesten
+// ai_visibility_report. Batch: EINE Query über alle Kunden-IDs.
+function AiAgencyOverview({ clients, onSelect, S }: { clients: any[]; onSelect: (id: string) => void; S: Record<string, string> }) {
+  const [stats, setStats] = useState<Record<string, { score: number; mentions: number; citations: number; date: string }>>({});
+  useEffect(() => {
+    let alive = true;
+    const ids = clients.map((c: any) => c.id).filter((id: string) => /^[0-9a-f-]{36}$/i.test(id));
+    if (!ids.length) return;
+    (async () => {
+      const { data } = await (supabase as any)
+        .from("ai_visibility_reports")
+        .select("client_id, snapshot_date, score, mentions, citations")
+        .in("client_id", ids)
+        .order("snapshot_date", { ascending: false })
+        .limit(400);
+      if (!alive) return;
+      const next: Record<string, { score: number; mentions: number; citations: number; date: string }> = {};
+      for (const r of data ?? []) {
+        if (next[r.client_id]) continue; // erste Zeile = neuester Snapshot je Kunde
+        next[r.client_id] = {
+          score: Number(r.score ?? 0),
+          mentions: Number(r.mentions ?? 0),
+          citations: Number(r.citations ?? 0),
+          date: String(r.snapshot_date || ""),
+        };
+      }
+      setStats(next);
+    })();
+    return () => { alive = false; };
+  }, [clients]);
+  const tiles = [...clients].sort(
+    (a: any, b: any) =>
+      (stats[b.id]?.score ?? -1) - (stats[a.id]?.score ?? -1) || String(a.name).localeCompare(String(b.name)),
+  );
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "0 2px 12px" }}>
+        <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: S.txt }}>Kunden</h2>
+        <span style={{ fontSize: 12, color: S.mut }}>{clients.length} berechtigt</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 14 }}>
+        {tiles.map((c: any) => {
+          const st = stats[c.id];
+          return (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => onSelect(c.id)}
+              style={{
+                textAlign: "left", display: "flex", flexDirection: "column", gap: 12,
+                background: S.panel, border: `1px solid ${S.line}`, borderRadius: 14, padding: 16,
+                cursor: "pointer", fontFamily: "inherit", color: S.txt,
+                transition: "border-color .15s, box-shadow .15s, transform .15s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = S.app;
+                e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,.08)";
+                e.currentTarget.style.transform = "translateY(-2px)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = S.line;
+                e.currentTarget.style.boxShadow = "none";
+                e.currentTarget.style.transform = "none";
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                <div style={{ width: 38, height: 38, borderRadius: 10, flexShrink: 0, background: S.appTint, color: S.app, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700 }}>
+                  {initials(c.name)}
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name || "—"}</div>
+                  <div style={{ fontSize: 11, color: S.mut, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.domain || "keine Domain"}</div>
+                </div>
+                {st?.date && (
+                  <span title={`Letzter Messlauf: ${st.date}`} style={{ flexShrink: 0, fontSize: 10, color: S.mut, border: `1px solid ${S.line}`, borderRadius: 999, padding: "3px 8px" }}>
+                    {st.date.slice(8, 10)}.{st.date.slice(5, 7)}.
+                  </span>
+                )}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+                {[
+                  { label: "KI-Sichtbarkeit", value: st ? `${st.score}/100` : null },
+                  { label: "Erwähnungen", value: st ? st.mentions.toLocaleString("de-CH") : null },
+                  { label: "Citations", value: st ? st.citations.toLocaleString("de-CH") : null },
+                ].map((m) => (
+                  <div key={m.label}>
+                    <div style={{ fontSize: 15, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{m.value ?? "—"}</div>
+                    <div style={{ fontSize: 10, color: S.mut }}>{m.label}</div>
+                  </div>
+                ))}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
 export const Route = createFileRoute("/ezyai")({
   component: EzyAiApp,
 });
@@ -1171,6 +1272,12 @@ function EzyAiApp() {
   const [clientId, setClientId] = useState(() => {
     try { return localStorage.getItem(CLIENT_LS) || ""; } catch { return ""; }
   });
+  // Agentur-Übersicht (10.08.): "Alle Kunden" zeigt Kacheln statt eines Kunden.
+  const [showAll, setShowAll] = useState(false);
+  const pickClient = (v: string) => {
+    if (v === "__all") { setShowAll(true); return; }
+    setClientId(v); setShowAll(false);
+  };
 
   useEffect(() => {
     if (!authLoading && !session) navigate({ to: "/login", search: { next: "/ezyai" }, replace: true });
@@ -1289,10 +1396,11 @@ function EzyAiApp() {
           {/* Kunden-Auswahl (Searchable-Position: oben in der Sidebar) */}
           <div style={{ padding: "10px 12px", borderBottom: `1px solid ${S.line}` }}>
             <select
-              value={client?.id || ""}
-              onChange={(e) => setClientId(e.target.value)}
+              value={showAll ? "__all" : client?.id || ""}
+              onChange={(e) => pickClient(e.target.value)}
               style={{ width: "100%", padding: "8px 10px", borderRadius: 8, background: S.bg, color: S.txt, border: `1px solid ${S.line}`, fontSize: 13, fontFamily: "inherit" }}
             >
+              <option value="__all">✦ Alle Kunden</option>
               {clients.map((c: any) => (<option key={c.id} value={c.id}>{c.name}</option>))}
             </select>
           </div>
@@ -1364,8 +1472,9 @@ function EzyAiApp() {
                 <button key={v} onClick={() => setView(v)}
                   style={{ padding: "6px 12px", borderRadius: 8, border: "none", cursor: "pointer", background: view === v ? S.navDim : S.bg, color: view === v ? S.navAccent : S.mut, fontSize: 12.5, fontWeight: view === v ? 700 : 500, fontFamily: "inherit" }}>{label}</button>
               ))}
-              <select value={client?.id || ""} onChange={(e) => setClientId(e.target.value)}
+              <select value={showAll ? "__all" : client?.id || ""} onChange={(e) => pickClient(e.target.value)}
                 style={{ marginLeft: "auto", padding: "6px 8px", borderRadius: 8, background: S.bg, color: S.txt, border: `1px solid ${S.line}`, fontSize: 12.5, maxWidth: 180 }}>
+                <option value="__all">✦ Alle Kunden</option>
                 {clients.map((c: any) => (<option key={c.id} value={c.id}>{c.name}</option>))}
               </select>
             </div>
@@ -1386,10 +1495,10 @@ function EzyAiApp() {
           {/* Kontext-Kopfzeile: Bereichs-Titel + Aktionen (Kunde ist jetzt in der Sidebar) */}
           <header className="ezyai-chead" style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 22px", background: S.panel, borderBottom: `1px solid ${S.line}`, position: "sticky", top: 0, zIndex: 30 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: S.txt }}>
-              {view === "agent" ? "Agent" : NAV_LABEL[section] || "Insights"}
+              {view === "agent" ? "Agent" : showAll ? "Agentur-Übersicht" : NAV_LABEL[section] || "Insights"}
             </div>
             <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
-              {isOrgAdmin && client?.id && (
+              {isOrgAdmin && client?.id && !showAll && (
                 <button onClick={shareReport} style={{ fontSize: 12, color: S.app, background: "none", cursor: "pointer", border: `1px solid ${S.app}55`, borderRadius: 8, padding: "6px 12px" }}>Report teilen</button>
               )}
               <a href="/llm-ueberblick" style={{ fontSize: 12, color: S.mut, textDecoration: "none", border: `1px solid ${S.line}`, borderRadius: 8, padding: "6px 12px" }}>LLM-Überblick</a>
@@ -1412,6 +1521,8 @@ function EzyAiApp() {
               </div>
             ) : ezy.loading && !clients.length ? (
               <div style={{ color: S.mut, fontSize: 13, padding: 60, textAlign: "center" }}>Lade Kunden…</div>
+            ) : showAll ? (
+              <AiAgencyOverview clients={clients} S={S} onSelect={pickClient} />
             ) : !client ? (
               <div style={{ color: S.mut, fontSize: 13, padding: 60, textAlign: "center" }}>Keine Kunden zugewiesen.</div>
             ) : section === "llm-analytics" ? (
