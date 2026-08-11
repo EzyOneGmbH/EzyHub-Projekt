@@ -32,6 +32,7 @@ export type AIPrompt = {
 };
 
 export type AIVisibilityData = {
+  clientId: string; // für Drilldown-Nachladen (Prompt-Historie via RLS)
   client: string;
   domain?: string; // für Eigene-Website-Erkennung in der Quellen-Typologie
   market: string;
@@ -71,6 +72,8 @@ export type AIVisibilityData = {
   // Tages-Verlauf (04.08., Searchable-Parität): letzte 14 Mess-Snapshots einzeln
   // (3-Tage-Kadenz => ~6 Wochen Fenster), für die Tage/Monate-Umschaltung im Hero.
   dailyTrend?: { d: string; score: number | null; mentions: number }[];
+  // Sentiment-Score 0-100 (pos=100/neu=50/neg=0 über Judge-bewertete Antworten).
+  sentiment?: { score: number | null; pos: number; neu: number; neg: number; trend: { d: string; score: number }[] };
   models: {
     name: string;
     layer: "macro" | "custom";
@@ -211,7 +214,7 @@ export async function loadAIVisibility(
     // datierte Backfill-Monate); Monats-Aggregation passiert unten in JS.
     sb
       .from("ai_visibility_reports")
-      .select("id, snapshot_date, mentions, citations, cited_pages, score")
+      .select("id, snapshot_date, mentions, citations, cited_pages, score, sentiment:parts->sentiment")
       .eq("client_id", clientId)
       .gte("snapshot_date", new Date(Date.now() - 370 * 864e5).toISOString().slice(0, 10))
       .order("snapshot_date", { ascending: false })
@@ -287,6 +290,7 @@ export async function loadAIVisibility(
   }
 
   const result: AIVisibilityData = {
+    clientId,
     client: clientLabel || String(rep.market ?? ""),
     // Domain für die Zitierquellen-Typologie (Eigene-Website-Erkennung):
     // clientLabel ist per Aufrufer-Konvention domain||name — nur echte Domains übernehmen.
@@ -313,6 +317,26 @@ export async function loadAIVisibility(
       score: h.score != null ? Number(h.score) : null, // VisibilityHero (03.08.)
     })),
     sourceTrend,
+    // Sentiment-Score 0-100 (11.08., Searchable-Parität): pos=100/neu=50/neg=0
+    // über alle Judge-bewerteten Antworten; Trend aus parts->sentiment je Report
+    // (Backfill 11.08. über alle Bestands-Reports).
+    sentiment: (() => {
+      const cur: any = (rep.parts as any)?.sentiment;
+      const trendPts = (history.data ?? [])
+        .slice(0, 20)
+        .reverse()
+        .map((h: any) => ({
+          d: new Date(String(h.snapshot_date) + "T00:00:00").toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit" }),
+          score: h.sentiment?.score != null ? Number(h.sentiment.score) : null,
+        }))
+        .filter((p: any) => p.score != null);
+      if (!cur && !trendPts.length) return undefined;
+      return {
+        score: cur?.score != null ? Number(cur.score) : null,
+        pos: Number(cur?.pos ?? 0), neu: Number(cur?.neu ?? 0), neg: Number(cur?.neg ?? 0),
+        trend: trendPts,
+      };
+    })(),
     // Letzte 14 einzelne Snapshots, chronologisch (history kommt absteigend).
     dailyTrend: (history.data ?? [])
       .slice(0, 14)
@@ -450,4 +474,50 @@ export function useEzyAIVisibility(clientId?: string, clientLabel?: string) {
   }, [reload]);
 
   return { data, loading, error, reload };
+}
+
+// ── Prompt-Historie (11.08., Searchable "Response History") ──────────────────
+// Verlauf EINES Prompts über die letzten Mess-Snapshots: Status/Antwort je
+// Engine je Datum. Lazy beim Öffnen des Drilldowns — nutzt die bestehenden
+// RLS-Read-Policies (reports + prompts), kein neuer Endpoint nötig.
+export type PromptHistoryRow = {
+  date: string;        // ISO snapshot_date
+  platform: string;
+  status: string | null;
+  position: string | null;
+  sentiment: string | null;
+  response: string;
+  checkedAt: string | null;
+};
+export async function fetchPromptHistory(
+  clientId: string,
+  prompt: string,
+  maxReports = 15,
+): Promise<PromptHistoryRow[]> {
+  const { data: reps } = await sb
+    .from("ai_visibility_reports")
+    .select("id, snapshot_date")
+    .eq("client_id", clientId)
+    .order("snapshot_date", { ascending: false })
+    .limit(maxReports);
+  const byId = new Map<string, string>((reps ?? []).map((r: any) => [String(r.id), String(r.snapshot_date)]));
+  if (!byId.size) return [];
+  const { data: rows } = await sb
+    .from("ai_visibility_prompts")
+    .select("report_id, platform, status, position, sentiment, response, checked_at")
+    .in("report_id", [...byId.keys()])
+    .eq("prompt", prompt)
+    .limit(1000);
+  return (rows ?? [])
+    .map((r: any) => ({
+      date: byId.get(String(r.report_id)) || "",
+      platform: String(r.platform ?? ""),
+      status: r.status ?? null,
+      position: r.position ?? null,
+      sentiment: r.sentiment ?? null,
+      response: String(r.response ?? ""),
+      checkedAt: r.checked_at ?? null,
+    }))
+    .filter((r) => r.date)
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.platform.localeCompare(b.platform)));
 }

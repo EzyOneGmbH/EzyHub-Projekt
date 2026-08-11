@@ -1,5 +1,7 @@
 import React, { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+// Prompt-Historie (11.08., Searchable "Response History"): lazy im Detail-Modal.
+import { fetchPromptHistory } from "./data/useEzyAIVisibility";
 // Echte Landkarte (04.08.): react-freie Geo-Bausteine — kein Peer-Dep-Risiko.
 import { geoNaturalEarth1, geoPath, geoBounds } from "d3-geo";
 import { feature as topoFeature } from "topojson-client";
@@ -463,9 +465,12 @@ function DomainFavicon({ domain }) {
   );
 }
 
-function SourcesTable({ rows }) {
+function SourcesTable({ rows, ownDomain }) {
   const [q, setQ] = useState(""); // Suche (Searchable-Parität 03.08.)
   const shown = q.trim() ? rows.filter((r) => r.domain.toLowerCase().includes(q.trim().toLowerCase())) : rows;
+  // Gap-Sicht (11.08.): wie viele der zitierten Domains gehören Konkurrenten?
+  const rivalN = rows.filter((r) => domainOwnership(r.domain, ownDomain) === "rival").length;
+  const ownN = rows.filter((r) => domainOwnership(r.domain, ownDomain) === "own").length;
   return (
     <div className="rounded-xl border" style={{ ...CARD, boxShadow: "0 1px 2px rgba(0,0,0,.04)" }}>
       <div className="flex flex-wrap items-center gap-2 border-b px-5 py-3" style={{ borderColor: C.line }}>
@@ -499,6 +504,7 @@ function SourcesTable({ rows }) {
                   <span className="inline-flex items-center gap-2 font-medium" style={{ color: C.indigo }}>
                     <DomainFavicon domain={r.domain} />
                     {r.domain} <ExternalLink size={11} />
+                    <OwnershipChip kind={domainOwnership(r.domain, ownDomain)} />
                   </span>
                 </td>
                 <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: C.ink }}>{r.mentions}</td>
@@ -510,6 +516,13 @@ function SourcesTable({ rows }) {
           </tbody>
         </table>
       </div>
+      {rivalN > 0 && (
+        <div className="border-t px-5 py-2.5 text-[11px]" style={{ borderColor: C.line, color: C.sub }}>
+          <b style={{ color: "#b91c1c" }}>{rivalN}</b> der {rows.length} zitierten Domains {rivalN === 1 ? "gehört" : "gehören"} Konkurrenten
+          {ownN ? <> — die eigene Website wird {ownN === 1 ? "als 1 Domain" : `über ${ownN} Domains`} zitiert.</> : <> — die eigene Website wird bisher nicht zitiert.</>}{" "}
+          Eigene zitierfähige Inhalte zu diesen Themen schliessen die Lücke.
+        </div>
+      )}
     </div>
   );
 }
@@ -817,9 +830,83 @@ function AnswerBlocks({ text, highlight }) {
 }
 
 // Prompt-Detail als Pop-up (User-Wunsch 2026-07-19, Semrush-Vorbild):
+// ── Antwort-Historie (11.08., Searchable "Response History") ─────────────────
+// Verlauf desselben Prompts über die letzten Mess-Snapshots: Matrix Datum ×
+// Engine (Status-Punkt), Klick auf einen Punkt zeigt die damalige Antwort.
+// Lazy geladen (RLS-Read), damit das Modal ohne Zusatzkosten öffnet.
+function PromptHistorySection({ clientId, prompt, brand }) {
+  const [hist, setHist] = useState(null); // null=lädt, []=keine Daten
+  const [sel, setSel] = useState(null);   // { date, platform, response }
+  useEffect(() => {
+    let alive = true;
+    fetchPromptHistory(clientId, prompt)
+      .then((rows) => { if (alive) setHist(rows); })
+      .catch(() => { if (alive) setHist([]); });
+    return () => { alive = false; };
+  }, [clientId, prompt]);
+  if (hist === null) return <p className="mt-5 text-[11px]" style={{ color: C.sub }}>Verlauf wird geladen…</p>;
+  const dates = [...new Set(hist.map((r) => r.date))]; // absteigend sortiert
+  if (dates.length < 2) return null; // erst ab 2 Snapshots interessant
+  const platforms = [...new Set(hist.map((r) => r.platform))].sort();
+  const cell = new Map(hist.map((r) => [`${r.date}|${r.platform}`, r]));
+  const fmtD = (iso) => new Date(iso + "T00:00:00").toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit" });
+  return (
+    <div className="mt-5 border-t pt-4" style={{ borderColor: C.line }}>
+      <div className="flex items-center gap-1.5 text-[12px] font-semibold" style={{ color: C.ink }}>
+        Verlauf
+        <span title="Dieselbe Frage über die letzten Messläufe: Wie stabil ist die Erwähnung je KI-Modell? Punkt anklicken für die damalige Antwort." style={{ color: C.sub, cursor: "help", display: "inline-flex" }}><Info size={12} /></span>
+        <span className="font-normal" style={{ color: C.sub }}>· {dates.length} Messungen</span>
+      </div>
+      <div className="mt-2 overflow-x-auto">
+        <table className="text-[11px]">
+          <thead>
+            <tr style={{ color: C.sub }}>
+              <th className="pr-3 py-1 text-left font-medium">Datum</th>
+              {platforms.map((p) => (
+                <th key={p} className="px-2 py-1 text-center font-medium"><EngineFavicon platform={p} /></th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {dates.slice(0, 12).map((dt) => (
+              <tr key={dt} className="border-t" style={{ borderColor: C.line }}>
+                <td className="pr-3 py-1.5 tabular-nums" style={{ color: C.ink }}>{fmtD(dt)}</td>
+                {platforms.map((p) => {
+                  const r = cell.get(`${dt}|${p}`);
+                  if (!r) return <td key={p} className="px-2 py-1.5 text-center" style={{ color: C.sub }}>·</td>;
+                  const active = sel && sel.date === dt && sel.platform === p;
+                  return (
+                    <td key={p} className="px-2 py-1.5 text-center">
+                      <button
+                        onClick={() => setSel(active ? null : { date: dt, platform: p, response: r.response, status: r.status })}
+                        title={`${p} · ${r.status || "kein Status"}`}
+                        className="inline-block h-3 w-3 rounded-full transition"
+                        style={{ background: STATUS_COLOR(r.status || "Nicht erwähnt"), outline: active ? `2px solid ${C.indigo}` : "none", outlineOffset: 1 }}
+                      />
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {sel && (
+        <div className="mt-3 rounded-lg border p-3 text-[11.5px] leading-relaxed" style={{ borderColor: C.line, background: C.cardAlt, color: C.ink }}>
+          <div className="mb-1.5 flex items-center gap-2 text-[10.5px]" style={{ color: C.sub }}>
+            <b>{sel.platform}</b> am {fmtD(sel.date)} · <StatusPill s={sel.status} />
+          </div>
+          {String(sel.response || "").slice(0, 1200) || "Keine Antwort gespeichert."}
+          {String(sel.response || "").length > 1200 ? "…" : ""}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Header = Prompt + Modell-Tabs (Status-Punkt je Engine), linke Spalte =
 // Quellen + Mit-genannt, rechte Spalte = Antwort mit Status/Position/Tonalität.
-function PromptDetailModal({ g, opportunity, brand, onClose }) {
+function PromptDetailModal({ g, opportunity, brand, clientId, onClose }) {
   const [tab, setTab] = useState(0);
   const e = g.engines[Math.min(tab, g.engines.length - 1)] || {};
   useEffect(() => {
@@ -943,6 +1030,7 @@ function PromptDetailModal({ g, opportunity, brand, onClose }) {
                 ))}
               </div>
             )}
+            {clientId && <PromptHistorySection clientId={clientId} prompt={g.prompt} brand={brand} />}
           </section>
         </div>
       </div>
@@ -1004,7 +1092,7 @@ function YesNoPill({ yes }) {
 }
 // All-Responses-Optik (03.08.): Gruppe aufklappbar, je Engine EINE Zeile mit
 // Erwähnt?/Zitiert?/Position/Marken/Quellen — Detail-Modal weiter per Klick.
-function PromptGroupRow({ g, opportunity, brand }) {
+function PromptGroupRow({ g, opportunity, brand, clientId }) {
   const [open, setOpen] = useState(false);      // Detail-Modal (Antwort-Volltexte)
   const [expanded, setExpanded] = useState(false); // Default zu (Volkan 06.08.); Klick auf die Zeile klappt auf
   const rate = g.total ? Math.round((g.mentioned / g.total) * 100) : 0;
@@ -1073,7 +1161,7 @@ function PromptGroupRow({ g, opportunity, brand }) {
           </tr>
         );
       })}
-      {open && <PromptDetailModal g={g} opportunity={opportunity} brand={brand} onClose={() => setOpen(false)} />}
+      {open && <PromptDetailModal g={g} opportunity={opportunity} brand={brand} clientId={clientId} onClose={() => setOpen(false)} />}
     </>
   );
 }
@@ -1205,7 +1293,7 @@ function promptsToCsv(rows) {
   return "﻿" + [head.map(esc).join(";"), ...lines].join("\r\n");
 }
 
-function PromptsTable({ prompts, opps, brand, brandPrompts = [], needsReview = 0, onReview }) {
+function PromptsTable({ prompts, opps, brand, brandPrompts = [], needsReview = 0, onReview, clientId }) {
   const [tab, setTab] = useState("all");
   const [page, setPage] = useState(0);
   const [q, setQ] = useState("");            // Suchfeld (Searchable-Parität)
@@ -1330,7 +1418,7 @@ function PromptsTable({ prompts, opps, brand, brandPrompts = [], needsReview = 0
           </thead>
           <tbody>
             {pageGroups.map((g) => (
-              <PromptGroupRow key={`${g.prompt}·${g.country}`} g={g} opportunity={opportunity} brand={brand} />
+              <PromptGroupRow key={`${g.prompt}·${g.country}`} g={g} opportunity={opportunity} brand={brand} clientId={clientId} />
             ))}
           </tbody>
         </table>
@@ -2317,7 +2405,7 @@ function FanoutPanel({ fanout }) {
 
 // URL-Ebene der Quellen (L, 03.08., Searchable "All URLs"): jede zitierte URL
 // einzeln, nach Domain gruppierbar — Daten ab dem Messlauf nach dem 03.08.
-function UrlsTable({ prompts }) {
+function UrlsTable({ prompts, ownDomain }) {
   const [q, setQ] = useState("");
   const [groupBy, setGroupBy] = useState(false);
   const tally = new Map();
@@ -2343,6 +2431,7 @@ function UrlsTable({ prompts }) {
           <DomainFavicon domain={domOf(r.url)} />
           <span className="truncate" style={{ maxWidth: 480 }}>{r.url}</span>
           <ExternalLink size={11} className="shrink-0" />
+          <OwnershipChip kind={domainOwnership(domOf(r.url), ownDomain)} />
         </a>
       </td>
       <td className="px-3 py-2 text-right tabular-nums" style={{ color: C.ink }}>{r.n}</td>
@@ -2398,6 +2487,69 @@ function UrlsTable({ prompts }) {
 // Brand Perception (I, 03.08., Searchable-Parität): wie jedes KI-System die
 // Marke wahrnimmt — Stärken grün, Schwächen rot, Engine per Pill wählbar.
 // Erscheint erst, wenn der Messlauf perception geschrieben hat.
+// ── Sentiment-Score 0-100 (11.08., Searchable-Parität) ───────────────────────
+// pos=100 / neu=50 / neg=0 über alle Judge-bewerteten Antworten des Laufs;
+// Trend aus parts->sentiment je Report (Backfill 11.08. über den Bestand).
+function SentimentScoreCard({ sentiment, brand }) {
+  const [chartRef, W] = useChartWidth(560, 320);
+  if (!sentiment || sentiment.score == null) return null;
+  const { score, pos, neu, neg, trend } = sentiment;
+  const total = pos + neu + neg;
+  const scoreColor = score >= 60 ? C.up : score >= 45 ? C.amber : C.down;
+  const H = 120, PL = 30, PR = 10, PT = 8, PB = 18;
+  const pts = (trend || []).slice(-14);
+  const x = (i) => PL + (pts.length > 1 ? (i / (pts.length - 1)) * (W - PL - PR) : 0);
+  const y = (v) => PT + (1 - v / 100) * (H - PT - PB);
+  const path = pts.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.score).toFixed(1)}`).join(" ");
+  return (
+    <RCard
+      icon={MessageSquare}
+      title="Sentiment-Score"
+      info="Tonalität aller KI-Antworten mit Markennennung, verdichtet zu einer Zahl: positiv = 100, neutral = 50, negativ = 0. Der Trend zeigt die letzten Messläufe."
+      desc={`Wie wohlwollend KI-Systeme über ${brand} schreiben`}
+      footer={total ? `${total} bewertete Antworten · ${pos} positiv / ${neu} neutral / ${neg} negativ` : undefined}
+    >
+      <div className="flex flex-wrap items-start gap-6">
+        <div>
+          <div className="text-[11px] font-medium" style={{ color: C.sub }}>Sentiment-Score</div>
+          <div className="mt-0.5 flex items-baseline gap-1">
+            <span className="text-3xl font-bold tabular-nums" style={{ color: scoreColor }}>{score}</span>
+            <span className="text-xs" style={{ color: C.sub }}>/ 100</span>
+          </div>
+          {total > 0 && (
+            <div className="mt-3 flex h-2 w-44 overflow-hidden rounded-full" title={`${pos} positiv · ${neu} neutral · ${neg} negativ`}>
+              <span style={{ width: `${(pos / total) * 100}%`, background: "#10b981" }} />
+              <span style={{ width: `${(neu / total) * 100}%`, background: "#d1d5db" }} />
+              <span style={{ width: `${(neg / total) * 100}%`, background: "#ef4444" }} />
+            </div>
+          )}
+        </div>
+        {pts.length >= 2 && (
+          <div ref={chartRef} className="min-w-0 flex-1" style={{ overflowX: "auto" }}>
+            <svg viewBox={`0 0 ${W} ${H}`} style={{ width: W, display: "block" }}>
+              {[0, 50, 100].map((v) => (
+                <g key={v}>
+                  <line x1={PL} x2={W - PR} y1={y(v)} y2={y(v)} stroke={C.line} strokeWidth="1" strokeDasharray={v === 50 ? "3 3" : "0"} />
+                  <text x={PL - 5} y={y(v) + 3} textAnchor="end" fontSize="9.5" fill={C.sub}>{v}</text>
+                </g>
+              ))}
+              <path d={path} fill="none" stroke={scoreColor} strokeWidth="2" strokeLinejoin="round" />
+              {pts.map((p, i) => (
+                <g key={i}>
+                  <circle cx={x(i)} cy={y(p.score)} r="2.5" fill={scoreColor} />
+                  {(i === 0 || i === pts.length - 1 || pts.length <= 7) && (
+                    <text x={x(i)} y={H - 4} textAnchor="middle" fontSize="9" fill={C.sub}>{p.d}</text>
+                  )}
+                </g>
+              ))}
+            </svg>
+          </div>
+        )}
+      </div>
+    </RCard>
+  );
+}
+
 function BrandPerceptionCard({ perception, brand }) {
   const list = Array.isArray(perception) ? perception.filter((p) => p.engine) : [];
   const [idx, setIdx] = useState(0);
@@ -2736,6 +2888,31 @@ const registerBrandDomains = (prompts) => {
     }
   }
 };
+// Eigentümer-Klasse einer zitierten Domain (11.08., Searchable-Parität):
+// "own" = Kundendomain, "rival" = bekannte Konkurrenz-Domain (Judge-Feld d in
+// comp_positions), sonst null = Extern (Presse/Verzeichnis/…, siehe Typologie).
+const domainOwnership = (domain, ownDomain) => {
+  const norm = (s) => String(s || "").toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+  const d = norm(domain);
+  if (!d) return null;
+  const own = norm(ownDomain);
+  if (own && (d === own || d.endsWith("." + own))) return "own";
+  for (const rd of BRAND_DOMAINS.values()) {
+    const r = norm(rd);
+    if (r && (d === r || d.endsWith("." + r))) return "rival";
+  }
+  return null;
+};
+function OwnershipChip({ kind }) {
+  if (!kind) return null;
+  const own = kind === "own";
+  return (
+    <span className="rounded-full px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-wide"
+      style={{ background: own ? "#d1fae5" : "#fee2e2", color: own ? "#065f46" : "#b91c1c" }}>
+      {own ? "Eigene" : "Konkurrenz"}
+    </span>
+  );
+}
 const guessDomains = (name, domain) => {
   if (domain) return [String(domain).toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "")];
   const known = BRAND_DOMAINS.get(String(name || "").toLowerCase());
@@ -3302,7 +3479,7 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
                 hängen jetzt hier am Ende — wie Searchables Mentions & Citations. */}
             <div className="mt-4 grid grid-cols-1 gap-4">
               <PromptMatrix prompts={fP} opps={fO} />
-              <PromptsTable prompts={fP} opps={fO} brand={d.client} brandPrompts={d.brandPrompts || []} needsReview={d.promptsNeedsReview || 0} onReview={onReviewPrompts} />
+              <PromptsTable prompts={fP} opps={fO} brand={d.client} brandPrompts={d.brandPrompts || []} needsReview={d.promptsNeedsReview || 0} onReview={onReviewPrompts} clientId={d.clientId} />
               <GoogleSerpAiCard serpAi={d.serpAi} brand={d.client} />
             </div>
           </>
@@ -3310,6 +3487,7 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
 
         {tab === "marke" && (
           <div className="mt-0 grid grid-cols-1 gap-4">
+            <SentimentScoreCard sentiment={d.sentiment} brand={d.client} />
             <BrandPerceptionCard perception={d.brandCheck?.perception} brand={d.client} />
             <BrandCheckCard bc={d.brandCheck} brand={d.client} history={d.brandHistory || []} />
           </div>
@@ -3319,8 +3497,8 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
           <div className="mt-4 grid grid-cols-1 gap-4">
             <DomainTrendCard trend={d.sourceTrend} />
             <CitedTypesCard sources={d.sources} ownDomain={d.domain} />
-            <SourcesTable rows={d.sources} />
-            <UrlsTable prompts={[...(d.prompts || []), ...(d.brandPrompts || [])]} />
+            <SourcesTable rows={d.sources} ownDomain={d.domain} />
+            <UrlsTable prompts={[...(d.prompts || []), ...(d.brandPrompts || [])]} ownDomain={d.domain} />
           </div>
         )}
 

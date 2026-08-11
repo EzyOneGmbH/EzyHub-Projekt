@@ -2985,6 +2985,26 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 for (let off = 0; off < promptInserts.length; off += 500)
                   await sb.from("ai_visibility_prompts").insert(promptInserts.slice(off, off + 500));
                 diag(`${c.name}: prompt-Zeilen geschrieben (${promptInserts.length}${pr.chunk ? `, Häppchen ab ${pr.chunk.offset}` : ""})`);
+                // Sentiment-Score (11.08., Searchable-Parität): pos=100/neu=50/
+                // neg=0 über alle Judge-bewerteten Antworten dieses Reports —
+                // als DB-Aggregat NACH dem Insert (chunk-sicher), additiv in
+                // parts.sentiment (Backfill 11.08. deckt den Bestand ab).
+                try {
+                  const { data: sentRows } = await sb
+                    .from("ai_visibility_prompts").select("sentiment")
+                    .eq("report_id", reportId).not("sentiment", "is", null).limit(5000);
+                  const sc: Record<string, number> = { pos: 0, neu: 0, neg: 0 };
+                  for (const r of sentRows || []) if (sc[r.sentiment as string] != null) sc[r.sentiment as string] += 1;
+                  const totalS = sc.pos + sc.neu + sc.neg;
+                  if (totalS) {
+                    const scoreS = Math.round((sc.pos * 100 + sc.neu * 50) / totalS);
+                    const { data: freshRep } = await sb
+                      .from("ai_visibility_reports").select("parts").eq("id", reportId).maybeSingle();
+                    await sb.from("ai_visibility_reports")
+                      .update({ parts: { ...((freshRep?.parts as any) || {}), sentiment: { score: scoreS, pos: sc.pos, neu: sc.neu, neg: sc.neg } } })
+                      .eq("id", reportId);
+                  }
+                } catch { /* additiv — gefährdet den Lauf nie */ }
                 // AI-Suchvolumen in die Themen (seit 2026-07-19 DataForSEO
                 // AI Keyword Data statt Semrush): misst, wie oft solche Fragen
                 // tatsächlich an KI-Tools gehen — EIN Call für alle Themen.
