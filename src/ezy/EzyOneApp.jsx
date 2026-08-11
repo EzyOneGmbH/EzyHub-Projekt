@@ -13627,6 +13627,18 @@ function App({ appScope = null }) {
   }, [ezy.clients, scope, svcMatrix.hasService, appScope, caa.map]);
   const ui0 = useMemo(() => loadUiState(), []); // letzter UI-Stand aus localStorage
   const [clientId, setClientId] = useState(ui0.clientId || "");
+  // App-Einstieg (Volkan 11.08., präzisiert): "Alle Kunden" nur beim FRISCHEN
+  // Einstieg (Login, App-Wechsel per Link). Ein Reload/Zurück stellt die
+  // letzte Auswahl wieder her — mitten in der Kunden-Arbeit bleibt man drin.
+  // Admin startet in der Verwaltung; Viewer haben keine Alle-Kunden-Sicht.
+  const [showAll, setShowAll] = useState(() => {
+    if (appScope === "admin") return false;
+    if (isReloadNavigation() && ui0.showAll === false && ui0.clientId) return false;
+    return true;
+  });
+  useEffect(() => {
+    if (isViewer) setShowAll(false);
+  }, [isViewer]);
   useEffect(() => {
     if (clients.length && !clients.some((c) => c.id === clientId)) setClientId(clients[0].id);
   }, [clients, clientId]);
@@ -13775,18 +13787,6 @@ function App({ appScope = null }) {
       end: dateRange.preset === "custom" && dateRange.end ? new Date(dateRange.end).toISOString() : undefined,
     });
   }, [dateRange]);
-  // App-Einstieg (Volkan 11.08., präzisiert): "Alle Kunden" nur beim FRISCHEN
-  // Einstieg (Login, App-Wechsel per Link). Ein Reload/Zurück stellt die
-  // letzte Auswahl wieder her — mitten in der Kunden-Arbeit bleibt man drin.
-  // Admin startet in der Verwaltung; Viewer haben keine Alle-Kunden-Sicht.
-  const [showAll, setShowAll] = useState(() => {
-    if (appScope === "admin") return false;
-    if (isReloadNavigation() && ui0.showAll === false && ui0.clientId) return false;
-    return true;
-  });
-  useEffect(() => {
-    if (isViewer) setShowAll(false);
-  }, [isViewer]);
   const [cmdOpen, setCmdOpen] = useState(false);
   const toast = useToast();
   const sw = isMobile ? 0 : collapsed ? 68 : 240;
