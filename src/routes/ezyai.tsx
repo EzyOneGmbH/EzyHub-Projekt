@@ -59,7 +59,9 @@ const APP_NAV: Array<{ group: string; items: NavItem[] }> = [
   ] },
   { group: "Actions", items: [
     { id: "content", label: "Content", icon: FileText, soon: true },
-    { id: "opportunities", label: "Opportunities", icon: Lightbulb, soon: true },
+    // Chancen (11.08., Searchable "Opportunities"): konsolidierte Queue über
+    // alle Signalquellen — Site-Health-Issues, Prompt-Chancen, Prüf-Aufgaben.
+    { id: "opportunities", label: "Chancen", icon: Lightbulb },
   ] },
   { group: "On Page", items: [
     { id: "site-health", label: "Site Health", icon: Globe },
@@ -825,6 +827,136 @@ const SEV_STYLE: Record<string, { bg: string; fg: string; label: string }> = {
 const scoreColor = (v: number) => (v >= 90 ? "#0f9d6c" : v >= 70 ? "#6aa84f" : v >= 50 ? "#d97706" : v >= 30 ? "#ea580c" : "#dc2626");
 const scoreLabel = (v: number) => (v >= 90 ? "Ausgezeichnet" : v >= 70 ? "Gut" : v >= 50 ? "Befriedigend" : v >= 30 ? "Schlecht" : "Kritisch");
 
+// ── Chancen-Queue (11.08., Searchable "Opportunities"-Parität) ───────────────
+// EIN Ort für alles Handlungsrelevante, priorisiert nach Schwere — aggregiert
+// read-only aus vorhandenen Quellen: Site-Health-Issues (Endpoint), Prompt-
+// Chancen (Konkurrenz empfohlen, Kunde nicht — RLS-Read), Prüf-Aufgaben
+// (Prompt-Queue, Faktenprofil). Bewusst ohne neue Tabellen: Erledigen heisst
+// die Ursache beheben, nicht einen Status pflegen.
+const OPP_SEV_ORDER: Record<string, number> = { kritisch: 0, hoch: 1, mittel: 2, niedrig: 3 };
+function OpportunitiesPanel({ clientId, clientName, S, onOpenCuration, onGo }: {
+  clientId: string; clientName: string; S: Record<string, string>;
+  onOpenCuration: () => void; onGo: (section: string) => void;
+}) {
+  const [items, setItems] = useState<any[] | null>(null);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    let alive = true;
+    setItems(null); setErr("");
+    (async () => {
+      const out: any[] = [];
+      const session = (await supabase.auth.getSession()).data.session;
+      const authH = { Authorization: `Bearer ${session?.access_token || ""}` };
+      // 1) Site-Health-Issues (letzter Audit; ohne Audit einfach leer).
+      try {
+        const r = await fetch(`/api/admin/site-health?client=${encodeURIComponent(clientId)}`, { headers: authH });
+        const j = await r.json().catch(() => ({}));
+        for (const i of j?.audit?.issues || []) out.push({
+          sev: String(i.severity || "niedrig"), quelle: "Site Health",
+          titel: String(i.label || ""), text: String(i.tipp || i.detail || ""), go: "issues",
+        });
+      } catch { /* additiv */ }
+      // 2) Prompt-Chancen: Konkurrenz wird empfohlen, der Kunde nicht.
+      try {
+        const { data: rep } = await (supabase as any)
+          .from("ai_visibility_reports").select("id").eq("client_id", clientId)
+          .order("snapshot_date", { ascending: false }).limit(1).maybeSingle();
+        if (rep?.id) {
+          const { data: opps } = await (supabase as any)
+            .from("ai_visibility_prompts").select("prompt, platform, competitors")
+            .eq("report_id", rep.id).eq("is_opportunity", true).limit(1000);
+          const byPrompt = new Map<string, { engines: number; comps: Set<string> }>();
+          for (const o of opps || []) {
+            const g = byPrompt.get(o.prompt) || { engines: 0, comps: new Set<string>() };
+            g.engines += 1;
+            for (const c of o.competitors || []) g.comps.add(String(c));
+            byPrompt.set(o.prompt, g);
+          }
+          [...byPrompt.entries()]
+            .sort((a, b) => b[1].comps.size - a[1].comps.size)
+            .slice(0, 8)
+            .forEach(([prompt, g]) => out.push({
+              sev: g.comps.size >= 3 ? "hoch" : "mittel", quelle: "KI-Sichtbarkeit",
+              titel: `Konkurrenz wird empfohlen: „${prompt}"`,
+              text: `${g.engines} KI-${g.engines === 1 ? "Antwort nennt" : "Antworten nennen"} ${[...g.comps].slice(0, 3).join(", ")}${g.comps.size > 3 ? ` (+${g.comps.size - 3})` : ""} — ${clientName} fehlt. Zitierfähigen Inhalt zu dieser Frage aufbauen.`,
+              go: "aeo-insights",
+            }));
+        }
+      } catch { /* additiv */ }
+      // 3) Prüf-Aufgaben: Prompt-Queue + Faktenprofil.
+      try {
+        const { count } = await (supabase as any)
+          .from("ai_visibility_prompt_defs").select("id", { count: "exact", head: true })
+          .eq("client_id", clientId).eq("needs_review", true);
+        if (count) out.push({
+          sev: "niedrig", quelle: "Kuration",
+          titel: `${count} ${count === 1 ? "Prompt wartet" : "Prompts warten"} auf Prüfung`,
+          text: "Unklare Vorschläge freigeben oder archivieren — nur Bestätigtes wird gemessen.", action: "curation",
+        });
+      } catch { /* additiv */ }
+      try {
+        const r = await fetch(`/api/admin/brand-facts?client=${encodeURIComponent(clientId)}`, { headers: authH });
+        const j = await r.json().catch(() => ({}));
+        if (j?.ok && j.needsReview) out.push({
+          sev: "niedrig", quelle: "Kuration",
+          titel: "Faktenprofil bestätigen",
+          text: "Der Fakten-Check prüft KI-Antworten gegen dieses Profil — einmal prüfen und bestätigen erhöht die Treffsicherheit.", action: "curation",
+        });
+      } catch { /* additiv */ }
+      out.sort((a, b) => (OPP_SEV_ORDER[a.sev] ?? 9) - (OPP_SEV_ORDER[b.sev] ?? 9));
+      if (alive) setItems(out);
+    })().catch((e) => { if (alive) { setErr(String(e?.message || e)); setItems([]); } });
+    return () => { alive = false; };
+  }, [clientId, clientName]);
+
+  const card: any = { background: S.panel, border: `1px solid ${S.line}`, borderRadius: 14, padding: 18 };
+  if (items === null) return <div style={{ ...card, color: S.mut, fontSize: 13 }}>Chancen werden gesammelt…</div>;
+  const counts = items.reduce((m: Record<string, number>, i) => { m[i.sev] = (m[i.sev] || 0) + 1; return m; }, {});
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 12, color: S.mut }}>
+          Alles Handlungsrelevante an einem Ort — aus Site Health, KI-Sichtbarkeit und Kuration, nach Schwere sortiert.
+        </span>
+        <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+          {(["kritisch", "hoch", "mittel", "niedrig"] as const).map((sv) => counts[sv] ? (
+            <span key={sv} style={{ fontSize: 10.5, fontWeight: 700, borderRadius: 99, padding: "2px 9px", background: SEV_STYLE[sv].bg, color: SEV_STYLE[sv].fg }}>
+              {counts[sv]} {SEV_STYLE[sv].label}
+            </span>
+          ) : null)}
+        </span>
+      </div>
+      {err && <div style={{ ...card, color: "#dc2626", fontSize: 12.5 }}>{err}</div>}
+      {!items.length ? (
+        <div style={{ ...card, textAlign: "center", color: S.mut, fontSize: 13 }}>
+          🎉 Keine offenen Chancen — alle Signalquellen sind sauber. Neue Chancen erscheinen nach dem nächsten Messlauf/Audit.
+        </div>
+      ) : (
+        <div style={card}>
+          {items.map((i, idx) => {
+            const sv = SEV_STYLE[i.sev] || SEV_STYLE.niedrig;
+            return (
+              <div key={idx} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 0", borderTop: idx ? `1px solid ${S.line}` : "none" }}>
+                <span style={{ flexShrink: 0, fontSize: 10.5, fontWeight: 700, borderRadius: 99, padding: "2px 9px", background: sv.bg, color: sv.fg }}>{sv.label}</span>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: S.txt }}>{i.titel}</div>
+                  <div style={{ fontSize: 11.5, color: S.mut, marginTop: 2 }}>{i.text}</div>
+                </div>
+                <span style={{ flexShrink: 0, fontSize: 10.5, color: S.mut, alignSelf: "center" }}>{i.quelle}</span>
+                <button
+                  onClick={() => (i.action === "curation" ? onOpenCuration() : onGo(i.go))}
+                  style={{ flexShrink: 0, alignSelf: "center", padding: "5px 10px", borderRadius: 8, border: `1px solid ${S.line}`, background: S.bg, color: S.app, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                  {i.action === "curation" ? "Prüfen" : "Ansehen"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SiteHealthPanel({ clientId, S, mode }: { clientId: string; S: Record<string, string>; mode: "health" | "issues" }) {
   const [audit, setAudit] = useState<any | undefined>(undefined); // undefined = lädt, null = keiner
   const [running, setRunning] = useState(false);
@@ -1004,6 +1136,82 @@ function SiteHealthPanel({ clientId, S, mode }: { clientId: string; S: Record<st
 // ai_visibility_prompt_defs (RLS: Org-Mitglieder dürfen pflegen).
 type PromptDef = { id: string; prompt: string; topic: string | null; intent: string | null; active: boolean; needs_review: boolean; prompt_type: string | null };
 
+// ── Brand-Facts-Kuration (11.08., Searchable "Brand Facts"-Parität) ──────────
+// Das Faktenprofil ist die Abgleichsbasis des Brand-Judge (Faktentreue/
+// Halluzinations-Erkennung). Bisher rein maschinell generiert — hier prüft
+// und korrigiert es ein Mensch; Bestätigen setzt needs_review=false.
+function BrandFactsEditor({ clientId, S }: { clientId: string; S: Record<string, string> }) {
+  const [open, setOpen] = useState(false);
+  const [state, setState] = useState<null | { angebot: string; ort: string; kernfakten: string; needsReview: boolean }>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const load = useCallback(async () => {
+    const session = (await supabase.auth.getSession()).data.session;
+    const r = await fetch(`/api/admin/brand-facts?client=${encodeURIComponent(clientId)}`, {
+      headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+    });
+    const j = await r.json().catch(() => ({}));
+    if (j.ok) setState({
+      angebot: String(j.facts?.angebot || ""),
+      ort: String(j.facts?.ort || ""),
+      kernfakten: (Array.isArray(j.facts?.kernfakten) ? j.facts.kernfakten : []).join("\n"),
+      needsReview: !!j.needsReview,
+    });
+  }, [clientId]);
+  useEffect(() => { void load(); }, [load]);
+  const save = async () => {
+    if (!state) return;
+    setBusy(true); setMsg("");
+    const session = (await supabase.auth.getSession()).data.session;
+    const r = await fetch("/api/admin/brand-facts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token || ""}` },
+      body: JSON.stringify({ client: clientId, facts: { angebot: state.angebot, ort: state.ort, kernfakten: state.kernfakten.split("\n").map((s) => s.trim()).filter(Boolean) } }),
+    });
+    const j = await r.json().catch(() => ({}));
+    setBusy(false);
+    if (j.ok) { setState((s) => (s ? { ...s, needsReview: false } : s)); setMsg("Profil bestätigt — der Fakten-Check nutzt ab jetzt diese Fassung."); }
+    else setMsg(j.error || "Speichern fehlgeschlagen");
+  };
+  if (!state) return null;
+  const inp: any = { width: "100%", padding: "7px 10px", borderRadius: 8, background: S.bg, color: S.txt, border: `1px solid ${S.line}`, fontSize: 12.5, fontFamily: "inherit" };
+  return (
+    <div style={{ borderBottom: `1px solid ${S.line}`, padding: "10px 18px" }}>
+      <button onClick={() => setOpen((v) => !v)}
+        style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit", color: S.txt, fontSize: 12.5, fontWeight: 700 }}>
+        <span style={{ transform: open ? "rotate(90deg)" : "none", transition: "transform .15s", display: "inline-flex" }}>▸</span>
+        Faktenprofil (Grundlage des Fakten-Checks)
+        {state.needsReview && (
+          <span style={{ marginLeft: 6, borderRadius: 99, padding: "2px 8px", fontSize: 10.5, fontWeight: 700, background: "#fdf6e3", color: "#8a6d1b", border: "1px solid #f0c36d" }}>zur Prüfung</span>
+        )}
+      </button>
+      {open && (
+        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ fontSize: 11, color: S.mut }}>
+            Gegen dieses Profil prüft der Marken-Check, ob KI-Antworten über die Firma faktisch stimmen. Automatisch generiert — bitte prüfen, korrigieren, bestätigen.
+          </div>
+          <label style={{ fontSize: 11, color: S.mut }}>Angebot
+            <input value={state.angebot} onChange={(e) => setState({ ...state, angebot: e.target.value })} style={inp} />
+          </label>
+          <label style={{ fontSize: 11, color: S.mut }}>Standort(e)
+            <input value={state.ort} onChange={(e) => setState({ ...state, ort: e.target.value })} style={inp} />
+          </label>
+          <label style={{ fontSize: 11, color: S.mut }}>Kernfakten (eine je Zeile, max. 12)
+            <textarea value={state.kernfakten} onChange={(e) => setState({ ...state, kernfakten: e.target.value })} rows={5} style={{ ...inp, resize: "vertical" }} />
+          </label>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button onClick={save} disabled={busy}
+              style={{ padding: "7px 14px", borderRadius: 8, border: "none", cursor: busy ? "default" : "pointer", background: S.app, color: "#fff", fontSize: 12.5, fontWeight: 700, fontFamily: "inherit", opacity: busy ? 0.6 : 1 }}>
+              {busy ? "Speichert…" : "Profil bestätigen"}
+            </button>
+            {msg && <span style={{ fontSize: 11.5, color: msg.startsWith("Profil bestätigt") ? "#0f9d6c" : "#dc2626" }}>{msg}</span>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PromptCurationPanel({ clientId, onClose, S }: { clientId: string; onClose: () => void; S: Record<string, string> }) {
   const [defs, setDefs] = useState<PromptDef[] | null>(null);
   const [view, setView] = useState<"review" | "active" | "archived">("review");
@@ -1059,6 +1267,7 @@ function PromptCurationPanel({ clientId, onClose, S }: { clientId: string; onClo
         <div style={{ padding: "8px 18px", fontSize: 11, color: S.mut, borderBottom: `1px solid ${S.line}` }}>
           Nur <b style={{ color: S.txt }}>aktive</b> Prompts laufen im Messzyklus (Kosten!). Archivieren behält die Historie. „Vorgeschlagen" = vom Seeder/Relevanz-Audit zur Prüfung markiert.
         </div>
+        <BrandFactsEditor clientId={clientId} S={S} />
         {err && <div style={{ margin: "10px 18px 0", padding: "8px 12px", borderRadius: 8, border: "1px solid #f8717155", color: "#f87171", fontSize: 12 }}>{err}</div>}
         <div style={{ flex: 1, overflowY: "auto", padding: "10px 18px 24px" }}>
           {defs === null ? (
@@ -1542,6 +1751,8 @@ function EzyAiApp() {
               <CompetitorsPanel clientId={client.id} S={S} />
             ) : section === "site-health" || section === "issues" ? (
               <SiteHealthPanel clientId={client.id} S={S} mode={section === "issues" ? "issues" : "health"} />
+            ) : section === "opportunities" ? (
+              <OpportunitiesPanel clientId={client.id} clientName={client.name} S={S} onOpenCuration={() => setCurOpen(true)} onGo={setSection} />
             ) : section !== "aeo-insights" ? (
               <div style={{ background: S.panel, border: `1px solid ${S.line}`, borderRadius: 14, padding: 40, textAlign: "center", maxWidth: 560, margin: "40px auto 0" }}>
                 <div style={{ fontSize: 30, marginBottom: 12 }}>🧭</div>

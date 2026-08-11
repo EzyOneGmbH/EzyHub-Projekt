@@ -2487,6 +2487,54 @@ function UrlsTable({ prompts, ownDomain }) {
 // Brand Perception (I, 03.08., Searchable-Parität): wie jedes KI-System die
 // Marke wahrnimmt — Stärken grün, Schwächen rot, Engine per Pill wählbar.
 // Erscheint erst, wenn der Messlauf perception geschrieben hat.
+// ── Echtes ChatGPT-Query-Fanout (11.08., Searchable-Parität) ─────────────────
+// Sub-Queries, die ChatGPT bei einer ECHTEN Consumer-Suche (llm_scraper,
+// Standort CH) zu den Top-Money-Keywords wirklich stellt — im Unterschied zur
+// früheren PAA-Annäherung sind das die KI-internen Folgefragen selbst.
+function ChatgptFanoutCard({ fanout, brand }) {
+  const list = Array.isArray(fanout) ? fanout.filter((f) => f.queries?.length) : [];
+  if (!list.length) return null;
+  const brandLc = String(brand || "").toLowerCase().split(".")[0];
+  return (
+    <RCard
+      icon={Search}
+      title="Echte KI-Folgefragen"
+      info="Bei einer echten ChatGPT-Suche (Standort Schweiz) zu deinen wichtigsten Suchbegriffen stellt das Modell intern diese Folgefragen, bevor es antwortet. Wer für diese Fragen Inhalte hat, wird zitiert."
+      desc="Welche Sub-Queries ChatGPT zu deinen Money-Keywords wirklich stellt"
+      footer={`${list.reduce((a, f) => a + f.queries.length, 0)} Folgefragen aus ${list.length} echten ChatGPT-Suchen`}
+    >
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {list.map((f) => (
+          <div key={f.kw} className="rounded-lg border p-4" style={{ borderColor: C.line, background: C.cardAlt }}>
+            <div className="text-[12.5px] font-semibold" style={{ color: C.ink }}>„{f.kw}"</div>
+            <ul className="mt-2 space-y-1.5">
+              {f.queries.slice(0, 12).map((q) => (
+                <li key={q} className="flex items-start gap-1.5 text-[11.5px]" style={{ color: C.sub }}>
+                  <ChevronRight size={12} className="mt-0.5 shrink-0" style={{ color: C.indigo }} />
+                  <span>{q}</span>
+                </li>
+              ))}
+            </ul>
+            {f.brands?.length > 0 && (
+              <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t pt-2.5" style={{ borderColor: C.line }}>
+                <span className="text-[10.5px] font-medium" style={{ color: C.sub }}>Genannte Marken:</span>
+                {f.brands.slice(0, 8).map((b) => {
+                  const self = brandLc && String(b).toLowerCase().includes(brandLc);
+                  return (
+                    <span key={b} className="rounded-full border px-2 py-0.5 text-[10.5px]" style={{ borderColor: self ? C.indigo : C.line, color: self ? C.indigo : C.ink, fontWeight: self ? 700 : 400, background: C.card }}>
+                      {b}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </RCard>
+  );
+}
+
 // ── Sentiment-Score 0-100 (11.08., Searchable-Parität) ───────────────────────
 // pos=100 / neu=50 / neg=0 über alle Judge-bewerteten Antworten des Laufs;
 // Trend aus parts->sentiment je Report (Backfill 11.08. über den Bestand).
@@ -3481,6 +3529,7 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
               <PromptMatrix prompts={fP} opps={fO} />
               <PromptsTable prompts={fP} opps={fO} brand={d.client} brandPrompts={d.brandPrompts || []} needsReview={d.promptsNeedsReview || 0} onReview={onReviewPrompts} clientId={d.clientId} />
               <GoogleSerpAiCard serpAi={d.serpAi} brand={d.client} />
+              <ChatgptFanoutCard fanout={d.chatgptFanout} brand={d.client} />
             </div>
           </>
         )}

@@ -92,6 +92,8 @@ export type AIVisibilityData = {
   // Query-Fanout light (03.08.): Google-Folgefragen (PAA) + verwandte Suchen je
   // GSC-Keyword aus dem serp_ai-Lauf — bewusst KEINE KI-internen Sub-Queries.
   fanout?: { kw: string; country: string; questions: string[]; related: string[] }[];
+  // Echtes ChatGPT-Fanout (11.08.): Sub-Queries einer echten KI-Suche (llm_scraper).
+  chatgptFanout?: { kw: string; queries: string[]; brands: string[] }[];
   // AIO/AI-Mode-Detail (06.08.): welche Google-Suchanfragen den Kunden zitieren
   // (SERP-Messung, keine Prompt-Antworten) — für die Erwähnungen-Karte.
   serpAi?: {
@@ -375,6 +377,7 @@ export async function loadAIVisibility(
     }),
     brandCheck: (rep.parts as any)?.bc ?? null,
     fanout: Array.isArray((rep.parts as any)?.sa?.fanout) ? (rep.parts as any).sa.fanout : undefined,
+    chatgptFanout: Array.isArray((rep.parts as any)?.sa?.chatgptFanout) ? (rep.parts as any).sa.chatgptFanout : undefined,
     serpAi: (() => {
       const sa: any = (rep.parts as any)?.sa;
       if (!sa || (!sa.aio && !sa.aim)) return undefined;
