@@ -13774,7 +13774,13 @@ function App({ appScope = null }) {
       end: dateRange.preset === "custom" && dateRange.end ? new Date(dateRange.end).toISOString() : undefined,
     });
   }, [dateRange]);
-  const [showAll, setShowAll] = useState(false);
+  // Beim App-Einstieg immer "Alle Kunden" (Volkan 11.08.) — nicht der zuletzt
+  // gewählte Kunde. Admin startet weiterhin in der Verwaltung; Viewer
+  // (Kundenportal) haben keine Alle-Kunden-Sicht (Effekt korrigiert).
+  const [showAll, setShowAll] = useState(() => appScope !== "admin");
+  useEffect(() => {
+    if (isViewer) setShowAll(false);
+  }, [isViewer]);
   const [cmdOpen, setCmdOpen] = useState(false);
   const toast = useToast();
   const sw = isMobile ? 0 : collapsed ? 68 : 240;

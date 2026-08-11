@@ -1244,7 +1244,9 @@ function EzyAiApp() {
     try { return localStorage.getItem(CLIENT_LS) || ""; } catch { return ""; }
   });
   // Agentur-Übersicht (10.08.): "Alle Kunden" zeigt Kacheln statt eines Kunden.
-  const [showAll, setShowAll] = useState(false);
+  // Beim App-Einstieg immer "Alle Kunden" (Volkan 11.08.) — Agentur-Übersicht
+  // als Start; Viewer werden ohnehin ins Portal umgeleitet.
+  const [showAll, setShowAll] = useState(true);
   const pickClient = (v: string) => {
     if (v === "__all") { setShowAll(true); return; }
     setClientId(v); setShowAll(false);
