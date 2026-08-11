@@ -14603,7 +14603,9 @@ function App({ appScope = null }) {
           )}
           {hasClients && page === "dashboard" && (
             <>
-              <div style={{ marginBottom: 20 }}>
+              {/* "Alle Kunden": gleicher zentrierter 1180px-Rahmen wie in EzyAI
+                  (Volkan 11.08.) — Titel und Kacheln bündig, ein Layout überall. */}
+              <div style={showAll ? { maxWidth: 1180, margin: "0 auto 20px" } : { marginBottom: 20 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                   <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
                     {showAll
@@ -14633,14 +14635,16 @@ function App({ appScope = null }) {
                 </p>
               </div>
               {showAll && (
-                <AgencyOverview
-                  clients={clients}
-                  appScope={appScope}
-                  onSelect={(id) => {
-                    setClientId(id);
-                    setShowAll(false);
-                  }}
-                />
+                <div style={{ maxWidth: 1180, margin: "0 auto" }}>
+                  <AgencyOverview
+                    clients={clients}
+                    appScope={appScope}
+                    onSelect={(id) => {
+                      setClientId(id);
+                      setShowAll(false);
+                    }}
+                  />
+                </div>
               )}
               {!showAll && (
                 <>
