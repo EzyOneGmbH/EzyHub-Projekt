@@ -10,7 +10,7 @@ import { useEzyServiceSettings } from "@/ezy/data/useEzyServiceSettings";
 import { useEzyServiceMatrix } from "@/ezy/data/useEzyServiceMatrix";
 import { AiVisibilityTab } from "@/ezy/EzyOneApp.jsx";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
-import { loadSharedRange, saveSharedRange, cacheGet, cachePut, RANGE_TTL_MS } from "@/ezy/data/rangeStore";
+import { loadSharedRange, saveSharedRange, cacheGet, cachePut, RANGE_TTL_MS, isReloadNavigation } from "@/ezy/data/rangeStore";
 import { HexGlowLayer } from "@/ezy/HexGlow";
 import {
   Search, LogOut, LineChart, Zap, Activity, MessageSquare, GraduationCap,
@@ -1244,9 +1244,18 @@ function EzyAiApp() {
     try { return localStorage.getItem(CLIENT_LS) || ""; } catch { return ""; }
   });
   // Agentur-Übersicht (10.08.): "Alle Kunden" zeigt Kacheln statt eines Kunden.
-  // Beim App-Einstieg immer "Alle Kunden" (Volkan 11.08.) — Agentur-Übersicht
-  // als Start; Viewer werden ohnehin ins Portal umgeleitet.
-  const [showAll, setShowAll] = useState(true);
+  // App-Einstieg (Volkan 11.08., präzisiert): "Alle Kunden" nur beim FRISCHEN
+  // Einstieg (Login, App-Wechsel per Link); Reload/Zurück stellt die letzte
+  // Auswahl wieder her. Viewer werden ohnehin ins Portal umgeleitet.
+  const [showAll, setShowAll] = useState(() => {
+    if (isReloadNavigation()) {
+      try { return localStorage.getItem("ezyai.showAll.v1") !== "0"; } catch { /* egal */ }
+    }
+    return true;
+  });
+  useEffect(() => {
+    try { localStorage.setItem("ezyai.showAll.v1", showAll ? "1" : "0"); } catch { /* egal */ }
+  }, [showAll]);
   const pickClient = (v: string) => {
     if (v === "__all") { setShowAll(true); return; }
     setClientId(v); setShowAll(false);

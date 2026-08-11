@@ -43,6 +43,23 @@ export function saveSharedRange(r: SharedRange): void {
   }
 }
 
+// ── Navigations-Typ ──────────────────────────────────────────────────────────
+/**
+ * true bei Seiten-Reload oder Vor/Zurück — dann stellen die Apps die letzte
+ * Kunden-Auswahl wieder her. Frische Einstiege (Login, App-Wechsel per Link)
+ * starten in "Alle Kunden" (Volkan 11.08.).
+ */
+export function isReloadNavigation(): boolean {
+  try {
+    const nav = performance.getEntriesByType("navigation")[0] as
+      | PerformanceNavigationTiming
+      | undefined;
+    return nav?.type === "reload" || nav?.type === "back_forward";
+  } catch {
+    return false;
+  }
+}
+
 // ── SWR-Cache ────────────────────────────────────────────────────────────────
 const CACHE_PREFIX = "ezy.rangecache.v1:";
 const DEFAULT_TTL_MS = 30 * 60 * 1000; // frisch genug für Dashboard-Zwecke

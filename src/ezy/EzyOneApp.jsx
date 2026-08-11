@@ -99,7 +99,7 @@ import {
 import { ezyFetch } from "@/ezy/data/api";
 import { useAuth } from "@/hooks/use-auth";
 import { useEzyClients } from "@/ezy/data/useEzyClients";
-import { loadSharedRange, saveSharedRange, useRangeData } from "@/ezy/data/rangeStore";
+import { loadSharedRange, saveSharedRange, useRangeData, isReloadNavigation } from "@/ezy/data/rangeStore";
 import { HexGlowLayer } from "@/ezy/HexGlow";
 import { useEzyDefaults } from "@/ezy/data/useEzyDefaults";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
@@ -13757,12 +13757,13 @@ function App({ appScope = null }) {
           page,
           tab,
           clientId,
+          showAll, // Reload stellt die Auswahl wieder her (11.08.)
           dateRange: { label: dateRange.label, days: dateRange.days },
           compareMode,
         }),
       );
     } catch {}
-  }, [page, tab, clientId, dateRange.label, dateRange.days, compareMode]);
+  }, [page, tab, clientId, showAll, dateRange.label, dateRange.days, compareMode]);
   // Geteilter Zeitraum (2026-08-10): jede Änderung wandert in den App-übergreifenden
   // Store — EzyAI & Co. lesen denselben Stand. Custom-Zeiträume mit exakten Daten.
   useEffect(() => {
@@ -13774,10 +13775,15 @@ function App({ appScope = null }) {
       end: dateRange.preset === "custom" && dateRange.end ? new Date(dateRange.end).toISOString() : undefined,
     });
   }, [dateRange]);
-  // Beim App-Einstieg immer "Alle Kunden" (Volkan 11.08.) — nicht der zuletzt
-  // gewählte Kunde. Admin startet weiterhin in der Verwaltung; Viewer
-  // (Kundenportal) haben keine Alle-Kunden-Sicht (Effekt korrigiert).
-  const [showAll, setShowAll] = useState(() => appScope !== "admin");
+  // App-Einstieg (Volkan 11.08., präzisiert): "Alle Kunden" nur beim FRISCHEN
+  // Einstieg (Login, App-Wechsel per Link). Ein Reload/Zurück stellt die
+  // letzte Auswahl wieder her — mitten in der Kunden-Arbeit bleibt man drin.
+  // Admin startet in der Verwaltung; Viewer haben keine Alle-Kunden-Sicht.
+  const [showAll, setShowAll] = useState(() => {
+    if (appScope === "admin") return false;
+    if (isReloadNavigation() && ui0.showAll === false && ui0.clientId) return false;
+    return true;
+  });
   useEffect(() => {
     if (isViewer) setShowAll(false);
   }, [isViewer]);
