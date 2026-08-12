@@ -365,7 +365,10 @@ async function jobGscQueries(c: any, uid: string, days: number) {
     brand,
     nonbrand,
     buckets_nonbrand: buckets,
-    topNonbrandQueries: nonbrandRows.slice(0, 250), // Top 250 (2026-07-19), Dashboard paginiert 10er-weise
+    // Gesamter Non-Brand-Bestand pro Kunde (2026-08-12): Cap 250 -> 1000, damit
+    // das Rankings-Widget den vollen GSC-Keyword-Bestand mergen kann (Filter
+    // Impressions >= 10 bleibt als Rauschgrenze). Dashboard paginiert 10er-weise.
+    topNonbrandQueries: nonbrandRows.slice(0, 1000),
   };
   await insertRun({
     client_id: c.id,

@@ -3093,9 +3093,34 @@ function SeoDashboard({ selectedClient, dateRange }) {
     setRankSort(([c, asc]) => (c === col ? [col, !asc] : [col, true]));
     setRankPage(0);
   };
+  // Gesamter Keyword-Bestand (2026-08-12): getrackte KW (DataForSEO, präzise
+  // Position + Verlauf + Volumen) UNION komplette GSC-Non-Brand-Queries
+  // (GSC-Ø-Position + Klicks + Impressions). Dedup nach normalisiertem Keyword —
+  // ein getracktes KW gewinnt gegen dieselbe GSC-Query. _src markiert die Quelle.
+  const normKw = (s) => String(s || "").trim().toLowerCase();
   const rankRows = useMemo(() => {
-    if (!rank) return [];
-    const rows = [...(rank.keywords || [])];
+    const tracked = (rank?.keywords || []).map((k) => ({ ...k, _src: "dfs" }));
+    const seen = new Set(tracked.map((k) => normKw(k.kw)));
+    const gscOnly = [];
+    const gq = gscQ && Array.isArray(gscQ.topNonbrandQueries) ? gscQ.topNonbrandQueries : [];
+    for (const q of gq) {
+      const n = normKw(q.query);
+      if (!n || seen.has(n)) continue;
+      seen.add(n);
+      gscOnly.push({
+        kw: q.query,
+        pos: q.position != null ? q.position : null,
+        posPrev7: null,
+        posPrev28: null,
+        url: null,
+        volume: null,
+        clicks: q.clicks ?? null,
+        impressions: q.impressions ?? null,
+        _src: "gsc",
+      });
+    }
+    const rows = [...tracked, ...gscOnly];
+    if (!rows.length) return [];
     const [col, asc] = rankSort;
     const dir = asc ? 1 : -1;
     const delta7 = (k) => (k.posPrev7 != null && k.pos != null ? k.posPrev7 - k.pos : null);
@@ -3106,6 +3131,8 @@ function SeoDashboard({ selectedClient, dateRange }) {
       if (col === "pos") { av = a.pos ?? 999; bv = b.pos ?? 999; }
       else if (col === "d7") { av = delta7(a) ?? -999; bv = delta7(b) ?? -999; }
       else if (col === "d28") { av = delta28(a) ?? -999; bv = delta28(b) ?? -999; }
+      else if (col === "clk") { av = a.clicks ?? -1; bv = b.clicks ?? -1; }
+      else if (col === "imp") { av = a.impressions ?? -1; bv = b.impressions ?? -1; }
       else if (col === "vol") { av = a.volume ?? -1; bv = b.volume ?? -1; }
       else if (col === "posi") { av = a.posIntl ?? 999; bv = b.posIntl ?? 999; }
       else if (col === "voli") { av = a.volumeIntl ?? -1; bv = b.volumeIntl ?? -1; }
@@ -3113,7 +3140,13 @@ function SeoDashboard({ selectedClient, dateRange }) {
       return dir * (av - bv);
     });
     return rows;
-  }, [rank, rankSort]);
+  }, [rank, gscQ, rankSort]);
+  // Zähler für die Kopfzeile (getrackt vs. aus GSC gemergt).
+  const rankCounts = useMemo(() => {
+    let dfs = 0, gsc = 0;
+    for (const r of rankRows) (r._src === "gsc" ? (gsc += 1) : (dfs += 1));
+    return { dfs, gsc, total: rankRows.length };
+  }, [rankRows]);
   // INT-Zweitmessung (06.08.): Spalten nur zeigen, wenn der Kunde sie hat
   // (Store intl:true → Snapshot enthält posIntl/volumeIntl).
   const hasIntl = useMemo(
@@ -3168,8 +3201,9 @@ function SeoDashboard({ selectedClient, dateRange }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <OnboardingPanel selectedClient={selectedClient} />
-      {rank ? (
+      {(rank || rankRows.length > 0) ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {rank && (
           <div
             style={{
               display: "grid",
@@ -3192,15 +3226,18 @@ function SeoDashboard({ selectedClient, dateRange }) {
               color={C.orange}
             />
           </div>
+          )}
           <div
             style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}
           >
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}>
-              Rankings ({rank.aggregate?.tracked ?? rankRows.length} Keywords · Stand {rank.date || "—"})
+              Rankings ({rankCounts.total} Keywords
+              {rankCounts.gsc > 0 ? ` · ${rankCounts.dfs} getrackt + ${rankCounts.gsc} aus GSC` : ""}
+              {" · Stand "}{rank?.date || gscQ?.range?.to || "—"})
               {hasIntl ? " · INT = google.com (USA/en, wöchentliche Messung)" : ""}
             </div>
             <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-              <table style={{ width: "100%", minWidth: 560, borderCollapse: "collapse", fontSize: 13 }}>
+              <table style={{ width: "100%", minWidth: 780, borderCollapse: "collapse", fontSize: 13 }}>
                 <thead>
                   <tr style={{ color: C.textDim, textAlign: "left" }}>
                     {[
@@ -3210,9 +3247,12 @@ function SeoDashboard({ selectedClient, dateRange }) {
                       ...(hasIntl ? [["posi", "Pos. INT", "right"]] : []),
                       ["d7", "Δ 7T", "right"],
                       ["d28", "Δ 28T", "right"],
+                      ["clk", "Klicks", "right"],
+                      ["imp", "Impr.", "right"],
                       [null, "URL", "left"],
                       ["vol", "Volumen", "right"],
                       ...(hasIntl ? [["voli", "Vol. INT", "right"]] : []),
+                      [null, "Quelle", "right"],
                     ].map(([col, label, align]) => (
                       <th
                         key={label}
@@ -3242,7 +3282,10 @@ function SeoDashboard({ selectedClient, dateRange }) {
                     .map((k, i) => (
                     <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
                       <td style={{ padding: "6px 8px", color: C.text }}>{k.kw}</td>
-                      <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 600 }}>
+                      <td
+                        style={{ padding: "6px 8px", textAlign: "right", fontWeight: 600 }}
+                        title={k._src === "gsc" ? "GSC-Ø-Position (Durchschnitt über den Zeitraum)" : undefined}
+                      >
                         {k.pos != null ? k.pos : "> 100"}
                       </td>
                       {hasIntl && (
@@ -3256,6 +3299,12 @@ function SeoDashboard({ selectedClient, dateRange }) {
                       <td style={{ padding: "6px 8px", textAlign: "right" }}>
                         <DeltaCell cur={k.pos} prev={k.posPrev28} />
                       </td>
+                      <td style={{ padding: "6px 8px", textAlign: "right", color: C.textMuted }}>
+                        {k.clicks != null ? k.clicks.toLocaleString("de-CH") : "—"}
+                      </td>
+                      <td style={{ padding: "6px 8px", textAlign: "right", color: C.textMuted }}>
+                        {k.impressions != null ? k.impressions.toLocaleString("de-CH") : "—"}
+                      </td>
                       <td style={{ padding: "6px 8px", color: C.textMuted, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {k.url || "—"}
                       </td>
@@ -3267,6 +3316,22 @@ function SeoDashboard({ selectedClient, dateRange }) {
                           {k.volumeIntl != null ? k.volumeIntl.toLocaleString("de-CH") : "—"}
                         </td>
                       )}
+                      <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                        <span
+                          style={{
+                            display: "inline-block",
+                            padding: "1px 7px",
+                            borderRadius: 999,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            color: k._src === "gsc" ? C.blue : C.accent,
+                            background: k._src === "gsc" ? `${C.blue}1a` : `${C.accent}1a`,
+                          }}
+                          title={k._src === "gsc" ? "Aus Google Search Console (nicht getrackt)" : "Aktives Rank-Tracking (DataForSEO)"}
+                        >
+                          {k._src === "gsc" ? "GSC" : "Tracking"}
+                        </span>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
