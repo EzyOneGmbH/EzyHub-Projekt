@@ -3035,6 +3035,18 @@ function SeoDashboard({ selectedClient, dateRange }) {
   const rank = rankRun?.result || null;
   const { run: gscQRun } = useEzyLatestRun(selectedClient?.id, "gsc_queries");
   const gscQ = gscQRun?.result || null;
+  // DataForSEO-SEO-Ausbau 2026-08-13: Labs-Sichtbarkeits-Historie (monatlicher
+  // Push vom agent-service, audit_type labs_history) — Sistrix-Ersatz-Kurve.
+  const { run: labsRun } = useEzyLatestRun(selectedClient?.id, "labs_history");
+  const labsHist = labsRun?.result || null;
+  const labsSeries = useMemo(() => {
+    const rows = Array.isArray(labsHist?.months) ? labsHist.months : [];
+    return rows.map((m) => ({
+      month: m.month,
+      Keywords: m.keywords ?? 0,
+      "Traffic (ETV)": Math.round(m.etv ?? 0),
+    }));
+  }, [labsHist]);
   const { run: psiRun, refresh: refreshPsi } = useEzyLatestRun(selectedClient?.id, "pagespeed");
   const psi = psiRun ? pagespeedKpisFromResult(psiRun.result) : null;
   const cwvOrigin = psiRun?.result?.metrics?.dataOrigin || null; // B5a
@@ -3340,6 +3352,54 @@ function SeoDashboard({ selectedClient, dateRange }) {
           title="Rankings (Keyword-Tracking)"
           hint="Für diesen Kunden ist noch kein Rank-Tracking eingerichtet — Keyword-Set im Rank-Tracking hinterlegen, dann erscheinen hier Top-3/Top-10, Veränderungen und die Rankings-Tabelle."
         />
+      )}
+      {labsSeries.length >= 2 && (
+        <div
+          style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, color: C.textMuted }}>
+            Sichtbarkeit (organisch)
+          </div>
+          <div style={{ fontSize: 11, color: C.textDim, marginBottom: 12 }}>
+            DataForSEO Labs · monatliche Historie · google.ch/de
+            {labsHist?.traffic?.etv != null
+              ? ` · aktuell ~${Math.round(labsHist.traffic.etv).toLocaleString("de-CH")} organische Besuche/Mon. (Schätzung)`
+              : ""}
+          </div>
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={labsSeries}>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+              <XAxis dataKey="month" stroke={C.textDim} fontSize={11} />
+              <YAxis yAxisId="left" stroke={C.textDim} fontSize={11} />
+              <YAxis yAxisId="right" orientation="right" stroke={C.textDim} fontSize={11} />
+              <Tooltip
+                contentStyle={{
+                  background: C.surface,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 8,
+                  color: C.textMuted,
+                }}
+              />
+              <Legend />
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="Traffic (ETV)"
+                stroke={C.accent}
+                strokeWidth={2}
+                dot={false}
+              />
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="Keywords"
+                stroke={C.blue}
+                strokeWidth={2}
+                dot={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       )}
       {isOn("seo.ahrefs") && (
       <div
