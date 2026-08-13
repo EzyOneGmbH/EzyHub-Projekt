@@ -13,6 +13,7 @@ import { useEzyProfile } from "@/ezy/data/useEzyProfile";
 import { loadSharedRange, saveSharedRange, cacheGet, cachePut, RANGE_TTL_MS, isReloadNavigation } from "@/ezy/data/rangeStore";
 import { HexGlowLayer } from "@/ezy/HexGlow";
 import { AppVersionBadge } from "@/ezy/AppVersionBadge";
+import { ClientAvatar } from "@/ezy/ClientAvatar";
 import {
   Search, LogOut, LineChart, Zap, Activity, MessageSquare, GraduationCap,
   FileText, Lightbulb, Globe, AlertTriangle, LayoutDashboard, Bot, Sparkles,
@@ -1821,9 +1822,8 @@ function AiAgencyOverview({ clients, onSelect, S }: { clients: any[]; onSelect: 
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                <div style={{ width: 38, height: 38, borderRadius: 10, flexShrink: 0, background: S.appTint, color: S.app, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700 }}>
-                  {initials(c.name)}
-                </div>
+                {/* Favicon der Kundendomain, Fallback auf Initialen (Volkan 13.08.). */}
+                <ClientAvatar name={c.name} domain={c.domain} size={38} radius={10} bg={S.appTint} fg={S.app} fontSize={13} />
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name || "—"}</div>
                   <div style={{ fontSize: 11, color: S.mut, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.domain || "keine Domain"}</div>

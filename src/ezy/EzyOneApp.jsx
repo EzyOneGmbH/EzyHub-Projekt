@@ -102,6 +102,7 @@ import { useEzyClients } from "@/ezy/data/useEzyClients";
 import { loadSharedRange, saveSharedRange, useRangeData, isReloadNavigation } from "@/ezy/data/rangeStore";
 import { HexGlowLayer } from "@/ezy/HexGlow";
 import { AppVersionBadge } from "@/ezy/AppVersionBadge";
+import { ClientAvatar } from "@/ezy/ClientAvatar";
 import { useEzyDefaults } from "@/ezy/data/useEzyDefaults";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
 import { useEzyContent } from "@/ezy/data/useEzyContent";
@@ -2705,23 +2706,8 @@ function AgencyOverview({ clients, onSelect, appScope = null }) {
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                <div
-                  style={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: 10,
-                    flexShrink: 0,
-                    background: C.accentDim,
-                    color: C.accentLight,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 13,
-                    fontWeight: 700,
-                  }}
-                >
-                  {initialsFromName(c.name)}
-                </div>
+                {/* Favicon der Kundendomain, Fallback auf Initialen (Volkan 13.08.). */}
+                <ClientAvatar name={c.name} domain={c.domain} size={38} radius={10} bg={C.accentDim} fg={C.accentLight} fontSize={13} />
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div
                     style={{
@@ -14564,22 +14550,26 @@ function App({ appScope = null }) {
                   fontFamily: "inherit",
                 }}
               >
-                <div
-                  style={{
-                    width: 24,
-                    height: 24,
-                    borderRadius: 6,
-                    background: C.accentDim,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: C.accentLight,
-                  }}
-                >
-                  {showAll ? "✦" : initialsFromName(client.name)}
-                </div>
+                {showAll ? (
+                  <div
+                    style={{
+                      width: 24,
+                      height: 24,
+                      borderRadius: 6,
+                      background: C.accentDim,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: C.accentLight,
+                    }}
+                  >
+                    ✦
+                  </div>
+                ) : (
+                  <ClientAvatar name={client.name} domain={client.domain} size={24} radius={6} bg={C.accentDim} fg={C.accentLight} fontSize={10} />
+                )}
                 {showAll ? "Alle Kunden" : client.name}
                 <ChevronDown size={14} color={C.textMuted} />
               </button>
