@@ -3081,6 +3081,29 @@ function SeoDashboard({ selectedClient, dateRange }) {
   const chSessions = (traf?.countries || []).find((c) =>
     /switzerland|schweiz|^ch$/i.test(c.country),
   )?.sessions;
+  // "Organic Traffic" aus ECHTEN Daten (User-Wunsch 2026-08-13): GA4-Kanal
+  // "Organic Search" im gewählten Zeitraum (wie Switzerland Traffic); Fallback
+  // GSC-Klicks. Die DFS-ETV-Schätzung (live.traffic) nur noch als letzte
+  // Reserve, wenn weder GA4 noch GSC verbunden sind.
+  const organicSessions = (traf?.channels || []).find((c) =>
+    /^organic search$/i.test(String(c.channel || "")),
+  )?.sessions;
+  const organicTraffic =
+    organicSessions != null && organicSessions > 0
+      ? organicSessions
+      : gsc?.clicks > 0
+        ? gsc.clicks
+        : traffic > 0
+          ? traffic
+          : null;
+  const organicTrafficSource =
+    organicSessions != null && organicSessions > 0
+      ? "GA4"
+      : gsc?.clicks > 0
+        ? "GSC-Klicks"
+        : traffic > 0
+          ? "DFS-Schätzung"
+          : null;
   const hasGsc =
     isOn("seo.gsc") && Boolean(gsc && (gsc.clicks > 0 || gsc.impressions > 0));
   const hasCwv =
@@ -3488,8 +3511,8 @@ function SeoDashboard({ selectedClient, dateRange }) {
       >
         <KpiCard
           icon={Globe}
-          label="Organic Traffic"
-          value={traffic > 0 ? traffic : "—"}
+          label={organicTrafficSource ? `Organic Traffic (${organicTrafficSource})` : "Organic Traffic"}
+          value={organicTraffic != null ? Math.round(organicTraffic).toLocaleString("de-CH") : "—"}
           color={C.accent}
         />
         <KpiCard
@@ -4059,7 +4082,8 @@ function SeoDashboard({ selectedClient, dateRange }) {
             <tbody>
               {[
                 ["Rankings (Top 3 · Top 10 · Tabelle)", "DataForSEO Rank-Tracking", rankRun],
-                ["SEO-KPIs (Traffic, Visibility, Authority, Keywords, Backlinks)", "DataForSEO (Backlinks & Labs)", run],
+                ["Organic Traffic", "GA4 (Organic Search) · Fallback GSC-Klicks", trafRun || gscRun],
+                ["SEO-KPIs (Visibility, Authority, Keywords, Backlinks)", "DataForSEO (Backlinks & Labs)", run],
                 ["Switzerland Traffic", "Google Analytics 4", trafRun],
                 ["Brand/Non-Brand-Split · Positions-Buckets · Top-Suchanfragen", "Google Search Console", gscQRun || gscRun],
                 ["Ranking-Verteilung", "Google Search Console", gscRun],
