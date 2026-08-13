@@ -2546,54 +2546,104 @@ function UrlsTable({ prompts, ownDomain }) {
 // Brand Perception (I, 03.08., Searchable-Parität): wie jedes KI-System die
 // Marke wahrnimmt — Stärken grün, Schwächen rot, Engine per Pill wählbar.
 // Erscheint erst, wenn der Messlauf perception geschrieben hat.
-// ── Echtes ChatGPT-Query-Fanout (11.08., Searchable-Parität) ─────────────────
-// Sub-Queries, die ChatGPT bei einer ECHTEN Consumer-Suche (llm_scraper,
-// Standort CH) zu den Top-Money-Keywords wirklich stellt — im Unterschied zur
-// früheren PAA-Annäherung sind das die KI-internen Folgefragen selbst.
-function ChatgptFanoutCard({ fanout, brand }) {
-  const list = Array.isArray(fanout) ? fanout.filter((f) => f.queries?.length) : [];
+// ── Echte KI-Suche (13.08., llm_scraper Consumer-Oberfläche) ────────────────
+// Was ein ECHTER Nutzer in ChatGPT/Gemini (Standort Schweiz) sieht: Antwort-
+// text, zitierte Quellen, genannte Marken und — nur ChatGPT — die internen
+// Folgefragen. Unterschied zu den Mess-Engines oben: dort die API-Antwort,
+// hier die Consumer-Oberfläche mit Websuche.
+function AiSearchCard({ rows, brand, ownDomain }) {
+  const [open, setOpen] = useState(null);
+  const list = Array.isArray(rows) ? rows.filter((r) => r.text || r.queries?.length) : [];
   if (!list.length) return null;
   const brandLc = String(brand || "").toLowerCase().split(".")[0];
+  const engines = [...new Set(list.map((r) => r.engine))];
   return (
     <RCard
       icon={Search}
-      title="Echte KI-Folgefragen"
-      info="Bei einer echten ChatGPT-Suche (Standort Schweiz) zu deinen wichtigsten Suchbegriffen stellt das Modell intern diese Folgefragen, bevor es antwortet. Wer für diese Fragen Inhalte hat, wird zitiert."
-      desc="Welche Sub-Queries ChatGPT zu deinen Money-Keywords wirklich stellt"
-      footer={`${list.reduce((a, f) => a + f.queries.length, 0)} Folgefragen aus ${list.length} echten ChatGPT-Suchen`}
+      title="Echte KI-Suche"
+      info="Für die wichtigsten Suchbegriffe wird eine echte Consumer-Suche in ChatGPT und Gemini ausgeführt (Standort Schweiz, mit Websuche). Gezeigt werden die tatsächliche Antwort, die dabei zitierten Quellen und die genannten Marken. Das ist die Nutzer-Sicht — im Unterschied zu den API-Antworten der Mess-Engines."
+      desc={`Was ${engines.join(" und ")} Nutzern in der Schweiz wirklich antworten`}
+      footer={`${list.length} echte KI-Suchen${list.some((r) => r.queries?.length) ? ` · ${list.reduce((a, r) => a + (r.queries?.length || 0), 0)} Folgefragen` : ""}`}
     >
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {list.map((f) => (
-          <div key={`${f.kw}·${f.engine || ""}`} className="rounded-lg border p-4" style={{ borderColor: C.line, background: C.cardAlt }}>
-            <div className="flex items-center gap-2 text-[12.5px] font-semibold" style={{ color: C.ink }}>
-              <EngineFavicon platform={f.engine || "ChatGPT"} />
-              „{f.kw}"
-              <span className="rounded-full border px-2 py-0.5 text-[10px] font-medium" style={{ borderColor: C.line, color: C.sub }}>{f.engine || "ChatGPT"}</span>
-            </div>
-            <ul className="mt-2 space-y-1.5">
-              {f.queries.slice(0, 12).map((q) => (
-                <li key={q} className="flex items-start gap-1.5 text-[11.5px]" style={{ color: C.sub }}>
-                  <ChevronRight size={12} className="mt-0.5 shrink-0" style={{ color: C.indigo }} />
-                  <span>{q}</span>
-                </li>
-              ))}
-            </ul>
-            {f.brands?.length > 0 && (
-              <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t pt-2.5" style={{ borderColor: C.line }}>
-                <span className="text-[10.5px] font-medium" style={{ color: C.sub }}>Genannte Marken:</span>
-                {f.brands.slice(0, 8).map((b) => {
-                  const self = brandLc && String(b).toLowerCase().includes(brandLc);
-                  return (
-                    <span key={b} className="rounded-full border px-2 py-0.5 text-[10.5px]" style={{ borderColor: self ? C.indigo : C.line, color: self ? C.indigo : C.ink, fontWeight: self ? 700 : 400, background: C.card }}>
-                      {b}
-                    </span>
-                  );
-                })}
+        {list.map((f, idx) => {
+          const ownCited = ownDomain && (f.sources || []).some((s) => s.d === ownDomain || s.d.endsWith("." + ownDomain));
+          return (
+            <div key={`${f.kw}·${f.engine}·${idx}`} className="rounded-lg border p-4" style={{ borderColor: C.line, background: C.cardAlt }}>
+              <div className="flex flex-wrap items-center gap-2 text-[12.5px] font-semibold" style={{ color: C.ink }}>
+                <EngineFavicon platform={f.engine} />
+                „{f.kw}"
+                <span className="rounded-full border px-2 py-0.5 text-[10px] font-medium" style={{ borderColor: C.line, color: C.sub }}>{f.engine}</span>
+                {f.sources?.length > 0 && (
+                  <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: ownCited ? "#d1fae5" : "#fee2e2", color: ownCited ? "#065f46" : "#b91c1c" }}>
+                    {ownCited ? "eigene Seite zitiert" : "nicht zitiert"}
+                  </span>
+                )}
               </div>
-            )}
-          </div>
-        ))}
+              {f.text && (
+                <>
+                  <div className="mt-2 text-[11.5px] leading-relaxed" style={{ color: C.sub, display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                    {f.text}
+                  </div>
+                  <button onClick={() => setOpen(f)} className="mt-1.5 text-[11px] font-semibold" style={{ color: C.indigo }}>
+                    Ganze Antwort ansehen →
+                  </button>
+                </>
+              )}
+              {f.sources?.length > 0 && (
+                <div className="mt-2.5 border-t pt-2" style={{ borderColor: C.line }}>
+                  <div className="text-[10.5px] font-medium" style={{ color: C.sub }}>Zitierte Quellen ({f.sources.length})</div>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {f.sources.slice(0, 6).map((s, i) => {
+                      const own = ownDomain && (s.d === ownDomain || s.d.endsWith("." + ownDomain));
+                      return (
+                        <span key={`${s.d}${i}`} className="rounded-full border px-2 py-0.5 text-[10.5px]"
+                          style={{ borderColor: own ? C.up : C.line, background: own ? "#ecfdf5" : C.card, color: own ? "#065f46" : C.ink, fontWeight: own ? 700 : 400 }}>
+                          {s.d}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {f.brands?.length > 0 && (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t pt-2" style={{ borderColor: C.line }}>
+                  <span className="text-[10.5px] font-medium" style={{ color: C.sub }}>Genannte Marken:</span>
+                  {f.brands.slice(0, 8).map((b) => {
+                    const self = brandLc && String(b).toLowerCase().includes(brandLc);
+                    return (
+                      <span key={b} className="rounded-full border px-2 py-0.5 text-[10.5px]" style={{ borderColor: self ? C.indigo : C.line, color: self ? C.indigo : C.ink, fontWeight: self ? 700 : 400, background: C.card }}>
+                        {b}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+              {f.queries?.length > 0 && (
+                <div className="mt-2 border-t pt-2" style={{ borderColor: C.line }}>
+                  <div className="text-[10.5px] font-medium" style={{ color: C.sub }}>Interne Folgefragen ({f.queries.length})</div>
+                  <ul className="mt-1 space-y-1">
+                    {f.queries.slice(0, 8).map((q) => (
+                      <li key={q} className="flex items-start gap-1.5 text-[11px]" style={{ color: C.sub }}>
+                        <ChevronRight size={11} className="mt-0.5 shrink-0" style={{ color: C.indigo }} />
+                        <span>{q}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
+      {open && (
+        <SerpAnswerModal
+          answer={{ kw: open.kw, land: "Schweiz", text: open.text, refs: open.sources || [] }}
+          label={`${open.engine} · echte Suche`}
+          ownDomain={ownDomain}
+          onClose={() => setOpen(null)}
+        />
+      )}
     </RCard>
   );
 }
@@ -3607,7 +3657,7 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
               <PromptMatrix prompts={fP} opps={fO} />
               <PromptsTable prompts={fP} opps={fO} brand={d.client} brandPrompts={d.brandPrompts || []} needsReview={d.promptsNeedsReview || 0} onReview={onReviewPrompts} clientId={d.clientId} />
               <GoogleSerpAiCard serpAi={d.serpAi} brand={d.client} ownDomain={d.domain} />
-              <ChatgptFanoutCard fanout={d.chatgptFanout} brand={d.client} />
+              <AiSearchCard rows={d.aiSearch} brand={d.client} ownDomain={d.domain} />
             </div>
           </>
         )}

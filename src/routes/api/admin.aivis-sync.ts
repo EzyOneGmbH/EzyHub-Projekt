@@ -616,36 +616,52 @@ async function jobSerpAi(c: any, limitOverride?: number) {
     aio,
     aim,
     fanout: [...fanout.values()],
-    // Echtes Query-Fanout (11.08., Searchable-Parität): eine ECHTE ChatGPT-
-    // Consumer-Suche (llm_scraper, CH, force_web_search) für die Top-2 Money-
-    // Keywords — fan_out_queries sind die Sub-Queries, die das Modell wirklich
-    // stellt (~$0.004/Stück). Parallel, eigene 120s-Grenze.
-    // GEMINI BEWUSST NICHT (12.08., live geprüft): gemini/llm_scraper kennt
-    // weder force_web_search noch fan_out_queries/brand_entities — nur
-    // Antworttext + Quellen. Als Fanout-Quelle wertlos; Engine-Feld bleibt
-    // für den Fall, dass DataForSEO nachzieht.
-    chatgptFanout: await (async () => {
+    // Echte KI-Suche (13.08., Ausbau des 11.08.-Fanouts): ChatGPT UND Gemini
+    // in der CONSUMER-Oberfläche (llm_scraper, Standort Schweiz) für die
+    // Top-Money-Keywords — das ist, was ein echter Nutzer sieht, im Gegensatz
+    // zur API-Antwort (llm_responses) der Mess-Engines. Gespeichert werden
+    // Antworttext, zitierte Quellen und genannte Marken; Folgefragen liefert
+    // nur ChatGPT (Gemini kennt weder fan_out_queries/brand_entities noch
+    // force_web_search — live geprüft 12./13.08.).
+    // ~$0.004 je Call → 3 Keywords × 2 Engines = ~$0.024/Lauf.
+    aiSearch: await (async () => {
       const auth2 = dfsAuth();
       if (!auth2) return [];
-      const out: { kw: string; engine: string; queries: string[]; brands: string[] }[] = [];
-      const scrape = async (kw: string, provider: "chat_gpt" | "gemini", engine: string) => {
-        const r = await fetch(`https://api.dataforseo.com/v3/ai_optimization/${provider}/llm_scraper/live/advanced`, {
+      const kwCount = Math.max(1, Number(process.env.AIVIS_AISEARCH_KEYWORDS ?? 3));
+      const engines: Array<{ provider: "chat_gpt" | "gemini"; engine: string; web: boolean }> = [
+        { provider: "chat_gpt", engine: "ChatGPT", web: true },
+        { provider: "gemini", engine: "Gemini", web: false },
+      ];
+      const scrape = async (kw: string, e: (typeof engines)[number]) => {
+        const task: any = { keyword: kw, language_code: (c.language || "de").slice(0, 2), location_name: "Switzerland" };
+        if (e.web) task.force_web_search = true; // Gemini lehnt das Feld ab (40501)
+        const r = await fetch(`https://api.dataforseo.com/v3/ai_optimization/${e.provider}/llm_scraper/live/advanced`, {
           method: "POST", headers: { Authorization: auth2, "Content-Type": "application/json" },
-          body: JSON.stringify([{ keyword: kw, language_code: (c.language || "de").slice(0, 2), location_name: "Switzerland", force_web_search: true }]),
+          body: JSON.stringify([task]),
           signal: AbortSignal.timeout(120_000),
         });
         const j: any = await r.json().catch(() => null);
         const t = j?.tasks?.[0];
         if (j?.status_code !== 20000 || !t || t.status_code !== 20000) return null;
         const resu = t.result?.[0] || {};
+        const text = String(resu.markdown || "").trim()
+          || ((resu.items || []) as any[]).map((i: any) => String(i?.markdown || i?.text || "")).filter(Boolean).join("\n\n");
         return {
-          kw, engine,
-          queries: (resu.fan_out_queries || []).map((q: any) => String(q?.query ?? q)).filter(Boolean).slice(0, 25),
-          brands: (resu.brand_entities || []).map((b: any) => String(b?.name ?? b)).filter(Boolean).slice(0, 15),
+          kw, engine: e.engine,
+          text: text.slice(0, 4000),
+          sources: ((resu.sources || []) as any[]).slice(0, 12).map((s: any) => ({
+            d: String(s?.domain || "").replace(/^www\./, ""),
+            u: String(s?.url || ""),
+            t: String(s?.title || "").slice(0, 160),
+          })).filter((s: any) => s.d),
+          brands: ((resu.brand_entities || []) as any[]).map((b: any) => String(b?.title ?? b?.name ?? b)).filter(Boolean).slice(0, 15),
+          queries: ((resu.fan_out_queries || []) as any[]).map((q: any) => String(q?.query ?? q)).filter(Boolean).slice(0, 25),
         };
       };
-      const settled = await Promise.allSettled(pairs.slice(0, 2).map((p) => scrape(p.kw, "chat_gpt", "ChatGPT")));
-      for (const s of settled) if (s.status === "fulfilled" && s.value && s.value.queries.length) out.push(s.value);
+      const jobs = pairs.slice(0, kwCount).flatMap((p) => engines.map((e) => () => scrape(p.kw, e)));
+      const settled = await Promise.allSettled(jobs.map((f) => f()));
+      const out: any[] = [];
+      for (const s of settled) if (s.status === "fulfilled" && s.value && (s.value.text || s.value.queries.length)) out.push(s.value);
       return out;
     })().catch(() => []),
     errors,
@@ -2785,8 +2801,9 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 mentions: sa.mentions, citations: Number(sa.citations || 0), pages: sa.citedPages?.length || 0, models: sa.models,
                 // Query-Fanout light (03.08.): Google-Folgefragen je Keyword (PAA/related).
                 ...(Array.isArray(sa.fanout) && sa.fanout.length ? { fanout: sa.fanout.slice(0, 200) } : {}),
-                // Echtes KI-Fanout (11.08., 12.08. + Gemini): Sub-Queries der echten KI-Suche.
-                ...(Array.isArray(sa.chatgptFanout) && sa.chatgptFanout.length ? { chatgptFanout: sa.chatgptFanout.slice(0, 8) } : {}),
+                // Echte KI-Suche (13.08.): Antworttext + Quellen + Marken +
+                // Folgefragen aus der Consumer-Oberfläche von ChatGPT/Gemini.
+                ...(Array.isArray(sa.aiSearch) && sa.aiSearch.length ? { aiSearch: sa.aiSearch.slice(0, 12) } : {}),
                 urls: [...new Set((sa.citedPages || []).map((u: any) => normUrl(u)).filter(Boolean))].slice(0, 300),
                 // AIO/AI-Mode-Detail (06.08., für die Erwähnungen-Karte): WELCHE
                 // Suchanfragen zitieren den Kunden — bisher nur im Lauf-Response.

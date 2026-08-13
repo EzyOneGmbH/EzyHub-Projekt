@@ -97,8 +97,14 @@ export type AIVisibilityData = {
   // Query-Fanout light (03.08.): Google-Folgefragen (PAA) + verwandte Suchen je
   // GSC-Keyword aus dem serp_ai-Lauf — bewusst KEINE KI-internen Sub-Queries.
   fanout?: { kw: string; country: string; questions: string[]; related: string[] }[];
-  // Echtes KI-Fanout (11.08., 12.08. + Gemini): Sub-Queries echter KI-Suchen (llm_scraper).
-  chatgptFanout?: { kw: string; engine?: string; queries: string[]; brands: string[] }[];
+  // Echte KI-Suche (13.08., llm_scraper Consumer-Oberfläche ChatGPT/Gemini):
+  // Antworttext + zitierte Quellen + genannte Marken + Folgefragen.
+  // Altdaten (bis 12.08.) hatten nur chatgptFanout → wird eingemischt.
+  aiSearch?: {
+    kw: string; engine: string; text: string;
+    sources: { d: string; u: string; t: string }[];
+    brands: string[]; queries: string[];
+  }[];
   // AIO/AI-Mode-Detail (06.08.): welche Google-Suchanfragen den Kunden zitieren
   // (SERP-Messung, keine Prompt-Antworten) — für die Erwähnungen-Karte.
   // answers (13.08.): echter Antworttext + Quellen je zitierter Suchanfrage.
@@ -400,7 +406,21 @@ export async function loadAIVisibility(
     }),
     brandCheck: (rep.parts as any)?.bc ?? null,
     fanout: Array.isArray((rep.parts as any)?.sa?.fanout) ? (rep.parts as any).sa.fanout : undefined,
-    chatgptFanout: Array.isArray((rep.parts as any)?.sa?.chatgptFanout) ? (rep.parts as any).sa.chatgptFanout : undefined,
+    // Neu (13.08.) aiSearch; Altdaten (chatgptFanout) werden auf dieselbe
+    // Form gehoben, damit die Karte auch ohne frischen Lauf etwas zeigt.
+    aiSearch: (() => {
+      const sa: any = (rep.parts as any)?.sa;
+      const neu = Array.isArray(sa?.aiSearch) ? sa.aiSearch : null;
+      const rows = neu ?? (Array.isArray(sa?.chatgptFanout) ? sa.chatgptFanout : []);
+      return rows.length ? rows.map((r: any) => ({
+        kw: String(r?.kw ?? ""),
+        engine: String(r?.engine ?? "ChatGPT"),
+        text: String(r?.text ?? ""),
+        sources: (Array.isArray(r?.sources) ? r.sources : []).map((s: any) => ({ d: String(s?.d ?? ""), u: String(s?.u ?? ""), t: String(s?.t ?? "") })),
+        brands: (Array.isArray(r?.brands) ? r.brands : []).map(String),
+        queries: (Array.isArray(r?.queries) ? r.queries : []).map(String),
+      })).filter((r: any) => r.kw) : undefined;
+    })(),
     serpAi: (() => {
       const sa: any = (rep.parts as any)?.sa;
       if (!sa || (!sa.aio && !sa.aim)) return undefined;
