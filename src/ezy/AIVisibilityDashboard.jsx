@@ -249,8 +249,11 @@ function TrendCard({ data }) {
       <div className="flex items-center gap-2">
         <TrendingUp size={15} style={{ color: C.sub }} />
         <h3 className="text-[13px] font-semibold" style={{ color: C.ink }}>Entwicklung</h3>
-        <span title="Monatlicher Verlauf von Erwähnungen, Citations und referenzierten Seiten (je Monat der neueste Report)." style={{ color: C.sub, cursor: "help", display: "inline-flex" }}><Info size={13} /></span>
-        <span className="text-[12px]" style={{ color: C.sub }}>· 12 Monate</span>
+        <span title="Monatlicher Verlauf von Erwähnungen, Citations und referenzierten Seiten ab der ersten Messung (je Monat der neueste Report, max. 12 Monate)." style={{ color: C.sub, cursor: "help", display: "inline-flex" }}><Info size={13} /></span>
+        {/* Zeitraum ab erstem Messpunkt statt fix "12 Monate" (13.08., Volkan). */}
+        <span className="text-[12px]" style={{ color: C.sub }}>
+          {data?.length > 1 ? `· seit ${data[0].my || data[0].m}` : data?.length === 1 ? `· erste Messung ${data[0].my || data[0].m}` : ""}
+        </span>
       </div>
       <div className="mt-3" style={{ height: 200 }}>
         <ResponsiveContainer width="100%" height="100%">

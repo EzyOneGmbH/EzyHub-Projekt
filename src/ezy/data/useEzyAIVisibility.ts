@@ -322,9 +322,12 @@ export async function loadAIVisibility(
       citations: kpi(Number(rep.citations ?? 0), Number(rep.citations_delta ?? 0)),
       citedPages: kpi(Number(rep.cited_pages ?? 0), Number(rep.cited_pages_delta ?? 0)),
     },
-    // Monats-Trend (12 Monate): je Monat der NEUESTE Report (monthlyReps oben).
+    // Monats-Trend (max. 12 Monate, ab dem ersten Messpunkt — 13.08. Volkan):
+    // je Monat der NEUESTE Report (monthlyReps oben); my = "Aug 2026" für die
+    // "seit …"-Beschriftung der Entwicklungs-Karte.
     trend: monthlyReps.map((h: any) => ({
       m: monShort(String(h.snapshot_date)),
+      my: new Date(String(h.snapshot_date) + "T00:00:00").toLocaleDateString("de-CH", { month: "short", year: "numeric" }).replace(".", ""),
       mentions: Number(h.mentions ?? 0),
       citations: Number(h.citations ?? 0),
       pages: Number(h.cited_pages ?? 0),
