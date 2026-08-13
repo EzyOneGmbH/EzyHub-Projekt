@@ -623,11 +623,14 @@ async function jobSerpAi(c: any, limitOverride?: number) {
     // Antworttext, zitierte Quellen und genannte Marken; Folgefragen liefert
     // nur ChatGPT (Gemini kennt weder fan_out_queries/brand_entities noch
     // force_web_search — live geprüft 12./13.08.).
-    // ~$0.004 je Call → 3 Keywords × 2 Engines = ~$0.024/Lauf.
+    // ~$0.004 je Call → 10 Keywords × 2 Engines = ~$0.08/Lauf (Volkan 13.08.).
+    // Die Calls laufen in Blöcken (pMap), nicht alle 20 gleichzeitig: der
+    // Scraper braucht bis 120 s je Antwort, und die DataForSEO-IP-Drossel
+    // (Vorfall 14.07.) schlägt bei Burst-Last zu.
     aiSearch: await (async () => {
       const auth2 = dfsAuth();
       if (!auth2) return [];
-      const kwCount = Math.max(1, Number(process.env.AIVIS_AISEARCH_KEYWORDS ?? 3));
+      const kwCount = Math.max(1, Number(process.env.AIVIS_AISEARCH_KEYWORDS ?? 10));
       const engines: Array<{ provider: "chat_gpt" | "gemini"; engine: string; web: boolean }> = [
         { provider: "chat_gpt", engine: "ChatGPT", web: true },
         { provider: "gemini", engine: "Gemini", web: false },
@@ -658,11 +661,9 @@ async function jobSerpAi(c: any, limitOverride?: number) {
           queries: ((resu.fan_out_queries || []) as any[]).map((q: any) => String(q?.query ?? q)).filter(Boolean).slice(0, 25),
         };
       };
-      const jobs = pairs.slice(0, kwCount).flatMap((p) => engines.map((e) => () => scrape(p.kw, e)));
-      const settled = await Promise.allSettled(jobs.map((f) => f()));
-      const out: any[] = [];
-      for (const s of settled) if (s.status === "fulfilled" && s.value && (s.value.text || s.value.queries.length)) out.push(s.value);
-      return out;
+      const jobs = pairs.slice(0, kwCount).flatMap((p) => engines.map((e) => ({ kw: p.kw, e })));
+      const settled = await pMap(jobs, (j) => scrape(j.kw, j.e).catch(() => null), 6);
+      return settled.filter((r: any) => r && (r.text || r.queries.length));
     })().catch(() => []),
     errors,
   };
@@ -2803,7 +2804,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 ...(Array.isArray(sa.fanout) && sa.fanout.length ? { fanout: sa.fanout.slice(0, 200) } : {}),
                 // Echte KI-Suche (13.08.): Antworttext + Quellen + Marken +
                 // Folgefragen aus der Consumer-Oberfläche von ChatGPT/Gemini.
-                ...(Array.isArray(sa.aiSearch) && sa.aiSearch.length ? { aiSearch: sa.aiSearch.slice(0, 12) } : {}),
+                ...(Array.isArray(sa.aiSearch) && sa.aiSearch.length ? { aiSearch: sa.aiSearch.slice(0, 24) } : {}),
                 urls: [...new Set((sa.citedPages || []).map((u: any) => normUrl(u)).filter(Boolean))].slice(0, 300),
                 // AIO/AI-Mode-Detail (06.08., für die Erwähnungen-Karte): WELCHE
                 // Suchanfragen zitieren den Kunden — bisher nur im Lauf-Response.
