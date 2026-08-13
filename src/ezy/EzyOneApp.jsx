@@ -3049,11 +3049,10 @@ function SeoDashboard({ selectedClient, dateRange }) {
     const mapped = rows.map((m) => ({
       month: m.month,
       "Besuche (GA4)": m.ga4Organic ?? null,
-      "Klicks (GSC)": m.gscClicks ?? null,
       Keywords: m.gscQueries ?? null,
     }));
     const first = mapped.findIndex(
-      (m) => (m["Besuche (GA4)"] || 0) > 0 || (m["Klicks (GSC)"] || 0) > 0 || (m.Keywords || 0) > 0,
+      (m) => (m["Besuche (GA4)"] || 0) > 0 || (m.Keywords || 0) > 0,
     );
     return first >= 0 ? mapped.slice(first) : [];
   }, [seoHist]);
@@ -3390,13 +3389,15 @@ function SeoDashboard({ selectedClient, dateRange }) {
             Sichtbarkeit (organisch)
           </div>
           <div style={{ fontSize: 11, color: C.textDim, marginBottom: 12 }}>
-            {seoHistHasGa4 ? "GA4 (organische Besuche) + Google Search Console" : "Google Search Console"}
+            {seoHistHasGa4
+              ? "GA4 (organische Besuche) + Google Search Console (Keywords)"
+              : "Google Search Console (Keywords)"}
             {" · monatlich · nur volle Monate"}
             {(() => {
               const last = seoHistSeries[seoHistSeries.length - 1];
-              const v = seoHistHasGa4 ? last?.["Besuche (GA4)"] : last?.["Klicks (GSC)"];
+              const v = seoHistHasGa4 ? last?.["Besuche (GA4)"] : null;
               return v != null
-                ? ` · zuletzt ${Math.round(v).toLocaleString("de-CH")} ${seoHistHasGa4 ? "organische Besuche" : "GSC-Klicks"}/Mon.`
+                ? ` · zuletzt ${Math.round(v).toLocaleString("de-CH")} organische Besuche/Mon.`
                 : "";
             })()}
           </div>
@@ -3425,14 +3426,6 @@ function SeoDashboard({ selectedClient, dateRange }) {
                   dot={false}
                 />
               )}
-              <Line
-                yAxisId="left"
-                type="monotone"
-                dataKey="Klicks (GSC)"
-                stroke={C.green}
-                strokeWidth={2}
-                dot={false}
-              />
               <Line
                 yAxisId="right"
                 type="monotone"
