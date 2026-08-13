@@ -10328,13 +10328,16 @@ function TeamPage({ clients }) {
                               })
                             }
                             style={{
-                              textAlign: "left", padding: "7px 10px", borderRadius: 8, cursor: "pointer", fontSize: 12,
+                              display: "flex", alignItems: "center", gap: 7,
+                              textAlign: "left", padding: "6px 10px", borderRadius: 8, cursor: "pointer", fontSize: 12,
                               border: `1px solid ${on ? C.accent : C.border}`,
                               background: on ? C.accentDim : "transparent",
                               color: on ? C.accentLight : C.text,
                             }}
                           >
-                            {on ? "☑" : "☐"} {c.name}
+                            <span>{on ? "☑" : "☐"}</span>
+                            <ClientAvatar name={c.name} domain={c.domain} size={20} radius={5} bg={C.accentDim} fg={C.accentLight} fontSize={9} />
+                            <span style={{ minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</span>
                           </button>
                         );
                       })}
@@ -10710,9 +10713,11 @@ function MatrixPage({ clients }) {
                     <button
                       type="button"
                       onClick={() => setExpanded(expanded === c.id ? null : c.id)}
-                      style={{ background: "none", border: "none", cursor: "pointer", color: C.text, fontSize: 13, fontWeight: 600, padding: 0, fontFamily: "inherit" }}
+                      style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer", color: C.text, fontSize: 13, fontWeight: 600, padding: 0, fontFamily: "inherit" }}
                     >
-                      {expanded === c.id ? "▾" : "▸"} {c.name}
+                      <span style={{ width: 12 }}>{expanded === c.id ? "▾" : "▸"}</span>
+                      <ClientAvatar name={c.name} domain={c.domain} size={22} radius={6} bg={C.accentDim} fg={C.accentLight} fontSize={9} />
+                      {c.name}
                     </button>
                   </td>
                   {apps.map((a) => {
@@ -10919,22 +10924,8 @@ function ClientsPage({
           >
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}>
               <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                <div
-                  style={{
-                    width: 42,
-                    height: 42,
-                    borderRadius: 10,
-                    background: C.accentDim,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 16,
-                    fontWeight: 800,
-                    color: C.accentLight,
-                  }}
-                >
-                  {initialsFromName(c.name)}
-                </div>
+                {/* Favicon der Kundendomain, Fallback auf Initialen (Volkan 13.08.). */}
+                <ClientAvatar name={c.name} domain={c.domain} size={42} radius={10} bg={C.accentDim} fg={C.accentLight} fontSize={16} />
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 15, color: C.text }}>{c.name}</div>
                   <div style={{ fontSize: 12, color: C.textMuted }}>{c.domain}</div>
@@ -10987,22 +10978,8 @@ function ClientsPage({
             }}
           >
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-              <div
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 8,
-                  background: C.accentDim,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 14,
-                  fontWeight: 800,
-                  color: C.accentLight,
-                }}
-              >
-                {initialsFromName(detail.name)}
-              </div>
+              {/* Favicon der Kundendomain, Fallback auf Initialen (Volkan 13.08.). */}
+              <ClientAvatar name={detail.name} domain={detail.domain} size={36} radius={8} bg={C.accentDim} fg={C.accentLight} fontSize={14} />
               <div>
                 <div style={{ fontWeight: 700, color: C.text }}>{detail.name}</div>
                 <div style={{ fontSize: 11, color: C.textMuted }}>{detail.domain}</div>
@@ -14621,9 +14598,11 @@ function App({ appScope = null }) {
                       }}
                       style={{
                         display: "flex",
-                        flexDirection: "column",
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 10,
                         width: "100%",
-                        padding: "10px 14px",
+                        padding: "8px 14px",
                         border: "none",
                         cursor: "pointer",
                         background:
@@ -14634,8 +14613,11 @@ function App({ appScope = null }) {
                         fontFamily: "inherit",
                       }}
                     >
-                      <span style={{ fontWeight: 600, fontSize: 13 }}>{entry.name}</span>
-                      <span style={{ color: C.textMuted, fontSize: 11 }}>{entry.domain}</span>
+                      <ClientAvatar name={entry.name} domain={entry.domain} size={26} radius={7} bg={C.accentDim} fg={C.accentLight} fontSize={10} />
+                      <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                        <span style={{ fontWeight: 600, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{entry.name}</span>
+                        <span style={{ color: C.textMuted, fontSize: 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{entry.domain}</span>
+                      </span>
                     </button>
                   ))}
                 </div>
