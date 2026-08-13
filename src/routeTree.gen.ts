@@ -109,6 +109,7 @@ import { Route as ApiAdminClientContextRouteImport } from './routes/api/admin.cl
 import { Route as ApiAdminAivisSyncRouteImport } from './routes/api/admin.aivis-sync'
 import { Route as ApiAdminAivisCompetitorsRouteImport } from './routes/api/admin.aivis-competitors'
 import { Route as ApiAdminBrandFactsRouteImport } from './routes/api/admin.brand-facts'
+import { Route as ApiAdminContentBriefRouteImport } from './routes/api/admin.content-brief'
 import { Route as ApiAdminAiCrawlerIngestRouteImport } from './routes/api/admin.ai-crawler-ingest'
 import { Route as ApiAdminAiCitationsRouteImport } from './routes/api/admin.ai-citations'
 import { Route as ApiAdminAgentRunRouteImport } from './routes/api/admin.agent-run'
@@ -638,6 +639,11 @@ const ApiAdminBrandFactsRoute = ApiAdminBrandFactsRouteImport.update({
   path: '/api/admin/brand-facts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminContentBriefRoute = ApiAdminContentBriefRouteImport.update({
+  id: '/api/admin/content-brief',
+  path: '/api/admin/content-brief',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminAiCrawlerIngestRoute = ApiAdminAiCrawlerIngestRouteImport.update({
   id: '/api/admin/ai-crawler-ingest',
   path: '/api/admin/ai-crawler-ingest',
@@ -793,6 +799,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/ai-crawler-ingest': typeof ApiAdminAiCrawlerIngestRoute
   '/api/admin/aivis-competitors': typeof ApiAdminAivisCompetitorsRoute
   '/api/admin/brand-facts': typeof ApiAdminBrandFactsRoute
+  '/api/admin/content-brief': typeof ApiAdminContentBriefRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-context': typeof ApiAdminClientContextRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
@@ -914,6 +921,7 @@ export interface FileRoutesByTo {
   '/api/admin/ai-crawler-ingest': typeof ApiAdminAiCrawlerIngestRoute
   '/api/admin/aivis-competitors': typeof ApiAdminAivisCompetitorsRoute
   '/api/admin/brand-facts': typeof ApiAdminBrandFactsRoute
+  '/api/admin/content-brief': typeof ApiAdminContentBriefRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-context': typeof ApiAdminClientContextRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
@@ -1036,6 +1044,7 @@ export interface FileRoutesById {
   '/api/admin/ai-crawler-ingest': typeof ApiAdminAiCrawlerIngestRoute
   '/api/admin/aivis-competitors': typeof ApiAdminAivisCompetitorsRoute
   '/api/admin/brand-facts': typeof ApiAdminBrandFactsRoute
+  '/api/admin/content-brief': typeof ApiAdminContentBriefRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/client-context': typeof ApiAdminClientContextRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
@@ -1515,6 +1524,7 @@ export interface RootRouteChildren {
   ApiAdminAiCrawlerIngestRoute: typeof ApiAdminAiCrawlerIngestRoute
   ApiAdminAivisCompetitorsRoute: typeof ApiAdminAivisCompetitorsRoute
   ApiAdminBrandFactsRoute: typeof ApiAdminBrandFactsRoute
+  ApiAdminContentBriefRoute: typeof ApiAdminContentBriefRoute
   ApiAdminAivisSyncRoute: typeof ApiAdminAivisSyncRoute
   ApiAdminClientContextRoute: typeof ApiAdminClientContextRoute
   ApiAdminClientDomainsRoute: typeof ApiAdminClientDomainsRoute
@@ -2289,6 +2299,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminBrandFactsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/content-brief': {
+      id: '/api/admin/content-brief'
+      path: '/api/admin/content-brief'
+      fullPath: '/api/admin/content-brief'
+      preLoaderRoute: typeof ApiAdminContentBriefRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/ai-crawler-ingest': {
       id: '/api/admin/ai-crawler-ingest'
       path: '/api/admin/ai-crawler-ingest'
@@ -2526,6 +2543,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminAiCrawlerIngestRoute: ApiAdminAiCrawlerIngestRoute,
   ApiAdminAivisCompetitorsRoute: ApiAdminAivisCompetitorsRoute,
   ApiAdminBrandFactsRoute: ApiAdminBrandFactsRoute,
+  ApiAdminContentBriefRoute: ApiAdminContentBriefRoute,
   ApiAdminAivisSyncRoute: ApiAdminAivisSyncRoute,
   ApiAdminClientContextRoute: ApiAdminClientContextRoute,
   ApiAdminClientDomainsRoute: ApiAdminClientDomainsRoute,

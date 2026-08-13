@@ -3039,6 +3039,60 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                       .eq("id", reportId);
                   }
                 } catch { /* additiv — gefährdet den Lauf nie */ }
+                // Sichtbarkeits-Wächter (13.08., Volkan): erzeugt In-App-
+                // Meldungen (app_notifications, Glocke im EzyAI-Header) bei
+                // Einbrüchen. Nutzt die vom Sync bereits berechneten Deltas
+                // (bei Instrumentierungswechsel null → keine Fehlalarme) und
+                // den SoV-Vergleich zum Vorreport. Dedupe: gleiche Art je
+                // Kunde max. 1×/6 Tage. Additiv — gefährdet den Lauf nie.
+                if (!prPartial) try {
+                  const { data: repRow } = await sb
+                    .from("ai_visibility_reports")
+                    .select("score, score_delta, citations_delta, snapshot_date")
+                    .eq("id", reportId).maybeSingle();
+                  const alerts: Array<{ kind: string; severity: string; title: string; body: string }> = [];
+                  const sd = Number(repRow?.score_delta ?? 0);
+                  const cd = Number(repRow?.citations_delta ?? 0);
+                  if (repRow?.score_delta != null && sd <= -8) alerts.push({
+                    kind: "score_drop", severity: sd <= -15 ? "kritisch" : "hoch",
+                    title: `${c.name}: KI-Sichtbarkeits-Score eingebrochen (${sd})`,
+                    body: `Der Score fiel auf ${repRow.score}. Prompt-Details und Quellen im Dashboard prüfen.`,
+                  });
+                  if (repRow?.citations_delta != null && cd <= -3) alerts.push({
+                    kind: "citations_lost", severity: "hoch",
+                    title: `${c.name}: ${Math.abs(cd)} KI-Zitierungen verloren`,
+                    body: "KI-Antworten führen die Website seltener als Quelle. Betroffene Prompts im Dashboard prüfen.",
+                  });
+                  // SoV-Überholung: war der Kunde im Vorreport vor dem Rivalen?
+                  const { data: prevRep2 } = await sb
+                    .from("ai_visibility_reports").select("id").eq("client_id", c.id)
+                    .lt("snapshot_date", repRow?.snapshot_date || "9999-12-31")
+                    .order("snapshot_date", { ascending: false }).limit(1).maybeSingle();
+                  if (prevRep2?.id) {
+                    const sovOf = async (rid: string) => {
+                      const { data } = await sb.from("ai_visibility_sov").select("brand, is_self, share").eq("report_id", rid);
+                      const self = (data || []).find((s: any) => s.is_self);
+                      const rival = (data || []).filter((s: any) => !s.is_self).sort((a: any, b: any) => Number(b.share) - Number(a.share))[0];
+                      return { self: Number(self?.share ?? -1), rival, rivalShare: Number(rival?.share ?? -1) };
+                    };
+                    const [now, prev] = [await sovOf(reportId), await sovOf(prevRep2.id)];
+                    if (now.self >= 0 && now.rivalShare > now.self && prev.self >= prev.rivalShare) alerts.push({
+                      kind: "sov_overtaken", severity: "hoch",
+                      title: `${c.name}: ${String(now.rival?.brand || "Ein Konkurrent")} hat im Share of Voice überholt`,
+                      body: `SoV jetzt ${now.self}% vs. ${now.rivalShare}% — im Vorreport lag ${c.name} noch vorn.`,
+                    });
+                  }
+                  for (const a of alerts) {
+                    const { data: dup } = await sb
+                      .from("app_notifications").select("id").eq("client_id", c.id).eq("kind", a.kind)
+                      .gte("created_at", new Date(Date.now() - 6 * 864e5).toISOString()).limit(1).maybeSingle();
+                    if (!dup) await sb.from("app_notifications").insert({
+                      organization_id: c.organization_id, client_id: c.id,
+                      kind: a.kind, severity: a.severity, title: a.title, body: a.body, link_section: "aeo-insights",
+                    });
+                  }
+                  if (alerts.length) diag(`${c.name}: ${alerts.length} Sichtbarkeits-Alarm(e) erzeugt`);
+                } catch { /* additiv — gefährdet den Lauf nie */ }
                 // AI-Suchvolumen in die Themen (seit 2026-07-19 DataForSEO
                 // AI Keyword Data statt Semrush): misst, wie oft solche Fragen
                 // tatsächlich an KI-Tools gehen — EIN Call für alle Themen.

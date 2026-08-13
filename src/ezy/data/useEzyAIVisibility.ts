@@ -71,7 +71,10 @@ export type AIVisibilityData = {
   trend: { m: string; mentions: number; citations: number; pages: number; score?: number | null }[];
   // Tages-Verlauf (04.08., Searchable-Parität): letzte 14 Mess-Snapshots einzeln
   // (3-Tage-Kadenz => ~6 Wochen Fenster), für die Tage/Monate-Umschaltung im Hero.
-  dailyTrend?: { d: string; score: number | null; mentions: number }[];
+  dailyTrend?: { d: string; iso?: string; score: number | null; mentions: number }[];
+  // Massnahmen-Marker (13.08.): agent_runs mit Deploys — für Wirkungsnachweis
+  // im Score-Trend ("hier wurde etwas geändert").
+  deployMarkers?: { iso: string; label: string }[];
   // Sentiment-Score 0-100 (pos=100/neu=50/neg=0 über Judge-bewertete Antworten).
   sentiment?: { score: number | null; pos: number; neu: number; neg: number; trend: { d: string; score: number }[] };
   models: {
@@ -226,6 +229,15 @@ export async function loadAIVisibility(
     // Relevanz-Audit als fremd deaktiviert — Transparenz-Banner im Prompts-Tab.
     sb.from("ai_visibility_prompt_defs").select("id", { count: "exact", head: true }).eq("client_id", clientId).eq("needs_review", true),
   ]);
+  // Massnahmen-Marker (13.08.): Agent-Läufe mit tatsächlichen Deploys der
+  // letzten 60 Tage — Wirkungsnachweis im Score-Trend. RLS-gated (org-member);
+  // Fehler hier dürfen das Dashboard nie kippen.
+  const { data: deployRuns } = await sb
+    .from("agent_runs").select("run_at, agent_name, deploy_count, summary")
+    .eq("client_id", clientId).gt("deploy_count", 0)
+    .gte("run_at", new Date(Date.now() - 60 * 864e5).toISOString())
+    .order("run_at", { ascending: true }).limit(50)
+    .then((r: any) => r, () => ({ data: [] }));
   const modelRows = models.data ?? [];
   const modelIds = modelRows.map((m: any) => m.id);
   const { data: mcRows } = modelIds.length
@@ -345,9 +357,14 @@ export async function loadAIVisibility(
       .reverse()
       .map((h: any) => ({
         d: new Date(String(h.snapshot_date) + "T00:00:00").toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit" }),
+        iso: String(h.snapshot_date),
         score: h.score != null ? Number(h.score) : null,
         mentions: Number(h.mentions ?? 0),
       })),
+    deployMarkers: ((deployRuns as any[]) || []).map((r: any) => ({
+      iso: String(r.run_at || "").slice(0, 10),
+      label: `${String(r.agent_name || "Agent")}: ${Number(r.deploy_count)} Änderung${Number(r.deploy_count) === 1 ? "" : "en"}${r.summary ? ` — ${String(r.summary).slice(0, 120)}` : ""}`,
+    })),
     models: modelRows.map((m: any) => ({
       name: String(m.model_name ?? ""),
       layer: m.layer === "custom" ? "custom" : "macro",

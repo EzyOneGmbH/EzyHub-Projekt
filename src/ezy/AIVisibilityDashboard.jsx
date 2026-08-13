@@ -2815,10 +2815,10 @@ const SCORE_GUIDE = (s) =>
     ? { label: "Moderat", color: C.amber, bg: "#fdf6e3", tip: "Inhalte vertiefen: umfassender schreiben, Beispiele und Expertenwissen ergänzen." }
     : { label: "Niedrig", color: C.down, bg: "#fee2e2", tip: "Grundlagen aufbauen: Kernthemen-Content erstellen, strukturierte Daten und Quellen-Autorität stärken." };
 
-function VisibilityHero({ score, delta, history, daily }) {
+function VisibilityHero({ score, delta, history, daily, markers }) {
   // Tage/Monate + Linie/Balken (04.08., Searchable-Parität): Tagespunkte =
   // echte Mess-Snapshots (3-Tage-Kadenz), Monate = je Monat der neueste Report.
-  const dailyPts = (daily || []).filter((h) => h.score != null).map((h) => ({ m: h.d, score: h.score }));
+  const dailyPts = (daily || []).filter((h) => h.score != null).map((h) => ({ m: h.d, iso: h.iso, score: h.score }));
   const monthPts = (history || []).filter((h) => h.score != null).slice(-12);
   const [range, setRange] = useState(dailyPts.length >= 3 ? "tage" : "monate");
   const [chart, setChart] = useState("linie");
@@ -2891,6 +2891,21 @@ function VisibilityHero({ score, delta, history, daily }) {
               <text key={i} x={x(i)} y={H - 3} textAnchor="middle" fontSize="9" fill={C.sub}>{p.m}</text>
             ) : null
           ))}
+          {/* Massnahmen-Marker (13.08.): Agent-Deploys als gestrichelte
+              Vertikale im Tage-Modus — Wirkungsnachweis ("hier wurde etwas
+              geändert"). Marker außerhalb des Zeitfensters fallen weg. */}
+          {range === "tage" && (markers || []).map((mk, mi) => {
+            const idx = pts.findIndex((p) => p.iso && p.iso >= mk.iso);
+            if (idx < 0) return null;
+            return (
+              <g key={`mk${mi}`}>
+                <line x1={x(idx)} x2={x(idx)} y1={PAD} y2={H - AXB - PAD} stroke={C.amber} strokeWidth="1.5" strokeDasharray="2 3" />
+                <circle cx={x(idx)} cy={PAD + 3} r="3.5" fill={C.amber}>
+                  <title>{`Massnahme ${mk.iso}: ${mk.label}`}</title>
+                </circle>
+              </g>
+            );
+          })}
           {chart === "balken" ? (
             pts.map((p, i) => (
               <rect key={i} x={x(i) - barW / 2} y={y(p.score)} width={barW} height={Math.max(1, H - AXB - PAD - y(p.score))} rx="2"
@@ -3474,7 +3489,7 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
             </div>
             {/* Zeile 1 wie Searchable Visibility: Score-Verlauf | Rankings */}
             <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <VisibilityHero score={d.score} delta={d.versionSwitch ? 0 : d.scoreDelta} history={d.trend} daily={d.versionSwitch ? [] : d.dailyTrend} />
+              <VisibilityHero score={d.score} delta={d.versionSwitch ? 0 : d.scoreDelta} history={d.trend} daily={d.versionSwitch ? [] : d.dailyTrend} markers={d.deployMarkers} />
               <RankingsTable prompts={rankP} opps={rankO} sov={d.sov} brand={d.client} sentimentPct={sentimentPct} domain={d.domain} />
             </div>
             <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">

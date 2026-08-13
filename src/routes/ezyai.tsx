@@ -15,7 +15,7 @@ import { HexGlowLayer } from "@/ezy/HexGlow";
 import {
   Search, LogOut, LineChart, Zap, Activity, MessageSquare, GraduationCap,
   FileText, Lightbulb, Globe, AlertTriangle, LayoutDashboard, Bot, Sparkles,
-  Trophy,
+  Trophy, Bell,
 } from "lucide-react";
 
 // Initialen aus einem Namen (Shell-Profilblock, wie in der EzyRank-Shell).
@@ -58,7 +58,8 @@ const APP_NAV: Array<{ group: string; items: NavItem[] }> = [
     { id: "prompt-research", label: "Prompt Research", icon: GraduationCap, soon: true },
   ] },
   { group: "Actions", items: [
-    { id: "content", label: "Content", icon: FileText, soon: true },
+    // Content-Briefs (13.08., Content-Loop): aus Chancen erzeugte Briefs.
+    { id: "content", label: "Content", icon: FileText },
     // Chancen (11.08., Searchable "Opportunities"): konsolidierte Queue über
     // alle Signalquellen — Site-Health-Issues, Prompt-Chancen, Prüf-Aufgaben.
     { id: "opportunities", label: "Chancen", icon: Lightbulb },
@@ -705,6 +706,74 @@ function TrafficPanel({ clientId, S, days }: { clientId: string; S: Record<strin
 // Zeigt je Plattform (Google AIO/AI-Mode vs. ChatGPT), welche Domains, Seiten
 // und Marken in den LLM-Antworten zu den Mess-Themen des Kunden am häufigsten
 // zitiert werden. Daten: /api/admin/aivis-competitors (Targets = aivis-Topics).
+// ── Benachrichtigungs-Glocke (13.08., Volkan) ────────────────────────────────
+// Zeigt Sichtbarkeits-Alarme aus app_notifications (Sync-Wächter: Score-
+// Einbruch, verlorene Zitierungen, SoV-Überholung). RLS filtert auf die
+// Kunden, die der User sehen darf. Klick auf die Glocke öffnet die Liste;
+// "Alle gelesen" setzt read_at. Kein Polling — lädt beim Mount und bei Öffnen.
+const NOTIF_SEV: Record<string, string> = { kritisch: "#dc2626", hoch: "#f59e0b", mittel: "#6366f1", info: "#9ca3af" };
+function NotificationsBell({ S }: { S: Record<string, string> }) {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<any[]>([]);
+  const load = useCallback(async () => {
+    const { data } = await (supabase as any)
+      .from("app_notifications")
+      .select("id, kind, severity, title, body, read_at, created_at")
+      .order("created_at", { ascending: false }).limit(20);
+    setItems(data || []);
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+  const unread = items.filter((i) => !i.read_at).length;
+  const markAll = async () => {
+    const ids = items.filter((i) => !i.read_at).map((i) => i.id);
+    if (!ids.length) return;
+    await (supabase as any).from("app_notifications").update({ read_at: new Date().toISOString() }).in("id", ids);
+    void load();
+  };
+  return (
+    <div style={{ position: "relative" }}>
+      <button onClick={() => { setOpen((v) => !v); if (!open) void load(); }} aria-label="Benachrichtigungen"
+        style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, borderRadius: 10, border: `1px solid ${S.line}`, background: open ? S.appTint : "transparent", cursor: "pointer" }}>
+        <Bell size={16} color={unread ? S.app : S.mut} />
+        {unread > 0 && (
+          <span style={{ position: "absolute", top: -5, right: -5, minWidth: 17, height: 17, borderRadius: 99, background: "#dc2626", color: "#fff", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>
+            {unread > 9 ? "9+" : unread}
+          </span>
+        )}
+      </button>
+      {open && (
+        <>
+          <div style={{ position: "fixed", inset: 0, zIndex: 40 }} onClick={() => setOpen(false)} />
+          <div style={{ position: "absolute", top: 40, right: 0, zIndex: 41, width: "min(400px, 90vw)", maxHeight: 420, overflowY: "auto", background: S.panel, border: `1px solid ${S.line}`, borderRadius: 12, boxShadow: "0 10px 30px rgba(0,0,0,.18)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: `1px solid ${S.line}`, position: "sticky", top: 0, background: S.panel }}>
+              <span style={{ fontWeight: 700, fontSize: 13, color: S.txt }}>Meldungen</span>
+              {unread > 0 && (
+                <button onClick={markAll} style={{ marginLeft: "auto", fontSize: 11.5, color: S.app, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>
+                  Alle als gelesen markieren
+                </button>
+              )}
+            </div>
+            {!items.length ? (
+              <div style={{ padding: "22px 14px", textAlign: "center", fontSize: 12.5, color: S.mut }}>
+                Keine Meldungen — der Sichtbarkeits-Wächter meldet sich bei Score-Einbrüchen, verlorenen Zitierungen oder SoV-Überholungen.
+              </div>
+            ) : items.map((n) => (
+              <div key={n.id} style={{ display: "flex", gap: 9, padding: "10px 14px", borderBottom: `1px solid ${S.line}`, opacity: n.read_at ? 0.55 : 1 }}>
+                <span style={{ flexShrink: 0, marginTop: 5, width: 8, height: 8, borderRadius: 99, background: NOTIF_SEV[n.severity] || NOTIF_SEV.info }} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: n.read_at ? 500 : 700, color: S.txt }}>{n.title}</div>
+                  {n.body && <div style={{ fontSize: 11.5, color: S.mut, marginTop: 2 }}>{n.body}</div>}
+                  <div style={{ fontSize: 10.5, color: S.mut, marginTop: 3 }}>{new Date(n.created_at).toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // KI-Erwähnungs-Trend (12.08., DataForSEO historical + timeseries_new_lost):
 // monatliche Erwähnungen der KUNDEN-DOMAIN im LLM-Korpus (domain-basiert =
 // sprachunabhängig, Daten ab 2025-08) + neue/verlorene Erwähnungen.
@@ -1000,6 +1069,8 @@ function OpportunitiesPanel({ clientId, clientName, S, onOpenCuration, onGo }: {
           titel: `${g.rival} gewinnt KI-Zitate bei ${g.total} echten Fragen — ${clientName} fehlt`,
           text: `Beispiele aus dem Schweizer KI-Korpus: ${g.questions.slice(0, 4).map((q: any) => `„${q.q}"`).join(" · ")}. Zitierfähigen Inhalt zu diesen Fragen aufbauen.`,
           go: "ki-konkurrenz",
+          // Content-Loop (13.08.): direkt aus dem Gap einen Brief erzeugen.
+          brief: { rival: g.rival, thema: `KI-Zitat-Gap vs. ${g.rival}`, questions: g.questions.slice(0, 8) },
         });
       } catch { /* additiv */ }
       // 2) Prompt-Chancen: Konkurrenz wird empfohlen, der Kunde nicht.
@@ -1049,6 +1120,19 @@ function OpportunitiesPanel({ clientId, clientName, S, onOpenCuration, onGo }: {
           text: "Der Fakten-Check prüft KI-Antworten gegen dieses Profil — einmal prüfen und bestätigen erhöht die Treffsicherheit.", action: "curation",
         });
       } catch { /* additiv */ }
+      // 4) Entity-Check (13.08.): existiert die Marke als Wikidata-Entität?
+      // Ohne eindeutige Entität können KIs die Firma schwer zuordnen (GEO-
+      // Fundament; vgl. Ezy-Hotel-Verwechslung). Öffentliche API, CORS offen.
+      try {
+        const r = await fetch(`https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(clientName)}&language=de&uselang=de&format=json&origin=*&limit=5`);
+        const j = await r.json().catch(() => null);
+        if (j && Array.isArray(j.search) && j.search.length === 0) out.push({
+          sev: "niedrig", quelle: "Entitäten",
+          titel: "Kein Wikidata-Eintrag zur Marke gefunden",
+          text: `Für „${clientName}" existiert keine Wikidata-Entität — KI-Systeme können die Firma schwerer eindeutig zuordnen (Verwechslungsgefahr). Einen Basis-Eintrag mit Branche, Ort und Website anlegen.`,
+          go: "aeo-insights",
+        });
+      } catch { /* additiv — externes API */ }
       out.sort((a, b) => (OPP_SEV_ORDER[a.sev] ?? 9) - (OPP_SEV_ORDER[b.sev] ?? 9));
       if (alive) setItems(out);
     })().catch((e) => { if (alive) { setErr(String(e?.message || e)); setItems([]); } });
@@ -1056,6 +1140,20 @@ function OpportunitiesPanel({ clientId, clientName, S, onOpenCuration, onGo }: {
   }, [clientId, clientName]);
 
   const card: any = { background: S.panel, border: `1px solid ${S.line}`, borderRadius: 14, padding: 18 };
+  const [briefBusy, setBriefBusy] = useState<number | null>(null);
+  const makeBrief = async (i: any, idx: number) => {
+    setBriefBusy(idx);
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const r = await fetch("/api/admin/content-brief", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token || ""}` },
+        body: JSON.stringify({ client: clientId, source: i.brief }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (j.ok) onGo("content");
+    } finally { setBriefBusy(null); }
+  };
   if (items === null) return <div style={{ ...card, color: S.mut, fontSize: 13 }}>Chancen werden gesammelt…</div>;
   const counts = items.reduce((m: Record<string, number>, i) => { m[i.sev] = (m[i.sev] || 0) + 1; return m; }, {});
   return (
@@ -1089,11 +1187,99 @@ function OpportunitiesPanel({ clientId, clientName, S, onOpenCuration, onGo }: {
                   <div style={{ fontSize: 11.5, color: S.mut, marginTop: 2 }}>{i.text}</div>
                 </div>
                 <span style={{ flexShrink: 0, fontSize: 10.5, color: S.mut, alignSelf: "center" }}>{i.quelle}</span>
+                {i.brief && (
+                  <button onClick={() => makeBrief(i, idx)} disabled={briefBusy !== null}
+                    style={{ flexShrink: 0, alignSelf: "center", padding: "5px 10px", borderRadius: 8, border: "none", background: S.app, color: "#fff", fontSize: 11.5, fontWeight: 700, cursor: briefBusy !== null ? "default" : "pointer", fontFamily: "inherit", opacity: briefBusy !== null && briefBusy !== idx ? 0.5 : 1 }}>
+                    {briefBusy === idx ? "Erzeuge Brief…" : "Brief erstellen"}
+                  </button>
+                )}
                 <button
                   onClick={() => (i.action === "curation" ? onOpenCuration() : onGo(i.go))}
                   style={{ flexShrink: 0, alignSelf: "center", padding: "5px 10px", borderRadius: 8, border: `1px solid ${S.line}`, background: S.bg, color: S.app, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
                   {i.action === "curation" ? "Prüfen" : "Ansehen"}
                 </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Content-Briefs (13.08., Content-Loop) ────────────────────────────────────
+// Aus Chancen erzeugte Briefs (content_briefs): Liste via RLS, Status-Zyklus
+// Entwurf → In Arbeit → Erledigt, Markdown aufklappbar + kopierbar. Erzeugt
+// wird über /api/admin/content-brief (Button an Gap-Chancen).
+const BRIEF_STATUS: Array<{ id: string; label: string; color: string }> = [
+  { id: "entwurf", label: "Entwurf", color: "#6366f1" },
+  { id: "in_arbeit", label: "In Arbeit", color: "#f59e0b" },
+  { id: "erledigt", label: "Erledigt", color: "#0f9d6c" },
+];
+function ContentBriefsPanel({ clientId, S, onGoChances }: { clientId: string; S: Record<string, string>; onGoChances: () => void }) {
+  const [briefs, setBriefs] = useState<any[] | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [copied, setCopied] = useState("");
+  const load = useCallback(async () => {
+    const { data } = await (supabase as any)
+      .from("content_briefs").select("id, title, brief_md, source, status, created_at")
+      .eq("client_id", clientId).order("created_at", { ascending: false }).limit(100);
+    setBriefs(data || []);
+  }, [clientId]);
+  useEffect(() => { setBriefs(null); void load(); }, [load]);
+  const cycle = async (b: any) => {
+    const idx = BRIEF_STATUS.findIndex((s) => s.id === b.status);
+    const next = BRIEF_STATUS[(idx + 1) % BRIEF_STATUS.length].id;
+    await (supabase as any).from("content_briefs").update({ status: next, updated_at: new Date().toISOString() }).eq("id", b.id);
+    void load();
+  };
+  const copy = async (b: any) => {
+    try { await navigator.clipboard.writeText(b.brief_md); setCopied(b.id); setTimeout(() => setCopied(""), 1500); } catch { /* Clipboard optional */ }
+  };
+  const card: any = { background: S.panel, border: `1px solid ${S.line}`, borderRadius: 14, padding: 18 };
+  if (briefs === null) return <div style={{ ...card, color: S.mut, fontSize: 13 }}>Briefs werden geladen…</div>;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ fontSize: 12, color: S.mut }}>
+        Redaktionsfertige Content-Briefs aus KI-Chancen — erzeugt mit echten Nutzerfragen, Konkurrenz-Kontext und KI-Folgefragen. Ziel: Inhalte, die von KI-Systemen zitiert werden.
+      </div>
+      {!briefs.length ? (
+        <div style={{ ...card, textAlign: "center", color: S.mut, fontSize: 13 }}>
+          Noch keine Briefs. Unter{" "}
+          <button onClick={onGoChances} style={{ color: S.app, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 700, padding: 0 }}>Chancen</button>
+          {" "}bei einem KI-Zitat-Gap auf „Brief erstellen" klicken.
+        </div>
+      ) : (
+        <div style={card}>
+          {briefs.map((b, i) => {
+            const st = BRIEF_STATUS.find((s) => s.id === b.status) || BRIEF_STATUS[0];
+            return (
+              <div key={b.id} style={{ padding: "10px 0", borderTop: i ? `1px solid ${S.line}` : "none" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <button onClick={() => setOpenId(openId === b.id ? null : b.id)}
+                    style={{ flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: S.txt }}>
+                      <span style={{ display: "inline-block", transform: openId === b.id ? "rotate(90deg)" : "none", transition: "transform .15s", marginRight: 6 }}>▸</span>
+                      {b.title}
+                    </div>
+                    <div style={{ fontSize: 11, color: S.mut, marginTop: 2 }}>
+                      {new Date(b.created_at).toLocaleDateString("de-CH")}{b.source?.rival ? ` · vs. ${b.source.rival}` : ""}{b.source?.questions?.length ? ` · ${b.source.questions.length} echte Fragen` : ""}
+                    </div>
+                  </button>
+                  <button onClick={() => copy(b)}
+                    style={{ flexShrink: 0, padding: "4px 10px", borderRadius: 8, border: `1px solid ${S.line}`, background: S.bg, color: copied === b.id ? "#0f9d6c" : S.mut, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>
+                    {copied === b.id ? "✓ kopiert" : "Kopieren"}
+                  </button>
+                  <button onClick={() => cycle(b)} title="Status weiterschalten"
+                    style={{ flexShrink: 0, padding: "4px 10px", borderRadius: 99, border: `1px solid ${st.color}55`, background: `${st.color}18`, color: st.color, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                    {st.label}
+                  </button>
+                </div>
+                {openId === b.id && (
+                  <pre style={{ margin: "10px 0 0", padding: 14, borderRadius: 10, background: S.bg, border: `1px solid ${S.line}`, fontSize: 12, lineHeight: 1.55, color: S.txt, whiteSpace: "pre-wrap", fontFamily: "inherit", overflowX: "auto" }}>
+                    {b.brief_md}
+                  </pre>
+                )}
               </div>
             );
           })}
@@ -1926,6 +2112,7 @@ function EzyAiApp() {
                 <button onClick={shareReport} style={{ fontSize: 12, color: S.app, background: "none", cursor: "pointer", border: `1px solid ${S.app}55`, borderRadius: 8, padding: "6px 12px" }}>Report teilen</button>
               )}
               <a href="/llm-ueberblick" style={{ fontSize: 12, color: S.mut, textDecoration: "none", border: `1px solid ${S.line}`, borderRadius: 8, padding: "6px 12px" }}>LLM-Überblick</a>
+              <NotificationsBell S={S} />
             </div>
           </header>
 
@@ -1970,6 +2157,8 @@ function EzyAiApp() {
               <SiteHealthPanel clientId={client.id} S={S} mode={section === "issues" ? "issues" : "health"} />
             ) : section === "opportunities" ? (
               <OpportunitiesPanel clientId={client.id} clientName={client.name} S={S} onOpenCuration={() => setCurOpen(true)} onGo={setSection} />
+            ) : section === "content" ? (
+              <ContentBriefsPanel clientId={client.id} S={S} onGoChances={() => setSection("opportunities")} />
             ) : section !== "aeo-insights" ? (
               <div style={{ background: S.panel, border: `1px solid ${S.line}`, borderRadius: 14, padding: 40, textAlign: "center", maxWidth: 560, margin: "40px auto 0" }}>
                 <div style={{ fontSize: 30, marginBottom: 12 }}>🧭</div>
