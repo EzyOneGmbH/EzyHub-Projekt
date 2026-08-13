@@ -595,11 +595,14 @@ async function jobSerpAi(c: any, limitOverride?: number) {
     aio,
     aim,
     fanout: [...fanout.values()],
-    // Echtes Query-Fanout (11.08., Searchable-Parität; 12.08. + Gemini): je
-    // eine ECHTE Consumer-Suche in ChatGPT UND Gemini (llm_scraper, CH,
-    // force_web_search) für die Top-2 Money-Keywords — fan_out_queries sind
-    // die Sub-Queries, die das Modell wirklich stellt (~$0.004/Stück, 4 Calls).
-    // Parallel, eigene 120s-Grenze (llm_scraper braucht bis 2 Min).
+    // Echtes Query-Fanout (11.08., Searchable-Parität): eine ECHTE ChatGPT-
+    // Consumer-Suche (llm_scraper, CH, force_web_search) für die Top-2 Money-
+    // Keywords — fan_out_queries sind die Sub-Queries, die das Modell wirklich
+    // stellt (~$0.004/Stück). Parallel, eigene 120s-Grenze.
+    // GEMINI BEWUSST NICHT (12.08., live geprüft): gemini/llm_scraper kennt
+    // weder force_web_search noch fan_out_queries/brand_entities — nur
+    // Antworttext + Quellen. Als Fanout-Quelle wertlos; Engine-Feld bleibt
+    // für den Fall, dass DataForSEO nachzieht.
     chatgptFanout: await (async () => {
       const auth2 = dfsAuth();
       if (!auth2) return [];
@@ -620,11 +623,7 @@ async function jobSerpAi(c: any, limitOverride?: number) {
           brands: (resu.brand_entities || []).map((b: any) => String(b?.name ?? b)).filter(Boolean).slice(0, 15),
         };
       };
-      const jobs = pairs.slice(0, 2).flatMap((p) => [
-        () => scrape(p.kw, "chat_gpt", "ChatGPT"),
-        () => scrape(p.kw, "gemini", "Gemini"),
-      ]);
-      const settled = await Promise.allSettled(jobs.map((f) => f()));
+      const settled = await Promise.allSettled(pairs.slice(0, 2).map((p) => scrape(p.kw, "chat_gpt", "ChatGPT")));
       for (const s of settled) if (s.status === "fulfilled" && s.value && s.value.queries.length) out.push(s.value);
       return out;
     })().catch(() => []),
