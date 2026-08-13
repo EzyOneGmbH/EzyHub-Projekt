@@ -101,6 +101,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useEzyClients } from "@/ezy/data/useEzyClients";
 import { loadSharedRange, saveSharedRange, useRangeData, isReloadNavigation } from "@/ezy/data/rangeStore";
 import { HexGlowLayer } from "@/ezy/HexGlow";
+import { AppVersionBadge } from "@/ezy/AppVersionBadge";
 import { useEzyDefaults } from "@/ezy/data/useEzyDefaults";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
 import { useEzyContent } from "@/ezy/data/useEzyContent";
@@ -14128,6 +14129,9 @@ function App({ appScope = null }) {
           wie vor dem Pattern-Umbau (Fix 10.08. abends). */}
       <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: -1, backgroundColor: C.bg, backgroundImage: HEX_BG, pointerEvents: "none" }} />
       <HexGlowLayer />
+      {/* Versionsnummer unten rechts (Volkan 13.08.) — je App eigene Nummer +
+          Änderungshistorie beim Hover. */}
+      <AppVersionBadge appId={appScope} palette={{ accent: C.accent, text: C.text, muted: C.textMuted, border: C.border, card: C.card }} />
 
       {/* Sidebar */}
       <aside

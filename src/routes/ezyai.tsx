@@ -12,6 +12,7 @@ import { AiVisibilityTab } from "@/ezy/EzyOneApp.jsx";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
 import { loadSharedRange, saveSharedRange, cacheGet, cachePut, RANGE_TTL_MS, isReloadNavigation } from "@/ezy/data/rangeStore";
 import { HexGlowLayer } from "@/ezy/HexGlow";
+import { AppVersionBadge } from "@/ezy/AppVersionBadge";
 import {
   Search, LogOut, LineChart, Zap, Activity, MessageSquare, GraduationCap,
   FileText, Lightbulb, Globe, AlertTriangle, LayoutDashboard, Bot, Sparkles,
@@ -1965,6 +1966,8 @@ function EzyAiApp() {
           Inhalt bleibt unangehoben, Popups/Sidebar-Stacking unverändert). */}
       <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: -1, backgroundColor: S.bg, backgroundImage: HEX_BG, pointerEvents: "none" }} />
       <HexGlowLayer />
+      {/* Versionsnummer unten rechts (Volkan 13.08.) — EzyAI = Scope "geo". */}
+      <AppVersionBadge appId="geo" palette={{ accent: S.app, text: S.txt, muted: S.mut, border: S.line, card: S.panel }} />
       {/* Mobile (04.08.): Shell-Sidebar wird zur horizontalen Leiste oben. */}
       <style>{`
         .ezyai-shell{display:flex;min-height:100vh}
