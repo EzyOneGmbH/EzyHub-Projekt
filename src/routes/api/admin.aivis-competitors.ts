@@ -429,22 +429,30 @@ export const Route = createFileRoute("/api/admin/aivis-competitors")({
           const lang = (client.language || "de").slice(0, 2);
           const termsDe = await distillTerms(client.name, topics3, "de", 3);
           if (!termsDe.length) return Response.json({ ok: false, error: "Kernbegriffe nicht ableitbar" }, { status: 502 });
-          const calls = await Promise.all(termsDe.map((t) => dfsLive("ai_optimization/llm_mentions/search/live", {
-            target: [{ keyword: t, match_type: "partial_match", search_scope: ["question"] }],
+          const mkTask = (t: string, scopeQuestion: boolean) => ({
+            target: [{ keyword: t, match_type: "partial_match", ...(scopeQuestion ? { search_scope: ["question"] } : {}) }],
             platform: "google", location_name: "Switzerland", language_code: lang, limit: 30,
-          })));
+          });
+          const calls = await Promise.all(termsDe.map((t) => dfsLive("ai_optimization/llm_mentions/search/live", mkTask(t, true))));
           let cost = 0;
           const seen = new Set<string>();
           const questions: Array<{ q: string; vol: number; term: string }> = [];
-          calls.forEach((c, i) => {
-            cost += c.cost || 0;
-            for (const it of (c.ok ? (c.result?.items as any[]) : []) || []) {
+          const harvest = (c: any, term: string) => {
+            for (const it of (c?.ok ? (c.result?.items as any[]) : []) || []) {
               const q = String(it.question || "").trim();
               if (q.length < 8 || seen.has(q.toLowerCase())) continue;
               seen.add(q.toLowerCase());
-              questions.push({ q, vol: Number(it.ai_search_volume || 0), term: termsDe[i] });
+              questions.push({ q, vol: Number(it.ai_search_volume || 0), term });
             }
-          });
+          };
+          calls.forEach((c, i) => { cost += c.cost || 0; harvest(c, termsDe[i]); });
+          // Fallback (12.08., live-Befund Gasser): bei Nischen-Begriffen steht
+          // der Begriff selten in der FRAGE selbst — dann die Fragen jener
+          // Antworten nehmen, die ihn im ANTWORTTEXT erwähnen (scope any).
+          if (questions.length < 5) {
+            const calls2 = await Promise.all(termsDe.map((t) => dfsLive("ai_optimization/llm_mentions/search/live", mkTask(t, false))));
+            calls2.forEach((c, i) => { cost += c.cost || 0; harvest(c, termsDe[i]); });
+          }
           questions.sort((a, b) => b.vol - a.vol);
           const payload = { ok: true, build: BUILD, terms: termsDe, questions: questions.slice(0, 20), cost };
           await cacheWrite(sbA, client, QUESTIONS_TYPE, { terms: termsDe }, payload);
