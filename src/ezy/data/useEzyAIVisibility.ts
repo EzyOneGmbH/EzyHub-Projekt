@@ -11,6 +11,8 @@ const sb = supabase as any;
 // AIVisibilityData-Objekt, das AIVisibilityDashboard als { data } erwartet.
 
 export type Kpi = { value: number; delta: number; prev: number };
+// Google-KI-Antwort zu EINER Suchanfrage (13.08.): Text + zitierte Quellen.
+export type SerpAnswer = { kw: string; land: string; text: string; refs: { d: string; u: string; t: string }[] };
 
 export type AIPrompt = {
   prompt: string;
@@ -99,9 +101,10 @@ export type AIVisibilityData = {
   chatgptFanout?: { kw: string; engine?: string; queries: string[]; brands: string[] }[];
   // AIO/AI-Mode-Detail (06.08.): welche Google-Suchanfragen den Kunden zitieren
   // (SERP-Messung, keine Prompt-Antworten) — für die Erwähnungen-Karte.
+  // answers (13.08.): echter Antworttext + Quellen je zitierter Suchanfrage.
   serpAi?: {
-    aio?: { checked: number; present: number; cited: number; citations: number; keywords: string[] };
-    aim?: { checked: number; present: number; cited: number; citations: number; keywords: string[] };
+    aio?: { checked: number; present: number; cited: number; citations: number; keywords: string[]; answers: SerpAnswer[] };
+    aim?: { checked: number; present: number; cited: number; citations: number; keywords: string[]; answers: SerpAnswer[] };
     gemessenAm?: string;
     uebernommen?: boolean;
   };
@@ -401,7 +404,14 @@ export async function loadAIVisibility(
     serpAi: (() => {
       const sa: any = (rep.parts as any)?.sa;
       if (!sa || (!sa.aio && !sa.aim)) return undefined;
-      const pick = (x: any) => x ? { checked: Number(x.checked ?? 0), present: Number(x.present ?? 0), cited: Number(x.cited ?? 0), citations: Number(x.citations ?? 0), keywords: Array.isArray(x.keywords) ? x.keywords.map(String) : [] } : undefined;
+      const pick = (x: any) => x ? {
+        checked: Number(x.checked ?? 0), present: Number(x.present ?? 0), cited: Number(x.cited ?? 0), citations: Number(x.citations ?? 0),
+        keywords: Array.isArray(x.keywords) ? x.keywords.map(String) : [],
+        answers: (Array.isArray(x.answers) ? x.answers : []).map((a: any) => ({
+          kw: String(a?.kw ?? ""), land: String(a?.land ?? ""), text: String(a?.text ?? ""),
+          refs: (Array.isArray(a?.refs) ? a.refs : []).map((r: any) => ({ d: String(r?.d ?? ""), u: String(r?.u ?? ""), t: String(r?.t ?? "") })),
+        })).filter((a: SerpAnswer) => a.kw && a.text),
+      } : undefined;
       return { aio: pick(sa.aio), aim: pick(sa.aim), gemessenAm: sa.gemessenAm ? String(sa.gemessenAm) : undefined, uebernommen: !!sa.uebernommen };
     })(),
     brandHistory: await (async () => {

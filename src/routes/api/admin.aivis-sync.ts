@@ -521,8 +521,23 @@ async function jobSerpAi(c: any, limitOverride?: number) {
     return { hit: cited || nameRe.test(JSON.stringify(el)), cited, urls };
   };
   const errors: string[] = [];
-  const aio = { checked: 0, present: 0, cited: 0, citations: 0, keywords: [] as string[], byCountry: {} as Record<string, number> };
-  const aim = { checked: 0, present: 0, cited: 0, citations: 0, keywords: [] as string[], byCountry: {} as Record<string, number> };
+  // Antwort-Texte (13.08., Volkan): DataForSEO liefert im AIO-/AI-Mode-Element
+  // markdown + references ohnehin mit — bisher weggeworfen. Jetzt je zitierter
+  // Suchanfrage gespeichert, damit man im Dashboard die ECHTE Google-KI-Antwort
+  // aufklappen kann. Keine Zusatzkosten (dieselben Calls).
+  type SerpAnswer = { kw: string; land: string; text: string; refs: { d: string; u: string; t: string }[] };
+  const answerOf = (el: any, kw: string, land: string): SerpAnswer => {
+    const md = String(el?.markdown || "").trim()
+      || ((el?.items || []) as any[]).map((s: any) => String(s?.markdown || s?.text || "")).filter(Boolean).join("\n\n");
+    const refs = ((el?.references || []) as any[]).slice(0, 12).map((r: any) => ({
+      d: String(r?.domain || "").replace(/^www\./, ""),
+      u: String(r?.url || ""),
+      t: String(r?.title || "").slice(0, 160),
+    })).filter((r) => r.d);
+    return { kw, land, text: md.slice(0, 3000), refs };
+  };
+  const aio = { checked: 0, present: 0, cited: 0, citations: 0, keywords: [] as string[], answers: [] as SerpAnswer[], byCountry: {} as Record<string, number> };
+  const aim = { checked: 0, present: 0, cited: 0, citations: 0, keywords: [] as string[], answers: [] as SerpAnswer[], byCountry: {} as Record<string, number> };
   // Query-Fanout light (03.08.): Googles Folgefragen (People Also Ask) + verwandte
   // Suchen aus den OHNEHIN bezahlten organic-Calls — 0 Zusatzkosten. Bewusst als
   // Google-Folgefragen beschriftet, NICHT als KI-interne Sub-Queries (die liefert
@@ -548,6 +563,8 @@ async function jobSerpAi(c: any, limitOverride?: number) {
           const d = hitDetail(el);
           if (d.hit) {
             aio.cited++; aio.keywords.push(`${p.kw} (${loc.name})`); aio.byCountry[loc.name] = (aio.byCountry[loc.name] || 0) + 1;
+            const ans = answerOf(el, p.kw, loc.name);
+            if (ans.text && aio.answers.length < 80) aio.answers.push(ans);
             if (d.cited) { aio.citations++; for (const u of d.urls) ownPages.add(u); }
           }
         }
@@ -559,6 +576,10 @@ async function jobSerpAi(c: any, limitOverride?: number) {
           const d = hitDetail(items);
           if (d.hit) {
             aim.cited++; aim.keywords.push(`${p.kw} (${loc.name})`); aim.byCountry[loc.name] = (aim.byCountry[loc.name] || 0) + 1;
+            // AI Mode liefert das Antwort-Element im items-Array (Typ ai_overview).
+            const el2 = (items as any[]).find((i: any) => i?.markdown || i?.items) || (items as any[])[0];
+            const ans = answerOf(el2, p.kw, loc.name);
+            if (ans.text && aim.answers.length < 80) aim.answers.push(ans);
             if (d.cited) { aim.citations++; for (const u of d.urls) ownPages.add(u); }
           }
         }
@@ -2769,8 +2790,11 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 urls: [...new Set((sa.citedPages || []).map((u: any) => normUrl(u)).filter(Boolean))].slice(0, 300),
                 // AIO/AI-Mode-Detail (06.08., für die Erwähnungen-Karte): WELCHE
                 // Suchanfragen zitieren den Kunden — bisher nur im Lauf-Response.
-                ...(sa.aio ? { aio: { checked: sa.aio.checked, present: sa.aio.present, cited: sa.aio.cited, citations: sa.aio.citations, keywords: (sa.aio.keywords || []).slice(0, 150) } } : {}),
-                ...(sa.aim ? { aim: { checked: sa.aim.checked, present: sa.aim.present, cited: sa.aim.cited, citations: sa.aim.citations, keywords: (sa.aim.keywords || []).slice(0, 150) } } : {}),
+                // answers (13.08.): der echte Antworttext + Quellen je zitierter
+                // Suchanfrage — im Dashboard aufklappbar. Deckel: 60 Antworten
+                // je Engine (jsonb-Größe; die Calls kosten nichts extra).
+                ...(sa.aio ? { aio: { checked: sa.aio.checked, present: sa.aio.present, cited: sa.aio.cited, citations: sa.aio.citations, keywords: (sa.aio.keywords || []).slice(0, 150), answers: (sa.aio.answers || []).slice(0, 60) } } : {}),
+                ...(sa.aim ? { aim: { checked: sa.aim.checked, present: sa.aim.present, cited: sa.aim.cited, citations: sa.aim.citations, keywords: (sa.aim.keywords || []).slice(0, 150), answers: (sa.aim.answers || []).slice(0, 60) } } : {}),
                 gemessenAm: snapshot, // echtes Messdatum (SERP-Drosselung)
               };
               if (hasPr && !prPartial) newParts.pr = {

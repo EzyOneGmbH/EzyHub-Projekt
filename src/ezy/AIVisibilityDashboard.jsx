@@ -2328,7 +2328,51 @@ function ConversionRegions({ attribution }) {
 // zitieren — SERP-Messung (keine Prompt-Antworten, deshalb eigene Karte
 // statt Zeilen in der Antworten-Tabelle). Daten aus parts.sa.aio/aim;
 // erscheint erst, sobald ein SERP-Lauf nach dem 06.08. die Details schrieb.
-function GoogleSerpAiCard({ serpAi, brand }) {
+// Antwort-Ansicht zu EINER Google-KI-Suchanfrage (13.08., Volkan): zeigt den
+// echten AIO-/AI-Mode-Text samt zitierten Quellen; eigene Domain hervorgehoben.
+function SerpAnswerModal({ answer, label, ownDomain, onClose }) {
+  if (!answer) return null;
+  return (
+    <div className="fixed inset-0 z-[300] flex items-start justify-center overflow-y-auto p-4 sm:p-8" style={{ background: "rgba(15,23,42,.45)" }} onClick={onClose}>
+      <div className="w-full max-w-3xl rounded-xl border shadow-xl" style={{ ...CARD, borderColor: C.line }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start gap-3 border-b p-4" style={{ borderColor: C.line }}>
+          <EngineFavicon platform="Google" />
+          <div className="min-w-0 flex-1">
+            <div className="text-[13.5px] font-bold" style={{ color: C.ink }}>{answer.kw}</div>
+            <div className="text-[11.5px]" style={{ color: C.sub }}>{label}{answer.land ? ` · ${answer.land}` : ""} — so hat Google geantwortet</div>
+          </div>
+          <button onClick={onClose} className="shrink-0 rounded px-2 text-[18px] leading-none" style={{ color: C.sub }} aria-label="Schliessen">✕</button>
+        </div>
+        <div className="max-h-[55vh] overflow-y-auto p-4">
+          <div className="whitespace-pre-wrap text-[12.5px] leading-relaxed" style={{ color: C.ink }}>{answer.text}</div>
+        </div>
+        {answer.refs?.length > 0 && (
+          <div className="border-t p-4" style={{ borderColor: C.line }}>
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.sub }}>Quellen der Antwort ({answer.refs.length})</div>
+            <div className="flex flex-col gap-1.5">
+              {answer.refs.map((r, i) => {
+                const own = ownDomain && (r.d === ownDomain || r.d.endsWith("." + ownDomain));
+                return (
+                  <a key={`${r.u}${i}`} href={r.u || undefined} target="_blank" rel="noreferrer"
+                    className="flex items-center gap-2 rounded-md border px-2 py-1.5 text-[11.5px] no-underline"
+                    style={{ borderColor: own ? C.up : C.line, background: own ? "#ecfdf5" : C.cardAlt, color: C.ink }}>
+                    <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold" style={{ background: own ? C.up : C.line, color: own ? "#fff" : C.sub }}>
+                      {own ? "Eigene" : r.d}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">{r.t || r.u}</span>
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function GoogleSerpAiCard({ serpAi, brand, ownDomain }) {
+  const [open, setOpen] = useState(null); // { answer, label }
   if (!serpAi || (!serpAi.aio && !serpAi.aim)) return null;
   const cols = [
     { key: "aio", label: "Google AI Overviews", data: serpAi.aio },
@@ -2349,12 +2393,23 @@ function GoogleSerpAiCard({ serpAi, brand }) {
             </div>
             {c.data.keywords.length > 0 ? (
               <div className="mt-2 overflow-y-auto rounded-lg border p-2" style={{ maxHeight: 240, borderColor: C.line, background: C.cardAlt }}>
-                {c.data.keywords.map((k) => (
-                  <div key={k} className="flex items-center gap-2 py-1 text-[12px]" style={{ color: C.ink, borderTop: `1px solid ${C.line}` }}>
-                    <Search size={11} style={{ color: C.sub, flexShrink: 0 }} />
-                    <span className="min-w-0 truncate">{k}</span>
-                  </div>
-                ))}
+                {c.data.keywords.map((k) => {
+                  // Antwort zur Suchanfrage finden ("kw (Land)" → kw + land).
+                  const bare = k.replace(/\s*\([^)]*\)\s*$/, "");
+                  const ans = (c.data.answers || []).find((a) => a.kw === bare);
+                  const Row = ans ? "button" : "div";
+                  return (
+                    <Row key={k} type={ans ? "button" : undefined}
+                      onClick={ans ? () => setOpen({ answer: ans, label: c.label }) : undefined}
+                      className={`flex w-full items-center gap-2 py-1 text-left text-[12px] ${ans ? "cursor-pointer" : ""}`}
+                      style={{ color: C.ink, borderTop: `1px solid ${C.line}`, background: "transparent" }}
+                      title={ans ? "Antwort von Google anzeigen" : undefined}>
+                      <Search size={11} style={{ color: C.sub, flexShrink: 0 }} />
+                      <span className="min-w-0 flex-1 truncate">{k}</span>
+                      {ans && <span className="shrink-0 text-[10.5px] font-semibold" style={{ color: C.indigo }}>Antwort →</span>}
+                    </Row>
+                  );
+                })}
               </div>
             ) : (
               <div className="mt-2 rounded-lg border p-3 text-[11.5px]" style={{ borderColor: C.line, background: C.cardAlt, color: C.sub }}>
@@ -2364,6 +2419,7 @@ function GoogleSerpAiCard({ serpAi, brand }) {
           </div>
         ))}
       </div>
+      {open && <SerpAnswerModal answer={open.answer} label={open.label} ownDomain={ownDomain} onClose={() => setOpen(null)} />}
     </RCard>
   );
 }
@@ -3550,7 +3606,7 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
             <div className="mt-4 grid grid-cols-1 gap-4">
               <PromptMatrix prompts={fP} opps={fO} />
               <PromptsTable prompts={fP} opps={fO} brand={d.client} brandPrompts={d.brandPrompts || []} needsReview={d.promptsNeedsReview || 0} onReview={onReviewPrompts} clientId={d.clientId} />
-              <GoogleSerpAiCard serpAi={d.serpAi} brand={d.client} />
+              <GoogleSerpAiCard serpAi={d.serpAi} brand={d.client} ownDomain={d.domain} />
               <ChatgptFanoutCard fanout={d.chatgptFanout} brand={d.client} />
             </div>
           </>
