@@ -3099,6 +3099,14 @@ function SeoDashboard({ selectedClient, dateRange }) {
     setRankSort(([c, asc]) => (c === col ? [col, !asc] : [col, true]));
     setRankPage(0);
   };
+  // KPI-Kachel-Filter (User-Wunsch 2026-08-13): Klick auf "Verbessert"/
+  // "Verschlechtert" filtert die Rankings-Tabelle auf genau diese Keywords
+  // (7-Tage-Delta, wie die Aggregat-Zahl). Nochmal klicken = Filter weg.
+  const [rankFilter, setRankFilter] = useState(null); // null | "improved" | "declined"
+  const toggleRankFilter = (f) => {
+    setRankFilter((cur) => (cur === f ? null : f));
+    setRankPage(0);
+  };
   // Gesamter Keyword-Bestand (2026-08-12): getrackte KW (DataForSEO, präzise
   // Position + Verlauf + Volumen) UNION komplette GSC-Non-Brand-Queries
   // (GSC-Ø-Position + Klicks + Impressions). Dedup nach normalisiertem Keyword —
@@ -3140,7 +3148,13 @@ function SeoDashboard({ selectedClient, dateRange }) {
         _src: "gsc",
       });
     }
-    const rows = [...tracked, ...gscOnly];
+    let rows = [...tracked, ...gscOnly];
+    // Kachel-Filter: nur Keywords mit echtem 7-Tage-Delta (getrackte; GSC-only
+    // hat kein posPrev7 und faellt bei aktivem Filter bewusst raus).
+    if (rankFilter === "improved")
+      rows = rows.filter((k) => k.pos != null && k.posPrev7 != null && k.pos < k.posPrev7);
+    else if (rankFilter === "declined")
+      rows = rows.filter((k) => k.pos != null && k.posPrev7 != null && k.pos > k.posPrev7);
     if (!rows.length) return [];
     const [col, asc] = rankSort;
     const dir = asc ? 1 : -1;
@@ -3161,7 +3175,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
       return dir * (av - bv);
     });
     return rows;
-  }, [rank, gscQ, gscRes, rankSort]);
+  }, [rank, gscQ, gscRes, rankSort, rankFilter]);
   // Zähler für die Kopfzeile (getrackt vs. aus GSC gemergt).
   const rankCounts = useMemo(() => {
     let dfs = 0, gsc = 0;
@@ -3234,18 +3248,40 @@ function SeoDashboard({ selectedClient, dateRange }) {
           >
             <KpiCard icon={Award} label="In Top 3" value={rank.aggregate?.top3 ?? "—"} color={C.green} />
             <KpiCard icon={Target} label="In Top 10" value={rank.aggregate?.top10 ?? "—"} color={C.accent} />
-            <KpiCard
-              icon={TrendingUp}
-              label="Verbessert (7 Tage)"
-              value={rank.aggregate?.improved7 ?? "—"}
-              color={C.green}
-            />
-            <KpiCard
-              icon={Activity}
-              label="Verschlechtert (7 Tage)"
-              value={rank.aggregate?.declined7 ?? "—"}
-              color={C.orange}
-            />
+            {/* Klickbare Filter-Kacheln (2026-08-13): filtern die Rankings-
+                Tabelle auf verbesserte/verschlechterte Keywords (Toggle). */}
+            <div
+              onClick={() => toggleRankFilter("improved")}
+              title="Klick: nur verbesserte Keywords in der Tabelle zeigen"
+              style={{
+                cursor: "pointer",
+                borderRadius: 14,
+                outline: rankFilter === "improved" ? `2px solid ${C.green}` : "none",
+              }}
+            >
+              <KpiCard
+                icon={TrendingUp}
+                label="Verbessert (7 Tage)"
+                value={rank.aggregate?.improved7 ?? "—"}
+                color={C.green}
+              />
+            </div>
+            <div
+              onClick={() => toggleRankFilter("declined")}
+              title="Klick: nur verschlechterte Keywords in der Tabelle zeigen"
+              style={{
+                cursor: "pointer",
+                borderRadius: 14,
+                outline: rankFilter === "declined" ? `2px solid ${C.orange}` : "none",
+              }}
+            >
+              <KpiCard
+                icon={Activity}
+                label="Verschlechtert (7 Tage)"
+                value={rank.aggregate?.declined7 ?? "—"}
+                color={C.orange}
+              />
+            </div>
           </div>
           )}
           <div
@@ -3255,6 +3291,24 @@ function SeoDashboard({ selectedClient, dateRange }) {
               Rankings ({rankCounts.total} Keywords
               {rankCounts.gsc > 0 ? ` · ${rankCounts.dfs} getrackt + ${rankCounts.gsc} aus GSC` : ""}
               {" · Stand "}{rank?.date || gscQ?.range?.to || "—"})
+              {rankFilter && (
+                <span
+                  onClick={() => toggleRankFilter(rankFilter)}
+                  title="Filter entfernen"
+                  style={{
+                    marginLeft: 8,
+                    padding: "2px 8px",
+                    borderRadius: 999,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    background: (rankFilter === "improved" ? C.green : C.orange) + "22",
+                    color: rankFilter === "improved" ? C.green : C.orange,
+                  }}
+                >
+                  {rankFilter === "improved" ? "nur Verbesserte (7T)" : "nur Verschlechterte (7T)"} ✕
+                </span>
+              )}
               {hasIntl ? " · INT = google.com (USA/en, wöchentliche Messung)" : ""}
             </div>
             <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
