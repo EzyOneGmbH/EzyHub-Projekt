@@ -2539,9 +2539,10 @@ function DTable({ columns, data }) {
 // ═══════════════════════════════════════════════════════════════════════════
 function AgencyOverview({ clients, onSelect, appScope = null }) {
   // Kachel-Kennzahlen (Volkan 10.08.): Top-3/Top-10 aus dem letzten
-  // rankings-Lauf (result.aggregate), organischer Traffic aus dem letzten
-  // ahrefs-Lauf (DataForSEO organic_traffic_etv). Batch: EINE Query je Typ
-  // mit JSON-Teilpfad-Select statt 14 Einzel-Fetches mit vollen Payloads.
+  // rankings-Lauf (result.aggregate); organischer Traffic seit 13.08. aus dem
+  // letzten ga4_traffic-Snapshot (Kanal "Organic Search", echte Besuche),
+  // DFS-ETV (ahrefs-Lauf) nur noch als Fallback ohne GA4. Batch: EINE Query
+  // je Typ mit JSON-Teilpfad-Select statt 14 Einzel-Fetches mit vollen Payloads.
   // EzyPerformance (Volkan 10.08.): im Ads-Scope stattdessen Werbebudget /
   // ROAS / Umsatz aus dem letzten google_ads-Snapshot — gleiches Batch-Muster.
   const isAds = appScope === "ads";
@@ -2576,12 +2577,23 @@ function AgencyOverview({ clients, onSelect, appScope = null }) {
           setStats(next);
           return;
         }
-        const [rankRes, seoRes] = await Promise.all([
+        const [rankRes, ga4Res, seoRes] = await Promise.all([
           supabase
             .from("audit_runs")
             .select("client_id, created_at, agg:result->aggregate")
             .in("client_id", ids)
             .eq("audit_type", "rankings")
+            .eq("status", "succeeded")
+            .order("created_at", { ascending: false })
+            .limit(200),
+          // Echter organischer Traffic (2026-08-13, User-Wunsch): GA4-Kanal
+          // "Organic Search" aus dem letzten ga4_traffic-Snapshot — wie die
+          // "Organic Traffic"-Kachel im SEO-Tab. DFS-ETV nur noch Fallback.
+          supabase
+            .from("audit_runs")
+            .select("client_id, created_at, ch:result->channels")
+            .in("client_id", ids)
+            .eq("audit_type", "ga4_traffic")
             .eq("status", "succeeded")
             .order("created_at", { ascending: false })
             .limit(200),
@@ -2605,6 +2617,19 @@ function AgencyOverview({ clients, onSelect, appScope = null }) {
             top10: Number(a.top10 ?? 0) || 0,
             // Datum-Chip wie in der EzyAI-Übersicht: letzter Messlauf.
             date: String(row.created_at || "").slice(0, 10),
+          };
+        }
+        // GA4 zuerst (echte organische Besuche); DFS-ETV nur wo kein GA4 liegt.
+        for (const row of ga4Res.data || []) {
+          if (next[row.client_id]?.traffic != null) continue; // neuester Snapshot gewinnt
+          const organic = (Array.isArray(row.ch) ? row.ch : []).find((c) =>
+            /^organic search$/i.test(String(c?.channel || "")),
+          )?.sessions;
+          if (!(Number(organic) > 0)) continue;
+          next[row.client_id] = {
+            ...next[row.client_id],
+            traffic: Number(organic),
+            date: next[row.client_id]?.date || String(row.created_at || "").slice(0, 10),
           };
         }
         for (const row of seoRes.data || []) {
