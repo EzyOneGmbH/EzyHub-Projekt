@@ -760,7 +760,9 @@ class SectionErrorBoundary extends Component {
 // ═══════════════════════════════════════════════════════════════════════════
 const ToastCtx = createContext(null);
 const useToast = () => useContext(ToastCtx);
-function ToastProvider({ children }) {
+// Exportiert: EzyAI (eigene Route) hängt EzyPilot ein und braucht denselben
+// Toast-Context (Volkan 13.08.).
+export function ToastProvider({ children }) {
   const [ts, setTs] = useState([]);
   const add = useCallback((msg, type = "info") => {
     const id = Date.now();
@@ -12795,7 +12797,7 @@ function loadPilotState() {
   return { conversations: [], activeByClient: {} };
 }
 
-function EzyPilotProvider({ selectedClient, clients, tools, children }) {
+export function EzyPilotProvider({ selectedClient, clients, tools, children }) {
   const toast = useToast();
   const [conversations, setConversations] = useState(() => loadPilotState().conversations);
   const [activeByClient, setActiveByClient] = useState(() => loadPilotState().activeByClient);
@@ -13104,7 +13106,7 @@ function EzyPilotPage({ selectedClient }) {
 }
 
 // Header pop-up: floating chat with a collapsible history list.
-function EzyPilotPopup() {
+export function EzyPilotPopup() {
   const { open, setOpen } = useEzyPilot();
   const [showHistory, setShowHistory] = useState(false);
   if (!open) return null;
@@ -13157,7 +13159,7 @@ function EzyPilotPopup() {
 }
 
 // Header button (right side) that toggles the EzyPilot pop-up.
-function EzyPilotButton() {
+export function EzyPilotButton() {
   const { open, setOpen } = useEzyPilot();
   return (
     <button

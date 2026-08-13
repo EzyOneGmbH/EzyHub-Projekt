@@ -8,7 +8,7 @@ import { EZY_APPS } from "@/ezy/data/appRegistry";
 import { useEzyClients } from "@/ezy/data/useEzyClients";
 import { useEzyServiceSettings } from "@/ezy/data/useEzyServiceSettings";
 import { useEzyServiceMatrix } from "@/ezy/data/useEzyServiceMatrix";
-import { AiVisibilityTab } from "@/ezy/EzyOneApp.jsx";
+import { AiVisibilityTab, ToastProvider, EzyPilotProvider, EzyPilotButton, EzyPilotPopup } from "@/ezy/EzyOneApp.jsx";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
 import { loadSharedRange, saveSharedRange, cacheGet, cachePut, RANGE_TTL_MS, isReloadNavigation } from "@/ezy/data/rangeStore";
 import { HexGlowLayer } from "@/ezy/HexGlow";
@@ -1961,6 +1961,8 @@ function EzyAiApp() {
   };
 
   return (
+    <ToastProvider>
+    <EzyPilotProvider selectedClient={client} clients={clients} tools={[]}>
     <div style={{ minHeight: "100vh", position: "relative", isolation: "isolate", color: S.txt, fontFamily: "'Aceh Soft','Nunito Sans','Segoe UI',system-ui,sans-serif" }}>
       {/* Grund + Pattern als -1-Unterlage, Glow ebenfalls -1 (Fix 10.08. abends:
           Inhalt bleibt unangehoben, Popups/Sidebar-Stacking unverändert). */}
@@ -2151,6 +2153,8 @@ function EzyAiApp() {
               )}
               <a href="/llm-ueberblick" style={{ fontSize: 12, color: S.mut, textDecoration: "none", border: `1px solid ${S.line}`, borderRadius: 8, padding: "6px 12px" }}>LLM-Überblick</a>
               <NotificationsBell S={S} />
+              {/* EzyPilot oben rechts — wie in EzyRank/EzyPerformance (Volkan 13.08.). */}
+              <EzyPilotButton />
             </div>
           </header>
 
@@ -2219,6 +2223,10 @@ function EzyAiApp() {
         </div>
       </div>
       {curOpen && client?.id && <PromptCurationPanel clientId={client.id} onClose={() => setCurOpen(false)} S={S} />}
+      {/* EzyPilot-Popup (identisch zu den anderen Apps, Volkan 13.08.). */}
+      <EzyPilotPopup />
     </div>
+    </EzyPilotProvider>
+    </ToastProvider>
   );
 }
