@@ -773,11 +773,22 @@ function MentionsTrendCard({ clientId, S }: { clientId: string; S: Record<string
             ) : null)}
           </svg>
           <div style={{ display: "flex", gap: 12, marginTop: 4 }}>
-            {series.map((s) => (
-              <span key={s.label} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, color: S.mut }}>
-                <span style={{ width: 10, height: 3, borderRadius: 2, background: s.color, display: "inline-block" }} />{s.label}
-              </span>
-            ))}
+            {series.map((s) => {
+              // vs.-Vormonat-Badge (12.08.): aus den bereits geladenen
+              // historical-Monatswerten — kein zusätzlicher API-Call.
+              const pts2 = s.pts.slice(-2);
+              const delta = pts2.length === 2 ? pts2[1].mentions - pts2[0].mentions : 0;
+              return (
+                <span key={s.label} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, color: S.mut }}>
+                  <span style={{ width: 10, height: 3, borderRadius: 2, background: s.color, display: "inline-block" }} />{s.label}
+                  {delta !== 0 && (
+                    <span style={{ fontWeight: 700, color: delta > 0 ? "#0f9d6c" : "#dc2626" }}>
+                      {delta > 0 ? "▲+" : "▼"}{delta} vs. Vormonat
+                    </span>
+                  )}
+                </span>
+              );
+            })}
           </div>
         </div>
       )}
@@ -884,6 +895,48 @@ function CompetitorsPanel({ clientId, S }: { clientId: string; S: Record<string,
           {Array.isArray(data.brands) && data.brands.length > 0 && (
             listCard("Meistgenannte Marken", "Brand-Entitäten in den Antworten", data.brands, false)
           )}
+          {/* Mentions-SoV (12.08., cross_aggregated_metrics): Kunde vs. Rivalen
+              im echten Antwort-Korpus — unabhängige Zweitmessung zum
+              prompt-basierten SoV des Dashboards. */}
+          {Array.isArray(data.sov) && data.sov.some((s: any) => s.mentions > 0) && (
+            <div style={card}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10 }}>
+                <div style={{ fontWeight: 700, fontSize: 13.5, color: S.txt }}>Marken-SoV im KI-Korpus</div>
+                <span style={{ fontSize: 11, color: S.mut }}>
+                  Erwähnungen im {data.platform === "google" ? "Schweizer Google-AIO" : "globalen ChatGPT"}-Korpus — unabhängig von unseren Mess-Prompts
+                </span>
+              </div>
+              {(() => {
+                const maxM = Math.max(1, ...data.sov.map((s: any) => s.mentions));
+                return data.sov.map((s: any) => (
+                  <div key={s.name} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12.5, padding: "6px 0", borderBottom: `1px solid ${S.line}` }}>
+                    <span style={{ flex: "0 0 220px", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: s.isSelf ? S.app : S.txt, fontWeight: s.isSelf ? 700 : 500 }}>
+                      {s.name}{s.isSelf ? " ← dieser Kunde" : ""}
+                    </span>
+                    <span style={{ flex: 1, height: 5, borderRadius: 99, background: S.line, overflow: "hidden" }}>
+                      <span style={{ display: "block", width: `${Math.round((s.mentions / maxM) * 100)}%`, height: "100%", background: s.isSelf ? S.app : S.mut, borderRadius: 99 }} />
+                    </span>
+                    <span style={{ flexShrink: 0, width: 90, textAlign: "right", color: S.txt, fontVariantNumeric: "tabular-nums" }}>{s.mentions} · {s.share}%</span>
+                  </div>
+                ));
+              })()}
+            </div>
+          )}
+          {Array.isArray(data.categories) && data.categories.length > 0 && (
+            <div style={card}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10 }}>
+                <div style={{ fontWeight: 700, fontSize: 13.5, color: S.txt }}>KI-Kategorien der Branche</div>
+                <span style={{ fontSize: 11, color: S.mut }}>in welche Kategorien ChatGPT die genannten Marken einsortiert</span>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {data.categories.map((c: any) => (
+                  <span key={c.key} style={{ borderRadius: 99, border: `1px solid ${S.line}`, background: S.bg, padding: "3px 10px", fontSize: 11.5, color: S.txt }}>
+                    {c.key} <span style={{ color: S.mut }}>({c.mentions})</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
           <div style={{ fontSize: 11, color: S.mut }}>
             Quelle: DataForSEO LLM-Mentions-Datenbank (Targets = aivis-Mess-Themen, partial match).
             Erwähnungen = Zitate in gespeicherten LLM-Antworten; zweite Zahl = AI-Suchvolumen der zugehörigen Prompts.
@@ -935,6 +988,18 @@ function OpportunitiesPanel({ clientId, clientName, S, onOpenCuration, onGo }: {
         for (const i of j?.audit?.issues || []) out.push({
           sev: String(i.severity || "niedrig"), quelle: "Site Health",
           titel: String(i.label || ""), text: String(i.tipp || i.detail || ""), go: "issues",
+        });
+      } catch { /* additiv */ }
+      // 1b) KI-Zitat-Gaps (12.08., DataForSEO include/exclude): echte Fragen
+      // aus dem CH-Korpus, bei denen ein Rival zitiert wird, der Kunde nicht.
+      try {
+        const r = await fetch(`/api/admin/aivis-competitors?client=${encodeURIComponent(clientId)}&gaps=1`, { headers: authH });
+        const j = await r.json().catch(() => ({}));
+        for (const g of j?.gaps || []) out.push({
+          sev: "hoch", quelle: "KI-Zitat-Gap",
+          titel: `${g.rival} gewinnt KI-Zitate bei ${g.total} echten Fragen — ${clientName} fehlt`,
+          text: `Beispiele aus dem Schweizer KI-Korpus: ${g.questions.slice(0, 4).map((q: any) => `„${q.q}"`).join(" · ")}. Zitierfähigen Inhalt zu diesen Fragen aufbauen.`,
+          go: "ki-konkurrenz",
         });
       } catch { /* additiv */ }
       // 2) Prompt-Chancen: Konkurrenz wird empfohlen, der Kunde nicht.
@@ -1293,6 +1358,76 @@ function BrandFactsEditor({ clientId, S }: { clientId: string; S: Record<string,
   );
 }
 
+// ── Frage-Mining (12.08., DataForSEO search_scope "question") ────────────────
+// Echte Nutzerfragen aus dem Schweizer KI-Korpus zu den Kernbegriffen des
+// Kunden — als belegte Prompt-Kandidaten. "Übernehmen" legt die Frage als
+// Vorschlag (needs_review=true) an; Freigabe läuft über den normalen
+// Kurations-Weg. Lazy geladen (7-Tage-Cache serverseitig).
+function CorpusQuestionsSection({ clientId, S, onAdded }: { clientId: string; S: Record<string, string>; onAdded: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [state, setState] = useState<null | { questions: any[]; terms: string[] }>(null);
+  const [added, setAdded] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState("");
+  useEffect(() => {
+    if (!open || state) return;
+    let alive = true;
+    (async () => {
+      try {
+        const session = (await supabase.auth.getSession()).data.session;
+        const r = await fetch(`/api/admin/aivis-competitors?client=${encodeURIComponent(clientId)}&questions=1`, {
+          headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+        });
+        const j = await r.json().catch(() => ({}));
+        if (alive) setState(j.ok ? { questions: j.questions || [], terms: j.terms || [] } : { questions: [], terms: [] });
+      } catch { if (alive) setState({ questions: [], terms: [] }); }
+    })();
+    return () => { alive = false; };
+  }, [open, state, clientId]);
+  const take = async (q: { q: string; term: string }) => {
+    setBusy(q.q);
+    const { error } = await (supabase as any).from("ai_visibility_prompt_defs").insert({
+      client_id: clientId, prompt: q.q, topic: q.term, active: false, needs_review: true, prompt_type: "markt",
+    });
+    setBusy("");
+    if (!error) { setAdded((s) => new Set(s).add(q.q)); onAdded(); }
+  };
+  return (
+    <div style={{ borderBottom: `1px solid ${S.line}`, padding: "10px 18px" }}>
+      <button onClick={() => setOpen((v) => !v)}
+        style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit", color: S.txt, fontSize: 12.5, fontWeight: 700 }}>
+        <span style={{ transform: open ? "rotate(90deg)" : "none", transition: "transform .15s", display: "inline-flex" }}>▸</span>
+        Echte Nutzerfragen aus dem KI-Korpus
+        <span style={{ fontWeight: 400, fontSize: 11, color: S.mut }}>— belegte Prompt-Kandidaten statt nur generierter</span>
+      </button>
+      {open && (
+        <div style={{ marginTop: 10 }}>
+          {state === null ? (
+            <div style={{ fontSize: 11.5, color: S.mut }}>Korpus-Fragen werden geladen… (erster Abruf bis ~30 s)</div>
+          ) : !state.questions.length ? (
+            <div style={{ fontSize: 11.5, color: S.mut }}>Keine passenden Fragen im Schweizer Korpus gefunden.</div>
+          ) : (
+            <>
+              <div style={{ fontSize: 11, color: S.mut, marginBottom: 8 }}>
+                Fragen, die Nutzer laut DataForSEO-Korpus wirklich an KI-Systeme stellen (Kernbegriffe: {state.terms.join(", ")}). „Übernehmen" legt sie unter „Vorgeschlagen" ab.
+              </div>
+              {state.questions.map((q: any) => (
+                <div key={q.q} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderTop: `1px solid ${S.line}` }}>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: S.txt }}>{q.q}</span>
+                  {q.vol > 0 && <span style={{ flexShrink: 0, fontSize: 10.5, color: S.mut, fontVariantNumeric: "tabular-nums" }}>Vol. {q.vol}</span>}
+                  <button onClick={() => take(q)} disabled={added.has(q.q) || busy === q.q}
+                    style={{ flexShrink: 0, padding: "3px 10px", borderRadius: 7, border: `1px solid ${added.has(q.q) ? S.line : S.app}`, background: added.has(q.q) ? "transparent" : S.appTint, color: added.has(q.q) ? S.mut : S.app, fontSize: 11, fontWeight: 600, cursor: added.has(q.q) ? "default" : "pointer", fontFamily: "inherit" }}>
+                    {added.has(q.q) ? "✓ übernommen" : busy === q.q ? "…" : "Übernehmen"}
+                  </button>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PromptCurationPanel({ clientId, onClose, S }: { clientId: string; onClose: () => void; S: Record<string, string> }) {
   const [defs, setDefs] = useState<PromptDef[] | null>(null);
   const [view, setView] = useState<"review" | "active" | "archived">("review");
@@ -1349,6 +1484,7 @@ function PromptCurationPanel({ clientId, onClose, S }: { clientId: string; onClo
           Nur <b style={{ color: S.txt }}>aktive</b> Prompts laufen im Messzyklus (Kosten!). Archivieren behält die Historie. „Vorgeschlagen" = vom Seeder/Relevanz-Audit zur Prüfung markiert.
         </div>
         <BrandFactsEditor clientId={clientId} S={S} />
+        <CorpusQuestionsSection clientId={clientId} S={S} onAdded={() => void load()} />
         {err && <div style={{ margin: "10px 18px 0", padding: "8px 12px", borderRadius: 8, border: "1px solid #f8717155", color: "#f87171", fontSize: 12 }}>{err}</div>}
         <div style={{ flex: 1, overflowY: "auto", padding: "10px 18px 24px" }}>
           {defs === null ? (
