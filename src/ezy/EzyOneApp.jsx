@@ -3038,18 +3038,29 @@ function SeoDashboard({ selectedClient, dateRange }) {
   const rank = rankRun?.result || null;
   const { run: gscQRun } = useEzyLatestRun(selectedClient?.id, "gsc_queries");
   const gscQ = gscQRun?.result || null;
-  // DataForSEO-SEO-Ausbau 2026-08-13: Labs-Sichtbarkeits-Historie (monatlicher
-  // Push vom agent-service, audit_type labs_history) — Sistrix-Ersatz-Kurve.
-  const { run: labsRun } = useEzyLatestRun(selectedClient?.id, "labs_history");
-  const labsHist = labsRun?.result || null;
-  const labsSeries = useMemo(() => {
-    const rows = Array.isArray(labsHist?.months) ? labsHist.months : [];
-    return rows.map((m) => ({
+  // Sichtbarkeits-Historie aus ECHTEN Daten (2026-08-13, User-Wunsch): monatliche
+  // GA4-organisch-Besuche + GSC-Klicks/Query-Anzahl (audit_type seo_history,
+  // populate-Job, Monats-Guard). Ersetzt die DFS-Labs-Modellkurve. Chart
+  // beginnt beim ERSTEN Messpunkt (keine leere Null-Vorlaufzeit).
+  const { run: seoHistRun } = useEzyLatestRun(selectedClient?.id, "seo_history");
+  const seoHist = seoHistRun?.result || null;
+  const seoHistSeries = useMemo(() => {
+    const rows = Array.isArray(seoHist?.months) ? seoHist.months : [];
+    const mapped = rows.map((m) => ({
       month: m.month,
-      Keywords: m.keywords ?? 0,
-      "Traffic (ETV)": Math.round(m.etv ?? 0),
+      "Besuche (GA4)": m.ga4Organic ?? null,
+      "Klicks (GSC)": m.gscClicks ?? null,
+      Keywords: m.gscQueries ?? null,
     }));
-  }, [labsHist]);
+    const first = mapped.findIndex(
+      (m) => (m["Besuche (GA4)"] || 0) > 0 || (m["Klicks (GSC)"] || 0) > 0 || (m.Keywords || 0) > 0,
+    );
+    return first >= 0 ? mapped.slice(first) : [];
+  }, [seoHist]);
+  const seoHistHasGa4 = useMemo(
+    () => seoHistSeries.some((m) => (m["Besuche (GA4)"] || 0) > 0),
+    [seoHistSeries],
+  );
   const { run: psiRun, refresh: refreshPsi } = useEzyLatestRun(selectedClient?.id, "pagespeed");
   const psi = psiRun ? pagespeedKpisFromResult(psiRun.result) : null;
   const cwvOrigin = psiRun?.result?.metrics?.dataOrigin || null; // B5a
@@ -3371,7 +3382,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
           hint="Für diesen Kunden ist noch kein Rank-Tracking eingerichtet — Keyword-Set im Rank-Tracking hinterlegen, dann erscheinen hier Top-3/Top-10, Veränderungen und die Rankings-Tabelle."
         />
       )}
-      {labsSeries.length >= 2 && (
+      {seoHistSeries.length >= 2 && (
         <div
           style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}
         >
@@ -3379,13 +3390,18 @@ function SeoDashboard({ selectedClient, dateRange }) {
             Sichtbarkeit (organisch)
           </div>
           <div style={{ fontSize: 11, color: C.textDim, marginBottom: 12 }}>
-            DataForSEO Labs · monatliche Historie · google.ch/de
-            {labsHist?.traffic?.etv != null
-              ? ` · aktuell ~${Math.round(labsHist.traffic.etv).toLocaleString("de-CH")} organische Besuche/Mon. (Schätzung)`
-              : ""}
+            {seoHistHasGa4 ? "GA4 (organische Besuche) + Google Search Console" : "Google Search Console"}
+            {" · monatlich · nur volle Monate"}
+            {(() => {
+              const last = seoHistSeries[seoHistSeries.length - 1];
+              const v = seoHistHasGa4 ? last?.["Besuche (GA4)"] : last?.["Klicks (GSC)"];
+              return v != null
+                ? ` · zuletzt ${Math.round(v).toLocaleString("de-CH")} ${seoHistHasGa4 ? "organische Besuche" : "GSC-Klicks"}/Mon.`
+                : "";
+            })()}
           </div>
           <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={labsSeries}>
+            <LineChart data={seoHistSeries}>
               <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
               <XAxis dataKey="month" stroke={C.textDim} fontSize={11} />
               <YAxis yAxisId="left" stroke={C.textDim} fontSize={11} />
@@ -3399,11 +3415,21 @@ function SeoDashboard({ selectedClient, dateRange }) {
                 }}
               />
               <Legend />
+              {seoHistHasGa4 && (
+                <Line
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="Besuche (GA4)"
+                  stroke={C.accent}
+                  strokeWidth={2}
+                  dot={false}
+                />
+              )}
               <Line
                 yAxisId="left"
                 type="monotone"
-                dataKey="Traffic (ETV)"
-                stroke={C.accent}
+                dataKey="Klicks (GSC)"
+                stroke={C.green}
                 strokeWidth={2}
                 dot={false}
               />

@@ -33,6 +33,7 @@ const Body = z.object({
         "pagespeed",
         "gsc",
         "gsc_queries",
+        "seo_history",
         "ga4",
         "ga4_traffic",
         "ga4_conversions",
@@ -59,6 +60,7 @@ const JOB_AUDIT_TYPE: Record<string, string> = {
   pagespeed: "pagespeed",
   gsc: "gsc_summary",
   gsc_queries: "gsc_queries",
+  seo_history: "seo_history",
   ga4: "ga4_summary",
   ga4_traffic: "ga4_traffic",
   ga4_conversions: "ga4_conversions",
@@ -299,6 +301,116 @@ async function jobGsc(c: any, uid: string, days: number) {
     finished_at: nowIso(),
   });
   return { imported: keywords.length };
+}
+
+// Sichtbarkeits-Historie aus ECHTEN Daten (2026-08-13, User-Wunsch): monatliche
+// GA4-organisch-Besuche (bis 36 Monate) + GSC-Klicks/Impressionen/Query-Anzahl
+// je Monat (GSC-API-Limit ~16 Monate) -> type 'seo_history'. Speist das
+// Dashboard-Widget "Sichtbarkeit (organisch)" (ersetzt die DFS-Labs-Kurve).
+// Nur VOLLE Monate (der laufende wuerde als Einbruch wirken). Monats-Guard:
+// max. 1x pro 27 Tage frisch, force uebergeht ihn.
+async function jobSeoHistory(c: any, uid: string, force = false) {
+  if (!c.gsc_property && !c.ga4_property) return { skipped: "kein gsc/ga4 property" };
+  try {
+    const { data: prev } = await supabaseAdmin
+      .from("audit_runs")
+      .select("created_at")
+      .eq("client_id", c.id)
+      .eq("audit_type", "seo_history")
+      .eq("status", "succeeded")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!force && (prev as any)?.created_at && Date.now() - Date.parse((prev as any).created_at) < 27 * 86400000)
+      return { skipped: "fresh (Monats-Guard)" };
+  } catch { /* weiter */ }
+  const { accessToken } = await getGoogleAccessToken(c.id);
+  // Lokale Datums-Strings OHNE toISOString (UTC-Verschiebung wuerde den
+  // Monatsersten auf den Vortag kippen).
+  const ymd = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const now = new Date();
+  const endFull = new Date(now.getFullYear(), now.getMonth(), 0); // letzter Tag des Vormonats
+  const months = new Map<string, Record<string, unknown>>();
+  const ensure = (m: string) => {
+    if (!months.has(m)) months.set(m, { month: m });
+    return months.get(m) as Record<string, unknown>;
+  };
+  let ga4ok = false, gscok = false;
+  if (c.ga4_property) {
+    try {
+      const propertyId = String(c.ga4_property).replace(/^properties\//, "");
+      const start = new Date(endFull.getFullYear(), endFull.getMonth() - 35, 1);
+      const r = await fetch(
+        `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            dateRanges: [{ startDate: ymd(start), endDate: ymd(endFull) }],
+            dimensions: [{ name: "yearMonth" }],
+            metrics: [{ name: "sessions" }],
+            dimensionFilter: {
+              filter: {
+                fieldName: "sessionDefaultChannelGroup",
+                stringFilter: { value: "Organic Search", matchType: "EXACT" },
+              },
+            },
+            limit: 40,
+          }),
+        },
+      );
+      if (r.ok) {
+        const j: any = await r.json();
+        for (const row of j.rows ?? []) {
+          const ym = String(row.dimensionValues?.[0]?.value ?? "");
+          if (!/^\d{6}$/.test(ym)) continue;
+          ensure(`${ym.slice(0, 4)}-${ym.slice(4)}`).ga4Organic = Number(row.metricValues?.[0]?.value ?? 0);
+        }
+        ga4ok = true;
+      }
+    } catch { /* GA4 optional */ }
+  }
+  if (c.gsc_property) {
+    // Distinct-Query-Zaehlung braucht die query-Dimension -> 1 Call je Monat.
+    for (let i = 15; i >= 0; i--) {
+      const mEnd = new Date(endFull.getFullYear(), endFull.getMonth() - i + 1, 0);
+      const mStart = new Date(mEnd.getFullYear(), mEnd.getMonth(), 1);
+      try {
+        const r = await fetch(
+          `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(c.gsc_property)}/searchAnalytics/query`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ startDate: ymd(mStart), endDate: ymd(mEnd), dimensions: ["query"], rowLimit: 25000 }),
+          },
+        );
+        if (!r.ok) continue;
+        const j: any = await r.json();
+        const rows = j.rows ?? [];
+        const e = ensure(ymd(mStart).slice(0, 7));
+        e.gscClicks = rows.reduce((a: number, x: any) => a + (x.clicks || 0), 0);
+        e.gscImpressions = rows.reduce((a: number, x: any) => a + (x.impressions || 0), 0);
+        e.gscQueries = rows.length;
+        gscok = true;
+      } catch { /* Monat fehlt dann */ }
+    }
+  }
+  if (!months.size) return { error: "keine GA4/GSC-Monatsdaten" };
+  const list = [...months.values()].sort((a, b) => String(a.month).localeCompare(String(b.month)));
+  const result = { months: list, sources: { ga4: ga4ok, gsc: gscok }, fetchedAt: nowIso() };
+  await insertRun({
+    client_id: c.id,
+    organization_id: c.organization_id,
+    triggered_by: uid,
+    audit_type: "seo_history",
+    status: "succeeded",
+    input: { months: list.length },
+    result,
+    started_at: nowIso(),
+    finished_at: nowIso(),
+  });
+  return { months: list.length, ga4: ga4ok, gsc: gscok };
 }
 
 // DataForSEO-Live-Call, der das VOLLE result-Array zurueckgibt (dfsCall aus
@@ -1137,6 +1249,7 @@ export const Route = createFileRoute("/api/admin/populate")({
                 "pagespeed",
                 "gsc",
                 "gsc_queries",
+                "seo_history",
                 "ga4",
                 "ga4_traffic",
                 "ga4_conversions",
@@ -1229,6 +1342,7 @@ export const Route = createFileRoute("/api/admin/populate")({
               else if (j === "pagespeed") jr.pagespeed = await jobPagespeed(c, uid, days);
               else if (j === "gsc") jr.gsc = await jobGsc(c, uid, days);
               else if (j === "gsc_queries") jr.gsc_queries = await jobGscQueries(c, uid, days, force);
+              else if (j === "seo_history") jr.seo_history = await jobSeoHistory(c, uid, force);
               else if (j === "ga4") jr.ga4 = await jobGa4(c, uid, days);
               else if (j === "ga4_traffic") jr.ga4_traffic = await jobGa4Traffic(c, uid, days);
               else if (j === "ga4_conversions")
