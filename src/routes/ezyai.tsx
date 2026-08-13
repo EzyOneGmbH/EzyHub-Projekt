@@ -1563,9 +1563,9 @@ function AiAgencyOverview({ clients, onSelect, S }: { clients: any[]; onSelect: 
     })();
     return () => { alive = false; };
   }, [clients]);
-  const tiles = [...clients].sort(
-    (a: any, b: any) =>
-      (stats[b.id]?.score ?? -1) - (stats[a.id]?.score ?? -1) || String(a.name).localeCompare(String(b.name)),
+  // Alphabetisch — Kundenreihenfolge ist überall gleich (Volkan 13.08.).
+  const tiles = [...clients].sort((a: any, b: any) =>
+    String(a.name).localeCompare(String(b.name), "de-CH", { sensitivity: "base" }),
   );
   return (
     <>

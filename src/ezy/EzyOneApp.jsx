@@ -2624,14 +2624,9 @@ function AgencyOverview({ clients, onSelect, appScope = null }) {
       alive = false;
     };
   }, [clients]);
-  // Kacheln nach Score absteigend, dann alphabetisch — beste Kunden zuerst.
-  // Ads-Scope: nach Umsatz absteigend (Score ist eine SEO-Kennzahl).
-  const tiles = [...clients].sort(
-    isAds
-      ? (a, b) =>
-          (stats[b.id]?.revenue ?? -1) - (stats[a.id]?.revenue ?? -1) ||
-          a.name.localeCompare(b.name)
-      : (a, b) => b.score - a.score || a.name.localeCompare(b.name),
+  // Kacheln alphabetisch — Kundenreihenfolge ist überall gleich (Volkan 13.08.).
+  const tiles = [...clients].sort((a, b) =>
+    String(a.name).localeCompare(String(b.name), "de-CH", { sensitivity: "base" }),
   );
   // Kachel-Metriken je Scope; Werte vorformatiert (CHF im Label, damit die
   // 3er-Spalte nicht umbricht).

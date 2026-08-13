@@ -175,11 +175,17 @@ export function useEzyClients() {
       .from("clients")
       .select("*")
       .eq("organization_id", organizationId)
-      .order("created_at", { ascending: false });
+      .order("name", { ascending: true });
     if (error) setError(error.message);
     else {
       setError(null);
-      setClients((data ?? []).map(rowToClient));
+      // Alphabetisch mit de-CH-Collation (Umlaute korrekt einsortiert) —
+      // Kundenreihenfolge ist überall alphabetisch (Volkan 13.08.).
+      setClients(
+        (data ?? [])
+          .map(rowToClient)
+          .sort((a, b) => String(a.name).localeCompare(String(b.name), "de-CH", { sensitivity: "base" })),
+      );
     }
     setLoading(false);
   }, [organizationId]);
