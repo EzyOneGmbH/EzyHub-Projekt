@@ -2505,8 +2505,12 @@ function ChatgptFanoutCard({ fanout, brand }) {
     >
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {list.map((f) => (
-          <div key={f.kw} className="rounded-lg border p-4" style={{ borderColor: C.line, background: C.cardAlt }}>
-            <div className="text-[12.5px] font-semibold" style={{ color: C.ink }}>„{f.kw}"</div>
+          <div key={`${f.kw}·${f.engine || ""}`} className="rounded-lg border p-4" style={{ borderColor: C.line, background: C.cardAlt }}>
+            <div className="flex items-center gap-2 text-[12.5px] font-semibold" style={{ color: C.ink }}>
+              <EngineFavicon platform={f.engine || "ChatGPT"} />
+              „{f.kw}"
+              <span className="rounded-full border px-2 py-0.5 text-[10px] font-medium" style={{ borderColor: C.line, color: C.sub }}>{f.engine || "ChatGPT"}</span>
+            </div>
             <ul className="mt-2 space-y-1.5">
               {f.queries.slice(0, 12).map((q) => (
                 <li key={q} className="flex items-start gap-1.5 text-[11.5px]" style={{ color: C.sub }}>

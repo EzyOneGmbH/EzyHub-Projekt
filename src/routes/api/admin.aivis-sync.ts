@@ -595,17 +595,17 @@ async function jobSerpAi(c: any, limitOverride?: number) {
     aio,
     aim,
     fanout: [...fanout.values()],
-    // Echtes Query-Fanout (11.08., Searchable-Parität): eine ECHTE ChatGPT-
-    // Consumer-Suche (llm_scraper, force_web_search, CH) für die Top-2 Money-
-    // Keywords — fan_out_queries sind die Sub-Queries, die das Modell wirklich
-    // stellt (~$0.004/Stück). Ergänzt das Google-PAA-fanout oben; parallel,
-    // eigene 120s-Grenze (llm_scraper braucht bis 2 Min), reisst nie den Lauf.
+    // Echtes Query-Fanout (11.08., Searchable-Parität; 12.08. + Gemini): je
+    // eine ECHTE Consumer-Suche in ChatGPT UND Gemini (llm_scraper, CH,
+    // force_web_search) für die Top-2 Money-Keywords — fan_out_queries sind
+    // die Sub-Queries, die das Modell wirklich stellt (~$0.004/Stück, 4 Calls).
+    // Parallel, eigene 120s-Grenze (llm_scraper braucht bis 2 Min).
     chatgptFanout: await (async () => {
       const auth2 = dfsAuth();
       if (!auth2) return [];
-      const out: { kw: string; queries: string[]; brands: string[] }[] = [];
-      const scrape = async (kw: string) => {
-        const r = await fetch("https://api.dataforseo.com/v3/ai_optimization/chat_gpt/llm_scraper/live/advanced", {
+      const out: { kw: string; engine: string; queries: string[]; brands: string[] }[] = [];
+      const scrape = async (kw: string, provider: "chat_gpt" | "gemini", engine: string) => {
+        const r = await fetch(`https://api.dataforseo.com/v3/ai_optimization/${provider}/llm_scraper/live/advanced`, {
           method: "POST", headers: { Authorization: auth2, "Content-Type": "application/json" },
           body: JSON.stringify([{ keyword: kw, language_code: (c.language || "de").slice(0, 2), location_name: "Switzerland", force_web_search: true }]),
           signal: AbortSignal.timeout(120_000),
@@ -615,12 +615,16 @@ async function jobSerpAi(c: any, limitOverride?: number) {
         if (j?.status_code !== 20000 || !t || t.status_code !== 20000) return null;
         const resu = t.result?.[0] || {};
         return {
-          kw,
+          kw, engine,
           queries: (resu.fan_out_queries || []).map((q: any) => String(q?.query ?? q)).filter(Boolean).slice(0, 25),
           brands: (resu.brand_entities || []).map((b: any) => String(b?.name ?? b)).filter(Boolean).slice(0, 15),
         };
       };
-      const settled = await Promise.allSettled(pairs.slice(0, 2).map((p) => scrape(p.kw)));
+      const jobs = pairs.slice(0, 2).flatMap((p) => [
+        () => scrape(p.kw, "chat_gpt", "ChatGPT"),
+        () => scrape(p.kw, "gemini", "Gemini"),
+      ]);
+      const settled = await Promise.allSettled(jobs.map((f) => f()));
       for (const s of settled) if (s.status === "fulfilled" && s.value && s.value.queries.length) out.push(s.value);
       return out;
     })().catch(() => []),
@@ -2761,8 +2765,8 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 mentions: sa.mentions, citations: Number(sa.citations || 0), pages: sa.citedPages?.length || 0, models: sa.models,
                 // Query-Fanout light (03.08.): Google-Folgefragen je Keyword (PAA/related).
                 ...(Array.isArray(sa.fanout) && sa.fanout.length ? { fanout: sa.fanout.slice(0, 200) } : {}),
-                // Echtes ChatGPT-Fanout (11.08.): Sub-Queries der echten KI-Suche.
-                ...(Array.isArray(sa.chatgptFanout) && sa.chatgptFanout.length ? { chatgptFanout: sa.chatgptFanout.slice(0, 5) } : {}),
+                // Echtes KI-Fanout (11.08., 12.08. + Gemini): Sub-Queries der echten KI-Suche.
+                ...(Array.isArray(sa.chatgptFanout) && sa.chatgptFanout.length ? { chatgptFanout: sa.chatgptFanout.slice(0, 8) } : {}),
                 urls: [...new Set((sa.citedPages || []).map((u: any) => normUrl(u)).filter(Boolean))].slice(0, 300),
                 // AIO/AI-Mode-Detail (06.08., für die Erwähnungen-Karte): WELCHE
                 // Suchanfragen zitieren den Kunden — bisher nur im Lauf-Response.

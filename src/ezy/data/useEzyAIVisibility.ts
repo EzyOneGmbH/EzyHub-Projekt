@@ -92,8 +92,8 @@ export type AIVisibilityData = {
   // Query-Fanout light (03.08.): Google-Folgefragen (PAA) + verwandte Suchen je
   // GSC-Keyword aus dem serp_ai-Lauf — bewusst KEINE KI-internen Sub-Queries.
   fanout?: { kw: string; country: string; questions: string[]; related: string[] }[];
-  // Echtes ChatGPT-Fanout (11.08.): Sub-Queries einer echten KI-Suche (llm_scraper).
-  chatgptFanout?: { kw: string; queries: string[]; brands: string[] }[];
+  // Echtes KI-Fanout (11.08., 12.08. + Gemini): Sub-Queries echter KI-Suchen (llm_scraper).
+  chatgptFanout?: { kw: string; engine?: string; queries: string[]; brands: string[] }[];
   // AIO/AI-Mode-Detail (06.08.): welche Google-Suchanfragen den Kunden zitieren
   // (SERP-Messung, keine Prompt-Antworten) — für die Erwähnungen-Karte.
   serpAi?: {

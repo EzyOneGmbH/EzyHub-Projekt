@@ -705,6 +705,86 @@ function TrafficPanel({ clientId, S, days }: { clientId: string; S: Record<strin
 // Zeigt je Plattform (Google AIO/AI-Mode vs. ChatGPT), welche Domains, Seiten
 // und Marken in den LLM-Antworten zu den Mess-Themen des Kunden am häufigsten
 // zitiert werden. Daten: /api/admin/aivis-competitors (Targets = aivis-Topics).
+// KI-Erwähnungs-Trend (12.08., DataForSEO historical + timeseries_new_lost):
+// monatliche Erwähnungen der KUNDEN-DOMAIN im LLM-Korpus (domain-basiert =
+// sprachunabhängig, Daten ab 2025-08) + neue/verlorene Erwähnungen.
+function MentionsTrendCard({ clientId, S }: { clientId: string; S: Record<string, string> }) {
+  const [t, setT] = useState<any>(null);
+  useEffect(() => {
+    let alive = true;
+    setT(null);
+    (async () => {
+      try {
+        const session = (await supabase.auth.getSession()).data.session;
+        const r = await fetch(`/api/admin/aivis-competitors?client=${encodeURIComponent(clientId)}&trend=1`, {
+          headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+        });
+        const j = await r.json().catch(() => ({}));
+        if (alive) setT(j.ok ? j : { ok: false });
+      } catch { if (alive) setT({ ok: false }); }
+    })();
+    return () => { alive = false; };
+  }, [clientId]);
+  const card: any = { background: S.panel, border: `1px solid ${S.line}`, borderRadius: 14, padding: 18 };
+  if (t === null) return <div style={{ ...card, color: S.mut, fontSize: 12.5 }}>KI-Erwähnungs-Trend wird geladen…</div>;
+  if (!t.ok) return null;
+  const series: Array<{ label: string; color: string; pts: any[] }> = [
+    { label: "Google AIO", color: "#77008C", pts: t.google || [] },
+    { label: "ChatGPT", color: "#0f9d6c", pts: t.chatgpt || [] },
+  ].filter((s) => s.pts.length);
+  if (!series.length && !(t.newLost || []).length) return null;
+  const months = [...new Set(series.flatMap((s) => s.pts.map((p: any) => `${p.y}-${String(p.m).padStart(2, "0")}`)))].sort();
+  const maxV = Math.max(1, ...series.flatMap((s) => s.pts.map((p: any) => p.mentions)));
+  const W = 560, H = 130, PL = 30, PR = 8, PT = 8, PB = 18;
+  const x = (i: number) => PL + (months.length > 1 ? (i / (months.length - 1)) * (W - PL - PR) : 0);
+  const y = (v: number) => PT + (1 - v / maxV) * (H - PT - PB);
+  const nl = (t.newLost || []).slice(-6);
+  const latest = nl[nl.length - 1];
+  return (
+    <div style={card}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+        <div style={{ fontWeight: 700, fontSize: 13.5, color: S.txt }}>KI-Erwähnungs-Trend</div>
+        <span style={{ fontSize: 11, color: S.mut }}>Erwähnungen von {t.client?.domain} in gespeicherten KI-Antworten, je Monat (sprachunabhängig, Korpus ab Aug 2025)</span>
+        {latest && (latest.new > 0 || latest.lost > 0) && (
+          <span style={{ marginLeft: "auto", fontSize: 11.5, fontWeight: 700 }}>
+            <span style={{ color: "#0f9d6c" }}>+{latest.new} neu</span>
+            <span style={{ color: S.mut }}> / </span>
+            <span style={{ color: "#dc2626" }}>−{latest.lost} verloren</span>
+            <span style={{ color: S.mut, fontWeight: 400 }}> (ChatGPT, aktueller Monat)</span>
+          </span>
+        )}
+      </div>
+      {months.length >= 2 && (
+        <div style={{ overflowX: "auto" }}>
+          <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxWidth: 720, display: "block" }}>
+            {[0, 0.5, 1].map((f) => (
+              <g key={f}>
+                <line x1={PL} x2={W - PR} y1={y(f * maxV)} y2={y(f * maxV)} stroke={S.line} strokeWidth="1" />
+                <text x={PL - 4} y={y(f * maxV) + 3} textAnchor="end" fontSize="8.5" fill={S.mut}>{Math.round(f * maxV)}</text>
+              </g>
+            ))}
+            {series.map((s) => {
+              const map = new Map(s.pts.map((p: any) => [`${p.y}-${String(p.m).padStart(2, "0")}`, p.mentions]));
+              const path = months.map((mo, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(Number(map.get(mo) || 0)).toFixed(1)}`).join(" ");
+              return <path key={s.label} d={path} fill="none" stroke={s.color} strokeWidth="2" strokeLinejoin="round" />;
+            })}
+            {months.map((mo, i) => (i === 0 || i === months.length - 1 || i === Math.floor(months.length / 2)) ? (
+              <text key={mo} x={x(i)} y={H - 4} textAnchor="middle" fontSize="8.5" fill={S.mut}>{mo.slice(2)}</text>
+            ) : null)}
+          </svg>
+          <div style={{ display: "flex", gap: 12, marginTop: 4 }}>
+            {series.map((s) => (
+              <span key={s.label} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, color: S.mut }}>
+                <span style={{ width: 10, height: 3, borderRadius: 2, background: s.color, display: "inline-block" }} />{s.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CompetitorsPanel({ clientId, S }: { clientId: string; S: Record<string, string> }) {
   const [platform, setPlatform] = useState<"google" | "chat_gpt">("google");
   const [data, setData] = useState<any>(null);
@@ -784,6 +864,7 @@ function CompetitorsPanel({ clientId, S }: { clientId: string; S: Record<string,
         ) : null}
         {err && <span style={{ fontSize: 12, color: "#dc2626" }}>{err}</span>}
       </div>
+      <MentionsTrendCard clientId={clientId} S={S} />
       {data === null ? (
         <div style={{ ...card, color: S.mut, fontSize: 13 }}>Lade KI-Konkurrenz-Daten…</div>
       ) : !data.ok ? (
