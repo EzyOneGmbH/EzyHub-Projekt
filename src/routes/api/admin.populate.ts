@@ -435,19 +435,26 @@ async function jobGscQueries(c: any, uid: string, days: number, forceDfs = false
         }
       }
       // Sanitizing (2026-08-13): google_ads/search_volume verwirft den GANZEN
-      // Task, wenn EIN Keyword ungueltig ist (Sonderzeichen, >10 Woerter, >80
-      // Zeichen). Deshalb hart filtern + in 500er-Chunks senden, damit ein
-      // Ausreisser nicht den kompletten Kunden-Batch kostet.
+      // Task, wenn EIN Keyword ungueltig ist. GSC-Queries enthalten auch
+      // Unsichtbares (Zero-Width-Space u.ae.) — deshalb: unsichtbare Zeichen
+      // strippen, Whitespace kollabieren, dann WHITELIST (nur Buchstaben inkl.
+      // Akzente/Umlaute, Ziffern, Leerzeichen, Bindestrich, Punkt) und in
+      // 500er-Chunks senden, damit ein Ausreisser nicht alles kostet.
+      const adsClean = (raw: string) =>
+        String(raw)
+          .normalize("NFC")
+          .replace(/[​-‏﻿­⁠]/g, "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .toLowerCase();
       const adsSafe = (q: string) =>
         q.length > 0 && q.length <= 80 &&
-        q.split(/\s+/).length <= 10 &&
-        !/[!@%^()={};~`<>?\\|\[\]*"',:•·¡¿№§©®™°²³€$£#_]/.test(q) &&
-        !/[\u{1F000}-\u{1FFFF}←-➿]/u.test(q);
+        q.split(" ").length <= 10 &&
+        /^[\p{L}\p{N} \-.]+$/u.test(q);
       const missing = [...new Set(
         shown
-          .map((r) => String(r.query))
-          .filter((q) => labs.get(q.toLowerCase())?.volume == null && adsSafe(q))
-          .map((q) => q.toLowerCase()),
+          .map((r) => adsClean(String(r.query)))
+          .filter((q) => adsSafe(q) && labs.get(q)?.volume == null),
       )];
       const vol = new Map<string, number>();
       for (let i = 0; i < missing.length; i += 500) {
@@ -463,10 +470,11 @@ async function jobGscQueries(c: any, uid: string, days: number, forceDfs = false
       }
       for (const r of shown) {
         const n = String(r.query).toLowerCase();
+        const cleaned = adsClean(String(r.query));
         const l = labs.get(n);
         r.dfsPos = l?.pos ?? null;
         r.dfsUrl = l?.url ?? null;
-        r.volume = l?.volume ?? vol.get(n) ?? null;
+        r.volume = l?.volume ?? vol.get(cleaned) ?? null;
       }
       dfsEnrichedAt = nowIso();
     } else if (prevAt > 0 && Array.isArray(prev?.topNonbrandQueries)) {
