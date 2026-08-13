@@ -332,7 +332,8 @@ async function dfsList(
 
 // WP2 (Dashboard-Ausbau 2026-07-11): Query-Level-GSC mit Brand/Non-Brand-Split
 // + Positions-Buckets (Non-Brand) + Top-Non-Brand-Queries -> type 'gsc_queries'.
-async function jobGscQueries(c: any, uid: string, days: number) {
+// forceDfs (2026-08-13): Wochen-Guard der DFS-Anreicherung uebergehen.
+async function jobGscQueries(c: any, uid: string, days: number, forceDfs = false) {
   if (!c.gsc_property) return { skipped: "kein gsc_property" };
   const { accessToken } = await getGoogleAccessToken(c.id);
   const { start, end } = gscRange(days);
@@ -413,7 +414,7 @@ async function jobGscQueries(c: any, uid: string, days: number) {
     const prev: any = (prevRun as any)?.result;
     const prevAt = prev?.dfsEnrichedAt ? Date.parse(prev.dfsEnrichedAt) : 0;
     const auth = dfsAuth();
-    if (auth && Date.now() - prevAt > 6.5 * 86400000) {
+    if (auth && (forceDfs || Date.now() - prevAt > 6.5 * 86400000)) {
       // Frisch anreichern (1x/Woche): Labs-Ranking-Universum + Volumen-Batch.
       const domain = normalizeDomain(String(c.domain || ""));
       const labs = new Map<string, { pos: number | null; url: string | null; volume: number | null }>();
@@ -433,14 +434,26 @@ async function jobGscQueries(c: any, uid: string, days: number) {
           });
         }
       }
-      const missing = shown
-        .map((r) => String(r.query))
-        .filter((q) => labs.get(q.toLowerCase())?.volume == null && q.length <= 80);
+      // Sanitizing (2026-08-13): google_ads/search_volume verwirft den GANZEN
+      // Task, wenn EIN Keyword ungueltig ist (Sonderzeichen, >10 Woerter, >80
+      // Zeichen). Deshalb hart filtern + in 500er-Chunks senden, damit ein
+      // Ausreisser nicht den kompletten Kunden-Batch kostet.
+      const adsSafe = (q: string) =>
+        q.length > 0 && q.length <= 80 &&
+        q.split(/\s+/).length <= 10 &&
+        !/[!@%^()={};~`<>?\\|\[\]*"',:•·¡¿№§©®™°²³€$£#_]/.test(q) &&
+        !/[\u{1F000}-\u{1FFFF}←-➿]/u.test(q);
+      const missing = [...new Set(
+        shown
+          .map((r) => String(r.query))
+          .filter((q) => labs.get(q.toLowerCase())?.volume == null && adsSafe(q))
+          .map((q) => q.toLowerCase()),
+      )];
       const vol = new Map<string, number>();
-      for (let i = 0; i < missing.length; i += 1000) {
+      for (let i = 0; i < missing.length; i += 500) {
         const sv = await dfsList(
           "keywords_data/google_ads/search_volume/live",
-          { keywords: missing.slice(i, i + 1000), location_code: 2756, language_code: "de" },
+          { keywords: missing.slice(i, i + 500), location_code: 2756, language_code: "de" },
           auth,
         );
         for (const it of (sv ?? []) as any[]) {
@@ -1207,7 +1220,7 @@ export const Route = createFileRoute("/api/admin/populate")({
               if (j === "ahrefs") jr.ahrefs = await jobAhrefs(c, uid);
               else if (j === "pagespeed") jr.pagespeed = await jobPagespeed(c, uid, days);
               else if (j === "gsc") jr.gsc = await jobGsc(c, uid, days);
-              else if (j === "gsc_queries") jr.gsc_queries = await jobGscQueries(c, uid, days);
+              else if (j === "gsc_queries") jr.gsc_queries = await jobGscQueries(c, uid, days, force);
               else if (j === "ga4") jr.ga4 = await jobGa4(c, uid, days);
               else if (j === "ga4_traffic") jr.ga4_traffic = await jobGa4Traffic(c, uid, days);
               else if (j === "ga4_conversions")
