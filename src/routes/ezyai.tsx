@@ -1289,7 +1289,10 @@ function ContentBriefsPanel({ clientId, S, onGoChances }: { clientId: string; S:
   );
 }
 
-function SiteHealthPanel({ clientId, S, mode }: { clientId: string; S: Record<string, string>; mode: "health" | "issues" }) {
+// Aufteilung 13.08. (Volkan, Screenshot-Feedback): Site Health = Scores +
+// Seiten + Check-Tabellen (ohne Problem-Liste, nur Verweis), Issues = NUR die
+// Problem-Liste. Beide lesen denselben letzten Audit.
+function SiteHealthPanel({ clientId, S, mode, onGoIssues }: { clientId: string; S: Record<string, string>; mode: "health" | "issues"; onGoIssues?: () => void }) {
   const [audit, setAudit] = useState<any | undefined>(undefined); // undefined = lädt, null = keiner
   const [running, setRunning] = useState(false);
   const [err, setErr] = useState("");
@@ -1329,25 +1332,56 @@ function SiteHealthPanel({ clientId, S, mode }: { clientId: string; S: Record<st
   const checks = audit?.checks || [];
   const pillars: Array<[string, string]> = [["technical", "Technik"], ["content", "Inhalt"], ["aeo", "AI-Readiness"]];
 
+  // Problem-Liste (13.08. in den Issues-Tab verschoben, Volkan).
+  const issuesCard = (
+    <div style={card}>
+      <div style={{ fontWeight: 700, fontSize: 13.5, color: S.txt, marginBottom: 10 }}>
+        {issues.length ? `${issues.length} ${issues.length === 1 ? "Problem" : "Probleme"} gefunden` : "Keine Probleme gefunden 🎉"}
+      </div>
+      {issues.map((i: any) => {
+        const sv = SEV_STYLE[i.severity] || SEV_STYLE.niedrig;
+        return (
+          <div key={i.id} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "9px 0", borderTop: `1px solid ${S.line}` }}>
+            <span style={{ flexShrink: 0, fontSize: 10.5, fontWeight: 700, borderRadius: 99, padding: "2px 9px", background: sv.bg, color: sv.fg }}>{sv.label}</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: S.txt }}>{i.label} <span style={{ fontWeight: 400, color: S.mut }}>— {i.detail}</span></div>
+              <div style={{ fontSize: 11.5, color: S.mut, marginTop: 2 }}>{i.tipp}</div>
+              {Array.isArray(i.pages) && i.pages.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                  {i.pages.slice(0, 6).map((p: string) => (
+                    <span key={p} style={{ fontSize: 10, color: S.mut, border: `1px solid ${S.line}`, borderRadius: 6, padding: "1px 6px", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p}</span>
+                  ))}
+                  {i.pages.length > 6 && <span style={{ fontSize: 10, color: S.mut }}>+{i.pages.length - 6} weitere</span>}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <button onClick={() => runAudit("quick")} disabled={running}
-          style={{ padding: "8px 16px", borderRadius: 10, border: "none", cursor: running ? "default" : "pointer", background: S.app, color: "#fff", fontSize: 13, fontWeight: 600, fontFamily: "inherit", opacity: running ? 0.6 : 1 }}>
-          {running && runningMode === "quick" ? "Quick-Audit läuft… (~10 s)" : "Quick-Audit"}
-        </button>
-        <button onClick={() => runAudit("deep")} disabled={running}
-          style={{ padding: "8px 16px", borderRadius: 10, border: `1px solid ${S.app}`, cursor: running ? "default" : "pointer", background: "transparent", color: S.app, fontSize: 13, fontWeight: 600, fontFamily: "inherit", opacity: running ? 0.6 : 1 }}>
-          {running && runningMode === "deep" ? "Tiefen-Audit läuft… (~2 Min)" : "Tiefen-Audit (bis 50 Seiten)"}
-        </button>
-        {audit?.at && (
-          <span style={{ fontSize: 12, color: S.mut }}>
-            Letzter Audit: {new Date(audit.at).toLocaleString("de-CH")} · {audit.url}
-            {audit.mode === "deep" && Array.isArray(audit.pages) && audit.pages.length > 1 ? ` · ${audit.pages.length} Seiten` : " · Startseite"}
-          </span>
-        )}
-        {err && <span style={{ fontSize: 12, color: "#dc2626" }}>{err}</span>}
-      </div>
+      {mode === "health" && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <button onClick={() => runAudit("quick")} disabled={running}
+            style={{ padding: "8px 16px", borderRadius: 10, border: "none", cursor: running ? "default" : "pointer", background: S.app, color: "#fff", fontSize: 13, fontWeight: 600, fontFamily: "inherit", opacity: running ? 0.6 : 1 }}>
+            {running && runningMode === "quick" ? "Quick-Audit läuft… (~10 s)" : "Quick-Audit"}
+          </button>
+          <button onClick={() => runAudit("deep")} disabled={running}
+            style={{ padding: "8px 16px", borderRadius: 10, border: `1px solid ${S.app}`, cursor: running ? "default" : "pointer", background: "transparent", color: S.app, fontSize: 13, fontWeight: 600, fontFamily: "inherit", opacity: running ? 0.6 : 1 }}>
+            {running && runningMode === "deep" ? "Tiefen-Audit läuft… (~2 Min)" : "Tiefen-Audit (bis 50 Seiten)"}
+          </button>
+          {audit?.at && (
+            <span style={{ fontSize: 12, color: S.mut }}>
+              Letzter Audit: {new Date(audit.at).toLocaleString("de-CH")} · {audit.url}
+              {audit.mode === "deep" && Array.isArray(audit.pages) && audit.pages.length > 1 ? ` · ${audit.pages.length} Seiten` : " · Startseite"}
+            </span>
+          )}
+          {err && <span style={{ fontSize: 12, color: "#dc2626" }}>{err}</span>}
+        </div>
+      )}
 
       {audit === undefined ? (
         <div style={{ ...card, color: S.mut, fontSize: 13 }}>Lade letzten Audit…</div>
@@ -1355,8 +1389,23 @@ function SiteHealthPanel({ clientId, S, mode }: { clientId: string; S: Record<st
         <div style={{ ...card, textAlign: "center", padding: 40 }}>
           <div style={{ fontSize: 30, marginBottom: 10 }}>🩺</div>
           <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6, color: S.txt }}>Noch kein Audit für diesen Kunden</div>
-          <div style={{ fontSize: 13, color: S.mut }}>Quick-Audit prüft Startseite, robots.txt, Sitemap und AI-Readiness (~10 s); der Tiefen-Audit nimmt bis zu 50 Unterseiten aus der Sitemap dazu (~2 Min). Beides ohne Zusatzkosten.</div>
+          <div style={{ fontSize: 13, color: S.mut }}>
+            {mode === "issues"
+              ? "Im Tab «Site Health» einen Quick- oder Tiefen-Audit starten — die gefundenen Probleme erscheinen dann hier."
+              : "Quick-Audit prüft Startseite, robots.txt, Sitemap und AI-Readiness (~10 s); der Tiefen-Audit nimmt bis zu 50 Unterseiten aus der Sitemap dazu (~2 Min). Beides ohne Zusatzkosten."}
+          </div>
         </div>
+      ) : mode === "issues" ? (
+        /* Issues-Tab (13.08.): NUR die Problem-Liste. */
+        <>
+          {audit?.at && (
+            <div style={{ fontSize: 12, color: S.mut }}>
+              Stand: {new Date(audit.at).toLocaleString("de-CH")} · {audit.url}
+              {audit.mode === "deep" && Array.isArray(audit.pages) && audit.pages.length > 1 ? ` · ${audit.pages.length} Seiten geprüft` : " · Startseite"}
+            </div>
+          )}
+          {issuesCard}
+        </>
       ) : (
         <>
           {/* Score-Karten */}
@@ -1378,32 +1427,18 @@ function SiteHealthPanel({ clientId, S, mode }: { clientId: string; S: Record<st
             })}
           </div>
 
-          {/* Issues */}
-          <div style={card}>
-            <div style={{ fontWeight: 700, fontSize: 13.5, color: S.txt, marginBottom: 10 }}>
-              {issues.length ? `${issues.length} ${issues.length === 1 ? "Problem" : "Probleme"} gefunden` : "Keine Probleme gefunden 🎉"}
-            </div>
-            {issues.map((i: any) => {
-              const sv = SEV_STYLE[i.severity] || SEV_STYLE.niedrig;
-              return (
-                <div key={i.id} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "9px 0", borderTop: `1px solid ${S.line}` }}>
-                  <span style={{ flexShrink: 0, fontSize: 10.5, fontWeight: 700, borderRadius: 99, padding: "2px 9px", background: sv.bg, color: sv.fg }}>{sv.label}</span>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 600, color: S.txt }}>{i.label} <span style={{ fontWeight: 400, color: S.mut }}>— {i.detail}</span></div>
-                    <div style={{ fontSize: 11.5, color: S.mut, marginTop: 2 }}>{i.tipp}</div>
-                    {Array.isArray(i.pages) && i.pages.length > 0 && (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
-                        {i.pages.slice(0, 6).map((p: string) => (
-                          <span key={p} style={{ fontSize: 10, color: S.mut, border: `1px solid ${S.line}`, borderRadius: 6, padding: "1px 6px", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p}</span>
-                        ))}
-                        {i.pages.length > 6 && <span style={{ fontSize: 10, color: S.mut }}>+{i.pages.length - 6} weitere</span>}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          {/* Problem-Verweis (13.08.): Liste lebt im Issues-Tab. */}
+          {issues.length > 0 && (
+            <button onClick={onGoIssues}
+              style={{ ...card, display: "flex", alignItems: "center", gap: 10, cursor: "pointer", textAlign: "left", fontFamily: "inherit", width: "100%" }}>
+              <AlertTriangle size={16} color="#f59e0b" style={{ flexShrink: 0 }} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: S.txt }}>
+                {issues.length} {issues.length === 1 ? "Problem" : "Probleme"} gefunden
+              </span>
+              <span style={{ fontSize: 12, color: S.mut }}>— Details im Tab «Issues»</span>
+              <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 600, color: S.app }}>Ansehen →</span>
+            </button>
+          )}
 
           {/* Seiten-Tabelle (Tiefen-Audit) */}
           {Array.isArray(audit.pages) && audit.pages.length > 1 && (
@@ -2154,7 +2189,7 @@ function EzyAiApp() {
             ) : section === "ki-konkurrenz" ? (
               <CompetitorsPanel clientId={client.id} S={S} />
             ) : section === "site-health" || section === "issues" ? (
-              <SiteHealthPanel clientId={client.id} S={S} mode={section === "issues" ? "issues" : "health"} />
+              <SiteHealthPanel clientId={client.id} S={S} mode={section === "issues" ? "issues" : "health"} onGoIssues={() => setSection("issues")} />
             ) : section === "opportunities" ? (
               <OpportunitiesPanel clientId={client.id} clientName={client.name} S={S} onOpenCuration={() => setCurOpen(true)} onGo={setSection} />
             ) : section === "content" ? (
