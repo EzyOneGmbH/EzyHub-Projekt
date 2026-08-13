@@ -3106,21 +3106,36 @@ function SeoDashboard({ selectedClient, dateRange }) {
   // ein getracktes KW gewinnt gegen dieselbe GSC-Query. _src markiert die Quelle.
   const normKw = (s) => String(s || "").trim().toLowerCase();
   const rankRows = useMemo(() => {
-    const tracked = (rank?.keywords || []).map((k) => ({ ...k, _src: "dfs" }));
+    const gq = gscQ && Array.isArray(gscQ.topNonbrandQueries) ? gscQ.topNonbrandQueries : [];
+    // GSC-Lookup fuer getrackte Keywords (2026-08-13): Klicks/Impressionen auch
+    // fuer Tracking-Zeilen befuellen. Non-Brand aus gsc_queries, Brand-Terms
+    // als Fallback aus gsc_summary.topQueries (enthaelt Brand).
+    const gscMap = new Map();
+    for (const q of gq) gscMap.set(normKw(q.query), q);
+    for (const q of (gscRes?.topQueries || [])) {
+      const n = normKw(q.query);
+      if (!gscMap.has(n)) gscMap.set(n, q);
+    }
+    const tracked = (rank?.keywords || []).map((k) => {
+      const g = gscMap.get(normKw(k.kw));
+      return { ...k, clicks: g?.clicks ?? null, impressions: g?.impressions ?? null, _src: "dfs" };
+    });
     const seen = new Set(tracked.map((k) => normKw(k.kw)));
     const gscOnly = [];
-    const gq = gscQ && Array.isArray(gscQ.topNonbrandQueries) ? gscQ.topNonbrandQueries : [];
     for (const q of gq) {
       const n = normKw(q.query);
       if (!n || seen.has(n)) continue;
       seen.add(n);
+      // DFS-Anreicherung (2026-08-13): Labs-Position/-URL + Suchvolumen kommen
+      // woechentlich aus jobGscQueries; GSC-Ø-Position bleibt der Fallback.
       gscOnly.push({
         kw: q.query,
-        pos: q.position != null ? q.position : null,
+        pos: q.dfsPos != null ? q.dfsPos : q.position != null ? q.position : null,
+        _posSrc: q.dfsPos != null ? "dfs" : "gsc",
         posPrev7: null,
         posPrev28: null,
-        url: null,
-        volume: null,
+        url: q.dfsUrl || null,
+        volume: q.volume ?? null,
         clicks: q.clicks ?? null,
         impressions: q.impressions ?? null,
         _src: "gsc",
@@ -3147,7 +3162,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
       return dir * (av - bv);
     });
     return rows;
-  }, [rank, gscQ, rankSort]);
+  }, [rank, gscQ, gscRes, rankSort]);
   // Zähler für die Kopfzeile (getrackt vs. aus GSC gemergt).
   const rankCounts = useMemo(() => {
     let dfs = 0, gsc = 0;
@@ -3291,7 +3306,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
                       <td style={{ padding: "6px 8px", color: C.text }}>{k.kw}</td>
                       <td
                         style={{ padding: "6px 8px", textAlign: "right", fontWeight: 600 }}
-                        title={k._src === "gsc" ? "GSC-Ø-Position (Durchschnitt über den Zeitraum)" : undefined}
+                        title={k._src === "gsc" ? (k._posSrc === "dfs" ? "Labs-Position (DataForSEO, google.ch — wöchentlich)" : "GSC-Ø-Position (Durchschnitt über den Zeitraum)") : undefined}
                       >
                         {k.pos != null ? k.pos : "> 100"}
                       </td>

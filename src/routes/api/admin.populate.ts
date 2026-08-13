@@ -301,6 +301,35 @@ async function jobGsc(c: any, uid: string, days: number) {
   return { imported: keywords.length };
 }
 
+// DataForSEO-Live-Call, der das VOLLE result-Array zurueckgibt (dfsCall aus
+// backlink-overview.server liefert nur result[0] — fuer search_volume ist aber
+// jedes Array-Element ein Keyword). Fehler -> null, nie werfen.
+async function dfsList(
+  path: string,
+  task: Record<string, unknown>,
+  auth: string,
+  timeoutMs = 30000,
+): Promise<unknown[] | null> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(`https://api.dataforseo.com/v3/${path}`, {
+      method: "POST",
+      headers: { Authorization: auth, "Content-Type": "application/json" },
+      body: JSON.stringify([task]),
+      signal: ctrl.signal,
+    });
+    const j: any = await res.json().catch(() => null);
+    const taskObj = j?.tasks?.[0];
+    if (!res.ok || !taskObj || (taskObj.status_code && taskObj.status_code >= 40000)) return null;
+    return Array.isArray(taskObj.result) ? taskObj.result : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 // WP2 (Dashboard-Ausbau 2026-07-11): Query-Level-GSC mit Brand/Non-Brand-Split
 // + Positions-Buckets (Non-Brand) + Top-Non-Brand-Queries -> type 'gsc_queries'.
 async function jobGscQueries(c: any, uid: string, days: number) {
@@ -360,6 +389,90 @@ async function jobGscQueries(c: any, uid: string, days: number) {
     if (impressions >= 10) nonbrandRows.push({ query: q, clicks, impressions, position: Math.round(position * 10) / 10 });
   }
   nonbrandRows.sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions);
+  // ── DFS-Anreicherung (2026-08-13, User-Wunsch): jede angezeigte GSC-Query
+  // bekommt via DataForSEO eine Labs-Position/-URL (ranked_keywords, google.ch)
+  // und ein Suchvolumen (google_ads search_volume, Batch bis 1000). WOCHEN-GUARD:
+  // DataForSEO wird nur gerufen, wenn die juengste gsc_queries-Zeile keine
+  // frische Anreicherung (<6.5 Tage) traegt — sonst Werte aus dem Vorlauf
+  // uebernehmen, damit der 12h-Cron die Wochen-Kosten (~0.20 USD/Kunde) nicht
+  // vervielfacht. Fehler sind immer non-fatal (Felder bleiben null).
+  const shown: Array<Record<string, unknown>> = nonbrandRows
+    .slice(0, 1000)
+    .map((r) => ({ ...r, dfsPos: null, dfsUrl: null, volume: null }));
+  let dfsEnrichedAt: string | null = null;
+  try {
+    const { data: prevRun } = await supabaseAdmin
+      .from("audit_runs")
+      .select("result")
+      .eq("client_id", c.id)
+      .eq("audit_type", "gsc_queries")
+      .eq("status", "succeeded")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const prev: any = (prevRun as any)?.result;
+    const prevAt = prev?.dfsEnrichedAt ? Date.parse(prev.dfsEnrichedAt) : 0;
+    const auth = dfsAuth();
+    if (auth && Date.now() - prevAt > 6.5 * 86400000) {
+      // Frisch anreichern (1x/Woche): Labs-Ranking-Universum + Volumen-Batch.
+      const domain = normalizeDomain(String(c.domain || ""));
+      const labs = new Map<string, { pos: number | null; url: string | null; volume: number | null }>();
+      if (domain) {
+        const rk = await dfsList(
+          "dataforseo_labs/google/ranked_keywords/live",
+          { target: domain, location_code: 2756, language_code: "de", limit: 1000 },
+          auth,
+        );
+        for (const it of (rk?.[0] as any)?.items ?? []) {
+          const kw = String(it?.keyword_data?.keyword ?? "").toLowerCase();
+          if (!kw) continue;
+          labs.set(kw, {
+            pos: it?.ranked_serp_element?.serp_item?.rank_group ?? null,
+            url: it?.ranked_serp_element?.serp_item?.url ?? null,
+            volume: it?.keyword_data?.keyword_info?.search_volume ?? null,
+          });
+        }
+      }
+      const missing = shown
+        .map((r) => String(r.query))
+        .filter((q) => labs.get(q.toLowerCase())?.volume == null && q.length <= 80);
+      const vol = new Map<string, number>();
+      for (let i = 0; i < missing.length; i += 1000) {
+        const sv = await dfsList(
+          "keywords_data/google_ads/search_volume/live",
+          { keywords: missing.slice(i, i + 1000), location_code: 2756, language_code: "de" },
+          auth,
+        );
+        for (const it of (sv ?? []) as any[]) {
+          const kw = String(it?.keyword ?? "").toLowerCase();
+          if (kw && typeof it?.search_volume === "number") vol.set(kw, it.search_volume);
+        }
+      }
+      for (const r of shown) {
+        const n = String(r.query).toLowerCase();
+        const l = labs.get(n);
+        r.dfsPos = l?.pos ?? null;
+        r.dfsUrl = l?.url ?? null;
+        r.volume = l?.volume ?? vol.get(n) ?? null;
+      }
+      dfsEnrichedAt = nowIso();
+    } else if (prevAt > 0 && Array.isArray(prev?.topNonbrandQueries)) {
+      // Reuse: Anreicherung des Vorlaufs auf die aktuellen Rows uebertragen.
+      const prevMap = new Map<string, any>(
+        prev.topNonbrandQueries.map((q: any) => [String(q.query).toLowerCase(), q]),
+      );
+      for (const r of shown) {
+        const p = prevMap.get(String(r.query).toLowerCase());
+        if (!p) continue;
+        r.dfsPos = p.dfsPos ?? null;
+        r.dfsUrl = p.dfsUrl ?? null;
+        r.volume = p.volume ?? null;
+      }
+      dfsEnrichedAt = prev.dfsEnrichedAt;
+    }
+  } catch {
+    /* Anreicherung best-effort — GSC-Kernergebnis bleibt unberuehrt */
+  }
   const result = {
     range: { from: start, to: end },
     brand,
@@ -368,7 +481,8 @@ async function jobGscQueries(c: any, uid: string, days: number) {
     // Gesamter Non-Brand-Bestand pro Kunde (2026-08-12): Cap 250 -> 1000, damit
     // das Rankings-Widget den vollen GSC-Keyword-Bestand mergen kann (Filter
     // Impressions >= 10 bleibt als Rauschgrenze). Dashboard paginiert 10er-weise.
-    topNonbrandQueries: nonbrandRows.slice(0, 1000),
+    topNonbrandQueries: shown,
+    ...(dfsEnrichedAt ? { dfsEnrichedAt } : {}),
   };
   await insertRun({
     client_id: c.id,
