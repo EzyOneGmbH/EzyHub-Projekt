@@ -3078,9 +3078,17 @@ function SeoDashboard({ selectedClient, dateRange }) {
   const rankingDist = gscRes ? gscRankingDistributionFromResult(gscRes) : [];
   const RANK_COLORS = [C.accent, C.blue, C.green, C.orange, C.textDim];
   const topPages = traf?.topPages || [];
-  const chSessions = (traf?.countries || []).find((c) =>
+  // Switzerland Traffic NUR organisch (User-Wunsch 2026-08-13): bevorzugt die
+  // organische Länder-Aufteilung (countriesOrganic); Fallback alle Kanäle,
+  // solange ein alter Snapshot das neue Feld noch nicht hat (Label zeigt es).
+  const chOrganicSessions = (traf?.countriesOrganic || []).find((c) =>
     /switzerland|schweiz|^ch$/i.test(c.country),
   )?.sessions;
+  const chAllSessions = (traf?.countries || []).find((c) =>
+    /switzerland|schweiz|^ch$/i.test(c.country),
+  )?.sessions;
+  const chSessions = chOrganicSessions ?? chAllSessions;
+  const chSessionsOrganic = chOrganicSessions != null;
   // "Organic Traffic" aus ECHTEN Daten (User-Wunsch 2026-08-13): GA4-Kanal
   // "Organic Search" im gewählten Zeitraum (wie Switzerland Traffic); Fallback
   // GSC-Klicks. Die DFS-ETV-Schätzung (live.traffic) nur noch als letzte
@@ -3542,7 +3550,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
         {chSessions != null && chSessions > 0 && (
           <KpiCard
             icon={MapPin}
-            label="Switzerland Traffic"
+            label={chSessionsOrganic ? "Switzerland Traffic (organisch)" : "Switzerland Traffic (alle Kanäle)"}
             value={chSessions.toLocaleString("de-CH")}
             color={C.pink}
           />
@@ -4084,7 +4092,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
                 ["Rankings (Top 3 · Top 10 · Tabelle)", "DataForSEO Rank-Tracking", rankRun],
                 ["Organic Traffic", "GA4 (Organic Search) · Fallback GSC-Klicks", trafRun || gscRun],
                 ["SEO-KPIs (Visibility, Authority, Keywords, Backlinks)", "DataForSEO (Backlinks & Labs)", run],
-                ["Switzerland Traffic", "Google Analytics 4", trafRun],
+                ["Switzerland Traffic", "GA4 (Organic Search, nur CH)", trafRun],
                 ["Brand/Non-Brand-Split · Positions-Buckets · Top-Suchanfragen", "Google Search Console", gscQRun || gscRun],
                 ["Ranking-Verteilung", "Google Search Console", gscRun],
                 ["Core Web Vitals (LCP, INP, CLS, Performance)", "Google PageSpeed (CrUX/Lighthouse)", psiRun],

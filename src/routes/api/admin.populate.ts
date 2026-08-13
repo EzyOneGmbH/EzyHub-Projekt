@@ -926,6 +926,30 @@ async function jobGa4Traffic(c: any, uid: string, days: number) {
   } catch {
     /* optional */
   }
+  // Country share, nur organische Suche (2026-08-13, User-Wunsch): speist
+  // "Switzerland Traffic (organisch)" — gleiche Form wie countries.
+  let countriesOrganic: any[] = [];
+  try {
+    const co = await call({
+      dateRanges,
+      dimensions: [{ name: "country" }],
+      metrics: [{ name: "sessions" }],
+      dimensionFilter: {
+        filter: {
+          fieldName: "sessionDefaultChannelGroup",
+          stringFilter: { value: "Organic Search", matchType: "EXACT" },
+        },
+      },
+      orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+      limit: 10,
+    });
+    countriesOrganic = (co.rows ?? []).map((r: any) => ({
+      country: r.dimensionValues?.[0]?.value ?? "(unknown)",
+      sessions: Number(r.metricValues?.[0]?.value ?? 0),
+    }));
+  } catch {
+    /* optional */
+  }
   const result = {
     days,
     channels,
@@ -939,6 +963,7 @@ async function jobGa4Traffic(c: any, uid: string, days: number) {
     aiSeries,
     topPages,
     countries,
+    countriesOrganic,
   };
   await insertRun({
     client_id: c.id,

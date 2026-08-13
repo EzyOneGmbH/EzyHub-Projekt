@@ -226,6 +226,7 @@ export function ga4TrafficFromResult(result: any): {
   aiSeries: Array<{ date: string; aiSessions: number }>;
   topPages: Array<{ path: string; views: number }>;
   countries: Array<{ country: string; sessions: number }>;
+  countriesOrganic: Array<{ country: string; sessions: number }>;
 } {
   const r = result || {};
   return {
@@ -244,6 +245,7 @@ export function ga4TrafficFromResult(result: any): {
     aiSeries: Array.isArray(r.aiSeries) ? r.aiSeries : [],
     topPages: Array.isArray(r.topPages) ? r.topPages : [],
     countries: Array.isArray(r.countries) ? r.countries : [],
+    countriesOrganic: Array.isArray(r.countriesOrganic) ? r.countriesOrganic : [],
   };
 }
 
