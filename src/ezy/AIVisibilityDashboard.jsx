@@ -2328,6 +2328,66 @@ function ConversionRegions({ attribution }) {
 // zitieren — SERP-Messung (keine Prompt-Antworten, deshalb eigene Karte
 // statt Zeilen in der Antworten-Tabelle). Daten aus parts.sa.aio/aim;
 // erscheint erst, sobald ein SERP-Lauf nach dem 06.08. die Details schrieb.
+// Leichter Markdown-Renderer für KI-Antworten (14.08., Volkan): **fett**,
+// Aufzählungen und Links werden gerendert; Zitat-Marker [[n]](url) werden zu
+// kleinen nummerierten Quellen-Chips, leere Anker [](url) verschwinden. Kein
+// externes Paket — die Antworten sind flaches Markdown ohne Verschachtelung.
+const MD_INLINE = /\[\[(\d+)\]\]\(([^)\s]+)\)|\[([^\]]*)\]\(([^)\s]+)\)|\*\*([^*]+?)\*\*/g;
+function mdInline(text, keyBase) {
+  const out = [];
+  let last = 0, m, i = 0;
+  MD_INLINE.lastIndex = 0;
+  while ((m = MD_INLINE.exec(text))) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    const key = `${keyBase}-${i++}`;
+    if (m[1]) {
+      out.push(
+        <a key={key} href={m[2]} target="_blank" rel="noreferrer" title={m[2]}
+          style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 15, height: 15, margin: "0 1px", borderRadius: 4, background: "#ede9fe", color: "#5b21b6", fontSize: 9.5, fontWeight: 700, textDecoration: "none", verticalAlign: "super", lineHeight: 1 }}>
+          {m[1]}
+        </a>,
+      );
+    } else if (m[4]) {
+      if (m[3]) out.push(<a key={key} href={m[4]} target="_blank" rel="noreferrer" style={{ color: C.indigo, textDecoration: "underline" }}>{m[3]}</a>);
+      // leeres [](url) = Bild-/Anker-Rest → bewusst weglassen
+    } else if (m[5]) {
+      out.push(<b key={key} style={{ fontWeight: 700, color: C.ink }}>{m[5]}</b>);
+    }
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}
+function AnswerMarkdown({ text }) {
+  const blocks = [];
+  let list = null; // sammelt aufeinanderfolgende "- "-Zeilen
+  const lines = String(text || "").split(/\r?\n/);
+  lines.forEach((raw, idx) => {
+    const line = raw.trim();
+    const flush = () => { if (list) { blocks.push(<ul key={`ul${idx}`} style={{ margin: "6px 0", paddingLeft: 18, listStyle: "disc" }}>{list}</ul>); list = null; } };
+    if (/^[-*•]\s+/.test(line)) {
+      (list ??= []).push(<li key={`li${idx}`} style={{ margin: "3px 0" }}>{mdInline(line.replace(/^[-*•]\s+/, ""), `l${idx}`)}</li>);
+      return;
+    }
+    flush();
+    if (!line) return;
+    const h = line.match(/^#{1,4}\s+(.*)$/);
+    if (h) { blocks.push(<div key={`h${idx}`} style={{ fontWeight: 700, color: C.ink, marginTop: 10, marginBottom: 4 }}>{mdInline(h[1], `h${idx}`)}</div>); return; }
+    blocks.push(<p key={`p${idx}`} style={{ margin: "6px 0" }}>{mdInline(line, `p${idx}`)}</p>);
+  });
+  if (list) blocks.push(<ul key="ul-end" style={{ margin: "6px 0", paddingLeft: 18, listStyle: "disc" }}>{list}</ul>);
+  return <div className="text-[12.5px] leading-relaxed" style={{ color: C.ink, overflowWrap: "break-word" }}>{blocks}</div>;
+}
+// Markdown-Reste für die Vorschau-Auszüge entfernen (Chips gibt's nur im Modal).
+function mdStrip(text) {
+  return String(text || "")
+    .replace(/\[\[\d+\]\]\([^)]*\)/g, "")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\*\*/g, "")
+    .replace(/^#{1,4}\s+/gm, "")
+    .replace(/[ \t]+/g, " ").trim();
+}
+
 // Antwort-Ansicht zu EINER Google-KI-Suchanfrage (13.08., Volkan): zeigt den
 // echten AIO-/AI-Mode-Text samt zitierten Quellen; eigene Domain hervorgehoben.
 function SerpAnswerModal({ answer, label, ownDomain, onClose }) {
@@ -2344,7 +2404,7 @@ function SerpAnswerModal({ answer, label, ownDomain, onClose }) {
           <button onClick={onClose} className="shrink-0 rounded px-2 text-[18px] leading-none" style={{ color: C.sub }} aria-label="Schliessen">✕</button>
         </div>
         <div className="max-h-[55vh] overflow-y-auto p-4">
-          <div className="whitespace-pre-wrap text-[12.5px] leading-relaxed" style={{ color: C.ink }}>{answer.text}</div>
+          <AnswerMarkdown text={answer.text} />
         </div>
         {answer.refs?.length > 0 && (
           <div className="border-t p-4" style={{ borderColor: C.line }}>
@@ -2586,7 +2646,7 @@ function AiSearchCard({ rows, brand, ownDomain }) {
               {f.text && (
                 <>
                   <div className="mt-2 text-[11.5px] leading-relaxed" style={{ color: C.sub, display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                    {f.text}
+                    {mdStrip(f.text)}
                   </div>
                   <button onClick={() => setOpen(f)} className="mt-1.5 text-[11px] font-semibold" style={{ color: C.indigo }}>
                     Ganze Antwort ansehen →
