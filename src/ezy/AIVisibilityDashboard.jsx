@@ -2484,6 +2484,219 @@ function GoogleSerpAiCard({ serpAi, brand, ownDomain }) {
   );
 }
 
+// ── Anfragen-Matrix (14.08., Volkan) ────────────────────────────────────────
+// EINE Ansicht für die Kernfrage "auf welche Anfragen erscheint der Kunde?"
+// über alle drei Messungen: Mess-Prompts (6 Engines, API), echte KI-Suche
+// (ChatGPT/Gemini Consumer-Oberfläche, Standort CH) und Google-KI (AIO/AI Mode
+// je GSC-Keyword). Ersetzt "Alle Antworten" als Standard-Einstieg; die
+// klassische Liste bleibt als Fallback über den Umschalter (QueriesView,
+// localStorage aivisAnfragenAnsicht) vollständig erhalten.
+const MX_HOST = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
+const MX_STATE_STYLE = {
+  zitiert: { bg: "#eef2ff", fg: C.indigo, label: "●", title: "zitiert (eigene Website verlinkt)" },
+  erwähnt: { bg: "#ecfdf5", fg: C.up, label: "●", title: "erwähnt" },
+  nein: { bg: "transparent", fg: "#d1d5db", label: "✕", title: "erscheint nicht" },
+};
+function MxCell({ cell, onOpen, extra }) {
+  if (!cell) return <td className="px-1 py-1.5 text-center text-[11px]" style={{ color: "#d1d5db" }}>–</td>;
+  const st = MX_STATE_STYLE[cell.state] || MX_STATE_STYLE.nein;
+  const clickable = !!cell.text;
+  const Inner = clickable ? "button" : "span";
+  return (
+    <td className="px-1 py-1.5 text-center">
+      <Inner
+        type={clickable ? "button" : undefined}
+        onClick={clickable ? onOpen : undefined}
+        title={`${st.title}${extra ? ` · ${extra}` : ""}${clickable ? " — Antwort ansehen" : ""}`}
+        className="inline-flex h-5 w-5 items-center justify-center rounded"
+        style={{ background: st.bg, color: st.fg, fontSize: cell.state === "nein" ? 10 : 12, cursor: clickable ? "pointer" : "default", border: "none", padding: 0, fontFamily: "inherit" }}
+      >
+        {st.label}
+      </Inner>
+    </td>
+  );
+}
+function QueryMatrixCard({ prompts, opps, serpAi, aiSearch, brand, ownDomain }) {
+  const [q, setQ] = useState("");
+  const [typ, setTyp] = useState("alle"); // alle | Prompt | Keyword | Marke
+  const [nurLuecken, setNurLuecken] = useState(false);
+  const [page, setPage] = useState(0);
+  const [open, setOpen] = useState(null); // { answer, label }
+  const brandLc = String(brand || "").toLowerCase();
+  const ownHit = (srcs) => !!ownDomain && (srcs || []).some((s) => s.d === ownDomain || String(s.d || "").endsWith("." + ownDomain));
+
+  // Spalten: 6 Mess-Engines (API) + Google-KI. Für Keyword-Zeilen kommen die
+  // ChatGPT/Gemini-Zellen aus der ECHTEN Suche (Tooltip sagt es dazu).
+  const COLS = ["ChatGPT", "Claude", "Gemini", "Perplexity", "Grok", "DeepSeek", "Google AIO", "AI Mode"];
+
+  // 1) Prompt-Zeilen (API-Messung).
+  const pGroups = groupPrompts([...(prompts || []), ...(opps || []).map((o) => ({ ...o, status: "Nicht erwähnt" }))]);
+  const promptRows = pGroups.map((g) => ({
+    key: `p·${g.prompt}·${g.country || ""}`,
+    anfrage: g.prompt, land: g.country || "", typ: "Prompt", suche: false,
+    cells: Object.fromEntries(g.engines.map((e) => [e.platform, {
+      state: e.status === "Referenziert" ? "zitiert" : e.status && e.status !== "Nicht erwähnt" ? "erwähnt" : "nein",
+      text: e.response || "",
+      refs: (e.sourceUrls || []).map((u) => ({ d: MX_HOST(u), u, t: "" })).filter((r) => r.d),
+    }])),
+  }));
+
+  // 2) Keyword-Zeilen: echte KI-Suche (je kw ChatGPT+Gemini) + Google-Zitate.
+  const bare = (k) => String(k).replace(/\s*\([^)]*\)\s*$/, "").trim();
+  const gCited = {
+    "Google AIO": new Set(((serpAi?.aio?.keywords) || []).map((k) => bare(k).toLowerCase())),
+    "AI Mode": new Set(((serpAi?.aim?.keywords) || []).map((k) => bare(k).toLowerCase())),
+  };
+  const gAns = {
+    "Google AIO": new Map(((serpAi?.aio?.answers) || []).map((a) => [a.kw.toLowerCase(), a])),
+    "AI Mode": new Map(((serpAi?.aim?.answers) || []).map((a) => [a.kw.toLowerCase(), a])),
+  };
+  const kwMap = new Map();
+  for (const r of aiSearch || []) {
+    const key = r.kw.toLowerCase();
+    const row = kwMap.get(key) ?? kwMap.set(key, {
+      key: `k·${key}`, anfrage: r.kw, land: "Schweiz", typ: r.branded ? "Marke" : "Keyword", suche: true, cells: {},
+    }).get(key);
+    if (r.branded) row.typ = "Marke";
+    const cited = ownHit(r.sources);
+    row.cells[r.engine] = {
+      state: cited ? "zitiert" : (r.text || "").toLowerCase().includes(brandLc) ? "erwähnt" : "nein",
+      text: r.text || "", refs: r.sources || [],
+    };
+  }
+  // Google-zitierte Keywords ergänzen, die nicht in der KI-Suche waren.
+  for (const col of ["Google AIO", "AI Mode"]) {
+    for (const k of gCited[col]) {
+      if (!kwMap.has(k)) kwMap.set(k, { key: `k·${k}`, anfrage: bare([...(serpAi?.[col === "Google AIO" ? "aio" : "aim"]?.keywords) || []].find((x) => bare(x).toLowerCase() === k) || k), land: "", typ: "Keyword", suche: false, cells: {} });
+    }
+  }
+  // Google-Zellen für alle Keyword-Zeilen setzen (gemessen, sofern SERP-Daten da).
+  for (const row of kwMap.values()) {
+    const key = row.anfrage.toLowerCase();
+    for (const col of ["Google AIO", "AI Mode"]) {
+      const src = col === "Google AIO" ? serpAi?.aio : serpAi?.aim;
+      if (!src) continue; // keine Messung → Zelle bleibt "–"
+      const ans = gAns[col].get(key);
+      row.cells[col] = gCited[col].has(key)
+        ? { state: "zitiert", text: ans?.text || "", refs: ans?.refs || [] }
+        : { state: "nein", text: "" };
+    }
+  }
+  const TYP_ORDER = { Marke: 0, Keyword: 1, Prompt: 2 };
+  const score = (r) => Object.values(r.cells).filter((c) => c && c.state !== "nein").length;
+  let rows = [...kwMap.values(), ...promptRows].sort((a, b) =>
+    (TYP_ORDER[a.typ] ?? 9) - (TYP_ORDER[b.typ] ?? 9) || score(b) - score(a) || a.anfrage.localeCompare(b.anfrage));
+
+  // Filter
+  const qq = q.trim().toLowerCase();
+  if (qq) rows = rows.filter((r) => r.anfrage.toLowerCase().includes(qq));
+  if (typ !== "alle") rows = rows.filter((r) => r.typ === typ);
+  if (nurLuecken) rows = rows.filter((r) => Object.values(r.cells).some((c) => c && c.state === "nein"));
+
+  const PAGE = 15;
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE));
+  const cur = Math.min(page, pages - 1);
+  const view = rows.slice(cur * PAGE, (cur + 1) * PAGE);
+  const chip = (act) => ({ borderColor: act ? C.indigo : C.line, color: act ? C.indigo : C.sub, background: act ? "#eef2ff" : C.card });
+
+  return (
+    <div className="rounded-xl border" style={CARD}>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3" style={{ borderColor: C.line }}>
+        <h3 className="flex items-baseline gap-2 text-sm font-semibold" style={{ color: C.ink }}>
+          Anfragen-Matrix
+          <span className="text-[11.5px] font-normal" style={{ color: C.sub }}>· auf welchen Anfragen der Kunde erscheint · {rows.length} Anfragen</span>
+          <span title="Zeilen: Marken-Anfrage + GSC-Keywords (echte ChatGPT/Gemini-Suche und Google-KI) + Mess-Prompts (API, 6 Systeme). Zelle anklicken = echte Antwort. ● violett = eigene Website zitiert, ● grün = Marke erwähnt, ✕ = erscheint nicht, – = nicht gemessen." style={{ color: C.sub, cursor: "help", display: "inline-flex" }}><Info size={13} /></span>
+        </h3>
+        <div className="flex flex-wrap items-center gap-2">
+          <input value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} placeholder="Anfragen durchsuchen…"
+            className="h-7 w-44 rounded-md border px-2 text-xs focus:outline-none" style={{ borderColor: C.line, background: C.card, color: C.ink }} />
+          {["alle", "Marke", "Keyword", "Prompt"].map((t) => (
+            <button key={t} onClick={() => { setTyp(t); setPage(0); }} className="rounded-full border px-2.5 py-1 text-[11px] font-medium" style={chip(typ === t)}>
+              {t === "alle" ? "Alle" : t === "Prompt" ? "Prompts" : t === "Keyword" ? "Keywords" : "Marke"}
+            </button>
+          ))}
+          <button onClick={() => { setNurLuecken(!nurLuecken); setPage(0); }} className="rounded-full border px-2.5 py-1 text-[11px] font-medium" style={chip(nurLuecken)}>
+            Nur Lücken
+          </button>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[12px]" style={{ minWidth: 860 }}>
+          <thead>
+            <tr style={{ color: C.sub }}>
+              <th className="px-5 py-2 text-left font-medium">Anfrage</th>
+              <th className="px-2 py-2 text-left font-medium">Typ</th>
+              {COLS.map((cN) => <th key={cN} className="px-1 py-2 text-center font-medium" style={{ fontSize: 10.5 }}>{cN.replace("Google ", "")}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {view.map((r) => (
+              <tr key={r.key} style={{ borderTop: `1px solid ${C.line}` }}>
+                <td className="max-w-[380px] px-5 py-1.5" style={{ color: C.ink }}>
+                  <span className="line-clamp-2">{r.anfrage}</span>
+                  {r.land && <span className="text-[10px]" style={{ color: C.sub }}> · {r.land}</span>}
+                </td>
+                <td className="px-2 py-1.5">
+                  <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{
+                    background: r.typ === "Marke" ? "#ede9fe" : r.typ === "Keyword" ? "#e0f2fe" : "#f3f4f6",
+                    color: r.typ === "Marke" ? "#5b21b6" : r.typ === "Keyword" ? "#075985" : C.sub,
+                  }}>{r.typ}</span>
+                </td>
+                {COLS.map((cN) => (
+                  <MxCell key={cN} cell={r.cells[cN]}
+                    extra={r.suche && (cN === "ChatGPT" || cN === "Gemini") ? "echte Suche (Consumer)" : cN.startsWith("Google") || cN === "AI Mode" ? "Google-SERP-Messung" : "API-Messung"}
+                    onOpen={() => setOpen({
+                      answer: { kw: r.anfrage, land: r.land, text: r.cells[cN].text, refs: r.cells[cN].refs || [] },
+                      label: r.suche && (cN === "ChatGPT" || cN === "Gemini") ? `${cN} · echte Suche` : cN,
+                    })} />
+                ))}
+              </tr>
+            ))}
+            {!view.length && (
+              <tr><td colSpan={COLS.length + 2} className="px-5 py-6 text-center text-[12px]" style={{ color: C.sub }}>Keine Anfragen für diesen Filter.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex items-center justify-between border-t px-5 py-2.5 text-[11.5px]" style={{ borderColor: C.line, color: C.sub }}>
+        <span>
+          <span style={{ color: C.indigo }}>●</span> zitiert · <span style={{ color: C.up }}>●</span> erwähnt · ✕ erscheint nicht · – nicht gemessen
+        </span>
+        {pages > 1 && (
+          <span className="flex items-center gap-2">
+            <button onClick={() => setPage(Math.max(0, cur - 1))} disabled={cur === 0} className="rounded border px-2 py-0.5" style={{ borderColor: C.line, opacity: cur === 0 ? 0.4 : 1 }}>‹</button>
+            {cur + 1} / {pages}
+            <button onClick={() => setPage(Math.min(pages - 1, cur + 1))} disabled={cur >= pages - 1} className="rounded border px-2 py-0.5" style={{ borderColor: C.line, opacity: cur >= pages - 1 ? 0.4 : 1 }}>›</button>
+          </span>
+        )}
+      </div>
+      {open && <SerpAnswerModal answer={open.answer} label={open.label} ownDomain={ownDomain} onClose={() => setOpen(null)} />}
+    </div>
+  );
+}
+// Umschalter Matrix ↔ klassische Liste (Fallback-Wunsch Volkan 14.08.):
+// die alte "Alle Antworten"-Tabelle bleibt vollständig erhalten und ist
+// jederzeit ohne Deploy erreichbar; Wahl bleibt im Browser gespeichert.
+function QueriesView({ tableProps, matrixProps }) {
+  const [view, setView] = useState(() => {
+    try { return localStorage.getItem("aivisAnfragenAnsicht") || "matrix"; } catch { return "matrix"; }
+  });
+  const pick = (v) => { setView(v); try { localStorage.setItem("aivisAnfragenAnsicht", v); } catch { /* egal */ } };
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-end gap-1.5">
+        {[["matrix", "Matrix"], ["liste", "Klassische Liste"]].map(([v, label]) => (
+          <button key={v} onClick={() => pick(v)} className="rounded-full border px-3 py-1 text-[11px] font-medium"
+            style={{ borderColor: view === v ? C.indigo : C.line, color: view === v ? C.indigo : C.sub, background: view === v ? "#eef2ff" : C.card }}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {view === "liste" ? <PromptsTable {...tableProps} /> : <QueryMatrixCard {...matrixProps} />}
+    </div>
+  );
+}
+
 // Folgefragen (03.08., ehrliche Query-Fanout-Annäherung): Googles "People Also
 // Ask"-Fragen + verwandte Suchen je GSC-Keyword — KEINE KI-internen Sub-Queries.
 function FanoutPanel({ fanout }) {
@@ -3718,7 +3931,12 @@ export default function AIVisibilityDashboard({ data, convRows = [], navStyle = 
                 hängen jetzt hier am Ende — wie Searchables Mentions & Citations. */}
             <div className="mt-4 grid grid-cols-1 gap-4">
               <PromptMatrix prompts={fP} opps={fO} />
-              <PromptsTable prompts={fP} opps={fO} brand={d.client} brandPrompts={d.brandPrompts || []} needsReview={d.promptsNeedsReview || 0} onReview={onReviewPrompts} clientId={d.clientId} />
+              {/* Anfragen-Matrix ersetzt "Alle Antworten" (14.08.); klassische
+                  Liste bleibt als Fallback über den Umschalter erreichbar. */}
+              <QueriesView
+                tableProps={{ prompts: fP, opps: fO, brand: d.client, brandPrompts: d.brandPrompts || [], needsReview: d.promptsNeedsReview || 0, onReview: onReviewPrompts, clientId: d.clientId }}
+                matrixProps={{ prompts: fP, opps: fO, serpAi: d.serpAi, aiSearch: d.aiSearch, brand: d.client, ownDomain: d.domain }}
+              />
               <GoogleSerpAiCard serpAi={d.serpAi} brand={d.client} ownDomain={d.domain} />
               <AiSearchCard rows={d.aiSearch} brand={d.client} ownDomain={d.domain} />
             </div>
