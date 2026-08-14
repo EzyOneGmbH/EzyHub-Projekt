@@ -267,7 +267,8 @@ export async function tickAudit(id: string) {
     switch (row.stage) {
       case "technik": {
         const sh = await runSiteHealthForDomain(domain, "deep");
-        data.technik = { scores: sh.scores, issues: sh.issues, pages: sh.pages, blockedBots: sh.blockedBots };
+        data.technik = { scores: sh.scores, issues: sh.issues, pages: sh.pages, blockedBots: sh.blockedBots,
+          robotsOk: sh.robotsOk, botDetails: sh.botDetails };
         const td = await dfs("domain_analytics/technologies/domain_technologies/live", { target: domain });
         addCost(data, td.cost);
         const item = td.ok ? (td.result?.[0]?.items?.[0] || td.result?.[0] || {}) : {};

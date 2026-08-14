@@ -682,6 +682,51 @@ function ResultView({ audit, onBack, onRerun }: { audit: AuditRow; onBack: () =>
         </div>
       </div>
 
+      {/* AI-Crawler-Zugriff je Bot (Prinzip externer robots.txt-Checker) */}
+      {Array.isArray(d.technik?.botDetails) && d.technik.botDetails.length > 0 && (() => {
+        const bots = d.technik.botDetails as Array<{ name: string; owner: string; status: string }>;
+        const erlaubt = bots.filter((b) => b.status === "erlaubt").length;
+        const blockiert = bots.filter((b) => b.status === "blockiert").length;
+        const botPill = (st: string) => st === "erlaubt"
+          ? <span style={pillStyle(S.greenDim, S.green)}>erlaubt</span>
+          : st === "blockiert"
+            ? <span style={pillStyle(S.redDim, S.red)}>blockiert</span>
+            : <span style={pillStyle(S.tint, S.mut)}>nicht spezifiziert</span>;
+        return fold("🤖", blockiert ? S.redDim : S.tint, blockiert ? S.red : S.app,
+          `AI-Crawler-Zugriff · ${erlaubt} von ${bots.length} explizit erlaubt`,
+          blockiert ? `— ${blockiert} blockiert` : "— robots.txt der Domain", (
+          <div>
+            <p style={{ fontSize: 12.5, color: S.mut, margin: "8px 0 10px" }}>
+              Quelle: https://{audit.domain}/robots.txt — «erlaubt» = eigener User-agent-Block, nicht per <code style={{ background: S.bg, borderRadius: 4, padding: "1px 5px" }}>Disallow: /</code> gesperrt.
+              «Nicht spezifiziert» = keine eigene Regel, es gelten die *-Regeln der robots.txt.
+            </p>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ borderCollapse: "collapse", width: "100%" }}>
+                <thead><tr><th style={th}>Bot</th><th style={th}>Anbieter</th><th style={th}>Status</th></tr></thead>
+                <tbody>
+                  {bots.map((b) => (
+                    <tr key={b.name}>
+                      <td style={{ ...td, fontWeight: 600 }}>{b.name}</td>
+                      <td style={{ ...td, color: S.mut }}>{b.owner}</td>
+                      <td style={td}>{botPill(b.status)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ));
+      })()}
+      {d.technik && d.technik.robotsOk === false && (
+        <div style={{ ...card, marginTop: 16, display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ width: 30, height: 30, borderRadius: 10, background: S.redDim, color: S.red, display: "flex", alignItems: "center", justifyContent: "center" }}>🤖</span>
+          <div>
+            <b style={{ fontSize: 14.5 }}>Keine robots.txt gefunden</b>
+            <div style={{ fontSize: 12.5, color: S.mut }}>Ohne robots.txt gelten keine Bot-Regeln — alle Crawler dürfen lesen, aber die Steuerungsmöglichkeit fehlt.</div>
+          </div>
+        </div>
+      )}
+
       {/* Issues (zugeklappt, wie EzyAI-SiteHealth) */}
       {fold("⚠", S.orangeDim, S.orange, `${issues.length} Probleme gefunden`, "— aus dem SiteHealth-Audit", (
         <div>

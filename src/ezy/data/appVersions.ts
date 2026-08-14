@@ -44,8 +44,9 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI – Analyse (Lead-Pre-Check, intern)
   analyse: {
-    version: "1.0.0",
+    version: "1.1.0",
     changelog: [
+      { version: "1.1.0", date: "2026-08-14", note: "AI-Crawler-Zugriff je Bot (15 Bots, robots.txt-Detail-Panel)" },
       { version: "1.0.0", date: "2026-08-14", note: "Erstversion: Wizard, Prompt-Runner, SiteHealth, Benchmark, PDF" },
     ],
   },

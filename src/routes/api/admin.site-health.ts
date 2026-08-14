@@ -51,6 +51,35 @@ async function resolveClient(userClient: any | null, clientId: string) {
 export const AI_BOTS = ["GPTBot", "ClaudeBot", "PerplexityBot", "Google-Extended", "Bytespider", "meta-externalagent", "Amazonbot"];
 export const CRITICAL_BOTS = new Set(["GPTBot", "ClaudeBot", "PerplexityBot"]);
 
+// EzyAI-Analyse (14.08.): Voller Bot-Katalog fuer das "AI-Crawler-Zugriff"-Panel
+// (je Bot: erlaubt / blockiert / nicht spezifiziert — Prinzip wie externe
+// robots.txt-Checker). "Erlaubt" = eigener User-agent-Block ohne Disallow: /.
+export const AI_BOT_DEFS: Array<{ name: string; owner: string }> = [
+  { name: "GPTBot", owner: "OpenAI" },
+  { name: "ChatGPT-User", owner: "OpenAI" },
+  { name: "OAI-SearchBot", owner: "OpenAI" },
+  { name: "ClaudeBot", owner: "Anthropic" },
+  { name: "anthropic-ai", owner: "Anthropic" },
+  { name: "PerplexityBot", owner: "Perplexity" },
+  { name: "Perplexity-User", owner: "Perplexity" },
+  { name: "Google-Extended", owner: "Google (Gemini)" },
+  { name: "GoogleOther", owner: "Google" },
+  { name: "Bytespider", owner: "ByteDance" },
+  { name: "CCBot", owner: "Common Crawl" },
+  { name: "cohere-ai", owner: "Cohere" },
+  { name: "meta-externalagent", owner: "Meta" },
+  { name: "Amazonbot", owner: "Amazon" },
+  { name: "Applebot-Extended", owner: "Apple" },
+];
+export type BotDetail = { name: string; owner: string; status: "erlaubt" | "blockiert" | "unspezifiziert"; eigeneRegel: boolean };
+export function botDetailsFor(robotsTxt: string): BotDetail[] {
+  return AI_BOT_DEFS.map((b) => {
+    const eigeneRegel = new RegExp(`^user-agent:\\s*${b.name}\\s*$`, "im").test(robotsTxt);
+    const blocked = botBlocked(robotsTxt, b.name);
+    return { name: b.name, owner: b.owner, status: blocked ? "blockiert" : eigeneRegel ? "erlaubt" : "unspezifiziert", eigeneRegel };
+  });
+}
+
 export function botBlocked(robots: string, bot: string): boolean {
   const lines = robots.split(/\r?\n/).map((l) => l.trim());
   let applies = false, blocked = false, starBlocked = false, inStar = false;
@@ -344,7 +373,8 @@ export async function runSiteHealthForDomain(domain: string, mode: "quick" | "de
   });
 
   return { url: base, mode, scores: { overall, technical, content, aeo }, checks, issues, pages,
-    blockedBots, criticalBlocked, homeHtml: home.text };
+    blockedBots, criticalBlocked, homeHtml: home.text,
+    robotsOk: robots.ok, botDetails: robots.ok ? botDetailsFor(robots.text) : [] };
 }
 
 export const Route = createFileRoute("/api/admin/site-health")({
