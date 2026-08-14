@@ -10,6 +10,7 @@ import { useEzyServiceSettings } from "@/ezy/data/useEzyServiceSettings";
 import { useEzyServiceMatrix } from "@/ezy/data/useEzyServiceMatrix";
 import { AiVisibilityTab, ToastProvider, EzyPilotProvider, EzyPilotButton, EzyPilotPopup } from "@/ezy/EzyOneApp.jsx";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
+import { EzyOneMark } from "@/components/ezy-one-mark";
 import { loadSharedRange, saveSharedRange, cacheGet, cachePut, RANGE_TTL_MS, isReloadNavigation } from "@/ezy/data/rangeStore";
 import { HexGlowLayer } from "@/ezy/HexGlow";
 import { AppVersionBadge } from "@/ezy/AppVersionBadge";
@@ -1992,8 +1993,8 @@ function EzyAiApp() {
         <aside className="ezyai-side">
           {/* Logo */}
           <div style={{ padding: "20px 20px", borderBottom: `1px solid ${S.line}`, display: "flex", alignItems: "center", gap: 10 }}>
-            {/* CD-Symbol: Hexagon-Badge mit Marken-Gradient (#71008B→#B9009C). */}
-            <div style={{ width: 34, height: 38, clipPath: "polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)", background: "linear-gradient(135deg,#71008B,#B9009C)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: "#fff", flexShrink: 0, fontFamily: "'Kamerik 105',Poppins,sans-serif" }}>EO</div>
+            {/* CD-Symbol: neues Marken-Icon (E + Power-O im Hexagon). */}
+            <EzyOneMark width={34} />
             <div>
               {/* CD: Wortmarke "Ezy One" — Sentence case, nie ALL CAPS. */}
               <div style={{ fontWeight: 700, fontSize: 15, letterSpacing: "-.2px", fontFamily: "'Kamerik 105',Poppins,sans-serif" }}>Ezy One</div>

@@ -101,6 +101,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useEzyClients } from "@/ezy/data/useEzyClients";
 import { loadSharedRange, saveSharedRange, useRangeData, isReloadNavigation } from "@/ezy/data/rangeStore";
 import { HexGlowLayer } from "@/ezy/HexGlow";
+import { EzyOneMark } from "@/components/ezy-one-mark";
 import { AppVersionBadge } from "@/ezy/AppVersionBadge";
 import { ClientAvatar } from "@/ezy/ClientAvatar";
 import { useEzyDefaults } from "@/ezy/data/useEzyDefaults";
@@ -14256,25 +14257,8 @@ function App({ appScope = null }) {
           }}
           onClick={() => setCollapsed(!collapsed)}
         >
-          <div
-            style={{
-              // CD-Symbol: Hexagon-Badge mit Marken-Gradient (#71008B→#B9009C).
-              width: 34,
-              height: 38,
-              clipPath: "polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)",
-              background: "linear-gradient(135deg,#71008B,#B9009C)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 13,
-              fontWeight: 800,
-              color: "#fff",
-              flexShrink: 0,
-              fontFamily: "'Kamerik 105',Poppins,sans-serif",
-            }}
-          >
-            EO
-          </div>
+          {/* CD-Symbol: neues Marken-Icon (E + Power-O im Hexagon). */}
+          <EzyOneMark width={34} />
           {!collapsed && (
             <div>
               {/* CD: Wortmarke "Ezy One" — Sentence case, nie ALL CAPS. */}

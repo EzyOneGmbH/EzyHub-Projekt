@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useAppAccess } from "@/ezy/data/useAppAccess";
 import { EZY_APPS, type EzyAppDef, type EzyAppId } from "@/ezy/data/appRegistry";
 import { HexGlowLayer } from "@/ezy/HexGlow";
+import { EzyOneMark } from "@/components/ezy-one-mark";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/apps")({
@@ -128,9 +129,9 @@ function AppsLauncher() {
       <HexGlowLayer />
       <div style={{ width: "100%", maxWidth: 880 }}>
         <div style={{ textAlign: "center", marginBottom: 34 }}>
-          {/* CD-Symbol: Hexagon-Badge + Wortmarke "Ezy One" (Sentence case). */}
+          {/* CD-Symbol: neues Marken-Icon (E + Power-O im Hexagon) + Wortmarke "Ezy One" (Sentence case). */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
-            <div style={{ width: 34, height: 38, clipPath: "polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)", background: "linear-gradient(135deg,#71008B,#B9009C)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: "#fff", fontFamily: "'Kamerik 105',Poppins,sans-serif" }}>EO</div>
+            <EzyOneMark width={34} />
             <div style={{ fontWeight: 700, fontSize: 21, fontFamily: "'Kamerik 105',Poppins,sans-serif" }}>
               Ezy <span style={{ color: S.acc }}>One</span>
             </div>
