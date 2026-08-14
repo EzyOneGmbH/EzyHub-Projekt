@@ -117,15 +117,18 @@ function mentionsBrand(text: string, domain: string, firmenname: string): boolea
 }
 
 // Portale/Verzeichnisse, die als "Wettbewerber" keinen Sinn ergeben.
-const PORTAL_RE = /wikipedia|google|facebook|instagram|linkedin|youtube|comparis|moneyland|local\.ch|search\.ch|gelbeseiten|trustpilot|tripadvisor|booking\.com|jobs\.ch|ricardo|galaxus|digitec|20min|blick\.ch|nzz\.ch|srf\.ch|watson\.ch|houzy|renovero|gryps|amazon\./i;
+const PORTAL_RE = /wikipedia|google|facebook|instagram|linkedin|youtube|comparis|moneyland|local\.ch|search\.ch|gelbeseiten|trustpilot|tripadvisor|booking\.com|hotels\.com|expedia|trivago|airbnb|jobs\.ch|ricardo|galaxus|digitec|20min|blick\.ch|nzz\.ch|srf\.ch|watson\.ch|houzy|renovero|gryps|amazon\./i;
 
 // ── Wettbewerber-Vorschlag (Wizard-Schritt 2, "mit AI ermitteln") ───────────
+// Zwei Quellen: (1) Labs-SERP-Ueberschneidung, sofern die Domain organische
+// Daten hat; (2) reiner AI-Vorschlag aus Branche+Ort — wichtig, weil Leads
+// oft (noch) keinen Labs-Fussabdruck haben (Test 14.08.: kleine CH-Domains
+// liefern 0 Items, hotel-ava.ch 692).
 export async function suggestCompetitors(input: { domain: string; firmenname: string; branche?: string; ort?: string }) {
   const domain = normDomain(input.domain);
   let cost = 0;
   const r = await dfs("dataforseo_labs/google/competitors_domain/live", {
-    target: domain, location_code: 2756, language_code: "de", limit: 15,
-    exclude_top_domains: true, ignore_synonyms: true,
+    target: domain, location_code: 2756, language_code: "de", limit: 15, ignore_synonyms: true,
   });
   cost += r.cost;
   const cands = ((r.ok && r.result?.[0]?.items) || [])
@@ -137,25 +140,36 @@ export async function suggestCompetitors(input: { domain: string; firmenname: st
     .filter((c: any) => c.domain && c.domain !== domain && !PORTAL_RE.test(c.domain))
     .slice(0, 12);
 
-  // LLM kuratiert: echte, vergleichbare Firmen — Portale/Grosskonzerne raus.
-  const curated = cands.length
-    ? await llmJson("Wettbewerber kuratieren", [
-        `Firma: ${input.firmenname} (${domain}), Branche: ${input.branche || "unbekannt"}, Ort/Markt: ${input.ort || "Schweiz"}.`,
-        `Kandidaten (organische SERP-Ueberschneidung): ${JSON.stringify(cands)}`,
-        `Waehle die bis zu 4 am besten vergleichbaren ECHTEN Wettbewerber (gleiche Leistung, aehnliche Groesse/Region; keine Verzeichnisse, Medien oder Konzerne).`,
-        `JSON: [{"domain":"...","grund":"max 10 Woerter","empfohlen":true|false}] — genau die Kandidaten-Domains verwenden.`,
-      ].join("\n"), 800)
-    : null;
+  if (cands.length) {
+    // LLM kuratiert: echte, vergleichbare Firmen — Portale/Grosskonzerne raus.
+    const curated = await llmJson("Wettbewerber kuratieren", [
+      `Firma: ${input.firmenname} (${domain}), Branche: ${input.branche || "unbekannt"}, Ort/Markt: ${input.ort || "Schweiz"}.`,
+      `Kandidaten (organische SERP-Ueberschneidung): ${JSON.stringify(cands)}`,
+      `Waehle die bis zu 4 am besten vergleichbaren ECHTEN Wettbewerber (gleiche Leistung, aehnliche Groesse/Region; keine Verzeichnisse, Medien oder Konzerne).`,
+      `JSON: [{"domain":"...","grund":"max 10 Woerter","empfohlen":true|false}] — genau die Kandidaten-Domains verwenden.`,
+    ].join("\n"), 800);
+    const list = Array.isArray(curated) && curated.length
+      ? curated
+          .filter((c: any) => c?.domain && cands.some((k: any) => k.domain === normDomain(c.domain)))
+          .slice(0, 4)
+          .map((c: any) => ({ domain: normDomain(c.domain), grund: String(c.grund || "").slice(0, 90), empfohlen: c.empfohlen !== false }))
+      : cands.slice(0, 4).map((c: any, i: number) => ({
+          domain: c.domain, grund: `${c.gemeinsameKeywords} gemeinsame Keywords in Google`, empfohlen: i < 3,
+        }));
+    if (list.length) return { ok: true, kandidaten: list, quelle: "serp", cost };
+  }
 
-  const list = Array.isArray(curated) && curated.length
-    ? curated
-        .filter((c: any) => c?.domain && cands.some((k: any) => k.domain === normDomain(c.domain)))
-        .slice(0, 4)
-        .map((c: any) => ({ domain: normDomain(c.domain), grund: String(c.grund || "").slice(0, 90), empfohlen: c.empfohlen !== false }))
-    : cands.slice(0, 4).map((c: any, i: number) => ({
-        domain: c.domain, grund: `${c.gemeinsameKeywords} gemeinsame Keywords in Google`, empfohlen: i < 3,
-      }));
-  return { ok: true, kandidaten: list, cost };
+  // Fallback ohne SERP-Daten: AI schlaegt aus Branchen-/Ortskenntnis vor.
+  const ai = await llmJson("Wettbewerber vorschlagen", [
+    `Firma: ${input.firmenname} (${domain}), Branche: ${input.branche || "unbekannt"}, Ort/Markt: ${input.ort || "Schweiz"}.`,
+    `Die Domain hat noch keinen messbaren organischen Fussabdruck. Nenne bis zu 4 reale Schweizer Wettbewerber (echte Firmen mit Website, gleiche Leistung, aehnliche Region). NUR Firmen, bei denen du dir der Domain sicher bist — lieber weniger als geraten.`,
+    `JSON: [{"domain":"firma.ch","grund":"max 10 Woerter","empfohlen":true}]`,
+  ].join("\n"), 700);
+  const list = (Array.isArray(ai) ? ai : [])
+    .map((c: any) => ({ domain: normDomain(String(c?.domain || "")), grund: String(c?.grund || "AI-Vorschlag").slice(0, 90), empfohlen: c?.empfohlen !== false }))
+    .filter((c: any) => c.domain.includes(".") && c.domain !== domain && !PORTAL_RE.test(c.domain))
+    .slice(0, 4);
+  return { ok: true, kandidaten: list, quelle: "ai", cost };
 }
 
 // ── Prompt-Set (12 Stueck, 3–8 Woerter, ohne Satzzeichen → AI-Volumen-tauglich) ──

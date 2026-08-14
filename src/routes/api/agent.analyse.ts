@@ -14,7 +14,17 @@ import { startAudit, tickAudit, suggestCompetitors } from "@/server/prospect-aud
 // POST {action:"start", domain, firmenname, branche?, ort?, wettbewerber[]}
 // POST {action:"tick", id}   → EINE Etappe ausfuehren (Frontend treibt den Lauf)
 
-async function requireTeam(request: Request): Promise<{ userId: string; organizationId: string; role: string } | Response> {
+async function requireTeam(request: Request): Promise<{ userId: string | null; organizationId: string; role: string } | Response> {
+  // Server-zu-Server (agent-service/Tests): Bearer ADMIN_AUTOMATION_SECRET +
+  // ?org=<uuid> — gleiches Muster wie /api/admin/site-health.
+  const admin = process.env.ADMIN_AUTOMATION_SECRET;
+  const auth0 = request.headers.get("authorization") || "";
+  if (admin && auth0 === `Bearer ${admin}`) {
+    const org = new URL(request.url).searchParams.get("org") || "";
+    if (!/^[0-9a-f-]{36}$/i.test(org))
+      return Response.json({ ok: false, error: "org (uuid) erforderlich" }, { status: 400 });
+    return { userId: null, organizationId: org, role: "owner" };
+  }
   const url = process.env.SUPABASE_URL;
   const anon = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
   if (!url || !anon) return Response.json({ ok: false, error: "Server not configured" }, { status: 503 });
