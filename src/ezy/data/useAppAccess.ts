@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import type { EzyAppId } from "./appRegistry";
 
-const ALL: EzyAppId[] = ["seo", "geo", "ads", "reakt"];
+const ALL: EzyAppId[] = ["seo", "geo", "analyse", "ads", "reakt"];
 
 export function useAppAccess() {
   const { user, role, isOrgAdmin, organizationId, loading: authLoading } = useAuth();

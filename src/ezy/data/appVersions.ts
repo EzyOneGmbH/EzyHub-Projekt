@@ -42,6 +42,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
       { version: "1.0.0", date: "2026-08-10", note: "Ezy One Corporate Design + Waben-Hintergrund" },
     ],
   },
+  // EzyAI – Analyse (Lead-Pre-Check, intern)
+  analyse: {
+    version: "1.0.0",
+    changelog: [
+      { version: "1.0.0", date: "2026-08-14", note: "Erstversion: Wizard, Prompt-Runner, SiteHealth, Benchmark, PDF" },
+    ],
+  },
   // Reaktivierung (intern)
   reakt: {
     version: "1.0.0",

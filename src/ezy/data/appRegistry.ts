@@ -1,7 +1,7 @@
 // Plattform-Umbau Phase 1 (2026-07-31): zentrale App-Definition für Launcher
 // und App-Switcher. Deep-Links zeigen vorerst auf die heutigen Ansichten —
 // eigene Routen-Namespaces kommen in Phase 2/3.
-export type EzyAppId = "seo" | "geo" | "ads" | "reakt" | "admin";
+export type EzyAppId = "seo" | "geo" | "analyse" | "ads" | "reakt" | "admin";
 
 export type EzyAppDef = {
   id: EzyAppId;
@@ -14,6 +14,8 @@ export type EzyAppDef = {
   href: string;
   /** Nur owner/admin (isOrgAdmin) — nicht über app_access schaltbar */
   adminOnly?: boolean;
+  /** Rein internes Team-Tool: taucht NIE in Kunden-App-Matrizen/Portal auf */
+  internalOnly?: boolean;
 };
 
 // Produktnamen (Volkan 31.07.): EzyRank/EzyAI/EzyPerformance = etablierte
@@ -36,6 +38,18 @@ export const EZY_APPS: EzyAppDef[] = [
     color: "#7c3aed",
     tint: "rgba(124,58,237,.10)",
     href: "/ezyai", // Phase 2: eigene App-Route (vorher /dashboard?app=geo)
+  },
+  {
+    // EzyAI – Analyse (14.08.2026): Pre-Onboarding-Schnellaudit fuer Leads —
+    // rein internes Team-Tool (nie kundenfaehig, internalOnly).
+    id: "analyse",
+    name: "EzyAI – Analyse",
+    desc: "Lead-Pre-Check: AI-Sichtbarkeit, SiteHealth, Entität, Benchmark",
+    icon: "📡",
+    color: "#77008C",
+    tint: "rgba(119,0,140,.10)",
+    href: "/ezyai-analyse",
+    internalOnly: true,
   },
   {
     id: "ads",
@@ -125,6 +139,7 @@ export const APP_FEATURES: Record<EzyAppId, Array<{ id: string; label: string }>
     { id: "reports", label: "Reports" },
   ],
   geo: [{ id: "aivis", label: "KI-Sichtbarkeit (EzyAI)" }],
+  analyse: [],
   ads: [{ id: "ads", label: "Ads-Dashboard" }],
   reakt: [],
   admin: [],

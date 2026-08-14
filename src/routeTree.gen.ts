@@ -24,6 +24,7 @@ import { Route as GeoRouteImport } from './routes/geo'
 import { Route as EzyrankRouteImport } from './routes/ezyrank'
 import { Route as EzyperformanceRouteImport } from './routes/ezyperformance'
 import { Route as EzyaiRouteImport } from './routes/ezyai'
+import { Route as EzyaiAnalyseRouteImport } from './routes/ezyai-analyse'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as ContentRouteImport } from './routes/content'
@@ -74,6 +75,7 @@ import { Route as ApiAgentRunsRouteImport } from './routes/api/agent.runs'
 import { Route as ApiAgentRunAgentRouteImport } from './routes/api/agent.run-agent'
 import { Route as ApiAgentRunRouteImport } from './routes/api/agent.run'
 import { Route as ApiAgentReaktRouteImport } from './routes/api/agent.reakt'
+import { Route as ApiAgentAnalyseRouteImport } from './routes/api/agent.analyse'
 import { Route as ApiAgentProtocolRouteImport } from './routes/api/agent.protocol'
 import { Route as ApiAgentPilotRouteImport } from './routes/api/agent.pilot'
 import { Route as ApiAgentMemoryRouteImport } from './routes/api/agent.memory'
@@ -203,6 +205,11 @@ const EzyperformanceRoute = EzyperformanceRouteImport.update({
 const EzyaiRoute = EzyaiRouteImport.update({
   id: '/ezyai',
   path: '/ezyai',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EzyaiAnalyseRoute = EzyaiAnalyseRouteImport.update({
+  id: '/ezyai-analyse',
+  path: '/ezyai-analyse',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -453,6 +460,11 @@ const ApiAgentRunAgentRoute = ApiAgentRunAgentRouteImport.update({
 const ApiAgentRunRoute = ApiAgentRunRouteImport.update({
   id: '/api/agent/run',
   path: '/api/agent/run',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAgentAnalyseRoute = ApiAgentAnalyseRouteImport.update({
+  id: '/api/agent/analyse',
+  path: '/api/agent/analyse',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAgentReaktRoute = ApiAgentReaktRouteImport.update({
@@ -758,6 +770,7 @@ export interface FileRoutesByFullPath {
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/ezyai': typeof EzyaiRoute
+  '/ezyai-analyse': typeof EzyaiAnalyseRoute
   '/ezyperformance': typeof EzyperformanceRoute
   '/ezyrank': typeof EzyrankRoute
   '/geo': typeof GeoRoute
@@ -833,6 +846,7 @@ export interface FileRoutesByFullPath {
   '/api/agent/memory': typeof ApiAgentMemoryRoute
   '/api/agent/pilot': typeof ApiAgentPilotRoute
   '/api/agent/protocol': typeof ApiAgentProtocolRoute
+  '/api/agent/analyse': typeof ApiAgentAnalyseRoute
   '/api/agent/reakt': typeof ApiAgentReaktRoute
   '/api/agent/run': typeof ApiAgentRunRoute
   '/api/agent/run-agent': typeof ApiAgentRunAgentRoute
@@ -880,6 +894,7 @@ export interface FileRoutesByTo {
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/ezyai': typeof EzyaiRoute
+  '/ezyai-analyse': typeof EzyaiAnalyseRoute
   '/ezyperformance': typeof EzyperformanceRoute
   '/ezyrank': typeof EzyrankRoute
   '/geo': typeof GeoRoute
@@ -955,6 +970,7 @@ export interface FileRoutesByTo {
   '/api/agent/memory': typeof ApiAgentMemoryRoute
   '/api/agent/pilot': typeof ApiAgentPilotRoute
   '/api/agent/protocol': typeof ApiAgentProtocolRoute
+  '/api/agent/analyse': typeof ApiAgentAnalyseRoute
   '/api/agent/reakt': typeof ApiAgentReaktRoute
   '/api/agent/run': typeof ApiAgentRunRoute
   '/api/agent/run-agent': typeof ApiAgentRunAgentRoute
@@ -1003,6 +1019,7 @@ export interface FileRoutesById {
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/ezyai': typeof EzyaiRoute
+  '/ezyai-analyse': typeof EzyaiAnalyseRoute
   '/ezyperformance': typeof EzyperformanceRoute
   '/ezyrank': typeof EzyrankRoute
   '/geo': typeof GeoRoute
@@ -1078,6 +1095,7 @@ export interface FileRoutesById {
   '/api/agent/memory': typeof ApiAgentMemoryRoute
   '/api/agent/pilot': typeof ApiAgentPilotRoute
   '/api/agent/protocol': typeof ApiAgentProtocolRoute
+  '/api/agent/analyse': typeof ApiAgentAnalyseRoute
   '/api/agent/reakt': typeof ApiAgentReaktRoute
   '/api/agent/run': typeof ApiAgentRunRoute
   '/api/agent/run-agent': typeof ApiAgentRunAgentRoute
@@ -1127,6 +1145,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/dashboard'
     | '/ezyai'
+    | '/ezyai-analyse'
     | '/ezyperformance'
     | '/ezyrank'
     | '/geo'
@@ -1200,6 +1219,7 @@ export interface FileRouteTypes {
     | '/api/agent/memory'
     | '/api/agent/pilot'
     | '/api/agent/protocol'
+    | '/api/agent/analyse'
     | '/api/agent/reakt'
     | '/api/agent/run'
     | '/api/agent/run-agent'
@@ -1247,6 +1267,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/dashboard'
     | '/ezyai'
+    | '/ezyai-analyse'
     | '/ezyperformance'
     | '/ezyrank'
     | '/geo'
@@ -1320,6 +1341,7 @@ export interface FileRouteTypes {
     | '/api/agent/memory'
     | '/api/agent/pilot'
     | '/api/agent/protocol'
+    | '/api/agent/analyse'
     | '/api/agent/reakt'
     | '/api/agent/run'
     | '/api/agent/run-agent'
@@ -1367,6 +1389,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/dashboard'
     | '/ezyai'
+    | '/ezyai-analyse'
     | '/ezyperformance'
     | '/ezyrank'
     | '/geo'
@@ -1440,6 +1463,7 @@ export interface FileRouteTypes {
     | '/api/agent/memory'
     | '/api/agent/pilot'
     | '/api/agent/protocol'
+    | '/api/agent/analyse'
     | '/api/agent/reakt'
     | '/api/agent/run'
     | '/api/agent/run-agent'
@@ -1488,6 +1512,7 @@ export interface RootRouteChildren {
   CustomersRoute: typeof CustomersRouteWithChildren
   DashboardRoute: typeof DashboardRoute
   EzyaiRoute: typeof EzyaiRoute
+  EzyaiAnalyseRoute: typeof EzyaiAnalyseRoute
   EzyperformanceRoute: typeof EzyperformanceRoute
   EzyrankRoute: typeof EzyrankRoute
   GeoRoute: typeof GeoRoute
@@ -1558,6 +1583,7 @@ export interface RootRouteChildren {
   ApiAgentMemoryRoute: typeof ApiAgentMemoryRoute
   ApiAgentPilotRoute: typeof ApiAgentPilotRoute
   ApiAgentProtocolRoute: typeof ApiAgentProtocolRoute
+  ApiAgentAnalyseRoute: typeof ApiAgentAnalyseRoute
   ApiAgentReaktRoute: typeof ApiAgentReaktRoute
   ApiAgentRunRoute: typeof ApiAgentRunRoute
   ApiAgentRunAgentRoute: typeof ApiAgentRunAgentRoute
@@ -1702,6 +1728,13 @@ declare module '@tanstack/react-router' {
       path: '/ezyai'
       fullPath: '/ezyai'
       preLoaderRoute: typeof EzyaiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ezyai-analyse': {
+      id: '/ezyai-analyse'
+      path: '/ezyai-analyse'
+      fullPath: '/ezyai-analyse'
+      preLoaderRoute: typeof EzyaiAnalyseRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -2045,6 +2078,13 @@ declare module '@tanstack/react-router' {
       path: '/api/agent/run'
       fullPath: '/api/agent/run'
       preLoaderRoute: typeof ApiAgentRunRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/agent/analyse': {
+      id: '/api/agent/analyse'
+      path: '/api/agent/analyse'
+      fullPath: '/api/agent/analyse'
+      preLoaderRoute: typeof ApiAgentAnalyseRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/agent/reakt': {
@@ -2506,6 +2546,7 @@ const rootRouteChildren: RootRouteChildren = {
   CustomersRoute: CustomersRouteWithChildren,
   DashboardRoute: DashboardRoute,
   EzyaiRoute: EzyaiRoute,
+  EzyaiAnalyseRoute: EzyaiAnalyseRoute,
   EzyperformanceRoute: EzyperformanceRoute,
   EzyrankRoute: EzyrankRoute,
   GeoRoute: GeoRoute,
@@ -2577,6 +2618,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAgentMemoryRoute: ApiAgentMemoryRoute,
   ApiAgentPilotRoute: ApiAgentPilotRoute,
   ApiAgentProtocolRoute: ApiAgentProtocolRoute,
+  ApiAgentAnalyseRoute: ApiAgentAnalyseRoute,
   ApiAgentReaktRoute: ApiAgentReaktRoute,
   ApiAgentRunRoute: ApiAgentRunRoute,
   ApiAgentRunAgentRoute: ApiAgentRunAgentRoute,

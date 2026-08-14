@@ -10619,7 +10619,7 @@ function ClientSettingsPanel({ client, onUpsertClient }) {
 function ClientAppAccessPanel({ client }) {
   const toast = useToast();
   const caa = useClientAppAccess();
-  const apps = EZY_APPS.filter((a) => !a.adminOnly);
+  const apps = EZY_APPS.filter((a) => !a.adminOnly && !a.internalOnly);
   const catalogOf = (appId) => APP_FEATURES[appId] || [];
   const entryOf = (appId) => caa.map.get(client.id)?.get(appId) || null;
 
@@ -10782,7 +10782,7 @@ function MatrixPage({ clients }) {
   const toast = useToast();
   const caa = useClientAppAccess();
   const [expanded, setExpanded] = useState(null); // clientId
-  const apps = EZY_APPS.filter((a) => !a.adminOnly);
+  const apps = EZY_APPS.filter((a) => !a.adminOnly && !a.internalOnly);
   const toggle = async (clientId, appId) => {
     const err = await caa.setAccess(clientId, appId, {
       enabled: !appEnabledFor(caa.map, clientId, appId),

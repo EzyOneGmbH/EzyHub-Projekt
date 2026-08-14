@@ -48,10 +48,10 @@ async function resolveClient(userClient: any | null, clientId: string) {
   return data ?? null;
 }
 
-const AI_BOTS = ["GPTBot", "ClaudeBot", "PerplexityBot", "Google-Extended", "Bytespider", "meta-externalagent", "Amazonbot"];
-const CRITICAL_BOTS = new Set(["GPTBot", "ClaudeBot", "PerplexityBot"]);
+export const AI_BOTS = ["GPTBot", "ClaudeBot", "PerplexityBot", "Google-Extended", "Bytespider", "meta-externalagent", "Amazonbot"];
+export const CRITICAL_BOTS = new Set(["GPTBot", "ClaudeBot", "PerplexityBot"]);
 
-function botBlocked(robots: string, bot: string): boolean {
+export function botBlocked(robots: string, bot: string): boolean {
   const lines = robots.split(/\r?\n/).map((l) => l.trim());
   let applies = false, blocked = false, starBlocked = false, inStar = false;
   for (const l of lines) {
@@ -76,7 +76,7 @@ function botBlocked(robots: string, bot: string): boolean {
 }
 
 type Fetched = { ok: boolean; status: number; text: string; ms: number; finalUrl: string };
-async function fetchText(url: string, timeoutMs = 15000): Promise<Fetched> {
+export async function fetchText(url: string, timeoutMs = 15000): Promise<Fetched> {
   const t0 = Date.now();
   try {
     const r = await fetch(url, {
@@ -209,6 +209,144 @@ async function collectPages(base: string, domain: string, sitemap: Fetched, home
     .slice(0, max);
 }
 
+// EzyAI-Analyse (14.08.2026): der Mess-Kern ist domain-basiert und wird auch
+// vom Prospect-Audit (prospect-audit.server.ts) genutzt — Kunden-Auflösung,
+// Cache und Persistenz bleiben Sache der Aufrufer.
+export async function runSiteHealthForDomain(domain: string, mode: "quick" | "deep") {
+  const base = `https://${domain}`;
+  // Sequenziell mit Pausen — Kunden-Hoster sperren bei Burst-Abrufen.
+  const home = await fetchText(base);
+  await pause(400);
+  const robots = await fetchText(`${base}/robots.txt`, 10000);
+  await pause(400);
+  const llms = await fetchText(`${base}/llms.txt`, 8000);
+  await pause(400);
+  const sitemap = await fetchText(`${base}/sitemap.xml`, 10000);
+
+  // Seiten sammeln: Startseite immer; deep zusätzlich bis 50 Unterseiten.
+  // Zeit-Wächter: das Hosting kappt Requests bei ~300 s — bei Zeitknappheit
+  // (langsamer Hoster) wird ehrlich mit Teilergebnis abgebrochen.
+  const started = Date.now();
+  const TIME_BUDGET_MS = 220_000;
+  const pageUrls: string[] = [base];
+  if (mode === "deep") pageUrls.push(...await collectPages(base, domain, sitemap, home.text));
+  const pageResults: Array<{ url: string; fetched: Fetched; metrics: PageMetrics | null }> = [
+    { url: base, fetched: home, metrics: home.ok ? analyzeHtml(home.text, domain) : null },
+  ];
+  let truncated = 0;
+  for (const u of pageUrls.slice(1)) {
+    if (Date.now() - started > TIME_BUDGET_MS) { truncated = pageUrls.length - 1 - (pageResults.length - 1); break; }
+    await pause(350);
+    const f = await fetchText(u, 12000);
+    pageResults.push({ url: u, fetched: f, metrics: f.ok ? analyzeHtml(f.text, domain) : null });
+  }
+  const okPages = pageResults.filter((p) => p.metrics);
+  const homeMetrics = pageResults[0].metrics;
+
+  const checks: CheckOut[] = [];
+  const push = (c: Omit<CheckOut, "status" | "detail"> & { status: CheckOut["status"]; detail: string; pagesAffected?: string[] }) => checks.push(c as CheckOut);
+  const pathOf = (u: string) => { try { return new URL(u).pathname || "/"; } catch { return u; } };
+
+  // ── Globale Technical-Checks ────────────────────────────────────────
+  push({ id: "https", label: "Website über HTTPS erreichbar", pillar: "technical", weight: 3, severity: "kritisch",
+    tipp: "SSL-Zertifikat/Weiterleitung prüfen — ohne HTTPS werten Google wie KI-Systeme die Seite ab.",
+    status: home.ok ? "ok" : "fail", detail: home.ok ? `HTTP ${home.status} in ${home.ms} ms` : `Startseite nicht ladbar (HTTP ${home.status})` });
+  push({ id: "speed", label: "Antwortzeit der Startseite", pillar: "technical", weight: 2, severity: "hoch",
+    tipp: "Server-Antwortzeit über Caching/Hosting verbessern — langsame Seiten lesen KI-Crawler seltener vollständig.",
+    status: home.ms < 1500 ? "ok" : home.ms < 4000 ? "warn" : "fail", detail: `${home.ms} ms bis zur Antwort` });
+  push({ id: "robots", label: "robots.txt vorhanden", pillar: "technical", weight: 2, severity: "hoch",
+    tipp: "robots.txt anlegen — sie steuert, welche Crawler (auch KI-Bots) die Seite lesen dürfen.",
+    status: robots.ok ? "ok" : "fail", detail: robots.ok ? "vorhanden" : `fehlt (HTTP ${robots.status})` });
+  const sitemapInRobots = /^sitemap:/im.test(robots.text || "");
+  push({ id: "sitemap", label: "XML-Sitemap auffindbar", pillar: "technical", weight: 2, severity: "mittel",
+    tipp: "Sitemap unter /sitemap.xml bereitstellen und in der robots.txt verlinken.",
+    status: sitemap.ok || sitemapInRobots ? "ok" : "fail",
+    detail: sitemap.ok ? "/sitemap.xml erreichbar" : sitemapInRobots ? "in robots.txt verlinkt" : "weder /sitemap.xml noch robots-Eintrag" });
+  push({ id: "viewport", label: "Mobile Viewport konfiguriert", pillar: "technical", weight: 2, severity: "hoch",
+    tipp: "<meta name=viewport> ergänzen — ohne sie ist die Seite mobil kaum nutzbar.",
+    status: homeMetrics?.viewport ? "ok" : "fail", detail: homeMetrics?.viewport ? "vorhanden" : "fehlt" });
+  push({ id: "lang", label: "Sprache im HTML deklariert", pillar: "technical", weight: 1, severity: "niedrig",
+    tipp: "<html lang=…> setzen — hilft Suche und Screenreadern.",
+    status: homeMetrics?.langAttr ? "ok" : "fail", detail: homeMetrics?.langAttr ? "vorhanden" : "fehlt" });
+  if (mode === "deep" && truncated > 0) {
+    // Gewicht 0: reine Info, verfälscht keinen Score.
+    push({ id: "coverage", label: "Seiten-Abdeckung des Tiefen-Audits", pillar: "technical", weight: 0, severity: "niedrig",
+      tipp: "Der Hoster antwortete langsam — der Audit stoppte am Zeitbudget. Erneut ausführen prüft wieder von vorn.",
+      status: "warn", detail: `${pageResults.length} geprüft, ${truncated} übersprungen (Zeitbudget)` });
+  }
+  if (mode === "deep") {
+    const broken = pageResults.filter((p) => !p.fetched.ok);
+    push({ id: "pagesok", label: "Alle geprüften Seiten erreichbar", pillar: "technical", weight: 2, severity: "hoch",
+      tipp: "Nicht erreichbare Seiten aus der Sitemap entfernen oder reparieren (4xx/5xx).",
+      status: broken.length === 0 ? "ok" : broken.length <= 2 ? "warn" : "fail",
+      detail: `${pageResults.length - broken.length}/${pageResults.length} erreichbar`,
+      pagesAffected: broken.map((p) => pathOf(p.url)).slice(0, 10) });
+  }
+  // Interne Verlinkung der Startseite (Content, global).
+  push({ id: "intlinks", label: "Interne Verlinkung der Startseite", pillar: "content", weight: 1, severity: "mittel",
+    tipp: "Wichtige Unterseiten von der Startseite verlinken — Crawler entdecken Inhalte über interne Links.",
+    status: (homeMetrics?.internalLinks ?? 0) >= 10 ? "ok" : (homeMetrics?.internalLinks ?? 0) >= 4 ? "warn" : "fail",
+    detail: `${homeMetrics?.internalLinks ?? 0} interne Links` });
+
+  // ── Seiten-Checks (Content/AEO) über alle geprüften Seiten ─────────
+  for (const def of PAGE_CHECKS) {
+    const scored = okPages.map((p) => ({ path: pathOf(p.url), s: def.score(p.metrics!) }));
+    const avg = scored.length ? scored.reduce((a, x) => a + x.s, 0) / scored.length : 0;
+    const affected = scored.filter((x) => x.s < 1).map((x) => x.path);
+    const status: CheckOut["status"] = avg >= 0.85 ? "ok" : avg >= 0.5 ? "warn" : "fail";
+    const detail = okPages.length === 1 && okPages[0].metrics
+      ? def.detail(okPages[0].metrics)
+      : `${scored.length - affected.length}/${scored.length} Seiten in Ordnung`;
+    push({ id: def.id, label: def.label, pillar: def.pillar, weight: def.weight, severity: def.severity,
+      tipp: def.tipp, status, detail, ...(affected.length && okPages.length > 1 ? { pagesAffected: affected.slice(0, 10) } : {}) });
+  }
+
+  // ── Globale AEO-Checks ──────────────────────────────────────────────
+  const blockedBots = robots.ok ? AI_BOTS.filter((b) => botBlocked(robots.text, b)) : [];
+  const criticalBlocked = blockedBots.filter((b) => CRITICAL_BOTS.has(b));
+  push({ id: "aibots", label: "KI-Crawler in robots.txt erlaubt", pillar: "aeo", weight: 3, severity: "kritisch",
+    tipp: "Blockierte KI-Bots freigeben — wer GPTBot/ClaudeBot/PerplexityBot aussperrt, kommt in deren Antworten kaum vor.",
+    status: criticalBlocked.length ? "fail" : blockedBots.length ? "warn" : "ok",
+    detail: blockedBots.length ? `blockiert: ${blockedBots.join(", ")}` : "kein KI-Bot gesperrt" });
+  const allLdTypes = new Set<string>(okPages.flatMap((p) => [...p.metrics!.ldTypes]));
+  push({ id: "orgschema", label: "Organisations-/LocalBusiness-Schema", pillar: "aeo", weight: 2, severity: "mittel",
+    tipp: "Organization- oder LocalBusiness-Markup mit Name, Logo und Adresse hinterlegen.",
+    status: [...allLdTypes].some((t) => /organization|localbusiness|hotel|store|restaurant/i.test(t)) ? "ok" : "fail",
+    detail: [...allLdTypes].some((t) => /organization|localbusiness|hotel|store|restaurant/i.test(t)) ? "vorhanden" : "fehlt" });
+  push({ id: "llms", label: "llms.txt vorhanden", pillar: "aeo", weight: 1, severity: "niedrig",
+    tipp: "Optional: llms.txt mit Kurzbeschreibung + wichtigsten Seiten — einzelne KI-Crawler lesen sie, Google ignoriert sie.",
+    status: llms.ok ? "ok" : "warn", detail: llms.ok ? "vorhanden" : "fehlt (optional)" });
+
+  // ── Scores (Searchable-Gewichte 30/35/35) ───────────────────────────
+  const pillarScore = (p: Pillar) => {
+    const list = checks.filter((c) => c.pillar === p);
+    const max = list.reduce((a, c) => a + c.weight, 0) || 1;
+    const got = list.reduce((a, c) => a + c.weight * (c.status === "ok" ? 1 : c.status === "warn" ? 0.5 : 0), 0);
+    return Math.round((got / max) * 100);
+  };
+  const technical = pillarScore("technical"), content = pillarScore("content"), aeo = pillarScore("aeo");
+  const overall = Math.round(0.3 * technical + 0.35 * content + 0.35 * aeo);
+  const issues = checks
+    .filter((c) => c.status !== "ok")
+    .map((c) => ({ id: c.id, label: c.label, pillar: c.pillar, status: c.status,
+      severity: c.status === "warn" && c.severity === "kritisch" ? "hoch" : c.severity,
+      detail: c.detail, tipp: c.tipp, ...(c.pagesAffected?.length ? { pages: c.pagesAffected } : {}) }))
+    .sort((a, b) => ["kritisch", "hoch", "mittel", "niedrig"].indexOf(a.severity) - ["kritisch", "hoch", "mittel", "niedrig"].indexOf(b.severity));
+
+  // Seiten-Tabelle: Einzel-Score je Seite aus den Seiten-Checks.
+  const pages = pageResults.map((p) => {
+    if (!p.metrics) return { path: pathOf(p.url), status: p.fetched.status, ms: p.fetched.ms, score: 0, title: "", issues: PAGE_CHECKS.length };
+    const max = PAGE_CHECKS.reduce((a, c) => a + c.weight, 0);
+    const got = PAGE_CHECKS.reduce((a, c) => a + c.weight * c.score(p.metrics!), 0);
+    const bad = PAGE_CHECKS.filter((c) => c.score(p.metrics!) < 1).length;
+    return { path: pathOf(p.url), status: p.fetched.status, ms: p.fetched.ms,
+      score: Math.round((got / max) * 100), title: p.metrics.title.slice(0, 80), issues: bad };
+  });
+
+  return { url: base, mode, scores: { overall, technical, content, aeo }, checks, issues, pages,
+    blockedBots, criticalBlocked, homeHtml: home.text };
+}
+
 export const Route = createFileRoute("/api/admin/site-health")({
   server: {
     handlers: {
@@ -255,137 +393,9 @@ export const Route = createFileRoute("/api/admin/site-health")({
         if (last && Date.now() - new Date(last.at).getTime() < 10 * 60_000)
           return Response.json({ ok: true, audit: last, cached: true });
 
-        const base = `https://${domain}`;
-        // Sequenziell mit Pausen — Kunden-Hoster sperren bei Burst-Abrufen.
-        const home = await fetchText(base);
-        await pause(400);
-        const robots = await fetchText(`${base}/robots.txt`, 10000);
-        await pause(400);
-        const llms = await fetchText(`${base}/llms.txt`, 8000);
-        await pause(400);
-        const sitemap = await fetchText(`${base}/sitemap.xml`, 10000);
-
-        // Seiten sammeln: Startseite immer; deep zusätzlich bis 50 Unterseiten.
-        // Zeit-Wächter: das Hosting kappt Requests bei ~300 s — bei Zeitknappheit
-        // (langsamer Hoster) wird ehrlich mit Teilergebnis abgebrochen.
-        const started = Date.now();
-        const TIME_BUDGET_MS = 220_000;
-        const pageUrls: string[] = [base];
-        if (mode === "deep") pageUrls.push(...await collectPages(base, domain, sitemap, home.text));
-        const pageResults: Array<{ url: string; fetched: Fetched; metrics: PageMetrics | null }> = [
-          { url: base, fetched: home, metrics: home.ok ? analyzeHtml(home.text, domain) : null },
-        ];
-        let truncated = 0;
-        for (const u of pageUrls.slice(1)) {
-          if (Date.now() - started > TIME_BUDGET_MS) { truncated = pageUrls.length - 1 - (pageResults.length - 1); break; }
-          await pause(350);
-          const f = await fetchText(u, 12000);
-          pageResults.push({ url: u, fetched: f, metrics: f.ok ? analyzeHtml(f.text, domain) : null });
-        }
-        const okPages = pageResults.filter((p) => p.metrics);
-        const homeMetrics = pageResults[0].metrics;
-
-        const checks: CheckOut[] = [];
-        const push = (c: Omit<CheckOut, "status" | "detail"> & { status: CheckOut["status"]; detail: string; pagesAffected?: string[] }) => checks.push(c as CheckOut);
-        const pathOf = (u: string) => { try { return new URL(u).pathname || "/"; } catch { return u; } };
-
-        // ── Globale Technical-Checks ────────────────────────────────────────
-        push({ id: "https", label: "Website über HTTPS erreichbar", pillar: "technical", weight: 3, severity: "kritisch",
-          tipp: "SSL-Zertifikat/Weiterleitung prüfen — ohne HTTPS werten Google wie KI-Systeme die Seite ab.",
-          status: home.ok ? "ok" : "fail", detail: home.ok ? `HTTP ${home.status} in ${home.ms} ms` : `Startseite nicht ladbar (HTTP ${home.status})` });
-        push({ id: "speed", label: "Antwortzeit der Startseite", pillar: "technical", weight: 2, severity: "hoch",
-          tipp: "Server-Antwortzeit über Caching/Hosting verbessern — langsame Seiten lesen KI-Crawler seltener vollständig.",
-          status: home.ms < 1500 ? "ok" : home.ms < 4000 ? "warn" : "fail", detail: `${home.ms} ms bis zur Antwort` });
-        push({ id: "robots", label: "robots.txt vorhanden", pillar: "technical", weight: 2, severity: "hoch",
-          tipp: "robots.txt anlegen — sie steuert, welche Crawler (auch KI-Bots) die Seite lesen dürfen.",
-          status: robots.ok ? "ok" : "fail", detail: robots.ok ? "vorhanden" : `fehlt (HTTP ${robots.status})` });
-        const sitemapInRobots = /^sitemap:/im.test(robots.text || "");
-        push({ id: "sitemap", label: "XML-Sitemap auffindbar", pillar: "technical", weight: 2, severity: "mittel",
-          tipp: "Sitemap unter /sitemap.xml bereitstellen und in der robots.txt verlinken.",
-          status: sitemap.ok || sitemapInRobots ? "ok" : "fail",
-          detail: sitemap.ok ? "/sitemap.xml erreichbar" : sitemapInRobots ? "in robots.txt verlinkt" : "weder /sitemap.xml noch robots-Eintrag" });
-        push({ id: "viewport", label: "Mobile Viewport konfiguriert", pillar: "technical", weight: 2, severity: "hoch",
-          tipp: "<meta name=viewport> ergänzen — ohne sie ist die Seite mobil kaum nutzbar.",
-          status: homeMetrics?.viewport ? "ok" : "fail", detail: homeMetrics?.viewport ? "vorhanden" : "fehlt" });
-        push({ id: "lang", label: "Sprache im HTML deklariert", pillar: "technical", weight: 1, severity: "niedrig",
-          tipp: "<html lang=…> setzen — hilft Suche und Screenreadern.",
-          status: homeMetrics?.langAttr ? "ok" : "fail", detail: homeMetrics?.langAttr ? "vorhanden" : "fehlt" });
-        if (mode === "deep" && truncated > 0) {
-          // Gewicht 0: reine Info, verfälscht keinen Score.
-          push({ id: "coverage", label: "Seiten-Abdeckung des Tiefen-Audits", pillar: "technical", weight: 0, severity: "niedrig",
-            tipp: "Der Hoster antwortete langsam — der Audit stoppte am Zeitbudget. Erneut ausführen prüft wieder von vorn.",
-            status: "warn", detail: `${pageResults.length} geprüft, ${truncated} übersprungen (Zeitbudget)` });
-        }
-        if (mode === "deep") {
-          const broken = pageResults.filter((p) => !p.fetched.ok);
-          push({ id: "pagesok", label: "Alle geprüften Seiten erreichbar", pillar: "technical", weight: 2, severity: "hoch",
-            tipp: "Nicht erreichbare Seiten aus der Sitemap entfernen oder reparieren (4xx/5xx).",
-            status: broken.length === 0 ? "ok" : broken.length <= 2 ? "warn" : "fail",
-            detail: `${pageResults.length - broken.length}/${pageResults.length} erreichbar`,
-            pagesAffected: broken.map((p) => pathOf(p.url)).slice(0, 10) });
-        }
-        // Interne Verlinkung der Startseite (Content, global).
-        push({ id: "intlinks", label: "Interne Verlinkung der Startseite", pillar: "content", weight: 1, severity: "mittel",
-          tipp: "Wichtige Unterseiten von der Startseite verlinken — Crawler entdecken Inhalte über interne Links.",
-          status: (homeMetrics?.internalLinks ?? 0) >= 10 ? "ok" : (homeMetrics?.internalLinks ?? 0) >= 4 ? "warn" : "fail",
-          detail: `${homeMetrics?.internalLinks ?? 0} interne Links` });
-
-        // ── Seiten-Checks (Content/AEO) über alle geprüften Seiten ─────────
-        for (const def of PAGE_CHECKS) {
-          const scored = okPages.map((p) => ({ path: pathOf(p.url), s: def.score(p.metrics!) }));
-          const avg = scored.length ? scored.reduce((a, x) => a + x.s, 0) / scored.length : 0;
-          const affected = scored.filter((x) => x.s < 1).map((x) => x.path);
-          const status: CheckOut["status"] = avg >= 0.85 ? "ok" : avg >= 0.5 ? "warn" : "fail";
-          const detail = okPages.length === 1 && okPages[0].metrics
-            ? def.detail(okPages[0].metrics)
-            : `${scored.length - affected.length}/${scored.length} Seiten in Ordnung`;
-          push({ id: def.id, label: def.label, pillar: def.pillar, weight: def.weight, severity: def.severity,
-            tipp: def.tipp, status, detail, ...(affected.length && okPages.length > 1 ? { pagesAffected: affected.slice(0, 10) } : {}) });
-        }
-
-        // ── Globale AEO-Checks ──────────────────────────────────────────────
-        const blockedBots = robots.ok ? AI_BOTS.filter((b) => botBlocked(robots.text, b)) : [];
-        const criticalBlocked = blockedBots.filter((b) => CRITICAL_BOTS.has(b));
-        push({ id: "aibots", label: "KI-Crawler in robots.txt erlaubt", pillar: "aeo", weight: 3, severity: "kritisch",
-          tipp: "Blockierte KI-Bots freigeben — wer GPTBot/ClaudeBot/PerplexityBot aussperrt, kommt in deren Antworten kaum vor.",
-          status: criticalBlocked.length ? "fail" : blockedBots.length ? "warn" : "ok",
-          detail: blockedBots.length ? `blockiert: ${blockedBots.join(", ")}` : "kein KI-Bot gesperrt" });
-        const allLdTypes = new Set<string>(okPages.flatMap((p) => [...p.metrics!.ldTypes]));
-        push({ id: "orgschema", label: "Organisations-/LocalBusiness-Schema", pillar: "aeo", weight: 2, severity: "mittel",
-          tipp: "Organization- oder LocalBusiness-Markup mit Name, Logo und Adresse hinterlegen.",
-          status: [...allLdTypes].some((t) => /organization|localbusiness|hotel|store|restaurant/i.test(t)) ? "ok" : "fail",
-          detail: [...allLdTypes].some((t) => /organization|localbusiness|hotel|store|restaurant/i.test(t)) ? "vorhanden" : "fehlt" });
-        push({ id: "llms", label: "llms.txt vorhanden", pillar: "aeo", weight: 1, severity: "niedrig",
-          tipp: "Optional: llms.txt mit Kurzbeschreibung + wichtigsten Seiten — einzelne KI-Crawler lesen sie, Google ignoriert sie.",
-          status: llms.ok ? "ok" : "warn", detail: llms.ok ? "vorhanden" : "fehlt (optional)" });
-
-        // ── Scores (Searchable-Gewichte 30/35/35) ───────────────────────────
-        const pillarScore = (p: Pillar) => {
-          const list = checks.filter((c) => c.pillar === p);
-          const max = list.reduce((a, c) => a + c.weight, 0) || 1;
-          const got = list.reduce((a, c) => a + c.weight * (c.status === "ok" ? 1 : c.status === "warn" ? 0.5 : 0), 0);
-          return Math.round((got / max) * 100);
-        };
-        const technical = pillarScore("technical"), content = pillarScore("content"), aeo = pillarScore("aeo");
-        const overall = Math.round(0.3 * technical + 0.35 * content + 0.35 * aeo);
-        const issues = checks
-          .filter((c) => c.status !== "ok")
-          .map((c) => ({ id: c.id, label: c.label, pillar: c.pillar, status: c.status,
-            severity: c.status === "warn" && c.severity === "kritisch" ? "hoch" : c.severity,
-            detail: c.detail, tipp: c.tipp, ...(c.pagesAffected?.length ? { pages: c.pagesAffected } : {}) }))
-          .sort((a, b) => ["kritisch", "hoch", "mittel", "niedrig"].indexOf(a.severity) - ["kritisch", "hoch", "mittel", "niedrig"].indexOf(b.severity));
-
-        // Seiten-Tabelle: Einzel-Score je Seite aus den Seiten-Checks.
-        const pages = pageResults.map((p) => {
-          if (!p.metrics) return { path: pathOf(p.url), status: p.fetched.status, ms: p.fetched.ms, score: 0, title: "", issues: PAGE_CHECKS.length };
-          const max = PAGE_CHECKS.reduce((a, c) => a + c.weight, 0);
-          const got = PAGE_CHECKS.reduce((a, c) => a + c.weight * c.score(p.metrics!), 0);
-          const bad = PAGE_CHECKS.filter((c) => c.score(p.metrics!) < 1).length;
-          return { path: pathOf(p.url), status: p.fetched.status, ms: p.fetched.ms,
-            score: Math.round((got / max) * 100), title: p.metrics.title.slice(0, 80), issues: bad };
-        });
-
-        const row = { client_id: clientId, url: base, mode, scores: { overall, technical, content, aeo }, checks, issues, pages };
+        // Mess-Kern ist ausgelagert (EzyAI-Analyse nutzt ihn domain-basiert mit).
+        const audit = await runSiteHealthForDomain(domain, mode);
+        const row = { client_id: clientId, url: audit.url, mode, scores: audit.scores, checks: audit.checks, issues: audit.issues, pages: audit.pages };
         const { data: saved, error } = await (supabaseAdmin as any)
           .from("site_health_audits")
           .insert(row)
