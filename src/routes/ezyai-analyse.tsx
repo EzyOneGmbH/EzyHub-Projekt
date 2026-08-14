@@ -67,7 +67,7 @@ const STAGES: Array<{ keys: string[]; name: string; desc: string }> = [
   { keys: ["technik"], name: "Technik & SiteHealth", desc: "robots.txt-AI-Bots, OnPage-Audit (bis 50 Seiten), Tech-Stack" },
   { keys: ["seo"], name: "SEO-Fundament", desc: "Sichtbarkeit, Traffic-Schaetzung, Backlinks, LLM-Mentions-Makro" },
   { keys: ["volumen"], name: "AI-Suchvolumen", desc: "Monatliche AI-Nachfrage je Prompt" },
-  { keys: ["ai1", "ai2", "ai3"], name: "AI-Sichtbarkeit", desc: "12 Prompts über ChatGPT, Perplexity, Gemini und Claude" },
+  { keys: ["ai1", "ai2", "ai3"], name: "AI-Sichtbarkeit", desc: "15 Prompts (max. 3 Brand) über ChatGPT, Perplexity, Gemini und Claude" },
   { keys: ["entitaet"], name: "Entität & Vertrauen", desc: "Wikidata, Organization-Schema, Brand-SERP" },
   { keys: ["benchmark"], name: "Wettbewerber-Benchmark", desc: "Quick-Score je Wettbewerber" },
   { keys: ["score"], name: "Scoring & Massnahmen", desc: "AI-Readiness-Score + Top-5-Empfehlungen" },
@@ -449,7 +449,7 @@ function Wizard({ onClose, onDone, resumeId, prefill }: {
               <p style={{ fontSize: 13, color: S.mut, margin: "0 0 18px" }}>Jede Analyse läuft im vollen Umfang — Dauer ~15 Minuten.</p>
               <div style={{ border: `1px solid ${S.line}`, borderRadius: 12, overflow: "hidden" }}>
                 {[
-                  ["✦", "AI-Sichtbarkeit", "12 Prompts über ChatGPT, Perplexity, Gemini, Claude + Makro-Mentions + AI-Suchvolumen je Prompt"],
+                  ["✦", "AI-Sichtbarkeit", "15 Prompts (1–3 Brand, Rest neutrale Alternativen-Suchen) über ChatGPT, Perplexity, Gemini, Claude + Makro-Mentions + AI-Suchvolumen je Prompt"],
                   ["⚙", "Technik & SiteHealth", "robots.txt-AI-Bots, OnPage-Audit (bis 50 Seiten), Tech-Stack-Erkennung"],
                   ["◈", "Entität & Vertrauen", "Wikidata, Organization-Schema, Brand-SERP"],
                   ["▤", "SEO-Fundament", "Sichtbarkeit, Traffic, Backlinks"],

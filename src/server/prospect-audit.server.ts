@@ -183,27 +183,54 @@ export async function suggestCompetitors(input: { domain: string; firmenname: st
   return { ok: true, kandidaten: list, quelle: "ai", cost };
 }
 
-// ── Prompt-Set (12 Stueck, 3–8 Woerter, ohne Satzzeichen → AI-Volumen-tauglich) ──
+// ── Prompt-Set (15 Stueck, 3–8 Woerter, ohne Satzzeichen → AI-Volumen-tauglich) ──
+// Volkan 14.08.: hoechstens 1–3 Brand-Prompts — der Rest sind neutrale
+// Alternativen-/Anbieter-Suchen, denn genau dort entscheidet sich, wen die
+// Engines OHNE Markenbekanntheit empfehlen.
+const PROMPT_TARGET_N = 15;
+const MAX_BRAND_PROMPTS = 3;
+
 function fallbackPrompts(firmenname: string, branche: string, ort: string): string[] {
-  const b = (branche || "dienstleister").toLowerCase();
+  const b = (branche || "dienstleister").toLowerCase().split("/")[0].trim();
   const o = (ort || "schweiz").toLowerCase().split(",")[0].trim();
   return [
     `beste ${b} ${o}`, `${b} ${o} empfehlung`, `${b} ${o} vergleich`, `${b} kosten schweiz`,
     `guter ${b} in der naehe`, `${b} ${o} erfahrungen`, `${b} anbieter schweiz`, `${b} ${o} bewertung`,
-    `${b} auswaehlen tipps`, `${b} schweiz seriös`, `top ${b} ${o}`, `${firmenname.toLowerCase()} erfahrungen`,
-  ].map((s) => s.replace(/\s+/g, " ").trim()).slice(0, 12);
+    `${b} auswaehlen tipps`, `${b} schweiz seriös`, `top ${b} ${o}`, `${b} preise uebersicht`,
+    `${b} anbieter unterschiede`, `wie finde ich den richtigen ${b}`, `${firmenname.toLowerCase()} erfahrungen`,
+  ].map((s) => s.replace(/\s+/g, " ").trim()).slice(0, PROMPT_TARGET_N);
 }
 
 async function buildPrompts(input: { firmenname: string; branche?: string; ort?: string; domain: string }): Promise<string[]> {
   const j = await llmJson("Prompt-Set", [
     `Firma: ${input.firmenname} (${input.domain}), Branche: ${input.branche || "unbekannt"}, Ort/Markt: ${input.ort || "Schweiz"}.`,
-    `Erzeuge 12 realistische Suchanfragen, die potenzielle Kunden einer KI (ChatGPT, Gemini, Perplexity) oder Google stellen wuerden, um einen solchen Anbieter zu finden oder zu vergleichen. Deutsch (Schweiz).`,
-    `Regeln: je 3–8 Woerter, Kleinschreibung, KEINE Satzzeichen/Fragezeichen, keine Firmennamen ausser hoechstens 1x "${input.firmenname}". Mischung: Anbieter-Suche, Vergleich, Kosten, Ort, Problem/Beratung.`,
-    `JSON: ["prompt1", ...] (genau 12 Strings)`,
-  ].join("\n"), 700);
+    `Erzeuge ${PROMPT_TARGET_N} realistische Suchanfragen, die potenzielle Kunden einer KI (ChatGPT, Gemini, Perplexity) oder Google stellen wuerden, um einen solchen Anbieter zu finden oder zu vergleichen. Deutsch (Schweiz).`,
+    `Regeln: je 3–8 Woerter, Kleinschreibung, KEINE Satzzeichen/Fragezeichen. WICHTIG: hoechstens 2 Prompts duerfen "${input.firmenname}" enthalten (Brand-Check) — alle anderen sind NEUTRALE Suchen ohne Firmennamen (Anbieter-Suche, Vergleich, Alternativen, Kosten, Ort, Problem/Beratung).`,
+    `JSON: ["prompt1", ...] (genau ${PROMPT_TARGET_N} Strings)`,
+  ].join("\n"), 900);
   const list = (asArray(j) || []).map((p: any) => String(p || "").toLowerCase().replace(/[?!.,:;"“”]/g, "").replace(/\s+/g, " ").trim()).filter((p: string) => p && p.split(" ").length <= 10);
-  const uniq = [...new Set(list)].slice(0, 12);
-  return uniq.length >= 8 ? uniq : fallbackPrompts(input.firmenname, input.branche || "", input.ort || "");
+  // Brand-Kappung hart durchsetzen: max. MAX_BRAND_PROMPTS mit Namens-/Domain-Bezug.
+  const toks = nameTokens(input.firmenname);
+  const base = normDomain(input.domain).split(".")[0];
+  const isBrand = (p: string) => (base.length >= 4 && p.includes(base)) || (toks.length > 0 && toks.every((t) => p.includes(t)));
+  const uniq: string[] = [];
+  let brand = 0;
+  for (const p of new Set(list)) {
+    if (isBrand(p)) { if (brand >= MAX_BRAND_PROMPTS) continue; brand++; }
+    uniq.push(p);
+    if (uniq.length >= PROMPT_TARGET_N) break;
+  }
+  // Zu wenig? Mit neutralen Fallback-Prompts auffuellen (ohne Duplikate).
+  if (uniq.length < PROMPT_TARGET_N) {
+    for (const p of fallbackPrompts(input.firmenname, input.branche || "", input.ort || "")) {
+      if (uniq.length >= PROMPT_TARGET_N) break;
+      if (uniq.includes(p)) continue;
+      if (isBrand(p) && brand >= MAX_BRAND_PROMPTS) continue;
+      if (isBrand(p)) brand++;
+      uniq.push(p);
+    }
+  }
+  return uniq.slice(0, PROMPT_TARGET_N);
 }
 
 // ── Anbindungs-Check aus Tech-Detect-Ergebnis ───────────────────────────────
@@ -325,7 +352,8 @@ export async function tickAudit(id: string) {
       case "ai1": case "ai2": case "ai3": {
         const part = Number(row.stage.slice(2)); // 1..3
         const prompts = (data.prompts || []) as Array<{ q: string; vol: number | null; engines?: any }>;
-        const slice = prompts.map((p, i) => ({ p, i })).filter(({ i }) => Math.floor(i / 4) === part - 1);
+        // 15 Prompts in 3 Etappen à 5 (je Etappe 5 × 4 Engines = 20 Live-Calls).
+        const slice = prompts.map((p, i) => ({ p, i })).filter(({ i }) => Math.floor(i / 5) === part - 1);
         const jobs = slice.flatMap(({ p, i }) => ENGINES.map((e) => ({ p, i, e })));
         await pMap(jobs, async ({ p, e }) => {
           const r = await askEngine(e.se, e.model, p.q);
