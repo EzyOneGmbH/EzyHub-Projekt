@@ -600,9 +600,78 @@ async function jobSerpAi(c: any, limitOverride?: number) {
       break;
     }
   }
+  // Echte KI-Suche (13.08., Ausbau des 11.08.-Fanouts): ChatGPT UND Gemini
+  // in der CONSUMER-Oberfläche (llm_scraper, Standort Schweiz) für die
+  // Top-Money-Keywords — das ist, was ein echter Nutzer sieht, im Gegensatz
+  // zur API-Antwort (llm_responses) der Mess-Engines. Gespeichert werden
+  // Antworttext, zitierte Quellen und genannte Marken; Folgefragen liefert
+  // nur ChatGPT (Gemini kennt weder fan_out_queries/brand_entities noch
+  // force_web_search — live geprüft 12./13.08.).
+  // 14.08. (Volkan): zusätzlich die MARKEN-Anfrage selbst (branded:true) —
+  // damit die Standorte-Karte auch ChatGPT/Gemini-Erwähnungen zeigt und zur
+  // Besucher-Karte passt (Besucher kommen meist über Branded-Anfragen).
+  // ~$0.004 je Call → 11 Anfragen × 2 Engines = ~$0.09/Lauf.
+  // Die Calls laufen in Blöcken (pMap), nicht alle 22 gleichzeitig: der
+  // Scraper braucht bis 120 s je Antwort, und die DataForSEO-IP-Drossel
+  // (Vorfall 14.07.) schlägt bei Burst-Last zu.
+  const aiSearch: any[] = await (async () => {
+    const auth2 = dfsAuth();
+    if (!auth2) return [];
+    const kwCount = Math.max(1, Number(process.env.AIVIS_AISEARCH_KEYWORDS ?? 10));
+    const engines: Array<{ provider: "chat_gpt" | "gemini"; engine: string; web: boolean }> = [
+      { provider: "chat_gpt", engine: "ChatGPT", web: true },
+      { provider: "gemini", engine: "Gemini", web: false },
+    ];
+    const scrape = async (kw: string, e: (typeof engines)[number], branded: boolean) => {
+      const task: any = { keyword: kw, language_code: (c.language || "de").slice(0, 2), location_name: "Switzerland" };
+      if (e.web) task.force_web_search = true; // Gemini lehnt das Feld ab (40501)
+      const r = await fetch(`https://api.dataforseo.com/v3/ai_optimization/${e.provider}/llm_scraper/live/advanced`, {
+        method: "POST", headers: { Authorization: auth2, "Content-Type": "application/json" },
+        body: JSON.stringify([task]),
+        signal: AbortSignal.timeout(120_000),
+      });
+      const j: any = await r.json().catch(() => null);
+      const t = j?.tasks?.[0];
+      if (j?.status_code !== 20000 || !t || t.status_code !== 20000) return null;
+      const resu = t.result?.[0] || {};
+      const text = String(resu.markdown || "").trim()
+        || ((resu.items || []) as any[]).map((i: any) => String(i?.markdown || i?.text || "")).filter(Boolean).join("\n\n");
+      return {
+        kw, engine: e.engine, ...(branded ? { branded: true } : {}),
+        text: text.slice(0, 4000),
+        sources: ((resu.sources || []) as any[]).slice(0, 12).map((s: any) => ({
+          d: String(s?.domain || "").replace(/^www\./, ""),
+          u: String(s?.url || ""),
+          t: String(s?.title || "").slice(0, 160),
+        })).filter((s: any) => s.d),
+        brands: ((resu.brand_entities || []) as any[]).map((b: any) => String(b?.title ?? b?.name ?? b)).filter(Boolean).slice(0, 15),
+        queries: ((resu.fan_out_queries || []) as any[]).map((q: any) => String(q?.query ?? q)).filter(Boolean).slice(0, 25),
+      };
+    };
+    // Marken-Anfrage voranstellen — ausser ein Money-Keyword IST schon die Marke.
+    const brandKw = String(c.name || "").trim();
+    const moneyKws = pairs.slice(0, kwCount).map((p) => p.kw);
+    const kwList: Array<{ kw: string; branded: boolean }> = [
+      ...(brandKw && !moneyKws.some((k) => k.toLowerCase() === brandKw.toLowerCase()) ? [{ kw: brandKw, branded: true }] : []),
+      ...moneyKws.map((kw) => ({ kw, branded: false })),
+    ];
+    const jobs = kwList.flatMap((k) => engines.map((e) => ({ ...k, e })));
+    const settled = await pMap(jobs, (j) => scrape(j.kw, j.e, j.branded).catch(() => null), 6);
+    return settled.filter((r: any) => r && (r.text || r.queries.length));
+  })().catch(() => []);
+  // Marken-Treffer der echten KI-Suche → Standorte-Karte (14.08., Volkan):
+  // erwähnt die Antwort die Marke oder zitiert sie die eigene Domain, zählt
+  // das als Schweiz-Erwähnung des Systems. mentions bleibt 0 (Score/SoV
+  // basieren weiter allein auf den Prompt-Läufen — nur byCountry fließt).
+  const searchByEngine: Record<string, number> = {};
+  for (const r of aiSearch) {
+    const hit = nameRe.test(String(r.text || "")) || (!!domain && (r.sources || []).some((s: any) => s.d === domain || String(s.d).endsWith("." + domain)));
+    if (hit) searchByEngine[r.engine] = (searchByEngine[r.engine] || 0) + 1;
+  }
   const models = [
     { name: "Google AI Overviews", mentions: aio.cited, byCountry: aio.byCountry },
     { name: "Google AI Mode", mentions: aim.cited, byCountry: aim.byCountry },
+    ...Object.entries(searchByEngine).map(([name, n]) => ({ name, mentions: 0, byCountry: { Schweiz: n } })),
   ];
   const countries = [...new Set(pairs.map((p) => DFS_LOC_BY_A3[p.a3].name))];
   return {
@@ -616,55 +685,7 @@ async function jobSerpAi(c: any, limitOverride?: number) {
     aio,
     aim,
     fanout: [...fanout.values()],
-    // Echte KI-Suche (13.08., Ausbau des 11.08.-Fanouts): ChatGPT UND Gemini
-    // in der CONSUMER-Oberfläche (llm_scraper, Standort Schweiz) für die
-    // Top-Money-Keywords — das ist, was ein echter Nutzer sieht, im Gegensatz
-    // zur API-Antwort (llm_responses) der Mess-Engines. Gespeichert werden
-    // Antworttext, zitierte Quellen und genannte Marken; Folgefragen liefert
-    // nur ChatGPT (Gemini kennt weder fan_out_queries/brand_entities noch
-    // force_web_search — live geprüft 12./13.08.).
-    // ~$0.004 je Call → 10 Keywords × 2 Engines = ~$0.08/Lauf (Volkan 13.08.).
-    // Die Calls laufen in Blöcken (pMap), nicht alle 20 gleichzeitig: der
-    // Scraper braucht bis 120 s je Antwort, und die DataForSEO-IP-Drossel
-    // (Vorfall 14.07.) schlägt bei Burst-Last zu.
-    aiSearch: await (async () => {
-      const auth2 = dfsAuth();
-      if (!auth2) return [];
-      const kwCount = Math.max(1, Number(process.env.AIVIS_AISEARCH_KEYWORDS ?? 10));
-      const engines: Array<{ provider: "chat_gpt" | "gemini"; engine: string; web: boolean }> = [
-        { provider: "chat_gpt", engine: "ChatGPT", web: true },
-        { provider: "gemini", engine: "Gemini", web: false },
-      ];
-      const scrape = async (kw: string, e: (typeof engines)[number]) => {
-        const task: any = { keyword: kw, language_code: (c.language || "de").slice(0, 2), location_name: "Switzerland" };
-        if (e.web) task.force_web_search = true; // Gemini lehnt das Feld ab (40501)
-        const r = await fetch(`https://api.dataforseo.com/v3/ai_optimization/${e.provider}/llm_scraper/live/advanced`, {
-          method: "POST", headers: { Authorization: auth2, "Content-Type": "application/json" },
-          body: JSON.stringify([task]),
-          signal: AbortSignal.timeout(120_000),
-        });
-        const j: any = await r.json().catch(() => null);
-        const t = j?.tasks?.[0];
-        if (j?.status_code !== 20000 || !t || t.status_code !== 20000) return null;
-        const resu = t.result?.[0] || {};
-        const text = String(resu.markdown || "").trim()
-          || ((resu.items || []) as any[]).map((i: any) => String(i?.markdown || i?.text || "")).filter(Boolean).join("\n\n");
-        return {
-          kw, engine: e.engine,
-          text: text.slice(0, 4000),
-          sources: ((resu.sources || []) as any[]).slice(0, 12).map((s: any) => ({
-            d: String(s?.domain || "").replace(/^www\./, ""),
-            u: String(s?.url || ""),
-            t: String(s?.title || "").slice(0, 160),
-          })).filter((s: any) => s.d),
-          brands: ((resu.brand_entities || []) as any[]).map((b: any) => String(b?.title ?? b?.name ?? b)).filter(Boolean).slice(0, 15),
-          queries: ((resu.fan_out_queries || []) as any[]).map((q: any) => String(q?.query ?? q)).filter(Boolean).slice(0, 25),
-        };
-      };
-      const jobs = pairs.slice(0, kwCount).flatMap((p) => engines.map((e) => ({ kw: p.kw, e })));
-      const settled = await pMap(jobs, (j) => scrape(j.kw, j.e).catch(() => null), 6);
-      return settled.filter((r: any) => r && (r.text || r.queries.length));
-    })().catch(() => []),
+    aiSearch,
     errors,
   };
 }

@@ -2008,7 +2008,7 @@ function LocationPanel({ countries, models }) {
   const selMax = Math.max(1, ...selEngines.map((x) => x.n));
   return (
     <div className="mt-4 grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-      <RCard icon={Layers} title="Regionen-Karte" info="Echte Landkarte (world-atlas): Länder nach Anteil der KI-Erwähnungen eingefärbt. Land oder Chip anklicken für die Detail-Ansicht." desc="Wo KI-Antworten die Marke erwähnen — Land anklicken" footer={`${rows.length} Regionen · ${nf(total)} Erwähnungen`} legend={
+      <RCard icon={Layers} title="Regionen-Karte" info="Echte Landkarte (world-atlas): Länder nach Anteil der KI-Erwähnungen eingefärbt. Enthalten sind die Google-KI-Messung (AI Overviews/AI Mode je Suchanfrage-Land), Korpus-Erwähnungen je Markt und die echte ChatGPT-/Gemini-Suche inkl. Marken-Anfrage (Standort Schweiz). Land oder Chip anklicken für die Detail-Ansicht." desc="Wo KI-Antworten die Marke erwähnen — Land anklicken" footer={`${rows.length} Regionen · ${nf(total)} Erwähnungen`} legend={
         <div className="flex rounded-md border p-0.5" style={{ borderColor: C.line, background: C.card }}>
           {[["fokus", "Fokus"], ["welt", "Welt"]].map(([k, t]) => (
             <button key={k} onClick={() => setMapView(k)} className="rounded px-2 py-0.5 text-[10.5px] font-medium focus:outline-none"
@@ -2574,6 +2574,9 @@ function AiSearchCard({ rows, brand, ownDomain }) {
                 <EngineFavicon platform={f.engine} />
                 „{f.kw}"
                 <span className="rounded-full border px-2 py-0.5 text-[10px] font-medium" style={{ borderColor: C.line, color: C.sub }}>{f.engine}</span>
+                {f.branded && (
+                  <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: "#ede9fe", color: "#5b21b6" }}>Branded</span>
+                )}
                 {f.sources?.length > 0 && (
                   <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: ownCited ? "#d1fae5" : "#fee2e2", color: ownCited ? "#065f46" : "#b91c1c" }}>
                     {ownCited ? "eigene Seite zitiert" : "nicht zitiert"}

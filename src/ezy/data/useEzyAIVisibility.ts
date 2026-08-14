@@ -101,7 +101,7 @@ export type AIVisibilityData = {
   // Antworttext + zitierte Quellen + genannte Marken + Folgefragen.
   // Altdaten (bis 12.08.) hatten nur chatgptFanout → wird eingemischt.
   aiSearch?: {
-    kw: string; engine: string; text: string;
+    kw: string; engine: string; branded?: boolean; text: string;
     sources: { d: string; u: string; t: string }[];
     brands: string[]; queries: string[];
   }[];
@@ -415,6 +415,7 @@ export async function loadAIVisibility(
       return rows.length ? rows.map((r: any) => ({
         kw: String(r?.kw ?? ""),
         engine: String(r?.engine ?? "ChatGPT"),
+        ...(r?.branded ? { branded: true } : {}),
         text: String(r?.text ?? ""),
         sources: (Array.isArray(r?.sources) ? r.sources : []).map((s: any) => ({ d: String(s?.d ?? ""), u: String(s?.u ?? ""), t: String(s?.t ?? "") })),
         brands: (Array.isArray(r?.brands) ? r.brands : []).map(String),
