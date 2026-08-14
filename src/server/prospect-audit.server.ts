@@ -68,12 +68,23 @@ function parseJson(text: string): any {
   try { return m ? JSON.parse(m[0]) : null; } catch { return null; }
 }
 
+// LLMs verpacken Arrays gern in ein Objekt ({"massnahmen":[...]}) — dann die
+// erste Array-Property nehmen, sonst faellt der Aufrufer faelschlich in den
+// deterministischen Fallback (beobachtet 14.08. beim Massnahmen-Call).
+function asArray(j: any): any[] | null {
+  if (Array.isArray(j)) return j;
+  if (j && typeof j === "object") {
+    for (const v of Object.values(j)) if (Array.isArray(v)) return v;
+  }
+  return null;
+}
+
 // LLM-Utility Subscription-first (agent-service /generate); null = Fallback.
 async function llmJson(label: string, prompt: string, maxTokens = 1500): Promise<any | null> {
   const r = await generateViaSubscription({
     prompt, label: `EzyAI-Analyse: ${label}`,
     system: "Du bist ein Schweizer GEO/SEO-Analyst. Antworte AUSSCHLIESSLICH mit gueltigem JSON, ohne Erklaertext, ohne Codefences. Schweizer Schreibweise (ss statt Eszett).",
-    timeoutMs: 90_000,
+    timeoutMs: 140_000,
   });
   return r?.text ? parseJson(r.text) : null;
 }
@@ -142,12 +153,12 @@ export async function suggestCompetitors(input: { domain: string; firmenname: st
 
   if (cands.length) {
     // LLM kuratiert: echte, vergleichbare Firmen — Portale/Grosskonzerne raus.
-    const curated = await llmJson("Wettbewerber kuratieren", [
+    const curated = asArray(await llmJson("Wettbewerber kuratieren", [
       `Firma: ${input.firmenname} (${domain}), Branche: ${input.branche || "unbekannt"}, Ort/Markt: ${input.ort || "Schweiz"}.`,
       `Kandidaten (organische SERP-Ueberschneidung): ${JSON.stringify(cands)}`,
       `Waehle die bis zu 4 am besten vergleichbaren ECHTEN Wettbewerber (gleiche Leistung, aehnliche Groesse/Region; keine Verzeichnisse, Medien oder Konzerne).`,
       `JSON: [{"domain":"...","grund":"max 10 Woerter","empfohlen":true|false}] — genau die Kandidaten-Domains verwenden.`,
-    ].join("\n"), 800);
+    ].join("\n"), 800));
     const list = Array.isArray(curated) && curated.length
       ? curated
           .filter((c: any) => c?.domain && cands.some((k: any) => k.domain === normDomain(c.domain)))
@@ -165,7 +176,7 @@ export async function suggestCompetitors(input: { domain: string; firmenname: st
     `Die Domain hat noch keinen messbaren organischen Fussabdruck. Nenne bis zu 4 reale Schweizer Wettbewerber (echte Firmen mit Website, gleiche Leistung, aehnliche Region). NUR Firmen, bei denen du dir der Domain sicher bist — lieber weniger als geraten.`,
     `JSON: [{"domain":"firma.ch","grund":"max 10 Woerter","empfohlen":true}]`,
   ].join("\n"), 700);
-  const list = (Array.isArray(ai) ? ai : [])
+  const list = (asArray(ai) || [])
     .map((c: any) => ({ domain: normDomain(String(c?.domain || "")), grund: String(c?.grund || "AI-Vorschlag").slice(0, 90), empfohlen: c?.empfohlen !== false }))
     .filter((c: any) => c.domain.includes(".") && c.domain !== domain && !PORTAL_RE.test(c.domain))
     .slice(0, 4);
@@ -190,7 +201,7 @@ async function buildPrompts(input: { firmenname: string; branche?: string; ort?:
     `Regeln: je 3–8 Woerter, Kleinschreibung, KEINE Satzzeichen/Fragezeichen, keine Firmennamen ausser hoechstens 1x "${input.firmenname}". Mischung: Anbieter-Suche, Vergleich, Kosten, Ort, Problem/Beratung.`,
     `JSON: ["prompt1", ...] (genau 12 Strings)`,
   ].join("\n"), 700);
-  const list = Array.isArray(j) ? j.map((p: any) => String(p || "").toLowerCase().replace(/[?!.,:;"“”]/g, "").replace(/\s+/g, " ").trim()).filter((p: string) => p && p.split(" ").length <= 10) : [];
+  const list = (asArray(j) || []).map((p: any) => String(p || "").toLowerCase().replace(/[?!.,:;"“”]/g, "").replace(/\s+/g, " ").trim()).filter((p: string) => p && p.split(" ").length <= 10);
   const uniq = [...new Set(list)].slice(0, 12);
   return uniq.length >= 8 ? uniq : fallbackPrompts(input.firmenname, input.branche || "", input.ort || "");
 }
@@ -335,9 +346,14 @@ export async function tickAudit(id: string) {
         // Wikidata: gibt es die Marke als eindeutige Entitaet?
         let wikidata: any = { found: false, matches: 0 };
         try {
-          const w = await fetch(`https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(row.firmenname)}&language=de&uselang=de&format=json&limit=5&origin=*`, { signal: AbortSignal.timeout(15_000) });
-          const j: any = await w.json();
-          const hits = Array.isArray(j?.search) ? j.search : [];
+          const wdSearch = async (lang: string) => {
+            const w = await fetch(`https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(row.firmenname)}&language=${lang}&uselang=${lang}&format=json&limit=5&origin=*`, { signal: AbortSignal.timeout(15_000) });
+            const j: any = await w.json();
+            return Array.isArray(j?.search) ? j.search : [];
+          };
+          // Viele CH-Items haben nur ein en-Label — bei 0 de-Treffern en nachfassen.
+          let hits = await wdSearch("de");
+          if (!hits.length) hits = await wdSearch("en");
           const exact = hits.find((h: any) => String(h.label || "").toLowerCase() === row.firmenname.toLowerCase());
           wikidata = { found: !!exact, matches: hits.length, id: exact?.id || hits[0]?.id || null, beschreibung: (exact || hits[0])?.description || null };
         } catch { /* Wikidata offline -> unbewertet */ }
@@ -415,7 +431,8 @@ export async function tickAudit(id: string) {
           `Leite die 5 wirksamsten Massnahmen ab (Wirkung/Aufwand-priorisiert, konkret, deutsch/Schweiz).`,
           `JSON: [{"titel":"...","detail":"1 Satz Begruendung mit Zahl/Befund","prio":"hoch"|"mittel"|"leicht"}]`,
         ].join("\n"), 1200);
-        const massnahmen = (Array.isArray(m) && m.length ? m : [
+        const mArr = asArray(m);
+        const massnahmen = (mArr && mArr.length ? mArr : [
           ...(findings.blockierteBots.length ? [{ titel: "robots.txt: AI-Crawler freigeben", detail: `Blockiert: ${findings.blockierteBots.join(", ")} — Inhalte sind fuer AI-Engines unsichtbar.`, prio: "hoch" }] : []),
           ...(!ent.wikidata?.found ? [{ titel: "Wikidata-Item + Organization-Schema mit sameAs anlegen", detail: "Die Marke ist fuer AI-Engines keine eindeutige Entitaet.", prio: "hoch" }] : []),
           ...(missedVol > 0 ? [{ titel: "Zitierfaehige Inhalte zu den Top-Volumen-Prompts erstellen", detail: `~${missedVol} AI-Anfragen/Monat ohne Markennennung.`, prio: "mittel" }] : []),
