@@ -161,7 +161,7 @@ function EzyAiAnalyseApp() {
               <div style={{ width: 34, height: 38, flexShrink: 0, background: S.grad, clipPath: "polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 14, fontFamily: "'Kamerik 105',Poppins,sans-serif" }}>EO</div>
               <div style={{ fontWeight: 800, fontSize: 15, fontFamily: "'Kamerik 105',Poppins,sans-serif" }}>
                 Ezy One
-                <div style={{ fontWeight: 600, fontSize: 10.5, color: S.appLight, letterSpacing: ".04em" }}>EZYAI – ANALYSE</div>
+                <div style={{ fontWeight: 600, fontSize: 10.5, color: S.appLight, letterSpacing: ".04em" }}>ANALYSE</div>
               </div>
             </div>
             <a href="/apps" style={{ fontSize: 12, color: S.mut, textDecoration: "none", padding: "6px 10px", borderRadius: 8, marginBottom: 8 }}>‹ Alle Apps</a>
@@ -229,7 +229,7 @@ function HomeView({ tab, setTab, list, onOpen, onNew, onResume }: {
   return (
     <>
       <div>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "'Kamerik 105',Poppins,sans-serif" }}>EzyAI – Analyse</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "'Kamerik 105',Poppins,sans-serif" }}>Analyse</h1>
         <div style={{ fontSize: 13, color: S.mut, marginTop: 4 }}>
           Pre-Check für Leads & Pitches — immer im vollen Umfang: alle Engines, AI-Suchvolumen, SiteHealth, Wettbewerber-Benchmark.
         </div>
@@ -595,7 +595,7 @@ function ResultView({ audit, onBack, onRerun }: { audit: AuditRow; onBack: () =>
       <div className="anl-print-head" style={{ alignItems: "center", gap: 12, marginBottom: 18, paddingBottom: 14, borderBottom: `2px solid #77008C` }}>
         <div style={{ width: 34, height: 38, background: S.grad, clipPath: "polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 13 }}>EO</div>
         <div>
-          <div style={{ fontWeight: 800, fontSize: 16 }}>Ezy One · EzyAI – Analyse</div>
+          <div style={{ fontWeight: 800, fontSize: 16 }}>Ezy One · Analyse</div>
           <div style={{ fontSize: 12, color: S.mut }}>{audit.firmenname} · {audit.domain} · {fmtDate(audit.created_at)} · ezyone.ch</div>
         </div>
       </div>

@@ -43,7 +43,7 @@ export const EZY_APPS: EzyAppDef[] = [
     // EzyAI – Analyse (14.08.2026): Pre-Onboarding-Schnellaudit fuer Leads —
     // rein internes Team-Tool (nie kundenfaehig, internalOnly).
     id: "analyse",
-    name: "EzyAI – Analyse",
+    name: "Analyse",
     desc: "Lead-Pre-Check: AI-Sichtbarkeit, SiteHealth, Entität, Benchmark",
     icon: "📡",
     color: "#77008C",
