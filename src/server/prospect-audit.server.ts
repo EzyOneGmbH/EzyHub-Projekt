@@ -85,6 +85,7 @@ async function llmJson(label: string, prompt: string, maxTokens = 1500): Promise
     prompt, label: `EzyAI-Analyse: ${label}`,
     system: "Du bist ein Schweizer GEO/SEO-Analyst. Antworte AUSSCHLIESSLICH mit gueltigem JSON, ohne Erklaertext, ohne Codefences. Schweizer Schreibweise (ss statt Eszett).",
     timeoutMs: 140_000,
+    maxTurns: 3, // laengere Prompts (Themen-Block/Findings) brauchen gelegentlich >1 Turn
   });
   return r?.text ? parseJson(r.text) : null;
 }

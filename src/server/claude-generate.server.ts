@@ -22,6 +22,9 @@ export async function generateViaSubscription(opts: {
   clientName?: string | null;
   label?: string;
   timeoutMs?: number;
+  /** Standard 1 (One-Shot). Laengere Prompts brauchen gelegentlich 2–3 Turns —
+   *  Befund 17.08.: "Reached maximum number of turns (1)" beim Themen-Prompt. */
+  maxTurns?: number;
 }): Promise<GenResult | null> {
   const base = process.env.AGENT_BASE_URL?.replace(/\/+$/, "");
   const secret = process.env.AGENT_SHARED_SECRET;
@@ -36,6 +39,7 @@ export async function generateViaSubscription(opts: {
         prompt: opts.prompt,
         model: opts.model,
         authPrefer: "subscription",
+        maxTurns: opts.maxTurns,
         clientId: opts.clientId ?? null,
         clientName: opts.clientName ?? null,
         label: opts.label ?? "App-Generierung",
