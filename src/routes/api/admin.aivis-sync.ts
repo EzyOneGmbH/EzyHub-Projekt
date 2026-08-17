@@ -3528,9 +3528,13 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             // AIVIS_FRESHNESS_DAYS (default 3) — seit 17.08. am globalen Takt.
             // Größter LLM-Dauerposten: alle aktiven Prompts × 6 Engines je Lauf.
             const freshDays = Math.max(1, Number(process.env.AIVIS_FRESHNESS_DAYS ?? 3) || 3);
-            if (!missing.length && dayN(String(rep.snapshot_date)) < lastCycleDay(freshDays)) {
+            // daily UNABHÄNGIG von pr/sa prüfen (Fix 2026-08-17): das alte
+            // "!missing.length"-Gate liess Kunden mit dauerhaft fehlender
+            // sa-Schicht (Bomatec: GSC ohne Suchanfragen) nie wieder einen
+            // Tageslauf bekommen — Report blieb tagelang stehen.
+            if (dayN(String(rep.snapshot_date)) < lastCycleDay(freshDays)) {
               missing.push("daily");
-              if (saDue) missing.push("sa"); // SERP nur im fälligen Rhythmus mitfahren
+              if (saDue && !missing.includes("sa")) missing.push("sa"); // SERP im eigenen Takt mitfahren
             }
             if (missing.length) pending.push({ id: c.id, name: c.name, domain: c.domain, missing });
           }
