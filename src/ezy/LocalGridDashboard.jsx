@@ -63,6 +63,92 @@ function Tile({ label, value, sub, delta }) {
   );
 }
 
+// Karten-Heatmap (User-Wunsch 17.08.): echte OSM-Karte hinter den Rasterpunkten
+// (wie SeoMap) — statisches Tile-Mosaik + Web-Mercator-Projektion, KEINE neue
+// Dependency (kein Leaflet). Punkt-Geometrie exakt wie gridPoints im
+// agent-service (dLat = stepKm/110.574, dLng breitenkorrigiert), dadurch ist
+// die Ausrichtung geografisch korrekt (Norden oben), egal wie die Matrix liegt.
+function MapHeatmap({ center, n, stepKm, matrix, size = 440 }) {
+  const [zoomDelta, setZoomDelta] = useState(0);
+  const lat = Number(center?.lat), lng = Number(center?.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || !n || !matrix?.length) return null;
+  const latRad = (lat * Math.PI) / 180;
+  // Zoom so, dass das Raster ~72% der Kartenbreite fuellt; +/- verschiebt.
+  const spanM = Math.max(500, (n - 1) * (Number(stepKm) || 1) * 1000);
+  const baseZ = Math.floor(Math.log2((156543.03 * Math.cos(latRad) * (size * 0.72)) / spanM));
+  const z = Math.max(3, Math.min(17, baseZ + zoomDelta));
+  const world = 256 * Math.pow(2, z);
+  const proj = (la, lo) => ({
+    x: ((lo + 180) / 360) * world,
+    y: ((1 - Math.log(Math.tan((la * Math.PI) / 180) + 1 / Math.cos((la * Math.PI) / 180)) / Math.PI) / 2) * world,
+  });
+  const c = proj(lat, lng);
+  const minX = c.x - size / 2, minY = c.y - size / 2;
+  const maxT = Math.pow(2, z);
+  const tiles = [];
+  for (let tx = Math.floor(minX / 256); tx <= Math.floor((minX + size) / 256); tx++)
+    for (let ty = Math.floor(minY / 256); ty <= Math.floor((minY + size) / 256); ty++) {
+      if (ty < 0 || ty >= maxT) continue;
+      const wx = ((tx % maxT) + maxT) % maxT;
+      tiles.push({ key: `${z}/${tx}/${ty}`, url: `https://tile.openstreetmap.org/${z}/${wx}/${ty}.png`, left: tx * 256 - minX, top: ty * 256 - minY });
+    }
+  const half = Math.floor(n / 2);
+  const dLat = (Number(stepKm) || 1) / 110.574;
+  const dLng = (Number(stepKm) || 1) / (111.32 * Math.cos(latRad));
+  const markers = matrix.flatMap((row, r) =>
+    (row || []).map((rank, col) => {
+      const p = proj(lat + (r - half) * dLat, lng + (col - half) * dLng);
+      return { key: `${r}-${col}`, x: p.x - minX, y: p.y - minY, rank, isCenter: r === half && col === half };
+    }),
+  );
+  return (
+    <div style={{ position: "relative", width: "100%", maxWidth: size, margin: "0 auto" }}>
+      <div style={{ position: "relative", width: "100%", aspectRatio: "1", overflow: "hidden", borderRadius: 10, background: "#e9e5e0", border: `1px solid ${C.border}` }}>
+        {/* Innerer Fixrahmen: px-Mathematik braucht feste Groesse; auf schmalen
+            Screens wird mittig gecroppt (Zentrum bleibt Zentrum). */}
+        <div style={{ position: "absolute", left: "50%", top: "50%", width: size, height: size, transform: "translate(-50%, -50%)" }}>
+          {tiles.map((t) => (
+            <img key={t.key} src={t.url} alt="" width={256} height={256} loading="lazy"
+              style={{ position: "absolute", left: t.left, top: t.top, userSelect: "none", pointerEvents: "none" }} />
+          ))}
+          {markers.map((m) => {
+            const col = rankColor(m.rank);
+            return (
+              <div
+                key={m.key}
+                title={m.rank > 0 ? `Rang ${m.rank}` : "nicht in den Top 20"}
+                style={{
+                  position: "absolute", left: m.x, top: m.y, transform: "translate(-50%, -50%)",
+                  width: 26, height: 26, borderRadius: "50%",
+                  background: m.rank > 0 ? col.bg : "#8b8494", color: "#fff",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 11.5, fontWeight: 700,
+                  border: m.isCenter ? `2.5px solid ${C.accent}` : "2px solid rgba(255,255,255,.9)",
+                  boxShadow: "0 1px 4px rgba(0,0,0,.35)",
+                }}
+              >
+                {m.rank > 0 ? m.rank : "–"}
+              </div>
+            );
+          })}
+        </div>
+        {/* Zoom + Pflicht-Attribution */}
+        <div style={{ position: "absolute", top: 8, right: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+          {[["+", 1], ["−", -1]].map(([lbl, d]) => (
+            <button key={lbl} onClick={() => setZoomDelta((v) => Math.max(-3, Math.min(3, v + d)))}
+              style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${C.border}`, background: "#fff", color: C.text, fontSize: 15, fontWeight: 700, cursor: "pointer", lineHeight: 1 }}>
+              {lbl}
+            </button>
+          ))}
+        </div>
+        <div style={{ position: "absolute", bottom: 0, right: 0, background: "rgba(255,255,255,.75)", fontSize: 9.5, color: C.textMuted, padding: "1px 5px", borderTopLeftRadius: 6 }}>
+          © OpenStreetMap
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // SoLV-Verlauf als schlichte Sparkline (kein Chart-Import noetig fuer v1).
 function Sparkline({ points, width = 220, height = 48 }) {
   if (!points || points.length < 2) return null;
@@ -137,7 +223,6 @@ export default function LocalGridDashboard({ selectedClient }) {
 
   const n = Number(latest?.grid || 0);
   const matrix = Array.isArray(kw?.matrix) ? kw.matrix : [];
-  const centerIdx = Math.floor(n / 2);
 
   if (runs === null)
     return <div style={{ color: C.textMuted, fontSize: 13, padding: 24 }}>Lade Local Grid…</div>;
@@ -227,31 +312,9 @@ export default function LocalGridDashboard({ selectedClient }) {
           <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 12 }}>
             Maps-Heatmap — „{kw?.keyword}"
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: `repeat(${n || 1}, 1fr)`, gap: 5, maxWidth: 400 }}>
-            {matrix.flatMap((row, r) =>
-              row.map((rank, c) => {
-                const col = rankColor(rank);
-                const isCenter = r === centerIdx && c === centerIdx;
-                return (
-                  <div
-                    key={`${r}-${c}`}
-                    title={rank > 0 ? `Rang ${rank}` : "nicht in den Top 20"}
-                    style={{
-                      aspectRatio: "1", borderRadius: 8, background: col.bg, color: col.fg,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 13, fontWeight: 700,
-                      outline: isCenter ? `2.5px solid ${C.accent}` : "none",
-                      outlineOffset: isCenter ? 1 : 0,
-                    }}
-                  >
-                    {rank > 0 ? rank : "–"}
-                  </div>
-                );
-              }),
-            )}
-          </div>
+          <MapHeatmap center={latest.center} n={n} stepKm={latest.stepKm} matrix={matrix} />
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12, fontSize: 11, color: C.textMuted }}>
-            {[["1–3", "#0f9d6c"], ["4–7", "#7cb342"], ["8–10", "#eab308"], ["11–15", "#f97316"], ["16–20", "#dc2626"], ["nicht gefunden", "#efeaf2"]].map(([l, col]) => (
+            {[["1–3", "#0f9d6c"], ["4–7", "#7cb342"], ["8–10", "#eab308"], ["11–15", "#f97316"], ["16–20", "#dc2626"], ["nicht gefunden", "#8b8494"]].map(([l, col]) => (
               <span key={l} style={{ display: "flex", alignItems: "center", gap: 5 }}>
                 <span style={{ width: 11, height: 11, borderRadius: 3, background: col, border: `1px solid ${C.border}`, display: "inline-block" }} />
                 {l}
