@@ -3506,21 +3506,29 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             if (!rep) { pending.push({ id: c.id, name: c.name, domain: c.domain, missing: ["all"] }); continue; }
             const parts: any = rep.parts || {};
             const missing: string[] = [];
-            // SERP-Drosselung (2026-07-21): sa ist nur FÄLLIG, wenn die letzte
-            // ECHTE Messung (gemessenAm; übernommene Stände zählen nicht)
-            // älter als serp.intervalDays ist — grösster DFS-Dauerposten.
+            // Globaler Messtakt (2026-08-17, Volkan: "alle Kunden immer auf
+            // dem gleichen Stand"): Zyklustage liegen ab cycleAnchor in einem
+            // festen Kalender-Raster — fällig ist, wessen letzte Messung VOR
+            // dem jüngsten Zyklustag liegt. Vorher lief das Intervall relativ
+            // zum EIGENEN letzten Report, wodurch neu angelegte Kunden (z. B.
+            // Bofrost, 16.08.) aus dem gemeinsamen Takt drifteten. Nachzügler
+            // (Lauf am Zyklustag fehlgeschlagen) bleiben fällig, bis sie
+            // nachgeholt haben — dann sind sie wieder im Raster.
+            const anchor = Date.parse(String((SCORE_CFG as any).cycleAnchor || "2026-08-17"));
+            const dayN = (iso: string) => Math.floor((Date.parse(iso) - anchor) / 86400_000);
+            const lastCycleDay = (interval: number) => { const t = dayN(today()); return t - (((t % interval) + interval) % interval); };
+            // SERP-Drosselung (2026-07-21): sa nur im serp.intervalDays-Takt
+            // (gemessenAm zählt; übernommene Stände nicht) — grösster DFS-Posten.
             const saMeasured = parts.sa?.uebernommen ? String(parts.sa?.gemessenAm || "") : (parts.sa ? String(parts.sa.gemessenAm || rep.snapshot_date) : "");
-            const saAgeDays = saMeasured ? Math.floor((Date.parse(today()) - Date.parse(saMeasured)) / 86400_000) : 999;
-            const saDue = saAgeDays >= Math.max(1, Number((SCORE_CFG as any).serp?.intervalDays ?? 2));
+            const saInterval = Math.max(1, Number((SCORE_CFG as any).serp?.intervalDays ?? 2));
+            const saDue = !saMeasured || dayN(saMeasured) < lastCycleDay(saInterval);
             if (!parts.pr) missing.push("pr");
             if (!parts.sa && saDue) missing.push("sa");
-            // Tages-Frische (2026-07-19) -> Kosten-Drosselung (2026-07-31):
-            // voller Lauf nicht mehr täglich, sondern erst wenn der neueste
-            // Report AIVIS_FRESHNESS_DAYS alt ist (default 3 ≈ 2–3 Läufe/Woche).
+            // Kosten-Drosselung (2026-07-31): voller Lauf alle
+            // AIVIS_FRESHNESS_DAYS (default 3) — seit 17.08. am globalen Takt.
             // Größter LLM-Dauerposten: alle aktiven Prompts × 6 Engines je Lauf.
             const freshDays = Math.max(1, Number(process.env.AIVIS_FRESHNESS_DAYS ?? 3) || 3);
-            const repAgeDays = Math.floor((Date.parse(today()) - Date.parse(String(rep.snapshot_date))) / 86400_000);
-            if (!missing.length && repAgeDays >= freshDays) {
+            if (!missing.length && dayN(String(rep.snapshot_date)) < lastCycleDay(freshDays)) {
               missing.push("daily");
               if (saDue) missing.push("sa"); // SERP nur im fälligen Rhythmus mitfahren
             }
