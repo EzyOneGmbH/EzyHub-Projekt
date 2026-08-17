@@ -233,18 +233,49 @@ async function buildPrompts(input: { firmenname: string; branche?: string; ort?:
   return uniq.slice(0, PROMPT_TARGET_N);
 }
 
-// ── Anbindungs-Check aus Tech-Detect-Ergebnis ───────────────────────────────
-function deriveAnbindung(techs: Array<{ group: string; category: string; name: string }>) {
+// ── Anbindungs-Check: HTML der Startseite ist PRIMAER, DFS nur Ergaenzung ───
+// Befund ezyone.ch (Volkan 17.08.): der DFS-Technologie-Index kennt kleine/
+// junge Domains nicht (leere Antwort) — GTM/GA4 standen aber klar im Quelltext.
+// Live-HTML luegt nicht; nur was weder dort noch bei DFS auftaucht, gilt als
+// "nicht erkannt". Ads via GTM-Container ist aus HTML prinzipiell unsichtbar
+// -> eigener Hinweis statt hartem "fehlt".
+function deriveAnbindung(techs: Array<{ group: string; category: string; name: string }>, html: string) {
   const names = techs.map((t) => t.name.toLowerCase());
   const has = (re: RegExp) => names.some((n) => re.test(n));
-  const cmsName = techs.find((t) => /cms|ecommerce/i.test(t.category) || /wordpress|typo3|joomla|drupal|webflow|wix|squarespace|shopify|jimdo|magento|contao/i.test(t.name))?.name || null;
-  const builder = techs.find((t) => /elementor|divi|wpbakery|beaver|oxygen/i.test(t.name))?.name || null;
+  const H = String(html || "");
+  const Hl = H.toLowerCase();
+
+  const gtmId = H.match(/GTM-[A-Z0-9]{4,10}/)?.[0] || null;
+  const gaId = H.match(/G-[A-Z0-9]{6,14}(?=["'&/\\])/)?.[0] || null;
+  const awId = H.match(/AW-\d{8,11}/)?.[0] || null;
+  const gtm = !!gtmId || Hl.includes("googletagmanager.com/gtm.js") || has(/tag manager/);
+  const ga4 = !!gaId || Hl.includes("googletagmanager.com/gtag/js") || has(/google analytics/);
+
+  const generator = H.match(/<meta[^>]+name=["']generator["'][^>]+content=["']([^"']+)/i)?.[1] || null;
+  const wordpress = Hl.includes("wp-content") || Hl.includes("wp-includes") || has(/wordpress/);
+  const cms = generator
+    || (wordpress ? "WordPress" : null)
+    || (Hl.includes("cdn.shopify") ? "Shopify" : null)
+    || (Hl.includes("typo3") ? "TYPO3" : null)
+    || (Hl.includes("wix.com") ? "Wix" : null)
+    || (Hl.includes("webflow") ? "Webflow" : null)
+    || techs.find((t) => /cms|ecommerce/i.test(t.category) || /wordpress|typo3|joomla|drupal|webflow|wix|squarespace|shopify|jimdo|magento|contao/i.test(t.name))?.name
+    || null;
+  const builder = (Hl.includes("elementor") ? "Elementor" : null)
+    || techs.find((t) => /elementor|divi|wpbakery|beaver|oxygen/i.test(t.name))?.name || null;
+
+  const CONSENT = ["Cookiebot", "Usercentrics", "Borlabs", "Complianz", "OneTrust", "CookieYes", "iubenda"];
+  const consent = CONSENT.find((c) => Hl.includes(c.toLowerCase()) || (c === "Complianz" && Hl.includes("cmplz")))
+    || techs.find((t) => /cookiebot|usercentrics|onetrust|borlabs|complianz|cookieyes|iubenda/i.test(t.name))?.name || null;
+
+  const adsTag = !!awId || /googleads\.g\.doubleclick|google_conversion/i.test(H) || has(/google ads|adwords|floodlight/);
   return {
-    cms: cmsName, builder,
-    wordpress: has(/wordpress/), elementor: has(/elementor/),
-    ga4: has(/google analytics/), gtm: has(/tag manager/),
-    consent: techs.find((t) => /cookiebot|usercentrics|onetrust|borlabs|complianz|cookieyes|iubenda/i.test(t.name))?.name || null,
-    adsTag: has(/google ads|adwords|doubleclick|floodlight/),
+    cms, builder,
+    wordpress, elementor: builder === "Elementor" || has(/elementor/),
+    ga4, gaId, gtm, gtmId, consent,
+    adsTag, adsId: awId,
+    // Ads laeuft oft NUR im GTM-Container — aus HTML nicht nachweisbar.
+    adsViaGtmMoeglich: !adsTag && gtm,
     techCount: techs.length,
   };
 }
@@ -306,7 +337,7 @@ export async function tickAudit(id: string) {
             for (const name of (Array.isArray(names) ? names : [])) flat.push({ group, category, name: String(name) });
           }
         }
-        data.anbindung = deriveAnbindung(flat);
+        data.anbindung = deriveAnbindung(flat, sh.homeHtml || "");
         return await saveRow(id, { data, stage: "seo", progress: 25 });
       }
       case "seo": {

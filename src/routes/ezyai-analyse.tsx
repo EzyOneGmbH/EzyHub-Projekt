@@ -807,10 +807,14 @@ function ResultView({ audit, onBack, onRerun }: { audit: AuditRow; onBack: () =>
           <h3 style={{ margin: "20px 0 8px", fontSize: 15.5 }}>Anbindungs-Check</h3>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             <Chip ok={!!anb.cms} label={anb.cms ? `CMS: ${anb.cms}${anb.builder ? ` + ${anb.builder}` : ""}` : "CMS nicht erkannt"} warnIfMissing />
-            <Chip ok={!!anb.ga4} label={anb.ga4 ? "GA4/Analytics erkannt" : "kein Analytics-Tag"} />
-            <Chip ok={!!anb.gtm} label={anb.gtm ? "Tag Manager erkannt" : "kein Tag Manager"} warnIfMissing />
+            <Chip ok={!!anb.ga4} label={anb.ga4 ? `GA4${anb.gaId ? ` (${anb.gaId})` : ""} erkannt` : "kein Analytics-Tag"} />
+            <Chip ok={!!anb.gtm} label={anb.gtm ? `Tag Manager${anb.gtmId ? ` (${anb.gtmId})` : ""} erkannt` : "kein Tag Manager"} warnIfMissing />
             <Chip ok={!!anb.consent} label={anb.consent ? `Consent-Tool: ${anb.consent}` : "kein Consent-Tool erkannt"} warnIfMissing />
-            <Chip ok={!!anb.adsTag} label={anb.adsTag ? "Ads-Tag vorhanden" : "kein Ads-Tag"} warnIfMissing />
+            {anb.adsTag
+              ? <Chip ok label={`Ads-Tag${anb.adsId ? ` (${anb.adsId})` : ""} vorhanden`} />
+              : anb.adsViaGtmMoeglich
+                ? <Chip ok={false} label="Ads-Tag nicht im HTML sichtbar (evtl. im GTM-Container)" warnIfMissing />
+                : <Chip ok={false} label="kein Ads-Tag" warnIfMissing />}
           </div>
           {ent.wikidata && (
             <>
