@@ -201,7 +201,7 @@ function fallbackPrompts(firmenname: string, branche: string, ort: string): stri
   ].map((s) => s.replace(/\s+/g, " ").trim()).slice(0, PROMPT_TARGET_N);
 }
 
-async function buildPrompts(input: { firmenname: string; branche?: string; ort?: string; domain: string }): Promise<string[]> {
+async function buildPrompts(input: { firmenname: string; branche?: string; ort?: string; domain: string }): Promise<Array<{ q: string; brand: boolean }>> {
   const j = await llmJson("Prompt-Set", [
     `Firma: ${input.firmenname} (${input.domain}), Branche: ${input.branche || "unbekannt"}, Ort/Markt: ${input.ort || "Schweiz"}.`,
     `Erzeuge ${PROMPT_TARGET_N} realistische Suchanfragen, die potenzielle Kunden einer KI (ChatGPT, Gemini, Perplexity) oder Google stellen wuerden, um einen solchen Anbieter zu finden oder zu vergleichen. Deutsch (Schweiz).`,
@@ -230,7 +230,9 @@ async function buildPrompts(input: { firmenname: string; branche?: string; ort?:
       uniq.push(p);
     }
   }
-  return uniq.slice(0, PROMPT_TARGET_N);
+  // Brand-Kennzeichnung mitgeben — der Report markiert Brand-Prompts sichtbar
+  // (Volkan 17.08.: erklaert den Unterschied zur aivis-Korpus-Messung).
+  return uniq.slice(0, PROMPT_TARGET_N).map((q) => ({ q, brand: isBrand(q) }));
 }
 
 // ── Anbindungs-Check: HTML der Startseite ist PRIMAER, DFS nur Ergaenzung ───
@@ -308,7 +310,7 @@ export async function startAudit(opts: {
     organization_id: opts.organizationId, created_by: opts.userId,
     domain, firmenname: opts.firmenname.trim(), branche: (opts.branche || "").trim(), ort: (opts.ort || "").trim(),
     wettbewerber, status: "laufend", stage: "technik", progress: 5,
-    data: { prompts: prompts.map((q) => ({ q })), kostenUsd: 0 },
+    data: { prompts, kostenUsd: 0 },
   }).select("*").single();
   if (error) throw new Error(error.message);
   return data;
@@ -458,6 +460,13 @@ export async function tickAudit(id: string) {
         return await saveRow(id, { data, stage: "score", progress: 94 });
       }
       case "score": {
+        // Domain bereits EzyAI-Kunde? Dann zeigt der Report einen Einordnungs-
+        // Hinweis (aivis misst den kuratierten Korpus INKL. Brand-Prompts und
+        // liefert deshalb hoehere Werte als die neutralen Analyse-Prompts).
+        try {
+          const { data: kunde } = await SB.from("clients").select("name").ilike("domain", `%${domain}%`).limit(1).maybeSingle();
+          if (kunde?.name) data.aivisKunde = { name: kunde.name };
+        } catch { /* rein informativ */ }
         const prompts = (data.prompts || []) as any[];
         const engOf = (p: any) => Object.values(p.engines || {}) as any[];
         const answered = prompts.filter((p) => engOf(p).some((e) => e?.ok));

@@ -648,6 +648,20 @@ function ResultView({ audit, onBack, onRerun }: { audit: AuditRow; onBack: () =>
         </div>
       </div>
 
+      {/* Einordnung fuer bestehende EzyAI-Kunden: warum aivis hoehere Werte zeigt */}
+      {d.aivisKunde?.name && (
+        <div style={{ ...card, marginTop: 16, display: "flex", gap: 12, alignItems: "flex-start", borderColor: "rgba(119,0,140,.25)" }}>
+          <span style={{ width: 30, height: 30, borderRadius: 10, background: S.tint, color: S.app, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>🤖</span>
+          <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+            <b>{d.aivisKunde.name} ist bereits EzyAI-Kunde.</b> Das dortige Monitoring misst den kuratierten
+            Prompt-Korpus <em>inklusive Brand-Prompts</em> über 30 Tage und alle Modelle — dadurch fallen Score,
+            Erwähnungen und Citations höher aus. Diese Analyse misst bewusst {`${(d.prompts || []).filter((p: any) => !p.brand).length}`} neutrale
+            Alternativen-Suchen: Sie zeigt, wie oft die Marke empfohlen wird, wenn <em>niemand nach ihr fragt</em>.
+            Beide Werte sind korrekt — sie beantworten unterschiedliche Fragen.
+          </div>
+        </div>
+      )}
+
       {/* Prompts × Engines */}
       <div style={{ ...card, marginTop: 16 }}>
         <h3 style={{ margin: "0 0 4px", fontSize: 15.5 }}>Prompts × Engines</h3>
@@ -667,7 +681,10 @@ function ResultView({ audit, onBack, onRerun }: { audit: AuditRow; onBack: () =>
                   .filter((c: any) => !String(c).includes(audit.domain)).slice(0, 3);
                 return (
                   <tr key={p.q}>
-                    <td style={td}>{p.q}</td>
+                    <td style={td}>
+                      {p.q}
+                      {(p as any).brand && <span style={{ ...pillStyle(S.tint, S.app), marginLeft: 8, fontSize: 10.5 }}>Brand</span>}
+                    </td>
                     <td style={{ ...td, textAlign: "right" }}>{p.vol === null || p.vol === undefined ? "—" : Math.round(p.vol).toLocaleString("de-CH")}</td>
                     {ENGINE_COLS.map((e) => {
                       const r = p.engines?.[e];
