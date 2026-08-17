@@ -1859,6 +1859,27 @@ async function jobPromptRunner(
     return { mentioned, cited, position: mentioned ? "list" : "none", sentiment: null as string | null, competitors: [] as string[], compPositions: [] as any[], sources: urlListIn(r.text) };
   });
 
+  // Antwort-Speicherung (17.08., Volkan-Befund): Der Status wird auf dem
+  // VOLLEN Text bewertet — der gespeicherte Auszug MUSS die Belegstelle
+  // enthalten, sonst zeigt das Dashboard "Referenziert" ohne sichtbare
+  // Nennung. Cap 12000 deckt praktisch alle Antworten ab (Direkt-Engines
+  // ~4000 Zeichen; nur DFS-Antworten ohne Token-Deckel werden länger);
+  // liegt die ERSTE Marken-/Domain-Fundstelle dennoch im abgeschnittenen
+  // Teil, wird ein Fenster um die Fundstelle angehängt statt sie zu verlieren.
+  const storeAnswer = (text: string) => {
+    const CAP = 12000;
+    if (text.length <= CAP) return text;
+    let out = text.slice(0, CAP);
+    for (const needle of [domain, null] as const) {
+      const idx = needle
+        ? text.toLowerCase().indexOf(needle.toLowerCase())
+        : (text.match(nameRe)?.index ?? -1);
+      const inHead = needle ? out.toLowerCase().includes(needle.toLowerCase()) : nameRe.test(out);
+      if (idx >= 0 && !inHead) out += "\n\n[…]\n\n" + text.slice(Math.max(0, idx - 400), idx + 800);
+    }
+    return out;
+  };
+
   // Prompt-Ergebnisse für die DB (mit Sentiment/Position).
   const marktPromptRows = rows.map((r, k) => {
     const e = evals[k];
@@ -1873,9 +1894,9 @@ async function jobPromptRunner(
       position: e.position,
       brands_count: e.competitors.length + (e.mentioned ? 1 : 0),
       sources_count: e.sources.length,
-      // 6000 statt 1500 Zeichen (04.08.): der Judge bewertet den VOLLEN Text —
-      // bei 1500 lag die Markennennung oft im nicht gespeicherten Teil (User-Befund).
-      response: r.text.slice(0, 6000),
+      // storeAnswer statt hartem Schnitt (17.08.): Belegstelle bleibt IMMER
+      // im gespeicherten Text (Historie: 1500→6000 am 04.08., gleicher Befund).
+      response: storeAnswer(r.text),
       competitors: e.competitors,
       prompt_type: "markt",
       // Phase-2-Ausbau (03.08.): Thema/URLs/Zeitstempel/Rival-Positionen je Antwort.
@@ -1927,9 +1948,9 @@ async function jobPromptRunner(
       position: null,
       brands_count: (e.konkurrenz || []).length,
       sources_count: (e.quellen || []).length,
-      // 6000 statt 1500 Zeichen (04.08.): der Judge bewertet den VOLLEN Text —
-      // bei 1500 lag die Markennennung oft im nicht gespeicherten Teil (User-Befund).
-      response: r.text.slice(0, 6000),
+      // storeAnswer statt hartem Schnitt (17.08.): Belegstelle bleibt IMMER
+      // im gespeicherten Text (Historie: 1500→6000 am 04.08., gleicher Befund).
+      response: storeAnswer(r.text),
       competitors: e.konkurrenz || [],
       prompt_type: "brand",
       brand_eval: { ...e, judge: { models: brandJudgeModels, temperature: SCORE_CFG.judge.temperature } },
