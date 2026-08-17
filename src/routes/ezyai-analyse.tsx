@@ -449,7 +449,7 @@ function Wizard({ onClose, onDone, resumeId, prefill }: {
               <p style={{ fontSize: 13, color: S.mut, margin: "0 0 18px" }}>Jede Analyse läuft im vollen Umfang — Dauer ~15 Minuten.</p>
               <div style={{ border: `1px solid ${S.line}`, borderRadius: 12, overflow: "hidden" }}>
                 {[
-                  ["✦", "AI-Sichtbarkeit", "15 Prompts (1–3 Brand, Rest neutrale Alternativen-Suchen) über ChatGPT, Perplexity, Gemini, Claude + Makro-Mentions + AI-Suchvolumen je Prompt"],
+                  ["✦", "AI-Sichtbarkeit", "15 Prompts (max. 2 Brand + Kategorie- und Themen-Nischen-Suchen aus der Website) über ChatGPT, Perplexity, Gemini, Claude + Makro-Mentions + AI-Suchvolumen je Prompt"],
                   ["⚙", "Technik & SiteHealth", "robots.txt-AI-Bots, OnPage-Audit (bis 50 Seiten), Tech-Stack-Erkennung"],
                   ["◈", "Entität & Vertrauen", "Wikidata, Organization-Schema, Brand-SERP"],
                   ["▤", "SEO-Fundament", "Sichtbarkeit, Traffic, Backlinks"],

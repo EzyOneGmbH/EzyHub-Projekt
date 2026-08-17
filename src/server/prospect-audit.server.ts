@@ -201,13 +201,35 @@ function fallbackPrompts(firmenname: string, branche: string, ort: string): stri
   ].map((s) => s.replace(/\s+/g, " ").trim()).slice(0, PROMPT_TARGET_N);
 }
 
+// Themen-Extrakt der Startseite fuers Prompt-Seeding (Befund FiH 17.08.:
+// reine Kategorie-Prompts uebersehen Nischen-Staerken — FiH wird bei
+// "Trinkwasser Afrika"-Themen erwaehnt, nie bei "hilfswerk vergleich").
+function siteThemen(html: string): string {
+  const strip = (s: string) => s.replace(/<[^>]+>/g, " ").replace(/&[a-z#0-9]+;/gi, " ").replace(/\s+/g, " ").trim();
+  const title = strip((html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || "");
+  const md = (html.match(/<meta[^>]+name=["']description["'][^>]*content=["']([^"']*)["']/i) || [])[1] || "";
+  const hs = [...html.matchAll(/<h[123][^>]*>([\s\S]*?)<\/h[123]>/gi)]
+    .map((m) => strip(m[1])).filter((t) => t && t.length >= 4).slice(0, 22);
+  return [title, strip(md), ...hs].filter(Boolean).join(" | ").slice(0, 1300);
+}
+
 async function buildPrompts(input: { firmenname: string; branche?: string; ort?: string; domain: string }): Promise<Array<{ q: string; brand: boolean }>> {
+  // Website-Themen live holen — macht aus generischen Kategorie-Suchen einen
+  // Mix mit themenspezifischen Nischen-Prompts (dort entscheidet sich die
+  // echte Zitierbarkeit kleiner Anbieter).
+  let themen = "";
+  try {
+    const home = await fetchText(`https://${normDomain(input.domain)}`, 12_000);
+    if (home.ok) themen = siteThemen(home.text);
+  } catch { /* ohne Themen weiter */ }
   const j = await llmJson("Prompt-Set", [
     `Firma: ${input.firmenname} (${input.domain}), Branche: ${input.branche || "unbekannt"}, Ort/Markt: ${input.ort || "Schweiz"}.`,
-    `Erzeuge ${PROMPT_TARGET_N} realistische Suchanfragen, die potenzielle Kunden einer KI (ChatGPT, Gemini, Perplexity) oder Google stellen wuerden, um einen solchen Anbieter zu finden oder zu vergleichen. Deutsch (Schweiz).`,
-    `Regeln: je 3–8 Woerter, Kleinschreibung, KEINE Satzzeichen/Fragezeichen. WICHTIG: hoechstens 2 Prompts duerfen "${input.firmenname}" enthalten (Brand-Check) — alle anderen sind NEUTRALE Suchen ohne Firmennamen (Anbieter-Suche, Vergleich, Alternativen, Kosten, Ort, Problem/Beratung).`,
+    themen ? `Themen/Leistungen laut Website: ${themen}` : "",
+    `Erzeuge ${PROMPT_TARGET_N} realistische Suchanfragen, die potenzielle Kunden einer KI (ChatGPT, Gemini, Perplexity) oder Google stellen wuerden. Deutsch (Schweiz).`,
+    `Mischung: ca. 5 BREITE Kategorie-Suchen (Anbieter finden/vergleichen, Kosten, Ort) + ca. 8 THEMENSPEZIFISCHE Nischen-Suchen zu den konkreten Leistungen/Themen der Website (z. B. konkretes Projektfeld, Spezialgebiet, Anlass — dort werden auch kleinere Anbieter von KIs genannt) + hoechstens 2 Brand-Prompts mit "${input.firmenname}".`,
+    `Regeln: je 3–9 Woerter, Kleinschreibung, KEINE Satzzeichen/Fragezeichen; neutrale Prompts OHNE Firmennamen.`,
     `JSON: ["prompt1", ...] (genau ${PROMPT_TARGET_N} Strings)`,
-  ].join("\n"), 900);
+  ].filter(Boolean).join("\n"), 1000);
   const list = (asArray(j) || []).map((p: any) => String(p || "").toLowerCase().replace(/[?!.,:;"“”]/g, "").replace(/\s+/g, " ").trim()).filter((p: string) => p && p.split(" ").length <= 10);
   // Brand-Kappung hart durchsetzen: max. MAX_BRAND_PROMPTS mit Namens-/Domain-Bezug.
   const toks = nameTokens(input.firmenname);
