@@ -129,10 +129,20 @@ function analyzeHtml(html: string, domain: string) {
   const metaDesc = html.match(/<meta[^>]+name=["']description["'][^>]*content=["']([^"']*)["']/i)?.[1]
     ?? html.match(/<meta[^>]+content=["']([^"']*)["'][^>]*name=["']description["']/i)?.[1] ?? "";
   const imgs = html.match(/<img[^>]*>/gi) || [];
-  const imgsNoAlt = imgs.filter((t) => !/\balt=["'][^"']+["']/i.test(t)).length;
+  // Fix 14.08.: alt="" (leer) ist bei dekorativen Bildern KORREKT (a11y-Praxis,
+  // wie Lighthouse) — bemaengelt wird nur ein komplett FEHLENDES alt-Attribut.
+  const imgsNoAlt = imgs.filter((t) => !/\balt\s*=/i.test(t)).length;
   const jsonLdBlocks = html.match(/<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi) || [];
   const ldTypes = new Set<string>();
-  for (const b of jsonLdBlocks) for (const m of b.matchAll(/"@type"\s*:\s*"([^"]+)"/g)) ldTypes.add(m[1]);
+  for (const b of jsonLdBlocks) {
+    for (const m of b.matchAll(/"@type"\s*:\s*"([^"]+)"/g)) ldTypes.add(m[1]);
+    // Fix 14.08. (Befund ezyone.ch): Yoast/RankMath schreiben "@type" auch als
+    // ARRAY ("@type":["Organization","Person"]) — die wurden bisher uebersehen
+    // und Organization-Schema faelschlich als "fehlt" gemeldet.
+    for (const m of b.matchAll(/"@type"\s*:\s*\[([^\]]*)\]/g)) {
+      for (const t of m[1].matchAll(/"([^"]+)"/g)) ldTypes.add(t[1]);
+    }
+  }
   return {
     title, metaDesc, words,
     h1Count: (html.match(/<h1[\s>]/gi) || []).length,
