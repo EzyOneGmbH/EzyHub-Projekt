@@ -6,7 +6,7 @@
 // Metriken: SoLV = Top-3-Anteil der Rasterpunkte, ARP = Ø-Rang (nur gefunden),
 // ATRP = "ehrlicher" Ø ueber ALLE Punkte (nicht gefunden = 21), Abdeckung =
 // Anteil Punkte mit Ranking.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MapPin, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -70,10 +70,15 @@ function Tile({ label, value, sub, delta }) {
 // die Ausrichtung geografisch korrekt (Norden oben), egal wie die Matrix liegt.
 function MapHeatmap({ center, n, stepKm, matrix, size = 440 }) {
   const [zoomDelta, setZoomDelta] = useState(0);
+  // Interaktiv (User-Wunsch 17.08.): Ziehen = Verschieben (Pan in px der
+  // aktuellen Zoomstufe; bei Zoomwechsel mitskaliert, damit das Bild "steht").
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const drag = useRef(null);
   const lat = Number(center?.lat), lng = Number(center?.lng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || !n || !matrix?.length) return null;
   const latRad = (lat * Math.PI) / 180;
-  // Zoom so, dass das Raster ~72% der Kartenbreite fuellt; +/- verschiebt.
+  // Basis-Zoom so, dass das Raster ~72% der Kartenbreite fuellt; +/- zoomt
+  // um das Standort-Zentrum, die Punkte spreizen sich dabei korrekt.
   const spanM = Math.max(500, (n - 1) * (Number(stepKm) || 1) * 1000);
   const baseZ = Math.floor(Math.log2((156543.03 * Math.cos(latRad) * (size * 0.72)) / spanM));
   const z = Math.max(3, Math.min(17, baseZ + zoomDelta));
@@ -83,7 +88,7 @@ function MapHeatmap({ center, n, stepKm, matrix, size = 440 }) {
     y: ((1 - Math.log(Math.tan((la * Math.PI) / 180) + 1 / Math.cos((la * Math.PI) / 180)) / Math.PI) / 2) * world,
   });
   const c = proj(lat, lng);
-  const minX = c.x - size / 2, minY = c.y - size / 2;
+  const minX = c.x - size / 2 - pan.x, minY = c.y - size / 2 - pan.y;
   const maxT = Math.pow(2, z);
   const tiles = [];
   for (let tx = Math.floor(minX / 256); tx <= Math.floor((minX + size) / 256); tx++)
@@ -95,20 +100,45 @@ function MapHeatmap({ center, n, stepKm, matrix, size = 440 }) {
   const half = Math.floor(n / 2);
   const dLat = (Number(stepKm) || 1) / 110.574;
   const dLng = (Number(stepKm) || 1) / (111.32 * Math.cos(latRad));
+  // Marker-Groesse an den Punktabstand koppeln: bei dichtem Raster (Start-
+  // Ansicht grosser Grids) kleinere Punkte -> deutlicher unterscheidbar.
+  const spacingPx = (dLng / 360) * world;
+  const mSize = spacingPx < 26 ? 14 : spacingPx < 36 ? 20 : 26;
+  const mFont = mSize <= 14 ? 8.5 : mSize <= 20 ? 10 : 11.5;
   const markers = matrix.flatMap((row, r) =>
     (row || []).map((rank, col) => {
       const p = proj(lat + (r - half) * dLat, lng + (col - half) * dLng);
       return { key: `${r}-${col}`, x: p.x - minX, y: p.y - minY, rank, isCenter: r === half && col === half };
     }),
   );
+  const changeZoom = (d) => {
+    const nv = Math.max(-3, Math.min(5, zoomDelta + d));
+    const f = Math.pow(2, (Math.max(3, Math.min(17, baseZ + nv)) - z));
+    setZoomDelta(nv);
+    setPan((p) => ({ x: p.x * f, y: p.y * f }));
+  };
   return (
     <div style={{ position: "relative", width: "100%", maxWidth: size, margin: "0 auto" }}>
-      <div style={{ position: "relative", width: "100%", aspectRatio: "1", overflow: "hidden", borderRadius: 10, background: "#e9e5e0", border: `1px solid ${C.border}` }}>
+      <div
+        onPointerDown={(e) => {
+          drag.current = { x: e.clientX, y: e.clientY };
+          try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* still */ }
+        }}
+        onPointerMove={(e) => {
+          if (!drag.current) return;
+          const dx = e.clientX - drag.current.x, dy = e.clientY - drag.current.y;
+          drag.current = { x: e.clientX, y: e.clientY };
+          setPan((p) => ({ x: p.x + dx, y: p.y + dy }));
+        }}
+        onPointerUp={() => { drag.current = null; }}
+        onPointerLeave={() => { drag.current = null; }}
+        style={{ position: "relative", width: "100%", aspectRatio: "1", overflow: "hidden", borderRadius: 10, background: "#e9e5e0", border: `1px solid ${C.border}`, cursor: "grab", touchAction: "none", userSelect: "none" }}
+      >
         {/* Innerer Fixrahmen: px-Mathematik braucht feste Groesse; auf schmalen
             Screens wird mittig gecroppt (Zentrum bleibt Zentrum). */}
         <div style={{ position: "absolute", left: "50%", top: "50%", width: size, height: size, transform: "translate(-50%, -50%)" }}>
           {tiles.map((t) => (
-            <img key={t.key} src={t.url} alt="" width={256} height={256} loading="lazy"
+            <img key={t.key} src={t.url} alt="" width={256} height={256} loading="lazy" draggable={false}
               style={{ position: "absolute", left: t.left, top: t.top, userSelect: "none", pointerEvents: "none" }} />
           ))}
           {markers.map((m) => {
@@ -119,11 +149,11 @@ function MapHeatmap({ center, n, stepKm, matrix, size = 440 }) {
                 title={m.rank > 0 ? `Rang ${m.rank}` : "nicht in den Top 20"}
                 style={{
                   position: "absolute", left: m.x, top: m.y, transform: "translate(-50%, -50%)",
-                  width: 26, height: 26, borderRadius: "50%",
+                  width: mSize, height: mSize, borderRadius: "50%",
                   background: m.rank > 0 ? col.bg : "#8b8494", color: "#fff",
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 11.5, fontWeight: 700,
-                  border: m.isCenter ? `2.5px solid ${C.accent}` : "2px solid rgba(255,255,255,.9)",
+                  fontSize: mFont, fontWeight: 700,
+                  border: m.isCenter ? `2.5px solid ${C.accent}` : "1.5px solid rgba(255,255,255,.9)",
                   boxShadow: "0 1px 4px rgba(0,0,0,.35)",
                 }}
               >
@@ -132,18 +162,25 @@ function MapHeatmap({ center, n, stepKm, matrix, size = 440 }) {
             );
           })}
         </div>
-        {/* Zoom + Pflicht-Attribution */}
+        {/* Zoom/Reset + Pflicht-Attribution */}
         <div style={{ position: "absolute", top: 8, right: 8, display: "flex", flexDirection: "column", gap: 4 }}>
           {[["+", 1], ["−", -1]].map(([lbl, d]) => (
-            <button key={lbl} onClick={() => setZoomDelta((v) => Math.max(-3, Math.min(3, v + d)))}
+            <button key={lbl} onClick={() => changeZoom(d)} onPointerDown={(e) => e.stopPropagation()}
               style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${C.border}`, background: "#fff", color: C.text, fontSize: 15, fontWeight: 700, cursor: "pointer", lineHeight: 1 }}>
               {lbl}
             </button>
           ))}
+          <button title="Ansicht zuruecksetzen" onClick={() => { setZoomDelta(0); setPan({ x: 0, y: 0 }); }} onPointerDown={(e) => e.stopPropagation()}
+            style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${C.border}`, background: "#fff", color: C.textMuted, fontSize: 13, cursor: "pointer", lineHeight: 1 }}>
+            ⌂
+          </button>
         </div>
-        <div style={{ position: "absolute", bottom: 0, right: 0, background: "rgba(255,255,255,.75)", fontSize: 9.5, color: C.textMuted, padding: "1px 5px", borderTopLeftRadius: 6 }}>
+        <div style={{ position: "absolute", bottom: 0, right: 0, background: "rgba(255,255,255,.75)", fontSize: 9.5, color: C.textMuted, padding: "1px 5px", borderTopLeftRadius: 6, pointerEvents: "none" }}>
           © OpenStreetMap
         </div>
+      </div>
+      <div style={{ fontSize: 10.5, color: C.textDim, marginTop: 4, textAlign: "center" }}>
+        Ziehen zum Verschieben · +/− zum Zoomen · ⌂ setzt die Ansicht zurück
       </div>
     </div>
   );
