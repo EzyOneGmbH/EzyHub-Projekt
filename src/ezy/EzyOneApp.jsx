@@ -113,6 +113,9 @@ import { ServicesPicker, ServicesPanel } from "@/ezy/components/ServicesPanel";
 import { DEFAULT_ON_SERVICES } from "@/lib/services";
 import { useEzyDashboardConfig } from "@/ezy/data/useEzyDashboardConfig";
 import { EZY_APPS, APP_START, APP_SCOPES, APP_FEATURES, TAB_APP_FEATURE, currentAppOf } from "@/ezy/data/appRegistry";
+// Local-Grid-Tab (2026-08-17): Maps-Heatmap (Geo-Grid) — eigene Datei, damit
+// der Monolith klein bleibt (parallele Sessions!).
+import LocalGridDashboard from "@/ezy/LocalGridDashboard";
 import { useClientAppAccess, appEnabledFor, featureEnabledFor } from "@/ezy/data/useClientAppAccess";
 import { useAppAccess } from "@/ezy/data/useAppAccess";
 import { useEzyServiceMatrix } from "@/ezy/data/useEzyServiceMatrix";
@@ -9758,6 +9761,7 @@ const ONBOARD_TABS = [
   // "overview" entfernt (Volkan 10.08.): Übersicht-Tab existiert nicht mehr.
   { id: "seo", label: "SEO", hint: "Rankings, GSC, CWV, Backlinks" },
   { id: "blog", label: "Blog", hint: "Blog-Artikel & Refresh-Radar" },
+  { id: "localgrid", label: "Local Grid", hint: "Maps-Heatmap (nur mit Standort/GBP)" },
   { id: "aivis", label: "KI-Sichtbarkeit", hint: "AI-Citations (Canonry)" },
   { id: "conversions", label: "Conversions", hint: "GA4, Kanäle, Umsatz" },
   { id: "ads", label: "Google Ads", hint: "Kampagnen, Autopilot" },
@@ -10573,6 +10577,7 @@ function ClientSettingsPanel({ client, onUpsertClient }) {
               // "overview" entfernt (Volkan 10.08.): Übersicht-Tab existiert nicht mehr.
               { id: "seo", label: "SEO", icon: Globe },
               { id: "blog", label: "Blog", icon: PenTool },
+              { id: "localgrid", label: "Local Grid", icon: MapPin },
               { id: "aivis", label: "KI-Sichtbarkeit", icon: Bot },
               { id: "conversions", label: "Conversions", icon: DollarSign },
               { id: "ads", label: "Ads", icon: Megaphone },
@@ -13775,6 +13780,8 @@ const TABS = [
   // EzyRank (und Portal) starten direkt im SEO-Tab.
   { id: "seo", label: "SEO", icon: Globe },
   { id: "blog", label: "Blog", icon: PenTool },
+  // Local Grid (2026-08-17): Maps-Heatmap aus dem woechentlichen Geo-Grid-Scan.
+  { id: "localgrid", label: "Local Grid", icon: MapPin },
   // aivis: seit Phase 2 eigene EzyAI-App unter /ezyai (Tab entfernt 31.07.)
   { id: "conversions", label: "Conversions", icon: DollarSign },
   { id: "ads", label: "Ads", icon: Megaphone },
@@ -13786,6 +13793,9 @@ const TAB_SERVICE = {
   overview: null,
   seo: null,
   blog: null, // Refresh-Radar: opt-in rein über die Tab-Auswahl je Kunde
+  // Local Grid: opt-in über die Tab-Auswahl — nur Kunden mit physischem
+  // Standort/GBP (z. B. FiH bewusst nicht).
+  localgrid: null,
 
   conversions: ["ga4"],
   ads: ["google-ads"],
@@ -14847,8 +14857,10 @@ function App({ appScope = null }) {
                         ? "Übersicht"
                         : tab === "seo"
                           ? "SEO Dashboard"
-                          : tab === "blog"
-                            ? "Blog"
+                          : tab === "localgrid"
+                            ? "Local Grid"
+                            : tab === "blog"
+                              ? "Blog"
                             : tab === "aivis"
                               ? "KI-Sichtbarkeit"
                               : tab === "ads"
@@ -14883,6 +14895,7 @@ function App({ appScope = null }) {
                 <>
                   {tab === "overview" && <OverviewDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
                   {tab === "seo" && <SeoDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
+                  {tab === "localgrid" && <LocalGridDashboard selectedClient={client} />}
                   {tab === "blog" && <RefreshRadar selectedClient={client} />}
                   {/* aivis: seit Phase 2 in der EzyAI-App (/ezyai) */}
                   {tab === "conversions" && <ConvDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}

@@ -92,6 +92,7 @@ import { Route as ApiAdminSiteHealthRouteImport } from './routes/api/admin.site-
 import { Route as ApiAdminSetCanonryProjectRouteImport } from './routes/api/admin.set-canonry-project'
 import { Route as ApiAdminRankSnapshotRouteImport } from './routes/api/admin.rank-snapshot'
 import { Route as ApiAdminLabsHistoryRouteImport } from './routes/api/admin.labs-history'
+import { Route as ApiAdminGeoGridSnapshotRouteImport } from './routes/api/admin.geo-grid-snapshot'
 import { Route as ApiAdminPopulateRouteImport } from './routes/api/admin.populate'
 import { Route as ApiAdminOnboardingSnapshotRouteImport } from './routes/api/admin.onboarding-snapshot'
 import { Route as ApiAdminOnboardingPendingRouteImport } from './routes/api/admin.onboarding-pending'
@@ -553,6 +554,11 @@ const ApiAdminLabsHistoryRoute = ApiAdminLabsHistoryRouteImport.update({
   path: '/api/admin/labs-history',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminGeoGridSnapshotRoute = ApiAdminGeoGridSnapshotRouteImport.update({
+  id: '/api/admin/geo-grid-snapshot',
+  path: '/api/admin/geo-grid-snapshot',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminPopulateRoute = ApiAdminPopulateRouteImport.update({
   id: '/api/admin/populate',
   path: '/api/admin/populate',
@@ -832,6 +838,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
   '/api/admin/labs-history': typeof ApiAdminLabsHistoryRoute
+  '/api/admin/geo-grid-snapshot': typeof ApiAdminGeoGridSnapshotRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
   '/api/admin/site-health': typeof ApiAdminSiteHealthRoute
   '/api/admin/team': typeof ApiAdminTeamRoute
@@ -956,6 +963,7 @@ export interface FileRoutesByTo {
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
   '/api/admin/labs-history': typeof ApiAdminLabsHistoryRoute
+  '/api/admin/geo-grid-snapshot': typeof ApiAdminGeoGridSnapshotRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
   '/api/admin/site-health': typeof ApiAdminSiteHealthRoute
   '/api/admin/team': typeof ApiAdminTeamRoute
@@ -1081,6 +1089,7 @@ export interface FileRoutesById {
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
   '/api/admin/labs-history': typeof ApiAdminLabsHistoryRoute
+  '/api/admin/geo-grid-snapshot': typeof ApiAdminGeoGridSnapshotRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
   '/api/admin/site-health': typeof ApiAdminSiteHealthRoute
   '/api/admin/team': typeof ApiAdminTeamRoute
@@ -1205,6 +1214,7 @@ export interface FileRouteTypes {
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
     | '/api/admin/labs-history'
+    | '/api/admin/geo-grid-snapshot'
     | '/api/admin/set-canonry-project'
     | '/api/admin/site-health'
     | '/api/admin/team'
@@ -1327,6 +1337,7 @@ export interface FileRouteTypes {
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
     | '/api/admin/labs-history'
+    | '/api/admin/geo-grid-snapshot'
     | '/api/admin/set-canonry-project'
     | '/api/admin/site-health'
     | '/api/admin/team'
@@ -1449,6 +1460,7 @@ export interface FileRouteTypes {
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
     | '/api/admin/labs-history'
+    | '/api/admin/geo-grid-snapshot'
     | '/api/admin/set-canonry-project'
     | '/api/admin/site-health'
     | '/api/admin/team'
@@ -1569,6 +1581,7 @@ export interface RootRouteChildren {
   ApiAdminPopulateRoute: typeof ApiAdminPopulateRoute
   ApiAdminRankSnapshotRoute: typeof ApiAdminRankSnapshotRoute
   ApiAdminLabsHistoryRoute: typeof ApiAdminLabsHistoryRoute
+  ApiAdminGeoGridSnapshotRoute: typeof ApiAdminGeoGridSnapshotRoute
   ApiAdminSetCanonryProjectRoute: typeof ApiAdminSetCanonryProjectRoute
   ApiAdminSiteHealthRoute: typeof ApiAdminSiteHealthRoute
   ApiAdminTeamRoute: typeof ApiAdminTeamRoute
@@ -2206,6 +2219,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminLabsHistoryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/geo-grid-snapshot': {
+      id: '/api/admin/geo-grid-snapshot'
+      path: '/api/admin/geo-grid-snapshot'
+      fullPath: '/api/admin/geo-grid-snapshot'
+      preLoaderRoute: typeof ApiAdminGeoGridSnapshotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/populate': {
       id: '/api/admin/populate'
       path: '/api/admin/populate'
@@ -2604,6 +2624,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminPopulateRoute: ApiAdminPopulateRoute,
   ApiAdminRankSnapshotRoute: ApiAdminRankSnapshotRoute,
   ApiAdminLabsHistoryRoute: ApiAdminLabsHistoryRoute,
+  ApiAdminGeoGridSnapshotRoute: ApiAdminGeoGridSnapshotRoute,
   ApiAdminSetCanonryProjectRoute: ApiAdminSetCanonryProjectRoute,
   ApiAdminSiteHealthRoute: ApiAdminSiteHealthRoute,
   ApiAdminTeamRoute: ApiAdminTeamRoute,

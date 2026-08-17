@@ -89,7 +89,8 @@ export const APP_SCOPES: Record<string, { pages: string[]; tabs: string[]; prima
   seo: {
     pages: ["dashboard", "copilot", "tasks", "tools", "content"],
     // Volkan 10.08.: Übersicht-Tab raus — EzyRank startet direkt im SEO-Tab.
-    tabs: ["seo", "blog", "conversions"],
+    // Local Grid (17.08.): Maps-Heatmap aus dem Geo-Grid-Scan, opt-in je Kunde.
+    tabs: ["seo", "blog", "localgrid", "conversions"],
     primary: "seo", // umgeht die Kunden-Tab-Auswahl (Kern-Tab der App)
     home: "/ezyrank",
     // kein services-Filter: SEO ist das Kernprodukt — alle Kunden sichtbar
@@ -135,6 +136,7 @@ export const APP_FEATURES: Record<EzyAppId, Array<{ id: string; label: string }>
     // EzyRank nicht mehr — TAB_APP_FEATURE behält den Eintrag fürs Gating alter Stände.
     { id: "seo", label: "Rankings & GSC-Suchbegriffe" },
     { id: "blog", label: "Blog / Refresh-Radar" },
+    { id: "localgrid", label: "Local Grid (Maps-Heatmap)" },
     { id: "conversions", label: "Conversions" },
     { id: "reports", label: "Reports" },
   ],
@@ -151,6 +153,7 @@ export const TAB_APP_FEATURE: Record<string, { app: EzyAppId; feature: string }>
   overview: { app: "seo", feature: "overview" },
   seo: { app: "seo", feature: "seo" },
   blog: { app: "seo", feature: "blog" },
+  localgrid: { app: "seo", feature: "localgrid" },
   conversions: { app: "seo", feature: "conversions" },
   ads: { app: "ads", feature: "ads" },
 };
