@@ -90,14 +90,6 @@ async function llmJson(label: string, prompt: string, maxTokens = 1500): Promise
   return r?.text ? parseJson(r.text) : null;
 }
 
-// ── Engine-Set (wie aivis: DataForSEO-Scraper als EIN Abrechnungskonto) ─────
-const ENGINES: Array<{ name: string; se: string; model: string }> = [
-  { name: "ChatGPT", se: "chat_gpt", model: "gpt-5.1" },
-  { name: "Perplexity", se: "perplexity", model: "sonar" },
-  { name: "Gemini", se: "gemini", model: "gemini-2.5-flash" },
-  { name: "Claude", se: "claude", model: "claude-sonnet-5" },
-];
-
 async function askEngine(se: string, model: string, prompt: string) {
   const r = await dfs(`ai_optimization/${se}/llm_responses/live`, { user_prompt: prompt.slice(0, 500), model_name: model }, 120_000);
   if (!r.ok) return { ok: false as const, cost: r.cost, error: r.error };
@@ -108,6 +100,33 @@ async function askEngine(se: string, model: string, prompt: string) {
     .join(" ").trim();
   return { ok: true as const, cost: r.cost, text, model: String(row?.model_name || model) };
 }
+
+// Direkt-API (OpenAI-kompatibel) fuer Engines ohne DFS-Scraper (Grok, DeepSeek)
+// — gleiche Provider wie der aivis-Prompt-Runner.
+async function askDirect(url: string, key: string | undefined, model: string, prompt: string) {
+  if (!key) return { ok: false as const, cost: 0 };
+  try {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model, messages: [{ role: "user", content: prompt.slice(0, 500) }], max_tokens: 700 }),
+      signal: AbortSignal.timeout(90_000),
+    });
+    const j: any = await r.json().catch(() => null);
+    const text = String(j?.choices?.[0]?.message?.content || "").trim();
+    return text ? { ok: true as const, cost: 0, text, model } : { ok: false as const, cost: 0 };
+  } catch { return { ok: false as const, cost: 0 }; }
+}
+
+// ── Engine-Set (17.08.: alle 6 wie aivis — 4 via DFS-Scraper, Grok+DeepSeek direkt) ──
+const ENGINES: Array<{ name: string; ask: (p: string) => Promise<{ ok: boolean; cost: number; text?: string; model?: string; error?: string }> }> = [
+  { name: "ChatGPT", ask: (p) => askEngine("chat_gpt", "gpt-5.1", p) },
+  { name: "Perplexity", ask: (p) => askEngine("perplexity", "sonar", p) },
+  { name: "Gemini", ask: (p) => askEngine("gemini", "gemini-2.5-flash", p) },
+  { name: "Claude", ask: (p) => askEngine("claude", "claude-sonnet-5", p) },
+  { name: "Grok", ask: (p) => askDirect("https://api.x.ai/v1/chat/completions", process.env.XAI_API_KEY || process.env.GROK_API_KEY, process.env.XAI_MODEL || "grok-4", p) },
+  { name: "DeepSeek", ask: (p) => askDirect("https://api.deepseek.com/chat/completions", process.env.DEEPSEEK_API_KEY, process.env.DEEPSEEK_MODEL || "deepseek-chat", p) },
+];
 
 const urlDomainsIn = (t: string): string[] => {
   const out = new Set<string>();
@@ -408,14 +427,14 @@ export async function tickAudit(id: string) {
       case "ai1": case "ai2": case "ai3": {
         const part = Number(row.stage.slice(2)); // 1..3
         const prompts = (data.prompts || []) as Array<{ q: string; vol: number | null; engines?: any }>;
-        // 15 Prompts in 3 Etappen à 5 (je Etappe 5 × 4 Engines = 20 Live-Calls).
+        // 15 Prompts in 3 Etappen à 5 (je Etappe 5 × 6 Engines = 30 Live-Calls).
         const slice = prompts.map((p, i) => ({ p, i })).filter(({ i }) => Math.floor(i / 5) === part - 1);
         const jobs = slice.flatMap(({ p, i }) => ENGINES.map((e) => ({ p, i, e })));
         await pMap(jobs, async ({ p, e }) => {
-          const r = await askEngine(e.se, e.model, p.q);
+          const r = await e.ask(p.q);
           addCost(data, r.cost);
           p.engines = p.engines || {};
-          if (!r.ok || !("text" in r) || !r.text) { p.engines[e.name] = { ok: false }; return null; }
+          if (!r.ok || !r.text) { p.engines[e.name] = { ok: false }; return null; }
           const cited = urlDomainsIn(r.text);
           p.engines[e.name] = {
             ok: true, mention: mentionsBrand(r.text, domain, row.firmenname) || cited.some((d) => d.includes(domain)),

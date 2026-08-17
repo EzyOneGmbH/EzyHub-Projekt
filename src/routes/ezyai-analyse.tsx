@@ -31,7 +31,7 @@ const S = {
 };
 const HEX_BG = `url("data:image/svg+xml,%3Csvg width='28' height='49' viewBox='0 0 28 49' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M13.99 9.25l13 7.5v15l-13 7.5L1 31.75v-15l12.99-7.5zM3 17.9v12.7l10.99 6.34 11-6.35V17.9l-11-6.34L3 17.9zM0 15l12.98-7.5V0h-2v6.35L0 12.69v2.3zm0 18.5L12.98 41v8h-2v-6.85L0 35.81v-2.3zM15 0v7.5L27.99 15H28v-2.31h-.01L17 6.35V0h-2zm0 49v-8l12.99-7.5H28v2.31h-.01L17 42.15V49h-2z' fill='%2377008C' fill-opacity='0.04' fill-rule='evenodd'/%3E%3C/svg%3E")`;
 
-const ENGINE_COLS = ["ChatGPT", "Perplexity", "Gemini", "Claude"] as const;
+const ENGINE_COLS = ["ChatGPT", "Perplexity", "Gemini", "Claude", "Grok", "DeepSeek"] as const;
 
 type AuditRow = {
   id: string; domain: string; firmenname: string; branche?: string; ort?: string;
@@ -67,7 +67,7 @@ const STAGES: Array<{ keys: string[]; name: string; desc: string }> = [
   { keys: ["technik"], name: "Technik & SiteHealth", desc: "robots.txt-AI-Bots, OnPage-Audit (bis 50 Seiten), Tech-Stack" },
   { keys: ["seo"], name: "SEO-Fundament", desc: "Sichtbarkeit, Traffic-Schaetzung, Backlinks, LLM-Mentions-Makro" },
   { keys: ["volumen"], name: "AI-Suchvolumen", desc: "Monatliche AI-Nachfrage je Prompt" },
-  { keys: ["ai1", "ai2", "ai3"], name: "AI-Sichtbarkeit", desc: "15 Prompts (max. 3 Brand) über ChatGPT, Perplexity, Gemini und Claude" },
+  { keys: ["ai1", "ai2", "ai3"], name: "AI-Sichtbarkeit", desc: "15 Prompts (max. 3 Brand) über alle 6 Engines inkl. Grok & DeepSeek" },
   { keys: ["entitaet"], name: "Entität & Vertrauen", desc: "Wikidata, Organization-Schema, Brand-SERP" },
   { keys: ["benchmark"], name: "Wettbewerber-Benchmark", desc: "Quick-Score je Wettbewerber" },
   { keys: ["score"], name: "Scoring & Massnahmen", desc: "AI-Readiness-Score + Top-5-Empfehlungen" },
@@ -449,7 +449,7 @@ function Wizard({ onClose, onDone, resumeId, prefill }: {
               <p style={{ fontSize: 13, color: S.mut, margin: "0 0 18px" }}>Jede Analyse läuft im vollen Umfang — Dauer ~15 Minuten.</p>
               <div style={{ border: `1px solid ${S.line}`, borderRadius: 12, overflow: "hidden" }}>
                 {[
-                  ["✦", "AI-Sichtbarkeit", "15 Prompts (max. 2 Brand + Kategorie- und Themen-Nischen-Suchen aus der Website) über ChatGPT, Perplexity, Gemini, Claude + Makro-Mentions + AI-Suchvolumen je Prompt"],
+                  ["✦", "AI-Sichtbarkeit", "15 Prompts (max. 2 Brand + Kategorie- und Themen-Nischen-Suchen aus der Website) über 6 Engines (ChatGPT, Perplexity, Gemini, Claude, Grok, DeepSeek) + Makro-Mentions + AI-Suchvolumen je Prompt"],
                   ["⚙", "Technik & SiteHealth", "robots.txt-AI-Bots, OnPage-Audit (bis 50 Seiten), Tech-Stack-Erkennung"],
                   ["◈", "Entität & Vertrauen", "Wikidata, Organization-Schema, Brand-SERP"],
                   ["▤", "SEO-Fundament", "Sichtbarkeit, Traffic, Backlinks"],
@@ -495,8 +495,8 @@ function Wizard({ onClose, onDone, resumeId, prefill }: {
                 if (i === 0 && d.technik) zwischenbefund = `SiteHealth ${d.technik.scores?.overall ?? "?"}/100 · ${(d.technik.issues || []).length} Probleme${d.anbindung?.cms ? ` · ${d.anbindung.cms}` : ""}`;
                 if (i === 1 && d.seo) zwischenbefund = `${d.seo.keywords} Keywords · ~${d.seo.etv} organische Besuche/Mt. · ${d.seo.refDomains} Ref-Domains`;
                 if (i === 3 && d.prompts?.some((p: any) => p.engines)) {
-                  const done2 = d.prompts.filter((p: any) => p.engines && Object.keys(p.engines).length >= 4).length;
-                  zwischenbefund = `Prompt ${Math.min(done2 + 1, d.prompts.length)}/${d.prompts.length} · ChatGPT, Perplexity, Gemini, Claude`;
+                  const done2 = d.prompts.filter((p: any) => p.engines && Object.keys(p.engines).length >= 6).length;
+                  zwischenbefund = `Prompt ${Math.min(done2 + 1, d.prompts.length)}/${d.prompts.length} · 6 Engines inkl. Grok & DeepSeek`;
                 }
                 return (
                   <div key={st2.name} style={{ display: "flex", alignItems: "center", gap: 14, padding: "11px 4px", borderBottom: i < STAGES.length - 1 ? `1px solid ${S.line}` : "none" }}>
