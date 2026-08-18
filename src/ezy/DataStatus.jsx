@@ -42,7 +42,12 @@ function ActionButton({ action }) {
     <button
       onClick={action.onClick}
       disabled={action.disabled || action.busy}
-      title={action.title || (primary ? "Startet tatsächlich einen externen Datenlauf" : "Liest nur den gespeicherten Datenbankstand neu")}
+      title={
+        action.title ||
+        (primary
+          ? "Startet tatsächlich einen externen Datenlauf"
+          : "Liest nur den gespeicherten Datenbankstand neu")
+      }
       style={{
         background: primary ? C.accent : "none",
         border: `1px solid ${primary ? C.accent : C.border}`,
@@ -102,7 +107,16 @@ export default function DataStatus({ items = [], actions, action, hint, style })
               title={`${it.source} — ${meta.label}${stand ? ` · letzter erfolgreicher Stand ${stand}` : ""}${it.detail ? ` · ${it.detail}` : ""}`}
               style={{ display: "inline-flex", alignItems: "center", gap: 5, whiteSpace: "nowrap" }}
             >
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: meta.color, display: "inline-block", flexShrink: 0 }} />
+              <span
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: "50%",
+                  background: meta.color,
+                  display: "inline-block",
+                  flexShrink: 0,
+                }}
+              />
               <span style={{ color: C.text, fontWeight: 600 }}>{it.source}</span>
               {stand ? <span>{stand}</span> : null}
               <span style={{ color: meta.color, fontWeight: 600 }}>{meta.label}</span>

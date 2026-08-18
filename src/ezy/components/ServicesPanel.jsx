@@ -136,9 +136,12 @@ export function ServicesPanel({ C = FALLBACK_C, clientId }) {
     if (!value) {
       try {
         const token = (await supabase.auth.getSession()).data.session?.access_token;
-        const r = await fetch(`/api/admin/client-readiness?client=${encodeURIComponent(clientId)}`, {
-          headers: { Authorization: `Bearer ${token || ""}` },
-        });
+        const r = await fetch(
+          `/api/admin/client-readiness?client=${encodeURIComponent(clientId)}`,
+          {
+            headers: { Authorization: `Bearer ${token || ""}` },
+          },
+        );
         const j = await r.json().catch(() => null);
         if (j?.ok) {
           const warnungen = warneBeimServiceDeaktivieren(key, j.snapshot);
@@ -149,7 +152,9 @@ export function ServicesPanel({ C = FALLBACK_C, clientId }) {
             if (!window.confirm(text)) return;
           }
         }
-      } catch { /* Validierung best effort — Toggle nicht blockieren */ }
+      } catch {
+        /* Validierung best effort — Toggle nicht blockieren */
+      }
     }
     setBusyKey(key);
     try {

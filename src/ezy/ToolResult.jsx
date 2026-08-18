@@ -30,7 +30,10 @@ export function MdView({ md }) {
  */
 export default function ToolResultView({ result }) {
   const norm = useMemo(
-    () => (result?.ok ? normalizeToolResult(result.data) : { text: null, raw: result?.data, hasStructured: false }),
+    () =>
+      result?.ok
+        ? normalizeToolResult(result.data)
+        : { text: null, raw: result?.data, hasStructured: false },
     [result],
   );
   return (
@@ -55,10 +58,14 @@ export default function ToolResultView({ result }) {
                 Strukturiertes Ergebnis ohne Fliesstext — Details unten unter «Technische Details».
               </div>
             ) : (
-              <div style={{ fontSize: 13, color: C.text, whiteSpace: "pre-wrap" }}>{String(result.message || "OK")}</div>
+              <div style={{ fontSize: 13, color: C.text, whiteSpace: "pre-wrap" }}>
+                {String(result.message || "OK")}
+              </div>
             )
           ) : (
-            <div style={{ fontSize: 13, color: C.red, whiteSpace: "pre-wrap" }}>{result.error || result.message || "Fehler"}</div>
+            <div style={{ fontSize: 13, color: C.red, whiteSpace: "pre-wrap" }}>
+              {result.error || result.message || "Fehler"}
+            </div>
           )
         ) : (
           <div style={{ fontSize: 13, color: C.text }}>
@@ -68,7 +75,9 @@ export default function ToolResultView({ result }) {
       </div>
       {result?.ok && norm.hasStructured && (
         <details style={{ marginBottom: 12 }}>
-          <summary style={{ cursor: "pointer", fontSize: 12, color: C.textMuted, userSelect: "none" }}>
+          <summary
+            style={{ cursor: "pointer", fontSize: 12, color: C.textMuted, userSelect: "none" }}
+          >
             Technische Details (Rohdaten)
           </summary>
           <pre

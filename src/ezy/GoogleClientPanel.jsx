@@ -119,7 +119,8 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
           .from("clients")
           .update({ google_ads_customer: gadsNorm })
           .eq("id", clientId);
-        if (adErr) adsNote = " (Google Ads ID konnte nicht gespeichert werden — Migration ausstehend)";
+        if (adErr)
+          adsNote = " (Google Ads ID konnte nicht gespeichert werden — Migration ausstehend)";
       } catch {
         adsNote = " (Google Ads ID konnte nicht gespeichert werden — Migration ausstehend)";
       }
@@ -158,7 +159,8 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
         const r = await authedFetch(url, { method: "POST", body: JSON.stringify(body) });
         const j = await r.json().catch(() => ({}));
         const ok = j.ok === true || (r.ok && j.error == null);
-        out[out.length - 1] = `${ok ? "✅" : "⚠️"} ${label}${j.error ? ": " + String(j.error).slice(0, 70) : ""}`;
+        out[out.length - 1] =
+          `${ok ? "✅" : "⚠️"} ${label}${j.error ? ": " + String(j.error).slice(0, 70) : ""}`;
       } catch (e) {
         out[out.length - 1] = `❌ ${label}: ${String(e?.message || e).slice(0, 70)}`;
       }
@@ -174,9 +176,18 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
     setMsg("");
     try {
       const [gr, ar, adr] = await Promise.all([
-        authedFetch("/api/google/gsc-sites", { method: "POST", body: JSON.stringify({ clientId }) }),
-        authedFetch("/api/google/ga4-properties", { method: "POST", body: JSON.stringify({ clientId }) }),
-        authedFetch("/api/google/ads-customers", { method: "POST", body: JSON.stringify({ clientId }) }),
+        authedFetch("/api/google/gsc-sites", {
+          method: "POST",
+          body: JSON.stringify({ clientId }),
+        }),
+        authedFetch("/api/google/ga4-properties", {
+          method: "POST",
+          body: JSON.stringify({ clientId }),
+        }),
+        authedFetch("/api/google/ads-customers", {
+          method: "POST",
+          body: JSON.stringify({ clientId }),
+        }),
       ]);
       const gj = await gr.json().catch(() => ({}));
       const aj = await ar.json().catch(() => ({}));
@@ -348,7 +359,10 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
             : "Nicht verbunden"}
         </span>
       </div>
-      <div className="google-props-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
+      <div
+        className="google-props-grid"
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}
+      >
         <div>
           <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>GSC Property</div>
           {gscOpts.length > 0 && (
@@ -396,7 +410,9 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
           />
         </div>
         <div>
-          <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>Google Ads Customer ID</div>
+          <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>
+            Google Ads Customer ID
+          </div>
           {gadsOpts.length > 0 && (
             <select
               value={gadsOpts.some((a) => a.id === gads) ? gads : ""}
@@ -478,7 +494,9 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
         </div>
       )}
       {msg && (
-        <div style={{ marginTop: 10, fontSize: 12, color: "#cbd5e1", whiteSpace: "pre-wrap" }}>{msg}</div>
+        <div style={{ marginTop: 10, fontSize: 12, color: "#cbd5e1", whiteSpace: "pre-wrap" }}>
+          {msg}
+        </div>
       )}
     </div>
   );

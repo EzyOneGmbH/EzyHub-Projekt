@@ -21,6 +21,11 @@ export function AiVisibilityTab({ selectedClient, navStyle, onReviewPrompts }) {
   if (loading) return <AIVisibilitySkeleton />;
   // AI-Zitationen-Panel (Modul 2, Stadt-/Kategorie-Ebene) auf Wunsch entfernt (04.08.).
   return (
-    <AIVisibilityReport data={data && !error ? data : null} convRows={convRows} navStyle={navStyle} onReviewPrompts={onReviewPrompts} />
+    <AIVisibilityReport
+      data={data && !error ? data : null}
+      convRows={convRows}
+      navStyle={navStyle}
+      onReviewPrompts={onReviewPrompts}
+    />
   );
 }

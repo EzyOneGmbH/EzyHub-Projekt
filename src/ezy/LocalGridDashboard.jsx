@@ -35,8 +35,10 @@ function rankColor(rank) {
   return { bg: "#dc2626", fg: "#fff" };
 }
 
-const isUuid = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ""));
-const fmt = (v, digits = 1) => (v == null || Number.isNaN(Number(v)) ? "–" : Number(v).toFixed(digits).replace(/\.0+$/, ""));
+const isUuid = (id) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ""));
+const fmt = (v, digits = 1) =>
+  v == null || Number.isNaN(Number(v)) ? "–" : Number(v).toFixed(digits).replace(/\.0+$/, "");
 
 // Delta-Chip: bei Raengen (invert) ist SINKEN gut, bei Anteilen ist STEIGEN gut.
 function Delta({ cur, prev, invert = false, suffix = "" }) {
@@ -46,15 +48,26 @@ function Delta({ cur, prev, invert = false, suffix = "" }) {
   const good = invert ? d < 0 : d > 0;
   return (
     <span style={{ fontSize: 11, fontWeight: 600, color: good ? C.green : C.red }}>
-      {d > 0 ? "▲" : "▼"} {Math.abs(d)}{suffix}
+      {d > 0 ? "▲" : "▼"} {Math.abs(d)}
+      {suffix}
     </span>
   );
 }
 
 function Tile({ label, value, sub, delta }) {
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px", minWidth: 0 }}>
-      <div style={{ fontSize: 11.5, color: C.textMuted, fontWeight: 600, letterSpacing: ".02em" }}>{label}</div>
+    <div
+      style={{
+        background: C.card,
+        border: `1px solid ${C.border}`,
+        borderRadius: 12,
+        padding: "14px 16px",
+        minWidth: 0,
+      }}
+    >
+      <div style={{ fontSize: 11.5, color: C.textMuted, fontWeight: 600, letterSpacing: ".02em" }}>
+        {label}
+      </div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 4 }}>
         <span style={{ fontSize: 24, fontWeight: 700, color: C.text }}>{value}</span>
         {delta}
@@ -75,7 +88,8 @@ function MapHeatmap({ center, n, stepKm, matrix, size = 440 }) {
   // aktuellen Zoomstufe; bei Zoomwechsel mitskaliert, damit das Bild "steht").
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const drag = useRef(null);
-  const lat = Number(center?.lat), lng = Number(center?.lng);
+  const lat = Number(center?.lat),
+    lng = Number(center?.lng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || !n || !matrix?.length) return null;
   const latRad = (lat * Math.PI) / 180;
   // Basis-Zoom so, dass das Raster ~72% der Kartenbreite fuellt; +/- zoomt
@@ -86,17 +100,27 @@ function MapHeatmap({ center, n, stepKm, matrix, size = 440 }) {
   const world = 256 * Math.pow(2, z);
   const proj = (la, lo) => ({
     x: ((lo + 180) / 360) * world,
-    y: ((1 - Math.log(Math.tan((la * Math.PI) / 180) + 1 / Math.cos((la * Math.PI) / 180)) / Math.PI) / 2) * world,
+    y:
+      ((1 -
+        Math.log(Math.tan((la * Math.PI) / 180) + 1 / Math.cos((la * Math.PI) / 180)) / Math.PI) /
+        2) *
+      world,
   });
   const c = proj(lat, lng);
-  const minX = c.x - size / 2 - pan.x, minY = c.y - size / 2 - pan.y;
+  const minX = c.x - size / 2 - pan.x,
+    minY = c.y - size / 2 - pan.y;
   const maxT = Math.pow(2, z);
   const tiles = [];
   for (let tx = Math.floor(minX / 256); tx <= Math.floor((minX + size) / 256); tx++)
     for (let ty = Math.floor(minY / 256); ty <= Math.floor((minY + size) / 256); ty++) {
       if (ty < 0 || ty >= maxT) continue;
       const wx = ((tx % maxT) + maxT) % maxT;
-      tiles.push({ key: `${z}/${tx}/${ty}`, url: `https://tile.openstreetmap.org/${z}/${wx}/${ty}.png`, left: tx * 256 - minX, top: ty * 256 - minY });
+      tiles.push({
+        key: `${z}/${tx}/${ty}`,
+        url: `https://tile.openstreetmap.org/${z}/${wx}/${ty}.png`,
+        left: tx * 256 - minX,
+        top: ty * 256 - minY,
+      });
     }
   const half = Math.floor(n / 2);
   const dLat = (Number(stepKm) || 1) / 110.574;
@@ -109,12 +133,18 @@ function MapHeatmap({ center, n, stepKm, matrix, size = 440 }) {
   const markers = matrix.flatMap((row, r) =>
     (row || []).map((rank, col) => {
       const p = proj(lat + (r - half) * dLat, lng + (col - half) * dLng);
-      return { key: `${r}-${col}`, x: p.x - minX, y: p.y - minY, rank, isCenter: r === half && col === half };
+      return {
+        key: `${r}-${col}`,
+        x: p.x - minX,
+        y: p.y - minY,
+        rank,
+        isCenter: r === half && col === half,
+      };
     }),
   );
   const changeZoom = (d) => {
     const nv = Math.max(-3, Math.min(5, zoomDelta + d));
-    const f = Math.pow(2, (Math.max(3, Math.min(17, baseZ + nv)) - z));
+    const f = Math.pow(2, Math.max(3, Math.min(17, baseZ + nv)) - z);
     setZoomDelta(nv);
     setPan((p) => ({ x: p.x * f, y: p.y * f }));
   };
@@ -123,24 +153,67 @@ function MapHeatmap({ center, n, stepKm, matrix, size = 440 }) {
       <div
         onPointerDown={(e) => {
           drag.current = { x: e.clientX, y: e.clientY };
-          try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* still */ }
+          try {
+            e.currentTarget.setPointerCapture(e.pointerId);
+          } catch {
+            /* still */
+          }
         }}
         onPointerMove={(e) => {
           if (!drag.current) return;
-          const dx = e.clientX - drag.current.x, dy = e.clientY - drag.current.y;
+          const dx = e.clientX - drag.current.x,
+            dy = e.clientY - drag.current.y;
           drag.current = { x: e.clientX, y: e.clientY };
           setPan((p) => ({ x: p.x + dx, y: p.y + dy }));
         }}
-        onPointerUp={() => { drag.current = null; }}
-        onPointerLeave={() => { drag.current = null; }}
-        style={{ position: "relative", width: "100%", aspectRatio: "1", overflow: "hidden", borderRadius: 10, background: "#e9e5e0", border: `1px solid ${C.border}`, cursor: "grab", touchAction: "none", userSelect: "none" }}
+        onPointerUp={() => {
+          drag.current = null;
+        }}
+        onPointerLeave={() => {
+          drag.current = null;
+        }}
+        style={{
+          position: "relative",
+          width: "100%",
+          aspectRatio: "1",
+          overflow: "hidden",
+          borderRadius: 10,
+          background: "#e9e5e0",
+          border: `1px solid ${C.border}`,
+          cursor: "grab",
+          touchAction: "none",
+          userSelect: "none",
+        }}
       >
         {/* Innerer Fixrahmen: px-Mathematik braucht feste Groesse; auf schmalen
             Screens wird mittig gecroppt (Zentrum bleibt Zentrum). */}
-        <div style={{ position: "absolute", left: "50%", top: "50%", width: size, height: size, transform: "translate(-50%, -50%)" }}>
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: "50%",
+            width: size,
+            height: size,
+            transform: "translate(-50%, -50%)",
+          }}
+        >
           {tiles.map((t) => (
-            <img key={t.key} src={t.url} alt="" width={256} height={256} loading="lazy" draggable={false}
-              style={{ position: "absolute", left: t.left, top: t.top, userSelect: "none", pointerEvents: "none" }} />
+            <img
+              key={t.key}
+              src={t.url}
+              alt=""
+              width={256}
+              height={256}
+              loading="lazy"
+              draggable={false}
+              style={{
+                position: "absolute",
+                left: t.left,
+                top: t.top,
+                userSelect: "none",
+                pointerEvents: "none",
+              }}
+            />
           ))}
           {markers.map((m) => {
             const col = rankColor(m.rank);
@@ -149,12 +222,23 @@ function MapHeatmap({ center, n, stepKm, matrix, size = 440 }) {
                 key={m.key}
                 title={m.rank > 0 ? `Rang ${m.rank}` : "nicht in den Top 20"}
                 style={{
-                  position: "absolute", left: m.x, top: m.y, transform: "translate(-50%, -50%)",
-                  width: mSize, height: mSize, borderRadius: "50%",
-                  background: m.rank > 0 ? col.bg : "#8b8494", color: "#fff",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: mFont, fontWeight: 700,
-                  border: m.isCenter ? `2.5px solid ${C.accent}` : "1.5px solid rgba(255,255,255,.9)",
+                  position: "absolute",
+                  left: m.x,
+                  top: m.y,
+                  transform: "translate(-50%, -50%)",
+                  width: mSize,
+                  height: mSize,
+                  borderRadius: "50%",
+                  background: m.rank > 0 ? col.bg : "#8b8494",
+                  color: "#fff",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: mFont,
+                  fontWeight: 700,
+                  border: m.isCenter
+                    ? `2.5px solid ${C.accent}`
+                    : "1.5px solid rgba(255,255,255,.9)",
                   boxShadow: "0 1px 4px rgba(0,0,0,.35)",
                 }}
               >
@@ -164,19 +248,75 @@ function MapHeatmap({ center, n, stepKm, matrix, size = 440 }) {
           })}
         </div>
         {/* Zoom/Reset + Pflicht-Attribution */}
-        <div style={{ position: "absolute", top: 8, right: 8, display: "flex", flexDirection: "column", gap: 4 }}>
-          {[["+", 1], ["−", -1]].map(([lbl, d]) => (
-            <button key={lbl} onClick={() => changeZoom(d)} onPointerDown={(e) => e.stopPropagation()}
-              style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${C.border}`, background: "#fff", color: C.text, fontSize: 15, fontWeight: 700, cursor: "pointer", lineHeight: 1 }}>
+        <div
+          style={{
+            position: "absolute",
+            top: 8,
+            right: 8,
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+          }}
+        >
+          {[
+            ["+", 1],
+            ["−", -1],
+          ].map(([lbl, d]) => (
+            <button
+              key={lbl}
+              onClick={() => changeZoom(d)}
+              onPointerDown={(e) => e.stopPropagation()}
+              style={{
+                width: 26,
+                height: 26,
+                borderRadius: 6,
+                border: `1px solid ${C.border}`,
+                background: "#fff",
+                color: C.text,
+                fontSize: 15,
+                fontWeight: 700,
+                cursor: "pointer",
+                lineHeight: 1,
+              }}
+            >
               {lbl}
             </button>
           ))}
-          <button title="Ansicht zuruecksetzen" onClick={() => { setZoomDelta(0); setPan({ x: 0, y: 0 }); }} onPointerDown={(e) => e.stopPropagation()}
-            style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${C.border}`, background: "#fff", color: C.textMuted, fontSize: 13, cursor: "pointer", lineHeight: 1 }}>
+          <button
+            title="Ansicht zuruecksetzen"
+            onClick={() => {
+              setZoomDelta(0);
+              setPan({ x: 0, y: 0 });
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: 6,
+              border: `1px solid ${C.border}`,
+              background: "#fff",
+              color: C.textMuted,
+              fontSize: 13,
+              cursor: "pointer",
+              lineHeight: 1,
+            }}
+          >
             ⌂
           </button>
         </div>
-        <div style={{ position: "absolute", bottom: 0, right: 0, background: "rgba(255,255,255,.75)", fontSize: 9.5, color: C.textMuted, padding: "1px 5px", borderTopLeftRadius: 6, pointerEvents: "none" }}>
+        <div
+          style={{
+            position: "absolute",
+            bottom: 0,
+            right: 0,
+            background: "rgba(255,255,255,.75)",
+            fontSize: 9.5,
+            color: C.textMuted,
+            padding: "1px 5px",
+            borderTopLeftRadius: 6,
+            pointerEvents: "none",
+          }}
+        >
           © OpenStreetMap
         </div>
       </div>
@@ -193,13 +333,22 @@ function Sparkline({ points, width = 220, height = 48 }) {
   const max = Math.max(...points.map((p) => p.v), 1);
   const step = width / (points.length - 1);
   const path = points
-    .map((p, i) => `${i === 0 ? "M" : "L"}${(i * step).toFixed(1)},${(height - (p.v / max) * (height - 6) - 3).toFixed(1)}`)
+    .map(
+      (p, i) =>
+        `${i === 0 ? "M" : "L"}${(i * step).toFixed(1)},${(height - (p.v / max) * (height - 6) - 3).toFixed(1)}`,
+    )
     .join(" ");
   return (
     <svg width={width} height={height} style={{ display: "block" }}>
       <path d={path} fill="none" stroke={C.accent} strokeWidth="2" strokeLinecap="round" />
       {points.map((p, i) => (
-        <circle key={i} cx={i * step} cy={height - (p.v / max) * (height - 6) - 3} r="2.5" fill={C.accent} />
+        <circle
+          key={i}
+          cx={i * step}
+          cy={height - (p.v / max) * (height - 6) - 3}
+          r="2.5"
+          fill={C.accent}
+        />
       ))}
     </svg>
   );
@@ -214,7 +363,10 @@ export default function LocalGridDashboard({ selectedClient }) {
   useEffect(() => {
     let alive = true;
     (async () => {
-      if (!clientId || !isUuid(clientId)) { setRuns([]); return; }
+      if (!clientId || !isUuid(clientId)) {
+        setRuns([]);
+        return;
+      }
       setRuns(null);
       try {
         const { data } = await supabase
@@ -230,20 +382,29 @@ export default function LocalGridDashboard({ selectedClient }) {
         if (alive) setRuns([]);
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [clientId, nonce]);
 
   const latest = runs?.[0]?.result || null;
   const prev = runs?.[1]?.result || null;
-  const keywords = useMemo(() => (Array.isArray(latest?.keywords) ? latest.keywords : []), [latest]);
+  const keywords = useMemo(
+    () => (Array.isArray(latest?.keywords) ? latest.keywords : []),
+    [latest],
+  );
 
   // Keyword-Auswahl: erste Zeile als Default; bei Kunden-/Datenwechsel zuruecksetzen.
   useEffect(() => {
-    if (keywords.length && !keywords.some((k) => k.keyword === kwSel)) setKwSel(keywords[0].keyword);
+    if (keywords.length && !keywords.some((k) => k.keyword === kwSel))
+      setKwSel(keywords[0].keyword);
   }, [keywords, kwSel]);
   const kw = keywords.find((k) => k.keyword === kwSel) || keywords[0] || null;
   const kwPrev = useMemo(
-    () => (Array.isArray(prev?.keywords) ? prev.keywords.find((k) => k.keyword === (kw?.keyword ?? "")) : null) || null,
+    () =>
+      (Array.isArray(prev?.keywords)
+        ? prev.keywords.find((k) => k.keyword === (kw?.keyword ?? ""))
+        : null) || null,
     [prev, kw],
   );
 
@@ -253,7 +414,12 @@ export default function LocalGridDashboard({ selectedClient }) {
     return runs
       .map((r) => {
         const row = (r.result?.keywords || []).find((k) => k.keyword === kw.keyword);
-        return row ? { d: String(r.result?.date || r.created_at || "").slice(0, 10), v: Number(row.top3Share ?? 0) } : null;
+        return row
+          ? {
+              d: String(r.result?.date || r.created_at || "").slice(0, 10),
+              v: Number(row.top3Share ?? 0),
+            }
+          : null;
       })
       .filter(Boolean)
       .reverse();
@@ -267,10 +433,28 @@ export default function LocalGridDashboard({ selectedClient }) {
 
   if (!latest || !keywords.length)
     return (
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "44px 24px", textAlign: "center" }}>
+      <div
+        style={{
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: 14,
+          padding: "44px 24px",
+          textAlign: "center",
+        }}
+      >
         <MapPin size={28} style={{ color: C.accent, marginBottom: 10 }} />
-        <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>Noch keine Local-Grid-Messung</div>
-        <div style={{ fontSize: 13, color: C.textMuted, marginTop: 6, maxWidth: 460, margin: "6px auto 0" }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>
+          Noch keine Local-Grid-Messung
+        </div>
+        <div
+          style={{
+            fontSize: 13,
+            color: C.textMuted,
+            marginTop: 6,
+            maxWidth: 460,
+            margin: "6px auto 0",
+          }}
+        >
           Der wöchentliche Maps-Scan (freitags) legt die Baseline an. Local Grid ist nur für Kunden
           mit physischem Standort bzw. Google Business Profile sinnvoll.
         </div>
@@ -293,15 +477,22 @@ export default function LocalGridDashboard({ selectedClient }) {
         action={{
           label: "Daten neu laden",
           kind: "reload",
-          title: "Liest nur den gespeicherten Datenbankstand neu — die Messung selbst fährt der Freitags-Scan (DataForSEO-Kosten)",
+          title:
+            "Liest nur den gespeicherten Datenbankstand neu — die Messung selbst fährt der Freitags-Scan (DataForSEO-Kosten)",
           onClick: () => setNonce((x) => x + 1),
         }}
       />
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <span style={{ fontSize: 12.5, color: C.textMuted }}>
-          Messung vom <b style={{ color: C.text }}>{String(latest.date || latest.fetched_at || "").slice(0, 10)}</b>
-          {" • "}{n}×{n}-Raster, {fmt(latest.stepKm)} km Schritt
-          {latest.center ? ` • Zentrum ${fmt(latest.center.lat, 4)}, ${fmt(latest.center.lng, 4)}` : ""}
+          Messung vom{" "}
+          <b style={{ color: C.text }}>
+            {String(latest.date || latest.fetched_at || "").slice(0, 10)}
+          </b>
+          {" • "}
+          {n}×{n}-Raster, {fmt(latest.stepKm)} km Schritt
+          {latest.center
+            ? ` • Zentrum ${fmt(latest.center.lat, 4)}, ${fmt(latest.center.lng, 4)}`
+            : ""}
         </span>
       </div>
 
@@ -317,7 +508,11 @@ export default function LocalGridDashboard({ selectedClient }) {
                 border: `1px solid ${on ? C.accent : C.border}`,
                 background: on ? C.accentDim : C.card,
                 color: on ? C.accent : C.textMuted,
-                borderRadius: 99, padding: "6px 13px", fontSize: 12.5, fontWeight: on ? 700 : 500, cursor: "pointer",
+                borderRadius: 99,
+                padding: "6px 13px",
+                fontSize: 12.5,
+                fontWeight: on ? 700 : 500,
+                cursor: "pointer",
               }}
             >
               {k.keyword}
@@ -327,7 +522,13 @@ export default function LocalGridDashboard({ selectedClient }) {
       </div>
 
       {/* Metrik-Kacheln (Auswahl-Keyword) mit Delta zur Vormessung */}
-      <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
+      <div
+        style={{
+          display: "grid",
+          gap: 12,
+          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+        }}
+      >
         <Tile
           label="SoLV (Top 3)"
           value={`${fmt(kw?.top3Share)}%`}
@@ -354,22 +555,68 @@ export default function LocalGridDashboard({ selectedClient }) {
         />
       </div>
 
-      <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
+      <div
+        style={{
+          display: "grid",
+          gap: 16,
+          gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+        }}
+      >
         {/* Heatmap */}
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18 }}>
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 14,
+            padding: 18,
+          }}
+        >
           <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 12 }}>
             Maps-Heatmap — „{kw?.keyword}"
           </div>
           <MapHeatmap center={latest.center} n={n} stepKm={latest.stepKm} matrix={matrix} />
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12, fontSize: 11, color: C.textMuted }}>
-            {[["1–3", "#0f9d6c"], ["4–7", "#7cb342"], ["8–10", "#eab308"], ["11–15", "#f97316"], ["16–20", "#dc2626"], ["nicht gefunden", "#8b8494"]].map(([l, col]) => (
+          <div
+            style={{
+              display: "flex",
+              gap: 12,
+              flexWrap: "wrap",
+              marginTop: 12,
+              fontSize: 11,
+              color: C.textMuted,
+            }}
+          >
+            {[
+              ["1–3", "#0f9d6c"],
+              ["4–7", "#7cb342"],
+              ["8–10", "#eab308"],
+              ["11–15", "#f97316"],
+              ["16–20", "#dc2626"],
+              ["nicht gefunden", "#8b8494"],
+            ].map(([l, col]) => (
               <span key={l} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                <span style={{ width: 11, height: 11, borderRadius: 3, background: col, border: `1px solid ${C.border}`, display: "inline-block" }} />
+                <span
+                  style={{
+                    width: 11,
+                    height: 11,
+                    borderRadius: 3,
+                    background: col,
+                    border: `1px solid ${C.border}`,
+                    display: "inline-block",
+                  }}
+                />
                 {l}
               </span>
             ))}
             <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <span style={{ width: 11, height: 11, borderRadius: 3, border: `2px solid ${C.accent}`, display: "inline-block" }} />
+              <span
+                style={{
+                  width: 11,
+                  height: 11,
+                  borderRadius: 3,
+                  border: `2px solid ${C.accent}`,
+                  display: "inline-block",
+                }}
+              />
               Standort
             </span>
           </div>
@@ -377,7 +624,14 @@ export default function LocalGridDashboard({ selectedClient }) {
 
         {/* Konkurrenz + Verlauf */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18 }}>
+          <div
+            style={{
+              background: C.card,
+              border: `1px solid ${C.border}`,
+              borderRadius: 14,
+              padding: 18,
+            }}
+          >
             <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>
               Wer dominiert das Raster? (Top 3)
             </div>
@@ -386,18 +640,43 @@ export default function LocalGridDashboard({ selectedClient }) {
                 <thead>
                   <tr style={{ color: C.textMuted, textAlign: "left" }}>
                     <th style={{ padding: "4px 6px", fontWeight: 600 }}>Anbieter</th>
-                    <th style={{ padding: "4px 6px", fontWeight: 600, textAlign: "right" }}>In Top 3</th>
-                    <th style={{ padding: "4px 6px", fontWeight: 600, textAlign: "right" }}>Ø Rang</th>
+                    <th style={{ padding: "4px 6px", fontWeight: 600, textAlign: "right" }}>
+                      In Top 3
+                    </th>
+                    <th style={{ padding: "4px 6px", fontWeight: 600, textAlign: "right" }}>
+                      Ø Rang
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {kw.competitors.map((cp, i) => (
                     <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
-                      <td style={{ padding: "6px", color: C.text, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={cp.domain || cp.name}>
+                      <td
+                        style={{
+                          padding: "6px",
+                          color: C.text,
+                          maxWidth: 200,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                        title={cp.domain || cp.name}
+                      >
                         {cp.name || cp.domain}
                       </td>
-                      <td style={{ padding: "6px", textAlign: "right", color: C.text, fontWeight: 600 }}>{fmt(cp.top3Share)}%</td>
-                      <td style={{ padding: "6px", textAlign: "right", color: C.textMuted }}>{fmt(cp.avgRank, 1)}</td>
+                      <td
+                        style={{
+                          padding: "6px",
+                          textAlign: "right",
+                          color: C.text,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {fmt(cp.top3Share)}%
+                      </td>
+                      <td style={{ padding: "6px", textAlign: "right", color: C.textMuted }}>
+                        {fmt(cp.avgRank, 1)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -409,10 +688,27 @@ export default function LocalGridDashboard({ selectedClient }) {
             )}
           </div>
           {trend.length >= 2 && (
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 8 }}>SoLV-Verlauf</div>
+            <div
+              style={{
+                background: C.card,
+                border: `1px solid ${C.border}`,
+                borderRadius: 14,
+                padding: 18,
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 8 }}>
+                SoLV-Verlauf
+              </div>
               <Sparkline points={trend} />
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: C.textDim, marginTop: 4 }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  fontSize: 10.5,
+                  color: C.textDim,
+                  marginTop: 4,
+                }}
+              >
                 <span>{trend[0]?.d}</span>
                 <span>{trend[trend.length - 1]?.d}</span>
               </div>
@@ -423,37 +719,65 @@ export default function LocalGridDashboard({ selectedClient }) {
 
       {/* Alle Keywords im Ueberblick */}
       {keywords.length > 1 && (
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18, overflowX: "auto" }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>Alle Keywords</div>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5, minWidth: 520 }}>
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 14,
+            padding: 18,
+            overflowX: "auto",
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>
+            Alle Keywords
+          </div>
+          <table
+            style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5, minWidth: 520 }}
+          >
             <thead>
               <tr style={{ color: C.textMuted, textAlign: "left" }}>
                 <th style={{ padding: "4px 6px", fontWeight: 600 }}>Keyword</th>
                 <th style={{ padding: "4px 6px", fontWeight: 600, textAlign: "right" }}>SoLV</th>
                 <th style={{ padding: "4px 6px", fontWeight: 600, textAlign: "right" }}>ARP</th>
                 <th style={{ padding: "4px 6px", fontWeight: 600, textAlign: "right" }}>ATRP</th>
-                <th style={{ padding: "4px 6px", fontWeight: 600, textAlign: "right" }}>Abdeckung</th>
-                <th style={{ padding: "4px 6px", fontWeight: 600, textAlign: "right" }}>Best / Schlechtester</th>
+                <th style={{ padding: "4px 6px", fontWeight: 600, textAlign: "right" }}>
+                  Abdeckung
+                </th>
+                <th style={{ padding: "4px 6px", fontWeight: 600, textAlign: "right" }}>
+                  Best / Schlechtester
+                </th>
               </tr>
             </thead>
             <tbody>
               {keywords.map((k) => {
-                const p = (Array.isArray(prev?.keywords) ? prev.keywords : []).find((x) => x.keyword === k.keyword);
+                const p = (Array.isArray(prev?.keywords) ? prev.keywords : []).find(
+                  (x) => x.keyword === k.keyword,
+                );
                 return (
                   <tr
                     key={k.keyword}
                     onClick={() => setKwSel(k.keyword)}
-                    style={{ borderTop: `1px solid ${C.border}`, cursor: "pointer", background: k.keyword === kw?.keyword ? C.accentDim : "transparent" }}
+                    style={{
+                      borderTop: `1px solid ${C.border}`,
+                      cursor: "pointer",
+                      background: k.keyword === kw?.keyword ? C.accentDim : "transparent",
+                    }}
                   >
-                    <td style={{ padding: "7px 6px", color: C.text, fontWeight: 600 }}>{k.keyword}</td>
+                    <td style={{ padding: "7px 6px", color: C.text, fontWeight: 600 }}>
+                      {k.keyword}
+                    </td>
                     <td style={{ padding: "7px 6px", textAlign: "right", color: C.text }}>
                       {fmt(k.top3Share)}% <Delta cur={k.top3Share} prev={p?.top3Share} suffix="%" />
                     </td>
                     <td style={{ padding: "7px 6px", textAlign: "right", color: C.text }}>
                       {fmt(k.avgRank, 2)} <Delta cur={k.avgRank} prev={p?.avgRank} invert />
                     </td>
-                    <td style={{ padding: "7px 6px", textAlign: "right", color: C.text }}>{fmt(k.atrp, 2)}</td>
-                    <td style={{ padding: "7px 6px", textAlign: "right", color: C.textMuted }}>{fmt(k.coverage)}%</td>
+                    <td style={{ padding: "7px 6px", textAlign: "right", color: C.text }}>
+                      {fmt(k.atrp, 2)}
+                    </td>
+                    <td style={{ padding: "7px 6px", textAlign: "right", color: C.textMuted }}>
+                      {fmt(k.coverage)}%
+                    </td>
                     <td style={{ padding: "7px 6px", textAlign: "right", color: C.textMuted }}>
                       {k.bestRank ?? "–"} / {k.worstRank ?? "–"}
                     </td>

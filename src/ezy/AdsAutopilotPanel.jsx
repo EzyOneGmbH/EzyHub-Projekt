@@ -9,10 +9,10 @@ import { useEzyAdsAutopilot } from "./data/useEzyAdsAutopilot";
 const P = {
   card: "#181923",
   border: "#252636",
-  text: "#f0f1f8",       // heller (war #e2e4f0)
-  textMuted: "#c2c4d6",  // deutlich heller lesbar (war #8b8da3)
-  textDim: "#9fa1b8",    // heller, aber sekundaer erkennbar (war #5c5e72)
-  accent: "#e07bd3",     // Ezy One CD: helles Violet-Red auf dunklem Grund (war #8b7dff)
+  text: "#f0f1f8", // heller (war #e2e4f0)
+  textMuted: "#c2c4d6", // deutlich heller lesbar (war #8b8da3)
+  textDim: "#9fa1b8", // heller, aber sekundaer erkennbar (war #5c5e72)
+  accent: "#e07bd3", // Ezy One CD: helles Violet-Red auf dunklem Grund (war #8b7dff)
   green: "#10b981",
   greenDim: "rgba(16,185,129,0.12)",
   red: "#ef4444",
@@ -54,7 +54,11 @@ function Badge({ children, color = P.accent, bg }) {
 
 function StatusBadge({ status }) {
   const color = STATUS_COLOR[status] || P.textMuted;
-  return <Badge color={color} bg={`${color}22`}>{status}</Badge>;
+  return (
+    <Badge color={color} bg={`${color}22`}>
+      {status}
+    </Badge>
+  );
 }
 
 function Btn({ children, onClick, disabled, variant }) {
@@ -136,50 +140,63 @@ const findingGroup = (t) => FINDING_INFO[t]?.gruppe || "Weitere";
 const RECO_INFO = {
   bid_target_adjustment: {
     label: "Gebotsziel anpassen",
-    problem: "Das hinterlegte Ziel der automatischen Gebotssteuerung (Ziel-ROAS oder Ziel-CPA) passt nicht zur tatsächlichen Leistung: Ein zu ehrgeiziges Ziel drosselt die Auslieferung, ein zu lasches verschenkt Effizienz.",
+    problem:
+      "Das hinterlegte Ziel der automatischen Gebotssteuerung (Ziel-ROAS oder Ziel-CPA) passt nicht zur tatsächlichen Leistung: Ein zu ehrgeiziges Ziel drosselt die Auslieferung, ein zu lasches verschenkt Effizienz.",
     todo: "Das Ziel in den Gebotsstrategie-Einstellungen der Kampagne in die vorgeschlagene Richtung anpassen und die Wirkung 2–3 Wochen beobachten. Die Strategie selbst NICHT wechseln.",
   },
   bid_strategy_change: {
     label: "Gebotsstrategie prüfen",
-    problem: "Die gewählte Gebotsstrategie passt nicht zur Datenlage oder Zielsetzung (z. B. Wert-Optimierung ohne Conversion-Werte, oder Optimierung auf Anzahl statt auf Wert).",
+    problem:
+      "Die gewählte Gebotsstrategie passt nicht zur Datenlage oder Zielsetzung (z. B. Wert-Optimierung ohne Conversion-Werte, oder Optimierung auf Anzahl statt auf Wert).",
     todo: "Einen Strategie-Wechsel prüfen — kein Muss. Achtung: Jeder Wechsel wirft die Kampagne in die Lernphase zurück, also nur mit klarem Test und Messfenster umsetzen.",
   },
   bid_signal_gap: {
     label: "Fehlendes Optimierungssignal",
-    problem: "Der automatischen Gebotssteuerung fehlt die Datengrundlage: zu wenige Conversions, fehlende Conversion-Werte oder ein Tracking-Problem. Ohne Signal optimiert das System praktisch blind.",
+    problem:
+      "Der automatischen Gebotssteuerung fehlt die Datengrundlage: zu wenige Conversions, fehlende Conversion-Werte oder ein Tracking-Problem. Ohne Signal optimiert das System praktisch blind.",
     todo: "Zuerst die Ursache beheben (Conversion-Setup/Tracking prüfen, Kampagnen-Struktur verengen), BEVOR an den Geboten gedreht wird.",
   },
   asset_replace: {
     label: "Anzeigentext austauschen",
-    problem: "Anzeigenbausteine (Titel/Beschreibungen) sind von Google als schwach bewertet — das drückt die Anzeigenqualität und damit die Auslieferung.",
+    problem:
+      "Anzeigenbausteine (Titel/Beschreibungen) sind von Google als schwach bewertet — das drückt die Anzeigenqualität und damit die Auslieferung.",
     todo: "Die genannten schwachen Texte durch die vorgeschlagenen Alternativen ersetzen (Google-Ads-Oberfläche/Editor). Google testet neue Varianten automatisch aus.",
   },
   asset_coverage: {
     label: "Fehlende Anzeigen/Assets",
-    problem: "Einer Anzeigengruppe fehlt eine aktive Anzeige oder einer Performance-Max-Gruppe fehlt ein Asset-Typ (z. B. Video). Dann liefert Google weniger aus oder generiert selbst Ersatz.",
+    problem:
+      "Einer Anzeigengruppe fehlt eine aktive Anzeige oder einer Performance-Max-Gruppe fehlt ein Asset-Typ (z. B. Video). Dann liefert Google weniger aus oder generiert selbst Ersatz.",
     todo: "Die fehlende Anzeige bzw. den fehlenden Asset-Typ ergänzen.",
   },
   asset_pinning: {
     label: "Über-Pinning lösen",
-    problem: "Zu viele fixierte (gepinnte) Positionen nehmen Google die Flexibilität, die beste Kombination auszuspielen — das kann die Anzeigenqualität senken.",
+    problem:
+      "Zu viele fixierte (gepinnte) Positionen nehmen Google die Flexibilität, die beste Kombination auszuspielen — das kann die Anzeigenqualität senken.",
     todo: "Nicht zwingende Pins lösen; nur die wirklich schützenswerte Botschaft fixiert lassen.",
   },
   keyword_add: {
     label: "Keyword-Lücke schliessen",
-    problem: "Es gibt Suchbegriffe mit echter Nachfrage (Volumen belegt), für die keine passende Anzeige läuft — das sind verschenkte Buchungen.",
+    problem:
+      "Es gibt Suchbegriffe mit echter Nachfrage (Volumen belegt), für die keine passende Anzeige läuft — das sind verschenkte Buchungen.",
     todo: "Das Keyword in der passenden Anzeigengruppe mit sinnvollem Match-Type ergänzen. Die Forecast-Zahlen sind Schätzwerte, kein garantierter Ertrag.",
   },
   keyword_pause: {
     label: "Keyword pausieren",
-    problem: "Ein Keyword kostet über seine gesamte Laufzeit dauerhaft Geld, ohne eine einzige Buchung zu bringen — belegter Streuverlust.",
+    problem:
+      "Ein Keyword kostet über seine gesamte Laufzeit dauerhaft Geld, ohne eine einzige Buchung zu bringen — belegter Streuverlust.",
     todo: "Das Keyword pausieren (nicht löschen, damit die Historie erhalten bleibt). Das Budget arbeitet dann in den konvertierenden Keywords.",
   },
   keyword_match_change: {
     label: "Match-Type / Kannibalisierung",
-    problem: "Derselbe Suchbegriff läuft über mehrere Kampagnen/Gruppen (die Kampagnen überbieten sich gegenseitig) oder ein zu breiter Match-Type zieht unpassende Anfragen an.",
+    problem:
+      "Derselbe Suchbegriff läuft über mehrere Kampagnen/Gruppen (die Kampagnen überbieten sich gegenseitig) oder ein zu breiter Match-Type zieht unpassende Anfragen an.",
     todo: "Match-Types verengen bzw. den Begriff eindeutig einer Kampagne zuordnen (ggf. gegenseitige Ausschlüsse setzen).",
   },
-  other: { label: "Massnahme", problem: "", todo: "Siehe Begründung und vorgeschlagene Massnahme." },
+  other: {
+    label: "Massnahme",
+    problem: "",
+    todo: "Siehe Begründung und vorgeschlagene Massnahme.",
+  },
 };
 const recoLabel = (t) => RECO_INFO[t]?.label || t;
 
@@ -195,41 +212,81 @@ function ApprovalDetailModal({ approval: a, observeOnly, busy, onDecide, onClose
   const rest = daysUntil(a.expires_at);
   const section = (title, body, color) => (
     <div style={{ marginTop: 14 }}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: P.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>
+      <div
+        style={{
+          fontSize: 12,
+          fontWeight: 700,
+          color: P.textMuted,
+          textTransform: "uppercase",
+          letterSpacing: 0.5,
+        }}
+      >
         {title}
       </div>
-      <div style={{ fontSize: 13, color: color || P.text, marginTop: 4, lineHeight: 1.55 }}>{body}</div>
+      <div style={{ fontSize: 13, color: color || P.text, marginTop: 4, lineHeight: 1.55 }}>
+        {body}
+      </div>
     </div>
   );
   return (
     <div
       onClick={onClose}
       style={{
-        position: "fixed", inset: 0, zIndex: 1000, background: "rgba(10,10,16,0.7)",
-        display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+        position: "fixed",
+        inset: 0,
+        zIndex: 1000,
+        background: "rgba(10,10,16,0.7)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
       }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: P.card, border: `1px solid ${P.border}`, borderRadius: 14,
-          padding: 20, maxWidth: 560, width: "100%", maxHeight: "85vh", overflowY: "auto",
+          background: P.card,
+          border: `1px solid ${P.border}`,
+          borderRadius: 14,
+          padding: 20,
+          maxWidth: 560,
+          width: "100%",
+          maxHeight: "85vh",
+          overflowY: "auto",
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: 12,
+          }}
+        >
           <div>
             <Badge>{typeLabel(a.type)}</Badge>
-            <div style={{ fontSize: 15, fontWeight: 700, color: P.text, marginTop: 8 }}>{a.entity || "-"}</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: P.text, marginTop: 8 }}>
+              {a.entity || "-"}
+            </div>
             {(a.current_value || a.proposed_value) && (
               <div style={{ fontSize: 13, color: P.textMuted, marginTop: 4 }}>
                 {a.current_value ? `${a.current_value} ` : ""}
-                {a.proposed_value ? <span style={{ color: P.text }}>-&gt; {a.proposed_value}</span> : null}
+                {a.proposed_value ? (
+                  <span style={{ color: P.text }}>-&gt; {a.proposed_value}</span>
+                ) : null}
               </div>
             )}
           </div>
           <button
             onClick={onClose}
-            style={{ background: "transparent", border: "none", color: P.textMuted, fontSize: 20, cursor: "pointer", lineHeight: 1 }}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: P.textMuted,
+              fontSize: 20,
+              cursor: "pointer",
+              lineHeight: 1,
+            }}
             aria-label="Schliessen"
           >
             ×
@@ -239,13 +296,16 @@ function ApprovalDetailModal({ approval: a, observeOnly, busy, onDecide, onClose
         {section("Warum gibt es diese Empfehlung?", a.rationale || "Keine Begründung hinterlegt.")}
         {section(
           "Was wird bei Freigabe gemacht?",
-          info ? info.action(a) : "Bei Freigabe wird die vorgeschlagene Änderung umgesetzt; bei Ablehnung passiert nichts.",
+          info
+            ? info.action(a)
+            : "Bei Freigabe wird die vorgeschlagene Änderung umgesetzt; bei Ablehnung passiert nichts.",
         )}
         {a.estimated_impact && section("Erwartete Wirkung", a.estimated_impact, P.accent)}
         {section(
           "Fristen & Herkunft",
           <>
-            Erstellt am {new Date(a.created_at).toLocaleDateString("de-CH")} (Lauf {a.run_id || "?"}).{" "}
+            Erstellt am {new Date(a.created_at).toLocaleDateString("de-CH")} (Lauf {a.run_id || "?"}
+            ).{" "}
             {a.expires_at ? (
               <span style={{ color: rest !== null && rest <= 2 ? P.orange : P.textMuted }}>
                 Läuft ab am {new Date(a.expires_at).toLocaleDateString("de-CH")}
@@ -261,7 +321,9 @@ function ApprovalDetailModal({ approval: a, observeOnly, busy, onDecide, onClose
 
         <div style={{ display: "flex", gap: 8, marginTop: 18, justifyContent: "flex-end" }}>
           <Btn onClick={onClose}>Schliessen</Btn>
-          <Btn variant="reject" disabled={busy} onClick={() => onDecide("reject")}>Ablehnen</Btn>
+          <Btn variant="reject" disabled={busy} onClick={() => onDecide("reject")}>
+            Ablehnen
+          </Btn>
           <Btn variant="approve" disabled={busy || observeOnly} onClick={() => onDecide("approve")}>
             {observeOnly ? "Freigabe gesperrt" : "Freigeben"}
           </Btn>
@@ -273,8 +335,19 @@ function ApprovalDetailModal({ approval: a, observeOnly, busy, onDecide, onClose
 
 export default function AdsAutopilotPanel({ selectedClient }) {
   const clientId = selectedClient?.id;
-  const { config, approvals, changelog, recommendations, loading, error, busyId, refresh, decide, runDryRun, markRecommendation } =
-    useEzyAdsAutopilot(clientId, 80); // Befunde (~15/Lauf) + Eingriffe brauchen mehr als 30 Zeilen
+  const {
+    config,
+    approvals,
+    changelog,
+    recommendations,
+    loading,
+    error,
+    busyId,
+    refresh,
+    decide,
+    runDryRun,
+    markRecommendation,
+  } = useEzyAdsAutopilot(clientId, 80); // Befunde (~15/Lauf) + Eingriffe brauchen mehr als 30 Zeilen
   const [detail, setDetail] = React.useState(null);
   const [findingDetail, setFindingDetail] = React.useState(null);
   const [recoDetail, setRecoDetail] = React.useState(null);
@@ -289,7 +362,9 @@ export default function AdsAutopilotPanel({ selectedClient }) {
 
   // Befunde des letzten Laufs: report-only-Zeilen des juengsten Runs, der
   // welche hat (gruppiert). Aeltere Laeufe bleiben im Vault-Protokoll.
-  const reportRows = changelog.filter((c) => c.action_class === "report-only" && c.status === "report-only");
+  const reportRows = changelog.filter(
+    (c) => c.action_class === "report-only" && c.status === "report-only",
+  );
   const latestFindingRun = reportRows.length ? reportRows[0].run_id : null;
   const findings = reportRows.filter((c) => c.run_id === latestFindingRun);
   const findingGroups = findings.reduce((m, f) => {
@@ -298,9 +373,13 @@ export default function AdsAutopilotPanel({ selectedClient }) {
     return m;
   }, {});
   // Aenderungs-Log ohne Befunde (zeigt weiterhin nur echte Eingriffe/Queues).
-  const changeRows = changelog.filter((c) => !(c.action_class === "report-only" && c.status === "report-only"));
+  const changeRows = changelog.filter(
+    (c) => !(c.action_class === "report-only" && c.status === "report-only"),
+  );
 
-  const autonomyLabel = ["0 - report-only", "1 - Negatives auto", "2 - + Bids auto"][config?.autonomy_level ?? 0];
+  const autonomyLabel = ["0 - report-only", "1 - Negatives auto", "2 - + Bids auto"][
+    config?.autonomy_level ?? 0
+  ];
   const observeOnly = config?.observe_only !== false; // Default sicher: an
 
   const cardStyle = {
@@ -314,50 +393,110 @@ export default function AdsAutopilotPanel({ selectedClient }) {
   return (
     <div style={cardStyle}>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 12,
+        }}
+      >
         <div>
           <div style={{ fontSize: 16, fontWeight: 700, color: P.text }}>Google Ads Autopilot</div>
           <div style={{ fontSize: 13, color: P.textMuted, marginTop: 2 }}>
-            Teilautonom: nur die freigegebene Klasse wird ausgefuehrt. Alles Uebrige wartet auf Freigabe.
+            Teilautonom: nur die freigegebene Klasse wird ausgefuehrt. Alles Uebrige wartet auf
+            Freigabe.
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          {observeOnly && <Badge color={P.blue} bg={P.blueDim}>Beobachtungsmodus - nur Dokumentation</Badge>}
-          <Badge color={P.textMuted} bg="rgba(139,141,163,0.12)">Autonomie {autonomyLabel}</Badge>
-          {config?.kill_switch && <Badge color={P.red} bg={P.redDim}>Kill-Switch aktiv</Badge>}
-          <Btn onClick={() => runDryRun()} disabled={loading}>Dry-Run jetzt</Btn>
-          <Btn onClick={() => refresh()} disabled={loading}>Aktualisieren</Btn>
+          {observeOnly && (
+            <Badge color={P.blue} bg={P.blueDim}>
+              Beobachtungsmodus - nur Dokumentation
+            </Badge>
+          )}
+          <Badge color={P.textMuted} bg="rgba(139,141,163,0.12)">
+            Autonomie {autonomyLabel}
+          </Badge>
+          {config?.kill_switch && (
+            <Badge color={P.red} bg={P.redDim}>
+              Kill-Switch aktiv
+            </Badge>
+          )}
+          <Btn onClick={() => runDryRun()} disabled={loading}>
+            Dry-Run jetzt
+          </Btn>
+          <Btn onClick={() => refresh()} disabled={loading}>
+            Aktualisieren
+          </Btn>
         </div>
       </div>
 
       {config?.kill_switch && (
-        <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: P.redDim, color: P.red, fontSize: 13 }}>
+        <div
+          style={{
+            marginTop: 12,
+            padding: "10px 12px",
+            borderRadius: 8,
+            background: P.redDim,
+            color: P.red,
+            fontSize: 13,
+          }}
+        >
           Kill-Switch ist aktiv - der Autopilot fuehrt fuer diesen Kunden keine Aenderungen aus.
         </div>
       )}
       {observeOnly && (
-        <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: P.blueDim, color: P.blue, fontSize: 13 }}>
-          Beobachtungsmodus: Der Autopilot dokumentiert nur Massnahmen und Empfehlungen - es werden KEINE
-          Aenderungen an Google Ads vorgenommen (unabhaengig vom Autonomie-Level). Freigaben sind deaktiviert,
-          bis observe_only=false gesetzt wird (nach Qualitaetspruefung).
+        <div
+          style={{
+            marginTop: 12,
+            padding: "10px 12px",
+            borderRadius: 8,
+            background: P.blueDim,
+            color: P.blue,
+            fontSize: 13,
+          }}
+        >
+          Beobachtungsmodus: Der Autopilot dokumentiert nur Massnahmen und Empfehlungen - es werden
+          KEINE Aenderungen an Google Ads vorgenommen (unabhaengig vom Autonomie-Level). Freigaben
+          sind deaktiviert, bis observe_only=false gesetzt wird (nach Qualitaetspruefung).
         </div>
       )}
       {error && (
-        <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: P.redDim, color: P.red, fontSize: 13 }}>
+        <div
+          style={{
+            marginTop: 12,
+            padding: "10px 12px",
+            borderRadius: 8,
+            background: P.redDim,
+            color: P.red,
+            fontSize: 13,
+          }}
+        >
           Fehler: {error}
         </div>
       )}
       {!config && !loading && (
-        <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: P.orangeDim, color: P.orange, fontSize: 13 }}>
-          Keine Autopilot-Konfiguration fuer diesen Kunden. Bitte eine ads_autopilot_config-Zeile anlegen
-          (autonomy_level, Ziel-CPA/ROAS, no_touch, Saison).
+        <div
+          style={{
+            marginTop: 12,
+            padding: "10px 12px",
+            borderRadius: 8,
+            background: P.orangeDim,
+            color: P.orange,
+            fontSize: 13,
+          }}
+        >
+          Keine Autopilot-Konfiguration fuer diesen Kunden. Bitte eine ads_autopilot_config-Zeile
+          anlegen (autonomy_level, Ziel-CPA/ROAS, no_touch, Saison).
         </div>
       )}
 
       {/* Approval queue */}
       <div style={{ marginTop: 20 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: P.text, marginBottom: 8 }}>
-          {observeOnly ? "Empfehlungen (Dokumentation)" : "Wartet auf Freigabe"} ({activeApprovals.length})
+          {observeOnly ? "Empfehlungen (Dokumentation)" : "Wartet auf Freigabe"} (
+          {activeApprovals.length})
         </div>
         {activeApprovals.length === 0 && (
           <div style={{ fontSize: 13, color: P.textDim }}>Keine offenen Freigaben.</div>
@@ -369,33 +508,72 @@ export default function AdsAutopilotPanel({ selectedClient }) {
               <div
                 key={a.id}
                 onClick={() => setDetail(a)}
-                style={{ border: `1px solid ${P.border}`, borderRadius: 10, padding: 12, cursor: "pointer" }}
+                style={{
+                  border: `1px solid ${P.border}`,
+                  borderRadius: 10,
+                  padding: 12,
+                  cursor: "pointer",
+                }}
                 title="Klicken für Erklärung und Details"
               >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    flexWrap: "wrap",
+                  }}
+                >
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <div
+                      style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}
+                    >
                       <Badge>{typeLabel(a.type)}</Badge>
-                      <span style={{ color: P.text, fontWeight: 600, fontSize: 14 }}>{a.entity || "-"}</span>
+                      <span style={{ color: P.text, fontWeight: 600, fontSize: 14 }}>
+                        {a.entity || "-"}
+                      </span>
                       {rest !== null && rest <= 2 && (
-                        <Badge color={P.orange} bg={P.orangeDim}>läuft in {Math.max(rest, 0)} Tag{rest === 1 ? "" : "en"} ab</Badge>
+                        <Badge color={P.orange} bg={P.orangeDim}>
+                          läuft in {Math.max(rest, 0)} Tag{rest === 1 ? "" : "en"} ab
+                        </Badge>
                       )}
                     </div>
                     <div style={{ fontSize: 13, color: P.textMuted, marginTop: 6 }}>
                       {a.current_value ? <span>{a.current_value} </span> : null}
-                      {a.proposed_value ? <span style={{ color: P.text }}>-&gt; {a.proposed_value}</span> : null}
+                      {a.proposed_value ? (
+                        <span style={{ color: P.text }}>-&gt; {a.proposed_value}</span>
+                      ) : null}
                     </div>
-                    {a.rationale && <div style={{ fontSize: 12, color: P.textDim, marginTop: 4 }}>{a.rationale}</div>}
-                    {a.estimated_impact && (
-                      <div style={{ fontSize: 12, color: P.accent, marginTop: 4 }}>Erwartet: {a.estimated_impact}</div>
+                    {a.rationale && (
+                      <div style={{ fontSize: 12, color: P.textDim, marginTop: 4 }}>
+                        {a.rationale}
+                      </div>
                     )}
-                    <div style={{ fontSize: 11, color: P.textDim, marginTop: 6 }}>Klicken für Erklärung &amp; Details</div>
+                    {a.estimated_impact && (
+                      <div style={{ fontSize: 12, color: P.accent, marginTop: 4 }}>
+                        Erwartet: {a.estimated_impact}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 11, color: P.textDim, marginTop: 6 }}>
+                      Klicken für Erklärung &amp; Details
+                    </div>
                   </div>
-                  <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }} onClick={(e) => e.stopPropagation()}>
-                    <Btn variant="approve" disabled={busyId === a.id || observeOnly} onClick={() => decide(a.id, "approve")}>
+                  <div
+                    style={{ display: "flex", gap: 8, alignItems: "flex-start" }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Btn
+                      variant="approve"
+                      disabled={busyId === a.id || observeOnly}
+                      onClick={() => decide(a.id, "approve")}
+                    >
                       {busyId === a.id ? "..." : observeOnly ? "Freigabe gesperrt" : "Freigeben"}
                     </Btn>
-                    <Btn variant="reject" disabled={busyId === a.id} onClick={() => decide(a.id, "reject")}>
+                    <Btn
+                      variant="reject"
+                      disabled={busyId === a.id}
+                      onClick={() => decide(a.id, "reject")}
+                    >
                       Ablehnen
                     </Btn>
                   </div>
@@ -424,12 +602,26 @@ export default function AdsAutopilotPanel({ selectedClient }) {
               key={r.id}
               onClick={() => setRecoDetail(r)}
               title="Klicken für Erklärung: Problem & was zu tun ist"
-              style={{ border: `1px solid ${P.border}`, borderRadius: 10, padding: 12, cursor: "pointer" }}
+              style={{
+                border: `1px solid ${P.border}`,
+                borderRadius: 10,
+                padding: 12,
+                cursor: "pointer",
+              }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  flexWrap: "wrap",
+                }}
+              >
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                    <Badge color={P.green} bg={P.greenDim}>{recoLabel(r.recommendation_type)}</Badge>
+                    <Badge color={P.green} bg={P.greenDim}>
+                      {recoLabel(r.recommendation_type)}
+                    </Badge>
                     <span style={{ color: P.text, fontWeight: 600, fontSize: 14 }}>{r.title}</span>
                   </div>
                   <div style={{ fontSize: 12, color: P.textMuted, marginTop: 4 }}>{r.entity}</div>
@@ -439,11 +631,18 @@ export default function AdsAutopilotPanel({ selectedClient }) {
                     </div>
                   )}
                   {r.expected_impact && (
-                    <div style={{ fontSize: 12, color: P.accent, marginTop: 4 }}>Erwartet: {r.expected_impact}</div>
+                    <div style={{ fontSize: 12, color: P.accent, marginTop: 4 }}>
+                      Erwartet: {r.expected_impact}
+                    </div>
                   )}
-                  <div style={{ fontSize: 11, color: P.textDim, marginTop: 6 }}>Klicken für Erklärung &amp; Details</div>
+                  <div style={{ fontSize: 11, color: P.textDim, marginTop: 6 }}>
+                    Klicken für Erklärung &amp; Details
+                  </div>
                 </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }} onClick={(e) => e.stopPropagation()}>
+                <div
+                  style={{ display: "flex", gap: 8, alignItems: "flex-start" }}
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <Btn
                     variant="approve"
                     disabled={busyId === r.id}
@@ -459,7 +658,10 @@ export default function AdsAutopilotPanel({ selectedClient }) {
                     variant="reject"
                     disabled={busyId === r.id}
                     onClick={() => {
-                      const note = window.prompt("Verworfen — warum? (Pflicht fuer den Verlauf):", "");
+                      const note = window.prompt(
+                        "Verworfen — warum? (Pflicht fuer den Verlauf):",
+                        "",
+                      );
                       if (note === null) return;
                       void markRecommendation(r.id, "dismissed", note || undefined);
                     }}
@@ -476,31 +678,89 @@ export default function AdsAutopilotPanel({ selectedClient }) {
       {recoDetail && (
         <div
           onClick={() => setRecoDetail(null)}
-          style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(10,10,16,0.7)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            background: "rgba(10,10,16,0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 14, padding: 20, maxWidth: 580, width: "100%", maxHeight: "85vh", overflowY: "auto" }}
+            style={{
+              background: P.card,
+              border: `1px solid ${P.border}`,
+              borderRadius: 14,
+              padding: 20,
+              maxWidth: 580,
+              width: "100%",
+              maxHeight: "85vh",
+              overflowY: "auto",
+            }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
               <div>
-                <Badge color={P.green} bg={P.greenDim}>{recoLabel(recoDetail.recommendation_type)}</Badge>
-                <div style={{ fontSize: 15, fontWeight: 700, color: P.text, marginTop: 8 }}>{recoDetail.title}</div>
-                <div style={{ fontSize: 12, color: P.textMuted, marginTop: 4 }}>{recoDetail.entity}</div>
+                <Badge color={P.green} bg={P.greenDim}>
+                  {recoLabel(recoDetail.recommendation_type)}
+                </Badge>
+                <div style={{ fontSize: 15, fontWeight: 700, color: P.text, marginTop: 8 }}>
+                  {recoDetail.title}
+                </div>
+                <div style={{ fontSize: 12, color: P.textMuted, marginTop: 4 }}>
+                  {recoDetail.entity}
+                </div>
               </div>
-              <button onClick={() => setRecoDetail(null)} style={{ background: "transparent", border: "none", color: P.textMuted, fontSize: 20, cursor: "pointer", lineHeight: 1 }} aria-label="Schliessen">×</button>
+              <button
+                onClick={() => setRecoDetail(null)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: P.textMuted,
+                  fontSize: 20,
+                  cursor: "pointer",
+                  lineHeight: 1,
+                }}
+                aria-label="Schliessen"
+              >
+                ×
+              </button>
             </div>
 
             <div style={{ marginTop: 14 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: P.orange, textTransform: "uppercase", letterSpacing: 0.5 }}>Was ist das Problem?</div>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: P.orange,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                }}
+              >
+                Was ist das Problem?
+              </div>
               <div style={{ fontSize: 13, color: P.text, marginTop: 4, lineHeight: 1.55 }}>
                 {RECO_INFO[recoDetail.recommendation_type]?.problem || "—"}
               </div>
             </div>
             <div style={{ marginTop: 14 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: P.green, textTransform: "uppercase", letterSpacing: 0.5 }}>Was ist zu tun?</div>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: P.green,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                }}
+              >
+                Was ist zu tun?
+              </div>
               <div style={{ fontSize: 13, color: P.text, marginTop: 4, lineHeight: 1.55 }}>
-                {RECO_INFO[recoDetail.recommendation_type]?.todo || "Siehe vorgeschlagene Massnahme."}
+                {RECO_INFO[recoDetail.recommendation_type]?.todo ||
+                  "Siehe vorgeschlagene Massnahme."}
               </div>
               <div style={{ fontSize: 13, color: P.textMuted, marginTop: 6, lineHeight: 1.55 }}>
                 <b style={{ color: P.text }}>Konkret hier:</b> {recoDetail.title}
@@ -508,22 +768,57 @@ export default function AdsAutopilotPanel({ selectedClient }) {
             </div>
             {recoDetail.rationale && (
               <div style={{ marginTop: 14 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: P.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Begründung & Datenlage</div>
-                <div style={{ fontSize: 13, color: P.textDim, marginTop: 4, lineHeight: 1.55 }}>{recoDetail.rationale}</div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: P.textMuted,
+                    textTransform: "uppercase",
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  Begründung & Datenlage
+                </div>
+                <div style={{ fontSize: 13, color: P.textDim, marginTop: 4, lineHeight: 1.55 }}>
+                  {recoDetail.rationale}
+                </div>
               </div>
             )}
             {recoDetail.expected_impact && (
               <div style={{ marginTop: 14 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: P.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Erwartete Wirkung</div>
-                <div style={{ fontSize: 13, color: P.accent, marginTop: 4, lineHeight: 1.55 }}>{recoDetail.expected_impact}</div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: P.textMuted,
+                    textTransform: "uppercase",
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  Erwartete Wirkung
+                </div>
+                <div style={{ fontSize: 13, color: P.accent, marginTop: 4, lineHeight: 1.55 }}>
+                  {recoDetail.expected_impact}
+                </div>
               </div>
             )}
             <div style={{ marginTop: 14 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: P.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Herkunft & Ablauf</div>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: P.textMuted,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                }}
+              >
+                Herkunft & Ablauf
+              </div>
               <div style={{ fontSize: 13, color: P.textMuted, marginTop: 4, lineHeight: 1.55 }}>
-                Erstmals erkannt am {new Date(recoDetail.created_at).toLocaleDateString("de-CH")}, zuletzt bestätigt im Lauf {recoDetail.last_seen_run}.
-                Die Umsetzung ist manuell — der Autopilot ändert hier nichts. Nach der Umsetzung „Umgesetzt" markieren, dann misst der
-                Autopilot die Wirkung (14/30 Tage) und weist ein Ergebnis aus.
+                Erstmals erkannt am {new Date(recoDetail.created_at).toLocaleDateString("de-CH")},
+                zuletzt bestätigt im Lauf {recoDetail.last_seen_run}. Die Umsetzung ist manuell —
+                der Autopilot ändert hier nichts. Nach der Umsetzung „Umgesetzt" markieren, dann
+                misst der Autopilot die Wirkung (14/30 Tage) und weist ein Ergebnis aus.
               </div>
             </div>
 
@@ -564,7 +859,8 @@ export default function AdsAutopilotPanel({ selectedClient }) {
           Befunde des letzten Laufs ({findings.length})
         </div>
         <div style={{ fontSize: 12, color: P.textDim, marginBottom: 8 }}>
-          Beobachtungen aus {latestFindingRun || "-"} — der Autopilot ändert hier nichts automatisch; Details per Klick.
+          Beobachtungen aus {latestFindingRun || "-"} — der Autopilot ändert hier nichts
+          automatisch; Details per Klick.
         </div>
         {findings.length === 0 && (
           <div style={{ fontSize: 13, color: P.textDim }}>
@@ -573,7 +869,16 @@ export default function AdsAutopilotPanel({ selectedClient }) {
         )}
         {Object.entries(findingGroups).map(([gruppe, rows]) => (
           <div key={gruppe} style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: P.textMuted, textTransform: "uppercase", letterSpacing: 0.5, margin: "8px 0 6px" }}>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: P.textMuted,
+                textTransform: "uppercase",
+                letterSpacing: 0.5,
+                margin: "8px 0 6px",
+              }}
+            >
               {gruppe} ({rows.length})
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -582,15 +887,46 @@ export default function AdsAutopilotPanel({ selectedClient }) {
                   key={f.id}
                   onClick={() => setFindingDetail(f)}
                   title="Klicken für Erklärung"
-                  style={{ border: `1px solid ${P.border}`, borderRadius: 8, padding: "8px 12px", cursor: "pointer", display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}
+                  style={{
+                    border: `1px solid ${P.border}`,
+                    borderRadius: 8,
+                    padding: "8px 12px",
+                    cursor: "pointer",
+                    display: "flex",
+                    gap: 10,
+                    alignItems: "baseline",
+                    flexWrap: "wrap",
+                  }}
                 >
-                  <Badge color={P.blue} bg={P.blueDim}>{typeLabel(f.action_type)}</Badge>
-                  <span style={{ color: P.text, fontSize: 13, fontWeight: 600 }}>{f.entity || "-"}</span>
-                  <span style={{ color: P.textDim, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 480 }}>
+                  <Badge color={P.blue} bg={P.blueDim}>
+                    {typeLabel(f.action_type)}
+                  </Badge>
+                  <span style={{ color: P.text, fontSize: 13, fontWeight: 600 }}>
+                    {f.entity || "-"}
+                  </span>
+                  <span
+                    style={{
+                      color: P.textDim,
+                      fontSize: 12,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      maxWidth: 480,
+                    }}
+                  >
                     {f.rationale || ""}
                   </span>
                   {f.recommendation && (
-                    <span style={{ flexBasis: "100%", color: P.green, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <span
+                      style={{
+                        flexBasis: "100%",
+                        color: P.green,
+                        fontSize: 12,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       → {f.recommendation}
                     </span>
                   )}
@@ -604,44 +940,126 @@ export default function AdsAutopilotPanel({ selectedClient }) {
       {findingDetail && (
         <div
           onClick={() => setFindingDetail(null)}
-          style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(10,10,16,0.7)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            background: "rgba(10,10,16,0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 14, padding: 20, maxWidth: 560, width: "100%", maxHeight: "85vh", overflowY: "auto" }}
+            style={{
+              background: P.card,
+              border: `1px solid ${P.border}`,
+              borderRadius: 14,
+              padding: 20,
+              maxWidth: 560,
+              width: "100%",
+              maxHeight: "85vh",
+              overflowY: "auto",
+            }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
               <div>
-                <Badge color={P.blue} bg={P.blueDim}>{typeLabel(findingDetail.action_type)}</Badge>
-                <div style={{ fontSize: 15, fontWeight: 700, color: P.text, marginTop: 8 }}>{findingDetail.entity || "-"}</div>
+                <Badge color={P.blue} bg={P.blueDim}>
+                  {typeLabel(findingDetail.action_type)}
+                </Badge>
+                <div style={{ fontSize: 15, fontWeight: 700, color: P.text, marginTop: 8 }}>
+                  {findingDetail.entity || "-"}
+                </div>
               </div>
-              <button onClick={() => setFindingDetail(null)} style={{ background: "transparent", border: "none", color: P.textMuted, fontSize: 20, cursor: "pointer", lineHeight: 1 }} aria-label="Schliessen">×</button>
+              <button
+                onClick={() => setFindingDetail(null)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: P.textMuted,
+                  fontSize: 20,
+                  cursor: "pointer",
+                  lineHeight: 1,
+                }}
+                aria-label="Schliessen"
+              >
+                ×
+              </button>
             </div>
             <div style={{ marginTop: 14 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: P.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Was wurde beobachtet?</div>
-              <div style={{ fontSize: 13, color: P.text, marginTop: 4, lineHeight: 1.55 }}>{findingDetail.rationale || "Keine Begründung hinterlegt."}</div>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: P.textMuted,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                }}
+              >
+                Was wurde beobachtet?
+              </div>
+              <div style={{ fontSize: 13, color: P.text, marginTop: 4, lineHeight: 1.55 }}>
+                {findingDetail.rationale || "Keine Begründung hinterlegt."}
+              </div>
             </div>
             {(findingDetail.before_value || findingDetail.after_value) && (
               <div style={{ marginTop: 14 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: P.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Werte</div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: P.textMuted,
+                    textTransform: "uppercase",
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  Werte
+                </div>
                 <div style={{ fontSize: 13, color: P.textMuted, marginTop: 4 }}>
-                  {findingDetail.before_value || "-"} {findingDetail.after_value ? <span style={{ color: P.text }}>-&gt; {findingDetail.after_value}</span> : null}
+                  {findingDetail.before_value || "-"}{" "}
+                  {findingDetail.after_value ? (
+                    <span style={{ color: P.text }}>-&gt; {findingDetail.after_value}</span>
+                  ) : null}
                 </div>
               </div>
             )}
             <div style={{ marginTop: 14 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: P.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Empfohlene Massnahme</div>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: P.textMuted,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                }}
+              >
+                Empfohlene Massnahme
+              </div>
               <div style={{ fontSize: 13, color: P.green, marginTop: 4, lineHeight: 1.55 }}>
                 {findingDetail.recommendation ||
                   "Für diesen Befund wurde noch keine Massnahme formuliert (Lauf vor der Umstellung) — der nächste Lauf liefert sie mit."}
               </div>
             </div>
             <div style={{ marginTop: 14 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: P.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Einordnung</div>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: P.textMuted,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                }}
+              >
+                Einordnung
+              </div>
               <div style={{ fontSize: 13, color: P.textMuted, marginTop: 4, lineHeight: 1.55 }}>
-                Reiner Befund aus Lauf {findingDetail.run_id} vom {new Date(findingDetail.created_at).toLocaleDateString("de-CH")} — der
-                Autopilot ändert hier nichts automatisch. Der Punkt fliesst in Report, Vault-Doku und Monats-Audit ein;
-                eine Umsetzung wäre ein manueller Schritt oder ein späterer Freigabe-Vorschlag.
+                Reiner Befund aus Lauf {findingDetail.run_id} vom{" "}
+                {new Date(findingDetail.created_at).toLocaleDateString("de-CH")} — der Autopilot
+                ändert hier nichts automatisch. Der Punkt fliesst in Report, Vault-Doku und
+                Monats-Audit ein; eine Umsetzung wäre ein manueller Schritt oder ein späterer
+                Freigabe-Vorschlag.
               </div>
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}>
@@ -665,8 +1083,12 @@ export default function AdsAutopilotPanel({ selectedClient }) {
 
       {/* Changelog */}
       <div style={{ marginTop: 20 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: P.text, marginBottom: 8 }}>Aenderungs-Log</div>
-        {changeRows.length === 0 && <div style={{ fontSize: 13, color: P.textDim }}>Noch keine Eintraege.</div>}
+        <div style={{ fontSize: 14, fontWeight: 700, color: P.text, marginBottom: 8 }}>
+          Aenderungs-Log
+        </div>
+        {changeRows.length === 0 && (
+          <div style={{ fontSize: 13, color: P.textDim }}>Noch keine Eintraege.</div>
+        )}
         {changeRows.length > 0 && (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -687,7 +1109,9 @@ export default function AdsAutopilotPanel({ selectedClient }) {
                     </td>
                     <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{c.action_type}</td>
                     <td style={{ padding: "6px 8px", color: P.text }}>{c.entity || "-"}</td>
-                    <td style={{ padding: "6px 8px" }}><StatusBadge status={c.status} /></td>
+                    <td style={{ padding: "6px 8px" }}>
+                      <StatusBadge status={c.status} />
+                    </td>
                     <td style={{ padding: "6px 8px", maxWidth: 320 }}>{c.rationale || "-"}</td>
                   </tr>
                 ))}

@@ -99,7 +99,12 @@ import {
 import { ezyFetch } from "@/ezy/data/api";
 import { useAuth } from "@/hooks/use-auth";
 import { useEzyClients } from "@/ezy/data/useEzyClients";
-import { loadSharedRange, saveSharedRange, useRangeData, isReloadNavigation } from "@/ezy/data/rangeStore";
+import {
+  loadSharedRange,
+  saveSharedRange,
+  useRangeData,
+  isReloadNavigation,
+} from "@/ezy/data/rangeStore";
 import { HexGlowLayer } from "@/ezy/HexGlow";
 import { EzyOneMark } from "@/components/ezy-one-mark";
 import { AppVersionBadge } from "@/ezy/AppVersionBadge";
@@ -112,8 +117,20 @@ import { useEzyToolSettings, toolProvider } from "@/ezy/data/useEzyToolSettings"
 import { ServicesPicker, ServicesPanel } from "@/ezy/components/ServicesPanel";
 import { DEFAULT_ON_SERVICES } from "@/lib/services";
 import { useEzyDashboardConfig } from "@/ezy/data/useEzyDashboardConfig";
-import { EZY_APPS, APP_START, APP_SCOPES, APP_FEATURES, TAB_APP_FEATURE, currentAppOf } from "@/ezy/data/appRegistry";
-import { warneBeimAppAktivieren, warneBeimLocalGrid, STATUS_LABEL as READINESS_STATUS_LABEL, appLabel as readinessAppLabel } from "@/ezy/data/appRequirements";
+import {
+  EZY_APPS,
+  APP_START,
+  APP_SCOPES,
+  APP_FEATURES,
+  TAB_APP_FEATURE,
+  currentAppOf,
+} from "@/ezy/data/appRegistry";
+import {
+  warneBeimAppAktivieren,
+  warneBeimLocalGrid,
+  STATUS_LABEL as READINESS_STATUS_LABEL,
+  appLabel as readinessAppLabel,
+} from "@/ezy/data/appRequirements";
 // Local-Grid-Tab (2026-08-17): Maps-Heatmap (Geo-Grid) — eigene Datei, damit
 // der Monolith klein bleibt (parallele Sessions!).
 import LocalGridDashboard from "@/ezy/LocalGridDashboard";
@@ -128,7 +145,11 @@ import ToolActions from "@/ezy/ToolActions";
 // PublishFlow (2026-08-18): WP-Publish-Dialog mit Vorschau + Publish-Schutz,
 // extrahiert aus dem Monolithen. notify = Toast des Aufrufers (kein Zirkular-Import).
 import WordPressPublishModal from "@/ezy/PublishFlow";
-import { useClientAppAccess, appEnabledFor, featureEnabledFor } from "@/ezy/data/useClientAppAccess";
+import {
+  useClientAppAccess,
+  appEnabledFor,
+  featureEnabledFor,
+} from "@/ezy/data/useClientAppAccess";
 import { useAppAccess } from "@/ezy/data/useAppAccess";
 import { useEzyServiceMatrix } from "@/ezy/data/useEzyServiceMatrix";
 import { executeTool as runToolLive } from "@/ezy/data/runTool";
@@ -172,7 +193,17 @@ const toolHasLiveProvider = (id) => toolProvider(id) !== null;
 // (CD-Gradient 135° #71008B→#B9009C). Semantikfarben (grün/rot/…) bleiben.
 
 import { C } from "./theme";
-import { ToastProvider, useToast, Btn, Badge, EzyPilotProvider, EzyPilotPopup, EzyPilotButton, EzyPilotPage, useEzyPilot } from "./shared-ui";
+import {
+  ToastProvider,
+  useToast,
+  Btn,
+  Badge,
+  EzyPilotProvider,
+  EzyPilotPopup,
+  EzyPilotButton,
+  EzyPilotPage,
+  useEzyPilot,
+} from "./shared-ui";
 // Re-Export fuer bestehende Importeure (ezyai & Co. importieren inzwischen direkt).
 export { ToastProvider, EzyPilotProvider, EzyPilotPopup, EzyPilotButton };
 export { AiVisibilityTab } from "./AiVisibilityTab";
@@ -216,7 +247,11 @@ function useLiveIntegrations() {
       if (!res.ok) throw new Error(payload.error || "Live-Status nicht verfügbar");
       setState({ loading: false, data: payload, error: "" });
     } catch (error) {
-      setState({ loading: false, data: null, error: error.message || "Live-Status nicht verfügbar" });
+      setState({
+        loading: false,
+        data: null,
+        error: error.message || "Live-Status nicht verfügbar",
+      });
     }
   }, []);
   useEffect(() => {
@@ -282,7 +317,9 @@ function defaultsFromStored(value) {
     language: String(value?.language || DEFAULT_CUSTOMER_DEFAULTS.language),
     tone: String(value?.tone || DEFAULT_CUSTOMER_DEFAULTS.tone),
     reportTemplate: String(value?.reportTemplate || DEFAULT_CUSTOMER_DEFAULTS.reportTemplate),
-    visibleTabs: Array.isArray(value?.visibleTabs) ? value.visibleTabs : DEFAULT_CUSTOMER_DEFAULTS.visibleTabs,
+    visibleTabs: Array.isArray(value?.visibleTabs)
+      ? value.visibleTabs
+      : DEFAULT_CUSTOMER_DEFAULTS.visibleTabs,
   };
 }
 function useMediaQuery(query) {
@@ -463,7 +500,11 @@ function useCanonryOverview(selectedClient) {
       if (!res.ok) throw new Error(payload.error || "Canonry-Overview nicht verfügbar");
       setState({ loading: false, data: payload, error: "" });
     } catch (error) {
-      setState({ loading: false, data: null, error: error.message || "Canonry-Overview nicht verfügbar" });
+      setState({
+        loading: false,
+        data: null,
+        error: error.message || "Canonry-Overview nicht verfügbar",
+      });
     }
   }, [clientId, isUuid]);
   useEffect(() => {
@@ -940,7 +981,20 @@ const DRP = [
   { id: "90d", label: "90 Tage", d: 90 },
 ];
 const WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
-const MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+const MONTHS = [
+  "Januar",
+  "Februar",
+  "März",
+  "April",
+  "Mai",
+  "Juni",
+  "Juli",
+  "August",
+  "September",
+  "Oktober",
+  "November",
+  "Dezember",
+];
 
 function CalendarMonth({ year, month, rangeStart, rangeEnd, onSelect, hoverDate, onHover }) {
   const firstDay = new Date(year, month, 1);
@@ -969,15 +1023,22 @@ function CalendarMonth({ year, month, rangeStart, rangeEnd, onSelect, hoverDate,
     const e = rangeStart < end ? end : rangeStart;
     return date >= s && date <= e;
   };
-  const isStart = (day) => day && rangeStart && new Date(year, month, day).toDateString() === rangeStart.toDateString();
-  const isEnd = (day) => day && rangeEnd && new Date(year, month, day).toDateString() === rangeEnd.toDateString();
+  const isStart = (day) =>
+    day && rangeStart && new Date(year, month, day).toDateString() === rangeStart.toDateString();
+  const isEnd = (day) =>
+    day && rangeEnd && new Date(year, month, day).toDateString() === rangeEnd.toDateString();
   const today = new Date();
-  const isToday = (day) => day && year === today.getFullYear() && month === today.getMonth() && day === today.getDate();
+  const isToday = (day) =>
+    day && year === today.getFullYear() && month === today.getMonth() && day === today.getDate();
   return (
     <div style={{ width: 220 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 4 }}>
+      <div
+        style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 4 }}
+      >
         {WEEKDAYS.map((wd) => (
-          <div key={wd} style={{ textAlign: "center", fontSize: 10, color: C.textDim, padding: 4 }}>{wd}</div>
+          <div key={wd} style={{ textAlign: "center", fontSize: 10, color: C.textDim, padding: 4 }}>
+            {wd}
+          </div>
         ))}
       </div>
       {weeks.map((w, wi) => (
@@ -1049,18 +1110,28 @@ function DateRangePicker({ value, onChange }) {
     if (!rangeStart || !rangeEnd) return;
     const days = Math.max(1, Math.ceil((rangeEnd - rangeStart) / (24 * 60 * 60 * 1000)) + 1);
     const fmt = (d) => d.toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit" });
-    onChange({ label: `${fmt(rangeStart)} – ${fmt(rangeEnd)}`, days, start: rangeStart, end: rangeEnd, preset: "custom" });
+    onChange({
+      label: `${fmt(rangeStart)} – ${fmt(rangeEnd)}`,
+      days,
+      start: rangeStart,
+      end: rangeEnd,
+      preset: "custom",
+    });
     setA("custom");
     setShowCalendar(false);
     setOpen(false);
   };
   const prevMonth = () => {
-    if (viewMonth === 0) { setViewMonth(11); setViewYear(viewYear - 1); }
-    else setViewMonth(viewMonth - 1);
+    if (viewMonth === 0) {
+      setViewMonth(11);
+      setViewYear(viewYear - 1);
+    } else setViewMonth(viewMonth - 1);
   };
   const nextMonth = () => {
-    if (viewMonth === 11) { setViewMonth(0); setViewYear(viewYear + 1); }
-    else setViewMonth(viewMonth + 1);
+    if (viewMonth === 11) {
+      setViewMonth(0);
+      setViewYear(viewYear + 1);
+    } else setViewMonth(viewMonth + 1);
   };
   const displayLabel = value?.label || "30 Tage";
   return (
@@ -1161,14 +1232,39 @@ function DateRangePicker({ value, onChange }) {
             </>
           ) : (
             <div style={{ padding: 8 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <button onClick={prevMonth} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, padding: 4 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 12,
+                }}
+              >
+                <button
+                  onClick={prevMonth}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: C.textMuted,
+                    padding: 4,
+                  }}
+                >
                   <ChevronLeft size={16} />
                 </button>
                 <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>
                   {MONTHS[viewMonth]} {viewYear}
                 </span>
-                <button onClick={nextMonth} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, padding: 4 }}>
+                <button
+                  onClick={nextMonth}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: C.textMuted,
+                    padding: 4,
+                  }}
+                >
                   <ChevronRight size={16} />
                 </button>
               </div>
@@ -1181,11 +1277,30 @@ function DateRangePicker({ value, onChange }) {
                 onSelect={handleDateSelect}
                 onHover={setHoverDate}
               />
-              <div style={{ marginTop: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div
+                style={{
+                  marginTop: 12,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
                 <div style={{ fontSize: 11, color: C.textMuted }}>
-                  {rangeStart ? rangeStart.toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric" }) : "Start"}
+                  {rangeStart
+                    ? rangeStart.toLocaleDateString("de-CH", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                      })
+                    : "Start"}
                   {" – "}
-                  {rangeEnd ? rangeEnd.toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric" }) : "Ende"}
+                  {rangeEnd
+                    ? rangeEnd.toLocaleDateString("de-CH", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                      })
+                    : "Ende"}
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
                   <button
@@ -1280,8 +1395,10 @@ function parseSeriesDate(s) {
 // Sum a metric across the series rows whose date falls within [start, end].
 function sumSeriesInRange(series, key, start, end) {
   if (!Array.isArray(series) || !start || !end) return 0;
-  const s = new Date(start); s.setHours(0, 0, 0, 0);
-  const e = new Date(end); e.setHours(23, 59, 59, 999);
+  const s = new Date(start);
+  s.setHours(0, 0, 0, 0);
+  const e = new Date(end);
+  e.setHours(23, 59, 59, 999);
   let sum = 0;
   for (const row of series) {
     const d = parseSeriesDate(row.date);
@@ -1309,7 +1426,8 @@ function compareName(mode) {
 function CompareBanner({ dateRange }) {
   if (!dateRange?.compare) return null;
   const name = compareName(dateRange.compareMode) || "Vergleich";
-  const fmt = (d) => new Date(d).toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const fmt = (d) =>
+    new Date(d).toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric" });
   return (
     <div
       style={{
@@ -1323,16 +1441,46 @@ function CompareBanner({ dateRange }) {
         padding: "12px 16px",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 8, color: C.accentLight, fontWeight: 700, fontSize: 13 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          color: C.accentLight,
+          fontWeight: 700,
+          fontSize: 13,
+        }}
+      >
         <GitBranch size={15} />
         Vergleich aktiv: {name}
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12.5, color: C.textMuted }}>
-        <span style={{ color: C.text, fontWeight: 600 }}>{fmt(dateRange.start)} – {fmt(dateRange.end)}</span>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          fontSize: 12.5,
+          color: C.textMuted,
+        }}
+      >
+        <span style={{ color: C.text, fontWeight: 600 }}>
+          {fmt(dateRange.start)} – {fmt(dateRange.end)}
+        </span>
         <span style={{ color: C.textDim }}>vs.</span>
-        <span style={{ fontWeight: 600 }}>{fmt(dateRange.compare.start)} – {fmt(dateRange.compare.end)}</span>
+        <span style={{ fontWeight: 600 }}>
+          {fmt(dateRange.compare.start)} – {fmt(dateRange.compare.end)}
+        </span>
       </div>
-      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14, fontSize: 11.5, color: C.textDim }}>
+      <div
+        style={{
+          marginLeft: "auto",
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          fontSize: 11.5,
+          color: C.textDim,
+        }}
+      >
         <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <ArrowUpRight size={13} color={C.green} /> Anstieg
         </span>
@@ -1362,19 +1510,19 @@ function seriesDelta(series, key, range) {
 // in der Vergangenheit → Snapshot-Fallback bleibt maßgeblich).
 function useLiveGa4(clientId, endpoint, days) {
   const d = days ? Math.min(90, Math.max(1, Math.round(days))) : null;
-  return useRangeData(
-    clientId && d ? `ga4:${endpoint}:${clientId}:${d}` : null,
-    async () => {
-      const session = (await supabase.auth.getSession()).data.session;
-      const r = await fetch(`/api/google/${endpoint}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId, days: d, persist: false }),
-      });
-      const j = await r.json().catch(() => null);
-      return j?.ok ? j : null;
-    },
-  );
+  return useRangeData(clientId && d ? `ga4:${endpoint}:${clientId}:${d}` : null, async () => {
+    const session = (await supabase.auth.getSession()).data.session;
+    const r = await fetch(`/api/google/${endpoint}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session?.access_token || ""}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ clientId, days: d, persist: false }),
+    });
+    const j = await r.json().catch(() => null);
+    return j?.ok ? j : null;
+  });
 }
 // Live-Zeitraum nur, wenn das Fenster "bis heute" reicht — ein Custom-Zeitraum,
 // der in der Vergangenheit endet, lässt sich über die days-APIs nicht abbilden.
@@ -1391,14 +1539,20 @@ function useGa4Compare(clientId, dateRange) {
     : null;
   useEffect(() => {
     let cancelled = false;
-    if (!clientId || !dateRange?.compare) { setData(null); return; }
+    if (!clientId || !dateRange?.compare) {
+      setData(null);
+      return;
+    }
     const iso = (d) => new Date(d).toISOString().slice(0, 10);
     (async () => {
       try {
         const session = (await supabase.auth.getSession()).data.session;
         const r = await fetch("/api/google/ga4-compare", {
           method: "POST",
-          headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
+          headers: {
+            Authorization: `Bearer ${session?.access_token || ""}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             clientId,
             start: iso(dateRange.start),
@@ -1414,12 +1568,15 @@ function useGa4Compare(clientId, dateRange) {
         if (!cancelled) setData(null);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId, compareKey]);
   const deltas = useMemo(() => {
     if (!data?.current || !data?.compare) return {};
-    const d = (k) => pctDelta(Number(data.current[k] || 0), Number(data.compare[k] || 0)) ?? undefined;
+    const d = (k) =>
+      pctDelta(Number(data.current[k] || 0), Number(data.compare[k] || 0)) ?? undefined;
     return {
       sessions: d("sessions"),
       totalUsers: d("totalUsers"),
@@ -1436,7 +1593,9 @@ function ComparePicker({ value, onChange }) {
   const [open, setOpen] = useState(false);
   const ref = useRef();
   useEffect(() => {
-    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const h = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
@@ -1486,7 +1645,10 @@ function ComparePicker({ value, onChange }) {
           {COMPARE_OPTIONS.map((o) => (
             <button
               key={o.id}
-              onClick={() => { onChange(o.id); setOpen(false); }}
+              onClick={() => {
+                onChange(o.id);
+                setOpen(false);
+              }}
               style={{
                 display: "block",
                 width: "100%",
@@ -1965,9 +2127,21 @@ const CURATED_TOOLS = [
     repoUrl: "https://github.com/AgriciDaniel/claude-blog",
     color: C.cyan,
     inputs: [
-      { id: "content", label: "Bestehender Inhalt", type: "textarea", required: true, placeholder: "Artikeltext hier einfügen" },
+      {
+        id: "content",
+        label: "Bestehender Inhalt",
+        type: "textarea",
+        required: true,
+        placeholder: "Artikeltext hier einfügen",
+      },
       { id: "keyword", label: "Haupt-Keyword", type: "text", required: false },
-      { id: "language", label: "Sprache", type: "select", required: true, options: ["Deutsch", "Englisch", "Französisch"] },
+      {
+        id: "language",
+        label: "Sprache",
+        type: "select",
+        required: true,
+        options: ["Deutsch", "Englisch", "Französisch"],
+      },
     ],
     estimatedTime: "2-5 min",
     subSkills: ["blog-rewrite", "blog-geo", "blog-schema"],
@@ -1985,9 +2159,21 @@ const CURATED_TOOLS = [
     repoUrl: "https://github.com/AgriciDaniel/claude-blog",
     color: C.accent,
     inputs: [
-      { id: "topic", label: "Thema / Nische", type: "text", required: true, placeholder: "z.B. lokale SEO für KMU" },
+      {
+        id: "topic",
+        label: "Thema / Nische",
+        type: "text",
+        required: true,
+        placeholder: "z.B. lokale SEO für KMU",
+      },
       { id: "audience", label: "Zielgruppe", type: "text", required: false },
-      { id: "language", label: "Sprache", type: "select", required: true, options: ["Deutsch", "Englisch", "Französisch"] },
+      {
+        id: "language",
+        label: "Sprache",
+        type: "select",
+        required: true,
+        options: ["Deutsch", "Englisch", "Französisch"],
+      },
     ],
     estimatedTime: "1-3 min",
     subSkills: ["blog-strategy", "blog-cluster"],
@@ -2005,9 +2191,27 @@ const CURATED_TOOLS = [
     repoUrl: "https://github.com/AgriciDaniel/claude-blog",
     color: C.pink,
     inputs: [
-      { id: "content", label: "Beitrag / Inhalt", type: "textarea", required: true, placeholder: "Artikeltext hier einfügen" },
-      { id: "platforms", label: "Plattformen", type: "text", required: false, placeholder: "z.B. LinkedIn, X, Newsletter" },
-      { id: "language", label: "Sprache", type: "select", required: true, options: ["Deutsch", "Englisch", "Französisch"] },
+      {
+        id: "content",
+        label: "Beitrag / Inhalt",
+        type: "textarea",
+        required: true,
+        placeholder: "Artikeltext hier einfügen",
+      },
+      {
+        id: "platforms",
+        label: "Plattformen",
+        type: "text",
+        required: false,
+        placeholder: "z.B. LinkedIn, X, Newsletter",
+      },
+      {
+        id: "language",
+        label: "Sprache",
+        type: "select",
+        required: true,
+        options: ["Deutsch", "Englisch", "Französisch"],
+      },
     ],
     estimatedTime: "1-3 min",
     subSkills: ["blog-repurpose"],
@@ -2027,7 +2231,13 @@ const CURATED_TOOLS = [
     inputs: [
       { id: "own", label: "Eigenes Produkt / Marke", type: "text", required: true },
       { id: "competitor", label: "Wettbewerber", type: "text", required: true },
-      { id: "language", label: "Sprache", type: "select", required: true, options: ["Deutsch", "Englisch", "Französisch"] },
+      {
+        id: "language",
+        label: "Sprache",
+        type: "select",
+        required: true,
+        options: ["Deutsch", "Englisch", "Französisch"],
+      },
     ],
     estimatedTime: "1-3 min",
     subSkills: ["seo-competitor-pages", "seo-schema"],
@@ -2046,8 +2256,20 @@ const CURATED_TOOLS = [
     color: C.orange,
     inputs: [
       { id: "topic", label: "Thema / Domain", type: "text", required: true },
-      { id: "period", label: "Zeitraum", type: "select", required: false, options: ["1 Monat", "1 Quartal"] },
-      { id: "language", label: "Sprache", type: "select", required: true, options: ["Deutsch", "Englisch", "Französisch"] },
+      {
+        id: "period",
+        label: "Zeitraum",
+        type: "select",
+        required: false,
+        options: ["1 Monat", "1 Quartal"],
+      },
+      {
+        id: "language",
+        label: "Sprache",
+        type: "select",
+        required: true,
+        options: ["Deutsch", "Englisch", "Französisch"],
+      },
     ],
     estimatedTime: "1-3 min",
     subSkills: ["blog-calendar"],
@@ -2065,8 +2287,20 @@ const CURATED_TOOLS = [
     repoUrl: "https://github.com/AgriciDaniel/claude-blog",
     color: C.green,
     inputs: [
-      { id: "content", label: "Beitrag / Inhalt", type: "textarea", required: true, placeholder: "Artikeltext hier einfügen" },
-      { id: "language", label: "Sprache", type: "select", required: true, options: ["Deutsch", "Englisch", "Französisch"] },
+      {
+        id: "content",
+        label: "Beitrag / Inhalt",
+        type: "textarea",
+        required: true,
+        placeholder: "Artikeltext hier einfügen",
+      },
+      {
+        id: "language",
+        label: "Sprache",
+        type: "select",
+        required: true,
+        options: ["Deutsch", "Englisch", "Französisch"],
+      },
     ],
     estimatedTime: "1-3 min",
     subSkills: ["blog-geo"],
@@ -2084,7 +2318,13 @@ const CURATED_TOOLS = [
     repoUrl: "https://github.com/AgriciDaniel/claude-seo",
     color: C.blue,
     inputs: [
-      { id: "strategy", label: "Gerät", type: "select", required: false, options: ["Mobile", "Desktop"] },
+      {
+        id: "strategy",
+        label: "Gerät",
+        type: "select",
+        required: false,
+        options: ["Mobile", "Desktop"],
+      },
     ],
     estimatedTime: "< 1 min",
     subSkills: ["seo-technical"],
@@ -2183,9 +2423,19 @@ function toolGoalOf(tool) {
   if (TOOL_GOAL_BY_ID[tool.id]) return TOOL_GOAL_BY_ID[tool.id];
   const key = `${tool.id} ${tool.label}`.toLowerCase();
   if (/publish|wordpress/.test(key)) return "publish";
-  if (/write|generate|outline|brief|calendar|repurpose|strategy|translat|multilingual|pages|sitemap|note/.test(key)) return "create";
+  if (
+    /write|generate|outline|brief|calendar|repurpose|strategy|translat|multilingual|pages|sitemap|note/.test(
+      key,
+    )
+  )
+    return "create";
   if (/rewrite|refresh|optimi|meta|schema|update|fix/.test(key)) return "optimize";
-  if (/audit|check|analy|research|monitor|cluster|rank|backlink|technical|competitor|serp|drift|visual|performance|local|maps|geo/.test(key)) return "analyse";
+  if (
+    /audit|check|analy|research|monitor|cluster|rank|backlink|technical|competitor|serp|drift|visual|performance|local|maps|geo/.test(
+      key,
+    )
+  )
+    return "analyse";
   // Katalog-Fallback nach Skill-Kategorie: SEO-Skills sind ueberwiegend Analyse,
   // Blog-/Obsidian-Skills ueberwiegend Content-Erstellung.
   return tool.category === "skills-seo" ? "analyse" : "create";
@@ -2216,7 +2466,17 @@ function skillCategoryBadge(skillName) {
 // ═══════════════════════════════════════════════════════════════════════════
 // SHARED CHART COMPONENTS (preserved)
 // ═══════════════════════════════════════════════════════════════════════════
-function KpiCard({ icon: I, label, value, change, prefix = "", suffix = "", color = C.accent, compareValue, compareLabel }) {
+function KpiCard({
+  icon: I,
+  label,
+  value,
+  change,
+  prefix = "",
+  suffix = "",
+  color = C.accent,
+  compareValue,
+  compareLabel,
+}) {
   const u = change > 0,
     n = change === 0;
   const hasCompare = change !== undefined;
@@ -2236,7 +2496,9 @@ function KpiCard({ icon: I, label, value, change, prefix = "", suffix = "", colo
       }}
       onMouseEnter={(e) => (e.currentTarget.style.borderColor = C.borderHover)}
       onMouseLeave={(e) =>
-        (e.currentTarget.style.borderColor = hasCompare ? (n ? C.border : u ? C.green : C.red) + "66" : C.border)
+        (e.currentTarget.style.borderColor = hasCompare
+          ? (n ? C.border : u ? C.green : C.red) + "66"
+          : C.border)
       }
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -2274,7 +2536,8 @@ function KpiCard({ icon: I, label, value, change, prefix = "", suffix = "", colo
             ) : (
               <ArrowDownRight size={13} />
             )}
-            {change > 0 ? "+" : ""}{change}%
+            {change > 0 ? "+" : ""}
+            {change}%
           </div>
         )}
       </div>
@@ -2549,9 +2812,7 @@ function AgencyOverview({ clients, onSelect, appScope = null }) {
           next[row.client_id] = {
             ...next[row.client_id],
             traffic:
-              Number(m.org_traffic ?? 0) ||
-              Math.round(Number(m.organic_traffic_etv ?? 0)) ||
-              0,
+              Number(m.org_traffic ?? 0) || Math.round(Number(m.organic_traffic_etv ?? 0)) || 0,
             date: next[row.client_id]?.date || String(row.created_at || "").slice(0, 10),
           };
         }
@@ -2575,13 +2836,23 @@ function AgencyOverview({ clients, onSelect, appScope = null }) {
     isAds
       ? [
           { label: "Werbebudget (CHF)", value: st ? numCH(st.budget) : null },
-          { label: "ROAS", value: st ? `${Number(st.roas || 0).toFixed(2).replace(".", ",")}×` : null },
+          {
+            label: "ROAS",
+            value: st
+              ? `${Number(st.roas || 0)
+                  .toFixed(2)
+                  .replace(".", ",")}×`
+              : null,
+          },
           { label: "Umsatz (CHF)", value: st ? numCH(st.revenue) : null },
         ]
       : [
           { label: "Top 3", value: st?.top3 != null ? st.top3.toLocaleString("de-CH") : null },
           { label: "Top 10", value: st?.top10 != null ? st.top10.toLocaleString("de-CH") : null },
-          { label: "Org. Traffic", value: st?.traffic != null ? st.traffic.toLocaleString("de-CH") : null },
+          {
+            label: "Org. Traffic",
+            value: st?.traffic != null ? st.traffic.toLocaleString("de-CH") : null,
+          },
         ];
   return (
     <>
@@ -2598,9 +2869,7 @@ function AgencyOverview({ clients, onSelect, appScope = null }) {
         }}
       >
         <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: C.text }}>Kunden</h2>
-        <span style={{ fontSize: 12, color: C.textMuted }}>
-          {clients.length} berechtigt
-        </span>
+        <span style={{ fontSize: 12, color: C.textMuted }}>{clients.length} berechtigt</span>
       </div>
       <div
         className="agency-client-grid"
@@ -2643,7 +2912,15 @@ function AgencyOverview({ clients, onSelect, appScope = null }) {
             >
               <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
                 {/* Favicon der Kundendomain, Fallback auf Initialen (Volkan 13.08.). */}
-                <ClientAvatar name={c.name} domain={c.domain} size={38} radius={10} bg={C.accentDim} fg={C.accentLight} fontSize={13} />
+                <ClientAvatar
+                  name={c.name}
+                  domain={c.domain}
+                  size={38}
+                  radius={10}
+                  bg={C.accentDim}
+                  fg={C.accentLight}
+                  fontSize={13}
+                />
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div
                     style={{
@@ -2689,7 +2966,14 @@ function AgencyOverview({ clients, onSelect, appScope = null }) {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
                 {tileMetrics(st).map((m) => (
                   <div key={m.label}>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: C.text, fontVariantNumeric: "tabular-nums" }}>
+                    <div
+                      style={{
+                        fontSize: 15,
+                        fontWeight: 700,
+                        color: C.text,
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
                       {m.value ?? "—"}
                     </div>
                     <div style={{ fontSize: 10, color: C.textMuted }}>{m.label}</div>
@@ -2727,8 +3011,12 @@ function LiveEmptyState({ title, hint }) {
 // Modul 1 (M1.5): Onboarding-Review. Nur bei vorhandener onboarding_scan-Zeile.
 // Vorschlag aus automatischem Scan — nichts ist aktiv, bis der Mensch uebernimmt.
 const CLIENT_TYPES = [
-  { v: "generic", l: "Allgemein" }, { v: "hotel", l: "Hotel" }, { v: "gastro", l: "Gastro" },
-  { v: "local_service", l: "Lokaler Dienstleister" }, { v: "ngo", l: "NPO / NGO" }, { v: "ecommerce", l: "E-Commerce" },
+  { v: "generic", l: "Allgemein" },
+  { v: "hotel", l: "Hotel" },
+  { v: "gastro", l: "Gastro" },
+  { v: "local_service", l: "Lokaler Dienstleister" },
+  { v: "ngo", l: "NPO / NGO" },
+  { v: "ecommerce", l: "E-Commerce" },
 ];
 function OnboardingPanel({ selectedClient }) {
   const { run, refresh } = useEzyLatestRun(selectedClient?.id, "onboarding_scan");
@@ -2742,11 +3030,18 @@ function OnboardingPanel({ selectedClient }) {
   const [done, setDone] = useState("");
   useEffect(() => {
     if (!res) return;
-    const money = new Set((res.suggestions?.moneyKeywordCandidates || []).map((s) => String(s).toLowerCase()));
+    const money = new Set(
+      (res.suggestions?.moneyKeywordCandidates || []).map((s) => String(s).toLowerCase()),
+    );
     const ranked = res.topRanked || [];
-    const top3 = [...ranked].sort((a, b) => (b.searchVolume || 0) - (a.searchVolume || 0)).slice(0, 3).map((k) => k.kw.toLowerCase());
+    const top3 = [...ranked]
+      .sort((a, b) => (b.searchVolume || 0) - (a.searchVolume || 0))
+      .slice(0, 3)
+      .map((k) => k.kw.toLowerCase());
     const pre = {};
-    ranked.forEach((k) => { if (money.has(k.kw.toLowerCase()) || top3.includes(k.kw.toLowerCase())) pre[k.kw] = true; });
+    ranked.forEach((k) => {
+      if (money.has(k.kw.toLowerCase()) || top3.includes(k.kw.toLowerCase())) pre[k.kw] = true;
+    });
     setSelKw(pre);
     setCtype(res.suggestions?.clientType || "generic");
     setBrandStr((res.suggestions?.brandTerms || []).join(", "));
@@ -2757,60 +3052,162 @@ function OnboardingPanel({ selectedClient }) {
   const kwList = res.topRanked || [];
   const orgList = res.topOrganicCompetitors || [];
   const locList = res.topLocalCompetitors || [];
-  const moneySet = new Set((res.suggestions?.moneyKeywordCandidates || []).map((s) => String(s).toLowerCase()));
+  const moneySet = new Set(
+    (res.suggestions?.moneyKeywordCandidates || []).map((s) => String(s).toLowerCase()),
+  );
   const Counter = ({ label, n }) => (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px" }}>
+    <div
+      style={{
+        background: C.card,
+        border: `1px solid ${C.border}`,
+        borderRadius: 10,
+        padding: "12px 14px",
+      }}
+    >
       <div style={{ fontSize: 22, fontWeight: 700, color: C.text }}>{n ?? 0}</div>
       <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{label}</div>
     </div>
   );
   async function apply() {
-    setBusy(true); setDone("");
+    setBusy(true);
+    setDone("");
     try {
-      const brand_terms = brandStr.split(",").map((s) => s.trim()).filter(Boolean);
+      const brand_terms = brandStr
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
       const keywords = kwList.filter((k) => selKw[k.kw]).map((k) => k.kw);
-      const { error: cErr } = await supabase.from("clients").update({ brand_terms, client_type: ctype }).eq("id", selectedClient.id);
+      const { error: cErr } = await supabase
+        .from("clients")
+        .update({ brand_terms, client_type: ctype })
+        .eq("id", selectedClient.id);
       if (cErr) throw cErr;
       // Ausgewaehlte Keywords zur Uebernahme markieren; der agent-service wendet
       // sie beim naechsten Onboarding-Tick auf die BESTEHENDE keyword-setup-Route
       // an (Browser erreicht den localhost-Dienst nicht direkt).
-      const applied = { keywords, brand_terms, client_type: ctype, at: new Date().toISOString(), processed: false };
-      await supabase.from("audit_runs").update({ result: { ...res, applied } }).eq("id", run.id);
-      setDone(`Uebernommen am ${new Date().toLocaleDateString("de-CH")} — ${keywords.length} Keywords zur Aufnahme markiert, Kundentyp/Brand-Terms gesetzt.`);
+      const applied = {
+        keywords,
+        brand_terms,
+        client_type: ctype,
+        at: new Date().toISOString(),
+        processed: false,
+      };
+      await supabase
+        .from("audit_runs")
+        .update({ result: { ...res, applied } })
+        .eq("id", run.id);
+      setDone(
+        `Uebernommen am ${new Date().toLocaleDateString("de-CH")} — ${keywords.length} Keywords zur Aufnahme markiert, Kundentyp/Brand-Terms gesetzt.`,
+      );
       await refresh();
     } catch (e) {
       setDone("Fehler: " + String(e?.message || e).slice(0, 140));
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   }
   const alreadyApplied = res.applied?.at;
   return (
-    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 18, display: "flex", flexDirection: "column", gap: 14 }}>
+    <div
+      style={{
+        background: C.surface,
+        border: `1px solid ${C.border}`,
+        borderRadius: 12,
+        padding: 18,
+        display: "flex",
+        flexDirection: "column",
+        gap: 14,
+      }}
+    >
       <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Onboarding-Vorschlag</div>
-      <div style={{ fontSize: 12, color: C.orange, background: C.orangeDim, border: `1px solid ${C.orange}44`, borderRadius: 8, padding: "8px 12px" }}>
+      <div
+        style={{
+          fontSize: 12,
+          color: C.orange,
+          background: C.orangeDim,
+          border: `1px solid ${C.orange}44`,
+          borderRadius: 8,
+          padding: "8px 12px",
+        }}
+      >
         Vorschlag aus automatischem Scan — nichts ist aktiv, bis du uebernimmst.
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 10 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))",
+          gap: 10,
+        }}
+      >
         <Counter label="Ranked Keywords" n={counts.ranked} />
         <Counter label="Keyword-Ideen" n={counts.ideas} />
         <Counter label="Organische Wettbewerber" n={counts.organicCompetitors} />
         <Counter label="Lokale Wettbewerber" n={counts.localCompetitors} />
       </div>
-      {changes && (changes.newRankedMoneyKw?.length || changes.lostRankings?.length || changes.newOrganicCompetitors?.length) ? (
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", fontSize: 12, color: C.textMuted }}>
-          <b style={{ color: C.text }}>Seit letztem Scan:</b> {changes.newRankedMoneyKw?.length || 0} neu rankende Money-KW · {changes.lostRankings?.length || 0} verlorene Rankings · {changes.newOrganicCompetitors?.length || 0} neue Wettbewerber. <span style={{ color: C.textDim }}>Details in der Wunsch-Queue.</span>
+      {changes &&
+      (changes.newRankedMoneyKw?.length ||
+        changes.lostRankings?.length ||
+        changes.newOrganicCompetitors?.length) ? (
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 8,
+            padding: "10px 12px",
+            fontSize: 12,
+            color: C.textMuted,
+          }}
+        >
+          <b style={{ color: C.text }}>Seit letztem Scan:</b>{" "}
+          {changes.newRankedMoneyKw?.length || 0} neu rankende Money-KW ·{" "}
+          {changes.lostRankings?.length || 0} verlorene Rankings ·{" "}
+          {changes.newOrganicCompetitors?.length || 0} neue Wettbewerber.{" "}
+          <span style={{ color: C.textDim }}>Details in der Wunsch-Queue.</span>
         </div>
       ) : null}
       {/* Keyword-Universum */}
       <div>
-        <div style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 6 }}>Keyword-Universum</div>
-        <div style={{ maxHeight: 260, overflowY: "auto", border: `1px solid ${C.border}`, borderRadius: 8 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 6 }}>
+          Keyword-Universum
+        </div>
+        <div
+          style={{
+            maxHeight: 260,
+            overflowY: "auto",
+            border: `1px solid ${C.border}`,
+            borderRadius: 8,
+          }}
+        >
           {kwList.map((k, i) => (
-            <label key={i} style={{ display: "grid", gridTemplateColumns: "24px 1fr auto auto auto", alignItems: "center", gap: 8, padding: "6px 10px", borderTop: i ? `1px solid ${C.border}` : "none", fontSize: 12, cursor: "pointer" }}>
-              <input type="checkbox" checked={!!selKw[k.kw]} onChange={() => setSelKw((s) => ({ ...s, [k.kw]: !s[k.kw] }))} />
-              <span style={{ color: C.text }}>{moneySet.has(k.kw.toLowerCase()) ? <Badge color={C.green}>Money</Badge> : null} {k.kw}</span>
-              <span title="Position ist eine Labs-Schaetzung, keine Live-Messung"><Badge color={C.blue}>Labs-Schaetzung</Badge></span>
+            <label
+              key={i}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "24px 1fr auto auto auto",
+                alignItems: "center",
+                gap: 8,
+                padding: "6px 10px",
+                borderTop: i ? `1px solid ${C.border}` : "none",
+                fontSize: 12,
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={!!selKw[k.kw]}
+                onChange={() => setSelKw((s) => ({ ...s, [k.kw]: !s[k.kw] }))}
+              />
+              <span style={{ color: C.text }}>
+                {moneySet.has(k.kw.toLowerCase()) ? <Badge color={C.green}>Money</Badge> : null}{" "}
+                {k.kw}
+              </span>
+              <span title="Position ist eine Labs-Schaetzung, keine Live-Messung">
+                <Badge color={C.blue}>Labs-Schaetzung</Badge>
+              </span>
               <span style={{ color: C.textMuted }}>Pos {k.position ?? "—"}</span>
-              <span style={{ color: C.textDim }}>{k.searchVolume ?? "—"} · {k.intent || "—"}</span>
+              <span style={{ color: C.textDim }}>
+                {k.searchVolume ?? "—"} · {k.intent || "—"}
+              </span>
             </label>
           ))}
         </div>
@@ -2818,11 +3215,29 @@ function OnboardingPanel({ selectedClient }) {
       {/* Organische Wettbewerber */}
       {orgList.length ? (
         <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 6 }}>Organische Wettbewerber</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 6 }}>
+            Organische Wettbewerber
+          </div>
           <div style={{ border: `1px solid ${C.border}`, borderRadius: 8 }}>
             {orgList.map((o, i) => (
-              <label key={i} style={{ display: "grid", gridTemplateColumns: "24px 1fr auto auto", alignItems: "center", gap: 8, padding: "6px 10px", borderTop: i ? `1px solid ${C.border}` : "none", fontSize: 12, cursor: "pointer" }}>
-                <input type="checkbox" checked={!!selOrg[o.domain]} onChange={() => setSelOrg((s) => ({ ...s, [o.domain]: !s[o.domain] }))} />
+              <label
+                key={i}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "24px 1fr auto auto",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "6px 10px",
+                  borderTop: i ? `1px solid ${C.border}` : "none",
+                  fontSize: 12,
+                  cursor: "pointer",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={!!selOrg[o.domain]}
+                  onChange={() => setSelOrg((s) => ({ ...s, [o.domain]: !s[o.domain] }))}
+                />
                 <span style={{ color: C.text }}>{o.domain}</span>
                 <span style={{ color: C.textDim }}>{o.commonKeywords ?? "—"} KW</span>
                 <span style={{ color: C.textDim }}>Ø {o.avgPosition ?? "—"}</span>
@@ -2834,11 +3249,31 @@ function OnboardingPanel({ selectedClient }) {
       {/* Lokale Wettbewerber */}
       {locList.length ? (
         <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 6 }}>Lokale Wettbewerber</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 6 }}>
+            Lokale Wettbewerber
+          </div>
           <div style={{ border: `1px solid ${C.border}`, borderRadius: 8 }}>
             {locList.map((l, i) => (
-              <label key={i} style={{ display: "grid", gridTemplateColumns: "24px 1fr auto auto auto", alignItems: "center", gap: 8, padding: "6px 10px", borderTop: i ? `1px solid ${C.border}` : "none", fontSize: 12, cursor: "pointer" }}>
-                <input type="checkbox" checked={!!selLoc[l.cid || l.title]} onChange={() => setSelLoc((s) => ({ ...s, [l.cid || l.title]: !s[l.cid || l.title] }))} />
+              <label
+                key={i}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "24px 1fr auto auto auto",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "6px 10px",
+                  borderTop: i ? `1px solid ${C.border}` : "none",
+                  fontSize: 12,
+                  cursor: "pointer",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={!!selLoc[l.cid || l.title]}
+                  onChange={() =>
+                    setSelLoc((s) => ({ ...s, [l.cid || l.title]: !s[l.cid || l.title] }))
+                  }
+                />
                 <span style={{ color: C.text }}>{l.title}</span>
                 <span style={{ color: C.textDim }}>★ {l.rating ?? "—"}</span>
                 <span style={{ color: C.textDim }}>{l.votesCount ?? 0} Bew.</span>
@@ -2851,21 +3286,77 @@ function OnboardingPanel({ selectedClient }) {
       {/* Kundentyp + Brand-Terms + Uebernehmen */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
         <div>
-          <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }} title={res.suggestions?.clientTypeReason || ""}>Kundentyp ⓘ</div>
-          <select value={ctype} onChange={(e) => setCtype(e.target.value)} style={{ background: C.card, color: C.text, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", fontSize: 12 }}>
-            {CLIENT_TYPES.map((t) => <option key={t.v} value={t.v}>{t.l}</option>)}
+          <div
+            style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}
+            title={res.suggestions?.clientTypeReason || ""}
+          >
+            Kundentyp ⓘ
+          </div>
+          <select
+            value={ctype}
+            onChange={(e) => setCtype(e.target.value)}
+            style={{
+              background: C.card,
+              color: C.text,
+              border: `1px solid ${C.border}`,
+              borderRadius: 8,
+              padding: "8px 10px",
+              fontSize: 12,
+            }}
+          >
+            {CLIENT_TYPES.map((t) => (
+              <option key={t.v} value={t.v}>
+                {t.l}
+              </option>
+            ))}
           </select>
         </div>
         <div style={{ flex: 1, minWidth: 200 }}>
-          <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>Brand-Terms (Komma-getrennt)</div>
-          <input value={brandStr} onChange={(e) => setBrandStr(e.target.value)} style={{ width: "100%", background: C.card, color: C.text, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", fontSize: 12 }} />
+          <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>
+            Brand-Terms (Komma-getrennt)
+          </div>
+          <input
+            value={brandStr}
+            onChange={(e) => setBrandStr(e.target.value)}
+            style={{
+              width: "100%",
+              background: C.card,
+              color: C.text,
+              border: `1px solid ${C.border}`,
+              borderRadius: 8,
+              padding: "8px 10px",
+              fontSize: 12,
+            }}
+          />
         </div>
-        <button onClick={apply} disabled={busy} style={{ background: `linear-gradient(135deg,#71008B,#B9009C)`, color: "#fff", border: "none", borderRadius: 8, padding: "9px 16px", fontSize: 13, fontWeight: 600, cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}>
+        <button
+          onClick={apply}
+          disabled={busy}
+          style={{
+            background: `linear-gradient(135deg,#71008B,#B9009C)`,
+            color: "#fff",
+            border: "none",
+            borderRadius: 8,
+            padding: "9px 16px",
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: busy ? "default" : "pointer",
+            opacity: busy ? 0.6 : 1,
+          }}
+        >
           {busy ? "Uebernehme…" : "Ausgewaehlte uebernehmen"}
         </button>
       </div>
-      {done ? <div style={{ fontSize: 12, color: done.startsWith("Fehler") ? C.red : C.green }}>{done}</div> : null}
-      {alreadyApplied && !done ? <div style={{ fontSize: 11, color: C.textDim }}>Zuletzt uebernommen am {new Date(alreadyApplied).toLocaleDateString("de-CH")}.</div> : null}
+      {done ? (
+        <div style={{ fontSize: 12, color: done.startsWith("Fehler") ? C.red : C.green }}>
+          {done}
+        </div>
+      ) : null}
+      {alreadyApplied && !done ? (
+        <div style={{ fontSize: 11, color: C.textDim }}>
+          Zuletzt uebernommen am {new Date(alreadyApplied).toLocaleDateString("de-CH")}.
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2890,29 +3381,60 @@ function SeoPager({ page, setPage, total, pageSize = 10, unit = "Einträge" }) {
   const cur = Math.min(page, pages - 1);
   if (pages <= 1) return null;
   const btn = (active) => ({
-    height: 26, minWidth: 26, padding: "0 6px", borderRadius: 8, cursor: "pointer",
-    fontSize: 12, fontWeight: 600, fontVariantNumeric: "tabular-nums",
+    height: 26,
+    minWidth: 26,
+    padding: "0 6px",
+    borderRadius: 8,
+    cursor: "pointer",
+    fontSize: 12,
+    fontWeight: 600,
+    fontVariantNumeric: "tabular-nums",
     border: `1px solid ${active ? C.accent : C.border}`,
     background: active ? `${C.accent}22` : "transparent",
     color: active ? C.accent : C.textMuted,
   });
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 10 }}>
+    <div
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 8,
+        marginTop: 10,
+      }}
+    >
       <span style={{ fontSize: 11, color: C.textDim }}>
         {cur * pageSize + 1}–{Math.min(total, (cur + 1) * pageSize)} von {total} {unit}
       </span>
       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-        <button onClick={() => setPage(Math.max(0, cur - 1))} disabled={cur === 0} aria-label="Vorherige Seite"
-          style={{ ...btn(false), opacity: cur === 0 ? 0.35 : 1 }}>‹</button>
+        <button
+          onClick={() => setPage(Math.max(0, cur - 1))}
+          disabled={cur === 0}
+          aria-label="Vorherige Seite"
+          style={{ ...btn(false), opacity: cur === 0 ? 0.35 : 1 }}
+        >
+          ‹
+        </button>
         {seoPageNums(cur, pages).map((p, i) =>
           p === "…" ? (
-            <span key={`e${i}`} style={{ fontSize: 12, color: C.textDim, padding: "0 2px" }}>…</span>
+            <span key={`e${i}`} style={{ fontSize: 12, color: C.textDim, padding: "0 2px" }}>
+              …
+            </span>
           ) : (
-            <button key={p} onClick={() => setPage(p)} style={btn(p === cur)}>{p + 1}</button>
+            <button key={p} onClick={() => setPage(p)} style={btn(p === cur)}>
+              {p + 1}
+            </button>
           ),
         )}
-        <button onClick={() => setPage(Math.min(pages - 1, cur + 1))} disabled={cur >= pages - 1} aria-label="Nächste Seite"
-          style={{ ...btn(false), opacity: cur >= pages - 1 ? 0.35 : 1 }}>›</button>
+        <button
+          onClick={() => setPage(Math.min(pages - 1, cur + 1))}
+          disabled={cur >= pages - 1}
+          aria-label="Nächste Seite"
+          style={{ ...btn(false), opacity: cur >= pages - 1 ? 0.35 : 1 }}
+        >
+          ›
+        </button>
       </div>
     </div>
   );
@@ -2920,8 +3442,18 @@ function SeoPager({ page, setPage, total, pageSize = 10, unit = "Einträge" }) {
 
 function SectionPlaceholder({ title, hint }) {
   return (
-    <div style={{ background: C.card, border: `1px dashed ${C.border}`, borderRadius: 14, padding: 16, opacity: 0.85 }}>
-      <div style={{ fontSize: 13, fontWeight: 600, color: C.textMuted, marginBottom: 4 }}>{title}</div>
+    <div
+      style={{
+        background: C.card,
+        border: `1px dashed ${C.border}`,
+        borderRadius: 14,
+        padding: 16,
+        opacity: 0.85,
+      }}
+    >
+      <div style={{ fontSize: 13, fontWeight: 600, color: C.textMuted, marginBottom: 4 }}>
+        {title}
+      </div>
       <div style={{ fontSize: 12, color: C.textDim }}>{hint}</div>
     </div>
   );
@@ -2934,23 +3466,27 @@ function SeoDashboard({ selectedClient, dateRange }) {
   const live = run ? ahrefsKpisFromResult(run.result) : null;
   const { runs, refresh: refreshHistory } = useEzyAuditHistory(selectedClient?.id);
   const startDate = dateRange?.start || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const trend = useMemo(() => (runs || [])
-    .filter((r) => {
-      if (r.audit_type !== "ahrefs" || r.status !== "succeeded") return false;
-      const d = new Date(r.started_at || r.created_at);
-      return d >= startDate;
-    })
-    .map((r) => {
-      const k = ahrefsKpisFromResult(r.result);
-      const d = new Date(r.started_at || r.created_at);
-      return {
-        date: `${d.getDate()}.${d.getMonth() + 1}.`,
-        Traffic: k.traffic,
-        Visibility: k.visibility,
-        Keywords: k.keywords,
-      };
-    })
-    .reverse(), [runs, startDate]);
+  const trend = useMemo(
+    () =>
+      (runs || [])
+        .filter((r) => {
+          if (r.audit_type !== "ahrefs" || r.status !== "succeeded") return false;
+          const d = new Date(r.started_at || r.created_at);
+          return d >= startDate;
+        })
+        .map((r) => {
+          const k = ahrefsKpisFromResult(r.result);
+          const d = new Date(r.started_at || r.created_at);
+          return {
+            date: `${d.getDate()}.${d.getMonth() + 1}.`,
+            Traffic: k.traffic,
+            Visibility: k.visibility,
+            Keywords: k.keywords,
+          };
+        })
+        .reverse(),
+    [runs, startDate],
+  );
   const { run: gscRun, refresh: refreshGsc } = useEzyLatestRun(selectedClient?.id, "gsc_summary");
   // Datumsfilter (2026-08-11): GSC-KPIs live im gewählten Zeitraum (Nur-Lese-
   // Abfrage, gecacht); Agent-Snapshot bleibt Fallback.
@@ -2975,9 +3511,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
       "Besuche (GA4)": m.ga4Organic ?? null,
       Keywords: m.gscQueries ?? null,
     }));
-    const first = mapped.findIndex(
-      (m) => (m["Besuche (GA4)"] || 0) > 0 || (m.Keywords || 0) > 0,
-    );
+    const first = mapped.findIndex((m) => (m["Besuche (GA4)"] || 0) > 0 || (m.Keywords || 0) > 0);
     return first >= 0 ? mapped.slice(first) : [];
   }, [seoHist]);
   const seoHistHasGa4 = useMemo(
@@ -2988,26 +3522,38 @@ function SeoDashboard({ selectedClient, dateRange }) {
   const psi = psiRun ? pagespeedKpisFromResult(psiRun.result) : null;
   // Echte externe Messlaeufe (2026-08-18): bestehende Server-Routen, Status
   // running/success/error, Doppelstart-Guard modulweit in useMeasurement.
-  const psiMeas = useMeasurement(selectedClient?.id, "pagespeed", "/api/google/pagespeed", PSI_MOBILE_BODY);
+  const psiMeas = useMeasurement(
+    selectedClient?.id,
+    "pagespeed",
+    "/api/google/pagespeed",
+    PSI_MOBILE_BODY,
+  );
   const ahrefsMeas = useMeasurement(selectedClient?.id, "ahrefs", "/api/ahrefs/overview");
   const cwvOrigin = psiRun?.result?.metrics?.dataOrigin || null; // B5a
   const { run: trafRun, refresh: refreshTraf } = useEzyLatestRun(selectedClient?.id, "ga4_traffic");
   // Datumsfilter-Fix (2026-08-10): Live-Traffic im gewählten Zeitraum (gecacht),
   // Snapshot-Fallback wie gehabt.
-  const { data: liveTrafRes } = useLiveGa4(selectedClient?.id, "ga4-traffic", liveDaysFor(dateRange));
+  const { data: liveTrafRes } = useLiveGa4(
+    selectedClient?.id,
+    "ga4-traffic",
+    liveDaysFor(dateRange),
+  );
   const traf = liveTrafRes
     ? ga4TrafficFromResult(liveTrafRes)
     : trafRun
       ? ga4TrafficFromResult(trafRun.result)
       : null;
   useEffect(() => {
-    const interval = setInterval(() => {
-      refreshAhrefs();
-      refreshHistory();
-      refreshGsc();
-      refreshPsi();
-      refreshTraf();
-    }, 12 * 60 * 60 * 1000); // 12 Stunden
+    const interval = setInterval(
+      () => {
+        refreshAhrefs();
+        refreshHistory();
+        refreshGsc();
+        refreshPsi();
+        refreshTraf();
+      },
+      12 * 60 * 60 * 1000,
+    ); // 12 Stunden
     return () => clearInterval(interval);
   }, [refreshAhrefs, refreshHistory, refreshGsc, refreshPsi, refreshTraf]);
   const { isOn } = useEzyDashboardConfig();
@@ -3054,8 +3600,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
         : traffic > 0
           ? "DFS-Schätzung"
           : null;
-  const hasGsc =
-    isOn("seo.gsc") && Boolean(gsc && (gsc.clicks > 0 || gsc.impressions > 0));
+  const hasGsc = isOn("seo.gsc") && Boolean(gsc && (gsc.clicks > 0 || gsc.impressions > 0));
   const hasCwv =
     isOn("seo.cwv") &&
     Boolean(psi && (psi.lcp != null || psi.cls != null || psi.performanceScore != null));
@@ -3084,7 +3629,10 @@ function SeoDashboard({ selectedClient, dateRange }) {
   // Position + Verlauf + Volumen) UNION komplette GSC-Non-Brand-Queries
   // (GSC-Ø-Position + Klicks + Impressions). Dedup nach normalisiertem Keyword —
   // ein getracktes KW gewinnt gegen dieselbe GSC-Query. _src markiert die Quelle.
-  const normKw = (s) => String(s || "").trim().toLowerCase();
+  const normKw = (s) =>
+    String(s || "")
+      .trim()
+      .toLowerCase();
   const rankRows = useMemo(() => {
     const gq = gscQ && Array.isArray(gscQ.topNonbrandQueries) ? gscQ.topNonbrandQueries : [];
     // GSC-Lookup fuer getrackte Keywords (2026-08-13): Klicks/Impressionen auch
@@ -3092,7 +3640,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
     // als Fallback aus gsc_summary.topQueries (enthaelt Brand).
     const gscMap = new Map();
     for (const q of gq) gscMap.set(normKw(q.query), q);
-    for (const q of (gscRes?.topQueries || [])) {
+    for (const q of gscRes?.topQueries || []) {
       const n = normKw(q.query);
       if (!gscMap.has(n)) gscMap.set(n, q);
     }
@@ -3135,24 +3683,48 @@ function SeoDashboard({ selectedClient, dateRange }) {
     const delta28 = (k) => (k.posPrev28 != null && k.pos != null ? k.posPrev28 - k.pos : null);
     rows.sort((a, b) => {
       let av, bv;
-      if (col === "kw") { av = String(a.kw || "").toLowerCase(); bv = String(b.kw || "").toLowerCase(); return dir * av.localeCompare(bv); }
-      if (col === "pos") { av = a.pos ?? 999; bv = b.pos ?? 999; }
-      else if (col === "d7") { av = delta7(a) ?? -999; bv = delta7(b) ?? -999; }
-      else if (col === "d28") { av = delta28(a) ?? -999; bv = delta28(b) ?? -999; }
-      else if (col === "clk") { av = a.clicks ?? -1; bv = b.clicks ?? -1; }
-      else if (col === "imp") { av = a.impressions ?? -1; bv = b.impressions ?? -1; }
-      else if (col === "vol") { av = a.volume ?? -1; bv = b.volume ?? -1; }
-      else if (col === "posi") { av = a.posIntl ?? 999; bv = b.posIntl ?? 999; }
-      else if (col === "voli") { av = a.volumeIntl ?? -1; bv = b.volumeIntl ?? -1; }
-      else { av = 0; bv = 0; }
+      if (col === "kw") {
+        av = String(a.kw || "").toLowerCase();
+        bv = String(b.kw || "").toLowerCase();
+        return dir * av.localeCompare(bv);
+      }
+      if (col === "pos") {
+        av = a.pos ?? 999;
+        bv = b.pos ?? 999;
+      } else if (col === "d7") {
+        av = delta7(a) ?? -999;
+        bv = delta7(b) ?? -999;
+      } else if (col === "d28") {
+        av = delta28(a) ?? -999;
+        bv = delta28(b) ?? -999;
+      } else if (col === "clk") {
+        av = a.clicks ?? -1;
+        bv = b.clicks ?? -1;
+      } else if (col === "imp") {
+        av = a.impressions ?? -1;
+        bv = b.impressions ?? -1;
+      } else if (col === "vol") {
+        av = a.volume ?? -1;
+        bv = b.volume ?? -1;
+      } else if (col === "posi") {
+        av = a.posIntl ?? 999;
+        bv = b.posIntl ?? 999;
+      } else if (col === "voli") {
+        av = a.volumeIntl ?? -1;
+        bv = b.volumeIntl ?? -1;
+      } else {
+        av = 0;
+        bv = 0;
+      }
       return dir * (av - bv);
     });
     return rows;
   }, [rank, gscQ, gscRes, rankSort, rankFilter]);
   // Zähler für die Kopfzeile (getrackt vs. aus GSC gemergt).
   const rankCounts = useMemo(() => {
-    let dfs = 0, gsc = 0;
-    for (const r of rankRows) (r._src === "gsc" ? (gsc += 1) : (dfs += 1));
+    let dfs = 0,
+      gsc = 0;
+    for (const r of rankRows) r._src === "gsc" ? (gsc += 1) : (dfs += 1);
     return { dfs, gsc, total: rankRows.length };
   }, [rankRows]);
   // INT-Zweitmessung (06.08.): Spalten nur zeigen, wenn der Kunde sie hat
@@ -3177,14 +3749,22 @@ function SeoDashboard({ selectedClient, dateRange }) {
     const dir = asc ? 1 : -1;
     return [...rows].sort((a, b) => {
       if (col === "query") {
-        return dir * String(a.query || "").toLowerCase().localeCompare(String(b.query || "").toLowerCase());
+        return (
+          dir *
+          String(a.query || "")
+            .toLowerCase()
+            .localeCompare(String(b.query || "").toLowerCase())
+        );
       }
       if (col === "pos") return dir * ((a.position ?? 999) - (b.position ?? 999));
       return dir * ((a[col] ?? -1) - (b[col] ?? -1));
     });
   };
   const gscQRows = useMemo(
-    () => (gscQ && Array.isArray(gscQ.topNonbrandQueries) ? sortQueries(gscQ.topNonbrandQueries, gscQSort) : []),
+    () =>
+      gscQ && Array.isArray(gscQ.topNonbrandQueries)
+        ? sortQueries(gscQ.topNonbrandQueries, gscQSort)
+        : [],
     [gscQ, gscQSort],
   );
   const gscFbRows = useMemo(
@@ -3260,7 +3840,8 @@ function SeoDashboard({ selectedClient, dateRange }) {
           {
             label: "Neue Messung starten",
             kind: "measure",
-            title: "Startet echte externe Laeufe: PageSpeed (CWV) + DataForSEO-Backlink-Overview. Rankings/GSC/GA4 misst der naechtliche Sammel-Lauf.",
+            title:
+              "Startet echte externe Laeufe: PageSpeed (CWV) + DataForSEO-Backlink-Overview. Rankings/GSC/GA4 misst der naechtliche Sammel-Lauf.",
             busy: psiMeas.state.status === "running" || ahrefsMeas.state.status === "running",
             onClick: async () => {
               // Doppelstart-Guard sitzt in useMeasurement (modulweit).
@@ -3276,61 +3857,79 @@ function SeoDashboard({ selectedClient, dateRange }) {
             : undefined
         }
       />
-      {(rank || rankRows.length > 0) ? (
+      {rank || rankRows.length > 0 ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {rank && (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
-              gap: 14,
-            }}
-          >
-            <KpiCard icon={Award} label="In Top 3" value={rank.aggregate?.top3 ?? "—"} color={C.green} />
-            <KpiCard icon={Target} label="In Top 10" value={rank.aggregate?.top10 ?? "—"} color={C.accent} />
-            {/* Klickbare Filter-Kacheln (2026-08-13): filtern die Rankings-
-                Tabelle auf verbesserte/verschlechterte Keywords (Toggle). */}
             <div
-              onClick={() => toggleRankFilter("improved")}
-              title="Klick: nur verbesserte Keywords in der Tabelle zeigen"
               style={{
-                cursor: "pointer",
-                borderRadius: 14,
-                outline: rankFilter === "improved" ? `2px solid ${C.green}` : "none",
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
+                gap: 14,
               }}
             >
               <KpiCard
-                icon={TrendingUp}
-                label="Verbessert (7 Tage)"
-                value={rank.aggregate?.improved7 ?? "—"}
+                icon={Award}
+                label="In Top 3"
+                value={rank.aggregate?.top3 ?? "—"}
                 color={C.green}
               />
-            </div>
-            <div
-              onClick={() => toggleRankFilter("declined")}
-              title="Klick: nur verschlechterte Keywords in der Tabelle zeigen"
-              style={{
-                cursor: "pointer",
-                borderRadius: 14,
-                outline: rankFilter === "declined" ? `2px solid ${C.orange}` : "none",
-              }}
-            >
               <KpiCard
-                icon={Activity}
-                label="Verschlechtert (7 Tage)"
-                value={rank.aggregate?.declined7 ?? "—"}
-                color={C.orange}
+                icon={Target}
+                label="In Top 10"
+                value={rank.aggregate?.top10 ?? "—"}
+                color={C.accent}
               />
+              {/* Klickbare Filter-Kacheln (2026-08-13): filtern die Rankings-
+                Tabelle auf verbesserte/verschlechterte Keywords (Toggle). */}
+              <div
+                onClick={() => toggleRankFilter("improved")}
+                title="Klick: nur verbesserte Keywords in der Tabelle zeigen"
+                style={{
+                  cursor: "pointer",
+                  borderRadius: 14,
+                  outline: rankFilter === "improved" ? `2px solid ${C.green}` : "none",
+                }}
+              >
+                <KpiCard
+                  icon={TrendingUp}
+                  label="Verbessert (7 Tage)"
+                  value={rank.aggregate?.improved7 ?? "—"}
+                  color={C.green}
+                />
+              </div>
+              <div
+                onClick={() => toggleRankFilter("declined")}
+                title="Klick: nur verschlechterte Keywords in der Tabelle zeigen"
+                style={{
+                  cursor: "pointer",
+                  borderRadius: 14,
+                  outline: rankFilter === "declined" ? `2px solid ${C.orange}` : "none",
+                }}
+              >
+                <KpiCard
+                  icon={Activity}
+                  label="Verschlechtert (7 Tage)"
+                  value={rank.aggregate?.declined7 ?? "—"}
+                  color={C.orange}
+                />
+              </div>
             </div>
-          </div>
           )}
           <div
-            style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}
+            style={{
+              background: C.card,
+              border: `1px solid ${C.border}`,
+              borderRadius: 14,
+              padding: 16,
+            }}
           >
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}>
               Rankings ({rankCounts.total} Keywords
-              {rankCounts.gsc > 0 ? ` · ${rankCounts.dfs} getrackt + ${rankCounts.gsc} aus GSC` : ""}
-              {" · Stand "}{rank?.date || gscQ?.range?.to || "—"})
+              {rankCounts.gsc > 0
+                ? ` · ${rankCounts.dfs} getrackt + ${rankCounts.gsc} aus GSC`
+                : ""}
+              {" · Stand "}
+              {rank?.date || gscQ?.range?.to || "—"})
               {rankFilter && (
                 <span
                   onClick={() => toggleRankFilter(rankFilter)}
@@ -3346,13 +3945,16 @@ function SeoDashboard({ selectedClient, dateRange }) {
                     color: rankFilter === "improved" ? C.green : C.orange,
                   }}
                 >
-                  {rankFilter === "improved" ? "nur Verbesserte (7T)" : "nur Verschlechterte (7T)"} ✕
+                  {rankFilter === "improved" ? "nur Verbesserte (7T)" : "nur Verschlechterte (7T)"}{" "}
+                  ✕
                 </span>
               )}
               {hasIntl ? " · INT = google.com (USA/en, wöchentliche Messung)" : ""}
             </div>
             <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-              <table style={{ width: "100%", minWidth: 780, borderCollapse: "collapse", fontSize: 13 }}>
+              <table
+                style={{ width: "100%", minWidth: 780, borderCollapse: "collapse", fontSize: 13 }}
+              >
                 <thead>
                   <tr style={{ color: C.textDim, textAlign: "left" }}>
                     {[
@@ -3395,64 +3997,93 @@ function SeoDashboard({ selectedClient, dateRange }) {
                       Math.min(rankPage, Math.ceil(rankRows.length / 10) - 1) * 10 + 10,
                     )
                     .map((k, i) => (
-                    <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
-                      <td style={{ padding: "6px 8px", color: C.text }}>{k.kw}</td>
-                      <td
-                        style={{ padding: "6px 8px", textAlign: "right", fontWeight: 600 }}
-                        title={k._src === "gsc" ? (k._posSrc === "dfs" ? "Labs-Position (DataForSEO, google.ch — wöchentlich)" : "GSC-Ø-Position (Durchschnitt über den Zeitraum)") : undefined}
-                      >
-                        {k.pos != null ? k.pos : "> 100"}
-                      </td>
-                      {hasIntl && (
-                        <td style={{ padding: "6px 8px", textAlign: "right" }} title={k.urlIntl || undefined}>
-                          {k.posIntl != null ? k.posIntl : "—"}
-                        </td>
-                      )}
-                      <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                        <DeltaCell cur={k.pos} prev={k.posPrev7} />
-                      </td>
-                      <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                        <DeltaCell cur={k.pos} prev={k.posPrev28} />
-                      </td>
-                      <td style={{ padding: "6px 8px", textAlign: "right", color: C.textMuted }}>
-                        {k.clicks != null ? k.clicks.toLocaleString("de-CH") : "—"}
-                      </td>
-                      <td style={{ padding: "6px 8px", textAlign: "right", color: C.textMuted }}>
-                        {k.impressions != null ? k.impressions.toLocaleString("de-CH") : "—"}
-                      </td>
-                      <td style={{ padding: "6px 8px", color: C.textMuted, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {k.url || "—"}
-                      </td>
-                      <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                        {k.volume != null ? k.volume.toLocaleString("de-CH") : "—"}
-                      </td>
-                      {hasIntl && (
-                        <td style={{ padding: "6px 8px", textAlign: "right", color: C.textMuted }}>
-                          {k.volumeIntl != null ? k.volumeIntl.toLocaleString("de-CH") : "—"}
-                        </td>
-                      )}
-                      <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                        <span
-                          style={{
-                            display: "inline-block",
-                            padding: "1px 7px",
-                            borderRadius: 999,
-                            fontSize: 11,
-                            fontWeight: 600,
-                            color: k._src === "gsc" ? C.blue : C.accent,
-                            background: k._src === "gsc" ? `${C.blue}1a` : `${C.accent}1a`,
-                          }}
-                          title={k._src === "gsc" ? "Aus Google Search Console (nicht getrackt)" : "Aktives Rank-Tracking (DataForSEO)"}
+                      <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
+                        <td style={{ padding: "6px 8px", color: C.text }}>{k.kw}</td>
+                        <td
+                          style={{ padding: "6px 8px", textAlign: "right", fontWeight: 600 }}
+                          title={
+                            k._src === "gsc"
+                              ? k._posSrc === "dfs"
+                                ? "Labs-Position (DataForSEO, google.ch — wöchentlich)"
+                                : "GSC-Ø-Position (Durchschnitt über den Zeitraum)"
+                              : undefined
+                          }
                         >
-                          {k._src === "gsc" ? "GSC" : "Tracking"}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                          {k.pos != null ? k.pos : "> 100"}
+                        </td>
+                        {hasIntl && (
+                          <td
+                            style={{ padding: "6px 8px", textAlign: "right" }}
+                            title={k.urlIntl || undefined}
+                          >
+                            {k.posIntl != null ? k.posIntl : "—"}
+                          </td>
+                        )}
+                        <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                          <DeltaCell cur={k.pos} prev={k.posPrev7} />
+                        </td>
+                        <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                          <DeltaCell cur={k.pos} prev={k.posPrev28} />
+                        </td>
+                        <td style={{ padding: "6px 8px", textAlign: "right", color: C.textMuted }}>
+                          {k.clicks != null ? k.clicks.toLocaleString("de-CH") : "—"}
+                        </td>
+                        <td style={{ padding: "6px 8px", textAlign: "right", color: C.textMuted }}>
+                          {k.impressions != null ? k.impressions.toLocaleString("de-CH") : "—"}
+                        </td>
+                        <td
+                          style={{
+                            padding: "6px 8px",
+                            color: C.textMuted,
+                            maxWidth: 220,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {k.url || "—"}
+                        </td>
+                        <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                          {k.volume != null ? k.volume.toLocaleString("de-CH") : "—"}
+                        </td>
+                        {hasIntl && (
+                          <td
+                            style={{ padding: "6px 8px", textAlign: "right", color: C.textMuted }}
+                          >
+                            {k.volumeIntl != null ? k.volumeIntl.toLocaleString("de-CH") : "—"}
+                          </td>
+                        )}
+                        <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                          <span
+                            style={{
+                              display: "inline-block",
+                              padding: "1px 7px",
+                              borderRadius: 999,
+                              fontSize: 11,
+                              fontWeight: 600,
+                              color: k._src === "gsc" ? C.blue : C.accent,
+                              background: k._src === "gsc" ? `${C.blue}1a` : `${C.accent}1a`,
+                            }}
+                            title={
+                              k._src === "gsc"
+                                ? "Aus Google Search Console (nicht getrackt)"
+                                : "Aktives Rank-Tracking (DataForSEO)"
+                            }
+                          >
+                            {k._src === "gsc" ? "GSC" : "Tracking"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>
-            <SeoPager page={rankPage} setPage={setRankPage} total={rankRows.length} unit="Keywords" />
+            <SeoPager
+              page={rankPage}
+              setPage={setRankPage}
+              total={rankRows.length}
+              unit="Keywords"
+            />
           </div>
         </div>
       ) : (
@@ -3463,7 +4094,12 @@ function SeoDashboard({ selectedClient, dateRange }) {
       )}
       {seoHistSeries.length >= 2 && (
         <div
-          style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 14,
+            padding: 16,
+          }}
         >
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, color: C.textMuted }}>
             Sichtbarkeit (organisch)
@@ -3519,52 +4155,60 @@ function SeoDashboard({ selectedClient, dateRange }) {
         </div>
       )}
       {isOn("seo.ahrefs") && (
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
-          gap: 14,
-        }}
-      >
-        <KpiCard
-          icon={Globe}
-          label={organicTrafficSource ? `Organic Traffic (${organicTrafficSource})` : "Organic Traffic"}
-          value={organicTraffic != null ? Math.round(organicTraffic).toLocaleString("de-CH") : "—"}
-          color={C.accent}
-        />
-        <KpiCard
-          icon={Eye}
-          label="Visibility Index"
-          value={visibility > 0 ? visibility : "—"}
-          color={C.blue}
-        />
-        <KpiCard
-          icon={Award}
-          label="Authority Score"
-          value={score > 0 ? score : "—"}
-          color={C.green}
-        />
-        <KpiCard
-          icon={Target}
-          label="Organic Keywords"
-          value={keywords > 0 ? keywords : "—"}
-          color={C.orange}
-        />
-        <KpiCard
-          icon={Link2}
-          label="Backlinks Total"
-          value={backlinks > 0 ? backlinks.toLocaleString("de-CH") : "—"}
-          color={C.cyan}
-        />
-        {chSessions != null && chSessions > 0 && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
+            gap: 14,
+          }}
+        >
           <KpiCard
-            icon={MapPin}
-            label={chSessionsOrganic ? "Switzerland Traffic (organisch)" : "Switzerland Traffic (alle Kanäle)"}
-            value={chSessions.toLocaleString("de-CH")}
-            color={C.pink}
+            icon={Globe}
+            label={
+              organicTrafficSource ? `Organic Traffic (${organicTrafficSource})` : "Organic Traffic"
+            }
+            value={
+              organicTraffic != null ? Math.round(organicTraffic).toLocaleString("de-CH") : "—"
+            }
+            color={C.accent}
           />
-        )}
-      </div>
+          <KpiCard
+            icon={Eye}
+            label="Visibility Index"
+            value={visibility > 0 ? visibility : "—"}
+            color={C.blue}
+          />
+          <KpiCard
+            icon={Award}
+            label="Authority Score"
+            value={score > 0 ? score : "—"}
+            color={C.green}
+          />
+          <KpiCard
+            icon={Target}
+            label="Organic Keywords"
+            value={keywords > 0 ? keywords : "—"}
+            color={C.orange}
+          />
+          <KpiCard
+            icon={Link2}
+            label="Backlinks Total"
+            value={backlinks > 0 ? backlinks.toLocaleString("de-CH") : "—"}
+            color={C.cyan}
+          />
+          {chSessions != null && chSessions > 0 && (
+            <KpiCard
+              icon={MapPin}
+              label={
+                chSessionsOrganic
+                  ? "Switzerland Traffic (organisch)"
+                  : "Switzerland Traffic (alle Kanäle)"
+              }
+              value={chSessions.toLocaleString("de-CH")}
+              color={C.pink}
+            />
+          )}
+        </div>
       )}
       {isOn("seo.gsc") && gscQ && (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -3582,7 +4226,12 @@ function SeoDashboard({ selectedClient, dateRange }) {
             ].map(([label, seg, color]) => (
               <div
                 key={label}
-                style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}
+                style={{
+                  background: C.card,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 14,
+                  padding: 16,
+                }}
               >
                 <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 6 }}>
                   {label} · {gscQ.range?.from} – {gscQ.range?.to}
@@ -3591,7 +4240,8 @@ function SeoDashboard({ selectedClient, dateRange }) {
                   {(seg?.clicks ?? 0).toLocaleString("de-CH")} Klicks
                 </div>
                 <div style={{ fontSize: 12, color: C.textMuted }}>
-                  {(seg?.impressions ?? 0).toLocaleString("de-CH")} Impressionen · {(seg?.queries ?? 0).toLocaleString("de-CH")} Suchanfragen
+                  {(seg?.impressions ?? 0).toLocaleString("de-CH")} Impressionen ·{" "}
+                  {(seg?.queries ?? 0).toLocaleString("de-CH")} Suchanfragen
                 </div>
               </div>
             ))}
@@ -3612,7 +4262,13 @@ function SeoDashboard({ selectedClient, dateRange }) {
             ].map(([label, b, color]) => (
               <div
                 key={label}
-                style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 14, textAlign: "center" }}
+                style={{
+                  background: C.card,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 14,
+                  padding: 14,
+                  textAlign: "center",
+                }}
               >
                 <div style={{ fontSize: 22, fontWeight: 800, color }}>{b?.queries ?? 0}</div>
                 <div style={{ fontSize: 11, color: C.textMuted }}>
@@ -3623,8 +4279,22 @@ function SeoDashboard({ selectedClient, dateRange }) {
           </div>
           {/* B2c: Top-Non-Brand-Queries + Ø-Position als Sekundaer-Metrik */}
           {Array.isArray(gscQ.topNonbrandQueries) && gscQ.topNonbrandQueries.length > 0 && (
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+            <div
+              style={{
+                background: C.card,
+                border: `1px solid ${C.border}`,
+                borderRadius: 14,
+                padding: 16,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "baseline",
+                  marginBottom: 12,
+                }}
+              >
                 <div style={{ fontSize: 13, fontWeight: 600, color: C.textMuted }}>
                   Top Non-Brand-Suchanfragen
                 </div>
@@ -3638,7 +4308,9 @@ function SeoDashboard({ selectedClient, dateRange }) {
                 )}
               </div>
               <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-                <table style={{ width: "100%", minWidth: 480, borderCollapse: "collapse", fontSize: 13 }}>
+                <table
+                  style={{ width: "100%", minWidth: 480, borderCollapse: "collapse", fontSize: 13 }}
+                >
                   <thead>
                     <tr style={{ color: C.textDim, textAlign: "left" }}>
                       {[
@@ -3673,17 +4345,26 @@ function SeoDashboard({ selectedClient, dateRange }) {
                         Math.min(gscQPage, Math.ceil(gscQRows.length / 10) - 1) * 10 + 10,
                       )
                       .map((q, i) => (
-                      <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
-                        <td style={{ padding: "6px 8px", color: C.text }}>{q.query}</td>
-                        <td style={{ padding: "6px 8px", textAlign: "right" }}>{q.clicks}</td>
-                        <td style={{ padding: "6px 8px", textAlign: "right" }}>{q.impressions}</td>
-                        <td style={{ padding: "6px 8px", textAlign: "right" }}>{Number(q.position).toFixed(1)}</td>
-                      </tr>
-                    ))}
+                        <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
+                          <td style={{ padding: "6px 8px", color: C.text }}>{q.query}</td>
+                          <td style={{ padding: "6px 8px", textAlign: "right" }}>{q.clicks}</td>
+                          <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                            {q.impressions}
+                          </td>
+                          <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                            {Number(q.position).toFixed(1)}
+                          </td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </div>
-              <SeoPager page={gscQPage} setPage={setGscQPage} total={gscQ.topNonbrandQueries.length} unit="Suchanfragen" />
+              <SeoPager
+                page={gscQPage}
+                setPage={setGscQPage}
+                total={gscQ.topNonbrandQueries.length}
+                unit="Suchanfragen"
+              />
             </div>
           )}
         </div>
@@ -3735,7 +4416,9 @@ function SeoDashboard({ selectedClient, dateRange }) {
                 Top-Suchbegriffe (Search Console)
               </div>
               <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-                <table style={{ width: "100%", minWidth: 480, borderCollapse: "collapse", fontSize: 13 }}>
+                <table
+                  style={{ width: "100%", minWidth: 480, borderCollapse: "collapse", fontSize: 13 }}
+                >
                   <thead>
                     <tr style={{ color: C.textDim, textAlign: "left" }}>
                       {[
@@ -3771,22 +4454,29 @@ function SeoDashboard({ selectedClient, dateRange }) {
                         Math.min(gscFbPage, Math.ceil(gscFbRows.length / 10) - 1) * 10 + 10,
                       )
                       .map((q, i) => (
-                      <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
-                        <td style={{ padding: "6px 8px", color: C.text }}>{q.query}</td>
-                        <td style={{ padding: "6px 8px", textAlign: "right" }}>{q.clicks}</td>
-                        <td style={{ padding: "6px 8px", textAlign: "right" }}>{q.impressions}</td>
-                        <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                          {(q.ctr * 100).toFixed(1)}%
-                        </td>
-                        <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                          {q.position?.toFixed(1)}
-                        </td>
-                      </tr>
-                    ))}
+                        <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
+                          <td style={{ padding: "6px 8px", color: C.text }}>{q.query}</td>
+                          <td style={{ padding: "6px 8px", textAlign: "right" }}>{q.clicks}</td>
+                          <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                            {q.impressions}
+                          </td>
+                          <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                            {(q.ctr * 100).toFixed(1)}%
+                          </td>
+                          <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                            {q.position?.toFixed(1)}
+                          </td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </div>
-              <SeoPager page={gscFbPage} setPage={setGscFbPage} total={gsc.topQueries.length} unit="Suchbegriffe" />
+              <SeoPager
+                page={gscFbPage}
+                setPage={setGscFbPage}
+                total={gsc.topQueries.length}
+                unit="Suchbegriffe"
+              />
             </div>
           )}
         </>
@@ -3833,38 +4523,38 @@ function SeoDashboard({ selectedClient, dateRange }) {
               </span>
             </div>
           )}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
-            gap: 14,
-          }}
-        >
-          <KpiCard
-            icon={Activity}
-            label="LCP"
-            value={psi.lcp != null ? `${(psi.lcp / 1000).toFixed(2)}s` : "—"}
-            color={psi.lcp != null && psi.lcp <= 2500 ? C.green : C.orange}
-          />
-          <KpiCard
-            icon={Zap}
-            label="INP"
-            value={psi.inp != null ? `${Math.round(psi.inp)}ms` : "—"}
-            color={psi.inp != null && psi.inp <= 200 ? C.green : C.orange}
-          />
-          <KpiCard
-            icon={LayoutGrid}
-            label="CLS"
-            value={psi.cls != null ? psi.cls.toFixed(2) : "—"}
-            color={psi.cls != null && psi.cls <= 0.1 ? C.green : C.orange}
-          />
-          <KpiCard
-            icon={Award}
-            label="Performance"
-            value={psi.performanceScore != null ? `${psi.performanceScore}/100` : "—"}
-            color={C.accent}
-          />
-        </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
+              gap: 14,
+            }}
+          >
+            <KpiCard
+              icon={Activity}
+              label="LCP"
+              value={psi.lcp != null ? `${(psi.lcp / 1000).toFixed(2)}s` : "—"}
+              color={psi.lcp != null && psi.lcp <= 2500 ? C.green : C.orange}
+            />
+            <KpiCard
+              icon={Zap}
+              label="INP"
+              value={psi.inp != null ? `${Math.round(psi.inp)}ms` : "—"}
+              color={psi.inp != null && psi.inp <= 200 ? C.green : C.orange}
+            />
+            <KpiCard
+              icon={LayoutGrid}
+              label="CLS"
+              value={psi.cls != null ? psi.cls.toFixed(2) : "—"}
+              color={psi.cls != null && psi.cls <= 0.1 ? C.green : C.orange}
+            />
+            <KpiCard
+              icon={Award}
+              label="Performance"
+              value={psi.performanceScore != null ? `${psi.performanceScore}/100` : "—"}
+              color={C.accent}
+            />
+          </div>
         </div>
       )}
       {(isOn("seo.gsc") || isOn("seo.ahrefs")) && (
@@ -4005,7 +4695,9 @@ function SeoDashboard({ selectedClient, dateRange }) {
             Meistbesuchte Seiten (GA4)
           </div>
           <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <table style={{ width: "100%", minWidth: 360, borderCollapse: "collapse", fontSize: 13 }}>
+            <table
+              style={{ width: "100%", minWidth: 360, borderCollapse: "collapse", fontSize: 13 }}
+            >
               <thead>
                 <tr style={{ color: C.textDim, textAlign: "left" }}>
                   <th style={{ padding: "6px 8px" }}>Seite</th>
@@ -4015,7 +4707,16 @@ function SeoDashboard({ selectedClient, dateRange }) {
               <tbody>
                 {topPages.slice(0, 15).map((p, i) => (
                   <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
-                    <td style={{ padding: "6px 8px", color: C.text, maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <td
+                      style={{
+                        padding: "6px 8px",
+                        color: C.text,
+                        maxWidth: 360,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       {p.path}
                     </td>
                     <td style={{ padding: "6px 8px", textAlign: "right" }}>
@@ -4054,7 +4755,13 @@ function SeoDashboard({ selectedClient, dateRange }) {
                 }}
               />
               <Legend />
-              <Line type="monotone" dataKey="Traffic" stroke={C.accent} strokeWidth={2} dot={false} />
+              <Line
+                type="monotone"
+                dataKey="Traffic"
+                stroke={C.accent}
+                strokeWidth={2}
+                dot={false}
+              />
               <Line
                 type="monotone"
                 dataKey="Visibility"
@@ -4080,12 +4787,20 @@ function SeoDashboard({ selectedClient, dateRange }) {
       ) : null}
       {/* Datenquellen-Übersicht (User-Wunsch 2026-07-17): welches Widget bezieht
           seine Daten aus welchem Kanal — inkl. Stand des letzten Abrufs je Quelle. */}
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
+      <div
+        style={{
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: 14,
+          padding: 16,
+        }}
+      >
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, color: C.textMuted }}>
           Datenquellen der Widgets
         </div>
         <div style={{ fontSize: 11, color: C.textDim, marginBottom: 12 }}>
-          Welcher Block bezieht seine Daten aus welchem Kanal · „Letzter Abruf" = Stand des jüngsten Daten-Laufs für diesen Kunden.
+          Welcher Block bezieht seine Daten aus welchem Kanal · „Letzter Abruf" = Stand des jüngsten
+          Daten-Laufs für diesen Kunden.
         </div>
         <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
           <table style={{ width: "100%", minWidth: 560, borderCollapse: "collapse", fontSize: 13 }}>
@@ -4099,12 +4814,28 @@ function SeoDashboard({ selectedClient, dateRange }) {
             <tbody>
               {[
                 ["Rankings (Top 3 · Top 10 · Tabelle)", "DataForSEO Rank-Tracking", rankRun],
-                ["Organic Traffic", "GA4 (Organic Search) · Fallback GSC-Klicks", trafRun || gscRun],
-                ["SEO-KPIs (Visibility, Authority, Keywords, Backlinks)", "DataForSEO (Backlinks & Labs)", run],
+                [
+                  "Organic Traffic",
+                  "GA4 (Organic Search) · Fallback GSC-Klicks",
+                  trafRun || gscRun,
+                ],
+                [
+                  "SEO-KPIs (Visibility, Authority, Keywords, Backlinks)",
+                  "DataForSEO (Backlinks & Labs)",
+                  run,
+                ],
                 ["Switzerland Traffic", "GA4 (Organic Search, nur CH)", trafRun],
-                ["Brand/Non-Brand-Split · Positions-Buckets · Top-Suchanfragen", "Google Search Console", gscQRun || gscRun],
+                [
+                  "Brand/Non-Brand-Split · Positions-Buckets · Top-Suchanfragen",
+                  "Google Search Console",
+                  gscQRun || gscRun,
+                ],
                 ["Ranking-Verteilung", "Google Search Console", gscRun],
-                ["Core Web Vitals (LCP, INP, CLS, Performance)", "Google PageSpeed (CrUX/Lighthouse)", psiRun],
+                [
+                  "Core Web Vitals (LCP, INP, CLS, Performance)",
+                  "Google PageSpeed (CrUX/Lighthouse)",
+                  psiRun,
+                ],
                 ["Verweisende Domains", "DataForSEO (Backlinks-Historie)", run],
                 ["Meistbesuchte Seiten", "Google Analytics 4", trafRun],
                 ["Entwicklung (Trend)", "DataForSEO (Verlauf der Audit-Läufe)", run],
@@ -4112,10 +4843,20 @@ function SeoDashboard({ selectedClient, dateRange }) {
                 <tr key={widget} style={{ borderTop: `1px solid ${C.border}` }}>
                   <td style={{ padding: "6px 8px", color: C.text }}>{widget}</td>
                   <td style={{ padding: "6px 8px", color: C.textMuted }}>{source}</td>
-                  <td style={{ padding: "6px 8px", textAlign: "right", color: r ? C.textMuted : C.orange }}>
+                  <td
+                    style={{
+                      padding: "6px 8px",
+                      textAlign: "right",
+                      color: r ? C.textMuted : C.orange,
+                    }}
+                  >
                     {r
                       ? new Date(r.started_at || r.created_at).toLocaleDateString("de-CH", {
-                          day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
                         })
                       : "keine Daten"}
                   </td>
@@ -4135,10 +4876,13 @@ function GeoDashboard({ selectedClient, dateRange }) {
   const overview = useCanonryOverview(selectedClient);
   const liveCanonry = live.data?.canonry;
   useEffect(() => {
-    const interval = setInterval(() => {
-      live.refresh?.();
-      overview.refresh?.();
-    }, 12 * 60 * 60 * 1000); // 12 Stunden
+    const interval = setInterval(
+      () => {
+        live.refresh?.();
+        overview.refresh?.();
+      },
+      12 * 60 * 60 * 1000,
+    ); // 12 Stunden
     return () => clearInterval(interval);
   }, [live.refresh, overview.refresh]);
   const verifiedProviders = Object.entries(live.data?.providers || {})
@@ -4246,69 +4990,38 @@ function GeoDashboard({ selectedClient, dateRange }) {
       )}
       {projectLiveReady && canonry && (
         <SectionErrorBoundary label="GEO-Dashboard">
-        <>
-          <div
-            style={{
-              background: `linear-gradient(135deg,${C.greenDim},${C.blueDim}), ${C.card}`,
-              border: `1px solid ${C.green}35`,
-              borderRadius: 16,
-              padding: "20px 22px",
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))",
-              gap: 18,
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: C.green,
-                  textTransform: "uppercase",
-                  letterSpacing: ".6px",
-                  marginBottom: 6,
-                }}
-              >
-                Canonry live verbunden
-              </div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: C.text, marginBottom: 4 }}>
-                {canonry.project}
-              </div>
-              <div style={{ fontSize: 13, color: C.textMuted, lineHeight: 1.6 }}>
-                AEO-Monitoring läuft über die Canonry Live-Bridge.
-              </div>
-            </div>
+          <>
             <div
               style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-                justifyContent: "center",
+                background: `linear-gradient(135deg,${C.greenDim},${C.blueDim}), ${C.card}`,
+                border: `1px solid ${C.green}35`,
+                borderRadius: 16,
+                padding: "20px 22px",
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))",
+                gap: 18,
               }}
             >
-              <div style={{ fontSize: 13, color: C.text }}>
-                <span style={{ color: C.textMuted }}>Letzter Sweep:</span> {canonry.latestRun.time}{" "}
-                • {canonry.latestRun.duration}
-              </div>
-              <div style={{ fontSize: 13, color: C.text }}>
-                <span style={{ color: C.textMuted }}>Schedule:</span> {canonry.schedule}
-              </div>
-              {liveCanonry?.detail && (
-                <div style={{ fontSize: 13, color: C.text }}>
-                  <span style={{ color: C.textMuted }}>Service:</span> {liveCanonry.detail}
+              <div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: C.green,
+                    textTransform: "uppercase",
+                    letterSpacing: ".6px",
+                    marginBottom: 6,
+                  }}
+                >
+                  Canonry live verbunden
                 </div>
-              )}
-              {verifiedProviders.length > 0 && (
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
-                  {verifiedProviders.map((p) => (
-                    <Badge key={p} color={C.green}>
-                      {p}
-                    </Badge>
-                  ))}
+                <div style={{ fontSize: 20, fontWeight: 800, color: C.text, marginBottom: 4 }}>
+                  {canonry.project}
                 </div>
-              )}
-            </div>
-            {canonry.insights?.length > 0 && (
+                <div style={{ fontSize: 13, color: C.textMuted, lineHeight: 1.6 }}>
+                  AEO-Monitoring läuft über die Canonry Live-Bridge.
+                </div>
+              </div>
               <div
                 style={{
                   display: "flex",
@@ -4317,157 +5030,188 @@ function GeoDashboard({ selectedClient, dateRange }) {
                   justifyContent: "center",
                 }}
               >
+                <div style={{ fontSize: 13, color: C.text }}>
+                  <span style={{ color: C.textMuted }}>Letzter Sweep:</span>{" "}
+                  {canonry.latestRun.time} • {canonry.latestRun.duration}
+                </div>
+                <div style={{ fontSize: 13, color: C.text }}>
+                  <span style={{ color: C.textMuted }}>Schedule:</span> {canonry.schedule}
+                </div>
+                {liveCanonry?.detail && (
+                  <div style={{ fontSize: 13, color: C.text }}>
+                    <span style={{ color: C.textMuted }}>Service:</span> {liveCanonry.detail}
+                  </div>
+                )}
+                {verifiedProviders.length > 0 && (
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
+                    {verifiedProviders.map((p) => (
+                      <Badge key={p} color={C.green}>
+                        {p}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {canonry.insights?.length > 0 && (
                 <div
                   style={{
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: C.textMuted,
-                    textTransform: "uppercase",
-                    letterSpacing: ".5px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 8,
+                    justifyContent: "center",
                   }}
                 >
-                  Operator Insights
-                </div>
-                {canonry.insights.map((insight) => (
                   <div
-                    key={insight}
                     style={{
-                      fontSize: 13,
-                      color: C.text,
-                      lineHeight: 1.5,
-                      background: "rgba(10,11,15,.24)",
-                      border: `1px solid ${C.border}55`,
-                      borderRadius: 10,
-                      padding: "10px 12px",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: C.textMuted,
+                      textTransform: "uppercase",
+                      letterSpacing: ".5px",
                     }}
                   >
-                    {insight}
+                    Operator Insights
                   </div>
-                ))}
+                  {canonry.insights.map((insight) => (
+                    <div
+                      key={insight}
+                      style={{
+                        fontSize: 13,
+                        color: C.text,
+                        lineHeight: 1.5,
+                        background: "rgba(10,11,15,.24)",
+                        border: `1px solid ${C.border}55`,
+                        borderRadius: 10,
+                        padding: "10px 12px",
+                      }}
+                    >
+                      {insight}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            {isOn("geo.kpis") && (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
+                  gap: 14,
+                }}
+              >
+                <KpiCard
+                  icon={Sparkles}
+                  label="AI Coverage"
+                  value={canonry.coverage}
+                  suffix="%"
+                  change={canonry.coverageDelta}
+                  color={C.accent}
+                />
+                <KpiCard
+                  icon={Bot}
+                  label="AI Referral Visits"
+                  value={canonry.aiVisitors}
+                  change={canonry.aiVisitorsDelta}
+                  color={C.green}
+                />
+                <KpiCard
+                  icon={FileText}
+                  label="Citation Evidence"
+                  value={canonry.citations}
+                  change={canonry.citationsDelta}
+                  color={C.blue}
+                />
+                <KpiCard
+                  icon={Activity}
+                  label="Health Snapshot"
+                  value={canonry.healthScore}
+                  suffix="/100"
+                  change={canonry.healthDelta}
+                  color={C.orange}
+                />
               </div>
             )}
-          </div>
-          {isOn("geo.kpis") && (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
-              gap: 14,
-            }}
-          >
-            <KpiCard
-              icon={Sparkles}
-              label="AI Coverage"
-              value={canonry.coverage}
-              suffix="%"
-              change={canonry.coverageDelta}
-              color={C.accent}
-            />
-            <KpiCard
-              icon={Bot}
-              label="AI Referral Visits"
-              value={canonry.aiVisitors}
-              change={canonry.aiVisitorsDelta}
-              color={C.green}
-            />
-            <KpiCard
-              icon={FileText}
-              label="Citation Evidence"
-              value={canonry.citations}
-              change={canonry.citationsDelta}
-              color={C.blue}
-            />
-            <KpiCard
-              icon={Activity}
-              label="Health Snapshot"
-              value={canonry.healthScore}
-              suffix="/100"
-              change={canonry.healthDelta}
-              color={C.orange}
-            />
-          </div>
-          )}
-          {isOn("geo.trend") && canonry.providerSeries?.length > 0 && (
-            <ChartCard title="Citation Trend by Provider" action="Live">
-              <ResponsiveContainer width="100%" height={250}>
-                <AreaChart data={canonry.providerSeries}>
-                  <defs>
-                    {providerKeys.map((k) => (
-                      <linearGradient key={k} id={`canonry-${k}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={AI_COLORS[k]} stopOpacity={0.22} />
-                        <stop offset="100%" stopColor={AI_COLORS[k]} stopOpacity={0} />
-                      </linearGradient>
-                    ))}
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fill: C.textDim, fontSize: 10 }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    tick={{ fill: C.textDim, fontSize: 10 }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <Tooltip content={<CTooltip />} />
-                  {providerKeys.map((k) => (
-                    <Area
-                      key={k}
-                      type="monotone"
-                      dataKey={k}
-                      stroke={AI_COLORS[k]}
-                      fill={`url(#canonry-${k})`}
-                      strokeWidth={2}
-                      name={k}
+            {isOn("geo.trend") && canonry.providerSeries?.length > 0 && (
+              <ChartCard title="Citation Trend by Provider" action="Live">
+                <ResponsiveContainer width="100%" height={250}>
+                  <AreaChart data={canonry.providerSeries}>
+                    <defs>
+                      {providerKeys.map((k) => (
+                        <linearGradient key={k} id={`canonry-${k}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={AI_COLORS[k]} stopOpacity={0.22} />
+                          <stop offset="100%" stopColor={AI_COLORS[k]} stopOpacity={0} />
+                        </linearGradient>
+                      ))}
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fill: C.textDim, fontSize: 10 }}
+                      axisLine={false}
+                      tickLine={false}
                     />
-                  ))}
-                </AreaChart>
-              </ResponsiveContainer>
-            </ChartCard>
-          )}
-          {isOn("geo.evidence") && canonry.evidence?.length > 0 && (
-            <ChartCard title="Latest Evidence" minH={220}>
-              <DTable
-                columns={[
-                  {
-                    label: "Query",
-                    key: "query",
-                    render: (r) => (
-                      <div>
-                        <div style={{ fontWeight: 600 }}>{r.query}</div>
-                        <div style={{ fontSize: 11, color: C.textMuted }}>{r.landingPage}</div>
-                      </div>
-                    ),
-                  },
-                  { label: "Provider", key: "provider", align: "right" },
-                  {
-                    label: "State",
-                    key: "status",
-                    align: "right",
-                    render: (r) => (
-                      <span
-                        style={{
-                          color:
-                            r.status === "Watch"
-                              ? C.orange
-                              : r.status === "Mentioned"
-                                ? C.blue
-                                : C.green,
-                          fontWeight: 600,
-                        }}
-                      >
-                        {r.status}
-                      </span>
-                    ),
-                  },
-                ]}
-                data={canonry.evidence}
-              />
-            </ChartCard>
-          )}
-        </>
+                    <YAxis
+                      tick={{ fill: C.textDim, fontSize: 10 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip content={<CTooltip />} />
+                    {providerKeys.map((k) => (
+                      <Area
+                        key={k}
+                        type="monotone"
+                        dataKey={k}
+                        stroke={AI_COLORS[k]}
+                        fill={`url(#canonry-${k})`}
+                        strokeWidth={2}
+                        name={k}
+                      />
+                    ))}
+                  </AreaChart>
+                </ResponsiveContainer>
+              </ChartCard>
+            )}
+            {isOn("geo.evidence") && canonry.evidence?.length > 0 && (
+              <ChartCard title="Latest Evidence" minH={220}>
+                <DTable
+                  columns={[
+                    {
+                      label: "Query",
+                      key: "query",
+                      render: (r) => (
+                        <div>
+                          <div style={{ fontWeight: 600 }}>{r.query}</div>
+                          <div style={{ fontSize: 11, color: C.textMuted }}>{r.landingPage}</div>
+                        </div>
+                      ),
+                    },
+                    { label: "Provider", key: "provider", align: "right" },
+                    {
+                      label: "State",
+                      key: "status",
+                      align: "right",
+                      render: (r) => (
+                        <span
+                          style={{
+                            color:
+                              r.status === "Watch"
+                                ? C.orange
+                                : r.status === "Mentioned"
+                                  ? C.blue
+                                  : C.green,
+                            fontWeight: 600,
+                          }}
+                        >
+                          {r.status}
+                        </span>
+                      ),
+                    },
+                  ]}
+                  data={canonry.evidence}
+                />
+              </ChartCard>
+            )}
+          </>
         </SectionErrorBoundary>
       )}
     </div>
@@ -4499,7 +5243,9 @@ function ConvDashboard({ selectedClient, dateRange }) {
   // Telefon-/Mail-/Maps-Events). Klassifiziert am rohen GA4-eventName.
   const [convFilter, setConvFilter] = useState("alle");
   const isPurchaseEvent = (r) =>
-    /purchase|checkout|transaction|kauf|buchung|booking/i.test(String(r?.eventName || r?.description || ""));
+    /purchase|checkout|transaction|kauf|buchung|booking/i.test(
+      String(r?.eventName || r?.description || ""),
+    );
   const convRowsFiltered = useMemo(() => {
     const rows = conv?.rows || [];
     if (convFilter === "purchase") return rows.filter(isPurchaseEvent);
@@ -4514,11 +5260,14 @@ function ConvDashboard({ selectedClient, dateRange }) {
   }, [conv?.events, convFilter]);
   const ga4 = ga4Raw;
   useEffect(() => {
-    const interval = setInterval(() => {
-      refreshGa4();
-      refreshConv();
-      refreshTraf();
-    }, 12 * 60 * 60 * 1000); // 12 Stunden
+    const interval = setInterval(
+      () => {
+        refreshGa4();
+        refreshConv();
+        refreshTraf();
+      },
+      12 * 60 * 60 * 1000,
+    ); // 12 Stunden
     return () => clearInterval(interval);
   }, [refreshGa4, refreshConv, refreshTraf]);
   // Prefer live GA4 event-level breakdown; fall back to client placeholders.
@@ -4534,15 +5283,18 @@ function ConvDashboard({ selectedClient, dateRange }) {
   // Agent-Snapshot, hatte aber KEIN channels-Feld -> Kanäle-Widget verschwand.
   // Live-Route liefert channels jetzt mit; zusätzlich Snapshot-Fallback, damit
   // das Widget nie wieder an einer lückenhaften Live-Antwort hängt.
-  const channels = Array.isArray(convRes?.channels) && convRes.channels.length
-    ? convRes.channels
-    : Array.isArray(convRun?.result?.channels) && convRun.result.channels.length
-      ? convRun.result.channels
-      : Array.isArray(trafRes?.channels) && trafRes.channels.some((ch) => ch.conversions != null)
-        ? trafRes.channels
-        : null;
+  const channels =
+    Array.isArray(convRes?.channels) && convRes.channels.length
+      ? convRes.channels
+      : Array.isArray(convRun?.result?.channels) && convRun.result.channels.length
+        ? convRun.result.channels
+        : Array.isArray(trafRes?.channels) && trafRes.channels.some((ch) => ch.conversions != null)
+          ? trafRes.channels
+          : null;
   const channelTotalSessions = channels ? channels.reduce((a, ch) => a + (ch.sessions || 0), 0) : 0;
-  const organicChannel = channels ? channels.find((ch) => /^organic search$/i.test(ch.channel)) : null;
+  const organicChannel = channels
+    ? channels.find((ch) => /^organic search$/i.test(ch.channel))
+    : null;
   const organicShare =
     channels && channelTotalSessions > 0 && organicChannel
       ? Math.round((organicChannel.sessions / channelTotalSessions) * 100)
@@ -4564,11 +5316,26 @@ function ConvDashboard({ selectedClient, dateRange }) {
   // Live GA4 comparison (real YoY/MoM) — falls back to series-based deltas if unavailable.
   const { data: cmpData, deltas: liveDeltas } = useGa4Compare(selectedClient?.id, dateRange);
   const pick = (live, fallback) => (live !== undefined ? live : fallback);
-  const dRevenue = pick(liveDeltas.totalRevenue, useMemo(() => seriesDelta(conv?.series, "revenue", dateRange), [conv?.series, dateRange]));
-  const dConv = pick(liveDeltas.conversions, useMemo(() => seriesDelta(conv?.series, "conversions", dateRange), [conv?.series, dateRange]));
-  const dSessions = pick(liveDeltas.sessions, useMemo(() => seriesDelta(ga4SeriesRaw, "sessions", dateRange), [ga4SeriesRaw, dateRange]));
-  const dUsers = pick(liveDeltas.totalUsers, useMemo(() => seriesDelta(ga4SeriesRaw, "totalUsers", dateRange), [ga4SeriesRaw, dateRange]));
-  const dPageViews = pick(liveDeltas.screenPageViews, useMemo(() => seriesDelta(ga4SeriesRaw, "pageViews", dateRange), [ga4SeriesRaw, dateRange]));
+  const dRevenue = pick(
+    liveDeltas.totalRevenue,
+    useMemo(() => seriesDelta(conv?.series, "revenue", dateRange), [conv?.series, dateRange]),
+  );
+  const dConv = pick(
+    liveDeltas.conversions,
+    useMemo(() => seriesDelta(conv?.series, "conversions", dateRange), [conv?.series, dateRange]),
+  );
+  const dSessions = pick(
+    liveDeltas.sessions,
+    useMemo(() => seriesDelta(ga4SeriesRaw, "sessions", dateRange), [ga4SeriesRaw, dateRange]),
+  );
+  const dUsers = pick(
+    liveDeltas.totalUsers,
+    useMemo(() => seriesDelta(ga4SeriesRaw, "totalUsers", dateRange), [ga4SeriesRaw, dateRange]),
+  );
+  const dPageViews = pick(
+    liveDeltas.screenPageViews,
+    useMemo(() => seriesDelta(ga4SeriesRaw, "pageViews", dateRange), [ga4SeriesRaw, dateRange]),
+  );
   // Comparison absolute values (from live GA4) + friendly period label.
   const cmpName = compareName(dateRange?.compareMode);
   const cmp = (k) => (cmpData?.compare ? Number(cmpData.compare[k] || 0) : undefined);
@@ -4592,22 +5359,34 @@ function ConvDashboard({ selectedClient, dateRange }) {
     <DataStatus
       items={[
         liveSum || liveConvRes || liveTrafRes
-          ? { source: "GA4 (Google Analytics)", state: "live", detail: "Live-Abfrage im gewählten Zeitraum" }
+          ? {
+              source: "GA4 (Google Analytics)",
+              state: "live",
+              detail: "Live-Abfrage im gewählten Zeitraum",
+            }
           : convConnected
-            ? runStatusItem("GA4 (Google Analytics)", convRun || run || trafRun, { staleDays: 3, detail: "Agent-Snapshot" })
+            ? runStatusItem("GA4 (Google Analytics)", convRun || run || trafRun, {
+                staleDays: 3,
+                detail: "Agent-Snapshot",
+              })
             : { source: "GA4 (Google Analytics)", state: "disconnected" },
       ]}
       action={{
         label: "Daten neu laden",
         kind: "reload",
-        title: "Liest nur den gespeicherten Datenbankstand neu — GA4 misst der naechtliche Sammel-Lauf bzw. die Live-Abfrage",
+        title:
+          "Liest nur den gespeicherten Datenbankstand neu — GA4 misst der naechtliche Sammel-Lauf bzw. die Live-Abfrage",
         onClick: () => {
           refreshGa4(true);
           refreshConv(true);
           refreshTraf(true);
         },
       }}
-      hint={!convConnected ? "Google verbinden: Admin → Kunden → Onboarding → Google (GA4-Property hinterlegen)" : undefined}
+      hint={
+        !convConnected
+          ? "Google verbinden: Admin → Kunden → Onboarding → Google (GA4-Property hinterlegen)"
+          : undefined
+      }
     />
   );
   if (!hasAnyKpi) {
@@ -4630,79 +5409,105 @@ function ConvDashboard({ selectedClient, dateRange }) {
       {convStatus}
       <CompareBanner dateRange={dateRange} />
       {isOn("conv.custom") && (
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
-          gap: 14,
-        }}
-      >
-        <KpiCard
-          icon={Phone}
-          label="Phone Clicks"
-          value={phoneCalls > 0 ? phoneCalls : "—"}
-          color={C.accent}
-        />
-        <KpiCard
-          icon={Mail}
-          label="Mail Clicks"
-          value={mailClicks > 0 ? mailClicks : "—"}
-          color={C.blue}
-        />
-        <KpiCard
-          icon={MapPin}
-          label="Maps Clicks"
-          value={mapsClicks > 0 ? mapsClicks : "—"}
-          color={C.green}
-        />
-        <KpiCard
-          icon={FileInput}
-          label="Contact Form Submit"
-          value={formSubmits > 0 ? formSubmits : "—"}
-          color={C.orange}
-        />
-        {!clicksMode && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
+            gap: 14,
+          }}
+        >
           <KpiCard
-            icon={DollarSign}
-            label="Generated"
-            value={revenue > 0 ? `${Math.round(revenue).toLocaleString("de-CH")} CHF` : "—"}
-            change={dRevenue}
-            compareValue={cmp("totalRevenue") !== undefined ? `${Math.round(cmp("totalRevenue")).toLocaleString("de-CH")} CHF` : undefined}
-            compareLabel={cmpName}
-            color={C.pink}
+            icon={Phone}
+            label="Phone Clicks"
+            value={phoneCalls > 0 ? phoneCalls : "—"}
+            color={C.accent}
           />
-        )}
-        {clicksMode && (
           <KpiCard
-            icon={Target}
-            label="Conversions (Buchungsklicks)"
-            value={conv && conv.purchases + phoneCalls + mailClicks + mapsClicks + formSubmits > 0
-              ? conv.purchases + phoneCalls + mailClicks + mapsClicks + formSubmits
-              : "—"}
-            change={dConv}
-            color={C.pink}
+            icon={Mail}
+            label="Mail Clicks"
+            value={mailClicks > 0 ? mailClicks : "—"}
+            color={C.blue}
           />
-        )}
-      </div>
+          <KpiCard
+            icon={MapPin}
+            label="Maps Clicks"
+            value={mapsClicks > 0 ? mapsClicks : "—"}
+            color={C.green}
+          />
+          <KpiCard
+            icon={FileInput}
+            label="Contact Form Submit"
+            value={formSubmits > 0 ? formSubmits : "—"}
+            color={C.orange}
+          />
+          {!clicksMode && (
+            <KpiCard
+              icon={DollarSign}
+              label="Generated"
+              value={revenue > 0 ? `${Math.round(revenue).toLocaleString("de-CH")} CHF` : "—"}
+              change={dRevenue}
+              compareValue={
+                cmp("totalRevenue") !== undefined
+                  ? `${Math.round(cmp("totalRevenue")).toLocaleString("de-CH")} CHF`
+                  : undefined
+              }
+              compareLabel={cmpName}
+              color={C.pink}
+            />
+          )}
+          {clicksMode && (
+            <KpiCard
+              icon={Target}
+              label="Conversions (Buchungsklicks)"
+              value={
+                conv && conv.purchases + phoneCalls + mailClicks + mapsClicks + formSubmits > 0
+                  ? conv.purchases + phoneCalls + mailClicks + mapsClicks + formSubmits
+                  : "—"
+              }
+              change={dConv}
+              color={C.pink}
+            />
+          )}
+        </div>
       )}
       {/* B3: Kanal-Split (GA4 sessionDefaultChannelGroup) — nur wenn channels vorhanden */}
       {channels && channels.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {organicShare != null && (
             <div
-              style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, maxWidth: 320 }}
+              style={{
+                background: C.card,
+                border: `1px solid ${C.border}`,
+                borderRadius: 14,
+                padding: 16,
+                maxWidth: 320,
+              }}
             >
-              <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 4 }}>davon organisch</div>
+              <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 4 }}>
+                davon organisch
+              </div>
               <div style={{ fontSize: 26, fontWeight: 800, color: C.green }}>{organicShare}%</div>
               <div style={{ fontSize: 11, color: C.textDim }}>
-                {organicChannel.sessions.toLocaleString("de-CH")} von {channelTotalSessions.toLocaleString("de-CH")} Sessions
+                {organicChannel.sessions.toLocaleString("de-CH")} von{" "}
+                {channelTotalSessions.toLocaleString("de-CH")} Sessions
               </div>
             </div>
           )}
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}>Kanaele</div>
+          <div
+            style={{
+              background: C.card,
+              border: `1px solid ${C.border}`,
+              borderRadius: 14,
+              padding: 16,
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}>
+              Kanaele
+            </div>
             <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-              <table style={{ width: "100%", minWidth: 480, borderCollapse: "collapse", fontSize: 13 }}>
+              <table
+                style={{ width: "100%", minWidth: 480, borderCollapse: "collapse", fontSize: 13 }}
+              >
                 <thead>
                   <tr style={{ color: C.textDim, textAlign: "left" }}>
                     <th style={{ padding: "6px 8px" }}>Kanal</th>
@@ -4718,22 +5523,40 @@ function ConvDashboard({ selectedClient, dateRange }) {
                     const isOrganic = /^organic search$/i.test(ch.channel);
                     return (
                       <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
-                        <td style={{ padding: "6px 8px", color: C.text, fontWeight: isOrganic ? 700 : 400 }}>
+                        <td
+                          style={{
+                            padding: "6px 8px",
+                            color: C.text,
+                            fontWeight: isOrganic ? 700 : 400,
+                          }}
+                        >
                           {isOrganic && (
                             <span
                               style={{
-                                display: "inline-block", width: 8, height: 8, borderRadius: 4,
-                                background: C.green, marginRight: 6,
+                                display: "inline-block",
+                                width: 8,
+                                height: 8,
+                                borderRadius: 4,
+                                background: C.green,
+                                marginRight: 6,
                               }}
                             />
                           )}
                           {ch.channel}
                         </td>
-                        <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: isOrganic ? 700 : 400 }}>
+                        <td
+                          style={{
+                            padding: "6px 8px",
+                            textAlign: "right",
+                            fontWeight: isOrganic ? 700 : 400,
+                          }}
+                        >
                           {(ch.sessions ?? 0).toLocaleString("de-CH")}
                         </td>
                         <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                          {ch.conversions != null ? Math.round(ch.conversions).toLocaleString("de-CH") : "—"}
+                          {ch.conversions != null
+                            ? Math.round(ch.conversions).toLocaleString("de-CH")
+                            : "—"}
                         </td>
                         <td style={{ padding: "6px 8px", textAlign: "right" }}>
                           {ch.revenue != null && !clicksMode
@@ -4753,91 +5576,93 @@ function ConvDashboard({ selectedClient, dateRange }) {
       )}
       {isOn("conv.ga4") &&
         (sessions > 0 || totalUsers > 0 || engagedSessions > 0 || screenPageViews > 0) && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
-            gap: 14,
-          }}
-        >
-          <KpiCard
-            icon={Globe}
-            label="GA4 Sessions"
-            value={sessions > 0 ? sessions : "—"}
-            change={dSessions}
-            compareValue={cmp("sessions")}
-            compareLabel={cmpName}
-            color={C.blue}
-          />
-          <KpiCard
-            icon={Eye}
-            label="GA4 Total Users"
-            value={totalUsers > 0 ? totalUsers : "—"}
-            change={dUsers}
-            compareValue={cmp("totalUsers")}
-            compareLabel={cmpName}
-            color={C.accent}
-          />
-          <KpiCard
-            icon={Activity}
-            label="Engaged Sessions"
-            value={engagedSessions > 0 ? engagedSessions : "—"}
-            color={C.green}
-          />
-          <KpiCard
-            icon={FileText}
-            label="Page Views"
-            value={screenPageViews > 0 ? screenPageViews : "—"}
-            change={dPageViews}
-            compareValue={cmp("screenPageViews")}
-            compareLabel={cmpName}
-            color={C.orange}
-          />
-          <KpiCard
-            icon={Users}
-            label="New Users"
-            value={newUsers > 0 ? newUsers : "—"}
-            color={C.cyan}
-          />
-          <KpiCard
-            icon={Target}
-            label="Conversions"
-            value={ga4Conversions > 0 ? ga4Conversions : "—"}
-            change={dConv}
-            compareValue={cmp("conversions")}
-            compareLabel={cmpName}
-            color={C.pink}
-          />
-          {!clicksMode && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
+              gap: 14,
+            }}
+          >
             <KpiCard
-              icon={DollarSign}
-              label="GA4 Revenue"
-              value={ga4Revenue > 0 ? `CHF ${Math.round(ga4Revenue).toLocaleString("de-CH")}` : "—"}
+              icon={Globe}
+              label="GA4 Sessions"
+              value={sessions > 0 ? sessions : "—"}
+              change={dSessions}
+              compareValue={cmp("sessions")}
+              compareLabel={cmpName}
+              color={C.blue}
+            />
+            <KpiCard
+              icon={Eye}
+              label="GA4 Total Users"
+              value={totalUsers > 0 ? totalUsers : "—"}
+              change={dUsers}
+              compareValue={cmp("totalUsers")}
+              compareLabel={cmpName}
+              color={C.accent}
+            />
+            <KpiCard
+              icon={Activity}
+              label="Engaged Sessions"
+              value={engagedSessions > 0 ? engagedSessions : "—"}
               color={C.green}
             />
-          )}
-          {clicksMode && (
             <KpiCard
-              icon={DollarSign}
-              label="Buchungsklicks (Wert)"
-              value={ga4Revenue > 0 ? Math.round(ga4Revenue).toLocaleString("de-CH") : "—"}
-              color={C.green}
+              icon={FileText}
+              label="Page Views"
+              value={screenPageViews > 0 ? screenPageViews : "—"}
+              change={dPageViews}
+              compareValue={cmp("screenPageViews")}
+              compareLabel={cmpName}
+              color={C.orange}
             />
-          )}
-          <KpiCard
-            icon={Activity}
-            label="Bounce Rate"
-            value={bounceRate > 0 ? `${(bounceRate * 100).toFixed(1)}%` : "—"}
-            color={C.orange}
-          />
-          <KpiCard
-            icon={Clock}
-            label="Ø Session"
-            value={avgSession > 0 ? `${Math.round(avgSession)}s` : "—"}
-            color={C.blue}
-          />
-        </div>
-      )}
+            <KpiCard
+              icon={Users}
+              label="New Users"
+              value={newUsers > 0 ? newUsers : "—"}
+              color={C.cyan}
+            />
+            <KpiCard
+              icon={Target}
+              label="Conversions"
+              value={ga4Conversions > 0 ? ga4Conversions : "—"}
+              change={dConv}
+              compareValue={cmp("conversions")}
+              compareLabel={cmpName}
+              color={C.pink}
+            />
+            {!clicksMode && (
+              <KpiCard
+                icon={DollarSign}
+                label="GA4 Revenue"
+                value={
+                  ga4Revenue > 0 ? `CHF ${Math.round(ga4Revenue).toLocaleString("de-CH")}` : "—"
+                }
+                color={C.green}
+              />
+            )}
+            {clicksMode && (
+              <KpiCard
+                icon={DollarSign}
+                label="Buchungsklicks (Wert)"
+                value={ga4Revenue > 0 ? Math.round(ga4Revenue).toLocaleString("de-CH") : "—"}
+                color={C.green}
+              />
+            )}
+            <KpiCard
+              icon={Activity}
+              label="Bounce Rate"
+              value={bounceRate > 0 ? `${(bounceRate * 100).toFixed(1)}%` : "—"}
+              color={C.orange}
+            />
+            <KpiCard
+              icon={Clock}
+              label="Ø Session"
+              value={avgSession > 0 ? `${Math.round(avgSession)}s` : "—"}
+              color={C.blue}
+            />
+          </div>
+        )}
       {isOn("conv.revenue") && revenue > 0 && !clicksMode && (
         <div
           style={{
@@ -4884,9 +5709,7 @@ function ConvDashboard({ selectedClient, dateRange }) {
                 stroke={C.textDim}
                 fontSize={11}
                 tickFormatter={(d) =>
-                  typeof d === "string" && d.length === 8
-                    ? `${d.slice(6, 8)}.${d.slice(4, 6)}.`
-                    : d
+                  typeof d === "string" && d.length === 8 ? `${d.slice(6, 8)}.${d.slice(4, 6)}.` : d
                 }
               />
               <YAxis stroke={C.textDim} fontSize={11} />
@@ -5041,7 +5864,16 @@ function ConvDashboard({ selectedClient, dateRange }) {
             padding: 16,
           }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 8,
+              marginBottom: 12,
+            }}
+          >
             <div style={{ fontSize: 13, fontWeight: 600, color: C.textMuted }}>
               Alle Conversions
             </div>
@@ -5076,9 +5908,18 @@ function ConvDashboard({ selectedClient, dateRange }) {
               })()}
             </div>
           </div>
-          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", maxHeight: 460, overflowY: "auto" }}>
+          <div
+            style={{
+              overflowX: "auto",
+              WebkitOverflowScrolling: "touch",
+              maxHeight: 460,
+              overflowY: "auto",
+            }}
+          >
             {conv.rows.length > 0 ? (
-              <table style={{ width: "100%", minWidth: 640, borderCollapse: "collapse", fontSize: 13 }}>
+              <table
+                style={{ width: "100%", minWidth: 640, borderCollapse: "collapse", fontSize: 13 }}
+              >
                 <thead>
                   <tr style={{ color: C.textDim, textAlign: "left" }}>
                     <th style={{ padding: "6px 8px" }}>Titel</th>
@@ -5094,13 +5935,16 @@ function ConvDashboard({ selectedClient, dateRange }) {
                   {convRowsFiltered.length === 0 && (
                     <tr>
                       <td colSpan={7} style={{ padding: "12px 8px", color: C.textDim }}>
-                        Keine {convFilter === "purchase" ? "Purchase-Conversions" : "Lead-Anfragen"} im Zeitraum.
+                        Keine {convFilter === "purchase" ? "Purchase-Conversions" : "Lead-Anfragen"}{" "}
+                        im Zeitraum.
                       </td>
                     </tr>
                   )}
                   {convRowsFiltered.slice(0, 60).map((r, i) => (
                     <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
-                      <td style={{ padding: "6px 8px", color: C.text, fontWeight: 600 }}>{r.description}</td>
+                      <td style={{ padding: "6px 8px", color: C.text, fontWeight: 600 }}>
+                        {r.description}
+                      </td>
                       <td style={{ padding: "6px 8px", color: C.textMuted }}>
                         {typeof r.date === "string" && r.date.length === 8
                           ? `${r.date.slice(6, 8)}.${r.date.slice(4, 6)}.${r.date.slice(0, 4)}`
@@ -5120,7 +5964,9 @@ function ConvDashboard({ selectedClient, dateRange }) {
                 </tbody>
               </table>
             ) : (
-              <table style={{ width: "100%", minWidth: 360, borderCollapse: "collapse", fontSize: 13 }}>
+              <table
+                style={{ width: "100%", minWidth: 360, borderCollapse: "collapse", fontSize: 13 }}
+              >
                 <thead>
                   <tr style={{ color: C.textDim, textAlign: "left" }}>
                     <th style={{ padding: "6px 8px" }}>Event</th>
@@ -5131,7 +5977,8 @@ function ConvDashboard({ selectedClient, dateRange }) {
                   {convEventsFiltered.length === 0 && (
                     <tr>
                       <td colSpan={2} style={{ padding: "12px 8px", color: C.textDim }}>
-                        Keine {convFilter === "purchase" ? "Purchase-Conversions" : "Lead-Anfragen"} im Zeitraum.
+                        Keine {convFilter === "purchase" ? "Purchase-Conversions" : "Lead-Anfragen"}{" "}
+                        im Zeitraum.
                       </td>
                     </tr>
                   )}
@@ -5169,12 +6016,15 @@ function OverviewDashboard({ selectedClient, dateRange }) {
     "ga4_conversions",
   );
   useEffect(() => {
-    const interval = setInterval(() => {
-      refreshAhrefs();
-      refreshGa4();
-      refreshTraf();
-      refreshConv();
-    }, 12 * 60 * 60 * 1000); // 12 Stunden
+    const interval = setInterval(
+      () => {
+        refreshAhrefs();
+        refreshGa4();
+        refreshTraf();
+        refreshConv();
+      },
+      12 * 60 * 60 * 1000,
+    ); // 12 Stunden
     return () => clearInterval(interval);
   }, [refreshAhrefs, refreshGa4, refreshTraf, refreshConv]);
   const ahrefs = ahrefsRun ? ahrefsKpisFromResult(ahrefsRun.result) : null;
@@ -5196,10 +6046,16 @@ function OverviewDashboard({ selectedClient, dateRange }) {
   const COUNTRY_COLORS = [C.accent, C.blue, C.green, C.orange, C.cyan, C.pink, C.textDim];
   // Live GA4 comparison (real YoY/MoM) — falls back to series-based deltas.
   const { data: ovCmpData, deltas: ovLiveDeltas } = useGa4Compare(selectedClient?.id, dateRange);
-  const ga4SeriesForDelta = ga4Run ? (ga4KpisFromResult(ga4Run.result)?.series || []) : [];
-  const sOrganic = useMemo(() => seriesDelta(ga4SeriesForDelta, "sessions", dateRange), [ga4Run, dateRange]);
+  const ga4SeriesForDelta = ga4Run ? ga4KpisFromResult(ga4Run.result)?.series || [] : [];
+  const sOrganic = useMemo(
+    () => seriesDelta(ga4SeriesForDelta, "sessions", dateRange),
+    [ga4Run, dateRange],
+  );
   const dOrganic = ovLiveDeltas.sessions !== undefined ? ovLiveDeltas.sessions : sOrganic;
-  const dAiRef = useMemo(() => seriesDelta(aiSeriesRaw, "aiSessions", dateRange), [aiSeriesRaw, dateRange]);
+  const dAiRef = useMemo(
+    () => seriesDelta(aiSeriesRaw, "aiSessions", dateRange),
+    [aiSeriesRaw, dateRange],
+  );
   const ovCmpName = compareName(dateRange?.compareMode);
   const ovOrganicCmp = ovCmpData?.compare ? Number(ovCmpData.compare.sessions || 0) : undefined;
 
@@ -5209,14 +6065,22 @@ function OverviewDashboard({ selectedClient, dateRange }) {
     ? (Date.now() - new Date(populateMeta.created_at).getTime()) / 3600_000
     : null;
   const SOURCE_LABELS = {
-    ahrefs: "Backlinks (DFS)", gsc: "GSC", gsc_queries: "GSC-Queries", crux: "CWV",
-    ga4: "GA4", ga4_traffic: "GA4-Traffic", ga4_conversions: "GA4-Conv.", canonry: "Canonry",
+    ahrefs: "Backlinks (DFS)",
+    gsc: "GSC",
+    gsc_queries: "GSC-Queries",
+    crux: "CWV",
+    ga4: "GA4",
+    ga4_traffic: "GA4-Traffic",
+    ga4_conversions: "GA4-Conv.",
+    canonry: "Canonry",
   };
   const fmtTs = (ts) => {
     try {
       const d = new Date(ts);
       return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}. ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-    } catch { return ""; }
+    } catch {
+      return "";
+    }
   };
   const hasAny = organicTraffic + aiReference + leadVisits + visibility > 0 || countries.length > 0;
   if (!hasAny) {
@@ -5234,8 +6098,13 @@ function OverviewDashboard({ selectedClient, dateRange }) {
       {metaAgeH != null && metaAgeH > 26 && (
         <div
           style={{
-            background: `${C.orange}18`, border: `1px solid ${C.orange}55`,
-            borderRadius: 10, padding: "10px 14px", fontSize: 13, color: C.orange, fontWeight: 600,
+            background: `${C.orange}18`,
+            border: `1px solid ${C.orange}55`,
+            borderRadius: 10,
+            padding: "10px 14px",
+            fontSize: 13,
+            color: C.orange,
+            fontWeight: 600,
           }}
         >
           Datenstand aelter als ein Tag — Sammel-Job pruefen.
@@ -5243,10 +6112,23 @@ function OverviewDashboard({ selectedClient, dateRange }) {
       )}
       {/* B4a/b: Health-Score + Komponenten-Chips + deltaDriver */}
       {health && (health.score != null || health.components.length > 0) && (
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 14,
+            padding: 16,
+          }}
+        >
           <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
             {health.score != null && (
-              <div style={{ fontSize: 28, fontWeight: 800, color: health.score >= 70 ? C.green : C.orange }}>
+              <div
+                style={{
+                  fontSize: 28,
+                  fontWeight: 800,
+                  color: health.score >= 70 ? C.green : C.orange,
+                }}
+              >
                 {health.score}/100
               </div>
             )}
@@ -5261,11 +6143,19 @@ function OverviewDashboard({ selectedClient, dateRange }) {
                 <span
                   key={k.key}
                   style={{
-                    fontSize: 12, fontWeight: 600, padding: "4px 12px", borderRadius: 999,
-                    background: `${C.accent}18`, color: C.text, border: `1px solid ${C.border}`,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    padding: "4px 12px",
+                    borderRadius: 999,
+                    background: `${C.accent}18`,
+                    color: C.text,
+                    border: `1px solid ${C.border}`,
                   }}
                 >
-                  {k.label} {k.value != null ? `${Math.round(k.value).toLocaleString("de-CH")}${k.suffix}` : "—"}
+                  {k.label}{" "}
+                  {k.value != null
+                    ? `${Math.round(k.value).toLocaleString("de-CH")}${k.suffix}`
+                    : "—"}
                 </span>
               ))}
             </div>
@@ -5285,13 +6175,17 @@ function OverviewDashboard({ selectedClient, dateRange }) {
                   key={k}
                   title={fail && s?.error ? s.error : undefined}
                   style={{
-                    fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    padding: "3px 10px",
+                    borderRadius: 999,
                     background: fail ? `${C.orange}22` : `${C.surface}`,
                     color: fail ? C.orange : skipped ? C.textDim : C.textMuted,
                     border: `1px solid ${fail ? C.orange : C.border}`,
                   }}
                 >
-                  {SOURCE_LABELS[k]} · {fail ? "Fehler" : skipped ? "uebersprungen" : `Stand ${fmtTs(s?.ts)}`}
+                  {SOURCE_LABELS[k]} ·{" "}
+                  {fail ? "Fehler" : skipped ? "uebersprungen" : `Stand ${fmtTs(s?.ts)}`}
                 </span>
               );
             })}
@@ -5356,7 +6250,9 @@ function OverviewDashboard({ selectedClient, dateRange }) {
               <ResponsiveContainer width="100%" height={240}>
                 <PieChart>
                   <Pie
-                    data={countries.slice(0, 7).map((c) => ({ name: c.country, value: c.sessions }))}
+                    data={countries
+                      .slice(0, 7)
+                      .map((c) => ({ name: c.country, value: c.sessions }))}
                     dataKey="value"
                     nameKey="name"
                     cx="50%"
@@ -5450,7 +6346,12 @@ function OverviewDashboard({ selectedClient, dateRange }) {
                 </div>
                 <div style={{ overflowX: "auto" }}>
                   <table
-                    style={{ width: "100%", minWidth: 280, borderCollapse: "collapse", fontSize: 13 }}
+                    style={{
+                      width: "100%",
+                      minWidth: 280,
+                      borderCollapse: "collapse",
+                      fontSize: 13,
+                    }}
                   >
                     <thead>
                       <tr style={{ color: C.textDim, textAlign: "left" }}>
@@ -5509,37 +6410,79 @@ function AiCitationsPanel({ selectedClient }) {
   // der alte Lauf sendete bereits google/Switzerland/de = CH-Korpus).
   const allRows = r.queries.map((q) => ({ ...q, corpusId: q.corpusId || "ch-de" }));
   const corpusIds = [...new Set(allRows.map((q) => q.corpusId))];
-  const rows = corpusFilter === "alle" ? allRows : allRows.filter((q) => q.corpusId === corpusFilter);
+  const rows =
+    corpusFilter === "alle" ? allRows : allRows.filter((q) => q.corpusId === corpusFilter);
   const agg = r.aggregate || {};
   const delta = agg.citedDelta7;
   const deltaUp = typeof delta === "string" && delta.startsWith("+") && delta !== "+0";
   const deltaDown = typeof delta === "string" && delta.startsWith("-");
   const pct = (v) => (v == null ? "—" : (Math.round(v * 1000) / 10).toFixed(1) + " %");
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 18, display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+    <div
+      style={{
+        background: C.card,
+        border: `1px solid ${C.border}`,
+        borderRadius: 12,
+        padding: 18,
+        display: "flex",
+        flexDirection: "column",
+        gap: 14,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 8,
+        }}
+      >
         <div>
           <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>AI-Zitationen</div>
           <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>
-            In {agg.queriesCited ?? 0} von {agg.queriesTracked ?? r.queries.length} KI-Abfragen zitiert
+            In {agg.queriesCited ?? 0} von {agg.queriesTracked ?? r.queries.length} KI-Abfragen
+            zitiert
             {delta ? (
-              <span style={{ marginLeft: 8, color: deltaUp ? C.green : deltaDown ? C.red : C.textMuted, fontWeight: 600 }}>
+              <span
+                style={{
+                  marginLeft: 8,
+                  color: deltaUp ? C.green : deltaDown ? C.red : C.textMuted,
+                  fontWeight: 600,
+                }}
+              >
                 {deltaUp ? "▲" : deltaDown ? "▼" : "→"} {delta} ggü. Vorwoche
               </span>
             ) : null}
           </div>
         </div>
-        <span title="Kleine KMU sind anfangs oft nicht oder niedrig zitiert. Der Wert liegt im Trend ueber Zeit, waehrend GEO-Massnahmen greifen." style={{ fontSize: 11, color: C.textDim, cursor: "help" }}>
+        <span
+          title="Kleine KMU sind anfangs oft nicht oder niedrig zitiert. Der Wert liegt im Trend ueber Zeit, waehrend GEO-Massnahmen greifen."
+          style={{ fontSize: 11, color: C.textDim, cursor: "help" }}
+        >
           KI-Sicht (Stadt-/Kategorie-Ebene) ⓘ
         </span>
       </div>
-      {r.note ? <div style={{ fontSize: 11, color: C.textDim, fontStyle: "italic" }}>{r.note}</div> : null}
+      {r.note ? (
+        <div style={{ fontSize: 11, color: C.textDim, fontStyle: "italic" }}>{r.note}</div>
+      ) : null}
       {corpusIds.length > 1 ? (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {["alle", ...corpusIds].map((cid) => (
-            <button key={cid} onClick={() => setCorpusFilter(cid)}
-              style={{ background: corpusFilter === cid ? C.accentDim : "transparent", color: corpusFilter === cid ? C.accentLight : C.textMuted, border: `1px solid ${corpusFilter === cid ? C.accent : C.border}`, borderRadius: 8, padding: "4px 10px", fontSize: 11, cursor: "pointer" }}>
-              {cid === "alle" ? "Alle Korpora" : (CORPUS_LABELS[cid] || cid)}
+            <button
+              key={cid}
+              onClick={() => setCorpusFilter(cid)}
+              style={{
+                background: corpusFilter === cid ? C.accentDim : "transparent",
+                color: corpusFilter === cid ? C.accentLight : C.textMuted,
+                border: `1px solid ${corpusFilter === cid ? C.accent : C.border}`,
+                borderRadius: 8,
+                padding: "4px 10px",
+                fontSize: 11,
+                cursor: "pointer",
+              }}
+            >
+              {cid === "alle" ? "Alle Korpora" : CORPUS_LABELS[cid] || cid}
             </button>
           ))}
         </div>
@@ -5562,24 +6505,50 @@ function AiCitationsPanel({ selectedClient }) {
               const isOpen = open[i];
               return (
                 <Fragment key={i}>
-                  <tr style={{ borderTop: `1px solid ${C.border}`, background: notCitedPrimary ? C.redDim : "transparent" }}>
+                  <tr
+                    style={{
+                      borderTop: `1px solid ${C.border}`,
+                      background: notCitedPrimary ? C.redDim : "transparent",
+                    }}
+                  >
                     <td style={{ padding: "8px" }}>
-                      {q.isPrimary ? <Badge color={C.accent}>Primaer</Badge> : null} <span style={{ color: C.text }}>{q.query}</span>
-                      {q.noData ? <span style={{ color: C.textDim, marginLeft: 6 }}>(keine KI-Daten)</span> : null}
+                      {q.isPrimary ? <Badge color={C.accent}>Primaer</Badge> : null}{" "}
+                      <span style={{ color: C.text }}>{q.query}</span>
+                      {q.noData ? (
+                        <span style={{ color: C.textDim, marginLeft: 6 }}>(keine KI-Daten)</span>
+                      ) : null}
                     </td>
                     <td style={{ padding: "8px" }}>
-                      <span title={CORPUS_LABELS[q.corpusId] || q.corpusId} style={{ fontSize: 11, color: C.textMuted }}>
-                        {q.corpusId === "int-en" ? "International" : q.corpusId.startsWith("ch-") ? "Heimmarkt " + q.corpusId.slice(3).toUpperCase() : q.corpusId}
+                      <span
+                        title={CORPUS_LABELS[q.corpusId] || q.corpusId}
+                        style={{ fontSize: 11, color: C.textMuted }}
+                      >
+                        {q.corpusId === "int-en"
+                          ? "International"
+                          : q.corpusId.startsWith("ch-")
+                            ? "Heimmarkt " + q.corpusId.slice(3).toUpperCase()
+                            : q.corpusId}
                       </span>
                     </td>
                     <td style={{ padding: "8px" }}>
-                      <Badge color={q.clientCited ? C.green : C.red}>{q.clientCited ? "Ja" : "Nein"}</Badge>
+                      <Badge color={q.clientCited ? C.green : C.red}>
+                        {q.clientCited ? "Ja" : "Nein"}
+                      </Badge>
                     </td>
                     <td style={{ padding: "8px", color: C.text }}>{q.clientRank ?? "—"}</td>
                     <td style={{ padding: "8px", color: C.text }}>{pct(q.clientShare)}</td>
                     <td style={{ padding: "8px" }}>
                       {(q.topCitedDomains || []).length ? (
-                        <button onClick={() => setOpen((o) => ({ ...o, [i]: !o[i] }))} style={{ background: "transparent", border: "none", color: C.accentLight, cursor: "pointer", fontSize: 12 }}>
+                        <button
+                          onClick={() => setOpen((o) => ({ ...o, [i]: !o[i] }))}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            color: C.accentLight,
+                            cursor: "pointer",
+                            fontSize: 12,
+                          }}
+                        >
                           {isOpen ? "Quellen ▲" : "Quellen ▼"}
                         </button>
                       ) : null}
@@ -5588,10 +6557,22 @@ function AiCitationsPanel({ selectedClient }) {
                   {isOpen && (q.topCitedDomains || []).length ? (
                     <tr style={{ background: C.surface }}>
                       <td colSpan={6} style={{ padding: "8px 12px" }}>
-                        <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 6 }}>Top-zitierte Quellen (Wettbewerb um KI-Zitationen):</div>
+                        <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 6 }}>
+                          Top-zitierte Quellen (Wettbewerb um KI-Zitationen):
+                        </div>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                           {q.topCitedDomains.map((d, k) => (
-                            <span key={k} style={{ fontSize: 11, color: C.text, background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: "3px 8px" }}>
+                            <span
+                              key={k}
+                              style={{
+                                fontSize: 11,
+                                color: C.text,
+                                background: C.card,
+                                border: `1px solid ${C.border}`,
+                                borderRadius: 6,
+                                padding: "3px 8px",
+                              }}
+                            >
                               {d.domain} <span style={{ color: C.textDim }}>{d.mentions}</span>
                             </span>
                           ))}
@@ -5694,20 +6675,51 @@ function AiVisibilityDashboard({ selectedClient }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
         <div style={{ fontSize: 12, color: C.textMuted }}>
           {run?.created_at ? `Stand: ${new Date(run.created_at).toLocaleString("de-CH")}` : ""}
         </div>
         {RefreshBtn}
       </div>
       {err && (
-        <div style={{ background: C.redDim, border: `1px solid ${C.red}35`, borderRadius: 12, padding: "10px 14px", fontSize: 13, color: C.text }}>
+        <div
+          style={{
+            background: C.redDim,
+            border: `1px solid ${C.red}35`,
+            borderRadius: 12,
+            padding: "10px 14px",
+            fontSize: 13,
+            color: C.text,
+          }}
+        >
           {err}
         </div>
       )}
       {/* Score gauge + headline KPIs */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 14 }}>
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, position: "relative" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
+          gap: 14,
+        }}
+      >
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 14,
+            padding: 16,
+            position: "relative",
+          }}
+        >
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, color: C.textMuted }}>
             Visibility Score
           </div>
@@ -5731,8 +6743,20 @@ function AiVisibilityDashboard({ selectedClient }) {
                 </Pie>
               </PieChart>
             </ResponsiveContainer>
-            <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", paddingBottom: 6 }}>
-              <div style={{ fontSize: 38, fontWeight: 800, color: C.text, lineHeight: 1 }}>{score}</div>
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "flex-end",
+                paddingBottom: 6,
+              }}
+            >
+              <div style={{ fontSize: 38, fontWeight: 800, color: C.text, lineHeight: 1 }}>
+                {score}
+              </div>
               <div style={{ fontSize: 13, fontWeight: 700, color: scoreColor }}>{scoreLabelDe}</div>
             </div>
           </div>
@@ -5762,8 +6786,24 @@ function AiVisibilityDashboard({ selectedClient }) {
         />
       </div>
       {/* Time-series with range switcher */}
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+      <div
+        style={{
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: 14,
+          padding: 16,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 12,
+            flexWrap: "wrap",
+            gap: 8,
+          }}
+        >
           <div style={{ fontSize: 13, fontWeight: 600, color: C.textMuted }}>
             Mentions & Citations im Zeitverlauf
           </div>
@@ -5807,11 +6847,30 @@ function AiVisibilityDashboard({ selectedClient }) {
               />
               <YAxis stroke={C.textDim} fontSize={11} />
               <Tooltip
-                contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, color: C.textMuted }}
+                contentStyle={{
+                  background: C.surface,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 8,
+                  color: C.textMuted,
+                }}
               />
               <Legend />
-              <Area type="monotone" dataKey="cited" name="Citations" stroke={C.green} fill="url(#aivis-cit)" strokeWidth={2} />
-              <Area type="monotone" dataKey="mentioned" name="Mentions" stroke={C.accent} fillOpacity={0} strokeWidth={2} />
+              <Area
+                type="monotone"
+                dataKey="cited"
+                name="Citations"
+                stroke={C.green}
+                fill="url(#aivis-cit)"
+                strokeWidth={2}
+              />
+              <Area
+                type="monotone"
+                dataKey="mentioned"
+                name="Mentions"
+                stroke={C.accent}
+                fillOpacity={0}
+                strokeWidth={2}
+              />
             </AreaChart>
           </ResponsiveContainer>
         ) : (
@@ -5821,8 +6880,21 @@ function AiVisibilityDashboard({ selectedClient }) {
         )}
       </div>
       {/* LLM distribution + Mentions by country */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 14 }}>
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))",
+          gap: 14,
+        }}
+      >
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 14,
+            padding: 16,
+          }}
+        >
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}>
             Verteilung nach LLM
           </div>
@@ -5833,14 +6905,35 @@ function AiVisibilityDashboard({ selectedClient }) {
                 const col = AI_COLORS[lbl] || C.textDim;
                 return (
                   <div key={p.provider}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        fontSize: 12,
+                        marginBottom: 4,
+                      }}
+                    >
                       <span style={{ color: C.text, fontWeight: 600 }}>{lbl}</span>
                       <span style={{ color: C.textMuted }}>
                         {(p.rate * 100).toFixed(1)}% · {p.cited}/{p.total}
                       </span>
                     </div>
-                    <div style={{ height: 8, borderRadius: 4, background: C.border, overflow: "hidden" }}>
-                      <div style={{ width: `${(p.cited / providerMax) * 100}%`, height: "100%", background: col, borderRadius: 4 }} />
+                    <div
+                      style={{
+                        height: 8,
+                        borderRadius: 4,
+                        background: C.border,
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${(p.cited / providerMax) * 100}%`,
+                          height: "100%",
+                          background: col,
+                          borderRadius: 4,
+                        }}
+                      />
                     </div>
                   </div>
                 );
@@ -5853,20 +6946,36 @@ function AiVisibilityDashboard({ selectedClient }) {
           )}
         </div>
         {/* Mentions by country — not natively provided by Canonry yet */}
-        <div style={{ background: C.card, border: `1px dashed ${C.border}`, borderRadius: 14, padding: 16 }}>
+        <div
+          style={{
+            background: C.card,
+            border: `1px dashed ${C.border}`,
+            borderRadius: 14,
+            padding: 16,
+          }}
+        >
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: C.textMuted }}>Mentions nach Land</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: C.textMuted }}>
+              Mentions nach Land
+            </span>
             <Badge color={C.orange}>coming soon</Badge>
           </div>
           <div style={{ fontSize: 12, color: C.textDim, lineHeight: 1.6 }}>
-            Canonry liefert aktuell keine länderspezifische Aufschlüsselung. Sobald Queries pro Markt
-            getaggt sind, wird dieser Tile aus marktspezifischen Query-Sets befüllt — bis dahin keine
-            geschätzten Werte.
+            Canonry liefert aktuell keine länderspezifische Aufschlüsselung. Sobald Queries pro
+            Markt getaggt sind, wird dieser Tile aus marktspezifischen Query-Sets befüllt — bis
+            dahin keine geschätzten Werte.
           </div>
         </div>
       </div>
       {/* Topics & Sources tabs */}
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
+      <div
+        style={{
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: 14,
+          padding: 16,
+        }}
+      >
         <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
           {[
             { id: "topics", label: "Top Queries" },
@@ -5894,7 +7003,9 @@ function AiVisibilityDashboard({ selectedClient }) {
         {tab === "topics" ? (
           topics.length > 0 ? (
             <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-              <table style={{ width: "100%", minWidth: 420, borderCollapse: "collapse", fontSize: 13 }}>
+              <table
+                style={{ width: "100%", minWidth: 420, borderCollapse: "collapse", fontSize: 13 }}
+              >
                 <thead>
                   <tr style={{ color: C.textDim, textAlign: "left" }}>
                     <th style={{ padding: "6px 8px" }}>Query</th>
@@ -5907,9 +7018,17 @@ function AiVisibilityDashboard({ selectedClient }) {
                   {topics.slice(0, 20).map((q, i) => (
                     <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
                       <td style={{ padding: "6px 8px", color: C.text }}>{q.query}</td>
-                      <td style={{ padding: "6px 8px", textAlign: "right" }}>{q.cited}/{q.providers}</td>
+                      <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                        {q.cited}/{q.providers}
+                      </td>
                       <td style={{ padding: "6px 8px", textAlign: "right" }}>{q.mentioned}</td>
-                      <td style={{ padding: "6px 8px", textAlign: "right", color: q.sov >= 50 ? C.green : C.textMuted }}>
+                      <td
+                        style={{
+                          padding: "6px 8px",
+                          textAlign: "right",
+                          color: q.sov >= 50 ? C.green : C.textMuted,
+                        }}
+                      >
                         {q.sov.toFixed(1)}%
                       </td>
                     </tr>
@@ -5921,11 +7040,15 @@ function AiVisibilityDashboard({ selectedClient }) {
               </div>
             </div>
           ) : (
-            <div style={{ fontSize: 12, color: C.textDim, padding: "16px 0" }}>Keine Query-Daten.</div>
+            <div style={{ fontSize: 12, color: C.textDim, padding: "16px 0" }}>
+              Keine Query-Daten.
+            </div>
           )
         ) : sources.length > 0 ? (
           <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <table style={{ width: "100%", minWidth: 420, borderCollapse: "collapse", fontSize: 13 }}>
+            <table
+              style={{ width: "100%", minWidth: 420, borderCollapse: "collapse", fontSize: 13 }}
+            >
               <thead>
                 <tr style={{ color: C.textDim, textAlign: "left" }}>
                   <th style={{ padding: "6px 8px" }}>Domain</th>
@@ -5938,8 +7061,12 @@ function AiVisibilityDashboard({ selectedClient }) {
                 {sources.slice(0, 20).map((s, i) => (
                   <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
                     <td style={{ padding: "6px 8px", color: C.text }}>{s.domain}</td>
-                    <td style={{ padding: "6px 8px", color: C.textMuted }}>{s.label || s.surfaceClass || "—"}</td>
-                    <td style={{ padding: "6px 8px", textAlign: "right" }}>{s.percentage.toFixed(1)}%</td>
+                    <td style={{ padding: "6px 8px", color: C.textMuted }}>
+                      {s.label || s.surfaceClass || "—"}
+                    </td>
+                    <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                      {s.percentage.toFixed(1)}%
+                    </td>
                     <td style={{ padding: "6px 8px", textAlign: "right" }}>{s.count}</td>
                   </tr>
                 ))}
@@ -5963,7 +7090,18 @@ function AdsDashboard({ selectedClient, dateRange }) {
   const { isOn } = useEzyDashboardConfig();
   const { run, loading, refresh } = useEzyLatestRun(selectedClient?.id, "google_ads");
   const ads = googleAdsFromResult(run?.result);
-  const { totals, ctr, cpc, cpa, roas, series: rawSeries, campaigns, conversionActions, primary, prev } = ads;
+  const {
+    totals,
+    ctr,
+    cpc,
+    cpa,
+    roas,
+    series: rawSeries,
+    campaigns,
+    conversionActions,
+    primary,
+    prev,
+  } = ads;
   const hasData = totals.cost + totals.clicks + totals.impressions + totals.conversions > 0;
   const days = dateRange?.days || 30;
   const series = useMemo(() => (rawSeries || []).slice(-days), [rawSeries, days]);
@@ -6018,32 +7156,35 @@ function AdsDashboard({ selectedClient, dateRange }) {
     : "none";
   const lastCompareRef = useRef(compareKey);
   const isoDate = (d) => new Date(d).toISOString().slice(0, 10);
-  const pull = useCallback(async (forceDays, silent = false) => {
-    const d = forceDays ?? days;
-    if (!selectedClient?.id) return;
-    if (!silent) setPulling(true);
-    try {
-      const session = (await supabase.auth.getSession()).data.session;
-      const body = { clientId: selectedClient.id, days: d };
-      if (dateRange?.compare) {
-        body.compareStart = isoDate(dateRange.compare.start);
-        body.compareEnd = isoDate(dateRange.compare.end);
+  const pull = useCallback(
+    async (forceDays, silent = false) => {
+      const d = forceDays ?? days;
+      if (!selectedClient?.id) return;
+      if (!silent) setPulling(true);
+      try {
+        const session = (await supabase.auth.getSession()).data.session;
+        const body = { clientId: selectedClient.id, days: d };
+        if (dateRange?.compare) {
+          body.compareStart = isoDate(dateRange.compare.start);
+          body.compareEnd = isoDate(dateRange.compare.end);
+        }
+        await fetch("/api/google/ads-data", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session?.access_token || ""}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        });
+        await refresh();
+      } catch {
+        /* ignore */
+      } finally {
+        if (!silent) setPulling(false);
       }
-      await fetch("/api/google/ads-data", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session?.access_token || ""}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
-      await refresh();
-    } catch {
-      /* ignore */
-    } finally {
-      if (!silent) setPulling(false);
-    }
-  }, [selectedClient?.id, days, refresh, dateRange?.compare]);
+    },
+    [selectedClient?.id, days, refresh, dateRange?.compare],
+  );
 
   // Auto-refresh when date range changes — silent background fetch, instant local filter via useMemo.
   useEffect(() => {
@@ -6131,7 +7272,8 @@ function AdsDashboard({ selectedClient, dateRange }) {
     </div>
   );
   const convTotalCount = conversionActions.reduce((a, c) => a + c.count, 0) || totals.conversions;
-  const convTotalValue = conversionActions.reduce((a, c) => a + c.value, 0) || totals.conversionValue;
+  const convTotalValue =
+    conversionActions.reduce((a, c) => a + c.value, 0) || totals.conversionValue;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -6145,10 +7287,28 @@ function AdsDashboard({ selectedClient, dateRange }) {
           padding: "26px 30px 24px",
         }}
       >
-        <div className="ads-hero-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div
+          className="ads-hero-head"
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             {eyebrow("1", "Was hat Google Ads gebracht?", true)}
-            <span style={{ fontSize: 11, color: C.textDim, background: C.bg, padding: "4px 10px", borderRadius: 6, fontWeight: 500 }}>
+            <span
+              style={{
+                fontSize: 11,
+                color: C.textDim,
+                background: C.bg,
+                padding: "4px 10px",
+                borderRadius: 6,
+                fontWeight: 500,
+              }}
+            >
               Letzte {days} Tage
             </span>
           </div>
@@ -6156,28 +7316,85 @@ function AdsDashboard({ selectedClient, dateRange }) {
             {pulling ? "Lädt…" : "⟳ Aktualisieren"}
           </Btn>
         </div>
-        <div className="ads-flow" style={{ display: "flex", alignItems: "stretch", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
+        <div
+          className="ads-flow"
+          style={{
+            display: "flex",
+            alignItems: "stretch",
+            justifyContent: "space-between",
+            gap: 14,
+            flexWrap: "wrap",
+          }}
+        >
           <div className="ads-stat" style={{ flex: "1 1 200px", minWidth: 160 }}>
             <div style={{ fontSize: 12.5, color: C.textMuted, marginBottom: 6 }}>Werbebudget</div>
-            <div className="ads-val" style={{ fontSize: "clamp(28px,4.4vw,42px)", fontWeight: 800, color: C.text, lineHeight: 1 }}>
+            <div
+              className="ads-val"
+              style={{
+                fontSize: "clamp(28px,4.4vw,42px)",
+                fontWeight: 800,
+                color: C.text,
+                lineHeight: 1,
+              }}
+            >
               {chf(totals.cost)}
             </div>
-            <div style={{ fontSize: 12, color: C.textDim, marginTop: 7 }}>eingesetzt für Anzeigen</div>
+            <div style={{ fontSize: 12, color: C.textDim, marginTop: 7 }}>
+              eingesetzt für Anzeigen
+            </div>
           </div>
           {arrow}
-          <div className="ads-roas" style={{ flex: "0 0 auto", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 8px" }}>
-            <div style={{ fontSize: "clamp(32px,5vw,48px)", fontWeight: 800, color: C.orange, lineHeight: 1 }}>
+          <div
+            className="ads-roas"
+            style={{
+              flex: "0 0 auto",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "0 8px",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "clamp(32px,5vw,48px)",
+                fontWeight: 800,
+                color: C.orange,
+                lineHeight: 1,
+              }}
+            >
               {roas.toFixed(2).replace(".", ",")}
               <span style={{ fontSize: ".55em" }}>×</span>
             </div>
-            <div style={{ fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", color: C.textMuted, marginTop: 8 }}>
+            <div
+              style={{
+                fontSize: 11,
+                letterSpacing: ".08em",
+                textTransform: "uppercase",
+                color: C.textMuted,
+                marginTop: 8,
+              }}
+            >
               ROAS
             </div>
           </div>
           {arrow}
-          <div className="ads-stat ads-stat-right" style={{ flex: "1 1 200px", minWidth: 160, textAlign: "right" }}>
-            <div style={{ fontSize: 12.5, color: C.textMuted, marginBottom: 6 }}>Umsatz generiert</div>
-            <div className="ads-val" style={{ fontSize: "clamp(28px,4.4vw,42px)", fontWeight: 800, color: C.text, lineHeight: 1 }}>
+          <div
+            className="ads-stat ads-stat-right"
+            style={{ flex: "1 1 200px", minWidth: 160, textAlign: "right" }}
+          >
+            <div style={{ fontSize: 12.5, color: C.textMuted, marginBottom: 6 }}>
+              Umsatz generiert
+            </div>
+            <div
+              className="ads-val"
+              style={{
+                fontSize: "clamp(28px,4.4vw,42px)",
+                fontWeight: 800,
+                color: C.text,
+                lineHeight: 1,
+              }}
+            >
               {chf(totals.conversionValue)}
             </div>
             <div style={{ fontSize: 12, color: C.textDim, marginTop: 7 }}>
@@ -6189,23 +7406,35 @@ function AdsDashboard({ selectedClient, dateRange }) {
         {(() => {
           const cps = campaigns.filter((c) => c.cost > 0);
           const best = [...cps].sort((a, b) => b.roas - a.roas)[0];
-          const under = cps.filter((c) => c.roas > 0 && c.roas < 1).sort((a, b) => a.roas - b.roas)[0];
+          const under = cps
+            .filter((c) => c.roas > 0 && c.roas < 1)
+            .sort((a, b) => a.roas - b.roas)[0];
           return (
             <div style={{ display: "flex", gap: 13, alignItems: "flex-start" }}>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: C.orange, marginTop: 7, flex: "none" }} />
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  background: C.orange,
+                  marginTop: 7,
+                  flex: "none",
+                }}
+              />
               <p style={{ fontSize: 14, lineHeight: 1.55, color: C.textMuted, maxWidth: "80ch" }}>
                 <strong style={{ color: C.text, fontWeight: 600 }}>
                   Jeder investierte Franken bringt CHF {roas.toFixed(2).replace(".", ",")} zurück.
                 </strong>{" "}
                 {best && best.roas > 0 && (
                   <>
-                    {best.name} ist mit {best.roas.toFixed(1).replace(".", ",")}× der stärkste Treiber.{" "}
+                    {best.name} ist mit {best.roas.toFixed(1).replace(".", ",")}× der stärkste
+                    Treiber.{" "}
                   </>
                 )}
                 {under && (
                   <>
-                    Einzig {under.name} liegt mit {under.roas.toFixed(2).replace(".", ",")}× unter der
-                    Gewinnschwelle und sollte überprüft werden.
+                    Einzig {under.name} liegt mit {under.roas.toFixed(2).replace(".", ",")}× unter
+                    der Gewinnschwelle und sollte überprüft werden.
                   </>
                 )}
               </p>
@@ -6218,7 +7447,10 @@ function AdsDashboard({ selectedClient, dateRange }) {
       {isOn("ads.kpis") && (
         <div>
           {eyebrow("2", `${primaryName} im Fokus`, false)}
-          <div className="dash-kpis" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
+          <div
+            className="dash-kpis"
+            style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}
+          >
             <KpiCard
               icon={CheckCircle}
               label={`${primaryName} über Google Ads`}
@@ -6249,11 +7481,28 @@ function AdsDashboard({ selectedClient, dateRange }) {
       )}
 
       {/* ===== EBENE 2 — DETAIL ROW ===== */}
-      <div className="split-pane" style={{ display: "grid", gridTemplateColumns: "0.85fr 1.15fr", gap: 14, alignItems: "start" }}>
+      <div
+        className="split-pane"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "0.85fr 1.15fr",
+          gap: 14,
+          alignItems: "start",
+        }}
+      >
         {/* Conversion breakdown */}
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "18px 20px" }}>
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 12,
+            padding: "18px 20px",
+          }}
+        >
           <div style={{ fontSize: 16, fontWeight: 600, color: C.text }}>Woher kommt der Wert?</div>
-          <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 14 }}>Conversion-Typen getrennt</div>
+          <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 14 }}>
+            Conversion-Typen getrennt
+          </div>
           {conversionActions.length === 0 && (
             <div style={{ fontSize: 13, color: C.textDim, padding: "8px 0" }}>
               Keine Conversion-Typen verfügbar.
@@ -6270,11 +7519,19 @@ function AdsDashboard({ selectedClient, dateRange }) {
                 borderTop: i === 0 ? "none" : `1px solid ${C.border}`,
               }}
             >
-              <div style={{ fontSize: 14, fontWeight: 500, color: a.count > 0 ? C.text : C.textMuted }}>
+              <div
+                style={{ fontSize: 14, fontWeight: 500, color: a.count > 0 ? C.text : C.textMuted }}
+              >
                 {a.name}
               </div>
               <div style={{ textAlign: "right" }}>
-                <span style={{ fontSize: 15, fontWeight: 600, color: a.count > 0 ? C.text : C.textMuted }}>
+                <span
+                  style={{
+                    fontSize: 15,
+                    fontWeight: 600,
+                    color: a.count > 0 ? C.text : C.textMuted,
+                  }}
+                >
                   {numCH(Math.round(a.count))}
                 </span>
                 <span style={{ display: "block", fontSize: 11.5, color: C.textMuted }}>
@@ -6306,35 +7563,87 @@ function AdsDashboard({ selectedClient, dateRange }) {
         </div>
 
         {/* Campaign bars by revenue */}
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "18px 20px" }}>
-          <div style={{ fontSize: 16, fontWeight: 600, color: C.text }}>Top-Kampagnen nach Umsatz</div>
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 12,
+            padding: "18px 20px",
+          }}
+        >
+          <div style={{ fontSize: 16, fontWeight: 600, color: C.text }}>
+            Top-Kampagnen nach Umsatz
+          </div>
           <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 16 }}>
             Balken = generierter Umsatz · Chip = ROAS
           </div>
-          {campaigns.filter((c) => c.conversionValue > 0).slice(0, 8).map((c, i) => {
-            const pct = maxCampRevenue > 0 ? Math.max(3, (c.conversionValue / maxCampRevenue) * 100) : 0;
-            const warn = c.roas > 0 && c.roas < 1;
-            const chipBg = warn ? `${C.red}22` : c.roas >= 5 ? `${C.green}22` : `${C.textMuted}22`;
-            const chipCol = warn ? C.red : c.roas >= 5 ? C.green : C.textMuted;
-            return (
-              <div key={i} style={{ marginBottom: 13 }}>
-                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, marginBottom: 5 }}>
-                  <span style={{ fontSize: 13, fontWeight: 500, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {c.name}
-                  </span>
-                  <span style={{ display: "flex", alignItems: "center", gap: 8, flex: "none" }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{chf(c.conversionValue)}</span>
-                    <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 7px", borderRadius: 20, background: chipBg, color: chipCol }}>
-                      {c.roas.toFixed(1).replace(".", ",")}×
+          {campaigns
+            .filter((c) => c.conversionValue > 0)
+            .slice(0, 8)
+            .map((c, i) => {
+              const pct =
+                maxCampRevenue > 0 ? Math.max(3, (c.conversionValue / maxCampRevenue) * 100) : 0;
+              const warn = c.roas > 0 && c.roas < 1;
+              const chipBg = warn
+                ? `${C.red}22`
+                : c.roas >= 5
+                  ? `${C.green}22`
+                  : `${C.textMuted}22`;
+              const chipCol = warn ? C.red : c.roas >= 5 ? C.green : C.textMuted;
+              return (
+                <div key={i} style={{ marginBottom: 13 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "baseline",
+                      justifyContent: "space-between",
+                      gap: 10,
+                      marginBottom: 5,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 500,
+                        color: C.text,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {c.name}
                     </span>
-                  </span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 8, flex: "none" }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>
+                        {chf(c.conversionValue)}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          padding: "2px 7px",
+                          borderRadius: 20,
+                          background: chipBg,
+                          color: chipCol,
+                        }}
+                      >
+                        {c.roas.toFixed(1).replace(".", ",")}×
+                      </span>
+                    </span>
+                  </div>
+                  <div style={{ height: 8, background: C.bg, borderRadius: 6, overflow: "hidden" }}>
+                    <div
+                      style={{
+                        height: "100%",
+                        width: `${pct}%`,
+                        background: warn ? C.red : C.orange,
+                        borderRadius: 6,
+                      }}
+                    />
+                  </div>
                 </div>
-                <div style={{ height: 8, background: C.bg, borderRadius: 6, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${pct}%`, background: warn ? C.red : C.orange, borderRadius: 6 }} />
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
           {campaigns.filter((c) => c.conversionValue > 0).length === 0 && (
             <div style={{ fontSize: 13, color: C.textDim }}>Keine Umsatzdaten je Kampagne.</div>
           )}
@@ -6343,7 +7652,15 @@ function AdsDashboard({ selectedClient, dateRange }) {
 
       {/* ===== EBENE 3 — TECHNISCHE DETAILS ===== */}
       <div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 16,
+            flexWrap: "wrap",
+          }}
+        >
           <div style={{ marginBottom: 0 }}>{eyebrow("3", "Technische Details", false)}</div>
           <button
             onClick={() => setShowDiag((v) => !v)}
@@ -6364,14 +7681,40 @@ function AdsDashboard({ selectedClient, dateRange }) {
         </div>
         {showDiag && (
           <div style={{ marginTop: 4 }}>
-            <div className="dash-kpis" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>
+            <div
+              className="dash-kpis"
+              style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}
+            >
               {[
-                { lbl: "Impressionen", val: numCH(Math.round(totals.impressions)), d: delta(totals.impressions, prev.impressions), inv: false },
-                { lbl: "Klicks", val: numCH(Math.round(totals.clicks)), d: delta(totals.clicks, prev.clicks), inv: false },
-                { lbl: "CTR", val: `${ctr.toFixed(2).replace(".", ",")} %`, d: delta(ctr, prev.ctr), inv: false },
+                {
+                  lbl: "Impressionen",
+                  val: numCH(Math.round(totals.impressions)),
+                  d: delta(totals.impressions, prev.impressions),
+                  inv: false,
+                },
+                {
+                  lbl: "Klicks",
+                  val: numCH(Math.round(totals.clicks)),
+                  d: delta(totals.clicks, prev.clicks),
+                  inv: false,
+                },
+                {
+                  lbl: "CTR",
+                  val: `${ctr.toFixed(2).replace(".", ",")} %`,
+                  d: delta(ctr, prev.ctr),
+                  inv: false,
+                },
                 { lbl: "Ø CPC", val: chf(cpc, 2), d: delta(cpc, prev.cpc), inv: true },
               ].map((m) => (
-                <div key={m.lbl} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px 15px" }}>
+                <div
+                  key={m.lbl}
+                  style={{
+                    background: C.card,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 10,
+                    padding: "14px 15px",
+                  }}
+                >
                   <div style={{ fontSize: 11.5, color: C.textMuted, marginBottom: 6 }}>{m.lbl}</div>
                   <div style={{ fontSize: 19, fontWeight: 700, color: C.text }}>{m.val}</div>
                   <div style={{ marginTop: 5 }}>
@@ -6393,10 +7736,12 @@ function AdsDashboard({ selectedClient, dateRange }) {
                 padding: "13px 16px",
               }}
             >
-              <strong style={{ color: C.text, fontWeight: 600 }}>Lesart für den Spezialisten:</strong>{" "}
+              <strong style={{ color: C.text, fontWeight: 600 }}>
+                Lesart für den Spezialisten:
+              </strong>{" "}
               Vergleich gegen die unmittelbar vorangehende Periode gleicher Länge. ROAS und Umsatz
-              basieren auf den in Google Ads getrackten Conversion-Werten. Vollständige Kampagnen- und
-              Keyword-Tabellen folgen auf den Detailseiten.
+              basieren auf den in Google Ads getrackten Conversion-Werten. Vollständige Kampagnen-
+              und Keyword-Tabellen folgen auf den Detailseiten.
             </div>
           </div>
         )}
@@ -6432,17 +7777,33 @@ const AWORK_COLORS = {
   grey: "#6b7280",
 };
 
-function AworkListView({ tasks, allTasks, tasklists, statuses, hideDone, expandedLists, onToggleList, onOpenTask, onCreateInList, fmtDue, isDone }) {
+function AworkListView({
+  tasks,
+  allTasks,
+  tasklists,
+  statuses,
+  hideDone,
+  expandedLists,
+  onToggleList,
+  onOpenTask,
+  onCreateInList,
+  fmtDue,
+  isDone,
+}) {
   // Get status color from AWORK or fallback
   const getStatusColor = (task) => {
     // First try the task's own status color
     if (task.statusColor) {
-      return task.statusColor.startsWith("#") ? task.statusColor : (AWORK_COLORS[task.statusColor.toLowerCase()] || task.statusColor);
+      return task.statusColor.startsWith("#")
+        ? task.statusColor
+        : AWORK_COLORS[task.statusColor.toLowerCase()] || task.statusColor;
     }
     // Then try to find from statuses list
     const status = statuses.find((s) => s.id === task.statusId);
     if (status?.color) {
-      return status.color.startsWith("#") ? status.color : (AWORK_COLORS[status.color.toLowerCase()] || status.color);
+      return status.color.startsWith("#")
+        ? status.color
+        : AWORK_COLORS[status.color.toLowerCase()] || status.color;
     }
     // Fallback to type-based color
     const t = String(task.statusType || "").toLowerCase();
@@ -6454,7 +7815,13 @@ function AworkListView({ tasks, allTasks, tasklists, statuses, hideDone, expande
     const groups = new Map();
     // First add all known tasklists (always show them)
     for (const list of tasklists) {
-      groups.set(list.name, { id: list.id, name: list.name, tasks: [], order: list.order ?? 0, color: list.color });
+      groups.set(list.name, {
+        id: list.id,
+        name: list.name,
+        tasks: [],
+        order: list.order ?? 0,
+        color: list.color,
+      });
     }
     // Add tasks to their lists
     for (const t of tasks) {
@@ -6493,7 +7860,10 @@ function AworkListView({ tasks, allTasks, tasklists, statuses, hideDone, expande
     const diff = Math.ceil((d - now) / (1000 * 60 * 60 * 24));
     if (diff < 0) return { label: `${Math.abs(diff)}d`, overdue: true };
     if (diff === 0) return { label: "Heute", overdue: false };
-    return { label: d.toLocaleDateString("de-CH", { day: "2-digit", month: "short" }), overdue: false };
+    return {
+      label: d.toLocaleDateString("de-CH", { day: "2-digit", month: "short" }),
+      overdue: false,
+    };
   };
 
   if (tasksByList.length === 0) {
@@ -6534,22 +7904,49 @@ function AworkListView({ tasks, allTasks, tasklists, statuses, hideDone, expande
               <ChevronDown
                 size={16}
                 color={C.textMuted}
-                style={{ transform: isExpanded ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform .15s" }}
+                style={{
+                  transform: isExpanded ? "rotate(0deg)" : "rotate(-90deg)",
+                  transition: "transform .15s",
+                }}
               />
               <span style={{ fontSize: 15, fontWeight: 600, color: C.text, flex: 1 }}>
                 {group.name}
               </span>
               {/* Stats badges */}
-              <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: allDone ? C.green : C.textMuted }}>
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 12,
+                  color: allDone ? C.green : C.textMuted,
+                }}
+              >
                 <CheckCircle size={13} />
                 {stats.done}/{stats.total}
               </span>
-              <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.textMuted }}>
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 12,
+                  color: C.textMuted,
+                }}
+              >
                 <Clock size={13} />
                 {fmtDuration(stats.totalTime)}
               </span>
               {stats.plannedTime > 0 && (
-                <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.textMuted }}>
+                <span
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontSize: 12,
+                    color: C.textMuted,
+                  }}
+                >
                   <Target size={13} />
                   {fmtDuration(stats.plannedTime)}
                 </span>
@@ -6572,7 +7969,17 @@ function AworkListView({ tasks, allTasks, tasklists, statuses, hideDone, expande
                   }}
                   onClick={() => onCreateInList(group.id)}
                 >
-                  <div style={{ width: 22, height: 22, borderRadius: "50%", border: `2px dashed ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div
+                    style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: "50%",
+                      border: `2px dashed ${C.border}`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
                     <Plus size={12} color={C.textDim} />
                   </div>
                   <span style={{ fontStyle: "italic" }}>Neue Aufgabe</span>
@@ -6599,13 +8006,15 @@ function AworkListView({ tasks, allTasks, tasklists, statuses, hideDone, expande
                         textAlign: "left",
                         transition: "background .1s",
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = C.cardHover}
-                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = C.cardHover)}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                     >
                       {/* Status Circle — uses AWORK colors */}
                       {(() => {
                         const sColor = getStatusColor(t);
-                        const isProgress = ["progress", "inprogress", "doing"].includes(String(t.statusType || "").toLowerCase());
+                        const isProgress = ["progress", "inprogress", "doing"].includes(
+                          String(t.statusType || "").toLowerCase(),
+                        );
                         return (
                           <div
                             style={{
@@ -6621,27 +8030,44 @@ function AworkListView({ tasks, allTasks, tasklists, statuses, hideDone, expande
                             }}
                           >
                             {taskDone && <Check size={12} color="#fff" />}
-                            {!taskDone && isProgress && (
-                              <ArrowRight size={10} color={sColor} />
-                            )}
+                            {!taskDone && isProgress && <ArrowRight size={10} color={sColor} />}
                           </div>
                         );
                       })()}
 
                       {/* Task Name + Subtask indicator */}
-                      <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{
-                          fontSize: 13,
-                          color: taskDone ? C.textMuted : C.text,
-                          textDecoration: taskDone ? "line-through" : "none",
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}>
+                      <div
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: 13,
+                            color: taskDone ? C.textMuted : C.text,
+                            textDecoration: taskDone ? "line-through" : "none",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
                           {t.name}
                         </span>
                         {t.hasSubtasks && (
-                          <span style={{ fontSize: 11, color: C.textDim, display: "flex", alignItems: "center", gap: 3, flexShrink: 0 }}>
+                          <span
+                            style={{
+                              fontSize: 11,
+                              color: C.textDim,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 3,
+                              flexShrink: 0,
+                            }}
+                          >
                             <ChevronDown size={10} style={{ transform: "rotate(-90deg)" }} />
                             {t.subtasksDoneCount}/{t.subtasksCount}
                           </span>
@@ -6650,12 +8076,26 @@ function AworkListView({ tasks, allTasks, tasklists, statuses, hideDone, expande
 
                       {/* Priority Flag */}
                       {t.isPrio && (
-                        <span style={{ color: C.red, fontSize: 14, flexShrink: 0 }} title="Priorität">🚩</span>
+                        <span
+                          style={{ color: C.red, fontSize: 14, flexShrink: 0 }}
+                          title="Priorität"
+                        >
+                          🚩
+                        </span>
                       )}
 
                       {/* Subtasks badge */}
                       {t.subtasksCount > 0 && (
-                        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: C.textMuted, flexShrink: 0 }}>
+                        <span
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4,
+                            fontSize: 11,
+                            color: C.textMuted,
+                            flexShrink: 0,
+                          }}
+                        >
                           <Layers size={12} />
                           {t.subtasksDoneCount}/{t.subtasksCount}
                         </span>
@@ -6663,7 +8103,16 @@ function AworkListView({ tasks, allTasks, tasklists, statuses, hideDone, expande
 
                       {/* Time tracked */}
                       {t.trackedDuration > 0 && (
-                        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: C.textMuted, flexShrink: 0 }}>
+                        <span
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4,
+                            fontSize: 11,
+                            color: C.textMuted,
+                            flexShrink: 0,
+                          }}
+                        >
                           <Clock size={12} />
                           {fmtDuration(t.trackedDuration)}
                         </span>
@@ -6671,15 +8120,17 @@ function AworkListView({ tasks, allTasks, tasklists, statuses, hideDone, expande
 
                       {/* Due Date */}
                       {due && (
-                        <span style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 4,
-                          fontSize: 11,
-                          color: due.overdue ? C.red : C.textMuted,
-                          fontWeight: due.overdue ? 600 : 400,
-                          flexShrink: 0,
-                        }}>
+                        <span
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4,
+                            fontSize: 11,
+                            color: due.overdue ? C.red : C.textMuted,
+                            fontWeight: due.overdue ? 600 : 400,
+                            flexShrink: 0,
+                          }}
+                        >
                           <Calendar size={12} />
                           {due.label}
                         </span>
@@ -6687,7 +8138,16 @@ function AworkListView({ tasks, allTasks, tasklists, statuses, hideDone, expande
 
                       {/* Comments badge */}
                       {t.commentsCount > 0 && (
-                        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: C.textMuted, flexShrink: 0 }}>
+                        <span
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4,
+                            fontSize: 11,
+                            color: C.textMuted,
+                            flexShrink: 0,
+                          }}
+                        >
                           <MessageSquare size={12} />
                           {t.commentsCount}
                         </span>
@@ -6725,7 +8185,14 @@ function AworkListView({ tasks, allTasks, tasklists, statuses, hideDone, expande
                 })}
 
                 {group.tasks.length === 0 && (
-                  <div style={{ padding: "12px 16px", fontSize: 12, color: C.textDim, fontStyle: "italic" }}>
+                  <div
+                    style={{
+                      padding: "12px 16px",
+                      fontSize: 12,
+                      color: C.textDim,
+                      fontStyle: "italic",
+                    }}
+                  >
                     Keine Aufgaben in Liste.
                   </div>
                 )}
@@ -6744,7 +8211,9 @@ function AworkListView({ tasks, allTasks, tasklists, statuses, hideDone, expande
 function TasksDashboard({ selectedClient }) {
   const toast = useToast();
   const { run, loading, refresh } = useEzyLatestRun(selectedClient?.id, "awork_tasks");
-  const { project, projects, statuses, tasklists, tasks, counts, note } = aworkTasksFromResult(run?.result);
+  const { project, projects, statuses, tasklists, tasks, counts, note } = aworkTasksFromResult(
+    run?.result,
+  );
   const [pulling, setPulling] = useState(false);
   const [err, setErr] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState(null);
@@ -6793,7 +8262,9 @@ function TasksDashboard({ selectedClient }) {
     } catch {}
   }, []);
 
-  useEffect(() => { loadUsers(); }, [loadUsers]);
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
 
   // Load task details
   const loadTaskDetail = async (taskId) => {
@@ -6975,13 +8446,17 @@ function TasksDashboard({ selectedClient }) {
   // Filter tasks to selected project (by projectId, fallback to name) and drop finished tasks.
   const projectTasksAll = selectedProject
     ? tasks.filter((t) =>
-        t.projectId ? String(t.projectId) === String(selectedProject.id) : t.project === selectedProject.name,
+        t.projectId
+          ? String(t.projectId) === String(selectedProject.id)
+          : t.project === selectedProject.name,
       )
     : tasks;
   // Filter tasklists to the selected project so empty lists from other projects don't appear.
   const projectTasklists = selectedProject
     ? tasklists.filter((l) =>
-        l.projectId ? String(l.projectId) === String(selectedProject.id) : l.projectName === selectedProject.name,
+        l.projectId
+          ? String(l.projectId) === String(selectedProject.id)
+          : l.projectName === selectedProject.name,
       )
     : tasklists;
   const projectTasks = hideDone
@@ -6989,9 +8464,17 @@ function TasksDashboard({ selectedClient }) {
     : projectTasksAll;
   const projectDone = projectTasksAll.filter((t) => isDone(t.statusType)).length;
   // Hide done-type columns when erledigte ausgeblendet sind.
-  const cols = (statuses.length > 0
-    ? statuses
-    : [...new Map(projectTasks.map((t) => [t.statusName, { id: t.statusId, name: t.statusName, type: t.statusType }])).values()]
+  const cols = (
+    statuses.length > 0
+      ? statuses
+      : [
+          ...new Map(
+            projectTasks.map((t) => [
+              t.statusName,
+              { id: t.statusId, name: t.statusName, type: t.statusType },
+            ]),
+          ).values(),
+        ]
   ).filter((c) => !hideDone || !isDone(c.type));
   const tasksByStatus = (name) => projectTasks.filter((t) => t.statusName === name);
 
@@ -6999,7 +8482,11 @@ function TasksDashboard({ selectedClient }) {
   const projectStats = (projName) => {
     const pTasks = tasks.filter((t) => t.project === projName);
     const pDone = pTasks.filter((t) => isDone(t.statusType)).length;
-    return { total: pTasks.length, done: pDone, allDone: pTasks.length > 0 && pDone === pTasks.length };
+    return {
+      total: pTasks.length,
+      done: pDone,
+      allDone: pTasks.length > 0 && pDone === pTasks.length,
+    };
   };
 
   // Show project overview if multiple projects and none selected
@@ -7037,7 +8524,16 @@ function TasksDashboard({ selectedClient }) {
 
         {err && <div style={{ fontSize: 12, color: C.red }}>{err}</div>}
         {note && (
-          <div style={{ fontSize: 13, color: C.textMuted, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px 16px" }}>
+          <div
+            style={{
+              fontSize: 13,
+              color: C.textMuted,
+              background: C.card,
+              border: `1px solid ${C.border}`,
+              borderRadius: 10,
+              padding: "14px 16px",
+            }}
+          >
             {note}
           </div>
         )}
@@ -7093,15 +8589,28 @@ function TasksDashboard({ selectedClient }) {
                     {proj.name}
                   </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                  <span style={{ fontSize: 12, color: C.textMuted }}>
-                    {stats.total} Aufgaben
-                  </span>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: pct === 100 ? C.green : C.textMuted }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 10,
+                  }}
+                >
+                  <span style={{ fontSize: 12, color: C.textMuted }}>{stats.total} Aufgaben</span>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: pct === 100 ? C.green : C.textMuted,
+                    }}
+                  >
                     {pct}% erledigt
                   </span>
                 </div>
-                <div style={{ height: 4, background: C.border, borderRadius: 2, overflow: "hidden" }}>
+                <div
+                  style={{ height: 4, background: C.border, borderRadius: 2, overflow: "hidden" }}
+                >
                   <div
                     style={{
                       width: `${pct}%`,
@@ -7186,7 +8695,16 @@ function TasksDashboard({ selectedClient }) {
 
       {err && <div style={{ fontSize: 12, color: C.red }}>{err}</div>}
       {note && !selectedProject && (
-        <div style={{ fontSize: 13, color: C.textMuted, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px 16px" }}>
+        <div
+          style={{
+            fontSize: 13,
+            color: C.textMuted,
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 10,
+            padding: "14px 16px",
+          }}
+        >
           {note}
         </div>
       )}
@@ -7199,14 +8717,19 @@ function TasksDashboard({ selectedClient }) {
         statuses={statuses}
         hideDone={hideDone}
         expandedLists={expandedLists}
-        onToggleList={(listName) => setExpandedLists((prev) => {
-          const next = new Set(prev);
-          if (next.has(listName)) next.delete(listName);
-          else next.add(listName);
-          return next;
-        })}
+        onToggleList={(listName) =>
+          setExpandedLists((prev) => {
+            const next = new Set(prev);
+            if (next.has(listName)) next.delete(listName);
+            else next.add(listName);
+            return next;
+          })
+        }
         onOpenTask={openTask}
-        onCreateInList={(listId) => { setCreateInList(listId); setShowCreateTask(true); }}
+        onCreateInList={(listId) => {
+          setCreateInList(listId);
+          setShowCreateTask(true);
+        }}
         fmtDue={fmtDue}
         isDone={isDone}
       />
@@ -7240,8 +8763,12 @@ function TasksDashboard({ selectedClient }) {
             {taskLoading && !taskDetail ? (
               <div style={{ padding: 40, textAlign: "center" }}>
                 <Skeleton w="60%" h={20} />
-                <div style={{ marginTop: 16 }}><Skeleton w="90%" h={14} /></div>
-                <div style={{ marginTop: 8 }}><Skeleton w="75%" h={14} /></div>
+                <div style={{ marginTop: 16 }}>
+                  <Skeleton w="90%" h={14} />
+                </div>
+                <div style={{ marginTop: 8 }}>
+                  <Skeleton w="75%" h={14} />
+                </div>
               </div>
             ) : taskDetail?.task ? (
               <TaskDetailContent
@@ -7250,10 +8777,14 @@ function TasksDashboard({ selectedClient }) {
                 statuses={statuses}
                 users={aworkUsers}
                 onClose={closeTask}
-                onUpdateStatus={(statusId) => updateTask(taskDetail.task.id, { taskStatusId: statusId })}
+                onUpdateStatus={(statusId) =>
+                  updateTask(taskDetail.task.id, { taskStatusId: statusId })
+                }
                 onUpdateAssignees={(ids) => updateTask(taskDetail.task.id, { assigneeIds: ids })}
                 onAddComment={(msg) => addComment(taskDetail.task.id, msg)}
-                onToggleChecklist={(itemId, isDone) => toggleChecklist(taskDetail.task.id, itemId, isDone)}
+                onToggleChecklist={(itemId, isDone) =>
+                  toggleChecklist(taskDetail.task.id, itemId, isDone)
+                }
               />
             ) : (
               <div style={{ padding: 40, textAlign: "center", color: C.textMuted }}>
@@ -7280,7 +8811,12 @@ function TasksDashboard({ selectedClient }) {
             justifyContent: "center",
             padding: 20,
           }}
-          onClick={(e) => { if (e.target === e.currentTarget) { setShowCreateTask(false); setCreateInList(null); } }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowCreateTask(false);
+              setCreateInList(null);
+            }
+          }}
         >
           <CreateTaskModal
             projectId={selectedProject.id}
@@ -7289,7 +8825,10 @@ function TasksDashboard({ selectedClient }) {
             tasklists={projectTasklists}
             users={aworkUsers}
             defaultListId={createInList}
-            onClose={() => { setShowCreateTask(false); setCreateInList(null); }}
+            onClose={() => {
+              setShowCreateTask(false);
+              setCreateInList(null);
+            }}
             onCreate={createTask}
           />
         </div>
@@ -7299,7 +8838,17 @@ function TasksDashboard({ selectedClient }) {
 }
 
 // Task Detail Content Component
-function TaskDetailContent({ task, comments, statuses, users, onClose, onUpdateStatus, onUpdateAssignees, onAddComment, onToggleChecklist }) {
+function TaskDetailContent({
+  task,
+  comments,
+  statuses,
+  users,
+  onClose,
+  onUpdateStatus,
+  onUpdateAssignees,
+  onAddComment,
+  onToggleChecklist,
+}) {
   const [newComment, setNewComment] = useState("");
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
@@ -7327,7 +8876,11 @@ function TaskDetailContent({ task, comments, statuses, users, onClose, onUpdateS
     const rest = newComment.slice(caret);
     const newUpTo = upToCaret.replace(/@([\wäöüÄÖÜß]*)$/, `@${user.name} `);
     setNewComment(newUpTo + rest);
-    setMentions((prev) => prev.some((m) => m.userId === user.id) ? prev : [...prev, { name: user.name, userId: user.id }]);
+    setMentions((prev) =>
+      prev.some((m) => m.userId === user.id)
+        ? prev
+        : [...prev, { name: user.name, userId: user.id }],
+    );
     setMentionQuery(null);
     setTimeout(() => commentInputRef.current?.focus(), 0);
   };
@@ -7347,9 +8900,10 @@ function TaskDetailContent({ task, comments, statuses, users, onClose, onUpdateS
     setSending(false);
   };
 
-  const mentionMatches = mentionQuery !== null
-    ? users.filter((u) => u.name.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 6)
-    : [];
+  const mentionMatches =
+    mentionQuery !== null
+      ? users.filter((u) => u.name.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 6)
+      : [];
 
   const doneTypes = new Set(["done", "closed", "completed"]);
   const isDone = doneTypes.has(String(task.taskStatus?.type || "").toLowerCase());
@@ -7370,7 +8924,10 @@ function TaskDetailContent({ task, comments, statuses, users, onClose, onUpdateS
     if (!html) return "";
     let text = html.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ");
     // Convert AWORK mention tokens ~[userId:xxx] back to @Name
-    text = text.replace(/~\[userId:([0-9a-f-]+)\]/gi, (_, id) => `@${userById.get(id) || "Unbekannt"}`);
+    text = text.replace(
+      /~\[userId:([0-9a-f-]+)\]/gi,
+      (_, id) => `@${userById.get(id) || "Unbekannt"}`,
+    );
     text = text.replace(/~\[(task|project|workspace)\]/gi, (_, t) => `@${t}`);
     return text.trim();
   };
@@ -7378,7 +8935,16 @@ function TaskDetailContent({ task, comments, statuses, users, onClose, onUpdateS
   return (
     <div style={{ display: "flex", flexDirection: "column" }}>
       {/* Header */}
-      <div style={{ padding: "20px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+      <div
+        style={{
+          padding: "20px 24px",
+          borderBottom: `1px solid ${C.border}`,
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 16,
+        }}
+      >
         <div style={{ flex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
             {task.isPrio && <span style={{ color: C.orange, fontSize: 16 }}>★</span>}
@@ -7388,7 +8954,10 @@ function TaskDetailContent({ task, comments, statuses, users, onClose, onUpdateS
             {task.project?.name || "—"} {task.list && `· ${task.list}`}
           </div>
         </div>
-        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+        <button
+          onClick={onClose}
+          style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}
+        >
           <X size={20} color={C.textMuted} />
         </button>
       </div>
@@ -7399,7 +8968,17 @@ function TaskDetailContent({ task, comments, statuses, users, onClose, onUpdateS
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
           {/* Status */}
           <div style={{ position: "relative" }}>
-            <div style={{ fontSize: 11, color: C.textDim, marginBottom: 6, textTransform: "uppercase", letterSpacing: ".5px" }}>Status</div>
+            <div
+              style={{
+                fontSize: 11,
+                color: C.textDim,
+                marginBottom: 6,
+                textTransform: "uppercase",
+                letterSpacing: ".5px",
+              }}
+            >
+              Status
+            </div>
             <button
               onClick={() => setShowStatusDropdown(!showStatusDropdown)}
               style={{
@@ -7422,11 +9001,28 @@ function TaskDetailContent({ task, comments, statuses, users, onClose, onUpdateS
               <ChevronDown size={12} />
             </button>
             {showStatusDropdown && (
-              <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 6, minWidth: 180, zIndex: 10, boxShadow: "0 8px 32px rgba(0,0,0,.4)" }}>
+              <div
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  marginTop: 4,
+                  background: C.card,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 10,
+                  padding: 6,
+                  minWidth: 180,
+                  zIndex: 10,
+                  boxShadow: "0 8px 32px rgba(0,0,0,.4)",
+                }}
+              >
                 {statuses.map((s) => (
                   <button
                     key={s.id}
-                    onClick={() => { onUpdateStatus(s.id); setShowStatusDropdown(false); }}
+                    onClick={() => {
+                      onUpdateStatus(s.id);
+                      setShowStatusDropdown(false);
+                    }}
                     style={{
                       display: "block",
                       width: "100%",
@@ -7451,7 +9047,17 @@ function TaskDetailContent({ task, comments, statuses, users, onClose, onUpdateS
 
           {/* Assignees */}
           <div style={{ position: "relative" }}>
-            <div style={{ fontSize: 11, color: C.textDim, marginBottom: 6, textTransform: "uppercase", letterSpacing: ".5px" }}>Zugewiesen</div>
+            <div
+              style={{
+                fontSize: 11,
+                color: C.textDim,
+                marginBottom: 6,
+                textTransform: "uppercase",
+                letterSpacing: ".5px",
+              }}
+            >
+              Zugewiesen
+            </div>
             <button
               onClick={() => setShowAssigneeDropdown(!showAssigneeDropdown)}
               style={{
@@ -7477,7 +9083,23 @@ function TaskDetailContent({ task, comments, statuses, users, onClose, onUpdateS
               <ChevronDown size={12} color={C.textMuted} />
             </button>
             {showAssigneeDropdown && (
-              <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 6, minWidth: 220, maxHeight: 280, overflowY: "auto", zIndex: 10, boxShadow: "0 8px 32px rgba(0,0,0,.4)" }}>
+              <div
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  marginTop: 4,
+                  background: C.card,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 10,
+                  padding: 6,
+                  minWidth: 220,
+                  maxHeight: 280,
+                  overflowY: "auto",
+                  zIndex: 10,
+                  boxShadow: "0 8px 32px rgba(0,0,0,.4)",
+                }}
+              >
                 {users.map((u) => {
                   const assigned = task.assignees?.some((a) => a.id === u.id);
                   return (
@@ -7506,7 +9128,20 @@ function TaskDetailContent({ task, comments, statuses, users, onClose, onUpdateS
                         color: assigned ? C.accentLight : C.text,
                       }}
                     >
-                      <span style={{ width: 24, height: 24, borderRadius: "50%", background: assigned ? C.accent : C.border, color: assigned ? "#fff" : C.textMuted, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <span
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: "50%",
+                          background: assigned ? C.accent : C.border,
+                          color: assigned ? "#fff" : C.textMuted,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
                         {u.initials}
                       </span>
                       <span>{u.name}</span>
@@ -7520,8 +9155,27 @@ function TaskDetailContent({ task, comments, statuses, users, onClose, onUpdateS
 
           {/* Due Date */}
           <div>
-            <div style={{ fontSize: 11, color: C.textDim, marginBottom: 6, textTransform: "uppercase", letterSpacing: ".5px" }}>Fällig</div>
-            <div style={{ padding: "8px 12px", background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, color: task.dueOn && new Date(task.dueOn) < new Date() ? C.red : C.text }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: C.textDim,
+                marginBottom: 6,
+                textTransform: "uppercase",
+                letterSpacing: ".5px",
+              }}
+            >
+              Fällig
+            </div>
+            <div
+              style={{
+                padding: "8px 12px",
+                background: C.card,
+                border: `1px solid ${C.border}`,
+                borderRadius: 8,
+                fontSize: 13,
+                color: task.dueOn && new Date(task.dueOn) < new Date() ? C.red : C.text,
+              }}
+            >
               {fmtDate(task.dueOn)}
             </div>
           </div>
@@ -7530,8 +9184,29 @@ function TaskDetailContent({ task, comments, statuses, users, onClose, onUpdateS
         {/* Description */}
         {task.description && (
           <div>
-            <div style={{ fontSize: 11, color: C.textDim, marginBottom: 8, textTransform: "uppercase", letterSpacing: ".5px" }}>Beschreibung</div>
-            <div style={{ padding: 16, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 13, color: C.text, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: C.textDim,
+                marginBottom: 8,
+                textTransform: "uppercase",
+                letterSpacing: ".5px",
+              }}
+            >
+              Beschreibung
+            </div>
+            <div
+              style={{
+                padding: 16,
+                background: C.card,
+                border: `1px solid ${C.border}`,
+                borderRadius: 10,
+                fontSize: 13,
+                color: C.text,
+                lineHeight: 1.6,
+                whiteSpace: "pre-wrap",
+              }}
+            >
               {stripHtml(task.description) || "—"}
             </div>
           </div>
@@ -7540,7 +9215,15 @@ function TaskDetailContent({ task, comments, statuses, users, onClose, onUpdateS
         {/* Checklist */}
         {task.checklist?.length > 0 && (
           <div>
-            <div style={{ fontSize: 11, color: C.textDim, marginBottom: 8, textTransform: "uppercase", letterSpacing: ".5px" }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: C.textDim,
+                marginBottom: 8,
+                textTransform: "uppercase",
+                letterSpacing: ".5px",
+              }}
+            >
               Checkliste ({task.checklist.filter((c) => c.isDone).length}/{task.checklist.length})
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -7564,7 +9247,18 @@ function TaskDetailContent({ task, comments, statuses, users, onClose, onUpdateS
                     textDecoration: item.isDone ? "line-through" : "none",
                   }}
                 >
-                  <div style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${item.isDone ? C.green : C.border}`, background: item.isDone ? C.green : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div
+                    style={{
+                      width: 18,
+                      height: 18,
+                      borderRadius: 4,
+                      border: `2px solid ${item.isDone ? C.green : C.border}`,
+                      background: item.isDone ? C.green : "transparent",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
                     {item.isDone && <Check size={12} color="#fff" />}
                   </div>
                   {item.name}
@@ -7577,10 +9271,30 @@ function TaskDetailContent({ task, comments, statuses, users, onClose, onUpdateS
         {/* Tags */}
         {task.tags?.length > 0 && (
           <div>
-            <div style={{ fontSize: 11, color: C.textDim, marginBottom: 8, textTransform: "uppercase", letterSpacing: ".5px" }}>Tags</div>
+            <div
+              style={{
+                fontSize: 11,
+                color: C.textDim,
+                marginBottom: 8,
+                textTransform: "uppercase",
+                letterSpacing: ".5px",
+              }}
+            >
+              Tags
+            </div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {task.tags.map((tag) => (
-                <span key={tag.id} style={{ padding: "4px 10px", background: tag.color ? `${tag.color}30` : C.accentDim, color: tag.color || C.accent, borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
+                <span
+                  key={tag.id}
+                  style={{
+                    padding: "4px 10px",
+                    background: tag.color ? `${tag.color}30` : C.accentDim,
+                    color: tag.color || C.accent,
+                    borderRadius: 6,
+                    fontSize: 11,
+                    fontWeight: 600,
+                  }}
+                >
                   {tag.name}
                 </span>
               ))}
@@ -7590,23 +9304,60 @@ function TaskDetailContent({ task, comments, statuses, users, onClose, onUpdateS
 
         {/* Comments */}
         <div>
-          <div style={{ fontSize: 11, color: C.textDim, marginBottom: 8, textTransform: "uppercase", letterSpacing: ".5px" }}>
+          <div
+            style={{
+              fontSize: 11,
+              color: C.textDim,
+              marginBottom: 8,
+              textTransform: "uppercase",
+              letterSpacing: ".5px",
+            }}
+          >
             Kommentare ({comments.length})
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
             {comments.length === 0 ? (
-              <div style={{ fontSize: 12, color: C.textDim, padding: "12px 0" }}>Noch keine Kommentare</div>
+              <div style={{ fontSize: 12, color: C.textDim, padding: "12px 0" }}>
+                Noch keine Kommentare
+              </div>
             ) : (
               comments.map((c) => (
-                <div key={c.id} style={{ padding: 14, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10 }}>
+                <div
+                  key={c.id}
+                  style={{
+                    padding: 14,
+                    background: C.card,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 10,
+                  }}
+                >
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                    <span style={{ width: 26, height: 26, borderRadius: "50%", background: C.accentDim, color: C.accentLight, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <span
+                      style={{
+                        width: 26,
+                        height: 26,
+                        borderRadius: "50%",
+                        background: C.accentDim,
+                        color: C.accentLight,
+                        fontSize: 10,
+                        fontWeight: 700,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
                       {c.createdBy?.initials || "?"}
                     </span>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{c.createdBy?.name || "Unbekannt"}</span>
-                    <span style={{ fontSize: 11, color: C.textDim, marginLeft: "auto" }}>{fmtDate(c.createdOn)}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: C.text }}>
+                      {c.createdBy?.name || "Unbekannt"}
+                    </span>
+                    <span style={{ fontSize: 11, color: C.textDim, marginLeft: "auto" }}>
+                      {fmtDate(c.createdOn)}
+                    </span>
                   </div>
-                  <div style={{ fontSize: 13, color: C.text, lineHeight: 1.5 }}>{stripHtml(c.message)}</div>
+                  <div style={{ fontSize: 13, color: C.text, lineHeight: 1.5 }}>
+                    {stripHtml(c.message)}
+                  </div>
                 </div>
               ))
             )}
@@ -7675,10 +9426,23 @@ function TaskDetailContent({ task, comments, statuses, users, onClose, onUpdateS
                         background: "transparent",
                         color: C.text,
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = C.accentDim}
-                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = C.accentDim)}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                     >
-                      <span style={{ width: 24, height: 24, borderRadius: "50%", background: C.accentDim, color: C.accentLight, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <span
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: "50%",
+                          background: C.accentDim,
+                          color: C.accentLight,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
                         {u.initials}
                       </span>
                       {u.name}
@@ -7701,23 +9465,34 @@ function TaskDetailContent({ task, comments, statuses, users, onClose, onUpdateS
 function DatePickerField({ value, onChange, placeholder = "Datum wählen" }) {
   const [open, setOpen] = useState(false);
   const parsed = value ? new Date(value) : null;
-  const [viewMonth, setViewMonth] = useState(() => (parsed && !isNaN(parsed) ? parsed.getMonth() : new Date().getMonth()));
-  const [viewYear, setViewYear] = useState(() => (parsed && !isNaN(parsed) ? parsed.getFullYear() : new Date().getFullYear()));
+  const [viewMonth, setViewMonth] = useState(() =>
+    parsed && !isNaN(parsed) ? parsed.getMonth() : new Date().getMonth(),
+  );
+  const [viewYear, setViewYear] = useState(() =>
+    parsed && !isNaN(parsed) ? parsed.getFullYear() : new Date().getFullYear(),
+  );
   const ref = useRef();
   useEffect(() => {
-    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const h = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
   const selected = value ? new Date(value) : null;
-  const toISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const toISO = (d) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const prevMonth = () => {
-    if (viewMonth === 0) { setViewMonth(11); setViewYear(viewYear - 1); }
-    else setViewMonth(viewMonth - 1);
+    if (viewMonth === 0) {
+      setViewMonth(11);
+      setViewYear(viewYear - 1);
+    } else setViewMonth(viewMonth - 1);
   };
   const nextMonth = () => {
-    if (viewMonth === 11) { setViewMonth(0); setViewYear(viewYear + 1); }
-    else setViewMonth(viewMonth + 1);
+    if (viewMonth === 11) {
+      setViewMonth(0);
+      setViewYear(viewYear + 1);
+    } else setViewMonth(viewMonth + 1);
   };
   return (
     <div ref={ref} style={{ position: "relative" }}>
@@ -7741,13 +9516,22 @@ function DatePickerField({ value, onChange, placeholder = "Datum wählen" }) {
         }}
       >
         <Calendar size={14} color={C.textMuted} />
-        {value ? new Date(value).toLocaleDateString("de-CH", { day: "2-digit", month: "long", year: "numeric" }) : placeholder}
+        {value
+          ? new Date(value).toLocaleDateString("de-CH", {
+              day: "2-digit",
+              month: "long",
+              year: "numeric",
+            })
+          : placeholder}
         {value && (
           <X
             size={14}
             color={C.textMuted}
             style={{ marginLeft: "auto" }}
-            onClick={(e) => { e.stopPropagation(); onChange(""); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange("");
+            }}
           />
         )}
       </button>
@@ -7766,14 +9550,41 @@ function DatePickerField({ value, onChange, placeholder = "Datum wählen" }) {
             boxShadow: "0 8px 32px rgba(0,0,0,.4)",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-            <button type="button" onClick={prevMonth} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, padding: 4 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 12,
+            }}
+          >
+            <button
+              type="button"
+              onClick={prevMonth}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: C.textMuted,
+                padding: 4,
+              }}
+            >
               <ChevronLeft size={16} />
             </button>
             <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>
               {MONTHS[viewMonth]} {viewYear}
             </span>
-            <button type="button" onClick={nextMonth} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, padding: 4 }}>
+            <button
+              type="button"
+              onClick={nextMonth}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: C.textMuted,
+                padding: 4,
+              }}
+            >
               <ChevronRight size={16} />
             </button>
           </div>
@@ -7783,7 +9594,10 @@ function DatePickerField({ value, onChange, placeholder = "Datum wählen" }) {
             rangeStart={selected}
             rangeEnd={selected}
             hoverDate={null}
-            onSelect={(d) => { onChange(toISO(d)); setOpen(false); }}
+            onSelect={(d) => {
+              onChange(toISO(d));
+              setOpen(false);
+            }}
             onHover={() => {}}
           />
         </div>
@@ -7793,7 +9607,16 @@ function DatePickerField({ value, onChange, placeholder = "Datum wählen" }) {
 }
 
 // Create Task Modal Component
-function CreateTaskModal({ projectId, projectName, statuses, tasklists = [], users, defaultListId, onClose, onCreate }) {
+function CreateTaskModal({
+  projectId,
+  projectName,
+  statuses,
+  tasklists = [],
+  users,
+  defaultListId,
+  onClose,
+  onCreate,
+}) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [statusId, setStatusId] = useState(statuses[0]?.id || "");
@@ -7821,13 +9644,32 @@ function CreateTaskModal({ projectId, projectName, statuses, tasklists = [], use
   };
 
   return (
-    <div style={{ background: C.surface, borderRadius: 16, width: "100%", maxWidth: 520, boxShadow: "0 20px 60px rgba(0,0,0,.5)" }}>
-      <div style={{ padding: "20px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+    <div
+      style={{
+        background: C.surface,
+        borderRadius: 16,
+        width: "100%",
+        maxWidth: 520,
+        boxShadow: "0 20px 60px rgba(0,0,0,.5)",
+      }}
+    >
+      <div
+        style={{
+          padding: "20px 24px",
+          borderBottom: `1px solid ${C.border}`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
         <div>
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: C.text }}>Neue Aufgabe</h2>
           <div style={{ fontSize: 12, color: C.textMuted, marginTop: 4 }}>{projectName}</div>
         </div>
-        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+        <button
+          onClick={onClose}
+          style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}
+        >
           <X size={20} color={C.textMuted} />
         </button>
       </div>
@@ -7835,68 +9677,137 @@ function CreateTaskModal({ projectId, projectName, statuses, tasklists = [], use
       <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
         {/* Name */}
         <div>
-          <label style={{ fontSize: 12, color: C.textMuted, display: "block", marginBottom: 6 }}>Titel *</label>
+          <label style={{ fontSize: 12, color: C.textMuted, display: "block", marginBottom: 6 }}>
+            Titel *
+          </label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Aufgabe eingeben..."
-            style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
+            style={{
+              width: "100%",
+              padding: "10px 14px",
+              borderRadius: 8,
+              border: `1px solid ${C.border}`,
+              background: C.card,
+              color: C.text,
+              fontSize: 14,
+              fontFamily: "inherit",
+              outline: "none",
+              boxSizing: "border-box",
+            }}
           />
         </div>
 
         {/* Description */}
         <div>
-          <label style={{ fontSize: 12, color: C.textMuted, display: "block", marginBottom: 6 }}>Beschreibung</label>
+          <label style={{ fontSize: 12, color: C.textMuted, display: "block", marginBottom: 6 }}>
+            Beschreibung
+          </label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Optional..."
             rows={3}
-            style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", resize: "vertical", boxSizing: "border-box" }}
+            style={{
+              width: "100%",
+              padding: "10px 14px",
+              borderRadius: 8,
+              border: `1px solid ${C.border}`,
+              background: C.card,
+              color: C.text,
+              fontSize: 13,
+              fontFamily: "inherit",
+              outline: "none",
+              resize: "vertical",
+              boxSizing: "border-box",
+            }}
           />
         </div>
 
         {/* Status & List Row */}
         <div style={{ display: "flex", gap: 12 }}>
           <div style={{ flex: 1 }}>
-            <label style={{ fontSize: 12, color: C.textMuted, display: "block", marginBottom: 6 }}>Status</label>
+            <label style={{ fontSize: 12, color: C.textMuted, display: "block", marginBottom: 6 }}>
+              Status
+            </label>
             <select
               value={statusId}
               onChange={(e) => setStatusId(e.target.value)}
-              style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none" }}
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                borderRadius: 8,
+                border: `1px solid ${C.border}`,
+                background: C.card,
+                color: C.text,
+                fontSize: 13,
+                fontFamily: "inherit",
+                outline: "none",
+              }}
             >
-              {statuses.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              {statuses.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
             </select>
           </div>
           {tasklists.length > 0 && (
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 12, color: C.textMuted, display: "block", marginBottom: 6 }}>Liste</label>
+              <label
+                style={{ fontSize: 12, color: C.textMuted, display: "block", marginBottom: 6 }}
+              >
+                Liste
+              </label>
               <select
                 value={listId}
                 onChange={(e) => setListId(e.target.value)}
-                style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none" }}
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  borderRadius: 8,
+                  border: `1px solid ${C.border}`,
+                  background: C.card,
+                  color: C.text,
+                  fontSize: 13,
+                  fontFamily: "inherit",
+                  outline: "none",
+                }}
               >
                 <option value="">Keine Liste</option>
-                {tasklists.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                {tasklists.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}
+                  </option>
+                ))}
               </select>
             </div>
           )}
           <div style={{ flex: 1 }}>
-            <label style={{ fontSize: 12, color: C.textMuted, display: "block", marginBottom: 6 }}>Fällig am</label>
+            <label style={{ fontSize: 12, color: C.textMuted, display: "block", marginBottom: 6 }}>
+              Fällig am
+            </label>
             <DatePickerField value={dueOn} onChange={setDueOn} placeholder="Kein Datum" />
           </div>
         </div>
 
         {/* Assignees */}
         <div>
-          <label style={{ fontSize: 12, color: C.textMuted, display: "block", marginBottom: 6 }}>Zuweisen an</label>
+          <label style={{ fontSize: 12, color: C.textMuted, display: "block", marginBottom: 6 }}>
+            Zuweisen an
+          </label>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {users.slice(0, 10).map((u) => {
               const selected = assigneeIds.includes(u.id);
               return (
                 <button
                   key={u.id}
-                  onClick={() => setAssigneeIds(selected ? assigneeIds.filter((id) => id !== u.id) : [...assigneeIds, u.id])}
+                  onClick={() =>
+                    setAssigneeIds(
+                      selected ? assigneeIds.filter((id) => id !== u.id) : [...assigneeIds, u.id],
+                    )
+                  }
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -7911,7 +9822,20 @@ function CreateTaskModal({ projectId, projectName, statuses, tasklists = [], use
                     fontFamily: "inherit",
                   }}
                 >
-                  <span style={{ width: 20, height: 20, borderRadius: "50%", background: selected ? C.accent : C.border, color: selected ? "#fff" : C.textMuted, fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <span
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: "50%",
+                      background: selected ? C.accent : C.border,
+                      color: selected ? "#fff" : C.textMuted,
+                      fontSize: 9,
+                      fontWeight: 700,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
                     {u.initials}
                   </span>
                   {u.name.split(" ")[0]}
@@ -7943,8 +9867,18 @@ function CreateTaskModal({ projectId, projectName, statuses, tasklists = [], use
         </button>
       </div>
 
-      <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "flex-end", gap: 10 }}>
-        <Btn variant="secondary" onClick={onClose}>Abbrechen</Btn>
+      <div
+        style={{
+          padding: "16px 24px",
+          borderTop: `1px solid ${C.border}`,
+          display: "flex",
+          justifyContent: "flex-end",
+          gap: 10,
+        }}
+      >
+        <Btn variant="secondary" onClick={onClose}>
+          Abbrechen
+        </Btn>
         <Btn onClick={handleCreate} disabled={!name.trim() || creating}>
           {creating ? "Erstellen…" : "Aufgabe erstellen"}
         </Btn>
@@ -8030,14 +9964,24 @@ function ToolRunner({ tool, onClose, client, onComplete, onSaveDraft, onOpenDraf
   const [savingDraft, setSavingDraft] = useState(false);
   const [showWp, setShowWp] = useState(false);
   const draftTitle =
-    (form.topic || form.title || form.keyword || "").trim() || `${tool.label} — ${client?.name || clientDomain || "Ergebnis"}`;
-  const clientIsUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(client?.id || ""));
+    (form.topic || form.title || form.keyword || "").trim() ||
+    `${tool.label} — ${client?.name || clientDomain || "Ergebnis"}`;
+  const clientIsUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    String(client?.id || ""),
+  );
   const saveDraft = async () => {
     if (!onSaveDraft || !clientIsUuid || !resultText) return;
     setSavingDraft(true);
     try {
-      const type = tool.category === "obsidian" || tool.category === "skills-obsidian" ? "note" : "blog";
-      const item = await onSaveDraft({ clientId: client.id, title: draftTitle, content: resultText, type, status: "draft" });
+      const type =
+        tool.category === "obsidian" || tool.category === "skills-obsidian" ? "note" : "blog";
+      const item = await onSaveDraft({
+        clientId: client.id,
+        title: draftTitle,
+        content: resultText,
+        type,
+        status: "draft",
+      });
       setDraftSavedId(item?.id || "ok");
       toast("Als Entwurf gespeichert — zu finden unter Content", "success");
     } catch (e) {
@@ -8063,128 +10007,137 @@ function ToolRunner({ tool, onClose, client, onComplete, onSaveDraft, onOpenDraf
       : "Noch nicht live verbunden";
   return (
     <>
-    <Modal open={true} onClose={handleClose} title={tool.label} width={phase === "done" && resultText ? 760 : 560}>
-      {phase === "form" && (
-        <div>
-          <div
-            style={{
-              display: "flex",
-              gap: 14,
-              alignItems: "flex-start",
-              marginBottom: 20,
-              padding: 14,
-              background: C.card,
-              borderRadius: 12,
-              border: `1px solid ${C.border}`,
-            }}
-          >
+      <Modal
+        open={true}
+        onClose={handleClose}
+        title={tool.label}
+        width={phase === "done" && resultText ? 760 : 560}
+      >
+        {phase === "form" && (
+          <div>
             <div
               style={{
-                width: 44,
-                height: 44,
-                borderRadius: 12,
-                background: `${tool.color}18`,
                 display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
+                gap: 14,
+                alignItems: "flex-start",
+                marginBottom: 20,
+                padding: 14,
+                background: C.card,
+                borderRadius: 12,
+                border: `1px solid ${C.border}`,
               }}
             >
-              <Icon size={20} color={tool.color} />
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  background: `${tool.color}18`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <Icon size={20} color={tool.color} />
+              </div>
+              <div>
+                <div style={{ fontSize: 13, color: C.text, lineHeight: 1.5 }}>
+                  {tool.longDescription}
+                </div>
+                <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                  <Badge color={C.textDim}>{tool.repo}</Badge>
+                  <Badge color={C.textDim}>
+                    <Clock size={9} style={{ marginRight: 3 }} />
+                    {tool.estimatedTime}
+                  </Badge>
+                  {!toolHasLiveProvider(tool.id) && (
+                    <Badge color={C.orange}>Noch nicht live verbunden</Badge>
+                  )}
+                </div>
+              </div>
             </div>
-            <div>
-              <div style={{ fontSize: 13, color: C.text, lineHeight: 1.5 }}>
-                {tool.longDescription}
-              </div>
-              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                <Badge color={C.textDim}>{tool.repo}</Badge>
-                <Badge color={C.textDim}>
-                  <Clock size={9} style={{ marginRight: 3 }} />
-                  {tool.estimatedTime}
-                </Badge>
-                {!toolHasLiveProvider(tool.id) && (
-                  <Badge color={C.orange}>Noch nicht live verbunden</Badge>
-                )}
-              </div>
+            {tool.inputs.map((inp) => (
+              <Inp
+                key={inp.id}
+                label={inp.label}
+                value={form[inp.id] || ""}
+                onChange={(v) => setForm((p) => ({ ...p, [inp.id]: v }))}
+                placeholder={inp.placeholder}
+                type={inp.type === "url" ? "url" : "text"}
+                textarea={inp.type === "textarea"}
+                required={inp.required}
+                options={inp.options}
+              />
+            ))}
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <Btn variant="secondary" onClick={handleClose}>
+                Abbrechen
+              </Btn>
+              <Btn icon={Play} onClick={run}>
+                Ausführen
+              </Btn>
             </div>
           </div>
-          {tool.inputs.map((inp) => (
-            <Inp
-              key={inp.id}
-              label={inp.label}
-              value={form[inp.id] || ""}
-              onChange={(v) => setForm((p) => ({ ...p, [inp.id]: v }))}
-              placeholder={inp.placeholder}
-              type={inp.type === "url" ? "url" : "text"}
-              textarea={inp.type === "textarea"}
-              required={inp.required}
-              options={inp.options}
+        )}
+        {phase === "running" && (
+          <div style={{ textAlign: "center", padding: "30px 10px" }}>
+            <RefreshCw
+              size={32}
+              color={tool.color}
+              style={{ animation: "spin 1s linear infinite", marginBottom: 12 }}
             />
-          ))}
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-            <Btn variant="secondary" onClick={handleClose}>
-              Abbrechen
-            </Btn>
-            <Btn icon={Play} onClick={run}>
-              Ausführen
-            </Btn>
+            <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>Live-Lauf läuft …</div>
+            <div style={{ fontSize: 12, color: C.textMuted, marginTop: 6 }}>
+              API-Call wird ausgeführt
+            </div>
           </div>
-        </div>
-      )}
-      {phase === "running" && (
-        <div style={{ textAlign: "center", padding: "30px 10px" }}>
-          <RefreshCw
-            size={32}
-            color={tool.color}
-            style={{ animation: "spin 1s linear infinite", marginBottom: 12 }}
-          />
-          <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>Live-Lauf läuft …</div>
-          <div style={{ fontSize: 12, color: C.textMuted, marginTop: 6 }}>
-            API-Call wird ausgeführt
-          </div>
-        </div>
-      )}
-      {phase === "done" && (
-        <div>
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
-            <Badge color={liveBadgeColor}>{liveBadgeLabel}</Badge>
-          </div>
-          {/* Ergebnis + Aktionen (2026-08-18): zentrale Komponenten — Markdown
+        )}
+        {phase === "done" && (
+          <div>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+              <Badge color={liveBadgeColor}>{liveBadgeLabel}</Badge>
+            </div>
+            {/* Ergebnis + Aktionen (2026-08-18): zentrale Komponenten — Markdown
               bevorzugt, KEINE Kappung, Rohdaten nur in "Technische Details". */}
-          <ToolResultView result={result} />
-          <ToolActions
-            text={resultText}
-            raw={result?.data ?? { message: result?.message }}
-            filename={`${tool.id}-report.md`}
-            notify={toast}
-            onSaveDraft={result?.ok && resultText && onSaveDraft && clientIsUuid ? saveDraft : undefined}
-            draftState={{ saved: !!draftSavedId, saving: savingDraft }}
-            onOpenEditor={
-              draftSavedId && draftSavedId !== "ok" && onOpenDraft
-                ? () => {
-                    onOpenDraft(draftSavedId);
-                    handleClose();
-                  }
-                : undefined
-            }
-            onWordPress={result?.ok && resultText && clientIsUuid ? () => setShowWp(true) : undefined}
-            onClose={handleClose}
-          />
-        </div>
-      )}
-    </Modal>
-    {/* Ausserhalb des Modals gerendert: position:fixed darf nicht von der
+            <ToolResultView result={result} />
+            <ToolActions
+              text={resultText}
+              raw={result?.data ?? { message: result?.message }}
+              filename={`${tool.id}-report.md`}
+              notify={toast}
+              onSaveDraft={
+                result?.ok && resultText && onSaveDraft && clientIsUuid ? saveDraft : undefined
+              }
+              draftState={{ saved: !!draftSavedId, saving: savingDraft }}
+              onOpenEditor={
+                draftSavedId && draftSavedId !== "ok" && onOpenDraft
+                  ? () => {
+                      onOpenDraft(draftSavedId);
+                      handleClose();
+                    }
+                  : undefined
+              }
+              onWordPress={
+                result?.ok && resultText && clientIsUuid ? () => setShowWp(true) : undefined
+              }
+              onClose={handleClose}
+            />
+          </div>
+        )}
+      </Modal>
+      {/* Ausserhalb des Modals gerendert: position:fixed darf nicht von der
         fadeScale-Transform-Animation des Modals eingefangen werden. */}
-    {showWp && (
-      <WordPressPublishModal
-        clientId={client.id}
-        defaultTitle={draftTitle}
-        markdown={resultText || ""}
-        onClose={() => setShowWp(false)}
-        notify={toast}
-        zIndex={300}
-      />
-    )}
+      {showWp && (
+        <WordPressPublishModal
+          clientId={client.id}
+          defaultTitle={draftTitle}
+          markdown={resultText || ""}
+          onClose={() => setShowWp(false)}
+          notify={toast}
+          zIndex={300}
+        />
+      )}
     </>
   );
 }
@@ -8307,7 +10260,16 @@ function ToolsPage({ selectedClient, tools, onSaveDraft, onOpenDraft }) {
         })}
       </div>
       <div style={{ flex: 1 }}>
-        <div style={{ marginBottom: 20, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+        <div
+          style={{
+            marginBottom: 20,
+            display: "flex",
+            alignItems: "flex-end",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 10,
+          }}
+        >
           <div>
             <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>AI Tools</h1>
             <p style={{ color: C.textMuted, fontSize: 13, margin: "4px 0 0" }}>
@@ -8315,7 +10277,16 @@ function ToolsPage({ selectedClient, tools, onSaveDraft, onOpenDraft }) {
             </p>
           </div>
           {unconnectedCount > 0 && (
-            <label style={{ fontSize: 12, color: C.textMuted, display: "flex", gap: 6, alignItems: "center", cursor: "pointer" }}>
+            <label
+              style={{
+                fontSize: 12,
+                color: C.textMuted,
+                display: "flex",
+                gap: 6,
+                alignItems: "center",
+                cursor: "pointer",
+              }}
+            >
               <input
                 type="checkbox"
                 checked={showUnconnected}
@@ -8338,15 +10309,31 @@ function ToolsPage({ selectedClient, tools, onSaveDraft, onOpenDraft }) {
               lineHeight: 1.6,
             }}
           >
-            <div style={{ fontWeight: 700, color: C.text, marginBottom: 4 }}>So veröffentlichst du Inhalte</div>
-            Tool-Ergebnisse kannst du direkt im Ergebnis-Fenster <strong style={{ color: C.text }}>als Entwurf speichern</strong> oder
-            {" "}<strong style={{ color: C.text }}>an WordPress übergeben</strong> (sofern der Kunde verbunden ist).
-            Gespeicherte Entwürfe findest du unter <strong style={{ color: C.text }}>Content</strong> — dort gibt es ebenfalls den
-            Button «An WordPress veröffentlichen». WordPress verbindet man je Kunde unter Admin → Kunden → Onboarding.
+            <div style={{ fontWeight: 700, color: C.text, marginBottom: 4 }}>
+              So veröffentlichst du Inhalte
+            </div>
+            Tool-Ergebnisse kannst du direkt im Ergebnis-Fenster{" "}
+            <strong style={{ color: C.text }}>als Entwurf speichern</strong> oder{" "}
+            <strong style={{ color: C.text }}>an WordPress übergeben</strong> (sofern der Kunde
+            verbunden ist). Gespeicherte Entwürfe findest du unter{" "}
+            <strong style={{ color: C.text }}>Content</strong> — dort gibt es ebenfalls den Button
+            «An WordPress veröffentlichen». WordPress verbindet man je Kunde unter Admin → Kunden →
+            Onboarding.
           </div>
         )}
         {visibleTools.length === 0 && goal !== "publish" && (
-          <div style={{ background: C.card, border: `1px dashed ${C.border}`, borderRadius: 14, padding: "32px 20px", textAlign: "center", marginBottom: 14, fontSize: 13, color: C.textMuted }}>
+          <div
+            style={{
+              background: C.card,
+              border: `1px dashed ${C.border}`,
+              borderRadius: 14,
+              padding: "32px 20px",
+              textAlign: "center",
+              marginBottom: 14,
+              fontSize: 13,
+              color: C.textMuted,
+            }}
+          >
             Keine verbundenen Tools in dieser Gruppe.
             {unconnectedCount > 0
               ? " Aktiviere «Nicht verbundene anzeigen», um sie zu sehen — sie sind entsprechend markiert."
@@ -8637,12 +10624,7 @@ function ContentEditor({ item, stCo, stLb, onBack, onSave }) {
             Download
           </Btn>
           {item.clientId && (
-            <Btn
-              variant="secondary"
-              size="sm"
-              icon={Globe}
-              onClick={() => setShowWpPublish(true)}
-            >
+            <Btn variant="secondary" size="sm" icon={Globe} onClick={() => setShowWpPublish(true)}>
               WordPress
             </Btn>
           )}
@@ -8747,38 +10729,80 @@ function ContentEditor({ item, stCo, stLb, onBack, onSave }) {
 // Gate/Trend/Empfehlung werden in der DB berechnet (agentenunabhaengig); RLS via
 // SECURITY-DEFINER-Gate. Detail-Chart = content_metrics-Zeitreihe (recharts).
 const REC_META = {
-  not_indexed:       { t: "Nicht im Google-Index",             c: C.red,       a: "Auffindbarkeit herstellen – Content-Massnahmen wirken hier nicht" },
-  refresh_decay:     { t: "Decay – Refresh fällig",            c: C.red,       a: "Freshness-Update gegen aktuelle SERP" },
-  tech_fix:          { t: "Technik prüfen",                    c: C.blue,      a: "An Tech/Agent (Index/interne Links) – nicht Content" },
-  consolidate:       { t: "Kannibalisierung – zusammenführen", c: C.pink,      a: "Zwei Artikel mergen" },
-  push_expand:       { t: "Striking Distance – ausbauen",      c: C.accent,    a: "Content erweitern, E-E-A-T, Intent schärfen" },
-  ctr_fix:           { t: "Title/Meta optimieren",             c: C.cyan,      a: "Snippet überarbeiten (kein Volltext-Refresh)" },
-  ceiling_new_kw:    { t: "Keyword-Ceiling – neues Ziel",      c: C.orange,    a: "Nicht refreshen – neues KW/Strategie" },
-  low_visibility:    { t: "Kaum sichtbar",                     c: C.orange,    a: "Sichtbarkeit aufbauen: Keyword-Fokus, Intent, interne Links" },
-  stable_hold:       { t: "Stabil",                            c: C.green,     a: "Nichts tun" },
-  monitor:           { t: "Beobachten",                        c: C.textMuted, a: "Beobachten" },
-  maturing_wait:     { t: "Reift noch",                        c: C.textDim,   a: "Warten (< 30 Tage)" },
-  insufficient_data: { t: "Zu wenig Daten",                    c: C.textDim,   a: "Beobachten, kein Urteil (Messfenster füllt sich noch)" },
-  unpublished:       { t: "Unpubliziert",                      c: C.textDim,   a: "—" },
+  not_indexed: {
+    t: "Nicht im Google-Index",
+    c: C.red,
+    a: "Auffindbarkeit herstellen – Content-Massnahmen wirken hier nicht",
+  },
+  refresh_decay: {
+    t: "Decay – Refresh fällig",
+    c: C.red,
+    a: "Freshness-Update gegen aktuelle SERP",
+  },
+  tech_fix: {
+    t: "Technik prüfen",
+    c: C.blue,
+    a: "An Tech/Agent (Index/interne Links) – nicht Content",
+  },
+  consolidate: { t: "Kannibalisierung – zusammenführen", c: C.pink, a: "Zwei Artikel mergen" },
+  push_expand: {
+    t: "Striking Distance – ausbauen",
+    c: C.accent,
+    a: "Content erweitern, E-E-A-T, Intent schärfen",
+  },
+  ctr_fix: {
+    t: "Title/Meta optimieren",
+    c: C.cyan,
+    a: "Snippet überarbeiten (kein Volltext-Refresh)",
+  },
+  ceiling_new_kw: {
+    t: "Keyword-Ceiling – neues Ziel",
+    c: C.orange,
+    a: "Nicht refreshen – neues KW/Strategie",
+  },
+  low_visibility: {
+    t: "Kaum sichtbar",
+    c: C.orange,
+    a: "Sichtbarkeit aufbauen: Keyword-Fokus, Intent, interne Links",
+  },
+  stable_hold: { t: "Stabil", c: C.green, a: "Nichts tun" },
+  monitor: { t: "Beobachten", c: C.textMuted, a: "Beobachten" },
+  maturing_wait: { t: "Reift noch", c: C.textDim, a: "Warten (< 30 Tage)" },
+  insufficient_data: {
+    t: "Zu wenig Daten",
+    c: C.textDim,
+    a: "Beobachten, kein Urteil (Messfenster füllt sich noch)",
+  },
+  unpublished: { t: "Unpubliziert", c: C.textDim, a: "—" },
 };
-const ACTION_RECS = ["not_indexed", "tech_fix", "ctr_fix", "push_expand", "refresh_decay", "consolidate", "ceiling_new_kw", "low_visibility"];
+const ACTION_RECS = [
+  "not_indexed",
+  "tech_fix",
+  "ctr_fix",
+  "push_expand",
+  "refresh_decay",
+  "consolidate",
+  "ceiling_new_kw",
+  "low_visibility",
+];
 // Massnahmen-Playbook je Empfehlung (Kurzfassung von content-fix-playbook/fix-procedures.md)
 // fuer das Mitarbeiter-Pop-up: Befund -> konkrete Schritte -> Exit-Kriterium.
 const REC_PLAYBOOK = {
   not_indexed: {
     befund:
-      "Google hat den Artikel nicht im Index — geprüft über die GSC-URL-Prüfung. Steht dort \"URL is unknown to Google\", hat Google die Seite noch nie gesehen: das ist ein Auffindbarkeits-Problem, kein Qualitätsproblem. Solange das so ist, bleibt JEDE Content-Massnahme wirkungslos.",
+      'Google hat den Artikel nicht im Index — geprüft über die GSC-URL-Prüfung. Steht dort "URL is unknown to Google", hat Google die Seite noch nie gesehen: das ist ein Auffindbarkeits-Problem, kein Qualitätsproblem. Solange das so ist, bleibt JEDE Content-Massnahme wirkungslos.',
     schritte: [
       "Erreichbarkeit bestätigen: Seite liefert HTTP 200, kein noindex, Canonical zeigt auf sich selbst, robots.txt erlaubt den Zugriff.",
       "Sitemap prüfen: Ist der Artikel in der Sitemap UND ist die Sitemap in der Search Console eingereicht? (Ein Eintrag in der robots.txt allein reicht Google oft nicht.)",
       "Interne Verlinkung prüfen — der häufigste Grund: Verlinkt eine bereits indexierte Seite auf den Artikel? Eine Blog-Übersicht, die selbst nicht im Index ist, vererbt nichts. Links von starken, indexierten Seiten setzen.",
-      "In der GSC \"Indexierung beantragen\" für die betroffenen URLs auslösen (manuell, wirkt pro URL).",
+      'In der GSC "Indexierung beantragen" für die betroffenen URLs auslösen (manuell, wirkt pro URL).',
       "KEINEN Refresh und keine Title-Optimierung vornehmen — beides ändert am Indexstatus nichts.",
     ],
-    exit: "Artikel in der GSC-URL-Prüfung auf \"URL ist auf Google\"; Re-Check in 2–3 Wochen.",
+    exit: 'Artikel in der GSC-URL-Prüfung auf "URL ist auf Google"; Re-Check in 2–3 Wochen.',
   },
   ctr_fix: {
-    befund: "Gute Position (Top 10), Impressionen vorhanden, aber kaum Klicks — das Problem sitzt im Snippet, nicht im Inhalt.",
+    befund:
+      "Gute Position (Top 10), Impressionen vorhanden, aber kaum Klicks — das Problem sitzt im Snippet, nicht im Inhalt.",
     schritte: [
       "SERP für das Ziel-Keyword ansehen: welche Snippets gewinnen den Klick — und warum?",
       "Title neu schreiben: Ziel-Keyword vorn, konkreter Nutzen/Differenzierung, Zahl/Jahr wo sinnvoll, unter 60 Zeichen.",
@@ -8788,7 +10812,8 @@ const REC_PLAYBOOK = {
     exit: "Neuer Title/Meta nach QA live; Re-Test in 3–4 Wochen auf CTR terminieren.",
   },
   push_expand: {
-    befund: "Position 11–20 — knapp vor Seite 1. Höchster Refresh-ROI: ein gezielter Schub bringt überproportional Traffic.",
+    befund:
+      "Position 11–20 — knapp vor Seite 1. Höchster Refresh-ROI: ein gezielter Schub bringt überproportional Traffic.",
     schritte: [
       "Top 5 der SERP analysieren: welche Subtopics/Fragen decken sie ab, die diesem Artikel fehlen?",
       "Lücken als Answer-first-Blöcke schließen: Frage als H2, Antwort im ersten Satz, 130–170 Wörter.",
@@ -8798,7 +10823,8 @@ const REC_PLAYBOOK = {
     exit: "Ausbau live, interne Links gesetzt; Re-Test in 4 Wochen auf Position terminieren.",
   },
   refresh_decay: {
-    befund: "War gut, fällt jetzt (Decay ab Tag 90) — die SERP hat sich bewegt oder der Inhalt ist veraltet.",
+    befund:
+      "War gut, fällt jetzt (Decay ab Tag 90) — die SERP hat sich bewegt oder der Inhalt ist veraltet.",
     schritte: [
       "Zuerst Saisonalität prüfen: gleichen Kalendermonat im Vorjahr vergleichen (GSC). Entspricht der Rückgang dem Vorjahresmuster → KEIN Refresh, nur vermerken.",
       "Aktuelle SERP vs. Artikel: was ist bei den Gewinnern neu oder anders?",
@@ -8808,7 +10834,8 @@ const REC_PLAYBOOK = {
     exit: "Update nach QA live, Refresh datiert; Re-Test in 4 Wochen terminieren.",
   },
   consolidate: {
-    befund: "Mehrere publizierte Artikel ranken auf demselben Keyword und nehmen sich gegenseitig die Sichtbarkeit (Kannibalisierung).",
+    befund:
+      "Mehrere publizierte Artikel ranken auf demselben Keyword und nehmen sich gegenseitig die Sichtbarkeit (Kannibalisierung).",
     schritte: [
       "Stärkeren Artikel bestimmen (Position, Backlinks, Traffic).",
       "Einzigartige Inhalte des schwächeren Artikels in den stärkeren mergen.",
@@ -8818,7 +10845,8 @@ const REC_PLAYBOOK = {
     exit: "Merge + Redirect live; Re-Test in 4–6 Wochen terminieren.",
   },
   tech_fix: {
-    befund: "Keine verwertbare Position trotz Sichtbarkeitsdaten — das Problem liegt in der Technik (Indexierung, interne Verlinkung, Crawlbarkeit), nicht im Text.",
+    befund:
+      "Keine verwertbare Position trotz Sichtbarkeitsdaten — das Problem liegt in der Technik (Indexierung, interne Verlinkung, Crawlbarkeit), nicht im Text.",
     schritte: [
       "Indexierungsstatus prüfen (GSC URL-Prüfung: ist die Seite im Index?).",
       "Interne Verlinkung prüfen: erreichen starke Seiten diesen Artikel?",
@@ -8827,7 +10855,8 @@ const REC_PLAYBOOK = {
     exit: "Übergabe/Ticket an Technik erstellt; Artikel bleibt unverändert.",
   },
   low_visibility: {
-    befund: "Über 90 Tage publiziert und volle Messabdeckung, aber unter 100 Impressionen in 28 Tagen — Google zeigt den Artikel kaum. Meist kein Technik-, sondern ein Relevanz-Problem (Keyword ohne Nachfrage, Intent-Mismatch, fehlende interne Links).",
+    befund:
+      "Über 90 Tage publiziert und volle Messabdeckung, aber unter 100 Impressionen in 28 Tagen — Google zeigt den Artikel kaum. Meist kein Technik-, sondern ein Relevanz-Problem (Keyword ohne Nachfrage, Intent-Mismatch, fehlende interne Links).",
     schritte: [
       "Indexierung einmal bestätigen (GSC URL-Prüfung). Nicht indexiert → als Technik-Fall behandeln.",
       "Saisonalität prüfen: Winterthemen sind im Sommer natürlich unsichtbar — dann nur für die Saison terminieren, nichts ändern.",
@@ -8838,7 +10867,8 @@ const REC_PLAYBOOK = {
     exit: "Massnahmen live; Re-Check in 6–8 Wochen mit Ziel >100 Impressionen/28 Tage.",
   },
   ceiling_new_kw: {
-    befund: "Rankt bereits top, aber das Keyword hat zu wenig Suchvolumen — ein Refresh bringt hier nichts mehr.",
+    befund:
+      "Rankt bereits top, aber das Keyword hat zu wenig Suchvolumen — ein Refresh bringt hier nichts mehr.",
     schritte: [
       "Keinen Refresh an diesem Artikel durchführen.",
       "Größeres, angrenzendes Ziel-Keyword identifizieren (Keyword-Recherche).",
@@ -8848,10 +10878,10 @@ const REC_PLAYBOOK = {
   },
 };
 const TREND_META = {
-  steigend_stabil: { c: C.green,   t: "steigend/stabil" },
-  stabil:          { c: C.orange,  t: "stabil" },
-  decay:           { c: C.red,     t: "Decay" },
-  kein_traffic:    { c: C.textDim, t: "kein Traffic" },
+  steigend_stabil: { c: C.green, t: "steigend/stabil" },
+  stabil: { c: C.orange, t: "stabil" },
+  decay: { c: C.red, t: "Decay" },
+  kein_traffic: { c: C.textDim, t: "kein Traffic" },
 };
 
 function RefreshDetailChart({ item }) {
@@ -8866,10 +10896,18 @@ function RefreshDetailChart({ item }) {
         .order("captured_on", { ascending: true });
       if (alive) setSeries(data || []);
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [item.id]);
-  if (!series) return <div style={{ color: C.textMuted, fontSize: 12.5, padding: 16 }}>Zeitreihe lädt…</div>;
-  if (!series.length) return <div style={{ color: C.textMuted, fontSize: 12.5, padding: 16 }}>Noch keine Metriken erfasst — der tägliche Sync füllt die Daten.</div>;
+  if (!series)
+    return <div style={{ color: C.textMuted, fontSize: 12.5, padding: 16 }}>Zeitreihe lädt…</div>;
+  if (!series.length)
+    return (
+      <div style={{ color: C.textMuted, fontSize: 12.5, padding: 16 }}>
+        Noch keine Metriken erfasst — der tägliche Sync füllt die Daten.
+      </div>
+    );
   return (
     <ResponsiveContainer width="100%" height={220}>
       <LineChart data={series} margin={{ top: 8, right: 10, left: -10, bottom: 0 }}>
@@ -8877,10 +10915,34 @@ function RefreshDetailChart({ item }) {
         <XAxis dataKey="captured_on" tick={{ fill: C.textDim, fontSize: 11 }} minTickGap={26} />
         <YAxis yAxisId="l" tick={{ fill: C.textDim, fontSize: 11 }} />
         <YAxis yAxisId="r" orientation="right" reversed tick={{ fill: C.textDim, fontSize: 11 }} />
-        <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text }} />
+        <Tooltip
+          contentStyle={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 8,
+            fontSize: 12,
+            color: C.text,
+          }}
+        />
         <Legend wrapperStyle={{ fontSize: 11 }} />
-        <Line yAxisId="l" type="monotone" dataKey="clicks" stroke={C.green} strokeWidth={2} dot={false} name="Klicks" />
-        <Line yAxisId="r" type="monotone" dataKey="position" stroke={C.accent} strokeWidth={2} dot={false} name="Position (invers)" />
+        <Line
+          yAxisId="l"
+          type="monotone"
+          dataKey="clicks"
+          stroke={C.green}
+          strokeWidth={2}
+          dot={false}
+          name="Klicks"
+        />
+        <Line
+          yAxisId="r"
+          type="monotone"
+          dataKey="position"
+          stroke={C.accent}
+          strokeWidth={2}
+          dot={false}
+          name="Position (invers)"
+        />
       </LineChart>
     </ResponsiveContainer>
   );
@@ -8895,22 +10957,28 @@ function RefreshRadar({ selectedClient }) {
   // Artikel-spezifische KI-Empfehlung je content_item_id: {loading|text|error}.
   // Bleibt im State gecacht, damit erneutes Oeffnen nicht erneut generiert (Kosten).
   const [briefs, setBriefs] = useState({});
-  const generateBrief = useCallback(async (row) => {
-    setBriefs((p) => ({ ...p, [row.id]: { loading: true } }));
-    try {
-      const session = (await supabase.auth.getSession()).data.session;
-      const r = await fetch("/api/content/refresh-brief", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId: selectedClient.id, contentItemId: row.id }),
-      });
-      const j = await r.json().catch(() => null);
-      if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
-      setBriefs((p) => ({ ...p, [row.id]: { text: j.content } }));
-    } catch (e) {
-      setBriefs((p) => ({ ...p, [row.id]: { error: e?.message || "Analyse fehlgeschlagen" } }));
-    }
-  }, [selectedClient?.id]);
+  const generateBrief = useCallback(
+    async (row) => {
+      setBriefs((p) => ({ ...p, [row.id]: { loading: true } }));
+      try {
+        const session = (await supabase.auth.getSession()).data.session;
+        const r = await fetch("/api/content/refresh-brief", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session?.access_token || ""}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ clientId: selectedClient.id, contentItemId: row.id }),
+        });
+        const j = await r.json().catch(() => null);
+        if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+        setBriefs((p) => ({ ...p, [row.id]: { text: j.content } }));
+      } catch (e) {
+        setBriefs((p) => ({ ...p, [row.id]: { error: e?.message || "Analyse fehlgeschlagen" } }));
+      }
+    },
+    [selectedClient?.id],
+  );
   // Google-Verbindungsstatus: erklaert "keine Metriken" ehrlich (Token fehlt/abgelaufen)
   // statt sie als "kein Traffic" aussehen zu lassen. null = unbekannt -> kein Banner.
   const [gConn, setGConn] = useState(null);
@@ -8923,7 +10991,10 @@ function RefreshRadar({ selectedClient }) {
         const session = (await supabase.auth.getSession()).data.session;
         const r = await fetch("/api/google/connection", {
           method: "POST",
-          headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
+          headers: {
+            Authorization: `Bearer ${session?.access_token || ""}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({ clientId: selectedClient.id }),
         });
         const j = await r.json().catch(() => null);
@@ -8932,7 +11003,9 @@ function RefreshRadar({ selectedClient }) {
         /* Status unbekannt -> kein Banner */
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [selectedClient?.id]);
   const connHint = !selectedClient?.id
     ? null
@@ -8942,20 +11015,32 @@ function RefreshRadar({ selectedClient }) {
         ? "Keine GSC-Property hinterlegt — Ranking-Metriken (Klicks/Impressionen/Position) bleiben leer. Property im Kunden-Profil eintragen."
         : null;
   const reload = useCallback(async () => {
-    if (!selectedClient?.id) { setRows([]); setLoading(false); return; }
+    if (!selectedClient?.id) {
+      setRows([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-    const { data, error } = await supabase.rpc("get_content_dashboard", { p_client_id: selectedClient.id });
-    setRows(error ? [] : (data || []));
+    const { data, error } = await supabase.rpc("get_content_dashboard", {
+      p_client_id: selectedClient.id,
+    });
+    setRows(error ? [] : data || []);
     setLoading(false);
   }, [selectedClient?.id]);
-  useEffect(() => { reload(); }, [reload]);
+  useEffect(() => {
+    reload();
+  }, [reload]);
   const shown = useMemo(
     () => rows.filter((r) => !onlyAction || ACTION_RECS.includes(r.recommendation)),
     [rows, onlyAction],
   );
 
   if (!selectedClient?.id)
-    return <div style={{ padding: 30, color: C.textMuted, fontSize: 13 }}>Wähle einen Kunden, um den Refresh-Radar zu sehen.</div>;
+    return (
+      <div style={{ padding: 30, color: C.textMuted, fontSize: 13 }}>
+        Wähle einen Kunden, um den Refresh-Radar zu sehen.
+      </div>
+    );
 
   // Datenstatus (EzyRank-Ausbau 2026-08-18): letzter Index-Check als ehrlicher
   // Sync-Zeitpunkt (täglicher Content-Sync schreibt ihn); Google-Verbindung separat.
@@ -8984,30 +11069,81 @@ function RefreshRadar({ selectedClient }) {
         action={{
           label: "Daten neu laden",
           kind: "reload",
-          title: "Liest nur den gespeicherten Datenbankstand neu — den Content-Sync fährt der tägliche Lauf",
+          title:
+            "Liest nur den gespeicherten Datenbankstand neu — den Content-Sync fährt der tägliche Lauf",
           onClick: () => void reload(),
         }}
-        hint={gConn && !gConn.connected ? "Verbinden: Admin → Kunden → Onboarding → Google" : undefined}
+        hint={
+          gConn && !gConn.connected ? "Verbinden: Admin → Kunden → Onboarding → Google" : undefined
+        }
       />
       {connHint ? (
-        <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 14px", borderRadius: 10, background: C.orange + "1a", border: `1px solid ${C.orange}55`, fontSize: 12.5, color: C.text }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            alignItems: "center",
+            padding: "10px 14px",
+            borderRadius: 10,
+            background: C.orange + "1a",
+            border: `1px solid ${C.orange}55`,
+            fontSize: 12.5,
+            color: C.text,
+          }}
+        >
           <AlertCircle size={16} color={C.orange} style={{ flexShrink: 0 }} />
           <span>{connHint}</span>
         </div>
       ) : null}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 10,
+        }}
+      >
         <div style={{ fontSize: 13, color: C.textMuted }}>
           {loading ? "lädt…" : `${shown.length} von ${rows.length} publizierten Artikeln`}
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <label style={{ fontSize: 12.5, color: C.textMuted, display: "flex", gap: 6, alignItems: "center", cursor: "pointer" }}>
-            <input type="checkbox" checked={onlyAction} onChange={(e) => setOnlyAction(e.target.checked)} />
+          <label
+            style={{
+              fontSize: 12.5,
+              color: C.textMuted,
+              display: "flex",
+              gap: 6,
+              alignItems: "center",
+              cursor: "pointer",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={onlyAction}
+              onChange={(e) => setOnlyAction(e.target.checked)}
+            />
             Nur handlungsbedürftig
           </label>
-          <Btn variant="secondary" size="sm" icon={RefreshCw} onClick={reload} title="Liest nur den gespeicherten Datenbankstand neu">Daten neu laden</Btn>
+          <Btn
+            variant="secondary"
+            size="sm"
+            icon={RefreshCw}
+            onClick={reload}
+            title="Liest nur den gespeicherten Datenbankstand neu"
+          >
+            Daten neu laden
+          </Btn>
         </div>
       </div>
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden" }}>
+      <div
+        style={{
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: 14,
+          overflow: "hidden",
+        }}
+      >
         {loading ? (
           <div style={{ padding: 30, color: C.textMuted, fontSize: 13 }}>Lade Refresh-Daten…</div>
         ) : shown.length === 0 ? (
@@ -9015,42 +11151,166 @@ function RefreshRadar({ selectedClient }) {
             <RefreshCw size={30} color={C.textDim} style={{ marginBottom: 10 }} />
             <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Nichts zu tun</div>
             <div style={{ fontSize: 13, color: C.textMuted }}>
-              Keine handlungsbedürftigen Artikel — oder noch keine Metriken. Der tägliche Sync füllt die Daten.
+              Keine handlungsbedürftigen Artikel — oder noch keine Metriken. Der tägliche Sync füllt
+              die Daten.
             </div>
           </div>
         ) : (
           shown.map((r, i) => {
-            const rec = REC_META[r.recommendation] || { t: r.recommendation, c: C.textMuted, a: "" };
+            const rec = REC_META[r.recommendation] || {
+              t: r.recommendation,
+              c: C.textMuted,
+              a: "",
+            };
             const tr = TREND_META[r.trend] || { c: C.textDim, t: r.trend || "—" };
             const open = detail === r.id;
             return (
-              <div key={r.id} style={{ borderBottom: i < shown.length - 1 ? `1px solid ${C.border}` : "none" }}>
+              <div
+                key={r.id}
+                style={{ borderBottom: i < shown.length - 1 ? `1px solid ${C.border}` : "none" }}
+              >
                 <div
                   onClick={() => setDetail(open ? null : r.id)}
-                  style={{ padding: "13px 18px", display: "grid", gridTemplateColumns: "1.6fr 1fr auto 14px 1.5fr auto", gap: 12, alignItems: "center", cursor: "pointer" }}
+                  style={{
+                    padding: "13px 18px",
+                    display: "grid",
+                    gridTemplateColumns: "1.6fr 1fr auto 14px 1.5fr auto",
+                    gap: 12,
+                    alignItems: "center",
+                    cursor: "pointer",
+                  }}
                 >
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 600, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.title}</div>
-                    {r.url ? <div style={{ fontSize: 11.5, color: C.textDim, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.url}</div> : null}
+                    <div
+                      style={{
+                        fontSize: 13.5,
+                        fontWeight: 600,
+                        color: C.text,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {r.title}
+                    </div>
+                    {r.url ? (
+                      <div
+                        style={{
+                          fontSize: 11.5,
+                          color: C.textDim,
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        {r.url}
+                      </div>
+                    ) : null}
                   </div>
-                  <div style={{ fontSize: 12.5, color: C.textMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.primary_keyword || "—"}</div>
-                  <span style={{ fontSize: 11, color: C.textDim, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 6, padding: "2px 7px", whiteSpace: "nowrap" }}>{r.gate}</span>
-                  <span title={tr.t} style={{ width: 10, height: 10, borderRadius: "50%", background: tr.c, display: "inline-block" }} />
+                  <div
+                    style={{
+                      fontSize: 12.5,
+                      color: C.textMuted,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {r.primary_keyword || "—"}
+                  </div>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: C.textDim,
+                      background: C.surface,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 6,
+                      padding: "2px 7px",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {r.gate}
+                  </span>
+                  <span
+                    title={tr.t}
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: "50%",
+                      background: tr.c,
+                      display: "inline-block",
+                    }}
+                  />
                   <span
                     title={REC_PLAYBOOK[r.recommendation] ? "Klicken für Maßnahme" : undefined}
-                    onClick={REC_PLAYBOOK[r.recommendation] ? (e) => { e.stopPropagation(); setPlaybook(r); } : undefined}
-                    style={{ fontSize: 12, fontWeight: 600, color: rec.c, background: rec.c + "1f", borderRadius: 7, padding: "3px 9px", whiteSpace: "nowrap", justifySelf: "start", cursor: REC_PLAYBOOK[r.recommendation] ? "pointer" : "default", textDecoration: REC_PLAYBOOK[r.recommendation] ? "underline dotted" : "none", textUnderlineOffset: 3 }}
-                  >{rec.t}</span>
-                  <span style={{ fontSize: 12, color: C.textDim, whiteSpace: "nowrap", justifySelf: "end" }}>{r.age_days != null ? `${r.age_days} T` : "—"}</span>
+                    onClick={
+                      REC_PLAYBOOK[r.recommendation]
+                        ? (e) => {
+                            e.stopPropagation();
+                            setPlaybook(r);
+                          }
+                        : undefined
+                    }
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: rec.c,
+                      background: rec.c + "1f",
+                      borderRadius: 7,
+                      padding: "3px 9px",
+                      whiteSpace: "nowrap",
+                      justifySelf: "start",
+                      cursor: REC_PLAYBOOK[r.recommendation] ? "pointer" : "default",
+                      textDecoration: REC_PLAYBOOK[r.recommendation] ? "underline dotted" : "none",
+                      textUnderlineOffset: 3,
+                    }}
+                  >
+                    {rec.t}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      color: C.textDim,
+                      whiteSpace: "nowrap",
+                      justifySelf: "end",
+                    }}
+                  >
+                    {r.age_days != null ? `${r.age_days} T` : "—"}
+                  </span>
                 </div>
                 {open ? (
-                  <div style={{ padding: "0 18px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <div
+                    style={{
+                      padding: "0 18px 16px",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 10,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: 10,
+                        flexWrap: "wrap",
+                      }}
+                    >
                       <div style={{ fontSize: 12.5, color: C.textMuted }}>
-                        <b style={{ color: rec.c }}>{rec.t}</b>{rec.a ? ` — ${rec.a}` : ""} · Klicks 28T: <b style={{ color: C.text }}>{r.clicks_28 ?? 0}</b> (Peak {r.peak_clicks_28 ?? 0}) · Ø-Pos: {r.position_28 ?? "—"} · Impr 28T: {r.impr_28 ?? 0}{r.measured_days_28 != null && r.measured_days_28 < 28 ? ` · erst ${r.measured_days_28} von 28 Messtagen` : ""}{r.language ? ` · ${String(r.language).toUpperCase()}` : ""}
+                        <b style={{ color: rec.c }}>{rec.t}</b>
+                        {rec.a ? ` — ${rec.a}` : ""} · Klicks 28T:{" "}
+                        <b style={{ color: C.text }}>{r.clicks_28 ?? 0}</b> (Peak{" "}
+                        {r.peak_clicks_28 ?? 0}) · Ø-Pos: {r.position_28 ?? "—"} · Impr 28T:{" "}
+                        {r.impr_28 ?? 0}
+                        {r.measured_days_28 != null && r.measured_days_28 < 28
+                          ? ` · erst ${r.measured_days_28} von 28 Messtagen`
+                          : ""}
+                        {r.language ? ` · ${String(r.language).toUpperCase()}` : ""}
                       </div>
                       {REC_PLAYBOOK[r.recommendation] ? (
-                        <Btn variant="secondary" size="sm" onClick={() => setPlaybook(r)}>Maßnahme anzeigen</Btn>
+                        <Btn variant="secondary" size="sm" onClick={() => setPlaybook(r)}>
+                          Maßnahme anzeigen
+                        </Btn>
                       ) : null}
                     </div>
                     <RefreshDetailChart item={r} />
@@ -9061,73 +11321,183 @@ function RefreshRadar({ selectedClient }) {
           })
         )}
       </div>
-      {playbook ? (() => {
-        const pb = REC_PLAYBOOK[playbook.recommendation];
-        const rec = REC_META[playbook.recommendation] || { t: playbook.recommendation, c: C.textMuted };
-        if (!pb) return null;
-        return (
-          <Modal open onClose={() => setPlaybook(null)} title={`Maßnahme: ${rec.t}`} width={620}>
-            <div style={{ padding: "18px 22px", display: "flex", flexDirection: "column", gap: 16 }}>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 2 }}>{playbook.title}</div>
-                {playbook.url ? (
-                  <a href={playbook.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.accent, wordBreak: "break-all" }}>{playbook.url}</a>
-                ) : null}
-                <div style={{ fontSize: 12, color: C.textMuted, marginTop: 6 }}>
-                  Keyword: <b style={{ color: C.text }}>{playbook.primary_keyword || "—"}</b> · Klicks 28T: <b style={{ color: C.text }}>{playbook.clicks_28 ?? 0}</b> (Peak {playbook.peak_clicks_28 ?? 0}) · Ø-Pos: {playbook.position_28 ?? "—"} · Impr 28T: {playbook.impr_28 ?? 0}
-                </div>
-              </div>
-              <div style={{ padding: "10px 14px", borderRadius: 10, background: rec.c + "14", border: `1px solid ${rec.c}44`, fontSize: 12.5, color: C.text, lineHeight: 1.55 }}>
-                <b style={{ color: rec.c }}>Befund:</b> {pb.befund}
-              </div>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>So gehst du vor</div>
-                <ol style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 8 }}>
-                  {pb.schritte.map((s, i) => (
-                    <li key={i} style={{ fontSize: 13, color: C.text, lineHeight: 1.55 }}>{s}</li>
-                  ))}
-                </ol>
-              </div>
-              <div style={{ padding: "10px 14px", borderRadius: 10, background: C.green + "14", border: `1px solid ${C.green}44`, fontSize: 12.5, color: C.text, lineHeight: 1.55 }}>
-                <b style={{ color: C.green }}>Fertig, wenn:</b> {pb.exit}
-              </div>
-              {(() => {
-                const brief = briefs[playbook.id];
-                return (
-                  <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                        Konkrete Empfehlung für diesen Artikel
-                      </div>
-                      {!brief?.text ? (
-                        <Btn variant="secondary" size="sm" icon={Sparkles} disabled={!!brief?.loading} onClick={() => generateBrief(playbook)}>
-                          {brief?.loading ? "Analysiere…" : brief?.error ? "Nochmal versuchen" : "Mit KI erstellen"}
-                        </Btn>
-                      ) : null}
+      {playbook
+        ? (() => {
+            const pb = REC_PLAYBOOK[playbook.recommendation];
+            const rec = REC_META[playbook.recommendation] || {
+              t: playbook.recommendation,
+              c: C.textMuted,
+            };
+            if (!pb) return null;
+            return (
+              <Modal
+                open
+                onClose={() => setPlaybook(null)}
+                title={`Maßnahme: ${rec.t}`}
+                width={620}
+              >
+                <div
+                  style={{
+                    padding: "18px 22px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 16,
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 2 }}>
+                      {playbook.title}
                     </div>
-                    {brief?.loading ? (
-                      <div style={{ fontSize: 12.5, color: C.textMuted, lineHeight: 1.55 }}>
-                        Der Artikel wird live von der Kundenseite geladen und zusammen mit den 28-Tage-Zahlen analysiert — dauert ca. 20–30 Sekunden…
-                      </div>
-                    ) : brief?.error ? (
-                      <div style={{ fontSize: 12.5, color: C.red, lineHeight: 1.55 }}>{brief.error}</div>
-                    ) : brief?.text ? (
-                      <div
-                        style={{ fontSize: 13, color: C.text, lineHeight: 1.65, maxHeight: 340, overflowY: "auto", padding: "4px 2px" }}
-                        dangerouslySetInnerHTML={{ __html: markdownToHtml(brief.text) }}
-                      />
-                    ) : (
-                      <div style={{ fontSize: 12.5, color: C.textMuted, lineHeight: 1.55 }}>
-                        Lädt den Live-Artikel (Title, Meta, Überschriften) und die GSC-Zahlen und erstellt daraus einen Massnahmenplan mit konkreten Formulierungsvorschlägen — z. B. neue Title-Varianten, fehlende Themen-Abschnitte oder zu aktualisierende Inhalte.
-                      </div>
-                    )}
+                    {playbook.url ? (
+                      <a
+                        href={playbook.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ fontSize: 12, color: C.accent, wordBreak: "break-all" }}
+                      >
+                        {playbook.url}
+                      </a>
+                    ) : null}
+                    <div style={{ fontSize: 12, color: C.textMuted, marginTop: 6 }}>
+                      Keyword: <b style={{ color: C.text }}>{playbook.primary_keyword || "—"}</b> ·
+                      Klicks 28T: <b style={{ color: C.text }}>{playbook.clicks_28 ?? 0}</b> (Peak{" "}
+                      {playbook.peak_clicks_28 ?? 0}) · Ø-Pos: {playbook.position_28 ?? "—"} · Impr
+                      28T: {playbook.impr_28 ?? 0}
+                    </div>
                   </div>
-                );
-              })()}
-            </div>
-          </Modal>
-        );
-      })() : null}
+                  <div
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: 10,
+                      background: rec.c + "14",
+                      border: `1px solid ${rec.c}44`,
+                      fontSize: 12.5,
+                      color: C.text,
+                      lineHeight: 1.55,
+                    }}
+                  >
+                    <b style={{ color: rec.c }}>Befund:</b> {pb.befund}
+                  </div>
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: C.textMuted,
+                        textTransform: "uppercase",
+                        letterSpacing: 0.5,
+                        marginBottom: 8,
+                      }}
+                    >
+                      So gehst du vor
+                    </div>
+                    <ol
+                      style={{
+                        margin: 0,
+                        paddingLeft: 20,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 8,
+                      }}
+                    >
+                      {pb.schritte.map((s, i) => (
+                        <li key={i} style={{ fontSize: 13, color: C.text, lineHeight: 1.55 }}>
+                          {s}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                  <div
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: 10,
+                      background: C.green + "14",
+                      border: `1px solid ${C.green}44`,
+                      fontSize: 12.5,
+                      color: C.text,
+                      lineHeight: 1.55,
+                    }}
+                  >
+                    <b style={{ color: C.green }}>Fertig, wenn:</b> {pb.exit}
+                  </div>
+                  {(() => {
+                    const brief = briefs[playbook.id];
+                    return (
+                      <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14 }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            gap: 10,
+                            marginBottom: 8,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: C.textMuted,
+                              textTransform: "uppercase",
+                              letterSpacing: 0.5,
+                            }}
+                          >
+                            Konkrete Empfehlung für diesen Artikel
+                          </div>
+                          {!brief?.text ? (
+                            <Btn
+                              variant="secondary"
+                              size="sm"
+                              icon={Sparkles}
+                              disabled={!!brief?.loading}
+                              onClick={() => generateBrief(playbook)}
+                            >
+                              {brief?.loading
+                                ? "Analysiere…"
+                                : brief?.error
+                                  ? "Nochmal versuchen"
+                                  : "Mit KI erstellen"}
+                            </Btn>
+                          ) : null}
+                        </div>
+                        {brief?.loading ? (
+                          <div style={{ fontSize: 12.5, color: C.textMuted, lineHeight: 1.55 }}>
+                            Der Artikel wird live von der Kundenseite geladen und zusammen mit den
+                            28-Tage-Zahlen analysiert — dauert ca. 20–30 Sekunden…
+                          </div>
+                        ) : brief?.error ? (
+                          <div style={{ fontSize: 12.5, color: C.red, lineHeight: 1.55 }}>
+                            {brief.error}
+                          </div>
+                        ) : brief?.text ? (
+                          <div
+                            style={{
+                              fontSize: 13,
+                              color: C.text,
+                              lineHeight: 1.65,
+                              maxHeight: 340,
+                              overflowY: "auto",
+                              padding: "4px 2px",
+                            }}
+                            dangerouslySetInnerHTML={{ __html: markdownToHtml(brief.text) }}
+                          />
+                        ) : (
+                          <div style={{ fontSize: 12.5, color: C.textMuted, lineHeight: 1.55 }}>
+                            Lädt den Live-Artikel (Title, Meta, Überschriften) und die GSC-Zahlen
+                            und erstellt daraus einen Massnahmenplan mit konkreten
+                            Formulierungsvorschlägen — z. B. neue Title-Varianten, fehlende
+                            Themen-Abschnitte oder zu aktualisierende Inhalte.
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </Modal>
+            );
+          })()
+        : null}
     </div>
   );
 }
@@ -9136,9 +11506,14 @@ function ReportsPage({ items, selectedClient }) {
   const reports = useMemo(
     () =>
       (items || [])
-        .filter((it) => it.type === "report" && (!selectedClient?.id || it.clientId === selectedClient.id))
+        .filter(
+          (it) =>
+            it.type === "report" && (!selectedClient?.id || it.clientId === selectedClient.id),
+        )
         .sort((a, b) =>
-          String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")),
+          String(b.updatedAt || b.createdAt || "").localeCompare(
+            String(a.updatedAt || a.createdAt || ""),
+          ),
         ),
     [items, selectedClient],
   );
@@ -9233,7 +11608,14 @@ function ReportsPage({ items, selectedClient }) {
     </div>
   );
 }
-function ContentPage({ clients, items, onSaveContent, selectedClient, openEditId, onOpenEditConsumed }) {
+function ContentPage({
+  clients,
+  items,
+  onSaveContent,
+  selectedClient,
+  openEditId,
+  onOpenEditConsumed,
+}) {
   const toast = useToast();
   const [editing, setEditing] = useState(null);
   // Weiterbearbeiten-Flow (2026-08-18): von aussen angeforderter Entwurf wird
@@ -9251,7 +11633,9 @@ function ContentPage({ clients, items, onSaveContent, selectedClient, openEditId
   const stCo = { draft: C.textMuted, published: C.green, archived: C.textDim };
   const stLb = { draft: "Entwurf", published: "Publiziert", archived: "Archiviert" };
   // Content pro Kunde trennen: nur Inhalte des aktuell gewählten Kunden zeigen.
-  const clientItems = items.filter((it) => !selectedClient?.id || it.clientId === selectedClient.id);
+  const clientItems = items.filter(
+    (it) => !selectedClient?.id || it.clientId === selectedClient.id,
+  );
   const filtered = clientItems.filter(
     (it) =>
       (filter === "all" ? it.type !== "report" : it.type === filter) &&
@@ -9272,7 +11656,18 @@ function ContentPage({ clients, items, onSaveContent, selectedClient, openEditId
       return (
         <div style={{ padding: 30, fontSize: 13, color: C.textMuted }}>
           Entwurf nicht gefunden (evtl. noch nicht geladen).{" "}
-          <button onClick={() => setEditing(null)} style={{ background: "none", border: "none", color: C.accent, cursor: "pointer", fontSize: 13, fontFamily: "inherit", textDecoration: "underline" }}>
+          <button
+            onClick={() => setEditing(null)}
+            style={{
+              background: "none",
+              border: "none",
+              color: C.accent,
+              cursor: "pointer",
+              fontSize: 13,
+              fontFamily: "inherit",
+              textDecoration: "underline",
+            }}
+          >
             Zurück zur Liste
           </button>
         </div>
@@ -9341,69 +11736,71 @@ function ContentPage({ clients, items, onSaveContent, selectedClient, openEditId
       {filter === "report" ? (
         <ReportsPage items={items} selectedClient={selectedClient} />
       ) : (
-      <div
-        style={{
-          background: C.card,
-          border: `1px solid ${C.border}`,
-          borderRadius: 14,
-          overflow: "hidden",
-        }}
-      >
-        {filtered.length === 0 ? (
-          <div style={{ padding: 40, textAlign: "center" }}>
-            <FileText size={32} color={C.textDim} style={{ marginBottom: 12 }} />
-            <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Noch kein Content</div>
-            <div style={{ fontSize: 13, color: C.textMuted, maxWidth: 440, margin: "0 auto" }}>
-              Nächster Schritt: unter <strong style={{ color: C.text }}>AI-Tools → Content erstellen</strong> z. B.
-              «Blog Post generieren» starten und das Ergebnis dort «Als Entwurf speichern» — es erscheint dann hier.
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 14,
+            overflow: "hidden",
+          }}
+        >
+          {filtered.length === 0 ? (
+            <div style={{ padding: 40, textAlign: "center" }}>
+              <FileText size={32} color={C.textDim} style={{ marginBottom: 12 }} />
+              <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Noch kein Content</div>
+              <div style={{ fontSize: 13, color: C.textMuted, maxWidth: 440, margin: "0 auto" }}>
+                Nächster Schritt: unter{" "}
+                <strong style={{ color: C.text }}>AI-Tools → Content erstellen</strong> z. B. «Blog
+                Post generieren» starten und das Ergebnis dort «Als Entwurf speichern» — es
+                erscheint dann hier.
+              </div>
             </div>
-          </div>
-        ) : (
-          filtered.map((it, i) => {
-            const TI = typeIc[it.type] || FileText;
-            const cl = clients.find((c) => c.id === it.clientId);
-            return (
-              <div
-                key={it.id}
-                onClick={() => setEditing(it.id)}
-                style={{
-                  padding: "14px 20px",
-                  borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : "none",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 14,
-                  cursor: "pointer",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = C.cardHover)}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-              >
+          ) : (
+            filtered.map((it, i) => {
+              const TI = typeIc[it.type] || FileText;
+              const cl = clients.find((c) => c.id === it.clientId);
+              return (
                 <div
+                  key={it.id}
+                  onClick={() => setEditing(it.id)}
                   style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 8,
-                    background: `${typeCo[it.type]}18`,
+                    padding: "14px 20px",
+                    borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : "none",
                     display: "flex",
                     alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
+                    gap: 14,
+                    cursor: "pointer",
                   }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = C.cardHover)}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                 >
-                  <TI size={16} color={typeCo[it.type]} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: C.text }}>{it.title}</div>
-                  <div style={{ fontSize: 11, color: C.textMuted }}>
-                    {cl?.name || "—"} • {it.wordCount} Wörter • {it.updatedAt}
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 8,
+                      background: `${typeCo[it.type]}18`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <TI size={16} color={typeCo[it.type]} />
                   </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: C.text }}>{it.title}</div>
+                    <div style={{ fontSize: 11, color: C.textMuted }}>
+                      {cl?.name || "—"} • {it.wordCount} Wörter • {it.updatedAt}
+                    </div>
+                  </div>
+                  <Badge color={typeCo[it.type]}>{it.type}</Badge>
+                  <Badge color={stCo[it.status]}>{stLb[it.status]}</Badge>
                 </div>
-                <Badge color={typeCo[it.type]}>{it.type}</Badge>
-                <Badge color={stCo[it.status]}>{stLb[it.status]}</Badge>
-              </div>
-            );
-          })
-        )}
-      </div>
+              );
+            })
+          )}
+        </div>
       )}
     </div>
   );
@@ -9439,7 +11836,9 @@ function WordPressClientPanel({ client }) {
       setLoading(false);
     }
   }, [client?.id]);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const connect = async () => {
     if (!siteUrl.trim() || !username.trim() || !appPassword.trim()) {
@@ -9451,8 +11850,16 @@ function WordPressClientPanel({ client }) {
       const session = (await supabase.auth.getSession()).data.session;
       const r = await fetch("/api/wordpress/connection", {
         method: "POST",
-        headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId: client.id, siteUrl: siteUrl.trim(), username: username.trim(), appPassword: appPassword.trim() }),
+        headers: {
+          Authorization: `Bearer ${session?.access_token || ""}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          clientId: client.id,
+          siteUrl: siteUrl.trim(),
+          username: username.trim(),
+          appPassword: appPassword.trim(),
+        }),
       });
       const j = await r.json().catch(() => ({}));
       if (j.ok) {
@@ -9476,7 +11883,10 @@ function WordPressClientPanel({ client }) {
       const session = (await supabase.auth.getSession()).data.session;
       await fetch("/api/wordpress/connection", {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
+        headers: {
+          Authorization: `Bearer ${session?.access_token || ""}`,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ clientId: client.id }),
       });
       toast("WordPress getrennt", "success");
@@ -9506,11 +11916,33 @@ function WordPressClientPanel({ client }) {
 
   if (status?.connected) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, background: C.bg, border: `1px solid ${C.green}44`, borderRadius: 10, padding: "12px 14px" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          background: C.bg,
+          border: `1px solid ${C.green}44`,
+          borderRadius: 10,
+          padding: "12px 14px",
+        }}
+      >
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-          <span style={{ color: C.green, flexShrink: 0 }}><Check size={16} /></span>
+          <span style={{ color: C.green, flexShrink: 0 }}>
+            <Check size={16} />
+          </span>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 13, color: C.text, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <div
+              style={{
+                fontSize: 13,
+                color: C.text,
+                fontWeight: 600,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
               {status.siteUrl}
             </div>
             <div style={{ fontSize: 11, color: C.textDim }}>Benutzer: {status.username}</div>
@@ -9519,7 +11951,17 @@ function WordPressClientPanel({ client }) {
         <button
           onClick={disconnect}
           disabled={busy}
-          style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.textMuted, cursor: "pointer", fontSize: 12, fontFamily: "inherit", flexShrink: 0 }}
+          style={{
+            padding: "6px 12px",
+            borderRadius: 8,
+            border: `1px solid ${C.border}`,
+            background: "transparent",
+            color: C.textMuted,
+            cursor: "pointer",
+            fontSize: 12,
+            fontFamily: "inherit",
+            flexShrink: 0,
+          }}
         >
           Trennen
         </button>
@@ -9529,10 +11971,30 @@ function WordPressClientPanel({ client }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <input style={inputStyle} placeholder="WordPress-URL (z.B. kunde.ch)" value={siteUrl} onChange={(e) => setSiteUrl(e.target.value)} />
-      <input style={inputStyle} placeholder="WP-Benutzername" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="off" />
-      <input style={inputStyle} type="password" placeholder="Application Password" value={appPassword} onChange={(e) => setAppPassword(e.target.value)} autoComplete="new-password" />
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+      <input
+        style={inputStyle}
+        placeholder="WordPress-URL (z.B. kunde.ch)"
+        value={siteUrl}
+        onChange={(e) => setSiteUrl(e.target.value)}
+      />
+      <input
+        style={inputStyle}
+        placeholder="WP-Benutzername"
+        value={username}
+        onChange={(e) => setUsername(e.target.value)}
+        autoComplete="off"
+      />
+      <input
+        style={inputStyle}
+        type="password"
+        placeholder="Application Password"
+        value={appPassword}
+        onChange={(e) => setAppPassword(e.target.value)}
+        autoComplete="new-password"
+      />
+      <div
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}
+      >
         <a
           href="https://wordpress.org/documentation/article/application-passwords/"
           target="_blank"
@@ -9544,13 +12006,24 @@ function WordPressClientPanel({ client }) {
         <button
           onClick={connect}
           disabled={busy}
-          style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: C.accent, color: "#fff", cursor: busy ? "default" : "pointer", fontSize: 13, fontWeight: 600, fontFamily: "inherit" }}
+          style={{
+            padding: "8px 16px",
+            borderRadius: 8,
+            border: "none",
+            background: C.accent,
+            color: "#fff",
+            cursor: busy ? "default" : "pointer",
+            fontSize: 13,
+            fontWeight: 600,
+            fontFamily: "inherit",
+          }}
         >
           {busy ? "Verbinde…" : "Verbinden & testen"}
         </button>
       </div>
       <div style={{ fontSize: 11, color: C.textDim, lineHeight: 1.5 }}>
-        In WordPress unter <strong>Benutzer → Profil → Application Passwords</strong> ein neues Passwort erstellen. Erfordert WordPress 5.6+ und HTTPS.
+        In WordPress unter <strong>Benutzer → Profil → Application Passwords</strong> ein neues
+        Passwort erstellen. Erfordert WordPress 5.6+ und HTTPS.
       </div>
     </div>
   );
@@ -9563,7 +12036,11 @@ function OnboardingCard({ client, onUpdated }) {
     String(client?.id || ""),
   );
   const steps = [
-    { ok: !!client?.domain, label: "Domain hinterlegt", hint: "Basis für Backlinks & Core Web Vitals" },
+    {
+      ok: !!client?.domain,
+      label: "Domain hinterlegt",
+      hint: "Basis für Backlinks & Core Web Vitals",
+    },
     {
       ok: !!client?.canonryProject,
       label: "Canonry-Projekt (GEO)",
@@ -9620,7 +12097,9 @@ function OnboardingCard({ client, onUpdated }) {
           marginBottom: 12,
         }}
       >
-        <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Onboarding / Verbindungen</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>
+          Onboarding / Verbindungen
+        </div>
         <div style={{ fontSize: 12, color: done === steps.length ? C.green : C.textMuted }}>
           {done}/{steps.length} eingerichtet
         </div>
@@ -9711,7 +12190,10 @@ function onboardingConnections(tabsSet, servicesSet) {
     out.push({
       key: "gsc",
       label: "Google Search Console",
-      reason: why([tabsSet.has("seo") && "Dashboard SEO", servicesSet.has("gsc") && "Dienst Search Console"]),
+      reason: why([
+        tabsSet.has("seo") && "Dashboard SEO",
+        servicesSet.has("gsc") && "Dienst Search Console",
+      ]),
       action: "Oben „Mit Google verbinden“ klicken und die GSC-Property eintragen.",
       field: "gscSiteUrl",
       placeholder: "sc-domain:example.com",
@@ -9720,7 +12202,10 @@ function onboardingConnections(tabsSet, servicesSet) {
     out.push({
       key: "ga4",
       label: "Google Analytics 4",
-      reason: why([tabsSet.has("conversions") && "Dashboard Conversions", servicesSet.has("ga4") && "Dienst GA4"]),
+      reason: why([
+        tabsSet.has("conversions") && "Dashboard Conversions",
+        servicesSet.has("ga4") && "Dienst GA4",
+      ]),
       action: "Oben „Mit Google verbinden“ klicken und die GA4-Property-ID eintragen.",
       field: "ga4PropertyId",
       placeholder: "z. B. 123456789",
@@ -9729,14 +12214,21 @@ function onboardingConnections(tabsSet, servicesSet) {
     out.push({
       key: "google-ads",
       label: "Google Ads",
-      reason: why([tabsSet.has("ads") && "Dashboard Google Ads", servicesSet.has("google-ads") && "Dienst Google Ads"]),
-      action: "Oben „Mit Google verbinden“ klicken; die Ads-Customer-ID hinterlegst du im Kunden-Panel.",
+      reason: why([
+        tabsSet.has("ads") && "Dashboard Google Ads",
+        servicesSet.has("google-ads") && "Dienst Google Ads",
+      ]),
+      action:
+        "Oben „Mit Google verbinden“ klicken; die Ads-Customer-ID hinterlegst du im Kunden-Panel.",
     });
   if (tabsSet.has("aivis") || servicesSet.has("canonry"))
     out.push({
       key: "canonry",
       label: "Canonry (GEO)",
-      reason: why([tabsSet.has("aivis") && "Dashboard KI-Sichtbarkeit", servicesSet.has("canonry") && "Dienst Canonry"]),
+      reason: why([
+        tabsSet.has("aivis") && "Dashboard KI-Sichtbarkeit",
+        servicesSet.has("canonry") && "Dienst Canonry",
+      ]),
       action: "Wird beim Anlegen automatisch eingerichtet — keine Aktion nötig.",
       auto: true,
     });
@@ -9801,12 +12293,17 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
       const session = (await supabase.auth.getSession()).data.session;
       const r = await fetch("/api/google/connection", {
         method: "POST",
-        headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
+        headers: {
+          Authorization: `Bearer ${session?.access_token || ""}`,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ clientId }),
       });
       const j = await r.json().catch(() => null);
       if (r.ok && j) setGConn(j);
-    } catch { /* Status unbekannt */ }
+    } catch {
+      /* Status unbekannt */
+    }
   };
   useEffect(() => {
     if (step === 3 && created?.id) loadGoogleConn(created.id);
@@ -9816,9 +12313,12 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
     setGBusy(true);
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const res = await fetch(`/api/google/oauth/start?client_id=${encodeURIComponent(created.id)}`, {
-        headers: { Authorization: `Bearer ${session?.access_token || ""}` },
-      });
+      const res = await fetch(
+        `/api/google/oauth/start?client_id=${encodeURIComponent(created.id)}`,
+        {
+          headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+        },
+      );
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.url) throw new Error(json.error || `HTTP ${res.status}`);
       const popup = window.open(json.url, "google-oauth", "width=520,height=640");
@@ -9853,13 +12353,24 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
     setGResErr("");
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const headers = { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" };
+      const headers = {
+        Authorization: `Bearer ${session?.access_token || ""}`,
+        "Content-Type": "application/json",
+      };
       const body = JSON.stringify({ clientId: created.id });
       const needGsc = connections.some((c) => c.key === "gsc");
       const needGa4 = connections.some((c) => c.key === "ga4");
       const [gsc, ga4] = await Promise.all([
-        needGsc ? fetch("/api/google/gsc-sites", { method: "POST", headers, body }).then((r) => r.json()).catch(() => null) : Promise.resolve(null),
-        needGa4 ? fetch("/api/google/ga4-properties", { method: "POST", headers, body }).then((r) => r.json()).catch(() => null) : Promise.resolve(null),
+        needGsc
+          ? fetch("/api/google/gsc-sites", { method: "POST", headers, body })
+              .then((r) => r.json())
+              .catch(() => null)
+          : Promise.resolve(null),
+        needGa4
+          ? fetch("/api/google/ga4-properties", { method: "POST", headers, body })
+              .then((r) => r.json())
+              .catch(() => null)
+          : Promise.resolve(null),
       ]);
       setGRes({
         gsc: gsc?.ok ? gsc.sites || [] : needGsc ? [] : null,
@@ -9877,7 +12388,14 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
   };
   // Sobald in Schritt 3 verbunden ist, Auswahllisten einmal automatisch laden.
   useEffect(() => {
-    if (step === 3 && gConn?.connected && created?.id && gRes.gsc === null && gRes.ga4 === null && !gResBusy) {
+    if (
+      step === 3 &&
+      gConn?.connected &&
+      created?.id &&
+      gRes.gsc === null &&
+      gRes.ga4 === null &&
+      !gResBusy
+    ) {
       void loadGoogleResources();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -9923,7 +12441,8 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
       if (draft.gscSiteUrl.trim()) patch.gscSiteUrl = draft.gscSiteUrl.trim();
       if (draft.ga4PropertyId.trim()) patch.ga4PropertyId = draft.ga4PropertyId.trim();
       let final = created;
-      if (created && Object.keys(patch).length) final = (await onCreate({ ...created, ...patch })) || created;
+      if (created && Object.keys(patch).length)
+        final = (await onCreate({ ...created, ...patch })) || created;
       onFinished?.(final);
       if (openPanel && final) onOpenPanel?.(final);
       onClose();
@@ -9940,8 +12459,14 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
         <div key={s} style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div
             style={{
-              width: 26, height: 26, borderRadius: 13, display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 12, fontWeight: 700,
+              width: 26,
+              height: 26,
+              borderRadius: 13,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 12,
+              fontWeight: 700,
               background: s === step ? C.accent : s < step ? `${C.green}33` : C.surface,
               color: s === step ? "#fff" : s < step ? C.green : C.textDim,
               border: `1px solid ${s <= step ? "transparent" : C.border}`,
@@ -9949,7 +12474,13 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
           >
             {s < step ? "✓" : s}
           </div>
-          <span style={{ fontSize: 12, color: s === step ? C.text : C.textDim, fontWeight: s === step ? 600 : 400 }}>
+          <span
+            style={{
+              fontSize: 12,
+              color: s === step ? C.text : C.textDim,
+              fontWeight: s === step ? 600 : 400,
+            }}
+          >
             {s === 1 ? "Kundendaten" : s === 2 ? "Dashboards & Dienste" : "Verbindungen"}
           </span>
           {s < 3 && <div style={{ width: 24, height: 1, background: C.border }} />}
@@ -9968,14 +12499,30 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
               Kunden-Editor („Bearbeiten") pflegbar; Umsatz-Modus ist fix
               "revenue" (Umsatz-Tracking vollständig, Draft-Default) — keine
               Auswahl mehr beim Onboarding. */}
-          <div className="ezy-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <div
+            className="ezy-form-grid"
+            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}
+          >
             <Inp label="Name" value={draft.name} onChange={set("name")} required />
-            <Inp label="Domain" value={draft.domain} onChange={set("domain")} placeholder="example.com" required />
+            <Inp
+              label="Domain"
+              value={draft.domain}
+              onChange={set("domain")}
+              placeholder="example.com"
+              required
+            />
             <Inp label="Branche" value={draft.industry} onChange={set("industry")} />
-            <Inp label="Status" value={draft.status} onChange={set("status")} options={["active", "paused"]} />
+            <Inp
+              label="Status"
+              value={draft.status}
+              onChange={set("status")}
+              options={["active", "paused"]}
+            />
           </div>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
-            <Btn variant="secondary" onClick={onClose}>Abbrechen</Btn>
+            <Btn variant="secondary" onClick={onClose}>
+              Abbrechen
+            </Btn>
             <Btn
               onClick={() => {
                 if (!draft.name.trim() || !draft.domain.trim()) {
@@ -9992,21 +12539,34 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
       )}
       {step === 2 && (
         <>
-          <div style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: "0 0 6px" }}>Dashboards</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: "0 0 6px" }}>
+            Dashboards
+          </div>
           <p style={{ fontSize: 11, color: C.textMuted, margin: "0 0 10px" }}>
             Welche Bereiche soll dieser Kunde im Dashboard sehen?
           </p>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 18 }}>
+          <div
+            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 18 }}
+          >
             {ONBOARD_TABS.map((t) => {
               const on = tabsSel.has(t.id);
               return (
-                <button key={t.id} type="button" onClick={() => toggleTab(t.id)}
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => toggleTab(t.id)}
                   style={{
-                    textAlign: "left", padding: "10px 12px", borderRadius: 10, cursor: "pointer",
+                    textAlign: "left",
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    cursor: "pointer",
                     border: `1px solid ${on ? C.accent : C.border}`,
                     background: on ? C.accentDim : "transparent",
-                  }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: on ? C.accentLight : C.text }}>
+                  }}
+                >
+                  <div
+                    style={{ fontSize: 13, fontWeight: 600, color: on ? C.accentLight : C.text }}
+                  >
                     {on ? "☑" : "☐"} {t.label}
                   </div>
                   <div style={{ fontSize: 11, color: C.textDim }}>{t.hint}</div>
@@ -10014,13 +12574,21 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
               );
             })}
           </div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: "0 0 6px" }}>Dienste</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: "0 0 6px" }}>
+            Dienste
+          </div>
           <p style={{ fontSize: 11, color: C.textMuted, margin: "0 0 10px" }}>
             Aktivierte Dienste werden fuer diesen Kunden freigeschaltet (client_integrations).
           </p>
-          <ServicesPicker C={C} value={draft.services} onChange={(next) => setDraft((p) => ({ ...p, services: next }))} />
+          <ServicesPicker
+            C={C}
+            value={draft.services}
+            onChange={(next) => setDraft((p) => ({ ...p, services: next }))}
+          />
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 16 }}>
-            <Btn variant="secondary" onClick={() => setStep(1)}>Zurück</Btn>
+            <Btn variant="secondary" onClick={() => setStep(1)}>
+              Zurück
+            </Btn>
             <Btn onClick={createClient} disabled={busy}>
               {busy ? "Wird angelegt…" : "Kunde anlegen & weiter: Verbindungen"}
             </Btn>
@@ -10030,7 +12598,8 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
       {step === 3 && (
         <>
           <p style={{ fontSize: 12, color: C.textMuted, margin: "0 0 12px" }}>
-            Basierend auf deiner Auswahl braucht <strong style={{ color: C.text }}>{created?.name || draft.name}</strong> diese
+            Basierend auf deiner Auswahl braucht{" "}
+            <strong style={{ color: C.text }}>{created?.name || draft.name}</strong> diese
             Verbindungen. Properties kannst du direkt hier eintragen.
           </p>
           {connections.some((c) => ["gsc", "ga4", "google-ads", "gbp"].includes(c.key)) && (
@@ -10076,65 +12645,126 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
           )}
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {connections.length === 0 && (
-              <div style={{ fontSize: 13, color: C.textMuted, padding: 12, background: C.surface, borderRadius: 10 }}>
+              <div
+                style={{
+                  fontSize: 13,
+                  color: C.textMuted,
+                  padding: 12,
+                  background: C.surface,
+                  borderRadius: 10,
+                }}
+              >
                 Keine Verbindungen nötig — dieser Kunde nutzt nur globale Dienste.
               </div>
             )}
             {connections.map((c) => (
-              <div key={c.key} style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", background: C.card }}>
+              <div
+                key={c.key}
+                style={{
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 12,
+                  padding: "12px 14px",
+                  background: C.card,
+                }}
+              >
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{c.label}</span>
                   {c.auto && <Badge color={C.green}>automatisch</Badge>}
                   {c.reason.map((r) => (
-                    <Badge key={r} color={C.blue}>{r}</Badge>
+                    <Badge key={r} color={C.blue}>
+                      {r}
+                    </Badge>
                   ))}
                 </div>
                 <div style={{ fontSize: 12, color: C.textMuted, marginTop: 4 }}>{c.action}</div>
-                {c.field && (() => {
-                  const list = c.key === "gsc" ? gRes.gsc : c.key === "ga4" ? gRes.ga4 : null;
-                  const hasList = Array.isArray(list) && list.length > 0;
-                  const fieldLabel = c.key === "gsc" ? "GSC Property" : "GA4 Property ID";
-                  return (
-                    <div style={{ marginTop: 8, maxWidth: 440 }}>
-                      {gConn?.connected && hasList ? (
-                        <label style={{ display: "block" }}>
-                          <span style={{ fontSize: 12, color: C.textMuted }}>{fieldLabel} — aus Google wählen</span>
-                          <select
+                {c.field &&
+                  (() => {
+                    const list = c.key === "gsc" ? gRes.gsc : c.key === "ga4" ? gRes.ga4 : null;
+                    const hasList = Array.isArray(list) && list.length > 0;
+                    const fieldLabel = c.key === "gsc" ? "GSC Property" : "GA4 Property ID";
+                    return (
+                      <div style={{ marginTop: 8, maxWidth: 440 }}>
+                        {gConn?.connected && hasList ? (
+                          <label style={{ display: "block" }}>
+                            <span style={{ fontSize: 12, color: C.textMuted }}>
+                              {fieldLabel} — aus Google wählen
+                            </span>
+                            <select
+                              value={draft[c.field]}
+                              onChange={(e) => set(c.field)(e.target.value)}
+                              style={{
+                                width: "100%",
+                                marginTop: 4,
+                                background: C.card,
+                                color: C.text,
+                                border: `1px solid ${C.border}`,
+                                borderRadius: 8,
+                                padding: "8px 10px",
+                                fontSize: 13,
+                              }}
+                            >
+                              <option value="">— auswählen —</option>
+                              {list.map((o) => {
+                                const val = c.key === "gsc" ? o.url : o.id;
+                                const lbl =
+                                  c.key === "gsc"
+                                    ? o.url
+                                    : `${o.account ? `${o.account} · ` : ""}${o.displayName || o.id} (${o.id})`;
+                                return (
+                                  <option key={val} value={val}>
+                                    {lbl}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                          </label>
+                        ) : (
+                          <Inp
+                            label={fieldLabel}
                             value={draft[c.field]}
-                            onChange={(e) => set(c.field)(e.target.value)}
-                            style={{ width: "100%", marginTop: 4, background: C.card, color: C.text, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+                            onChange={set(c.field)}
+                            placeholder={c.placeholder}
+                          />
+                        )}
+                        {gConn?.connected && (
+                          <div
+                            style={{
+                              marginTop: 6,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              flexWrap: "wrap",
+                            }}
                           >
-                            <option value="">— auswählen —</option>
-                            {list.map((o) => {
-                              const val = c.key === "gsc" ? o.url : o.id;
-                              const lbl = c.key === "gsc"
-                                ? o.url
-                                : `${o.account ? `${o.account} · ` : ""}${o.displayName || o.id} (${o.id})`;
-                              return <option key={val} value={val}>{lbl}</option>;
-                            })}
-                          </select>
-                        </label>
-                      ) : (
-                        <Inp label={fieldLabel} value={draft[c.field]} onChange={set(c.field)} placeholder={c.placeholder} />
-                      )}
-                      {gConn?.connected && (
-                        <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                          <button
-                            type="button"
-                            onClick={loadGoogleResources}
-                            disabled={gResBusy}
-                            style={{ fontSize: 11, color: C.accentLight, background: "none", border: "none", cursor: gResBusy ? "default" : "pointer", padding: 0 }}
-                          >
-                            {gResBusy ? "Lädt aus Google…" : hasList ? "↻ Neu aus Google laden" : "Aus Google laden"}
-                          </button>
-                          {Array.isArray(list) && list.length === 0 && !gResBusy && (
-                            <span style={{ fontSize: 11, color: C.textDim }}>Keine gefunden — manuell eintragen.</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
+                            <button
+                              type="button"
+                              onClick={loadGoogleResources}
+                              disabled={gResBusy}
+                              style={{
+                                fontSize: 11,
+                                color: C.accentLight,
+                                background: "none",
+                                border: "none",
+                                cursor: gResBusy ? "default" : "pointer",
+                                padding: 0,
+                              }}
+                            >
+                              {gResBusy
+                                ? "Lädt aus Google…"
+                                : hasList
+                                  ? "↻ Neu aus Google laden"
+                                  : "Aus Google laden"}
+                            </button>
+                            {Array.isArray(list) && list.length === 0 && !gResBusy && (
+                              <span style={{ fontSize: 11, color: C.textDim }}>
+                                Keine gefunden — manuell eintragen.
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
               </div>
             ))}
           </div>
@@ -10142,7 +12772,9 @@ function OnboardingWizard({ open, onClose, effectiveDefaults, onCreate, onFinish
             DataForSEO & Co. laufen über globale Schlüssel — dafür ist nichts zu tun.
           </p>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 16 }}>
-            <Btn variant="secondary" onClick={() => finish(false)} disabled={busy}>Später verbinden — fertig</Btn>
+            <Btn variant="secondary" onClick={() => finish(false)} disabled={busy}>
+              Später verbinden — fertig
+            </Btn>
             <Btn onClick={() => finish(true)} disabled={busy}>
               {busy ? "Speichert…" : "Speichern & Kunden-Panel öffnen"}
             </Btn>
@@ -10203,14 +12835,18 @@ function TeamPage({ clients }) {
   };
   const setRole = async (userId, r) => {
     const j = await callTeam({ action: "setRole", userId, role: r });
-    if (j.ok) { toast("Rolle aktualisiert", "success"); await load(); }
-    else toast(j.error || "Fehlgeschlagen", "error");
+    if (j.ok) {
+      toast("Rolle aktualisiert", "success");
+      await load();
+    } else toast(j.error || "Fehlgeschlagen", "error");
   };
   const remove = async (userId, email) => {
     if (!window.confirm(`${email || "Nutzer"} aus dem Team entfernen?`)) return;
     const j = await callTeam({ action: "remove", userId });
-    if (j.ok) { toast("Entfernt", "success"); await load(); }
-    else toast(j.error || "Fehlgeschlagen", "error");
+    if (j.ok) {
+      toast("Entfernt", "success");
+      await load();
+    } else toast(j.error || "Fehlgeschlagen", "error");
   };
   const openAssign = (u) => {
     setExpanded(u.userId);
@@ -10220,12 +12856,20 @@ function TeamPage({ clients }) {
     setBusy(true);
     const j = await callTeam({ action: "assign", userId, clientIds: [...draftAccess] });
     setBusy(false);
-    if (j.ok) { toast(`${j.assigned} Kunden zugewiesen`, "success"); setExpanded(null); await load(); }
-    else toast(j.error || "Fehlgeschlagen", "error");
+    if (j.ok) {
+      toast(`${j.assigned} Kunden zugewiesen`, "success");
+      setExpanded(null);
+      await load();
+    } else toast(j.error || "Fehlgeschlagen", "error");
   };
   // Admin-Umbau 06.08.: viewer = Kunden-Login (Portal) — kuratierte Sicht,
   // Funktions-Freischaltung über Kunden-Detail → App-Zugriff.
-  const roleLabel = { owner: "SuperAdmin", admin: "Admin", member: "Mitarbeiter", viewer: "Kunde (Portal)" };
+  const roleLabel = {
+    owner: "SuperAdmin",
+    admin: "Admin",
+    member: "Mitarbeiter",
+    viewer: "Kunde (Portal)",
+  };
   const roleColor = { owner: C.pink, admin: C.accent, member: C.green, viewer: C.textDim };
 
   // App-Zugriffe (Plattform-Umbau Phase 1, 2026-07-31): welcher Member darf
@@ -10238,12 +12882,16 @@ function TeamPage({ clients }) {
     for (const r of data || []) (m[r.user_id] = m[r.user_id] || new Set()).add(r.app);
     setAppAccessMap(m);
   }, []);
-  useEffect(() => { void loadAppAccess(); }, [loadAppAccess]);
+  useEffect(() => {
+    void loadAppAccess();
+  }, [loadAppAccess]);
   const toggleApp = async (userId, app) => {
     const has = appAccessMap[userId]?.has(app);
     const q = has
       ? supabase.from("app_access").delete().eq("user_id", userId).eq("app", app)
-      : supabase.from("app_access").insert({ user_id: userId, organization_id: organizationId, app });
+      : supabase
+          .from("app_access")
+          .insert({ user_id: userId, organization_id: organizationId, app });
     const { error } = await q;
     if (error) toast(error.message || "App-Zugriff fehlgeschlagen", "error");
     await loadAppAccess();
@@ -10260,22 +12908,44 @@ function TeamPage({ clients }) {
       </div>
 
       {/* Einladen */}
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
+      <div
+        style={{
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: 14,
+          padding: 16,
+        }}
+      >
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Mitarbeiter einladen</div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div style={{ flex: 1, minWidth: 220 }}>
-            <Inp label="E-Mail" value={inviteEmail} onChange={setInviteEmail} placeholder="mitarbeiter@firma.ch" />
+            <Inp
+              label="E-Mail"
+              value={inviteEmail}
+              onChange={setInviteEmail}
+              placeholder="mitarbeiter@firma.ch"
+            />
           </div>
           <div style={{ minWidth: 160 }}>
             <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>Rolle</div>
             <select
               value={inviteRole}
               onChange={(e) => setInviteRole(e.target.value)}
-              style={{ width: "100%", padding: "9px 10px", borderRadius: 8, background: C.surface, color: C.text, border: `1px solid ${C.border}`, fontSize: 13 }}
+              style={{
+                width: "100%",
+                padding: "9px 10px",
+                borderRadius: 8,
+                background: C.surface,
+                color: C.text,
+                border: `1px solid ${C.border}`,
+                fontSize: 13,
+              }}
             >
               <option value="member">Mitarbeiter (Audits + zugewiesene Kunden)</option>
               <option value="viewer">Kunde / Portal (nur freigeschaltete Funktionen)</option>
-              {myRole === "owner" && <option value="admin">Admin (alle Kunden, volle Rechte)</option>}
+              {myRole === "owner" && (
+                <option value="admin">Admin (alle Kunden, volle Rechte)</option>
+              )}
             </select>
           </div>
           <Btn onClick={invite} disabled={busy || !inviteEmail.trim()}>
@@ -10288,7 +12958,14 @@ function TeamPage({ clients }) {
       </div>
 
       {/* Nutzerliste */}
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
+      <div
+        style={{
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: 14,
+          padding: 16,
+        }}
+      >
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
           Nutzer ({users.length})
         </div>
@@ -10297,10 +12974,17 @@ function TeamPage({ clients }) {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {users.map((u) => (
-              <div key={u.userId} style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px" }}>
+              <div
+                key={u.userId}
+                style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px" }}
+              >
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>{u.email || u.userId.slice(0, 8)}</span>
-                  <Badge color={roleColor[u.role] || C.textDim}>{roleLabel[u.role] || u.role}</Badge>
+                  <span style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>
+                    {u.email || u.userId.slice(0, 8)}
+                  </span>
+                  <Badge color={roleColor[u.role] || C.textDim}>
+                    {roleLabel[u.role] || u.role}
+                  </Badge>
                   {u.self && <Badge color={C.blue}>Du</Badge>}
                   {u.role !== "owner" && u.role !== "admin" && (
                     <span style={{ fontSize: 11, color: C.textMuted }}>
@@ -10312,7 +12996,11 @@ function TeamPage({ clients }) {
                   )}
                   <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
                     {!u.self && u.role !== "owner" && u.role !== "admin" && (
-                      <Btn variant="secondary" size="sm" onClick={() => (expanded === u.userId ? setExpanded(null) : openAssign(u))}>
+                      <Btn
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => (expanded === u.userId ? setExpanded(null) : openAssign(u))}
+                      >
                         Berechtigungen
                       </Btn>
                     )}
@@ -10320,7 +13008,14 @@ function TeamPage({ clients }) {
                       <select
                         value={u.role}
                         onChange={(e) => setRole(u.userId, e.target.value)}
-                        style={{ padding: "5px 8px", borderRadius: 7, background: C.surface, color: C.text, border: `1px solid ${C.border}`, fontSize: 12 }}
+                        style={{
+                          padding: "5px 8px",
+                          borderRadius: 7,
+                          background: C.surface,
+                          color: C.text,
+                          border: `1px solid ${C.border}`,
+                          fontSize: 12,
+                        }}
                       >
                         <option value="member">Mitarbeiter</option>
                         <option value="viewer">Nur-Lesen</option>
@@ -10328,18 +13023,30 @@ function TeamPage({ clients }) {
                       </select>
                     )}
                     {!u.self && u.role !== "owner" && (
-                      <Btn variant="danger" size="sm" onClick={() => remove(u.userId, u.email)}>Entfernen</Btn>
+                      <Btn variant="danger" size="sm" onClick={() => remove(u.userId, u.email)}>
+                        Entfernen
+                      </Btn>
                     )}
                   </div>
                 </div>
                 {/* Konsolidiert (Phase C, 06.08.): EIN Berechtigungen-Panel pro
                     Person — Apps + Kunden zusammen, statt zwei Bedienstellen. */}
                 {expanded === u.userId && (
-                  <div style={{ marginTop: 10, borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>
+                  <div
+                    style={{ marginTop: 10, borderTop: `1px solid ${C.border}`, paddingTop: 10 }}
+                  >
                     <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 6 }}>
                       Apps: welche Apps darf {u.email || "diese Person"} öffnen?
                     </div>
-                    <div style={{ display: "flex", gap: 6, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 6,
+                        marginBottom: 12,
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                      }}
+                    >
                       {EZY_APPS.filter((a) => !a.adminOnly).map((a) => {
                         const on = appAccessMap[u.userId]?.has(a.id);
                         return (
@@ -10349,8 +13056,13 @@ function TeamPage({ clients }) {
                             onClick={() => toggleApp(u.userId, a.id)}
                             title={on ? `${a.name} entziehen` : `${a.name} freischalten`}
                             style={{
-                              display: "inline-flex", alignItems: "center", gap: 5,
-                              padding: "4px 10px", borderRadius: 99, cursor: "pointer", fontSize: 11.5,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 5,
+                              padding: "4px 10px",
+                              borderRadius: 99,
+                              cursor: "pointer",
+                              fontSize: 11.5,
                               border: `1px solid ${on ? a.color : C.border}`,
                               background: on ? a.tint : "transparent",
                               color: on ? a.color : C.textDim,
@@ -10365,7 +13077,14 @@ function TeamPage({ clients }) {
                       Kunden: welche Kunden darf {u.email || "diese Person"} sehen?
                       {u.role === "viewer" && " (Portal-Logins gehören zu genau EINEM Kunden)"}
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 6, marginBottom: 10 }}>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))",
+                        gap: 6,
+                        marginBottom: 10,
+                      }}
+                    >
                       {clients.map((c) => {
                         const on = draftAccess.has(c.id);
                         return (
@@ -10375,28 +13094,56 @@ function TeamPage({ clients }) {
                             onClick={() =>
                               setDraftAccess((prev) => {
                                 const n = new Set(prev);
-                                if (n.has(c.id)) n.delete(c.id); else n.add(c.id);
+                                if (n.has(c.id)) n.delete(c.id);
+                                else n.add(c.id);
                                 return n;
                               })
                             }
                             style={{
-                              display: "flex", alignItems: "center", gap: 7,
-                              textAlign: "left", padding: "6px 10px", borderRadius: 8, cursor: "pointer", fontSize: 12,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 7,
+                              textAlign: "left",
+                              padding: "6px 10px",
+                              borderRadius: 8,
+                              cursor: "pointer",
+                              fontSize: 12,
                               border: `1px solid ${on ? C.accent : C.border}`,
                               background: on ? C.accentDim : "transparent",
                               color: on ? C.accentLight : C.text,
                             }}
                           >
                             <span>{on ? "☑" : "☐"}</span>
-                            <ClientAvatar name={c.name} domain={c.domain} size={20} radius={5} bg={C.accentDim} fg={C.accentLight} fontSize={9} />
-                            <span style={{ minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</span>
+                            <ClientAvatar
+                              name={c.name}
+                              domain={c.domain}
+                              size={20}
+                              radius={5}
+                              bg={C.accentDim}
+                              fg={C.accentLight}
+                              fontSize={9}
+                            />
+                            <span
+                              style={{
+                                minWidth: 0,
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                            >
+                              {c.name}
+                            </span>
                           </button>
                         );
                       })}
                     </div>
                     <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                      <Btn variant="secondary" size="sm" onClick={() => setExpanded(null)}>Abbrechen</Btn>
-                      <Btn size="sm" onClick={() => saveAssign(u.userId)} disabled={busy}>Speichern</Btn>
+                      <Btn variant="secondary" size="sm" onClick={() => setExpanded(null)}>
+                        Abbrechen
+                      </Btn>
+                      <Btn size="sm" onClick={() => saveAssign(u.userId)} disabled={busy}>
+                        Speichern
+                      </Btn>
                     </div>
                   </div>
                 )}
@@ -10429,30 +13176,63 @@ function TechStackCard({ domain }) {
     }
   };
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18, marginBottom: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: data?.ok ? 10 : 0 }}>
+    <div
+      style={{
+        background: C.card,
+        border: `1px solid ${C.border}`,
+        borderRadius: 14,
+        padding: 18,
+        marginBottom: 16,
+      }}
+    >
+      <div
+        style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: data?.ok ? 10 : 0 }}
+      >
         <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Tech-Stack</div>
-        <Btn variant="secondary" size="sm" style={{ marginLeft: "auto" }} onClick={detect} disabled={busy || !domain}>
+        <Btn
+          variant="secondary"
+          size="sm"
+          style={{ marginLeft: "auto" }}
+          onClick={detect}
+          disabled={busy || !domain}
+        >
           {busy ? "Erkenne…" : data ? "Neu erkennen" : "Erkennen"}
         </Btn>
       </div>
       {data && !data.ok && (
-        <div style={{ fontSize: 12, color: C.textMuted }}>Nicht erkennbar: {data.error || "unbekannter Fehler"}</div>
+        <div style={{ fontSize: 12, color: C.textMuted }}>
+          Nicht erkennbar: {data.error || "unbekannter Fehler"}
+        </div>
       )}
-      {data?.ok && (
-        (data.groups || []).length === 0 ? (
-          <div style={{ fontSize: 12, color: C.textMuted }}>Keine Technologien in der Datenbank für {data.domain}.</div>
+      {data?.ok &&
+        ((data.groups || []).length === 0 ? (
+          <div style={{ fontSize: 12, color: C.textMuted }}>
+            Keine Technologien in der Datenbank für {data.domain}.
+          </div>
         ) : (
           (data.groups || []).map((g) => (
             <div key={g.group} style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 11, color: C.textDim, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 4 }}>{g.group}</div>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: C.textDim,
+                  textTransform: "uppercase",
+                  letterSpacing: ".04em",
+                  marginBottom: 4,
+                }}
+              >
+                {g.group}
+              </div>
               <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                {g.items.map((t) => (<Badge key={t} color={C.blue}>{t}</Badge>))}
+                {g.items.map((t) => (
+                  <Badge key={t} color={C.blue}>
+                    {t}
+                  </Badge>
+                ))}
               </div>
             </div>
           ))
-        )
-      )}
+        ))}
     </div>
   );
 }
@@ -10472,13 +13252,17 @@ function ClientSettingsPanel({ client, onUpsertClient }) {
   const [draft, setDraft] = useState(defaultsFromStored(defaultsHook.defaults));
   useEffect(() => {
     // Kunden-Datensatz bevorzugen (maßgebliche Quelle), sonst Hook-Stand.
-    const fromClient = client?.defaults && Object.keys(client.defaults).length ? client.defaults : null;
+    const fromClient =
+      client?.defaults && Object.keys(client.defaults).length ? client.defaults : null;
     setDraft(defaultsFromStored(fromClient || defaultsHook.defaults));
   }, [client.id, client?.defaults, defaultsHook.defaults]);
   const saveAll = async () => {
     const saved = await defaultsHook.save(draft);
     try {
-      await onUpsertClient?.({ ...client, defaults: { ...(client.defaults || {}), ...(saved || draft) } });
+      await onUpsertClient?.({
+        ...client,
+        defaults: { ...(client.defaults || {}), ...(saved || draft) },
+      });
     } catch {
       /* customer_defaults/localStorage haben bereits gespeichert */
     }
@@ -10487,7 +13271,9 @@ function ClientSettingsPanel({ client, onUpsertClient }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px" }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>Kunden-Einstellungen</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>
+          Kunden-Einstellungen
+        </div>
         <Inp
           label="Standard-Sprache"
           value={draft.language}
@@ -10507,7 +13293,9 @@ function ClientSettingsPanel({ client, onUpsertClient }) {
           options={["Standard", "Detailliert", "Executive Summary"]}
         />
         <div style={{ marginTop: 14 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 8 }}>Sichtbare Dashboard-Tabs</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 8 }}>
+            Sichtbare Dashboard-Tabs
+          </div>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             {[
               // "overview" entfernt (Volkan 10.08.): Übersicht-Tab existiert nicht mehr.
@@ -10518,14 +13306,25 @@ function ClientSettingsPanel({ client, onUpsertClient }) {
               { id: "conversions", label: "Conversions", icon: DollarSign },
               { id: "ads", label: "Ads", icon: Megaphone },
             ].map((t) => {
-              const on = (draft.visibleTabs || ["overview", "seo", "aivis", "conversions", "ads"]).includes(t.id);
+              const on = (
+                draft.visibleTabs || ["overview", "seo", "aivis", "conversions", "ads"]
+              ).includes(t.id);
               return (
-                <label key={t.id} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                <label
+                  key={t.id}
+                  style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}
+                >
                   <input
                     type="checkbox"
                     checked={on}
                     onChange={() => {
-                      const cur = draft.visibleTabs || ["overview", "seo", "aivis", "conversions", "ads"];
+                      const cur = draft.visibleTabs || [
+                        "overview",
+                        "seo",
+                        "aivis",
+                        "conversions",
+                        "ads",
+                      ];
                       const next = on ? cur.filter((x) => x !== t.id) : [...cur, t.id];
                       setDraft((p) => ({ ...p, visibleTabs: next.length > 0 ? next : [t.id] }));
                     }}
@@ -10580,12 +13379,24 @@ function ClientReadinessPanel({ client, onOpenSettings }) {
   const [busy, setBusy] = useState(""); // `${app}:${checkId}` der laufenden Aktion
   const reload = useCallback(async () => {
     const j = await fetchReadiness(client.id);
-    if (j?.ok) { setData(j); setErr(""); } else setErr(j?.error || "Laden fehlgeschlagen");
+    if (j?.ok) {
+      setData(j);
+      setErr("");
+    } else setErr(j?.error || "Laden fehlgeschlagen");
   }, [client.id]);
-  useEffect(() => { setData(null); void reload(); }, [reload]);
+  useEffect(() => {
+    setData(null);
+    void reload();
+  }, [reload]);
 
   const statusColor = (st) =>
-    st === "bereit" ? C.green : st === "unvollstaendig" ? C.orange : st === "fehler" ? C.red : C.textDim;
+    st === "bereit"
+      ? C.green
+      : st === "unvollstaendig"
+        ? C.orange
+        : st === "fehler"
+          ? C.red
+          : C.textDim;
 
   const connectGoogle = async () => {
     const session = (await supabase.auth.getSession()).data.session;
@@ -10596,7 +13407,12 @@ function ClientReadinessPanel({ client, onOpenSettings }) {
     if (!res.ok || !json.url) throw new Error(json.error || `HTTP ${res.status}`);
     const popup = window.open(json.url, "google-oauth", "width=520,height=640");
     await new Promise((resolve) => {
-      const t = setInterval(() => { if (popup?.closed) { clearInterval(t); resolve(); } }, 800);
+      const t = setInterval(() => {
+        if (popup?.closed) {
+          clearInterval(t);
+          resolve();
+        }
+      }, 800);
     });
   };
 
@@ -10634,7 +13450,12 @@ function ClientReadinessPanel({ client, onOpenSettings }) {
           const r = await fetch("/api/admin/team", {
             method: "POST",
             headers: { Authorization: `Bearer ${token || ""}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "invite", email: email.trim(), role: "viewer", clientIds: [client.id] }),
+            body: JSON.stringify({
+              action: "invite",
+              email: email.trim(),
+              role: "viewer",
+              clientIds: [client.id],
+            }),
           });
           const j = await r.json().catch(() => ({}));
           if (!r.ok || j.error) throw new Error(j.error || `HTTP ${r.status}`);
@@ -10666,7 +13487,8 @@ function ClientReadinessPanel({ client, onOpenSettings }) {
   };
 
   if (err) return <div style={{ fontSize: 13, color: C.red }}>{err}</div>;
-  if (!data) return <div style={{ fontSize: 13, color: C.textMuted }}>Prüfe Einsatzbereitschaft…</div>;
+  if (!data)
+    return <div style={{ fontSize: 13, color: C.textMuted }}>Prüfe Einsatzbereitschaft…</div>;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -10675,25 +13497,83 @@ function ClientReadinessPanel({ client, onOpenSettings }) {
         jede Lücke hat eine direkte Aktion.
       </p>
       {data.readiness.map((r) => (
-        <div key={r.app} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
+        <div
+          key={r.app}
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 12,
+            padding: 14,
+          }}
+        >
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
             <span style={{ fontWeight: 700, fontSize: 14 }}>{readinessAppLabel(r.app)}</span>
-            <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, color: statusColor(r.status), background: `${statusColor(r.status)}1a`, borderRadius: 99, padding: "3px 10px" }}>
+            <span
+              style={{
+                marginLeft: "auto",
+                fontSize: 12,
+                fontWeight: 700,
+                color: statusColor(r.status),
+                background: `${statusColor(r.status)}1a`,
+                borderRadius: 99,
+                padding: "3px 10px",
+              }}
+            >
               {READINESS_STATUS_LABEL[r.status] || r.status}
             </span>
           </div>
           {r.checks.map((c) => (
-            <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: `1px solid ${C.border}55`, fontSize: 13 }}>
-              <span style={{ width: 18, textAlign: "center", fontWeight: 800, color: c.ok ? C.green : c.severity === "kritisch" ? C.red : C.orange }}>
+            <div
+              key={c.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "7px 0",
+                borderTop: `1px solid ${C.border}55`,
+                fontSize: 13,
+              }}
+            >
+              <span
+                style={{
+                  width: 18,
+                  textAlign: "center",
+                  fontWeight: 800,
+                  color: c.ok ? C.green : c.severity === "kritisch" ? C.red : C.orange,
+                }}
+              >
                 {c.ok ? "✓" : c.severity === "kritisch" ? "✕" : "△"}
               </span>
               <span style={{ color: C.text }}>{c.label}</span>
-              <span style={{ color: C.textMuted, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.detail}</span>
+              <span
+                style={{
+                  color: C.textMuted,
+                  fontSize: 12,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {c.detail}
+              </span>
               {!c.ok && c.aktion && (
                 <button
                   onClick={() => doAktion(r.app, c)}
                   disabled={!!busy}
-                  style={{ marginLeft: "auto", flexShrink: 0, fontSize: 12, fontWeight: 600, color: C.accent, background: C.accentDim, border: "none", borderRadius: 8, padding: "5px 10px", cursor: busy ? "default" : "pointer", fontFamily: "inherit", opacity: busy && busy !== `${r.app}:${c.id}` ? 0.5 : 1 }}
+                  style={{
+                    marginLeft: "auto",
+                    flexShrink: 0,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: C.accent,
+                    background: C.accentDim,
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "5px 10px",
+                    cursor: busy ? "default" : "pointer",
+                    fontFamily: "inherit",
+                    opacity: busy && busy !== `${r.app}:${c.id}` ? 0.5 : 1,
+                  }}
                 >
                   {busy === `${r.app}:${c.id}` ? "läuft…" : c.aktion.label}
                 </button>
@@ -10715,24 +13595,34 @@ function ClientAuditLogPanel({ client }) {
     let alive = true;
     (async () => {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const r = await fetch(`/api/admin/audit-log?client=${encodeURIComponent(client.id)}&limit=80`, {
-        headers: { Authorization: `Bearer ${token || ""}` },
-      });
+      const r = await fetch(
+        `/api/admin/audit-log?client=${encodeURIComponent(client.id)}&limit=80`,
+        {
+          headers: { Authorization: `Bearer ${token || ""}` },
+        },
+      );
       const j = await r.json().catch(() => ({}));
       if (!alive) return;
-      if (j?.ok) setEntries(j.entries); else setErr(j?.error || "Laden fehlgeschlagen");
+      if (j?.ok) setEntries(j.entries);
+      else setErr(j?.error || "Laden fehlgeschlagen");
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [client.id]);
 
   const diffText = (e) => {
-    const o = e.old_value || {}, n = e.new_value || {};
+    const o = e.old_value || {},
+      n = e.new_value || {};
     const keys = [...new Set([...Object.keys(o), ...Object.keys(n)])];
     const parts = [];
     for (const k of keys) {
-      const ov = JSON.stringify(o[k] ?? null), nv = JSON.stringify(n[k] ?? null);
+      const ov = JSON.stringify(o[k] ?? null),
+        nv = JSON.stringify(n[k] ?? null);
       if (e.action === "update" && ov === nv) continue;
-      parts.push(e.action === "update" ? `${k}: ${ov} → ${nv}` : `${k}: ${nv !== "null" ? nv : ov}`);
+      parts.push(
+        e.action === "update" ? `${k}: ${ov} → ${nv}` : `${k}: ${nv !== "null" ? nv : ov}`,
+      );
     }
     return parts.join(" · ") || "—";
   };
@@ -10740,18 +13630,34 @@ function ClientAuditLogPanel({ client }) {
   if (err) return <div style={{ fontSize: 13, color: C.red }}>{err}</div>;
   if (!entries) return <div style={{ fontSize: 13, color: C.textMuted }}>Lade Protokoll…</div>;
   if (!entries.length)
-    return <div style={{ fontSize: 13, color: C.textMuted }}>Noch keine protokollierten Änderungen — das Protokoll läuft seit dem 17.08.2026.</div>;
+    return (
+      <div style={{ fontSize: 13, color: C.textMuted }}>
+        Noch keine protokollierten Änderungen — das Protokoll läuft seit dem 17.08.2026.
+      </div>
+    );
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
       {entries.map((e) => (
-        <div key={e.id} style={{ padding: "9px 0", borderBottom: `1px solid ${C.border}55`, fontSize: 12.5 }}>
+        <div
+          key={e.id}
+          style={{ padding: "9px 0", borderBottom: `1px solid ${C.border}55`, fontSize: 12.5 }}
+        >
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <span style={{ color: C.textMuted, fontVariantNumeric: "tabular-nums" }}>
-              {new Date(e.at).toLocaleString("de-CH", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+              {new Date(e.at).toLocaleString("de-CH", {
+                day: "2-digit",
+                month: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
             </span>
             <Badge color={C.accent}>{e.bereich}</Badge>
-            <span style={{ color: C.textMuted }}>{e.action === "insert" ? "angelegt" : e.action === "delete" ? "entfernt" : "geändert"}</span>
-            <span style={{ color: C.textDim, fontSize: 11.5, marginLeft: "auto" }}>{e.userEmail || "System/Automation"}</span>
+            <span style={{ color: C.textMuted }}>
+              {e.action === "insert" ? "angelegt" : e.action === "delete" ? "entfernt" : "geändert"}
+            </span>
+            <span style={{ color: C.textDim, fontSize: 11.5, marginLeft: "auto" }}>
+              {e.userEmail || "System/Automation"}
+            </span>
           </div>
           <div style={{ color: C.text, marginTop: 3, wordBreak: "break-word" }}>{diffText(e)}</div>
         </div>
@@ -10778,10 +13684,14 @@ function ClientAppAccessPanel({ client }) {
         if (warnungen.length) {
           const text = `Für ${readinessAppLabel(appId)} fehlen Voraussetzungen:\n\n${warnungen
             .map((w) => `• ${w.text}`)
-            .join("\n")}\n\nDie App erscheint sonst leer bzw. der Kunde taucht dort nicht auf. Trotzdem freischalten?`;
+            .join(
+              "\n",
+            )}\n\nDie App erscheint sonst leer bzw. der Kunde taucht dort nicht auf. Trotzdem freischalten?`;
           if (!window.confirm(text)) return;
         }
-      } catch { /* Validierung best effort — Freischalten nicht blockieren */ }
+      } catch {
+        /* Validierung best effort — Freischalten nicht blockieren */
+      }
     }
     const err = await caa.setAccess(client.id, appId, { enabled: !enabled });
     if (err) toast(err, "error");
@@ -10799,8 +13709,11 @@ function ClientAppAccessPanel({ client }) {
       try {
         const j = await fetchReadiness(client.id);
         const warnungen = j?.ok ? warneBeimLocalGrid(j.snapshot) : [];
-        if (warnungen.length && !window.confirm(`${warnungen[0].text}\n\nTrotzdem aktivieren?`)) return;
-      } catch { /* best effort */ }
+        if (warnungen.length && !window.confirm(`${warnungen[0].text}\n\nTrotzdem aktivieren?`))
+          return;
+      } catch {
+        /* best effort */
+      }
     }
     const err = await caa.setAccess(client.id, appId, { features: next });
     if (err) toast(err, "error");
@@ -10822,37 +13735,66 @@ function ClientAppAccessPanel({ client }) {
   const loadPortal = useCallback(async () => {
     const j = await callTeam({ action: "list" });
     if (j.ok)
-      setPortalUsers((j.users || []).filter((u) => u.role === "viewer" && (u.clientIds || []).includes(client.id)));
+      setPortalUsers(
+        (j.users || []).filter(
+          (u) => u.role === "viewer" && (u.clientIds || []).includes(client.id),
+        ),
+      );
   }, [callTeam, client.id]);
-  useEffect(() => { void loadPortal(); }, [loadPortal]);
+  useEffect(() => {
+    void loadPortal();
+  }, [loadPortal]);
   const invitePortal = async () => {
     if (!inviteEmail.trim()) return;
     setBusy(true);
-    const j = await callTeam({ action: "invite", email: inviteEmail.trim(), role: "viewer", clientIds: [client.id] });
+    const j = await callTeam({
+      action: "invite",
+      email: inviteEmail.trim(),
+      role: "viewer",
+      clientIds: [client.id],
+    });
     setBusy(false);
-    if (j.ok) { toast(`Portal-Einladung an ${inviteEmail} gesendet`, "success"); setInviteEmail(""); await loadPortal(); }
-    else toast(j.error || "Einladung fehlgeschlagen", "error");
+    if (j.ok) {
+      toast(`Portal-Einladung an ${inviteEmail} gesendet`, "success");
+      setInviteEmail("");
+      await loadPortal();
+    } else toast(j.error || "Einladung fehlgeschlagen", "error");
   };
   const removePortal = async (u) => {
     if (!window.confirm(`Portal-Zugang von ${u.email || "Nutzer"} entfernen?`)) return;
     const j = await callTeam({ action: "remove", userId: u.userId });
-    if (j.ok) { toast("Portal-Zugang entfernt", "success"); await loadPortal(); }
-    else toast(j.error || "Fehlgeschlagen", "error");
+    if (j.ok) {
+      toast("Portal-Zugang entfernt", "success");
+      await loadPortal();
+    } else toast(j.error || "Fehlgeschlagen", "error");
   };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {caa.legacy && (
-        <div style={{ fontSize: 12, color: C.orange, border: `1px solid ${C.orange}44`, background: `${C.orange}11`, borderRadius: 10, padding: "8px 12px" }}>
-          Die Datenbank-Migration <code>client_app_portal</code> ist noch nicht angewendet — Freischaltungen
-          können noch nicht gespeichert werden (aktuell gilt: alle Apps/Funktionen aktiv).
+        <div
+          style={{
+            fontSize: 12,
+            color: C.orange,
+            border: `1px solid ${C.orange}44`,
+            background: `${C.orange}11`,
+            borderRadius: 10,
+            padding: "8px 12px",
+          }}
+        >
+          Die Datenbank-Migration <code>client_app_portal</code> ist noch nicht angewendet —
+          Freischaltungen können noch nicht gespeichert werden (aktuell gilt: alle Apps/Funktionen
+          aktiv).
         </div>
       )}
       {apps.map((a) => {
         const enabled = appEnabledFor(caa.map, client.id, a.id);
         const cat = catalogOf(a.id);
         return (
-          <div key={a.id} style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px" }}>
+          <div
+            key={a.id}
+            style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px" }}
+          >
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ fontSize: 15 }}>{a.icon}</span>
               <span style={{ fontSize: 13.5, fontWeight: 700, color: C.text }}>{a.name}</span>
@@ -10861,11 +13803,21 @@ function ClientAppAccessPanel({ client }) {
                 type="button"
                 onClick={() => toggleApp(a.id)}
                 disabled={caa.legacy}
-                title={enabled ? "App für diesen Kunden deaktivieren" : "App für diesen Kunden aktivieren"}
+                title={
+                  enabled
+                    ? "App für diesen Kunden deaktivieren"
+                    : "App für diesen Kunden aktivieren"
+                }
                 style={{
-                  marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6,
-                  padding: "4px 12px", borderRadius: 99, cursor: caa.legacy ? "default" : "pointer",
-                  fontSize: 12, fontWeight: 600,
+                  marginLeft: "auto",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "4px 12px",
+                  borderRadius: 99,
+                  cursor: caa.legacy ? "default" : "pointer",
+                  fontSize: 12,
+                  fontWeight: 600,
                   border: `1px solid ${enabled ? a.color : C.border}`,
                   background: enabled ? a.tint : "transparent",
                   color: enabled ? a.color : C.textDim,
@@ -10885,8 +13837,13 @@ function ClientAppAccessPanel({ client }) {
                       onClick={() => toggleFeature(a.id, f.id)}
                       disabled={caa.legacy}
                       style={{
-                        display: "inline-flex", alignItems: "center", gap: 5,
-                        padding: "4px 10px", borderRadius: 99, cursor: caa.legacy ? "default" : "pointer", fontSize: 11.5,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 5,
+                        padding: "4px 10px",
+                        borderRadius: 99,
+                        cursor: caa.legacy ? "default" : "pointer",
+                        fontSize: 11.5,
                         border: `1px solid ${on ? C.accent : C.border}`,
                         background: on ? C.accentDim : "transparent",
                         color: on ? C.accentLight : C.textDim,
@@ -10897,7 +13854,9 @@ function ClientAppAccessPanel({ client }) {
                   );
                 })}
                 {!entryOf(a.id)?.features?.length && (
-                  <span style={{ fontSize: 11, color: C.textDim, alignSelf: "center" }}>alle Funktionen (Standard)</span>
+                  <span style={{ fontSize: 11, color: C.textDim, alignSelf: "center" }}>
+                    alle Funktionen (Standard)
+                  </span>
                 )}
               </div>
             )}
@@ -10907,22 +13866,33 @@ function ClientAppAccessPanel({ client }) {
 
       {/* Portal-Zugänge (Kunden-Logins, Rolle viewer) */}
       <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px" }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 8 }}>Portal-Zugänge</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 8 }}>
+          Portal-Zugänge
+        </div>
         <p style={{ fontSize: 11.5, color: C.textMuted, margin: "0 0 10px" }}>
-          Kunden-Logins sehen ausschließlich die oben freigeschalteten Funktionen dieses Kunden — read-only,
-          ohne Agenten, Einstellungen oder interne Notizen.
+          Kunden-Logins sehen ausschließlich die oben freigeschalteten Funktionen dieses Kunden —
+          read-only, ohne Agenten, Einstellungen oder interne Notizen.
         </p>
         {portalUsers === null ? (
           <div style={{ fontSize: 12, color: C.textMuted }}>Lädt…</div>
         ) : portalUsers.length === 0 ? (
-          <div style={{ fontSize: 12, color: C.textDim, marginBottom: 8 }}>Noch keine Portal-Zugänge.</div>
+          <div style={{ fontSize: 12, color: C.textDim, marginBottom: 8 }}>
+            Noch keine Portal-Zugänge.
+          </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
             {portalUsers.map((u) => (
               <div key={u.userId} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <Badge color={C.green}>aktiv</Badge>
-                <span style={{ fontSize: 12.5, color: C.text }}>{u.email || u.userId.slice(0, 8)}</span>
-                <Btn variant="danger" size="sm" style={{ marginLeft: "auto" }} onClick={() => removePortal(u)}>
+                <span style={{ fontSize: 12.5, color: C.text }}>
+                  {u.email || u.userId.slice(0, 8)}
+                </span>
+                <Btn
+                  variant="danger"
+                  size="sm"
+                  style={{ marginLeft: "auto" }}
+                  onClick={() => removePortal(u)}
+                >
                   Sperren
                 </Btn>
               </div>
@@ -10931,7 +13901,12 @@ function ClientAppAccessPanel({ client }) {
         )}
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
           <div style={{ flex: 1 }}>
-            <Inp label="E-Mail" value={inviteEmail} onChange={setInviteEmail} placeholder="kunde@firma.ch" />
+            <Inp
+              label="E-Mail"
+              value={inviteEmail}
+              onChange={setInviteEmail}
+              placeholder="kunde@firma.ch"
+            />
           </div>
           <Btn size="sm" onClick={invitePortal} disabled={busy || !inviteEmail.trim()}>
             {busy ? "…" : "Kunden-Login einladen"}
@@ -10961,22 +13936,59 @@ function MatrixPage({ clients }) {
         <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Zugriffs-Matrix</h2>
         <p style={{ fontSize: 12, color: C.textMuted, margin: "4px 0 0" }}>
           Welcher Kunde erscheint in welcher App. Zelle klicken zum Umschalten; Kunde aufklappen für
-          Funktions-Freischaltung und Portal-Zugänge. Mitarbeiter-Rechte verwaltest du auf der Team-Seite.
+          Funktions-Freischaltung und Portal-Zugänge. Mitarbeiter-Rechte verwaltest du auf der
+          Team-Seite.
         </p>
       </div>
       {caa.legacy && (
-        <div style={{ fontSize: 12, color: C.orange, border: `1px solid ${C.orange}44`, background: `${C.orange}11`, borderRadius: 10, padding: "8px 12px" }}>
+        <div
+          style={{
+            fontSize: 12,
+            color: C.orange,
+            border: `1px solid ${C.orange}44`,
+            background: `${C.orange}11`,
+            borderRadius: 10,
+            padding: "8px 12px",
+          }}
+        >
           Migration <code>client_app_portal</code> noch nicht angewendet — die Matrix ist read-only
           (alle Apps gelten als aktiv).
         </div>
       )}
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, overflowX: "auto" }}>
+      <div
+        style={{
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: 14,
+          padding: 16,
+          overflowX: "auto",
+        }}
+      >
         <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 560 }}>
           <thead>
             <tr>
-              <th style={{ textAlign: "left", fontSize: 11.5, color: C.textMuted, fontWeight: 600, padding: "6px 10px" }}>Kunde</th>
+              <th
+                style={{
+                  textAlign: "left",
+                  fontSize: 11.5,
+                  color: C.textMuted,
+                  fontWeight: 600,
+                  padding: "6px 10px",
+                }}
+              >
+                Kunde
+              </th>
               {apps.map((a) => (
-                <th key={a.id} style={{ fontSize: 11.5, color: C.textMuted, fontWeight: 600, padding: "6px 10px", whiteSpace: "nowrap" }}>
+                <th
+                  key={a.id}
+                  style={{
+                    fontSize: 11.5,
+                    color: C.textMuted,
+                    fontWeight: 600,
+                    padding: "6px 10px",
+                    whiteSpace: "nowrap",
+                  }}
+                >
                   {a.icon} {a.name}
                 </th>
               ))}
@@ -10990,10 +14002,30 @@ function MatrixPage({ clients }) {
                     <button
                       type="button"
                       onClick={() => setExpanded(expanded === c.id ? null : c.id)}
-                      style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer", color: C.text, fontSize: 13, fontWeight: 600, padding: 0, fontFamily: "inherit" }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        color: C.text,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        padding: 0,
+                        fontFamily: "inherit",
+                      }}
                     >
                       <span style={{ width: 12 }}>{expanded === c.id ? "▾" : "▸"}</span>
-                      <ClientAvatar name={c.name} domain={c.domain} size={22} radius={6} bg={C.accentDim} fg={C.accentLight} fontSize={9} />
+                      <ClientAvatar
+                        name={c.name}
+                        domain={c.domain}
+                        size={22}
+                        radius={6}
+                        bg={C.accentDim}
+                        fg={C.accentLight}
+                        fontSize={9}
+                      />
                       {c.name}
                     </button>
                   </td>
@@ -11007,11 +14039,15 @@ function MatrixPage({ clients }) {
                           disabled={caa.legacy}
                           title={`${a.name} für ${c.name} ${on ? "deaktivieren" : "aktivieren"}`}
                           style={{
-                            width: 26, height: 26, borderRadius: 7, cursor: caa.legacy ? "default" : "pointer",
+                            width: 26,
+                            height: 26,
+                            borderRadius: 7,
+                            cursor: caa.legacy ? "default" : "pointer",
                             border: `1px solid ${on ? a.color : C.border}`,
                             background: on ? a.tint : "transparent",
                             color: on ? a.color : C.textDim,
-                            fontSize: 13, fontWeight: 700,
+                            fontSize: 13,
+                            fontWeight: 700,
                           }}
                         >
                           {on ? "✓" : "–"}
@@ -11059,8 +14095,9 @@ function ClientsPage({
         setDt("readiness");
         window.history.replaceState(null, "", window.location.pathname);
       }
-    } catch { /* egal */ }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    } catch {
+      /* egal */
+    }
   }, []);
   const [dt, setDt] = useState("overview");
   const [editorOpen, setEditorOpen] = useState(false);
@@ -11215,7 +14252,15 @@ function ClientsPage({
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}>
               <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                 {/* Favicon der Kundendomain, Fallback auf Initialen (Volkan 13.08.). */}
-                <ClientAvatar name={c.name} domain={c.domain} size={42} radius={10} bg={C.accentDim} fg={C.accentLight} fontSize={16} />
+                <ClientAvatar
+                  name={c.name}
+                  domain={c.domain}
+                  size={42}
+                  radius={10}
+                  bg={C.accentDim}
+                  fg={C.accentLight}
+                  fontSize={16}
+                />
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 15, color: C.text }}>{c.name}</div>
                   <div style={{ fontSize: 12, color: C.textMuted }}>{c.domain}</div>
@@ -11269,7 +14314,15 @@ function ClientsPage({
           >
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
               {/* Favicon der Kundendomain, Fallback auf Initialen (Volkan 13.08.). */}
-              <ClientAvatar name={detail.name} domain={detail.domain} size={36} radius={8} bg={C.accentDim} fg={C.accentLight} fontSize={14} />
+              <ClientAvatar
+                name={detail.name}
+                domain={detail.domain}
+                size={36}
+                radius={8}
+                bg={C.accentDim}
+                fg={C.accentLight}
+                fontSize={14}
+              />
               <div>
                 <div style={{ fontWeight: 700, color: C.text }}>{detail.name}</div>
                 <div style={{ fontSize: 11, color: C.textMuted }}>{detail.domain}</div>
@@ -11405,11 +14458,15 @@ function ClientsPage({
                 </div>
               </div>
             )}
-            {dt === "readiness" && <ClientReadinessPanel client={detail} onOpenSettings={() => setDt("settings")} />}
+            {dt === "readiness" && (
+              <ClientReadinessPanel client={detail} onOpenSettings={() => setDt("settings")} />
+            )}
             {dt === "log" && <ClientAuditLogPanel client={detail} />}
             {dt === "runs" && <AgentRunsPanel selectedClient={detail} />}
             {dt === "access" && <ClientAppAccessPanel client={detail} />}
-            {dt === "settings" && <ClientSettingsPanel client={detail} onUpsertClient={onUpsertClient} />}
+            {dt === "settings" && (
+              <ClientSettingsPanel client={detail} onUpsertClient={onUpsertClient} />
+            )}
             {dt === "kpis" &&
               (() => {
                 const hasData =
@@ -11614,7 +14671,11 @@ function ClientsPage({
                 type="button"
                 onClick={() => setDraft((p) => ({ ...p, revenueMode: val }))}
                 style={{
-                  padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                  padding: "6px 14px",
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
                   border: `1px solid ${draft.revenueMode === val ? C.accent : C.border}`,
                   background: draft.revenueMode === val ? C.accentDim : "transparent",
                   color: draft.revenueMode === val ? C.accentLight : C.textMuted,
@@ -11666,7 +14727,13 @@ function ClientsPage({
 // letzte Stufe der Betrags-Kaskade (dl_value > Umsatz > value > manuell).
 function ConversionValuesPanel({ client }) {
   const toast = useToast();
-  const [state, setState] = useState({ loading: true, error: "", ga4: false, events: [], setup: null });
+  const [state, setState] = useState({
+    loading: true,
+    error: "",
+    ga4: false,
+    events: [],
+    setup: null,
+  });
   const [drafts, setDrafts] = useState({}); // event -> { value, currency }
   const [saving, setSaving] = useState(false);
 
@@ -11680,16 +14747,26 @@ function ConversionValuesPanel({ client }) {
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
-      setState({ loading: false, error: "", ga4: !!j.ga4, events: j.events || [], setup: j.setup || null });
+      setState({
+        loading: false,
+        error: "",
+        ga4: !!j.ga4,
+        events: j.events || [],
+        setup: j.setup || null,
+      });
       setDrafts({});
     } catch (e) {
       setState((s) => ({ ...s, loading: false, error: String(e?.message || e) }));
     }
   };
-  useEffect(() => { load(); }, [client?.id]);
+  useEffect(() => {
+    load();
+  }, [client?.id]);
 
-  const draftOf = (ev) => drafts[ev.name] ?? { value: ev.manualValue || "", currency: ev.currency || "CHF" };
-  const setDraft = (name, patch) => setDrafts((d) => ({ ...d, [name]: { ...(d[name] ?? {}), ...patch } }));
+  const draftOf = (ev) =>
+    drafts[ev.name] ?? { value: ev.manualValue || "", currency: ev.currency || "CHF" };
+  const setDraft = (name, patch) =>
+    setDrafts((d) => ({ ...d, [name]: { ...(d[name] ?? {}), ...patch } }));
   const dirty = Object.keys(drafts).length > 0;
 
   const save = async () => {
@@ -11703,7 +14780,10 @@ function ConversionValuesPanel({ client }) {
       }));
       const r = await fetch("/api/admin/ga4-conversions", {
         method: "POST",
-        headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
+        headers: {
+          Authorization: `Bearer ${session?.access_token || ""}`,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ client: client.id, values }),
       });
       const j = await r.json().catch(() => ({}));
@@ -11718,8 +14798,15 @@ function ConversionValuesPanel({ client }) {
   };
 
   const inpStyle = {
-    width: 90, padding: "6px 8px", borderRadius: 8, border: `1px solid ${C.border}`,
-    background: C.bg, color: C.text, fontSize: 13, fontFamily: "inherit", textAlign: "right",
+    width: 90,
+    padding: "6px 8px",
+    borderRadius: 8,
+    border: `1px solid ${C.border}`,
+    background: C.bg,
+    color: C.text,
+    fontSize: 13,
+    fontFamily: "inherit",
+    textAlign: "right",
   };
   return (
     <div>
@@ -11731,7 +14818,14 @@ function ConversionValuesPanel({ client }) {
         Betrag, kannst du hier pro Conversion einen Wert hinterlegen — er wird ab dem nächsten
         Daten-Lauf automatisch angewendet.
       </div>
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22 }}>
+      <div
+        style={{
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: 14,
+          padding: 22,
+        }}
+      >
         {state.loading ? (
           <div style={{ color: C.textMuted, fontSize: 13 }}>Lade GA4-Conversions…</div>
         ) : state.error ? (
@@ -11745,14 +14839,22 @@ function ConversionValuesPanel({ client }) {
           <>
             {state.setup?.dlValue && (
               <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 12 }}>
-                ✓ Diese Property sendet Buchungswerte bereits selbst (dl_value) — manuelle Werte sind
-                nur für Events nötig, die keinen eigenen Betrag tragen.
+                ✓ Diese Property sendet Buchungswerte bereits selbst (dl_value) — manuelle Werte
+                sind nur für Events nötig, die keinen eigenen Betrag tragen.
               </div>
             )}
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <thead>
-                  <tr style={{ color: C.textMuted, fontSize: 11, textTransform: "uppercase", letterSpacing: ".04em", textAlign: "left" }}>
+                  <tr
+                    style={{
+                      color: C.textMuted,
+                      fontSize: 11,
+                      textTransform: "uppercase",
+                      letterSpacing: ".04em",
+                      textAlign: "left",
+                    }}
+                  >
                     <th style={{ padding: "6px 8px" }}>Conversion</th>
                     <th style={{ padding: "6px 8px", textAlign: "right" }}>30 Tage</th>
                     <th style={{ padding: "6px 8px", textAlign: "right" }}>Wert aus GA4</th>
@@ -11768,32 +14870,64 @@ function ConversionValuesPanel({ client }) {
                         <td style={{ padding: "8px", color: C.text, fontWeight: 600 }}>
                           {ev.name}
                           {!ev.isKeyEvent && (
-                            <span style={{ marginLeft: 8, fontSize: 10.5, color: C.textMuted, fontWeight: 400 }}>
+                            <span
+                              style={{
+                                marginLeft: 8,
+                                fontSize: 10.5,
+                                color: C.textMuted,
+                                fontWeight: 400,
+                              }}
+                            >
                               nicht als Key-Event markiert
                             </span>
                           )}
                         </td>
-                        <td style={{ padding: "8px", textAlign: "right", color: C.text, fontVariantNumeric: "tabular-nums" }}>
+                        <td
+                          style={{
+                            padding: "8px",
+                            textAlign: "right",
+                            color: C.text,
+                            fontVariantNumeric: "tabular-nums",
+                          }}
+                        >
                           {ev.count30d.toLocaleString("de-CH")}
                         </td>
-                        <td style={{ padding: "8px", textAlign: "right", color: ev.ga4Value > 0 ? C.green : C.textMuted, fontVariantNumeric: "tabular-nums" }}>
+                        <td
+                          style={{
+                            padding: "8px",
+                            textAlign: "right",
+                            color: ev.ga4Value > 0 ? C.green : C.textMuted,
+                            fontVariantNumeric: "tabular-nums",
+                          }}
+                        >
                           {ev.ga4Value > 0 ? Math.round(ev.ga4Value).toLocaleString("de-CH") : "—"}
                         </td>
                         <td style={{ padding: "8px", textAlign: "right" }}>
                           <input
-                            type="number" min="0" step="1" value={d.value}
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={d.value}
                             placeholder="0"
-                            onChange={(e) => setDraft(ev.name, { value: e.target.value, currency: d.currency })}
+                            onChange={(e) =>
+                              setDraft(ev.name, { value: e.target.value, currency: d.currency })
+                            }
                             style={inpStyle}
                           />
                         </td>
                         <td style={{ padding: "8px" }}>
                           <select
                             value={d.currency}
-                            onChange={(e) => setDraft(ev.name, { value: d.value, currency: e.target.value })}
+                            onChange={(e) =>
+                              setDraft(ev.name, { value: d.value, currency: e.target.value })
+                            }
                             style={{ ...inpStyle, width: 74, textAlign: "left" }}
                           >
-                            {["CHF", "EUR", "USD", "GBP"].map((cu) => <option key={cu} value={cu}>{cu}</option>)}
+                            {["CHF", "EUR", "USD", "GBP"].map((cu) => (
+                              <option key={cu} value={cu}>
+                                {cu}
+                              </option>
+                            ))}
                           </select>
                         </td>
                       </tr>
@@ -11891,8 +15025,8 @@ function SettingsPage({
           </button>
         ))}
         <div style={{ fontSize: 11, color: C.textDim, padding: "10px 14px", lineHeight: 1.5 }}>
-          Kundenbezogene Einstellungen (Sprache, Tabs, Conversions, App-Zugriff)
-          findest du im Kunden-Detail: Kunden → Kunde anklicken.
+          Kundenbezogene Einstellungen (Sprache, Tabs, Conversions, App-Zugriff) findest du im
+          Kunden-Detail: Kunden → Kunde anklicken.
         </div>
       </div>
       <div className="settings-panel" style={{ flex: 1, maxWidth: 640 }}>
@@ -12337,7 +15471,8 @@ function SettingsPage({
             <h2 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 8px" }}>Dashboard-Metriken</h2>
             <p style={{ fontSize: 13, color: C.textMuted, margin: "0 0 16px" }}>
               Lege fest, welche Kennzahlen in den Dashboards erscheinen. Standard: alles an —
-              schalte einfach ab, was du nicht brauchst. Gilt für die ganze Organisation (nur Admins).
+              schalte einfach ab, was du nicht brauchst. Gilt für die ganze Organisation (nur
+              Admins).
             </p>
             {[
               [
@@ -12702,19 +15837,55 @@ function SkillPicker({ selected, onChange }) {
     else onChange([...new Set([...selected, ...catSkills])]);
   };
   const checkStyle = (on) => ({
-    width: 16, height: 16, borderRadius: 4, border: `1.5px solid ${on ? C.accent : C.border}`,
-    background: on ? C.accent : "transparent", display: "flex", alignItems: "center", justifyContent: "center",
-    color: "#fff", fontSize: 11, fontWeight: 700, flexShrink: 0, cursor: "pointer",
+    width: 16,
+    height: 16,
+    borderRadius: 4,
+    border: `1.5px solid ${on ? C.accent : C.border}`,
+    background: on ? C.accent : "transparent",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: 700,
+    flexShrink: 0,
+    cursor: "pointer",
   });
   return (
-    <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: 10 }}>
+    <div
+      style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: 10 }}
+    >
       {selected.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
           {selected.map((s) => {
             const cb = skillCategoryBadge(s);
             return (
-              <span key={s} onClick={() => toggle(s)} title={cb.label ? `Kategorie: ${cb.label}` : undefined} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 5, padding: "2px 7px", fontSize: 11, color: C.text, cursor: "pointer" }}>
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: cb.color, flexShrink: 0 }} />
+              <span
+                key={s}
+                onClick={() => toggle(s)}
+                title={cb.label ? `Kategorie: ${cb.label}` : undefined}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  background: C.surface,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 5,
+                  padding: "2px 7px",
+                  fontSize: 11,
+                  color: C.text,
+                  cursor: "pointer",
+                }}
+              >
+                <span
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    background: cb.color,
+                    flexShrink: 0,
+                  }}
+                />
                 {cb.label && <span style={{ color: cb.color, fontWeight: 600 }}>{cb.label}</span>}
                 {s} ×
               </span>
@@ -12729,25 +15900,92 @@ function SkillPicker({ selected, onChange }) {
           const isOpen = expanded === cat.id;
           return (
             <div key={cat.id} style={{ border: `1px solid ${C.border}`, borderRadius: 6 }}>
-              <div onClick={() => setExpanded(isOpen ? null : cat.id)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", cursor: "pointer", background: isOpen ? `${cat.color}11` : "transparent", borderRadius: 6 }}>
+              <div
+                onClick={() => setExpanded(isOpen ? null : cat.id)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "7px 10px",
+                  cursor: "pointer",
+                  background: isOpen ? `${cat.color}11` : "transparent",
+                  borderRadius: 6,
+                }}
+              >
                 <span style={{ width: 8, height: 8, borderRadius: "50%", background: cat.color }} />
-                <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: C.text }}>{cat.label}</span>
-                {selectedCount > 0 && <span style={{ fontSize: 10, color: cat.color }}>{selectedCount}/{skills.length}</span>}
+                <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: C.text }}>
+                  {cat.label}
+                </span>
+                {selectedCount > 0 && (
+                  <span style={{ fontSize: 10, color: cat.color }}>
+                    {selectedCount}/{skills.length}
+                  </span>
+                )}
                 <span style={{ fontSize: 10, color: C.textMuted }}>{isOpen ? "▲" : "▼"}</span>
               </div>
               {isOpen && (
-                <div style={{ padding: "6px 10px 10px", display: "flex", flexDirection: "column", gap: 4 }}>
-                  <div onClick={() => selectAll(cat.id)} style={{ fontSize: 10, color: C.accent, cursor: "pointer", marginBottom: 4 }}>
-                    {skills.every((s) => selected.includes(s.skill)) ? "Alle abwählen" : "Alle auswählen"}
+                <div
+                  style={{
+                    padding: "6px 10px 10px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 4,
+                  }}
+                >
+                  <div
+                    onClick={() => selectAll(cat.id)}
+                    style={{ fontSize: 10, color: C.accent, cursor: "pointer", marginBottom: 4 }}
+                  >
+                    {skills.every((s) => selected.includes(s.skill))
+                      ? "Alle abwählen"
+                      : "Alle auswählen"}
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 4 }}>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+                      gap: 4,
+                    }}
+                  >
                     {skills.map((s) => {
                       const on = selected.includes(s.skill);
                       return (
-                        <div key={s.id} onClick={() => toggle(s.skill)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 6px", borderRadius: 5, cursor: "pointer", background: on ? `${C.accent}11` : "transparent", borderLeft: `3px solid ${cat.color}` }} title={`${cat.label} · ${s.description}`}>
+                        <div
+                          key={s.id}
+                          onClick={() => toggle(s.skill)}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            padding: "4px 6px",
+                            borderRadius: 5,
+                            cursor: "pointer",
+                            background: on ? `${C.accent}11` : "transparent",
+                            borderLeft: `3px solid ${cat.color}`,
+                          }}
+                          title={`${cat.label} · ${s.description}`}
+                        >
                           <span style={checkStyle(on)}>{on ? "✓" : ""}</span>
-                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: cat.color, flexShrink: 0 }} />
-                          <span style={{ fontSize: 11, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.skill}</span>
+                          <span
+                            style={{
+                              width: 6,
+                              height: 6,
+                              borderRadius: "50%",
+                              background: cat.color,
+                              flexShrink: 0,
+                            }}
+                          />
+                          <span
+                            style={{
+                              fontSize: 11,
+                              color: C.text,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {s.skill}
+                          </span>
                         </div>
                       );
                     })}
@@ -12773,7 +16011,14 @@ function ActivityPage({ selectedClient, clients }) {
   // Admins und Mitarbeiter sehen sie nicht (RBAC 2026-07-15).
   const { role } = useAuth();
   const isOwner = role === "owner";
-  const [data, setData] = useState({ runs: [], running: 0, schedules: [], uptime: [], uptimeDown: 0, costs: null });
+  const [data, setData] = useState({
+    runs: [],
+    running: 0,
+    schedules: [],
+    uptime: [],
+    uptimeDown: 0,
+    costs: null,
+  });
   const [approvals, setApprovals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -12784,9 +16029,20 @@ function ActivityPage({ selectedClient, clients }) {
       const auth = { Authorization: `Bearer ${session?.access_token || ""}` };
       const r = await fetch("/api/agent/runs", { headers: auth });
       const j = await r.json().catch(() => ({}));
-      if (j.ok) { setData({ runs: j.runs || [], running: j.running || 0, schedules: j.schedules || [], uptime: j.uptime || [], uptimeDown: j.uptimeDown || 0, costs: j.costs || null }); setErr(""); }
-      else setErr(j.error || "Laden fehlgeschlagen");
-      const ar = await fetch("/api/agent/approvals", { headers: auth }).then((x) => x.json()).catch(() => ({}));
+      if (j.ok) {
+        setData({
+          runs: j.runs || [],
+          running: j.running || 0,
+          schedules: j.schedules || [],
+          uptime: j.uptime || [],
+          uptimeDown: j.uptimeDown || 0,
+          costs: j.costs || null,
+        });
+        setErr("");
+      } else setErr(j.error || "Laden fehlgeschlagen");
+      const ar = await fetch("/api/agent/approvals", { headers: auth })
+        .then((x) => x.json())
+        .catch(() => ({}));
       if (ar?.ok) setApprovals(ar.items || []);
     } catch (e) {
       setErr(String(e?.message || e));
@@ -12802,13 +16058,28 @@ function ActivityPage({ selectedClient, clients }) {
     return () => clearInterval(t);
   }, [load]);
 
-  const fmtTime = (ts) => (ts ? new Date(ts).toLocaleString("de-CH", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—");
-  const fmtDur = (ms) => (ms ? (ms >= 60000 ? `${Math.round(ms / 60000)}min` : `${Math.round(ms / 1000)}s`) : "");
-  const statusMeta = (s) => s === "running" ? { c: C.blue, label: "läuft" } : s === "done" ? { c: C.green, label: "fertig" } : { c: C.red, label: "Fehler" };
+  const fmtTime = (ts) =>
+    ts
+      ? new Date(ts).toLocaleString("de-CH", {
+          day: "2-digit",
+          month: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "—";
+  const fmtDur = (ms) =>
+    ms ? (ms >= 60000 ? `${Math.round(ms / 60000)}min` : `${Math.round(ms / 1000)}s`) : "";
+  const statusMeta = (s) =>
+    s === "running"
+      ? { c: C.blue, label: "läuft" }
+      : s === "done"
+        ? { c: C.green, label: "fertig" }
+        : { c: C.red, label: "Fehler" };
 
   const freqLabel = (sch) => {
     if (sch.dayOfMonth) return `am ${sch.dayOfMonth}. um ${sch.time}`;
-    if (Array.isArray(sch.weekdays) && sch.weekdays.length) return `${sch.weekdays.map((d) => WEEKDAY_SHORT[d]).join(",")} um ${sch.time}`;
+    if (Array.isArray(sch.weekdays) && sch.weekdays.length)
+      return `${sch.weekdays.map((d) => WEEKDAY_SHORT[d]).join(",")} um ${sch.time}`;
     return `täglich um ${sch.time}`;
   };
 
@@ -12816,18 +16087,32 @@ function ActivityPage({ selectedClient, clients }) {
   // Reaktiv aus den geladenen Daten abgeleitet → Kundenwechsel filtert sofort neu.
   const cid = selectedClient?.id || "";
   const normDom = (d) =>
-    String(d || "").toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "").trim();
+    String(d || "")
+      .toLowerCase()
+      .replace(/^https?:\/\//, "")
+      .replace(/^www\./, "")
+      .replace(/\/.*$/, "")
+      .trim();
   const selDom = normDom(selectedClient?.domain);
   const runs = cid ? (data.runs || []).filter((r) => r.clientId === cid) : data.runs || [];
-  const schedules = cid ? (data.schedules || []).filter((s) => s.clientId === cid) : data.schedules || [];
-  const uptime = cid && selDom ? (data.uptime || []).filter((u) => normDom(u.domain) === selDom) : data.uptime || [];
+  const schedules = cid
+    ? (data.schedules || []).filter((s) => s.clientId === cid)
+    : data.schedules || [];
+  const uptime =
+    cid && selDom
+      ? (data.uptime || []).filter((u) => normDom(u.domain) === selDom)
+      : data.uptime || [];
   const costs = data.costs;
   const fmtUsd = (n) => (n == null ? "—" : `$${Number(n).toFixed(2)}`);
-  const clientCost = costs && cid ? (costs.byClient || []).find((c) => c.name === selectedClient?.name)?.usd : null;
+  const clientCost =
+    costs && cid ? (costs.byClient || []).find((c) => c.name === selectedClient?.name)?.usd : null;
   const running = runs.filter((r) => r.status === "running").length;
   const uptimeDown = uptime.filter((u) => !u.ok).length;
   // Freigaben pro gewähltem Kunde (lose Namens-Übereinstimmung mit dem Vault-Namen).
-  const normName = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const normName = (s) =>
+    String(s || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
   const clientApprovals = approvals.filter(
     (a) => !cid || normName(a.clientName) === normName(selectedClient?.name),
   );
@@ -12837,7 +16122,10 @@ function ActivityPage({ selectedClient, clients }) {
       const session = (await supabase.auth.getSession()).data.session;
       await fetch("/api/agent/approvals", {
         method: "POST",
-        headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
+        headers: {
+          Authorization: `Bearer ${session?.access_token || ""}`,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ id, status }),
       });
     } catch {}
@@ -12845,9 +16133,27 @@ function ActivityPage({ selectedClient, clients }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 38, height: 38, borderRadius: 10, background: C.accentDim, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 10,
+              background: C.accentDim,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
             <Activity size={19} color={C.accent} />
           </div>
           <div>
@@ -12860,7 +16166,9 @@ function ActivityPage({ selectedClient, clients }) {
             </div>
           </div>
         </div>
-        <Btn variant="secondary" size="sm" icon={RefreshCw} onClick={load}>Aktualisieren</Btn>
+        <Btn variant="secondary" size="sm" icon={RefreshCw} onClick={load}>
+          Aktualisieren
+        </Btn>
       </div>
 
       {err && <div style={{ fontSize: 12, color: C.red }}>{err}</div>}
@@ -12870,7 +16178,9 @@ function ActivityPage({ selectedClient, clients }) {
         <div>
           <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>
             API-Kosten
-            {costs.runs ? <span style={{ color: C.textDim, fontWeight: 400 }}> · {costs.runs} Läufe</span> : null}
+            {costs.runs ? (
+              <span style={{ color: C.textDim, fontWeight: 400 }}> · {costs.runs} Läufe</span>
+            ) : null}
           </div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {[
@@ -12878,7 +16188,15 @@ function ActivityPage({ selectedClient, clients }) {
               { label: "7 Tage", v: costs.last7Days },
               { label: "Dieser Monat", v: costs.thisMonth },
               { label: "Gesamt", v: costs.total },
-              ...(cid ? [{ label: `${selectedClient?.name || "Kunde"} (gesamt)`, v: clientCost, accent: true }] : []),
+              ...(cid
+                ? [
+                    {
+                      label: `${selectedClient?.name || "Kunde"} (gesamt)`,
+                      v: clientCost,
+                      accent: true,
+                    },
+                  ]
+                : []),
             ].map((s) => (
               <div
                 key={s.label}
@@ -12892,7 +16210,13 @@ function ActivityPage({ selectedClient, clients }) {
                 }}
               >
                 <div style={{ fontSize: 11, color: C.textMuted }}>{s.label}</div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: s.accent ? C.accentLight : C.text }}>
+                <div
+                  style={{
+                    fontSize: 18,
+                    fontWeight: 700,
+                    color: s.accent ? C.accentLight : C.text,
+                  }}
+                >
                   {fmtUsd(s.v)}
                 </div>
               </div>
@@ -12918,24 +16242,76 @@ function ActivityPage({ selectedClient, clients }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {clientApprovals.map((a) => {
               const stc =
-                a.status === "offen" ? C.accent
-                  : a.status === "freigegeben" ? C.blue
-                  : a.status === "abgelehnt" ? C.red
-                  : C.green;
+                a.status === "offen"
+                  ? C.accent
+                  : a.status === "freigegeben"
+                    ? C.blue
+                    : a.status === "abgelehnt"
+                      ? C.red
+                      : C.green;
               return (
-                <div key={a.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px" }}>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, justifyContent: "space-between" }}>
+                <div
+                  key={a.id}
+                  style={{
+                    background: C.card,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 10,
+                    padding: "12px 14px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 10,
+                      justifyContent: "space-between",
+                    }}
+                  >
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, color: C.text, lineHeight: 1.45 }}>{a.text}</div>
-                      <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3 }}>{a.clientName}</div>
+                      <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3 }}>
+                        {a.clientName}
+                      </div>
                     </div>
                     <Badge color={stc}>{a.status}</Badge>
                   </div>
                   <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-                    {a.status !== "freigegeben" && <Btn size="sm" variant="secondary" onClick={() => setApprovalStatus(a.id, "freigegeben")}>Freigeben</Btn>}
-                    {a.status !== "erledigt" && <Btn size="sm" variant="secondary" onClick={() => setApprovalStatus(a.id, "erledigt")}>Erledigt</Btn>}
-                    {a.status !== "abgelehnt" && <Btn size="sm" variant="secondary" onClick={() => setApprovalStatus(a.id, "abgelehnt")}>Ablehnen</Btn>}
-                    {a.status !== "offen" && <Btn size="sm" variant="secondary" onClick={() => setApprovalStatus(a.id, "offen")}>Zurücksetzen</Btn>}
+                    {a.status !== "freigegeben" && (
+                      <Btn
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setApprovalStatus(a.id, "freigegeben")}
+                      >
+                        Freigeben
+                      </Btn>
+                    )}
+                    {a.status !== "erledigt" && (
+                      <Btn
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setApprovalStatus(a.id, "erledigt")}
+                      >
+                        Erledigt
+                      </Btn>
+                    )}
+                    {a.status !== "abgelehnt" && (
+                      <Btn
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setApprovalStatus(a.id, "abgelehnt")}
+                      >
+                        Ablehnen
+                      </Btn>
+                    )}
+                    {a.status !== "offen" && (
+                      <Btn
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setApprovalStatus(a.id, "offen")}
+                      >
+                        Zurücksetzen
+                      </Btn>
+                    )}
                   </div>
                 </div>
               );
@@ -12946,17 +16322,45 @@ function ActivityPage({ selectedClient, clients }) {
 
       {/* Schedules */}
       <div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>Zeitpläne</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>
+          Zeitpläne
+        </div>
         {schedules.length === 0 ? (
-          <div style={{ fontSize: 13, color: C.textDim, padding: "8px 0" }}>Keine Zeitpläne angelegt.</div>
+          <div style={{ fontSize: 13, color: C.textDim, padding: "8px 0" }}>
+            Keine Zeitpläne angelegt.
+          </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {schedules.map((s) => (
-              <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px" }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: s.enabled ? C.green : C.textDim, flexShrink: 0 }} />
+              <div
+                key={s.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  background: C.card,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 10,
+                  padding: "12px 14px",
+                }}
+              >
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    background: s.enabled ? C.green : C.textDim,
+                    flexShrink: 0,
+                  }}
+                />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: C.text }}>{s.clientName || "—"}</div>
-                  <div style={{ fontSize: 11.5, color: C.textMuted }}>{freqLabel(s)}{s.enabled ? "" : " · pausiert"}</div>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: C.text }}>
+                    {s.clientName || "—"}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: C.textMuted }}>
+                    {freqLabel(s)}
+                    {s.enabled ? "" : " · pausiert"}
+                  </div>
                 </div>
                 <div style={{ fontSize: 11, color: C.textDim, textAlign: "right" }}>
                   {s.lastRunDate ? `zuletzt: ${s.lastRunDate}` : "noch nie gelaufen"}
@@ -12969,31 +16373,84 @@ function ActivityPage({ selectedClient, clients }) {
 
       {/* Recent runs */}
       <div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>Letzte Läufe</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>
+          Letzte Läufe
+        </div>
         {loading ? (
           <div style={{ fontSize: 13, color: C.textDim }}>Lädt…</div>
         ) : runs.length === 0 ? (
-          <div style={{ fontSize: 13, color: C.textDim, padding: "8px 0" }}>Noch keine Läufe registriert.</div>
+          <div style={{ fontSize: 13, color: C.textDim, padding: "8px 0" }}>
+            Noch keine Läufe registriert.
+          </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {runs.map((r) => {
               const m = statusMeta(r.status);
               return (
-                <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 12, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px" }}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 6, color: m.c, fontSize: 12, fontWeight: 700, minWidth: 70 }}>
-                    {r.status === "running" ? <Clock size={13} /> : r.status === "done" ? <CheckCircle size={13} /> : <AlertCircle size={13} />}
+                <div
+                  key={r.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    background: C.card,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 10,
+                    padding: "12px 14px",
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      color: m.c,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      minWidth: 70,
+                    }}
+                  >
+                    {r.status === "running" ? (
+                      <Clock size={13} />
+                    ) : r.status === "done" ? (
+                      <CheckCircle size={13} />
+                    ) : (
+                      <AlertCircle size={13} />
+                    )}
                     {m.label}
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, color: C.text, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {r.agentName || "Agent"}{r.clientName ? ` · ${r.clientName}` : ""}
+                    <div
+                      style={{
+                        fontSize: 13,
+                        color: C.text,
+                        fontWeight: 600,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {r.agentName || "Agent"}
+                      {r.clientName ? ` · ${r.clientName}` : ""}
                     </div>
-                    <div style={{ fontSize: 11, color: C.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {r.inputPreview || ""}{r.error ? ` — ${r.error}` : ""}
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: C.textDim,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {r.inputPreview || ""}
+                      {r.error ? ` — ${r.error}` : ""}
                     </div>
                   </div>
-                  <div style={{ fontSize: 11, color: C.textDim, textAlign: "right", flexShrink: 0 }}>
-                    {fmtTime(r.createdAt)}{r.durationMs ? ` · ${fmtDur(r.durationMs)}` : ""}
+                  <div
+                    style={{ fontSize: 11, color: C.textDim, textAlign: "right", flexShrink: 0 }}
+                  >
+                    {fmtTime(r.createdAt)}
+                    {r.durationMs ? ` · ${fmtDur(r.durationMs)}` : ""}
                   </div>
                 </div>
               );
@@ -13006,14 +16463,44 @@ function ActivityPage({ selectedClient, clients }) {
       {uptime.length > 0 && (
         <div>
           <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>
-            Verfügbarkeit {uptimeDown > 0 ? <span style={{ color: C.red }}>· {uptimeDown} offline</span> : <span style={{ color: C.green }}>· alle online</span>}
+            Verfügbarkeit{" "}
+            {uptimeDown > 0 ? (
+              <span style={{ color: C.red }}>· {uptimeDown} offline</span>
+            ) : (
+              <span style={{ color: C.green }}>· alle online</span>
+            )}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {uptime.map((s) => (
-              <div key={s.domain} style={{ display: "flex", alignItems: "center", gap: 10, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 14px" }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: s.ok ? C.green : C.red, flexShrink: 0 }} />
+              <div
+                key={s.domain}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  background: C.card,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 10,
+                  padding: "10px 14px",
+                }}
+              >
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    background: s.ok ? C.green : C.red,
+                    flexShrink: 0,
+                  }}
+                />
                 <span style={{ fontSize: 13, color: C.text, flex: 1 }}>{s.name || s.domain}</span>
-                <span style={{ fontSize: 11.5, color: s.ok ? C.textMuted : C.red, fontWeight: s.ok ? 400 : 600 }}>
+                <span
+                  style={{
+                    fontSize: 11.5,
+                    color: s.ok ? C.textMuted : C.red,
+                    fontWeight: s.ok ? 400 : 600,
+                  }}
+                >
                   {s.ok ? `online (HTTP ${s.code})` : `offline (${s.code || "kein Response"})`}
                 </span>
               </div>
@@ -13023,14 +16510,27 @@ function ActivityPage({ selectedClient, clients }) {
       )}
 
       {/* Änderungen werden jetzt täglich unter Content → Notes protokolliert. */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", fontSize: 12.5, color: C.textMuted }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: 10,
+          padding: "12px 14px",
+          fontSize: 12.5,
+          color: C.textMuted,
+        }}
+      >
         <FileText size={15} color={C.textDim} />
-        Alle vom Agenten durchgeführten Änderungen werden täglich unter <strong style={{ color: C.text, margin: "0 3px" }}>Content → Notes</strong> protokolliert („Agent-Änderungen JJJJ-MM-TT").
+        Alle vom Agenten durchgeführten Änderungen werden täglich unter{" "}
+        <strong style={{ color: C.text, margin: "0 3px" }}>Content → Notes</strong> protokolliert
+        („Agent-Änderungen JJJJ-MM-TT").
       </div>
     </div>
   );
 }
-
 
 function AgentsPage({ selectedClient }) {
   // Kosten sind nur fuer den SuperAdmin (owner) sichtbar (RBAC 2026-07-15).
@@ -13058,16 +16558,27 @@ function AgentsPage({ selectedClient }) {
       if (j.ok) setTemplates(j.templates || []);
     } catch {}
   }, []);
-  useEffect(() => { void loadTemplates(); }, [loadTemplates]);
+  useEffect(() => {
+    void loadTemplates();
+  }, [loadTemplates]);
 
   const createFromTemplate = async (tpl) => {
-    if (clientId === "global") { setMsg("Bitte zuerst einen Kunden wählen"); return; }
-    setBusy(true); setMsg("");
+    if (clientId === "global") {
+      setMsg("Bitte zuerst einen Kunden wählen");
+      return;
+    }
+    setBusy(true);
+    setMsg("");
     try {
       const r = await ezyFetch("/api/agent/templates", {
         method: "POST",
         headers: JSON_HEAD,
-        body: JSON.stringify({ templateId: tpl.id, clientId, clientName: selectedClient?.name || "", clientDomain: selectedClient?.domain || "" }),
+        body: JSON.stringify({
+          templateId: tpl.id,
+          clientId,
+          clientName: selectedClient?.name || "",
+          clientDomain: selectedClient?.domain || "",
+        }),
       });
       const j = await r.json().catch(() => ({}));
       if (!j.ok) throw new Error(j.error || "Erstellen fehlgeschlagen");
@@ -13105,9 +16616,13 @@ function AgentsPage({ selectedClient }) {
   };
   const deleteSession = async (agentId, sessionId) => {
     try {
-      await ezyFetch(`/api/agent/memory?agentId=${encodeURIComponent(agentId)}&sessionId=${encodeURIComponent(sessionId)}`, { method: "DELETE" });
+      await ezyFetch(
+        `/api/agent/memory?agentId=${encodeURIComponent(agentId)}&sessionId=${encodeURIComponent(sessionId)}`,
+        { method: "DELETE" },
+      );
       await loadMemory(agentId);
-      if (selectedSessions[agentId] === sessionId) setSelectedSessions((p) => ({ ...p, [agentId]: null }));
+      if (selectedSessions[agentId] === sessionId)
+        setSelectedSessions((p) => ({ ...p, [agentId]: null }));
     } catch {}
   };
 
@@ -13154,7 +16669,11 @@ function AgentsPage({ selectedClient }) {
       const j = await r.json();
       if (!j.ok) throw new Error(j.error || "Fehler");
       await load();
-      setMsg(next === "report" ? `„${a.name}" arbeitet jetzt NUR-REPORT (keine Deploys).` : `„${a.name}" arbeitet jetzt AUTONOM (Deploys via QA-Gate erlaubt).`);
+      setMsg(
+        next === "report"
+          ? `„${a.name}" arbeitet jetzt NUR-REPORT (keine Deploys).`
+          : `„${a.name}" arbeitet jetzt AUTONOM (Deploys via QA-Gate erlaubt).`,
+      );
     } catch (e) {
       setMsg(String(e?.message || e));
     }
@@ -13163,7 +16682,10 @@ function AgentsPage({ selectedClient }) {
   const del = async (id) => {
     if (!window.confirm("Agent wirklich löschen?")) return;
     try {
-      await ezyFetch(`/api/agent/agents?clientId=${encodeURIComponent(clientId)}&id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      await ezyFetch(
+        `/api/agent/agents?clientId=${encodeURIComponent(clientId)}&id=${encodeURIComponent(id)}`,
+        { method: "DELETE" },
+      );
       await load();
     } catch (e) {
       setMsg(String(e?.message || e));
@@ -13179,7 +16701,13 @@ function AgentsPage({ selectedClient }) {
       const r = await ezyFetch("/api/agent/run-agent", {
         method: "POST",
         headers: JSON_HEAD,
-        body: JSON.stringify({ id: agent.id, clientId, clientName: selectedClient?.name || null, input: runInputs[agent.id] || "", resumeSessionId }),
+        body: JSON.stringify({
+          id: agent.id,
+          clientId,
+          clientName: selectedClient?.name || null,
+          input: runInputs[agent.id] || "",
+          resumeSessionId,
+        }),
       });
       const j = await r.json();
       if (!j.jobId) throw new Error(j.error || "Start fehlgeschlagen");
@@ -13188,7 +16716,13 @@ function AgentsPage({ selectedClient }) {
         const pr = await ezyFetch(`/api/agent/run-agent?jobId=${encodeURIComponent(j.jobId)}`);
         const pj = await pr.json();
         if (pj.status === "done") {
-          setRunResult({ id: agent.id, ok: true, text: pj.result, cost: pj.costUsd, sessionId: pj.sessionId });
+          setRunResult({
+            id: agent.id,
+            ok: true,
+            text: pj.result,
+            cost: pj.costUsd,
+            sessionId: pj.sessionId,
+          });
           if (pj.sessionId) setSelectedSessions((p) => ({ ...p, [agent.id]: pj.sessionId }));
           loadMemory(agent.id);
           break;
@@ -13229,7 +16763,10 @@ function AgentsPage({ selectedClient }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div className="mobile-wrap" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+      <div
+        className="mobile-wrap"
+        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}
+      >
         <div>
           <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>
             Agents{selectedClient?.name ? ` — ${selectedClient.name}` : ""}
@@ -13241,24 +16778,93 @@ function AgentsPage({ selectedClient }) {
         {!editing && (
           <div style={{ display: "flex", gap: 8, position: "relative" }}>
             {templates.length > 0 && (
-              <button onClick={() => setShowTemplates((v) => !v)} style={btn(C.card)} title="Agent aus einer Vorlage erstellen">
+              <button
+                onClick={() => setShowTemplates((v) => !v)}
+                style={btn(C.card)}
+                title="Agent aus einer Vorlage erstellen"
+              >
                 ▦ Aus Vorlage
               </button>
             )}
-            <button onClick={() => setEditing({ name: "", description: "", instructions: "", model: "claude-sonnet-4-6", skills: [] })} style={btn(C.accent)}>
+            <button
+              onClick={() =>
+                setEditing({
+                  name: "",
+                  description: "",
+                  instructions: "",
+                  model: "claude-sonnet-4-6",
+                  skills: [],
+                })
+              }
+              style={btn(C.accent)}
+            >
               + Neuer Agent
             </button>
             {showTemplates && (
-              <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 6, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 8, minWidth: 320, zIndex: 30, boxShadow: "0 8px 32px rgba(0,0,0,.4)" }}>
-                <div style={{ fontSize: 11, color: C.textDim, textTransform: "uppercase", letterSpacing: ".5px", padding: "4px 8px 8px" }}>Vorlagen</div>
+              <div
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  right: 0,
+                  marginTop: 6,
+                  background: C.card,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 12,
+                  padding: 8,
+                  minWidth: 320,
+                  zIndex: 30,
+                  boxShadow: "0 8px 32px rgba(0,0,0,.4)",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: C.textDim,
+                    textTransform: "uppercase",
+                    letterSpacing: ".5px",
+                    padding: "4px 8px 8px",
+                  }}
+                >
+                  Vorlagen
+                </div>
                 {templates.map((t) => (
-                  <button key={t.id} onClick={() => createFromTemplate(t)} disabled={busy} style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit" }} onMouseEnter={(e) => e.currentTarget.style.background = C.cardHover} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+                  <button
+                    key={t.id}
+                    onClick={() => createFromTemplate(t)}
+                    disabled={busy}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "10px 12px",
+                      borderRadius: 8,
+                      border: "none",
+                      background: "transparent",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = C.cardHover)}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                  >
                     <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{t.name}</div>
-                    <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 2, lineHeight: 1.4 }}>{t.description}</div>
+                    <div
+                      style={{ fontSize: 11.5, color: C.textMuted, marginTop: 2, lineHeight: 1.4 }}
+                    >
+                      {t.description}
+                    </div>
                   </button>
                 ))}
-                <div style={{ fontSize: 10.5, color: C.textDim, padding: "8px 8px 2px", borderTop: `1px solid ${C.border}`, marginTop: 6 }}>
-                  Wird für „{selectedClient?.name || "—"}" angelegt (Name/Domain automatisch eingesetzt).
+                <div
+                  style={{
+                    fontSize: 10.5,
+                    color: C.textDim,
+                    padding: "8px 8px 2px",
+                    borderTop: `1px solid ${C.border}`,
+                    marginTop: 6,
+                  }}
+                >
+                  Wird für „{selectedClient?.name || "—"}" angelegt (Name/Domain automatisch
+                  eingesetzt).
                 </div>
               </div>
             )}
@@ -13268,15 +16874,37 @@ function AgentsPage({ selectedClient }) {
       {msg && <div style={{ fontSize: 12, color: C.textMuted }}>{msg}</div>}
 
       {editing && (
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18, display: "flex", flexDirection: "column", gap: 12 }}>
-          <div className="ezy-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 14,
+            padding: 18,
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+          }}
+        >
+          <div
+            className="ezy-form-grid"
+            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
+          >
             <div>
               <div style={lbl}>Name</div>
-              <input style={inputStyle} value={editing.name} onChange={(e) => setEditing((p) => ({ ...p, name: e.target.value }))} placeholder="z. B. SEO-Audit-Bot" />
+              <input
+                style={inputStyle}
+                value={editing.name}
+                onChange={(e) => setEditing((p) => ({ ...p, name: e.target.value }))}
+                placeholder="z. B. SEO-Audit-Bot"
+              />
             </div>
             <div>
               <div style={lbl}>Modell</div>
-              <select style={inputStyle} value={editing.model} onChange={(e) => setEditing((p) => ({ ...p, model: e.target.value }))}>
+              <select
+                style={inputStyle}
+                value={editing.model}
+                onChange={(e) => setEditing((p) => ({ ...p, model: e.target.value }))}
+              >
                 {AGENT_MODELS.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.label}
@@ -13287,35 +16915,84 @@ function AgentsPage({ selectedClient }) {
           </div>
           <div>
             <div style={lbl}>Arbeitsmodus</div>
-            <div style={{ display: "flex", gap: 0, border: `1px solid ${C.border}`, borderRadius: 8, overflow: "hidden", width: "fit-content" }}>
-              {[["autonom", "🤖 Autonom (deployt via QA-Gate)"], ["report", "📋 Nur Report (keine Deploys)"]].map(([val, label]) => (
+            <div
+              style={{
+                display: "flex",
+                gap: 0,
+                border: `1px solid ${C.border}`,
+                borderRadius: 8,
+                overflow: "hidden",
+                width: "fit-content",
+              }}
+            >
+              {[
+                ["autonom", "🤖 Autonom (deployt via QA-Gate)"],
+                ["report", "📋 Nur Report (keine Deploys)"],
+              ].map(([val, label]) => (
                 <button
                   key={val}
                   onClick={() => setEditing((p) => ({ ...p, autonomy: val }))}
                   style={{
-                    background: (editing.autonomy === "report" ? "report" : "autonom") === val ? (val === "report" ? C.orange || "#f59e0b" : C.green) : "transparent",
-                    color: (editing.autonomy === "report" ? "report" : "autonom") === val ? "#fff" : C.textMuted,
-                    border: "none", padding: "8px 14px", cursor: "pointer", fontSize: 12, fontWeight: 600,
+                    background:
+                      (editing.autonomy === "report" ? "report" : "autonom") === val
+                        ? val === "report"
+                          ? C.orange || "#f59e0b"
+                          : C.green
+                        : "transparent",
+                    color:
+                      (editing.autonomy === "report" ? "report" : "autonom") === val
+                        ? "#fff"
+                        : C.textMuted,
+                    border: "none",
+                    padding: "8px 14px",
+                    cursor: "pointer",
+                    fontSize: 12,
+                    fontWeight: 600,
                   }}
                 >
                   {label}
                 </button>
               ))}
             </div>
-            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 4 }}>„Nur Report" wird im agent-service hart durchgesetzt: der Agent analysiert und legt Freigabe-Punkte an, verändert aber nichts an Kundensystemen — auch keine bereits freigegebenen Punkte.</div>
+            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 4 }}>
+              „Nur Report" wird im agent-service hart durchgesetzt: der Agent analysiert und legt
+              Freigabe-Punkte an, verändert aber nichts an Kundensystemen — auch keine bereits
+              freigegebenen Punkte.
+            </div>
           </div>
           <div>
             <div style={lbl}>Beschreibung (optional)</div>
-            <input style={inputStyle} value={editing.description} onChange={(e) => setEditing((p) => ({ ...p, description: e.target.value }))} placeholder="Wofür ist dieser Agent?" />
+            <input
+              style={inputStyle}
+              value={editing.description}
+              onChange={(e) => setEditing((p) => ({ ...p, description: e.target.value }))}
+              placeholder="Wofür ist dieser Agent?"
+            />
           </div>
           <div>
             <div style={lbl}>Instruktionen (System-Prompt)</div>
-            <textarea style={{ ...inputStyle, minHeight: 120, fontFamily: "'JetBrains Mono',monospace", lineHeight: 1.6, resize: "vertical" }} value={editing.instructions} onChange={(e) => setEditing((p) => ({ ...p, instructions: e.target.value }))} placeholder="Du bist ein SEO-Experte für Schweizer KMU. Antworte strukturiert, auf Deutsch ..." />
+            <textarea
+              style={{
+                ...inputStyle,
+                minHeight: 120,
+                fontFamily: "'JetBrains Mono',monospace",
+                lineHeight: 1.6,
+                resize: "vertical",
+              }}
+              value={editing.instructions}
+              onChange={(e) => setEditing((p) => ({ ...p, instructions: e.target.value }))}
+              placeholder="Du bist ein SEO-Experte für Schweizer KMU. Antworte strukturiert, auf Deutsch ..."
+            />
           </div>
           <div>
             <div style={lbl}>Skills (optional)</div>
-            <SkillPicker selected={editing.skills || []} onChange={(skills) => setEditing((p) => ({ ...p, skills }))} />
-            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 4 }}>Leer = freier Assistent. Skills geben dem Agent spezialisierte Fähigkeiten.</div>
+            <SkillPicker
+              selected={editing.skills || []}
+              onChange={(skills) => setEditing((p) => ({ ...p, skills }))}
+            />
+            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 4 }}>
+              Leer = freier Assistent. Skills geben dem Agent spezialisierte Fähigkeiten.
+            </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={save} disabled={busy} style={btn(C.accent)}>
@@ -13332,28 +17009,88 @@ function AgentsPage({ selectedClient }) {
         (loading ? (
           <div style={{ color: C.textMuted, fontSize: 13 }}>Lädt…</div>
         ) : agents.length === 0 ? (
-          <div style={{ color: C.textMuted, fontSize: 13, padding: 24, textAlign: "center", border: `1px dashed ${C.border}`, borderRadius: 12 }}>
+          <div
+            style={{
+              color: C.textMuted,
+              fontSize: 13,
+              padding: 24,
+              textAlign: "center",
+              border: `1px dashed ${C.border}`,
+              borderRadius: 12,
+            }}
+          >
             Noch keine Agents. Erstelle deinen ersten mit „+ Neuer Agent".
           </div>
         ) : (
-          <div className="client-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(320px,1fr))", gap: 14 }}>
+          <div
+            className="client-grid"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill,minmax(320px,1fr))",
+              gap: 14,
+            }}
+          >
             {agents.map((a) => (
-              <div key={a.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+              <div
+                key={a.id}
+                style={{
+                  background: C.card,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 14,
+                  padding: 16,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    gap: 8,
+                  }}
+                >
                   <div>
                     <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{a.name}</div>
-                    {a.description && <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>{a.description}</div>}
+                    {a.description && (
+                      <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>
+                        {a.description}
+                      </div>
+                    )}
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
-                    <Badge color={C.blue}>{(AGENT_MODELS.find((m) => m.id === a.model)?.label || a.model || "").split(" ")[0]}</Badge>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 4,
+                      alignItems: "flex-end",
+                    }}
+                  >
+                    <Badge color={C.blue}>
+                      {
+                        (AGENT_MODELS.find((m) => m.id === a.model)?.label || a.model || "").split(
+                          " ",
+                        )[0]
+                      }
+                    </Badge>
                     <button
                       onClick={() => toggleAutonomy(a)}
-                      title={a.autonomy === "report" ? "Klick: auf Autonom umschalten (Deploys via QA-Gate erlaubt)" : "Klick: auf Nur-Report umschalten (hartes Deploy-Verbot)"}
+                      title={
+                        a.autonomy === "report"
+                          ? "Klick: auf Autonom umschalten (Deploys via QA-Gate erlaubt)"
+                          : "Klick: auf Nur-Report umschalten (hartes Deploy-Verbot)"
+                      }
                       style={{
-                        background: a.autonomy === "report" ? "rgba(245,158,11,.15)" : "rgba(16,185,129,.15)",
+                        background:
+                          a.autonomy === "report" ? "rgba(245,158,11,.15)" : "rgba(16,185,129,.15)",
                         color: a.autonomy === "report" ? "#f59e0b" : C.green,
                         border: `1px solid ${a.autonomy === "report" ? "#f59e0b55" : C.green + "55"}`,
-                        borderRadius: 6, padding: "3px 8px", cursor: "pointer", fontSize: 11, fontWeight: 700,
+                        borderRadius: 6,
+                        padding: "3px 8px",
+                        cursor: "pointer",
+                        fontSize: 11,
+                        fontWeight: 700,
                       }}
                     >
                       {a.autonomy === "report" ? "📋 Nur Report" : "🤖 Autonom"}
@@ -13369,54 +17106,183 @@ function AgentsPage({ selectedClient }) {
                     ))}
                   </div>
                 )}
-                <textarea style={{ ...inputStyle, minHeight: 54, resize: "vertical" }} placeholder="Anfrage / Aufgabe an den Agenten…" value={runInputs[a.id] || ""} onChange={(e) => setRunInputs((p) => ({ ...p, [a.id]: e.target.value }))} />
+                <textarea
+                  style={{ ...inputStyle, minHeight: 54, resize: "vertical" }}
+                  placeholder="Anfrage / Aufgabe an den Agenten…"
+                  value={runInputs[a.id] || ""}
+                  onChange={(e) => setRunInputs((p) => ({ ...p, [a.id]: e.target.value }))}
+                />
                 {selectedSessions[a.id] && (
-                  <div style={{ fontSize: 11, color: C.green, display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.green }} />
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: C.green,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <span
+                      style={{ width: 6, height: 6, borderRadius: "50%", background: C.green }}
+                    />
                     Session aktiv — fortsetzen
-                    <button onClick={() => setSelectedSessions((p) => ({ ...p, [a.id]: null }))} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", fontSize: 11, padding: 0 }}>(neue starten)</button>
+                    <button
+                      onClick={() => setSelectedSessions((p) => ({ ...p, [a.id]: null }))}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: C.textMuted,
+                        cursor: "pointer",
+                        fontSize: 11,
+                        padding: 0,
+                      }}
+                    >
+                      (neue starten)
+                    </button>
                   </div>
                 )}
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   <button onClick={() => run(a)} disabled={runningId === a.id} style={btn(C.green)}>
-                    {runningId === a.id ? "läuft…" : selectedSessions[a.id] ? "▶ Fortsetzen" : "▶ Ausführen"}
+                    {runningId === a.id
+                      ? "läuft…"
+                      : selectedSessions[a.id]
+                        ? "▶ Fortsetzen"
+                        : "▶ Ausführen"}
                   </button>
-                  <button onClick={() => { loadMemory(a.id); setShowMemory(showMemory === a.id ? null : a.id); }} style={btn()}>
+                  <button
+                    onClick={() => {
+                      loadMemory(a.id);
+                      setShowMemory(showMemory === a.id ? null : a.id);
+                    }}
+                    style={btn()}
+                  >
                     {showMemory === a.id ? "Gedächtnis ▲" : "Gedächtnis ▼"}
                   </button>
-                  <button onClick={() => setEditing({ ...a, skills: a.skills || [] })} style={btn()}>
+                  <button
+                    onClick={() => setEditing({ ...a, skills: a.skills || [] })}
+                    style={btn()}
+                  >
                     Bearbeiten
                   </button>
-                  <button onClick={() => del(a.id)} style={{ ...btn(), color: C.textMuted, marginLeft: "auto" }}>
+                  <button
+                    onClick={() => del(a.id)}
+                    style={{ ...btn(), color: C.textMuted, marginLeft: "auto" }}
+                  >
                     Löschen
                   </button>
                 </div>
                 {showMemory === a.id && (
-                  <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: 10, fontSize: 12 }}>
-                    <div style={{ fontWeight: 600, marginBottom: 6, color: C.text }}>Sessions (Gedächtnis)</div>
+                  <div
+                    style={{
+                      background: C.bg,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 8,
+                      padding: 10,
+                      fontSize: 12,
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, marginBottom: 6, color: C.text }}>
+                      Sessions (Gedächtnis)
+                    </div>
                     {(agentSessions[a.id] || []).length === 0 ? (
                       <div style={{ color: C.textMuted }}>Noch keine Sessions gespeichert.</div>
                     ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 180, overflow: "auto" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 6,
+                          maxHeight: 180,
+                          overflow: "auto",
+                        }}
+                      >
                         {(agentSessions[a.id] || []).map((s) => (
-                          <div key={s.sessionId} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 6, background: selectedSessions[a.id] === s.sessionId ? `${C.accent}22` : C.surface, border: `1px solid ${selectedSessions[a.id] === s.sessionId ? C.accent : C.border}`, cursor: "pointer" }} onClick={() => setSelectedSessions((p) => ({ ...p, [a.id]: s.sessionId }))}>
+                          <div
+                            key={s.sessionId}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              padding: "6px 8px",
+                              borderRadius: 6,
+                              background:
+                                selectedSessions[a.id] === s.sessionId
+                                  ? `${C.accent}22`
+                                  : C.surface,
+                              border: `1px solid ${selectedSessions[a.id] === s.sessionId ? C.accent : C.border}`,
+                              cursor: "pointer",
+                            }}
+                            onClick={() =>
+                              setSelectedSessions((p) => ({ ...p, [a.id]: s.sessionId }))
+                            }
+                          >
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
-                              <div style={{ fontSize: 10, color: C.textMuted }}>{s.messageCount || 1} Nachr. · {new Date(s.lastMessageAt).toLocaleDateString("de-CH")}</div>
+                              <div
+                                style={{
+                                  fontWeight: 600,
+                                  color: C.text,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {s.title}
+                              </div>
+                              <div style={{ fontSize: 10, color: C.textMuted }}>
+                                {s.messageCount || 1} Nachr. ·{" "}
+                                {new Date(s.lastMessageAt).toLocaleDateString("de-CH")}
+                              </div>
                             </div>
-                            <button onClick={(e) => { e.stopPropagation(); deleteSession(a.id, s.sessionId); }} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", fontSize: 14, padding: 2 }}>×</button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteSession(a.id, s.sessionId);
+                              }}
+                              style={{
+                                background: "none",
+                                border: "none",
+                                color: C.textMuted,
+                                cursor: "pointer",
+                                fontSize: 14,
+                                padding: 2,
+                              }}
+                            >
+                              ×
+                            </button>
                           </div>
                         ))}
                       </div>
                     )}
-                    <button onClick={() => { setSelectedSessions((p) => ({ ...p, [a.id]: null })); setShowMemory(null); }} style={{ ...btn(), marginTop: 8, fontSize: 11, padding: "5px 10px" }}>+ Neue Session starten</button>
+                    <button
+                      onClick={() => {
+                        setSelectedSessions((p) => ({ ...p, [a.id]: null }));
+                        setShowMemory(null);
+                      }}
+                      style={{ ...btn(), marginTop: 8, fontSize: 11, padding: "5px 10px" }}
+                    >
+                      + Neue Session starten
+                    </button>
                   </div>
                 )}
                 {runResult?.id === a.id && (
-                  <div style={{ background: C.bg, border: `1px solid ${runResult.ok ? C.border : C.red}55`, borderRadius: 8, padding: 10, fontSize: 12, color: C.text, whiteSpace: "pre-wrap", maxHeight: 320, overflow: "auto" }}>
+                  <div
+                    style={{
+                      background: C.bg,
+                      border: `1px solid ${runResult.ok ? C.border : C.red}55`,
+                      borderRadius: 8,
+                      padding: 10,
+                      fontSize: 12,
+                      color: C.text,
+                      whiteSpace: "pre-wrap",
+                      maxHeight: 320,
+                      overflow: "auto",
+                    }}
+                  >
                     {runResult.text}
                     {isOwner && runResult.ok && runResult.cost != null && (
-                      <div style={{ fontSize: 10, color: C.textMuted, marginTop: 6 }}>Kosten: ${Number(runResult.cost).toFixed(3)}</div>
+                      <div style={{ fontSize: 10, color: C.textMuted, marginTop: 6 }}>
+                        Kosten: ${Number(runResult.cost).toFixed(3)}
+                      </div>
                     )}
                   </div>
                 )}
@@ -13442,7 +17308,9 @@ function AgentRunsPanel({ selectedClient }) {
   }, [refresh]);
 
   if (loading && runs.length === 0)
-    return <div style={{ textAlign: "center", padding: 40, color: C.textMuted }}>Lade Agent-Läufe …</div>;
+    return (
+      <div style={{ textAlign: "center", padding: 40, color: C.textMuted }}>Lade Agent-Läufe …</div>
+    );
 
   if (!runs.length)
     return (
@@ -13462,7 +17330,14 @@ function AgentRunsPanel({ selectedClient }) {
           Aktualisieren
         </Btn>
       </div>
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden" }}>
+      <div
+        style={{
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: 14,
+          overflow: "hidden",
+        }}
+      >
         {runs.map((r, i) => {
           const st = String(r.status || "ok").toLowerCase();
           const SI = stIc[st] || Clock;
@@ -13479,17 +17354,36 @@ function AgentRunsPanel({ selectedClient }) {
                 gap: 12,
               }}
             >
-              <SI size={16} color={stCo[st] || C.textMuted} style={{ marginTop: 2, flexShrink: 0 }} />
+              <SI
+                size={16}
+                color={stCo[st] || C.textMuted}
+                style={{ marginTop: 2, flexShrink: 0 }}
+              />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{r.agent_name || "Agent"}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>
+                    {r.agent_name || "Agent"}
+                  </span>
                   <span style={{ fontSize: 11, color: C.textMuted }}>
                     {d.toLocaleDateString("de-CH")}{" "}
                     {d.toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" })} · {dur}
                   </span>
                 </div>
-                <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 3, display: "flex", gap: 12, flexWrap: "wrap" }}>
-                  <span>{r.deploy_count > 0 ? `${r.deploy_count} Deploy${r.deploy_count === 1 ? "" : "s"}` : "0 Deploys"}</span>
+                <div
+                  style={{
+                    fontSize: 11.5,
+                    color: C.textMuted,
+                    marginTop: 3,
+                    display: "flex",
+                    gap: 12,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <span>
+                    {r.deploy_count > 0
+                      ? `${r.deploy_count} Deploy${r.deploy_count === 1 ? "" : "s"}`
+                      : "0 Deploys"}
+                  </span>
                   {r.health_score != null && <span>Health {r.health_score}/100</span>}
                 </div>
                 {r.summary && (
@@ -13609,7 +17503,9 @@ function App({ appScope = null }) {
   const caa = useClientAppAccess();
   const clients = useMemo(() => {
     const all = ezy.clients.map((c) => normalizeClientShape(c));
-    const svc = scope?.services ? all.filter((c) => svcMatrix.hasService(c.id, scope.services)) : all;
+    const svc = scope?.services
+      ? all.filter((c) => svcMatrix.hasService(c.id, scope.services))
+      : all;
     if (!appScope || appScope === "admin") return svc;
     return svc.filter((c) => appEnabledFor(caa.map, c.id, appScope));
   }, [ezy.clients, scope, svcMatrix.hasService, appScope, caa.map]);
@@ -13650,7 +17546,9 @@ function App({ appScope = null }) {
   const nav = useMemo(
     () =>
       isViewer && client?.id
-        ? navBase.filter((n) => n.id !== "reports" || featureEnabledFor(caa.map, client.id, "seo", "reports"))
+        ? navBase.filter(
+            (n) => n.id !== "reports" || featureEnabledFor(caa.map, client.id, "seo", "reports"),
+          )
         : navBase,
     [navBase, isViewer, client?.id, caa.map],
   );
@@ -13660,7 +17558,11 @@ function App({ appScope = null }) {
   // Plattform-Umbau Phase 1 (2026-07-31): ?app=<id> vom Launcher übersteuert
   // den letzten UI-Stand und springt in die Start-Ansicht der gewählten App.
   const appParam = useMemo(() => {
-    try { return new URLSearchParams(window.location.search).get("app"); } catch { return null; }
+    try {
+      return new URLSearchParams(window.location.search).get("app");
+    } catch {
+      return null;
+    }
   }, []);
   const appStart = (appParam && APP_START[appParam]) || null;
   // Phase 2: EzyAI lebt unter /ezyai — alte ?app=geo-Links dorthin umleiten.
@@ -13685,7 +17587,9 @@ function App({ appScope = null }) {
       const u = new URL(window.location.href);
       u.searchParams.delete("app");
       window.history.replaceState({}, "", u.pathname + (u.search || ""));
-    } catch { /* egal */ }
+    } catch {
+      /* egal */
+    }
   }, [appParam]);
   // Viewers (Kunden) dürfen Dashboard + ihre Reports sehen, sonst nichts.
   useEffect(() => {
@@ -13694,11 +17598,17 @@ function App({ appScope = null }) {
   // Mitarbeiter (kein Admin) haben keinen Zugriff auf Einstellungen/Team –
   // auch nicht per direkter URL/localStorage-Wiederherstellung.
   useEffect(() => {
-    if (!isOrgAdmin && (page === "settings" || page === "team" || page === "matrix")) setPage("dashboard");
+    if (!isOrgAdmin && (page === "settings" || page === "team" || page === "matrix"))
+      setPage("dashboard");
   }, [isOrgAdmin, page]);
   // Portal-Gating: Reports-Seite ohne Freischaltung → zurück aufs Dashboard.
   useEffect(() => {
-    if (isViewer && page === "reports" && client?.id && !featureEnabledFor(caa.map, client.id, "seo", "reports"))
+    if (
+      isViewer &&
+      page === "reports" &&
+      client?.id &&
+      !featureEnabledFor(caa.map, client.id, "seo", "reports")
+    )
       setPage("dashboard");
   }, [isViewer, page, client?.id, caa.map]);
   // Phase 3: der (App-übergreifend gemerkte) UI-Stand darf nicht aus dem Scope
@@ -13740,7 +17650,13 @@ function App({ appScope = null }) {
     const days = shared?.days || ui0.dateRange?.days || 30;
     const label = shared?.label || ui0.dateRange?.label || "30 Tage";
     const preset = shared?.preset || `${days}d`;
-    return { label, days, start: new Date(now.getTime() - days * 24 * 60 * 60 * 1000), end: now, preset };
+    return {
+      label,
+      days,
+      start: new Date(now.getTime() - days * 24 * 60 * 60 * 1000),
+      end: now,
+      preset,
+    };
   });
   const [compareMode, setCompareMode] = useState(ui0.compareMode || "none");
   // Enrich the dateRange with a computed comparison period so dashboards can use it.
@@ -13771,8 +17687,14 @@ function App({ appScope = null }) {
       label: dateRange.label,
       days: dateRange.days,
       preset: dateRange.preset || `${dateRange.days}d`,
-      start: dateRange.preset === "custom" && dateRange.start ? new Date(dateRange.start).toISOString() : undefined,
-      end: dateRange.preset === "custom" && dateRange.end ? new Date(dateRange.end).toISOString() : undefined,
+      start:
+        dateRange.preset === "custom" && dateRange.start
+          ? new Date(dateRange.start).toISOString()
+          : undefined,
+      end:
+        dateRange.preset === "custom" && dateRange.end
+          ? new Date(dateRange.end).toISOString()
+          : undefined,
     });
   }, [dateRange]);
   const [cmdOpen, setCmdOpen] = useState(false);
@@ -13888,9 +17810,10 @@ function App({ appScope = null }) {
   // sie gesetzt wurden). "runs" (Agent-Läufe) ist für Admins immer sichtbar,
   // für Mitarbeiter (member/viewer) hingegen ausgeblendet (RBAC 2026-07-15).
   const effectiveVisibleTabs = useMemo(() => {
-    const fromClient = Array.isArray(client?.defaults?.visibleTabs) && client.defaults.visibleTabs.length
-      ? client.defaults.visibleTabs
-      : null;
+    const fromClient =
+      Array.isArray(client?.defaults?.visibleTabs) && client.defaults.visibleTabs.length
+        ? client.defaults.visibleTabs
+        : null;
     const base = fromClient || customerDefaults.visibleTabs || ["seo", "aivis", "conversions"];
     const withRuns = base.includes("runs") ? base : [...base, "runs"];
     return isOrgAdmin ? withRuns : withRuns.filter((t) => t !== "runs");
@@ -13919,7 +17842,16 @@ function App({ appScope = null }) {
         if (!req || svc.loading) return true;
         return req.some((k) => svc.enabled?.[k]);
       }),
-    [effectiveVisibleTabs, svc.enabled, svc.loading, scope, isOrgAdmin, isViewer, client?.id, caa.map],
+    [
+      effectiveVisibleTabs,
+      svc.enabled,
+      svc.loading,
+      scope,
+      isOrgAdmin,
+      isViewer,
+      client?.id,
+      caa.map,
+    ],
   );
   useEffect(() => {
     if (visibleTabs.length > 0 && !visibleTabs.some((t) => t.id === tab)) {
@@ -13963,191 +17895,375 @@ function App({ appScope = null }) {
 
   return (
     <EzyPilotProvider selectedClient={client} clients={clients} tools={tools}>
-    <div
-      className="app-shell"
-      style={{
-        // CD: Aceh Soft (Fließtext) — Nunito Sans als freier Ersatzschnitt.
-        fontFamily: "'Aceh Soft','Nunito Sans','Segoe UI',sans-serif",
-        position: "relative", // Bezug für Grund-/Glow-Unterlage (beide zIndex -1)
-        // isolation: eigener Stacking-Kontext — die -1-Ebenen liegen dadurch
-        // HINTER dem Shell-Inhalt, aber VOR dem (deckenden) body-Hintergrund.
-        // Ohne das landen sie im Root-Kontext unter dem body-Grund = unsichtbar.
-        isolation: "isolate",
-        color: C.text,
-        minHeight: "100vh",
-        display: "flex",
-        fontSize: 14,
-        lineHeight: 1.5,
-        WebkitFontSmoothing: "antialiased",
-      }}
-    >
-      <link
-        href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Nunito+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400&display=swap"
-        rel="stylesheet"
-      />
-      <style>{CSS}</style>
-      {/* Grundfarbe + Waben-Pattern als -1-Unterlage; Glow ebenfalls -1 (danach
-          im DOM = darüber). Inhalt bleibt unangehoben — Dropdowns/Sidebar-Stacking
-          wie vor dem Pattern-Umbau (Fix 10.08. abends). */}
-      <div aria-hidden style={{ position: "absolute", inset: 0, zIndex: -1, backgroundColor: C.bg, backgroundImage: HEX_BG, pointerEvents: "none" }} />
-      <HexGlowLayer />
-      {/* Versionsnummer unten rechts (Volkan 13.08.) — je App eigene Nummer +
-          Änderungshistorie beim Hover. */}
-      <AppVersionBadge appId={appScope} palette={{ accent: C.accent, text: C.text, muted: C.textMuted, border: C.border, card: C.card }} />
-
-      {/* Sidebar */}
-      <aside
-        className="app-sidebar"
+      <div
+        className="app-shell"
         style={{
-          width: sw,
-          background: C.surface,
-          borderRight: `1px solid ${C.border}`,
+          // CD: Aceh Soft (Fließtext) — Nunito Sans als freier Ersatzschnitt.
+          fontFamily: "'Aceh Soft','Nunito Sans','Segoe UI',sans-serif",
+          position: "relative", // Bezug für Grund-/Glow-Unterlage (beide zIndex -1)
+          // isolation: eigener Stacking-Kontext — die -1-Ebenen liegen dadurch
+          // HINTER dem Shell-Inhalt, aber VOR dem (deckenden) body-Hintergrund.
+          // Ohne das landen sie im Root-Kontext unter dem body-Grund = unsichtbar.
+          isolation: "isolate",
+          color: C.text,
+          minHeight: "100vh",
           display: "flex",
-          flexDirection: "column",
-          transition: "width .2s",
-          position: "fixed",
-          top: 0,
-          left: 0,
-          bottom: 0,
-          zIndex: 50,
+          fontSize: 14,
+          lineHeight: 1.5,
+          WebkitFontSmoothing: "antialiased",
         }}
       >
+        <link
+          href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Nunito+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400&display=swap"
+          rel="stylesheet"
+        />
+        <style>{CSS}</style>
+        {/* Grundfarbe + Waben-Pattern als -1-Unterlage; Glow ebenfalls -1 (danach
+          im DOM = darüber). Inhalt bleibt unangehoben — Dropdowns/Sidebar-Stacking
+          wie vor dem Pattern-Umbau (Fix 10.08. abends). */}
         <div
+          aria-hidden
           style={{
-            padding: collapsed ? "20px 12px" : "20px 20px",
-            borderBottom: `1px solid ${C.border}`,
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            cursor: "pointer",
+            position: "absolute",
+            inset: 0,
+            zIndex: -1,
+            backgroundColor: C.bg,
+            backgroundImage: HEX_BG,
+            pointerEvents: "none",
           }}
-          onClick={() => setCollapsed(!collapsed)}
+        />
+        <HexGlowLayer />
+        {/* Versionsnummer unten rechts (Volkan 13.08.) — je App eigene Nummer +
+          Änderungshistorie beim Hover. */}
+        <AppVersionBadge
+          appId={appScope}
+          palette={{
+            accent: C.accent,
+            text: C.text,
+            muted: C.textMuted,
+            border: C.border,
+            card: C.card,
+          }}
+        />
+
+        {/* Sidebar */}
+        <aside
+          className="app-sidebar"
+          style={{
+            width: sw,
+            background: C.surface,
+            borderRight: `1px solid ${C.border}`,
+            display: "flex",
+            flexDirection: "column",
+            transition: "width .2s",
+            position: "fixed",
+            top: 0,
+            left: 0,
+            bottom: 0,
+            zIndex: 50,
+          }}
         >
-          {/* CD-Symbol: neues Marken-Icon (E + Power-O im Hexagon). */}
-          <EzyOneMark width={34} />
-          {!collapsed && (
-            <div>
-              {/* CD: Wortmarke "Ezy One" — Sentence case, nie ALL CAPS. */}
-              <div style={{ fontWeight: 700, fontSize: 15, letterSpacing: "-.2px", fontFamily: "'Kamerik 105',Poppins,sans-serif" }}>Ezy One</div>
-              <div style={{ fontSize: 10, color: C.textMuted }}>SEO & GEO Platform</div>
-            </div>
-          )}
-        </div>
-        {/* App-Switcher (Plattform-Umbau Phase 1, 2026-07-31): Atlassian-Muster —
-            Raster-Button unter dem Logo, Dropdown mit erlaubten Apps + Launcher. */}
-        {!isViewer && (
-          <div style={{ position: "relative", borderBottom: `1px solid ${C.border}`, padding: "8px 10px" }}>
-            <button
-              onClick={() => setSwOpen((v) => !v)}
-              title="App wechseln"
-              style={{
-                width: "100%", display: "flex", alignItems: "center", gap: 9,
-                background: swOpen ? "rgba(0,0,0,.05)" : "none",
-                border: "none", borderRadius: 8, padding: collapsed ? "8px 6px" : "8px 10px",
-                color: C.text, cursor: "pointer", fontSize: 12.5, fontWeight: 600,
-                justifyContent: collapsed ? "center" : "flex-start",
-              }}
-            >
-              <span style={{ fontSize: 14, lineHeight: 1, letterSpacing: 1 }}>⣿</span>
-              {!collapsed && (() => {
-                const cur = EZY_APPS.find((a) => a.id === (appScope || currentAppOf(page, tab)));
-                return <span style={{ color: cur?.color || C.text }}>{cur?.name || "Apps"}</span>;
-              })()}
-            </button>
-            {swOpen && (
-              <div
-                style={{
-                  position: "absolute", top: "100%", left: 10, zIndex: 200, width: 236,
-                  background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12,
-                  padding: 8, boxShadow: "0 14px 44px rgba(0,0,0,.55)",
-                }}
-              >
-                <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".08em", color: C.textMuted, padding: "4px 10px 8px", fontWeight: 700 }}>
-                  Apps wechseln
+          <div
+            style={{
+              padding: collapsed ? "20px 12px" : "20px 20px",
+              borderBottom: `1px solid ${C.border}`,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              cursor: "pointer",
+            }}
+            onClick={() => setCollapsed(!collapsed)}
+          >
+            {/* CD-Symbol: neues Marken-Icon (E + Power-O im Hexagon). */}
+            <EzyOneMark width={34} />
+            {!collapsed && (
+              <div>
+                {/* CD: Wortmarke "Ezy One" — Sentence case, nie ALL CAPS. */}
+                <div
+                  style={{
+                    fontWeight: 700,
+                    fontSize: 15,
+                    letterSpacing: "-.2px",
+                    fontFamily: "'Kamerik 105',Poppins,sans-serif",
+                  }}
+                >
+                  Ezy One
                 </div>
-                {EZY_APPS.filter((a) => appAccess.canOpen(a.id)).map((a) => {
-                  const active = (appScope || currentAppOf(page, tab)) === a.id;
-                  return (
-                    <a
-                      key={a.id}
-                      href={a.href}
-                      onClick={(e) => { if (active) { e.preventDefault(); setSwOpen(false); } }}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
-                        borderRadius: 8, fontSize: 13, textDecoration: "none",
-                        color: active ? a.color : C.text,
-                        background: active ? a.tint : "none",
-                      }}
-                    >
-                      <span style={{ width: 24, height: 24, borderRadius: 6, background: a.tint, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>{a.icon}</span>
-                      {a.name}
-                    </a>
-                  );
-                })}
-                <div style={{ borderTop: `1px solid ${C.border}`, margin: "8px 4px" }} />
-                <a href="/apps" style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8, fontSize: 12.5, textDecoration: "none", color: C.textMuted }}>
-                  ✦ Zum Launcher
-                </a>
+                <div style={{ fontSize: 10, color: C.textMuted }}>SEO & GEO Platform</div>
               </div>
             )}
           </div>
-        )}
-        {/* Kunden-Auswahl in der Sidebar (Position wie EzyAI; Desktop).
+          {/* App-Switcher (Plattform-Umbau Phase 1, 2026-07-31): Atlassian-Muster —
+            Raster-Button unter dem Logo, Dropdown mit erlaubten Apps + Launcher. */}
+          {!isViewer && (
+            <div
+              style={{
+                position: "relative",
+                borderBottom: `1px solid ${C.border}`,
+                padding: "8px 10px",
+              }}
+            >
+              <button
+                onClick={() => setSwOpen((v) => !v)}
+                title="App wechseln"
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 9,
+                  background: swOpen ? "rgba(0,0,0,.05)" : "none",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: collapsed ? "8px 6px" : "8px 10px",
+                  color: C.text,
+                  cursor: "pointer",
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  justifyContent: collapsed ? "center" : "flex-start",
+                }}
+              >
+                <span style={{ fontSize: 14, lineHeight: 1, letterSpacing: 1 }}>⣿</span>
+                {!collapsed &&
+                  (() => {
+                    const cur = EZY_APPS.find(
+                      (a) => a.id === (appScope || currentAppOf(page, tab)),
+                    );
+                    return (
+                      <span style={{ color: cur?.color || C.text }}>{cur?.name || "Apps"}</span>
+                    );
+                  })()}
+              </button>
+              {swOpen && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 10,
+                    zIndex: 200,
+                    width: 236,
+                    background: C.surface,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 12,
+                    padding: 8,
+                    boxShadow: "0 14px 44px rgba(0,0,0,.55)",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 10,
+                      textTransform: "uppercase",
+                      letterSpacing: ".08em",
+                      color: C.textMuted,
+                      padding: "4px 10px 8px",
+                      fontWeight: 700,
+                    }}
+                  >
+                    Apps wechseln
+                  </div>
+                  {EZY_APPS.filter((a) => appAccess.canOpen(a.id)).map((a) => {
+                    const active = (appScope || currentAppOf(page, tab)) === a.id;
+                    return (
+                      <a
+                        key={a.id}
+                        href={a.href}
+                        onClick={(e) => {
+                          if (active) {
+                            e.preventDefault();
+                            setSwOpen(false);
+                          }
+                        }}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          padding: "8px 10px",
+                          borderRadius: 8,
+                          fontSize: 13,
+                          textDecoration: "none",
+                          color: active ? a.color : C.text,
+                          background: active ? a.tint : "none",
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: 24,
+                            height: 24,
+                            borderRadius: 6,
+                            background: a.tint,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 13,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {a.icon}
+                        </span>
+                        {a.name}
+                      </a>
+                    );
+                  })}
+                  <div style={{ borderTop: `1px solid ${C.border}`, margin: "8px 4px" }} />
+                  <a
+                    href="/apps"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      padding: "8px 10px",
+                      borderRadius: 8,
+                      fontSize: 12.5,
+                      textDecoration: "none",
+                      color: C.textMuted,
+                    }}
+                  >
+                    ✦ Zum Launcher
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+          {/* Kunden-Auswahl in der Sidebar (Position wie EzyAI; Desktop).
             Admin-Umbau Teil 2 (06.08.): im Admin überflüssig — alle kunden-
             bezogenen Einstellungen leben im Kunden-Detail; nur die Agenten-
             Seite (unter Einstellungen) braucht die Auswahl noch. */}
-        {!collapsed && hasClients && (appScope !== "admin" || page === "agents") && (
-          <div style={{ padding: "10px 12px", borderBottom: `1px solid ${C.border}` }}>
-            <select
-              aria-label="Kunde"
-              value={showAll ? "__all" : (client?.id || "")}
-              onChange={(e) => {
-                const v = e.target.value;
-                if (v === "__all") { setShowAll(true); } else { setClientId(v); setShowAll(false); }
-              }}
-              style={{ width: "100%", padding: "8px 10px", borderRadius: 8, background: C.bg, color: C.text, border: `1px solid ${C.border}`, fontSize: 13, fontFamily: "inherit", outline: "none" }}
-            >
-              {!isViewer && <option value="__all">Alle Kunden</option>}
-              {clients.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
-            </select>
-          </div>
-        )}
-        {/* Dashboard / Agent — Switcher (nur Apps mit EzyPilot: seo/ads). */}
-        {!isViewer && !collapsed && scope?.pages?.includes("copilot") && (
-          <div style={{ padding: "10px 12px", borderBottom: `1px solid ${C.border}` }}>
-            <div style={{ display: "flex", gap: 4, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: 3 }}>
-              {([["dashboard", "Dashboard", LayoutDashboard], ["agent", "Agent", Bot]]).map(([v, label, Icon]) => {
-                const on = v === "agent" ? page === "copilot" : page !== "copilot";
-                return (
-                  <button
-                    key={v}
-                    onClick={() => setPage(v === "agent" ? "copilot" : lastDashRef.current || "dashboard")}
-                    style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "7px 10px", borderRadius: 8, border: "none", cursor: "pointer", background: on ? C.surface : "transparent", color: on ? C.text : C.textMuted, fontSize: 12.5, fontWeight: on ? 700 : 500, boxShadow: on ? "0 1px 2px rgba(0,0,0,.06)" : "none", fontFamily: "inherit" }}
-                  >
-                    <Icon size={14} />{label}
-                  </button>
-                );
-              })}
+          {!collapsed && hasClients && (appScope !== "admin" || page === "agents") && (
+            <div style={{ padding: "10px 12px", borderBottom: `1px solid ${C.border}` }}>
+              <select
+                aria-label="Kunde"
+                value={showAll ? "__all" : client?.id || ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === "__all") {
+                    setShowAll(true);
+                  } else {
+                    setClientId(v);
+                    setShowAll(false);
+                  }
+                }}
+                style={{
+                  width: "100%",
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  background: C.bg,
+                  color: C.text,
+                  border: `1px solid ${C.border}`,
+                  fontSize: 13,
+                  fontFamily: "inherit",
+                  outline: "none",
+                }}
+              >
+                {!isViewer && <option value="__all">Alle Kunden</option>}
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
             </div>
-          </div>
-        )}
-        <nav style={{ flex: 1, padding: "12px 8px" }}>
-          {/* "Alle Kunden" (Volkan 10.08.): in EzyRank/EzyPerformance bleibt die
+          )}
+          {/* Dashboard / Agent — Switcher (nur Apps mit EzyPilot: seo/ads). */}
+          {!isViewer && !collapsed && scope?.pages?.includes("copilot") && (
+            <div style={{ padding: "10px 12px", borderBottom: `1px solid ${C.border}` }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 4,
+                  background: C.bg,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 10,
+                  padding: 3,
+                }}
+              >
+                {[
+                  ["dashboard", "Dashboard", LayoutDashboard],
+                  ["agent", "Agent", Bot],
+                ].map(([v, label, Icon]) => {
+                  const on = v === "agent" ? page === "copilot" : page !== "copilot";
+                  return (
+                    <button
+                      key={v}
+                      onClick={() =>
+                        setPage(v === "agent" ? "copilot" : lastDashRef.current || "dashboard")
+                      }
+                      style={{
+                        flex: 1,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 6,
+                        padding: "7px 10px",
+                        borderRadius: 8,
+                        border: "none",
+                        cursor: "pointer",
+                        background: on ? C.surface : "transparent",
+                        color: on ? C.text : C.textMuted,
+                        fontSize: 12.5,
+                        fontWeight: on ? 700 : 500,
+                        boxShadow: on ? "0 1px 2px rgba(0,0,0,.06)" : "none",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      <Icon size={14} />
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          <nav style={{ flex: 1, padding: "12px 8px" }}>
+            {/* "Alle Kunden" (Volkan 10.08.): in EzyRank/EzyPerformance bleibt die
               linke Navigation leer — alle Punkte sind kundenspezifisch. Admin
               behält seine (Verwaltungs-)Navigation. */}
-          {!(showAll && (appScope === "seo" || appScope === "ads")) && nav.map((n) => {
-            // EzyRank (Volkan 06.08.): die Dashboard-Sub-Tabs (Übersicht/SEO/
-            // Blog/Conversions) wandern aus der oberen Tab-Leiste in die linke
-            // Navigation — der "Dashboard"-Punkt wird durch die Tabs ersetzt.
-            // visibleTabs respektiert bereits Scope, Tab-Auswahl und Service-Gates.
-            if (appScope === "seo" && n.id === "dashboard") {
-              return visibleTabs.map((t) => {
-                const T = t.icon;
-                const on = page === "dashboard" && tab === t.id;
+            {!(showAll && (appScope === "seo" || appScope === "ads")) &&
+              nav.map((n) => {
+                // EzyRank (Volkan 06.08.): die Dashboard-Sub-Tabs (Übersicht/SEO/
+                // Blog/Conversions) wandern aus der oberen Tab-Leiste in die linke
+                // Navigation — der "Dashboard"-Punkt wird durch die Tabs ersetzt.
+                // visibleTabs respektiert bereits Scope, Tab-Auswahl und Service-Gates.
+                if (appScope === "seo" && n.id === "dashboard") {
+                  return visibleTabs.map((t) => {
+                    const T = t.icon;
+                    const on = page === "dashboard" && tab === t.id;
+                    return (
+                      <button
+                        key={`tab-${t.id}`}
+                        onClick={() => {
+                          setPage("dashboard");
+                          setTab(t.id);
+                        }}
+                        style={{
+                          width: "100%",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 12,
+                          padding: "10px 14px",
+                          borderRadius: 10,
+                          border: "none",
+                          cursor: "pointer",
+                          background: on ? C.accentDim : "transparent",
+                          color: on ? C.accentLight : C.textMuted,
+                          fontSize: 13,
+                          fontWeight: on ? 600 : 400,
+                          marginBottom: 2,
+                          transition: "all .15s",
+                          justifyContent: collapsed ? "center" : "flex-start",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        <T size={18} />
+                        {!collapsed && t.label}
+                      </button>
+                    );
+                  });
+                }
+                const I = n.icon;
+                const a = page === n.id;
                 return (
                   <button
-                    key={`tab-${t.id}`}
-                    onClick={() => { setPage("dashboard"); setTab(t.id); }}
+                    key={n.id}
+                    onClick={() => setPage(n.id)}
                     style={{
                       width: "100%",
                       display: "flex",
@@ -14157,712 +18273,759 @@ function App({ appScope = null }) {
                       borderRadius: 10,
                       border: "none",
                       cursor: "pointer",
-                      background: on ? C.accentDim : "transparent",
-                      color: on ? C.accentLight : C.textMuted,
+                      background: a ? C.accentDim : "transparent",
+                      color: a ? C.accentLight : C.textMuted,
                       fontSize: 13,
-                      fontWeight: on ? 600 : 400,
+                      fontWeight: a ? 600 : 400,
                       marginBottom: 2,
                       transition: "all .15s",
                       justifyContent: collapsed ? "center" : "flex-start",
                       fontFamily: "inherit",
                     }}
                   >
-                    <T size={18} />
-                    {!collapsed && t.label}
+                    <I size={18} />
+                    {!collapsed && n.label}
                   </button>
                 );
-              });
-            }
-            const I = n.icon;
-            const a = page === n.id;
-            return (
+              })}
+          </nav>
+          {!collapsed && (
+            <div style={{ padding: "10px 12px", borderTop: `1px solid ${C.border}` }}>
               <button
-                key={n.id}
-                onClick={() => setPage(n.id)}
+                onClick={() => setCmdOpen(true)}
                 style={{
                   width: "100%",
                   display: "flex",
                   alignItems: "center",
-                  gap: 12,
-                  padding: "10px 14px",
-                  borderRadius: 10,
-                  border: "none",
+                  gap: 8,
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  background: C.card,
+                  border: `1px solid ${C.border}`,
                   cursor: "pointer",
-                  background: a ? C.accentDim : "transparent",
-                  color: a ? C.accentLight : C.textMuted,
-                  fontSize: 13,
-                  fontWeight: a ? 600 : 400,
-                  marginBottom: 2,
-                  transition: "all .15s",
-                  justifyContent: collapsed ? "center" : "flex-start",
+                  color: C.textMuted,
+                  fontSize: 12,
                   fontFamily: "inherit",
                 }}
               >
-                <I size={18} />
-                {!collapsed && n.label}
+                <Search size={13} />
+                Suche...
+                <span
+                  style={{
+                    marginLeft: "auto",
+                    fontSize: 10,
+                    color: C.textDim,
+                    background: C.bg,
+                    padding: "1px 5px",
+                    borderRadius: 4,
+                  }}
+                >
+                  ⌘K
+                </span>
               </button>
-            );
-          })}
-        </nav>
-        {!collapsed && (
-          <div style={{ padding: "10px 12px", borderTop: `1px solid ${C.border}` }}>
-            <button
-              onClick={() => setCmdOpen(true)}
+            </div>
+          )}
+          {!collapsed && (
+            <div
               style={{
-                width: "100%",
+                padding: "12px 16px",
+                borderTop: `1px solid ${C.border}`,
                 display: "flex",
                 alignItems: "center",
-                gap: 8,
-                padding: "8px 12px",
-                borderRadius: 8,
-                background: C.card,
-                border: `1px solid ${C.border}`,
-                cursor: "pointer",
-                color: C.textMuted,
-                fontSize: 12,
-                fontFamily: "inherit",
+                gap: 10,
               }}
             >
-              <Search size={13} />
-              Suche...
-              <span
+              <div
                 style={{
-                  marginLeft: "auto",
-                  fontSize: 10,
-                  color: C.textDim,
-                  background: C.bg,
-                  padding: "1px 5px",
-                  borderRadius: 4,
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  background: C.accent,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: "#fff",
                 }}
               >
-                ⌘K
-              </span>
-            </button>
-          </div>
-        )}
-        {!collapsed && (
-          <div
+                {initialsFromName(profile.name)}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{profile.name}</div>
+                <div style={{ fontSize: 10, color: C.textMuted }}>{profile.role}</div>
+              </div>
+              <LogOut
+                size={14}
+                color={C.textDim}
+                style={{ cursor: "pointer" }}
+                onClick={() => supabase.auth.signOut()}
+              />
+            </div>
+          )}
+        </aside>
+
+        <main
+          className="app-main"
+          style={{ marginLeft: sw, flex: 1, transition: "margin-left .2s", minWidth: 0 }}
+        >
+          <header
+            className="app-header"
             style={{
-              padding: "12px 16px",
-              borderTop: `1px solid ${C.border}`,
+              position: "sticky",
+              top: 0,
+              // z60 > Sidebar (z50), Fix 11.08.: der Header ist ein Stacking-
+              // Kontext — seine Dropdowns (Datum/Vergleich, z60 intern) waren
+              // sonst auf Header-Niveau gedeckelt und wurden von der Sidebar
+              // abgeschnitten, sobald das Popup über deren Kante ragte.
+              // Header und Sidebar überlappen sich räumlich nie (marginLeft).
+              zIndex: 60,
+              background: `${C.bg}ee`,
+              backdropFilter: "blur(12px)",
+              borderBottom: `1px solid ${C.border}`,
+              padding: isMobile ? "10px 12px" : "12px 28px",
               display: "flex",
               alignItems: "center",
-              gap: 10,
+              justifyContent: "space-between",
+              flexWrap: isMobile ? "wrap" : "nowrap",
             }}
           >
             <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                background: C.accent,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 12,
-                fontWeight: 700,
-                color: "#fff",
-              }}
+              className="header-left"
+              style={{ display: "flex", alignItems: "center", gap: 16, minWidth: 0 }}
             >
-              {initialsFromName(profile.name)}
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{profile.name}</div>
-              <div style={{ fontSize: 10, color: C.textMuted }}>{profile.role}</div>
-            </div>
-            <LogOut
-              size={14}
-              color={C.textDim}
-              style={{ cursor: "pointer" }}
-              onClick={() => supabase.auth.signOut()}
-            />
-          </div>
-        )}
-      </aside>
-
-      <main
-        className="app-main"
-        style={{ marginLeft: sw, flex: 1, transition: "margin-left .2s", minWidth: 0 }}
-      >
-        <header
-          className="app-header"
-          style={{
-            position: "sticky",
-            top: 0,
-            // z60 > Sidebar (z50), Fix 11.08.: der Header ist ein Stacking-
-            // Kontext — seine Dropdowns (Datum/Vergleich, z60 intern) waren
-            // sonst auf Header-Niveau gedeckelt und wurden von der Sidebar
-            // abgeschnitten, sobald das Popup über deren Kante ragte.
-            // Header und Sidebar überlappen sich räumlich nie (marginLeft).
-            zIndex: 60,
-            background: `${C.bg}ee`,
-            backdropFilter: "blur(12px)",
-            borderBottom: `1px solid ${C.border}`,
-            padding: isMobile ? "10px 12px" : "12px 28px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            flexWrap: isMobile ? "wrap" : "nowrap",
-          }}
-        >
-          <div
-            className="header-left"
-            style={{ display: "flex", alignItems: "center", gap: 16, minWidth: 0 }}
-          >
-            {/* Mobile-App-Wechsler (01.08.): die Sidebar (inkl. ⣿-Switcher) ist
+              {/* Mobile-App-Wechsler (01.08.): die Sidebar (inkl. ⣿-Switcher) ist
                 unter 760px ausgeblendet — ohne dieses Select wären die Apps auf
                 dem Handy unerreichbar. */}
-            {isMobile && !isViewer && (
-              <select
-                aria-label="App wechseln"
-                value={appScope || currentAppOf(page, tab)}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (v === "__launcher") { window.location.href = "/apps"; return; }
-                  const a = EZY_APPS.find((x) => x.id === v);
-                  if (a) window.location.href = a.href;
-                }}
-                style={{
-                  background: C.card,
-                  border: `1px solid ${C.border}`,
-                  borderRadius: 10,
-                  padding: "8px 8px",
-                  color: C.text,
-                  fontSize: 13,
-                  fontWeight: 700,
-                  fontFamily: "inherit",
-                  outline: "none",
-                  maxWidth: 130,
-                }}
-              >
-                {EZY_APPS.filter((a) => appAccess.canOpen(a.id)).map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.icon} {a.name}
-                  </option>
-                ))}
-                <option value="__launcher">✦ Launcher</option>
-              </select>
-            )}
-            {isMobile && (
-              <select
-                aria-label="Navigation"
-                value={page}
-                onChange={(e) => setPage(e.target.value)}
-                style={{
-                  background: C.card,
-                  border: `1px solid ${C.border}`,
-                  borderRadius: 10,
-                  padding: "8px 10px",
-                  color: C.text,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  fontFamily: "inherit",
-                  outline: "none",
-                  maxWidth: "100%",
-                }}
-              >
-                {nav.map((n) => (
-                  <option key={n.id} value={n.id}>
-                    {n.label}
-                  </option>
-                ))}
-              </select>
-            )}
-            {/* Kunden-Switcher: auf Desktop in der Sidebar (wie EzyAI), im Header nur mobil.
-                Im Admin ausgeblendet (außer Agenten-Seite) — siehe Sidebar-Kommentar. */}
-            <div style={{ position: "relative", display: isMobile && (appScope !== "admin" || page === "agents") ? "block" : "none" }}>
-              <button
-                onClick={() => setCdd(!cdd)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  background: C.card,
-                  border: `1px solid ${C.border}`,
-                  borderRadius: 10,
-                  padding: "8px 14px",
-                  cursor: "pointer",
-                  color: C.text,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  fontFamily: "inherit",
-                }}
-              >
-                {showAll ? (
-                  <div
-                    style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: 6,
-                      background: C.accentDim,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 10,
-                      fontWeight: 700,
-                      color: C.accentLight,
-                    }}
-                  >
-                    ✦
-                  </div>
-                ) : (
-                  <ClientAvatar name={client.name} domain={client.domain} size={24} radius={6} bg={C.accentDim} fg={C.accentLight} fontSize={10} />
-                )}
-                {showAll ? "Alle Kunden" : client.name}
-                <ChevronDown size={14} color={C.textMuted} />
-              </button>
-              {cdd && (
-                <div
+              {isMobile && !isViewer && (
+                <select
+                  aria-label="App wechseln"
+                  value={appScope || currentAppOf(page, tab)}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "__launcher") {
+                      window.location.href = "/apps";
+                      return;
+                    }
+                    const a = EZY_APPS.find((x) => x.id === v);
+                    if (a) window.location.href = a.href;
+                  }}
                   style={{
-                    position: "absolute",
-                    top: "100%",
-                    left: 0,
-                    marginTop: 4,
                     background: C.card,
                     border: `1px solid ${C.border}`,
                     borderRadius: 10,
-                    minWidth: 240,
-                    zIndex: 60,
-                    boxShadow: "0 8px 32px rgba(0,0,0,.4)",
+                    padding: "8px 8px",
+                    color: C.text,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    fontFamily: "inherit",
+                    outline: "none",
+                    maxWidth: 130,
                   }}
                 >
-                  {!isViewer && (
-                    <button
-                      onClick={() => {
-                        setShowAll(true);
-                        setCdd(false);
-                      }}
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        width: "100%",
-                        padding: "10px 14px",
-                        border: "none",
-                        cursor: "pointer",
-                        background: showAll ? C.accentDim : "transparent",
-                        color: C.text,
-                        textAlign: "left",
-                        borderRadius: 8,
-                        fontFamily: "inherit",
-                      }}
-                    >
-                      <span style={{ fontWeight: 600, fontSize: 13 }}>Alle Kunden</span>
-                    </button>
-                  )}
-                  {clients.map((entry) => (
-                    <button
-                      key={entry.id}
-                      onClick={() => {
-                        setClientId(entry.id);
-                        setShowAll(false);
-                        setCdd(false);
-                      }}
-                      style={{
-                        display: "flex",
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 10,
-                        width: "100%",
-                        padding: "8px 14px",
-                        border: "none",
-                        cursor: "pointer",
-                        background:
-                          !showAll && entry.id === client.id ? C.accentDim : "transparent",
-                        color: C.text,
-                        textAlign: "left",
-                        borderRadius: 8,
-                        fontFamily: "inherit",
-                      }}
-                    >
-                      <ClientAvatar name={entry.name} domain={entry.domain} size={26} radius={7} bg={C.accentDim} fg={C.accentLight} fontSize={10} />
-                      <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-                        <span style={{ fontWeight: 600, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{entry.name}</span>
-                        <span style={{ color: C.textMuted, fontSize: 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{entry.domain}</span>
-                      </span>
-                    </button>
+                  {EZY_APPS.filter((a) => appAccess.canOpen(a.id)).map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.icon} {a.name}
+                    </option>
                   ))}
-                </div>
+                  <option value="__launcher">✦ Launcher</option>
+                </select>
               )}
-            </div>
-            {/* Tab-Leiste erst ab 2 Ansichten (01.08.): Ein-Tab-Apps wie
-                EzyPerformance/Reaktivierung zeigen den Inhalt direkt. */}
-            {/* EzyRank: Tabs leben in der linken Nav (06.08.) — Leiste bleibt in
-                anderen Scopes/Legacy UND mobil (dort gibt es keine Sidebar). */}
-            {page === "dashboard" && visibleTabs.length > 1 && (appScope !== "seo" || isMobile) && <TabBar tabs={visibleTabs} active={tab} onChange={setTab} />}
-            {page !== "dashboard" && (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  fontSize: 13,
-                  color: C.textMuted,
-                }}
-              >
-                <span style={{ cursor: "pointer" }} onClick={() => setPage("dashboard")}>
-                  Dashboard
-                </span>
-                <ChevronRight size={12} />
-                <span style={{ color: C.text, fontWeight: 600 }}>
-                  {NAV.find((n) => n.id === page)?.label}
-                </span>
-              </div>
-            )}
-            {/* Filter/Aktionen links neben dem Titel (Volkan 10.08.): Zeitraum,
-                Vergleich, Export, Aktualisieren aus dem rechten Cluster nach links
-                verschoben — EzyPilot/Audit/Glocke bleiben rechts. */}
-            <div
-              className="header-filters"
-              style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}
-            >
-              {page !== "tasks" && <DateRangePicker value={dateRange} onChange={setDateRange} />}
-              {page === "dashboard" && <ComparePicker value={compareMode} onChange={setCompareMode} />}
-              {page === "dashboard" && (
-                <Btn
-                  variant="secondary"
-                  size="md"
-                  icon={Download}
-                  onClick={() => exportCSV(toast, client)}
-                  disabled={!hasClients}
-                >
-                  Export
-                </Btn>
-              )}
-              <Btn
-                variant="secondary"
-                size="md"
-                icon={RefreshCw}
-                onClick={refreshAll}
-                title="Liest nur den gespeicherten Datenbankstand neu — startet KEINE Messung"
-              >
-                {isMobile ? null : "Daten neu laden"}
-              </Btn>
-            </div>
-          </div>
-          <div
-            className="header-actions"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              justifyContent: isMobile ? "flex-start" : "flex-end",
-            }}
-          >
-            {!isViewer && <EzyPilotButton />}
-            <Btn icon={Zap} onClick={() => setShowTools(true)}>
-              Audit
-            </Btn>
-            <div
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 8,
-                background: C.card,
-                border: `1px solid ${C.border}`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-              }}
-            >
-              <Bell size={15} color={C.textMuted} />
-            </div>
-          </div>
-        </header>
-        <div key={refreshNonce} className="app-content" style={{ padding: isMobile ? "16px 12px" : "24px 28px" }}>
-          {!hasClients && page !== "clients" && page !== "settings" && (
-            <div
-              style={{
-                background: C.card,
-                border: `1px dashed ${C.border}`,
-                borderRadius: 14,
-                padding: "48px 24px",
-                textAlign: "center",
-              }}
-            >
-              <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 6 }}>
-                Noch kein Kunde angelegt
-              </div>
-              <div
-                style={{
-                  fontSize: 13,
-                  color: C.textMuted,
-                  marginBottom: 16,
-                  maxWidth: 480,
-                  margin: "0 auto 16px",
-                }}
-              >
-                Lege deinen ersten Kunden an, um Dashboards, Tools und Reports mit Live-Daten zu
-                füllen.
-              </div>
-              <Btn icon={Plus} onClick={() => setPage("clients")}>
-                Kunde anlegen
-              </Btn>
-            </div>
-          )}
-          {hasClients && page === "dashboard" && (
-            <>
-              {/* "Alle Kunden": gleicher zentrierter 1180px-Rahmen wie in EzyAI
-                  (Volkan 11.08.) — Titel und Kacheln bündig, ein Layout überall. */}
-              <div style={showAll ? { maxWidth: 1180, margin: "0 auto 20px" } : { marginBottom: 20 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
-                    {showAll
-                      ? "Agentur-Übersicht"
-                      : tab === "overview"
-                        ? "Übersicht"
-                        : tab === "seo"
-                          ? "SEO Dashboard"
-                          : tab === "localgrid"
-                            ? "Local Grid"
-                            : tab === "blog"
-                              ? "Blog"
-                            : tab === "aivis"
-                              ? "KI-Sichtbarkeit"
-                              : tab === "ads"
-                                ? "Ads Dashboard"
-                                : "Conversions"}
-                  </h1>
-                  {isViewer && <Badge color={C.blue}>Nur-Lese-Ansicht</Badge>}
-                </div>
-                <p style={{ color: C.textMuted, fontSize: 13, margin: "4px 0 0" }}>
-                  {showAll ? "Alle Kunden" : `${client.name} — ${client.domain}`}
-                  {dateRange.label ? ` • ${dateRange.label}` : ""}
-                  {dateRangeWithCompare.compare && (
-                    <span style={{ color: C.accentLight }}>
-                      {" "}vs. {dateRangeWithCompare.compare.label}
-                    </span>
-                  )}
-                </p>
-              </div>
-              {showAll && (
-                <div style={{ maxWidth: 1180, margin: "0 auto" }}>
-                  <AgencyOverview
-                    clients={clients}
-                    appScope={appScope}
-                    onSelect={(id) => {
-                      setClientId(id);
-                      setShowAll(false);
-                    }}
-                  />
-                </div>
-              )}
-              {!showAll && (
-                <>
-                  {tab === "overview" && <OverviewDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
-                  {tab === "seo" && <SeoDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
-                  {tab === "localgrid" && <LocalGridDashboard selectedClient={client} />}
-                  {tab === "blog" && <RefreshRadar selectedClient={client} />}
-                  {/* aivis: seit Phase 2 in der EzyAI-App (/ezyai) */}
-                  {tab === "conversions" && <ConvDashboard selectedClient={client} dateRange={dateRangeWithCompare} />}
-                  {tab === "ads" && (
-                    <>
-                      <AdsDashboard selectedClient={client} dateRange={dateRangeWithCompare} />
-                      <AdsAutopilotPanel selectedClient={client} />
-                    </>
-                  )}
-                  {tab === "runs" && <AgentRunsPanel selectedClient={client} />}
-                </>
-              )}
-            </>
-          )}
-          {hasClients && page === "tasks" && (
-            <TasksDashboard selectedClient={client} />
-          )}
-          {!isViewer && hasClients && page === "tools" && (
-            <ToolsPage selectedClient={client} tools={tools} onSaveDraft={onCreateContent} onOpenDraft={openDraftInEditor} />
-          )}
-          {!isViewer && hasClients && page === "content" && (
-            <ContentPage
-              clients={clients}
-              items={contentHook.items}
-              onSaveContent={onSaveContent}
-              selectedClient={client}
-              openEditId={contentEditId}
-              onOpenEditConsumed={() => setContentEditId(null)}
-            />
-          )}
-          {hasClients && page === "reports" && (
-            <ReportsPage items={contentHook.items} selectedClient={client} />
-          )}
-          {!isViewer && page === "clients" && (
-            <ClientsPage
-              clients={clients}
-              selectedClientId={client.id}
-              onSelectClient={selectClient}
-              onUpsertClient={upsertClient}
-              onDeleteClient={deleteClient}
-              onReload={ezy.reload}
-              customerDefaults={customerDefaults}
-            />
-          )}
-          {isOrgAdmin && page === "team" && <TeamPage clients={clients} />}
-          {isOrgAdmin && page === "matrix" && <MatrixPage clients={clients} />}
-          {isOrgAdmin && page === "settings" && (
-            <SettingsPage
-              tools={tools}
-              onToggleTool={toggleTool}
-              selectedClient={client}
-              profile={profile}
-              onSaveProfile={saveProfile}
-              customerDefaults={customerDefaults}
-              onSaveDefaults={saveCustomerDefaults}
-              onClientUpdated={ezy.reload}
-              onOpenAgents={appScope === "admin" ? () => setPage("agents") : null}
-            />
-          )}
-          {!isViewer && page === "agents" && (
-            <>
-              <AgentsPage selectedClient={client} />
-              <div style={{ marginTop: 28, paddingTop: 24, borderTop: `1px solid ${C.border}` }}>
-                <ActivityPage selectedClient={client} clients={clients} />
-              </div>
-            </>
-          )}
-          {!isViewer && page === "copilot" && (
-            // RBAC 2026-07-20: der volle EzyPilot-Agent (Bash/WP-Publish/Vault)
-            // ist owner/admin vorbehalten; Mitarbeiter bekommen den werkzeug-
-            // losen, kunden-scoped Frage-&-Notiz-Piloten unter /pilot.
-            isOrgAdmin ? (
-              <EzyPilotPage selectedClient={client} />
-            ) : (
-              <div style={{ padding: 40, textAlign: "center", color: C.muted }}>
-                <div style={{ fontSize: 18, color: C.text, marginBottom: 8 }}>EzyPilot für Mitarbeitende</div>
-                <div style={{ marginBottom: 20 }}>
-                  Dein EzyPilot beantwortet Fragen zu deinen Kunden und nimmt Notizen ins Firmen-Gedächtnis auf.
-                </div>
-                <a
-                  href="/pilot"
-                  style={{ display: "inline-block", background: C.accent, color: "#fff", padding: "10px 22px", borderRadius: 8, textDecoration: "none", fontWeight: 600 }}
-                >
-                  EzyPilot öffnen
-                </a>
-              </div>
-            )
-          )}
-        </div>
-      </main>
-
-      {/* Quick Tools */}
-      {showTools && (
-        <div
-          className="quick-audit-panel"
-          style={{
-            position: "fixed",
-            top: 0,
-            right: 0,
-            bottom: 0,
-            width: isMobile ? "100vw" : 400,
-            background: C.surface,
-            borderLeft: `1px solid ${C.border}`,
-            zIndex: 100,
-            padding: isMobile ? 18 : 24,
-            overflowY: "auto",
-            animation: "slideIn .2s ease",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: 20,
-            }}
-          >
-            <span style={{ fontSize: 16, fontWeight: 700, color: C.text }}>Quick Audit</span>
-            <button
-              onClick={() => setShowTools(false)}
-              style={{
-                background: "none",
-                border: "none",
-                color: C.textMuted,
-                cursor: "pointer",
-                fontSize: 18,
-              }}
-            >
-              ✕
-            </button>
-          </div>
-          <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 16 }}>
-            {client.name} · {client.domain}
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {enabledTools.slice(0, 6).map((t) => {
-              const I = t.icon;
-              return (
-                <div
-                  key={t.id}
+              {isMobile && (
+                <select
+                  aria-label="Navigation"
+                  value={page}
+                  onChange={(e) => setPage(e.target.value)}
                   style={{
                     background: C.card,
                     border: `1px solid ${C.border}`,
-                    borderRadius: 12,
-                    padding: "12px 14px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    cursor: "pointer",
-                    transition: "border-color .2s",
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = t.color)}
-                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = C.border)}
-                  onClick={() => {
-                    setShowTools(false);
-                    setPage("tools");
+                    borderRadius: 10,
+                    padding: "8px 10px",
+                    color: C.text,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    fontFamily: "inherit",
+                    outline: "none",
+                    maxWidth: "100%",
                   }}
                 >
+                  {nav.map((n) => (
+                    <option key={n.id} value={n.id}>
+                      {n.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {/* Kunden-Switcher: auf Desktop in der Sidebar (wie EzyAI), im Header nur mobil.
+                Im Admin ausgeblendet (außer Agenten-Seite) — siehe Sidebar-Kommentar. */}
+              <div
+                style={{
+                  position: "relative",
+                  display:
+                    isMobile && (appScope !== "admin" || page === "agents") ? "block" : "none",
+                }}
+              >
+                <button
+                  onClick={() => setCdd(!cdd)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    background: C.card,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 10,
+                    padding: "8px 14px",
+                    cursor: "pointer",
+                    color: C.text,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    fontFamily: "inherit",
+                  }}
+                >
+                  {showAll ? (
+                    <div
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: 6,
+                        background: C.accentDim,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: C.accentLight,
+                      }}
+                    >
+                      ✦
+                    </div>
+                  ) : (
+                    <ClientAvatar
+                      name={client.name}
+                      domain={client.domain}
+                      size={24}
+                      radius={6}
+                      bg={C.accentDim}
+                      fg={C.accentLight}
+                      fontSize={10}
+                    />
+                  )}
+                  {showAll ? "Alle Kunden" : client.name}
+                  <ChevronDown size={14} color={C.textMuted} />
+                </button>
+                {cdd && (
                   <div
                     style={{
-                      width: 36,
-                      height: 36,
+                      position: "absolute",
+                      top: "100%",
+                      left: 0,
+                      marginTop: 4,
+                      background: C.card,
+                      border: `1px solid ${C.border}`,
                       borderRadius: 10,
-                      background: `${t.color}18`,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
+                      minWidth: 240,
+                      zIndex: 60,
+                      boxShadow: "0 8px 32px rgba(0,0,0,.4)",
                     }}
                   >
-                    <I size={16} color={t.color} />
+                    {!isViewer && (
+                      <button
+                        onClick={() => {
+                          setShowAll(true);
+                          setCdd(false);
+                        }}
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          width: "100%",
+                          padding: "10px 14px",
+                          border: "none",
+                          cursor: "pointer",
+                          background: showAll ? C.accentDim : "transparent",
+                          color: C.text,
+                          textAlign: "left",
+                          borderRadius: 8,
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        <span style={{ fontWeight: 600, fontSize: 13 }}>Alle Kunden</span>
+                      </button>
+                    )}
+                    {clients.map((entry) => (
+                      <button
+                        key={entry.id}
+                        onClick={() => {
+                          setClientId(entry.id);
+                          setShowAll(false);
+                          setCdd(false);
+                        }}
+                        style={{
+                          display: "flex",
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 10,
+                          width: "100%",
+                          padding: "8px 14px",
+                          border: "none",
+                          cursor: "pointer",
+                          background:
+                            !showAll && entry.id === client.id ? C.accentDim : "transparent",
+                          color: C.text,
+                          textAlign: "left",
+                          borderRadius: 8,
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        <ClientAvatar
+                          name={entry.name}
+                          domain={entry.domain}
+                          size={26}
+                          radius={7}
+                          bg={C.accentDim}
+                          fg={C.accentLight}
+                          fontSize={10}
+                        />
+                        <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                          <span
+                            style={{
+                              fontWeight: 600,
+                              fontSize: 13,
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {entry.name}
+                          </span>
+                          <span
+                            style={{
+                              color: C.textMuted,
+                              fontSize: 11,
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {entry.domain}
+                          </span>
+                        </span>
+                      </button>
+                    ))}
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, color: C.text, fontSize: 13 }}>{t.label}</div>
-                    <div style={{ color: C.textMuted, fontSize: 11 }}>{t.description}</div>
-                  </div>
-                  <ChevronRight size={14} color={C.textDim} />
+                )}
+              </div>
+              {/* Tab-Leiste erst ab 2 Ansichten (01.08.): Ein-Tab-Apps wie
+                EzyPerformance/Reaktivierung zeigen den Inhalt direkt. */}
+              {/* EzyRank: Tabs leben in der linken Nav (06.08.) — Leiste bleibt in
+                anderen Scopes/Legacy UND mobil (dort gibt es keine Sidebar). */}
+              {page === "dashboard" &&
+                visibleTabs.length > 1 &&
+                (appScope !== "seo" || isMobile) && (
+                  <TabBar tabs={visibleTabs} active={tab} onChange={setTab} />
+                )}
+              {page !== "dashboard" && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontSize: 13,
+                    color: C.textMuted,
+                  }}
+                >
+                  <span style={{ cursor: "pointer" }} onClick={() => setPage("dashboard")}>
+                    Dashboard
+                  </span>
+                  <ChevronRight size={12} />
+                  <span style={{ color: C.text, fontWeight: 600 }}>
+                    {NAV.find((n) => n.id === page)?.label}
+                  </span>
                 </div>
-              );
-            })}
+              )}
+              {/* Filter/Aktionen links neben dem Titel (Volkan 10.08.): Zeitraum,
+                Vergleich, Export, Aktualisieren aus dem rechten Cluster nach links
+                verschoben — EzyPilot/Audit/Glocke bleiben rechts. */}
+              <div
+                className="header-filters"
+                style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}
+              >
+                {page !== "tasks" && <DateRangePicker value={dateRange} onChange={setDateRange} />}
+                {page === "dashboard" && (
+                  <ComparePicker value={compareMode} onChange={setCompareMode} />
+                )}
+                {page === "dashboard" && (
+                  <Btn
+                    variant="secondary"
+                    size="md"
+                    icon={Download}
+                    onClick={() => exportCSV(toast, client)}
+                    disabled={!hasClients}
+                  >
+                    Export
+                  </Btn>
+                )}
+                <Btn
+                  variant="secondary"
+                  size="md"
+                  icon={RefreshCw}
+                  onClick={refreshAll}
+                  title="Liest nur den gespeicherten Datenbankstand neu — startet KEINE Messung"
+                >
+                  {isMobile ? null : "Daten neu laden"}
+                </Btn>
+              </div>
+            </div>
+            <div
+              className="header-actions"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                justifyContent: isMobile ? "flex-start" : "flex-end",
+              }}
+            >
+              {!isViewer && <EzyPilotButton />}
+              <Btn icon={Zap} onClick={() => setShowTools(true)}>
+                Audit
+              </Btn>
+              <div
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 8,
+                  background: C.card,
+                  border: `1px solid ${C.border}`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                }}
+              >
+                <Bell size={15} color={C.textMuted} />
+              </div>
+            </div>
+          </header>
+          <div
+            key={refreshNonce}
+            className="app-content"
+            style={{ padding: isMobile ? "16px 12px" : "24px 28px" }}
+          >
+            {!hasClients && page !== "clients" && page !== "settings" && (
+              <div
+                style={{
+                  background: C.card,
+                  border: `1px dashed ${C.border}`,
+                  borderRadius: 14,
+                  padding: "48px 24px",
+                  textAlign: "center",
+                }}
+              >
+                <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 6 }}>
+                  Noch kein Kunde angelegt
+                </div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: C.textMuted,
+                    marginBottom: 16,
+                    maxWidth: 480,
+                    margin: "0 auto 16px",
+                  }}
+                >
+                  Lege deinen ersten Kunden an, um Dashboards, Tools und Reports mit Live-Daten zu
+                  füllen.
+                </div>
+                <Btn icon={Plus} onClick={() => setPage("clients")}>
+                  Kunde anlegen
+                </Btn>
+              </div>
+            )}
+            {hasClients && page === "dashboard" && (
+              <>
+                {/* "Alle Kunden": gleicher zentrierter 1180px-Rahmen wie in EzyAI
+                  (Volkan 11.08.) — Titel und Kacheln bündig, ein Layout überall. */}
+                <div
+                  style={showAll ? { maxWidth: 1180, margin: "0 auto 20px" } : { marginBottom: 20 }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
+                      {showAll
+                        ? "Agentur-Übersicht"
+                        : tab === "overview"
+                          ? "Übersicht"
+                          : tab === "seo"
+                            ? "SEO Dashboard"
+                            : tab === "localgrid"
+                              ? "Local Grid"
+                              : tab === "blog"
+                                ? "Blog"
+                                : tab === "aivis"
+                                  ? "KI-Sichtbarkeit"
+                                  : tab === "ads"
+                                    ? "Ads Dashboard"
+                                    : "Conversions"}
+                    </h1>
+                    {isViewer && <Badge color={C.blue}>Nur-Lese-Ansicht</Badge>}
+                  </div>
+                  <p style={{ color: C.textMuted, fontSize: 13, margin: "4px 0 0" }}>
+                    {showAll ? "Alle Kunden" : `${client.name} — ${client.domain}`}
+                    {dateRange.label ? ` • ${dateRange.label}` : ""}
+                    {dateRangeWithCompare.compare && (
+                      <span style={{ color: C.accentLight }}>
+                        {" "}
+                        vs. {dateRangeWithCompare.compare.label}
+                      </span>
+                    )}
+                  </p>
+                </div>
+                {showAll && (
+                  <div style={{ maxWidth: 1180, margin: "0 auto" }}>
+                    <AgencyOverview
+                      clients={clients}
+                      appScope={appScope}
+                      onSelect={(id) => {
+                        setClientId(id);
+                        setShowAll(false);
+                      }}
+                    />
+                  </div>
+                )}
+                {!showAll && (
+                  <>
+                    {tab === "overview" && (
+                      <OverviewDashboard selectedClient={client} dateRange={dateRangeWithCompare} />
+                    )}
+                    {tab === "seo" && (
+                      <SeoDashboard selectedClient={client} dateRange={dateRangeWithCompare} />
+                    )}
+                    {tab === "localgrid" && <LocalGridDashboard selectedClient={client} />}
+                    {tab === "blog" && <RefreshRadar selectedClient={client} />}
+                    {/* aivis: seit Phase 2 in der EzyAI-App (/ezyai) */}
+                    {tab === "conversions" && (
+                      <ConvDashboard selectedClient={client} dateRange={dateRangeWithCompare} />
+                    )}
+                    {tab === "ads" && (
+                      <>
+                        <AdsDashboard selectedClient={client} dateRange={dateRangeWithCompare} />
+                        <AdsAutopilotPanel selectedClient={client} />
+                      </>
+                    )}
+                    {tab === "runs" && <AgentRunsPanel selectedClient={client} />}
+                  </>
+                )}
+              </>
+            )}
+            {hasClients && page === "tasks" && <TasksDashboard selectedClient={client} />}
+            {!isViewer && hasClients && page === "tools" && (
+              <ToolsPage
+                selectedClient={client}
+                tools={tools}
+                onSaveDraft={onCreateContent}
+                onOpenDraft={openDraftInEditor}
+              />
+            )}
+            {!isViewer && hasClients && page === "content" && (
+              <ContentPage
+                clients={clients}
+                items={contentHook.items}
+                onSaveContent={onSaveContent}
+                selectedClient={client}
+                openEditId={contentEditId}
+                onOpenEditConsumed={() => setContentEditId(null)}
+              />
+            )}
+            {hasClients && page === "reports" && (
+              <ReportsPage items={contentHook.items} selectedClient={client} />
+            )}
+            {!isViewer && page === "clients" && (
+              <ClientsPage
+                clients={clients}
+                selectedClientId={client.id}
+                onSelectClient={selectClient}
+                onUpsertClient={upsertClient}
+                onDeleteClient={deleteClient}
+                onReload={ezy.reload}
+                customerDefaults={customerDefaults}
+              />
+            )}
+            {isOrgAdmin && page === "team" && <TeamPage clients={clients} />}
+            {isOrgAdmin && page === "matrix" && <MatrixPage clients={clients} />}
+            {isOrgAdmin && page === "settings" && (
+              <SettingsPage
+                tools={tools}
+                onToggleTool={toggleTool}
+                selectedClient={client}
+                profile={profile}
+                onSaveProfile={saveProfile}
+                customerDefaults={customerDefaults}
+                onSaveDefaults={saveCustomerDefaults}
+                onClientUpdated={ezy.reload}
+                onOpenAgents={appScope === "admin" ? () => setPage("agents") : null}
+              />
+            )}
+            {!isViewer && page === "agents" && (
+              <>
+                <AgentsPage selectedClient={client} />
+                <div style={{ marginTop: 28, paddingTop: 24, borderTop: `1px solid ${C.border}` }}>
+                  <ActivityPage selectedClient={client} clients={clients} />
+                </div>
+              </>
+            )}
+            {!isViewer &&
+              page === "copilot" &&
+              // RBAC 2026-07-20: der volle EzyPilot-Agent (Bash/WP-Publish/Vault)
+              // ist owner/admin vorbehalten; Mitarbeiter bekommen den werkzeug-
+              // losen, kunden-scoped Frage-&-Notiz-Piloten unter /pilot.
+              (isOrgAdmin ? (
+                <EzyPilotPage selectedClient={client} />
+              ) : (
+                <div style={{ padding: 40, textAlign: "center", color: C.muted }}>
+                  <div style={{ fontSize: 18, color: C.text, marginBottom: 8 }}>
+                    EzyPilot für Mitarbeitende
+                  </div>
+                  <div style={{ marginBottom: 20 }}>
+                    Dein EzyPilot beantwortet Fragen zu deinen Kunden und nimmt Notizen ins
+                    Firmen-Gedächtnis auf.
+                  </div>
+                  <a
+                    href="/pilot"
+                    style={{
+                      display: "inline-block",
+                      background: C.accent,
+                      color: "#fff",
+                      padding: "10px 22px",
+                      borderRadius: 8,
+                      textDecoration: "none",
+                      fontWeight: 600,
+                    }}
+                  >
+                    EzyPilot öffnen
+                  </a>
+                </div>
+              ))}
           </div>
-          <Btn
-            variant="secondary"
-            style={{ width: "100%", justifyContent: "center", marginTop: 16 }}
-            onClick={() => {
-              setShowTools(false);
-              setPage("tools");
+        </main>
+
+        {/* Quick Tools */}
+        {showTools && (
+          <div
+            className="quick-audit-panel"
+            style={{
+              position: "fixed",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: isMobile ? "100vw" : 400,
+              background: C.surface,
+              borderLeft: `1px solid ${C.border}`,
+              zIndex: 100,
+              padding: isMobile ? 18 : 24,
+              overflowY: "auto",
+              animation: "slideIn .2s ease",
             }}
           >
-            Alle {enabledTools.length} Tools
-          </Btn>
-        </div>
-      )}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 20,
+              }}
+            >
+              <span style={{ fontSize: 16, fontWeight: 700, color: C.text }}>Quick Audit</span>
+              <button
+                onClick={() => setShowTools(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: C.textMuted,
+                  cursor: "pointer",
+                  fontSize: 18,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 16 }}>
+              {client.name} · {client.domain}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {enabledTools.slice(0, 6).map((t) => {
+                const I = t.icon;
+                return (
+                  <div
+                    key={t.id}
+                    style={{
+                      background: C.card,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 12,
+                      padding: "12px 14px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      cursor: "pointer",
+                      transition: "border-color .2s",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.borderColor = t.color)}
+                    onMouseLeave={(e) => (e.currentTarget.style.borderColor = C.border)}
+                    onClick={() => {
+                      setShowTools(false);
+                      setPage("tools");
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 10,
+                        background: `${t.color}18`,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <I size={16} color={t.color} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, color: C.text, fontSize: 13 }}>{t.label}</div>
+                      <div style={{ color: C.textMuted, fontSize: 11 }}>{t.description}</div>
+                    </div>
+                    <ChevronRight size={14} color={C.textDim} />
+                  </div>
+                );
+              })}
+            </div>
+            <Btn
+              variant="secondary"
+              style={{ width: "100%", justifyContent: "center", marginTop: 16 }}
+              onClick={() => {
+                setShowTools(false);
+                setPage("tools");
+              }}
+            >
+              Alle {enabledTools.length} Tools
+            </Btn>
+          </div>
+        )}
 
-      {/* Command Palette */}
-      <CmdPalette
-        open={cmdOpen}
-        onClose={() => setCmdOpen(false)}
-        onNavigate={(p) => {
-          setPage(p);
-          setCmdOpen(false);
-        }}
-        onSelectClient={(c) => {
-          selectClient(c);
-          setCmdOpen(false);
-        }}
-        tools={tools}
-        clients={clients}
-      />
-      <EzyPilotPopup />
-    </div>
+        {/* Command Palette */}
+        <CmdPalette
+          open={cmdOpen}
+          onClose={() => setCmdOpen(false)}
+          onNavigate={(p) => {
+            setPage(p);
+            setCmdOpen(false);
+          }}
+          onSelectClient={(c) => {
+            selectClient(c);
+            setCmdOpen(false);
+          }}
+          tools={tools}
+          clients={clients}
+        />
+        <EzyPilotPopup />
+      </div>
     </EzyPilotProvider>
   );
 }

@@ -111,7 +111,11 @@ export default function ToolActions({
           An WordPress übergeben
         </ActionBtn>
       )}
-      {onClose && <ActionBtn onClick={onClose} primary={!draftState.saved}>Schliessen</ActionBtn>}
+      {onClose && (
+        <ActionBtn onClick={onClose} primary={!draftState.saved}>
+          Schliessen
+        </ActionBtn>
+      )}
     </div>
   );
 }
