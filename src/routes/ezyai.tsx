@@ -11,12 +11,13 @@ import { useEzyServiceMatrix } from "@/ezy/data/useEzyServiceMatrix";
 import { AiVisibilityTab, ToastProvider, EzyPilotProvider, EzyPilotButton, EzyPilotPopup } from "@/ezy/EzyOneApp.jsx";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
 import { EzyOneMark } from "@/components/ezy-one-mark";
-import { loadSharedRange, saveSharedRange, cacheGet, cachePut, RANGE_TTL_MS, isReloadNavigation } from "@/ezy/data/rangeStore";
+import { loadSharedRange, saveSharedRange, cacheGet, cachePut, RANGE_TTL_MS, isReloadNavigation, resolveRange, previousPeriod, isoDay, type ResolvedRange, type SharedRange } from "@/ezy/data/rangeStore";
+import { oppFingerprint, OPP_STATUS, type OppStatus } from "@/ezy/data/aiOpportunities";
 import { HexGlowLayer } from "@/ezy/HexGlow";
 import { AppVersionBadge } from "@/ezy/AppVersionBadge";
 import { ClientAvatar } from "@/ezy/ClientAvatar";
 import {
-  Search, LogOut, LineChart, Zap, Activity, MessageSquare, GraduationCap,
+  LogOut, LineChart, Zap, Activity, MessageSquare,
   FileText, Lightbulb, Globe, AlertTriangle, LayoutDashboard, Bot, Sparkles,
   Trophy, Bell,
 } from "lucide-react";
@@ -44,9 +45,11 @@ function useChartWidth(fallback: number, min: number): [(el: HTMLDivElement | nu
   return [attach, W];
 }
 
-// App-Navigation der Sidebar (Searchable-Struktur). "AEO Insights" = heutiges
-// Dashboard; alle übrigen Bereiche sind Platzhalter (soon), bis konfiguriert.
-type NavItem = { id: string; label: string; icon: any; soon?: boolean; badge?: number };
+// App-Navigation der Sidebar (Searchable-Struktur). Alle Bereiche sind echt —
+// keine "bald"-Platzhalter (18.08.): "Your Prompts" ist die frühere Kurations-
+// Schublade als regulärer Bereich; "Prompt Research" bleibt ausgeblendet, bis
+// es funktional angebunden ist.
+type NavItem = { id: string; label: string; icon: any; badge?: number };
 const APP_NAV: Array<{ group: string; items: NavItem[] }> = [
   { group: "Analytics", items: [
     { id: "aeo-insights", label: "Insights", icon: LineChart },
@@ -57,8 +60,7 @@ const APP_NAV: Array<{ group: string; items: NavItem[] }> = [
     { id: "ki-konkurrenz", label: "KI-Konkurrenz", icon: Trophy },
   ] },
   { group: "Prompts", items: [
-    { id: "your-prompts", label: "Your Prompts", icon: MessageSquare, soon: true },
-    { id: "prompt-research", label: "Prompt Research", icon: GraduationCap, soon: true },
+    { id: "your-prompts", label: "Your Prompts", icon: MessageSquare },
   ] },
   { group: "Actions", items: [
     // Content-Briefs (13.08., Content-Loop): aus Chancen erzeugte Briefs.
@@ -158,39 +160,59 @@ const ENGINE_COLORS: Record<string, string> = {
   Copilot: "#0b76b7", Grok: "#1c1c1e", DeepSeek: "#4d6bfe",
 };
 
-function LlmAnalyticsPanel({ clientId, S, days }: { clientId: string; S: Record<string, string>; days: number }) {
-  // Zeitraum kommt zentral aus dem Header (Volkan 10.08., Layout wie EzyRank).
+// Vergleichsfenster (Vorperiode/Vorjahr) für die Range-Panels.
+type CompareWin = { start: Date; end: Date; name: string } | null;
+
+// Tages-Schlüssel YYYYMMDD von start bis end (lückenlos, lokale Zeit).
+function rangeDayKeys(start: Date, end: Date): string[] {
+  const out: string[] = [];
+  const d = new Date(start); d.setHours(0, 0, 0, 0);
+  const e = new Date(end); e.setHours(0, 0, 0, 0);
+  for (let i = 0; d <= e && i < 400; i++, d.setDate(d.getDate() + 1)) {
+    out.push(`${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`);
+  }
+  return out;
+}
+
+function LlmAnalyticsPanel({ clientId, S, range, compare }: { clientId: string; S: Record<string, string>; range: ResolvedRange; compare: CompareWin }) {
+  // Zeitraum kommt zentral aus dem Header — seit 18.08. inkl. eigener Zeiträume
+  // (exakte Start/Ende-Daten statt gerundeter 7/30/90-Stufen).
   const [hits, setHits] = useState<Array<{ bot: string; url: string; at: string }> | null>(null);
   const [traffic, setTraffic] = useState<any>(null);
   const [pageEngine, setPageEngine] = useState<string>("");
+  const startKey = isoDay(range.start);
+  const endKey = isoDay(range.end);
+  const days = range.days;
 
   useEffect(() => {
     let alive = true;
     setHits(null);
-    const since = new Date(Date.now() - days * 864e5).toISOString();
+    const since = new Date(`${startKey}T00:00:00`).toISOString();
+    const until = new Date(new Date(`${endKey}T00:00:00`).getTime() + 864e5).toISOString();
     (supabase as any)
       .from("ai_crawler_hits")
       .select("bot, url, at")
       .eq("client_id", clientId)
       .gte("at", since)
+      .lt("at", until)
       .order("at", { ascending: false })
       .limit(5000)
       .then(({ data }: any) => { if (alive) setHits(data ?? []); });
     return () => { alive = false; };
-  }, [clientId, days]);
+  }, [clientId, startKey, endKey]);
 
   useEffect(() => {
     let alive = true;
     // Range-Cache (2026-08-10): gecachten Stand SOFORT zeigen; ist er frisch
     // (< TTL), entfällt der Netz-Call ganz — sonst still im Hintergrund laden.
-    const cacheKey = `llm-traffic:${clientId}:${days}`;
+    const cacheKey = `llm-traffic:${clientId}:${startKey}:${endKey}`;
     const cached = cacheGet(cacheKey);
     setTraffic(cached ? cached.data : null);
     if (cached && Date.now() - cached.at < RANGE_TTL_MS) return;
     (async () => {
       try {
         const session = (await supabase.auth.getSession()).data.session;
-        const r = await fetch(`/api/admin/llm-traffic?client=${encodeURIComponent(clientId)}&days=${days}`, {
+        const r = await fetch(`/api/admin/llm-traffic?client=${encodeURIComponent(clientId)}&start=${startKey}&end=${endKey}`, {
           headers: { Authorization: `Bearer ${session?.access_token || ""}` },
         });
         const j = await r.json().catch(() => ({}));
@@ -202,17 +224,49 @@ function LlmAnalyticsPanel({ clientId, S, days }: { clientId: string; S: Record<
       }
     })();
     return () => { alive = false; };
-  }, [clientId, days]);
+  }, [clientId, startKey, endKey]);
+
+  // Vergleichsperiode (18.08.): Crawler-Zahl direkt aus der Tabelle, GA4-Summen
+  // über denselben Endpoint mit exakten Vergleichs-Daten — keine Schätzwerte.
+  const cmpStart = compare ? isoDay(compare.start) : "";
+  const cmpEnd = compare ? isoDay(compare.end) : "";
+  const [cmp, setCmp] = useState<null | { crawler: number | null; sessions: number | null; newUsers: number | null }>(null);
+  useEffect(() => {
+    let alive = true;
+    setCmp(null);
+    if (!cmpStart || !cmpEnd) return;
+    (async () => {
+      try {
+        const since = new Date(`${cmpStart}T00:00:00`).toISOString();
+        const until = new Date(new Date(`${cmpEnd}T00:00:00`).getTime() + 864e5).toISOString();
+        const { count } = await (supabase as any)
+          .from("ai_crawler_hits")
+          .select("id", { count: "exact", head: true })
+          .eq("client_id", clientId).gte("at", since).lt("at", until);
+        const cacheKey = `llm-traffic:${clientId}:${cmpStart}:${cmpEnd}`;
+        const cached = cacheGet(cacheKey);
+        let j: any = cached && Date.now() - cached.at < RANGE_TTL_MS ? cached.data : null;
+        if (!j) {
+          const session = (await supabase.auth.getSession()).data.session;
+          const r = await fetch(`/api/admin/llm-traffic?client=${encodeURIComponent(clientId)}&start=${cmpStart}&end=${cmpEnd}`, {
+            headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+          });
+          j = await r.json().catch(() => ({}));
+          if (j?.ok) cachePut(cacheKey, j);
+        }
+        const totals: any[] = j?.ok && j.ga4 ? Object.values(j.totals || {}) : [];
+        if (alive) setCmp({
+          crawler: count ?? 0,
+          sessions: j?.ok && j.ga4 ? totals.reduce((a, t: any) => a + (t.sessions || 0), 0) : null,
+          newUsers: j?.ok && j.ga4 ? totals.reduce((a, t: any) => a + (t.newUsers || 0), 0) : null,
+        });
+      } catch { /* Vergleich ist optional — Hauptzahlen bleiben unberührt */ }
+    })();
+    return () => { alive = false; };
+  }, [clientId, cmpStart, cmpEnd]);
 
   // Lückenlose Tages-Skala (fehlende Tage = 0), GA4-Format YYYYMMDD.
-  const dayKeys = useMemo(() => {
-    const out: string[] = [];
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(Date.now() - i * 864e5);
-      out.push(`${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`);
-    }
-    return out;
-  }, [days]);
+  const dayKeys = useMemo(() => rangeDayKeys(range.start, range.end), [startKey, endKey]);
   const dayLabel = (k: string) => `${k.slice(6, 8)}.${k.slice(4, 6)}.`;
 
   const crawler = useMemo(() => {
@@ -276,18 +330,22 @@ function LlmAnalyticsPanel({ clientId, S, days }: { clientId: string; S: Record<
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-      {/* KPI-Zeile */}
+      {/* KPI-Zeile — mit optionalem Vergleich zur Vorperiode/zum Vorjahr */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>
-        {[
-          ["Crawler-Besuche", hits === null ? "…" : crawler.total.toLocaleString("de-CH"), "KI-Bots auf der Website"],
-          ["KI-Besucher", traffic === null ? "…" : traffic.ga4 ? refTotal.toLocaleString("de-CH") : "—", "Sessions aus KI-Antworten (GA4)"],
-          ["Neue Besucher", traffic === null ? "…" : traffic.ga4 ? refNew.toLocaleString("de-CH") : "—", "davon erstmals auf der Website"],
-          ["Aktive Plattformen", String(platformCount), "Crawler + Referral kombiniert"],
-        ].map(([t, v, sub]) => (
-          <div key={t as string} style={card}>
+        {([
+          ["Crawler-Besuche", hits === null ? "…" : crawler.total.toLocaleString("de-CH"), "KI-Bots auf der Website",
+            hits !== null && compare && cmp ? <DeltaBadge cur={crawler.total} prev={cmp.crawler} name={compare.name} /> : null],
+          ["KI-Besucher", traffic === null ? "…" : traffic.ga4 ? refTotal.toLocaleString("de-CH") : "—", "Sessions aus KI-Antworten (GA4)",
+            traffic?.ga4 && compare && cmp ? <DeltaBadge cur={refTotal} prev={cmp.sessions} name={compare.name} /> : null],
+          ["Neue Besucher", traffic === null ? "…" : traffic.ga4 ? refNew.toLocaleString("de-CH") : "—", "davon erstmals auf der Website",
+            traffic?.ga4 && compare && cmp ? <DeltaBadge cur={refNew} prev={cmp.newUsers} name={compare.name} /> : null],
+          ["Aktive Plattformen", String(platformCount), "Crawler + Referral kombiniert", null],
+        ] as Array<[string, string, string, any]>).map(([t, v, sub, delta]) => (
+          <div key={t} style={card}>
             <div style={{ fontSize: 11, color: S.mut, textTransform: "uppercase", letterSpacing: ".05em" }}>{t}</div>
             <div style={{ fontSize: 26, fontWeight: 800, color: S.txt, marginTop: 4, fontVariantNumeric: "tabular-nums" }}>{v}</div>
             <div style={{ fontSize: 11, color: S.mut, marginTop: 2 }}>{sub}</div>
+            {delta && <div style={{ marginTop: 4 }}>{delta}</div>}
           </div>
         ))}
       </div>
@@ -456,28 +514,98 @@ const QUAD_STOP = new Set(["der", "die", "das", "und", "oder", "für", "fuer", "
 const kwWords = (kw: string) => kw.toLowerCase().split(/[^a-zäöüéèà0-9]+/).filter((w) => w.length >= 3 && !QUAD_STOP.has(w));
 const stemOf = (w: string) => (w.length > 7 ? w.slice(0, 7) : w);
 
-// Panel-Zeitraum: geteilten Store-Wert auf die Stufen 7/30/90 runden.
-function nearestPanelDays(d?: number | null): number {
-  if (!d || !Number.isFinite(d)) return 30;
-  return [7, 30, 90].reduce((a, b) => (Math.abs(b - d) < Math.abs(a - d) ? b : a), 30);
+// ── Zeitraum-Steuerung (18.08., Vereinheitlichung mit dem Range-Store) ───────
+// 7/30/90-Presets + eigener Zeitraum über zwei Datumsfelder. Schreibt in den
+// App-übergreifenden Store (saveSharedRange) — ein hier gewählter Zeitraum gilt
+// auch in EzyRank & Co., und ein dort gewählter Kalender-Zeitraum kommt hier
+// exakt an (früher wurde er auf 7/30/90 gerundet).
+function RangeControl({ range, onApply, S }: { range: ResolvedRange; onApply: (r: SharedRange) => void; S: Record<string, string> }) {
+  const [open, setOpen] = useState(false);
+  const [start, setStart] = useState(() => isoDay(range.start));
+  const [end, setEnd] = useState(() => isoDay(range.end));
+  useEffect(() => { setStart(isoDay(range.start)); setEnd(isoDay(range.end)); }, [range]);
+  const applyCustom = () => {
+    const s = new Date(`${start}T00:00:00`);
+    const e = new Date(`${end}T00:00:00`);
+    if (isNaN(+s) || isNaN(+e) || s > e) return;
+    const days = Math.max(1, Math.round((e.getTime() - s.getTime()) / 864e5) + 1);
+    const fmt = (d: Date) => d.toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit" });
+    onApply({ label: `${fmt(s)} – ${fmt(e)}`, days, preset: "custom", start: s.toISOString(), end: e.toISOString() });
+    setOpen(false);
+  };
+  return (
+    <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 2, background: S.bg, border: `1px solid ${S.line}`, borderRadius: 10, padding: 3 }}>
+      {[7, 30, 90].map((d) => {
+        const a = range.preset === `${d}d`;
+        return (
+          <button key={d} onClick={() => onApply({ label: `${d} Tage`, days: d, preset: `${d}d` })}
+            style={{ padding: "6px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12.5, fontWeight: 600, background: a ? S.appTint : "transparent", color: a ? S.app : S.mut }}>
+            {d} Tage
+          </button>
+        );
+      })}
+      <button onClick={() => setOpen((v) => !v)}
+        style={{ padding: "6px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12.5, fontWeight: 600, background: range.preset === "custom" ? S.appTint : "transparent", color: range.preset === "custom" ? S.app : S.mut }}>
+        {range.preset === "custom" ? range.label : "Eigener Zeitraum"}
+      </button>
+      {open && (
+        <>
+          <div style={{ position: "fixed", inset: 0, zIndex: 40 }} onClick={() => setOpen(false)} />
+          <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 6, zIndex: 41, background: S.panel, border: `1px solid ${S.line}`, borderRadius: 12, padding: 12, boxShadow: "0 10px 30px rgba(0,0,0,.14)", display: "flex", flexDirection: "column", gap: 8, minWidth: 230 }}>
+            <label style={{ fontSize: 11, color: S.mut }}>Von
+              <input type="date" value={start} max={end} onChange={(e) => setStart(e.target.value)}
+                style={{ width: "100%", padding: "6px 8px", borderRadius: 8, background: S.bg, color: S.txt, border: `1px solid ${S.line}`, fontSize: 12.5, fontFamily: "inherit" }} />
+            </label>
+            <label style={{ fontSize: 11, color: S.mut }}>Bis
+              <input type="date" value={end} min={start} max={isoDay(new Date())} onChange={(e) => setEnd(e.target.value)}
+                style={{ width: "100%", padding: "6px 8px", borderRadius: 8, background: S.bg, color: S.txt, border: `1px solid ${S.line}`, fontSize: 12.5, fontFamily: "inherit" }} />
+            </label>
+            <button onClick={applyCustom}
+              style={{ padding: "7px 12px", borderRadius: 8, border: "none", background: S.app, color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+              Anwenden
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
-function TrafficPanel({ clientId, S, days }: { clientId: string; S: Record<string, string>; days: number }) {
-  // Zeitraum kommt zentral aus dem Header (Volkan 10.08., Layout wie EzyRank).
+// KPI-Vergleichsbadge: prozentuale Abweichung zur Vergleichsperiode.
+// null-Basis (0 im Vergleich) wird ehrlich als "neu" statt +∞ gezeigt.
+function DeltaBadge({ cur, prev, name }: { cur: number; prev: number | null; name: string }) {
+  if (prev === null) return null;
+  if (prev <= 0) {
+    return cur > 0 ? <span style={{ fontSize: 10.5, fontWeight: 700, color: "#0f9d6c" }}>neu vs. {name}</span> : null;
+  }
+  const pct = Math.round(((cur - prev) / prev) * 1000) / 10;
+  const up = pct >= 0;
+  return (
+    <span style={{ fontSize: 10.5, fontWeight: 700, color: up ? "#0f9d6c" : "#dc2626" }}>
+      {up ? "▲" : "▼"} {up ? "+" : ""}{pct} % vs. {name}
+    </span>
+  );
+}
+
+function TrafficPanel({ clientId, S, range, compare }: { clientId: string; S: Record<string, string>; range: ResolvedRange; compare: CompareWin }) {
+  // Zeitraum kommt zentral aus dem Header — seit 18.08. inkl. eigener Zeiträume.
   const [data, setData] = useState<any>(null);
   const [err, setErr] = useState("");
+  const startKey = isoDay(range.start);
+  const endKey = isoDay(range.end);
+  const days = range.days;
 
   useEffect(() => {
     let alive = true;
     setErr("");
-    const cacheKey = `traffic-overview:${clientId}:${days}`;
+    const cacheKey = `traffic-overview:${clientId}:${startKey}:${endKey}`;
     const cached = cacheGet(cacheKey);
     setData(cached ? cached.data : null);
     if (cached && Date.now() - cached.at < RANGE_TTL_MS) return;
     (async () => {
       try {
         const session = (await supabase.auth.getSession()).data.session;
-        const r = await fetch(`/api/admin/traffic-overview?client=${encodeURIComponent(clientId)}&days=${days}`, {
+        const r = await fetch(`/api/admin/traffic-overview?client=${encodeURIComponent(clientId)}&start=${startKey}&end=${endKey}`, {
           headers: { Authorization: `Bearer ${session?.access_token || ""}` },
         });
         const j = await r.json().catch(() => ({}));
@@ -490,7 +618,34 @@ function TrafficPanel({ clientId, S, days }: { clientId: string; S: Record<strin
       }
     })();
     return () => { alive = false; };
-  }, [clientId, days]);
+  }, [clientId, startKey, endKey]);
+
+  // Vergleichsperiode (18.08.): gleiche Quelle, exakte Vergleichs-Daten.
+  const cmpStart = compare ? isoDay(compare.start) : "";
+  const cmpEnd = compare ? isoDay(compare.end) : "";
+  const [cmpData, setCmpData] = useState<any>(null);
+  useEffect(() => {
+    let alive = true;
+    setCmpData(null);
+    if (!cmpStart || !cmpEnd) return;
+    (async () => {
+      try {
+        const cacheKey = `traffic-overview:${clientId}:${cmpStart}:${cmpEnd}`;
+        const cached = cacheGet(cacheKey);
+        let j: any = cached && Date.now() - cached.at < RANGE_TTL_MS ? cached.data : null;
+        if (!j) {
+          const session = (await supabase.auth.getSession()).data.session;
+          const r = await fetch(`/api/admin/traffic-overview?client=${encodeURIComponent(clientId)}&start=${cmpStart}&end=${cmpEnd}`, {
+            headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+          });
+          j = await r.json().catch(() => ({}));
+          if (j?.ok) cachePut(cacheKey, j);
+        }
+        if (alive && j?.ok) setCmpData(j);
+      } catch { /* Vergleich ist optional */ }
+    })();
+    return () => { alive = false; };
+  }, [clientId, cmpStart, cmpEnd]);
 
   // KI-Mess-Prompts des neuesten Reports (RLS-direkt) für die Quadranten-Matrix.
   const [prompts, setPrompts] = useState<Array<{ text: string; mentioned: boolean }> | null>(null);
@@ -538,14 +693,7 @@ function TrafficPanel({ clientId, S, days }: { clientId: string; S: Record<strin
   }, [data, prompts]);
 
   const card: any = { background: S.panel, border: `1px solid ${S.line}`, borderRadius: 14, padding: 18 };
-  const dayKeys = useMemo(() => {
-    const out: string[] = [];
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(Date.now() - i * 864e5);
-      out.push(`${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`);
-    }
-    return out;
-  }, [days]);
+  const dayKeys = useMemo(() => rangeDayKeys(range.start, range.end), [startKey, endKey]);
   const dayLabel = (k: string) => `${k.slice(6, 8)}.${k.slice(4, 6)}.`;
   const labelEvery = Math.max(1, Math.ceil(dayKeys.length / 10));
   const [qwRef, QW] = useChartWidth(1000, 640); // Quadranten-Matrix (mobil scrollbar)
@@ -573,20 +721,31 @@ function TrafficPanel({ clientId, S, days }: { clientId: string; S: Record<strin
       ) : (
         <>
           {/* KPI-Zeile — bewusst nur KI-Kennzahlen (Rest: EzyRank) */}
+          {(() => {
+            const cmpAi = (cmpData?.segments || []).find((s: any) => s.name === "KI-Antworten");
+            const cmpTotal = Object.values((cmpData?.channels?.totals || {}) as Record<string, number>).reduce((a, b) => a + b, 0);
+            return (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>
-            {[
-              ["KI-Besucher", data.ga4 && aiSeg ? aiSeg.sessions.toLocaleString("de-CH") : "0", "Sessions aus KI-Antworten (inkl. Copilot/Bing AI)"],
-              ["KI-Anteil", data.ga4 ? `${aiShare} %` : "—", `an ${totalSessions.toLocaleString("de-CH")} Sessions gesamt`],
-              ["Ø Dauer (KI)", data.ga4 && aiSeg ? fmtDur(aiSeg.avgDurationSec) : "—", orgSeg ? `Organische Suche: ${fmtDur(orgSeg.avgDurationSec)}` : ""],
-              ["Engagement (KI)", data.ga4 && aiSeg ? `${aiSeg.engagementRate} %` : "—", orgSeg ? `Organische Suche: ${orgSeg.engagementRate} %` : ""],
-            ].map(([t, v, sub]) => (
-              <div key={t as string} style={card}>
+            {([
+              ["KI-Besucher", data.ga4 && aiSeg ? aiSeg.sessions.toLocaleString("de-CH") : "0", "Sessions aus KI-Antworten (inkl. Copilot/Bing AI)",
+                data.ga4 && compare && cmpData?.ga4 ? <DeltaBadge cur={aiSeg?.sessions || 0} prev={cmpAi?.sessions ?? 0} name={compare.name} /> : null],
+              ["KI-Anteil", data.ga4 ? `${aiShare} %` : "—", `an ${totalSessions.toLocaleString("de-CH")} Sessions gesamt`,
+                data.ga4 && compare && cmpData?.ga4 && cmpTotal > 0 && cmpAi
+                  ? <span style={{ fontSize: 10.5, fontWeight: 700, color: S.mut }}>{compare.name}: {Math.round((cmpAi.sessions / cmpTotal) * 1000) / 10} %</span>
+                  : null],
+              ["Ø Dauer (KI)", data.ga4 && aiSeg ? fmtDur(aiSeg.avgDurationSec) : "—", orgSeg ? `Organische Suche: ${fmtDur(orgSeg.avgDurationSec)}` : "", null],
+              ["Engagement (KI)", data.ga4 && aiSeg ? `${aiSeg.engagementRate} %` : "—", orgSeg ? `Organische Suche: ${orgSeg.engagementRate} %` : "", null],
+            ] as Array<[string, string, string, any]>).map(([t, v, sub, delta]) => (
+              <div key={t} style={card}>
                 <div style={{ fontSize: 11, color: S.mut, textTransform: "uppercase", letterSpacing: ".05em" }}>{t}</div>
                 <div style={{ fontSize: 26, fontWeight: 800, color: S.txt, marginTop: 4, fontVariantNumeric: "tabular-nums" }}>{v}</div>
                 <div style={{ fontSize: 11, color: S.mut, marginTop: 2 }}>{sub}</div>
+                {delta && <div style={{ marginTop: 4 }}>{delta}</div>}
               </div>
             ))}
           </div>
+            );
+          })()}
 
           {/* Engagement-Vergleich (Searchable-Kernwidget) */}
           {data.ga4 && Array.isArray(data.segments) && data.segments.length > 0 && (
@@ -1040,12 +1199,50 @@ const scoreLabel = (v: number) => (v >= 90 ? "Ausgezeichnet" : v >= 70 ? "Gut" :
 // (Prompt-Queue, Faktenprofil). Bewusst ohne neue Tabellen: Erledigen heisst
 // die Ursache beheben, nicht einen Status pflegen.
 const OPP_SEV_ORDER: Record<string, number> = { kritisch: 0, hoch: 1, mittel: 2, niedrig: 3 };
-function OpportunitiesPanel({ clientId, clientName, S, onOpenCuration, onGo }: {
+function OpportunitiesPanel({ clientId, clientName, S, onOpenCuration, onGo, onBriefCreated }: {
   clientId: string; clientName: string; S: Record<string, string>;
-  onOpenCuration: () => void; onGo: (section: string) => void;
+  onOpenCuration: () => void; onGo: (section: string) => void; onBriefCreated: (id: string) => void;
 }) {
   const [items, setItems] = useState<any[] | null>(null);
   const [err, setErr] = useState("");
+
+  // Workflow-Zustände (18.08.): je Chance ein persistenter Status in
+  // ai_opportunity_states, verknüpft über den stabilen Fingerprint — überlebt
+  // Reload UND neue Messläufe (dieselbe erkannte Chance ⇒ derselbe Fingerprint).
+  const [states, setStates] = useState<Record<string, any> | null>(null);
+  const loadStates = useCallback(async () => {
+    try {
+      const { data } = await (supabase as any)
+        .from("ai_opportunity_states")
+        .select("fingerprint, status, assignee, note, resurface_on, title, source, updated_at")
+        .eq("client_id", clientId);
+      const m: Record<string, any> = {};
+      for (const r of data || []) m[r.fingerprint] = r;
+      setStates(m);
+    } catch { setStates({}); }
+  }, [clientId]);
+  useEffect(() => { setStates(null); void loadStates(); }, [loadStates]);
+
+  // organization_id wird serverseitig per Trigger aus dem Kunden gesetzt —
+  // hier bewusst NICHT mitschicken (kein Client-Input für Mandanten-Zuordnung).
+  const saveState = useCallback(async (item: any, patch: Record<string, any>) => {
+    const cur = (states || {})[item.fp] || {};
+    const row = {
+      client_id: clientId,
+      fingerprint: item.fp,
+      status: patch.status ?? cur.status ?? "offen",
+      assignee: patch.assignee !== undefined ? (patch.assignee || null) : cur.assignee ?? null,
+      note: patch.note !== undefined ? (patch.note || null) : cur.note ?? null,
+      resurface_on: patch.resurface_on !== undefined ? (patch.resurface_on || null) : cur.resurface_on ?? null,
+      title: item.titel || cur.title || null,
+      source: item.quelle || cur.source || null,
+    };
+    const { error } = await (supabase as any)
+      .from("ai_opportunity_states")
+      .upsert(row, { onConflict: "client_id,fingerprint" });
+    if (error) setErr(error.message);
+    else await loadStates();
+  }, [states, clientId, loadStates]);
   useEffect(() => {
     let alive = true;
     setItems(null); setErr("");
@@ -1060,6 +1257,7 @@ function OpportunitiesPanel({ clientId, clientName, S, onOpenCuration, onGo }: {
         for (const i of j?.audit?.issues || []) out.push({
           sev: String(i.severity || "niedrig"), quelle: "Site Health",
           titel: String(i.label || ""), text: String(i.tipp || i.detail || ""), go: "issues",
+          fp: oppFingerprint("sh", String(i.id || i.label || "")),
         });
       } catch { /* additiv */ }
       // 1b) KI-Zitat-Gaps (12.08., DataForSEO include/exclude): echte Fragen
@@ -1074,6 +1272,7 @@ function OpportunitiesPanel({ clientId, clientName, S, onOpenCuration, onGo }: {
           go: "ki-konkurrenz",
           // Content-Loop (13.08.): direkt aus dem Gap einen Brief erzeugen.
           brief: { rival: g.rival, thema: `KI-Zitat-Gap vs. ${g.rival}`, questions: g.questions.slice(0, 8) },
+          fp: oppFingerprint("gap", String(g.rival || "")),
         });
       } catch { /* additiv */ }
       // 2) Prompt-Chancen: Konkurrenz wird empfohlen, der Kunde nicht.
@@ -1100,6 +1299,7 @@ function OpportunitiesPanel({ clientId, clientName, S, onOpenCuration, onGo }: {
               titel: `Konkurrenz wird empfohlen: „${prompt}"`,
               text: `${g.engines} KI-${g.engines === 1 ? "Antwort nennt" : "Antworten nennen"} ${[...g.comps].slice(0, 3).join(", ")}${g.comps.size > 3 ? ` (+${g.comps.size - 3})` : ""} — ${clientName} fehlt. Zitierfähigen Inhalt zu dieser Frage aufbauen.`,
               go: "aeo-insights",
+              fp: oppFingerprint("opp", prompt),
             }));
         }
       } catch { /* additiv */ }
@@ -1112,6 +1312,7 @@ function OpportunitiesPanel({ clientId, clientName, S, onOpenCuration, onGo }: {
           sev: "niedrig", quelle: "Kuration",
           titel: `${count} ${count === 1 ? "Prompt wartet" : "Prompts warten"} auf Prüfung`,
           text: "Unklare Vorschläge freigeben oder archivieren — nur Bestätigtes wird gemessen.", action: "curation",
+          fp: oppFingerprint("cur", "prompt-review"),
         });
       } catch { /* additiv */ }
       try {
@@ -1121,6 +1322,7 @@ function OpportunitiesPanel({ clientId, clientName, S, onOpenCuration, onGo }: {
           sev: "niedrig", quelle: "Kuration",
           titel: "Faktenprofil bestätigen",
           text: "Der Fakten-Check prüft KI-Antworten gegen dieses Profil — einmal prüfen und bestätigen erhöht die Treffsicherheit.", action: "curation",
+          fp: oppFingerprint("cur", "brand-facts"),
         });
       } catch { /* additiv */ }
       // 4) Entity-Check (13.08.): existiert die Marke als Wikidata-Entität?
@@ -1134,6 +1336,7 @@ function OpportunitiesPanel({ clientId, clientName, S, onOpenCuration, onGo }: {
           titel: "Kein Wikidata-Eintrag zur Marke gefunden",
           text: `Für „${clientName}" existiert keine Wikidata-Entität — KI-Systeme können die Firma schwerer eindeutig zuordnen (Verwechslungsgefahr). Einen Basis-Eintrag mit Branche, Ort und Website anlegen.`,
           go: "aeo-insights",
+          fp: oppFingerprint("ent", "wikidata"),
         });
       } catch { /* additiv — externes API */ }
       out.sort((a, b) => (OPP_SEV_ORDER[a.sev] ?? 9) - (OPP_SEV_ORDER[b.sev] ?? 9));
@@ -1144,8 +1347,9 @@ function OpportunitiesPanel({ clientId, clientName, S, onOpenCuration, onGo }: {
 
   const card: any = { background: S.panel, border: `1px solid ${S.line}`, borderRadius: 14, padding: 18 };
   const [briefBusy, setBriefBusy] = useState<number | null>(null);
+  const [briefErr, setBriefErr] = useState("");
   const makeBrief = async (i: any, idx: number) => {
-    setBriefBusy(idx);
+    setBriefBusy(idx); setBriefErr("");
     try {
       const session = (await supabase.auth.getSession()).data.session;
       const r = await fetch("/api/admin/content-brief", {
@@ -1154,56 +1358,149 @@ function OpportunitiesPanel({ clientId, clientName, S, onOpenCuration, onGo }: {
         body: JSON.stringify({ client: clientId, source: i.brief }),
       });
       const j = await r.json().catch(() => ({}));
-      if (j.ok) onGo("content");
+      // Content-Loop (18.08.): den frisch erzeugten Brief direkt öffnen.
+      if (j.ok && j.id) onBriefCreated(String(j.id));
+      else if (j.ok) onGo("content");
+      else setBriefErr(j.error || `Brief-Erstellung fehlgeschlagen (HTTP ${r.status})`);
     } finally { setBriefBusy(null); }
   };
-  if (items === null) return <div style={{ ...card, color: S.mut, fontSize: 13 }}>Chancen werden gesammelt…</div>;
-  const counts = items.reduce((m: Record<string, number>, i) => { m[i.sev] = (m[i.sev] || 0) + 1; return m; }, {});
+
+  const [showDone, setShowDone] = useState(false);
+  const [editFp, setEditFp] = useState<string | null>(null);
+  const [draft, setDraft] = useState<{ assignee: string; note: string; resurface: string }>({ assignee: "", note: "", resurface: "" });
+  const openEditor = (i: any) => {
+    const st = (states || {})[i.fp] || {};
+    setDraft({ assignee: st.assignee || "", note: st.note || "", resurface: st.resurface_on || "" });
+    setEditFp(editFp === i.fp ? null : i.fp);
+  };
+
+  if (items === null || states === null) return <div style={{ ...card, color: S.mut, fontSize: 13 }}>Chancen werden gesammelt…</div>;
+
+  const today = isoDay(new Date());
+  const statusOf = (i: any): OppStatus => ((states[i.fp]?.status as OppStatus) || "offen");
+  const isDone = (s: OppStatus) => s === "erledigt" || s === "verworfen";
+  const active = items.filter((i) => !isDone(statusOf(i)));
+  const done = items.filter((i) => isDone(statusOf(i)));
+  // Erledigte/verworfene Zustände, deren Quelle inzwischen verschwunden ist
+  // (z. B. behobenes Site-Health-Issue) — im Archiv über den Snapshot lesbar.
+  const knownFp = new Set(items.map((i) => i.fp));
+  const orphaned = Object.values(states).filter((s: any) => !knownFp.has(s.fingerprint) && (s.status === "erledigt" || s.status === "verworfen"));
+  const counts = active.reduce((m: Record<string, number>, i) => { m[i.sev] = (m[i.sev] || 0) + 1; return m; }, {});
+  const shown = showDone ? done : active;
+
+  const statusSelect = (i: any) => {
+    const s = statusOf(i);
+    const meta = OPP_STATUS.find((x) => x.id === s) || OPP_STATUS[0];
+    return (
+      <select value={s} onChange={(e) => void saveState(i, { status: e.target.value })}
+        title="Bearbeitungsstatus"
+        style={{ flexShrink: 0, alignSelf: "center", padding: "4px 8px", borderRadius: 99, border: `1px solid ${meta.color}55`, background: `${meta.color}18`, color: meta.color, fontSize: 11, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}>
+        {OPP_STATUS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+      </select>
+    );
+  };
+
+  const renderRow = (i: any, idx: number) => {
+    const sv = SEV_STYLE[i.sev] || SEV_STYLE.niedrig;
+    const st = states[i.fp];
+    const resurfaceDue = st?.status === "pausiert" && st?.resurface_on && String(st.resurface_on) <= today;
+    return (
+      <div key={i.fp || idx} style={{ padding: "10px 0", borderTop: idx ? `1px solid ${S.line}` : "none" }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <span style={{ flexShrink: 0, fontSize: 10.5, fontWeight: 700, borderRadius: 99, padding: "2px 9px", background: sv.bg, color: sv.fg }}>{sv.label}</span>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: S.txt }}>{i.titel}</div>
+            <div style={{ fontSize: 11.5, color: S.mut, marginTop: 2 }}>{i.text}</div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 3, fontSize: 10.5, color: S.mut }}>
+              {st?.assignee && <span>👤 {st.assignee}</span>}
+              {st?.resurface_on && <span style={{ color: resurfaceDue ? "#dc2626" : S.mut, fontWeight: resurfaceDue ? 700 : 400 }}>⏰ Wiedervorlage {String(st.resurface_on).split("-").reverse().join(".")}{resurfaceDue ? " — fällig" : ""}</span>}
+              {st?.note && <span style={{ maxWidth: 380, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>📝 {st.note}</span>}
+            </div>
+          </div>
+          <span style={{ flexShrink: 0, fontSize: 10.5, color: S.mut, alignSelf: "center" }}>{i.quelle}</span>
+          {statusSelect(i)}
+          <button onClick={() => openEditor(i)} title="Verantwortlicher, Notiz, Wiedervorlage"
+            style={{ flexShrink: 0, alignSelf: "center", padding: "5px 10px", borderRadius: 8, border: `1px solid ${S.line}`, background: editFp === i.fp ? S.appTint : S.bg, color: S.mut, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+            Details
+          </button>
+          {i.brief && (
+            <button onClick={() => makeBrief(i, idx)} disabled={briefBusy !== null}
+              style={{ flexShrink: 0, alignSelf: "center", padding: "5px 10px", borderRadius: 8, border: "none", background: S.app, color: "#fff", fontSize: 11.5, fontWeight: 700, cursor: briefBusy !== null ? "default" : "pointer", fontFamily: "inherit", opacity: briefBusy !== null && briefBusy !== idx ? 0.5 : 1 }}>
+              {briefBusy === idx ? "Erzeuge Brief…" : "Brief erstellen"}
+            </button>
+          )}
+          <button
+            onClick={() => (i.action === "curation" ? onOpenCuration() : onGo(i.go))}
+            style={{ flexShrink: 0, alignSelf: "center", padding: "5px 10px", borderRadius: 8, border: `1px solid ${S.line}`, background: S.bg, color: S.app, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+            {i.action === "curation" ? "Prüfen" : "Ansehen"}
+          </button>
+        </div>
+        {editFp === i.fp && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 8, padding: 10, borderRadius: 10, background: S.bg, border: `1px solid ${S.line}` }}>
+            <label style={{ fontSize: 10.5, color: S.mut, display: "flex", flexDirection: "column", gap: 3 }}>Verantwortlich
+              <input value={draft.assignee} onChange={(e) => setDraft({ ...draft, assignee: e.target.value })} placeholder="Name"
+                style={{ padding: "6px 8px", borderRadius: 8, background: S.panel, color: S.txt, border: `1px solid ${S.line}`, fontSize: 12, fontFamily: "inherit", width: 150 }} />
+            </label>
+            <label style={{ fontSize: 10.5, color: S.mut, display: "flex", flexDirection: "column", gap: 3, flex: 1, minWidth: 180 }}>Notiz
+              <input value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} placeholder="z. B. wartet auf Kundeninput"
+                style={{ padding: "6px 8px", borderRadius: 8, background: S.panel, color: S.txt, border: `1px solid ${S.line}`, fontSize: 12, fontFamily: "inherit", width: "100%" }} />
+            </label>
+            <label style={{ fontSize: 10.5, color: S.mut, display: "flex", flexDirection: "column", gap: 3 }}>Wiedervorlage
+              <input type="date" value={draft.resurface} onChange={(e) => setDraft({ ...draft, resurface: e.target.value })}
+                style={{ padding: "6px 8px", borderRadius: 8, background: S.panel, color: S.txt, border: `1px solid ${S.line}`, fontSize: 12, fontFamily: "inherit" }} />
+            </label>
+            <button onClick={() => { void saveState(i, { assignee: draft.assignee, note: draft.note, resurface_on: draft.resurface }); setEditFp(null); }}
+              style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: S.app, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+              Speichern
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <span style={{ fontSize: 12, color: S.mut }}>
           Alles Handlungsrelevante an einem Ort — aus Site Health, KI-Sichtbarkeit und Kuration, nach Schwere sortiert.
+          Status, Verantwortliche und Wiedervorlagen bleiben über Messläufe hinweg erhalten.
         </span>
-        <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+        <span style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
           {(["kritisch", "hoch", "mittel", "niedrig"] as const).map((sv) => counts[sv] ? (
             <span key={sv} style={{ fontSize: 10.5, fontWeight: 700, borderRadius: 99, padding: "2px 9px", background: SEV_STYLE[sv].bg, color: SEV_STYLE[sv].fg }}>
               {counts[sv]} {SEV_STYLE[sv].label}
             </span>
           ) : null)}
+          <button onClick={() => setShowDone((v) => !v)}
+            style={{ fontSize: 11, fontWeight: 600, borderRadius: 99, padding: "3px 10px", border: `1px solid ${showDone ? S.app : S.line}`, background: showDone ? S.appTint : "transparent", color: showDone ? S.app : S.mut, cursor: "pointer", fontFamily: "inherit" }}>
+            Erledigt & Verworfen ({done.length + orphaned.length})
+          </button>
         </span>
       </div>
       {err && <div style={{ ...card, color: "#dc2626", fontSize: 12.5 }}>{err}</div>}
-      {!items.length ? (
+      {briefErr && <div style={{ ...card, color: "#dc2626", fontSize: 12.5 }}>{briefErr}</div>}
+      {!shown.length && !(showDone && orphaned.length) ? (
         <div style={{ ...card, textAlign: "center", color: S.mut, fontSize: 13 }}>
-          🎉 Keine offenen Chancen — alle Signalquellen sind sauber. Neue Chancen erscheinen nach dem nächsten Messlauf/Audit.
+          {showDone
+            ? "Noch nichts erledigt oder verworfen."
+            : "🎉 Keine offenen Chancen — alle Signalquellen sind sauber. Neue Chancen erscheinen nach dem nächsten Messlauf/Audit."}
         </div>
       ) : (
         <div style={card}>
-          {items.map((i, idx) => {
-            const sv = SEV_STYLE[i.sev] || SEV_STYLE.niedrig;
-            return (
-              <div key={idx} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 0", borderTop: idx ? `1px solid ${S.line}` : "none" }}>
-                <span style={{ flexShrink: 0, fontSize: 10.5, fontWeight: 700, borderRadius: 99, padding: "2px 9px", background: sv.bg, color: sv.fg }}>{sv.label}</span>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, color: S.txt }}>{i.titel}</div>
-                  <div style={{ fontSize: 11.5, color: S.mut, marginTop: 2 }}>{i.text}</div>
-                </div>
-                <span style={{ flexShrink: 0, fontSize: 10.5, color: S.mut, alignSelf: "center" }}>{i.quelle}</span>
-                {i.brief && (
-                  <button onClick={() => makeBrief(i, idx)} disabled={briefBusy !== null}
-                    style={{ flexShrink: 0, alignSelf: "center", padding: "5px 10px", borderRadius: 8, border: "none", background: S.app, color: "#fff", fontSize: 11.5, fontWeight: 700, cursor: briefBusy !== null ? "default" : "pointer", fontFamily: "inherit", opacity: briefBusy !== null && briefBusy !== idx ? 0.5 : 1 }}>
-                    {briefBusy === idx ? "Erzeuge Brief…" : "Brief erstellen"}
-                  </button>
-                )}
-                <button
-                  onClick={() => (i.action === "curation" ? onOpenCuration() : onGo(i.go))}
-                  style={{ flexShrink: 0, alignSelf: "center", padding: "5px 10px", borderRadius: 8, border: `1px solid ${S.line}`, background: S.bg, color: S.app, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                  {i.action === "curation" ? "Prüfen" : "Ansehen"}
-                </button>
+          {shown.map(renderRow)}
+          {showDone && orphaned.map((s: any, idx: number) => (
+            <div key={s.fingerprint} style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 0", borderTop: shown.length || idx ? `1px solid ${S.line}` : "none", opacity: 0.7 }}>
+              <span style={{ flexShrink: 0, fontSize: 10.5, fontWeight: 700, borderRadius: 99, padding: "2px 9px", background: S.bg, color: S.mut, border: `1px solid ${S.line}` }}>Quelle weg</span>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: S.txt }}>{s.title || s.fingerprint}</div>
+                <div style={{ fontSize: 11, color: S.mut, marginTop: 2 }}>{s.source || "—"}{s.note ? ` · 📝 ${s.note}` : ""}</div>
               </div>
-            );
-          })}
+              <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: (OPP_STATUS.find((o) => o.id === s.status) || OPP_STATUS[0]).color }}>
+                {(OPP_STATUS.find((o) => o.id === s.status) || OPP_STATUS[0]).label}
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -1219,7 +1516,7 @@ const BRIEF_STATUS: Array<{ id: string; label: string; color: string }> = [
   { id: "in_arbeit", label: "In Arbeit", color: "#f59e0b" },
   { id: "erledigt", label: "Erledigt", color: "#0f9d6c" },
 ];
-function ContentBriefsPanel({ clientId, S, onGoChances }: { clientId: string; S: Record<string, string>; onGoChances: () => void }) {
+function ContentBriefsPanel({ clientId, S, onGoChances, focusId }: { clientId: string; S: Record<string, string>; onGoChances: () => void; focusId?: string | null }) {
   const [briefs, setBriefs] = useState<any[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [copied, setCopied] = useState("");
@@ -1230,9 +1527,13 @@ function ContentBriefsPanel({ clientId, S, onGoChances }: { clientId: string; S:
     setBriefs(data || []);
   }, [clientId]);
   useEffect(() => { setBriefs(null); void load(); }, [load]);
-  const cycle = async (b: any) => {
-    const idx = BRIEF_STATUS.findIndex((s) => s.id === b.status);
-    const next = BRIEF_STATUS[(idx + 1) % BRIEF_STATUS.length].id;
+  // Content-Loop (18.08.): ein frisch aus einer Chance erzeugter Brief wird
+  // direkt geöffnet — die ID kommt über focusId aus dem "Brief erstellen"-Klick.
+  useEffect(() => {
+    if (focusId && briefs?.some((b) => b.id === focusId)) setOpenId(focusId);
+  }, [focusId, briefs]);
+  // Status per eindeutiger Auswahl statt blindem Durchschalten (18.08.).
+  const setStatus = async (b: any, next: string) => {
     await (supabase as any).from("content_briefs").update({ status: next, updated_at: new Date().toISOString() }).eq("id", b.id);
     void load();
   };
@@ -1273,15 +1574,31 @@ function ContentBriefsPanel({ clientId, S, onGoChances }: { clientId: string; S:
                     style={{ flexShrink: 0, padding: "4px 10px", borderRadius: 8, border: `1px solid ${S.line}`, background: S.bg, color: copied === b.id ? "#0f9d6c" : S.mut, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>
                     {copied === b.id ? "✓ kopiert" : "Kopieren"}
                   </button>
-                  <button onClick={() => cycle(b)} title="Status weiterschalten"
+                  <select value={st.id} onChange={(e) => void setStatus(b, e.target.value)} title="Status wählen"
                     style={{ flexShrink: 0, padding: "4px 10px", borderRadius: 99, border: `1px solid ${st.color}55`, background: `${st.color}18`, color: st.color, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-                    {st.label}
-                  </button>
+                    {BRIEF_STATUS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                  </select>
                 </div>
                 {openId === b.id && (
-                  <pre style={{ margin: "10px 0 0", padding: 14, borderRadius: 10, background: S.bg, border: `1px solid ${S.line}`, fontSize: 12, lineHeight: 1.55, color: S.txt, whiteSpace: "pre-wrap", fontFamily: "inherit", overflowX: "auto" }}>
-                    {b.brief_md}
-                  </pre>
+                  <div style={{ margin: "10px 0 0" }}>
+                    {/* Herkunft des Briefs: Anlass, Rival, echte Nutzerfragen, Datum. */}
+                    <div style={{ padding: "10px 14px", borderRadius: 10, background: S.appTint, border: `1px solid ${S.line}`, fontSize: 11.5, color: S.txt, display: "flex", flexDirection: "column", gap: 4 }}>
+                      <div>
+                        <b>Quelle:</b> {b.source?.thema || "—"}
+                        {b.source?.rival ? <> · <b>Wettbewerber:</b> {b.source.rival}</> : null}
+                        {" · "}<b>Erstellt:</b> {new Date(b.created_at).toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                        {b.source?.fanoutCount ? <> · {b.source.fanoutCount} KI-Folgefragen eingeflossen</> : null}
+                      </div>
+                      {Array.isArray(b.source?.questions) && b.source.questions.length > 0 && (
+                        <div style={{ color: S.mut }}>
+                          <b style={{ color: S.txt }}>Echte Nutzerfragen:</b> {b.source.questions.map((q: any) => `„${String(q?.q ?? q)}"`).join(" · ")}
+                        </div>
+                      )}
+                    </div>
+                    <pre style={{ margin: "8px 0 0", padding: 14, borderRadius: 10, background: S.bg, border: `1px solid ${S.line}`, fontSize: 12, lineHeight: 1.55, color: S.txt, whiteSpace: "pre-wrap", fontFamily: "inherit", overflowX: "auto" }}>
+                      {b.brief_md}
+                    </pre>
+                  </div>
                 )}
               </div>
             );
@@ -1652,7 +1969,10 @@ function CorpusQuestionsSection({ clientId, S, onAdded }: { clientId: string; S:
   );
 }
 
-function PromptCurationPanel({ clientId, onClose, S }: { clientId: string; onClose: () => void; S: Record<string, string> }) {
+// Seit 18.08. KEINE Schublade mehr, sondern der reguläre Bereich "Your Prompts"
+// (Sidebar → Prompts): Kuration, echte Nutzerfragen und Faktenprofil an einem
+// Ort — die frühere Doppel-Navigation (Sidebar-Button + Overlay) ist weg.
+function PromptCurationPanel({ clientId, S }: { clientId: string; S: Record<string, string> }) {
   const [defs, setDefs] = useState<PromptDef[] | null>(null);
   const [view, setView] = useState<"review" | "active" | "archived">("review");
   const [busy, setBusy] = useState<string | null>(null);
@@ -1692,17 +2012,13 @@ function PromptCurationPanel({ clientId, onClose, S }: { clientId: string; onClo
   );
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(30,28,24,.35)" }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()}
-        style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: "min(680px,100vw)", background: S.bg, borderLeft: `1px solid ${S.line}`, display: "flex", flexDirection: "column" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: `1px solid ${S.line}` }}>
-          <div style={{ fontWeight: 700, fontSize: 14.5 }}>Prompts verwalten</div>
-          <div style={{ display: "flex", gap: 6, marginLeft: 8 }}>
+    <div style={{ background: S.panel, border: `1px solid ${S.line}`, borderRadius: 14, overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: `1px solid ${S.line}`, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 6 }}>
             {tabBtn("review", "Vorgeschlagen", groups.review.length, true)}
             {tabBtn("active", "Aktiv", groups.active.length)}
             {tabBtn("archived", "Archiviert", groups.archived.length)}
           </div>
-          <button onClick={onClose} style={{ marginLeft: "auto", background: "none", border: "none", color: S.mut, fontSize: 18, cursor: "pointer" }}>✕</button>
         </div>
         <div style={{ padding: "8px 18px", fontSize: 11, color: S.mut, borderBottom: `1px solid ${S.line}` }}>
           Nur <b style={{ color: S.txt }}>aktive</b> Prompts laufen im Messzyklus (Kosten!). Archivieren behält die Historie. „Vorgeschlagen" = vom Seeder/Relevanz-Audit zur Prüfung markiert.
@@ -1710,7 +2026,7 @@ function PromptCurationPanel({ clientId, onClose, S }: { clientId: string; onClo
         <BrandFactsEditor clientId={clientId} S={S} />
         <CorpusQuestionsSection clientId={clientId} S={S} onAdded={() => void load()} />
         {err && <div style={{ margin: "10px 18px 0", padding: "8px 12px", borderRadius: 8, border: "1px solid #f8717155", color: "#f87171", fontSize: 12 }}>{err}</div>}
-        <div style={{ flex: 1, overflowY: "auto", padding: "10px 18px 24px" }}>
+        <div style={{ padding: "10px 18px 24px" }}>
           {defs === null ? (
             <div style={{ color: S.mut, fontSize: 13, padding: 20 }}>Lade…</div>
           ) : rows.length === 0 ? (
@@ -1750,7 +2066,6 @@ function PromptCurationPanel({ clientId, onClose, S }: { clientId: string; onClo
             </div>
           ))}
         </div>
-      </div>
     </div>
   );
 }
@@ -1882,13 +2197,35 @@ function EzyAiApp() {
   const { profile } = useEzyProfile();
   const ezy = useEzyClients();
   const [swOpen, setSwOpen] = useState(false);
-  const [curOpen, setCurOpen] = useState(false); // Prompt-Kuration (Nachbau 08/2026)
   const [view, setView] = useState<"dashboard" | "agent">("dashboard"); // Dashboard/Agent-Switcher
   const [section, setSection] = useState("aeo-insights"); // aktiver Sidebar-App-Bereich
+  // Prompt-Kuration ist seit 18.08. der reguläre Bereich "Your Prompts" —
+  // alle früheren "Prompts verwalten"-Einstiege führen hierhin.
+  const goPrompts = useCallback(() => { setView("dashboard"); setSection("your-prompts"); }, []);
   // Zeitraum zentral im Header (Volkan 10.08., Layout wie EzyRank): EINE Quelle
-  // für alle Panels, geteilt über alle Apps (Range-Store).
-  const [days, setDaysRaw] = useState(() => nearestPanelDays(loadSharedRange()?.days));
-  const setDays = (d: number) => { setDaysRaw(d); saveSharedRange({ label: `${d} Tage`, days: d, preset: `${d}d` }); };
+  // für alle Panels, geteilt über alle Apps (Range-Store). Seit 18.08. voll
+  // vereinheitlicht: 7/30/90 UND eigene Zeiträume — ein in EzyRank gewählter
+  // Kalender-Zeitraum kommt hier exakt an (vorher auf 7/30/90 gerundet).
+  const [range, setRange] = useState<ResolvedRange>(() => resolveRange(loadSharedRange()));
+  const applyShared = useCallback((r: SharedRange) => { saveSharedRange(r); setRange(resolveRange(r)); }, []);
+  // Vergleichsperiode (18.08.): Vorperiode/Vorjahr für die Range-Panels
+  // (LLM Analytics, Traffic) — die Datenquellen (GA4/Crawler-Log) erlauben es.
+  // Content-Loop (18.08.): frisch erzeugter Brief wird im Content-Bereich
+  // direkt geöffnet — die ID kommt aus dem "Brief erstellen"-Klick der Chancen.
+  const [briefFocus, setBriefFocus] = useState<string | null>(null);
+  const [compareMode, setCompareMode] = useState<"none" | "prevPeriod" | "prevYear">(() => {
+    try { return (localStorage.getItem("ezyai.compare.v1") as any) || "none"; } catch { return "none"; }
+  });
+  useEffect(() => { try { localStorage.setItem("ezyai.compare.v1", compareMode); } catch { /* egal */ } }, [compareMode]);
+  const compare = useMemo(() => {
+    if (compareMode === "prevPeriod") return { ...previousPeriod(range), name: "Vorperiode" };
+    if (compareMode === "prevYear") {
+      const s = new Date(range.start); s.setFullYear(s.getFullYear() - 1);
+      const e = new Date(range.end); e.setFullYear(e.getFullYear() - 1);
+      return { start: s, end: e, name: "Vorjahr" };
+    }
+    return null;
+  }, [range, compareMode]);
   const [clientId, setClientId] = useState(() => {
     try { return localStorage.getItem(CLIENT_LS) || ""; } catch { return ""; }
   });
@@ -2071,11 +2408,9 @@ function EzyAiApp() {
                   const a = view === "dashboard" && section === t.id;
                   return (
                     <button key={t.id} onClick={() => { setView("dashboard"); setSection(t.id); }}
-                      title={t.soon ? "In Vorbereitung" : undefined}
-                      style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10, border: "none", cursor: "pointer", background: a ? S.navDim : "transparent", color: a ? S.navAccent : S.mut, fontSize: 13, fontWeight: a ? 600 : 400, marginBottom: 2, transition: "all .15s", fontFamily: "inherit", opacity: t.soon ? 0.75 : 1 }}>
+                      style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10, border: "none", cursor: "pointer", background: a ? S.navDim : "transparent", color: a ? S.navAccent : S.mut, fontSize: 13, fontWeight: a ? 600 : 400, marginBottom: 2, transition: "all .15s", fontFamily: "inherit" }}>
                       <Icon size={18} />
                       <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" }}>{t.label}</span>
-                      {t.soon ? <span style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: S.mut, border: `1px solid ${S.line}`, borderRadius: 99, padding: "1px 6px" }}>bald</span> : null}
                       {t.badge && t.badge > 0 ? <span style={{ background: "#fdf6e3", color: "#8a6d1b", borderRadius: 99, padding: "1px 7px", fontSize: 10, fontWeight: 700 }}>{t.badge}</span> : null}
                     </button>
                   );
@@ -2084,14 +2419,8 @@ function EzyAiApp() {
             ))}
           </nav>
 
-          {/* Suche/Prompts (gleiche Position wie die ⌘K-Box der EzyRank-Shell) */}
-          <div style={{ padding: "10px 12px", borderTop: `1px solid ${S.line}` }}>
-            <button onClick={() => setCurOpen(true)}
-              style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, background: S.bg, border: `1px solid ${S.line}`, cursor: "pointer", color: S.mut, fontSize: 12, fontFamily: "inherit" }}>
-              <Search size={13} />
-              Prompts verwalten
-            </button>
-          </div>
+          {/* Der frühere "Prompts verwalten"-Button ist weg (18.08.) — die
+              Kuration lebt als regulärer Bereich "Your Prompts" in der Nav. */}
 
           {/* Profil */}
           <div style={{ padding: "12px 16px", borderTop: `1px solid ${S.line}`, display: "flex", alignItems: "center", gap: 10 }}>
@@ -2126,7 +2455,7 @@ function EzyAiApp() {
                 const a = view === "dashboard" && section === t.id;
                 return (
                   <button key={t.id} onClick={() => { setView("dashboard"); setSection(t.id); }}
-                    style={{ display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", padding: "7px 11px", borderRadius: 10, border: "none", cursor: "pointer", background: a ? S.navDim : "transparent", color: a ? S.navAccent : S.mut, fontSize: 12.5, fontWeight: a ? 600 : 400, fontFamily: "inherit", opacity: t.soon ? 0.7 : 1 }}>
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", padding: "7px 11px", borderRadius: 10, border: "none", cursor: "pointer", background: a ? S.navDim : "transparent", color: a ? S.navAccent : S.mut, fontSize: 12.5, fontWeight: a ? 600 : 400, fontFamily: "inherit" }}>
                     <Icon size={15} />{t.label}
                   </button>
                 );
@@ -2139,14 +2468,20 @@ function EzyAiApp() {
             {/* Filter statt Titel im Header (Volkan 10.08., wie EzyRank) —
                 der Bereichs-Titel steht jetzt im Body. */}
             {view !== "agent" && !showAll && (
-              <div style={{ display: "flex", alignItems: "center", gap: 2, background: S.bg, border: `1px solid ${S.line}`, borderRadius: 10, padding: 3 }}>
-                {[7, 30, 90].map((d) => (
-                  <button key={d} onClick={() => setDays(d)}
-                    style={{ padding: "6px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12.5, fontWeight: 600, background: days === d ? S.appTint : "transparent", color: days === d ? S.app : S.mut }}>
-                    {d} Tage
-                  </button>
-                ))}
-              </div>
+              <>
+                <RangeControl range={range} onApply={applyShared} S={S} />
+                {/* Vergleich nur dort anbieten, wo die Datenquelle es erlaubt
+                    (GA4/Crawler-Log = Range-Panels). Insights ist Snapshot-basiert. */}
+                {(section === "llm-analytics" || section === "traffic") && (
+                  <select value={compareMode} onChange={(e) => setCompareMode(e.target.value as any)}
+                    title="Vergleichsperiode für die KPI-Karten"
+                    style={{ padding: "7px 10px", borderRadius: 10, background: S.bg, color: compareMode === "none" ? S.mut : S.app, border: `1px solid ${S.line}`, fontSize: 12, fontFamily: "inherit" }}>
+                    <option value="none">Kein Vergleich</option>
+                    <option value="prevPeriod">vs. Vorperiode</option>
+                    <option value="prevYear">vs. Vorjahr</option>
+                  </select>
+                )}
+              </>
             )}
             <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
               {isOrgAdmin && client?.id && !showAll && (
@@ -2166,7 +2501,7 @@ function EzyAiApp() {
                 <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>{showAll ? "Agentur-Übersicht" : NAV_LABEL[section] || "Insights"}</h1>
                 {!showAll && client && (
                   <div style={{ fontSize: 13, color: S.mut, marginTop: 4 }}>
-                    {client.name}{(client as { domain?: string }).domain ? ` — ${(client as { domain?: string }).domain}` : ""} • {days} Tage
+                    {client.name}{(client as { domain?: string }).domain ? ` — ${(client as { domain?: string }).domain}` : ""} • {range.label}
                   </div>
                 )}
               </div>
@@ -2191,17 +2526,20 @@ function EzyAiApp() {
             ) : !client ? (
               <div style={{ color: S.mut, fontSize: 13, padding: 60, textAlign: "center" }}>Keine Kunden zugewiesen.</div>
             ) : section === "llm-analytics" ? (
-              <LlmAnalyticsPanel clientId={client.id} S={S} days={days} />
+              <LlmAnalyticsPanel clientId={client.id} S={S} range={range} compare={compare} />
             ) : section === "traffic" ? (
-              <TrafficPanel clientId={client.id} S={S} days={days} />
+              <TrafficPanel clientId={client.id} S={S} range={range} compare={compare} />
             ) : section === "ki-konkurrenz" ? (
               <CompetitorsPanel clientId={client.id} S={S} />
             ) : section === "site-health" || section === "issues" ? (
               <SiteHealthPanel clientId={client.id} S={S} mode={section === "issues" ? "issues" : "health"} onGoIssues={() => setSection("issues")} />
             ) : section === "opportunities" ? (
-              <OpportunitiesPanel clientId={client.id} clientName={client.name} S={S} onOpenCuration={() => setCurOpen(true)} onGo={setSection} />
+              <OpportunitiesPanel clientId={client.id} clientName={client.name} S={S} onOpenCuration={goPrompts} onGo={setSection}
+                onBriefCreated={(id) => { setBriefFocus(id); setSection("content"); }} />
             ) : section === "content" ? (
-              <ContentBriefsPanel clientId={client.id} S={S} onGoChances={() => setSection("opportunities")} />
+              <ContentBriefsPanel clientId={client.id} S={S} onGoChances={() => setSection("opportunities")} focusId={briefFocus} />
+            ) : section === "your-prompts" ? (
+              <PromptCurationPanel clientId={client.id} S={S} />
             ) : section !== "aeo-insights" ? (
               <div style={{ background: S.panel, border: `1px solid ${S.line}`, borderRadius: 14, padding: 40, textAlign: "center", maxWidth: 560, margin: "40px auto 0" }}>
                 <div style={{ fontSize: 30, marginBottom: 12 }}>🧭</div>
@@ -2216,14 +2554,13 @@ function EzyAiApp() {
               </div>
             ) : (
               <>
-                <AiVisibilityTab selectedClient={client} navStyle="topbar" onReviewPrompts={() => setCurOpen(true)} />
+                <AiVisibilityTab selectedClient={client} navStyle="topbar" onReviewPrompts={goPrompts} />
                 <CrawlerCard clientId={client.id} S={S} />
               </>
             )}
           </main>
         </div>
       </div>
-      {curOpen && client?.id && <PromptCurationPanel clientId={client.id} onClose={() => setCurOpen(false)} S={S} />}
       {/* EzyPilot-Popup (identisch zu den anderen Apps, Volkan 13.08.). */}
       <EzyPilotPopup />
     </div>

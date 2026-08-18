@@ -25,8 +25,9 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.3.0",
+    version: "1.4.0",
     changelog: [
+      { version: "1.4.0", date: "2026-08-18", note: "Chancen-Workflow (Status/Verantwortliche/Wiedervorlage), Your Prompts als Bereich, eigene Zeiträume + Vergleich, Brief-Detailansicht" },
       { version: "1.3.0", date: "2026-08-13", note: "Kundenreihenfolge alphabetisch, Layout wie EzyRank" },
       { version: "1.2.0", date: "2026-08-13", note: "aivis: Prompt-Verlauf, Sentiment, Chancen-Queue" },
       { version: "1.1.0", date: "2026-08-11", note: "Datumsfilter in den Header, geteilter Zeitraum" },

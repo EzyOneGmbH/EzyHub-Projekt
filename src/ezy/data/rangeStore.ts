@@ -43,6 +43,50 @@ export function saveSharedRange(r: SharedRange): void {
   }
 }
 
+// ── Aufgelöster Zeitraum (18.08.2026, EzyAI-Vereinheitlichung) ───────────────
+// Macht aus dem gespeicherten SharedRange konkrete Start/Ende-Daten:
+// Presets = "letzte N Tage bis heute", Custom = exakte gespeicherte Daten
+// (überlebt so den App-Wechsel unverfälscht — vorher rundete EzyAI auf 7/30/90).
+
+export type ResolvedRange = {
+  days: number;
+  start: Date;
+  end: Date;
+  preset: string;
+  label: string;
+};
+
+export function resolveRange(r: SharedRange | null, now: Date = new Date()): ResolvedRange {
+  if (r?.preset === "custom" && r.start && r.end) {
+    const start = new Date(r.start);
+    const end = new Date(r.end);
+    if (!isNaN(+start) && !isNaN(+end) && start <= end) {
+      const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / 864e5) + 1);
+      return { days, start, end, preset: "custom", label: r.label || "Eigener Zeitraum" };
+    }
+  }
+  const days = r && Number.isFinite(r.days) && r.days >= 1 ? Math.min(365, Math.round(r.days)) : 30;
+  return {
+    days,
+    start: new Date(now.getTime() - (days - 1) * 864e5),
+    end: now,
+    preset: r?.preset && r.preset !== "custom" ? r.preset : `${days}d`,
+    label: r?.label || `${days} Tage`,
+  };
+}
+
+/** Direkt angrenzende Vorperiode gleicher Länge (für Vergleichs-KPIs). */
+export function previousPeriod(range: { start: Date; end: Date; days: number }): { start: Date; end: Date } {
+  const end = new Date(range.start.getTime() - 864e5);
+  const start = new Date(end.getTime() - (range.days - 1) * 864e5);
+  return { start, end };
+}
+
+/** Lokales Datum als YYYY-MM-DD (bewusst NICHT toISOString — das kippt in UTC). */
+export function isoDay(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 // ── Navigations-Typ ──────────────────────────────────────────────────────────
 /**
  * true bei Seiten-Reload oder Vor/Zurück — dann stellen die Apps die letzte

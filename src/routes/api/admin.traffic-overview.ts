@@ -45,6 +45,15 @@ export const Route = createFileRoute("/api/admin/traffic-overview")({
         const u = new URL(request.url);
         const clientId = u.searchParams.get("client") || "";
         const days = Math.min(365, Math.max(1, Number(u.searchParams.get("days")) || 30));
+        // Eigene Zeiträume (18.08., Range-Vereinheitlichung): exakte Daten
+        // statt "letzte N Tage" — GA4 und GSC nehmen YYYY-MM-DD direkt.
+        const qsStart = u.searchParams.get("start");
+        const qsEnd = u.searchParams.get("end");
+        const isDayStr = (s: string | null): s is string => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
+        const useExact = isDayStr(qsStart) && isDayStr(qsEnd) && qsStart <= qsEnd &&
+          (Date.parse(qsEnd) - Date.parse(qsStart)) / 864e5 <= 366;
+        const startDate = useExact ? (qsStart as string) : `${days}daysAgo`;
+        const endDate = useExact ? (qsEnd as string) : "today";
         if (!/^[0-9a-f-]{36}$/i.test(clientId))
           return Response.json({ ok: false, error: "client (uuid) erforderlich" }, { status: 400 });
         const sb = acc.userClient ?? (supabaseAdmin as any);
@@ -73,7 +82,7 @@ export const Route = createFileRoute("/api/admin/traffic-overview")({
             fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`, {
               method: "POST",
               headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ dateRanges: [{ startDate: `${days}daysAgo`, endDate: "today" }], ...body }),
+              body: JSON.stringify({ dateRanges: [{ startDate, endDate }], ...body }),
               signal: AbortSignal.timeout(25_000),
             });
           const [chRes, segRes] = await Promise.all([
@@ -153,8 +162,8 @@ export const Route = createFileRoute("/api/admin/traffic-overview")({
         if (client.gsc_property) {
           try {
             const site = String(client.gsc_property);
-            const end = new Date().toISOString().slice(0, 10);
-            const start = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
+            const end = useExact ? (qsEnd as string) : new Date().toISOString().slice(0, 10);
+            const start = useExact ? (qsStart as string) : new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
             const gscQuery = (body: any) =>
               fetch(`https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(site)}/searchAnalytics/query`, {
                 method: "POST",
