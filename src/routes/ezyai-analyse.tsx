@@ -3,7 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useAppAccess } from "@/ezy/data/useAppAccess";
-import { ToastProvider, EzyPilotProvider, EzyPilotButton, EzyPilotPopup } from "@/ezy/EzyOneApp.jsx";
+// Bundle-Split 18.08.: Direktimport aus shared-ui statt aus dem Monolithen.
+import { ToastProvider, EzyPilotProvider, EzyPilotButton, EzyPilotPopup } from "@/ezy/shared-ui";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
 import { HexGlowLayer } from "@/ezy/HexGlow";
 import { AppVersionBadge } from "@/ezy/AppVersionBadge";

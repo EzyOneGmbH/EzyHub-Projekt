@@ -1,0 +1,28 @@
+// Ezy One CD-Palette (aus EzyOneApp extrahiert, 18.08.2026) — gemeinsame
+// Quelle fuer den Monolithen und die extrahierten Shared-UI-Module.
+export const C = {
+  bg: "#f7f5f9",
+  surface: "#fcfbfd",
+  card: "#ffffff",
+  cardHover: "#f5f1f7",
+  border: "#eae4ee",
+  borderHover: "#d8cede",
+  text: "#161217",
+  textMuted: "#6d6473",
+  textDim: "#a49dab",
+  accent: "#77008C",
+  accentLight: "#B9009C",
+  accentDim: "rgba(119,0,140,0.09)",
+  green: "#0f9d6c",
+  greenDim: "rgba(16,185,129,0.12)",
+  red: "#dc2626",
+  redDim: "rgba(239,68,68,0.10)",
+  blue: "#2563eb",
+  blueDim: "rgba(59,130,246,0.10)",
+  orange: "#d97706",
+  orangeDim: "rgba(245,158,11,0.12)",
+  cyan: "#0891b2",
+  cyanDim: "rgba(6,182,212,0.10)",
+  pink: "#db2777",
+  pinkDim: "rgba(236,72,153,0.10)",
+};

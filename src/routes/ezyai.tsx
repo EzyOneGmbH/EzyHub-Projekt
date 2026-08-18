@@ -8,7 +8,10 @@ import { EZY_APPS } from "@/ezy/data/appRegistry";
 import { useEzyClients } from "@/ezy/data/useEzyClients";
 import { useEzyServiceSettings } from "@/ezy/data/useEzyServiceSettings";
 import { useEzyServiceMatrix } from "@/ezy/data/useEzyServiceMatrix";
-import { AiVisibilityTab, ToastProvider, EzyPilotProvider, EzyPilotButton, EzyPilotPopup } from "@/ezy/EzyOneApp.jsx";
+// Bundle-Split 18.08.: Direktimporte aus den extrahierten Modulen — /ezyai
+// laedt den 1.2-MB-Monolith-Chunk (EzyOneApp) nicht mehr.
+import { AiVisibilityTab } from "@/ezy/AiVisibilityTab";
+import { ToastProvider, EzyPilotProvider, EzyPilotButton, EzyPilotPopup } from "@/ezy/shared-ui";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
 import { EzyOneMark } from "@/components/ezy-one-mark";
 import { loadSharedRange, saveSharedRange, cacheGet, cachePut, RANGE_TTL_MS, isReloadNavigation, resolveRange, previousPeriod, isoDay, type ResolvedRange, type SharedRange } from "@/ezy/data/rangeStore";
