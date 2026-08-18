@@ -1,6 +1,8 @@
 import React from "react";
 import { SERVICE_CATALOG } from "@/lib/services";
 import { useEzyServiceSettings } from "@/ezy/data/useEzyServiceSettings";
+import { supabase } from "@/integrations/supabase/client";
+import { warneBeimServiceDeaktivieren } from "@/ezy/data/appRequirements";
 
 // Service-Auswahl pro Kunde. Zwei Varianten:
 //  - <ServicesPicker> : kontrolliert, fuer das Anlegen-Formular (noch keine clientId)
@@ -128,6 +130,27 @@ export function ServicesPanel({ C = FALLBACK_C, clientId }) {
   const [busyKey, setBusyKey] = React.useState(null);
   const isOn = (key) => !!enabled[key];
   const toggle = async (key, value) => {
+    // Konfigurationsvalidierung (17.08.): Service deaktivieren, den eine aktive
+    // App braucht (z. B. google-ads bei aktivem EzyPerformance) -> Warnung
+    // statt stillem Widerspruch. Anforderungen zentral in appRequirements.ts.
+    if (!value) {
+      try {
+        const token = (await supabase.auth.getSession()).data.session?.access_token;
+        const r = await fetch(`/api/admin/client-readiness?client=${encodeURIComponent(clientId)}`, {
+          headers: { Authorization: `Bearer ${token || ""}` },
+        });
+        const j = await r.json().catch(() => null);
+        if (j?.ok) {
+          const warnungen = warneBeimServiceDeaktivieren(key, j.snapshot);
+          if (warnungen.length) {
+            const text = `Achtung — dieser Service wird gebraucht:\n\n${warnungen
+              .map((w) => `• ${w.text}`)
+              .join("\n")}\n\nTrotzdem deaktivieren?`;
+            if (!window.confirm(text)) return;
+          }
+        }
+      } catch { /* Validierung best effort — Toggle nicht blockieren */ }
+    }
     setBusyKey(key);
     try {
       await setEnabled(key, value);

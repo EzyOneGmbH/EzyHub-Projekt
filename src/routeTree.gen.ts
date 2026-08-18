@@ -89,6 +89,8 @@ import { Route as ApiAdminTrafficOverviewRouteImport } from './routes/api/admin.
 import { Route as ApiAdminTechDetectRouteImport } from './routes/api/admin.tech-detect'
 import { Route as ApiAdminTeamRouteImport } from './routes/api/admin.team'
 import { Route as ApiAdminSiteHealthRouteImport } from './routes/api/admin.site-health'
+import { Route as ApiAdminClientReadinessRouteImport } from './routes/api/admin.client-readiness'
+import { Route as ApiAdminAuditLogRouteImport } from './routes/api/admin.audit-log'
 import { Route as ApiAdminSetCanonryProjectRouteImport } from './routes/api/admin.set-canonry-project'
 import { Route as ApiAdminRankSnapshotRouteImport } from './routes/api/admin.rank-snapshot'
 import { Route as ApiAdminLabsHistoryRouteImport } from './routes/api/admin.labs-history'
@@ -533,6 +535,16 @@ const ApiAdminTeamRoute = ApiAdminTeamRouteImport.update({
   path: '/api/admin/team',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminClientReadinessRoute = ApiAdminClientReadinessRouteImport.update({
+  id: '/api/admin/client-readiness',
+  path: '/api/admin/client-readiness',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminAuditLogRoute = ApiAdminAuditLogRouteImport.update({
+  id: '/api/admin/audit-log',
+  path: '/api/admin/audit-log',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminSiteHealthRoute = ApiAdminSiteHealthRouteImport.update({
   id: '/api/admin/site-health',
   path: '/api/admin/site-health',
@@ -840,6 +852,8 @@ export interface FileRoutesByFullPath {
   '/api/admin/labs-history': typeof ApiAdminLabsHistoryRoute
   '/api/admin/geo-grid-snapshot': typeof ApiAdminGeoGridSnapshotRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
+  '/api/admin/client-readiness': typeof ApiAdminClientReadinessRoute
+  '/api/admin/audit-log': typeof ApiAdminAuditLogRoute
   '/api/admin/site-health': typeof ApiAdminSiteHealthRoute
   '/api/admin/team': typeof ApiAdminTeamRoute
   '/api/admin/tech-detect': typeof ApiAdminTechDetectRoute
@@ -965,6 +979,8 @@ export interface FileRoutesByTo {
   '/api/admin/labs-history': typeof ApiAdminLabsHistoryRoute
   '/api/admin/geo-grid-snapshot': typeof ApiAdminGeoGridSnapshotRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
+  '/api/admin/client-readiness': typeof ApiAdminClientReadinessRoute
+  '/api/admin/audit-log': typeof ApiAdminAuditLogRoute
   '/api/admin/site-health': typeof ApiAdminSiteHealthRoute
   '/api/admin/team': typeof ApiAdminTeamRoute
   '/api/admin/tech-detect': typeof ApiAdminTechDetectRoute
@@ -1091,6 +1107,8 @@ export interface FileRoutesById {
   '/api/admin/labs-history': typeof ApiAdminLabsHistoryRoute
   '/api/admin/geo-grid-snapshot': typeof ApiAdminGeoGridSnapshotRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
+  '/api/admin/client-readiness': typeof ApiAdminClientReadinessRoute
+  '/api/admin/audit-log': typeof ApiAdminAuditLogRoute
   '/api/admin/site-health': typeof ApiAdminSiteHealthRoute
   '/api/admin/team': typeof ApiAdminTeamRoute
   '/api/admin/tech-detect': typeof ApiAdminTechDetectRoute
@@ -1216,6 +1234,8 @@ export interface FileRouteTypes {
     | '/api/admin/labs-history'
     | '/api/admin/geo-grid-snapshot'
     | '/api/admin/set-canonry-project'
+    | '/api/admin/client-readiness'
+    | '/api/admin/audit-log'
     | '/api/admin/site-health'
     | '/api/admin/team'
     | '/api/admin/tech-detect'
@@ -1339,6 +1359,8 @@ export interface FileRouteTypes {
     | '/api/admin/labs-history'
     | '/api/admin/geo-grid-snapshot'
     | '/api/admin/set-canonry-project'
+    | '/api/admin/client-readiness'
+    | '/api/admin/audit-log'
     | '/api/admin/site-health'
     | '/api/admin/team'
     | '/api/admin/tech-detect'
@@ -1462,6 +1484,8 @@ export interface FileRouteTypes {
     | '/api/admin/labs-history'
     | '/api/admin/geo-grid-snapshot'
     | '/api/admin/set-canonry-project'
+    | '/api/admin/client-readiness'
+    | '/api/admin/audit-log'
     | '/api/admin/site-health'
     | '/api/admin/team'
     | '/api/admin/tech-detect'
@@ -1583,6 +1607,8 @@ export interface RootRouteChildren {
   ApiAdminLabsHistoryRoute: typeof ApiAdminLabsHistoryRoute
   ApiAdminGeoGridSnapshotRoute: typeof ApiAdminGeoGridSnapshotRoute
   ApiAdminSetCanonryProjectRoute: typeof ApiAdminSetCanonryProjectRoute
+  ApiAdminClientReadinessRoute: typeof ApiAdminClientReadinessRoute
+  ApiAdminAuditLogRoute: typeof ApiAdminAuditLogRoute
   ApiAdminSiteHealthRoute: typeof ApiAdminSiteHealthRoute
   ApiAdminTeamRoute: typeof ApiAdminTeamRoute
   ApiAdminTechDetectRoute: typeof ApiAdminTechDetectRoute
@@ -2191,6 +2217,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminTeamRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/client-readiness': {
+      id: '/api/admin/client-readiness'
+      path: '/api/admin/client-readiness'
+      fullPath: '/api/admin/client-readiness'
+      preLoaderRoute: typeof ApiAdminClientReadinessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/audit-log': {
+      id: '/api/admin/audit-log'
+      path: '/api/admin/audit-log'
+      fullPath: '/api/admin/audit-log'
+      preLoaderRoute: typeof ApiAdminAuditLogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/site-health': {
       id: '/api/admin/site-health'
       path: '/api/admin/site-health'
@@ -2626,6 +2666,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminLabsHistoryRoute: ApiAdminLabsHistoryRoute,
   ApiAdminGeoGridSnapshotRoute: ApiAdminGeoGridSnapshotRoute,
   ApiAdminSetCanonryProjectRoute: ApiAdminSetCanonryProjectRoute,
+  ApiAdminClientReadinessRoute: ApiAdminClientReadinessRoute,
+  ApiAdminAuditLogRoute: ApiAdminAuditLogRoute,
   ApiAdminSiteHealthRoute: ApiAdminSiteHealthRoute,
   ApiAdminTeamRoute: ApiAdminTeamRoute,
   ApiAdminTechDetectRoute: ApiAdminTechDetectRoute,

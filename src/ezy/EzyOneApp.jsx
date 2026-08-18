@@ -113,6 +113,7 @@ import { ServicesPicker, ServicesPanel } from "@/ezy/components/ServicesPanel";
 import { DEFAULT_ON_SERVICES } from "@/lib/services";
 import { useEzyDashboardConfig } from "@/ezy/data/useEzyDashboardConfig";
 import { EZY_APPS, APP_START, APP_SCOPES, APP_FEATURES, TAB_APP_FEATURE, currentAppOf } from "@/ezy/data/appRegistry";
+import { warneBeimAppAktivieren, warneBeimLocalGrid, STATUS_LABEL as READINESS_STATUS_LABEL, appLabel as readinessAppLabel } from "@/ezy/data/appRequirements";
 // Local-Grid-Tab (2026-08-17): Maps-Heatmap (Geo-Grid) — eigene Datei, damit
 // der Monolith klein bleibt (parallele Sessions!).
 import LocalGridDashboard from "@/ezy/LocalGridDashboard";
@@ -10622,6 +10623,208 @@ function ClientSettingsPanel({ client, onUpsertClient }) {
 // (Rolle viewer, fest an diesen Kunden gebunden). Keine DB-Zeile = App aktiv
 // mit allen Funktionen (Legacy) — Häkchen materialisieren erst beim Ändern.
 // ─────────────────────────────────────────────────────────────────────────────
+// ── Einsatzbereitschaft (Admin-Ausbau 17.08.2026) ────────────────────────────
+// Zeigt je App, ob der Kunde WIRKLICH einsatzbereit ist (App-Zugriff, Services,
+// Integration, letzter Datenlauf, Portalzugang) — serverseitig berechnet
+// (/api/admin/client-readiness, nur Owner/Admin), Anforderungen zentral in
+// appRequirements.ts. Jede Luecke hat eine konkrete, rollensichere Aktion.
+async function fetchReadiness(clientId) {
+  const token = (await supabase.auth.getSession()).data.session?.access_token;
+  const r = await fetch(`/api/admin/client-readiness?client=${encodeURIComponent(clientId)}`, {
+    headers: { Authorization: `Bearer ${token || ""}` },
+  });
+  return r.json().catch(() => ({ ok: false, error: "Antwort ungültig" }));
+}
+
+function ClientReadinessPanel({ client, onOpenSettings }) {
+  const toast = useToast();
+  const caa = useClientAppAccess();
+  const svc = useEzyServiceSettings(client.id);
+  const [data, setData] = useState(null); // { snapshot, readiness }
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(""); // `${app}:${checkId}` der laufenden Aktion
+  const reload = useCallback(async () => {
+    const j = await fetchReadiness(client.id);
+    if (j?.ok) { setData(j); setErr(""); } else setErr(j?.error || "Laden fehlgeschlagen");
+  }, [client.id]);
+  useEffect(() => { setData(null); void reload(); }, [reload]);
+
+  const statusColor = (st) =>
+    st === "bereit" ? C.green : st === "unvollstaendig" ? C.orange : st === "fehler" ? C.red : C.textDim;
+
+  const connectGoogle = async () => {
+    const session = (await supabase.auth.getSession()).data.session;
+    const res = await fetch(`/api/google/oauth/start?client_id=${encodeURIComponent(client.id)}`, {
+      headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json.url) throw new Error(json.error || `HTTP ${res.status}`);
+    const popup = window.open(json.url, "google-oauth", "width=520,height=640");
+    await new Promise((resolve) => {
+      const t = setInterval(() => { if (popup?.closed) { clearInterval(t); resolve(); } }, 800);
+    });
+  };
+
+  const doAktion = async (app, check) => {
+    const key = `${app}:${check.id}`;
+    if (busy) return;
+    setBusy(key);
+    try {
+      switch (check.aktion?.id) {
+        case "app_freischalten": {
+          const e = await caa.setAccess(client.id, app, { enabled: true });
+          if (e) throw new Error(e);
+          toast(`${readinessAppLabel(app)} freigeschaltet`, "success");
+          break;
+        }
+        case "service_aktivieren": {
+          // Sinnvoller Default je App: ads -> google-ads, geo -> perplexity
+          // (DFS-Korpus-Standard seit 06.08.; Canonry bleibt optional zuschaltbar).
+          const provider = app === "ads" ? "google-ads" : "perplexity";
+          await svc.setEnabled(provider, true);
+          toast(`Service ${provider} aktiviert`, "success");
+          break;
+        }
+        case "google_verbinden":
+          await connectGoogle();
+          break;
+        case "property_waehlen":
+        case "wordpress_verbinden":
+          onOpenSettings?.();
+          return;
+        case "portal_einladen": {
+          const email = window.prompt("E-Mail-Adresse für den Portalzugang (Rolle Kunde):");
+          if (!email || !email.includes("@")) return;
+          const token = (await supabase.auth.getSession()).data.session?.access_token;
+          const r = await fetch("/api/admin/team", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token || ""}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "invite", email: email.trim(), role: "viewer", clientIds: [client.id] }),
+          });
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok || j.error) throw new Error(j.error || `HTTP ${r.status}`);
+          toast(`Einladung an ${email.trim()} verschickt`, "success");
+          break;
+        }
+        case "datenlauf_starten": {
+          toast("Datenlauf gestartet — dauert typischerweise 1–4 Minuten…", "info");
+          const token = (await supabase.auth.getSession()).data.session?.access_token;
+          const r = await fetch("/api/admin/client-readiness", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token || ""}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "datenlauf", client: client.id }),
+          });
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
+          toast("Datenlauf abgeschlossen", "success");
+          break;
+        }
+        default:
+          return;
+      }
+      await reload();
+    } catch (e) {
+      toast(String(e?.message || e), "error");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  if (err) return <div style={{ fontSize: 13, color: C.red }}>{err}</div>;
+  if (!data) return <div style={{ fontSize: 13, color: C.textMuted }}>Prüfe Einsatzbereitschaft…</div>;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <p style={{ fontSize: 12, color: C.textMuted, margin: 0, lineHeight: 1.5 }}>
+        Serverseitig geprüft: App-Zugriff, Services, Integrationen, Datenläufe und Portalzugang —
+        jede Lücke hat eine direkte Aktion.
+      </p>
+      {data.readiness.map((r) => (
+        <div key={r.app} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <span style={{ fontWeight: 700, fontSize: 14 }}>{readinessAppLabel(r.app)}</span>
+            <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, color: statusColor(r.status), background: `${statusColor(r.status)}1a`, borderRadius: 99, padding: "3px 10px" }}>
+              {READINESS_STATUS_LABEL[r.status] || r.status}
+            </span>
+          </div>
+          {r.checks.map((c) => (
+            <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: `1px solid ${C.border}55`, fontSize: 13 }}>
+              <span style={{ width: 18, textAlign: "center", fontWeight: 800, color: c.ok ? C.green : c.severity === "kritisch" ? C.red : C.orange }}>
+                {c.ok ? "✓" : c.severity === "kritisch" ? "✕" : "△"}
+              </span>
+              <span style={{ color: C.text }}>{c.label}</span>
+              <span style={{ color: C.textMuted, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.detail}</span>
+              {!c.ok && c.aktion && (
+                <button
+                  onClick={() => doAktion(r.app, c)}
+                  disabled={!!busy}
+                  style={{ marginLeft: "auto", flexShrink: 0, fontSize: 12, fontWeight: 600, color: C.accent, background: C.accentDim, border: "none", borderRadius: 8, padding: "5px 10px", cursor: busy ? "default" : "pointer", fontFamily: "inherit", opacity: busy && busy !== `${r.app}:${c.id}` ? 0.5 : 1 }}
+                >
+                  {busy === `${r.app}:${c.id}` ? "läuft…" : c.aktion.label}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Aenderungsprotokoll des Kunden (admin_audit_log via DB-Trigger; nur Whitelist-
+// Felder — keine Secrets). Lesezugriff ausschliesslich Owner/Admin.
+function ClientAuditLogPanel({ client }) {
+  const [entries, setEntries] = useState(null);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const r = await fetch(`/api/admin/audit-log?client=${encodeURIComponent(client.id)}&limit=80`, {
+        headers: { Authorization: `Bearer ${token || ""}` },
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!alive) return;
+      if (j?.ok) setEntries(j.entries); else setErr(j?.error || "Laden fehlgeschlagen");
+    })();
+    return () => { alive = false; };
+  }, [client.id]);
+
+  const diffText = (e) => {
+    const o = e.old_value || {}, n = e.new_value || {};
+    const keys = [...new Set([...Object.keys(o), ...Object.keys(n)])];
+    const parts = [];
+    for (const k of keys) {
+      const ov = JSON.stringify(o[k] ?? null), nv = JSON.stringify(n[k] ?? null);
+      if (e.action === "update" && ov === nv) continue;
+      parts.push(e.action === "update" ? `${k}: ${ov} → ${nv}` : `${k}: ${nv !== "null" ? nv : ov}`);
+    }
+    return parts.join(" · ") || "—";
+  };
+
+  if (err) return <div style={{ fontSize: 13, color: C.red }}>{err}</div>;
+  if (!entries) return <div style={{ fontSize: 13, color: C.textMuted }}>Lade Protokoll…</div>;
+  if (!entries.length)
+    return <div style={{ fontSize: 13, color: C.textMuted }}>Noch keine protokollierten Änderungen — das Protokoll läuft seit dem 17.08.2026.</div>;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+      {entries.map((e) => (
+        <div key={e.id} style={{ padding: "9px 0", borderBottom: `1px solid ${C.border}55`, fontSize: 12.5 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <span style={{ color: C.textMuted, fontVariantNumeric: "tabular-nums" }}>
+              {new Date(e.at).toLocaleString("de-CH", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+            </span>
+            <Badge color={C.accent}>{e.bereich}</Badge>
+            <span style={{ color: C.textMuted }}>{e.action === "insert" ? "angelegt" : e.action === "delete" ? "entfernt" : "geändert"}</span>
+            <span style={{ color: C.textDim, fontSize: 11.5, marginLeft: "auto" }}>{e.userEmail || "System/Automation"}</span>
+          </div>
+          <div style={{ color: C.text, marginTop: 3, wordBreak: "break-word" }}>{diffText(e)}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ClientAppAccessPanel({ client }) {
   const toast = useToast();
   const caa = useClientAppAccess();
@@ -10631,6 +10834,20 @@ function ClientAppAccessPanel({ client }) {
 
   const toggleApp = async (appId) => {
     const enabled = appEnabledFor(caa.map, client.id, appId);
+    // Konfigurationsvalidierung (17.08.): App aktivieren, obwohl kritische
+    // Voraussetzungen fehlen -> verstaendliche Warnung statt stiller Widerspruch.
+    if (!enabled) {
+      try {
+        const j = await fetchReadiness(client.id);
+        const warnungen = j?.ok ? warneBeimAppAktivieren(appId, j.snapshot) : [];
+        if (warnungen.length) {
+          const text = `Für ${readinessAppLabel(appId)} fehlen Voraussetzungen:\n\n${warnungen
+            .map((w) => `• ${w.text}`)
+            .join("\n")}\n\nDie App erscheint sonst leer bzw. der Kunde taucht dort nicht auf. Trotzdem freischalten?`;
+          if (!window.confirm(text)) return;
+        }
+      } catch { /* Validierung best effort — Freischalten nicht blockieren */ }
+    }
     const err = await caa.setAccess(client.id, appId, { enabled: !enabled });
     if (err) toast(err, "error");
   };
@@ -10642,6 +10859,14 @@ function ClientAppAccessPanel({ client }) {
     const next = current.includes(featureId)
       ? current.filter((f) => f !== featureId)
       : [...current, featureId];
+    // Local Grid braucht einen Standort (GBP) — vor dem Aktivieren pruefen.
+    if (featureId === "localgrid" && next.includes("localgrid") && !current.includes("localgrid")) {
+      try {
+        const j = await fetchReadiness(client.id);
+        const warnungen = j?.ok ? warneBeimLocalGrid(j.snapshot) : [];
+        if (warnungen.length && !window.confirm(`${warnungen[0].text}\n\nTrotzdem aktivieren?`)) return;
+      } catch { /* best effort */ }
+    }
     const err = await caa.setAccess(client.id, appId, { features: next });
     if (err) toast(err, "error");
   };
@@ -11128,6 +11353,8 @@ function ClientsPage({
             <TabBar
               tabs={[
                 { id: "overview", label: "Übersicht" },
+                // Admin-Ausbau 17.08.: Einsatzbereitschaft + Änderungsprotokoll.
+                { id: "readiness", label: "Bereitschaft" },
                 { id: "kpis", label: "KPIs" },
                 { id: "notes", label: "Notizen" },
                 // Admin-Umbau 06.08.: Lauf-Nachweis + App-/Portal-Freischaltung
@@ -11135,6 +11362,7 @@ function ClientsPage({
                 // Admin-Dashboard bzw. Einstellungen-mit-Kunden-Umschalter).
                 { id: "runs", label: "Agent-Läufe" },
                 { id: "access", label: "App-Zugriff" },
+                { id: "log", label: "Protokoll" },
                 { id: "settings", label: "Einstellungen" },
               ]}
               active={dt}
@@ -11229,6 +11457,8 @@ function ClientsPage({
                 </div>
               </div>
             )}
+            {dt === "readiness" && <ClientReadinessPanel client={detail} onOpenSettings={() => setDt("settings")} />}
+            {dt === "log" && <ClientAuditLogPanel client={detail} />}
             {dt === "runs" && <AgentRunsPanel selectedClient={detail} />}
             {dt === "access" && <ClientAppAccessPanel client={detail} />}
             {dt === "settings" && <ClientSettingsPanel client={detail} onUpsertClient={onUpsertClient} />}
@@ -11324,11 +11554,12 @@ function ClientsPage({
           if (!c) return;
           onSelectClient?.(c);
           setDetailId(c.id);
-          setDt("overview");
+          // Onboarding-Abschluss (17.08.): direkt zeigen, welche Apps bereit sind.
+          setDt("readiness");
         }}
         onOpenPanel={(c) => {
           setDetailId(c.id);
-          setDt("overview");
+          setDt("readiness");
         }}
       />
       <Modal

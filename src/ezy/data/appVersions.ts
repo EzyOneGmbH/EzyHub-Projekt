@@ -59,8 +59,9 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // Admin
   admin: {
-    version: "1.1.0",
+    version: "1.2.0",
     changelog: [
+      { version: "1.2.0", date: "2026-08-17", note: "Einsatzbereitschaft je Kunde, geführte Aktionen, Konfigurations-Warnungen, Änderungsprotokoll" },
       { version: "1.1.0", date: "2026-08-13", note: "Kundenliste alphabetisch" },
       { version: "1.0.0", date: "2026-08-10", note: "Ezy One Corporate Design" },
     ],
