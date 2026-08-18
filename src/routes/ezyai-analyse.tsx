@@ -100,7 +100,7 @@ const ghostBtn: React.CSSProperties = { background: "none", border: `1px solid $
 
 function EzyAiAnalyseApp() {
   const navigate = useNavigate();
-  const { session, loading: authLoading, role } = useAuth();
+  const { session, loading: authLoading, role, isOrgAdmin } = useAuth();
   const { canOpen, loading: accessLoading } = useAppAccess();
   const { profile } = useEzyProfile();
 
@@ -196,7 +196,7 @@ function EzyAiAnalyseApp() {
 
             <main className="anl-main" style={{ maxWidth: 1180, margin: "0 auto", padding: "22px 22px 60px" }}>
               {detail
-                ? <ResultView audit={detail} onBack={() => { setDetail(null); setTab("verlauf"); void loadList(); }} onRerun={() => setWizOpen(true)} />
+                ? <ResultView audit={detail} isOrgAdmin={!!isOrgAdmin} onBack={() => { setDetail(null); setTab("verlauf"); void loadList(); }} onRerun={() => setWizOpen(true)} />
                 : <HomeView tab={tab} setTab={setTab} list={list} onOpen={openDetail} onNew={() => setWizOpen(true)} onResume={(id) => { setWizOpen(true); setResumeId(id); }} />}
             </main>
           </div>
@@ -274,14 +274,16 @@ function HomeView({ tab, setTab, list, onOpen, onNew, onResume }: {
                         ? <span style={{ ...pillStyle(S.orangeDim, S.orange) }}>läuft · {r.progress}%</span>
                         : r.status === "fehler"
                           ? <span style={{ ...pillStyle(S.redDim, S.red) }}>Fehler</span>
-                          : <span style={{ ...pillStyle(S.greenDim, S.green) }}>fertig</span>}
+                          : r.status === "abgebrochen"
+                            ? <span style={{ ...pillStyle(S.tint, S.mut) }}>abgebrochen</span>
+                            : <span style={{ ...pillStyle(S.greenDim, S.green) }}>fertig</span>}
                     </td>
                     <td style={td}><ScorePill n={r.score} /></td>
                     <td style={{ ...td, textAlign: "right" }}>{fmtVol(r.missedVol)}</td>
                     <td style={td}>
-                      {r.status === "laufend"
-                        ? <span style={{ color: S.app, fontWeight: 600, fontSize: 12.5, cursor: "pointer" }} onClick={() => onResume(r.id)}>Fortschritt</span>
-                        : <span style={{ color: S.app, fontWeight: 600, fontSize: 12.5, cursor: "pointer" }} onClick={() => onOpen(r.id)}>Öffnen</span>}
+                      {r.status === "fertig"
+                        ? <span style={{ color: S.app, fontWeight: 600, fontSize: 12.5, cursor: "pointer" }} onClick={() => onOpen(r.id)}>Öffnen</span>
+                        : <span style={{ color: S.app, fontWeight: 600, fontSize: 12.5, cursor: "pointer" }} onClick={() => onResume(r.id)}>Fortschritt</span>}
                     </td>
                   </tr>
                 ))}
@@ -318,17 +320,22 @@ function Wizard({ onClose, onDone, resumeId, prefill }: {
   const aliveRef = useRef(true);
   useEffect(() => () => { aliveRef.current = false; }, []);
 
-  // Tick-Schleife: solange das Pop-Up offen ist, treibt das Frontend den Lauf
-  // Etappe fuer Etappe voran (Server arbeitet je Tick bis ~4 Min).
-  const runTicks = useCallback(async (id: string) => {
-    let cur: AuditRow | null = null;
-    for (let guard = 0; guard < 40; guard++) {
+  // Haertung 18.08.: Der Browser treibt den Lauf NICHT mehr an — das macht der
+  // Server-Worker (agent-service tickt /api/agent/analyse action:worker). Das
+  // Frontend pollt nur noch Status/Ergebnis; Fenster schliessen ist jederzeit ok.
+  const pollStatus = useCallback(async (id: string) => {
+    for (;;) {
       if (!aliveRef.current) return;
-      const j = await api("POST", "", { action: "tick", id });
+      const j = await api("GET", `?id=${id}`);
       if (!aliveRef.current) return;
-      if (!j?.ok) { setErr(j?.error || "Tick fehlgeschlagen — neuer Versuch in 5 s"); await new Promise((r) => setTimeout(r, 5000)); continue; }
-      cur = j.audit; setAudit(j.audit); setErr(j.audit?.error || "");
-      if (j.audit.status !== "laufend") return;
+      if (j?.ok) {
+        setAudit(j.audit);
+        setErr(j.audit?.status === "fehler" ? (j.audit?.error || "Fehlgeschlagen") : (j.audit?.error || ""));
+        if (j.audit.status !== "laufend") return;
+      } else {
+        setErr(j?.error || "Status nicht abrufbar — neuer Versuch…");
+      }
+      await new Promise((r) => setTimeout(r, 5000));
     }
   }, []);
 
@@ -340,11 +347,25 @@ function Wizard({ onClose, onDone, resumeId, prefill }: {
         if (j?.ok) {
           setAudit(j.audit);
           setForm({ domain: j.audit.domain, firmenname: j.audit.firmenname, branche: j.audit.branche || "", ort: j.audit.ort || "" });
-          if (j.audit.status === "laufend") void runTicks(resumeId);
+          if (j.audit.status === "laufend") void pollStatus(resumeId);
         }
       })();
     }
-  }, [resumeId, runTicks]);
+  }, [resumeId, pollStatus]);
+
+  const doRetry = async () => {
+    if (!audit?.id) return;
+    setErr("");
+    const j = await api("POST", "", { action: "retry", id: audit.id });
+    if (j?.ok) { setAudit(j.audit); void pollStatus(audit.id); }
+    else setErr(j?.error || "Retry fehlgeschlagen");
+  };
+  const doAbbruch = async () => {
+    if (!audit?.id) return;
+    if (!window.confirm("Analyse wirklich abbrechen? Der Lauf wird gestoppt und kann per Re-Run neu gestartet werden.")) return;
+    const j = await api("POST", "", { action: "abbrechen", id: audit.id });
+    if (j?.ok) setAudit(j.audit);
+  };
 
   const aiFind = async () => {
     setAiBusy(true); setErr("");
@@ -355,13 +376,15 @@ function Wizard({ onClose, onDone, resumeId, prefill }: {
   };
 
   const start = async () => {
+    if (startBusy) return; // Doppelklick-Schutz (Server prueft zusaetzlich)
     setStartBusy(true); setErr("");
     const wettbewerber = (kandidaten || []).filter((k) => k.checked).map((k) => k.domain).slice(0, 3);
     const j = await api("POST", "", { action: "start", ...form, wettbewerber });
     setStartBusy(false);
     if (!j?.ok) { setErr(j?.error || "Start fehlgeschlagen"); return; }
+    if (j.bereitsLaufend) setErr("Für diese Domain läuft bereits eine Analyse — hier ist ihr Fortschritt.");
     setAudit(j.audit); setStep(4);
-    void runTicks(j.audit.id);
+    void pollStatus(j.audit.id);
   };
 
   const formOk = form.domain.includes(".") && form.firmenname.trim().length >= 2;
@@ -476,11 +499,19 @@ function Wizard({ onClose, onDone, resumeId, prefill }: {
           <>
             <div style={{ padding: "0 26px 8px" }}>
               <h2 style={{ fontSize: 18, margin: "0 0 4px", fontFamily: "'Kamerik 105',Poppins,sans-serif" }}>
-                {audit?.status === "fertig" ? "Analyse abgeschlossen" : audit?.status === "fehler" ? "Analyse fehlgeschlagen" : "Analyse läuft…"}
+                {audit?.status === "fertig" ? "Analyse abgeschlossen" : audit?.status === "fehler" ? "Analyse fehlgeschlagen" : audit?.status === "abgebrochen" ? "Analyse abgebrochen" : "Analyse läuft…"}
               </h2>
-              <p style={{ fontSize: 13, color: S.mut, margin: "0 0 14px" }}>
-                {form.domain} — der Lauf arbeitet in Etappen; dieses Fenster sollte geöffnet bleiben. Über «Verlauf → Fortschritt» kannst du jederzeit hierher zurück.
+              <p style={{ fontSize: 13, color: S.mut, margin: "0 0 10px" }}>
+                {form.domain} — der Lauf läuft auf dem Server weiter: <b>du kannst dieses Fenster jederzeit schliessen</b>,
+                der Fortschritt bleibt unter «Verlauf → Fortschritt» abrufbar.
               </p>
+              {audit && (
+                <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 11.5, color: S.dim, marginBottom: 10, fontVariantNumeric: "tabular-nums" }}>
+                  <span>Start: {new Date(audit.created_at).toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" })}</span>
+                  <span>Letzte Aktivität: {(audit as any).updated_at ? new Date((audit as any).updated_at).toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—"}</span>
+                  <span>Phase: {STAGES[stageIndex(audit.stage)]?.name || audit.stage}</span>
+                </div>
+              )}
               <div style={{ height: 7, borderRadius: 4, background: S.bg, overflow: "hidden", margin: "4px 0 6px" }}>
                 <div style={{ width: `${audit?.progress ?? 2}%`, height: "100%", borderRadius: 4, background: S.grad, transition: "width .6s" }} />
               </div>
@@ -516,6 +547,12 @@ function Wizard({ onClose, onDone, resumeId, prefill }: {
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "18px 26px 24px" }}>
               <button style={ghostBtn} onClick={onClose}>Schliessen</button>
+              {audit?.status === "laufend" && (
+                <button style={{ ...ghostBtn, color: S.red, borderColor: `${S.red}55` }} onClick={doAbbruch}>Abbrechen</button>
+              )}
+              {audit?.status === "fehler" && (
+                <button style={{ ...ctaBtn, marginLeft: "auto" }} onClick={doRetry}>Erneut versuchen</button>
+              )}
               {audit?.status === "fertig" && (
                 <button style={{ ...ctaBtn, marginLeft: "auto" }} onClick={() => onDone(audit.id)}>Ergebnis ansehen</button>
               )}
@@ -528,8 +565,21 @@ function Wizard({ onClose, onDone, resumeId, prefill }: {
 }
 
 // ── Ergebnisreport (komplett) ───────────────────────────────────────────────
-function ResultView({ audit, onBack, onRerun }: { audit: AuditRow; onBack: () => void; onRerun: () => void }) {
+function ResultView({ audit, isOrgAdmin, onBack, onRerun }: { audit: AuditRow; isOrgAdmin: boolean; onBack: () => void; onRerun: () => void }) {
   const d = audit.data || {};
+  // Lead → Kunde (18.08.): idempotent, nur Owner/Admin (Server prueft erneut).
+  const [uebernahmeBusy, setUebernahmeBusy] = useState(false);
+  const [kundeId, setKundeId] = useState<string | null>(d.kundeId || null);
+  const uebernehmen = async () => {
+    if (uebernahmeBusy) return;
+    setUebernahmeBusy(true);
+    const j = await api("POST", "", { action: "uebernehmen", id: audit.id });
+    setUebernahmeBusy(false);
+    if (!j?.ok) { window.alert(j?.error || "Übernahme fehlgeschlagen"); return; }
+    setKundeId(j.kundeId);
+    // Direkt ins Kunden-Onboarding (Admin, Bereitschafts-Ansicht).
+    window.location.href = `/admin?client=${j.kundeId}`;
+  };
   const dims = audit.dims || { ai: 0, technik: 0, entitaet: 0, seo: 0 };
   const prompts = (d.prompts || []) as Array<{ q: string; vol: number | null; engines?: Record<string, any> }>;
   const issues = (d.technik?.issues || []) as any[];
@@ -565,13 +615,15 @@ function ResultView({ audit, onBack, onRerun }: { audit: AuditRow; onBack: () =>
     );
   })();
 
-  const dimCard = (label: string, n: number) => (
+  const dimCard = (label: string, n: number, art: string) => (
     <div key={label} style={{ border: `1px solid ${S.line}`, borderRadius: 12, padding: "12px 14px", background: S.panel }}>
       <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: S.dim }}>{label}</div>
       <div style={{ fontSize: 22, fontWeight: 800, margin: "3px 0 7px", color: scoreColor(n), fontVariantNumeric: "tabular-nums" }}>{n}</div>
       <div style={{ height: 5, borderRadius: 3, background: S.bg, overflow: "hidden" }}>
         <div style={{ width: `${n}%`, height: "100%", borderRadius: 3, background: scoreColor(n) }} />
       </div>
+      {/* Nachvollziehbarkeit (18.08.): Wertart direkt an der Zahl. */}
+      <div style={{ fontSize: 10, color: S.dim, marginTop: 6 }}>{art}</div>
     </div>
   );
 
@@ -606,8 +658,13 @@ function ResultView({ audit, onBack, onRerun }: { audit: AuditRow; onBack: () =>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: "4px 0 0", fontFamily: "'Kamerik 105',Poppins,sans-serif" }}>{audit.domain}</h1>
           <div style={{ fontSize: 13, color: S.mut, marginTop: 4 }}>{audit.firmenname} • Analyse vom {fmtDate(audit.created_at)}</div>
         </div>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <button style={ghostBtn} onClick={onRerun}>Re-Run</button>
+          {isOrgAdmin && (kundeId
+            ? <a href={`/admin?client=${kundeId}`} style={{ ...ghostBtn, textDecoration: "none", color: S.app, borderColor: `${S.app}55`, display: "inline-block" }}>Kunde im Admin öffnen</a>
+            : <button style={{ ...ctaBtn, background: S.panel, color: S.app, border: `1px solid ${S.app}` }} disabled={uebernahmeBusy} onClick={uebernehmen}>
+                {uebernahmeBusy ? "Übernehme…" : "Als Kunden übernehmen"}
+              </button>)}
           <button style={{ ...ctaBtn, display: "inline-flex", alignItems: "center", gap: 9, padding: "10px 18px", fontSize: 13 }} onClick={printPdf}>
             <span style={{ width: 16, height: 16, background: "#ffffff33", clipPath: "polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)", display: "inline-block" }} />
             PDF-Report exportieren
@@ -641,10 +698,10 @@ function ResultView({ audit, onBack, onRerun }: { audit: AuditRow; onBack: () =>
           </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 12, marginTop: 16 }}>
-          {dimCard("AI-Sichtbarkeit", dims.ai)}
-          {dimCard("Technik / SiteHealth", dims.technik)}
-          {dimCard("Entität", dims.entitaet)}
-          {dimCard("SEO-Fundament", dims.seo)}
+          {dimCard("AI-Sichtbarkeit", dims.ai, "berechnet aus Live-Messung")}
+          {dimCard("Technik / SiteHealth", dims.technik, "gemessen (eigener Crawl)")}
+          {dimCard("Entität", dims.entitaet, "gemessen (Wikidata/SERP)")}
+          {dimCard("SEO-Fundament", dims.seo, "Schätzwerte (DataForSEO Labs)")}
         </div>
       </div>
 
@@ -845,8 +902,42 @@ function ResultView({ audit, onBack, onRerun }: { audit: AuditRow; onBack: () =>
           )}
         </div>
       </div>
+      {/* Methodik & Datenquellen (18.08.) — bewusst OHNE noprint: gehoert in
+          jeden PDF-Report. Trennt gemessene Werte, Schaetzwerte und AI-Anteile. */}
+      <div style={{ ...card, marginTop: 16 }}>
+        <h3 style={{ margin: "0 0 4px", fontSize: 15.5 }}>Methodik & Datenquellen</h3>
+        <p style={{ fontSize: 12.5, color: S.mut, margin: "0 0 10px" }}>
+          Messdatum: {fmtDate(audit.created_at)} · Alle Abfragen aus der Schweiz (de-CH), Momentaufnahme eines einzelnen Laufs.
+        </p>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ borderCollapse: "collapse", width: "100%" }}>
+            <thead><tr><th style={th}>Bereich</th><th style={th}>Quelle</th><th style={th}>Wertart</th></tr></thead>
+            <tbody>
+              {[
+                ["Prompts × Engines", "Live-Antworten: DataForSEO-Scraper (ChatGPT, Perplexity, Gemini, Claude) + Direkt-APIs (Grok, DeepSeek)", "gemessen"],
+                ["AI-Suchvolumen je Prompt", "DataForSEO ai_keyword_data (Monatswerte)", "gemessen"],
+                ["Makro-Erwähnungen", "DataForSEO llm_mentions (Drittkorpus)", "gemessen"],
+                ["SiteHealth, Probleme, Seiten, AI-Crawler", "Eigener Live-Crawl (robots.txt, HTML, Sitemap)", "gemessen"],
+                ["SEO-Fundament (Keywords, Traffic, Backlinks)", "DataForSEO Labs", "Schätzwerte (Modell)"],
+                ["Entität (Wikidata, Brand-SERP, Schema)", "Wikidata-API + Google-SERP + HTML", "gemessen"],
+                ["Wettbewerber-Benchmark (Quick-Score)", "Labs-Schätzung + robots.txt + Engine-Nennungen", "berechnet"],
+                ["AI-Readiness-Score & Dimensionen", "Gewichtung 40 % AI · 25 % Technik · 20 % Entität · 15 % SEO", "berechnet"],
+                ["Top-5-Massnahmen", "Aus den Befunden abgeleitet", "AI-generiert"],
+              ].map(([b, q, a]) => (
+                <tr key={b as string}>
+                  <td style={{ ...td, fontWeight: 600 }}>{b}</td>
+                  <td style={{ ...td, color: S.mut, fontSize: 12.5 }}>{q}</td>
+                  <td style={td}>
+                    <span style={pillStyle(a === "gemessen" ? S.greenDim : a === "AI-generiert" ? S.tint : S.orangeDim, a === "gemessen" ? S.green : a === "AI-generiert" ? S.app : S.orange)}>{a}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
       <p className="anl-noprint" style={{ fontSize: 11.5, color: S.dim, marginTop: 12 }}>
-        Der PDF-Export erzeugt den vollständigen Report im Ezy-One-CI (Druckdialog → «Als PDF speichern»); alle Aufklapp-Panels werden dafür automatisch geöffnet.
+        Der PDF-Export erzeugt den vollständigen Report im Ezy-One-CI (Druckdialog → «Als PDF speichern»); alle Aufklapp-Panels werden dafür automatisch geöffnet — inklusive Methodik & Datenquellen.
       </p>
     </>
   );

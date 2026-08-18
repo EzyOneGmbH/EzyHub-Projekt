@@ -332,9 +332,35 @@ async function loadRow(id: string) {
 }
 async function saveRow(id: string, patch: any) {
   patch.updated_at = new Date().toISOString();
+  // Jede Speicherung gibt den Tick-Lock frei (Etappe abgeschlossen/gescheitert).
+  if (!("locked_until" in patch)) patch.locked_until = null;
   const { data, error } = await SB.from("prospect_audits").update(patch).eq("id", id).select("*").single();
   if (error) throw new Error(error.message);
   return data;
+}
+
+// ── Pure Job-Helfer (Haertung 18.08., von vitest abgedeckt) ─────────────────
+/** Retry eines fehlgeschlagenen Laufs: Fehlversuchs-Zaehler der Etappe leeren. */
+export function retryPatch(row: { status: string; stage: string; data?: any }): any | null {
+  if (row.status !== "fehler") return null;
+  const data = { ...(row.data || {}) };
+  if (data.stageFails) {
+    const f = { ...data.stageFails };
+    delete f[row.stage];
+    data.stageFails = f;
+  }
+  return { status: "laufend", error: null, data };
+}
+
+/** Lead-Uebernahme ist Admin-Sache (serverseitig geprueft). */
+export function uebernahmeErlaubt(role: string): boolean {
+  return role === "owner" || role === "admin";
+}
+
+/** Dubletten-Schluessel fuer Kunden/laufende Jobs: normalisierte Domain. */
+export function gleicheDomain(a: string | null | undefined, b: string | null | undefined): boolean {
+  const na = normDomain(String(a || "")), nb = normDomain(String(b || ""));
+  return !!na && na === nb;
 }
 const addCost = (data: any, c: number) => { data.kostenUsd = Math.round(((Number(data.kostenUsd) || 0) + c) * 10000) / 10000; };
 
@@ -343,9 +369,16 @@ export async function startAudit(opts: {
   organizationId: string; userId: string | null;
   domain: string; firmenname: string; branche?: string; ort?: string;
   wettbewerber: string[];
-}) {
+}): Promise<{ audit: any; bereitsLaufend: boolean }> {
   const domain = normDomain(opts.domain);
   if (!domain || !domain.includes(".")) throw new Error("Gueltige Domain erforderlich");
+  // Doppelstart-Schutz (Reload/Doppelklick): laeuft fuer diese Domain in der
+  // Organisation bereits eine Analyse, wird DEREN Job zurueckgegeben.
+  const { data: offen } = await SB.from("prospect_audits").select("*")
+    .eq("organization_id", opts.organizationId).eq("domain", domain).eq("status", "laufend")
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (offen) return { audit: offen, bereitsLaufend: true };
+
   const wettbewerber = [...new Set(opts.wettbewerber.map(normDomain).filter((d) => d && d !== domain))].slice(0, 3);
   const prompts = await buildPrompts({ firmenname: opts.firmenname, branche: opts.branche, ort: opts.ort, domain });
   const { data, error } = await SB.from("prospect_audits").insert({
@@ -355,14 +388,111 @@ export async function startAudit(opts: {
     data: { prompts, kostenUsd: 0 },
   }).select("*").single();
   if (error) throw new Error(error.message);
-  return data;
+  return { audit: data, bereitsLaufend: false };
+}
+
+/** Fehlgeschlagenen Lauf wieder aufnehmen (Worker greift ihn danach auf). */
+export async function retryAudit(id: string) {
+  const row = await loadRow(id);
+  if (!row) throw new Error("Analyse nicht gefunden");
+  const patch = retryPatch(row);
+  if (!patch) return row;
+  return await saveRow(id, patch);
+}
+
+/** Abbruch: sicher, weil der Worker abgebrochene Jobs nie mehr anfasst. */
+export async function abbrechenAudit(id: string) {
+  const { data } = await SB.from("prospect_audits")
+    .update({ status: "abgebrochen", updated_at: new Date().toISOString(), locked_until: null })
+    .eq("id", id).eq("status", "laufend").select("*").maybeSingle();
+  return data ?? (await loadRow(id));
+}
+
+// ── Worker (18.08.): tickt ALLE offenen Jobs org-uebergreifend, Etappe fuer
+// Etappe, bis das Zeitbudget erschoepft ist. Aufrufer: agent-service alle 60 s
+// via /api/agent/analyse {action:"worker"} (ADMIN_AUTOMATION_SECRET). Der
+// Tick-Lock in tickAudit verhindert Doppelarbeit bei ueberlappenden Aufrufen.
+export async function tickeOffeneAudits(budgetMs = 230_000) {
+  const start = Date.now();
+  const out = { getickt: 0, fertig: 0, fehler: 0 };
+  for (let i = 0; i < 60; i++) {
+    if (Date.now() - start > budgetMs) break;
+    const { data: rows } = await SB.from("prospect_audits").select("id")
+      .eq("status", "laufend")
+      .or(`locked_until.is.null,locked_until.lt.${new Date().toISOString()}`)
+      .order("updated_at", { ascending: true }).limit(1);
+    const next = rows?.[0];
+    if (!next) break;
+    const r = await tickAudit(next.id);
+    out.getickt++;
+    if (r?.status === "fertig") out.fertig++;
+    if (r?.status === "fehler") out.fehler++;
+  }
+  return out;
+}
+
+// ── Lead → Kunde (18.08.): idempotent ueber org + normalisierte Domain ──────
+export async function leadZuKunde(id: string, organizationId: string, userId: string | null) {
+  const row = await loadRow(id);
+  if (!row || row.organization_id !== organizationId) throw new Error("Analyse nicht gefunden");
+  if (row.status !== "fertig") throw new Error("Die Analyse ist noch nicht abgeschlossen");
+  const d = row.data || {};
+  if (d.kundeId) return { kundeId: d.kundeId as string, neu: false };
+
+  // Bestehenden Kunden ueber die normalisierte Domain finden — verhindert
+  // Dubletten unabhaengig von www./https-Schreibweisen.
+  const { data: kunden } = await SB.from("clients").select("id, domain").eq("organization_id", organizationId);
+  const vorhanden = (kunden ?? []).find((k: any) => gleicheDomain(k.domain, row.domain));
+  let kundeId: string | undefined = vorhanden?.id;
+  let neu = false;
+  if (!kundeId) {
+    const prompts = ((d.prompts || []) as Array<{ q: string }>).map((p) => p.q).filter(Boolean);
+    const notes = [
+      `Aus EzyAI-Analyse uebernommen (Score ${row.score ?? "—"}, ${String(row.created_at).slice(0, 10)}).`,
+      row.ort ? `Ort/Markt: ${row.ort}` : null,
+      (row.wettbewerber || []).length ? `Wettbewerber: ${(row.wettbewerber as string[]).join(", ")}` : null,
+      prompts.length ? `Prompt-Vorschlaege (${prompts.length}): ${prompts.join(" | ")}` : null,
+    ].filter(Boolean).join("\n");
+    const { data: nk, error } = await SB.from("clients").insert({
+      organization_id: organizationId,
+      name: row.firmenname || normDomain(row.domain),
+      domain: normDomain(row.domain),
+      industry: row.branche || null,
+      notes,
+      created_by: userId,
+      metadata: {
+        quelle: "ezyai-analyse",
+        analyseAuditId: row.id,
+        targetLocations: row.ort ? [row.ort] : [],
+        wettbewerber: row.wettbewerber || [],
+        analysePrompts: prompts,
+      },
+    }).select("id").single();
+    if (error) throw new Error(error.message);
+    kundeId = nk.id;
+    neu = true;
+  }
+  await saveRow(id, { data: { ...d, kundeId } });
+  return { kundeId: kundeId as string, neu };
 }
 
 // ── Tick: EINE Etappe ausfuehren ────────────────────────────────────────────
+// Haertung 18.08.: DB-Lock (locked_until) — nur EIN Aufrufer tickt eine
+// Etappe; ueberlappende Worker-/manuelle Ticks bekommen die aktuelle Zeile
+// zurueck statt doppelt zu arbeiten. saveRow gibt den Lock am Etappen-Ende frei.
 export async function tickAudit(id: string) {
-  const row = await loadRow(id);
-  if (!row) throw new Error("Analyse nicht gefunden");
-  if (row.status !== "laufend") return row;
+  const nowIso = new Date().toISOString();
+  const lockIso = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+  const { data: row } = await SB.from("prospect_audits")
+    .update({ locked_until: lockIso })
+    .eq("id", id).eq("status", "laufend")
+    .or(`locked_until.is.null,locked_until.lt.${nowIso}`)
+    .select("*").maybeSingle();
+  if (!row) {
+    const cur = await loadRow(id);
+    if (!cur) throw new Error("Analyse nicht gefunden");
+    return cur; // nicht (mehr) laufend ODER ein anderer Tick haelt den Lock
+  }
   const data = row.data || {};
   const domain: string = row.domain;
   try {

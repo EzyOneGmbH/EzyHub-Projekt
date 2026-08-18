@@ -45,8 +45,9 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI – Analyse (Lead-Pre-Check, intern)
   analyse: {
-    version: "1.3.0",
+    version: "1.4.0",
     changelog: [
+      { version: "1.4.0", date: "2026-08-18", note: "Läuft im Hintergrund weiter (Server-Worker), Lead→Kunde-Übernahme, Methodik & Datenquellen" },
       { version: "1.3.0", date: "2026-08-17", note: "6 Engines (neu Grok & DeepSeek), Themen-Nischen-Prompts aus der Website" },
       { version: "1.2.0", date: "2026-08-14", note: "15 Prompts je Lauf, max. 3 Brand — Rest neutrale Alternativen-Suchen" },
       { version: "1.1.0", date: "2026-08-14", note: "AI-Crawler-Zugriff je Bot (15 Bots, robots.txt-Detail-Panel)" },

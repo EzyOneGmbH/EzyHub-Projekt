@@ -1,7 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { startAudit, tickAudit, suggestCompetitors } from "@/server/prospect-audit.server";
+import {
+  startAudit, tickAudit, suggestCompetitors,
+  retryAudit, abbrechenAudit, tickeOffeneAudits, leadZuKunde, uebernahmeErlaubt,
+} from "@/server/prospect-audit.server";
 
 // EzyAI – Analyse (14.08.2026): API der Prospect-Audit-App.
 // Auth: eingeloggtes Team (owner/admin/member) — Viewer (Kundenportal) sehen
@@ -72,10 +75,25 @@ export const Route = createFileRoute("/api/agent/analyse")({
       },
 
       POST: async ({ request }) => {
-        const u = await requireTeam(request);
-        if (u instanceof Response) return u;
         const body: any = await request.json().catch(() => ({}));
         const action = String(body?.action || "");
+
+        // Worker-Tick (18.08.): org-uebergreifend, NUR Server-zu-Server mit
+        // ADMIN_AUTOMATION_SECRET (agent-service alle 60 s). Kein User-Kontext.
+        if (action === "worker") {
+          const admin = process.env.ADMIN_AUTOMATION_SECRET;
+          if (!admin || (request.headers.get("authorization") || "") !== `Bearer ${admin}`)
+            return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+          try {
+            const r = await tickeOffeneAudits(Number(body.budgetMs) > 0 ? Number(body.budgetMs) : undefined);
+            return Response.json({ ok: true, ...r });
+          } catch (e) {
+            return Response.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+          }
+        }
+
+        const u = await requireTeam(request);
+        if (u instanceof Response) return u;
         try {
           if (action === "competitors") {
             const r = await suggestCompetitors({
@@ -87,13 +105,27 @@ export const Route = createFileRoute("/api/agent/analyse")({
           if (action === "start") {
             if (!String(body.domain || "").includes(".") || !String(body.firmenname || "").trim())
               return Response.json({ ok: false, error: "Domain und Firmenname erforderlich" }, { status: 400 });
-            const row = await startAudit({
+            const { audit, bereitsLaufend } = await startAudit({
               organizationId: u.organizationId, userId: u.userId,
               domain: String(body.domain), firmenname: String(body.firmenname),
               branche: String(body.branche || ""), ort: String(body.ort || ""),
               wettbewerber: Array.isArray(body.wettbewerber) ? body.wettbewerber.map(String) : [],
             });
-            return Response.json({ ok: true, audit: row });
+            return Response.json({ ok: true, audit, bereitsLaufend });
+          }
+          if (action === "retry" || action === "abbrechen" || action === "uebernehmen") {
+            const id = String(body.id || "");
+            if (!UUID_RE.test(id)) return Response.json({ ok: false, error: "id erforderlich" }, { status: 400 });
+            const { data: own } = await (supabaseAdmin as any)
+              .from("prospect_audits").select("id").eq("id", id).eq("organization_id", u.organizationId).maybeSingle();
+            if (!own) return Response.json({ ok: false, error: "Nicht gefunden" }, { status: 404 });
+            if (action === "retry") return Response.json({ ok: true, audit: await retryAudit(id) });
+            if (action === "abbrechen") return Response.json({ ok: true, audit: await abbrechenAudit(id) });
+            // Lead → Kunde: NUR Owner/Admin (serverseitig), idempotent.
+            if (!uebernahmeErlaubt(u.role))
+              return Response.json({ ok: false, error: "Nur Owner/Admin dürfen Leads übernehmen" }, { status: 403 });
+            const r = await leadZuKunde(id, u.organizationId, u.userId);
+            return Response.json({ ok: true, ...r });
           }
           if (action === "tick") {
             const id = String(body.id || "");

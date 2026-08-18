@@ -11421,6 +11421,19 @@ function ClientsPage({
   const [search, setSearch] = useState("");
   const [sf, setSf] = useState("all");
   const [detailId, setDetailId] = useState(null);
+  // Deep-Link (18.08.): /admin?client=<uuid> oeffnet das Kundendetail direkt in
+  // der Bereitschafts-Ansicht — genutzt von der Analyse-Lead-Uebernahme.
+  useEffect(() => {
+    try {
+      const cid = new URLSearchParams(window.location.search).get("client");
+      if (cid && /^[0-9a-f-]{36}$/i.test(cid)) {
+        setDetailId(cid);
+        setDt("readiness");
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+    } catch { /* egal */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [dt, setDt] = useState("overview");
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorMode, setEditorMode] = useState("create");
