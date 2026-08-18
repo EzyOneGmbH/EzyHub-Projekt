@@ -1,37 +1,31 @@
+# CI-Pflichtchecks (Qualitaets-Stabilisierung 18.08.2026):
+# Ein PR/Push auf main gilt nur als gruen, wenn Tests, TypeScript, Lint UND
+# Build sauber durchlaufen. Als Required Check im Branch-Schutz eintragen:
+# Job-Name "qualitaet".
 name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
 
 jobs:
-  build-test:
+  qualitaet:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
-
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
-
-      # Hard gates — must pass.
-      - name: Unit tests
+      - name: Abhaengigkeiten
+        run: npm ci
+      - name: Tests
         run: npm test
-
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
       - name: Build
         run: npm run build
-
-      # Advisory — surfaced but non-blocking for now (legacy `any` typing + lint debt).
-      - name: Typecheck (advisory)
-        run: npm run typecheck
-        continue-on-error: true
-
-      - name: Lint (advisory)
-        run: npm run lint
-        continue-on-error: true
