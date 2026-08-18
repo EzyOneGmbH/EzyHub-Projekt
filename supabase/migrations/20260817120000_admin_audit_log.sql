@@ -42,6 +42,10 @@ begin
   end if;
   org := nullif(rec ->> 'organization_id', '')::uuid;
   cid := nullif(rec ->> 'client_id', '')::uuid;
+  -- clients-Zeilen: die eigene id IST der Kunde (fuers Kundendetail-Protokoll).
+  if cid is null and tg_table_name = 'clients' then
+    cid := nullif(rec ->> 'id', '')::uuid;
+  end if;
   if org is null and cid is not null then
     select organization_id into org from public.clients where id = cid;
   end if;
