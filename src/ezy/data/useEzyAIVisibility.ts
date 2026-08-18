@@ -572,6 +572,6 @@ export async function fetchPromptHistory(
       response: String(r.response ?? ""),
       checkedAt: r.checked_at ?? null,
     }))
-    .filter((r) => r.date)
-    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.platform.localeCompare(b.platform)));
+    .filter((r: any) => r.date)
+    .sort((a: any, b: any) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.platform.localeCompare(b.platform)));
 }

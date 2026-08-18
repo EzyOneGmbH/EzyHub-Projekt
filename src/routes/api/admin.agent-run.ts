@@ -18,7 +18,7 @@ const Body = z.object({
   errorMessage: z.string().max(2000).optional(),
   runAt: z.string().optional(), // ISO 8601; default = jetzt
   durationMs: z.number().int().min(0).optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 export const Route = createFileRoute("/api/admin/agent-run")({
@@ -63,7 +63,7 @@ export const Route = createFileRoute("/api/admin/agent-run")({
             error_message: d.errorMessage ?? null,
             run_at: runAt,
             duration_ms: d.durationMs ?? null,
-            metadata: d.metadata ?? {},
+            metadata: (d.metadata ?? {}) as any,
           })
           .select("id, created_at")
           .single();

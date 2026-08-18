@@ -39,7 +39,7 @@ export const Route = createFileRoute("/api/admin/client-metrics")({
 
         // Latest succeeded run per audit_type.
         const metrics: Record<string, any> = {};
-        const dates: Record<string, string> = {};
+        const dates: Record<string, string | null> = {};
         for (const t of TYPES) {
           const { data } = await supabaseAdmin
             .from("audit_runs")

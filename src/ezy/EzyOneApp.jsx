@@ -118,6 +118,16 @@ import { warneBeimAppAktivieren, warneBeimLocalGrid, STATUS_LABEL as READINESS_S
 // der Monolith klein bleibt (parallele Sessions!).
 import LocalGridDashboard from "@/ezy/LocalGridDashboard";
 import DataStatus, { runStatusItem } from "@/ezy/DataStatus";
+// Architektur-Extraktion 2026-08-18: Markdown-Helfer leben jetzt testbar in
+// lib/markdown.ts (XSS-Tests) — Verhalten unveraendert, nur verschoben.
+import { escapeHtml, sanitizeHref, markdownToHtml } from "@/ezy/lib/markdown";
+import { useMeasurement } from "@/ezy/data/useMeasurement";
+import { normalizeToolResult } from "@/ezy/data/toolResult";
+import ToolResultView from "@/ezy/ToolResult";
+import ToolActions from "@/ezy/ToolActions";
+// PublishFlow (2026-08-18): WP-Publish-Dialog mit Vorschau + Publish-Schutz,
+// extrahiert aus dem Monolithen. notify = Toast des Aufrufers (kein Zirkular-Import).
+import WordPressPublishModal from "@/ezy/PublishFlow";
 import { useClientAppAccess, appEnabledFor, featureEnabledFor } from "@/ezy/data/useClientAppAccess";
 import { useAppAccess } from "@/ezy/data/useAppAccess";
 import { useEzyServiceMatrix } from "@/ezy/data/useEzyServiceMatrix";
@@ -208,18 +218,7 @@ function downloadFile(content, type, filename) {
   a.click();
   setTimeout(() => URL.revokeObjectURL(u), 0);
 }
-function escapeHtml(s = "") {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-function sanitizeHref(href = "") {
-  const v = href.trim();
-  return /^(https?:\/\/|mailto:|\/)/i.test(v) ? v : "#";
-}
+// escapeHtml/sanitizeHref: seit 2026-08-18 aus @/ezy/lib/markdown importiert.
 function ga4PropertyText(client) {
   return client?.ga4PropertyId || "Noch nicht hinterlegt";
 }
@@ -897,6 +896,7 @@ function Btn({
   onClick,
   disabled,
   style: sx,
+  title,
 }) {
   const base = {
     border: "none",
@@ -926,6 +926,7 @@ function Btn({
     <button
       onClick={onClick}
       disabled={disabled}
+      title={title}
       style={{ ...base, ...sz[size], ...va[variant], ...sx }}
     >
       {Icon && <Icon size={size === "sm" ? 12 : 14} />}
@@ -3067,6 +3068,8 @@ function SectionPlaceholder({ title, hint }) {
   );
 }
 
+// Stabiler Body-Builder fuer die CWV-Messung (Mobile wie der Sammel-Lauf).
+const PSI_MOBILE_BODY = () => ({ strategy: "mobile" });
 function SeoDashboard({ selectedClient, dateRange }) {
   const { run, refresh: refreshAhrefs } = useEzyLatestRun(selectedClient?.id, "ahrefs");
   const live = run ? ahrefsKpisFromResult(run.result) : null;
@@ -3124,6 +3127,10 @@ function SeoDashboard({ selectedClient, dateRange }) {
   );
   const { run: psiRun, refresh: refreshPsi } = useEzyLatestRun(selectedClient?.id, "pagespeed");
   const psi = psiRun ? pagespeedKpisFromResult(psiRun.result) : null;
+  // Echte externe Messlaeufe (2026-08-18): bestehende Server-Routen, Status
+  // running/success/error, Doppelstart-Guard modulweit in useMeasurement.
+  const psiMeas = useMeasurement(selectedClient?.id, "pagespeed", "/api/google/pagespeed", PSI_MOBILE_BODY);
+  const ahrefsMeas = useMeasurement(selectedClient?.id, "ahrefs", "/api/ahrefs/overview");
   const cwvOrigin = psiRun?.result?.metrics?.dataOrigin || null; // B5a
   const { run: trafRun, refresh: refreshTraf } = useEzyLatestRun(selectedClient?.id, "ga4_traffic");
   // Datumsfilter-Fix (2026-08-10): Live-Traffic im gewählten Zeitraum (gecacht),
@@ -3344,30 +3351,66 @@ function SeoDashboard({ selectedClient, dateRange }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <OnboardingPanel selectedClient={selectedClient} />
       {/* Datenstatus je Quelle (EzyRank-Ausbau 2026-08-18): echte Zeitstempel aus
-          audit_runs bzw. Live-Abfragen — niemals erfundene Werte. */}
+          audit_runs bzw. Live-Abfragen — niemals erfundene Werte. Aktionen klar
+          getrennt: "Daten neu laden" = nur Datenbankstand, "Neue Messung
+          starten" = echte externe Laeufe (PageSpeed + DataForSEO-Backlinks). */}
       <DataStatus
         items={[
           runStatusItem("Rankings (DataForSEO)", rankRun, { staleDays: 3 }),
           liveGsc
             ? { source: "Suchbegriffe (GSC)", state: "live", detail: "Live-Abfrage" }
             : runStatusItem("Suchbegriffe (GSC)", gscRun, { staleDays: 3 }),
-          runStatusItem("Backlinks (DataForSEO)", run, { staleDays: 9 }),
-          runStatusItem("Core Web Vitals (PageSpeed)", psiRun, { staleDays: 9 }),
+          {
+            ...runStatusItem("Backlinks (DataForSEO)", run, { staleDays: 9 }),
+            state:
+              ahrefsMeas.state.status === "running"
+                ? "running"
+                : ahrefsMeas.state.status === "error"
+                  ? "error"
+                  : undefined,
+            error: ahrefsMeas.state.status === "error" ? ahrefsMeas.state.error : null,
+          },
+          {
+            ...runStatusItem("Core Web Vitals (PageSpeed)", psiRun, { staleDays: 9 }),
+            state:
+              psiMeas.state.status === "running"
+                ? "running"
+                : psiMeas.state.status === "error"
+                  ? "error"
+                  : undefined,
+            error: psiMeas.state.status === "error" ? psiMeas.state.error : null,
+          },
           liveTrafRes
             ? { source: "Besucher (GA4)", state: "live", detail: "Live-Abfrage" }
             : runStatusItem("Besucher (GA4)", trafRun, { staleDays: 3 }),
         ]}
-        action={{
-          label: "Aktualisieren",
-          onClick: () => {
-            refreshRank(true);
-            refreshGsc(true);
-            refreshAhrefs(true);
-            refreshPsi(true);
-            refreshTraf(true);
-            void refreshHistory();
+        actions={[
+          {
+            label: "Daten neu laden",
+            kind: "reload",
+            title: "Liest nur den gespeicherten Datenbankstand neu — startet KEINE Messung",
+            onClick: () => {
+              refreshRank(true);
+              refreshGsc(true);
+              refreshAhrefs(true);
+              refreshPsi(true);
+              refreshTraf(true);
+              void refreshHistory();
+            },
           },
-        }}
+          {
+            label: "Neue Messung starten",
+            kind: "measure",
+            title: "Startet echte externe Laeufe: PageSpeed (CWV) + DataForSEO-Backlink-Overview. Rankings/GSC/GA4 misst der naechtliche Sammel-Lauf.",
+            busy: psiMeas.state.status === "running" || ahrefsMeas.state.status === "running",
+            onClick: async () => {
+              // Doppelstart-Guard sitzt in useMeasurement (modulweit).
+              const [psiOk, ahOk] = await Promise.all([psiMeas.start(), ahrefsMeas.start()]);
+              if (psiOk) refreshPsi(true);
+              if (ahOk) refreshAhrefs(true);
+            },
+          },
+        ]}
         hint={
           !liveGsc && !gscRun && !liveTrafRes && !trafRun
             ? "Google (GSC/GA4) verbinden: Admin → Kunden → Onboarding → Google"
@@ -4696,7 +4739,9 @@ function ConvDashboard({ selectedClient, dateRange }) {
             : { source: "GA4 (Google Analytics)", state: "disconnected" },
       ]}
       action={{
-        label: "Aktualisieren",
+        label: "Daten neu laden",
+        kind: "reload",
+        title: "Liest nur den gespeicherten Datenbankstand neu — GA4 misst der naechtliche Sammel-Lauf bzw. die Live-Abfrage",
         onClick: () => {
           refreshGa4(true);
           refreshConv(true);
@@ -8071,24 +8116,9 @@ function CreateTaskModal({ projectId, projectName, statuses, tasklists = [], use
 // ═══════════════════════════════════════════════════════════════════════════
 // TOOL RUNNER
 // ═══════════════════════════════════════════════════════════════════════════
-// Lesbarer Text aus einem Tool-Ergebnis (EzyRank-Ausbau 2026-08-18): Skill-Läufe
-// liefern { content }, /api/ai/generate ebenfalls; sonst gibt es keinen Fliesstext
-// und das Ergebnis bleibt strukturiert (JSON in "Technische Details").
-function toolResultText(data) {
-  if (typeof data === "string") return data.trim() || null;
-  if (!data || typeof data !== "object") return null;
-  for (const key of ["content", "markdown", "text", "output"]) {
-    if (typeof data[key] === "string" && data[key].trim()) return data[key];
-  }
-  return null;
-}
-// Formatiertes Markdown (statt rohem JSON) — nutzt den bestehenden block-level
-// Konverter markdownToHtml (escaped HTML, sanitisierte Links); Styles via .ezy-md.
-function MdView({ md }) {
-  const html = useMemo(() => markdownToHtml(md), [md]);
-  return <div className="ezy-md" dangerouslySetInnerHTML={{ __html: html }} />;
-}
-function ToolRunner({ tool, onClose, client, onComplete, onSaveDraft }) {
+// Ergebnis-Normalisierung + Darstellung leben seit 2026-08-18 zentral in
+// data/toolResult.ts (normalizeToolResult) bzw. ToolResult.jsx / ToolActions.jsx.
+function ToolRunner({ tool, onClose, client, onComplete, onSaveDraft, onOpenDraft }) {
   const toast = useToast();
   const clientDomain = client?.domain || "";
   const [form, setForm] = useState(() => {
@@ -8151,21 +8181,17 @@ function ToolRunner({ tool, onClose, client, onComplete, onSaveDraft }) {
     }
   };
   // EzyRank-Ausbau 2026-08-18: lesbares Ergebnis (Markdown) + Weiterverarbeitung.
-  const resultText = result?.ok ? toolResultText(result.data) : null;
+  // Zentrale Normalisierung (content/markdown/text/output/result/data + Provider-Formen).
+  const resultText = useMemo(
+    () => (result?.ok ? normalizeToolResult(result.data).text : null),
+    [result],
+  );
   const [draftSavedId, setDraftSavedId] = useState(null);
   const [savingDraft, setSavingDraft] = useState(false);
   const [showWp, setShowWp] = useState(false);
   const draftTitle =
     (form.topic || form.title || form.keyword || "").trim() || `${tool.label} — ${client?.name || clientDomain || "Ergebnis"}`;
   const clientIsUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(client?.id || ""));
-  const copyResult = async () => {
-    try {
-      await navigator.clipboard.writeText(resultText || JSON.stringify(result?.data ?? {}, null, 2));
-      toast("Ergebnis kopiert", "success");
-    } catch {
-      toast("Kopieren fehlgeschlagen", "error");
-    }
-  };
   const saveDraft = async () => {
     if (!onSaveDraft || !clientIsUuid || !resultText) return;
     setSavingDraft(true);
@@ -8179,13 +8205,6 @@ function ToolRunner({ tool, onClose, client, onComplete, onSaveDraft }) {
     } finally {
       setSavingDraft(false);
     }
-  };
-  const exportMd = () => {
-    const md = resultText
-      ? `# ${draftTitle}\n\n${resultText}\n`
-      : `# ${tool.label} Report\n\nDomain: ${form.url || form.domain || clientDomain || "—"}\nDatum: ${new Date().toLocaleDateString("de-CH")}\nStatus: ${result?.liveConnected ? (result.ok ? "Live-Lauf erfolgreich" : "Live-Lauf fehlgeschlagen") : "Noch nicht live verbunden"}\n\n## Antwort\n\n\`\`\`json\n${JSON.stringify(result?.data ?? { message: result?.message }, null, 2)}\n\`\`\`\n`;
-    downloadFile(md, "text/markdown", `${tool.id}-report.md`);
-    toast("Report exportiert", "success");
   };
   const Icon = tool.icon;
   const liveBadgeColor = !result
@@ -8290,84 +8309,27 @@ function ToolRunner({ tool, onClose, client, onComplete, onSaveDraft }) {
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
             <Badge color={liveBadgeColor}>{liveBadgeLabel}</Badge>
           </div>
-          {/* Ergebnis (2026-08-18): Markdown statt rohem JSON, KEINE Kappung mehr —
-              lange Artikel scrollen im eigenen Bereich. JSON nur noch aufklappbar. */}
-          <div
-            style={{
-              background: C.card,
-              border: `1px solid ${C.border}`,
-              borderRadius: 12,
-              padding: 16,
-              marginBottom: 12,
-              maxHeight: "48vh",
-              overflow: "auto",
-            }}
-          >
-            {result?.liveConnected ? (
-              result.ok ? (
-                resultText ? (
-                  <MdView md={resultText} />
-                ) : typeof result.data === "object" && result.data ? (
-                  <div style={{ fontSize: 13, color: C.textMuted }}>
-                    Strukturiertes Ergebnis ohne Fliesstext — Details unten unter «Technische Details».
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 13, color: C.text, whiteSpace: "pre-wrap" }}>{String(result.message || "OK")}</div>
-                )
-              ) : (
-                <div style={{ fontSize: 13, color: C.red, whiteSpace: "pre-wrap" }}>{result.error || result.message || "Fehler"}</div>
-              )
-            ) : (
-              <div style={{ fontSize: 13, color: C.text }}>
-                Dieses Tool ist noch nicht an eine Live-API angebunden. Es wurde kein Lauf gespeichert.
-              </div>
-            )}
-          </div>
-          {result?.ok && result?.data != null && typeof result.data === "object" && (
-            <details style={{ marginBottom: 12 }}>
-              <summary style={{ cursor: "pointer", fontSize: 12, color: C.textMuted, userSelect: "none" }}>
-                Technische Details (Rohdaten)
-              </summary>
-              <pre
-                style={{
-                  background: C.card,
-                  border: `1px solid ${C.border}`,
-                  borderRadius: 10,
-                  padding: 12,
-                  marginTop: 8,
-                  fontSize: 11.5,
-                  color: C.textMuted,
-                  maxHeight: 260,
-                  overflow: "auto",
-                  whiteSpace: "pre-wrap",
-                  overflowWrap: "break-word",
-                }}
-              >
-                {JSON.stringify(result.data, null, 2)}
-              </pre>
-            </details>
-          )}
-          <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-            {result?.ok && (
-              <Btn variant="secondary" icon={Copy} onClick={copyResult}>
-                Kopieren
-              </Btn>
-            )}
-            <Btn variant="secondary" icon={Download} onClick={exportMd}>
-              Markdown herunterladen
-            </Btn>
-            {result?.ok && resultText && onSaveDraft && clientIsUuid && (
-              <Btn variant="secondary" icon={FileText} onClick={saveDraft} disabled={savingDraft || !!draftSavedId}>
-                {draftSavedId ? "Als Entwurf gespeichert ✓" : savingDraft ? "Speichere…" : "Als Entwurf speichern"}
-              </Btn>
-            )}
-            {result?.ok && resultText && clientIsUuid && (
-              <Btn variant="secondary" icon={Globe} onClick={() => setShowWp(true)}>
-                An WordPress übergeben
-              </Btn>
-            )}
-            <Btn onClick={handleClose}>Schliessen</Btn>
-          </div>
+          {/* Ergebnis + Aktionen (2026-08-18): zentrale Komponenten — Markdown
+              bevorzugt, KEINE Kappung, Rohdaten nur in "Technische Details". */}
+          <ToolResultView result={result} />
+          <ToolActions
+            text={resultText}
+            raw={result?.data ?? { message: result?.message }}
+            filename={`${tool.id}-report.md`}
+            notify={toast}
+            onSaveDraft={result?.ok && resultText && onSaveDraft && clientIsUuid ? saveDraft : undefined}
+            draftState={{ saved: !!draftSavedId, saving: savingDraft }}
+            onOpenEditor={
+              draftSavedId && draftSavedId !== "ok" && onOpenDraft
+                ? () => {
+                    onOpenDraft(draftSavedId);
+                    handleClose();
+                  }
+                : undefined
+            }
+            onWordPress={result?.ok && resultText && clientIsUuid ? () => setShowWp(true) : undefined}
+            onClose={handleClose}
+          />
         </div>
       )}
     </Modal>
@@ -8379,6 +8341,7 @@ function ToolRunner({ tool, onClose, client, onComplete, onSaveDraft }) {
         defaultTitle={draftTitle}
         markdown={resultText || ""}
         onClose={() => setShowWp(false)}
+        notify={toast}
         zIndex={300}
       />
     )}
@@ -8389,7 +8352,7 @@ function ToolRunner({ tool, onClose, client, onComplete, onSaveDraft }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // PAGE: TOOLS
 // ═══════════════════════════════════════════════════════════════════════════
-function ToolsPage({ selectedClient, tools, onSaveDraft }) {
+function ToolsPage({ selectedClient, tools, onSaveDraft, onOpenDraft }) {
   const [goal, setGoal] = useState("all");
   // Tools ohne Live-Anbindung (toolProvider null) sind standardmaessig
   // AUSGEBLENDET und nur ueber den Schalter sichtbar — dort klar markiert.
@@ -8722,6 +8685,7 @@ function ToolsPage({ selectedClient, tools, onSaveDraft }) {
           client={selectedClient}
           onComplete={onComplete}
           onSaveDraft={onSaveDraft}
+          onOpenDraft={onOpenDraft}
         />
       )}
     </div>
@@ -8732,206 +8696,8 @@ function ToolsPage({ selectedClient, tools, onSaveDraft }) {
 // PAGE: CONTENT (with Editor split-view)
 // ═══════════════════════════════════════════════════════════════════════════
 // Content Editor (split-view)
-// Minimal Markdown → HTML converter for WordPress content (block-level).
-function markdownToHtml(md) {
-  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const inline = (s) =>
-    esc(s)
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      .replace(/\*(.+?)\*/g, "<em>$1</em>")
-      .replace(/`(.+?)`/g, "<code>$1</code>")
-      // sanitizeHref: nur http(s)/mailto/relative Links — Inhalt wird auch
-      // in-app via dangerouslySetInnerHTML gerendert (MdView, 2026-08-18).
-      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, label, href) => `<a href="${sanitizeHref(href)}">${label}</a>`);
-  const lines = String(md || "").split("\n");
-  const out = [];
-  let listType = null; // "ul" | "ol"
-  const closeList = () => { if (listType) { out.push(`</${listType}>`); listType = null; } };
-  for (const raw of lines) {
-    const line = raw.trimEnd();
-    if (/^### (.+)/.test(line)) { closeList(); out.push(`<h3>${inline(line.replace(/^### /, ""))}</h3>`); }
-    else if (/^## (.+)/.test(line)) { closeList(); out.push(`<h2>${inline(line.replace(/^## /, ""))}</h2>`); }
-    else if (/^# (.+)/.test(line)) { closeList(); out.push(`<h1>${inline(line.replace(/^# /, ""))}</h1>`); }
-    else if (/^- (.+)/.test(line)) {
-      if (listType !== "ul") { closeList(); out.push("<ul>"); listType = "ul"; }
-      out.push(`<li>${inline(line.replace(/^- /, ""))}</li>`);
-    } else if (/^\d+\. (.+)/.test(line)) {
-      if (listType !== "ol") { closeList(); out.push("<ol>"); listType = "ol"; }
-      out.push(`<li>${inline(line.replace(/^\d+\. /, ""))}</li>`);
-    } else if (line.trim() === "") { closeList(); }
-    else { closeList(); out.push(`<p>${inline(line)}</p>`); }
-  }
-  closeList();
-  return out.join("\n");
-}
-
-// Modal to publish the current content to the client's connected WordPress site.
-// zIndex-Prop (2026-08-18): wird der Dialog aus dem ToolRunner-Modal (zIndex 200)
-// geoeffnet, muss er darueber liegen — Default bleibt 120 (ContentEditor).
-function WordPressPublishModal({ clientId, defaultTitle, markdown, onClose, zIndex = 120 }) {
-  const toast = useToast();
-  const [status, setStatus] = useState("loading"); // loading | none | ready
-  const [siteUrl, setSiteUrl] = useState("");
-  const [title, setTitle] = useState(defaultTitle || "");
-  const [type, setType] = useState("posts");
-  const [wpStatus, setWpStatus] = useState("draft");
-  const [seoTitle, setSeoTitle] = useState("");
-  const [seoDescription, setSeoDescription] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const session = (await supabase.auth.getSession()).data.session;
-        const r = await fetch(`/api/wordpress/connection?clientId=${encodeURIComponent(clientId)}`, {
-          headers: { Authorization: `Bearer ${session?.access_token || ""}` },
-        });
-        const j = await r.json().catch(() => ({}));
-        if (j.connected) { setSiteUrl(j.siteUrl || ""); setStatus("ready"); }
-        else setStatus("none");
-      } catch {
-        setStatus("none");
-      }
-    })();
-  }, [clientId]);
-
-  const publish = async () => {
-    if (!title.trim()) { toast("Titel erforderlich", "error"); return; }
-    setBusy(true);
-    try {
-      const session = (await supabase.auth.getSession()).data.session;
-      const r = await fetch("/api/wordpress/publish", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clientId,
-          type,
-          title: title.trim(),
-          content: markdownToHtml(markdown),
-          status: wpStatus,
-          seoTitle: seoTitle.trim() || undefined,
-          seoDescription: seoDescription.trim() || undefined,
-        }),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (j.ok) {
-        setResult(j);
-        toast(`Veröffentlicht als ${wpStatus === "publish" ? "Beitrag" : "Entwurf"}`, "success");
-        if (j.seoPluginMissing) toast("Kein SEO-Plugin (Yoast/RankMath) erkannt — SEO-Felder übersprungen", "info");
-      } else {
-        toast(j.error || "Veröffentlichen fehlgeschlagen", "error");
-      }
-    } catch (e) {
-      toast(String(e?.message || e), "error");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const inputStyle = {
-    width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`,
-    background: C.card, color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box",
-  };
-  const labelStyle = { fontSize: 12, color: C.textMuted, display: "block", marginBottom: 6 };
-
-  return (
-    <div
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.6)", zIndex, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div style={{ background: C.surface, borderRadius: 16, width: "100%", maxWidth: 520, maxHeight: "90vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.5)" }}>
-        <div style={{ padding: "20px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <Globe size={18} color={C.accent} />
-            <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: C.text }}>An WordPress veröffentlichen</h2>
-          </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
-            <X size={20} color={C.textMuted} />
-          </button>
-        </div>
-
-        <div style={{ padding: "20px 24px" }}>
-          {status === "loading" && <div style={{ fontSize: 13, color: C.textDim }}>Prüfe Verbindung…</div>}
-
-          {status === "none" && (
-            <div style={{ fontSize: 13, color: C.textMuted, lineHeight: 1.6 }}>
-              Für diesen Kunden ist noch keine WordPress-Seite verbunden.
-              <div style={{ marginTop: 8, color: C.textDim, fontSize: 12 }}>
-                Verbinde sie zuerst im <strong>Kunden-Detail → Onboarding / Verbindungen</strong>.
-              </div>
-            </div>
-          )}
-
-          {status === "ready" && !result && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div style={{ fontSize: 12, color: C.textDim }}>Ziel: <span style={{ color: C.text }}>{siteUrl}</span></div>
-              <div>
-                <label style={labelStyle}>Titel</label>
-                <input style={inputStyle} value={title} onChange={(e) => setTitle(e.target.value)} />
-              </div>
-              <div style={{ display: "flex", gap: 12 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>Typ</label>
-                  <select style={inputStyle} value={type} onChange={(e) => setType(e.target.value)}>
-                    <option value="posts">Beitrag</option>
-                    <option value="pages">Seite</option>
-                  </select>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>Veröffentlichung</label>
-                  <select style={inputStyle} value={wpStatus} onChange={(e) => setWpStatus(e.target.value)}>
-                    <option value="draft">Entwurf</option>
-                    <option value="publish">Sofort veröffentlichen</option>
-                    <option value="pending">Zur Prüfung</option>
-                    <option value="private">Privat</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label style={labelStyle}>SEO-Titel (optional)</label>
-                <input style={inputStyle} value={seoTitle} onChange={(e) => setSeoTitle(e.target.value)} placeholder="Yoast / RankMath Titel" />
-              </div>
-              <div>
-                <label style={labelStyle}>SEO-Beschreibung (optional)</label>
-                <textarea style={{ ...inputStyle, resize: "vertical" }} rows={2} value={seoDescription} onChange={(e) => setSeoDescription(e.target.value)} placeholder="Meta-Description" />
-              </div>
-            </div>
-          )}
-
-          {result && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12, textAlign: "center", padding: "12px 0" }}>
-              <div style={{ color: C.green, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 15, fontWeight: 600 }}>
-                <CheckCircle size={20} /> Erfolgreich gesendet
-              </div>
-              {result.post?.link && (
-                <a href={result.post.link} target="_blank" rel="noopener noreferrer" style={{ color: C.accentLight, fontSize: 13 }}>
-                  In WordPress ansehen ↗
-                </a>
-              )}
-              {result.seoApplied && <div style={{ fontSize: 12, color: C.textMuted }}>SEO-Felder gesetzt ({result.seoApplied})</div>}
-            </div>
-          )}
-        </div>
-
-        <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "flex-end", gap: 10 }}>
-          {result ? (
-            <Btn onClick={onClose}>Schliessen</Btn>
-          ) : (
-            <>
-              <Btn variant="secondary" onClick={onClose}>Abbrechen</Btn>
-              {status === "ready" && (
-                <Btn icon={Globe} onClick={publish} disabled={busy || !title.trim()}>
-                  {busy ? "Sende…" : "Veröffentlichen"}
-                </Btn>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+// markdownToHtml: seit 2026-08-18 aus @/ezy/lib/markdown importiert (testbar,
+// inkl. Href-Quote-Escaping-Fix gegen Attribut-Ausbruch).
 
 function ContentEditor({ item, stCo, stLb, onBack, onSave }) {
   const toast = useToast();
@@ -9051,6 +8817,7 @@ function ContentEditor({ item, stCo, stLb, onBack, onSave }) {
           defaultTitle={item.title}
           markdown={md}
           onClose={() => setShowWpPublish(false)}
+          notify={toast}
         />
       )}
       <div
@@ -9374,7 +9141,12 @@ function RefreshRadar({ selectedClient }) {
                 state: gConn.connected ? "connected" : "disconnected",
               },
         ].filter(Boolean)}
-        action={{ label: "Aktualisieren", onClick: () => void reload() }}
+        action={{
+          label: "Daten neu laden",
+          kind: "reload",
+          title: "Liest nur den gespeicherten Datenbankstand neu — den Content-Sync fährt der tägliche Lauf",
+          onClick: () => void reload(),
+        }}
         hint={gConn && !gConn.connected ? "Verbinden: Admin → Kunden → Onboarding → Google" : undefined}
       />
       {connHint ? (
@@ -9392,7 +9164,7 @@ function RefreshRadar({ selectedClient }) {
             <input type="checkbox" checked={onlyAction} onChange={(e) => setOnlyAction(e.target.checked)} />
             Nur handlungsbedürftig
           </label>
-          <Btn variant="secondary" size="sm" icon={RefreshCw} onClick={reload}>Aktualisieren</Btn>
+          <Btn variant="secondary" size="sm" icon={RefreshCw} onClick={reload} title="Liest nur den gespeicherten Datenbankstand neu">Daten neu laden</Btn>
         </div>
       </div>
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden" }}>
@@ -9621,9 +9393,17 @@ function ReportsPage({ items, selectedClient }) {
     </div>
   );
 }
-function ContentPage({ clients, items, onSaveContent, selectedClient }) {
+function ContentPage({ clients, items, onSaveContent, selectedClient, openEditId, onOpenEditConsumed }) {
   const toast = useToast();
   const [editing, setEditing] = useState(null);
+  // Weiterbearbeiten-Flow (2026-08-18): von aussen angeforderter Entwurf wird
+  // direkt im Editor geoeffnet (einmalig konsumiert).
+  useEffect(() => {
+    if (openEditId) {
+      setEditing(openEditId);
+      onOpenEditConsumed?.();
+    }
+  }, [openEditId, onOpenEditConsumed]);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const typeIc = { blog: PenTool, audit: Layers, note: Bookmark, report: FileText, win: Award };
@@ -9648,7 +9428,15 @@ function ContentPage({ clients, items, onSaveContent, selectedClient }) {
 
   if (editing) {
     const it = items.find((i) => i.id === editing);
-    if (!it) return null;
+    if (!it)
+      return (
+        <div style={{ padding: 30, fontSize: 13, color: C.textMuted }}>
+          Entwurf nicht gefunden (evtl. noch nicht geladen).{" "}
+          <button onClick={() => setEditing(null)} style={{ background: "none", border: "none", color: C.accent, cursor: "pointer", fontSize: 13, fontFamily: "inherit", textDecoration: "underline" }}>
+            Zurück zur Liste
+          </button>
+        </div>
+      );
     return (
       <ContentEditor
         item={it}
@@ -14666,6 +14454,13 @@ function App({ appScope = null }) {
   // Tool-Ergebnis → Content-Entwurf (EzyRank-Ausbau 2026-08-18): legt eine echte
   // content_items-Zeile an (Status draft) — Weiterbearbeitung im Content-Bereich.
   const onCreateContent = useCallback((input) => contentHook.create(input), [contentHook]);
+  // Durchgehender Flow Tool-Ergebnis → Entwurf → Editor (2026-08-18):
+  // "Im Editor weiterbearbeiten" springt direkt in den Content-Editor.
+  const [contentEditId, setContentEditId] = useState(null);
+  const openDraftInEditor = useCallback((id) => {
+    setContentEditId(id);
+    setPage("content");
+  }, []);
   // Globaler „Aktualisieren": remountet den Inhaltsbereich (alle Dashboard-Hooks
   // holen frische Daten) UND lädt die App-Level-Hooks neu. Auf jedem Tab im Header.
   const [refreshNonce, setRefreshNonce] = useState(0);
@@ -14677,7 +14472,7 @@ function App({ appScope = null }) {
     defaultsHook.reload?.();
     profileHook.reload?.();
     toolSettings.reload?.();
-    toast?.("Aktualisiert", "success");
+    toast?.("Daten neu geladen (Datenbankstand)", "success");
   }, [ezy, contentHook, svc, defaultsHook, profileHook, toolSettings, toast]);
   // Tab-Auswahl: der KUNDEN-DATENSATZ (clients.metadata.defaults) ist die
   // maSSgebliche, geraeteuebergreifend zuverlaessige Quelle — er wird bei jedem
@@ -15331,9 +15126,9 @@ function App({ appScope = null }) {
                 size="md"
                 icon={RefreshCw}
                 onClick={refreshAll}
-                title="Daten aktualisieren"
+                title="Liest nur den gespeicherten Datenbankstand neu — startet KEINE Messung"
               >
-                {isMobile ? null : "Aktualisieren"}
+                {isMobile ? null : "Daten neu laden"}
               </Btn>
             </div>
           </div>
@@ -15468,7 +15263,7 @@ function App({ appScope = null }) {
             <TasksDashboard selectedClient={client} />
           )}
           {!isViewer && hasClients && page === "tools" && (
-            <ToolsPage selectedClient={client} tools={tools} onSaveDraft={onCreateContent} />
+            <ToolsPage selectedClient={client} tools={tools} onSaveDraft={onCreateContent} onOpenDraft={openDraftInEditor} />
           )}
           {!isViewer && hasClients && page === "content" && (
             <ContentPage
@@ -15476,6 +15271,8 @@ function App({ appScope = null }) {
               items={contentHook.items}
               onSaveContent={onSaveContent}
               selectedClient={client}
+              openEditId={contentEditId}
+              onOpenEditConsumed={() => setContentEditId(null)}
             />
           )}
           {hasClients && page === "reports" && (

@@ -290,7 +290,12 @@ export default function LocalGridDashboard({ selectedClient }) {
             detail: "wöchentlicher Maps-Scan, freitags",
           },
         ]}
-        action={{ label: "Aktualisieren", onClick: () => setNonce((x) => x + 1) }}
+        action={{
+          label: "Daten neu laden",
+          kind: "reload",
+          title: "Liest nur den gespeicherten Datenbankstand neu — die Messung selbst fährt der Freitags-Scan (DataForSEO-Kosten)",
+          onClick: () => setNonce((x) => x + 1),
+        }}
       />
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <span style={{ fontSize: 12.5, color: C.textMuted }}>

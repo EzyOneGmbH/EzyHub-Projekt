@@ -11,7 +11,7 @@ import { canRunAudits } from "@/server/integrations.server";
 const Body = z.object({ clientId: z.string().uuid() });
 const AWORK_BASE = "https://api.awork.com/api/v1";
 
-type AworkStatus = { id: string; name: string; type?: string; order?: number };
+type AworkStatus = { id: string; name: string; type?: string; order?: number; color?: string | null; icon?: string | null };
 
 async function awork<T = any>(
   path: string,

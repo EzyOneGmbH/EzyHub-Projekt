@@ -67,7 +67,7 @@ export const Route = createFileRoute("/api/admin/gtm")({
             }
           }
           const r = await gtmLiveTags(clientId, containerPath!);
-          return Response.json(r.ok ? { ok: true, matchedBy, ...r } : { ok: false, error: (r as any).error });
+          return Response.json(r.ok ? { ...r, ok: true, matchedBy } : { ok: false, error: (r as any).error });
         } catch (e) {
           return Response.json({ ok: false, error: String((e as Error)?.message || e).slice(0, 300) });
         }

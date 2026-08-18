@@ -62,12 +62,12 @@ export async function gbpLocations(clientId: string, account: string) {
 // Auto-discover the first account+location (convenience for single-location clients).
 export async function gbpResolveDefault(clientId: string): Promise<{ ok: boolean; account?: string; location?: string; error?: string }> {
   const acc = await gbpAccounts(clientId);
-  if (!acc.ok) return { ok: false, error: acc.error };
-  const account = acc.accounts?.[0]?.name;
+  if (!acc.ok) return { ok: false, error: (acc as any).error };
+  const account = (acc as any).accounts?.[0]?.name;
   if (!account) return { ok: false, error: "Kein GBP-Account gefunden" };
   const loc = await gbpLocations(clientId, account);
-  if (!loc.ok) return { ok: false, error: loc.error };
-  const location = loc.locations?.[0]?.name;
+  if (!loc.ok) return { ok: false, error: (loc as any).error };
+  const location = (loc as any).locations?.[0]?.name;
   if (!location) return { ok: false, error: "Keine GBP-Location gefunden" };
   return { ok: true, account, location };
 }

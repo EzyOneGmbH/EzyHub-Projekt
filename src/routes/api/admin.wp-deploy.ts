@@ -139,7 +139,7 @@ const Body = z.object({
   canonical: z.string().optional(),
   noindex: z.boolean().optional(),
   limit: z.number().int().optional(),
-  settings: z.record(z.union([z.number(), z.boolean()])).optional(),
+  settings: z.record(z.string(), z.union([z.number(), z.boolean()])).optional(),
   contentB64: z.string().optional(),
   slug: z.string().optional(),
   status: z.string().optional(),

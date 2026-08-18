@@ -9,9 +9,13 @@ import { toast } from "sonner";
 import { EzyOneMark } from "@/components/ezy-one-mark";
 
 export const Route = createFileRoute("/login")({
-  validateSearch: (s: Record<string, unknown>) => ({
-    next: typeof s.next === "string" && s.next.startsWith("/") && !s.next.startsWith("//") ? s.next : undefined,
-  }),
+  // Typecheck-Fix (2026-08-18): next als OPTIONALER Key — sonst verlangt der
+  // Router bei jedem `to: "/login"` einen search-Param (TS2345 in app-shell,
+  // health, llm-ueberblick, signup). Verhalten identisch.
+  validateSearch: (s: Record<string, unknown>): { next?: string } =>
+    typeof s.next === "string" && s.next.startsWith("/") && !s.next.startsWith("//")
+      ? { next: s.next }
+      : {},
   component: LoginPage,
 });
 

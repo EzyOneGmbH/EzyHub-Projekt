@@ -68,7 +68,7 @@ export const Route = createFileRoute("/api/admin/gbp")({
 
           if (d.action === "reviews") {
             const r = await gbpReviews(clientId, account!, location!);
-            return Response.json(r.ok ? { ok: true, ...r } : { ok: false, error: (r as any).error });
+            return Response.json(r.ok ? { ...r, ok: true } : { ok: false, error: (r as any).error });
           }
           if (d.action === "reply-review") {
             if (!d.reviewId || !d.comment) return Response.json({ ok: false, error: "reviewId + comment erforderlich" }, { status: 400 });
@@ -78,7 +78,7 @@ export const Route = createFileRoute("/api/admin/gbp")({
           if (d.action === "create-post") {
             if (!d.summary) return Response.json({ ok: false, error: "summary erforderlich" }, { status: 400 });
             const r = await gbpCreatePost(clientId, account!, location!, { summary: d.summary, ctaUrl: d.ctaUrl, ctaType: d.ctaType });
-            return Response.json(r.ok ? { ok: true, ...r } : { ok: false, error: (r as any).error });
+            return Response.json(r.ok ? { ...r, ok: true } : { ok: false, error: (r as any).error });
           }
           return Response.json({ ok: false, error: "Unbekannte action" }, { status: 400 });
         } catch (e) {

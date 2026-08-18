@@ -73,16 +73,16 @@ export async function gtmResolveDefault(
   }
 
   const acc = await gtmAccounts(clientId);
-  if (!acc.ok) return { ok: false, error: acc.error };
+  if (!acc.ok) return { ok: false, error: (acc as any).error };
 
   // Iterate accounts, SHORT-CIRCUIT as soon as a container matches the site's
   // GTM id (the reliable signal) — avoids listing every tenant's containers.
   let nameMatch: any = null;
   let firstWeb: any = null;
-  for (const a of acc.accounts || []) {
+  for (const a of (acc as any).accounts || []) {
     const c = await gtmContainers(clientId, a.path);
     if (!c.ok) continue;
-    for (const x of c.containers || []) {
+    for (const x of (c as any).containers || []) {
       const cont = { ...x, accountPath: a.path };
       if (siteIds.includes(cont.publicId)) {
         return { ok: true, accountPath: a.path, containerPath: cont.path, publicId: cont.publicId, matchedBy: "site" };
