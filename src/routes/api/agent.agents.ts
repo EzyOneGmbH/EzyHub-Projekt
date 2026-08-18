@@ -1,45 +1,56 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createClient } from "@supabase/supabase-js";
+import { requireTeamRole } from "@/server/team-guard.server";
 
-// Proxy for the agent-service agent registry (custom assistants). Requires a
-// logged-in user; forwards to AGENT_BASE_URL/agents with the shared secret.
-
-async function requireUser(request: Request): Promise<Response | null> {
-  const url = process.env.SUPABASE_URL;
-  const anon = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
-  if (!url || !anon) return Response.json({ error: "Server not configured" }, { status: 503 });
-  const sb = createClient(url, anon, {
-    global: { headers: { Authorization: request.headers.get("authorization") ?? "" } },
-  });
-  const { data } = await sb.auth.getUser();
-  if (!data.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  return null;
-}
+// Proxy fuer die Agent-Registry des agent-service (Custom-Assistenten).
+// Security-Hardening 18.08.2026: statt «nur angemeldet» gelten jetzt
+//  - GET: Team (member+) — Viewer/Portal-Logins kommen NIE durch.
+//  - POST/DELETE (Mutationen): NUR owner/admin.
+//  - Organisation wird SERVERSEITIG ermittelt und an den agent-service
+//    weitergereicht (Header + Body/Query, Client-Werte werden ueberschrieben);
+//    Listen-Antworten werden zusaetzlich nach Organisation gefiltert, sobald
+//    Agenten eine organizationId tragen (heute Single-Tenant, Grenze steht).
 
 async function proxy(request: Request, method: string): Promise<Response> {
   const base = process.env.AGENT_BASE_URL;
   const secret = process.env.AGENT_SHARED_SECRET;
   if (!base || !secret) return Response.json({ error: "Agent service not configured" }, { status: 503 });
-  const unauth = await requireUser(request);
-  if (unauth) return unauth;
+  const ctx = await requireTeamRole(request, method === "GET" ? "member" : "admin");
+  if (ctx instanceof Response) return ctx;
 
-  const qs = new URL(request.url).searchParams.toString();
-  const target = `${base.replace(/\/+$/, "")}/agents${qs ? `?${qs}` : ""}`;
+  // Query durchreichen — ein clientseitig gesetztes org wird IMMER ersetzt.
+  const qs = new URL(request.url).searchParams;
+  qs.delete("org");
+  qs.set("org", ctx.organizationId);
+  const target = `${base.replace(/\/+$/, "")}/agents?${qs.toString()}`;
   const init: RequestInit = {
     method,
-    headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
+    headers: {
+      Authorization: `Bearer ${secret}`,
+      "Content-Type": "application/json",
+      "X-Ezy-Organization": ctx.organizationId,
+      "X-Ezy-Role": ctx.role,
+    },
     signal: AbortSignal.timeout(15_000),
   };
   if (method === "POST" || method === "DELETE") {
-    const t = await request.text().catch(() => "");
-    if (t) init.body = t;
+    const body: any = await request.json().catch(() => ({}));
+    // Serverseitig erzwungen — dem Request wird nie vertraut.
+    body.organizationId = ctx.organizationId;
+    init.body = JSON.stringify(body);
   }
   try {
     const r = await fetch(target, init);
-    return new Response(await r.text().catch(() => ""), {
-      status: r.status,
-      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-    });
+    const text = await r.text().catch(() => "");
+    // Defensive Org-Filterung der Listen-Antwort (no-op, solange Agenten keine
+    // organizationId tragen — fremd markierte Eintraege kommen nie durch).
+    try {
+      const j = JSON.parse(text);
+      if (Array.isArray(j?.agents)) {
+        j.agents = j.agents.filter((a: any) => !a?.organizationId || a.organizationId === ctx.organizationId);
+        return Response.json(j, { status: r.status, headers: { "Cache-Control": "no-store" } });
+      }
+    } catch { /* kein JSON — unveraendert durchreichen */ }
+    return new Response(text, { status: r.status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
   } catch (e) {
     return Response.json({ ok: false, error: String((e as Error)?.message || e) }, { status: 502 });
   }

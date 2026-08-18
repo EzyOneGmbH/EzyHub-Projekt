@@ -89,6 +89,7 @@ import { Route as ApiAdminTrafficOverviewRouteImport } from './routes/api/admin.
 import { Route as ApiAdminTechDetectRouteImport } from './routes/api/admin.tech-detect'
 import { Route as ApiAdminTeamRouteImport } from './routes/api/admin.team'
 import { Route as ApiAdminSiteHealthRouteImport } from './routes/api/admin.site-health'
+import { Route as ApiAdminSecureMigrateRouteImport } from './routes/api/admin.secure-migrate'
 import { Route as ApiAdminClientReadinessRouteImport } from './routes/api/admin.client-readiness'
 import { Route as ApiAdminAuditLogRouteImport } from './routes/api/admin.audit-log'
 import { Route as ApiAdminSetCanonryProjectRouteImport } from './routes/api/admin.set-canonry-project'
@@ -545,6 +546,11 @@ const ApiAdminAuditLogRoute = ApiAdminAuditLogRouteImport.update({
   path: '/api/admin/audit-log',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminSecureMigrateRoute = ApiAdminSecureMigrateRouteImport.update({
+  id: '/api/admin/secure-migrate',
+  path: '/api/admin/secure-migrate',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminSiteHealthRoute = ApiAdminSiteHealthRouteImport.update({
   id: '/api/admin/site-health',
   path: '/api/admin/site-health',
@@ -854,6 +860,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
   '/api/admin/client-readiness': typeof ApiAdminClientReadinessRoute
   '/api/admin/audit-log': typeof ApiAdminAuditLogRoute
+  '/api/admin/secure-migrate': typeof ApiAdminSecureMigrateRoute
   '/api/admin/site-health': typeof ApiAdminSiteHealthRoute
   '/api/admin/team': typeof ApiAdminTeamRoute
   '/api/admin/tech-detect': typeof ApiAdminTechDetectRoute
@@ -981,6 +988,7 @@ export interface FileRoutesByTo {
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
   '/api/admin/client-readiness': typeof ApiAdminClientReadinessRoute
   '/api/admin/audit-log': typeof ApiAdminAuditLogRoute
+  '/api/admin/secure-migrate': typeof ApiAdminSecureMigrateRoute
   '/api/admin/site-health': typeof ApiAdminSiteHealthRoute
   '/api/admin/team': typeof ApiAdminTeamRoute
   '/api/admin/tech-detect': typeof ApiAdminTechDetectRoute
@@ -1109,6 +1117,7 @@ export interface FileRoutesById {
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
   '/api/admin/client-readiness': typeof ApiAdminClientReadinessRoute
   '/api/admin/audit-log': typeof ApiAdminAuditLogRoute
+  '/api/admin/secure-migrate': typeof ApiAdminSecureMigrateRoute
   '/api/admin/site-health': typeof ApiAdminSiteHealthRoute
   '/api/admin/team': typeof ApiAdminTeamRoute
   '/api/admin/tech-detect': typeof ApiAdminTechDetectRoute
@@ -1236,6 +1245,7 @@ export interface FileRouteTypes {
     | '/api/admin/set-canonry-project'
     | '/api/admin/client-readiness'
     | '/api/admin/audit-log'
+    | '/api/admin/secure-migrate'
     | '/api/admin/site-health'
     | '/api/admin/team'
     | '/api/admin/tech-detect'
@@ -1361,6 +1371,7 @@ export interface FileRouteTypes {
     | '/api/admin/set-canonry-project'
     | '/api/admin/client-readiness'
     | '/api/admin/audit-log'
+    | '/api/admin/secure-migrate'
     | '/api/admin/site-health'
     | '/api/admin/team'
     | '/api/admin/tech-detect'
@@ -1486,6 +1497,7 @@ export interface FileRouteTypes {
     | '/api/admin/set-canonry-project'
     | '/api/admin/client-readiness'
     | '/api/admin/audit-log'
+    | '/api/admin/secure-migrate'
     | '/api/admin/site-health'
     | '/api/admin/team'
     | '/api/admin/tech-detect'
@@ -1609,6 +1621,7 @@ export interface RootRouteChildren {
   ApiAdminSetCanonryProjectRoute: typeof ApiAdminSetCanonryProjectRoute
   ApiAdminClientReadinessRoute: typeof ApiAdminClientReadinessRoute
   ApiAdminAuditLogRoute: typeof ApiAdminAuditLogRoute
+  ApiAdminSecureMigrateRoute: typeof ApiAdminSecureMigrateRoute
   ApiAdminSiteHealthRoute: typeof ApiAdminSiteHealthRoute
   ApiAdminTeamRoute: typeof ApiAdminTeamRoute
   ApiAdminTechDetectRoute: typeof ApiAdminTechDetectRoute
@@ -2231,6 +2244,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminAuditLogRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/secure-migrate': {
+      id: '/api/admin/secure-migrate'
+      path: '/api/admin/secure-migrate'
+      fullPath: '/api/admin/secure-migrate'
+      preLoaderRoute: typeof ApiAdminSecureMigrateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/site-health': {
       id: '/api/admin/site-health'
       path: '/api/admin/site-health'
@@ -2668,6 +2688,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminSetCanonryProjectRoute: ApiAdminSetCanonryProjectRoute,
   ApiAdminClientReadinessRoute: ApiAdminClientReadinessRoute,
   ApiAdminAuditLogRoute: ApiAdminAuditLogRoute,
+  ApiAdminSecureMigrateRoute: ApiAdminSecureMigrateRoute,
   ApiAdminSiteHealthRoute: ApiAdminSiteHealthRoute,
   ApiAdminTeamRoute: ApiAdminTeamRoute,
   ApiAdminTechDetectRoute: ApiAdminTechDetectRoute,

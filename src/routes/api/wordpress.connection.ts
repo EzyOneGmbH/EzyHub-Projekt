@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { normalizeSiteUrl, verifyWpConnection, detectSeoPlugin } from "@/server/wordpress.server";
+import { encryptSecret } from "@/server/secretbox.server";
 
 // Per-client WordPress connection: GET status, POST connect (verify + store),
 // DELETE disconnect. Credentials live in oauth_connections (provider="wordpress").
@@ -98,7 +99,8 @@ export const Route = createFileRoute("/api/wordpress/connection")({
           provider: "wordpress",
           account_email: conn.username,
           scopes: [siteUrl, seoPlugin ? `seo:${seoPlugin}` : ""].filter(Boolean),
-          access_token: conn.appPassword,
+          // Security-Hardening 18.08.: nie mehr Klartext speichern.
+          access_token: encryptSecret(conn.appPassword),
           refresh_token: null,
           expires_at: null,
         });

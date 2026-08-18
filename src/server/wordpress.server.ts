@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { decryptSecret } from "@/server/secretbox.server";
 
 // WordPress connector — per-client connection via the WP REST API using
 // Application Passwords (Basic auth). Credentials are stored server-side in the
@@ -34,10 +35,13 @@ export async function getWpConnection(clientId: string): Promise<WpConnection | 
   if (!data?.access_token) return null;
   const siteUrl = Array.isArray(data.scopes) ? String(data.scopes[0] ?? "") : "";
   if (!siteUrl) return null;
+  // Security-Hardening 18.08.: Application Passwords liegen verschluesselt
+  // (enc:v<N>:...) — decryptSecret laesst Legacy-Klartext bis zur Migration
+  // unveraendert durch. Der Klartext bleibt ausschliesslich serverseitig.
   return {
     siteUrl,
     username: String(data.account_email ?? ""),
-    appPassword: String(data.access_token ?? ""),
+    appPassword: decryptSecret(String(data.access_token ?? "")),
   };
 }
 

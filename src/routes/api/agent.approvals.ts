@@ -1,20 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createClient } from "@supabase/supabase-js";
+import { requireTeamRole } from "@/server/team-guard.server";
 
-// Freigabe-Queue: die vom Agenten geflaggten "Wartet auf dich"-Items (Vault) +
-// Status setzen. Proxies the agent-service GET/POST /approvals. Requires a user.
+// Freigabe-Queue (agent-service /approvals). Security-Hardening 18.08.2026:
+//  - GET (lesen): Team (member+) — Viewer/Portal-Logins NIE.
+//  - POST (Freigabe-Entscheid): NUR owner/admin — Freigaben sind Entscheidungen.
+//  - Organisation serverseitig ermittelt und weitergereicht; Request-IDs werden
+//    formvalidiert und nie ungeprueft durchgereicht.
 
-async function requireUser(request: Request): Promise<Response | null> {
-  const url = process.env.SUPABASE_URL;
-  const anon = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
-  if (!url || !anon) return Response.json({ error: "Server not configured" }, { status: 503 });
-  const sb = createClient(url, anon, {
-    global: { headers: { Authorization: request.headers.get("authorization") ?? "" } },
-  });
-  const { data } = await sb.auth.getUser();
-  if (!data.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  return null;
-}
+const ID_RE = /^[A-Za-z0-9._:\-]{1,200}$/;
+const STATUS_RE = /^[a-z_\-]{2,32}$/;
 
 export const Route = createFileRoute("/api/agent/approvals")({
   server: {
@@ -23,12 +17,11 @@ export const Route = createFileRoute("/api/agent/approvals")({
         const base = process.env.AGENT_BASE_URL;
         const secret = process.env.AGENT_SHARED_SECRET;
         if (!base || !secret) return Response.json({ ok: false, error: "Agent service not configured" }, { status: 503 });
-        const unauth = await requireUser(request);
-        if (unauth) return unauth;
-        const b = base.replace(/\/+$/, "");
+        const ctx = await requireTeamRole(request, "member");
+        if (ctx instanceof Response) return ctx;
         try {
-          const r = await fetch(`${b}/approvals`, {
-            headers: { Authorization: `Bearer ${secret}` },
+          const r = await fetch(`${base.replace(/\/+$/, "")}/approvals?org=${encodeURIComponent(ctx.organizationId)}`, {
+            headers: { Authorization: `Bearer ${secret}`, "X-Ezy-Organization": ctx.organizationId, "X-Ezy-Role": ctx.role },
             signal: AbortSignal.timeout(10_000),
           });
           const j = await r.json().catch(() => ({}));
@@ -41,15 +34,21 @@ export const Route = createFileRoute("/api/agent/approvals")({
         const base = process.env.AGENT_BASE_URL;
         const secret = process.env.AGENT_SHARED_SECRET;
         if (!base || !secret) return Response.json({ ok: false, error: "Agent service not configured" }, { status: 503 });
-        const unauth = await requireUser(request);
-        if (unauth) return unauth;
-        const body = await request.json().catch(() => ({}));
-        const b = base.replace(/\/+$/, "");
+        const ctx = await requireTeamRole(request, "admin");
+        if (ctx instanceof Response) return ctx;
+        const body: any = await request.json().catch(() => ({}));
+        const id = String(body?.id || "");
+        const status = String(body?.status || "");
+        if (!ID_RE.test(id) || !STATUS_RE.test(status))
+          return Response.json({ ok: false, error: "id/status ungültig" }, { status: 400 });
         try {
-          const r = await fetch(`${b}/approvals`, {
+          const r = await fetch(`${base.replace(/\/+$/, "")}/approvals`, {
             method: "POST",
-            headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ id: body.id, status: body.status }),
+            headers: {
+              Authorization: `Bearer ${secret}`, "Content-Type": "application/json",
+              "X-Ezy-Organization": ctx.organizationId, "X-Ezy-Role": ctx.role,
+            },
+            body: JSON.stringify({ id, status, organizationId: ctx.organizationId, decidedBy: ctx.userId }),
             signal: AbortSignal.timeout(10_000),
           });
           const j = await r.json().catch(() => ({}));

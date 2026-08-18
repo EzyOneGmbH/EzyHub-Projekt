@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createHmac, timingSafeEqual } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { makeReportToken, verifyReportToken, reportTokenHash } from "@/server/report-token.server";
 
 // Teilbare Kunden-Reports (Searchable-Nachbau, 2026-08-03).
 // POST  { clientId, days? }  (eingeloggt, owner/admin) -> { url } signierter Link
@@ -11,41 +11,19 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 // Standard 30 Tage. Es werden AUSSCHLIESSLICH aivis-Reportdaten des einen
 // Kunden ausgeliefert (kein Org-Kontext, keine Kosten, keine Rohantworten).
 
-const b64u = (s: string) => Buffer.from(s, "utf8").toString("base64url");
-const unb64u = (s: string) => Buffer.from(s, "base64url").toString("utf8");
-const sign = (payload: string, secret: string) => createHmac("sha256", secret).update(payload).digest("base64url");
-
-function makeToken(clientId: string, days: number, secret: string): string {
-  const exp = Date.now() + days * 864e5;
-  const payload = `${clientId}|${exp}`;
-  return b64u(`${payload}|${sign(payload, secret)}`);
-}
-function verifyToken(token: string, secret: string): string | null {
-  try {
-    const raw = unb64u(token);
-    const i = raw.lastIndexOf("|");
-    const payload = raw.slice(0, i);
-    const mac = raw.slice(i + 1);
-    const want = sign(payload, secret);
-    if (mac.length !== want.length || !timingSafeEqual(Buffer.from(mac), Buffer.from(want))) return null;
-    const [clientId, expStr] = payload.split("|");
-    if (!clientId || Number(expStr) < Date.now()) return null;
-    return clientId;
-  } catch { return null; }
-}
-
-async function requireOrgAdmin(request: Request): Promise<{ ok: boolean; status: number; error?: string }> {
+async function requireOrgAdmin(request: Request): Promise<{ ok: true; userId: string; organizationId: string } | { ok: false; status: number; error: string }> {
   const url = process.env.SUPABASE_URL;
   const anon = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
   if (!url || !anon) return { ok: false, status: 503, error: "Server not configured" };
   const sb = createClient(url, anon, { global: { headers: { Authorization: request.headers.get("authorization") ?? "" } } });
   const { data } = await sb.auth.getUser();
   if (!data.user) return { ok: false, status: 401, error: "Unauthorized" };
-  const { data: m } = await sb.from("app_users").select("role").eq("user_id", data.user.id)
+  const { data: m } = await (supabaseAdmin as any).from("app_users").select("role, organization_id").eq("user_id", data.user.id)
     .order("role", { ascending: true }).limit(1).maybeSingle();
   const role = (m?.role as string) || "viewer";
-  if (role !== "owner" && role !== "admin") return { ok: false, status: 403, error: "Nur Admins können Report-Links erstellen" };
-  return { ok: true, status: 200 };
+  if ((role !== "owner" && role !== "admin") || !m?.organization_id)
+    return { ok: false, status: 403, error: "Nur Admins können Report-Links erstellen" };
+  return { ok: true, userId: data.user.id, organizationId: m.organization_id as string };
 }
 
 export const Route = createFileRoute("/api/public/report")({
@@ -59,18 +37,39 @@ export const Route = createFileRoute("/api/public/report")({
         let body: any; try { body = await request.json(); } catch { body = {}; }
         const clientId = String(body?.clientId || "");
         if (!/^[0-9a-f-]{36}$/i.test(clientId)) return Response.json({ ok: false, error: "clientId ungültig" }, { status: 400 });
+        // Cross-Tenant-Sperre (18.08.): der Kunde MUSS zur Organisation des
+        // anfragenden Admins gehoeren — IDs aus dem Request wird nie vertraut.
+        const { data: own } = await (supabaseAdmin as any).from("clients").select("id")
+          .eq("id", clientId).eq("organization_id", gate.organizationId).maybeSingle();
+        if (!own) return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
         const days = Math.min(365, Math.max(1, Number(body?.days || 30)));
-        const token = makeToken(clientId, days, secret);
+        const token = makeReportToken(clientId, gate.organizationId, days, secret);
+        // Audit + Widerrufbarkeit: nur der Token-HASH wird gespeichert.
+        const { error: insErr } = await (supabaseAdmin as any).from("public_report_links").insert({
+          organization_id: gate.organizationId, client_id: clientId,
+          token_hash: reportTokenHash(token), created_by: gate.userId,
+          expires_at: new Date(Date.now() + days * 864e5).toISOString(),
+        });
+        if (insErr) return Response.json({ ok: false, error: insErr.message }, { status: 500 });
         return Response.json({ ok: true, url: `/r/${token}`, days });
       },
       GET: async ({ request }) => {
         const secret = process.env.ADMIN_AUTOMATION_SECRET;
         if (!secret) return Response.json({ ok: false, error: "Server not configured" }, { status: 503 });
         const token = new URL(request.url).searchParams.get("token") || "";
-        const clientId = verifyToken(token, secret);
-        if (!clientId) return Response.json({ ok: false, error: "Link ungültig oder abgelaufen" }, { status: 401 });
+        const claims = verifyReportToken(token, secret);
+        if (!claims) return Response.json({ ok: false, error: "Link ungültig oder abgelaufen" }, { status: 401 });
+        const clientId = claims.clientId;
         const sb = supabaseAdmin as any;
-        const { data: client } = await sb.from("clients").select("id, name, domain").eq("id", clientId).maybeSingle();
+        // Registry: Link muss existieren, unwiderrufen und unabgelaufen sein.
+        const { data: link } = await sb.from("public_report_links").select("id, revoked_at, expires_at")
+          .eq("token_hash", reportTokenHash(token)).eq("organization_id", claims.organizationId)
+          .eq("client_id", clientId).maybeSingle();
+        if (!link || link.revoked_at || new Date(link.expires_at).getTime() < Date.now())
+          return Response.json({ ok: false, error: "Link ungültig oder widerrufen" }, { status: 401 });
+        // Org-Bindung: der Kunde muss zur signierten Organisation gehoeren.
+        const { data: client } = await sb.from("clients").select("id, name, domain")
+          .eq("id", clientId).eq("organization_id", claims.organizationId).maybeSingle();
         if (!client) return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
         const { data: rep } = await sb.from("ai_visibility_reports").select("*")
           .eq("client_id", clientId).order("snapshot_date", { ascending: false }).limit(1).maybeSingle();
@@ -96,6 +95,23 @@ export const Route = createFileRoute("/api/public/report")({
           sov: (sov.data || []).map((s: any) => ({ brand: s.brand, isSelf: !!s.is_self, share: s.share })),
           history: (history.data || []).map((h: any) => ({ d: h.snapshot_date, score: h.score, mentions: h.mentions, citations: h.citations })),
         }, { headers: { "Cache-Control": "no-store" } });
+      },
+      // Widerruf (18.08.): Admin der Organisation macht einen geteilten Link ungueltig.
+      DELETE: async ({ request }) => {
+        const gate = await requireOrgAdmin(request);
+        if (!gate.ok) return Response.json({ ok: false, error: gate.error }, { status: gate.status });
+        const body: any = await request.json().catch(() => ({}));
+        const linkId = String(body?.linkId || "");
+        const clientId = String(body?.clientId || "");
+        let q = (supabaseAdmin as any).from("public_report_links")
+          .update({ revoked_at: new Date().toISOString() })
+          .eq("organization_id", gate.organizationId).is("revoked_at", null);
+        if (/^[0-9a-f-]{36}$/i.test(linkId)) q = q.eq("id", linkId);
+        else if (/^[0-9a-f-]{36}$/i.test(clientId)) q = q.eq("client_id", clientId);
+        else return Response.json({ ok: false, error: "linkId oder clientId erforderlich" }, { status: 400 });
+        const { data, error } = await q.select("id");
+        if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+        return Response.json({ ok: true, widerrufen: (data ?? []).length });
       },
     },
   },
