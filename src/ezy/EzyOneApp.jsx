@@ -117,6 +117,7 @@ import { warneBeimAppAktivieren, warneBeimLocalGrid, STATUS_LABEL as READINESS_S
 // Local-Grid-Tab (2026-08-17): Maps-Heatmap (Geo-Grid) — eigene Datei, damit
 // der Monolith klein bleibt (parallele Sessions!).
 import LocalGridDashboard from "@/ezy/LocalGridDashboard";
+import DataStatus, { runStatusItem } from "@/ezy/DataStatus";
 import { useClientAppAccess, appEnabledFor, featureEnabledFor } from "@/ezy/data/useClientAppAccess";
 import { useAppAccess } from "@/ezy/data/useAppAccess";
 import { useEzyServiceMatrix } from "@/ezy/data/useEzyServiceMatrix";
@@ -196,7 +197,8 @@ const AI_COLORS = {
   Copilot: "#06b6d4",
   Grok: "#ec4899",
 };
-const CSS = `html,body,#root{min-height:100%;margin:0;overflow-x:hidden}*{box-sizing:border-box}@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}@keyframes slideUp{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}@keyframes fadeScale{from{transform:scale(.96);opacity:0}to{transform:scale(1);opacity:1}}@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}::selection{background:rgba(119,0,140,.18);color:#161217}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:${C.bg}}::-webkit-scrollbar-thumb{background:${C.border};border-radius:3px}@media(max-width:760px){.app-sidebar{display:none!important}.app-main{margin-left:0!important;min-width:0!important;width:100%!important}.app-header{align-items:flex-start!important;gap:10px!important}.header-left,.header-actions{width:100%;flex-wrap:wrap}.app-content{padding:16px 12px!important}.settings-shell{flex-direction:column!important;gap:16px!important}.settings-nav{width:100%!important;display:flex!important;overflow-x:auto;padding-bottom:4px}.settings-nav button{width:auto!important;white-space:nowrap;flex-shrink:0}.settings-panel{max-width:none!important}.client-toolbar{flex-direction:column!important;align-items:stretch!important}.client-toolbar>div{width:100%!important}.client-grid{grid-template-columns:minmax(0,1fr)!important}.ezy-form-grid{grid-template-columns:1fr!important}.kpi-grid{grid-template-columns:1fr!important}.kpi-grid>div{grid-column:auto!important}.client-drawer,.quick-audit-panel{width:100vw!important;max-width:100vw!important}.quick-audit-panel{padding:18px 14px!important}.cmd-palette{width:min(calc(100vw - 24px),520px)!important}.mobile-wrap{flex-wrap:wrap!important}.dash-kpis{grid-template-columns:1fr 1fr!important}.split-pane{grid-template-columns:1fr!important}.tabbar{flex-wrap:nowrap!important;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;max-width:100%}.tabbar::-webkit-scrollbar{display:none}.tabbar button{flex-shrink:0;white-space:nowrap}.tools-shell{flex-direction:column!important;gap:12px!important}.tools-cats{display:flex!important;flex-direction:row!important;width:100%!important;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:6px;padding-bottom:6px;scrollbar-width:none}.tools-cats::-webkit-scrollbar{display:none}.tools-cats>div:first-child{display:none}.tools-cats button{width:auto!important;flex-shrink:0;white-space:nowrap;margin-bottom:0!important}.google-props-grid{grid-template-columns:1fr!important}.ads-hero-head{flex-wrap:nowrap!important;align-items:flex-start!important}.ads-hero-head>button{flex:none!important}.ads-flow{display:grid!important;grid-template-columns:1fr 1fr!important;gap:14px 16px!important;align-items:start!important}.ads-arrow{display:none!important}.ads-roas{order:-1!important;grid-column:1/-1!important;flex-direction:row!important;align-items:baseline!important;justify-content:flex-start!important;gap:9px!important;padding:0!important}.ads-roas>div:last-child{margin-top:0!important}.ads-stat-right{text-align:left!important}.ads-flow .ads-val{font-size:24px!important}.app-content [style*="minmax(200px"],.app-content [style*="minmax(220px"],.app-content [style*="minmax(240px"]{grid-template-columns:1fr 1fr!important;gap:10px!important}.app-content [style*="minmax(320px"]{grid-template-columns:1fr!important}}@media(max-width:480px){.app-header{padding:8px 10px!important}.app-content{padding:12px 10px!important}.app-content [style*="minmax(200px"],.app-content [style*="minmax(220px"],.app-content [style*="minmax(240px"]{grid-template-columns:1fr!important}}`;
+const CSS = `html,body,#root{min-height:100%;margin:0;overflow-x:hidden}*{box-sizing:border-box}@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}@keyframes slideUp{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}@keyframes fadeScale{from{transform:scale(.96);opacity:0}to{transform:scale(1);opacity:1}}@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}::selection{background:rgba(119,0,140,.18);color:#161217}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:${C.bg}}::-webkit-scrollbar-thumb{background:${C.border};border-radius:3px}@media(max-width:760px){.app-sidebar{display:none!important}.app-main{margin-left:0!important;min-width:0!important;width:100%!important}.app-header{align-items:flex-start!important;gap:10px!important}.header-left,.header-actions{width:100%;flex-wrap:wrap}.app-content{padding:16px 12px!important}.settings-shell{flex-direction:column!important;gap:16px!important}.settings-nav{width:100%!important;display:flex!important;overflow-x:auto;padding-bottom:4px}.settings-nav button{width:auto!important;white-space:nowrap;flex-shrink:0}.settings-panel{max-width:none!important}.client-toolbar{flex-direction:column!important;align-items:stretch!important}.client-toolbar>div{width:100%!important}.client-grid{grid-template-columns:minmax(0,1fr)!important}.ezy-form-grid{grid-template-columns:1fr!important}.kpi-grid{grid-template-columns:1fr!important}.kpi-grid>div{grid-column:auto!important}.client-drawer,.quick-audit-panel{width:100vw!important;max-width:100vw!important}.quick-audit-panel{padding:18px 14px!important}.cmd-palette{width:min(calc(100vw - 24px),520px)!important}.mobile-wrap{flex-wrap:wrap!important}.dash-kpis{grid-template-columns:1fr 1fr!important}.split-pane{grid-template-columns:1fr!important}.tabbar{flex-wrap:nowrap!important;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;max-width:100%}.tabbar::-webkit-scrollbar{display:none}.tabbar button{flex-shrink:0;white-space:nowrap}.tools-shell{flex-direction:column!important;gap:12px!important}.tools-cats{display:flex!important;flex-direction:row!important;width:100%!important;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:6px;padding-bottom:6px;scrollbar-width:none}.tools-cats::-webkit-scrollbar{display:none}.tools-cats>div:first-child{display:none}.tools-cats button{width:auto!important;flex-shrink:0;white-space:nowrap;margin-bottom:0!important}.google-props-grid{grid-template-columns:1fr!important}.ads-hero-head{flex-wrap:nowrap!important;align-items:flex-start!important}.ads-hero-head>button{flex:none!important}.ads-flow{display:grid!important;grid-template-columns:1fr 1fr!important;gap:14px 16px!important;align-items:start!important}.ads-arrow{display:none!important}.ads-roas{order:-1!important;grid-column:1/-1!important;flex-direction:row!important;align-items:baseline!important;justify-content:flex-start!important;gap:9px!important;padding:0!important}.ads-roas>div:last-child{margin-top:0!important}.ads-stat-right{text-align:left!important}.ads-flow .ads-val{font-size:24px!important}.app-content [style*="minmax(200px"],.app-content [style*="minmax(220px"],.app-content [style*="minmax(240px"]{grid-template-columns:1fr 1fr!important;gap:10px!important}.app-content [style*="minmax(320px"]{grid-template-columns:1fr!important}}@media(max-width:480px){.app-header{padding:8px 10px!important}.app-content{padding:12px 10px!important}.app-content [style*="minmax(200px"],.app-content [style*="minmax(220px"],.app-content [style*="minmax(240px"]{grid-template-columns:1fr!important}}
+.ezy-md{font-size:13.5px;line-height:1.65;color:${C.text};overflow-wrap:break-word}.ezy-md h1{font-size:19px;margin:18px 0 8px;color:${C.text}}.ezy-md h2{font-size:16px;margin:16px 0 6px;color:${C.text}}.ezy-md h3{font-size:14px;margin:14px 0 4px;color:${C.text}}.ezy-md p{margin:7px 0}.ezy-md ul,.ezy-md ol{margin:7px 0;padding-left:22px}.ezy-md li{margin:3px 0}.ezy-md code{background:${C.bg};border:1px solid ${C.border};border-radius:4px;padding:1px 5px;font-size:12px}.ezy-md a{color:${C.accent}}.ezy-md h1:first-child,.ezy-md h2:first-child,.ezy-md h3:first-child{margin-top:0}`;
 function downloadFile(content, type, filename) {
   const b = new Blob([content], { type });
   const u = URL.createObjectURL(b);
@@ -2285,6 +2287,50 @@ const TOOL_CATS = [
   { id: "skills-obsidian", label: "Obsidian-Skills", icon: Bookmark },
 ];
 
+// EzyRank-Ausbau 2026-08-18: Tools nach BENUTZERZIEL gruppiert (statt nach
+// Plugin-Kategorie) — normale Benutzer denken in "Was will ich erreichen?".
+// Die Plugin-Kategorie bleibt als Badge auf jeder Kachel sichtbar (CATEGORY_BADGE),
+// und alle Provider-/Skill-Gates (enabled je Kunde, toolProvider) bleiben unveraendert.
+const TOOL_GOALS = [
+  { id: "all", label: "Alle", icon: LayoutGrid },
+  { id: "analyse", label: "Analysieren", icon: Search },
+  { id: "optimize", label: "Optimieren", icon: Zap },
+  { id: "create", label: "Content erstellen", icon: PenTool },
+  { id: "publish", label: "Veröffentlichen", icon: Globe },
+];
+const TOOL_GOAL_BY_ID = {
+  "open-seo-audit": "analyse",
+  "full-seo-audit": "analyse",
+  "geo-aeo-audit": "analyse",
+  "technical-audit": "analyse",
+  "on-page-audit": "analyse",
+  "cwv-audit": "analyse",
+  canonry: "analyse",
+  "geo-content-check": "analyse",
+  "blog-rewrite": "optimize",
+  "meta-tags": "optimize",
+  "schema-markup": "optimize",
+  "generate-blog": "create",
+  "blog-outline": "create",
+  "content-brief": "create",
+  "blog-strategy": "create",
+  "blog-repurpose": "create",
+  "competitor-page": "create",
+  "editorial-calendar": "create",
+  "obsidian-note": "create",
+};
+function toolGoalOf(tool) {
+  if (TOOL_GOAL_BY_ID[tool.id]) return TOOL_GOAL_BY_ID[tool.id];
+  const key = `${tool.id} ${tool.label}`.toLowerCase();
+  if (/publish|wordpress/.test(key)) return "publish";
+  if (/write|generate|outline|brief|calendar|repurpose|strategy|translat|multilingual|pages|sitemap|note/.test(key)) return "create";
+  if (/rewrite|refresh|optimi|meta|schema|update|fix/.test(key)) return "optimize";
+  if (/audit|check|analy|research|monitor|cluster|rank|backlink|technical|competitor|serp|drift|visual|performance|local|maps|geo/.test(key)) return "analyse";
+  // Katalog-Fallback nach Skill-Kategorie: SEO-Skills sind ueberwiegend Analyse,
+  // Blog-/Obsidian-Skills ueberwiegend Content-Erstellung.
+  return tool.category === "skills-seo" ? "analyse" : "create";
+}
+
 // Clean parent-category label + color for a tool/skill category id — shown as a
 // badge on each tile/skill so the Überkategorie (SEO/Blog/Ads/…) is obvious at a glance.
 const CATEGORY_BADGE = {
@@ -3050,7 +3096,7 @@ function SeoDashboard({ selectedClient, dateRange }) {
   const gscRes = liveGsc || gscRun?.result || null;
   const gsc = gscRes ? gscKpisFromResult(gscRes) : null;
   // Dashboard-Ausbau 2026-07-11: B1 Rankings (agent-service Rank-Store) + B2 GSC-Split.
-  const { run: rankRun } = useEzyLatestRun(selectedClient?.id, "rankings");
+  const { run: rankRun, refresh: refreshRank } = useEzyLatestRun(selectedClient?.id, "rankings");
   const rank = rankRun?.result || null;
   const { run: gscQRun } = useEzyLatestRun(selectedClient?.id, "gsc_queries");
   const gscQ = gscQRun?.result || null;
@@ -3297,6 +3343,37 @@ function SeoDashboard({ selectedClient, dateRange }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <OnboardingPanel selectedClient={selectedClient} />
+      {/* Datenstatus je Quelle (EzyRank-Ausbau 2026-08-18): echte Zeitstempel aus
+          audit_runs bzw. Live-Abfragen — niemals erfundene Werte. */}
+      <DataStatus
+        items={[
+          runStatusItem("Rankings (DataForSEO)", rankRun, { staleDays: 3 }),
+          liveGsc
+            ? { source: "Suchbegriffe (GSC)", state: "live", detail: "Live-Abfrage" }
+            : runStatusItem("Suchbegriffe (GSC)", gscRun, { staleDays: 3 }),
+          runStatusItem("Backlinks (DataForSEO)", run, { staleDays: 9 }),
+          runStatusItem("Core Web Vitals (PageSpeed)", psiRun, { staleDays: 9 }),
+          liveTrafRes
+            ? { source: "Besucher (GA4)", state: "live", detail: "Live-Abfrage" }
+            : runStatusItem("Besucher (GA4)", trafRun, { staleDays: 3 }),
+        ]}
+        action={{
+          label: "Aktualisieren",
+          onClick: () => {
+            refreshRank(true);
+            refreshGsc(true);
+            refreshAhrefs(true);
+            refreshPsi(true);
+            refreshTraf(true);
+            void refreshHistory();
+          },
+        }}
+        hint={
+          !liveGsc && !gscRun && !liveTrafRes && !trafRun
+            ? "Google (GSC/GA4) verbinden: Admin → Kunden → Onboarding → Google"
+            : undefined
+        }
+      />
       {(rank || rankRows.length > 0) ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {rank && (
@@ -4605,16 +4682,48 @@ function ConvDashboard({ selectedClient, dateRange }) {
       engagedSessions +
       screenPageViews >
     0;
+  // Datenstatus (EzyRank-Ausbau 2026-08-18): GA4 ist die einzige Quelle dieses
+  // Tabs — Live-Abfrage bevorzugt, sonst Agent-Snapshot; ohne beides ehrlich
+  // "nicht verbunden" mit konkretem nächstem Schritt.
+  const convConnected = Boolean(liveSum || liveConvRes || liveTrafRes || run || convRun || trafRun);
+  const convStatus = (
+    <DataStatus
+      items={[
+        liveSum || liveConvRes || liveTrafRes
+          ? { source: "GA4 (Google Analytics)", state: "live", detail: "Live-Abfrage im gewählten Zeitraum" }
+          : convConnected
+            ? runStatusItem("GA4 (Google Analytics)", convRun || run || trafRun, { staleDays: 3, detail: "Agent-Snapshot" })
+            : { source: "GA4 (Google Analytics)", state: "disconnected" },
+      ]}
+      action={{
+        label: "Aktualisieren",
+        onClick: () => {
+          refreshGa4(true);
+          refreshConv(true);
+          refreshTraf(true);
+        },
+      }}
+      hint={!convConnected ? "Google verbinden: Admin → Kunden → Onboarding → Google (GA4-Property hinterlegen)" : undefined}
+    />
+  );
   if (!hasAnyKpi) {
     return (
-      <LiveEmptyState
-        title="Noch keine Conversion-Daten"
-        hint="Sobald GA4 Conversion-Events liefert oder Audit-Läufe Revenue-Daten enthalten, erscheinen hier echte Werte."
-      />
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        {convStatus}
+        <LiveEmptyState
+          title="Noch keine Conversion-Daten"
+          hint={
+            convConnected
+              ? "GA4 ist verbunden, liefert im gewählten Zeitraum aber noch keine Conversion-Events. Prüfe die Events in GA4 oder wähle einen längeren Zeitraum."
+              : "Nächster Schritt: Google für diesen Kunden verbinden (Admin → Kunden → Onboarding → Google) und die GA4-Property hinterlegen — danach erscheinen hier echte Werte."
+          }
+        />
+      </div>
     );
   }
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {convStatus}
       <CompareBanner dateRange={dateRange} />
       {isOn("conv.custom") && (
       <div
@@ -7962,7 +8071,24 @@ function CreateTaskModal({ projectId, projectName, statuses, tasklists = [], use
 // ═══════════════════════════════════════════════════════════════════════════
 // TOOL RUNNER
 // ═══════════════════════════════════════════════════════════════════════════
-function ToolRunner({ tool, onClose, client, onComplete }) {
+// Lesbarer Text aus einem Tool-Ergebnis (EzyRank-Ausbau 2026-08-18): Skill-Läufe
+// liefern { content }, /api/ai/generate ebenfalls; sonst gibt es keinen Fliesstext
+// und das Ergebnis bleibt strukturiert (JSON in "Technische Details").
+function toolResultText(data) {
+  if (typeof data === "string") return data.trim() || null;
+  if (!data || typeof data !== "object") return null;
+  for (const key of ["content", "markdown", "text", "output"]) {
+    if (typeof data[key] === "string" && data[key].trim()) return data[key];
+  }
+  return null;
+}
+// Formatiertes Markdown (statt rohem JSON) — nutzt den bestehenden block-level
+// Konverter markdownToHtml (escaped HTML, sanitisierte Links); Styles via .ezy-md.
+function MdView({ md }) {
+  const html = useMemo(() => markdownToHtml(md), [md]);
+  return <div className="ezy-md" dangerouslySetInnerHTML={{ __html: html }} />;
+}
+function ToolRunner({ tool, onClose, client, onComplete, onSaveDraft }) {
   const toast = useToast();
   const clientDomain = client?.domain || "";
   const [form, setForm] = useState(() => {
@@ -8024,8 +8150,40 @@ function ToolRunner({ tool, onClose, client, onComplete }) {
       toast(`Fehler: ${e?.message || e}`, "error");
     }
   };
+  // EzyRank-Ausbau 2026-08-18: lesbares Ergebnis (Markdown) + Weiterverarbeitung.
+  const resultText = result?.ok ? toolResultText(result.data) : null;
+  const [draftSavedId, setDraftSavedId] = useState(null);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [showWp, setShowWp] = useState(false);
+  const draftTitle =
+    (form.topic || form.title || form.keyword || "").trim() || `${tool.label} — ${client?.name || clientDomain || "Ergebnis"}`;
+  const clientIsUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(client?.id || ""));
+  const copyResult = async () => {
+    try {
+      await navigator.clipboard.writeText(resultText || JSON.stringify(result?.data ?? {}, null, 2));
+      toast("Ergebnis kopiert", "success");
+    } catch {
+      toast("Kopieren fehlgeschlagen", "error");
+    }
+  };
+  const saveDraft = async () => {
+    if (!onSaveDraft || !clientIsUuid || !resultText) return;
+    setSavingDraft(true);
+    try {
+      const type = tool.category === "obsidian" || tool.category === "skills-obsidian" ? "note" : "blog";
+      const item = await onSaveDraft({ clientId: client.id, title: draftTitle, content: resultText, type, status: "draft" });
+      setDraftSavedId(item?.id || "ok");
+      toast("Als Entwurf gespeichert — zu finden unter Content", "success");
+    } catch (e) {
+      toast(e?.message || "Speichern fehlgeschlagen", "error");
+    } finally {
+      setSavingDraft(false);
+    }
+  };
   const exportMd = () => {
-    const md = `# ${tool.label} Report\n\nDomain: ${form.url || form.domain || clientDomain || "—"}\nDatum: ${new Date().toLocaleDateString("de-CH")}\nStatus: ${result?.liveConnected ? (result.ok ? "Live-Lauf erfolgreich" : "Live-Lauf fehlgeschlagen") : "Noch nicht live verbunden"}\n\n## Antwort\n\n\`\`\`json\n${JSON.stringify(result?.data ?? { message: result?.message }, null, 2)}\n\`\`\`\n`;
+    const md = resultText
+      ? `# ${draftTitle}\n\n${resultText}\n`
+      : `# ${tool.label} Report\n\nDomain: ${form.url || form.domain || clientDomain || "—"}\nDatum: ${new Date().toLocaleDateString("de-CH")}\nStatus: ${result?.liveConnected ? (result.ok ? "Live-Lauf erfolgreich" : "Live-Lauf fehlgeschlagen") : "Noch nicht live verbunden"}\n\n## Antwort\n\n\`\`\`json\n${JSON.stringify(result?.data ?? { message: result?.message }, null, 2)}\n\`\`\`\n`;
     downloadFile(md, "text/markdown", `${tool.id}-report.md`);
     toast("Report exportiert", "success");
   };
@@ -8045,7 +8203,8 @@ function ToolRunner({ tool, onClose, client, onComplete }) {
         : "Live-Fehler"
       : "Noch nicht live verbunden";
   return (
-    <Modal open={true} onClose={handleClose} title={tool.label} width={560}>
+    <>
+    <Modal open={true} onClose={handleClose} title={tool.label} width={phase === "done" && resultText ? 760 : 560}>
       {phase === "form" && (
         <div>
           <div
@@ -8131,55 +8290,129 @@ function ToolRunner({ tool, onClose, client, onComplete }) {
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
             <Badge color={liveBadgeColor}>{liveBadgeLabel}</Badge>
           </div>
+          {/* Ergebnis (2026-08-18): Markdown statt rohem JSON, KEINE Kappung mehr —
+              lange Artikel scrollen im eigenen Bereich. JSON nur noch aufklappbar. */}
           <div
             style={{
               background: C.card,
+              border: `1px solid ${C.border}`,
               borderRadius: 12,
               padding: 16,
-              marginBottom: 16,
-              fontSize: 13,
-              color: C.text,
-              lineHeight: 1.6,
-              whiteSpace: "pre-wrap",
-              maxHeight: 240,
+              marginBottom: 12,
+              maxHeight: "48vh",
               overflow: "auto",
             }}
           >
-            {result?.liveConnected
-              ? result.ok
-                ? typeof result.data === "object"
-                  ? JSON.stringify(result.data, null, 2).slice(0, 2000)
-                  : String(result.message || "OK")
-                : result.error || result.message || "Fehler"
-              : "Dieses Tool ist noch nicht an eine Live-API angebunden. Es wurde kein Lauf gespeichert."}
+            {result?.liveConnected ? (
+              result.ok ? (
+                resultText ? (
+                  <MdView md={resultText} />
+                ) : typeof result.data === "object" && result.data ? (
+                  <div style={{ fontSize: 13, color: C.textMuted }}>
+                    Strukturiertes Ergebnis ohne Fliesstext — Details unten unter «Technische Details».
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 13, color: C.text, whiteSpace: "pre-wrap" }}>{String(result.message || "OK")}</div>
+                )
+              ) : (
+                <div style={{ fontSize: 13, color: C.red, whiteSpace: "pre-wrap" }}>{result.error || result.message || "Fehler"}</div>
+              )
+            ) : (
+              <div style={{ fontSize: 13, color: C.text }}>
+                Dieses Tool ist noch nicht an eine Live-API angebunden. Es wurde kein Lauf gespeichert.
+              </div>
+            )}
           </div>
+          {result?.ok && result?.data != null && typeof result.data === "object" && (
+            <details style={{ marginBottom: 12 }}>
+              <summary style={{ cursor: "pointer", fontSize: 12, color: C.textMuted, userSelect: "none" }}>
+                Technische Details (Rohdaten)
+              </summary>
+              <pre
+                style={{
+                  background: C.card,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 10,
+                  padding: 12,
+                  marginTop: 8,
+                  fontSize: 11.5,
+                  color: C.textMuted,
+                  maxHeight: 260,
+                  overflow: "auto",
+                  whiteSpace: "pre-wrap",
+                  overflowWrap: "break-word",
+                }}
+              >
+                {JSON.stringify(result.data, null, 2)}
+              </pre>
+            </details>
+          )}
           <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+            {result?.ok && (
+              <Btn variant="secondary" icon={Copy} onClick={copyResult}>
+                Kopieren
+              </Btn>
+            )}
             <Btn variant="secondary" icon={Download} onClick={exportMd}>
-              Report exportieren
+              Markdown herunterladen
             </Btn>
+            {result?.ok && resultText && onSaveDraft && clientIsUuid && (
+              <Btn variant="secondary" icon={FileText} onClick={saveDraft} disabled={savingDraft || !!draftSavedId}>
+                {draftSavedId ? "Als Entwurf gespeichert ✓" : savingDraft ? "Speichere…" : "Als Entwurf speichern"}
+              </Btn>
+            )}
+            {result?.ok && resultText && clientIsUuid && (
+              <Btn variant="secondary" icon={Globe} onClick={() => setShowWp(true)}>
+                An WordPress übergeben
+              </Btn>
+            )}
             <Btn onClick={handleClose}>Schliessen</Btn>
           </div>
         </div>
       )}
     </Modal>
+    {/* Ausserhalb des Modals gerendert: position:fixed darf nicht von der
+        fadeScale-Transform-Animation des Modals eingefangen werden. */}
+    {showWp && (
+      <WordPressPublishModal
+        clientId={client.id}
+        defaultTitle={draftTitle}
+        markdown={resultText || ""}
+        onClose={() => setShowWp(false)}
+        zIndex={300}
+      />
+    )}
+    </>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PAGE: TOOLS
 // ═══════════════════════════════════════════════════════════════════════════
-function ToolsPage({ selectedClient, tools }) {
-  const [cat, setCat] = useState("all");
+function ToolsPage({ selectedClient, tools, onSaveDraft }) {
+  const [goal, setGoal] = useState("all");
+  // Tools ohne Live-Anbindung (toolProvider null) sind standardmaessig
+  // AUSGEBLENDET und nur ueber den Schalter sichtbar — dort klar markiert.
+  const [showUnconnected, setShowUnconnected] = useState(false);
   const [runner, setRunner] = useState(null);
   const {
     runs,
     loading: histLoading,
     refresh: refreshHistory,
   } = useEzyAuditHistory(selectedClient?.id, 25);
+  // Kunden-Gates unveraendert: t.enabled kommt aus useEzyToolSettings (client_integrations).
+  const enabledTools = useMemo(() => tools.filter((t) => t.enabled), [tools]);
+  const goalTools = useMemo(
+    () => (goal === "all" ? enabledTools : enabledTools.filter((t) => toolGoalOf(t) === goal)),
+    [goal, enabledTools],
+  );
+  const unconnectedCount = useMemo(
+    () => goalTools.filter((t) => !toolHasLiveProvider(t.id)).length,
+    [goalTools],
+  );
   const visibleTools = useMemo(
-    () =>
-      (cat === "all" ? tools : tools.filter((t) => t.category === cat)).filter((t) => t.enabled),
-    [cat, tools],
+    () => goalTools.filter((t) => showUnconnected || toolHasLiveProvider(t.id)),
+    [goalTools, showUnconnected],
   );
   const onComplete = () => {
     void refreshHistory();
@@ -8233,19 +8466,19 @@ function ToolsPage({ selectedClient, tools }) {
             padding: "0 14px",
           }}
         >
-          Kategorien
+          Was willst du erreichen?
         </div>
-        {TOOL_CATS.map((tc) => {
+        {TOOL_GOALS.map((tc) => {
           const I = tc.icon;
-          const a = cat === tc.id;
+          const a = goal === tc.id;
           const n =
             tc.id === "all"
-              ? tools.filter((t) => t.enabled).length
-              : tools.filter((t) => t.category === tc.id && t.enabled).length;
+              ? enabledTools.length
+              : enabledTools.filter((t) => toolGoalOf(t) === tc.id).length;
           return (
             <button
               key={tc.id}
-              onClick={() => setCat(tc.id)}
+              onClick={() => setGoal(tc.id)}
               style={{
                 width: "100%",
                 display: "flex",
@@ -8271,12 +8504,52 @@ function ToolsPage({ selectedClient, tools }) {
         })}
       </div>
       <div style={{ flex: 1 }}>
-        <div style={{ marginBottom: 20 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>AI Tools</h1>
-          <p style={{ color: C.textMuted, fontSize: 13, margin: "4px 0 0" }}>
-            {visibleTools.length} Tools • {selectedClient.name}
-          </p>
+        <div style={{ marginBottom: 20, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+          <div>
+            <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>AI Tools</h1>
+            <p style={{ color: C.textMuted, fontSize: 13, margin: "4px 0 0" }}>
+              {visibleTools.length} Tools • {selectedClient.name}
+            </p>
+          </div>
+          {unconnectedCount > 0 && (
+            <label style={{ fontSize: 12, color: C.textMuted, display: "flex", gap: 6, alignItems: "center", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={showUnconnected}
+                onChange={(e) => setShowUnconnected(e.target.checked)}
+              />
+              Nicht verbundene anzeigen ({unconnectedCount})
+            </label>
+          )}
         </div>
+        {goal === "publish" && (
+          <div
+            style={{
+              background: C.card,
+              border: `1px solid ${C.border}`,
+              borderRadius: 14,
+              padding: 18,
+              marginBottom: 14,
+              fontSize: 13,
+              color: C.textMuted,
+              lineHeight: 1.6,
+            }}
+          >
+            <div style={{ fontWeight: 700, color: C.text, marginBottom: 4 }}>So veröffentlichst du Inhalte</div>
+            Tool-Ergebnisse kannst du direkt im Ergebnis-Fenster <strong style={{ color: C.text }}>als Entwurf speichern</strong> oder
+            {" "}<strong style={{ color: C.text }}>an WordPress übergeben</strong> (sofern der Kunde verbunden ist).
+            Gespeicherte Entwürfe findest du unter <strong style={{ color: C.text }}>Content</strong> — dort gibt es ebenfalls den
+            Button «An WordPress veröffentlichen». WordPress verbindet man je Kunde unter Admin → Kunden → Onboarding.
+          </div>
+        )}
+        {visibleTools.length === 0 && goal !== "publish" && (
+          <div style={{ background: C.card, border: `1px dashed ${C.border}`, borderRadius: 14, padding: "32px 20px", textAlign: "center", marginBottom: 14, fontSize: 13, color: C.textMuted }}>
+            Keine verbundenen Tools in dieser Gruppe.
+            {unconnectedCount > 0
+              ? " Aktiviere «Nicht verbundene anzeigen», um sie zu sehen — sie sind entsprechend markiert."
+              : " Prüfe unter Einstellungen → Tools, ob Tools für diesen Kunden deaktiviert wurden."}
+          </div>
+        )}
         <div
           style={{
             display: "grid",
@@ -8318,10 +8591,13 @@ function ToolsPage({ selectedClient, tools }) {
                     <I size={20} color={tool.color} />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ marginBottom: 4 }}>
+                    <div style={{ marginBottom: 4, display: "flex", gap: 6, flexWrap: "wrap" }}>
                       <Badge color={categoryBadge(tool.category).color}>
                         {categoryBadge(tool.category).label}
                       </Badge>
+                      {!toolHasLiveProvider(tool.id) && (
+                        <Badge color={C.orange}>Nicht verbunden</Badge>
+                      )}
                     </div>
                     <div style={{ fontWeight: 700, fontSize: 14, color: C.text, marginBottom: 2 }}>
                       {tool.label}
@@ -8445,6 +8721,7 @@ function ToolsPage({ selectedClient, tools }) {
           onClose={() => setRunner(null)}
           client={selectedClient}
           onComplete={onComplete}
+          onSaveDraft={onSaveDraft}
         />
       )}
     </div>
@@ -8463,7 +8740,9 @@ function markdownToHtml(md) {
       .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
       .replace(/\*(.+?)\*/g, "<em>$1</em>")
       .replace(/`(.+?)`/g, "<code>$1</code>")
-      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+      // sanitizeHref: nur http(s)/mailto/relative Links — Inhalt wird auch
+      // in-app via dangerouslySetInnerHTML gerendert (MdView, 2026-08-18).
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, label, href) => `<a href="${sanitizeHref(href)}">${label}</a>`);
   const lines = String(md || "").split("\n");
   const out = [];
   let listType = null; // "ul" | "ol"
@@ -8487,7 +8766,9 @@ function markdownToHtml(md) {
 }
 
 // Modal to publish the current content to the client's connected WordPress site.
-function WordPressPublishModal({ clientId, defaultTitle, markdown, onClose }) {
+// zIndex-Prop (2026-08-18): wird der Dialog aus dem ToolRunner-Modal (zIndex 200)
+// geoeffnet, muss er darueber liegen — Default bleibt 120 (ContentEditor).
+function WordPressPublishModal({ clientId, defaultTitle, markdown, onClose, zIndex = 120 }) {
   const toast = useToast();
   const [status, setStatus] = useState("loading"); // loading | none | ready
   const [siteUrl, setSiteUrl] = useState("");
@@ -8556,7 +8837,7 @@ function WordPressPublishModal({ clientId, defaultTitle, markdown, onClose }) {
 
   return (
     <div
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.6)", zIndex: 120, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.6)", zIndex, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div style={{ background: C.surface, borderRadius: 16, width: "100%", maxWidth: 520, maxHeight: "90vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.5)" }}>
@@ -9069,8 +9350,33 @@ function RefreshRadar({ selectedClient }) {
   if (!selectedClient?.id)
     return <div style={{ padding: 30, color: C.textMuted, fontSize: 13 }}>Wähle einen Kunden, um den Refresh-Radar zu sehen.</div>;
 
+  // Datenstatus (EzyRank-Ausbau 2026-08-18): letzter Index-Check als ehrlicher
+  // Sync-Zeitpunkt (täglicher Content-Sync schreibt ihn); Google-Verbindung separat.
+  const lastSync = rows.reduce((acc, r) => {
+    const t = r?.index_checked_at ? new Date(r.index_checked_at).getTime() : 0;
+    return t > acc ? t : acc;
+  }, 0);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <DataStatus
+        items={[
+          {
+            source: "Blog-Artikel (Content-Sync)",
+            lastAt: lastSync ? new Date(lastSync).toISOString() : null,
+            staleDays: 3,
+            state: rows.length && !lastSync ? "present" : undefined,
+            detail: loading ? "lädt…" : `${rows.length} publizierte Artikel`,
+          },
+          gConn == null
+            ? null
+            : {
+                source: "Google (GSC/GA4)",
+                state: gConn.connected ? "connected" : "disconnected",
+              },
+        ].filter(Boolean)}
+        action={{ label: "Aktualisieren", onClick: () => void reload() }}
+        hint={gConn && !gConn.connected ? "Verbinden: Admin → Kunden → Onboarding → Google" : undefined}
+      />
       {connHint ? (
         <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 14px", borderRadius: 10, background: C.orange + "1a", border: `1px solid ${C.orange}55`, fontSize: 12.5, color: C.text }}>
           <AlertCircle size={16} color={C.orange} style={{ flexShrink: 0 }} />
@@ -9419,8 +9725,9 @@ function ContentPage({ clients, items, onSaveContent, selectedClient }) {
           <div style={{ padding: 40, textAlign: "center" }}>
             <FileText size={32} color={C.textDim} style={{ marginBottom: 12 }} />
             <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Noch kein Content</div>
-            <div style={{ fontSize: 13, color: C.textMuted }}>
-              Starte ein Tool, um Content zu generieren.
+            <div style={{ fontSize: 13, color: C.textMuted, maxWidth: 440, margin: "0 auto" }}>
+              Nächster Schritt: unter <strong style={{ color: C.text }}>AI-Tools → Content erstellen</strong> z. B.
+              «Blog Post generieren» starten und das Ergebnis dort «Als Entwurf speichern» — es erscheint dann hier.
             </div>
           </div>
         ) : (
@@ -14343,6 +14650,9 @@ function App({ appScope = null }) {
     [defaultsHook, ezy, client, emptyClient.id],
   );
   const onSaveContent = useCallback((id, md) => contentHook.updateContent(id, md), [contentHook]);
+  // Tool-Ergebnis → Content-Entwurf (EzyRank-Ausbau 2026-08-18): legt eine echte
+  // content_items-Zeile an (Status draft) — Weiterbearbeitung im Content-Bereich.
+  const onCreateContent = useCallback((input) => contentHook.create(input), [contentHook]);
   // Globaler „Aktualisieren": remountet den Inhaltsbereich (alle Dashboard-Hooks
   // holen frische Daten) UND lädt die App-Level-Hooks neu. Auf jedem Tab im Header.
   const [refreshNonce, setRefreshNonce] = useState(0);
@@ -15145,7 +15455,7 @@ function App({ appScope = null }) {
             <TasksDashboard selectedClient={client} />
           )}
           {!isViewer && hasClients && page === "tools" && (
-            <ToolsPage selectedClient={client} tools={tools} />
+            <ToolsPage selectedClient={client} tools={tools} onSaveDraft={onCreateContent} />
           )}
           {!isViewer && hasClients && page === "content" && (
             <ContentPage

@@ -7,8 +7,9 @@
 // ATRP = "ehrlicher" Ø ueber ALLE Punkte (nicht gefunden = 21), Abdeckung =
 // Anteil Punkte mit Ranking.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MapPin, RefreshCw } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import DataStatus from "@/ezy/DataStatus";
 
 // Ezy One CD (Light Studio) — Teilmenge der EzyOneApp-Palette, Werte identisch.
 const C = {
@@ -278,20 +279,25 @@ export default function LocalGridDashboard({ selectedClient }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* Kopf: Messdatum + Grid-Meta + Aktualisieren */}
+      {/* Kopf: Datenstatus (Quelle, Stand, Aktion) + Grid-Meta */}
+      <DataStatus
+        items={[
+          {
+            source: "Local Grid (DataForSEO Maps)",
+            lastAt: String(latest.date || latest.fetched_at || "").slice(0, 10) || null,
+            // Wochenkadenz (freitags): nach 9 Tagen gilt die Messung als veraltet.
+            staleDays: 9,
+            detail: "wöchentlicher Maps-Scan, freitags",
+          },
+        ]}
+        action={{ label: "Aktualisieren", onClick: () => setNonce((x) => x + 1) }}
+      />
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <span style={{ fontSize: 12.5, color: C.textMuted }}>
           Messung vom <b style={{ color: C.text }}>{String(latest.date || latest.fetched_at || "").slice(0, 10)}</b>
           {" • "}{n}×{n}-Raster, {fmt(latest.stepKm)} km Schritt
           {latest.center ? ` • Zentrum ${fmt(latest.center.lat, 4)}, ${fmt(latest.center.lng, 4)}` : ""}
         </span>
-        <button
-          onClick={() => setNonce((x) => x + 1)}
-          title="Neu laden"
-          style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 8, padding: "4px 8px", cursor: "pointer", color: C.textMuted, display: "flex", alignItems: "center", gap: 5, fontSize: 11.5 }}
-        >
-          <RefreshCw size={12} /> Neu laden
-        </button>
       </div>
 
       {/* Keyword-Pills */}

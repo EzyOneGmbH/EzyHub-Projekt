@@ -22,17 +22,19 @@ const RUN_CACHE_TTL_MS = 3 * 60 * 1000;
 export function useEzyLatestRun(
   clientId: string | undefined,
   auditType: string,
-): { run: LatestRun; loading: boolean; refresh: () => Promise<void> } {
+): { run: LatestRun; loading: boolean; refresh: (force?: boolean) => Promise<void> } {
   const [run, setRun] = useState<LatestRun>(null);
   const [loading, setLoading] = useState(false);
 
-  const refresh = useCallback(async () => {
+  // force === true (strikt, damit onClick-Events nicht als force zaehlen)
+  // umgeht den Sitzungs-Cache — fuer den "Aktualisieren"-Button der DataStatus-Leiste.
+  const refresh = useCallback(async (force?: boolean) => {
     if (!clientId || !isUuid(clientId)) {
       setRun(null);
       return;
     }
     const cacheId = `${clientId}|${auditType}`;
-    const hit = RUN_CACHE.get(cacheId);
+    const hit = force === true ? undefined : RUN_CACHE.get(cacheId);
     if (hit && Date.now() - hit.at < RUN_CACHE_TTL_MS) {
       setRun(hit.run);
       return;
