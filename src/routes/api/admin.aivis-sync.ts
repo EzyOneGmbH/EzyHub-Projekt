@@ -649,8 +649,7 @@ async function jobSerpAi(c: any, limitOverride?: number) {
   // Keyword-Deckel: expliziter Override > score-config.serp.keywords > Env-Default.
   const kwLimit =
     limitOverride ??
-    Number((SCORE_CFG as any).serp?.keywords ?? DFS_SERP_KEYWORDS) ??
-    DFS_SERP_KEYWORDS;
+    (Number((SCORE_CFG as any).serp?.keywords ?? DFS_SERP_KEYWORDS) || DFS_SERP_KEYWORDS);
   const allPairs = await gscTopQueryCountryPairs(c, kwLimit || 25000); // 0 = alle
   if (!allPairs.length)
     return { skipped: "keine GSC-Keywords (gsc_property/Google-Verbindung prüfen)" };

@@ -45,7 +45,9 @@ function loadLocal(clientId: string): EzyDefaults | null {
 function saveLocal(clientId: string, defaults: EzyDefaults) {
   try {
     localStorage.setItem(`${LOCAL_KEY_PREFIX}${clientId}`, JSON.stringify(defaults));
-  } catch {}
+  } catch {
+    /* bewusst still — Fallback greift */
+  }
 }
 
 export function useEzyDefaults(clientId?: string | null) {
@@ -85,7 +87,9 @@ export function useEzyDefaults(clientId?: string | null) {
           setLoading(false);
           return;
         }
-      } catch {}
+      } catch {
+        /* bewusst still — Fallback greift */
+      }
       // Fall back to org defaults
       const { data: orgData } = await supabase
         .from("customer_defaults")
@@ -137,7 +141,9 @@ export function useEzyDefaults(clientId?: string | null) {
               defaults: normalized,
             });
           }
-        } catch {}
+        } catch {
+          /* bewusst still — Fallback greift */
+        }
       } else {
         const { data: existing } = await supabase
           .from("customer_defaults")

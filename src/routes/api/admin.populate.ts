@@ -598,7 +598,7 @@ async function jobGscQueries(c: any, uid: string, days: number, forceDfs = false
       const adsClean = (raw: string) =>
         String(raw)
           .normalize("NFC")
-          .replace(/[​-‏﻿­⁠]/g, "")
+          .replace(/[\u200B-\u200F\uFEFF\u00AD\u2060]/g, "")
           .replace(/\s+/g, " ")
           .trim()
           .toLowerCase();

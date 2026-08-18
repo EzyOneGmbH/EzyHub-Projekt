@@ -7,8 +7,8 @@ import { requireTeamRole } from "@/server/team-guard.server";
 //  - Organisation serverseitig ermittelt und weitergereicht; Request-IDs werden
 //    formvalidiert und nie ungeprueft durchgereicht.
 
-const ID_RE = /^[A-Za-z0-9._:\-]{1,200}$/;
-const STATUS_RE = /^[a-z_\-]{2,32}$/;
+const ID_RE = /^[A-Za-z0-9._:-]{1,200}$/;
+const STATUS_RE = /^[a-z_-]{2,32}$/;
 
 export const Route = createFileRoute("/api/agent/approvals")({
   server: {

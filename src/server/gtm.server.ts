@@ -16,7 +16,9 @@ async function gFetch(token: string, url: string) {
   let json: any = null;
   try {
     json = text ? JSON.parse(text) : null;
-  } catch {}
+  } catch {
+    /* bewusst still — Fallback greift */
+  }
   if (!res.ok)
     return {
       ok: false,
