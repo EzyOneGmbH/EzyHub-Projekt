@@ -3,10 +3,44 @@
 // Zweck: /ezyai und /ezyai-analyse brauchen den 1.2-MB-Monolith-Chunk nicht
 // mehr; der Monolith importiert dieselben Komponenten von hier.
 import { createContext, useContext, useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { AlertCircle, Bot, CheckCircle, HelpCircle, MessageSquare, Plus, Sparkles, X } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowRight,
+  Bot,
+  CheckCircle,
+  HelpCircle,
+  MessageSquare,
+  Plus,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { C } from "./theme";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { SKILL_CATALOG } from "@/ezy/data/skillCatalog";
+
+// Parse ```agent-spec fenced JSON blocks the Co-Pilot emits when proposing agents.
+function parseAgentSpecs(text) {
+  const specs = [];
+  const re = /```agent-spec\s*\n([\s\S]*?)```/g;
+  let m;
+  while ((m = re.exec(text || "")) !== null) {
+    try {
+      const obj = JSON.parse(m[1].trim());
+      if (obj && obj.name && obj.instructions) specs.push(obj);
+    } catch {
+      /* ignore malformed block */
+    }
+  }
+  return specs;
+}
+
+// Strip agent-spec blocks from the displayed text (they're rendered as cards instead).
+function stripAgentSpecs(text) {
+  return String(text || "")
+    .replace(/```agent-spec\s*\n[\s\S]*?```/g, "")
+    .trim();
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TOAST

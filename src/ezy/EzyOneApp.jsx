@@ -12762,27 +12762,6 @@ function SkillPicker({ selected, onChange }) {
   );
 }
 
-// Parse ```agent-spec fenced JSON blocks the Co-Pilot emits when proposing agents.
-function parseAgentSpecs(text) {
-  const specs = [];
-  const re = /```agent-spec\s*\n([\s\S]*?)```/g;
-  let m;
-  while ((m = re.exec(text || "")) !== null) {
-    try {
-      const obj = JSON.parse(m[1].trim());
-      if (obj && obj.name && obj.instructions) specs.push(obj);
-    } catch {
-      /* ignore malformed block */
-    }
-  }
-  return specs;
-}
-
-// Strip agent-spec blocks from the displayed text (they're rendered as cards instead).
-function stripAgentSpecs(text) {
-  return String(text || "").replace(/```agent-spec\s*\n[\s\S]*?```/g, "").trim();
-}
-
 // ── Activity / Runs tab ──────────────────────────────────────────────────────
 // Live view of agent runs (running/done/error), active schedules, and the
 // per-client protocol (Obsidian vault page) — so you can verify at a glance
