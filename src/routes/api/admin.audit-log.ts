@@ -13,13 +13,20 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 async function requireOwnerAdmin(request: Request): Promise<{ organizationId: string } | Response> {
   const url = process.env.SUPABASE_URL;
   const anon = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
-  if (!url || !anon) return Response.json({ ok: false, error: "Server not configured" }, { status: 503 });
-  const sb = createClient(url, anon, { global: { headers: { Authorization: request.headers.get("authorization") ?? "" } } });
+  if (!url || !anon)
+    return Response.json({ ok: false, error: "Server not configured" }, { status: 503 });
+  const sb = createClient(url, anon, {
+    global: { headers: { Authorization: request.headers.get("authorization") ?? "" } },
+  });
   const { data } = await sb.auth.getUser();
   if (!data.user) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   const { data: m } = await (supabaseAdmin as any)
-    .from("app_users").select("role, organization_id")
-    .eq("user_id", data.user.id).order("role", { ascending: true }).limit(1).maybeSingle();
+    .from("app_users")
+    .select("role, organization_id")
+    .eq("user_id", data.user.id)
+    .order("role", { ascending: true })
+    .limit(1)
+    .maybeSingle();
   const role = (m?.role as string) || "viewer";
   if ((role !== "owner" && role !== "admin") || !m?.organization_id)
     return Response.json({ ok: false, error: "Nur Owner/Admin" }, { status: 403 });
@@ -47,7 +54,9 @@ export const Route = createFileRoute("/api/admin/audit-log")({
         const limit = Math.max(1, Math.min(Number(sp.get("limit")) || 50, 200));
         let q = (supabaseAdmin as any)
           .from("admin_audit_log")
-          .select("id, at, user_id, target_table, target_id, client_id, action, old_value, new_value")
+          .select(
+            "id, at, user_id, target_table, target_id, client_id, action, old_value, new_value",
+          )
           .eq("organization_id", u.organizationId)
           .order("id", { ascending: false })
           .limit(limit);
@@ -56,13 +65,17 @@ export const Route = createFileRoute("/api/admin/audit-log")({
         if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 
         // E-Mail-Anzeige der handelnden Nutzer (auth.users via Admin-API-View).
-        const ids = [...new Set((data ?? []).map((r: any) => r.user_id).filter(Boolean))] as string[];
+        const ids = [
+          ...new Set((data ?? []).map((r: any) => r.user_id).filter(Boolean)),
+        ] as string[];
         const mails: Record<string, string> = {};
         for (const id of ids.slice(0, 25)) {
           try {
             const { data: au } = await (supabaseAdmin as any).auth.admin.getUserById(id);
             if (au?.user?.email) mails[id] = au.user.email;
-          } catch { /* Anzeige-only */ }
+          } catch {
+            /* Anzeige-only */
+          }
         }
         return Response.json({
           ok: true,

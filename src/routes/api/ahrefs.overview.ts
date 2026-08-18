@@ -23,7 +23,10 @@ export const Route = createFileRoute("/api/ahrefs/overview")({
       POST: async ({ request }) => {
         const auth = dfsAuth();
         if (!auth) {
-          return Response.json({ error: "DATAFORSEO_LOGIN/PASSWORD not configured" }, { status: 503 });
+          return Response.json(
+            { error: "DATAFORSEO_LOGIN/PASSWORD not configured" },
+            { status: 503 },
+          );
         }
 
         const supabaseUrl = process.env.SUPABASE_URL;

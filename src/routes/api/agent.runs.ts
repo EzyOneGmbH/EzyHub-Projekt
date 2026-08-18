@@ -22,7 +22,11 @@ export const Route = createFileRoute("/api/agent/runs")({
       GET: async ({ request }) => {
         const base = process.env.AGENT_BASE_URL;
         const secret = process.env.AGENT_SHARED_SECRET;
-        if (!base || !secret) return Response.json({ ok: false, error: "Agent service not configured" }, { status: 503 });
+        if (!base || !secret)
+          return Response.json(
+            { ok: false, error: "Agent service not configured" },
+            { status: 503 },
+          );
         const unauth = await requireUser(request);
         if (unauth) return unauth;
         const b = base.replace(/\/+$/, "");
@@ -31,7 +35,9 @@ export const Route = createFileRoute("/api/agent/runs")({
           const [runsRes, schedRes, upRes, costRes] = await Promise.all([
             fetch(`${b}/jobs`, { headers, signal: AbortSignal.timeout(10_000) }),
             fetch(`${b}/schedules`, { headers, signal: AbortSignal.timeout(10_000) }),
-            fetch(`${b}/uptime`, { headers, signal: AbortSignal.timeout(10_000) }).catch(() => null),
+            fetch(`${b}/uptime`, { headers, signal: AbortSignal.timeout(10_000) }).catch(
+              () => null,
+            ),
             fetch(`${b}/costs`, { headers, signal: AbortSignal.timeout(10_000) }).catch(() => null),
           ]);
           const runsJson = await runsRes.json().catch(() => ({}));
@@ -51,7 +57,10 @@ export const Route = createFileRoute("/api/agent/runs")({
             { headers: { "Cache-Control": "no-store" } },
           );
         } catch (e) {
-          return Response.json({ ok: false, error: String((e as Error)?.message || e) }, { status: 502 });
+          return Response.json(
+            { ok: false, error: String((e as Error)?.message || e) },
+            { status: 502 },
+          );
         }
       },
     },

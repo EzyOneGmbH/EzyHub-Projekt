@@ -19,15 +19,25 @@ export async function requireTeamRole(
 ): Promise<TeamKontext | Response> {
   const url = process.env.SUPABASE_URL;
   const anon = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
-  if (!url || !anon) return Response.json({ ok: false, error: "Server not configured" }, { status: 503 });
-  const sb = createClient(url, anon, { global: { headers: { Authorization: request.headers.get("authorization") ?? "" } } });
+  if (!url || !anon)
+    return Response.json({ ok: false, error: "Server not configured" }, { status: 503 });
+  const sb = createClient(url, anon, {
+    global: { headers: { Authorization: request.headers.get("authorization") ?? "" } },
+  });
   const { data } = await sb.auth.getUser();
   if (!data.user) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   const { data: m } = await (supabaseAdmin as any)
-    .from("app_users").select("role, organization_id")
-    .eq("user_id", data.user.id).order("role", { ascending: true }).limit(1).maybeSingle();
+    .from("app_users")
+    .select("role, organization_id")
+    .eq("user_id", data.user.id)
+    .order("role", { ascending: true })
+    .limit(1)
+    .maybeSingle();
   const role = (m?.role as string) || "viewer";
   if (!m?.organization_id || !rolleErlaubt(role, min))
-    return Response.json({ ok: false, error: min === "admin" ? "Nur Owner/Admin" : "Kein Team-Zugriff" }, { status: 403 });
+    return Response.json(
+      { ok: false, error: min === "admin" ? "Nur Owner/Admin" : "Kein Team-Zugriff" },
+      { status: 403 },
+    );
   return { userId: data.user.id, organizationId: m.organization_id as string, role };
 }

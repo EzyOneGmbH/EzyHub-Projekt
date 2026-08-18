@@ -36,9 +36,12 @@ describe("seasonalHistoricalEstimate (saisonal, NICHT Jahresdurchschnitt)", () =
     const cost: Record<string, number> = {
       "2025-07": 1000, // Vorjahresmonat
       // letzte 3 abgeschlossene Monate 2026 und ihr Vorjahr (Trend = 1.2)
-      "2026-06": 1200, "2025-06": 1000,
-      "2026-05": 1200, "2025-05": 1000,
-      "2026-04": 1200, "2025-04": 1000,
+      "2026-06": 1200,
+      "2025-06": 1000,
+      "2026-05": 1200,
+      "2025-05": 1000,
+      "2026-04": 1200,
+      "2025-04": 1000,
     };
     const est = seasonalHistoricalEstimate(cost, 2026, 7);
     expect(est.value).toBeCloseTo(1200, 0); // 1000 * 1.2
@@ -72,7 +75,14 @@ describe("resolveBudgetAnchor (Reihenfolge client -> account -> historical -> no
 
   it("client hat Vorrang und fragt das Konto gar nicht ab", async () => {
     let called = false;
-    const a = await resolveBudgetAnchor(async () => { called = true; return { ok: true, rows: [] }; }, 5000, now);
+    const a = await resolveBudgetAnchor(
+      async () => {
+        called = true;
+        return { ok: true, rows: [] };
+      },
+      5000,
+      now,
+    );
     expect(a.source).toBe("client");
     expect(a.monthlyBudgetChf).toBe(5000);
     expect(called).toBe(false);
@@ -96,13 +106,41 @@ describe("resolveBudgetAnchor (Reihenfolge client -> account -> historical -> no
       return {
         ok: true,
         rows: [
-          { campaign: { name: "A" }, segments: { month: "2025-07-01" }, metrics: { costMicros: 1000_000000 } },
-          { campaign: { name: "A" }, segments: { month: "2026-06-01" }, metrics: { costMicros: 1200_000000 } },
-          { campaign: { name: "A" }, segments: { month: "2025-06-01" }, metrics: { costMicros: 1000_000000 } },
-          { campaign: { name: "A" }, segments: { month: "2026-05-01" }, metrics: { costMicros: 1200_000000 } },
-          { campaign: { name: "A" }, segments: { month: "2025-05-01" }, metrics: { costMicros: 1000_000000 } },
-          { campaign: { name: "A" }, segments: { month: "2026-04-01" }, metrics: { costMicros: 1200_000000 } },
-          { campaign: { name: "A" }, segments: { month: "2025-04-01" }, metrics: { costMicros: 1000_000000 } },
+          {
+            campaign: { name: "A" },
+            segments: { month: "2025-07-01" },
+            metrics: { costMicros: 1000_000000 },
+          },
+          {
+            campaign: { name: "A" },
+            segments: { month: "2026-06-01" },
+            metrics: { costMicros: 1200_000000 },
+          },
+          {
+            campaign: { name: "A" },
+            segments: { month: "2025-06-01" },
+            metrics: { costMicros: 1000_000000 },
+          },
+          {
+            campaign: { name: "A" },
+            segments: { month: "2026-05-01" },
+            metrics: { costMicros: 1200_000000 },
+          },
+          {
+            campaign: { name: "A" },
+            segments: { month: "2025-05-01" },
+            metrics: { costMicros: 1000_000000 },
+          },
+          {
+            campaign: { name: "A" },
+            segments: { month: "2026-04-01" },
+            metrics: { costMicros: 1200_000000 },
+          },
+          {
+            campaign: { name: "A" },
+            segments: { month: "2025-04-01" },
+            metrics: { costMicros: 1000_000000 },
+          },
         ],
       };
     };

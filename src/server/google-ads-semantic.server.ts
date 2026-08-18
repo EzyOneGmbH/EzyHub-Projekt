@@ -35,7 +35,10 @@ export type SemanticDecision =
   | { action: "reject"; proposal: SemanticProposal; reason: string };
 
 // Pure, testbar: wendet alle deterministischen Leitplanken an.
-export function checkSemanticProposals(proposals: SemanticProposal[], ctx: SemanticCheckContext): SemanticDecision[] {
+export function checkSemanticProposals(
+  proposals: SemanticProposal[],
+  ctx: SemanticCheckContext,
+): SemanticDecision[] {
   const out: SemanticDecision[] = [];
   const seenThisRun = new Set<string>();
   let queued = 0;
@@ -73,11 +76,19 @@ export function checkSemanticProposals(proposals: SemanticProposal[], ctx: Seman
     }
     const dedupKey = `${SEMANTIC_ACTION_TYPE}::${p.campaign} | ${p.term}`;
     if (ctx.pendingKeys.has(dedupKey)) {
-      out.push({ action: "reject", proposal: p, reason: "identischer Vorschlag wartet bereits auf Freigabe" });
+      out.push({
+        action: "reject",
+        proposal: p,
+        reason: "identischer Vorschlag wartet bereits auf Freigabe",
+      });
       continue;
     }
     if (queued >= MAX_SEMANTIC_PER_RUN) {
-      out.push({ action: "reject", proposal: p, reason: `Limit ${MAX_SEMANTIC_PER_RUN}/Run erreicht - naechster Lauf` });
+      out.push({
+        action: "reject",
+        proposal: p,
+        reason: `Limit ${MAX_SEMANTIC_PER_RUN}/Run erreicht - naechster Lauf`,
+      });
       continue;
     }
     seenThisRun.add(norm);
@@ -96,7 +107,13 @@ export async function queueSemanticNegatives(p: {
   ok: boolean;
   queued: number;
   rejected: Array<{ term: string; reason: string }>;
-  actions: Array<{ actionId: string; term: string; campaign: string; kategorie: string; costChf: number }>;
+  actions: Array<{
+    actionId: string;
+    term: string;
+    campaign: string;
+    kategorie: string;
+    costChf: number;
+  }>;
   error?: string;
 }> {
   const { data: client } = await supabaseAdmin
@@ -104,7 +121,8 @@ export async function queueSemanticNegatives(p: {
     .select("id, name, google_ads_customer")
     .eq("id", p.clientId)
     .maybeSingle();
-  if (!client) return { ok: false, queued: 0, rejected: [], actions: [], error: "Client not found" };
+  if (!client)
+    return { ok: false, queued: 0, rejected: [], actions: [], error: "Client not found" };
   const cfg = await loadConfig(p.clientId);
   const customerId = String(client.google_ads_customer ?? "").replace(/\D/g, "");
 
@@ -128,7 +146,9 @@ export async function queueSemanticNegatives(p: {
      WHERE campaign_criterion.negative = TRUE AND campaign_criterion.type = 'KEYWORD' LIMIT 1000`,
   );
   const existingNegatives = new Set(
-    (negs.rows ?? []).map((r) => normalizeTerm(String(r.campaignCriterion?.keyword?.text ?? ""))).filter(Boolean),
+    (negs.rows ?? [])
+      .map((r) => normalizeTerm(String(r.campaignCriterion?.keyword?.text ?? "")))
+      .filter(Boolean),
   );
 
   // Offene Approvals (Dedupe).
@@ -148,7 +168,18 @@ export async function queueSemanticNegatives(p: {
 
   const now = new Date();
   const expires = new Date(now.getTime() + 7 * 24 * 3600 * 1000).toISOString();
-  const result = { ok: true, queued: 0, rejected: [] as Array<{ term: string; reason: string }>, actions: [] as Array<{ actionId: string; term: string; campaign: string; kategorie: string; costChf: number }> };
+  const result = {
+    ok: true,
+    queued: 0,
+    rejected: [] as Array<{ term: string; reason: string }>,
+    actions: [] as Array<{
+      actionId: string;
+      term: string;
+      campaign: string;
+      kategorie: string;
+      costChf: number;
+    }>,
+  };
 
   for (const d of decisions) {
     if (d.action === "reject") {
@@ -156,9 +187,13 @@ export async function queueSemanticNegatives(p: {
       // Verworfene Konflikte transparent ins Changelog (report-only, wie Rule 1).
       if (d.reason.startsWith("Konflikt")) {
         await supabaseAdmin.from("ads_changelog").insert({
-          client_id: p.clientId, customer_id: customerId, run_id: p.runId,
-          action_type: "negative_conflict", action_class: "report-only",
-          entity: `${d.proposal.campaign} | semantisch`, before_value: "",
+          client_id: p.clientId,
+          customer_id: customerId,
+          run_id: p.runId,
+          action_type: "negative_conflict",
+          action_class: "report-only",
+          entity: `${d.proposal.campaign} | semantisch`,
+          before_value: "",
           after_value: `NICHT ausschliessen: "${d.proposal.term}"`,
           rationale: `${d.reason} - semantischer Vorschlag (${d.proposal.kategorie}) verworfen.`,
           status: "rejected",
@@ -177,34 +212,71 @@ export async function queueSemanticNegatives(p: {
     const { data: logRow, error: logErr } = await supabaseAdmin
       .from("ads_changelog")
       .insert({
-        client_id: p.clientId, customer_id: customerId, run_id: p.runId,
-        action_type: SEMANTIC_ACTION_TYPE, action_class: "approval-needed", entity,
-        before_value: "", after_value: `+ "${pr.term}" (negative ${pr.matchType.toLowerCase()})`,
-        rationale, status: "pending",
+        client_id: p.clientId,
+        customer_id: customerId,
+        run_id: p.runId,
+        action_type: SEMANTIC_ACTION_TYPE,
+        action_class: "approval-needed",
+        entity,
+        before_value: "",
+        after_value: `+ "${pr.term}" (negative ${pr.matchType.toLowerCase()})`,
+        rationale,
+        status: "pending",
       })
-      .select("id").maybeSingle();
+      .select("id")
+      .maybeSingle();
     if (logErr) {
-      result.rejected.push({ term: pr.term, reason: `Changelog-Insert fehlgeschlagen: ${logErr.message}` });
+      result.rejected.push({
+        term: pr.term,
+        reason: `Changelog-Insert fehlgeschlagen: ${logErr.message}`,
+      });
       continue;
     }
     const { error: apprErr } = await supabaseAdmin.from("ads_approvals").insert({
-      client_id: p.clientId, customer_id: customerId, run_id: p.runId, action_id: actionId,
-      type: SEMANTIC_ACTION_TYPE, entity, current_value: "", proposed_value: `+ "${pr.term}" (negative ${pr.matchType.toLowerCase()})`,
-      rationale, estimated_impact: `Vermeidet kuenftige Verschwendung (~CHF ${pr.costChf.toFixed(0)}/30d des Begriffs)`,
-      payload: { kind: "negative", campaign: pr.campaign, term: pr.term, matchType: pr.matchType, semantic: true },
-      status: "pending", expires_at: expires, changelog_id: logRow?.id ?? null,
+      client_id: p.clientId,
+      customer_id: customerId,
+      run_id: p.runId,
+      action_id: actionId,
+      type: SEMANTIC_ACTION_TYPE,
+      entity,
+      current_value: "",
+      proposed_value: `+ "${pr.term}" (negative ${pr.matchType.toLowerCase()})`,
+      rationale,
+      estimated_impact: `Vermeidet kuenftige Verschwendung (~CHF ${pr.costChf.toFixed(0)}/30d des Begriffs)`,
+      payload: {
+        kind: "negative",
+        campaign: pr.campaign,
+        term: pr.term,
+        matchType: pr.matchType,
+        semantic: true,
+      },
+      status: "pending",
+      expires_at: expires,
+      changelog_id: logRow?.id ?? null,
     });
     if (apprErr) {
       // Ohne Approval-Zeile ist der Vorschlag nicht entscheidbar - Changelog-Zeile
       // schliessen und als Fehler melden statt falschem "queued" (z.B. UNIQUE-
       // Verletzung (run_id, action_id), wenn der Aufrufer eine alte runId schickt).
       if (logRow?.id)
-        await supabaseAdmin.from("ads_changelog").update({ status: "rejected" }).eq("id", logRow.id);
-      result.rejected.push({ term: pr.term, reason: `Approval-Insert fehlgeschlagen: ${apprErr.message}` });
+        await supabaseAdmin
+          .from("ads_changelog")
+          .update({ status: "rejected" })
+          .eq("id", logRow.id);
+      result.rejected.push({
+        term: pr.term,
+        reason: `Approval-Insert fehlgeschlagen: ${apprErr.message}`,
+      });
       continue;
     }
     result.queued += 1;
-    result.actions.push({ actionId, term: pr.term, campaign: pr.campaign, kategorie: pr.kategorie, costChf: pr.costChf });
+    result.actions.push({
+      actionId,
+      term: pr.term,
+      campaign: pr.campaign,
+      kategorie: pr.kategorie,
+      costChf: pr.costChf,
+    });
   }
   return result;
 }

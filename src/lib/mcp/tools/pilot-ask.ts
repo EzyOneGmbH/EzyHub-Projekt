@@ -27,18 +27,30 @@ export default defineTool({
       return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
     }
     const userId = ctx.getUserId();
-    if (!userId) return { content: [{ type: "text", text: "Kein Nutzer im Token." }], isError: true };
+    if (!userId)
+      return { content: [{ type: "text", text: "Kein Nutzer im Token." }], isError: true };
     const scope = await pilotScope(userId);
-    if (!scope) return { content: [{ type: "text", text: "Kein Organisations-Zugang." }], isError: true };
+    if (!scope)
+      return { content: [{ type: "text", text: "Kein Organisations-Zugang." }], isError: true };
     if (pilotThrottled(userId)) {
-      return { content: [{ type: "text", text: "Zu viele Anfragen — bitte in einer Stunde erneut versuchen." }], isError: true };
+      return {
+        content: [
+          { type: "text", text: "Zu viele Anfragen — bitte in einer Stunde erneut versuchen." },
+        ],
+        isError: true,
+      };
     }
     const out = await pilotAskUpstream({ question, mode, scope });
     if (!out.ok) {
-      return { content: [{ type: "text", text: `Fehler: ${out.error || `HTTP ${out.status}`}` }], isError: true };
+      return {
+        content: [{ type: "text", text: `Fehler: ${out.error || `HTTP ${out.status}`}` }],
+        isError: true,
+      };
     }
     const sources = (out.sources || []) as string[];
-    const text = sources.length ? `${out.answer}\n\nQuellen: ${sources.join(", ")}` : String(out.answer || "");
+    const text = sources.length
+      ? `${out.answer}\n\nQuellen: ${sources.join(", ")}`
+      : String(out.answer || "");
     return {
       content: [{ type: "text", text }],
       structuredContent: { answer: out.answer, sources },

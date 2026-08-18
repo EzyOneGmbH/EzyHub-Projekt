@@ -28,7 +28,9 @@ export function useEzyServiceMatrix() {
         }
         setMatrix(m);
       });
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [authLoading, organizationId]);
 
   /** true, wenn MINDESTENS EINER der Keys für den Kunden aktiv ist.

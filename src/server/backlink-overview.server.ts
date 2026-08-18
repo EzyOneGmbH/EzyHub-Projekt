@@ -9,7 +9,8 @@
 const DFS_BASE = "https://api.dataforseo.com/v3";
 
 export function dfsAuth(): string | null {
-  const login = process.env.DATAFORSEO_LOGIN, pass = process.env.DATAFORSEO_PASSWORD;
+  const login = process.env.DATAFORSEO_LOGIN,
+    pass = process.env.DATAFORSEO_PASSWORD;
   if (!login || !pass) return null;
   return "Basic " + Buffer.from(`${login}:${pass}`).toString("base64");
 }
@@ -37,7 +38,10 @@ async function dfsCall<T = any>(
     if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
     const taskObj = j?.tasks?.[0];
     if (!taskObj || (taskObj.status_code && taskObj.status_code >= 40000)) {
-      return { ok: false, error: `DFS ${taskObj?.status_code ?? "?"}: ${String(taskObj?.status_message ?? "kein Ergebnis").slice(0, 120)}` };
+      return {
+        ok: false,
+        error: `DFS ${taskObj?.status_code ?? "?"}: ${String(taskObj?.status_message ?? "kein Ergebnis").slice(0, 120)}`,
+      };
     }
     return { ok: true, data: (taskObj.result?.[0] ?? null) as T };
   } catch (e) {
@@ -48,7 +52,10 @@ async function dfsCall<T = any>(
 }
 
 export function normalizeDomain(raw: string): string {
-  return String(raw).replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/^www\./, "");
+  return String(raw)
+    .replace(/^https?:\/\//, "")
+    .replace(/\/.*$/, "")
+    .replace(/^www\./, "");
 }
 
 export type BacklinkOverview = {
@@ -66,19 +73,35 @@ export type BacklinkOverview = {
 
 // Führt die 3 DataForSEO-Abrufe für eine (bereits normalisierte) Domain aus und
 // mappt sie in die bestehenden Panel-Schlüssel (Panel zeigt rohes JSON).
-export async function fetchBacklinkOverview(domain: string, auth: string): Promise<BacklinkOverview> {
+export async function fetchBacklinkOverview(
+  domain: string,
+  auth: string,
+): Promise<BacklinkOverview> {
   const dateFrom = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
 
   // Parallel: Summary (rank + Backlinks), History (Refdomains 90d), Labs (organisch CH).
   const [summary, history, labs] = await Promise.all([
-    dfsCall("backlinks/summary/live", { target: domain, include_subdomains: true, backlinks_status_type: "live" }, auth),
+    dfsCall(
+      "backlinks/summary/live",
+      { target: domain, include_subdomains: true, backlinks_status_type: "live" },
+      auth,
+    ),
     dfsCall("backlinks/history/live", { target: domain, date_from: dateFrom }, auth),
-    dfsCall("dataforseo_labs/google/domain_rank_overview/live", { target: domain, location_code: 2756, language_code: "de" }, auth),
+    dfsCall(
+      "dataforseo_labs/google/domain_rank_overview/live",
+      { target: domain, location_code: 2756, language_code: "de" },
+      auth,
+    ),
   ]);
 
   const s: any = summary.ok ? summary.data : null;
   const domain_rating = s
-    ? { rank: s.rank ?? null, backlinks: s.backlinks ?? null, referring_domains: s.referring_domains ?? null, _hinweis: "DataForSEO-Rank (0–1000), ersetzt Ahrefs Domain Rating" }
+    ? {
+        rank: s.rank ?? null,
+        backlinks: s.backlinks ?? null,
+        referring_domains: s.referring_domains ?? null,
+        _hinweis: "DataForSEO-Rank (0–1000), ersetzt Ahrefs Domain Rating",
+      }
     : null;
   const backlinks_stats = s
     ? {
@@ -92,11 +115,23 @@ export async function fetchBacklinkOverview(domain: string, auth: string): Promi
     : null;
   const histItems = history.ok ? ((history.data as any)?.items ?? []) : [];
   const refdomains_history = history.ok
-    ? { items: (histItems as any[]).map((it) => ({ date: it.date, referring_domains: it.referring_domains, backlinks: it.backlinks })) }
+    ? {
+        items: (histItems as any[]).map((it) => ({
+          date: it.date,
+          referring_domains: it.referring_domains,
+          backlinks: it.backlinks,
+        })),
+      }
     : null;
   const org = labs.ok ? ((labs.data as any)?.items?.[0]?.metrics?.organic ?? null) : null;
   const metrics = org
-    ? { organic_traffic_etv: org.etv ?? null, organic_keywords: org.count ?? null, pos_1: org.pos_1 ?? null, pos_2_3: org.pos_2_3 ?? null, pos_4_10: org.pos_4_10 ?? null }
+    ? {
+        organic_traffic_etv: org.etv ?? null,
+        organic_keywords: org.count ?? null,
+        pos_1: org.pos_1 ?? null,
+        pos_2_3: org.pos_2_3 ?? null,
+        pos_4_10: org.pos_4_10 ?? null,
+      }
     : null;
 
   return {

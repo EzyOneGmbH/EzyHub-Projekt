@@ -45,7 +45,9 @@ export async function submitRecommendations(p: {
     .eq("client_id", p.clientId)
     .eq("status", "open");
   if (error) return { ok: false, created: 0, recognized: 0, errors: [error.message] };
-  const openByKey = new Map((openRows ?? []).map((r) => [`${r.recommendation_type}::${r.entity}`, r.id]));
+  const openByKey = new Map(
+    (openRows ?? []).map((r) => [`${r.recommendation_type}::${r.entity}`, r.id]),
+  );
 
   const seenThisCall = new Set<string>();
   for (const r of p.recommendations) {
@@ -114,7 +116,6 @@ export async function setRecommendationStatus(p: {
   return { ok: true, httpStatus: 200, status: p.status };
 }
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Phase D: Wirkungsnachweis manueller Umsetzungen. ALLES deterministisch im
 // Kern: Fenster-Laengen, Metriken je Empfehlungstyp und Verdict-Regeln stehen
@@ -169,10 +170,24 @@ export function verdictFromWindows(
   recommendationType: string,
   before: OutcomeWindowAgg,
   after: OutcomeWindowAgg,
-): { metric: string; before: number | null; after: number | null; deltaPct: number | null; verdict: "improved" | "neutral" | "worsened" | "inconclusive"; reason: string } {
+): {
+  metric: string;
+  before: number | null;
+  after: number | null;
+  deltaPct: number | null;
+  verdict: "improved" | "neutral" | "worsened" | "inconclusive";
+  reason: string;
+} {
   const metric = PRIMARY_METRIC[recommendationType] ?? "cpa";
   if (before.costChf + after.costChf < MIN_COST_FOR_VERDICT)
-    return { metric, before: null, after: null, deltaPct: null, verdict: "inconclusive", reason: `zu wenig Daten (Kosten beider Fenster < CHF ${MIN_COST_FOR_VERDICT})` };
+    return {
+      metric,
+      before: null,
+      after: null,
+      deltaPct: null,
+      verdict: "inconclusive",
+      reason: `zu wenig Daten (Kosten beider Fenster < CHF ${MIN_COST_FOR_VERDICT})`,
+    };
 
   const r2 = (n: number) => Math.round(n * 10000) / 10000;
   const roas = (w: OutcomeWindowAgg) => (w.costChf > 0 ? w.conversionValue / w.costChf : null);
@@ -180,36 +195,77 @@ export function verdictFromWindows(
   const ctr = (w: OutcomeWindowAgg) => (w.impressions > 0 ? w.clicks / w.impressions : null);
 
   let b: number | null, a: number | null, higherIsBetter: boolean;
-  if (metric === "roas") { b = roas(before); a = roas(after); higherIsBetter = true; }
-  else if (metric === "cpa") { b = cpa(before); a = cpa(after); higherIsBetter = false; }
-  else if (metric === "ctr") { b = ctr(before); a = ctr(after); higherIsBetter = true; }
-  else {
+  if (metric === "roas") {
+    b = roas(before);
+    a = roas(after);
+    higherIsBetter = true;
+  } else if (metric === "cpa") {
+    b = cpa(before);
+    a = cpa(after);
+    higherIsBetter = false;
+  } else if (metric === "ctr") {
+    b = ctr(before);
+    a = ctr(after);
+    higherIsBetter = true;
+  } else {
     // cost_saved (keyword_pause): Kosten muessen sinken, ohne Conversions zu verlieren.
     const costDelta = before.costChf > 0 ? (after.costChf - before.costChf) / before.costChf : null;
-    const convDelta = before.conversions > 0 ? (after.conversions - before.conversions) / before.conversions : 0;
+    const convDelta =
+      before.conversions > 0 ? (after.conversions - before.conversions) / before.conversions : 0;
     if (costDelta == null)
-      return { metric, before: r2(before.costChf), after: r2(after.costChf), deltaPct: null, verdict: "inconclusive", reason: "keine Vorher-Kosten als Basis" };
-    const verdict = costDelta < -NEUTRAL_BAND && convDelta > -NEUTRAL_BAND ? "improved"
-      : costDelta > NEUTRAL_BAND ? "worsened"
-      : convDelta < -NEUTRAL_BAND ? "worsened"
-      : "neutral";
+      return {
+        metric,
+        before: r2(before.costChf),
+        after: r2(after.costChf),
+        deltaPct: null,
+        verdict: "inconclusive",
+        reason: "keine Vorher-Kosten als Basis",
+      };
+    const verdict =
+      costDelta < -NEUTRAL_BAND && convDelta > -NEUTRAL_BAND
+        ? "improved"
+        : costDelta > NEUTRAL_BAND
+          ? "worsened"
+          : convDelta < -NEUTRAL_BAND
+            ? "worsened"
+            : "neutral";
     return {
-      metric, before: r2(before.costChf), after: r2(after.costChf), deltaPct: r2(costDelta * 100),
+      metric,
+      before: r2(before.costChf),
+      after: r2(after.costChf),
+      deltaPct: r2(costDelta * 100),
       verdict,
       reason: `Kosten ${(costDelta * 100).toFixed(0)}%, Conversions ${(convDelta * 100).toFixed(0)}%`,
     };
   }
 
   if (b == null && a == null)
-    return { metric, before: null, after: null, deltaPct: null, verdict: "inconclusive", reason: `Primaermetrik ${metric} in beiden Fenstern nicht berechenbar (keine Basisdaten)` };
+    return {
+      metric,
+      before: null,
+      after: null,
+      deltaPct: null,
+      verdict: "inconclusive",
+      reason: `Primaermetrik ${metric} in beiden Fenstern nicht berechenbar (keine Basisdaten)`,
+    };
   if (b == null || a == null || b === 0)
-    return { metric, before: b == null ? null : r2(b), after: a == null ? null : r2(a), deltaPct: null, verdict: "inconclusive", reason: `Primaermetrik ${metric} nur in einem Fenster berechenbar` };
+    return {
+      metric,
+      before: b == null ? null : r2(b),
+      after: a == null ? null : r2(a),
+      deltaPct: null,
+      verdict: "inconclusive",
+      reason: `Primaermetrik ${metric} nur in einem Fenster berechenbar`,
+    };
 
   const delta = (a - b) / b;
   const improvedDir = higherIsBetter ? delta > NEUTRAL_BAND : delta < -NEUTRAL_BAND;
   const worsenedDir = higherIsBetter ? delta < -NEUTRAL_BAND : delta > NEUTRAL_BAND;
   return {
-    metric, before: r2(b), after: r2(a), deltaPct: r2(delta * 100),
+    metric,
+    before: r2(b),
+    after: r2(a),
+    deltaPct: r2(delta * 100),
     verdict: improvedDir ? "improved" : worsenedDir ? "worsened" : "neutral",
     reason: `${metric} ${b.toFixed(3)} -> ${a.toFixed(3)} (${(delta * 100).toFixed(0)}%)`,
   };
@@ -232,9 +288,29 @@ const PLAUSIBLE: Record<string, (e: { resourceType: string; isBidding: boolean }
 
 export function matchImplementationSuggestions(
   openRecs: Array<{ id: string; recommendation_type: string; entity: string; title: string }>,
-  events: Array<{ campaign: string | null; occurred_at: string; user_email: string; resource_type: string; is_bidding_change: boolean }>,
-): Array<{ recommendationId: string; title: string; entity: string; eventAt: string; eventUser: string; eventResourceType: string }> {
-  const out: Array<{ recommendationId: string; title: string; entity: string; eventAt: string; eventUser: string; eventResourceType: string }> = [];
+  events: Array<{
+    campaign: string | null;
+    occurred_at: string;
+    user_email: string;
+    resource_type: string;
+    is_bidding_change: boolean;
+  }>,
+): Array<{
+  recommendationId: string;
+  title: string;
+  entity: string;
+  eventAt: string;
+  eventUser: string;
+  eventResourceType: string;
+}> {
+  const out: Array<{
+    recommendationId: string;
+    title: string;
+    entity: string;
+    eventAt: string;
+    eventUser: string;
+    eventResourceType: string;
+  }> = [];
   for (const rec of openRecs) {
     const plausible = PLAUSIBLE[rec.recommendation_type] ?? (() => true);
     const firstSeg = rec.entity.split(" | ")[0]?.trim() ?? rec.entity;
@@ -246,8 +322,12 @@ export function matchImplementationSuggestions(
     );
     if (hit)
       out.push({
-        recommendationId: rec.id, title: rec.title, entity: rec.entity,
-        eventAt: String(hit.occurred_at), eventUser: hit.user_email, eventResourceType: hit.resource_type,
+        recommendationId: rec.id,
+        title: rec.title,
+        entity: rec.entity,
+        eventAt: String(hit.occurred_at),
+        eventUser: hit.user_email,
+        eventResourceType: hit.resource_type,
       });
     if (out.length >= 5) break;
   }
@@ -279,14 +359,24 @@ export async function computeRecommendationOutcomes(
     for (const w of OUTCOME_WINDOWS) {
       if (doneKeys.has(`${rec.id}|${w}`)) continue;
       const afterEnd = new Date(impl.getTime() + w * 86400000);
-      if (afterEnd.getTime() > Date.now()) { res.skipped += 1; continue; } // Fenster laeuft noch
+      if (afterEnd.getTime() > Date.now()) {
+        res.skipped += 1;
+        continue;
+      } // Fenster laeuft noch
 
       const campaign = parseCampaignFromEntity(rec.entity);
-      const insertBase = { recommendation_id: rec.id, client_id: clientId, window_days: w, campaign };
+      const insertBase = {
+        recommendation_id: rec.id,
+        client_id: clientId,
+        window_days: w,
+        campaign,
+      };
       if (!campaign) {
         await supabaseAdmin.from("ads_recommendation_outcomes").insert({
-          ...insertBase, metric_primary: PRIMARY_METRIC[rec.recommendation_type] ?? "cpa",
-          verdict: "inconclusive", reason: "Entitaet nicht auf Kampagnen-Ebene messbar (v1 misst Kampagnen)",
+          ...insertBase,
+          metric_primary: PRIMARY_METRIC[rec.recommendation_type] ?? "cpa",
+          verdict: "inconclusive",
+          reason: "Entitaet nicht auf Kampagnen-Ebene messbar (v1 misst Kampagnen)",
         });
         res.measured += 1;
         continue;
@@ -300,11 +390,18 @@ export async function computeRecommendationOutcomes(
       const afterTo = iso(new Date(impl.getTime() + (w - 1) * day));
       const agg = async (from: string, to: string): Promise<OutcomeWindowAgg> => {
         const r = await adsQuery(
-          clientId, googleAdsCustomer,
+          clientId,
+          googleAdsCustomer,
           `SELECT metrics.cost_micros, metrics.conversions, metrics.conversions_value, metrics.clicks, metrics.impressions
            FROM campaign WHERE campaign.name = '${campaign.replace(/'/g, "\\'")}' AND segments.date BETWEEN '${from}' AND '${to}'`,
         );
-        const out: OutcomeWindowAgg = { costChf: 0, conversions: 0, conversionValue: 0, clicks: 0, impressions: 0 };
+        const out: OutcomeWindowAgg = {
+          costChf: 0,
+          conversions: 0,
+          conversionValue: 0,
+          clicks: 0,
+          impressions: 0,
+        };
         for (const row of r.rows ?? []) {
           out.costChf += Number(row.metrics?.costMicros ?? 0) / 1_000_000;
           out.conversions += Number(row.metrics?.conversions ?? 0);
@@ -329,13 +426,21 @@ export async function computeRecommendationOutcomes(
         .limit(1);
       let v = verdictFromWindows(rec.recommendation_type, before, after);
       if ((conf?.length ?? 0) > 0 && v.verdict !== "inconclusive")
-        v = { ...v, verdict: "inconclusive", reason: `Confounder: weitere Aenderungen an "${campaign}" im Messfenster - Wirkung nicht isolierbar (${v.reason})` };
+        v = {
+          ...v,
+          verdict: "inconclusive",
+          reason: `Confounder: weitere Aenderungen an "${campaign}" im Messfenster - Wirkung nicht isolierbar (${v.reason})`,
+        };
 
       await supabaseAdmin.from("ads_recommendation_outcomes").insert({
-        ...insertBase, metric_primary: v.metric,
-        before_value: v.before, after_value: v.after, delta_pct: v.deltaPct,
+        ...insertBase,
+        metric_primary: v.metric,
+        before_value: v.before,
+        after_value: v.after,
+        delta_pct: v.deltaPct,
         metrics: { before, after } as unknown as Json,
-        verdict: v.verdict, reason: v.reason,
+        verdict: v.verdict,
+        reason: v.reason,
       });
       res.measured += 1;
     }
@@ -346,13 +451,41 @@ export async function computeRecommendationOutcomes(
 // Report-Pflichtblock "Offene Massnahmen" (Brief Phase C): offen / umgesetzt /
 // verworfen (Fenster ~ letzte Wochenkadenz), Top 5 offene, Alter der aeltesten.
 export async function openRecommendationsBlock(clientId: string): Promise<{
-  implementationSuggestions: Array<{ recommendationId: string; title: string; entity: string; eventAt: string; eventUser: string; eventResourceType: string }>;
-  implemented: Array<{ title: string; recommendation_type: string; entity: string; implementedAt: string | null; outcomes: Array<{ window_days: number; verdict: string; delta_pct: number | null; metric_primary: string; reason: string }> }>;
-  verdictsByType: Record<string, { improved: number; neutral: number; worsened: number; inconclusive: number }>;
+  implementationSuggestions: Array<{
+    recommendationId: string;
+    title: string;
+    entity: string;
+    eventAt: string;
+    eventUser: string;
+    eventResourceType: string;
+  }>;
+  implemented: Array<{
+    title: string;
+    recommendation_type: string;
+    entity: string;
+    implementedAt: string | null;
+    outcomes: Array<{
+      window_days: number;
+      verdict: string;
+      delta_pct: number | null;
+      metric_primary: string;
+      reason: string;
+    }>;
+  }>;
+  verdictsByType: Record<
+    string,
+    { improved: number; neutral: number; worsened: number; inconclusive: number }
+  >;
   open: number;
   implementedLast8d: number;
   dismissedLast8d: number;
-  top5: Array<{ title: string; recommendation_type: string; entity: string; expected_impact: string | null; ageDays: number }>;
+  top5: Array<{
+    title: string;
+    recommendation_type: string;
+    entity: string;
+    expected_impact: string | null;
+    ageDays: number;
+  }>;
   oldestOpenDays: number | null;
 }> {
   const since = new Date(Date.now() - 8 * 86400000).toISOString();
@@ -392,7 +525,10 @@ export async function openRecommendationsBlock(clientId: string): Promise<{
     .gte("occurred_at", new Date(Date.now() - 14 * 86400000).toISOString())
     .order("occurred_at", { ascending: false })
     .limit(100);
-  const implementationSuggestions = matchImplementationSuggestions(openFull ?? [], (events ?? []) as never);
+  const implementationSuggestions = matchImplementationSuggestions(
+    openFull ?? [],
+    (events ?? []) as never,
+  );
 
   const { data: implRows } = await supabaseAdmin
     .from("ads_recommendations")
@@ -408,7 +544,16 @@ export async function openRecommendationsBlock(clientId: string): Promise<{
         .select("recommendation_id, window_days, verdict, delta_pct, metric_primary, reason")
         .in("recommendation_id", implIds)
     : { data: [] as never[] };
-  const outByRec = new Map<string, Array<{ window_days: number; verdict: string; delta_pct: number | null; metric_primary: string; reason: string }>>();
+  const outByRec = new Map<
+    string,
+    Array<{
+      window_days: number;
+      verdict: string;
+      delta_pct: number | null;
+      metric_primary: string;
+      reason: string;
+    }>
+  >();
   for (const o of outcomes ?? []) {
     const l = outByRec.get(o.recommendation_id) ?? [];
     l.push(o as never);
@@ -440,9 +585,13 @@ export async function openRecommendationsBlock(clientId: string): Promise<{
   const best = new Map<string, { window: number; verdict: string }>();
   for (const o of allOut ?? []) {
     const cur = best.get(o.recommendation_id);
-    if (!cur || o.window_days > cur.window) best.set(o.recommendation_id, { window: o.window_days, verdict: o.verdict });
+    if (!cur || o.window_days > cur.window)
+      best.set(o.recommendation_id, { window: o.window_days, verdict: o.verdict });
   }
-  const verdictsByType: Record<string, { improved: number; neutral: number; worsened: number; inconclusive: number }> = {};
+  const verdictsByType: Record<
+    string,
+    { improved: number; neutral: number; worsened: number; inconclusive: number }
+  > = {};
   for (const [recId, v] of best) {
     const ty = typeById.get(recId) ?? "other";
     const agg2 = (verdictsByType[ty] ??= { improved: 0, neutral: 0, worsened: 0, inconclusive: 0 });

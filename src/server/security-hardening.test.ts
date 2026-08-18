@@ -1,9 +1,15 @@
 import { describe, it, expect } from "vitest";
 import {
-  makeReportToken, verifyReportToken, reportTokenHash, claimsPassenZuKunde,
+  makeReportToken,
+  verifyReportToken,
+  reportTokenHash,
+  claimsPassenZuKunde,
 } from "./report-token.server";
 import {
-  encryptSecret, decryptSecret, istVerschluesselt, brauchtUmschluesselung,
+  encryptSecret,
+  decryptSecret,
+  istVerschluesselt,
+  brauchtUmschluesselung,
 } from "./secretbox.server";
 import { rolleErlaubt } from "./team-guard.server";
 
@@ -34,7 +40,9 @@ describe("Report-Token v2 (Org-Bindung)", () => {
   it("manipulierte IDs brechen die Signatur (negativ)", () => {
     const t = makeReportToken(KUNDE_A.id, ORG_A, 30, SECRET);
     const raw = Buffer.from(t, "base64url").toString("utf8");
-    const gefaelscht = Buffer.from(raw.replace(KUNDE_A.id, KUNDE_B.id), "utf8").toString("base64url");
+    const gefaelscht = Buffer.from(raw.replace(KUNDE_A.id, KUNDE_B.id), "utf8").toString(
+      "base64url",
+    );
     expect(verifyReportToken(gefaelscht, SECRET)).toBeNull();
     const orgGetauscht = Buffer.from(raw.replace(ORG_A, ORG_B), "utf8").toString("base64url");
     expect(verifyReportToken(orgGetauscht, SECRET)).toBeNull();
@@ -72,14 +80,14 @@ describe("Secretbox (WordPress Application Passwords)", () => {
   });
 
   it("Key-Rotation: v2 wird genutzt, v1-Bestand bleibt lesbar", () => {
-    const alt = encryptSecret(PASS, envV1);          // v1
-    const neu = encryptSecret(PASS, envV2);          // v2
+    const alt = encryptSecret(PASS, envV1); // v1
+    const neu = encryptSecret(PASS, envV2); // v2
     expect(alt.startsWith("enc:v1:")).toBe(true);
     expect(neu.startsWith("enc:v2:")).toBe(true);
-    expect(decryptSecret(alt, envV2)).toBe(PASS);    // Rotation bricht Bestand nicht
-    expect(brauchtUmschluesselung(alt, envV2)).toBe(true);   // Migration faellig
+    expect(decryptSecret(alt, envV2)).toBe(PASS); // Rotation bricht Bestand nicht
+    expect(brauchtUmschluesselung(alt, envV2)).toBe(true); // Migration faellig
     expect(brauchtUmschluesselung(neu, envV2)).toBe(false);
-    expect(brauchtUmschluesselung(PASS, envV1)).toBe(true);  // Klartext -> migrieren
+    expect(brauchtUmschluesselung(PASS, envV1)).toBe(true); // Klartext -> migrieren
   });
 
   it("fremde Umgebung (anderes Master-Secret) kann NICHT entschluesseln", () => {
@@ -105,8 +113,11 @@ describe("Secretbox (WordPress Application Passwords)", () => {
 describe("Rollen-Guard (Agent-Routen)", () => {
   it("viewer kommt NIE durch, member liest, nur owner/admin mutiert", () => {
     for (const [rolle, liest, mutiert] of [
-      ["owner", true, true], ["admin", true, true],
-      ["member", true, false], ["viewer", false, false], ["", false, false],
+      ["owner", true, true],
+      ["admin", true, true],
+      ["member", true, false],
+      ["viewer", false, false],
+      ["", false, false],
     ] as Array<[string, boolean, boolean]>) {
       expect(rolleErlaubt(rolle, "member")).toBe(liest);
       expect(rolleErlaubt(rolle, "admin")).toBe(mutiert);

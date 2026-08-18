@@ -29,7 +29,9 @@ export function hostOf(domain?: string | null): string | null {
 
 export function faviconUrl(domain?: string | null, size = 64): string | null {
   const host = hostOf(domain);
-  return host ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=${size}` : null;
+  return host
+    ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=${size}`
+    : null;
 }
 
 export function ClientAvatar({
@@ -78,7 +80,13 @@ export function ClientAvatar({
           alt=""
           loading="lazy"
           onError={() => setFailed(true)}
-          style={{ width: "72%", height: "72%", objectFit: "contain", display: "block", borderRadius: 4 }}
+          style={{
+            width: "72%",
+            height: "72%",
+            objectFit: "contain",
+            display: "block",
+            borderRadius: 4,
+          }}
         />
       ) : (
         initialsFromName(name)

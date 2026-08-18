@@ -80,10 +80,18 @@ export const Route = createFileRoute("/api/admin/rank-snapshot")({
         const target = (clients || []).find(
           (c: any) =>
             slugifyName(c.name) === d.client ||
-            slugifyName(String(c.domain || "").replace(/^https?:\/\//, "").replace(/^www\./, "").split(".")[0]) === d.client,
+            slugifyName(
+              String(c.domain || "")
+                .replace(/^https?:\/\//, "")
+                .replace(/^www\./, "")
+                .split(".")[0],
+            ) === d.client,
         );
         if (!target)
-          return Response.json({ ok: false, error: `Kunde '${d.client}' nicht gefunden` }, { status: 404 });
+          return Response.json(
+            { ok: false, error: `Kunde '${d.client}' nicht gefunden` },
+            { status: 404 },
+          );
 
         // triggered_by: audit_runs verlangt einen Org-User (gleiche Logik wie populate).
         const { data: users } = await supabaseAdmin
@@ -94,7 +102,10 @@ export const Route = createFileRoute("/api/admin/rank-snapshot")({
         const owner =
           (users || []).find((u: any) => ["owner", "admin"].includes(u.role)) || (users || [])[0];
         if (!owner)
-          return Response.json({ ok: false, error: "Kein Org-User fuer triggered_by" }, { status: 500 });
+          return Response.json(
+            { ok: false, error: "Kein Org-User fuer triggered_by" },
+            { status: 500 },
+          );
 
         const result: Record<string, unknown> = {
           client: d.client,

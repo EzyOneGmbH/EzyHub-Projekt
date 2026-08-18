@@ -23,7 +23,8 @@ const Body = z.object({
 const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5";
 
 function redact(input: unknown, secrets: Array<string | undefined>): string {
-  let s = typeof input === "string" ? input : input instanceof Error ? input.message : String(input);
+  let s =
+    typeof input === "string" ? input : input instanceof Error ? input.message : String(input);
   for (const v of secrets) {
     if (!v || v.length < 4) continue;
     s = s.split(v).join("***REDACTED***");
@@ -61,7 +62,11 @@ async function fetchPageSnapshot(url: string) {
     const html = (await res.text()).slice(0, 400_000);
     const pick = (re: RegExp) => (html.match(re)?.[1] || "").replace(/\s+/g, " ").trim();
     const strip = (s: string) =>
-      s.replace(/<[^>]+>/g, " ").replace(/&[a-z#0-9]+;/gi, " ").replace(/\s+/g, " ").trim();
+      s
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&[a-z#0-9]+;/gi, " ")
+        .replace(/\s+/g, " ")
+        .trim();
     const heads: string[] = [];
     for (const m of html.matchAll(/<h([23])[^>]*>([\s\S]*?)<\/h\1>/gi)) {
       const t = strip(m[2]);
@@ -77,9 +82,12 @@ async function fetchPageSnapshot(url: string) {
     );
     return {
       titleTag: pick(/<title[^>]*>([\s\S]*?)<\/title>/i),
-      metaDescription: pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)["']/i)
-        || pick(/<meta[^>]+content=["']([^"']*)["'][^>]+name=["']description["']/i),
-      modified: pick(/<meta[^>]+property=["']article:modified_time["'][^>]+content=["']([^"']*)["']/i),
+      metaDescription:
+        pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)["']/i) ||
+        pick(/<meta[^>]+content=["']([^"']*)["'][^>]+name=["']description["']/i),
+      modified: pick(
+        /<meta[^>]+property=["']article:modified_time["'][^>]+content=["']([^"']*)["']/i,
+      ),
       headings: heads,
       wordCount: bodyText ? bodyText.split(" ").length : 0,
       excerpt: bodyText.slice(0, 1500),
@@ -95,23 +103,34 @@ export const Route = createFileRoute("/api/content/refresh-brief")({
       POST: async ({ request }) => {
         const apiKey = process.env.ANTHROPIC_API_KEY;
         const secrets = [apiKey];
-        if (!apiKey) return Response.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 503 });
+        if (!apiKey)
+          return Response.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 503 });
         const supabaseUrl = process.env.SUPABASE_URL;
         const anonKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
-        if (!supabaseUrl || !anonKey) return Response.json({ error: "Server not configured" }, { status: 503 });
+        if (!supabaseUrl || !anonKey)
+          return Response.json({ error: "Server not configured" }, { status: 503 });
 
         const authHeader = request.headers.get("authorization") ?? "";
         const userClient = createClient(supabaseUrl, anonKey, {
           global: { headers: { Authorization: authHeader } },
         });
-        const { data: { user } } = await userClient.auth.getUser();
+        const {
+          data: { user },
+        } = await userClient.auth.getUser();
         if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
         let raw: unknown = {};
-        try { raw = await request.json(); } catch { /* empty */ }
+        try {
+          raw = await request.json();
+        } catch {
+          /* empty */
+        }
         const parsed = Body.safeParse(raw);
         if (!parsed.success)
-          return Response.json({ error: "Invalid input", issues: parsed.error.issues }, { status: 400 });
+          return Response.json(
+            { error: "Invalid input", issues: parsed.error.issues },
+            { status: 400 },
+          );
         const d = parsed.data;
 
         // Zugriff ueber den USER-Client pruefen (RLS) — erst danach service_role lesen.
@@ -123,9 +142,15 @@ export const Route = createFileRoute("/api/content/refresh-brief")({
         if (clientErr || !client)
           return Response.json({ error: "Client not found or access denied" }, { status: 404 });
         if (!(await canRunAudits(user.id, client.organization_id)))
-          return Response.json({ error: "Keine Berechtigung (viewer/read-only)." }, { status: 403 });
+          return Response.json(
+            { error: "Keine Berechtigung (viewer/read-only)." },
+            { status: 403 },
+          );
         if (!(await isProviderEnabled(client.id, "anthropic")))
-          return Response.json({ error: "Claude/Anthropic für diesen Kunden deaktiviert." }, { status: 403 });
+          return Response.json(
+            { error: "Claude/Anthropic für diesen Kunden deaktiviert." },
+            { status: 403 },
+          );
 
         const { data: row } = await supabaseAdmin
           .from("content_decision")
@@ -135,7 +160,8 @@ export const Route = createFileRoute("/api/content/refresh-brief")({
           .maybeSingle();
         if (!row) return Response.json({ error: "Artikel nicht gefunden" }, { status: 404 });
 
-        const focus = REC_FOCUS[String(row.recommendation)] ||
+        const focus =
+          REC_FOCUS[String(row.recommendation)] ||
           "Beurteile anhand der Daten, ob und welche Massnahme sinnvoll ist.";
 
         // Letzte 12 Wochenpunkte der Zeitreihe fuer den Verlauf im Prompt.
@@ -174,15 +200,17 @@ VERLAUF (woechentliche Stichpunkte, aelteste zuerst)
 ${weekly.map((p) => `${p.captured_on}: ${p.clicks} Klicks, ${p.impressions} Impr., Pos ${p.position ?? "—"}`).join("\n") || "keine Zeitreihe"}
 
 LIVE-ZUSTAND DER SEITE
-${"error" in snap && snap.error
-  ? `Seite nicht abrufbar (${snap.error}) — Plan ohne Live-Snapshot erstellen und das erwaehnen.`
-  : `Title-Tag: ${(snap as any).titleTag || "—"} (${((snap as any).titleTag || "").length} Zeichen)
+${
+  "error" in snap && snap.error
+    ? `Seite nicht abrufbar (${snap.error}) — Plan ohne Live-Snapshot erstellen und das erwaehnen.`
+    : `Title-Tag: ${(snap as any).titleTag || "—"} (${((snap as any).titleTag || "").length} Zeichen)
 Meta-Description: ${(snap as any).metaDescription || "FEHLT"} (${((snap as any).metaDescription || "").length} Zeichen)
 Zuletzt geaendert (article:modified_time): ${(snap as any).modified || "—"}
 Wortzahl (grob): ${(snap as any).wordCount || "?"}
 Ueberschriften:
 ${((snap as any).headings || []).join("\n") || "—"}
-Textauszug: ${(snap as any).excerpt || "—"}`}
+Textauszug: ${(snap as any).excerpt || "—"}`
+}
 
 FOKUS DEINES PLANS
 ${focus}`;
@@ -251,7 +279,11 @@ ${focus}`;
           triggered_by: user.id,
           audit_type: "content_refresh_brief",
           status: text ? "succeeded" : "failed",
-          input: { contentItemId: d.contentItemId, recommendation: row.recommendation, url: row.url },
+          input: {
+            contentItemId: d.contentItemId,
+            recommendation: row.recommendation,
+            url: row.url,
+          },
           result: { content: text } as never,
           error: text ? null : "Leere Antwort von Claude",
           started_at: new Date().toISOString(),

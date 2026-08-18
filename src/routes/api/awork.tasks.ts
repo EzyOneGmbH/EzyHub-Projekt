@@ -11,7 +11,14 @@ import { canRunAudits } from "@/server/integrations.server";
 const Body = z.object({ clientId: z.string().uuid() });
 const AWORK_BASE = "https://api.awork.com/api/v1";
 
-type AworkStatus = { id: string; name: string; type?: string; order?: number; color?: string | null; icon?: string | null };
+type AworkStatus = {
+  id: string;
+  name: string;
+  type?: string;
+  order?: number;
+  color?: string | null;
+  icon?: string | null;
+};
 
 async function awork<T = any>(
   path: string,
@@ -194,7 +201,8 @@ async function fetchProjectTasks(projectId: string, projectName: string, key: st
     const st = statusById.get(sid);
     const assignees = Array.isArray(t.assignees) ? t.assignees : t.users || [];
     const listId = Array.isArray(t.lists) && t.lists[0] ? String(t.lists[0].id ?? "") : "";
-    const listName = Array.isArray(t.lists) && t.lists[0] ? String(t.lists[0].name ?? "") : (t.listName ?? "");
+    const listName =
+      Array.isArray(t.lists) && t.lists[0] ? String(t.lists[0].name ?? "") : (t.listName ?? "");
     return {
       id: String(t.id ?? ""),
       name: String(t.name ?? ""),

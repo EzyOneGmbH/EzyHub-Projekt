@@ -1,6 +1,11 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { adsQuery, loadConfig, computeTrackingHealth } from "./google-ads-autopilot.server";
-import { resolveBudgetAnchor, budgetSourceLanguage, type BudgetAnchor, type BudgetSource } from "./google-ads-budget.server";
+import {
+  resolveBudgetAnchor,
+  budgetSourceLanguage,
+  type BudgetAnchor,
+  type BudgetSource,
+} from "./google-ads-budget.server";
 
 // Waechter-Lauf (Phase 1): rein deterministischer, taeglicher Melder - KEIN LLM,
 // KEINE Actions, KEINE Approvals, KEINE Writes ins Ads-Konto. Vier Checks pro
@@ -73,7 +78,12 @@ export function checkBudgetPacing(
 }
 
 // ── Check 2: Anzeigen-/Policy-Status ─────────────────────────────────────────
-export type PolicyAdRow = { campaign: string; adGroup: string; adId: string; approvalStatus: string };
+export type PolicyAdRow = {
+  campaign: string;
+  adGroup: string;
+  adId: string;
+  approvalStatus: string;
+};
 const POLICY_ISSUE = new Set(["DISAPPROVED", "APPROVED_LIMITED", "ELIGIBLE_LIMITED"]);
 
 export function checkPolicyStatus(ads: PolicyAdRow[]): GuardianFinding[] {
@@ -128,7 +138,12 @@ export function checkImpressionsCrash(rows: ImpressionRow[]): GuardianFinding[] 
 }
 
 // ── Check 4: Tracking-Gate (bestehende Logik) ────────────────────────────────
-export function checkTracking(spend7d: number, conv7d: number, base30: number, minBaseline: number): GuardianFinding | null {
+export function checkTracking(
+  spend7d: number,
+  conv7d: number,
+  base30: number,
+  minBaseline: number,
+): GuardianFinding | null {
   const status = computeTrackingHealth(spend7d, conv7d, base30, minBaseline);
   if (status !== "BROKEN") return null;
   return {
@@ -149,7 +164,10 @@ export function overallStatus(findings: GuardianFinding[]): "ok" | "warn" | "cri
 }
 
 // knownSince: gleiche (check, entity) wie in frueheren Laeufen -> Datum des ersten Auftretens.
-export function markKnown(findings: GuardianFinding[], previous: Array<{ checkedAt: string; findings: GuardianFinding[] }>): GuardianFinding[] {
+export function markKnown(
+  findings: GuardianFinding[],
+  previous: Array<{ checkedAt: string; findings: GuardianFinding[] }>,
+): GuardianFinding[] {
   const firstSeen = new Map<string, string>();
   for (const run of [...previous].sort((a, b) => a.checkedAt.localeCompare(b.checkedAt))) {
     for (const f of run.findings ?? []) {
@@ -171,7 +189,11 @@ function daysAgo(n: number): string {
   return isoDay(d);
 }
 
-export async function runGuardianForClient(client: { id: string; name: string; google_ads_customer: string | null }): Promise<GuardianResult> {
+export async function runGuardianForClient(client: {
+  id: string;
+  name: string;
+  google_ads_customer: string | null;
+}): Promise<GuardianResult> {
   const now = new Date();
   const result: GuardianResult = {
     clientId: client.id,
@@ -188,7 +210,9 @@ export async function runGuardianForClient(client: { id: string; name: string; g
     try {
       await fn();
     } catch (e) {
-      result.dataErrors!.push(`${label}: ${(e instanceof Error ? e.message : String(e)).slice(0, 300)}`);
+      result.dataErrors!.push(
+        `${label}: ${(e instanceof Error ? e.message : String(e)).slice(0, 300)}`,
+      );
     }
   };
 
@@ -203,7 +227,9 @@ export async function runGuardianForClient(client: { id: string; name: string; g
   // Check 1: Budget-Pacing (gegen den aufgeloesten Anker)
   await soft("budget_pacing", async () => {
     const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-    const r = await q(`SELECT metrics.cost_micros FROM customer WHERE segments.date BETWEEN '${monthStart}' AND '${isoDay(now)}'`);
+    const r = await q(
+      `SELECT metrics.cost_micros FROM customer WHERE segments.date BETWEEN '${monthStart}' AND '${isoDay(now)}'`,
+    );
     if (!r.ok) throw new Error(r.error ?? r.skipped);
     const mtd = Number(r.rows?.[0]?.metrics?.costMicros ?? 0) / 1_000_000;
     const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
@@ -259,8 +285,12 @@ export async function runGuardianForClient(client: { id: string; name: string; g
 
   // Check 4: Tracking-Gate
   await soft("tracking", async () => {
-    const h7 = await q(`SELECT metrics.cost_micros, metrics.conversions FROM customer WHERE segments.date DURING LAST_7_DAYS`);
-    const base = await q(`SELECT metrics.conversions FROM customer WHERE segments.date BETWEEN '${daysAgo(37)}' AND '${daysAgo(8)}'`);
+    const h7 = await q(
+      `SELECT metrics.cost_micros, metrics.conversions FROM customer WHERE segments.date DURING LAST_7_DAYS`,
+    );
+    const base = await q(
+      `SELECT metrics.conversions FROM customer WHERE segments.date BETWEEN '${daysAgo(37)}' AND '${daysAgo(8)}'`,
+    );
     if (!h7.ok || !base.ok) throw new Error(h7.error ?? base.error ?? "tracking query failed");
     const f = checkTracking(
       Number(h7.rows?.[0]?.metrics?.costMicros ?? 0) / 1_000_000,
@@ -280,7 +310,10 @@ export async function runGuardianForClient(client: { id: string; name: string; g
     .limit(14);
   result.findings = markKnown(
     result.findings,
-    (prev ?? []).map((p) => ({ checkedAt: String(p.checked_at), findings: (p.findings ?? []) as GuardianFinding[] })),
+    (prev ?? []).map((p) => ({
+      checkedAt: String(p.checked_at),
+      findings: (p.findings ?? []) as GuardianFinding[],
+    })),
   );
   result.status = overallStatus(result.findings);
 

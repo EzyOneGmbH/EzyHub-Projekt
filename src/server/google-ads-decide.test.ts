@@ -51,7 +51,8 @@ const h = vi.hoisted(() => {
         for (const r of rows) Object.assign(r, this.patch);
         return { data: this.wantRows ? rows.map((r) => ({ ...r })) : null, error: null };
       }
-      if (this.op === "insert") return { data: this.wantRows ? [this.insertedRow] : null, error: null };
+      if (this.op === "insert")
+        return { data: this.wantRows ? [this.insertedRow] : null, error: null };
       const rows = db[this.t].filter((r) => this.filters.every(([c, v]) => r[c] === v));
       return { data: rows.map((r) => ({ ...r })), error: null };
     }
@@ -67,7 +68,9 @@ const h = vi.hoisted(() => {
 });
 
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: h.supabaseAdmin }));
-vi.mock("./google-tokens.server", () => ({ getGoogleAccessToken: async () => ({ accessToken: "tok" }) }));
+vi.mock("./google-tokens.server", () => ({
+  getGoogleAccessToken: async () => ({ accessToken: "tok" }),
+}));
 
 import { decideApproval, isCampaignLearning } from "./google-ads-autopilot.server";
 
@@ -85,12 +88,20 @@ function routeGaql(q: string): Array<Record<string, any>> {
       {
         campaign: { name: "L", status: "ENABLED", biddingStrategySystemStatus: systemStatus },
         campaignBudget: { amountMicros: 10_000_000 },
-        metrics: { costMicros: 100_000_000, conversions: 6, conversionsValue: 0, searchBudgetLostImpressionShare: 0 },
+        metrics: {
+          costMicros: 100_000_000,
+          conversions: 6,
+          conversionsValue: 0,
+          searchBudgetLostImpressionShare: 0,
+        },
       },
     ];
-  if (q.includes("FROM customer") && q.includes("LAST_30_DAYS")) return [{ metrics: { costMicros: 100_000_000 } }];
-  if (q.includes("FROM customer") && q.includes("LAST_7_DAYS")) return [{ metrics: { costMicros: 50_000_000, conversions: 3 } }];
-  if (q.includes("FROM customer") && q.includes("BETWEEN")) return [{ metrics: { conversions: 30 } }];
+  if (q.includes("FROM customer") && q.includes("LAST_30_DAYS"))
+    return [{ metrics: { costMicros: 100_000_000 } }];
+  if (q.includes("FROM customer") && q.includes("LAST_7_DAYS"))
+    return [{ metrics: { costMicros: 50_000_000, conversions: 3 } }];
+  if (q.includes("FROM customer") && q.includes("BETWEEN"))
+    return [{ metrics: { conversions: 30 } }];
   return [];
 }
 
@@ -108,7 +119,11 @@ beforeAll(() => {
       if (systemStatus === "__HTTP_FAIL__")
         return { ok: false, status: 500, json: async () => ({}), text: async () => "boom" } as any;
       const q = String(JSON.parse(String(init?.body ?? "{}")).query ?? "");
-      return { ok: true, json: async () => [{ results: routeGaql(q) }], text: async () => "" } as any;
+      return {
+        ok: true,
+        json: async () => [{ results: routeGaql(q) }],
+        text: async () => "",
+      } as any;
     }),
   );
 });
@@ -123,19 +138,42 @@ function seed(over: Partial<Record<string, any>> = {}) {
   h.db.ads_autopilot_config.length = 0;
   h.db.clients.push({ id: "c1", name: "Testkunde", google_ads_customer: "111" });
   h.db.ads_autopilot_config.push({
-    client_id: "c1", industry: "hotel", kill_switch: false, observe_only: false,
-    autonomy_level: 1, monthly_budget_chf: 1000, target_cpa_chf: 50, target_roas: null,
-    season_high: [], season_low: [], no_touch_campaigns: [], languages: ["de"],
-    notes: null, notes_updated_at: null, min_conversions_baseline: 3,
-    conversion_lag_days: 7, min_conversions_for_budget_rec: 5,
+    client_id: "c1",
+    industry: "hotel",
+    kill_switch: false,
+    observe_only: false,
+    autonomy_level: 1,
+    monthly_budget_chf: 1000,
+    target_cpa_chf: 50,
+    target_roas: null,
+    season_high: [],
+    season_low: [],
+    no_touch_campaigns: [],
+    languages: ["de"],
+    notes: null,
+    notes_updated_at: null,
+    min_conversions_baseline: 3,
+    conversion_lag_days: 7,
+    min_conversions_for_budget_rec: 5,
   });
   h.db.ads_changelog.push({ id: "cl1", status: "pending", approved_by: null });
   h.db.ads_approvals.push({
-    id: "ap1", client_id: "c1", customer_id: "111", run_id: "r1", action_id: "a-001",
-    type: "budget_change", entity: "L", current_value: "CHF 10.00/Tag", proposed_value: "CHF 11.00/Tag",
-    rationale: "test", payload: { kind: "budget", campaign: "L", dailyChf: 11 },
-    status: "pending", expires_at: FUTURE, changelog_id: "cl1",
-    decided_by: null, decided_at: null,
+    id: "ap1",
+    client_id: "c1",
+    customer_id: "111",
+    run_id: "r1",
+    action_id: "a-001",
+    type: "budget_change",
+    entity: "L",
+    current_value: "CHF 10.00/Tag",
+    proposed_value: "CHF 11.00/Tag",
+    rationale: "test",
+    payload: { kind: "budget", campaign: "L", dailyChf: 11 },
+    status: "pending",
+    expires_at: FUTURE,
+    changelog_id: "cl1",
+    decided_by: null,
+    decided_at: null,
     ...over,
   });
 }

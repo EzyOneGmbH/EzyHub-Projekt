@@ -65,7 +65,11 @@ const ACTIONS: Record<string, { method: "GET" | "POST"; path: string; fields: st
   // performance fixes (caching, image/WebP optimization).
   "plugin-install": { method: "POST", path: "/wp/v2/plugins", fields: ["slug", "status"] },
   "plugins-list": { method: "GET", path: "/wp/v2/plugins", fields: ["search"] },
-  "ewww-config": { method: "POST", path: "/ezyhub/v1/ewww/config", fields: ["webp", "maxw", "maxh"] },
+  "ewww-config": {
+    method: "POST",
+    path: "/ezyhub/v1/ewww/config",
+    fields: ["webp", "maxw", "maxh"],
+  },
   "ewww-bulk": { method: "POST", path: "/ezyhub/v1/ewww/bulk", fields: ["limit"] },
   // Code-snippet locate/replace (header/footer scripts, plugin settings, etc.)
   "code-locate": { method: "POST", path: "/ezyhub/v1/code-locate", fields: ["needle"] },

@@ -66,7 +66,10 @@ export const Route = createFileRoute("/api/google/ga4-summary")({
           const callGa4 = async (reqBody: unknown) => {
             const r = await fetch(base, {
               method: "POST",
-              headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+              },
               body: JSON.stringify(reqBody),
             });
             if (!r.ok) throw new Error(`GA4 HTTP ${r.status}: ${await r.text().catch(() => "")}`);
@@ -134,17 +137,17 @@ export const Route = createFileRoute("/api/google/ga4-summary")({
           const result = { days: parsed.data.days, metrics, series };
           try {
             if (parsed.data.persist)
-            await supabaseAdmin.from("audit_runs").insert({
-              client_id: client.id,
-              organization_id: client.organization_id,
-              triggered_by: user.id,
-              audit_type: "ga4_summary",
-              status: "succeeded",
-              input: { days: parsed.data.days },
-              result: result as any,
-              started_at: new Date().toISOString(),
-              finished_at: new Date().toISOString(),
-            });
+              await supabaseAdmin.from("audit_runs").insert({
+                client_id: client.id,
+                organization_id: client.organization_id,
+                triggered_by: user.id,
+                audit_type: "ga4_summary",
+                status: "succeeded",
+                input: { days: parsed.data.days },
+                result: result as any,
+                started_at: new Date().toISOString(),
+                finished_at: new Date().toISOString(),
+              });
           } catch {
             /* non-fatal */
           }

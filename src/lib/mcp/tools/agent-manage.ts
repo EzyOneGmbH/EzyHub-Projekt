@@ -34,16 +34,25 @@ export const agentListTool = defineTool({
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async ({ client_id }, ctx) => {
     const gate = await requireAdmin(ctx);
-    if ("err" in gate && gate.err) return { content: [{ type: "text", text: gate.err }], isError: true };
+    if ("err" in gate && gate.err)
+      return { content: [{ type: "text", text: gate.err }], isError: true };
     const s = svc();
-    if (!s) return { content: [{ type: "text", text: "Agent service not configured" }], isError: true };
-    const r = await fetch(`${s.base}/agents?clientId=${encodeURIComponent(client_id || "global")}`, {
-      headers: { Authorization: `Bearer ${s.secret}` },
-      signal: AbortSignal.timeout(15_000),
-    });
+    if (!s)
+      return { content: [{ type: "text", text: "Agent service not configured" }], isError: true };
+    const r = await fetch(
+      `${s.base}/agents?clientId=${encodeURIComponent(client_id || "global")}`,
+      {
+        headers: { Authorization: `Bearer ${s.secret}` },
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
     const j = await r.json().catch(() => ({}));
     const agents = (j.agents || []).map((a: any) => ({
-      id: a.id, name: a.name, model: a.model, skills: a.skills, description: a.description,
+      id: a.id,
+      name: a.name,
+      model: a.model,
+      skills: a.skills,
+      description: a.description,
     }));
     return {
       content: [{ type: "text", text: JSON.stringify(agents) }],
@@ -66,22 +75,36 @@ export const agentUpsertTool = defineTool({
     name: z.string().min(2).max(80).describe("Name des Agenten."),
     description: z.string().max(300).optional(),
     model: z.string().max(60).optional().describe("Default: claude-sonnet-4-6."),
-    skills: z.array(z.string()).max(24).describe("Skills aus list_skills, z.B. ['claude-seo:seo-audit']."),
-    instructions: z.string().min(20).max(20000).describe("Vollstaendiger System-Prompt auf Deutsch."),
+    skills: z
+      .array(z.string())
+      .max(24)
+      .describe("Skills aus list_skills, z.B. ['claude-seo:seo-audit']."),
+    instructions: z
+      .string()
+      .min(20)
+      .max(20000)
+      .describe("Vollstaendiger System-Prompt auf Deutsch."),
   },
   annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false },
   handler: async ({ id, client_id, name, description, model, skills, instructions }, ctx) => {
     const gate = await requireAdmin(ctx);
-    if ("err" in gate && gate.err) return { content: [{ type: "text", text: gate.err }], isError: true };
+    if ("err" in gate && gate.err)
+      return { content: [{ type: "text", text: gate.err }], isError: true };
     const invalid = (skills || []).filter((sk: string) => !VALID_SKILLS.has(sk));
     if (invalid.length) {
       return {
-        content: [{ type: "text", text: `Unbekannte Skills: ${invalid.join(", ")} — gueltige Werte liefert list_skills.` }],
+        content: [
+          {
+            type: "text",
+            text: `Unbekannte Skills: ${invalid.join(", ")} — gueltige Werte liefert list_skills.`,
+          },
+        ],
         isError: true,
       };
     }
     const s = svc();
-    if (!s) return { content: [{ type: "text", text: "Agent service not configured" }], isError: true };
+    if (!s)
+      return { content: [{ type: "text", text: "Agent service not configured" }], isError: true };
     const clientId = client_id || "global";
     const r = await fetch(`${s.base}/agents?clientId=${encodeURIComponent(clientId)}`, {
       method: "POST",
@@ -99,10 +122,18 @@ export const agentUpsertTool = defineTool({
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.agent) {
-      return { content: [{ type: "text", text: `Fehler: ${j.error || `HTTP ${r.status}`}` }], isError: true };
+      return {
+        content: [{ type: "text", text: `Fehler: ${j.error || `HTTP ${r.status}`}` }],
+        isError: true,
+      };
     }
     return {
-      content: [{ type: "text", text: `Agent "${j.agent.name}" gespeichert (id ${j.agent.id}, ${skills.length} Skills).` }],
+      content: [
+        {
+          type: "text",
+          text: `Agent "${j.agent.name}" gespeichert (id ${j.agent.id}, ${skills.length} Skills).`,
+        },
+      ],
       structuredContent: { agent: { id: j.agent.id, name: j.agent.name, skills: j.agent.skills } },
     };
   },

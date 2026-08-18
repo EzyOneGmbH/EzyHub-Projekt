@@ -1,10 +1,7 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { AuthProvider } from "@/hooks/use-auth";
 import { Toaster } from "@/components/ui/sonner";
-import {
-  SupabaseConfigError,
-  getMissingSupabaseEnv,
-} from "@/components/supabase-config-error";
+import { SupabaseConfigError, getMissingSupabaseEnv } from "@/components/supabase-config-error";
 
 import appCss from "../styles.css?url";
 
@@ -43,14 +40,34 @@ export const Route = createRootRoute({
           "Ezy One: Multi-Kunden SEO & GEO Plattform mit Content-Editor, Live-Recherche und KI-Generierung.",
       },
       { property: "og:title", content: "Ezy One — SEO & GEO Plattform" },
-      { property: "og:description", content: "Ezy One Tool is a web application for SEO professionals to manage and analyze client data." },
+      {
+        property: "og:description",
+        content:
+          "Ezy One Tool is a web application for SEO professionals to manage and analyze client data.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:title", content: "Ezy One — SEO & GEO Plattform" },
-      { name: "description", content: "EZY One Tool is a web application for SEO professionals to manage and analyze client data." },
-      { name: "twitter:description", content: "EZY One Tool is a web application for SEO professionals to manage and analyze client data." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/1e78d1ac-dd30-4747-b980-b616516f2fdc/id-preview-0e7f9dca--3809d703-3b9d-49e8-a029-66c5c48795c6.lovable.app-1780249707839.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/1e78d1ac-dd30-4747-b980-b616516f2fdc/id-preview-0e7f9dca--3809d703-3b9d-49e8-a029-66c5c48795c6.lovable.app-1780249707839.png" },
+      {
+        name: "description",
+        content:
+          "EZY One Tool is a web application for SEO professionals to manage and analyze client data.",
+      },
+      {
+        name: "twitter:description",
+        content:
+          "EZY One Tool is a web application for SEO professionals to manage and analyze client data.",
+      },
+      {
+        property: "og:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/1e78d1ac-dd30-4747-b980-b616516f2fdc/id-preview-0e7f9dca--3809d703-3b9d-49e8-a029-66c5c48795c6.lovable.app-1780249707839.png",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/1e78d1ac-dd30-4747-b980-b616516f2fdc/id-preview-0e7f9dca--3809d703-3b9d-49e8-a029-66c5c48795c6.lovable.app-1780249707839.png",
+      },
     ],
     links: [
       { rel: "stylesheet", href: appCss },

@@ -34,7 +34,9 @@ function DashboardRoute() {
     try {
       const p = new URLSearchParams(window.location.search).get("app");
       if (p && APP_REDIRECT[p]) target = APP_REDIRECT[p];
-    } catch { /* egal */ }
+    } catch {
+      /* egal */
+    }
     window.location.replace(target);
   }, [loading, session, role]);
 

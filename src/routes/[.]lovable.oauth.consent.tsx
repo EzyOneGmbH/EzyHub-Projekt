@@ -94,8 +94,8 @@ function Consent() {
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
           {clientName} kann EZY ONE als du nutzen: Kunden und Content-Einträge lesen, die dir
-          zugänglich sind. Es werden keine Passwörter geteilt. Du kannst den Zugriff später jederzeit
-          entziehen.
+          zugänglich sind. Es werden keine Passwörter geteilt. Du kannst den Zugriff später
+          jederzeit entziehen.
         </p>
         {error && (
           <p role="alert" className="mt-4 text-sm text-destructive">

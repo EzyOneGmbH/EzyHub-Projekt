@@ -261,17 +261,17 @@ export const Route = createFileRoute("/api/google/ga4-conversions")({
 
           try {
             if (parsed.data.persist)
-            await supabaseAdmin.from("audit_runs").insert({
-              client_id: client.id,
-              organization_id: client.organization_id,
-              triggered_by: user.id,
-              audit_type: "ga4_conversions",
-              status: "succeeded",
-              input: { days: parsed.data.days },
-              result: result as never,
-              started_at: new Date().toISOString(),
-              finished_at: new Date().toISOString(),
-            });
+              await supabaseAdmin.from("audit_runs").insert({
+                client_id: client.id,
+                organization_id: client.organization_id,
+                triggered_by: user.id,
+                audit_type: "ga4_conversions",
+                status: "succeeded",
+                input: { days: parsed.data.days },
+                result: result as never,
+                started_at: new Date().toISOString(),
+                finished_at: new Date().toISOString(),
+              });
           } catch {
             /* non-fatal */
           }

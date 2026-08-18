@@ -183,7 +183,12 @@ async function jobPagespeed(c: any, uid: string, _days: number) {
   const hasOriginField =
     !!json?.originLoadingExperience?.metrics?.LARGEST_CONTENTFUL_PAINT_MS ||
     !!json?.originLoadingExperience?.metrics?.INTERACTION_TO_NEXT_PAINT;
-  const dataOrigin = hasUrlField && !originFallback ? "field" : hasUrlField || hasOriginField ? "field-origin" : "lab";
+  const dataOrigin =
+    hasUrlField && !originFallback
+      ? "field"
+      : hasUrlField || hasOriginField
+        ? "field-origin"
+        : "lab";
   const metrics = {
     dataOrigin,
     lcp: num(field?.LARGEST_CONTENTFUL_PAINT_MS?.percentile),
@@ -321,9 +326,15 @@ async function jobSeoHistory(c: any, uid: string, force = false) {
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (!force && (prev as any)?.created_at && Date.now() - Date.parse((prev as any).created_at) < 27 * 86400000)
+    if (
+      !force &&
+      (prev as any)?.created_at &&
+      Date.now() - Date.parse((prev as any).created_at) < 27 * 86400000
+    )
       return { skipped: "fresh (Monats-Guard)" };
-  } catch { /* weiter */ }
+  } catch {
+    /* weiter */
+  }
   const { accessToken } = await getGoogleAccessToken(c.id);
   // Lokale Datums-Strings OHNE toISOString (UTC-Verschiebung wuerde den
   // Monatsersten auf den Vortag kippen).
@@ -336,7 +347,8 @@ async function jobSeoHistory(c: any, uid: string, force = false) {
     if (!months.has(m)) months.set(m, { month: m });
     return months.get(m) as Record<string, unknown>;
   };
-  let ga4ok = false, gscok = false;
+  let ga4ok = false,
+    gscok = false;
   if (c.ga4_property) {
     try {
       const propertyId = String(c.ga4_property).replace(/^properties\//, "");
@@ -365,11 +377,15 @@ async function jobSeoHistory(c: any, uid: string, force = false) {
         for (const row of j.rows ?? []) {
           const ym = String(row.dimensionValues?.[0]?.value ?? "");
           if (!/^\d{6}$/.test(ym)) continue;
-          ensure(`${ym.slice(0, 4)}-${ym.slice(4)}`).ga4Organic = Number(row.metricValues?.[0]?.value ?? 0);
+          ensure(`${ym.slice(0, 4)}-${ym.slice(4)}`).ga4Organic = Number(
+            row.metricValues?.[0]?.value ?? 0,
+          );
         }
         ga4ok = true;
       }
-    } catch { /* GA4 optional */ }
+    } catch {
+      /* GA4 optional */
+    }
   }
   if (c.gsc_property) {
     // Distinct-Query-Zaehlung braucht die query-Dimension -> 1 Call je Monat.
@@ -382,7 +398,12 @@ async function jobSeoHistory(c: any, uid: string, force = false) {
           {
             method: "POST",
             headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ startDate: ymd(mStart), endDate: ymd(mEnd), dimensions: ["query"], rowLimit: 25000 }),
+            body: JSON.stringify({
+              startDate: ymd(mStart),
+              endDate: ymd(mEnd),
+              dimensions: ["query"],
+              rowLimit: 25000,
+            }),
           },
         );
         if (!r.ok) continue;
@@ -393,7 +414,9 @@ async function jobSeoHistory(c: any, uid: string, force = false) {
         e.gscImpressions = rows.reduce((a: number, x: any) => a + (x.impressions || 0), 0);
         e.gscQueries = rows.length;
         gscok = true;
-      } catch { /* Monat fehlt dann */ }
+      } catch {
+        /* Monat fehlt dann */
+      }
     }
   }
   if (!months.size) return { error: "keine GA4/GSC-Monatsdaten" };
@@ -478,7 +501,12 @@ async function jobGscQueries(c: any, uid: string, days: number, forceDfs = false
     pos11to20: mkBucket(),
     pos21plus: mkBucket(),
   };
-  const nonbrandRows: Array<{ query: string; clicks: number; impressions: number; position: number }> = [];
+  const nonbrandRows: Array<{
+    query: string;
+    clicks: number;
+    impressions: number;
+    position: number;
+  }> = [];
   for (const row of json.rows ?? []) {
     const q = String(row.keys?.[0] ?? "");
     const clicks = Number(row.clicks ?? 0);
@@ -495,11 +523,23 @@ async function jobGscQueries(c: any, uid: string, days: number, forceDfs = false
     nonbrand.queries += 1;
     // Bucket ueber die Durchschnittsposition der Query (top10 = 4-10).
     const b =
-      position < 4 ? buckets.top3 : position <= 10 ? buckets.top10 : position <= 20 ? buckets.pos11to20 : buckets.pos21plus;
+      position < 4
+        ? buckets.top3
+        : position <= 10
+          ? buckets.top10
+          : position <= 20
+            ? buckets.pos11to20
+            : buckets.pos21plus;
     b.queries += 1;
     b.clicks += clicks;
     b.impressions += impressions;
-    if (impressions >= 10) nonbrandRows.push({ query: q, clicks, impressions, position: Math.round(position * 10) / 10 });
+    if (impressions >= 10)
+      nonbrandRows.push({
+        query: q,
+        clicks,
+        impressions,
+        position: Math.round(position * 10) / 10,
+      });
   }
   nonbrandRows.sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions);
   // ── DFS-Anreicherung (2026-08-13, User-Wunsch): jede angezeigte GSC-Query
@@ -529,7 +569,10 @@ async function jobGscQueries(c: any, uid: string, days: number, forceDfs = false
     if (auth && (forceDfs || Date.now() - prevAt > 6.5 * 86400000)) {
       // Frisch anreichern (1x/Woche): Labs-Ranking-Universum + Volumen-Batch.
       const domain = normalizeDomain(String(c.domain || ""));
-      const labs = new Map<string, { pos: number | null; url: string | null; volume: number | null }>();
+      const labs = new Map<
+        string,
+        { pos: number | null; url: string | null; volume: number | null }
+      >();
       if (domain) {
         const rk = await dfsList(
           "dataforseo_labs/google/ranked_keywords/live",
@@ -560,14 +603,17 @@ async function jobGscQueries(c: any, uid: string, days: number, forceDfs = false
           .trim()
           .toLowerCase();
       const adsSafe = (q: string) =>
-        q.length > 0 && q.length <= 80 &&
+        q.length > 0 &&
+        q.length <= 80 &&
         q.split(" ").length <= 10 &&
         /^[\p{L}\p{N} \-.]+$/u.test(q);
-      const missing = [...new Set(
-        shown
-          .map((r) => adsClean(String(r.query)))
-          .filter((q) => adsSafe(q) && labs.get(q)?.volume == null),
-      )];
+      const missing = [
+        ...new Set(
+          shown
+            .map((r) => adsClean(String(r.query)))
+            .filter((q) => adsSafe(q) && labs.get(q)?.volume == null),
+        ),
+      ];
       const vol = new Map<string, number>();
       for (let i = 0; i < missing.length; i += 500) {
         const sv = await dfsList(
@@ -1366,7 +1412,8 @@ export const Route = createFileRoute("/api/admin/populate")({
               if (j === "ahrefs") jr.ahrefs = await jobAhrefs(c, uid);
               else if (j === "pagespeed") jr.pagespeed = await jobPagespeed(c, uid, days);
               else if (j === "gsc") jr.gsc = await jobGsc(c, uid, days);
-              else if (j === "gsc_queries") jr.gsc_queries = await jobGscQueries(c, uid, days, force);
+              else if (j === "gsc_queries")
+                jr.gsc_queries = await jobGscQueries(c, uid, days, force);
               else if (j === "seo_history") jr.seo_history = await jobSeoHistory(c, uid, force);
               else if (j === "ga4") jr.ga4 = await jobGa4(c, uid, days);
               else if (j === "ga4_traffic") jr.ga4_traffic = await jobGa4Traffic(c, uid, days);
@@ -1385,8 +1432,18 @@ export const Route = createFileRoute("/api/admin/populate")({
           try {
             const srcOf = (v: any, extra?: Record<string, unknown>) => {
               if (!v) return { status: "skipped" as const, ts: nowIso() };
-              if (v.error) return { status: "fail" as const, error: String(v.error).slice(0, 160), ts: nowIso() };
-              if (v.skipped) return { status: "skipped" as const, note: String(v.skipped).slice(0, 80), ts: nowIso() };
+              if (v.error)
+                return {
+                  status: "fail" as const,
+                  error: String(v.error).slice(0, 160),
+                  ts: nowIso(),
+                };
+              if (v.skipped)
+                return {
+                  status: "skipped" as const,
+                  note: String(v.skipped).slice(0, 80),
+                  ts: nowIso(),
+                };
               return { status: "ok" as const, ts: nowIso(), ...(extra || {}) };
             };
             const cruxOrigin = (jr.pagespeed as any)?.dataOrigin;

@@ -10,7 +10,7 @@ const AWORK_BASE = "https://api.awork.com/api/v1";
 async function aworkFetch<T = any>(
   path: string,
   key: string,
-  options?: { method?: string; body?: any }
+  options?: { method?: string; body?: any },
 ): Promise<{ ok: boolean; status: number; data: T | null; error?: string }> {
   const res = await fetch(`${AWORK_BASE}${path}`, {
     method: options?.method || "GET",
@@ -52,13 +52,18 @@ export const Route = createFileRoute("/api/awork/create-task")({
           const sb = createClient(supabaseUrl, anonKey, {
             global: { headers: { Authorization: request.headers.get("authorization") ?? "" } },
           });
-          const { data: { user } } = await sb.auth.getUser();
+          const {
+            data: { user },
+          } = await sb.auth.getUser();
           if (!user) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
           const body = await request.json().catch(() => ({}));
           const parsed = CreateTaskBody.safeParse(body);
           if (!parsed.success) {
-            return Response.json({ ok: false, error: "Invalid input", details: parsed.error.issues }, { status: 400 });
+            return Response.json(
+              { ok: false, error: "Invalid input", details: parsed.error.issues },
+              { status: 400 },
+            );
           }
 
           const key = process.env.AWORK_API_KEY;
@@ -68,16 +73,22 @@ export const Route = createFileRoute("/api/awork/create-task")({
           // status id from the client may belong to a different project (the UI
           // merges statuses across projects), which AWORK rejects with
           // "illegal-property-transition". Fall back to the project's default.
-          const statusRes = await aworkFetch<any[]>(`/projects/${parsed.data.projectId}/taskstatuses`, key);
+          const statusRes = await aworkFetch<any[]>(
+            `/projects/${parsed.data.projectId}/taskstatuses`,
+            key,
+          );
           const projectStatuses = statusRes.data || [];
           let taskStatusId = parsed.data.taskStatusId;
-          const supplied = taskStatusId && projectStatuses.find((s: any) => String(s.id) === String(taskStatusId));
+          const supplied =
+            taskStatusId && projectStatuses.find((s: any) => String(s.id) === String(taskStatusId));
           if (!supplied) {
             // Try to match the chosen status by name within this project (the UI
             // merges statuses across projects, so the id may belong elsewhere).
             const byName = parsed.data.taskStatusName
               ? projectStatuses.find(
-                  (s: any) => String(s.name).toLowerCase() === String(parsed.data.taskStatusName).toLowerCase(),
+                  (s: any) =>
+                    String(s.name).toLowerCase() ===
+                    String(parsed.data.taskStatusName).toLowerCase(),
                 )
               : null;
             const defaultStatus =
@@ -92,7 +103,8 @@ export const Route = createFileRoute("/api/awork/create-task")({
           let typeOfWorkId: string | undefined;
           const towRes = await aworkFetch<any[]>("/typeofwork", key);
           if (towRes.ok && Array.isArray(towRes.data) && towRes.data.length > 0) {
-            const defaultTow = towRes.data.find((t: any) => t.isArchived !== true) || towRes.data[0];
+            const defaultTow =
+              towRes.data.find((t: any) => t.isArchived !== true) || towRes.data[0];
             typeOfWorkId = defaultTow?.id;
           }
 
@@ -110,9 +122,15 @@ export const Route = createFileRoute("/api/awork/create-task")({
           if (parsed.data.isPrio) taskBody.isPrio = true;
           if (parsed.data.listId) taskBody.lists = [{ id: parsed.data.listId }];
 
-          const createRes = await aworkFetch<any>("/tasks", key, { method: "POST", body: taskBody });
+          const createRes = await aworkFetch<any>("/tasks", key, {
+            method: "POST",
+            body: taskBody,
+          });
           if (!createRes.ok) {
-            return Response.json({ ok: false, error: `Task erstellen fehlgeschlagen: ${createRes.error}` }, { status: createRes.status });
+            return Response.json(
+              { ok: false, error: `Task erstellen fehlgeschlagen: ${createRes.error}` },
+              { status: createRes.status },
+            );
           }
 
           const task = createRes.data;
@@ -142,7 +160,10 @@ export const Route = createFileRoute("/api/awork/create-task")({
             },
           });
         } catch (e) {
-          return Response.json({ ok: false, error: String((e as Error)?.message || e) }, { status: 500 });
+          return Response.json(
+            { ok: false, error: String((e as Error)?.message || e) },
+            { status: 500 },
+          );
         }
       },
     },

@@ -25,16 +25,26 @@ export const Route = createFileRoute("/api/admin/ads-autopilot-execute")({
       POST: async ({ request }) => {
         const secret = process.env.ADMIN_AUTOMATION_SECRET;
         if (!secret)
-          return Response.json({ ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" }, { status: 503 });
+          return Response.json(
+            { ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" },
+            { status: 503 },
+          );
         if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
           return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
         const parsed = Body.safeParse(await request.json().catch(() => ({})));
-        if (!parsed.success) return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
+        if (!parsed.success)
+          return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
 
         const r = await decideApproval(parsed.data);
         return Response.json(
-          { ok: r.ok, decision: parsed.data.decision, status: r.status, error: r.error, approvalId: r.approvalId },
+          {
+            ok: r.ok,
+            decision: parsed.data.decision,
+            status: r.status,
+            error: r.error,
+            approvalId: r.approvalId,
+          },
           { status: r.httpStatus },
         );
       },

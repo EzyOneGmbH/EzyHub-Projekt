@@ -14,12 +14,16 @@ export const Route = createFileRoute("/api/admin/ads-scorecard")({
       GET: async ({ request }) => {
         const secret = process.env.ADMIN_AUTOMATION_SECRET;
         if (!secret)
-          return Response.json({ ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" }, { status: 503 });
+          return Response.json(
+            { ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" },
+            { status: 503 },
+          );
         if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
           return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
         const url = new URL(request.url);
         const clientId = url.searchParams.get("clientId");
-        if (!clientId) return Response.json({ ok: false, error: "clientId erforderlich" }, { status: 400 });
+        if (!clientId)
+          return Response.json({ ok: false, error: "clientId erforderlich" }, { status: 400 });
 
         // Aggregation in TS (identisch zur SQL-View ads_agent_scorecard, 90d)
         const since = new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString();
@@ -33,8 +37,14 @@ export const Route = createFileRoute("/api/admin/ads-scorecard")({
         const agg = new Map<string, ScoreRow>();
         for (const r of rows ?? []) {
           const a = agg.get(r.action_type) ?? {
-            action_type: r.action_type, n_total: 0, n_positive: 0, n_neutral: 0,
-            n_negative: 0, n_inconclusive: 0, hit_rate: null, avoided_waste_chf_sum: 0,
+            action_type: r.action_type,
+            n_total: 0,
+            n_positive: 0,
+            n_neutral: 0,
+            n_negative: 0,
+            n_inconclusive: 0,
+            hit_rate: null,
+            avoided_waste_chf_sum: 0,
           };
           a.n_total += 1;
           if (r.verdict === "positive") a.n_positive += 1;
@@ -46,7 +56,13 @@ export const Route = createFileRoute("/api/admin/ads-scorecard")({
         }
         const scorecard = [...agg.values()].map((a) => {
           const decided = a.n_total - a.n_inconclusive;
-          return { ...a, hit_rate: decided > 0 ? Math.round(((a.n_positive + a.n_neutral) / decided) * 10000) / 10000 : null };
+          return {
+            ...a,
+            hit_rate:
+              decided > 0
+                ? Math.round(((a.n_positive + a.n_neutral) / decided) * 10000) / 10000
+                : null,
+          };
         });
 
         const { data: cfg } = await supabaseAdmin

@@ -51,13 +51,19 @@ export const Route = createFileRoute("/api/admin/ai-citations")({
       POST: async ({ request }) => {
         const secret = process.env.ADMIN_AUTOMATION_SECRET;
         if (!secret)
-          return Response.json({ ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" }, { status: 503 });
+          return Response.json(
+            { ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" },
+            { status: 503 },
+          );
         if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
           return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
         const parsed = Body.safeParse(await request.json().catch(() => ({})));
         if (!parsed.success)
-          return Response.json({ ok: false, error: "Invalid input", details: parsed.error.issues }, { status: 400 });
+          return Response.json(
+            { ok: false, error: "Invalid input", details: parsed.error.issues },
+            { status: 400 },
+          );
         const d = parsed.data;
 
         const { data: clients } = await supabaseAdmin
@@ -66,10 +72,18 @@ export const Route = createFileRoute("/api/admin/ai-citations")({
         const target = (clients || []).find(
           (c: any) =>
             slugifyName(c.name) === d.client ||
-            slugifyName(String(c.domain || "").replace(/^https?:\/\//, "").replace(/^www\./, "").split(".")[0]) === d.client,
+            slugifyName(
+              String(c.domain || "")
+                .replace(/^https?:\/\//, "")
+                .replace(/^www\./, "")
+                .split(".")[0],
+            ) === d.client,
         );
         if (!target)
-          return Response.json({ ok: false, error: `Kunde '${d.client}' nicht gefunden` }, { status: 404 });
+          return Response.json(
+            { ok: false, error: `Kunde '${d.client}' nicht gefunden` },
+            { status: 404 },
+          );
 
         const { data: users } = await supabaseAdmin
           .from("app_users")
@@ -79,7 +93,10 @@ export const Route = createFileRoute("/api/admin/ai-citations")({
         const owner =
           (users || []).find((u: any) => ["owner", "admin"].includes(u.role)) || (users || [])[0];
         if (!owner)
-          return Response.json({ ok: false, error: "Kein Org-User fuer triggered_by" }, { status: 500 });
+          return Response.json(
+            { ok: false, error: "Kein Org-User fuer triggered_by" },
+            { status: 500 },
+          );
 
         const result: Record<string, unknown> = {
           client: d.client,

@@ -23,7 +23,8 @@ export const Route = createFileRoute("/api/agent/templates")({
       GET: async ({ request }) => {
         const base = process.env.AGENT_BASE_URL;
         const secret = process.env.AGENT_SHARED_SECRET;
-        if (!base || !secret) return Response.json({ error: "Agent service not configured" }, { status: 503 });
+        if (!base || !secret)
+          return Response.json({ error: "Agent service not configured" }, { status: 503 });
         const unauth = await requireUser(request);
         if (unauth) return unauth;
         try {
@@ -36,14 +37,18 @@ export const Route = createFileRoute("/api/agent/templates")({
             headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
           });
         } catch (e) {
-          return Response.json({ ok: false, error: String((e as Error)?.message || e) }, { status: 502 });
+          return Response.json(
+            { ok: false, error: String((e as Error)?.message || e) },
+            { status: 502 },
+          );
         }
       },
       // Instantiate a template for a client: { templateId, clientId, clientName, clientDomain }
       POST: async ({ request }) => {
         const base = process.env.AGENT_BASE_URL;
         const secret = process.env.AGENT_SHARED_SECRET;
-        if (!base || !secret) return Response.json({ error: "Agent service not configured" }, { status: 503 });
+        if (!base || !secret)
+          return Response.json({ error: "Agent service not configured" }, { status: 503 });
         const unauth = await requireUser(request);
         if (unauth) return unauth;
         const body = await request.text().catch(() => "");
@@ -59,7 +64,10 @@ export const Route = createFileRoute("/api/agent/templates")({
             headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
           });
         } catch (e) {
-          return Response.json({ ok: false, error: String((e as Error)?.message || e) }, { status: 502 });
+          return Response.json(
+            { ok: false, error: String((e as Error)?.message || e) },
+            { status: 502 },
+          );
         }
       },
     },

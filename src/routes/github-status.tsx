@@ -126,9 +126,7 @@ function GitHubStatusPage() {
           ) : (
             <AlertCircle className="h-4 w-4 text-amber-500" />
           )}
-          <AlertTitle>
-            {syncFresh ? "Sync aktiv" : "Längere Zeit kein Push"}
-          </AlertTitle>
+          <AlertTitle>{syncFresh ? "Sync aktiv" : "Längere Zeit kein Push"}</AlertTitle>
           <AlertDescription>
             Letzter Push auf <code>{repoQuery.data.default_branch}</code>:{" "}
             {timeAgo(repoQuery.data.pushed_at)} (
@@ -180,9 +178,7 @@ function GitHubStatusPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <div className="font-medium">
-              {latest.commit.message.split("\n")[0]}
-            </div>
+            <div className="font-medium">{latest.commit.message.split("\n")[0]}</div>
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <Badge variant="outline" className="font-mono">
                 {latest.sha.slice(0, 7)}

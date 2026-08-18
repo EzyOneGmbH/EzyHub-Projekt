@@ -13,7 +13,10 @@ export default defineTool({
     "Liste aller installierten Agenten-Skills (SEO/GEO/Blog/Ads/Obsidian) mit Beschreibung. " +
     "Nutze die `skill`-Werte (Format plugin:skill) fuer agent_upsert.",
   inputSchema: {
-    category: z.string().optional().describe("Optional nach Kategorie filtern (z.B. 'skills-seo')."),
+    category: z
+      .string()
+      .optional()
+      .describe("Optional nach Kategorie filtern (z.B. 'skills-seo')."),
   },
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async ({ category }, ctx) => {

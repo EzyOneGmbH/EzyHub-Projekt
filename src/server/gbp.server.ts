@@ -25,7 +25,9 @@ async function gFetch(token: string, url: string, options?: { method?: string; b
   });
   const text = await res.text();
   let json: any = null;
-  try { json = text ? JSON.parse(text) : null; } catch {}
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {}
   if (!res.ok) {
     const msg = json?.error?.message || `HTTP ${res.status}`;
     return { ok: false, status: res.status, error: String(msg).slice(0, 300), data: null };
@@ -38,14 +40,24 @@ export async function gbpAccounts(clientId: string) {
   const { accessToken } = await getGoogleAccessToken(clientId);
   const r = await gFetch(accessToken, `${ACCT_API}/accounts`);
   if (!r.ok) return r;
-  return { ok: true, accounts: (r.data?.accounts || []).map((a: any) => ({ name: a.name, accountName: a.accountName, type: a.type })) };
+  return {
+    ok: true,
+    accounts: (r.data?.accounts || []).map((a: any) => ({
+      name: a.name,
+      accountName: a.accountName,
+      type: a.type,
+    })),
+  };
 }
 
 // List locations for an account (name = "accounts/123").
 export async function gbpLocations(clientId: string, account: string) {
   const { accessToken } = await getGoogleAccessToken(clientId);
   const fields = "name,title,storefrontAddress,phoneNumbers,websiteUri,metadata";
-  const r = await gFetch(accessToken, `${INFO_API}/${account}/locations?readMask=${encodeURIComponent(fields)}&pageSize=100`);
+  const r = await gFetch(
+    accessToken,
+    `${INFO_API}/${account}/locations?readMask=${encodeURIComponent(fields)}&pageSize=100`,
+  );
   if (!r.ok) return r;
   return {
     ok: true,
@@ -60,7 +72,9 @@ export async function gbpLocations(clientId: string, account: string) {
 }
 
 // Auto-discover the first account+location (convenience for single-location clients).
-export async function gbpResolveDefault(clientId: string): Promise<{ ok: boolean; account?: string; location?: string; error?: string }> {
+export async function gbpResolveDefault(
+  clientId: string,
+): Promise<{ ok: boolean; account?: string; location?: string; error?: string }> {
   const acc = await gbpAccounts(clientId);
   if (!acc.ok) return { ok: false, error: (acc as any).error };
   const account = (acc as any).accounts?.[0]?.name;
@@ -77,7 +91,10 @@ export async function gbpReviews(clientId: string, account: string, location: st
   const { accessToken } = await getGoogleAccessToken(clientId);
   const loc = location.replace(/^locations\//, "");
   const acc = account.replace(/^accounts\//, "");
-  const r = await gFetch(accessToken, `${V4_API}/accounts/${acc}/locations/${loc}/reviews?pageSize=50&orderBy=updateTime%20desc`);
+  const r = await gFetch(
+    accessToken,
+    `${V4_API}/accounts/${acc}/locations/${loc}/reviews?pageSize=50&orderBy=updateTime%20desc`,
+  );
   if (!r.ok) return r;
   return {
     ok: true,
@@ -94,23 +111,42 @@ export async function gbpReviews(clientId: string, account: string, location: st
   };
 }
 
-export async function gbpReplyReview(clientId: string, account: string, location: string, reviewId: string, comment: string) {
+export async function gbpReplyReview(
+  clientId: string,
+  account: string,
+  location: string,
+  reviewId: string,
+  comment: string,
+) {
   const { accessToken } = await getGoogleAccessToken(clientId);
   const acc = account.replace(/^accounts\//, "");
   const loc = location.replace(/^locations\//, "");
-  const r = await gFetch(accessToken, `${V4_API}/accounts/${acc}/locations/${loc}/reviews/${reviewId}/reply`, {
-    method: "PUT",
-    body: { comment },
-  });
+  const r = await gFetch(
+    accessToken,
+    `${V4_API}/accounts/${acc}/locations/${loc}/reviews/${reviewId}/reply`,
+    {
+      method: "PUT",
+      body: { comment },
+    },
+  );
   return r.ok ? { ok: true } : r;
 }
 
-export async function gbpCreatePost(clientId: string, account: string, location: string, post: { summary: string; ctaUrl?: string; ctaType?: string }) {
+export async function gbpCreatePost(
+  clientId: string,
+  account: string,
+  location: string,
+  post: { summary: string; ctaUrl?: string; ctaType?: string },
+) {
   const { accessToken } = await getGoogleAccessToken(clientId);
   const acc = account.replace(/^accounts\//, "");
   const loc = location.replace(/^locations\//, "");
   const body: any = { languageCode: "de", summary: post.summary, topicType: "STANDARD" };
-  if (post.ctaUrl) body.callToAction = { actionType: post.ctaType || "LEARN_MORE", url: post.ctaUrl };
-  const r = await gFetch(accessToken, `${V4_API}/accounts/${acc}/locations/${loc}/localPosts`, { method: "POST", body });
+  if (post.ctaUrl)
+    body.callToAction = { actionType: post.ctaType || "LEARN_MORE", url: post.ctaUrl };
+  const r = await gFetch(accessToken, `${V4_API}/accounts/${acc}/locations/${loc}/localPosts`, {
+    method: "POST",
+    body,
+  });
   return r.ok ? { ok: true, post: { name: r.data?.name, state: r.data?.state } } : r;
 }

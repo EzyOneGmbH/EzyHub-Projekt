@@ -22,16 +22,19 @@ export type BudgetAnchor = {
 
 export const DAYS_PER_MONTH = 30.4;
 
-type QueryFn = (gaql: string) => Promise<{ ok: boolean; rows?: Array<Record<string, any>>; error?: string; skipped?: string }>;
+type QueryFn = (
+  gaql: string,
+) => Promise<{ ok: boolean; rows?: Array<Record<string, any>>; error?: string; skipped?: string }>;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const monthKey = (y: number, m1: number) => `${y}-${String(m1).padStart(2, "0")}`;
 
 // Tagesbudgets aktiver Kampagnen summieren, shared budgets via budget-id nur
 // EINMAL zaehlen (pure, testbar).
-export function sumDedupedDailyBudgets(
-  rows: Array<{ budgetId: string; amountChf: number }>,
-): { dailyChf: number; budgetCount: number } {
+export function sumDedupedDailyBudgets(rows: Array<{ budgetId: string; amountChf: number }>): {
+  dailyChf: number;
+  budgetCount: number;
+} {
   const byBudget = new Map<string, number>();
   for (const r of rows) {
     if (!r.budgetId || !(r.amountChf > 0)) continue;
@@ -54,22 +57,41 @@ export function seasonalHistoricalEstimate(
   const shift = (y: number, m: number, back: number): [number, number] => {
     let mm = m - back;
     let yy = y;
-    while (mm <= 0) { mm += 12; yy -= 1; }
+    while (mm <= 0) {
+      mm += 12;
+      yy -= 1;
+    }
     return [yy, mm];
   };
   const priorYear = monthCost[monthKey(year - 1, month1)];
   const recent = [1, 2, 3].map((b) => shift(year, month1, b));
-  const recentVals = recent.map(([y, m]) => monthCost[monthKey(y, m)]).filter((v): v is number => v != null);
-  const priorOfRecent = recent.map(([y, m]) => monthCost[monthKey(y - 1, m)]).filter((v): v is number => v != null);
+  const recentVals = recent
+    .map(([y, m]) => monthCost[monthKey(y, m)])
+    .filter((v): v is number => v != null);
+  const priorOfRecent = recent
+    .map(([y, m]) => monthCost[monthKey(y - 1, m)])
+    .filter((v): v is number => v != null);
   const sum = (a: number[]) => a.reduce((s, v) => s + v, 0);
 
-  if (priorYear != null && priorYear > 0 && recentVals.length === 3 && priorOfRecent.length === 3 && sum(priorOfRecent) > 0) {
+  if (
+    priorYear != null &&
+    priorYear > 0 &&
+    recentVals.length === 3 &&
+    priorOfRecent.length === 3 &&
+    sum(priorOfRecent) > 0
+  ) {
     const trend = sum(recentVals) / sum(priorOfRecent);
     if (isFinite(trend) && trend > 0)
-      return { value: round2(priorYear * trend), reason: `Vorjahresmonat CHF ${priorYear.toFixed(0)} x Jahrestrend ${trend.toFixed(2)}` };
+      return {
+        value: round2(priorYear * trend),
+        reason: `Vorjahresmonat CHF ${priorYear.toFixed(0)} x Jahrestrend ${trend.toFixed(2)}`,
+      };
   }
   if (priorYear != null && priorYear > 0)
-    return { value: round2(priorYear), reason: `Vorjahresmonat CHF ${priorYear.toFixed(0)} (kein belastbarer Jahrestrend)` };
+    return {
+      value: round2(priorYear),
+      reason: `Vorjahresmonat CHF ${priorYear.toFixed(0)} (kein belastbarer Jahrestrend)`,
+    };
   if (recentVals.length)
     return {
       value: round2(sum(recentVals) / recentVals.length),
@@ -86,7 +108,11 @@ export async function resolveBudgetAnchor(
 ): Promise<BudgetAnchor> {
   // 1) client - manuell gesetzt, Vorrang.
   if (clientMonthlyBudgetChf > 0)
-    return { monthlyBudgetChf: round2(clientMonthlyBudgetChf), source: "client", detail: "manuell gesetzt (Soll-Budget)" };
+    return {
+      monthlyBudgetChf: round2(clientMonthlyBudgetChf),
+      source: "client",
+      detail: "manuell gesetzt (Soll-Budget)",
+    };
 
   // 2) account - Summe der Tagesbudgets aktiver Kampagnen x 30.4 (shared dedupe).
   try {
@@ -108,7 +134,9 @@ export async function resolveBudgetAnchor(
           detail: `Summe der Tagesbudgets ${budgetCount} aktiver Budget(s) CHF ${dailyChf.toFixed(2)}/Tag x ${DAYS_PER_MONTH}`,
         };
     }
-  } catch { /* account-Ableitung optional -> naechster Fallback */ }
+  } catch {
+    /* account-Ableitung optional -> naechster Fallback */
+  }
 
   // 3) historical - saisonal normalisiert, nur aktive Kampagnen.
   try {
@@ -129,23 +157,41 @@ export async function resolveBudgetAnchor(
       if (est.value != null && est.value > 0)
         return { monthlyBudgetChf: est.value, source: "historical", detail: est.reason };
     }
-  } catch { /* historical-Ableitung optional */ }
+  } catch {
+    /* historical-Ableitung optional */
+  }
 
-  return { monthlyBudgetChf: null, source: "none", detail: "kein Budget ableitbar (keine aktiven Kampagnen-Budgets, keine Historie)" };
+  return {
+    monthlyBudgetChf: null,
+    source: "none",
+    detail: "kein Budget ableitbar (keine aktiven Kampagnen-Budgets, keine Historie)",
+  };
 }
 
 // Quellenabhaengige Sprache - eine abgeleitete Quelle wird NIE als bestaetigtes
 // Budget dargestellt. head = Kurzbezeichnung der Meldung, budgetWord = wie der
 // Vergleichswert im Fliesstext genannt werden darf, capWarn = kein critical
 // (nur Beobachtung, keine Sofort-Autoritaet).
-export function budgetSourceLanguage(source: BudgetSource): { head: string; budgetWord: string; capWarn: boolean } {
+export function budgetSourceLanguage(source: BudgetSource): {
+  head: string;
+  budgetWord: string;
+  capWarn: boolean;
+} {
   switch (source) {
     case "client":
       return { head: "Budget-Ueberschreitung", budgetWord: "des Monatsbudgets", capWarn: false };
     case "account":
-      return { head: "Ausgabe weicht von Konto-Konfiguration ab", budgetWord: "der hochgerechneten Konto-Konfiguration", capWarn: false };
+      return {
+        head: "Ausgabe weicht von Konto-Konfiguration ab",
+        budgetWord: "der hochgerechneten Konto-Konfiguration",
+        capWarn: false,
+      };
     case "historical":
-      return { head: "Ausgabemuster-Anomalie (Beobachtung, kein bestaetigtes Budget)", budgetWord: "des saisonal erwarteten Ausgabewerts", capWarn: true };
+      return {
+        head: "Ausgabemuster-Anomalie (Beobachtung, kein bestaetigtes Budget)",
+        budgetWord: "des saisonal erwarteten Ausgabewerts",
+        capWarn: true,
+      };
     default:
       return { head: "Ausgabemuster", budgetWord: "des Referenzwerts", capWarn: true };
   }

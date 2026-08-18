@@ -12,7 +12,10 @@ import {
 // Phase-1-Abnahme: je Check ein simulierter Ausloesefall (+ Gegenprobe).
 // Die Checks sind pure functions - DB-/API-Pfade werden hier nicht beruehrt.
 
-const anchor = (chf: number | null, source: "client" | "account" | "historical" | "none" = "client") => ({
+const anchor = (
+  chf: number | null,
+  source: "client" | "account" | "historical" | "none" = "client",
+) => ({
   monthlyBudgetChf: chf,
   source,
   detail: "test",
@@ -78,7 +81,9 @@ describe("checkPolicyStatus", () => {
     expect(crit[0].message).toContain("nicht voll auslieferbar");
   });
   it("still ohne Policy-Probleme", () => {
-    expect(checkPolicyStatus([{ campaign: "K", adGroup: "AG", adId: "1", approvalStatus: "APPROVED" }])).toEqual([]);
+    expect(
+      checkPolicyStatus([{ campaign: "K", adGroup: "AG", adId: "1", approvalStatus: "APPROVED" }]),
+    ).toEqual([]);
   });
 });
 
@@ -111,7 +116,12 @@ describe("checkTracking", () => {
 
 describe("overallStatus + markKnown (Zustell-Logik-Basis)", () => {
   const f = (over: Partial<GuardianFinding>): GuardianFinding => ({
-    check: "budget_pacing", severity: "warn", entity: "Konto", metric: "", message: "", ...over,
+    check: "budget_pacing",
+    severity: "warn",
+    entity: "Konto",
+    metric: "",
+    message: "",
+    ...over,
   });
   it("Status = hoechste Severity, ok ohne Findings", () => {
     expect(overallStatus([])).toBe("ok");
@@ -122,8 +132,14 @@ describe("overallStatus + markKnown (Zustell-Logik-Basis)", () => {
     const today = markKnown(
       [f({ check: "tracking", entity: "Konto" }), f({ check: "impressions_crash", entity: "Neu" })],
       [
-        { checkedAt: "2026-07-09T07:30:00Z", findings: [f({ check: "tracking", entity: "Konto" })] },
-        { checkedAt: "2026-07-08T07:30:00Z", findings: [f({ check: "tracking", entity: "Konto" })] },
+        {
+          checkedAt: "2026-07-09T07:30:00Z",
+          findings: [f({ check: "tracking", entity: "Konto" })],
+        },
+        {
+          checkedAt: "2026-07-08T07:30:00Z",
+          findings: [f({ check: "tracking", entity: "Konto" })],
+        },
       ],
     );
     expect(today[0].knownSince).toBe("2026-07-08"); // erstes Auftreten, nicht letztes

@@ -22,11 +22,13 @@ export const Route = createFileRoute("/api/agent/run-agent")({
       POST: async ({ request }) => {
         const base = process.env.AGENT_BASE_URL;
         const secret = process.env.AGENT_SHARED_SECRET;
-        if (!base || !secret) return Response.json({ error: "Agent service not configured" }, { status: 503 });
+        if (!base || !secret)
+          return Response.json({ error: "Agent service not configured" }, { status: 503 });
         const unauth = await requireUser(request);
         if (unauth) return unauth;
         const body = await request.json().catch(() => ({}));
-        if (!body.id) return Response.json({ ok: false, error: "id erforderlich" }, { status: 400 });
+        if (!body.id)
+          return Response.json({ ok: false, error: "id erforderlich" }, { status: 400 });
         try {
           const r = await fetch(`${base.replace(/\/+$/, "")}/run-agent`, {
             method: "POST",
@@ -48,28 +50,39 @@ export const Route = createFileRoute("/api/agent/run-agent")({
             headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
           });
         } catch (e) {
-          return Response.json({ ok: false, error: String((e as Error)?.message || e) }, { status: 502 });
+          return Response.json(
+            { ok: false, error: String((e as Error)?.message || e) },
+            { status: 502 },
+          );
         }
       },
       GET: async ({ request }) => {
         const base = process.env.AGENT_BASE_URL;
         const secret = process.env.AGENT_SHARED_SECRET;
-        if (!base || !secret) return Response.json({ error: "Agent service not configured" }, { status: 503 });
+        if (!base || !secret)
+          return Response.json({ error: "Agent service not configured" }, { status: 503 });
         const unauth = await requireUser(request);
         if (unauth) return unauth;
         const jobId = new URL(request.url).searchParams.get("jobId") || "";
-        if (!jobId) return Response.json({ ok: false, error: "jobId erforderlich" }, { status: 400 });
+        if (!jobId)
+          return Response.json({ ok: false, error: "jobId erforderlich" }, { status: 400 });
         try {
-          const r = await fetch(`${base.replace(/\/+$/, "")}/jobs?id=${encodeURIComponent(jobId)}`, {
-            headers: { Authorization: `Bearer ${secret}` },
-            signal: AbortSignal.timeout(15_000),
-          });
+          const r = await fetch(
+            `${base.replace(/\/+$/, "")}/jobs?id=${encodeURIComponent(jobId)}`,
+            {
+              headers: { Authorization: `Bearer ${secret}` },
+              signal: AbortSignal.timeout(15_000),
+            },
+          );
           return new Response(await r.text().catch(() => ""), {
             status: r.status,
             headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
           });
         } catch (e) {
-          return Response.json({ ok: false, error: String((e as Error)?.message || e) }, { status: 502 });
+          return Response.json(
+            { ok: false, error: String((e as Error)?.message || e) },
+            { status: 502 },
+          );
         }
       },
     },

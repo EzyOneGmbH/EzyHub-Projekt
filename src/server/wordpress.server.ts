@@ -54,7 +54,12 @@ function authHeader(conn: WpConnection): string {
 export async function wpFetch<T = any>(
   conn: WpConnection,
   path: string,
-  options?: { method?: string; body?: any; query?: Record<string, string | number>; timeoutMs?: number },
+  options?: {
+    method?: string;
+    body?: any;
+    query?: Record<string, string | number>;
+    timeoutMs?: number;
+  },
 ): Promise<{ ok: boolean; status: number; data: T | null; error?: string }> {
   // Build a URL for either permalink mode: "pretty" => /wp-json{path},
   // "plain" => /?rest_route={path} (works when pretty permalinks are off).
@@ -64,7 +69,8 @@ export async function wpFetch<T = any>(
       : [];
     if (mode === "pretty") {
       let u = `${conn.siteUrl}/wp-json${path}`;
-      if (queryEntries.length) u += (path.includes("?") ? "&" : "?") + new URLSearchParams(queryEntries).toString();
+      if (queryEntries.length)
+        u += (path.includes("?") ? "&" : "?") + new URLSearchParams(queryEntries).toString();
       return u;
     }
     // plain: rest_route carries the path; other query params are appended separately
@@ -121,7 +127,12 @@ export async function wpFetch<T = any>(
     }
     return { ok: true, status: res.status, data: json as T };
   } catch (e) {
-    return { ok: false, status: 0, data: null, error: String((e as Error)?.message || e).slice(0, 300) };
+    return {
+      ok: false,
+      status: 0,
+      data: null,
+      error: String((e as Error)?.message || e).slice(0, 300),
+    };
   }
 }
 

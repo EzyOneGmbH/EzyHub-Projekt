@@ -14,16 +14,26 @@ export const Route = createFileRoute("/api/admin/ads-guardian")({
       POST: async ({ request }) => {
         const secret = process.env.ADMIN_AUTOMATION_SECRET;
         if (!secret)
-          return Response.json({ ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" }, { status: 503 });
+          return Response.json(
+            { ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" },
+            { status: 503 },
+          );
         if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
           return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
         const body = (await request.json().catch(() => ({}))) as { clientId?: string };
-        let q = supabaseAdmin.from("clients").select("id, name, google_ads_customer").not("google_ads_customer", "is", null);
+        let q = supabaseAdmin
+          .from("clients")
+          .select("id, name, google_ads_customer")
+          .not("google_ads_customer", "is", null);
         if (body.clientId) q = q.eq("id", body.clientId);
         const { data: clients, error } = await q;
         if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
-        if (!clients?.length) return Response.json({ ok: false, error: "kein Kunde mit google_ads_customer gefunden" }, { status: 404 });
+        if (!clients?.length)
+          return Response.json(
+            { ok: false, error: "kein Kunde mit google_ads_customer gefunden" },
+            { status: 404 },
+          );
 
         const results = [];
         for (const c of clients) {
@@ -31,12 +41,20 @@ export const Route = createFileRoute("/api/admin/ads-guardian")({
             results.push(await runGuardianForClient(c));
           } catch (e) {
             results.push({
-              clientId: c.id, clientName: c.name, checkedAt: new Date().toISOString(),
-              status: "critical", findings: [], skipped: `Guardian-Fehler: ${(e instanceof Error ? e.message : String(e)).slice(0, 200)}`,
+              clientId: c.id,
+              clientName: c.name,
+              checkedAt: new Date().toISOString(),
+              status: "critical",
+              findings: [],
+              skipped: `Guardian-Fehler: ${(e instanceof Error ? e.message : String(e)).slice(0, 200)}`,
             });
           }
         }
-        const worst = results.some((r) => r.status === "critical") ? "critical" : results.some((r) => r.status === "warn") ? "warn" : "ok";
+        const worst = results.some((r) => r.status === "critical")
+          ? "critical"
+          : results.some((r) => r.status === "warn")
+            ? "warn"
+            : "ok";
         return Response.json({ ok: true, status: worst, count: results.length, results });
       },
     },

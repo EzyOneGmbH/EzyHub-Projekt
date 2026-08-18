@@ -13,8 +13,8 @@ const Body = z.object({
   clientName: z.string().optional(), // resolve by name if no id
   type: z.enum(["posts", "pages"]).default("posts"),
   title: z.string().min(1),
-  content: z.string().optional(),    // HTML
-  markdown: z.string().optional(),   // converted to HTML if content not given
+  content: z.string().optional(), // HTML
+  markdown: z.string().optional(), // converted to HTML if content not given
   excerpt: z.string().optional(),
   status: z.enum(["draft", "publish", "pending", "private"]).default("draft"),
   slug: z.string().optional(),
@@ -33,16 +33,43 @@ function mdToHtml(md: string): string {
       .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
   const out: string[] = [];
   let list: string | null = null;
-  const close = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  const close = () => {
+    if (list) {
+      out.push(`</${list}>`);
+      list = null;
+    }
+  };
   for (const raw of String(md || "").split("\n")) {
     const line = raw.trimEnd();
-    if (/^### (.+)/.test(line)) { close(); out.push(`<h3>${inline(line.slice(4))}</h3>`); }
-    else if (/^## (.+)/.test(line)) { close(); out.push(`<h2>${inline(line.slice(3))}</h2>`); }
-    else if (/^# (.+)/.test(line)) { close(); out.push(`<h1>${inline(line.slice(2))}</h1>`); }
-    else if (/^- (.+)/.test(line)) { if (list !== "ul") { close(); out.push("<ul>"); list = "ul"; } out.push(`<li>${inline(line.slice(2))}</li>`); }
-    else if (/^\d+\. (.+)/.test(line)) { if (list !== "ol") { close(); out.push("<ol>"); list = "ol"; } out.push(`<li>${inline(line.replace(/^\d+\. /, ""))}</li>`); }
-    else if (line.trim() === "") { close(); }
-    else { close(); out.push(`<p>${inline(line)}</p>`); }
+    if (/^### (.+)/.test(line)) {
+      close();
+      out.push(`<h3>${inline(line.slice(4))}</h3>`);
+    } else if (/^## (.+)/.test(line)) {
+      close();
+      out.push(`<h2>${inline(line.slice(3))}</h2>`);
+    } else if (/^# (.+)/.test(line)) {
+      close();
+      out.push(`<h1>${inline(line.slice(2))}</h1>`);
+    } else if (/^- (.+)/.test(line)) {
+      if (list !== "ul") {
+        close();
+        out.push("<ul>");
+        list = "ul";
+      }
+      out.push(`<li>${inline(line.slice(2))}</li>`);
+    } else if (/^\d+\. (.+)/.test(line)) {
+      if (list !== "ol") {
+        close();
+        out.push("<ol>");
+        list = "ol";
+      }
+      out.push(`<li>${inline(line.replace(/^\d+\. /, ""))}</li>`);
+    } else if (line.trim() === "") {
+      close();
+    } else {
+      close();
+      out.push(`<p>${inline(line)}</p>`);
+    }
   }
   close();
   return out.join("\n");
@@ -53,12 +80,20 @@ export const Route = createFileRoute("/api/admin/wp-publish")({
     handlers: {
       POST: async ({ request }) => {
         const secret = process.env.ADMIN_AUTOMATION_SECRET;
-        if (!secret) return Response.json({ ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" }, { status: 503 });
+        if (!secret)
+          return Response.json(
+            { ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" },
+            { status: 503 },
+          );
         if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
           return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
         const parsed = Body.safeParse(await request.json().catch(() => ({})));
-        if (!parsed.success) return Response.json({ ok: false, error: "Invalid input", details: parsed.error.issues }, { status: 400 });
+        if (!parsed.success)
+          return Response.json(
+            { ok: false, error: "Invalid input", details: parsed.error.issues },
+            { status: 400 },
+          );
         const d = parsed.data;
 
         // Resolve client by id or name.
@@ -72,10 +107,18 @@ export const Route = createFileRoute("/api/admin/wp-publish")({
             .maybeSingle();
           clientId = data?.id || null;
         }
-        if (!clientId) return Response.json({ ok: false, error: "Kunde nicht gefunden (clientId/clientName)" }, { status: 404 });
+        if (!clientId)
+          return Response.json(
+            { ok: false, error: "Kunde nicht gefunden (clientId/clientName)" },
+            { status: 404 },
+          );
 
         const conn = await getWpConnection(clientId);
-        if (!conn) return Response.json({ ok: false, error: "Keine WordPress-Verbindung für diesen Kunden" });
+        if (!conn)
+          return Response.json({
+            ok: false,
+            error: "Keine WordPress-Verbindung für diesen Kunden",
+          });
 
         // Detect SEO plugin from stored scopes.
         const { data: connRow } = await supabaseAdmin
@@ -84,7 +127,9 @@ export const Route = createFileRoute("/api/admin/wp-publish")({
           .eq("client_id", clientId)
           .eq("provider", "wordpress")
           .maybeSingle();
-        const scopes: string[] = Array.isArray(connRow?.scopes) ? (connRow!.scopes as string[]) : [];
+        const scopes: string[] = Array.isArray(connRow?.scopes)
+          ? (connRow!.scopes as string[])
+          : [];
         const seoPlugin = scopes.find((s) => s.startsWith("seo:"))?.split(":")[1] || null;
 
         const html = d.content ?? (d.markdown ? mdToHtml(d.markdown) : "");

@@ -14,7 +14,9 @@ async function authClient(request: Request, clientId: string, requireAdmin = fal
   const sb = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: request.headers.get("authorization") ?? "" } },
   });
-  const { data: { user } } = await sb.auth.getUser();
+  const {
+    data: { user },
+  } = await sb.auth.getUser();
   if (!user) return { error: "Unauthorized", status: 401 as const };
   const { data: client } = await supabaseAdmin
     .from("clients")
@@ -79,7 +81,11 @@ export const Route = createFileRoute("/api/wordpress/connection")({
 
         const siteUrl = normalizeSiteUrl(parsed.data.siteUrl);
         if (!siteUrl) return Response.json({ error: "Ungültige Site-URL" }, { status: 400 });
-        const conn = { siteUrl, username: parsed.data.username.trim(), appPassword: parsed.data.appPassword.trim() };
+        const conn = {
+          siteUrl,
+          username: parsed.data.username.trim(),
+          appPassword: parsed.data.appPassword.trim(),
+        };
 
         // Verify before persisting so we never store broken credentials.
         const verify = await verifyWpConnection(conn);

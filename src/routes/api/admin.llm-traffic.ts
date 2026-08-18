@@ -36,7 +36,8 @@ async function requireUser(request: Request): Promise<{ userClient: any | null }
   if (admin && auth === `Bearer ${admin}`) return { userClient: null };
   const url = process.env.SUPABASE_URL;
   const anon = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
-  if (!url || !anon) return Response.json({ ok: false, error: "Server not configured" }, { status: 503 });
+  if (!url || !anon)
+    return Response.json({ ok: false, error: "Server not configured" }, { status: 503 });
   const userClient = createClient(url, anon, {
     global: { headers: { Authorization: auth } },
   });
@@ -59,7 +60,10 @@ export const Route = createFileRoute("/api/admin/llm-traffic")({
         const qsStart = u.searchParams.get("start");
         const qsEnd = u.searchParams.get("end");
         const isDayStr = (s: string | null): s is string => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
-        const useExact = isDayStr(qsStart) && isDayStr(qsEnd) && qsStart <= qsEnd &&
+        const useExact =
+          isDayStr(qsStart) &&
+          isDayStr(qsEnd) &&
+          qsStart <= qsEnd &&
           (Date.parse(qsEnd) - Date.parse(qsStart)) / 864e5 <= 366;
         const startDate = useExact ? (qsStart as string) : `${days}daysAgo`;
         const endDate = useExact ? (qsEnd as string) : "today";
@@ -72,32 +76,48 @@ export const Route = createFileRoute("/api/admin/llm-traffic")({
           .select("id, name, ga4_property")
           .eq("id", clientId)
           .maybeSingle();
-        if (!client) return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
+        if (!client)
+          return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
         if (!client.ga4_property) return Response.json({ ok: true, ga4: false });
 
         let token: string;
         try {
           token = (await getGoogleAccessToken(clientId)).accessToken;
         } catch (e) {
-          return Response.json({ ok: true, ga4: false, note: "Google-Token: " + String((e as any)?.message || e).slice(0, 120) });
+          return Response.json({
+            ok: true,
+            ga4: false,
+            note: "Google-Token: " + String((e as any)?.message || e).slice(0, 120),
+          });
         }
         const propertyId = String(client.ga4_property).replace(/^properties\//, "");
         const run = (body: any) =>
-          fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ dateRanges: [{ startDate, endDate }], ...body }),
-            signal: AbortSignal.timeout(25_000),
-          });
+          fetch(
+            `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`,
+            {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ dateRanges: [{ startDate, endDate }], ...body }),
+              signal: AbortSignal.timeout(25_000),
+            },
+          );
 
         const [tsRes, pgRes] = await Promise.all([
           run({
-            dimensions: [{ name: "date" }, { name: "sessionSource" }, { name: "sessionDefaultChannelGroup" }],
+            dimensions: [
+              { name: "date" },
+              { name: "sessionSource" },
+              { name: "sessionDefaultChannelGroup" },
+            ],
             metrics: [{ name: "sessions" }, { name: "newUsers" }],
             limit: 20000,
           }),
           run({
-            dimensions: [{ name: "landingPagePlusQueryString" }, { name: "sessionSource" }, { name: "sessionDefaultChannelGroup" }],
+            dimensions: [
+              { name: "landingPagePlusQueryString" },
+              { name: "sessionSource" },
+              { name: "sessionDefaultChannelGroup" },
+            ],
             metrics: [{ name: "sessions" }],
             limit: 10000,
           }),
@@ -152,7 +172,9 @@ export const Route = createFileRoute("/api/admin/llm-traffic")({
             (pagesByEngine[engine] ??= []).push({ path, sessions });
           }
           for (const k of Object.keys(pagesByEngine))
-            pagesByEngine[k] = pagesByEngine[k].sort((a, b) => b.sessions - a.sessions).slice(0, 10);
+            pagesByEngine[k] = pagesByEngine[k]
+              .sort((a, b) => b.sessions - a.sessions)
+              .slice(0, 10);
         }
 
         return Response.json({ ok: true, ga4: true, days, timeseries, totals, pagesByEngine });

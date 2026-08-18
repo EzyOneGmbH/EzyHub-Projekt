@@ -35,7 +35,10 @@ export const Route = createFileRoute("/api/admin/client-context")({
       GET: async ({ request }) => {
         const secret = process.env.ADMIN_AUTOMATION_SECRET;
         if (!secret)
-          return Response.json({ ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" }, { status: 503 });
+          return Response.json(
+            { ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" },
+            { status: 503 },
+          );
         if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
           return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
@@ -61,22 +64,28 @@ export const Route = createFileRoute("/api/admin/client-context")({
           const domainFromGsc = normDomain(c.gsc_property || "");
           const domain = domainFromGsc || normDomain(c.domain || "");
           const stem = domain.split(".")[0] || slug;
-          const brandTerms = Array.isArray(c.brand_terms) && c.brand_terms.length
-            ? c.brand_terms
-            : [...new Set([stem.replace(/-/g, " "), stem.replace(/-/g, ""), stem])].filter(Boolean);
+          const brandTerms =
+            Array.isArray(c.brand_terms) && c.brand_terms.length
+              ? c.brand_terms
+              : [...new Set([stem.replace(/-/g, " "), stem.replace(/-/g, ""), stem])].filter(
+                  Boolean,
+                );
           const ctx = latestByClient[c.id] || {};
-          const gscTopNonbrandQueries = (ctx.gsc?.topNonbrandQueries || []).map((q: any) => ({
-            query: String(q.query || ""),
-            clicks: Number(q.clicks || 0),
-            impressions: Number(q.impressions || 0),
-          })).filter((q: any) => q.query);
+          const gscTopNonbrandQueries = (ctx.gsc?.topNonbrandQueries || [])
+            .map((q: any) => ({
+              query: String(q.query || ""),
+              clicks: Number(q.clicks || 0),
+              impressions: Number(q.impressions || 0),
+            }))
+            .filter((q: any) => q.query);
           return {
             slug,
             name: c.name,
             domain: domain || null,
-            domainSource: domainFromGsc ? "gsc-property" : (c.domain ? "clients-config" : "none"),
+            domainSource: domainFromGsc ? "gsc-property" : c.domain ? "clients-config" : "none",
             brandTerms,
-            brandTermsSource: Array.isArray(c.brand_terms) && c.brand_terms.length ? "clients" : "fallback",
+            brandTermsSource:
+              Array.isArray(c.brand_terms) && c.brand_terms.length ? "clients" : "fallback",
             clientType: c.client_type || "generic",
             gscTopNonbrandQueries,
             hasGa4: !!ctx.ga4,

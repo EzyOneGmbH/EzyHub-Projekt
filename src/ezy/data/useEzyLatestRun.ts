@@ -28,37 +28,40 @@ export function useEzyLatestRun(
 
   // force === true (strikt, damit onClick-Events nicht als force zaehlen)
   // umgeht den Sitzungs-Cache — fuer den "Aktualisieren"-Button der DataStatus-Leiste.
-  const refresh = useCallback(async (force?: boolean) => {
-    if (!clientId || !isUuid(clientId)) {
-      setRun(null);
-      return;
-    }
-    const cacheId = `${clientId}|${auditType}`;
-    const hit = force === true ? undefined : RUN_CACHE.get(cacheId);
-    if (hit && Date.now() - hit.at < RUN_CACHE_TTL_MS) {
-      setRun(hit.run);
-      return;
-    }
-    setLoading(true);
-    try {
-      const { data } = await supabase
-        .from("audit_runs")
-        .select("id, audit_type, status, result, created_at")
-        .eq("client_id", clientId)
-        .eq("audit_type", auditType)
-        .eq("status", "succeeded")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      const row = (data as LatestRun) || null;
-      RUN_CACHE.set(cacheId, { at: Date.now(), run: row });
-      setRun(row);
-    } catch {
-      setRun(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [clientId, auditType]);
+  const refresh = useCallback(
+    async (force?: boolean) => {
+      if (!clientId || !isUuid(clientId)) {
+        setRun(null);
+        return;
+      }
+      const cacheId = `${clientId}|${auditType}`;
+      const hit = force === true ? undefined : RUN_CACHE.get(cacheId);
+      if (hit && Date.now() - hit.at < RUN_CACHE_TTL_MS) {
+        setRun(hit.run);
+        return;
+      }
+      setLoading(true);
+      try {
+        const { data } = await supabase
+          .from("audit_runs")
+          .select("id, audit_type, status, result, created_at")
+          .eq("client_id", clientId)
+          .eq("audit_type", auditType)
+          .eq("status", "succeeded")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const row = (data as LatestRun) || null;
+        RUN_CACHE.set(cacheId, { at: Date.now(), run: row });
+        setRun(row);
+      } catch {
+        setRun(null);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [clientId, auditType],
+  );
 
   useEffect(() => {
     void refresh();
@@ -108,8 +111,7 @@ export function ahrefsKpisFromResult(result: any): {
 export function ahrefsRefdomainsSeriesFromResult(
   result: any,
 ): Array<{ date: string; refdomains: number }> {
-  const rows =
-    result?.refdomains_history?.refdomains ?? result?.refdomains_history?.items;
+  const rows = result?.refdomains_history?.refdomains ?? result?.refdomains_history?.items;
   if (!Array.isArray(rows)) return [];
   return rows
     .map((row: any) => ({
@@ -323,7 +325,8 @@ export function computeHealthComponents(input: {
     comp.push({ key, label, value: cur, suffix });
     if (prev != null && prev !== cur) drivers.push({ label, delta: cur - prev, hint });
   };
-  const ps = (r: any) => (typeof r?.metrics?.performanceScore === "number" ? r.metrics.performanceScore : null);
+  const ps = (r: any) =>
+    typeof r?.metrics?.performanceScore === "number" ? r.metrics.performanceScore : null;
   push("technik", "Technik", ps(input.pagespeed?.cur), ps(input.pagespeed?.prev), "/100", "CWV");
   const dr = (r: any) => {
     if (!r) return null;
@@ -343,7 +346,8 @@ export function computeHealthComponents(input: {
   if (drivers.length) {
     drivers.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
     const d = drivers[0];
-    const sign = (n: number) => (n > 0 ? `+${Math.round(n * 10) / 10}` : `${Math.round(n * 10) / 10}`);
+    const sign = (n: number) =>
+      n > 0 ? `+${Math.round(n * 10) / 10}` : `${Math.round(n * 10) / 10}`;
     deltaDriver =
       gesamt != null && gesamt !== 0
         ? `${sign(gesamt)} gesamt, davon ${sign(d.delta)} ${d.label} (${d.hint})`
@@ -370,7 +374,13 @@ export function useEzyHealthComponents(clientId: string | undefined): {
         return;
       }
       try {
-        const TYPES = ["pagespeed", "ahrefs", "gsc_summary", "canonry_ai_visibility", "populate_meta"];
+        const TYPES = [
+          "pagespeed",
+          "ahrefs",
+          "gsc_summary",
+          "canonry_ai_visibility",
+          "populate_meta",
+        ];
         const { data } = await supabase
           .from("audit_runs")
           .select("audit_type, result, created_at, status")
@@ -653,8 +663,22 @@ export function googleAdsFromResult(result: any): {
 export function aworkTasksFromResult(result: any): {
   project: { id: string; name: string } | null;
   projects: Array<{ id: string; name: string }>;
-  statuses: Array<{ id: string; name: string; type?: string; order?: number; color?: string | null; icon?: string | null }>;
-  tasklists: Array<{ id: string; name: string; order?: number; color?: string | null; projectId?: string; projectName?: string }>;
+  statuses: Array<{
+    id: string;
+    name: string;
+    type?: string;
+    order?: number;
+    color?: string | null;
+    icon?: string | null;
+  }>;
+  tasklists: Array<{
+    id: string;
+    name: string;
+    order?: number;
+    color?: string | null;
+    projectId?: string;
+    projectName?: string;
+  }>;
   tasks: Array<{
     id: string;
     name: string;

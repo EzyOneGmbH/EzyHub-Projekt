@@ -64,8 +64,7 @@ function refDates(): string[] {
   return out;
 }
 // GA4 liefert das date-Dimension-Format YYYYMMDD -> YYYY-MM-DD.
-const ga4Date = (s: string) =>
-  `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
+const ga4Date = (s: string) => `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
 // URL normalisieren für Map-Matching (ohne Protokoll/trailing slash, lowercase).
 function normUrl(u: string): string {
   return String(u || "")
@@ -81,7 +80,9 @@ function pathOf(u: string): string {
   }
 }
 const cleanDomain = (d: string) =>
-  String(d || "").replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  String(d || "")
+    .replace(/^https?:\/\//, "")
+    .replace(/\/+$/, "");
 
 // ── 1) Discovery: publizierte WP-Posts -> content_items ─────────────────────
 async function jobDiscover(c: any, perPage: number, maxPages: number) {
@@ -152,7 +153,8 @@ async function jobMetrics(c: any) {
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(30_000),
     });
-    if (!r.ok) throw new Error(`HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 120)}`);
+    if (!r.ok)
+      throw new Error(`HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 120)}`);
     return (await r.json()) as any;
   };
 
@@ -241,10 +243,10 @@ async function jobMetrics(c: any) {
       const ga = ga4ByDayPath.get(`${day}|${path}`);
       const row: any = { content_item_id: it.id, captured_on: day };
       if (!gscFailed) {
-        row.position = g ? g.position ?? null : null;
+        row.position = g ? (g.position ?? null) : null;
         row.impressions = g ? Math.round(g.impressions ?? 0) : 0;
         row.clicks = g ? Math.round(g.clicks ?? 0) : 0;
-        row.ctr = g ? g.ctr ?? null : null;
+        row.ctr = g ? (g.ctr ?? null) : null;
       }
       if (!ga4Failed) {
         row.sessions = ga ? ga.sessions : 0;
@@ -334,7 +336,8 @@ async function jobBackfill(c: any, days: number) {
       return { error: `GSC HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 120)}` };
     const j = (await r.json()) as any;
     const rows = j.rows ?? [];
-    for (const row of rows) byDayUrl.set(`${row.keys?.[0] ?? ""}|${normUrl(row.keys?.[1] ?? "")}`, row);
+    for (const row of rows)
+      byDayUrl.set(`${row.keys?.[0] ?? ""}|${normUrl(row.keys?.[1] ?? "")}`, row);
     if (rows.length < 25_000) break;
   }
   const allDays: string[] = [];
@@ -348,19 +351,20 @@ async function jobBackfill(c: any, days: number) {
       rows.push({
         content_item_id: it.id,
         captured_on: day,
-        position: g ? g.position ?? null : null,
+        position: g ? (g.position ?? null) : null,
         impressions: g ? Math.round(g.impressions ?? 0) : 0,
         clicks: g ? Math.round(g.clicks ?? 0) : 0,
-        ctr: g ? g.ctr ?? null : null,
+        ctr: g ? (g.ctr ?? null) : null,
       });
     }
   }
   let written = 0;
   for (let i = 0; i < rows.length; i += 2000) {
     const chunk = rows.slice(i, i + 2000);
-    const { error } = await supabaseAdmin
-      .from("content_metrics")
-      .upsert(chunk as never, { onConflict: "content_item_id,captured_on", ignoreDuplicates: true });
+    const { error } = await supabaseAdmin.from("content_metrics").upsert(chunk as never, {
+      onConflict: "content_item_id,captured_on",
+      ignoreDuplicates: true,
+    });
     if (error) return { error: error.message, written };
     written += chunk.length;
   }
@@ -415,7 +419,10 @@ async function jobInspect(c: any, limit: number, urls?: string[]) {
       if (!r.ok) {
         // Fehler NICHT als "nicht indexiert" speichern — sonst faerbt eine
         // Quota-/Token-Stoerung das Dashboard rot. Zeile bleibt unveraendert.
-        results.push({ url: it.target_url, error: `HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 120)}` });
+        results.push({
+          url: it.target_url,
+          error: `HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 120)}`,
+        });
         continue;
       }
       const j = (await r.json()) as any;
@@ -486,7 +493,10 @@ async function jobSitemaps(c: any, submitMode: boolean | "auto") {
   const declared: string[] = [];
   const addDeclared = (u: string) => {
     const key = normUrl(u);
-    if (key && !seen.has(key)) { seen.add(key); declared.push(u); }
+    if (key && !seen.has(key)) {
+      seen.add(key);
+      declared.push(u);
+    }
   };
   try {
     const rb = await fetch(`https://${domain}/robots.txt`, { signal: AbortSignal.timeout(15_000) });
@@ -502,11 +512,19 @@ async function jobSitemaps(c: any, submitMode: boolean | "auto") {
   }
   // Fallback: WordPress-Standard, wenn die robots.txt nichts nennt.
   if (!declared.length) {
-    for (const cand of [`https://${domain}/wp-sitemap.xml`, `https://${domain}/sitemap_index.xml`]) {
+    for (const cand of [
+      `https://${domain}/wp-sitemap.xml`,
+      `https://${domain}/sitemap_index.xml`,
+    ]) {
       try {
         const r = await fetch(cand, { method: "HEAD", signal: AbortSignal.timeout(10_000) });
-        if (r.ok) { addDeclared(cand); break; }
-      } catch { /* naechster Kandidat */ }
+        if (r.ok) {
+          addDeclared(cand);
+          break;
+        }
+      } catch {
+        /* naechster Kandidat */
+      }
     }
   }
   if (!declared.length) return { skipped: "keine Sitemap gefunden" };
@@ -528,7 +546,10 @@ async function jobSitemaps(c: any, submitMode: boolean | "auto") {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(20_000),
     });
-    if (!r.ok) return { error: `GSC-Sitemapliste HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 120)}` };
+    if (!r.ok)
+      return {
+        error: `GSC-Sitemapliste HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 120)}`,
+      };
     const j = (await r.json()) as any;
     submitted = (j.sitemap ?? []).map((s: any) => String(s.path || ""));
   } catch (e) {
@@ -542,7 +563,10 @@ async function jobSitemaps(c: any, submitMode: boolean | "auto") {
       submitted,
       missing,
       submittedNow: [],
-      modus: submitMode === "auto" ? "beobachten (kein autonomer SEO-Agent)" : "beobachten (abgeschaltet)",
+      modus:
+        submitMode === "auto"
+          ? "beobachten (kein autonomer SEO-Agent)"
+          : "beobachten (abgeschaltet)",
     };
 
   // 3) Fehlende nachreichen (PUT ist idempotent; Google akzeptiert nur
@@ -557,7 +581,10 @@ async function jobSitemaps(c: any, submitMode: boolean | "auto") {
         headers: { Authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(20_000),
       });
-      if (r.ok) { submittedNow.push(url); continue; }
+      if (r.ok) {
+        submittedNow.push(url);
+        continue;
+      }
       const body = (await r.text().catch(() => "")).slice(0, 200);
       // Der haeufigste und einzig strukturelle Fehlerfall: unsere Google-
       // Verbindung hat nur den Lese-Scope (webmasters.readonly). Einreichen
@@ -592,7 +619,11 @@ async function jobSitemaps(c: any, submitMode: boolean | "auto") {
     if (declared.some((d) => normUrl(d) === normUrl(s))) continue; // weiterhin deklariert
     let lebt = true;
     try {
-      const probe = await fetch(s, { method: "HEAD", redirect: "manual", signal: AbortSignal.timeout(15_000) });
+      const probe = await fetch(s, {
+        method: "HEAD",
+        redirect: "manual",
+        signal: AbortSignal.timeout(15_000),
+      });
       lebt = probe.status === 200;
     } catch {
       lebt = true; // im Zweifel NICHT loeschen
@@ -605,7 +636,9 @@ async function jobSitemaps(c: any, submitMode: boolean | "auto") {
         signal: AbortSignal.timeout(20_000),
       });
       if (r.ok) removed.push(s);
-    } catch { /* nicht kritisch */ }
+    } catch {
+      /* nicht kritisch */
+    }
   }
 
   return {
@@ -637,14 +670,22 @@ export const Route = createFileRoute("/api/admin/content-sync")({
         if (!parsed.success)
           return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
         const {
-          client: sel, all, jobs, perPage, maxPages, inspectLimit, backfillDays,
-          submitSitemaps, inspectUrls,
+          client: sel,
+          all,
+          jobs,
+          perPage,
+          maxPages,
+          inspectLimit,
+          backfillDays,
+          submitSitemaps,
+          inspectUrls,
         } = parsed.data;
         // Seit 04.08. gehoert die Indexpruefung zum Regellauf: ohne sie faellt
         // nicht auf, wenn Google publizierte Artikel gar nicht kennt. inspect
         // rotiert ueber den Bestand (aelteste Pruefung zuerst), sitemaps
         // stellt sicher, dass Google die Sitemap ueberhaupt kennt.
-        const wanted = jobs && jobs.length ? jobs : (["discover", "metrics", "inspect", "sitemaps"] as const);
+        const wanted =
+          jobs && jobs.length ? jobs : (["discover", "metrics", "inspect", "sitemaps"] as const);
 
         const query = supabaseAdmin
           .from("clients")
@@ -656,7 +697,10 @@ export const Route = createFileRoute("/api/admin/content-sync")({
         else if (sel && isUuid(sel)) clients = (await query.eq("id", sel)).data || [];
         else if (sel) clients = (await query.ilike("name", `%${sel}%`)).data || [];
         else
-          return Response.json({ ok: false, error: "client oder all erforderlich" }, { status: 400 });
+          return Response.json(
+            { ok: false, error: "client oder all erforderlich" },
+            { status: 400 },
+          );
         if (!clients.length)
           return Response.json({ ok: false, error: "Kein Kunde gefunden" }, { status: 404 });
 

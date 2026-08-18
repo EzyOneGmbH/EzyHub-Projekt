@@ -8,7 +8,7 @@ const AWORK_BASE = "https://api.awork.com/api/v1";
 
 async function aworkFetch<T = any>(
   path: string,
-  key: string
+  key: string,
 ): Promise<{ ok: boolean; status: number; data: T | null; error?: string }> {
   const res = await fetch(`${AWORK_BASE}${path}`, {
     headers: { Authorization: `Bearer ${key}`, Accept: "application/json" },
@@ -32,7 +32,9 @@ export const Route = createFileRoute("/api/awork/users")({
           const sb = createClient(supabaseUrl, anonKey, {
             global: { headers: { Authorization: request.headers.get("authorization") ?? "" } },
           });
-          const { data: { user } } = await sb.auth.getUser();
+          const {
+            data: { user },
+          } = await sb.auth.getUser();
           if (!user) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
           const key = process.env.AWORK_API_KEY;
@@ -41,7 +43,10 @@ export const Route = createFileRoute("/api/awork/users")({
           // Get all users from AWORK
           const usersRes = await aworkFetch<any[]>("/users?pageSize=500", key);
           if (!usersRes.ok) {
-            return Response.json({ ok: false, error: `Users laden fehlgeschlagen: ${usersRes.error}` });
+            return Response.json({
+              ok: false,
+              error: `Users laden fehlgeschlagen: ${usersRes.error}`,
+            });
           }
 
           const users = (usersRes.data || [])
@@ -51,7 +56,8 @@ export const Route = createFileRoute("/api/awork/users")({
               firstName: u.firstName || "",
               lastName: u.lastName || "",
               name: `${u.firstName || ""} ${u.lastName || ""}`.trim(),
-              initials: `${(u.firstName || "")[0] || ""}${(u.lastName || "")[0] || ""}`.toUpperCase(),
+              initials:
+                `${(u.firstName || "")[0] || ""}${(u.lastName || "")[0] || ""}`.toUpperCase(),
               email: u.email || "",
               position: u.position || "",
             }))
@@ -59,7 +65,10 @@ export const Route = createFileRoute("/api/awork/users")({
 
           return Response.json({ ok: true, users });
         } catch (e) {
-          return Response.json({ ok: false, error: String((e as Error)?.message || e) }, { status: 500 });
+          return Response.json(
+            { ok: false, error: String((e as Error)?.message || e) },
+            { status: 500 },
+          );
         }
       },
     },

@@ -22,7 +22,11 @@ export const Route = createFileRoute("/api/admin/client-metrics")({
     handlers: {
       GET: async ({ request }) => {
         const secret = process.env.ADMIN_AUTOMATION_SECRET;
-        if (!secret) return Response.json({ ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" }, { status: 503 });
+        if (!secret)
+          return Response.json(
+            { ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" },
+            { status: 503 },
+          );
         if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
           return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
@@ -32,10 +36,16 @@ export const Route = createFileRoute("/api/admin/client-metrics")({
 
         let clientId = clientIdParam || null;
         if (!clientId && clientName) {
-          const { data } = await supabaseAdmin.from("clients").select("id").ilike("name", clientName).limit(1).maybeSingle();
+          const { data } = await supabaseAdmin
+            .from("clients")
+            .select("id")
+            .ilike("name", clientName)
+            .limit(1)
+            .maybeSingle();
           clientId = data?.id || null;
         }
-        if (!clientId) return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
+        if (!clientId)
+          return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
 
         // Latest succeeded run per audit_type.
         const metrics: Record<string, any> = {};

@@ -16,7 +16,11 @@ describe("Job-Idempotenz & Dubletten (Haertung 18.08.)", () => {
 
 describe("Retry-Uebergaenge", () => {
   it("setzt fehlgeschlagene Laeufe zurueck und leert nur den Zaehler der Etappe", () => {
-    const p = retryPatch({ status: "fehler", stage: "ai2", data: { stageFails: { ai2: 3, technik: 1 }, kostenUsd: 1 } });
+    const p = retryPatch({
+      status: "fehler",
+      stage: "ai2",
+      data: { stageFails: { ai2: 3, technik: 1 }, kostenUsd: 1 },
+    });
     expect(p).not.toBeNull();
     expect(p.status).toBe("laufend");
     expect(p.error).toBeNull();

@@ -86,8 +86,7 @@ function buildWidget(data) {
   addHeader(widget, connectedCount);
   widget.addSpacer(8);
 
-  const maxRows =
-    config.widgetFamily === "large" ? 8 : config.widgetFamily === "medium" ? 3 : 2;
+  const maxRows = config.widgetFamily === "large" ? 8 : config.widgetFamily === "medium" ? 3 : 2;
 
   if (sessions.length === 0) {
     const empty = widget.addText("Keine Sessions in den letzten 7 Tagen");

@@ -108,8 +108,7 @@ export const Route = createFileRoute("/api/google/ads-customers")({
                     ...(loginCustomerId ? { "login-customer-id": loginCustomerId } : {}),
                   },
                   body: JSON.stringify({
-                    query:
-                      "SELECT customer.id, customer.descriptive_name FROM customer LIMIT 1",
+                    query: "SELECT customer.id, customer.descriptive_name FROM customer LIMIT 1",
                   }),
                 },
               );

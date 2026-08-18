@@ -47,7 +47,12 @@ export async function generateViaSubscription(opts: {
       signal: AbortSignal.timeout(opts.timeoutMs ?? 150_000),
     });
     if (!r.ok) return null;
-    const j = (await r.json()) as { ok?: boolean; text?: unknown; authMode?: string | null; usage?: GenResult["usage"] };
+    const j = (await r.json()) as {
+      ok?: boolean;
+      text?: unknown;
+      authMode?: string | null;
+      usage?: GenResult["usage"];
+    };
     if (!j?.ok || typeof j.text !== "string" || !j.text.trim()) return null;
     return { text: j.text, authMode: j.authMode ?? "subscription", usage: j.usage ?? null };
   } catch {

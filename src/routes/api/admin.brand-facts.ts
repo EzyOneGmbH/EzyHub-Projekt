@@ -17,14 +17,18 @@ async function requireUser(request: Request): Promise<{ userClient: any | null }
   if (admin && auth === `Bearer ${admin}`) return { userClient: null };
   const url = process.env.SUPABASE_URL;
   const anon = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
-  if (!url || !anon) return Response.json({ ok: false, error: "Server not configured" }, { status: 503 });
+  if (!url || !anon)
+    return Response.json({ ok: false, error: "Server not configured" }, { status: 503 });
   const userClient = createClient(url, anon, { global: { headers: { Authorization: auth } } });
   const { data } = await userClient.auth.getUser();
   if (!data.user) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   return { userClient };
 }
 
-async function checkClient(auth: { userClient: any | null }, clientId: string): Promise<Response | null> {
+async function checkClient(
+  auth: { userClient: any | null },
+  clientId: string,
+): Promise<Response | null> {
   if (!/^[0-9a-f-]{36}$/i.test(clientId))
     return Response.json({ ok: false, error: "client (uuid) erforderlich" }, { status: 400 });
   const db = auth.userClient ?? (supabaseAdmin as any);
@@ -45,9 +49,15 @@ export const Route = createFileRoute("/api/admin/brand-facts")({
         const { data } = await (supabaseAdmin as any)
           .from("ai_visibility_brand_facts")
           .select("facts, needs_review, updated_at")
-          .eq("client_id", clientId).maybeSingle();
+          .eq("client_id", clientId)
+          .maybeSingle();
         return Response.json(
-          { ok: true, facts: data?.facts ?? null, needsReview: !!data?.needs_review, updatedAt: data?.updated_at ?? null },
+          {
+            ok: true,
+            facts: data?.facts ?? null,
+            needsReview: !!data?.needs_review,
+            updatedAt: data?.updated_at ?? null,
+          },
           { headers: { "Cache-Control": "no-store" } },
         );
       },
@@ -55,7 +65,11 @@ export const Route = createFileRoute("/api/admin/brand-facts")({
         const auth = await requireUser(request);
         if (auth instanceof Response) return auth;
         let body: any;
-        try { body = await request.json(); } catch { return Response.json({ ok: false, error: "JSON erwartet" }, { status: 400 }); }
+        try {
+          body = await request.json();
+        } catch {
+          return Response.json({ ok: false, error: "JSON erwartet" }, { status: 400 });
+        }
         const clientId = String(body?.client || "");
         const bad = await checkClient(auth, clientId);
         if (bad) return bad;
@@ -66,13 +80,21 @@ export const Route = createFileRoute("/api/admin/brand-facts")({
           angebot: String(f.angebot ?? "").slice(0, 500) || null,
           ort: String(f.ort ?? "").slice(0, 300) || null,
           kernfakten: (Array.isArray(f.kernfakten) ? f.kernfakten : [])
-            .map((k: any) => String(k).trim().slice(0, 300)).filter(Boolean).slice(0, 12),
+            .map((k: any) => String(k).trim().slice(0, 300))
+            .filter(Boolean)
+            .slice(0, 12),
         };
         if (!facts.angebot && !facts.kernfakten.length)
-          return Response.json({ ok: false, error: "Profil darf nicht leer sein (angebot oder kernfakten)" }, { status: 400 });
-        const { error } = await (supabaseAdmin as any)
-          .from("ai_visibility_brand_facts")
-          .upsert({ client_id: clientId, facts, needs_review: false, updated_at: new Date().toISOString() });
+          return Response.json(
+            { ok: false, error: "Profil darf nicht leer sein (angebot oder kernfakten)" },
+            { status: 400 },
+          );
+        const { error } = await (supabaseAdmin as any).from("ai_visibility_brand_facts").upsert({
+          client_id: clientId,
+          facts,
+          needs_review: false,
+          updated_at: new Date().toISOString(),
+        });
         if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
         return Response.json({ ok: true, facts, needsReview: false });
       },

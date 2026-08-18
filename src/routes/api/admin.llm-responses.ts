@@ -26,22 +26,33 @@ export const Route = createFileRoute("/api/admin/llm-responses")({
       POST: async ({ request }) => {
         const secret = process.env.ADMIN_AUTOMATION_SECRET;
         if (!secret)
-          return Response.json({ ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" }, { status: 503 });
+          return Response.json(
+            { ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" },
+            { status: 503 },
+          );
         if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
           return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
         const parsed = Body.safeParse(await request.json().catch(() => ({})));
         if (!parsed.success)
-          return Response.json({ ok: false, error: "Invalid input", details: parsed.error.issues }, { status: 400 });
+          return Response.json(
+            { ok: false, error: "Invalid input", details: parsed.error.issues },
+            { status: 400 },
+          );
         const d = parsed.data;
 
         // Traeger-Kunde: die Agentur selbst (Ezy One) — Portfolio-Sicht.
         const { data: clients } = await supabaseAdmin
           .from("clients")
           .select("id, name, organization_id");
-        const target = (clients || []).find((c: any) => /ezy[ -]?one/i.test(String(c.name))) || (clients || [])[0];
+        const target =
+          (clients || []).find((c: any) => /ezy[ -]?one/i.test(String(c.name))) ||
+          (clients || [])[0];
         if (!target)
-          return Response.json({ ok: false, error: "kein Traeger-Kunde gefunden" }, { status: 500 });
+          return Response.json(
+            { ok: false, error: "kein Traeger-Kunde gefunden" },
+            { status: 500 },
+          );
 
         const { data: users } = await supabaseAdmin
           .from("app_users")
@@ -51,7 +62,10 @@ export const Route = createFileRoute("/api/admin/llm-responses")({
         const owner =
           (users || []).find((u: any) => ["owner", "admin"].includes(u.role)) || (users || [])[0];
         if (!owner)
-          return Response.json({ ok: false, error: "Kein Org-User fuer triggered_by" }, { status: 500 });
+          return Response.json(
+            { ok: false, error: "Kein Org-User fuer triggered_by" },
+            { status: 500 },
+          );
 
         const result: Record<string, unknown> = {
           client: "__overall__",

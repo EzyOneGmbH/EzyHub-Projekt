@@ -63,8 +63,7 @@ export async function executeTool(
     "geo-content-check": "blog-geo",
   };
   const agentSkill =
-    TOOL_SKILL[toolId] ||
-    (toolId.startsWith("skill:") ? toolId.slice("skill:".length) : undefined);
+    TOOL_SKILL[toolId] || (toolId.startsWith("skill:") ? toolId.slice("skill:".length) : undefined);
   if (agentSkill) {
     const lang = inputs.language || "Deutsch";
     let skillInput = "";
@@ -101,7 +100,8 @@ export async function executeTool(
         break;
       default:
         // Generic catalog skills (id "skill:<name>"): single free-text input.
-        skillInput = `${inputs.prompt || inputs.input || ""}${inputs.language ? `\nSprache: ${inputs.language}` : ""}`.trim();
+        skillInput =
+          `${inputs.prompt || inputs.input || ""}${inputs.language ? `\nSprache: ${inputs.language}` : ""}`.trim();
         break;
     }
     // Start an async job, then poll until done. Each request is short, so even
@@ -166,153 +166,159 @@ export async function executeTool(
         }
       }
     } catch (e: any) {
-      return { ok: false, liveConnected: true, message: e?.message || String(e), error: e?.message };
+      return {
+        ok: false,
+        liveConnected: true,
+        message: e?.message || String(e),
+        error: e?.message,
+      };
     }
   }
 
-  if (!agentSkill) switch (toolId) {
-    case "canonry":
-      // NOTE: this is a read-only overview, not a real sweep.
-      path = `/api/live/canonry/overview?clientId=${encodeURIComponent(client.id)}`;
-      init = { method: "GET" };
-      auditType = "geo_overview";
-      break;
-    case "cwv-audit":
-      path = `/api/google/pagespeed`;
-      init = {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clientId: client.id,
-          strategy: inputs.strategy === "Desktop" ? "desktop" : "mobile",
-        }),
-      };
-      auditType = "pagespeed";
-      serverPersists = true;
-      break;
-    case "open-seo-audit":
-    case "full-seo-audit":
-    case "technical-audit":
-    case "on-page-audit":
-      path = `/api/ahrefs/overview`;
-      init = {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId: client.id }),
-      };
-      auditType = "ahrefs";
-      serverPersists = true;
-      break;
-    case "geo-aeo-audit": {
-      const q = inputs.queries || inputs.url || client.domain || "";
-      path = `/api/perplexity/search`;
-      init = {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId: client.id, query: q, model: "sonar" }),
-      };
-      auditType = "geo";
-      break;
+  if (!agentSkill)
+    switch (toolId) {
+      case "canonry":
+        // NOTE: this is a read-only overview, not a real sweep.
+        path = `/api/live/canonry/overview?clientId=${encodeURIComponent(client.id)}`;
+        init = { method: "GET" };
+        auditType = "geo_overview";
+        break;
+      case "cwv-audit":
+        path = `/api/google/pagespeed`;
+        init = {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientId: client.id,
+            strategy: inputs.strategy === "Desktop" ? "desktop" : "mobile",
+          }),
+        };
+        auditType = "pagespeed";
+        serverPersists = true;
+        break;
+      case "open-seo-audit":
+      case "full-seo-audit":
+      case "technical-audit":
+      case "on-page-audit":
+        path = `/api/ahrefs/overview`;
+        init = {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clientId: client.id }),
+        };
+        auditType = "ahrefs";
+        serverPersists = true;
+        break;
+      case "geo-aeo-audit": {
+        const q = inputs.queries || inputs.url || client.domain || "";
+        path = `/api/perplexity/search`;
+        init = {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clientId: client.id, query: q, model: "sonar" }),
+        };
+        auditType = "geo";
+        break;
+      }
+      case "generate-blog":
+        path = `/api/ai/generate`;
+        init = {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientId: client.id,
+            kind: "blog",
+            topic: inputs.topic || "",
+            tone: inputs.tone || "Professionell",
+            length: inputs.length || "",
+            language: inputs.language || "Deutsch",
+          }),
+        };
+        auditType = "content_blog";
+        serverPersists = true;
+        break;
+      case "obsidian-note":
+        path = `/api/ai/generate`;
+        init = {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientId: client.id,
+            kind: "obsidian",
+            title: inputs.title || "",
+            content: inputs.content || "",
+            tags: inputs.tags || "",
+          }),
+        };
+        auditType = "content_note";
+        serverPersists = true;
+        break;
+      case "content-brief":
+        path = `/api/ai/generate`;
+        init = {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientId: client.id,
+            kind: "content-brief",
+            topic: inputs.topic || "",
+            audience: inputs.audience || "",
+            language: inputs.language || "Deutsch",
+          }),
+        };
+        auditType = "content_brief";
+        serverPersists = true;
+        break;
+      case "blog-outline":
+        path = `/api/ai/generate`;
+        init = {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientId: client.id,
+            kind: "outline",
+            topic: inputs.topic || "",
+            keywords: inputs.keywords || "",
+            language: inputs.language || "Deutsch",
+          }),
+        };
+        auditType = "content_outline";
+        serverPersists = true;
+        break;
+      case "meta-tags":
+        path = `/api/ai/generate`;
+        init = {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientId: client.id,
+            kind: "meta",
+            topic: inputs.topic || "",
+            keyword: inputs.keyword || "",
+            language: inputs.language || "Deutsch",
+          }),
+        };
+        auditType = "content_meta";
+        serverPersists = true;
+        break;
+      case "schema-markup":
+        path = `/api/ai/generate`;
+        init = {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientId: client.id,
+            kind: "schema",
+            schemaType: inputs.schemaType || "Article",
+            content: inputs.content || "",
+          }),
+        };
+        auditType = "content_schema";
+        serverPersists = true;
+        break;
+      default:
+        return { ok: false, liveConnected: false, message: "Noch nicht live verbunden" };
     }
-    case "generate-blog":
-      path = `/api/ai/generate`;
-      init = {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clientId: client.id,
-          kind: "blog",
-          topic: inputs.topic || "",
-          tone: inputs.tone || "Professionell",
-          length: inputs.length || "",
-          language: inputs.language || "Deutsch",
-        }),
-      };
-      auditType = "content_blog";
-      serverPersists = true;
-      break;
-    case "obsidian-note":
-      path = `/api/ai/generate`;
-      init = {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clientId: client.id,
-          kind: "obsidian",
-          title: inputs.title || "",
-          content: inputs.content || "",
-          tags: inputs.tags || "",
-        }),
-      };
-      auditType = "content_note";
-      serverPersists = true;
-      break;
-    case "content-brief":
-      path = `/api/ai/generate`;
-      init = {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clientId: client.id,
-          kind: "content-brief",
-          topic: inputs.topic || "",
-          audience: inputs.audience || "",
-          language: inputs.language || "Deutsch",
-        }),
-      };
-      auditType = "content_brief";
-      serverPersists = true;
-      break;
-    case "blog-outline":
-      path = `/api/ai/generate`;
-      init = {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clientId: client.id,
-          kind: "outline",
-          topic: inputs.topic || "",
-          keywords: inputs.keywords || "",
-          language: inputs.language || "Deutsch",
-        }),
-      };
-      auditType = "content_outline";
-      serverPersists = true;
-      break;
-    case "meta-tags":
-      path = `/api/ai/generate`;
-      init = {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clientId: client.id,
-          kind: "meta",
-          topic: inputs.topic || "",
-          keyword: inputs.keyword || "",
-          language: inputs.language || "Deutsch",
-        }),
-      };
-      auditType = "content_meta";
-      serverPersists = true;
-      break;
-    case "schema-markup":
-      path = `/api/ai/generate`;
-      init = {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clientId: client.id,
-          kind: "schema",
-          schemaType: inputs.schemaType || "Article",
-          content: inputs.content || "",
-        }),
-      };
-      auditType = "content_schema";
-      serverPersists = true;
-      break;
-    default:
-      return { ok: false, liveConnected: false, message: "Noch nicht live verbunden" };
-  }
 
   let payload: any = null;
   let httpOk = false;

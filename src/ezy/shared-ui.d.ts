@@ -24,7 +24,9 @@ export declare function EzyPilotProvider(props: {
 }): ReactElement;
 export declare function EzyPilotPopup(): ReactElement | null;
 export declare function EzyPilotButton(): ReactElement;
-export declare function EzyPilotPage(props: { selectedClient: { id: string } | null }): ReactElement;
+export declare function EzyPilotPage(props: {
+  selectedClient: { id: string } | null;
+}): ReactElement;
 export declare function useEzyPilot(): {
   messages: unknown[];
   busy: boolean;

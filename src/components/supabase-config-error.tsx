@@ -38,8 +38,8 @@ export function SupabaseConfigError({ missing }: Props) {
           <p className="font-medium text-foreground">So behebst du das:</p>
           <ol className="list-decimal space-y-1 pl-5">
             <li>
-              Lege eine <code className="rounded bg-muted px-1">.env</code>-Datei im Projekt-Root
-              an (siehe <code className="rounded bg-muted px-1">.env.example</code>).
+              Lege eine <code className="rounded bg-muted px-1">.env</code>-Datei im Projekt-Root an
+              (siehe <code className="rounded bg-muted px-1">.env.example</code>).
             </li>
             <li>
               Trage <code className="rounded bg-muted px-1">VITE_SUPABASE_URL</code> und{" "}
@@ -51,10 +51,7 @@ export function SupabaseConfigError({ missing }: Props) {
         </div>
 
         <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-          <Button
-            onClick={() => window.location.reload()}
-            className="w-full"
-          >
+          <Button onClick={() => window.location.reload()} className="w-full">
             <RefreshCw className="mr-2 h-4 w-4" />
             Erneut versuchen
           </Button>
@@ -79,8 +76,7 @@ export function getMissingSupabaseEnv(): string[] {
     | Record<string, string | undefined>
     | undefined;
   const missing: string[] = [];
-  const supabaseUrl =
-    env?.VITE_SUPABASE_URL || process.env.SUPABASE_URL || FALLBACK_SUPABASE_URL;
+  const supabaseUrl = env?.VITE_SUPABASE_URL || process.env.SUPABASE_URL || FALLBACK_SUPABASE_URL;
   const supabasePublishableKey =
     env?.VITE_SUPABASE_PUBLISHABLE_KEY ||
     process.env.SUPABASE_PUBLISHABLE_KEY ||

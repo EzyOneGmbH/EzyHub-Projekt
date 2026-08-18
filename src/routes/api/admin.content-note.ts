@@ -25,26 +25,44 @@ export const Route = createFileRoute("/api/admin/content-note")({
     handlers: {
       POST: async ({ request }) => {
         const secret = process.env.ADMIN_AUTOMATION_SECRET;
-        if (!secret) return Response.json({ ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" }, { status: 503 });
+        if (!secret)
+          return Response.json(
+            { ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" },
+            { status: 503 },
+          );
         if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
           return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
         const parsed = Body.safeParse(await request.json().catch(() => ({})));
-        if (!parsed.success) return Response.json({ ok: false, error: "Invalid input", details: parsed.error.issues }, { status: 400 });
+        if (!parsed.success)
+          return Response.json(
+            { ok: false, error: "Invalid input", details: parsed.error.issues },
+            { status: 400 },
+          );
         const d = parsed.data;
 
         // Resolve client (id or name) + its organization.
         let clientId = d.clientId || null;
         let orgId: string | null = null;
         if (clientId) {
-          const { data } = await supabaseAdmin.from("clients").select("id, organization_id").eq("id", clientId).maybeSingle();
+          const { data } = await supabaseAdmin
+            .from("clients")
+            .select("id, organization_id")
+            .eq("id", clientId)
+            .maybeSingle();
           orgId = data?.organization_id || null;
         } else if (d.clientName) {
-          const { data } = await supabaseAdmin.from("clients").select("id, organization_id").ilike("name", d.clientName).limit(1).maybeSingle();
+          const { data } = await supabaseAdmin
+            .from("clients")
+            .select("id, organization_id")
+            .ilike("name", d.clientName)
+            .limit(1)
+            .maybeSingle();
           clientId = data?.id || null;
           orgId = data?.organization_id || null;
         }
-        if (!clientId || !orgId) return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
+        if (!clientId || !orgId)
+          return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
 
         // created_by must be a real user — use an owner/admin of the org.
         const { data: member } = await supabaseAdmin
@@ -55,14 +73,23 @@ export const Route = createFileRoute("/api/admin/content-note")({
           .limit(1)
           .maybeSingle();
         const createdBy = member?.user_id;
-        if (!createdBy) return Response.json({ ok: false, error: "Kein Org-Benutzer für created_by gefunden" }, { status: 500 });
+        if (!createdBy)
+          return Response.json(
+            { ok: false, error: "Kein Org-Benutzer für created_by gefunden" },
+            { status: 500 },
+          );
 
         const date = (d.date || new Date().toISOString().slice(0, 10)).slice(0, 10);
         const type = d.type || "note";
 
         // Audit / report / win: standalone document.
         if (type === "audit" || type === "report" || type === "win") {
-          const defaultTitle = type === "audit" ? `SEO/GEO Audit ${date}` : type === "report" ? `Report ${date}` : `Erfolg ${date}`;
+          const defaultTitle =
+            type === "audit"
+              ? `SEO/GEO Audit ${date}`
+              : type === "report"
+                ? `Report ${date}`
+                : `Erfolg ${date}`;
           const title = d.title || defaultTitle;
           const { data: created, error } = await supabaseAdmin
             .from("content_items")

@@ -8,9 +8,16 @@ import { createHmac, createHash, timingSafeEqual } from "node:crypto";
 
 const b64u = (s: string) => Buffer.from(s, "utf8").toString("base64url");
 const unb64u = (s: string) => Buffer.from(s, "base64url").toString("utf8");
-const sign = (payload: string, secret: string) => createHmac("sha256", secret).update(payload).digest("base64url");
+const sign = (payload: string, secret: string) =>
+  createHmac("sha256", secret).update(payload).digest("base64url");
 
-export function makeReportToken(clientId: string, organizationId: string, days: number, secret: string, now = Date.now()): string {
+export function makeReportToken(
+  clientId: string,
+  organizationId: string,
+  days: number,
+  secret: string,
+  now = Date.now(),
+): string {
   const exp = now + days * 864e5;
   const payload = `v2|${clientId}|${organizationId}|${exp}`;
   return b64u(`${payload}|${sign(payload, secret)}`);
@@ -20,7 +27,11 @@ export type ReportTokenClaims = { clientId: string; organizationId: string; exp:
 
 /** null bei Manipulation, fremdem Format oder Ablauf. Legacy-v1-Tokens (ohne
  *  Org-Bindung) werden bewusst NICHT mehr akzeptiert. */
-export function verifyReportToken(token: string, secret: string, now = Date.now()): ReportTokenClaims | null {
+export function verifyReportToken(
+  token: string,
+  secret: string,
+  now = Date.now(),
+): ReportTokenClaims | null {
   try {
     const raw = unb64u(token);
     const i = raw.lastIndexOf("|");
@@ -28,7 +39,8 @@ export function verifyReportToken(token: string, secret: string, now = Date.now(
     const payload = raw.slice(0, i);
     const mac = raw.slice(i + 1);
     const want = sign(payload, secret);
-    if (mac.length !== want.length || !timingSafeEqual(Buffer.from(mac), Buffer.from(want))) return null;
+    if (mac.length !== want.length || !timingSafeEqual(Buffer.from(mac), Buffer.from(want)))
+      return null;
     const teile = payload.split("|");
     if (teile.length !== 4 || teile[0] !== "v2") return null;
     const [, clientId, organizationId, expStr] = teile;

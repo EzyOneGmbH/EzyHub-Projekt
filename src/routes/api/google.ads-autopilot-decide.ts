@@ -32,14 +32,16 @@ export const Route = createFileRoute("/api/google/ads-autopilot-decide")({
         const user = await authedUser(request);
         if (!user) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
         const parsed = Body.safeParse(await request.json().catch(() => ({})));
-        if (!parsed.success) return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
+        if (!parsed.success)
+          return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
 
         const { data: client } = await supabaseAdmin
           .from("clients")
           .select("id, organization_id")
           .eq("id", parsed.data.clientId)
           .maybeSingle();
-        if (!client) return Response.json({ ok: false, error: "Client not found" }, { status: 404 });
+        if (!client)
+          return Response.json({ ok: false, error: "Client not found" }, { status: 404 });
         const { data: m } = await supabaseAdmin
           .from("app_users")
           .select("role")

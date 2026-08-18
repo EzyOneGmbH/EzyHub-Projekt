@@ -16,24 +16,42 @@ export const Route = createFileRoute("/api/agent/approvals")({
       GET: async ({ request }) => {
         const base = process.env.AGENT_BASE_URL;
         const secret = process.env.AGENT_SHARED_SECRET;
-        if (!base || !secret) return Response.json({ ok: false, error: "Agent service not configured" }, { status: 503 });
+        if (!base || !secret)
+          return Response.json(
+            { ok: false, error: "Agent service not configured" },
+            { status: 503 },
+          );
         const ctx = await requireTeamRole(request, "member");
         if (ctx instanceof Response) return ctx;
         try {
-          const r = await fetch(`${base.replace(/\/+$/, "")}/approvals?org=${encodeURIComponent(ctx.organizationId)}`, {
-            headers: { Authorization: `Bearer ${secret}`, "X-Ezy-Organization": ctx.organizationId, "X-Ezy-Role": ctx.role },
-            signal: AbortSignal.timeout(10_000),
-          });
+          const r = await fetch(
+            `${base.replace(/\/+$/, "")}/approvals?org=${encodeURIComponent(ctx.organizationId)}`,
+            {
+              headers: {
+                Authorization: `Bearer ${secret}`,
+                "X-Ezy-Organization": ctx.organizationId,
+                "X-Ezy-Role": ctx.role,
+              },
+              signal: AbortSignal.timeout(10_000),
+            },
+          );
           const j = await r.json().catch(() => ({}));
           return Response.json(j, { headers: { "Cache-Control": "no-store" } });
         } catch (e) {
-          return Response.json({ ok: false, error: String((e as Error)?.message || e) }, { status: 502 });
+          return Response.json(
+            { ok: false, error: String((e as Error)?.message || e) },
+            { status: 502 },
+          );
         }
       },
       POST: async ({ request }) => {
         const base = process.env.AGENT_BASE_URL;
         const secret = process.env.AGENT_SHARED_SECRET;
-        if (!base || !secret) return Response.json({ ok: false, error: "Agent service not configured" }, { status: 503 });
+        if (!base || !secret)
+          return Response.json(
+            { ok: false, error: "Agent service not configured" },
+            { status: 503 },
+          );
         const ctx = await requireTeamRole(request, "admin");
         if (ctx instanceof Response) return ctx;
         const body: any = await request.json().catch(() => ({}));
@@ -45,16 +63,26 @@ export const Route = createFileRoute("/api/agent/approvals")({
           const r = await fetch(`${base.replace(/\/+$/, "")}/approvals`, {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${secret}`, "Content-Type": "application/json",
-              "X-Ezy-Organization": ctx.organizationId, "X-Ezy-Role": ctx.role,
+              Authorization: `Bearer ${secret}`,
+              "Content-Type": "application/json",
+              "X-Ezy-Organization": ctx.organizationId,
+              "X-Ezy-Role": ctx.role,
             },
-            body: JSON.stringify({ id, status, organizationId: ctx.organizationId, decidedBy: ctx.userId }),
+            body: JSON.stringify({
+              id,
+              status,
+              organizationId: ctx.organizationId,
+              decidedBy: ctx.userId,
+            }),
             signal: AbortSignal.timeout(10_000),
           });
           const j = await r.json().catch(() => ({}));
           return Response.json(j);
         } catch (e) {
-          return Response.json({ ok: false, error: String((e as Error)?.message || e) }, { status: 502 });
+          return Response.json(
+            { ok: false, error: String((e as Error)?.message || e) },
+            { status: 502 },
+          );
         }
       },
     },

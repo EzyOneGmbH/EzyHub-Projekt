@@ -8,15 +8,7 @@ import { recordApiCost } from "@/server/api-cost.server";
 
 const Body = z.object({
   clientId: z.string().uuid(),
-  kind: z.enum([
-    "blog",
-    "obsidian",
-    "summary",
-    "content-brief",
-    "outline",
-    "meta",
-    "schema",
-  ]),
+  kind: z.enum(["blog", "obsidian", "summary", "content-brief", "outline", "meta", "schema"]),
   // shared / blog
   topic: z.string().max(500).optional(),
   tone: z.string().max(100).optional(),

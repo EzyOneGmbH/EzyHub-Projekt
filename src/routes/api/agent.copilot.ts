@@ -94,7 +94,10 @@ function svc() {
 // Find or create the global Co-Pilot agent in the agent-service.
 async function ensureCopilot(base: string, secret: string): Promise<string | null> {
   const headers = { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" };
-  const listRes = await fetch(`${base}/agents?clientId=global`, { headers, signal: AbortSignal.timeout(15_000) });
+  const listRes = await fetch(`${base}/agents?clientId=global`, {
+    headers,
+    signal: AbortSignal.timeout(15_000),
+  });
   const list = await listRes.json().catch(() => ({}));
   const existing = (list.agents || []).find(
     (a: any) => a.name === COPILOT_NAME || COPILOT_LEGACY_NAMES.includes(a.name),
@@ -104,7 +107,15 @@ async function ensureCopilot(base: string, secret: string): Promise<string | nul
     const upd = await fetch(`${base}/agents?clientId=global`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ id: existing.id, clientId: "global", name: COPILOT_NAME, description: "Zentraler EzyHub-Assistent", model: COPILOT_MODEL, skills: COPILOT_SKILLS, instructions: COPILOT_INSTRUCTIONS }),
+      body: JSON.stringify({
+        id: existing.id,
+        clientId: "global",
+        name: COPILOT_NAME,
+        description: "Zentraler EzyHub-Assistent",
+        model: COPILOT_MODEL,
+        skills: COPILOT_SKILLS,
+        instructions: COPILOT_INSTRUCTIONS,
+      }),
       signal: AbortSignal.timeout(15_000),
     });
     const j = await upd.json().catch(() => ({}));
@@ -113,7 +124,14 @@ async function ensureCopilot(base: string, secret: string): Promise<string | nul
   const created = await fetch(`${base}/agents?clientId=global`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ clientId: "global", name: COPILOT_NAME, description: "Zentraler EzyHub-Assistent", model: COPILOT_MODEL, skills: COPILOT_SKILLS, instructions: COPILOT_INSTRUCTIONS }),
+    body: JSON.stringify({
+      clientId: "global",
+      name: COPILOT_NAME,
+      description: "Zentraler EzyHub-Assistent",
+      model: COPILOT_MODEL,
+      skills: COPILOT_SKILLS,
+      instructions: COPILOT_INSTRUCTIONS,
+    }),
     signal: AbortSignal.timeout(15_000),
   });
   const j = await created.json().catch(() => ({}));
@@ -126,29 +144,45 @@ export const Route = createFileRoute("/api/agent/copilot")({
       // GET → ensure the Co-Pilot exists, return its id
       GET: async ({ request }) => {
         const s = svc();
-        if (!s) return Response.json({ ok: false, error: "Agent service not configured" }, { status: 503 });
-        if (!(await isAdminUser(request))) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        if (!s)
+          return Response.json(
+            { ok: false, error: "Agent service not configured" },
+            { status: 503 },
+          );
+        if (!(await isAdminUser(request)))
+          return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
         try {
           const agentId = await ensureCopilot(s.base, s.secret);
-          if (!agentId) return Response.json({ ok: false, error: "Co-Pilot konnte nicht angelegt werden" });
+          if (!agentId)
+            return Response.json({ ok: false, error: "Co-Pilot konnte nicht angelegt werden" });
           return Response.json({ ok: true, agentId, model: COPILOT_MODEL });
         } catch (e) {
-          return Response.json({ ok: false, error: String((e as Error)?.message || e) }, { status: 502 });
+          return Response.json(
+            { ok: false, error: String((e as Error)?.message || e) },
+            { status: 502 },
+          );
         }
       },
 
       // POST { input, context, resumeSessionId } → run the Co-Pilot (async job)
       POST: async ({ request }) => {
         const s = svc();
-        if (!s) return Response.json({ ok: false, error: "Agent service not configured" }, { status: 503 });
-        if (!(await isAdminUser(request))) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        if (!s)
+          return Response.json(
+            { ok: false, error: "Agent service not configured" },
+            { status: 503 },
+          );
+        if (!(await isAdminUser(request)))
+          return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
         const body = await request.json().catch(() => ({}));
         try {
           const agentId = await ensureCopilot(s.base, s.secret);
           if (!agentId) return Response.json({ ok: false, error: "Co-Pilot nicht verfügbar" });
 
           // Prepend the portal context so the assistant can answer data/portal questions.
-          const ctx = body.context ? `# Aktueller EzyHub-Kontext\n${typeof body.context === "string" ? body.context : JSON.stringify(body.context, null, 2)}\n\n# Anfrage\n` : "";
+          const ctx = body.context
+            ? `# Aktueller EzyHub-Kontext\n${typeof body.context === "string" ? body.context : JSON.stringify(body.context, null, 2)}\n\n# Anfrage\n`
+            : "";
           const input = `${ctx}${String(body.input || "")}`;
 
           const r = await fetch(`${s.base}/run-agent`, {
@@ -169,7 +203,10 @@ export const Route = createFileRoute("/api/agent/copilot")({
           const j = await r.json().catch(() => ({}));
           return Response.json({ ...j, agentId }, { status: r.status });
         } catch (e) {
-          return Response.json({ ok: false, error: String((e as Error)?.message || e) }, { status: 502 });
+          return Response.json(
+            { ok: false, error: String((e as Error)?.message || e) },
+            { status: 502 },
+          );
         }
       },
     },

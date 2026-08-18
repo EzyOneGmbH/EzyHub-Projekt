@@ -15,14 +15,20 @@ export function useAppAccess() {
   useEffect(() => {
     let alive = true;
     if (authLoading) return;
-    if (!user) { setApps(new Set()); return; }
+    if (!user) {
+      setApps(new Set());
+      return;
+    }
     // RACE-FIX (01.08.): useAuth meldet loading=false, BEVOR die Membership
     // (role) geladen ist. In dieser Lücke ist isOrgAdmin noch false — ein
     // Owner bekäme dann seine (leere) app_access-Liste und die Routen-Guards
     // würfen ihn bei JEDEM App-Wechsel zum Launcher zurück. Deshalb: solange
     // role unbekannt ist, bleibt der Hook im Ladezustand.
     if (role === null) return;
-    if (isOrgAdmin) { setApps(new Set(ALL)); return; }
+    if (isOrgAdmin) {
+      setApps(new Set(ALL));
+      return;
+    }
     (supabase as any)
       .from("app_access")
       .select("app")
@@ -30,7 +36,9 @@ export function useAppAccess() {
       .then(({ data }: { data: Array<{ app: EzyAppId }> | null }) => {
         if (alive) setApps(new Set((data ?? []).map((r) => r.app)));
       });
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [user?.id, role, isOrgAdmin, authLoading]);
 
   const canOpen = (id: EzyAppId) =>

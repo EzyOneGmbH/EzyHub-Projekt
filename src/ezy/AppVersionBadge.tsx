@@ -48,7 +48,16 @@ export function AppVersionBadge({
             fontFamily: "'Aceh Soft','Nunito Sans','Segoe UI',sans-serif",
           }}
         >
-          <div style={{ fontSize: 11, fontWeight: 700, color: c.accent, letterSpacing: ".4px", textTransform: "uppercase", marginBottom: 8 }}>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: c.accent,
+              letterSpacing: ".4px",
+              textTransform: "uppercase",
+              marginBottom: 8,
+            }}
+          >
             Änderungen
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -96,7 +105,15 @@ export function AppVersionBadge({
           fontFamily: "'Aceh Soft','Nunito Sans','Segoe UI',sans-serif",
         }}
       >
-        <span style={{ width: 6, height: 6, borderRadius: 999, background: c.accent, display: "inline-block" }} />
+        <span
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: 999,
+            background: c.accent,
+            display: "inline-block",
+          }}
+        />
         v{info.version}
       </div>
     </div>

@@ -15,20 +15,51 @@ describe("detectStrategyChanges (Strategie-Segmentierung, pure)", () => {
   it("erkennt Gebotsstrategie-Wechsel an CAMPAIGN-Events mit bidding-Feldern", () => {
     const out = detectStrategyChanges(
       [
-        { at: "2026-07-10 11:55:00", resourceType: "CAMPAIGN", fields: "maximize_conversion_value.target_roas", campaignRef: "customers/1/campaigns/111" },
-        { at: "2026-07-09 09:00:00", resourceType: "AD_GROUP_CRITERION", fields: "cpc_bid_micros", campaignRef: "customers/1/campaigns/111" },
-        { at: "2026-07-08 08:00:00", resourceType: "CAMPAIGN", fields: "name", campaignRef: "customers/1/campaigns/222" },
+        {
+          at: "2026-07-10 11:55:00",
+          resourceType: "CAMPAIGN",
+          fields: "maximize_conversion_value.target_roas",
+          campaignRef: "customers/1/campaigns/111",
+        },
+        {
+          at: "2026-07-09 09:00:00",
+          resourceType: "AD_GROUP_CRITERION",
+          fields: "cpc_bid_micros",
+          campaignRef: "customers/1/campaigns/111",
+        },
+        {
+          at: "2026-07-08 08:00:00",
+          resourceType: "CAMPAIGN",
+          fields: "name",
+          campaignRef: "customers/1/campaigns/222",
+        },
       ],
       idToName,
     );
-    expect(out).toEqual([{ campaign: "SN - DE - Brand", at: "2026-07-10 11:55:00", fields: "maximize_conversion_value.target_roas" }]);
+    expect(out).toEqual([
+      {
+        campaign: "SN - DE - Brand",
+        at: "2026-07-10 11:55:00",
+        fields: "maximize_conversion_value.target_roas",
+      },
+    ]);
   });
 
   it("nimmt nur den JUENGSTEN Wechsel je Kampagne (Historie ist DESC sortiert)", () => {
     const out = detectStrategyChanges(
       [
-        { at: "2026-07-12 10:00:00", resourceType: "CAMPAIGN", fields: "bidding_strategy_type", campaignRef: "customers/1/campaigns/222" },
-        { at: "2026-07-01 10:00:00", resourceType: "CAMPAIGN", fields: "bidding_strategy_type", campaignRef: "customers/1/campaigns/222" },
+        {
+          at: "2026-07-12 10:00:00",
+          resourceType: "CAMPAIGN",
+          fields: "bidding_strategy_type",
+          campaignRef: "customers/1/campaigns/222",
+        },
+        {
+          at: "2026-07-01 10:00:00",
+          resourceType: "CAMPAIGN",
+          fields: "bidding_strategy_type",
+          campaignRef: "customers/1/campaigns/222",
+        },
       ],
       idToName,
     );
@@ -38,7 +69,14 @@ describe("detectStrategyChanges (Strategie-Segmentierung, pure)", () => {
 
   it("ignoriert Events ohne aufloesbare Kampagne", () => {
     const out = detectStrategyChanges(
-      [{ at: "2026-07-12 10:00:00", resourceType: "CAMPAIGN", fields: "bidding_strategy_type", campaignRef: "customers/1/campaigns/999" }],
+      [
+        {
+          at: "2026-07-12 10:00:00",
+          resourceType: "CAMPAIGN",
+          fields: "bidding_strategy_type",
+          campaignRef: "customers/1/campaigns/999",
+        },
+      ],
       idToName,
     );
     expect(out).toHaveLength(0);
@@ -62,7 +100,19 @@ describe("periodRanges (L90 wird am Wechsel getrennt, pure)", () => {
 
 describe("windowMetrics (Fenster-Kennzahlen, pure)", () => {
   it("berechnet ROAS/CPA und rundet; ohne Kosten/Conversions -> null statt Division", () => {
-    expect(windowMetrics(200, 8, 1000)).toEqual({ costChf: 200, conversions: 8, conversionValue: 1000, roas: 5, cpaChf: 25 });
-    expect(windowMetrics(0, 0, 0)).toEqual({ costChf: 0, conversions: 0, conversionValue: 0, roas: null, cpaChf: null });
+    expect(windowMetrics(200, 8, 1000)).toEqual({
+      costChf: 200,
+      conversions: 8,
+      conversionValue: 1000,
+      roas: 5,
+      cpaChf: 25,
+    });
+    expect(windowMetrics(0, 0, 0)).toEqual({
+      costChf: 0,
+      conversions: 0,
+      conversionValue: 0,
+      roas: null,
+      cpaChf: null,
+    });
   });
 });

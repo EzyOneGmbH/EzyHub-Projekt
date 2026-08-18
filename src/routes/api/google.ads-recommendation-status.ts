@@ -32,14 +32,16 @@ export const Route = createFileRoute("/api/google/ads-recommendation-status")({
         const user = await authedUser(request);
         if (!user) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
         const parsed = Body.safeParse(await request.json().catch(() => ({})));
-        if (!parsed.success) return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
+        if (!parsed.success)
+          return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
 
         const { data: client } = await supabaseAdmin
           .from("clients")
           .select("id, organization_id")
           .eq("id", parsed.data.clientId)
           .maybeSingle();
-        if (!client) return Response.json({ ok: false, error: "Client not found" }, { status: 404 });
+        if (!client)
+          return Response.json({ ok: false, error: "Client not found" }, { status: 404 });
         const { data: m } = await supabaseAdmin
           .from("app_users")
           .select("role")
@@ -48,7 +50,10 @@ export const Route = createFileRoute("/api/google/ads-recommendation-status")({
           .maybeSingle();
         if (!m) return Response.json({ ok: false, error: "Forbidden" }, { status: 403 });
         if (!(await canRunAudits(user.id, client.organization_id)))
-          return Response.json({ ok: false, error: "Keine Berechtigung (viewer/read-only)." }, { status: 403 });
+          return Response.json(
+            { ok: false, error: "Keine Berechtigung (viewer/read-only)." },
+            { status: 403 },
+          );
 
         // Empfehlung muss zum Client gehoeren (Guard gegen fremde IDs).
         const { data: rec } = await supabaseAdmin
@@ -57,7 +62,10 @@ export const Route = createFileRoute("/api/google/ads-recommendation-status")({
           .eq("id", parsed.data.id)
           .maybeSingle();
         if (!rec || rec.client_id !== parsed.data.clientId)
-          return Response.json({ ok: false, error: "Empfehlung gehoert nicht zu diesem Kunden" }, { status: 403 });
+          return Response.json(
+            { ok: false, error: "Empfehlung gehoert nicht zu diesem Kunden" },
+            { status: 403 },
+          );
 
         const r = await setRecommendationStatus({
           id: parsed.data.id,

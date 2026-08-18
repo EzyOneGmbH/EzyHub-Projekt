@@ -9,10 +9,28 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 // (ADMIN_AUTOMATION_SECRET) — gleiche Architektur wie content-sync/aivis-sync.
 // Die View ist bereits blog-only + published (content_type='blog').
 
-const ACTIONABLE = ["not_indexed", "tech_fix", "ctr_fix", "push_expand", "refresh_decay", "consolidate", "ceiling_new_kw", "low_visibility"];
+const ACTIONABLE = [
+  "not_indexed",
+  "tech_fix",
+  "ctr_fix",
+  "push_expand",
+  "refresh_decay",
+  "consolidate",
+  "ceiling_new_kw",
+  "low_visibility",
+];
 // Dringlichkeit: Indexstatus zuerst (ohne Index wirkt KEINE andere Massnahme),
 // dann Technik/Kannibalisierung, dann Decay, dann Ausbau/CTR.
-const ORDER: Record<string, number> = { not_indexed: 0, tech_fix: 1, consolidate: 2, refresh_decay: 3, push_expand: 4, ctr_fix: 5, ceiling_new_kw: 6, low_visibility: 7 };
+const ORDER: Record<string, number> = {
+  not_indexed: 0,
+  tech_fix: 1,
+  consolidate: 2,
+  refresh_decay: 3,
+  push_expand: 4,
+  ctr_fix: 5,
+  ceiling_new_kw: 6,
+  low_visibility: 7,
+};
 
 export const Route = createFileRoute("/api/admin/content-decision")({
   server: {
@@ -20,7 +38,10 @@ export const Route = createFileRoute("/api/admin/content-decision")({
       GET: async ({ request }) => {
         const secret = process.env.ADMIN_AUTOMATION_SECRET;
         if (!secret)
-          return Response.json({ ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" }, { status: 503 });
+          return Response.json(
+            { ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" },
+            { status: 503 },
+          );
         if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
           return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
@@ -32,14 +53,23 @@ export const Route = createFileRoute("/api/admin/content-decision")({
         let cid = clientIdParam;
         if (!cid && clientName) {
           const { data } = await supabaseAdmin
-            .from("clients").select("id").ilike("name", `%${clientName}%`).limit(1).maybeSingle();
+            .from("clients")
+            .select("id")
+            .ilike("name", `%${clientName}%`)
+            .limit(1)
+            .maybeSingle();
           cid = data?.id || "";
         }
         if (!cid)
-          return Response.json({ ok: false, error: "Kunde nicht gefunden (clientId oder clientName angeben)" }, { status: 404 });
+          return Response.json(
+            { ok: false, error: "Kunde nicht gefunden (clientId oder clientName angeben)" },
+            { status: 404 },
+          );
 
         const { data, error } = await supabaseAdmin
-          .from("content_decision").select("*").eq("client_id", cid);
+          .from("content_decision")
+          .select("*")
+          .eq("client_id", cid);
         if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 
         let rows = (data || []) as any[];
@@ -63,7 +93,10 @@ export const Route = createFileRoute("/api/admin/content-decision")({
       POST: async ({ request }) => {
         const secret = process.env.ADMIN_AUTOMATION_SECRET;
         if (!secret)
-          return Response.json({ ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" }, { status: 503 });
+          return Response.json(
+            { ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" },
+            { status: 503 },
+          );
         if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
           return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
         const body = (await request.json().catch(() => ({}))) as { contentItemId?: string };

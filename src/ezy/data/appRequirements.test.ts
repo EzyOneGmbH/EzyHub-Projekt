@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
-  evaluateReadiness, warneBeimAppAktivieren, warneBeimServiceDeaktivieren,
-  warneBeimLocalGrid, type ReadinessSnapshot,
+  evaluateReadiness,
+  warneBeimAppAktivieren,
+  warneBeimServiceDeaktivieren,
+  warneBeimLocalGrid,
+  type ReadinessSnapshot,
 } from "./appRequirements";
 
 const NOW = Date.parse("2026-08-17T12:00:00Z");
@@ -25,12 +28,16 @@ describe("evaluateReadiness", () => {
   it("geo ohne GEO-Service ist Fehler, mit Service nur unvollstaendig", () => {
     const ohne = evaluateReadiness(snap()).find((r) => r.app === "geo")!;
     expect(ohne.status).toBe("fehler");
-    const mit = evaluateReadiness(snap({ services: { perplexity: true } })).find((r) => r.app === "geo")!;
+    const mit = evaluateReadiness(snap({ services: { perplexity: true } })).find(
+      (r) => r.app === "geo",
+    )!;
     expect(mit.status).toBe("unvollstaendig"); // Lauf + Portal fehlen (empfohlen)
   });
 
   it("ads braucht Service UND Kundennummer (beides kritisch)", () => {
-    const r1 = evaluateReadiness(snap({ services: { "google-ads": true } })).find((r) => r.app === "ads")!;
+    const r1 = evaluateReadiness(snap({ services: { "google-ads": true } })).find(
+      (r) => r.app === "ads",
+    )!;
     expect(r1.status).toBe("fehler"); // Kundennummer fehlt
     const r2 = evaluateReadiness(
       snap({ services: { "google-ads": true }, felder: { google_ads_customer: "123-456-7890" } }),
@@ -57,7 +64,11 @@ describe("evaluateReadiness", () => {
 
   it("Datenlauf aelter als das Limit gilt als fehlend", () => {
     const r = evaluateReadiness(
-      snap({ services: { perplexity: true }, lastRuns: { canonry_ai_visibility: "2026-07-01T00:00:00Z" }, portalUsers: 1 }),
+      snap({
+        services: { perplexity: true },
+        lastRuns: { canonry_ai_visibility: "2026-07-01T00:00:00Z" },
+        portalUsers: 1,
+      }),
     ).find((x) => x.app === "geo")!;
     const lauf = r.checks.find((c) => c.id === "run")!;
     expect(lauf.ok).toBe(false);

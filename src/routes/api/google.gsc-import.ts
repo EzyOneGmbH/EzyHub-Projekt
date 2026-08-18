@@ -215,17 +215,17 @@ export const Route = createFileRoute("/api/google/gsc-import")({
           };
           try {
             if (parsed.data.persist)
-            await supabaseAdmin.from("audit_runs").insert({
-              client_id: client.id,
-              organization_id: client.organization_id,
-              triggered_by: user.id,
-              audit_type: "gsc_summary",
-              status: "succeeded",
-              input: { days: parsed.data.days },
-              result: gscSummary as never,
-              started_at: new Date().toISOString(),
-              finished_at: new Date().toISOString(),
-            });
+              await supabaseAdmin.from("audit_runs").insert({
+                client_id: client.id,
+                organization_id: client.organization_id,
+                triggered_by: user.id,
+                audit_type: "gsc_summary",
+                status: "succeeded",
+                input: { days: parsed.data.days },
+                result: gscSummary as never,
+                started_at: new Date().toISOString(),
+                finished_at: new Date().toISOString(),
+              });
           } catch {
             /* non-fatal */
           }

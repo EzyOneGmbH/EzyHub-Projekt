@@ -13,7 +13,9 @@ async function authWrite(request: Request, clientId: string) {
   const sb = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: request.headers.get("authorization") ?? "" } },
   });
-  const { data: { user } } = await sb.auth.getUser();
+  const {
+    data: { user },
+  } = await sb.auth.getUser();
   if (!user) return { error: "Unauthorized", status: 401 as const };
   const { data: client } = await supabaseAdmin
     .from("clients")
@@ -52,9 +54,11 @@ export const Route = createFileRoute("/api/wordpress/publish")({
       POST: async ({ request }) => {
         const body = await request.json().catch(() => ({}));
         const parsed = Body.safeParse(body);
-        if (!parsed.success) return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
+        if (!parsed.success)
+          return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
         const auth = await authWrite(request, parsed.data.clientId);
-        if ("error" in auth) return Response.json({ ok: false, error: auth.error }, { status: auth.status });
+        if ("error" in auth)
+          return Response.json({ ok: false, error: auth.error }, { status: auth.status });
 
         const conn = await getWpConnection(parsed.data.clientId);
         if (!conn) return Response.json({ ok: false, error: "Keine WordPress-Verbindung" });
@@ -97,7 +101,8 @@ export const Route = createFileRoute("/api/wordpress/publish")({
           ok: true,
           post: { id: r.data?.id, link: r.data?.link, status: r.data?.status },
           seoApplied: Object.keys(meta).length > 0 ? seoPlugin : null,
-          seoPluginMissing: (parsed.data.seoTitle || parsed.data.seoDescription) && !seoPlugin ? true : false,
+          seoPluginMissing:
+            (parsed.data.seoTitle || parsed.data.seoDescription) && !seoPlugin ? true : false,
         });
       },
     },

@@ -34,7 +34,11 @@ describe("oppFingerprint", () => {
 describe("OPP_STATUS", () => {
   it("deckt den vollstaendigen Workflow ab", () => {
     expect(OPP_STATUS.map((s) => s.id)).toEqual([
-      "offen", "in_bearbeitung", "pausiert", "erledigt", "verworfen",
+      "offen",
+      "in_bearbeitung",
+      "pausiert",
+      "erledigt",
+      "verworfen",
     ]);
   });
 });
@@ -50,10 +54,16 @@ describe("resolveRange", () => {
   });
 
   it("Custom: exakte Daten bleiben erhalten (kein Runden auf 7/30/90)", () => {
-    const r = resolveRange({
-      label: "01.06. – 14.06.", days: 14, preset: "custom",
-      start: new Date(2026, 5, 1).toISOString(), end: new Date(2026, 5, 14).toISOString(),
-    }, now);
+    const r = resolveRange(
+      {
+        label: "01.06. – 14.06.",
+        days: 14,
+        preset: "custom",
+        start: new Date(2026, 5, 1).toISOString(),
+        end: new Date(2026, 5, 14).toISOString(),
+      },
+      now,
+    );
     expect(r.preset).toBe("custom");
     expect(r.days).toBe(14);
     expect(isoDay(r.start)).toBe("2026-06-01");

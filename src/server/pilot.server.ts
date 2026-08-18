@@ -57,9 +57,16 @@ export async function pilotScope(userId: string): Promise<PilotScope | null> {
   // ersetzen keine Organisationsgrenze: allowedSlugs entstehen ausschliesslich
   // aus dieser org-gefilterten Liste.
   let q = supabaseAdmin.from("clients").select("id, name").eq("organization_id", orgId);
-  if (clientIds) q = clientIds.length ? q.in("id", clientIds) : q.in("id", ["00000000-0000-0000-0000-000000000000"]);
+  if (clientIds)
+    q = clientIds.length
+      ? q.in("id", clientIds)
+      : q.in("id", ["00000000-0000-0000-0000-000000000000"]);
   const { data: clients } = await q;
-  const list = (clients || []).map((c: any) => ({ id: c.id, name: c.name, slug: slugifyName(c.name) }));
+  const list = (clients || []).map((c: any) => ({
+    id: c.id,
+    name: c.name,
+    slug: slugifyName(c.name),
+  }));
   return { isOwner, role, clients: list, allowedSlugs: list.map((c) => c.slug) };
 }
 

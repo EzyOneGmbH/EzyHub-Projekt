@@ -29,7 +29,8 @@ export const Route = createFileRoute("/api/agent/pilot")({
         const user = await getUser(request);
         if (!user) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
         const scope = await pilotScope(user.id);
-        if (!scope) return Response.json({ ok: false, error: "Kein Organisations-Zugang." }, { status: 403 });
+        if (!scope)
+          return Response.json({ ok: false, error: "Kein Organisations-Zugang." }, { status: 403 });
         let topics: { slug: string; title: string }[] = [];
         const s = svc();
         if (s) {
@@ -50,13 +51,21 @@ export const Route = createFileRoute("/api/agent/pilot")({
       // POST { action: "ask", question, history } | { action: "note", clientSlug, text }
       POST: async ({ request }) => {
         const s = svc();
-        if (!s) return Response.json({ ok: false, error: "Agent service not configured" }, { status: 503 });
+        if (!s)
+          return Response.json(
+            { ok: false, error: "Agent service not configured" },
+            { status: 503 },
+          );
         const user = await getUser(request);
         if (!user) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
         const scope = await pilotScope(user.id);
-        if (!scope) return Response.json({ ok: false, error: "Kein Organisations-Zugang." }, { status: 403 });
+        if (!scope)
+          return Response.json({ ok: false, error: "Kein Organisations-Zugang." }, { status: 403 });
         if (throttled(user.id))
-          return Response.json({ ok: false, error: "Zu viele Anfragen — bitte in einer Stunde erneut versuchen." }, { status: 429 });
+          return Response.json(
+            { ok: false, error: "Zu viele Anfragen — bitte in einer Stunde erneut versuchen." },
+            { status: 429 },
+          );
 
         const body = await request.json().catch(() => ({}));
         const headers = { Authorization: `Bearer ${s.secret}`, "Content-Type": "application/json" };
@@ -97,7 +106,10 @@ export const Route = createFileRoute("/api/agent/pilot")({
           });
           return Response.json(await r.json().catch(() => ({})), { status: r.status });
         } catch (e) {
-          return Response.json({ ok: false, error: String((e as Error)?.message || e) }, { status: 502 });
+          return Response.json(
+            { ok: false, error: String((e as Error)?.message || e) },
+            { status: 502 },
+          );
         }
       },
     },

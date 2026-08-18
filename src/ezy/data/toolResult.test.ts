@@ -23,15 +23,20 @@ describe("normalizeToolResult", () => {
   });
 
   it("versteht OpenAI-artige choices[]", () => {
-    expect(
-      normalizeToolResult({ choices: [{ message: { content: "vom LLM" } }] }).text,
-    ).toBe("vom LLM");
+    expect(normalizeToolResult({ choices: [{ message: { content: "vom LLM" } }] }).text).toBe(
+      "vom LLM",
+    );
     expect(normalizeToolResult({ choices: [{ text: "legacy" }] }).text).toBe("legacy");
   });
 
   it("fügt Anthropic-artige content-Blöcke zusammen", () => {
     expect(
-      normalizeToolResult({ content: [{ type: "text", text: "a" }, { type: "text", text: "b" }] }).text,
+      normalizeToolResult({
+        content: [
+          { type: "text", text: "a" },
+          { type: "text", text: "b" },
+        ],
+      }).text,
     ).toBe("a\n\nb");
     expect(normalizeToolResult(["zeile1", "zeile2"]).text).toBe("zeile1\n\nzeile2");
   });

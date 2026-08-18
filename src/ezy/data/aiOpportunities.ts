@@ -33,7 +33,10 @@ export function fnv1a(s: string): string {
 // Kern normalisieren, damit kosmetische Unterschiede (Whitespace, Groß-/
 // Kleinschreibung) den Fingerprint nicht ändern.
 function normalizeKey(key: string): string {
-  return String(key || "").toLowerCase().replace(/\s+/g, " ").trim();
+  return String(key || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function oppFingerprint(kind: string, key: string): string {

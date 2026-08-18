@@ -63,7 +63,12 @@ export type AktionId =
 
 const TAGE = 24 * 60 * 60 * 1000;
 
-function laufOk(lastRuns: Record<string, string | null>, types: string[], maxAgeDays: number, now: number) {
+function laufOk(
+  lastRuns: Record<string, string | null>,
+  types: string[],
+  maxAgeDays: number,
+  now: number,
+) {
   let neuester: number | null = null;
   for (const t of types) {
     const iso = lastRuns[t];
@@ -92,14 +97,14 @@ export function evaluateReadiness(s: ReadinessSnapshot): AppReadiness[] {
   const out: AppReadiness[] = [];
   const svcOn = (p: string) => s.services[p] === true;
 
-  const push = (
-    app: EzyAppId,
-    checks: Array<Omit<CheckErgebnis, "id"> & { id: string }>,
-  ) => {
+  const push = (app: EzyAppId, checks: Array<Omit<CheckErgebnis, "id"> & { id: string }>) => {
     const enabled = s.appEnabled[app] !== false; // keine Zeile = aktiv
     const appCheck: CheckErgebnis = {
-      id: "app", label: "App freigeschaltet", severity: "kritisch",
-      ok: enabled, detail: enabled ? "aktiv" : "deaktiviert",
+      id: "app",
+      label: "App freigeschaltet",
+      severity: "kritisch",
+      ok: enabled,
+      detail: enabled ? "aktiv" : "deaktiviert",
       ...(enabled ? {} : { aktion: { id: "app_freischalten", label: "App freischalten" } }),
     };
     const alle = [appCheck, ...checks];
@@ -118,18 +123,31 @@ export function evaluateReadiness(s: ReadinessSnapshot): AppReadiness[] {
     const lauf = laufOk(s.lastRuns, ["populate_meta", "rankings", "gsc_summary"], 8, now);
     push("seo", [
       {
-        id: "integration", label: "Google verbunden (GSC/GA4)", severity: "empfohlen",
-        ok: google, detail: google ? "verbunden" : "keine Google-Verbindung",
+        id: "integration",
+        label: "Google verbunden (GSC/GA4)",
+        severity: "empfohlen",
+        ok: google,
+        detail: google ? "verbunden" : "keine Google-Verbindung",
         ...(google ? {} : { aktion: { id: "google_verbinden", label: "Google verbinden" } }),
       },
       {
-        id: "property", label: "GSC/GA4-Property gewählt", severity: "empfohlen",
-        ok: props, detail: props ? [s.felder.gsc_property && "GSC", s.felder.ga4_property && "GA4"].filter(Boolean).join(" + ") : "keine Property hinterlegt",
+        id: "property",
+        label: "GSC/GA4-Property gewählt",
+        severity: "empfohlen",
+        ok: props,
+        detail: props
+          ? [s.felder.gsc_property && "GSC", s.felder.ga4_property && "GA4"]
+              .filter(Boolean)
+              .join(" + ")
+          : "keine Property hinterlegt",
         ...(props ? {} : { aktion: { id: "property_waehlen", label: "Property wählen" } }),
       },
       {
-        id: "run", label: "Aktueller Datenlauf", severity: "empfohlen",
-        ok: lauf.ok, detail: lauf.detail,
+        id: "run",
+        label: "Aktueller Datenlauf",
+        severity: "empfohlen",
+        ok: lauf.ok,
+        detail: lauf.detail,
         ...(lauf.ok ? {} : { aktion: { id: "datenlauf_starten", label: "Datenlauf starten" } }),
       },
       portalCheck(s),
@@ -139,16 +157,29 @@ export function evaluateReadiness(s: ReadinessSnapshot): AppReadiness[] {
   // EzyAI (geo)
   {
     const svc = svcOn("canonry") || svcOn("perplexity");
-    const lauf = laufOk(s.lastRuns, ["canonry_ai_visibility", "llm_responses", "ai_citations"], 7, now);
+    const lauf = laufOk(
+      s.lastRuns,
+      ["canonry_ai_visibility", "llm_responses", "ai_citations"],
+      7,
+      now,
+    );
     push("geo", [
       {
-        id: "service", label: "GEO-Service aktiv (Canonry oder Perplexity)", severity: "kritisch",
-        ok: svc, detail: svc ? ["canonry", "perplexity"].filter(svcOn).join(" + ") : "kein GEO-Service — Kunde erscheint nicht in EzyAI",
+        id: "service",
+        label: "GEO-Service aktiv (Canonry oder Perplexity)",
+        severity: "kritisch",
+        ok: svc,
+        detail: svc
+          ? ["canonry", "perplexity"].filter(svcOn).join(" + ")
+          : "kein GEO-Service — Kunde erscheint nicht in EzyAI",
         ...(svc ? {} : { aktion: { id: "service_aktivieren", label: "Service aktivieren" } }),
       },
       {
-        id: "run", label: "Aktueller KI-Sichtbarkeits-Lauf", severity: "empfohlen",
-        ok: lauf.ok, detail: lauf.detail,
+        id: "run",
+        label: "Aktueller KI-Sichtbarkeits-Lauf",
+        severity: "empfohlen",
+        ok: lauf.ok,
+        detail: lauf.detail,
         ...(lauf.ok ? {} : { aktion: { id: "datenlauf_starten", label: "Datenlauf starten" } }),
       },
       portalCheck(s),
@@ -162,18 +193,27 @@ export function evaluateReadiness(s: ReadinessSnapshot): AppReadiness[] {
     const lauf = laufOk(s.lastRuns, ["google_ads"], 8, now);
     push("ads", [
       {
-        id: "service", label: "Google-Ads-Service aktiv", severity: "kritisch",
-        ok: svc, detail: svc ? "aktiv" : "deaktiviert — Kunde erscheint nicht in EzyPerformance",
+        id: "service",
+        label: "Google-Ads-Service aktiv",
+        severity: "kritisch",
+        ok: svc,
+        detail: svc ? "aktiv" : "deaktiviert — Kunde erscheint nicht in EzyPerformance",
         ...(svc ? {} : { aktion: { id: "service_aktivieren", label: "Service aktivieren" } }),
       },
       {
-        id: "adskunde", label: "Ads-Kundennummer hinterlegt", severity: "kritisch",
-        ok: kunde, detail: kunde ? String(s.felder.google_ads_customer) : "fehlt",
+        id: "adskunde",
+        label: "Ads-Kundennummer hinterlegt",
+        severity: "kritisch",
+        ok: kunde,
+        detail: kunde ? String(s.felder.google_ads_customer) : "fehlt",
         ...(kunde ? {} : { aktion: { id: "property_waehlen", label: "Kundennummer eintragen" } }),
       },
       {
-        id: "run", label: "Aktueller Ads-Datenlauf", severity: "empfohlen",
-        ok: lauf.ok, detail: lauf.detail,
+        id: "run",
+        label: "Aktueller Ads-Datenlauf",
+        severity: "empfohlen",
+        ok: lauf.ok,
+        detail: lauf.detail,
         ...(lauf.ok ? {} : { aktion: { id: "datenlauf_starten", label: "Datenlauf starten" } }),
       },
       portalCheck(s),
@@ -186,8 +226,13 @@ export function evaluateReadiness(s: ReadinessSnapshot): AppReadiness[] {
 function portalCheck(s: ReadinessSnapshot): CheckErgebnis {
   const ok = s.portalUsers > 0;
   return {
-    id: "portal", label: "Portalzugang vorhanden", severity: "empfohlen",
-    ok, detail: ok ? `${s.portalUsers} Kunden-Login${s.portalUsers === 1 ? "" : "s"}` : "kein Kunden-Login eingeladen",
+    id: "portal",
+    label: "Portalzugang vorhanden",
+    severity: "empfohlen",
+    ok,
+    detail: ok
+      ? `${s.portalUsers} Kunden-Login${s.portalUsers === 1 ? "" : "s"}`
+      : "kein Kunden-Login eingeladen",
     ...(ok ? {} : { aktion: { id: "portal_einladen", label: "Portalzugang einladen" } }),
   };
 }
@@ -197,7 +242,9 @@ export type ValidierungsWarnung = { kritisch: boolean; text: string };
 
 /** App fuer den Kunden freischalten: fehlen kritische Voraussetzungen? */
 export function warneBeimAppAktivieren(app: EzyAppId, s: ReadinessSnapshot): ValidierungsWarnung[] {
-  const r = evaluateReadiness({ ...s, appEnabled: { ...s.appEnabled, [app]: true } }).find((x) => x.app === app);
+  const r = evaluateReadiness({ ...s, appEnabled: { ...s.appEnabled, [app]: true } }).find(
+    (x) => x.app === app,
+  );
   if (!r) return [];
   return r.checks
     .filter((c) => c.id !== "app" && !c.ok && c.severity === "kritisch")
@@ -205,7 +252,10 @@ export function warneBeimAppAktivieren(app: EzyAppId, s: ReadinessSnapshot): Val
 }
 
 /** Service deaktivieren: haengt eine aktive App daran? */
-export function warneBeimServiceDeaktivieren(provider: string, s: ReadinessSnapshot): ValidierungsWarnung[] {
+export function warneBeimServiceDeaktivieren(
+  provider: string,
+  s: ReadinessSnapshot,
+): ValidierungsWarnung[] {
   const nachher: ReadinessSnapshot = { ...s, services: { ...s.services, [provider]: false } };
   const out: ValidierungsWarnung[] = [];
   for (const app of READINESS_APPS) {
@@ -227,11 +277,22 @@ export function warneBeimServiceDeaktivieren(provider: string, s: ReadinessSnaps
 export function warneBeimLocalGrid(s: ReadinessSnapshot): ValidierungsWarnung[] {
   return s.standortVorhanden
     ? []
-    : [{ kritisch: true, text: "Local Grid braucht einen hinterlegten Standort (GBP) — beim Kunden ist keiner erfasst." }];
+    : [
+        {
+          kritisch: true,
+          text: "Local Grid braucht einen hinterlegten Standort (GBP) — beim Kunden ist keiner erfasst.",
+        },
+      ];
 }
 
 export function appLabel(app: EzyAppId): string {
-  return app === "seo" ? "EzyRank" : app === "geo" ? "EzyAI" : app === "ads" ? "EzyPerformance" : app;
+  return app === "seo"
+    ? "EzyRank"
+    : app === "geo"
+      ? "EzyAI"
+      : app === "ads"
+        ? "EzyPerformance"
+        : app;
 }
 
 export const STATUS_LABEL: Record<GesamtStatus, string> = {

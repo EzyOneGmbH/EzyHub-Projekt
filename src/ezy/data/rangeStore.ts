@@ -76,7 +76,10 @@ export function resolveRange(r: SharedRange | null, now: Date = new Date()): Res
 }
 
 /** Direkt angrenzende Vorperiode gleicher Länge (für Vergleichs-KPIs). */
-export function previousPeriod(range: { start: Date; end: Date; days: number }): { start: Date; end: Date } {
+export function previousPeriod(range: { start: Date; end: Date; days: number }): {
+  start: Date;
+  end: Date;
+} {
   const end = new Date(range.start.getTime() - 864e5);
   const start = new Date(end.getTime() - (range.days - 1) * 864e5);
   return { start, end };
@@ -228,7 +231,6 @@ export function useRangeData<T>(
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, ttlMs, tick]);
 
   return { data, loading, refresh: () => setTick((t) => t + 1) };

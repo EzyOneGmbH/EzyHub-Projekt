@@ -16,15 +16,20 @@ async function getUserRole(request: Request): Promise<{ userId: string; role: st
   const { data } = await sb.auth.getUser();
   if (!data.user) return null;
   const { data: m } = await sb
-    .from("app_users").select("role").eq("user_id", data.user.id)
-    .order("role", { ascending: true }).limit(1).maybeSingle();
+    .from("app_users")
+    .select("role")
+    .eq("user_id", data.user.id)
+    .order("role", { ascending: true })
+    .limit(1)
+    .maybeSingle();
   return { userId: data.user.id, role: (m?.role as string) || "viewer" };
 }
 
 async function forward(pathname: string, method: string, body?: string): Promise<Response> {
   const base = process.env.AGENT_BASE_URL;
   const secret = process.env.AGENT_SHARED_SECRET;
-  if (!base || !secret) return Response.json({ ok: false, error: "Agent service not configured" }, { status: 503 });
+  if (!base || !secret)
+    return Response.json({ ok: false, error: "Agent service not configured" }, { status: 503 });
   try {
     const r = await fetch(`${base.replace(/\/+$/, "")}${pathname}`, {
       method,
@@ -47,18 +52,27 @@ export const Route = createFileRoute("/api/agent/reakt")({
       GET: async ({ request }) => {
         const u = await getUserRole(request);
         if (!u) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-        if (u.role === "viewer") return Response.json({ ok: false, error: "Forbidden" }, { status: 403 });
-        const what = new URL(request.url).searchParams.get("what") === "entwuerfe" ? "entwuerfe" : "status";
+        if (u.role === "viewer")
+          return Response.json({ ok: false, error: "Forbidden" }, { status: 403 });
+        const what =
+          new URL(request.url).searchParams.get("what") === "entwuerfe" ? "entwuerfe" : "status";
         return forward(`/reakt/${what}`, "GET");
       },
       POST: async ({ request }) => {
         const u = await getUserRole(request);
         if (!u) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
         if (u.role !== "owner" && u.role !== "admin")
-          return Response.json({ ok: false, error: "Nur Admins dürfen den Zeitplan schalten" }, { status: 403 });
+          return Response.json(
+            { ok: false, error: "Nur Admins dürfen den Zeitplan schalten" },
+            { status: 403 },
+          );
         const t = await request.text().catch(() => "");
         let enabled = false;
-        try { enabled = JSON.parse(t || "{}").enabled === true; } catch { /* egal */ }
+        try {
+          enabled = JSON.parse(t || "{}").enabled === true;
+        } catch {
+          /* egal */
+        }
         return forward("/reakt/schedule", "POST", JSON.stringify({ enabled }));
       },
     },

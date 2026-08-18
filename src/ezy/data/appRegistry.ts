@@ -85,7 +85,17 @@ export const EZY_APPS: EzyAppDef[] = [
  *  Haupt-Navigation (pages) und die Dashboard-Tabs (tabs) der jeweiligen App.
  *  Conversions bewusst in EzyRank UND EzyPerformance (Volkan-Entscheid 31.07.).
  *  copilot/tools bleiben app-übergreifend verfügbar. */
-export const APP_SCOPES: Record<string, { pages: string[]; tabs: string[]; primary: string; home: string; services?: string[]; skillCats?: string[] }> = {
+export const APP_SCOPES: Record<
+  string,
+  {
+    pages: string[];
+    tabs: string[];
+    primary: string;
+    home: string;
+    services?: string[];
+    skillCats?: string[];
+  }
+> = {
   seo: {
     pages: ["dashboard", "copilot", "tasks", "tools", "content"],
     // Volkan 10.08.: Übersicht-Tab raus — EzyRank startet direkt im SEO-Tab.
@@ -96,7 +106,15 @@ export const APP_SCOPES: Record<string, { pages: string[]; tabs: string[]; prima
     // kein services-Filter: SEO ist das Kernprodukt — alle Kunden sichtbar
     // App-Split (Volkan 06.08.): EzyRank = SEO/Content — KEINE geo-(KI)- und
     // keine Ads-Skills mehr; die leben in EzyAI bzw. EzyPerformance.
-    skillCats: ["audit", "technical", "content", "obsidian", "skills-seo", "skills-blog", "skills-obsidian"],
+    skillCats: [
+      "audit",
+      "technical",
+      "content",
+      "obsidian",
+      "skills-seo",
+      "skills-blog",
+      "skills-obsidian",
+    ],
   },
   ads: {
     // Volkan 01.08.: NUR Ads — ohne Übersicht/Conversions (Conversions lebt in EzyRank)
@@ -170,7 +188,14 @@ export const APP_START: Record<string, { page: string; tab?: string }> = {
 
 /** Umkehrung für den Switcher: in welcher App steckt der Nutzer gerade? */
 export function currentAppOf(page: string, tab: string): EzyAppId {
-  if (page === "clients" || page === "team" || page === "matrix" || page === "settings" || page === "agents") return "admin";
+  if (
+    page === "clients" ||
+    page === "team" ||
+    page === "matrix" ||
+    page === "settings" ||
+    page === "agents"
+  )
+    return "admin";
   if (page === "dashboard") {
     if (tab === "ads") return "ads";
     if (tab === "runs") return "reakt";

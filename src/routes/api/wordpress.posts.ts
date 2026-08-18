@@ -12,7 +12,9 @@ async function getUserOrg(request: Request, clientId: string) {
   const sb = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: request.headers.get("authorization") ?? "" } },
   });
-  const { data: { user } } = await sb.auth.getUser();
+  const {
+    data: { user },
+  } = await sb.auth.getUser();
   if (!user) return { error: "Unauthorized", status: 401 as const };
   const { data: client } = await supabaseAdmin
     .from("clients")
@@ -30,7 +32,11 @@ async function getUserOrg(request: Request, clientId: string) {
   return { user };
 }
 
-const stripHtml = (s: string) => String(s || "").replace(/<[^>]*>/g, "").replace(/&[a-z]+;/gi, " ").trim();
+const stripHtml = (s: string) =>
+  String(s || "")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&[a-z]+;/gi, " ")
+    .trim();
 
 export const Route = createFileRoute("/api/wordpress/posts")({
   server: {
@@ -40,15 +46,22 @@ export const Route = createFileRoute("/api/wordpress/posts")({
         const clientId = url.searchParams.get("clientId") || "";
         const type = url.searchParams.get("type") === "pages" ? "pages" : "posts";
         const search = url.searchParams.get("search") || "";
-        if (!clientId) return Response.json({ ok: false, error: "clientId required" }, { status: 400 });
+        if (!clientId)
+          return Response.json({ ok: false, error: "clientId required" }, { status: 400 });
 
         const auth = await getUserOrg(request, clientId);
-        if ("error" in auth) return Response.json({ ok: false, error: auth.error }, { status: auth.status });
+        if ("error" in auth)
+          return Response.json({ ok: false, error: auth.error }, { status: auth.status });
 
         const conn = await getWpConnection(clientId);
         if (!conn) return Response.json({ ok: false, error: "Keine WordPress-Verbindung" });
 
-        const query: Record<string, string | number> = { per_page: 30, context: "edit", orderby: "modified", order: "desc" };
+        const query: Record<string, string | number> = {
+          per_page: 30,
+          context: "edit",
+          orderby: "modified",
+          order: "desc",
+        };
         if (search) query.search = search;
         const r = await wpFetch<any[]>(conn, `/wp/v2/${type}`, { query });
         if (!r.ok) return Response.json({ ok: false, error: r.error });

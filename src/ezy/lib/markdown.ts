@@ -41,20 +41,43 @@ export function markdownToHtml(md: string): string {
   const lines = String(md || "").split("\n");
   const out: string[] = [];
   let listType: "ul" | "ol" | null = null;
-  const closeList = () => { if (listType) { out.push(`</${listType}>`); listType = null; } };
+  const closeList = () => {
+    if (listType) {
+      out.push(`</${listType}>`);
+      listType = null;
+    }
+  };
   for (const raw of lines) {
     const line = raw.trimEnd();
-    if (/^### (.+)/.test(line)) { closeList(); out.push(`<h3>${inline(line.replace(/^### /, ""))}</h3>`); }
-    else if (/^## (.+)/.test(line)) { closeList(); out.push(`<h2>${inline(line.replace(/^## /, ""))}</h2>`); }
-    else if (/^# (.+)/.test(line)) { closeList(); out.push(`<h1>${inline(line.replace(/^# /, ""))}</h1>`); }
-    else if (/^- (.+)/.test(line)) {
-      if (listType !== "ul") { closeList(); out.push("<ul>"); listType = "ul"; }
+    if (/^### (.+)/.test(line)) {
+      closeList();
+      out.push(`<h3>${inline(line.replace(/^### /, ""))}</h3>`);
+    } else if (/^## (.+)/.test(line)) {
+      closeList();
+      out.push(`<h2>${inline(line.replace(/^## /, ""))}</h2>`);
+    } else if (/^# (.+)/.test(line)) {
+      closeList();
+      out.push(`<h1>${inline(line.replace(/^# /, ""))}</h1>`);
+    } else if (/^- (.+)/.test(line)) {
+      if (listType !== "ul") {
+        closeList();
+        out.push("<ul>");
+        listType = "ul";
+      }
       out.push(`<li>${inline(line.replace(/^- /, ""))}</li>`);
     } else if (/^\d+\. (.+)/.test(line)) {
-      if (listType !== "ol") { closeList(); out.push("<ol>"); listType = "ol"; }
+      if (listType !== "ol") {
+        closeList();
+        out.push("<ol>");
+        listType = "ol";
+      }
       out.push(`<li>${inline(line.replace(/^\d+\. /, ""))}</li>`);
-    } else if (line.trim() === "") { closeList(); }
-    else { closeList(); out.push(`<p>${inline(line)}</p>`); }
+    } else if (line.trim() === "") {
+      closeList();
+    } else {
+      closeList();
+      out.push(`<p>${inline(line)}</p>`);
+    }
   }
   closeList();
   return out.join("\n");

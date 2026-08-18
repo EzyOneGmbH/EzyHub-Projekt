@@ -19,22 +19,26 @@ export async function recordApiCost(opts: {
   calls?: number;
 }): Promise<void> {
   try {
-    const prices = (COST_CFG as { prices: Record<string, { in: number; out: number }>; fallback: { in: number; out: number } });
+    const prices = COST_CFG as {
+      prices: Record<string, { in: number; out: number }>;
+      fallback: { in: number; out: number };
+    };
     const p = prices.prices[opts.provider] || prices.fallback;
     const tIn = Math.max(0, opts.tokensIn || 0);
     const tOut = Math.max(0, opts.tokensOut || 0);
     const cost = (tIn / 1e6) * p.in + (tOut / 1e6) * p.out;
-    await (supabaseAdmin as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown> }).rpc(
-      "add_api_cost",
-      {
-        p_day: today(),
-        p_provider: opts.provider,
-        p_calls: opts.calls ?? 1,
-        p_in: tIn,
-        p_out: tOut,
-        p_cost: Math.round(cost * 1e6) / 1e6,
-      },
-    );
+    await (
+      supabaseAdmin as unknown as {
+        rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown>;
+      }
+    ).rpc("add_api_cost", {
+      p_day: today(),
+      p_provider: opts.provider,
+      p_calls: opts.calls ?? 1,
+      p_in: tIn,
+      p_out: tOut,
+      p_cost: Math.round(cost * 1e6) / 1e6,
+    });
   } catch {
     /* Kostenerfassung darf den Request nie scheitern lassen */
   }

@@ -2,8 +2,20 @@ import { describe, it, expect } from "vitest";
 import { SKILL_CATALOG } from "./skillCatalog";
 
 // Beim Aufnehmen eines neuen Plugins in den Katalog hier mitpflegen.
-const VALID_CATEGORIES = ["skills-seo", "skills-blog", "skills-obsidian", "skills-ads", "skills-reaktivierung"];
-const VALID_PLUGINS = ["claude-seo", "claude-blog", "claude-obsidian", "claude-ads", "ezy-reaktivierung"];
+const VALID_CATEGORIES = [
+  "skills-seo",
+  "skills-blog",
+  "skills-obsidian",
+  "skills-ads",
+  "skills-reaktivierung",
+];
+const VALID_PLUGINS = [
+  "claude-seo",
+  "claude-blog",
+  "claude-obsidian",
+  "claude-ads",
+  "ezy-reaktivierung",
+];
 
 describe("SKILL_CATALOG", () => {
   it("is non-empty", () => {

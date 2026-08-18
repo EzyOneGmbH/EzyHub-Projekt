@@ -13,7 +13,8 @@ import { requireTeamRole } from "@/server/team-guard.server";
 async function proxy(request: Request, method: string): Promise<Response> {
   const base = process.env.AGENT_BASE_URL;
   const secret = process.env.AGENT_SHARED_SECRET;
-  if (!base || !secret) return Response.json({ error: "Agent service not configured" }, { status: 503 });
+  if (!base || !secret)
+    return Response.json({ error: "Agent service not configured" }, { status: 503 });
   const ctx = await requireTeamRole(request, method === "GET" ? "member" : "admin");
   if (ctx instanceof Response) return ctx;
 
@@ -46,11 +47,18 @@ async function proxy(request: Request, method: string): Promise<Response> {
     try {
       const j = JSON.parse(text);
       if (Array.isArray(j?.agents)) {
-        j.agents = j.agents.filter((a: any) => !a?.organizationId || a.organizationId === ctx.organizationId);
+        j.agents = j.agents.filter(
+          (a: any) => !a?.organizationId || a.organizationId === ctx.organizationId,
+        );
         return Response.json(j, { status: r.status, headers: { "Cache-Control": "no-store" } });
       }
-    } catch { /* kein JSON — unveraendert durchreichen */ }
-    return new Response(text, { status: r.status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
+    } catch {
+      /* kein JSON — unveraendert durchreichen */
+    }
+    return new Response(text, {
+      status: r.status,
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    });
   } catch (e) {
     return Response.json({ ok: false, error: String((e as Error)?.message || e) }, { status: 502 });
   }

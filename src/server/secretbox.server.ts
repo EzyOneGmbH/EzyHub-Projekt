@@ -19,11 +19,24 @@ import { createCipheriv, createDecipheriv, hkdfSync, createHash, randomBytes } f
 
 const PREFIX = "enc:";
 
-function keyRegistry(env: Record<string, string | undefined> = process.env as any): Map<string, Buffer> {
+function keyRegistry(
+  env: Record<string, string | undefined> = process.env as any,
+): Map<string, Buffer> {
   const keys = new Map<string, Buffer>();
   const master = env.ADMIN_AUTOMATION_SECRET;
   if (master) {
-    keys.set("v1", Buffer.from(hkdfSync("sha256", Buffer.from(master, "utf8"), Buffer.alloc(0), "ezyhub-wp-secrets-v1", 32)));
+    keys.set(
+      "v1",
+      Buffer.from(
+        hkdfSync(
+          "sha256",
+          Buffer.from(master, "utf8"),
+          Buffer.alloc(0),
+          "ezyhub-wp-secrets-v1",
+          32,
+        ),
+      ),
+    );
   }
   for (let n = 2; n <= 9; n++) {
     const raw = env[`WP_SECRET_KEY_V${n}`];
@@ -47,7 +60,8 @@ export function istVerschluesselt(value: string | null | undefined): boolean {
 export function encryptSecret(plain: string, env?: Record<string, string | undefined>): string {
   const keys = keyRegistry(env);
   const version = neuesteVersion(keys);
-  if (!version) throw new Error("Secretbox: kein Schluessel konfiguriert (ADMIN_AUTOMATION_SECRET fehlt)");
+  if (!version)
+    throw new Error("Secretbox: kein Schluessel konfiguriert (ADMIN_AUTOMATION_SECRET fehlt)");
   const key = keys.get(version)!;
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key, iv);
@@ -62,14 +76,20 @@ export function decryptSecret(stored: string, env?: Record<string, string | unde
   const [, version, ivB, tagB, ctB] = stored.split(":");
   const keys = keyRegistry(env);
   const key = keys.get(version);
-  if (!key) throw new Error(`Secretbox: Schluessel ${version} nicht verfuegbar (Rotation unvollstaendig?)`);
+  if (!key)
+    throw new Error(`Secretbox: Schluessel ${version} nicht verfuegbar (Rotation unvollstaendig?)`);
   const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(ivB, "base64url"));
   decipher.setAuthTag(Buffer.from(tagB, "base64url"));
-  return Buffer.concat([decipher.update(Buffer.from(ctB, "base64url")), decipher.final()]).toString("utf8");
+  return Buffer.concat([decipher.update(Buffer.from(ctB, "base64url")), decipher.final()]).toString(
+    "utf8",
+  );
 }
 
 /** Fuer Rotation/Migration: neu verschluesseln, wenn Klartext oder alte Version. */
-export function brauchtUmschluesselung(stored: string, env?: Record<string, string | undefined>): boolean {
+export function brauchtUmschluesselung(
+  stored: string,
+  env?: Record<string, string | undefined>,
+): boolean {
   const keys = keyRegistry(env);
   const aktuell = neuesteVersion(keys);
   if (!aktuell) return false;

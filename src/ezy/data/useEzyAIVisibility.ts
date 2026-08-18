@@ -12,7 +12,12 @@ const sb = supabase as any;
 
 export type Kpi = { value: number; delta: number; prev: number };
 // Google-KI-Antwort zu EINER Suchanfrage (13.08.): Text + zitierte Quellen.
-export type SerpAnswer = { kw: string; land: string; text: string; refs: { d: string; u: string; t: string }[] };
+export type SerpAnswer = {
+  kw: string;
+  land: string;
+  text: string;
+  refs: { d: string; u: string; t: string }[];
+};
 
 export type AIPrompt = {
   prompt: string;
@@ -20,16 +25,16 @@ export type AIPrompt = {
   country: string;
   status?: string;
   sentiment?: string; // 'pos' | 'neu' | 'neg'
-  position?: string;  // 'top' | 'list' | 'passing' | 'none'
-  intent?: string;    // Informativ | Kommerziell | Transaktional | Navigativ (+ Alt-engl.)
+  position?: string; // 'top' | 'list' | 'passing' | 'none'
+  intent?: string; // Informativ | Kommerziell | Transaktional | Navigativ (+ Alt-engl.)
   brands: number;
   sources: number;
   response: string;
   comps: string[];
   // Phase-2-Felder (03.08.) — erst ab dem nächsten Messlauf befüllt:
-  topic?: string;                              // Themen-Label der Prompt-Def
-  sourceUrls?: string[];                       // zitierte Quell-URLs
-  checkedAt?: string;                          // Messzeitpunkt der Antwort
+  topic?: string; // Themen-Label der Prompt-Def
+  sourceUrls?: string[]; // zitierte Quell-URLs
+  checkedAt?: string; // Messzeitpunkt der Antwort
   compPositions?: { n: string; p: string; s?: string; d?: string }[]; // Rival-Position/-Sentiment/-Domain (Judge H)
 };
 
@@ -41,9 +46,9 @@ export type AIVisibilityData = {
   date: string;
   score: number;
   scoreDelta: number;
-  scoreRaw?: number;                   // ungedeckelter v2-Wert (Trend/Diagnose)
-  measurementVersion?: string;         // Mess-Version (Score v2)
-  versionSwitch?: string | null;       // Datum der Messumstellung -> Delta-Sperre + UI-Marker
+  scoreRaw?: number; // ungedeckelter v2-Wert (Trend/Diagnose)
+  measurementVersion?: string; // Mess-Version (Score v2)
+  versionSwitch?: string | null; // Datum der Messumstellung -> Delta-Sperre + UI-Marker
   brHomeSplit?: { home: number; intl: number } | null; // Ahrefs-Erwähnungen Heimmarkt CH vs. International
   // Marken-Check (Brand-Prompts): misst WAS KI-Systeme über die Marke sagen —
   // fliesst nicht in den Score ein.
@@ -78,7 +83,13 @@ export type AIVisibilityData = {
   // im Score-Trend ("hier wurde etwas geändert").
   deployMarkers?: { iso: string; label: string }[];
   // Sentiment-Score 0-100 (pos=100/neu=50/neg=0 über Judge-bewertete Antworten).
-  sentiment?: { score: number | null; pos: number; neu: number; neg: number; trend: { d: string; score: number }[] };
+  sentiment?: {
+    score: number | null;
+    pos: number;
+    neu: number;
+    neg: number;
+    trend: { d: string; score: number }[];
+  };
   models: {
     name: string;
     layer: "macro" | "custom";
@@ -101,16 +112,34 @@ export type AIVisibilityData = {
   // Antworttext + zitierte Quellen + genannte Marken + Folgefragen.
   // Altdaten (bis 12.08.) hatten nur chatgptFanout → wird eingemischt.
   aiSearch?: {
-    kw: string; engine: string; branded?: boolean; text: string;
+    kw: string;
+    engine: string;
+    branded?: boolean;
+    text: string;
     sources: { d: string; u: string; t: string }[];
-    brands: string[]; queries: string[];
+    brands: string[];
+    queries: string[];
   }[];
   // AIO/AI-Mode-Detail (06.08.): welche Google-Suchanfragen den Kunden zitieren
   // (SERP-Messung, keine Prompt-Antworten) — für die Erwähnungen-Karte.
   // answers (13.08.): echter Antworttext + Quellen je zitierter Suchanfrage.
   serpAi?: {
-    aio?: { checked: number; present: number; cited: number; citations: number; keywords: string[]; answers: SerpAnswer[] };
-    aim?: { checked: number; present: number; cited: number; citations: number; keywords: string[]; answers: SerpAnswer[] };
+    aio?: {
+      checked: number;
+      present: number;
+      cited: number;
+      citations: number;
+      keywords: string[];
+      answers: SerpAnswer[];
+    };
+    aim?: {
+      checked: number;
+      present: number;
+      cited: number;
+      citations: number;
+      keywords: string[];
+      answers: SerpAnswer[];
+    };
     gemessenAm?: string;
     uebernommen?: boolean;
   };
@@ -120,7 +149,16 @@ export type AIVisibilityData = {
     conv: number;
     // txn = Buchungs-/Transaktions-ID (macht die Conversion zur Einzelzeile),
     // currency = dl_currency des Buchungs-Setups; beide optional.
-    events: { name: string; count: number; value: number; country: string; device: string; date: string; txn?: string; currency?: string }[];
+    events: {
+      name: string;
+      count: number;
+      value: number;
+      country: string;
+      device: string;
+      date: string;
+      txn?: string;
+      currency?: string;
+    }[];
     // Besucher-Herkunft (05.08.): GA4-Sessions je Land (englische GA4-Namen)
     visitors: { country: string; sessions: number }[];
   }[];
@@ -158,11 +196,17 @@ function mapPrompt(r: any, opportunity: boolean): AIPrompt {
   if (r.position) p.position = String(r.position);
   if (r.intent) p.intent = String(r.intent); // Funnel-Ansicht (Searchable-Nachbau 08/2026)
   if (r.topic) p.topic = String(r.topic);
-  if (Array.isArray(r.source_urls) && r.source_urls.length) p.sourceUrls = r.source_urls.map(String);
+  if (Array.isArray(r.source_urls) && r.source_urls.length)
+    p.sourceUrls = r.source_urls.map(String);
   if (r.checked_at) p.checkedAt = String(r.checked_at);
   if (Array.isArray(r.comp_positions) && r.comp_positions.length) {
     p.compPositions = r.comp_positions
-      .map((x: any) => ({ n: String(x?.n || ""), p: String(x?.p || "list"), ...(x?.s ? { s: String(x.s) } : {}), ...(x?.d ? { d: String(x.d) } : {}) }))
+      .map((x: any) => ({
+        n: String(x?.n || ""),
+        p: String(x?.p || "list"),
+        ...(x?.s ? { s: String(x.s) } : {}),
+        ...(x?.d ? { d: String(x.d) } : {}),
+      }))
       .filter((x: any) => x.n);
   }
   return p;
@@ -205,7 +249,13 @@ export async function loadAIVisibility(
     .eq("client_id", clientId)
     .order("snapshot_date", { ascending: false })
     .limit(1);
-  if (date) q = sb.from("ai_visibility_reports").select("*").eq("client_id", clientId).eq("snapshot_date", date).limit(1);
+  if (date)
+    q = sb
+      .from("ai_visibility_reports")
+      .select("*")
+      .eq("client_id", clientId)
+      .eq("snapshot_date", date)
+      .limit(1);
   const { data: reports, error } = await q;
   if (error) throw new Error(error.message);
   const rep: any = reports?.[0];
@@ -218,35 +268,64 @@ export async function loadAIVisibility(
   if (hit && hit.key === cacheKey) return hit.data;
 
   // 2) Kind-Tabellen parallel (client_id-Filter zusätzlich -> nutzt die RLS-Policy direkt).
-  const [models, topics, prompts, sources, attribution, history, sovRes, reviewCount] = await Promise.all([
-    sb.from("ai_visibility_models").select("*").eq("report_id", rep.id),
-    sb.from("ai_visibility_topics").select("*").eq("report_id", rep.id).order("visibility", { ascending: false }),
-    fetchAllPromptRows(rep.id),
-    sb.from("ai_visibility_sources").select("*").eq("report_id", rep.id).order("mentions", { ascending: false }),
-    sb.from("ai_visibility_attribution").select("*").eq("report_id", rep.id).order("sessions", { ascending: false }),
-    // Trend: genug Reports fuer 12 MONATE laden (taegliche Snapshots + rueck-
-    // datierte Backfill-Monate); Monats-Aggregation passiert unten in JS.
-    sb
-      .from("ai_visibility_reports")
-      .select("id, snapshot_date, mentions, citations, cited_pages, score, sentiment:parts->sentiment")
-      .eq("client_id", clientId)
-      .gte("snapshot_date", new Date(Date.now() - 370 * 864e5).toISOString().slice(0, 10))
-      .order("snapshot_date", { ascending: false })
-      .limit(1000),
-    sb.from("ai_visibility_sov").select("*").eq("report_id", rep.id).order("share", { ascending: false }),
-    // Zur Prüfung markierte Prompt-Defs (needs_review): frisch geseedet ODER vom
-    // Relevanz-Audit als fremd deaktiviert — Transparenz-Banner im Prompts-Tab.
-    sb.from("ai_visibility_prompt_defs").select("id", { count: "exact", head: true }).eq("client_id", clientId).eq("needs_review", true),
-  ]);
+  const [models, topics, prompts, sources, attribution, history, sovRes, reviewCount] =
+    await Promise.all([
+      sb.from("ai_visibility_models").select("*").eq("report_id", rep.id),
+      sb
+        .from("ai_visibility_topics")
+        .select("*")
+        .eq("report_id", rep.id)
+        .order("visibility", { ascending: false }),
+      fetchAllPromptRows(rep.id),
+      sb
+        .from("ai_visibility_sources")
+        .select("*")
+        .eq("report_id", rep.id)
+        .order("mentions", { ascending: false }),
+      sb
+        .from("ai_visibility_attribution")
+        .select("*")
+        .eq("report_id", rep.id)
+        .order("sessions", { ascending: false }),
+      // Trend: genug Reports fuer 12 MONATE laden (taegliche Snapshots + rueck-
+      // datierte Backfill-Monate); Monats-Aggregation passiert unten in JS.
+      sb
+        .from("ai_visibility_reports")
+        .select(
+          "id, snapshot_date, mentions, citations, cited_pages, score, sentiment:parts->sentiment",
+        )
+        .eq("client_id", clientId)
+        .gte("snapshot_date", new Date(Date.now() - 370 * 864e5).toISOString().slice(0, 10))
+        .order("snapshot_date", { ascending: false })
+        .limit(1000),
+      sb
+        .from("ai_visibility_sov")
+        .select("*")
+        .eq("report_id", rep.id)
+        .order("share", { ascending: false }),
+      // Zur Prüfung markierte Prompt-Defs (needs_review): frisch geseedet ODER vom
+      // Relevanz-Audit als fremd deaktiviert — Transparenz-Banner im Prompts-Tab.
+      sb
+        .from("ai_visibility_prompt_defs")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", clientId)
+        .eq("needs_review", true),
+    ]);
   // Massnahmen-Marker (13.08.): Agent-Läufe mit tatsächlichen Deploys der
   // letzten 60 Tage — Wirkungsnachweis im Score-Trend. RLS-gated (org-member);
   // Fehler hier dürfen das Dashboard nie kippen.
   const { data: deployRuns } = await sb
-    .from("agent_runs").select("run_at, agent_name, deploy_count, summary")
-    .eq("client_id", clientId).gt("deploy_count", 0)
+    .from("agent_runs")
+    .select("run_at, agent_name, deploy_count, summary")
+    .eq("client_id", clientId)
+    .gt("deploy_count", 0)
     .gte("run_at", new Date(Date.now() - 60 * 864e5).toISOString())
-    .order("run_at", { ascending: true }).limit(50)
-    .then((r: any) => r, () => ({ data: [] }));
+    .order("run_at", { ascending: true })
+    .limit(50)
+    .then(
+      (r: any) => r,
+      () => ({ data: [] }),
+    );
   const modelRows = models.data ?? [];
   const modelIds = modelRows.map((m: any) => m.id);
   const { data: mcRows } = modelIds.length
@@ -257,7 +336,8 @@ export async function loadAIVisibility(
   const byModel: Record<string, Record<string, number>> = {};
   const countryTotals: Record<string, number> = {};
   for (const r of mcRows ?? []) {
-    (byModel[r.model_id] ??= {})[r.country] = (byModel[r.model_id]?.[r.country] || 0) + Number(r.mentions ?? 0);
+    (byModel[r.model_id] ??= {})[r.country] =
+      (byModel[r.model_id]?.[r.country] || 0) + Number(r.mentions ?? 0);
     countryTotals[r.country] = (countryTotals[r.country] || 0) + Number(r.mentions ?? 0);
   }
   // Monats-Reports (je Monat der NEUESTE) — Basis für trend UND Domain-Trend.
@@ -272,17 +352,27 @@ export async function loadAIVisibility(
     .map(([, h]) => h);
   // Domain-Zitier-Trend (K): Quellen der Monats-Reports nachladen (max. 12 IDs).
   const { data: histSources } = monthlyReps.length
-    ? await sb.from("ai_visibility_sources").select("report_id, domain, mentions").in("report_id", monthlyReps.map((h: any) => h.id))
+    ? await sb
+        .from("ai_visibility_sources")
+        .select("report_id, domain, mentions")
+        .in(
+          "report_id",
+          monthlyReps.map((h: any) => h.id),
+        )
     : { data: [] as any[] };
   const srcByRep = new Map<string, Map<string, number>>();
   const srcTotals = new Map<string, number>();
   for (const s of histSources ?? []) {
-    const rid = String(s.report_id), dom = String(s.domain || "");
+    const rid = String(s.report_id),
+      dom = String(s.domain || "");
     if (!dom) continue;
     (srcByRep.get(rid) ?? srcByRep.set(rid, new Map()).get(rid)!).set(dom, Number(s.mentions ?? 0));
     srcTotals.set(dom, (srcTotals.get(dom) || 0) + Number(s.mentions ?? 0));
   }
-  const topDomains = [...srcTotals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([d]) => d);
+  const topDomains = [...srcTotals.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([d]) => d);
   const sourceTrend = {
     months: monthlyReps.map((h: any) => monShort(String(h.snapshot_date))),
     series: topDomains.map((domain) => ({
@@ -302,7 +392,8 @@ export async function loadAIVisibility(
   const versionSwitch: string | null = repParts?.meta?.versionSwitch ?? null;
   let brHomeSplit: { home: number; intl: number } | null = null;
   if (Array.isArray(repParts?.br?.models)) {
-    let home = 0, intl = 0;
+    let home = 0,
+      intl = 0;
     for (const m of repParts.br.models) {
       for (const [land, v] of Object.entries(m?.byCountry || {})) {
         if (land === "Schweiz") home += Number(v || 0);
@@ -336,7 +427,9 @@ export async function loadAIVisibility(
     // "seit …"-Beschriftung der Entwicklungs-Karte.
     trend: monthlyReps.map((h: any) => ({
       m: monShort(String(h.snapshot_date)),
-      my: new Date(String(h.snapshot_date) + "T00:00:00").toLocaleDateString("de-CH", { month: "short", year: "numeric" }).replace(".", ""),
+      my: new Date(String(h.snapshot_date) + "T00:00:00")
+        .toLocaleDateString("de-CH", { month: "short", year: "numeric" })
+        .replace(".", ""),
       mentions: Number(h.mentions ?? 0),
       citations: Number(h.citations ?? 0),
       pages: Number(h.cited_pages ?? 0),
@@ -352,14 +445,19 @@ export async function loadAIVisibility(
         .slice(0, 20)
         .reverse()
         .map((h: any) => ({
-          d: new Date(String(h.snapshot_date) + "T00:00:00").toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit" }),
+          d: new Date(String(h.snapshot_date) + "T00:00:00").toLocaleDateString("de-CH", {
+            day: "2-digit",
+            month: "2-digit",
+          }),
           score: h.sentiment?.score != null ? Number(h.sentiment.score) : null,
         }))
         .filter((p: any) => p.score != null);
       if (!cur && !trendPts.length) return undefined;
       return {
         score: cur?.score != null ? Number(cur.score) : null,
-        pos: Number(cur?.pos ?? 0), neu: Number(cur?.neu ?? 0), neg: Number(cur?.neg ?? 0),
+        pos: Number(cur?.pos ?? 0),
+        neu: Number(cur?.neu ?? 0),
+        neg: Number(cur?.neg ?? 0),
         trend: trendPts,
       };
     })(),
@@ -368,7 +466,10 @@ export async function loadAIVisibility(
       .slice(0, 14)
       .reverse()
       .map((h: any) => ({
-        d: new Date(String(h.snapshot_date) + "T00:00:00").toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit" }),
+        d: new Date(String(h.snapshot_date) + "T00:00:00").toLocaleDateString("de-CH", {
+          day: "2-digit",
+          month: "2-digit",
+        }),
         iso: String(h.snapshot_date),
         score: h.score != null ? Number(h.score) : null,
         mentions: Number(h.mentions ?? 0),
@@ -396,44 +497,83 @@ export async function loadAIVisibility(
     // Zur Prüfung markierte Prompt-Defs (Fehl-Seeding-Prävention): Banner im UI.
     promptsNeedsReview: Number(reviewCount?.count ?? 0),
     // Markt-Prompts (Sichtbarkeit); Brand-Prompts laufen separat in den Marken-Check.
-    prompts: promptRows.filter((r: any) => !r.is_opportunity && (r.prompt_type || "markt") !== "brand").map((r: any) => mapPrompt(r, false)),
-    promptOpps: promptRows.filter((r: any) => r.is_opportunity && (r.prompt_type || "markt") !== "brand").map((r: any) => mapPrompt(r, true)),
-    brandPrompts: promptRows.filter((r: any) => r.prompt_type === "brand").map((r: any) => {
-      const p = mapPrompt(r, false);
-      const be = r.brand_eval || {};
-      (p as any).brandEval = { faktentreue: be.faktentreue ?? null, tonalitaet: be.tonalitaet ?? null, halluzination: be.halluzination ?? null };
-      return p;
-    }),
+    prompts: promptRows
+      .filter((r: any) => !r.is_opportunity && (r.prompt_type || "markt") !== "brand")
+      .map((r: any) => mapPrompt(r, false)),
+    promptOpps: promptRows
+      .filter((r: any) => r.is_opportunity && (r.prompt_type || "markt") !== "brand")
+      .map((r: any) => mapPrompt(r, true)),
+    brandPrompts: promptRows
+      .filter((r: any) => r.prompt_type === "brand")
+      .map((r: any) => {
+        const p = mapPrompt(r, false);
+        const be = r.brand_eval || {};
+        (p as any).brandEval = {
+          faktentreue: be.faktentreue ?? null,
+          tonalitaet: be.tonalitaet ?? null,
+          halluzination: be.halluzination ?? null,
+        };
+        return p;
+      }),
     brandCheck: (rep.parts as any)?.bc ?? null,
-    fanout: Array.isArray((rep.parts as any)?.sa?.fanout) ? (rep.parts as any).sa.fanout : undefined,
+    fanout: Array.isArray((rep.parts as any)?.sa?.fanout)
+      ? (rep.parts as any).sa.fanout
+      : undefined,
     // Neu (13.08.) aiSearch; Altdaten (chatgptFanout) werden auf dieselbe
     // Form gehoben, damit die Karte auch ohne frischen Lauf etwas zeigt.
     aiSearch: (() => {
       const sa: any = (rep.parts as any)?.sa;
       const neu = Array.isArray(sa?.aiSearch) ? sa.aiSearch : null;
       const rows = neu ?? (Array.isArray(sa?.chatgptFanout) ? sa.chatgptFanout : []);
-      return rows.length ? rows.map((r: any) => ({
-        kw: String(r?.kw ?? ""),
-        engine: String(r?.engine ?? "ChatGPT"),
-        ...(r?.branded ? { branded: true } : {}),
-        text: String(r?.text ?? ""),
-        sources: (Array.isArray(r?.sources) ? r.sources : []).map((s: any) => ({ d: String(s?.d ?? ""), u: String(s?.u ?? ""), t: String(s?.t ?? "") })),
-        brands: (Array.isArray(r?.brands) ? r.brands : []).map(String),
-        queries: (Array.isArray(r?.queries) ? r.queries : []).map(String),
-      })).filter((r: any) => r.kw) : undefined;
+      return rows.length
+        ? rows
+            .map((r: any) => ({
+              kw: String(r?.kw ?? ""),
+              engine: String(r?.engine ?? "ChatGPT"),
+              ...(r?.branded ? { branded: true } : {}),
+              text: String(r?.text ?? ""),
+              sources: (Array.isArray(r?.sources) ? r.sources : []).map((s: any) => ({
+                d: String(s?.d ?? ""),
+                u: String(s?.u ?? ""),
+                t: String(s?.t ?? ""),
+              })),
+              brands: (Array.isArray(r?.brands) ? r.brands : []).map(String),
+              queries: (Array.isArray(r?.queries) ? r.queries : []).map(String),
+            }))
+            .filter((r: any) => r.kw)
+        : undefined;
     })(),
     serpAi: (() => {
       const sa: any = (rep.parts as any)?.sa;
       if (!sa || (!sa.aio && !sa.aim)) return undefined;
-      const pick = (x: any) => x ? {
-        checked: Number(x.checked ?? 0), present: Number(x.present ?? 0), cited: Number(x.cited ?? 0), citations: Number(x.citations ?? 0),
-        keywords: Array.isArray(x.keywords) ? x.keywords.map(String) : [],
-        answers: (Array.isArray(x.answers) ? x.answers : []).map((a: any) => ({
-          kw: String(a?.kw ?? ""), land: String(a?.land ?? ""), text: String(a?.text ?? ""),
-          refs: (Array.isArray(a?.refs) ? a.refs : []).map((r: any) => ({ d: String(r?.d ?? ""), u: String(r?.u ?? ""), t: String(r?.t ?? "") })),
-        })).filter((a: SerpAnswer) => a.kw && a.text),
-      } : undefined;
-      return { aio: pick(sa.aio), aim: pick(sa.aim), gemessenAm: sa.gemessenAm ? String(sa.gemessenAm) : undefined, uebernommen: !!sa.uebernommen };
+      const pick = (x: any) =>
+        x
+          ? {
+              checked: Number(x.checked ?? 0),
+              present: Number(x.present ?? 0),
+              cited: Number(x.cited ?? 0),
+              citations: Number(x.citations ?? 0),
+              keywords: Array.isArray(x.keywords) ? x.keywords.map(String) : [],
+              answers: (Array.isArray(x.answers) ? x.answers : [])
+                .map((a: any) => ({
+                  kw: String(a?.kw ?? ""),
+                  land: String(a?.land ?? ""),
+                  text: String(a?.text ?? ""),
+                  refs: (Array.isArray(a?.refs) ? a.refs : []).map((r: any) => ({
+                    d: String(r?.d ?? ""),
+                    u: String(r?.u ?? ""),
+                    t: String(r?.t ?? ""),
+                  })),
+                }))
+                .filter((a: SerpAnswer) => a.kw && a.text),
+            }
+          : undefined;
+      return {
+        aio: pick(sa.aio),
+        aim: pick(sa.aim),
+        gemessenAm: sa.gemessenAm ? String(sa.gemessenAm) : undefined,
+        uebernommen: !!sa.uebernommen,
+      };
     })(),
     brandHistory: await (async () => {
       const { data: hist } = await sb
@@ -478,7 +618,10 @@ export async function loadAIVisibility(
         : [],
       visitors: Array.isArray(a.visitors)
         ? a.visitors
-            .map((v: any) => ({ country: String(v?.country ?? ""), sessions: Number(v?.sessions ?? 0) }))
+            .map((v: any) => ({
+              country: String(v?.country ?? ""),
+              sessions: Number(v?.sessions ?? 0),
+            }))
             .filter((v: any) => v.sessions > 0)
         : [],
     })),
@@ -535,7 +678,7 @@ export function useEzyAIVisibility(clientId?: string, clientLabel?: string) {
 // Engine je Datum. Lazy beim Öffnen des Drilldowns — nutzt die bestehenden
 // RLS-Read-Policies (reports + prompts), kein neuer Endpoint nötig.
 export type PromptHistoryRow = {
-  date: string;        // ISO snapshot_date
+  date: string; // ISO snapshot_date
   platform: string;
   status: string | null;
   position: string | null;
@@ -554,7 +697,9 @@ export async function fetchPromptHistory(
     .eq("client_id", clientId)
     .order("snapshot_date", { ascending: false })
     .limit(maxReports);
-  const byId = new Map<string, string>((reps ?? []).map((r: any) => [String(r.id), String(r.snapshot_date)]));
+  const byId = new Map<string, string>(
+    (reps ?? []).map((r: any) => [String(r.id), String(r.snapshot_date)]),
+  );
   if (!byId.size) return [];
   const { data: rows } = await sb
     .from("ai_visibility_prompts")
@@ -573,5 +718,7 @@ export async function fetchPromptHistory(
       checkedAt: r.checked_at ?? null,
     }))
     .filter((r: any) => r.date)
-    .sort((a: any, b: any) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.platform.localeCompare(b.platform)));
+    .sort((a: any, b: any) =>
+      a.date < b.date ? 1 : a.date > b.date ? -1 : a.platform.localeCompare(b.platform),
+    );
 }

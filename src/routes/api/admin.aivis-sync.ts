@@ -21,7 +21,10 @@ function recordUsage(label: string, tokIn: number, tokOut: number) {
   const p = (COST_CFG.prices as any)[label] || COST_CFG.fallback;
   const cost = (Math.max(0, tokIn) / 1e6) * p.in + (Math.max(0, tokOut) / 1e6) * p.out;
   const e = (COST_ACC[label] ??= { calls: 0, in: 0, out: 0, cost: 0 });
-  e.calls += 1; e.in += Math.max(0, tokIn); e.out += Math.max(0, tokOut); e.cost += cost;
+  e.calls += 1;
+  e.in += Math.max(0, tokIn);
+  e.out += Math.max(0, tokOut);
+  e.cost += cost;
 }
 async function flushCost(sbAny: any) {
   const labels = Object.keys(COST_ACC);
@@ -32,10 +35,16 @@ async function flushCost(sbAny: any) {
     delete COST_ACC[label];
     try {
       await sbAny.rpc("add_api_cost", {
-        p_day: day, p_provider: label, p_calls: e.calls,
-        p_in: e.in, p_out: e.out, p_cost: Math.round(e.cost * 1e6) / 1e6,
+        p_day: day,
+        p_provider: label,
+        p_calls: e.calls,
+        p_in: e.in,
+        p_out: e.out,
+        p_cost: Math.round(e.cost * 1e6) / 1e6,
       });
-    } catch { /* Kostenerfassung darf den Lauf nie scheitern lassen */ }
+    } catch {
+      /* Kostenerfassung darf den Lauf nie scheitern lassen */
+    }
   }
 }
 
@@ -64,7 +73,7 @@ const Body = z.object({
   // Korpus retro) | citations-backfill (Citations+referenzierte Seiten retro
   // in bestehende Monats-Reports — Erwähnungen bleiben unangetastet)
   mode: z.enum(["live", "backfill", "brand-backfill", "citations-backfill"]).default("live"),
-  months: z.number().int().min(1).max(12).default(6),  // Backfill-Tiefe
+  months: z.number().int().min(1).max(12).default(6), // Backfill-Tiefe
   async: z.boolean().default(false), // true = sofort 202 + runId, Verarbeitung im Hintergrund
   // Prompt-Chunking (2026-07-17): das ~300s-Gateway-Kap begrenzt EINEN Request
   // auf ~30 Prompts. promptOffset teilt den prompts-Job in Häppchen: jeder
@@ -78,7 +87,10 @@ const Body = z.object({
   // die genannten Engines und ersetzt nur DEREN Zeilen — bestehende Antworten
   // der übrigen Engines bleiben stehen, Aggregate rechnen am Ende über alles.
   // Explizite Nennung übersteuert den Grok-Wochentagsfilter.
-  engines: z.array(z.enum(["Claude", "Perplexity", "Gemini", "ChatGPT", "Grok", "DeepSeek"])).min(1).optional(),
+  engines: z
+    .array(z.enum(["Claude", "Perplexity", "Gemini", "ChatGPT", "Grok", "DeepSeek"]))
+    .min(1)
+    .optional(),
   // Korpus-Provider für mode brand-backfill (Standard: dataforseo seit 2026-07-19).
   backfillProvider: z.enum(["dataforseo", "ahrefs-br"]).default("dataforseo"),
 });
@@ -94,7 +106,9 @@ const isUuid = (s: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(s || ""));
 const today = () => new Date().toISOString().slice(0, 10);
 const cleanDomain = (d: string) =>
-  String(d || "").replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  String(d || "")
+    .replace(/^https?:\/\//, "")
+    .replace(/\/+$/, "");
 
 // ── Semrush Analytics API (CSV): Suchvolumina + organische Konkurrenten ───────
 // Ergänzt Ahrefs (AI-Mentions) + GA4 (Attribution) um die Such-Markt-Ebene.
@@ -109,25 +123,44 @@ async function semrush(params: Record<string, string>): Promise<string[][] | nul
     // withDeadline zusaetzlich zum AbortSignal: die Runtime ignoriert
     // AbortSignal (2026-07-14 verifiziert) — ohne Race haengt der Lauf hier.
     const r = await withDeadline(
-      fetch("https://api.semrush.com/?" + new URLSearchParams({ ...params, key }).toString(), { signal: AbortSignal.timeout(20_000) }),
+      fetch("https://api.semrush.com/?" + new URLSearchParams({ ...params, key }).toString(), {
+        signal: AbortSignal.timeout(20_000),
+      }),
       25_000,
       "semrush",
     );
     if (!r.ok) return null;
     const lines = (await r.text()).trim().split(/\r?\n/).filter(Boolean);
     return lines.length < 2 ? [] : lines.slice(1).map((l) => l.split(";"));
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 async function semrushVolume(phrase: string, db: string): Promise<number> {
-  const rows = await semrush({ type: "phrase_this", phrase, database: db, export_columns: "Ph,Nq" });
+  const rows = await semrush({
+    type: "phrase_this",
+    phrase,
+    database: db,
+    export_columns: "Ph,Nq",
+  });
   return rows && rows[0] ? Number(rows[0][1] ?? 0) || 0 : 0;
 }
 async function semrushCompetitors(domain: string, db: string): Promise<string[]> {
   if (!domain) return [];
-  const rows = await semrush({ type: "domain_organic_organic", domain, database: db, export_columns: "Dn,Cr", display_limit: "8" });
+  const rows = await semrush({
+    type: "domain_organic_organic",
+    domain,
+    database: db,
+    export_columns: "Dn,Cr",
+    display_limit: "8",
+  });
   if (!rows) return [];
   return rows
-    .map((r) => String(r[0] || "").replace(/^www\./, "").replace(/\.[a-z.]+$/i, ""))
+    .map((r) =>
+      String(r[0] || "")
+        .replace(/^www\./, "")
+        .replace(/\.[a-z.]+$/i, ""),
+    )
     .filter(Boolean)
     .map((s) => s.charAt(0).toUpperCase() + s.slice(1));
 }
@@ -203,9 +236,17 @@ async function aivisAllowed(sb: any, clientId: string): Promise<{ ok: boolean; g
   const svc = await getEnabledServices(clientId);
   if (!(svc.canonry || svc.perplexity)) return { ok: false, grund: "KI-Sichtbarkeit nicht aktiv" };
   try {
-    const { data } = await sb.from("client_app_access").select("enabled").eq("client_id", clientId).eq("app", "geo").maybeSingle();
-    if (data && data.enabled === false) return { ok: false, grund: "EzyAI für diesen Kunden deaktiviert (App-Zugriff)" };
-  } catch { /* Tabelle optional — dann zählt nur der Service-Schalter */ }
+    const { data } = await sb
+      .from("client_app_access")
+      .select("enabled")
+      .eq("client_id", clientId)
+      .eq("app", "geo")
+      .maybeSingle();
+    if (data && data.enabled === false)
+      return { ok: false, grund: "EzyAI für diesen Kunden deaktiviert (App-Zugriff)" };
+  } catch {
+    /* Tabelle optional — dann zählt nur der Service-Schalter */
+  }
   return { ok: true };
 }
 
@@ -214,15 +255,18 @@ async function aivisAllowed(sb: any, clientId: string): Promise<{ ok: boolean; g
 // bewusst opt-in: EN-Korpora sind bei Generika-Wortmarken gefährlich
 // (Generika-Falle). land = deutsches Label für die Standorte-Karte (muss in
 // der DE2EN-Map des Dashboards existieren).
-const MARKET_DEFS: Record<string, { location_name: string; language_code: string; land: string }> = {
-  uk: { location_name: "United Kingdom", language_code: "en", land: "Grossbritannien" },
-  us: { location_name: "United States", language_code: "en", land: "USA" },
-  fr: { location_name: "France", language_code: "fr", land: "Frankreich" },
-  it: { location_name: "Italy", language_code: "it", land: "Italien" },
-  nl: { location_name: "Netherlands", language_code: "nl", land: "Niederlande" },
-  es: { location_name: "Spain", language_code: "es", land: "Spanien" },
-};
-function intlMarketsFor(brand: string): Array<{ location_name: string; language_code: string; land: string }> {
+const MARKET_DEFS: Record<string, { location_name: string; language_code: string; land: string }> =
+  {
+    uk: { location_name: "United Kingdom", language_code: "en", land: "Grossbritannien" },
+    us: { location_name: "United States", language_code: "en", land: "USA" },
+    fr: { location_name: "France", language_code: "fr", land: "Frankreich" },
+    it: { location_name: "Italy", language_code: "it", land: "Italien" },
+    nl: { location_name: "Netherlands", language_code: "nl", land: "Niederlande" },
+    es: { location_name: "Spain", language_code: "es", land: "Spanien" },
+  };
+function intlMarketsFor(
+  brand: string,
+): Array<{ location_name: string; language_code: string; land: string }> {
   const codes = (SCORE_CFG as any).intlMarkets?.[brand.toLowerCase()];
   if (!Array.isArray(codes)) return [];
   return codes.map((c: string) => MARKET_DEFS[c]).filter(Boolean);
@@ -274,12 +318,14 @@ const DFS_LOCATION: Record<string, { code: number; lang: string; name: string; a
   TR: { code: 2792, lang: "tr", name: "Türkei", a3: "tur" },
   IN: { code: 2356, lang: "en", name: "Indien", a3: "ind" },
 };
-const DFS_LOC_BY_A3: Record<string, { code: number; lang: string; name: string }> = Object.fromEntries(
-  Object.values(DFS_LOCATION).map((l) => [l.a3, { code: l.code, lang: l.lang, name: l.name }]),
-);
+const DFS_LOC_BY_A3: Record<string, { code: number; lang: string; name: string }> =
+  Object.fromEntries(
+    Object.values(DFS_LOCATION).map((l) => [l.a3, { code: l.code, lang: l.lang, name: l.name }]),
+  );
 
 function dfsAuth(): string | null {
-  const login = process.env.DATAFORSEO_LOGIN, pass = process.env.DATAFORSEO_PASSWORD;
+  const login = process.env.DATAFORSEO_LOGIN,
+    pass = process.env.DATAFORSEO_PASSWORD;
   if (!login || !pass) return null;
   return "Basic " + Buffer.from(`${login}:${pass}`).toString("base64");
 }
@@ -289,7 +335,10 @@ function dfsAuth(): string | null {
 // model_name, question, answer (Volltext), sources[{domain,url,title}],
 // ai_search_volume, first/last_response_at; ai_keyword_data liefert items[]
 // mit keyword, ai_search_volume, ai_monthly_searches.
-async function dfsAiCall(path: string, task: any): Promise<{ ok: boolean; result?: any; error?: string }> {
+async function dfsAiCall(
+  path: string,
+  task: any,
+): Promise<{ ok: boolean; result?: any; error?: string }> {
   const auth = dfsAuth();
   if (!auth) return { ok: false, error: "DATAFORSEO_LOGIN/PASSWORD fehlt" };
   try {
@@ -302,7 +351,11 @@ async function dfsAiCall(path: string, task: any): Promise<{ ok: boolean; result
     const j: any = await r.json().catch(() => null);
     const t = j?.tasks?.[0];
     if (!r.ok || !t) return { ok: false, error: `HTTP ${r.status}` };
-    if (Number(t.status_code) >= 40000) return { ok: false, error: `${t.status_code}: ${String(t.status_message || "").slice(0, 140)}` };
+    if (Number(t.status_code) >= 40000)
+      return {
+        ok: false,
+        error: `${t.status_code}: ${String(t.status_message || "").slice(0, 140)}`,
+      };
     return { ok: true, result: t.result };
   } catch (e) {
     return { ok: false, error: String((e as any)?.message || e).slice(0, 140) };
@@ -311,11 +364,15 @@ async function dfsAiCall(path: string, task: any): Promise<{ ok: boolean; result
 
 // Plattform-Keys der LLM-Mentions-API -> Anzeigenamen (Korpus: ChatGPT + Google).
 const DFS_LLM_LABEL: Record<string, string> = {
-  chat_gpt: "ChatGPT", chatgpt: "ChatGPT",
-  google: "Google AI Overviews", google_ai_overview: "Google AI Overviews", google_ai_overviews: "Google AI Overviews",
+  chat_gpt: "ChatGPT",
+  chatgpt: "ChatGPT",
+  google: "Google AI Overviews",
+  google_ai_overview: "Google AI Overviews",
+  google_ai_overviews: "Google AI Overviews",
   google_ai_mode: "Google AI Mode",
 };
-const dfsLlmLabel = (k: string) => DFS_LLM_LABEL[String(k).toLowerCase()] || (k ? k.charAt(0).toUpperCase() + k.slice(1) : "KI");
+const dfsLlmLabel = (k: string) =>
+  DFS_LLM_LABEL[String(k).toLowerCase()] || (k ? k.charAt(0).toUpperCase() + k.slice(1) : "KI");
 
 // Harte Deadline UNABHÄNGIG vom AbortSignal: Beobachtung 2026-07-14 — serp_ai
 // hing trotz AbortSignal.timeout endlos (Runtime ignoriert das Signal bei
@@ -324,7 +381,12 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   let t: any;
   return Promise.race([
     p.finally(() => clearTimeout(t)),
-    new Promise<T>((_, rej) => { t = setTimeout(() => rej(new Error(`${label}: Deadline ${Math.round(ms / 1000)}s überschritten`)), ms); }),
+    new Promise<T>((_, rej) => {
+      t = setTimeout(
+        () => rej(new Error(`${label}: Deadline ${Math.round(ms / 1000)}s überschritten`)),
+        ms,
+      );
+    }),
   ]);
 }
 
@@ -340,12 +402,26 @@ const BUILD_TAG = "2026-07-23-relevanz"; // Deploy-Verifikation via GET-Antwort
 //   score = min(100, round(26*log10(1+mentions) + 20*log10(1+citations)
 //         + 12*log10(1+citedPages) + 0.18*selfShare + 0.12*posQ))
 const MEASUREMENT_VERSION: string = SCORE_CFG.measurementVersion;
-const sat = (x: number, ref: number) => Math.min(1, Math.log10(1 + Math.max(0, x)) / Math.log10(1 + ref));
+const sat = (x: number, ref: number) =>
+  Math.min(1, Math.log10(1 + Math.max(0, x)) / Math.log10(1 + ref));
 const satRaw = (x: number, ref: number) => Math.log10(1 + Math.max(0, x)) / Math.log10(1 + ref);
-function scoreV2Terms(f: (x: number, ref: number) => number, m: number, cit: number, pages: number, sovPct: number, posQPct: number): number {
-  const W = SCORE_CFG.weights, R = SCORE_CFG.refs;
-  return W.mentions * f(m, R.M_REF) + W.citations * f(cit, R.C_REF) + W.citedPages * f(pages, R.R_REF)
-    + W.sov * (sovPct / 100) + W.posQual * (posQPct / 100);
+function scoreV2Terms(
+  f: (x: number, ref: number) => number,
+  m: number,
+  cit: number,
+  pages: number,
+  sovPct: number,
+  posQPct: number,
+): number {
+  const W = SCORE_CFG.weights,
+    R = SCORE_CFG.refs;
+  return (
+    W.mentions * f(m, R.M_REF) +
+    W.citations * f(cit, R.C_REF) +
+    W.citedPages * f(pages, R.R_REF) +
+    W.sov * (sovPct / 100) +
+    W.posQual * (posQPct / 100)
+  );
 }
 
 // URL-Normalisierung fürs br/sa-Dedupe: Host lowercase, utm_* raus, kein
@@ -359,7 +435,9 @@ function normUrl(u: string): string | null {
     x.search = keep.length ? "?" + keep.map(([k, v]) => `${k}=${v}`).join("&") : "";
     x.hash = "";
     return (x.origin + x.pathname).replace(/\/$/, "") + x.search;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 // Wrapper-Redirects (Vertex-Lektion): Gemini-Grounding- und Bing-Klick-URLs
@@ -371,14 +449,23 @@ const isWrapperUrl = (u: string) => {
   if (d === "vertexaisearch.cloud.google.com") return true;
   return (d === "bing.com" || d.endsWith(".bing.com")) && /\/ck\//.test(u);
 };
-async function resolveWrapper(u: string, cache: Map<string, string | null>): Promise<string | null> {
+async function resolveWrapper(
+  u: string,
+  cache: Map<string, string | null>,
+): Promise<string | null> {
   if (cache.has(u)) return cache.get(u) ?? null;
   let out: string | null = null;
   try {
-    const r = await fetch(u, { method: "GET", redirect: "manual", signal: AbortSignal.timeout(10_000) });
+    const r = await fetch(u, {
+      method: "GET",
+      redirect: "manual",
+      signal: AbortSignal.timeout(10_000),
+    });
     const loc = r.headers.get("location");
     if (loc && !isWrapperUrl(loc)) out = loc;
-  } catch { /* resolved:false — Wrapper wird verworfen, nie als Quelle gezählt */ }
+  } catch {
+    /* resolved:false — Wrapper wird verworfen, nie als Quelle gezählt */
+  }
   cache.set(u, out);
   return out;
 }
@@ -386,71 +473,132 @@ async function resolveWrapper(u: string, cache: Map<string, string | null>): Pro
 // Begrenzte Parallelitaet: volle Promise.all-Salven (30+ Calls gleichzeitig
 // je Provider) loesten 429/529 aus (Claude "Overloaded", Gemini/Perplexity
 // Teilausfaelle, 2026-07-17). Worker-Pool statt Salve.
-async function pMap<T, R>(items: T[], fn: (t: T, i: number) => Promise<R>, conc: number): Promise<R[]> {
+async function pMap<T, R>(
+  items: T[],
+  fn: (t: T, i: number) => Promise<R>,
+  conc: number,
+): Promise<R[]> {
   const out: R[] = new Array(items.length);
   let idx = 0;
-  await Promise.all(Array.from({ length: Math.max(1, Math.min(conc, items.length)) }, async () => {
-    while (idx < items.length) { const i = idx++; out[i] = await fn(items[i], i); }
-  }));
+  await Promise.all(
+    Array.from({ length: Math.max(1, Math.min(conc, items.length)) }, async () => {
+      while (idx < items.length) {
+        const i = idx++;
+        out[i] = await fn(items[i], i);
+      }
+    }),
+  );
   return out;
 }
 let diagLog: string[] = [];
 let diagWrite: ((log: string[]) => void) | null = null;
 function diag(m: string) {
   diagLog.push(new Date().toISOString().slice(11, 19) + " " + m);
-  try { diagWrite?.(diagLog); } catch { /* Diagnose darf nie den Lauf brechen */ }
+  try {
+    diagWrite?.(diagLog);
+  } catch {
+    /* Diagnose darf nie den Lauf brechen */
+  }
 }
 
-async function dfsSerp(auth: string, kind: "organic" | "ai_mode", keyword: string, loc: { code: number; lang: string }) {
-  const url = kind === "organic"
-    ? "https://api.dataforseo.com/v3/serp/google/organic/live/advanced"
-    : "https://api.dataforseo.com/v3/serp/google/ai_mode/live/advanced";
-  const body: any = { keyword, location_code: loc.code, language_code: loc.lang, device: "desktop" };
-  if (kind === "organic") { body.depth = 20; body.load_async_ai_overview = true; } // AI Overview lädt teils async
-  const r = await withDeadline(fetch(url, {
-    method: "POST",
-    headers: { Authorization: auth, "Content-Type": "application/json" },
-    body: JSON.stringify([body]),
-    signal: AbortSignal.timeout(60_000),
-  }), 70_000, `dfs ${kind}`);
+async function dfsSerp(
+  auth: string,
+  kind: "organic" | "ai_mode",
+  keyword: string,
+  loc: { code: number; lang: string },
+) {
+  const url =
+    kind === "organic"
+      ? "https://api.dataforseo.com/v3/serp/google/organic/live/advanced"
+      : "https://api.dataforseo.com/v3/serp/google/ai_mode/live/advanced";
+  const body: any = {
+    keyword,
+    location_code: loc.code,
+    language_code: loc.lang,
+    device: "desktop",
+  };
+  if (kind === "organic") {
+    body.depth = 20;
+    body.load_async_ai_overview = true;
+  } // AI Overview lädt teils async
+  const r = await withDeadline(
+    fetch(url, {
+      method: "POST",
+      headers: { Authorization: auth, "Content-Type": "application/json" },
+      body: JSON.stringify([body]),
+      signal: AbortSignal.timeout(60_000),
+    }),
+    70_000,
+    `dfs ${kind}`,
+  );
   if (!r.ok) throw new Error(`DataForSEO ${kind} -> HTTP ${r.status}`);
   const j: any = await r.json().catch(() => ({}));
   const t = j?.tasks?.[0];
   if (j.status_code !== 20000 || !t || t.status_code !== 20000)
-    throw new Error(`DataForSEO ${kind} -> ${t?.status_code || j.status_code} ${t?.status_message || ""}`.trim());
+    throw new Error(
+      `DataForSEO ${kind} -> ${t?.status_code || j.status_code} ${t?.status_message || ""}`.trim(),
+    );
   return t.result?.[0]?.items || [];
 }
 
 // GSC-Top-Suchanfragen als Query-LAND-Paare (28 Tage, GSC-Reihenfolge =
 // Klicks absteigend). country = ISO-3166-1 alpha-3 kleingeschrieben (GSC).
-async function gscTopQueryCountryPairs(c: any, limit: number): Promise<Array<{ kw: string; a3: string }>> {
+async function gscTopQueryCountryPairs(
+  c: any,
+  limit: number,
+): Promise<Array<{ kw: string; a3: string }>> {
   if (!c.gsc_property) return [];
   let token: string;
-  try { token = (await getGoogleAccessToken(c.id)).accessToken; } catch { return []; }
-  const d = (back: number) => { const x = new Date(); x.setDate(x.getDate() - back); return x.toISOString().slice(0, 10); };
   try {
-    const r = await withDeadline(fetch(
-      `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(c.gsc_property)}/searchAnalytics/query`,
-      {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ startDate: d(31), endDate: d(3), dimensions: ["query", "country"], rowLimit: Math.min(limit, 25000) }),
-        signal: AbortSignal.timeout(30_000),
-      },
-    ), 40_000, "gsc pairs");
+    token = (await getGoogleAccessToken(c.id)).accessToken;
+  } catch {
+    return [];
+  }
+  const d = (back: number) => {
+    const x = new Date();
+    x.setDate(x.getDate() - back);
+    return x.toISOString().slice(0, 10);
+  };
+  try {
+    const r = await withDeadline(
+      fetch(
+        `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(c.gsc_property)}/searchAnalytics/query`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            startDate: d(31),
+            endDate: d(3),
+            dimensions: ["query", "country"],
+            rowLimit: Math.min(limit, 25000),
+          }),
+          signal: AbortSignal.timeout(30_000),
+        },
+      ),
+      40_000,
+      "gsc pairs",
+    );
     if (!r.ok) return [];
     const j: any = await r.json().catch(() => ({}));
     return (j.rows ?? [])
-      .map((row: any) => ({ kw: String(row.keys?.[0] ?? ""), a3: String(row.keys?.[1] ?? "").toLowerCase() }))
+      .map((row: any) => ({
+        kw: String(row.keys?.[0] ?? ""),
+        a3: String(row.keys?.[1] ?? "").toLowerCase(),
+      }))
       .filter((p: any) => p.kw && p.a3);
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
 
 // Eigene (Kunden-)URLs aus einem SERP-Element einsammeln — speist Citations +
 // Referenzierte Seiten (nur Links auf die Kunden-Domain, ohne Fragment).
 function dfsCollectOwnUrls(node: any, domain: string, out: Set<string>) {
   if (!node || !domain) return;
-  if (Array.isArray(node)) { for (const x of node) dfsCollectOwnUrls(x, domain, out); return; }
+  if (Array.isArray(node)) {
+    for (const x of node) dfsCollectOwnUrls(x, domain, out);
+    return;
+  }
   if (typeof node === "object") {
     for (const [k, v] of Object.entries(node)) {
       if ((k === "url" || k === "source_url") && typeof v === "string" && v.includes("://")) {
@@ -463,7 +611,10 @@ function dfsCollectOwnUrls(node: any, domain: string, out: Set<string>) {
 // Alle Domains aus einem SERP-Element rekursiv einsammeln (Schema-robust).
 function dfsCollectDomains(node: any, out: Set<string>) {
   if (!node) return;
-  if (Array.isArray(node)) { for (const x of node) dfsCollectDomains(x, out); return; }
+  if (Array.isArray(node)) {
+    for (const x of node) dfsCollectDomains(x, out);
+    return;
+  }
   if (typeof node === "object") {
     for (const [k, v] of Object.entries(node)) {
       if ((k === "domain" || k === "url" || k === "source_url") && typeof v === "string") {
@@ -491,12 +642,18 @@ async function jobSerpAi(c: any, limitOverride?: number) {
     );
     if (!ping.ok) return { skipped: `DataForSEO Preflight: HTTP ${ping.status}` };
   } catch (e) {
-    return { skipped: `DataForSEO nicht erreichbar: ${String((e as any)?.message || e).slice(0, 100)}` };
+    return {
+      skipped: `DataForSEO nicht erreichbar: ${String((e as any)?.message || e).slice(0, 100)}`,
+    };
   }
   // Keyword-Deckel: expliziter Override > score-config.serp.keywords > Env-Default.
-  const kwLimit = limitOverride ?? Number((SCORE_CFG as any).serp?.keywords ?? DFS_SERP_KEYWORDS) ?? DFS_SERP_KEYWORDS;
+  const kwLimit =
+    limitOverride ??
+    Number((SCORE_CFG as any).serp?.keywords ?? DFS_SERP_KEYWORDS) ??
+    DFS_SERP_KEYWORDS;
   const allPairs = await gscTopQueryCountryPairs(c, kwLimit || 25000); // 0 = alle
-  if (!allPairs.length) return { skipped: "keine GSC-Keywords (gsc_property/Google-Verbindung prüfen)" };
+  if (!allPairs.length)
+    return { skipped: "keine GSC-Keywords (gsc_property/Google-Verbindung prüfen)" };
   // Nur Länder mit bekannter DataForSEO-Location; Rest zählen statt raten.
   const homeLoc = DFS_LOCATION[String(c.country || "CH").toUpperCase()] || DFS_LOCATION.CH;
   const skippedCountries: Record<string, number> = {};
@@ -505,9 +662,15 @@ async function jobSerpAi(c: any, limitOverride?: number) {
     skippedCountries[p.a3] = (skippedCountries[p.a3] || 0) + 1;
     return false;
   });
-  if (!pairs.length) return { skipped: "keine GSC-Keywords in unterstützten Ländern", skippedCountries };
+  if (!pairs.length)
+    return { skipped: "keine GSC-Keywords in unterstützten Ländern", skippedCountries };
   const domain = cleanDomain(c.domain);
-  const nameRe = new RegExp(String(c.name || "").trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+  const nameRe = new RegExp(
+    String(c.name || "")
+      .trim()
+      .replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+    "i",
+  );
   // Treffer-Art unterscheiden: Domain in den Antwort-Referenzen = echtes ZITAT
   // (zählt in Citations + Referenzierte Seiten), reine Namens-Nennung = nur
   // Erwähnung. ownPages sammelt die zitierten eigenen URLs (dedupliziert).
@@ -525,65 +688,131 @@ async function jobSerpAi(c: any, limitOverride?: number) {
   // markdown + references ohnehin mit — bisher weggeworfen. Jetzt je zitierter
   // Suchanfrage gespeichert, damit man im Dashboard die ECHTE Google-KI-Antwort
   // aufklappen kann. Keine Zusatzkosten (dieselben Calls).
-  type SerpAnswer = { kw: string; land: string; text: string; refs: { d: string; u: string; t: string }[] };
+  type SerpAnswer = {
+    kw: string;
+    land: string;
+    text: string;
+    refs: { d: string; u: string; t: string }[];
+  };
   const answerOf = (el: any, kw: string, land: string): SerpAnswer => {
-    const md = String(el?.markdown || "").trim()
-      || ((el?.items || []) as any[]).map((s: any) => String(s?.markdown || s?.text || "")).filter(Boolean).join("\n\n");
-    const refs = ((el?.references || []) as any[]).slice(0, 12).map((r: any) => ({
-      d: String(r?.domain || "").replace(/^www\./, ""),
-      u: String(r?.url || ""),
-      t: String(r?.title || "").slice(0, 160),
-    })).filter((r) => r.d);
+    const md =
+      String(el?.markdown || "").trim() ||
+      ((el?.items || []) as any[])
+        .map((s: any) => String(s?.markdown || s?.text || ""))
+        .filter(Boolean)
+        .join("\n\n");
+    const refs = ((el?.references || []) as any[])
+      .slice(0, 12)
+      .map((r: any) => ({
+        d: String(r?.domain || "").replace(/^www\./, ""),
+        u: String(r?.url || ""),
+        t: String(r?.title || "").slice(0, 160),
+      }))
+      .filter((r) => r.d);
     return { kw, land, text: md.slice(0, 3000), refs };
   };
-  const aio = { checked: 0, present: 0, cited: 0, citations: 0, keywords: [] as string[], answers: [] as SerpAnswer[], byCountry: {} as Record<string, number> };
-  const aim = { checked: 0, present: 0, cited: 0, citations: 0, keywords: [] as string[], answers: [] as SerpAnswer[], byCountry: {} as Record<string, number> };
+  const aio = {
+    checked: 0,
+    present: 0,
+    cited: 0,
+    citations: 0,
+    keywords: [] as string[],
+    answers: [] as SerpAnswer[],
+    byCountry: {} as Record<string, number>,
+  };
+  const aim = {
+    checked: 0,
+    present: 0,
+    cited: 0,
+    citations: 0,
+    keywords: [] as string[],
+    answers: [] as SerpAnswer[],
+    byCountry: {} as Record<string, number>,
+  };
   // Query-Fanout light (03.08.): Googles Folgefragen (People Also Ask) + verwandte
   // Suchen aus den OHNEHIN bezahlten organic-Calls — 0 Zusatzkosten. Bewusst als
   // Google-Folgefragen beschriftet, NICHT als KI-interne Sub-Queries (die liefert
   // DataForSEO nicht — geprüft 03.08.).
-  const fanout = new Map<string, { kw: string; country: string; questions: string[]; related: string[] }>();
+  const fanout = new Map<
+    string,
+    { kw: string; country: string; questions: string[]; related: string[] }
+  >();
   // Parallel in Blöcken — bei "alle Keywords" sonst zu langsam (2 Calls je Paar).
   const checkPair = async (p: { kw: string; a3: string }) => {
     const loc = DFS_LOC_BY_A3[p.a3] || homeLoc;
     const jobs = [
-      withDeadline(dfsSerp(auth, "organic", p.kw, loc), 90_000, "dfs organic").then((items) => {
-        aio.checked++;
-        // Fanout light: PAA-Fragen + verwandte Suchen einsammeln (max 200 Keywords).
-        if (fanout.size < 200) {
-          const paa = (items as any[]).find((i: any) => i?.type === "people_also_ask");
-          const rel = (items as any[]).find((i: any) => i?.type === "related_searches");
-          const questions = Array.isArray(paa?.items) ? paa.items.map((x: any) => String(x?.title || "")).filter(Boolean).slice(0, 8) : [];
-          const related = Array.isArray(rel?.items) ? rel.items.map((x: any) => (typeof x === "string" ? x : String(x?.title || ""))).filter(Boolean).slice(0, 8) : [];
-          if (questions.length || related.length) fanout.set(`${p.kw}|${loc.name}`, { kw: p.kw, country: loc.name, questions, related });
-        }
-        const el = (items as any[]).find((i: any) => i?.type === "ai_overview");
-        if (el) {
-          aio.present++;
-          const d = hitDetail(el);
-          if (d.hit) {
-            aio.cited++; aio.keywords.push(`${p.kw} (${loc.name})`); aio.byCountry[loc.name] = (aio.byCountry[loc.name] || 0) + 1;
-            const ans = answerOf(el, p.kw, loc.name);
-            if (ans.text && aio.answers.length < 80) aio.answers.push(ans);
-            if (d.cited) { aio.citations++; for (const u of d.urls) ownPages.add(u); }
+      withDeadline(dfsSerp(auth, "organic", p.kw, loc), 90_000, "dfs organic")
+        .then((items) => {
+          aio.checked++;
+          // Fanout light: PAA-Fragen + verwandte Suchen einsammeln (max 200 Keywords).
+          if (fanout.size < 200) {
+            const paa = (items as any[]).find((i: any) => i?.type === "people_also_ask");
+            const rel = (items as any[]).find((i: any) => i?.type === "related_searches");
+            const questions = Array.isArray(paa?.items)
+              ? paa.items
+                  .map((x: any) => String(x?.title || ""))
+                  .filter(Boolean)
+                  .slice(0, 8)
+              : [];
+            const related = Array.isArray(rel?.items)
+              ? rel.items
+                  .map((x: any) => (typeof x === "string" ? x : String(x?.title || "")))
+                  .filter(Boolean)
+                  .slice(0, 8)
+              : [];
+            if (questions.length || related.length)
+              fanout.set(`${p.kw}|${loc.name}`, {
+                kw: p.kw,
+                country: loc.name,
+                questions,
+                related,
+              });
           }
-        }
-      }).catch((e) => { errors.push(`aio "${p.kw}"@${p.a3}: ${String((e as any)?.message || e).slice(0, 80)}`); }),
-      withDeadline(dfsSerp(auth, "ai_mode", p.kw, loc), 90_000, "dfs ai_mode").then((items) => {
-        aim.checked++;
-        if ((items as any[])?.length) {
-          aim.present++;
-          const d = hitDetail(items);
-          if (d.hit) {
-            aim.cited++; aim.keywords.push(`${p.kw} (${loc.name})`); aim.byCountry[loc.name] = (aim.byCountry[loc.name] || 0) + 1;
-            // AI Mode liefert das Antwort-Element im items-Array (Typ ai_overview).
-            const el2 = (items as any[]).find((i: any) => i?.markdown || i?.items) || (items as any[])[0];
-            const ans = answerOf(el2, p.kw, loc.name);
-            if (ans.text && aim.answers.length < 80) aim.answers.push(ans);
-            if (d.cited) { aim.citations++; for (const u of d.urls) ownPages.add(u); }
+          const el = (items as any[]).find((i: any) => i?.type === "ai_overview");
+          if (el) {
+            aio.present++;
+            const d = hitDetail(el);
+            if (d.hit) {
+              aio.cited++;
+              aio.keywords.push(`${p.kw} (${loc.name})`);
+              aio.byCountry[loc.name] = (aio.byCountry[loc.name] || 0) + 1;
+              const ans = answerOf(el, p.kw, loc.name);
+              if (ans.text && aio.answers.length < 80) aio.answers.push(ans);
+              if (d.cited) {
+                aio.citations++;
+                for (const u of d.urls) ownPages.add(u);
+              }
+            }
           }
-        }
-      }).catch((e) => { errors.push(`aim "${p.kw}"@${p.a3}: ${String((e as any)?.message || e).slice(0, 80)}`); }),
+        })
+        .catch((e) => {
+          errors.push(`aio "${p.kw}"@${p.a3}: ${String((e as any)?.message || e).slice(0, 80)}`);
+        }),
+      withDeadline(dfsSerp(auth, "ai_mode", p.kw, loc), 90_000, "dfs ai_mode")
+        .then((items) => {
+          aim.checked++;
+          if ((items as any[])?.length) {
+            aim.present++;
+            const d = hitDetail(items);
+            if (d.hit) {
+              aim.cited++;
+              aim.keywords.push(`${p.kw} (${loc.name})`);
+              aim.byCountry[loc.name] = (aim.byCountry[loc.name] || 0) + 1;
+              // AI Mode liefert das Antwort-Element im items-Array (Typ ai_overview).
+              const el2 =
+                (items as any[]).find((i: any) => i?.markdown || i?.items) || (items as any[])[0];
+              const ans = answerOf(el2, p.kw, loc.name);
+              if (ans.text && aim.answers.length < 80) aim.answers.push(ans);
+              if (d.cited) {
+                aim.citations++;
+                for (const u of d.urls) ownPages.add(u);
+              }
+            }
+          }
+        })
+        .catch((e) => {
+          errors.push(`aim "${p.kw}"@${p.a3}: ${String((e as any)?.message || e).slice(0, 80)}`);
+        }),
     ];
     await Promise.all(jobs);
   };
@@ -596,7 +825,9 @@ async function jobSerpAi(c: any, limitOverride?: number) {
     await Promise.all(block.map(checkPair));
     deadBlocks = errors.length - before >= block.length * 2 ? deadBlocks + 1 : 0;
     if (deadBlocks >= 2) {
-      errors.push(`Abbruch nach ${i + block.length}/${pairs.length} Paaren: DataForSEO antwortet nicht mehr`);
+      errors.push(
+        `Abbruch nach ${i + block.length}/${pairs.length} Paaren: DataForSEO antwortet nicht mehr`,
+      );
       break;
     }
   }
@@ -623,36 +854,61 @@ async function jobSerpAi(c: any, limitOverride?: number) {
       { provider: "gemini", engine: "Gemini", web: false },
     ];
     const scrape = async (kw: string, e: (typeof engines)[number], branded: boolean) => {
-      const task: any = { keyword: kw, language_code: (c.language || "de").slice(0, 2), location_name: "Switzerland" };
+      const task: any = {
+        keyword: kw,
+        language_code: (c.language || "de").slice(0, 2),
+        location_name: "Switzerland",
+      };
       if (e.web) task.force_web_search = true; // Gemini lehnt das Feld ab (40501)
-      const r = await fetch(`https://api.dataforseo.com/v3/ai_optimization/${e.provider}/llm_scraper/live/advanced`, {
-        method: "POST", headers: { Authorization: auth2, "Content-Type": "application/json" },
-        body: JSON.stringify([task]),
-        signal: AbortSignal.timeout(120_000),
-      });
+      const r = await fetch(
+        `https://api.dataforseo.com/v3/ai_optimization/${e.provider}/llm_scraper/live/advanced`,
+        {
+          method: "POST",
+          headers: { Authorization: auth2, "Content-Type": "application/json" },
+          body: JSON.stringify([task]),
+          signal: AbortSignal.timeout(120_000),
+        },
+      );
       const j: any = await r.json().catch(() => null);
       const t = j?.tasks?.[0];
       if (j?.status_code !== 20000 || !t || t.status_code !== 20000) return null;
       const resu = t.result?.[0] || {};
-      const text = String(resu.markdown || "").trim()
-        || ((resu.items || []) as any[]).map((i: any) => String(i?.markdown || i?.text || "")).filter(Boolean).join("\n\n");
+      const text =
+        String(resu.markdown || "").trim() ||
+        ((resu.items || []) as any[])
+          .map((i: any) => String(i?.markdown || i?.text || ""))
+          .filter(Boolean)
+          .join("\n\n");
       return {
-        kw, engine: e.engine, ...(branded ? { branded: true } : {}),
+        kw,
+        engine: e.engine,
+        ...(branded ? { branded: true } : {}),
         text: text.slice(0, 4000),
-        sources: ((resu.sources || []) as any[]).slice(0, 12).map((s: any) => ({
-          d: String(s?.domain || "").replace(/^www\./, ""),
-          u: String(s?.url || ""),
-          t: String(s?.title || "").slice(0, 160),
-        })).filter((s: any) => s.d),
-        brands: ((resu.brand_entities || []) as any[]).map((b: any) => String(b?.title ?? b?.name ?? b)).filter(Boolean).slice(0, 15),
-        queries: ((resu.fan_out_queries || []) as any[]).map((q: any) => String(q?.query ?? q)).filter(Boolean).slice(0, 25),
+        sources: ((resu.sources || []) as any[])
+          .slice(0, 12)
+          .map((s: any) => ({
+            d: String(s?.domain || "").replace(/^www\./, ""),
+            u: String(s?.url || ""),
+            t: String(s?.title || "").slice(0, 160),
+          }))
+          .filter((s: any) => s.d),
+        brands: ((resu.brand_entities || []) as any[])
+          .map((b: any) => String(b?.title ?? b?.name ?? b))
+          .filter(Boolean)
+          .slice(0, 15),
+        queries: ((resu.fan_out_queries || []) as any[])
+          .map((q: any) => String(q?.query ?? q))
+          .filter(Boolean)
+          .slice(0, 25),
       };
     };
     // Marken-Anfrage voranstellen — ausser ein Money-Keyword IST schon die Marke.
     const brandKw = String(c.name || "").trim();
     const moneyKws = pairs.slice(0, kwCount).map((p) => p.kw);
     const kwList: Array<{ kw: string; branded: boolean }> = [
-      ...(brandKw && !moneyKws.some((k) => k.toLowerCase() === brandKw.toLowerCase()) ? [{ kw: brandKw, branded: true }] : []),
+      ...(brandKw && !moneyKws.some((k) => k.toLowerCase() === brandKw.toLowerCase())
+        ? [{ kw: brandKw, branded: true }]
+        : []),
       ...moneyKws.map((kw) => ({ kw, branded: false })),
     ];
     const jobs = kwList.flatMap((k) => engines.map((e) => ({ ...k, e })));
@@ -665,13 +921,20 @@ async function jobSerpAi(c: any, limitOverride?: number) {
   // basieren weiter allein auf den Prompt-Läufen — nur byCountry fließt).
   const searchByEngine: Record<string, number> = {};
   for (const r of aiSearch) {
-    const hit = nameRe.test(String(r.text || "")) || (!!domain && (r.sources || []).some((s: any) => s.d === domain || String(s.d).endsWith("." + domain)));
+    const hit =
+      nameRe.test(String(r.text || "")) ||
+      (!!domain &&
+        (r.sources || []).some((s: any) => s.d === domain || String(s.d).endsWith("." + domain)));
     if (hit) searchByEngine[r.engine] = (searchByEngine[r.engine] || 0) + 1;
   }
   const models = [
     { name: "Google AI Overviews", mentions: aio.cited, byCountry: aio.byCountry },
     { name: "Google AI Mode", mentions: aim.cited, byCountry: aim.byCountry },
-    ...Object.entries(searchByEngine).map(([name, n]) => ({ name, mentions: 0, byCountry: { Schweiz: n } })),
+    ...Object.entries(searchByEngine).map(([name, n]) => ({
+      name,
+      mentions: 0,
+      byCountry: { Schweiz: n },
+    })),
   ];
   const countries = [...new Set(pairs.map((p) => DFS_LOC_BY_A3[p.a3].name))];
   return {
@@ -703,13 +966,21 @@ async function jobBrandRadar(c: any, comps: string[] = []) {
   // 1) Total je Modell (1 Call pro data_source).
   const models: Array<{ name: string; mentions: number; byCountry: Record<string, number> }> = [];
   for (const s of SOURCES) {
-    const r = await brandRadar("mentions-overview", {
-      select: "brand,total",
-      data_source: s.ds,
-      brand,
-      ...(competitors ? { competitors } : {}),
-    }, key);
-    if (!r.ok) { errors.push(`${s.name}: ${r.error}`); models.push({ name: s.name, mentions: 0, byCountry: {} }); continue; }
+    const r = await brandRadar(
+      "mentions-overview",
+      {
+        select: "brand,total",
+        data_source: s.ds,
+        brand,
+        ...(competitors ? { competitors } : {}),
+      },
+      key,
+    );
+    if (!r.ok) {
+      errors.push(`${s.name}: ${r.error}`);
+      models.push({ name: s.name, mentions: 0, byCountry: {} });
+      continue;
+    }
     const total = Number(r.data?.metrics?.[0]?.total ?? 0);
     models.push({ name: s.name, mentions: total, byCountry: {} });
   }
@@ -719,13 +990,17 @@ async function jobBrandRadar(c: any, comps: string[] = []) {
     if (m.mentions <= 0) continue;
     const ds = SOURCES.find((s) => s.name === m.name)!.ds;
     for (const co of COUNTRIES) {
-      const r = await brandRadar("mentions-overview", {
-        select: "brand,total",
-        data_source: ds,
-        country: co.code,
-        brand,
-        ...(competitors ? { competitors } : {}),
-      }, key);
+      const r = await brandRadar(
+        "mentions-overview",
+        {
+          select: "brand,total",
+          data_source: ds,
+          country: co.code,
+          brand,
+          ...(competitors ? { competitors } : {}),
+        },
+        key,
+      );
       const v = r.ok ? Number(r.data?.metrics?.[0]?.total ?? 0) : 0;
       if (v > 0) m.byCountry[co.name] = v;
     }
@@ -739,13 +1014,17 @@ async function jobBrandRadar(c: any, comps: string[] = []) {
   let citedPages: Array<{ url: string; responses: number }> = [];
   const domain = cleanDomain(c.domain);
   if (domain) {
-    const r = await brandRadar("cited-pages", {
-      select: "url,responses",
-      data_source: SOURCES.map((s) => s.ds),
-      where: { field: "cited_domain_subdomains", is: ["eq", domain] },
-      brand,
-      limit: 200,
-    }, key);
+    const r = await brandRadar(
+      "cited-pages",
+      {
+        select: "url,responses",
+        data_source: SOURCES.map((s) => s.ds),
+        where: { field: "cited_domain_subdomains", is: ["eq", domain] },
+        brand,
+        limit: 200,
+      },
+      key,
+    );
     if (r.ok) {
       citedPages = (r.data?.pages ?? []).map((p: any) => ({
         url: String(p.url ?? ""),
@@ -786,12 +1065,19 @@ async function jobBrandRadarDfs(c: any, comps: string[] = []) {
   const lang = (c.language || "de").slice(0, 2);
   const errors: string[] = [];
   const excludes = mentionExcludes(brand);
-  const targets = mentionTargets(brand).map((k) => ({ keyword: k, match_type: "word_match", search_scope: ["answer"] }));
+  const targets = mentionTargets(brand).map((k) => ({
+    keyword: k,
+    match_type: "word_match",
+    search_scope: ["answer"],
+  }));
 
   // 1) Marken-Erwähnungen je Plattform × DACH-Markt (Option B, 2026-07-20:
   //    vorher nur CH — jetzt CH/DE/AT; word_match, weil partial_match
   //    Substrings wie "Studioformate" traf, live verifiziert 2026-07-19).
-  const modelAgg: Record<string, { name: string; mentions: number; byCountry: Record<string, number> }> = {};
+  const modelAgg: Record<
+    string,
+    { name: string; mentions: number; byCountry: Record<string, number> }
+  > = {};
   // DACH immer (Kundensprache) + konfigurierte Zusatz-Märkte (eigene Sprache).
   const mentionMarkets: Array<{ location_name: string; land: string; language_code?: string }> = [
     { location_name: "Switzerland", land: "Schweiz" },
@@ -802,20 +1088,29 @@ async function jobBrandRadarDfs(c: any, comps: string[] = []) {
   for (const loc of mentionMarkets) {
     const agg = await dfsAiCall("ai_optimization/llm_mentions/aggregated_metrics/live", {
       target: targets,
-      location_name: loc.location_name, language_code: loc.language_code || lang,
+      location_name: loc.location_name,
+      language_code: loc.language_code || lang,
     });
-    if (!agg.ok) { errors.push(`aggregated_metrics/${loc.land}: ${agg.error}`); continue; }
+    if (!agg.ok) {
+      errors.push(`aggregated_metrics/${loc.land}: ${agg.error}`);
+      continue;
+    }
     const byPlatform: Record<string, number> = {};
-    for (const p of (agg.result?.[0]?.total || {}).platform || []) byPlatform[p.key] = Number(p.mentions || 0);
+    for (const p of (agg.result?.[0]?.total || {}).platform || [])
+      byPlatform[p.key] = Number(p.mentions || 0);
     // Generika-Abzug: aggregierte Phrasen-Treffer (z.B. "Eggs Benedict") je
     // Plattform abziehen; Antworten mit Marke UND Phrase gehen dabei bewusst
     // mit unter (konservativ — besser zu wenig als Generika mitzaehlen).
     for (const phrase of excludes) {
       const ex = await dfsAiCall("ai_optimization/llm_mentions/aggregated_metrics/live", {
         target: [{ keyword: phrase, match_type: "word_match", search_scope: ["answer"] }],
-        location_name: loc.location_name, language_code: loc.language_code || lang,
+        location_name: loc.location_name,
+        language_code: loc.language_code || lang,
       });
-      if (!ex.ok) { errors.push(`excl(${phrase}/${loc.land}): ${ex.error}`); continue; }
+      if (!ex.ok) {
+        errors.push(`excl(${phrase}/${loc.land}): ${ex.error}`);
+        continue;
+      }
       for (const p of (ex.result?.[0]?.total || {}).platform || [])
         byPlatform[p.key] = Math.max(0, (byPlatform[p.key] || 0) - Number(p.mentions || 0));
     }
@@ -844,23 +1139,37 @@ async function jobBrandRadarDfs(c: any, comps: string[] = []) {
     // dürfen hier bedenkenlos mitzählen.
     const citationSlices = [
       ...DFS_CORPUS_SLICES,
-      ...intlMarketsFor(brand).map((m) => ({ platform: "google", location_name: m.location_name, language_code: m.language_code, land: m.land })),
+      ...intlMarketsFor(brand).map((m) => ({
+        platform: "google",
+        location_name: m.location_name,
+        language_code: m.language_code,
+        land: m.land,
+      })),
     ];
     for (const slice of citationSlices) {
       const cite = await dfsAiCall("ai_optimization/llm_mentions/search/live", {
         target: [{ domain }],
-        ...dfsSliceParams(slice), limit: 100,
+        ...dfsSliceParams(slice),
+        limit: 100,
       });
-      if (!cite.ok) { errors.push(`search(${slice.platform}/${slice.land}): ${cite.error}`); continue; }
+      if (!cite.ok) {
+        errors.push(`search(${slice.platform}/${slice.land}): ${cite.error}`);
+        continue;
+      }
       const items: any[] = (cite.result?.[0]?.items ?? cite.result?.items ?? []) as any[];
       for (const it of items) {
         const own = (it.sources || []).filter((s: any) => {
-          const d = String(s.domain || "").replace(/^www\./, "").toLowerCase();
+          const d = String(s.domain || "")
+            .replace(/^www\./, "")
+            .toLowerCase();
           return d === domain || d.endsWith("." + domain);
         });
         if (own.length) {
           citations += own.length;
-          for (const s of own) { const u = normUrl(String(s.url || "")); if (u) pageTally[u] = (pageTally[u] || 0) + 1; }
+          for (const s of own) {
+            const u = normUrl(String(s.url || ""));
+            if (u) pageTally[u] = (pageTally[u] || 0) + 1;
+          }
         }
       }
     }
@@ -872,11 +1181,23 @@ async function jobBrandRadarDfs(c: any, comps: string[] = []) {
   // Betriebe/Begriffe (Belege 06.08.: Black Summit 1'864 US, Bernina 952,
   // Ezy One 432 = easyJet-Code). Flag statt stillem Score-Einfluss.
   const HOMONYM_GUARD = Number(process.env.AIVIS_HOMONYM_GUARD ?? 300);
-  const hasTargetOverride = Array.isArray(((SCORE_CFG as any).mentionTargets || {})[brand.toLowerCase()]);
+  const hasTargetOverride = Array.isArray(
+    ((SCORE_CFG as any).mentionTargets || {})[brand.toLowerCase()],
+  );
   const homonymVerdacht = !hasTargetOverride && mentions > HOMONYM_GUARD;
   if (homonymVerdacht)
-    errors.push(`HOMONYM-VERDACHT: ${mentions} Korpus-Mentions ohne mentionTargets-Override (Schwelle ${HOMONYM_GUARD}) — Marke auf gleichnamige Fremdbetriebe prüfen und mentionTargets pflegen`);
-  return { models, mentions, citations, citedPagesCount: citedPages.length, citedPages, errors, ...(homonymVerdacht ? { homonymVerdacht } : {}) };
+    errors.push(
+      `HOMONYM-VERDACHT: ${mentions} Korpus-Mentions ohne mentionTargets-Override (Schwelle ${HOMONYM_GUARD}) — Marke auf gleichnamige Fremdbetriebe prüfen und mentionTargets pflegen`,
+    );
+  return {
+    models,
+    mentions,
+    citations,
+    citedPagesCount: citedPages.length,
+    citedPages,
+    errors,
+    ...(homonymVerdacht ? { homonymVerdacht } : {}),
+  };
 }
 
 // ── GA4: AI-Referral-Sessions -> Conversions je Engine ──────────────────────
@@ -901,7 +1222,11 @@ async function jobAttribution(c: any) {
           // country zusätzlich: liefert die Besucher-Herkunft je Engine
           // (Totale werden hier selbst aufsummiert — sessions/keyEvents sind additiv).
           // channelGroup für den Bing-Sonderfall (organische Bing-Suche ≠ Copilot).
-          dimensions: [{ name: "sessionSource" }, { name: "country" }, { name: "sessionDefaultChannelGroup" }],
+          dimensions: [
+            { name: "sessionSource" },
+            { name: "country" },
+            { name: "sessionDefaultChannelGroup" },
+          ],
           metrics: [{ name: "sessions" }, { name: "keyEvents" }],
           limit: 10000,
         }),
@@ -937,7 +1262,19 @@ async function jobAttribution(c: any) {
   // Setup-Auto-Erkennung je Property: Buchungs-Setups (GTM) senden den Betrag
   // NICHT als GA4-value/Umsatz, sondern als Custom Dimension dl_value — und
   // dl_reservationid/transactionId vereinzelt die Conversions (statt Sammelzeile).
-  const events: Record<string, Array<{ name: string; count: number; value: number; country: string; device: string; date: string; txn?: string; currency?: string }>> = {};
+  const events: Record<
+    string,
+    Array<{
+      name: string;
+      count: number;
+      value: number;
+      country: string;
+      device: string;
+      date: string;
+      txn?: string;
+      currency?: string;
+    }>
+  > = {};
   if (Object.values(agg).some((v) => v.conversions > 0)) {
     try {
       const custom = new Set<string>();
@@ -948,9 +1285,12 @@ async function jobAttribution(c: any) {
         );
         if (rd.ok) {
           const jd: any = await rd.json().catch(() => ({}));
-          for (const d of jd.customDimensions ?? []) if (d?.scope === "EVENT") custom.add(String(d.parameterName || ""));
+          for (const d of jd.customDimensions ?? [])
+            if (d?.scope === "EVENT") custom.add(String(d.parameterName || ""));
         }
-      } catch { /* Erkennung optional — Fallback unten deckt alles ab */ }
+      } catch {
+        /* Erkennung optional — Fallback unten deckt alles ab */
+      }
       const hasDlValue = custom.has("dl_value");
       const hasDlCurrency = custom.has("dl_currency");
       // Manuell hinterlegte Conversion-Werte (Admin-Bereich → Einstellungen →
@@ -962,11 +1302,19 @@ async function jobAttribution(c: any) {
           .from("client_conversion_values")
           .select("event_name, value, currency")
           .eq("client_id", c.id);
-        for (const m of mv ?? []) manual.set(String(m.event_name), { value: Number(m.value), currency: String(m.currency || "CHF") });
-      } catch { /* optional */ }
+        for (const m of mv ?? [])
+          manual.set(String(m.event_name), {
+            value: Number(m.value),
+            currency: String(m.currency || "CHF"),
+          });
+      } catch {
+        /* optional */
+      }
       // transactionId ist eingebaut (immer zulässig, "(not set)" ohne E-Commerce);
       // dl_reservationid gewinnt, wo das Buchungs-Setup sie registriert hat.
-      const idDim = custom.has("dl_reservationid") ? "customEvent:dl_reservationid" : "transactionId";
+      const idDim = custom.has("dl_reservationid")
+        ? "customEvent:dl_reservationid"
+        : "transactionId";
       const dims = (withCustom: boolean) => [
         { name: "sessionSource" },
         { name: "eventName" },
@@ -983,17 +1331,20 @@ async function jobAttribution(c: any) {
           : []),
       ];
       const runDetail = (withCustom: boolean) =>
-        fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
-            dimensions: dims(withCustom),
-            metrics: [{ name: "keyEvents" }, { name: "eventValue" }, { name: "totalRevenue" }],
-            limit: 5000,
-          }),
-          signal: AbortSignal.timeout(30_000),
-        });
+        fetch(
+          `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
+              dimensions: dims(withCustom),
+              metrics: [{ name: "keyEvents" }, { name: "eventValue" }, { name: "totalRevenue" }],
+              limit: 5000,
+            }),
+            signal: AbortSignal.timeout(30_000),
+          },
+        );
       let r2 = await runDetail(true);
       // Unbekannte Custom-Dimension o. Ä. → einmal ohne Zusatz-Dimensionen.
       if (!r2.ok) r2 = await runDetail(false);
@@ -1018,9 +1369,13 @@ async function jobAttribution(c: any) {
           // Betrags-Kaskade: dl_value (Buchungs-Setup) > totalRevenue
           // (Purchase-Umsatz) > eventValue (value-Parameter) > manuell
           // hinterlegter Wert je Conversion (× Anzahl).
-          const gaVal = dlVal || Number(row.metricValues?.[2]?.value ?? 0) || Number(row.metricValues?.[1]?.value ?? 0);
+          const gaVal =
+            dlVal ||
+            Number(row.metricValues?.[2]?.value ?? 0) ||
+            Number(row.metricValues?.[1]?.value ?? 0);
           const val = gaVal || (man ? man.value * n : 0);
-          const curFinal = (cur && cur !== "(not set)" ? cur : "") || (!gaVal && man ? man.currency : "");
+          const curFinal =
+            (cur && cur !== "(not set)" ? cur : "") || (!gaVal && man ? man.currency : "");
           (events[eng.name] ??= []).push({
             name: evName,
             count: n,
@@ -1038,7 +1393,9 @@ async function jobAttribution(c: any) {
             .sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.count - a.count)
             .slice(0, 100);
       }
-    } catch { /* Detail optional — Totale bleiben gültig */ }
+    } catch {
+      /* Detail optional — Totale bleiben gültig */
+    }
   }
   return {
     engines: Object.entries(agg).map(([engine, v]) => ({
@@ -1059,7 +1416,11 @@ const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5";
 const PARSE_MODEL = process.env.ANTHROPIC_PARSE_MODEL ?? "claude-haiku-4-5-20251001";
 const urlsIn = (t: string) => (t.match(/https?:\/\/[^\s)\]"']+/g) || []).length;
 
-async function askClaude(prompt: string, maxTokens = 600, temperature?: number): Promise<{ text: string; sources: number; model?: string; error?: string } | null> {
+async function askClaude(
+  prompt: string,
+  maxTokens = 600,
+  temperature?: number,
+): Promise<{ text: string; sources: number; model?: string; error?: string } | null> {
   // Subscription-Routing (2026-08-05): OPT-IN, Default AUS. Getestet am 05.08. mit
   // dem Voll-Durchlauf — die Subscription läuft nur über den Agent-SDK (/generate),
   // und jede Antwort startet eine eigene SDK-Session: bei aivis-Volumen ~1 Claude-
@@ -1087,38 +1448,77 @@ async function askClaude(prompt: string, maxTokens = 600, temperature?: number):
   if (!key) return null;
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
-    body: JSON.stringify({ model: ANTHROPIC_MODEL, max_tokens: maxTokens, messages: [{ role: "user", content: prompt }], ...(temperature != null ? { temperature } : {}) }),
+    headers: {
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: ANTHROPIC_MODEL,
+      max_tokens: maxTokens,
+      messages: [{ role: "user", content: prompt }],
+      ...(temperature != null ? { temperature } : {}),
+    }),
     signal: AbortSignal.timeout(90_000),
   });
-  if (!r.ok) return { text: "", sources: 0, error: `Claude HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 140)}` };
+  if (!r.ok)
+    return {
+      text: "",
+      sources: 0,
+      error: `Claude HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 140)}`,
+    };
   const j: any = await r.json().catch(() => null);
-  const text = (j?.content ?? []).map((b: any) => b?.text ?? "").join(" ").trim();
+  const text = (j?.content ?? [])
+    .map((b: any) => b?.text ?? "")
+    .join(" ")
+    .trim();
   recordUsage("Claude", Number(j?.usage?.input_tokens || 0), Number(j?.usage?.output_tokens || 0));
   // j.model = aufgelöster Modell-Snapshot (nie nur der Alias aus der Anfrage)
   return text ? { text, sources: urlsIn(text), model: String(j?.model || ANTHROPIC_MODEL) } : null;
 }
 
-async function askPerplexity(prompt: string, maxTokens = 600, temperature?: number): Promise<{ text: string; sources: number; model?: string } | null> {
+async function askPerplexity(
+  prompt: string,
+  maxTokens = 600,
+  temperature?: number,
+): Promise<{ text: string; sources: number; model?: string } | null> {
   const key = process.env.PERPLEXITY_API_KEY;
   if (!key) return null;
   const r = await fetch("https://api.perplexity.ai/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "sonar", messages: [{ role: "user", content: prompt }], max_tokens: maxTokens, ...(temperature != null ? { temperature } : {}) }),
+    body: JSON.stringify({
+      model: "sonar",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: maxTokens,
+      ...(temperature != null ? { temperature } : {}),
+    }),
     signal: AbortSignal.timeout(60_000),
   });
   // Fehlertext durchreichen statt null — sonst ist ein Quota-401 von "kein Key"
   // nicht zu unterscheiden (siehe engineProbe).
-  if (!r.ok) return { text: "", sources: 0, error: `Perplexity HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 140)}` } as any;
+  if (!r.ok)
+    return {
+      text: "",
+      sources: 0,
+      error: `Perplexity HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 140)}`,
+    } as any;
   const j: any = await r.json().catch(() => null);
   const text = String(j?.choices?.[0]?.message?.content ?? "").trim();
-  recordUsage("Perplexity", Number(j?.usage?.prompt_tokens || 0), Number(j?.usage?.completion_tokens || 0));
+  recordUsage(
+    "Perplexity",
+    Number(j?.usage?.prompt_tokens || 0),
+    Number(j?.usage?.completion_tokens || 0),
+  );
   const cits = Array.isArray(j?.citations) ? j.citations.length : urlsIn(text);
   return text ? { text, sources: cits, model: String(j?.model || "sonar") } : null;
 }
 
-async function askGemini(prompt: string, maxTokens = 600, temperature?: number): Promise<{ text: string; sources: number; model?: string } | null> {
+async function askGemini(
+  prompt: string,
+  maxTokens = 600,
+  temperature?: number,
+): Promise<{ text: string; sources: number; model?: string } | null> {
   const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!key) return null;
   const r = await fetch(
@@ -1128,16 +1528,34 @@ async function askGemini(prompt: string, maxTokens = 600, temperature?: number):
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: maxTokens, thinkingConfig: { thinkingBudget: 0 }, ...(temperature != null ? { temperature } : {}) },
+        generationConfig: {
+          maxOutputTokens: maxTokens,
+          thinkingConfig: { thinkingBudget: 0 },
+          ...(temperature != null ? { temperature } : {}),
+        },
       }),
       signal: AbortSignal.timeout(60_000),
     },
   );
-  if (!r.ok) return { text: "", sources: 0, error: `Gemini HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 140)}` } as any;
+  if (!r.ok)
+    return {
+      text: "",
+      sources: 0,
+      error: `Gemini HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 140)}`,
+    } as any;
   const j: any = await r.json().catch(() => null);
-  const text = (j?.candidates?.[0]?.content?.parts ?? []).map((p: any) => p?.text ?? "").join(" ").trim();
-  recordUsage("Gemini", Number(j?.usageMetadata?.promptTokenCount || 0), Number(j?.usageMetadata?.candidatesTokenCount || 0));
-  return text ? { text, sources: urlsIn(text), model: String(j?.modelVersion || "gemini-2.5-flash") } : null;
+  const text = (j?.candidates?.[0]?.content?.parts ?? [])
+    .map((p: any) => p?.text ?? "")
+    .join(" ")
+    .trim();
+  recordUsage(
+    "Gemini",
+    Number(j?.usageMetadata?.promptTokenCount || 0),
+    Number(j?.usageMetadata?.candidatesTokenCount || 0),
+  );
+  return text
+    ? { text, sources: urlsIn(text), model: String(j?.modelVersion || "gemini-2.5-flash") }
+    : null;
 }
 
 // OpenAI-kompatible Chat-APIs (ChatGPT / Grok / DeepSeek) — ein Helfer.
@@ -1157,15 +1575,35 @@ async function askOpenAICompat(
   const r = await fetch(url, {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], ...tokenParam, ...(temperature != null ? { temperature } : {}) }),
+    body: JSON.stringify({
+      model,
+      messages: [{ role: "user", content: prompt }],
+      ...tokenParam,
+      ...(temperature != null ? { temperature } : {}),
+    }),
     signal: AbortSignal.timeout(60_000),
   });
-  if (!r.ok) return { text: "", sources: 0, error: `HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 140)}` } as any;
+  if (!r.ok)
+    return {
+      text: "",
+      sources: 0,
+      error: `HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 140)}`,
+    } as any;
   const j: any = await r.json().catch(() => null);
   const text = String(j?.choices?.[0]?.message?.content ?? "").trim();
   // Label aus dem Endpoint ableiten (ein Helfer für ChatGPT/Grok/DeepSeek).
-  const label = url.includes("api.openai.com") ? "ChatGPT" : url.includes("x.ai") ? "Grok" : url.includes("deepseek") ? "DeepSeek" : "OpenAICompat";
-  recordUsage(label, Number(j?.usage?.prompt_tokens || 0), Number(j?.usage?.completion_tokens || 0));
+  const label = url.includes("api.openai.com")
+    ? "ChatGPT"
+    : url.includes("x.ai")
+      ? "Grok"
+      : url.includes("deepseek")
+        ? "DeepSeek"
+        : "OpenAICompat";
+  recordUsage(
+    label,
+    Number(j?.usage?.prompt_tokens || 0),
+    Number(j?.usage?.completion_tokens || 0),
+  );
   return text ? { text, sources: urlsIn(text), model: String(j?.model || model) } : null;
 }
 
@@ -1175,8 +1613,12 @@ async function askOpenAICompat(
 // Mo–Mi (UTC): der Tageszyklus läuft alle 3 Tage, damit fällt je Kunde genau
 // ein Lauf pro Woche ins Fenster. Abschaltbar via AIVIS_GROK_WEEKLY=0.
 const GROK_WEEKLY = String(process.env.AIVIS_GROK_WEEKLY ?? "1") !== "0";
-const grokDueToday = () => { const wd = new Date().getUTCDay(); return wd >= 1 && wd <= 3; };
-const activePromptEngines = () => PROMPT_ENGINES.filter((e) => e.name !== "Grok" || !GROK_WEEKLY || grokDueToday());
+const grokDueToday = () => {
+  const wd = new Date().getUTCDay();
+  return wd >= 1 && wd <= 3;
+};
+const activePromptEngines = () =>
+  PROMPT_ENGINES.filter((e) => e.name !== "Grok" || !GROK_WEEKLY || grokDueToday());
 // Antwort-Länge (04.08., User-Befund „Antwort abgeschnitten"): der Default 600
 // Tokens ließ die KI mitten im Satz stoppen (~1500 Zeichen). 1500 Tokens ≈
 // ~3500–4000 Zeichen = vollständige Antworten. Env-Schalter für Kostenkontrolle.
@@ -1195,12 +1637,18 @@ const DFS_LLM_MAP: Record<string, { se: string; model: string }> = {
   Gemini: { se: "gemini", model: "gemini-2.5-flash" },
   ChatGPT: { se: "chat_gpt", model: "gpt-5.1" },
 };
-async function askViaDfs(engine: string, prompt: string): Promise<{ text: string; sources: number; model?: string } | null> {
+async function askViaDfs(
+  engine: string,
+  prompt: string,
+): Promise<{ text: string; sources: number; model?: string } | null> {
   if (process.env.AIVIS_DFS_FALLBACK === "0") return null;
   const def = DFS_LLM_MAP[engine];
   if (!def) return null;
   // user_prompt-Limit der DFS-API: 500 Zeichen (Mess-Prompts liegen weit darunter).
-  const r = await dfsAiCall(`ai_optimization/${def.se}/llm_responses/live`, { user_prompt: prompt.slice(0, 500), model_name: def.model });
+  const r = await dfsAiCall(`ai_optimization/${def.se}/llm_responses/live`, {
+    user_prompt: prompt.slice(0, 500),
+    model_name: def.model,
+  });
   if (!r.ok) return null;
   const row = (r.result ?? [])[0];
   const text = ((row?.items ?? []) as any[])
@@ -1208,7 +1656,9 @@ async function askViaDfs(engine: string, prompt: string): Promise<{ text: string
     .flatMap((it) => (it.sections ?? []).map((s: any) => String(s?.text ?? "")))
     .join(" ")
     .trim();
-  return text ? { text, sources: urlsIn(text), model: `${String(row?.model_name || def.model)}@dataforseo` } : null;
+  return text
+    ? { text, sources: urlsIn(text), model: `${String(row?.model_name || def.model)}@dataforseo` }
+    : null;
 }
 // Routing-Entscheid (06.08., Volkan): DataForSEO ist PRIMÄR für die 4
 // Mess-Engines — EIN Abrechnungskonto, keine rollierenden Prepaid-Ausfälle
@@ -1228,41 +1678,99 @@ const withDfsRouting = (name: string, direct: (p: string) => Promise<any>) => as
   return f ?? r;
 };
 
-const PROMPT_ENGINES: Array<{ name: string; ask: (p: string) => Promise<{ text: string; sources: number } | null> }> = [
+const PROMPT_ENGINES: Array<{
+  name: string;
+  ask: (p: string) => Promise<{ text: string; sources: number } | null>;
+}> = [
   { name: "Claude", ask: withDfsRouting("Claude", (p) => askClaude(p, ANSWER_MAX_TOKENS)) },
-  { name: "Perplexity", ask: withDfsRouting("Perplexity", (p) => askPerplexity(p, ANSWER_MAX_TOKENS)) },
+  {
+    name: "Perplexity",
+    ask: withDfsRouting("Perplexity", (p) => askPerplexity(p, ANSWER_MAX_TOKENS)),
+  },
   { name: "Gemini", ask: withDfsRouting("Gemini", (p) => askGemini(p, ANSWER_MAX_TOKENS)) },
   {
     name: "ChatGPT",
-    ask: withDfsRouting("ChatGPT", (p) => askOpenAICompat("https://api.openai.com/v1/chat/completions", process.env.OPENAI_API_KEY, process.env.OPENAI_MODEL ?? "gpt-5.1", p, ANSWER_MAX_TOKENS)),
+    ask: withDfsRouting("ChatGPT", (p) =>
+      askOpenAICompat(
+        "https://api.openai.com/v1/chat/completions",
+        process.env.OPENAI_API_KEY,
+        process.env.OPENAI_MODEL ?? "gpt-5.1",
+        p,
+        ANSWER_MAX_TOKENS,
+      ),
+    ),
   },
   {
     name: "Grok",
-    ask: (p) => askOpenAICompat("https://api.x.ai/v1/chat/completions", process.env.XAI_API_KEY || process.env.GROK_API_KEY, process.env.XAI_MODEL ?? "grok-4", p, ANSWER_MAX_TOKENS),
+    ask: (p) =>
+      askOpenAICompat(
+        "https://api.x.ai/v1/chat/completions",
+        process.env.XAI_API_KEY || process.env.GROK_API_KEY,
+        process.env.XAI_MODEL ?? "grok-4",
+        p,
+        ANSWER_MAX_TOKENS,
+      ),
   },
   {
     name: "DeepSeek",
-    ask: (p) => askOpenAICompat("https://api.deepseek.com/chat/completions", process.env.DEEPSEEK_API_KEY, process.env.DEEPSEEK_MODEL ?? "deepseek-chat", p, ANSWER_MAX_TOKENS),
+    ask: (p) =>
+      askOpenAICompat(
+        "https://api.deepseek.com/chat/completions",
+        process.env.DEEPSEEK_API_KEY,
+        process.env.DEEPSEEK_MODEL ?? "deepseek-chat",
+        p,
+        ANSWER_MAX_TOKENS,
+      ),
   },
 ];
 
 // Utility-LLM für interne Aufgaben (Seeding, Judge) mit Failover-Kette: bei
 // leerem Guthaben/Fehler automatisch das nächste verfügbare Modell. So bricht
 // v2 nicht ab, nur weil EIN Anbieter (z. B. Claude) gerade kein Guthaben hat.
-async function askUtilityMeta(prompt: string, maxTokens = 2000, temperature?: number): Promise<{ text: string; model: string } | null> {
+async function askUtilityMeta(
+  prompt: string,
+  maxTokens = 2000,
+  temperature?: number,
+): Promise<{ text: string; model: string } | null> {
   const chain: Array<() => Promise<any>> = [
     () => askClaude(prompt, maxTokens, temperature),
-    () => askOpenAICompat("https://api.deepseek.com/chat/completions", process.env.DEEPSEEK_API_KEY, process.env.DEEPSEEK_MODEL ?? "deepseek-chat", prompt, maxTokens, temperature),
-    () => askOpenAICompat("https://api.x.ai/v1/chat/completions", process.env.XAI_API_KEY || process.env.GROK_API_KEY, process.env.XAI_MODEL ?? "grok-4", prompt, maxTokens, temperature),
+    () =>
+      askOpenAICompat(
+        "https://api.deepseek.com/chat/completions",
+        process.env.DEEPSEEK_API_KEY,
+        process.env.DEEPSEEK_MODEL ?? "deepseek-chat",
+        prompt,
+        maxTokens,
+        temperature,
+      ),
+    () =>
+      askOpenAICompat(
+        "https://api.x.ai/v1/chat/completions",
+        process.env.XAI_API_KEY || process.env.GROK_API_KEY,
+        process.env.XAI_MODEL ?? "grok-4",
+        prompt,
+        maxTokens,
+        temperature,
+      ),
     () => askPerplexity(prompt, maxTokens, temperature),
-    () => askOpenAICompat("https://api.openai.com/v1/chat/completions", process.env.OPENAI_API_KEY, process.env.OPENAI_MODEL ?? "gpt-5.1", prompt, maxTokens, temperature),
+    () =>
+      askOpenAICompat(
+        "https://api.openai.com/v1/chat/completions",
+        process.env.OPENAI_API_KEY,
+        process.env.OPENAI_MODEL ?? "gpt-5.1",
+        prompt,
+        maxTokens,
+        temperature,
+      ),
     () => askGemini(prompt, maxTokens, temperature),
   ];
   for (const fn of chain) {
     try {
       const r = await withDeadline(fn(), 120_000, "utility-llm");
       if (r && r.text) return { text: r.text as string, model: String(r.model || "unbekannt") };
-    } catch { /* nächstes Modell */ }
+    } catch {
+      /* nächstes Modell */
+    }
   }
   return null;
 }
@@ -1276,12 +1784,23 @@ export async function askUtility(prompt: string, maxTokens = 2000): Promise<stri
 // JSON aus LLM-Antworten robust extrahieren (Codefences etc.).
 function parseJson(text: string): any {
   const m = text.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
-  try { return m ? JSON.parse(m[0]) : null; } catch { return null; }
+  try {
+    return m ? JSON.parse(m[0]) : null;
+  } catch {
+    return null;
+  }
 }
 
 // URLs/Domains aus Antworttext.
-const urlListIn = (t: string) => (String(t).match(/https?:\/\/[^\s)\]"'>]+/g) || []).map((u) => u.replace(/[.,);]+$/, ""));
-const domOf = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, "").toLowerCase(); } catch { return null; } };
+const urlListIn = (t: string) =>
+  (String(t).match(/https?:\/\/[^\s)\]"'>]+/g) || []).map((u) => u.replace(/[.,);]+$/, ""));
+const domOf = (u: string) => {
+  try {
+    return new URL(u).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return null;
+  }
+};
 
 // Ziel-Anzahl aktiver Prompts je Kunde (Env-übersteuerbar, KEINE Obergrenze).
 // Liegt der Bestand darunter, stockt der Prompt-Runner beim nächsten Lauf
@@ -1312,30 +1831,37 @@ async function seedPromptDefs(
   // Namen fatal (JAG AG = Prozessanlagen/Robotik wurde als Uhrenhändler geseedet,
   // 100 Uhren-Prompts). Mit angebot/kernfakten kann er das Feld nicht mehr erfinden.
   const f = opts.facts;
-  const factsBlock = f && (f.angebot || (Array.isArray(f.kernfakten) && f.kernfakten.length))
-    ? `\nWAS DIE FIRMA TATSÄCHLICH MACHT (verbindlich, halte dich strikt daran — erfinde KEINE fremde Branche): ${f.angebot ? "Angebot: " + f.angebot + ". " : ""}${Array.isArray(f.kernfakten) && f.kernfakten.length ? "Fakten: " + f.kernfakten.join(" | ") : ""}\nDie Prompts MÜSSEN zum oben genannten Angebot passen — Fragen aus einer fremden Branche sind falsch.\n`
-    : "";
+  const factsBlock =
+    f && (f.angebot || (Array.isArray(f.kernfakten) && f.kernfakten.length))
+      ? `\nWAS DIE FIRMA TATSÄCHLICH MACHT (verbindlich, halte dich strikt daran — erfinde KEINE fremde Branche): ${f.angebot ? "Angebot: " + f.angebot + ". " : ""}${Array.isArray(f.kernfakten) && f.kernfakten.length ? "Fakten: " + f.kernfakten.join(" | ") : ""}\nDie Prompts MÜSSEN zum oben genannten Angebot passen — Fragen aus einer fremden Branche sind falsch.\n`
+      : "";
   const text = await askUtility(
     `Du bist SEO/GEO-Analyst. Erzeuge ${count} realistische Suchanfragen (Prompts), die echte potenzielle Kunden an KI-Assistenten stellen und bei denen die Firma "${c.name}" (${cleanDomain(c.domain)}, Markt ${c.country || "CH"}) idealerweise empfohlen werden sollte.${factsBlock} Decke bewusst ab: (a) generische Empfehlungsfragen ("bestes …"), (b) direkte Vergleichs-/Alternativfragen ("Alternativen zu …", "X oder Y"), (c) Long-Tail/Nischen mit spezifischen Anforderungen, (d) transaktionale und (e) lokale Fragen je Land. Mische Sprachen passend zum Markt (v. a. ${c.language || "de"}) und Länder (Schweiz/Deutschland/Österreich/Italien/International). WICHTIG: Prompts dürfen den Firmennamen NICHT enthalten (außer max. 1 Navigations-Prompt).${angle}${avoid} Antworte NUR mit JSON-Array: [{"prompt":"...","topic":"kurzes Themen-Label","intent":"Kommerziell|Informativ|Transaktional|Navigativ","country":"Schweiz|Deutschland|Österreich|Italien|International"}]`,
     4000,
   );
   if (!text) return { defs: [], error: "kein Modell verfügbar (Seeding)" };
   const arr = parseJson(text);
-  if (!Array.isArray(arr) || !arr.length) return { defs: [], error: "Claude lieferte kein parsebares JSON" };
+  if (!Array.isArray(arr) || !arr.length)
+    return { defs: [], error: "Claude lieferte kein parsebares JSON" };
   const seen = new Set(existing.map((p) => p.toLowerCase()));
-  const rows = arr.slice(0, 100).map((p: any) => ({
-    client_id: c.id,
-    prompt: String(p.prompt ?? "").slice(0, 500),
-    topic: String(p.topic ?? "").slice(0, 120) || null,
-    intent: ["Kommerziell", "Informativ", "Transaktional", "Navigativ"].includes(p.intent) ? p.intent : "Informativ",
-    country: String(p.country ?? "Schweiz").slice(0, 40),
-    language: c.language || "de",
-  })).filter((r: any) => {
-    const k = r.prompt.trim().toLowerCase();
-    if (!k || seen.has(k)) return false;
-    seen.add(k); // dedupliziert auch innerhalb der LLM-Antwort
-    return true;
-  });
+  const rows = arr
+    .slice(0, 100)
+    .map((p: any) => ({
+      client_id: c.id,
+      prompt: String(p.prompt ?? "").slice(0, 500),
+      topic: String(p.topic ?? "").slice(0, 120) || null,
+      intent: ["Kommerziell", "Informativ", "Transaktional", "Navigativ"].includes(p.intent)
+        ? p.intent
+        : "Informativ",
+      country: String(p.country ?? "Schweiz").slice(0, 40),
+      language: c.language || "de",
+    }))
+    .filter((r: any) => {
+      const k = r.prompt.trim().toLowerCase();
+      if (!k || seen.has(k)) return false;
+      seen.add(k); // dedupliziert auch innerhalb der LLM-Antwort
+      return true;
+    });
   if (!rows.length) return { defs: [], error: "keine gültigen Prompts im JSON" };
   const { data, error } = await sbAny.from("ai_visibility_prompt_defs").insert(rows).select("*");
   if (error) return { defs: [], error: error.message };
@@ -1348,28 +1874,39 @@ async function seedPromptDefs(
 // (Semrush-Inflation). Merksatz: Markt-Prompts messen, OB man empfohlen wird;
 // Brand-Prompts messen, WAS über einen gesagt wird.
 async function seedBrandPrompts(c: any, sbAny: any): Promise<any[]> {
-  const terms: string[] = Array.isArray(c.brand_terms) && c.brand_terms.length ? c.brand_terms.map(String) : [String(c.name)];
+  const terms: string[] =
+    Array.isArray(c.brand_terms) && c.brand_terms.length
+      ? c.brand_terms.map(String)
+      : [String(c.name)];
   const marke = terms[0] || String(c.name);
   // Top-Konkurrent aus den pr-Daten (SoV) für den Vergleichs-Prompt.
   const { data: topComp } = await sbAny
-    .from("ai_visibility_sov").select("brand").eq("client_id", c.id).eq("is_self", false)
-    .order("mentions", { ascending: false }).limit(1).maybeSingle();
+    .from("ai_visibility_sov")
+    .select("brand")
+    .eq("client_id", c.id)
+    .eq("is_self", false)
+    .order("mentions", { ascending: false })
+    .limit(1)
+    .maybeSingle();
   const text = await askUtility(
     `Du bist SEO/GEO-Analyst. Erzeuge 10 BRAND-Prompts für die Firma "${marke}" (${cleanDomain(c.domain)}, Markt ${c.country || "CH"}, Sprache ${c.language || "de"}) — realistische Fragen, die Nutzer KI-Assistenten ÜBER DIESE MARKE stellen. Decke diese Intents ab (je 1-2 Prompts, natürlich formuliert, Markenname enthalten): Erfahrungen/Bewertungen; empfehlenswert/seriös; was bietet die Firma an; Preise/Kosten; Öffnungszeiten/Kontakt (nur falls lokales Geschäft mit Standort); Vergleich "${marke} vs ${topComp?.brand || "der wichtigste Konkurrent"}"; wem gehört die Firma / wer steckt dahinter. Weitere Markenschreibweisen: ${terms.join(", ")}. Antworte NUR mit JSON-Array: [{"prompt":"...","topic":"Marken-Check","intent":"Navigativ","country":"${c.country === "CH" || !c.country ? "Schweiz" : "International"}"}]`,
     2500,
   );
   const arr = parseJson(text || "");
   if (!Array.isArray(arr) || !arr.length) return [];
-  const rows = arr.slice(0, 12).map((p: any) => ({
-    client_id: c.id,
-    prompt: String(p.prompt ?? "").slice(0, 500),
-    topic: "Marken-Check",
-    intent: "Navigativ",
-    country: String(p.country ?? "Schweiz").slice(0, 40),
-    language: c.language || "de",
-    prompt_type: "brand",
-    needs_review: true,
-  })).filter((r: any) => r.prompt.trim());
+  const rows = arr
+    .slice(0, 12)
+    .map((p: any) => ({
+      client_id: c.id,
+      prompt: String(p.prompt ?? "").slice(0, 500),
+      topic: "Marken-Check",
+      intent: "Navigativ",
+      country: String(p.country ?? "Schweiz").slice(0, 40),
+      language: c.language || "de",
+      prompt_type: "brand",
+      needs_review: true,
+    }))
+    .filter((r: any) => r.prompt.trim());
   if (!rows.length) return [];
   const { data } = await sbAny.from("ai_visibility_prompt_defs").insert(rows).select("*");
   return data || [];
@@ -1378,19 +1915,35 @@ async function seedBrandPrompts(c: any, sbAny: any): Promise<any[]> {
 // Fakten-Kurzprofil je Kunde (brand_facts): Abgleichsbasis für den Brand-Judge.
 // Initial automatisch aus Name/Domain/Homepage generiert, needs_review=true.
 async function getBrandFacts(c: any, sbAny: any): Promise<any> {
-  const { data } = await sbAny.from("ai_visibility_brand_facts").select("facts").eq("client_id", c.id).maybeSingle();
+  const { data } = await sbAny
+    .from("ai_visibility_brand_facts")
+    .select("facts")
+    .eq("client_id", c.id)
+    .maybeSingle();
   if (data?.facts) return data.facts;
   let siteText = "";
   try {
-    const r = await fetch(`https://${cleanDomain(c.domain)}`, { signal: AbortSignal.timeout(8000), headers: { "User-Agent": "Mozilla/5.0 (EzyHub Brand-Facts)" } });
-    siteText = (await r.text()).replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 2500);
-  } catch { /* Profil dann nur aus Grundwissen */ }
+    const r = await fetch(`https://${cleanDomain(c.domain)}`, {
+      signal: AbortSignal.timeout(8000),
+      headers: { "User-Agent": "Mozilla/5.0 (EzyHub Brand-Facts)" },
+    });
+    siteText = (await r.text())
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .slice(0, 2500);
+  } catch {
+    /* Profil dann nur aus Grundwissen */
+  }
   const text = await askUtility(
     `Erstelle ein kompaktes, faktisches Kurzprofil der Firma "${c.name}" (${cleanDomain(c.domain)}, ${c.country || "CH"}) als Abgleichsbasis für einen Fakten-Check. Nur belegbare Kernfakten, KEINE Vermutungen — Unbekanntes weglassen.${siteText ? ` Website-Auszug: ${siteText}` : ""} Antworte NUR mit JSON: {"angebot":"was die Firma anbietet","ort":"Standort(e)","kernfakten":["3-8 kurze Fakten"]}`,
     1800,
   );
   const facts = parseJson(text || "") || { angebot: null, ort: null, kernfakten: [] };
-  await sbAny.from("ai_visibility_brand_facts").upsert({ client_id: c.id, facts, needs_review: true, updated_at: new Date().toISOString() });
+  await sbAny
+    .from("ai_visibility_brand_facts")
+    .upsert({ client_id: c.id, facts, needs_review: true, updated_at: new Date().toISOString() });
   diag(`prompts: brand-facts initial generiert (needsReview)`);
   return facts;
 }
@@ -1403,18 +1956,23 @@ async function getBrandFacts(c: any, sbAny: any): Promise<any> {
 // im Zweifel bleibt der Prompt aktiv — lieber ein Fehltreffer stehen lassen als
 // einen guten Prompt fälschlich abschalten.
 async function auditPromptRelevance(
-  c: any, sbAny: any, facts?: any,
+  c: any,
+  sbAny: any,
+  facts?: any,
 ): Promise<{ checked: number; flagged: number; skipped?: string; flaggedPrompts?: string[] }> {
-  const f = facts ?? await getBrandFacts(c, sbAny).catch(() => null);
+  const f = facts ?? (await getBrandFacts(c, sbAny).catch(() => null));
   if (!f || (!f.angebot && !(Array.isArray(f.kernfakten) && f.kernfakten.length)))
     return { checked: 0, flagged: 0, skipped: "kein Faktenprofil" };
   // Nur aktive Markt-Prompts (Brand-Prompts nennen die Marke direkt, sind per
   // Definition on-topic).
-  let defs: any[] = [];
+  const defs: any[] = [];
   for (let from = 0; ; from += 1000) {
     const { data: page } = await sbAny
-      .from("ai_visibility_prompt_defs").select("id, prompt, prompt_type, active")
-      .eq("client_id", c.id).eq("active", true).range(from, from + 999);
+      .from("ai_visibility_prompt_defs")
+      .select("id, prompt, prompt_type, active")
+      .eq("client_id", c.id)
+      .eq("active", true)
+      .range(from, from + 999);
     defs.push(...(page ?? []));
     if (!page || page.length < 1000) break;
   }
@@ -1440,15 +1998,19 @@ async function auditPromptRelevance(
   if (flaggedIds.length) {
     // Blockweise deaktivieren + zur Prüfung markieren (nie löschen — reversibel).
     for (let i = 0; i < flaggedIds.length; i += 200) {
-      await sbAny.from("ai_visibility_prompt_defs")
+      await sbAny
+        .from("ai_visibility_prompt_defs")
         .update({ active: false, needs_review: true })
         .in("id", flaggedIds.slice(i, i + 200));
     }
   }
-  diag(`relevanz-audit ${c.name}: ${flaggedIds.length}/${markt.length} fremde Markt-Prompts deaktiviert`);
+  diag(
+    `relevanz-audit ${c.name}: ${flaggedIds.length}/${markt.length} fremde Markt-Prompts deaktiviert`,
+  );
   const flaggedSet = new Set(flaggedIds);
   return {
-    checked: markt.length, flagged: flaggedIds.length,
+    checked: markt.length,
+    flagged: flaggedIds.length,
     flaggedPrompts: markt.filter((d: any) => flaggedSet.has(d.id)).map((d: any) => d.prompt),
   };
 }
@@ -1461,18 +2023,35 @@ async function auditPromptRelevance(
 // aktivieren, "fremd" → archivieren (reversibel, Tab Archiviert), "unklar" →
 // bleibt in der Queue. Ohne Faktenprofil wird NICHTS entschieden.
 async function autoCuratePrompts(
-  c: any, sbAny: any, facts?: any,
-): Promise<{ pending: number; approved: number; archived: number; unclear: number; skipped?: string; archivedIds?: string[] }> {
+  c: any,
+  sbAny: any,
+  facts?: any,
+): Promise<{
+  pending: number;
+  approved: number;
+  archived: number;
+  unclear: number;
+  skipped?: string;
+  archivedIds?: string[];
+}> {
   const { data: pend } = await sbAny
     .from("ai_visibility_prompt_defs")
     .select("id, prompt, prompt_type, active")
-    .eq("client_id", c.id).eq("needs_review", true).limit(1000);
+    .eq("client_id", c.id)
+    .eq("needs_review", true)
+    .limit(1000);
   const pending: any[] = pend ?? [];
   if (!pending.length) return { pending: 0, approved: 0, archived: 0, unclear: 0 };
 
-  const terms: string[] = (Array.isArray(c.brand_terms) && c.brand_terms.length ? c.brand_terms : [c.name])
-    .map((t: any) => String(t).trim().toLowerCase()).filter(Boolean);
-  const hasBrand = (p: string) => { const s = p.toLowerCase(); return terms.some((t) => s.includes(t)); };
+  const terms: string[] = (
+    Array.isArray(c.brand_terms) && c.brand_terms.length ? c.brand_terms : [c.name]
+  )
+    .map((t: any) => String(t).trim().toLowerCase())
+    .filter(Boolean);
+  const hasBrand = (p: string) => {
+    const s = p.toLowerCase();
+    return terms.some((t) => s.includes(t));
+  };
 
   const approveIds: string[] = [];
   const archiveIds: string[] = [];
@@ -1483,7 +2062,7 @@ async function autoCuratePrompts(
     else rest.push(d);
   }
   // (2) LLM-Check nur für den Rest — und nur mit Faktenprofil als Erdung.
-  const f = facts ?? await getBrandFacts(c, sbAny).catch(() => null);
+  const f = facts ?? (await getBrandFacts(c, sbAny).catch(() => null));
   const hasFacts = f && (f.angebot || (Array.isArray(f.kernfakten) && f.kernfakten.length));
   if (rest.length && hasFacts) {
     const factsText = `${f.angebot ? "Angebot: " + f.angebot + ". " : ""}${Array.isArray(f.kernfakten) && f.kernfakten.length ? "Fakten: " + f.kernfakten.join(" | ") : ""}`;
@@ -1496,25 +2075,36 @@ async function autoCuratePrompts(
       );
       const parsed = parseJson(text || "") || {};
       for (const n of Array.isArray(parsed.passt) ? parsed.passt : []) {
-        const d = block[Number(n)]; if (d?.id) approveIds.push(d.id);
+        const d = block[Number(n)];
+        if (d?.id) approveIds.push(d.id);
       }
       for (const n of Array.isArray(parsed.fremd) ? parsed.fremd : []) {
-        const d = block[Number(n)]; if (d?.id && !approveIds.includes(d.id)) archiveIds.push(d.id);
+        const d = block[Number(n)];
+        if (d?.id && !approveIds.includes(d.id)) archiveIds.push(d.id);
       }
     }
   }
   for (let i = 0; i < approveIds.length; i += 200) {
-    await sbAny.from("ai_visibility_prompt_defs")
-      .update({ needs_review: false, active: true }).in("id", approveIds.slice(i, i + 200));
+    await sbAny
+      .from("ai_visibility_prompt_defs")
+      .update({ needs_review: false, active: true })
+      .in("id", approveIds.slice(i, i + 200));
   }
   for (let i = 0; i < archiveIds.length; i += 200) {
-    await sbAny.from("ai_visibility_prompt_defs")
-      .update({ needs_review: false, active: false }).in("id", archiveIds.slice(i, i + 200));
+    await sbAny
+      .from("ai_visibility_prompt_defs")
+      .update({ needs_review: false, active: false })
+      .in("id", archiveIds.slice(i, i + 200));
   }
   const unclear = pending.length - approveIds.length - archiveIds.length;
-  diag(`auto-kuration ${c.name}: ${approveIds.length} freigegeben, ${archiveIds.length} archiviert, ${unclear} bleiben zur Prüfung`);
+  diag(
+    `auto-kuration ${c.name}: ${approveIds.length} freigegeben, ${archiveIds.length} archiviert, ${unclear} bleiben zur Prüfung`,
+  );
   return {
-    pending: pending.length, approved: approveIds.length, archived: archiveIds.length, unclear,
+    pending: pending.length,
+    approved: approveIds.length,
+    archived: archiveIds.length,
+    unclear,
     skipped: rest.length && !hasFacts ? "kein Faktenprofil — nur Brand-Regel angewandt" : undefined,
     archivedIds: archiveIds,
   };
@@ -1526,18 +2116,26 @@ async function autoCuratePrompts(
 // Runner filtert deaktivierte Namen künftig aus SoV/Auto-Learning heraus).
 // SoV-Zeilen der Deaktivierten werden entfernt, damit Rankings sofort sauber sind.
 async function auditCompetitorRelevance(
-  c: any, sbAny: any,
+  c: any,
+  sbAny: any,
 ): Promise<{ checked: number; flagged: number; skipped?: string; flaggedNames?: string[] }> {
   const f = await getBrandFacts(c, sbAny).catch(() => null);
   if (!f || (!f.angebot && !(Array.isArray(f.kernfakten) && f.kernfakten.length)))
     return { checked: 0, flagged: 0, skipped: "kein Faktenprofil" };
   const { data: comps } = await sbAny
-    .from("ai_visibility_competitors").select("id, name, active").eq("client_id", c.id);
-  const byLower = new Map<string, any>((comps ?? []).map((x: any) => [String(x.name).toLowerCase(), x]));
+    .from("ai_visibility_competitors")
+    .select("id, name, active")
+    .eq("client_id", c.id);
+  const byLower = new Map<string, any>(
+    (comps ?? []).map((x: any) => [String(x.name).toLowerCase(), x]),
+  );
   // Auch Marken prüfen, die nur in der aktuellen SoV stehen (Judge-Top-12 ohne Fixlisten-Eintrag).
   const { data: rep } = await sbAny
-    .from("ai_visibility_reports").select("id").eq("client_id", c.id)
-    .order("snapshot_date", { ascending: false }).limit(1);
+    .from("ai_visibility_reports")
+    .select("id")
+    .eq("client_id", c.id)
+    .order("snapshot_date", { ascending: false })
+    .limit(1);
   const { data: sovRows } = rep?.[0]
     ? await sbAny.from("ai_visibility_sov").select("brand, is_self").eq("report_id", rep[0].id)
     : { data: [] as any[] };
@@ -1546,13 +2144,19 @@ async function auditCompetitorRelevance(
   for (const x of comps ?? []) {
     if (!x.active) continue; // bereits deaktiviert = bereits ausgeschlossen
     const k = String(x.name).toLowerCase();
-    if (!seen.has(k)) { seen.add(k); items.push({ name: x.name, id: x.id }); }
+    if (!seen.has(k)) {
+      seen.add(k);
+      items.push({ name: x.name, id: x.id });
+    }
   }
   for (const s of sovRows ?? []) {
     if (s.is_self) continue;
     const k = String(s.brand).toLowerCase();
     if (byLower.get(k)?.active === false) continue;
-    if (!seen.has(k)) { seen.add(k); items.push({ name: String(s.brand), id: byLower.get(k)?.id }); }
+    if (!seen.has(k)) {
+      seen.add(k);
+      items.push({ name: String(s.brand), id: byLower.get(k)?.id });
+    }
   }
   if (!items.length) return { checked: 0, flagged: 0, skipped: "keine Konkurrenten" };
   const factsText = `${f.angebot ? "Angebot: " + f.angebot + ". " : ""}${Array.isArray(f.kernfakten) && f.kernfakten.length ? "Fakten: " + f.kernfakten.join(" | ") : ""}`;
@@ -1569,28 +2173,47 @@ async function auditCompetitorRelevance(
       await sbAny.from("ai_visibility_competitors").update({ active: false }).eq("id", d.id);
     } else {
       // Ausschluss-Marker für Nur-SoV-Marken: inaktiver Fixlisten-Eintrag.
-      await sbAny.from("ai_visibility_competitors")
-        .upsert([{ client_id: c.id, name: d.name, active: false, source: "audit" }], { onConflict: "client_id,name" });
+      await sbAny
+        .from("ai_visibility_competitors")
+        .upsert([{ client_id: c.id, name: d.name, active: false, source: "audit" }], {
+          onConflict: "client_id,name",
+        });
     }
     await sbAny.from("ai_visibility_sov").delete().eq("client_id", c.id).ilike("brand", d.name);
   }
-  diag(`konkurrenten-audit ${c.name}: ${flagged.length}/${items.length} branchenfremde deaktiviert`);
-  return { checked: items.length, flagged: flagged.length, flaggedNames: flagged.map((d) => d.name) };
+  diag(
+    `konkurrenten-audit ${c.name}: ${flagged.length}/${items.length} branchenfremde deaktiviert`,
+  );
+  return {
+    checked: items.length,
+    flagged: flagged.length,
+    flaggedNames: flagged.map((d) => d.name),
+  };
 }
 
 // Brand-Judge (E2): bewertet WAS über die Marke gesagt wird — Faktentreue
 // gegen brand_facts, Tonalität, Halluzinationen (mit Zitat), Quellen,
 // Konkurrenz-Nennungen. temp 0 + Modell-Snapshot wie beim Markt-Judge.
-async function judgeBrandAnswers(brand: string, facts: any, items: Array<{ i: number; platform: string; text: string }>) {
+async function judgeBrandAnswers(
+  brand: string,
+  facts: any,
+  items: Array<{ i: number; platform: string; text: string }>,
+) {
   const head = `Du prüfst KI-Antworten über die Marke "${brand}". Abgleichsbasis (Faktenprofil): ${JSON.stringify(facts).slice(0, 1200)}\nFür JEDE Antwort ein Objekt:\n{"i":<nr>,"faktentreue":"korrekt"|"teilweise"|"falsch"|"veraltet"|"unbewertbar","tonalitaet":"positiv"|"neutral"|"negativ"|"warnend","halluzination":"wörtliches Zitat der frei erfundenen Angabe"|null,"quellen":["explizit genannte Quell-URLs oder Domains, max 8"],"konkurrenz":["andere genannte Firmen/Marken OHNE die Zielmarke, max 8"]}\nSei streng: "falsch"/"veraltet" nur bei klarem Widerspruch zum Faktenprofil; Halluzination = konkrete erfundene Angabe (Adresse, Zahl, Angebot), nicht blosse Allgemeinheit. Antworte NUR mit JSON-Array.\n\n`;
   const CHUNK = 8;
   const map: Record<number, any> = {};
   const chunks: Array<typeof items> = [];
   for (let off = 0; off < items.length; off += CHUNK) chunks.push(items.slice(off, off + CHUNK));
-  const results = await pMap(chunks, (ch) => {
-    const list = ch.map((a) => `#${a.i} [${a.platform}] ${String(a.text).slice(0, 3000)}`).join("\n---\n");
-    return askUtilityMeta(head + list, 4000, SCORE_CFG.judge.temperature).catch(() => null);
-  }, 4);
+  const results = await pMap(
+    chunks,
+    (ch) => {
+      const list = ch
+        .map((a) => `#${a.i} [${a.platform}] ${String(a.text).slice(0, 3000)}`)
+        .join("\n---\n");
+      return askUtilityMeta(head + list, 4000, SCORE_CFG.judge.temperature).catch(() => null);
+    },
+    4,
+  );
   const models = new Set<string>();
   for (const r of results) {
     if (!r?.text) continue;
@@ -1613,22 +2236,37 @@ async function runJudgeCalibration(): Promise<{ pct: number; n: number } | null>
     arr.push({ i, platform: a.platform, text: a.text, exp: a.expected });
     byBrand.set(a.brand, arr);
   });
-  let ok = 0, n = 0;
+  let ok = 0,
+    n = 0;
   const groups = [...byBrand.entries()];
-  await pMap(groups, async ([brand, items]) => {
-    const res = await judgeAnswers(brand, [], items.map((x) => ({ i: x.i, platform: x.platform, text: x.text }))).catch(() => null);
-    for (const x of items) {
-      const j = res?.map?.[x.i];
-      n += 1;
-      if (j && !!j.mentioned === !!x.exp.mentioned && !!j.cited === !!x.exp.cited) ok += 1;
-    }
-  }, 3);
+  await pMap(
+    groups,
+    async ([brand, items]) => {
+      const res = await judgeAnswers(
+        brand,
+        [],
+        items.map((x) => ({ i: x.i, platform: x.platform, text: x.text })),
+      ).catch(() => null);
+      for (const x of items) {
+        const j = res?.map?.[x.i];
+        n += 1;
+        if (j && !!j.mentioned === !!x.exp.mentioned && !!j.cited === !!x.exp.cited) ok += 1;
+      }
+    },
+    3,
+  );
   return n ? { pct: Math.round((ok / n) * 100), n } : null;
 }
 
 // LLM-Judge (A): jede Antwort strukturiert bewerten statt Regex.
-async function judgeAnswers(brand: string, comps: string[], items: Array<{ i: number; platform: string; text: string }>) {
-  const hint = comps.length ? `Bekannte Konkurrenten (nutze diese Schreibweise, ergänze neue): ${comps.join(", ")}. ` : "";
+async function judgeAnswers(
+  brand: string,
+  comps: string[],
+  items: Array<{ i: number; platform: string; text: string }>,
+) {
+  const hint = comps.length
+    ? `Bekannte Konkurrenten (nutze diese Schreibweise, ergänze neue): ${comps.join(", ")}. `
+    : "";
   const head = `Du bewertest KI-Antworten für die Zielmarke "${brand}". ${hint}Für JEDE Antwort ein Objekt:\n{"i":<nr>,"mentioned":true|false (wird die Zielmarke genannt?),"cited":true|false (wird ihre Website/Domain als Quelle genannt/verlinkt?),"position":"top"|"list"|"passing"|"none" (top=klare Top-Empfehlung, list=eine von mehreren gleichrangig, passing=nur Randnotiz, none=nicht genannt),"sentiment":"pos"|"neu"|"neg"|null (Tonalität ggü. der Zielmarke),"competitors":["NUR direkte Wettbewerber der Zielmarke (vergleichbares Angebot/gleiche Branche), max 8 — KEINE Produkt-/Möbelmarken, Software, Portale, Medien oder Grosskonzerne anderer Branchen"],"comp_positions":[{"n":"<Konkurrent aus competitors>","p":"top"|"list"|"passing","s":"pos"|"neu"|"neg","d":"offizielle Website-Domain des Konkurrenten, nur falls sicher bekannt (z.B. helvetas.org) — sonst weglassen"}] (Position + Tonalität JEDES genannten Konkurrenten, gleiche Skalen),"sources":["explizit genannte Quell-URLs, max 8"]}\nSei streng: Substring-Zufallstreffer sind KEINE Erwähnung. Antworte NUR mit JSON-Array.\n\n`;
   // Judge in Blöcken -> skaliert auf beliebig viele Prompts (ohne Token-Limit zu sprengen).
   // Blöcke PARALLEL (2026-07-16): sequenziell traf jeder Block die volle
@@ -1641,10 +2279,16 @@ async function judgeAnswers(brand: string, comps: string[], items: Array<{ i: nu
   for (let off = 0; off < items.length; off += CHUNK) chunks.push(items.slice(off, off + CHUNK));
   // Judge-Härtung (Score v2): temperature 0 (deterministisch) + aufgelöste
   // Modell-Snapshot-Namen je Bewertungs-Block festhalten (nie nur Alias).
-  const results = await pMap(chunks, (ch) => {
-    const list = ch.map((a) => `#${a.i} [${a.platform}] ${String(a.text).slice(0, 3000)}`).join("\n---\n");
-    return askUtilityMeta(head + list, 4000, SCORE_CFG.judge.temperature).catch(() => null); // Failover-Kette: Claude -> DeepSeek -> ...
-  }, 5); // max 5 Judge-Bloecke gleichzeitig — Kompromiss: volle Salve gab 529,
+  const results = await pMap(
+    chunks,
+    (ch) => {
+      const list = ch
+        .map((a) => `#${a.i} [${a.platform}] ${String(a.text).slice(0, 3000)}`)
+        .join("\n---\n");
+      return askUtilityMeta(head + list, 4000, SCORE_CFG.judge.temperature).catch(() => null); // Failover-Kette: Claude -> DeepSeek -> ...
+    },
+    5,
+  ); // max 5 Judge-Bloecke gleichzeitig — Kompromiss: volle Salve gab 529,
   // aber Laeufe muessen unter das ~300s-Gateway-Kap (2 Kunden rissen es bei 3)
   const models = new Set<string>();
   for (const r of results) {
@@ -1704,7 +2348,8 @@ async function jobPromptRunner(
       "Fokus: situationsgetriebene Fragen (kurzfristig, mit Haustier, Gruppen, barrierefrei, Wetter)",
       "Fokus: Umgebungs-, Anreise- und Kombinationsfragen je Land/Region",
     ];
-    let attempt = 0, zero = 0;
+    let attempt = 0,
+      zero = 0;
     while (marktDefs.length < target && attempt < 6 && zero < 3) {
       const s = await seedPromptDefs(c, sbAny, {
         count: target - marktDefs.length,
@@ -1713,7 +2358,11 @@ async function jobPromptRunner(
         facts: seedFacts,
       });
       attempt += 1;
-      if (!s.defs.length) { zero += 1; seedError = s.error; continue; }
+      if (!s.defs.length) {
+        zero += 1;
+        seedError = s.error;
+        continue;
+      }
       zero = 0;
       marktDefs = [...marktDefs, ...s.defs];
       seeded += s.defs.length;
@@ -1722,7 +2371,10 @@ async function jobPromptRunner(
     // bleibt menschlich, der Lauf startet trotzdem (Aktivierungs-Absicht).
     if (!brandDefs.length) {
       const bs = await seedBrandPrompts(c, sbAny).catch(() => []);
-      if (bs.length) { brandDefs = bs; diag(`prompts: Brand-Set generiert (${bs.length}, needsReview)`); }
+      if (bs.length) {
+        brandDefs = bs;
+        diag(`prompts: Brand-Set generiert (${bs.length}, needsReview)`);
+      }
     }
     // Relevanz-Selbstcheck direkt nach dem Seeding: fremd-thematische Markt-
     // Prompts sofort deaktivieren, damit sie gar nicht erst gemessen/angezeigt
@@ -1731,7 +2383,10 @@ async function jobPromptRunner(
       const audit = await auditPromptRelevance(c, sbAny, seedFacts).catch(() => null);
       if (audit?.flagged) {
         const { data: stillActive } = await sbAny
-          .from("ai_visibility_prompt_defs").select("id").eq("client_id", c.id).eq("active", true);
+          .from("ai_visibility_prompt_defs")
+          .select("id")
+          .eq("client_id", c.id)
+          .eq("active", true);
         const okIds = new Set((stillActive ?? []).map((r: any) => r.id));
         marktDefs = marktDefs.filter((d: any) => okIds.has(d.id));
         diag(`prompts: Relevanz-Audit entfernte ${audit.flagged} fremde Prompts aus dem Lauf`);
@@ -1765,9 +2420,16 @@ async function jobPromptRunner(
   if (!slice.length) return { skipped: `promptOffset ${offset} >= ${allDefs.length} Defs` };
   const next = chunked && offset + slice.length < allDefs.length ? offset + slice.length : null;
   defs = slice;
-  diag(`prompts: ${allDefs.length} defs geladen (seeded ${seeded}${chunked ? `, Häppchen ${offset}–${offset + slice.length}` : ""})`);
+  diag(
+    `prompts: ${allDefs.length} defs geladen (seeded ${seeded}${chunked ? `, Häppchen ${offset}–${offset + slice.length}` : ""})`,
+  );
 
-  const nameRe = new RegExp(String(c.name || "").trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+  const nameRe = new RegExp(
+    String(c.name || "")
+      .trim()
+      .replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+    "i",
+  );
   const domain = cleanDomain(c.domain);
 
   // Alle Engines × Prompts.
@@ -1781,23 +2443,30 @@ async function jobPromptRunner(
   const engineList = opts.engines?.length
     ? PROMPT_ENGINES.filter((e) => opts.engines!.includes(e.name))
     : activePromptEngines();
-  const engineAnswers = await Promise.all(engineList.map(async (eng) => {
-    // Harte Deadline je Call: AbortSignal wird von der Runtime ignoriert
-    // (2026-07-14 verifiziert) — ohne Promise.race haengt EIN toter Provider-
-    // Call den gesamten Lauf endlos. Max 10 gleichzeitig je Provider, 90s je
-    // Ask: der GESAMTE Lauf muss unter das ~300s-Gateway-Kap; websearch-lastige
-    // Prompts (B5) brauchten bei conc 6/120s allein 4+ Min fuer die Engines.
-    const ask = (d: any) => withDeadline(eng.ask(d.prompt), 90_000, `ask:${eng.name}`).catch(() => null);
-    const answers = await pMap(defs, ask, 10);
-    // Ein Retry-Durchgang fuer leere Antworten (Rate-Limit-Erholung), gedrosselt.
-    const misses = answers.map((a: any, i: number) => (!a || !a.text ? i : -1)).filter((i) => i >= 0);
-    if (misses.length && misses.length < defs.length) {
-      await new Promise((r) => setTimeout(r, 2000));
-      const retries = await pMap(misses, (i: number) => ask(defs[i]), 5);
-      retries.forEach((a: any, k: number) => { if (a && a.text) answers[misses[k]] = a; });
-    }
-    return { eng, answers };
-  }));
+  const engineAnswers = await Promise.all(
+    engineList.map(async (eng) => {
+      // Harte Deadline je Call: AbortSignal wird von der Runtime ignoriert
+      // (2026-07-14 verifiziert) — ohne Promise.race haengt EIN toter Provider-
+      // Call den gesamten Lauf endlos. Max 10 gleichzeitig je Provider, 90s je
+      // Ask: der GESAMTE Lauf muss unter das ~300s-Gateway-Kap; websearch-lastige
+      // Prompts (B5) brauchten bei conc 6/120s allein 4+ Min fuer die Engines.
+      const ask = (d: any) =>
+        withDeadline(eng.ask(d.prompt), 90_000, `ask:${eng.name}`).catch(() => null);
+      const answers = await pMap(defs, ask, 10);
+      // Ein Retry-Durchgang fuer leere Antworten (Rate-Limit-Erholung), gedrosselt.
+      const misses = answers
+        .map((a: any, i: number) => (!a || !a.text ? i : -1))
+        .filter((i) => i >= 0);
+      if (misses.length && misses.length < defs.length) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const retries = await pMap(misses, (i: number) => ask(defs[i]), 5);
+        retries.forEach((a: any, k: number) => {
+          if (a && a.text) answers[misses[k]] = a;
+        });
+      }
+      return { eng, answers };
+    }),
+  );
   // Brand-Antworten SEPARAT halten (Marken-Check): sie fliessen NIE in die
   // Sichtbarkeits-Aggregate (SoV/PosQ/Mentions) — `rows` = NUR Markt-Zeilen.
   const bRows: any[] = [];
@@ -1807,7 +2476,8 @@ async function jobPromptRunner(
         if (a?.error && !engineErrors[eng.name]) engineErrors[eng.name] = a.error;
         return;
       }
-      if ((defs[i]?.prompt_type || "markt") === "brand") bRows.push({ i: bRows.length, def: defs[i], platform: eng.name, text: a.text });
+      if ((defs[i]?.prompt_type || "markt") === "brand")
+        bRows.push({ i: bRows.length, def: defs[i], platform: eng.name, text: a.text });
       else rows.push({ i: rows.length, def: defs[i], platform: eng.name, text: a.text });
     });
   }
@@ -1818,28 +2488,48 @@ async function jobPromptRunner(
   // Harte Gesamt-Deadline (2026-07-16): der Judge darf den Lauf nie ueber das
   // Hosting-Kap (~10 Min) schieben — lieber Regex-Fallback als toter Lauf.
   const judgeRes = await withDeadline(
-    judgeAnswers(c.name, fixedComps, rows.map((r) => ({ i: r.i, platform: r.platform, text: r.text }))),
+    judgeAnswers(
+      c.name,
+      fixedComps,
+      rows.map((r) => ({ i: r.i, platform: r.platform, text: r.text })),
+    ),
     5 * 60_000,
     "judge",
   ).catch(() => null);
   const judged = judgeRes?.map ?? null;
   const judgeModels: string[] = judgeRes?.models ?? [];
-  diag(`prompts: Judge fertig (${judged ? Object.keys(judged).length : "Fallback Regex"}${judgeModels.length ? ", " + judgeModels.join("+") : ""})`);
+  diag(
+    `prompts: Judge fertig (${judged ? Object.keys(judged).length : "Fallback Regex"}${judgeModels.length ? ", " + judgeModels.join("+") : ""})`,
+  );
   const evals = rows.map((r) => {
     const j = judged?.[r.i];
     if (j) {
       return {
         mentioned: !!j.mentioned || !!j.cited,
         cited: !!j.cited,
-        position: ["top", "list", "passing", "none"].includes(j.position) ? j.position : (j.mentioned ? "list" : "none"),
+        position: ["top", "list", "passing", "none"].includes(j.position)
+          ? j.position
+          : j.mentioned
+            ? "list"
+            : "none",
         sentiment: ["pos", "neu", "neg"].includes(j.sentiment) ? j.sentiment : null,
-        competitors: Array.isArray(j.competitors) ? j.competitors.map((x: any) => String(x).trim()).filter(Boolean).slice(0, 8) : [],
+        competitors: Array.isArray(j.competitors)
+          ? j.competitors
+              .map((x: any) => String(x).trim())
+              .filter(Boolean)
+              .slice(0, 8)
+          : [],
         // Rival-Positionen (H, 03.08.): {n: Name, p: top|list|passing} je Konkurrent.
         compPositions: Array.isArray(j.comp_positions)
           ? j.comp_positions
               .map((x: any) => {
                 // Rival-Domain (04.08., für echte Marken-Logos statt Rate-Kette).
-                const dom = String(x?.d || "").toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "").trim();
+                const dom = String(x?.d || "")
+                  .toLowerCase()
+                  .replace(/^https?:\/\//, "")
+                  .replace(/^www\./, "")
+                  .replace(/\/.*$/, "")
+                  .trim();
                 return {
                   n: String(x?.n || "").trim(),
                   p: ["top", "list", "passing"].includes(x?.p) ? x.p : "list",
@@ -1856,7 +2546,15 @@ async function jobPromptRunner(
     }
     const cited = domain ? r.text.toLowerCase().includes(domain.toLowerCase()) : false;
     const mentioned = nameRe.test(r.text) || cited;
-    return { mentioned, cited, position: mentioned ? "list" : "none", sentiment: null as string | null, competitors: [] as string[], compPositions: [] as any[], sources: urlListIn(r.text) };
+    return {
+      mentioned,
+      cited,
+      position: mentioned ? "list" : "none",
+      sentiment: null as string | null,
+      competitors: [] as string[],
+      compPositions: [] as any[],
+      sources: urlListIn(r.text),
+    };
   });
 
   // Antwort-Speicherung (17.08., Volkan-Befund): Der Status wird auf dem
@@ -1914,7 +2612,11 @@ async function jobPromptRunner(
   if (bRows.length) {
     brandFacts = await getBrandFacts(c, sbAny).catch(() => null);
     const bj = await withDeadline(
-      judgeBrandAnswers(c.name, brandFacts || {}, bRows.map((r) => ({ i: r.i, platform: r.platform, text: r.text }))),
+      judgeBrandAnswers(
+        c.name,
+        brandFacts || {},
+        bRows.map((r) => ({ i: r.i, platform: r.platform, text: r.text })),
+      ),
       4 * 60_000,
       "brand-judge",
     ).catch(() => ({ map: {} as Record<number, any>, models: [] as string[] }));
@@ -1922,14 +2624,29 @@ async function jobPromptRunner(
     bEvals = bRows.map((r) => {
       const j = bj.map[r.i] || {};
       return {
-        faktentreue: ["korrekt", "teilweise", "falsch", "veraltet", "unbewertbar"].includes(j.faktentreue) ? j.faktentreue : "unbewertbar",
-        tonalitaet: ["positiv", "neutral", "negativ", "warnend"].includes(j.tonalitaet) ? j.tonalitaet : "neutral",
+        faktentreue: ["korrekt", "teilweise", "falsch", "veraltet", "unbewertbar"].includes(
+          j.faktentreue,
+        )
+          ? j.faktentreue
+          : "unbewertbar",
+        tonalitaet: ["positiv", "neutral", "negativ", "warnend"].includes(j.tonalitaet)
+          ? j.tonalitaet
+          : "neutral",
         halluzination: j.halluzination ? String(j.halluzination).slice(0, 300) : null,
-        quellen: Array.isArray(j.quellen) ? j.quellen.map(String).slice(0, 8) : urlListIn(r.text).slice(0, 8),
-        konkurrenz: Array.isArray(j.konkurrenz) ? j.konkurrenz.map((x: any) => String(x).trim()).filter(Boolean).slice(0, 8) : [],
+        quellen: Array.isArray(j.quellen)
+          ? j.quellen.map(String).slice(0, 8)
+          : urlListIn(r.text).slice(0, 8),
+        konkurrenz: Array.isArray(j.konkurrenz)
+          ? j.konkurrenz
+              .map((x: any) => String(x).trim())
+              .filter(Boolean)
+              .slice(0, 8)
+          : [],
       };
     });
-    diag(`prompts: Brand-Judge fertig (${bRows.length}${brandJudgeModels.length ? ", " + brandJudgeModels.join("+") : ""})`);
+    diag(
+      `prompts: Brand-Judge fertig (${bRows.length}${brandJudgeModels.length ? ", " + brandJudgeModels.join("+") : ""})`,
+    );
   }
   const brandPromptRows = bRows.map((r, k) => {
     const e = bEvals[k] || {};
@@ -1940,8 +2657,12 @@ async function jobPromptRunner(
       // Erwähnt-Status seit 10.08. auch bei Brand-Zeilen (Branded-&-Unbranded-
       // Sicht im Dashboard braucht ihn; vorher bewusst NULL). Simple Text-
       // Erkennung genügt — bei Marken-Fragen ist die Nennung trivial.
-      status: domain && r.text.toLowerCase().includes(domain.toLowerCase())
-        ? "Referenziert" : nameRe.test(r.text) ? "Erwähnt" : "Nicht erwähnt",
+      status:
+        domain && r.text.toLowerCase().includes(domain.toLowerCase())
+          ? "Referenziert"
+          : nameRe.test(r.text)
+            ? "Erwähnt"
+            : "Nicht erwähnt",
       is_opportunity: false,
       intent: r.def.intent || "Navigativ",
       sentiment: null,
@@ -1953,7 +2674,10 @@ async function jobPromptRunner(
       response: storeAnswer(r.text),
       competitors: e.konkurrenz || [],
       prompt_type: "brand",
-      brand_eval: { ...e, judge: { models: brandJudgeModels, temperature: SCORE_CFG.judge.temperature } },
+      brand_eval: {
+        ...e,
+        judge: { models: brandJudgeModels, temperature: SCORE_CFG.judge.temperature },
+      },
       topic: r.def.topic || null,
       source_urls: (e.quellen || []).slice(0, 20),
       checked_at: new Date().toISOString(),
@@ -1965,10 +2689,17 @@ async function jobPromptRunner(
   // rechnet erst das letzte Häppchen über alle Antworten des Tages.
   if (next != null) {
     const byEnginePart: Record<string, number> = {};
-    for (const r of [...rows, ...bRows]) byEnginePart[r.platform] = (byEnginePart[r.platform] || 0) + 1;
+    for (const r of [...rows, ...bRows])
+      byEnginePart[r.platform] = (byEnginePart[r.platform] || 0) + 1;
     return {
-      promptRows, seeded, answered: rows.length + bRows.length, byEngine: byEnginePart, engineErrors,
-      partial: true, chunk: { offset, next, total: allDefs.length }, engineFilter: opts.engines ?? null,
+      promptRows,
+      seeded,
+      answered: rows.length + bRows.length,
+      byEngine: byEnginePart,
+      engineErrors,
+      partial: true,
+      chunk: { offset, next, total: allDefs.length },
+      engineFilter: opts.engines ?? null,
     };
   }
 
@@ -1976,14 +2707,20 @@ async function jobPromptRunner(
   // damit SoV/Themen/Modelle/Quellen über ALLE Antworten des Tages rechnen.
   if (chunked && offset > 0 && opts.snapshot) {
     const { data: repRow } = await sbAny
-      .from("ai_visibility_reports").select("id")
-      .eq("client_id", c.id).eq("snapshot_date", opts.snapshot).maybeSingle();
+      .from("ai_visibility_reports")
+      .select("id")
+      .eq("client_id", c.id)
+      .eq("snapshot_date", opts.snapshot)
+      .maybeSingle();
     if (repRow) {
       const prior: any[] = [];
       for (let from = 0; ; from += 1000) {
         const { data: page } = await sbAny
-          .from("ai_visibility_prompts").select("*")
-          .eq("report_id", repRow.id).order("id", { ascending: true }).range(from, from + 999);
+          .from("ai_visibility_prompts")
+          .select("*")
+          .eq("report_id", repRow.id)
+          .order("id", { ascending: true })
+          .range(from, from + 999);
         prior.push(...(page ?? []));
         if (!page || page.length < 1000) break;
       }
@@ -1992,7 +2729,11 @@ async function jobPromptRunner(
       let merged = 0;
       for (const p of prior) {
         if (currentKeys.has(`${p.prompt}·${p.platform}`)) continue;
-        const d = defMeta.get(p.prompt) || { prompt: p.prompt, country: p.country, intent: p.intent };
+        const d = defMeta.get(p.prompt) || {
+          prompt: p.prompt,
+          country: p.country,
+          intent: p.intent,
+        };
         // Brand-Zeilen früherer Etappen -> in den Marken-Check, NIE in die
         // Sichtbarkeits-Aggregate.
         if ((p.prompt_type || "markt") === "brand") {
@@ -2016,7 +2757,10 @@ async function jobPromptRunner(
           sentiment: p.sentiment ?? null,
           competitors: Array.isArray(p.competitors) ? p.competitors.map(String) : [],
           compPositions: Array.isArray(p.comp_positions) ? p.comp_positions : [],
-          sources: Array.isArray(p.source_urls) && p.source_urls.length ? p.source_urls.map(String) : urlListIn(String(p.response || "")),
+          sources:
+            Array.isArray(p.source_urls) && p.source_urls.length
+              ? p.source_urls.map(String)
+              : urlListIn(String(p.response || "")),
         });
         merged += 1;
       }
@@ -2029,10 +2773,14 @@ async function jobPromptRunner(
   let judgeCalibration: { pct: number; n: number } | null = null;
   const baseline: string[] = SCORE_CFG.judge.baselineModels || [];
   if (judgeModels.length && judgeModels.some((m) => !baseline.some((b) => m.startsWith(b)))) {
-    judgeCalibration = await withDeadline(runJudgeCalibration(), 90_000, "judge-calibration").catch(() => null);
+    judgeCalibration = await withDeadline(runJudgeCalibration(), 90_000, "judge-calibration").catch(
+      () => null,
+    );
     if (judgeCalibration) {
       const warn = judgeCalibration.pct < SCORE_CFG.judge.calibrationThresholdPct;
-      diag(`prompts: Judge-Kalibrierung ${judgeCalibration.pct}% (${judgeCalibration.n} Anker)${warn ? ` ⚠️ unter ${SCORE_CFG.judge.calibrationThresholdPct}%` : ""}`);
+      diag(
+        `prompts: Judge-Kalibrierung ${judgeCalibration.pct}% (${judgeCalibration.n} Anker)${warn ? ` ⚠️ unter ${SCORE_CFG.judge.calibrationThresholdPct}%` : ""}`,
+      );
     }
   }
 
@@ -2040,8 +2788,13 @@ async function jobPromptRunner(
   // Ausschluss-Marker (04.08.): als branchenfremd deaktivierte Namen (Audit
   // oder manuell) fliessen NIE in SoV/Auto-Learning — Anlass IKEA bei Studioforma.
   const { data: inactiveComps } = await sbAny
-    .from("ai_visibility_competitors").select("name").eq("client_id", c.id).eq("active", false);
-  const excludedComps = new Set((inactiveComps ?? []).map((r: any) => String(r.name).toLowerCase()));
+    .from("ai_visibility_competitors")
+    .select("name")
+    .eq("client_id", c.id)
+    .eq("active", false);
+  const excludedComps = new Set(
+    (inactiveComps ?? []).map((r: any) => String(r.name).toLowerCase()),
+  );
   const compTally: Record<string, { name: string; n: number }> = {};
   const selfMentions = evals.filter((e) => e.mentioned).length;
   for (const e of evals) {
@@ -2059,15 +2812,29 @@ async function jobPromptRunner(
       if (n > 0) compTally[kk] = { name: fc, n };
     }
   }
-  const compList = Object.values(compTally).sort((a, b) => b.n - a.n).slice(0, 12);
+  const compList = Object.values(compTally)
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 12);
   const sovTotal = Math.max(1, selfMentions + compList.reduce((a, b) => a + b.n, 0));
   const sov = [
-    { brand: c.name, is_self: true, mentions: selfMentions, share: Math.round((selfMentions / sovTotal) * 100) },
-    ...compList.map((cc) => ({ brand: cc.name, is_self: false, mentions: cc.n, share: Math.round((cc.n / sovTotal) * 100) })),
+    {
+      brand: c.name,
+      is_self: true,
+      mentions: selfMentions,
+      share: Math.round((selfMentions / sovTotal) * 100),
+    },
+    ...compList.map((cc) => ({
+      brand: cc.name,
+      is_self: false,
+      mentions: cc.n,
+      share: Math.round((cc.n / sovTotal) * 100),
+    })),
   ];
   // Auto-Learning: neue Konkurrenten (nicht in Fixliste), ab 2 Nennungen.
   const fixedLower = new Set(fixedComps.map((x) => x.toLowerCase()));
-  const learnedComps = compList.filter((cc) => cc.n >= 2 && !fixedLower.has(cc.name.toLowerCase())).map((cc) => cc.name);
+  const learnedComps = compList
+    .filter((cc) => cc.n >= 2 && !fixedLower.has(cc.name.toLowerCase()))
+    .map((cc) => cc.name);
 
   // E) Quellen aus den Antworten (Custom-Layer) nach Domain aggregiert.
   // Wrapper-Audit (Score v2): Gemini-Grounding- (vertexaisearch) und Bing-
@@ -2075,17 +2842,18 @@ async function jobPromptRunner(
   const srcTally: Record<string, number> = {};
   const wrapCache = new Map<string, string | null>();
   let wrapBudget = 40; // Auflösungs-Deckel je Lauf (10s-Fetches, 300s-Kap schützen)
-  for (const e of evals) for (const u of e.sources) {
-    let uu = u;
-    if (isWrapperUrl(u)) {
-      if (!wrapCache.has(u) && wrapBudget-- <= 0) continue; // resolved:false — verwerfen
-      const res = await resolveWrapper(u, wrapCache);
-      if (!res) continue;
-      uu = res;
+  for (const e of evals)
+    for (const u of e.sources) {
+      let uu = u;
+      if (isWrapperUrl(u)) {
+        if (!wrapCache.has(u) && wrapBudget-- <= 0) continue; // resolved:false — verwerfen
+        const res = await resolveWrapper(u, wrapCache);
+        if (!res) continue;
+        uu = res;
+      }
+      const dd = domOf(uu);
+      if (dd) srcTally[dd] = (srcTally[dd] || 0) + 1;
     }
-    const dd = domOf(uu);
-    if (dd) srcTally[dd] = (srcTally[dd] || 0) + 1;
-  }
   const customSources = Object.entries(srcTally)
     .map(([dom, n]) => ({ domain: dom, mentions: n, layer: "custom" }))
     .sort((a, b) => b.mentions - a.mentions)
@@ -2096,9 +2864,16 @@ async function jobPromptRunner(
     const idx = rows.map((r, k) => ({ r, e: evals[k] })).filter((x) => x.r.platform === eng.name);
     if (!idx.length) return null;
     const byCountry: Record<string, number> = {};
-    for (const x of idx) if (x.e.mentioned) byCountry[x.r.def.country || "Schweiz"] = (byCountry[x.r.def.country || "Schweiz"] || 0) + 1;
+    for (const x of idx)
+      if (x.e.mentioned)
+        byCountry[x.r.def.country || "Schweiz"] =
+          (byCountry[x.r.def.country || "Schweiz"] || 0) + 1;
     return { name: eng.name, mentions: idx.filter((x) => x.e.mentioned).length, byCountry };
-  }).filter(Boolean) as Array<{ name: string; mentions: number; byCountry: Record<string, number> }>;
+  }).filter(Boolean) as Array<{
+    name: string;
+    mentions: number;
+    byCountry: Record<string, number>;
+  }>;
 
   // Themen: Sichtbarkeit = Anteil erwähnter Antworten je Themen-Label.
   const topicMap: Record<string, { total: number; mentioned: number; intent: string | null }> = {};
@@ -2109,11 +2884,17 @@ async function jobPromptRunner(
     if (evals[k].mentioned) topicMap[t].mentioned += 1;
   });
   const topics = Object.entries(topicMap).map(([topic, v]) => ({
-    topic, visibility: Math.round((v.mentioned / Math.max(1, v.total)) * 100), mentions: v.mentioned, volume: 0, intent: v.intent,
+    topic,
+    visibility: Math.round((v.mentioned / Math.max(1, v.total)) * 100),
+    mentions: v.mentioned,
+    volume: 0,
+    intent: v.intent,
   }));
 
   // Positions-Qualität (0..1): top=1, list=0.6, passing=0.3.
-  const posScore = evals.filter((e) => e.mentioned).reduce((a, e) => a + (e.position === "top" ? 1 : e.position === "list" ? 0.6 : 0.3), 0);
+  const posScore = evals
+    .filter((e) => e.mentioned)
+    .reduce((a, e) => a + (e.position === "top" ? 1 : e.position === "list" ? 0.6 : 0.3), 0);
   const positionQuality = selfMentions ? posScore / selfMentions : 0;
 
   const byEngine: Record<string, number> = {};
@@ -2128,35 +2909,54 @@ async function jobPromptRunner(
     const ton: Record<string, number> = {};
     for (const e of bEvals) ton[e.tonalitaet] = (ton[e.tonalitaet] || 0) + 1;
     const halluzinationen = bRows
-      .map((r, k) => ({ engine: r.platform, prompt: r.def.prompt, zitat: bEvals[k]?.halluzination }))
-      .filter((h) => h.zitat).slice(0, 10);
+      .map((r, k) => ({
+        engine: r.platform,
+        prompt: r.def.prompt,
+        zitat: bEvals[k]?.halluzination,
+      }))
+      .filter((h) => h.zitat)
+      .slice(0, 10);
     // Quellen (nach Wrapper-Auflösung, S5-Mechanik) je Domain.
     const qTally: Record<string, number> = {};
     const bWrapCache = new Map<string, string | null>();
     let bWrapBudget = 20;
-    for (const e of bEvals) for (const q of e.quellen || []) {
-      let u = String(q);
-      if (/^https?:\/\//.test(u) && isWrapperUrl(u)) {
-        if (!bWrapCache.has(u) && bWrapBudget-- <= 0) continue;
-        const res = await resolveWrapper(u, bWrapCache);
-        if (!res) continue;
-        u = res;
+    for (const e of bEvals)
+      for (const q of e.quellen || []) {
+        let u = String(q);
+        if (/^https?:\/\//.test(u) && isWrapperUrl(u)) {
+          if (!bWrapCache.has(u) && bWrapBudget-- <= 0) continue;
+          const res = await resolveWrapper(u, bWrapCache);
+          if (!res) continue;
+          u = res;
+        }
+        const dd = /^https?:\/\//.test(u)
+          ? domOf(u)
+          : String(u)
+              .replace(/^www\./, "")
+              .toLowerCase() || null;
+        if (dd && !WRAPPER_HOSTS.some((w) => dd === w || dd.endsWith("." + w)))
+          qTally[dd] = (qTally[dd] || 0) + 1;
       }
-      const dd = /^https?:\/\//.test(u) ? domOf(u) : String(u).replace(/^www\./, "").toLowerCase() || null;
-      if (dd && !WRAPPER_HOSTS.some((w) => dd === w || dd.endsWith("." + w))) qTally[dd] = (qTally[dd] || 0) + 1;
-    }
-    const topQuellen = Object.entries(qTally).map(([domain, n]) => ({ domain, n })).sort((a, b) => b.n - a.n).slice(0, 10);
+    const topQuellen = Object.entries(qTally)
+      .map(([domain, n]) => ({ domain, n }))
+      .sort((a, b) => b.n - a.n)
+      .slice(0, 10);
     // Konkurrenz-Nennungen in Brand-Antworten (Semrush-Effekt/Brand-Kaperung).
     const kTally: Record<string, { name: string; n: number }> = {};
-    for (const e of bEvals) for (const k of e.konkurrenz || []) {
-      const kk = k.toLowerCase();
-      (kTally[kk] ??= { name: k, n: 0 }).n += 1;
-    }
-    const konkurrenzNennungen = Object.values(kTally).sort((a, b) => b.n - a.n).slice(0, 10);
+    for (const e of bEvals)
+      for (const k of e.konkurrenz || []) {
+        const kk = k.toLowerCase();
+        (kTally[kk] ??= { name: k, n: 0 }).n += 1;
+      }
+    const konkurrenzNennungen = Object.values(kTally)
+      .sort((a, b) => b.n - a.n)
+      .slice(0, 10);
     const selfNennungen = bRows.filter((r) => nameRe.test(r.text)).length;
     brandCheck = {
       answered: bRows.length,
-      faktentreueQuote: rated.length ? Math.round(((fktn["korrekt"] || 0) / rated.length) * 100) : null,
+      faktentreueQuote: rated.length
+        ? Math.round(((fktn["korrekt"] || 0) / rated.length) * 100)
+        : null,
       faktentreueVerteilung: fktn,
       tonalitaetsVerteilung: ton,
       halluzinationen,
@@ -2173,19 +2973,32 @@ async function jobPromptRunner(
       const perEngine = new Map<string, string[]>();
       for (const r of bRows) {
         const arr = perEngine.get(r.platform) || [];
-        if (arr.length < 3) { arr.push(String(r.text).slice(0, 500)); perEngine.set(r.platform, arr); }
+        if (arr.length < 3) {
+          arr.push(String(r.text).slice(0, 500));
+          perEngine.set(r.platform, arr);
+        }
       }
       rows.forEach((r, k) => {
         if (!evals[k]?.mentioned) return;
         const arr = perEngine.get(r.platform) || [];
-        if (arr.length < 3) { arr.push(String(r.text).slice(0, 500)); perEngine.set(r.platform, arr); }
+        if (arr.length < 3) {
+          arr.push(String(r.text).slice(0, 500));
+          perEngine.set(r.platform, arr);
+        }
       });
       if (perEngine.size) {
-        const blocks = [...perEngine.entries()].map(([eng, texts]) => `### ${eng}\n${texts.join("\n--\n")}`).join("\n\n");
-        const pRes = await withDeadline(askUtilityMeta(
-          `Wie nimmt jedes KI-System die Marke "${c.name}" wahr? Analysiere NUR die folgenden echten Antworten je System. Für JEDES System ein Objekt:\n{"engine":"<Name>","staerken":["max 4 kurze Stärken-Phrasen (wörtlich belegbar)"],"schwaechen":["max 4 kurze Schwächen/Einschränkungen"],"zusammenfassung":"1 Satz, deutsch"}\nNichts erfinden — nur was in den Antworten steht. Antworte NUR mit JSON-Array.\n\n${blocks}`,
-          2500, SCORE_CFG.judge.temperature,
-        ), 90_000, "perception-judge").catch(() => null);
+        const blocks = [...perEngine.entries()]
+          .map(([eng, texts]) => `### ${eng}\n${texts.join("\n--\n")}`)
+          .join("\n\n");
+        const pRes = await withDeadline(
+          askUtilityMeta(
+            `Wie nimmt jedes KI-System die Marke "${c.name}" wahr? Analysiere NUR die folgenden echten Antworten je System. Für JEDES System ein Objekt:\n{"engine":"<Name>","staerken":["max 4 kurze Stärken-Phrasen (wörtlich belegbar)"],"schwaechen":["max 4 kurze Schwächen/Einschränkungen"],"zusammenfassung":"1 Satz, deutsch"}\nNichts erfinden — nur was in den Antworten steht. Antworte NUR mit JSON-Array.\n\n${blocks}`,
+            2500,
+            SCORE_CFG.judge.temperature,
+          ),
+          90_000,
+          "perception-judge",
+        ).catch(() => null);
         const pArr = pRes?.text ? parseJson(pRes.text) : null;
         if (Array.isArray(pArr) && pArr.length) {
           brandCheck.perception = pArr
@@ -2200,11 +3013,14 @@ async function jobPromptRunner(
           diag(`prompts: Perception-Judge fertig (${brandCheck.perception.length} Engines)`);
         }
       }
-    } catch { /* Perception ist Zusatz — nie den Lauf gefährden */ }
+    } catch {
+      /* Perception ist Zusatz — nie den Lauf gefährden */
+    }
 
     // E4: advisory-Signal für die Wunsch-Queue — max EIN Eintrag je Lauf.
     let advisory: string | null = null;
-    const bad = bRows.map((r, k) => ({ r, e: bEvals[k] }))
+    const bad = bRows
+      .map((r, k) => ({ r, e: bEvals[k] }))
       .find((x) => ["falsch", "veraltet"].includes(x.e?.faktentreue) || x.e?.halluzination);
     if (bad) {
       const grund = bad.e.halluzination
@@ -2220,7 +3036,9 @@ async function jobPromptRunner(
         pe.total += 1;
         if (["negativ", "warnend"].includes(bEvals[k]?.tonalitaet)) pe.neg += 1;
       });
-      const negEng = Object.entries(perEngine).find(([, v]) => v.total >= 3 && v.neg / v.total > 0.5);
+      const negEng = Object.entries(perEngine).find(
+        ([, v]) => v.total >= 3 && v.neg / v.total > 0.5,
+      );
       if (negEng) {
         advisory = `Marken-Check: Tonalität über ${c.name} auf ${negEng[0]} mehrheitlich negativ/warnend (${negEng[1].neg} von ${negEng[1].total} Antworten). Empfehlung: Ursache prüfen (Bewertungen/Presse) und gegensteuern.`;
       } else {
@@ -2231,14 +3049,25 @@ async function jobPromptRunner(
       }
     }
     if (advisory) brandCheck.advisory = { text: advisory, date: opts.snapshot || null };
-    diag(`prompts: Marken-Check aggregiert (${bRows.length} Antworten${advisory ? ", 1 advisory" : ""})`);
+    diag(
+      `prompts: Marken-Check aggregiert (${bRows.length} Antworten${advisory ? ", 1 advisory" : ""})`,
+    );
   }
 
   return {
-    promptRows, customModels, topics, sov, customSources, learnedComps, brandCheck,
+    promptRows,
+    customModels,
+    topics,
+    sov,
+    customSources,
+    learnedComps,
+    brandCheck,
     chunk: chunked ? { offset, next: null as number | null, total: allDefs.length } : null,
     engineFilter: opts.engines ?? null,
-    seeded, answered: rows.length, byEngine, engineErrors,
+    seeded,
+    answered: rows.length,
+    byEngine,
+    engineErrors,
     mentions: customModels.reduce((a, m) => a + m.mentions, 0),
     selfShare: sov[0]?.share ?? 0,
     positionQuality: Math.round(positionQuality * 100),
@@ -2256,13 +3085,22 @@ async function jobPromptRunner(
 // (response = 10 Units je Zeile!), Tiefe ~12 Monate, Filter nur phrase_match.
 // Quelle strikt getrennt: source "korpus-backfill", provider "ahrefs-br" —
 // NIE mit der eigenen Linie gemischt, KEIN Einfluss auf Score/SoV/Version.
-async function jobBrandBackfill(c: any, sbAny: any, months: number, provider: string = "dataforseo") {
+async function jobBrandBackfill(
+  c: any,
+  sbAny: any,
+  months: number,
+  provider: string = "dataforseo",
+) {
   // Provider "dataforseo" (Standard seit 2026-07-19, Ahrefs-Ablösung) oder
   // "ahrefs-br" (Referenz/Alt — 12 Monate Tiefe, kostet Units).
-  if (provider === "ahrefs-br" && !process.env.AHREFS_API_KEY) return { skipped: "AHREFS_API_KEY fehlt" };
+  if (provider === "ahrefs-br" && !process.env.AHREFS_API_KEY)
+    return { skipped: "AHREFS_API_KEY fehlt" };
   if (provider === "dataforseo" && !dfsAuth()) return { skipped: "DATAFORSEO-Creds fehlen" };
   const key = process.env.AHREFS_API_KEY || "";
-  const cfg: any = (SCORE_CFG as any).brandBackfill || { maxAnswersPerMonth: 30, monthsPerRequest: 2 };
+  const cfg: any = (SCORE_CFG as any).brandBackfill || {
+    maxAnswersPerMonth: 30,
+    monthsPerRequest: 2,
+  };
   const brand = brandName(c);
   const facts = await getBrandFacts(c, sbAny).catch(() => null);
   const now = new Date();
@@ -2271,15 +3109,25 @@ async function jobBrandBackfill(c: any, sbAny: any, months: number, provider: st
   for (let k = 1; k <= months; k++) {
     const d = new Date(now.getFullYear(), now.getMonth() - k, 1);
     const end = new Date(now.getFullYear(), now.getMonth() - k + 1, 0);
-    monthsList.push({ key: iso(d).slice(0, 7), from: iso(d), to: iso(end), y: d.getFullYear(), m: d.getMonth() });
+    monthsList.push({
+      key: iso(d).slice(0, 7),
+      from: iso(d),
+      to: iso(end),
+      y: d.getFullYear(),
+      m: d.getMonth(),
+    });
   }
   // Idempotent/wiederaufnehmbar: vorhandene Monats-Punkte überspringen.
   const { data: existing } = await sbAny
-    .from("ai_visibility_brand_history").select("point_date")
-    .eq("client_id", c.id).eq("source", "korpus-backfill").eq("provider", provider);
+    .from("ai_visibility_brand_history")
+    .select("point_date")
+    .eq("client_id", c.id)
+    .eq("source", "korpus-backfill")
+    .eq("provider", provider);
   const have = new Set((existing || []).map((x: any) => String(x.point_date).slice(0, 7)));
   const todo = monthsList.filter((m) => !have.has(m.key));
-  let processed = 0, rowsTotal = 0;
+  let processed = 0,
+    rowsTotal = 0;
   const doneMonths: string[] = [];
   const errors: string[] = [];
   for (const m of todo) {
@@ -2292,11 +3140,19 @@ async function jobBrandBackfill(c: any, sbAny: any, months: number, provider: st
       const nextM = new Date(m.y, m.m + 1, 1).toISOString().slice(0, 10);
       const r = await dfsAiCall("ai_optimization/llm_mentions/search/live", {
         target: [{ keyword: brand, match_type: "word_match", search_scope: ["answer"] }],
-        location_name: "Switzerland", language_code: (c.language || "de").slice(0, 2),
+        location_name: "Switzerland",
+        language_code: (c.language || "de").slice(0, 2),
         limit: Math.max(1, cfg.maxAnswersPerMonth),
-        filters: [["first_response_at", ">=", `${m.from} 00:00:00 +00:00`], "and", ["first_response_at", "<", `${nextM} 00:00:00 +00:00`]],
+        filters: [
+          ["first_response_at", ">=", `${m.from} 00:00:00 +00:00`],
+          "and",
+          ["first_response_at", "<", `${nextM} 00:00:00 +00:00`],
+        ],
       });
-      if (!r.ok) { errors.push(`${m.key}: ${r.error}`); continue; } // Monat bleibt offen -> Retry möglich
+      if (!r.ok) {
+        errors.push(`${m.key}: ${r.error}`);
+        continue;
+      } // Monat bleibt offen -> Retry möglich
       raw = ((r.result?.[0]?.items ?? []) as any[]).map((x: any) => ({
         last_updated: String(x.first_response_at || m.to).slice(0, 10),
         data_source: x.model_name || x.platform,
@@ -2306,46 +3162,77 @@ async function jobBrandBackfill(c: any, sbAny: any, months: number, provider: st
       // Ahrefs-Referenzpfad (Feld-Lektionen 2026-07-18, doc-verifiziert):
       // nur date-Stichtag (kein from/to), Zeilen tragen last_updated,
       // response = 10 Units je Zeile, order_by nur relevance|volume.
-      const r = await brandRadar("ai-responses", {
-        select: "last_updated,data_source,response",
-        brand,
-        data_source: SOURCES.map((s) => s.ds).join(","),
-        date: m.to,
-        limit: Math.max(1, cfg.maxAnswersPerMonth), // Kosten-/Mengendeckel (10 Units/Zeile)
-        search_volume_type: "ask_volume",
-      }, key);
-      if (!r.ok) { errors.push(`${m.key}: ${r.error}`); continue; } // Monat bleibt offen -> Retry möglich
+      const r = await brandRadar(
+        "ai-responses",
+        {
+          select: "last_updated,data_source,response",
+          brand,
+          data_source: SOURCES.map((s) => s.ds).join(","),
+          date: m.to,
+          limit: Math.max(1, cfg.maxAnswersPerMonth), // Kosten-/Mengendeckel (10 Units/Zeile)
+          search_volume_type: "ask_volume",
+        },
+        key,
+      );
+      if (!r.ok) {
+        errors.push(`${m.key}: ${r.error}`);
+        continue;
+      } // Monat bleibt offen -> Retry möglich
       raw = (r.data?.ai_responses ?? r.data?.responses ?? r.data?.items ?? []) as any[];
     }
     const answers = raw
       .map((x: any) => ({
         date: String(x.last_updated || m.to),
-        engine: provider === "dataforseo"
-          ? dfsLlmLabel(String(x.data_source || ""))
-          : (SOURCES.find((s) => s.ds === x.data_source)?.name || String(x.data_source || "KI")),
+        engine:
+          provider === "dataforseo"
+            ? dfsLlmLabel(String(x.data_source || ""))
+            : SOURCES.find((s) => s.ds === x.data_source)?.name || String(x.data_source || "KI"),
         text: String(x.response || ""),
       }))
       .filter((a) => a.text.length > 40)
       .slice(0, cfg.maxAnswersPerMonth);
-    if (raw.length >= cfg.maxAnswersPerMonth) diag(`brand-backfill ${m.key}: Deckel greift (${cfg.maxAnswersPerMonth} Antworten)`);
+    if (raw.length >= cfg.maxAnswersPerMonth)
+      diag(`brand-backfill ${m.key}: Deckel greift (${cfg.maxAnswersPerMonth} Antworten)`);
     rowsTotal += answers.length;
     let data: any = {
-      monat: m.key, answered: answers.length, faktentreueQuote: null,
-      tonalitaetsVerteilung: {}, halluzinationen: [], konkurrenzNennungen: [], topQuellen: [], judge: null,
+      monat: m.key,
+      answered: answers.length,
+      faktentreueQuote: null,
+      tonalitaetsVerteilung: {},
+      halluzinationen: [],
+      konkurrenzNennungen: [],
+      topQuellen: [],
+      judge: null,
     };
     if (answers.length) {
       const bj = await withDeadline(
-        judgeBrandAnswers(c.name, facts || {}, answers.map((a, i) => ({ i, platform: a.engine, text: a.text }))),
-        4 * 60_000, "brand-korpus-judge",
+        judgeBrandAnswers(
+          c.name,
+          facts || {},
+          answers.map((a, i) => ({ i, platform: a.engine, text: a.text })),
+        ),
+        4 * 60_000,
+        "brand-korpus-judge",
       ).catch(() => ({ map: {} as Record<number, any>, models: [] as string[] }));
       const evals = answers.map((a, i) => {
         const j = (bj.map as any)[i] || {};
         return {
-          faktentreue: ["korrekt", "teilweise", "falsch", "veraltet", "unbewertbar"].includes(j.faktentreue) ? j.faktentreue : "unbewertbar",
-          tonalitaet: ["positiv", "neutral", "negativ", "warnend"].includes(j.tonalitaet) ? j.tonalitaet : "neutral",
+          faktentreue: ["korrekt", "teilweise", "falsch", "veraltet", "unbewertbar"].includes(
+            j.faktentreue,
+          )
+            ? j.faktentreue
+            : "unbewertbar",
+          tonalitaet: ["positiv", "neutral", "negativ", "warnend"].includes(j.tonalitaet)
+            ? j.tonalitaet
+            : "neutral",
           halluzination: j.halluzination ? String(j.halluzination).slice(0, 300) : null,
           quellen: Array.isArray(j.quellen) ? j.quellen.map(String).slice(0, 8) : [],
-          konkurrenz: Array.isArray(j.konkurrenz) ? j.konkurrenz.map((x: any) => String(x).trim()).filter(Boolean).slice(0, 8) : [],
+          konkurrenz: Array.isArray(j.konkurrenz)
+            ? j.konkurrenz
+                .map((x: any) => String(x).trim())
+                .filter(Boolean)
+                .slice(0, 8)
+            : [],
         };
       });
       const rated = evals.filter((e) => e.faktentreue !== "unbewertbar");
@@ -2354,28 +3241,59 @@ async function jobBrandBackfill(c: any, sbAny: any, months: number, provider: st
       const ton: Record<string, number> = {};
       for (const e of evals) ton[e.tonalitaet] = (ton[e.tonalitaet] || 0) + 1;
       const kT: Record<string, { name: string; n: number }> = {};
-      for (const e of evals) for (const k2 of e.konkurrenz) { const kk = k2.toLowerCase(); (kT[kk] ??= { name: k2, n: 0 }).n += 1; }
+      for (const e of evals)
+        for (const k2 of e.konkurrenz) {
+          const kk = k2.toLowerCase();
+          (kT[kk] ??= { name: k2, n: 0 }).n += 1;
+        }
       const qT: Record<string, number> = {};
-      for (const e of evals) for (const q of e.quellen) {
-        const dd = /^https?:\/\//.test(q) ? domOf(q) : String(q).replace(/^www\./, "").toLowerCase() || null;
-        if (dd && !WRAPPER_HOSTS.some((w) => dd === w || dd.endsWith("." + w))) qT[dd] = (qT[dd] || 0) + 1;
-      }
+      for (const e of evals)
+        for (const q of e.quellen) {
+          const dd = /^https?:\/\//.test(q)
+            ? domOf(q)
+            : String(q)
+                .replace(/^www\./, "")
+                .toLowerCase() || null;
+          if (dd && !WRAPPER_HOSTS.some((w) => dd === w || dd.endsWith("." + w)))
+            qT[dd] = (qT[dd] || 0) + 1;
+        }
       data = {
-        monat: m.key, answered: answers.length,
+        monat: m.key,
+        answered: answers.length,
         // faktentreue NUR wo der Text genug hergibt — sonst null, nicht raten.
-        faktentreueQuote: rated.length >= 3 ? Math.round(((fktn["korrekt"] || 0) / rated.length) * 100) : null,
+        faktentreueQuote:
+          rated.length >= 3 ? Math.round(((fktn["korrekt"] || 0) / rated.length) * 100) : null,
         faktentreueVerteilung: fktn,
         tonalitaetsVerteilung: ton,
-        halluzinationen: answers.map((a, i2) => ({ engine: a.engine, datum: a.date, zitat: evals[i2].halluzination })).filter((h) => h.zitat).slice(0, 10),
-        konkurrenzNennungen: Object.values(kT).sort((a, b) => b.n - a.n).slice(0, 10),
-        topQuellen: Object.entries(qT).map(([domain, n]) => ({ domain, n })).sort((a, b) => b.n - a.n).slice(0, 10),
-        judge: { models: bj.models, temperature: SCORE_CFG.judge.temperature, promptType: "brand-korpus" },
+        halluzinationen: answers
+          .map((a, i2) => ({ engine: a.engine, datum: a.date, zitat: evals[i2].halluzination }))
+          .filter((h) => h.zitat)
+          .slice(0, 10),
+        konkurrenzNennungen: Object.values(kT)
+          .sort((a, b) => b.n - a.n)
+          .slice(0, 10),
+        topQuellen: Object.entries(qT)
+          .map(([domain, n]) => ({ domain, n }))
+          .sort((a, b) => b.n - a.n)
+          .slice(0, 10),
+        judge: {
+          models: bj.models,
+          temperature: SCORE_CFG.judge.temperature,
+          promptType: "brand-korpus",
+        },
       };
     }
-    await sbAny.from("ai_visibility_brand_history").upsert({
-      client_id: c.id, point_date: m.from, source: "korpus-backfill", provider,
-      data, updated_at: new Date().toISOString(),
-    }, { onConflict: "client_id,point_date,source,provider" });
+    await sbAny.from("ai_visibility_brand_history").upsert(
+      {
+        client_id: c.id,
+        point_date: m.from,
+        source: "korpus-backfill",
+        provider,
+        data,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "client_id,point_date,source,provider" },
+    );
     doneMonths.push(m.key);
     diag(`brand-backfill ${m.key}: ${answers.length} Antworten bewertet`);
   }
@@ -2386,31 +3304,72 @@ async function jobBrandBackfill(c: any, sbAny: any, months: number, provider: st
   try {
     const heute = new Date().toISOString().slice(0, 10);
     const { data: todayRep } = await sbAny
-      .from("ai_visibility_reports").select("id, parts")
-      .eq("client_id", c.id).eq("snapshot_date", heute).maybeSingle();
+      .from("ai_visibility_reports")
+      .select("id, parts")
+      .eq("client_id", c.id)
+      .eq("snapshot_date", heute)
+      .maybeSingle();
     const adv = (todayRep?.parts as any)?.bc?.advisory;
     if (adv?.text && /Halluzination/i.test(adv.text)) {
-      const tokens = (String(adv.text).match(/[A-Za-zÄÖÜäöüß]{5,}/g) || []).map((t: string) => t.toLowerCase());
+      const tokens = (String(adv.text).match(/[A-Za-zÄÖÜäöüß]{5,}/g) || []).map((t: string) =>
+        t.toLowerCase(),
+      );
       const { data: pts } = await sbAny
-        .from("ai_visibility_brand_history").select("point_date, data")
-        .eq("client_id", c.id).eq("source", "korpus-backfill").order("point_date", { ascending: true });
+        .from("ai_visibility_brand_history")
+        .select("point_date, data")
+        .eq("client_id", c.id)
+        .eq("source", "korpus-backfill")
+        .order("point_date", { ascending: true });
       for (const p of pts || []) {
-        const hit = ((p.data as any)?.halluzinationen || []).some((h: any) =>
-          h.zitat && tokens.some((t: string) => String(h.zitat).toLowerCase().includes(t) && !["marken", "check", "antwort", "quelle", "empfehlung", "fakten", "website", "profilen", "aktualisieren", "richtigstellen", "halluzination"].includes(t)));
-        if (hit) { since = String(p.point_date).slice(0, 7); break; }
+        const hit = ((p.data as any)?.halluzinationen || []).some(
+          (h: any) =>
+            h.zitat &&
+            tokens.some(
+              (t: string) =>
+                String(h.zitat).toLowerCase().includes(t) &&
+                ![
+                  "marken",
+                  "check",
+                  "antwort",
+                  "quelle",
+                  "empfehlung",
+                  "fakten",
+                  "website",
+                  "profilen",
+                  "aktualisieren",
+                  "richtigstellen",
+                  "halluzination",
+                ].includes(t),
+            ),
+        );
+        if (hit) {
+          since = String(p.point_date).slice(0, 7);
+          break;
+        }
       }
       if (since && adv.since !== since) {
-        await sbAny.from("ai_visibility_reports").update({
-          parts: { ...(todayRep.parts as any), bc: { ...(todayRep.parts as any).bc, advisory: { ...adv, since } } },
-        }).eq("id", todayRep.id);
+        await sbAny
+          .from("ai_visibility_reports")
+          .update({
+            parts: {
+              ...(todayRep.parts as any),
+              bc: { ...(todayRep.parts as any).bc, advisory: { ...adv, since } },
+            },
+          })
+          .eq("id", todayRep.id);
         diag(`brand-backfill: Advisory ergänzt — seit mindestens ${since}`);
       }
     }
-  } catch { /* Ergänzung ist best effort */ }
+  } catch {
+    /* Ergänzung ist best effort */
+  }
 
   return {
-    processed: doneMonths, remainingMonths: todo.length - processed, rows: rowsTotal,
-    unitsEst: rowsTotal * 10 + processed * 2, errors: errors.length ? errors : undefined,
+    processed: doneMonths,
+    remainingMonths: todo.length - processed,
+    rows: rowsTotal,
+    unitsEst: rowsTotal * 10 + processed * 2,
+    errors: errors.length ? errors : undefined,
     since: since || undefined,
   };
 }
@@ -2420,35 +3379,61 @@ async function jobBrandBackfill(c: any, sbAny: any, months: number, provider: st
 // vorher wurde nur CH ohne Plattform-Angabe abgefragt (dünne Treffer).
 // ChatGPT-Korpus ist GLOBAL: location_name/language_code sind dort Invalid
 // Field (40501, live verifiziert 2026-07-20) — deshalb EIN globaler Slice.
-const DFS_CORPUS_SLICES: Array<{ platform: string; location_name?: string; language_code?: string; land: string }> = [
+const DFS_CORPUS_SLICES: Array<{
+  platform: string;
+  location_name?: string;
+  language_code?: string;
+  land: string;
+}> = [
   { platform: "google", location_name: "Switzerland", language_code: "de", land: "Schweiz" },
   { platform: "google", location_name: "Germany", language_code: "de", land: "Deutschland" },
   { platform: "google", location_name: "Austria", language_code: "de", land: "Österreich" },
   { platform: "chat_gpt", land: "Global" },
 ];
 // Slice-Parameter für search/live — chat_gpt darf keine Location/Sprache tragen.
-const dfsSliceParams = (s: { platform: string; location_name?: string; language_code?: string }) =>
-  ({ platform: s.platform, ...(s.location_name ? { location_name: s.location_name, language_code: s.language_code } : {}) });
+const dfsSliceParams = (s: {
+  platform: string;
+  location_name?: string;
+  language_code?: string;
+}) => ({
+  platform: s.platform,
+  ...(s.location_name ? { location_name: s.location_name, language_code: s.language_code } : {}),
+});
 
 // Korpus-Citations eines Monats: Antworten im first_response_at-Fenster, die
 // die Kunden-Domain als Quelle führen -> citations (Quellen-Nennungen) +
 // distinct referenzierte eigene URLs. Gemeinsamer Helfer für den Retro-
 // Backfill (citations-backfill) und die Monats-Historie neuer Kunden.
-async function dfsMonthCitations(domain: string, lang: string, from: string, nextStart: string): Promise<{ ok: boolean; citations: number; pages: number; error?: string }> {
+async function dfsMonthCitations(
+  domain: string,
+  lang: string,
+  from: string,
+  nextStart: string,
+): Promise<{ ok: boolean; citations: number; pages: number; error?: string }> {
   let citations = 0;
   const urls = new Set<string>();
   const errors: string[] = [];
   for (const slice of DFS_CORPUS_SLICES) {
     const r = await dfsAiCall("ai_optimization/llm_mentions/search/live", {
       target: [{ domain }],
-      ...dfsSliceParams(slice), limit: 100,
-      filters: [["first_response_at", ">=", `${from} 00:00:00 +00:00`], "and", ["first_response_at", "<", `${nextStart} 00:00:00 +00:00`]],
+      ...dfsSliceParams(slice),
+      limit: 100,
+      filters: [
+        ["first_response_at", ">=", `${from} 00:00:00 +00:00`],
+        "and",
+        ["first_response_at", "<", `${nextStart} 00:00:00 +00:00`],
+      ],
     });
-    if (!r.ok) { errors.push(`${slice.platform}/${slice.land}: ${r.error}`); continue; }
+    if (!r.ok) {
+      errors.push(`${slice.platform}/${slice.land}: ${r.error}`);
+      continue;
+    }
     const items: any[] = (r.result?.[0]?.items ?? []) as any[];
     for (const it of items) {
       for (const s of it.sources || []) {
-        const d = String(s.domain || "").replace(/^www\./, "").toLowerCase();
+        const d = String(s.domain || "")
+          .replace(/^www\./, "")
+          .toLowerCase();
         if (d === domain || d.endsWith("." + domain)) {
           citations += 1;
           const u = normUrl(String(s.url || ""));
@@ -2458,7 +3443,8 @@ async function dfsMonthCitations(domain: string, lang: string, from: string, nex
     }
   }
   // Nur als Fehler werten, wenn ALLE Slices scheitern (Teilausfälle zählen weiter).
-  if (errors.length >= DFS_CORPUS_SLICES.length) return { ok: false, citations: 0, pages: 0, error: errors[0] };
+  if (errors.length >= DFS_CORPUS_SLICES.length)
+    return { ok: false, citations: 0, pages: 0, error: errors[0] };
   return { ok: true, citations, pages: urls.size };
 }
 
@@ -2474,7 +3460,8 @@ async function jobCitationsBackfill(c: any, sbAny: any, months: number) {
   const lang = (c.language || "de").slice(0, 2);
   const now = new Date();
   const iso = (d: Date) => d.toISOString().slice(0, 10);
-  let updated = 0, skippedMonths = 0;
+  let updated = 0,
+    skippedMonths = 0;
   const errors: string[] = [];
   const filled: Record<string, { citations: number; pages: number }> = {};
   for (let k = 1; k <= months; k++) {
@@ -2482,24 +3469,51 @@ async function jobCitationsBackfill(c: any, sbAny: any, months: number) {
     const snapshot = iso(d);
     const nextStart = iso(new Date(now.getFullYear(), now.getMonth() - k + 1, 1));
     const { data: rep } = await sbAny
-      .from("ai_visibility_reports").select("id")
-      .eq("client_id", c.id).eq("snapshot_date", snapshot).maybeSingle();
-    if (!rep) { skippedMonths += 1; continue; } // nur bestehende Monatspunkte füllen
+      .from("ai_visibility_reports")
+      .select("id")
+      .eq("client_id", c.id)
+      .eq("snapshot_date", snapshot)
+      .maybeSingle();
+    if (!rep) {
+      skippedMonths += 1;
+      continue;
+    } // nur bestehende Monatspunkte füllen
     const m = await dfsMonthCitations(domain, lang, snapshot, nextStart);
-    if (!m.ok) { errors.push(`${snapshot.slice(0, 7)}: ${m.error}`); continue; }
-    await sbAny.from("ai_visibility_reports").update({ citations: m.citations, cited_pages: m.pages }).eq("id", rep.id);
+    if (!m.ok) {
+      errors.push(`${snapshot.slice(0, 7)}: ${m.error}`);
+      continue;
+    }
+    await sbAny
+      .from("ai_visibility_reports")
+      .update({ citations: m.citations, cited_pages: m.pages })
+      .eq("id", rep.id);
     filled[snapshot.slice(0, 7)] = { citations: m.citations, pages: m.pages };
     updated += 1;
   }
-  return { updated, skippedMonths, filled, errors: errors.length ? errors : undefined, quelle: "dataforseo-korpus (~7 Monate Tiefe)" };
+  return {
+    updated,
+    skippedMonths,
+    filled,
+    errors: errors.length ? errors : undefined,
+    quelle: "dataforseo-korpus (~7 Monate Tiefe)",
+  };
 }
 
 // ── Canonry: Live-Sweeps (per-Provider cited counts) in die eine Ansicht falten ─
 const CANONRY_LABEL: Record<string, string> = {
-  openai: "ChatGPT", chatgpt: "ChatGPT", perplexity: "Perplexity", gemini: "Gemini",
-  google: "Gemini", claude: "Claude", anthropic: "Claude", copilot: "Copilot", grok: "Grok",
+  openai: "ChatGPT",
+  chatgpt: "ChatGPT",
+  perplexity: "Perplexity",
+  gemini: "Gemini",
+  google: "Gemini",
+  claude: "Claude",
+  anthropic: "Claude",
+  copilot: "Copilot",
+  grok: "Grok",
 };
-const canonryLabel = (p: string) => CANONRY_LABEL[String(p).toLowerCase()] || (p ? p.charAt(0).toUpperCase() + p.slice(1) : "Canonry");
+const canonryLabel = (p: string) =>
+  CANONRY_LABEL[String(p).toLowerCase()] ||
+  (p ? p.charAt(0).toUpperCase() + p.slice(1) : "Canonry");
 
 async function jobCanonry(c: any) {
   const baseUrl = process.env.CANONRY_BASE_URL;
@@ -2515,7 +3529,9 @@ async function jobCanonry(c: any) {
         signal: AbortSignal.timeout(12_000),
       });
       return r.ok ? await r.json().catch(() => null) : null;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   };
   const [health, sources, competitors] = await Promise.all([
     get("/health/latest"),
@@ -2524,25 +3540,48 @@ async function jobCanonry(c: any) {
   ]);
   // providerBreakdown = { provider: { cited, total, citedRate } } -> Modelle (layer canonry).
   const pb = (health as any)?.providerBreakdown || {};
-  const models = Object.entries(pb).map(([prov, e]: any) => ({
-    name: canonryLabel(prov), mentions: Number(e?.cited ?? 0), byCountry: {} as Record<string, number>,
-  })).filter((m) => m.mentions > 0);
+  const models = Object.entries(pb)
+    .map(([prov, e]: any) => ({
+      name: canonryLabel(prov),
+      mentions: Number(e?.cited ?? 0),
+      byCountry: {} as Record<string, number>,
+    }))
+    .filter((m) => m.mentions > 0);
   // Quellen (best-effort — Canonry-Shape defensiv).
-  const srcArr: any[] = Array.isArray(sources) ? sources : ((sources as any)?.sources || (sources as any)?.data || []);
-  const srcRows = (Array.isArray(srcArr) ? srcArr : []).map((s: any) => ({
-    domain: String(s?.domain || s?.host || domOf(s?.url || "") || "").replace(/^www\./, ""),
-    mentions: Number(s?.cited ?? s?.count ?? s?.citations ?? s?.mentions ?? 0),
-  }))
+  const srcArr: any[] = Array.isArray(sources)
+    ? sources
+    : (sources as any)?.sources || (sources as any)?.data || [];
+  const srcRows = (Array.isArray(srcArr) ? srcArr : [])
+    .map((s: any) => ({
+      domain: String(s?.domain || s?.host || domOf(s?.url || "") || "").replace(/^www\./, ""),
+      mentions: Number(s?.cited ?? s?.count ?? s?.citations ?? s?.mentions ?? 0),
+    }))
     // Wrapper-Audit (Score v2): Canonry liefert nur Domains (keine URL zum
     // Aufloesen) — Wrapper-Hosts werden verworfen statt als Quelle gezaehlt.
-    .filter((s: any) => s.domain && !WRAPPER_HOSTS.some((w) => s.domain === w || s.domain.endsWith("." + w)))
+    .filter(
+      (s: any) =>
+        s.domain && !WRAPPER_HOSTS.some((w) => s.domain === w || s.domain.endsWith("." + w)),
+    )
     .slice(0, 15);
   // Konkurrenten (best-effort).
-  const compArr: any[] = Array.isArray(competitors) ? competitors : ((competitors as any)?.competitors || (competitors as any)?.data || []);
+  const compArr: any[] = Array.isArray(competitors)
+    ? competitors
+    : (competitors as any)?.competitors || (competitors as any)?.data || [];
   const comps = (Array.isArray(compArr) ? compArr : [])
-    .map((x: any) => String(x?.name || x?.brand || x?.domain || x || "").replace(/^www\./, "").replace(/\.[a-z.]+$/i, ""))
-    .filter(Boolean).map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).slice(0, 12);
-  return { models, sources: srcRows, competitors: comps, mentions: models.reduce((a, m) => a + m.mentions, 0) };
+    .map((x: any) =>
+      String(x?.name || x?.brand || x?.domain || x || "")
+        .replace(/^www\./, "")
+        .replace(/\.[a-z.]+$/i, ""),
+    )
+    .filter(Boolean)
+    .map((s: string) => s.charAt(0).toUpperCase() + s.slice(1))
+    .slice(0, 12);
+  return {
+    models,
+    sources: srcRows,
+    competitors: comps,
+    mentions: models.reduce((a, m) => a + m.mentions, 0),
+  };
 }
 
 // ── Backfill: rückwirkende Makro-Historie (Ahrefs) + GA4-Attribution ─────────
@@ -2570,7 +3609,11 @@ async function jobBackfill(c: any, sb: any, months: number) {
   const byMonth: Record<string, number> = {};
   {
     const excludes = mentionExcludes(brand);
-    const targets = mentionTargets(brand).map((k) => ({ keyword: k, match_type: "word_match", search_scope: ["answer"] }));
+    const targets = mentionTargets(brand).map((k) => ({
+      keyword: k,
+      match_type: "word_match",
+      search_scope: ["answer"],
+    }));
     for (const mo of monthsList) {
       const from = `${mo.key}-01 00:00:00 +00:00`;
       const nextM = new Date(mo.y, mo.m + 1, 1).toISOString().slice(0, 10);
@@ -2580,10 +3623,15 @@ async function jobBackfill(c: any, sb: any, months: number) {
       // (Generika-Falle "faith in humanity"/"Benedict") und würde die
       // Erwähnungs-Historie verfälschen.
       for (const slice of DFS_CORPUS_SLICES.filter((s) => s.platform === "google")) {
-        const monthFilters = [["first_response_at", ">=", from], "and", ["first_response_at", "<", `${nextM} 00:00:00 +00:00`]];
+        const monthFilters = [
+          ["first_response_at", ">=", from],
+          "and",
+          ["first_response_at", "<", `${nextM} 00:00:00 +00:00`],
+        ];
         const r = await dfsAiCall("ai_optimization/llm_mentions/search/live", {
           target: targets,
-          ...dfsSliceParams(slice), limit: 100,
+          ...dfsSliceParams(slice),
+          limit: 100,
           filters: monthFilters,
         });
         if (!r.ok) continue; // Slice fällt aus — Rest zählt weiter
@@ -2592,7 +3640,8 @@ async function jobBackfill(c: any, sb: any, months: number) {
         for (const phrase of excludes) {
           const ex = await dfsAiCall("ai_optimization/llm_mentions/search/live", {
             target: [{ keyword: phrase, match_type: "word_match", search_scope: ["answer"] }],
-            ...dfsSliceParams(slice), limit: 100,
+            ...dfsSliceParams(slice),
+            limit: 100,
             filters: monthFilters,
           });
           if (ex.ok) sliceN = Math.max(0, sliceN - ((ex.result?.[0]?.items ?? []) as any[]).length);
@@ -2604,42 +3653,82 @@ async function jobBackfill(c: any, sb: any, months: number) {
   }
 
   let ga4Token: string | null = null;
-  if (c.ga4_property) { try { ga4Token = (await getGoogleAccessToken(c.id)).accessToken; } catch { /* ohne Attribution */ } }
+  if (c.ga4_property) {
+    try {
+      ga4Token = (await getGoogleAccessToken(c.id)).accessToken;
+    } catch {
+      /* ohne Attribution */
+    }
+  }
 
-  let written = 0, prevMentions = 0, prevScore = 0;
+  let written = 0,
+    prevMentions = 0,
+    prevScore = 0;
   for (const mo of monthsList) {
     const mentions = byMonth[mo.key] ?? 0;
     const snapshot = `${mo.key}-01`;
     // Citations + referenzierte Seiten desselben Monats aus dem Korpus
     // (2026-07-19: vorher hart 0 — Lücke, die im Trend als Null-Linie stand).
     const nextStart = new Date(mo.y, mo.m + 1, 1).toISOString().slice(0, 10);
-    const cit = await dfsMonthCitations(cleanDomain(c.domain), (c.language || "de").slice(0, 2), snapshot, nextStart).catch(() => ({ ok: false, citations: 0, pages: 0 }));
+    const cit = await dfsMonthCitations(
+      cleanDomain(c.domain),
+      (c.language || "de").slice(0, 2),
+      snapshot,
+      nextStart,
+    ).catch(() => ({ ok: false, citations: 0, pages: 0 }));
     // Score (nur historisch verfügbare Terme: Mentions + Korpus-Citations/Seiten).
-    const score = Math.min(100, Math.round(scoreV2Terms(sat, mentions, cit.citations, cit.pages, 0, 0)));
-    const scoreRaw = Math.round(scoreV2Terms(satRaw, mentions, cit.citations, cit.pages, 0, 0) * 10) / 10;
+    const score = Math.min(
+      100,
+      Math.round(scoreV2Terms(sat, mentions, cit.citations, cit.pages, 0, 0)),
+    );
+    const scoreRaw =
+      Math.round(scoreV2Terms(satRaw, mentions, cit.citations, cit.pages, 0, 0) * 10) / 10;
     const { data: rep, error } = await sb
       .from("ai_visibility_reports")
-      .upsert({
-        client_id: c.id, market: c.country || null, snapshot_date: snapshot,
-        score, score_delta: score - prevScore, score_raw: scoreRaw, measurement_version: MEASUREMENT_VERSION,
-        mentions, mentions_delta: mentions - prevMentions,
-        citations: cit.citations, citations_delta: 0, cited_pages: cit.pages, cited_pages_delta: 0,
-      }, { onConflict: "client_id,snapshot_date" })
-      .select("id").single();
+      .upsert(
+        {
+          client_id: c.id,
+          market: c.country || null,
+          snapshot_date: snapshot,
+          score,
+          score_delta: score - prevScore,
+          score_raw: scoreRaw,
+          measurement_version: MEASUREMENT_VERSION,
+          mentions,
+          mentions_delta: mentions - prevMentions,
+          citations: cit.citations,
+          citations_delta: 0,
+          cited_pages: cit.pages,
+          cited_pages_delta: 0,
+        },
+        { onConflict: "client_id,snapshot_date" },
+      )
+      .select("id")
+      .single();
     if (error || !rep) continue;
-    prevMentions = mentions; prevScore = score; written++;
+    prevMentions = mentions;
+    prevScore = score;
+    written++;
 
     // GA4-Attribution für diesen Monat.
     if (ga4Token) {
       const propertyId = String(c.ga4_property).replace(/^properties\//, "");
       const end = new Date(mo.y, mo.m + 1, 0).toISOString().slice(0, 10);
       try {
-        const resp = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${ga4Token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ dateRanges: [{ startDate: `${mo.key}-01`, endDate: end }], dimensions: [{ name: "sessionSource" }], metrics: [{ name: "sessions" }, { name: "keyEvents" }], limit: 250 }),
-          signal: AbortSignal.timeout(30_000),
-        });
+        const resp = await fetch(
+          `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${ga4Token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              dateRanges: [{ startDate: `${mo.key}-01`, endDate: end }],
+              dimensions: [{ name: "sessionSource" }],
+              metrics: [{ name: "sessions" }, { name: "keyEvents" }],
+              limit: 250,
+            }),
+            signal: AbortSignal.timeout(30_000),
+          },
+        );
         if (resp.ok) {
           const jr: any = await resp.json().catch(() => ({}));
           const agg: Record<string, { sessions: number; conversions: number }> = {};
@@ -2652,10 +3741,18 @@ async function jobBackfill(c: any, sb: any, months: number) {
             agg[eng.name].conversions += Number(row.metricValues?.[1]?.value ?? 0);
           }
           await sb.from("ai_visibility_attribution").delete().eq("report_id", rep.id);
-          const ins = Object.entries(agg).map(([engine, v]) => ({ report_id: rep.id, client_id: c.id, engine, sessions: v.sessions, conversions: v.conversions }));
+          const ins = Object.entries(agg).map(([engine, v]) => ({
+            report_id: rep.id,
+            client_id: c.id,
+            engine,
+            sessions: v.sessions,
+            conversions: v.conversions,
+          }));
           if (ins.length) await sb.from("ai_visibility_attribution").insert(ins);
         }
-      } catch { /* Attribution optional */ }
+      } catch {
+        /* Attribution optional */
+      }
     }
   }
   return { months: written, ahrefs: Object.keys(byMonth).length, ga4: !!ga4Token };
@@ -2667,24 +3764,50 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
       POST: async ({ request }) => {
         const secret = process.env.ADMIN_AUTOMATION_SECRET;
         if (!secret)
-          return Response.json({ ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" }, { status: 503 });
+          return Response.json(
+            { ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" },
+            { status: 503 },
+          );
         if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
           return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
         const parsed = Body.safeParse(await request.json().catch(() => ({})));
         if (!parsed.success)
           return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
-        const { client: sel, all, jobs, minIntervalDays, force, mode, months, serpKeywords, async: runAsync, promptOffset, promptTarget, backfillProvider, engines: engineFilter } = parsed.data;
-        const wanted = jobs && jobs.length ? jobs : (["brand_radar", "attribution", "prompts", "canonry", "serp_ai"] as const);
+        const {
+          client: sel,
+          all,
+          jobs,
+          minIntervalDays,
+          force,
+          mode,
+          months,
+          serpKeywords,
+          async: runAsync,
+          promptOffset,
+          promptTarget,
+          backfillProvider,
+          engines: engineFilter,
+        } = parsed.data;
+        const wanted =
+          jobs && jobs.length
+            ? jobs
+            : (["brand_radar", "attribution", "prompts", "canonry", "serp_ai"] as const);
 
         const query = supabaseAdmin
           .from("clients")
-          .select("id, name, domain, organization_id, ga4_property, gsc_property, country, canonry_project, brand_terms, language");
+          .select(
+            "id, name, domain, organization_id, ga4_property, gsc_property, country, canonry_project, brand_terms, language",
+          );
         let clients: any[] = [];
         if (all) clients = (await query).data || [];
         else if (sel && isUuid(sel)) clients = (await query.eq("id", sel)).data || [];
         else if (sel) clients = (await query.ilike("name", `%${sel}%`)).data || [];
-        else return Response.json({ ok: false, error: "client oder all erforderlich" }, { status: 400 });
+        else
+          return Response.json(
+            { ok: false, error: "client oder all erforderlich" },
+            { status: 400 },
+          );
         if (!clients.length)
           return Response.json({ ok: false, error: "Kein Kunde gefunden" }, { status: 404 });
 
@@ -2703,617 +3826,1020 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         // fehlgeschlagen) — nur die Ein-Request-Variante ist zuverlässig.
         const headerRunId = (request.headers.get("x-sync-run") || "").trim();
         if (headerRunId && !isUuid(headerRunId))
-          return Response.json({ ok: false, error: "x-sync-run muss eine UUID sein" }, { status: 400 });
+          return Response.json(
+            { ok: false, error: "x-sync-run muss eine UUID sein" },
+            { status: 400 },
+          );
         const syncRunId = headerRunId || (runAsync ? crypto.randomUUID() : "");
         if (syncRunId) {
           await sb.from("ai_visibility_sync_runs").upsert({
-            id: syncRunId, status: "running",
+            id: syncRunId,
+            status: "running",
             clients: clients.map((x) => String(x.name)),
-            params: { client: sel ?? null, all: !!all, jobs: jobs ?? null, mode, months, force: !!force, minIntervalDays, serpKeywords: serpKeywords ?? null },
+            params: {
+              client: sel ?? null,
+              all: !!all,
+              jobs: jobs ?? null,
+              mode,
+              months,
+              force: !!force,
+              minIntervalDays,
+              serpKeywords: serpKeywords ?? null,
+            },
           });
         }
         diagLog = [];
         // .then() erzwingt die Ausfuehrung: Supabase-Builder sind lazy und
         // laufen NUR bei await/.then — ein blosses void feuert nie.
         diagWrite = syncRunId
-          ? (log) => { sb.from("ai_visibility_sync_runs").update({ result: { phases: log } }).eq("id", syncRunId).then(() => {}, () => {}); }
+          ? (log) => {
+              sb.from("ai_visibility_sync_runs")
+                .update({ result: { phases: log } })
+                .eq("id", syncRunId)
+                .then(
+                  () => {},
+                  () => {},
+                );
+            }
           : null;
 
         // Kernverarbeitung — synchron aufgerufen ODER als Hintergrund-Lauf (async:true).
         const runAll = async () => {
-        for (const c of clients) {
-          const jr: Record<string, unknown> = {};
-          try {
-            // Gate: nur Kunden, bei denen KI-Sichtbarkeit aktiv ist (aivis-Tab =
-            // canonry ODER perplexity in client_integrations = "in den Einstellungen").
-            const allowed = await aivisAllowed(sb, c.id);
-            if (!allowed.ok) {
-              results.push({ client: c.name, skipped: allowed.grund });
-              continue;
-            }
-            // Backfill-Modus: rückwirkende Monats-Reports (Ahrefs/GA4), dann fertig.
-            if (mode === "backfill") {
-              jr.backfill = await jobBackfill(c, sb, months);
-              await flushCost(sb);
-              results.push({ client: c.name, domain: c.domain, jobs: jr });
-              continue;
-            }
-            // Citations/Seiten-Retro (nur bestehende Monats-Reports), dann fertig.
-            if (mode === "citations-backfill") {
-              jr.citationsBackfill = await withDeadline(jobCitationsBackfill(c, sb, months), 8 * 60_000, "citations-backfill")
-                .catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }));
-              await flushCost(sb);
-              results.push({ client: c.name, domain: c.domain, jobs: jr });
-              continue;
-            }
-            // Marken-Check-Korpus-Backfill (H2): on-demand, etappenweise, dann fertig.
-            if (mode === "brand-backfill") {
-              jr.brandBackfill = await withDeadline(jobBrandBackfill(c, sb, months, backfillProvider), 12 * 60_000, "brand-backfill")
-                .catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }));
-              await flushCost(sb);
-              results.push({ client: c.name, domain: c.domain, jobs: jr });
-              continue;
-            }
-            // Freshness-Guard (Brand Radar kostet Units).
-            if (!force && minIntervalDays > 0) {
-              const since = new Date(Date.now() - minIntervalDays * 86400_000).toISOString().slice(0, 10);
-              const { data: recent } = await sb
-                .from("ai_visibility_reports")
-                .select("id")
-                .eq("client_id", c.id)
-                .gte("snapshot_date", since)
-                .limit(1)
-                .maybeSingle();
-              if (recent) {
-                results.push({ client: c.name, skipped: "fresh" });
+          for (const c of clients) {
+            const jr: Record<string, unknown> = {};
+            try {
+              // Gate: nur Kunden, bei denen KI-Sichtbarkeit aktiv ist (aivis-Tab =
+              // canonry ODER perplexity in client_integrations = "in den Einstellungen").
+              const allowed = await aivisAllowed(sb, c.id);
+              if (!allowed.ok) {
+                results.push({ client: c.name, skipped: allowed.grund });
                 continue;
               }
-            }
-
-            // Konkurrentenliste (Fixliste, editierbar) + Semrush-Organik -> beide Layer.
-            diag(`${c.name}: Gate ok, lade Konkurrenten`);
-            const db = semrushDb(c.country);
-            const { data: compRows } = await sb
-              .from("ai_visibility_competitors").select("name").eq("client_id", c.id).eq("active", true);
-            const semrushComps = await semrushCompetitors(cleanDomain(c.domain), db);
-            diag(`${c.name}: semrush ok (${semrushComps.length})`);
-            const ca: any = wanted.includes("canonry") ? await jobCanonry(c) : null;
-            const hasCa = ca && !ca.skipped;
-            const canonryComps: string[] = hasCa ? ca.competitors : [];
-            const newComps = [
-              ...semrushComps.map((n) => ({ client_id: c.id, name: n, source: "semrush", active: true })),
-              ...canonryComps.map((n) => ({ client_id: c.id, name: n, source: "canonry", active: true })),
-            ];
-            if (newComps.length)
-              await sb.from("ai_visibility_competitors").upsert(newComps, { onConflict: "client_id,name", ignoreDuplicates: true });
-            const fixedComps: string[] = [...new Set([...(compRows || []).map((r: any) => String(r.name)), ...semrushComps, ...canonryComps])].filter(Boolean);
-
-            // Job-Level-Deadlines (wie serp_ai): kein Job darf den Lauf endlos halten.
-            const br: any = wanted.includes("brand_radar")
-              ? await withDeadline(jobBrandRadarDfs(c, fixedComps), 6 * 60_000, "brand_radar").catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }))
-              : null;
-            const at: any = wanted.includes("attribution")
-              ? await withDeadline(jobAttribution(c), 5 * 60_000, "attribution").catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }))
-              : null;
-            diag(`${c.name}: starte prompts-Job`);
-            const pr: any = wanted.includes("prompts")
-              ? await withDeadline(jobPromptRunner(c, sb, fixedComps, { offset: promptOffset, target: promptTarget, snapshot, engines: engineFilter }), 20 * 60_000, "prompts").catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }))
-              : null;
-            diag(`${c.name}: prompts-Job fertig (${pr?.skipped ? "skipped: " + pr.skipped : "answered " + pr?.answered})`);
-            await flushCost(sb); // LLM-Token-Kosten dieses Laufs persistieren
-            const sa: any = wanted.includes("serp_ai")
-              ? await withDeadline(jobSerpAi(c, serpKeywords), 25 * 60_000, "serp_ai").catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }))
-              : null;
-            jr.serp_ai = sa
-              ? (sa.skipped
-                  ? { skipped: sa.skipped }
-                  : { keywords: sa.keywords, aiOverview: sa.aio, aiMode: sa.aim, citations: sa.citations || 0, citedPages: sa.citedPages?.length || 0, errors: sa.errors?.length || 0 })
-              : "skipped";
-            jr.brand_radar = br ? (br.skipped ? { skipped: br.skipped } : { mentions: br.mentions, citations: br.citations, pages: br.citedPagesCount, errors: br.errors?.length || 0 }) : "skipped";
-            jr.attribution = at ? (at.skipped || at.error ? at : { engines: at.engines.length }) : "skipped";
-            jr.prompts = pr ? (pr.skipped ? { skipped: pr.skipped, seeded: pr.seeded } : { answered: pr.answered, byEngine: pr.byEngine, engineErrors: pr.engineErrors, mentions: pr.mentions, seeded: pr.seeded, topics: pr.topics?.length, selfShare: pr.selfShare, sov: pr.sov?.length, judged: pr.judged, learned: pr.learnedComps?.length, next: pr.chunk?.next ?? null, total: pr.chunk?.total ?? null, partial: !!pr.partial, brand: pr.brandCheck ? { answered: pr.brandCheck.answered, faktentreueQuote: pr.brandCheck.faktentreueQuote, advisory: !!pr.brandCheck.advisory } : null }) : "skipped";
-            jr.canonry = ca ? (ca.skipped ? { skipped: ca.skipped } : { models: ca.models.length, mentions: ca.mentions, sources: ca.sources.length }) : "skipped";
-            jr.semrush = { keyPresent: !!process.env.SEMRUSH_API_KEY, competitors: semrushComps.length, volumesFilled: 0 };
-
-            const hasBr = br && !br.skipped;
-            const hasPr = pr && !pr.skipped && pr.promptRows?.length;
-            // Teil-Häppchen (Chunking): Zeilen anhängen, aber Aggregate
-            // (Themen/SoV/Quellen/parts.pr) erst im letzten Häppchen schreiben.
-            const prPartial = !!(hasPr && pr.partial);
-            const hasSa = sa && !sa.skipped;
-            if (hasBr || hasPr || hasCa || hasSa) {
-              // MERGE-MODELL (2026-07-14): Jeder Lauf legt seinen Beitrag in
-              // reports.parts (jsonb) ab; Totale + Modell-Zeilen werden aus den
-              // GEMERGTEN Parts neu aufgebaut. Teil-Laeufe ergaenzen sich damit,
-              // statt sich gegenseitig zu ueberschreiben (ersetzt den frueheren
-              // Teil-Lauf-Guard vollstaendig).
-              const { data: existingRep } = await sb
-                .from("ai_visibility_reports")
-                .select("id, parts")
-                .eq("client_id", c.id)
-                .eq("snapshot_date", snapshot)
-                .maybeSingle();
-              const newParts: any = {};
-              // S3: normalisierte URL-Listen je Schicht mitschreiben (Dedupe-Basis).
-              if (hasBr) newParts.br = {
-                mentions: br.mentions, citations: br.citations, pages: br.citedPagesCount, models: br.models,
-                urls: [...new Set((br.citedPages || []).map((p: any) => normUrl(p.url)).filter(Boolean))].slice(0, 300),
-              };
-              if (hasCa) newParts.ca = { mentions: ca.mentions, models: ca.models };
-              if (hasSa) newParts.sa = {
-                mentions: sa.mentions, citations: Number(sa.citations || 0), pages: sa.citedPages?.length || 0, models: sa.models,
-                // Query-Fanout light (03.08.): Google-Folgefragen je Keyword (PAA/related).
-                ...(Array.isArray(sa.fanout) && sa.fanout.length ? { fanout: sa.fanout.slice(0, 200) } : {}),
-                // Echte KI-Suche (13.08.): Antworttext + Quellen + Marken +
-                // Folgefragen aus der Consumer-Oberfläche von ChatGPT/Gemini.
-                ...(Array.isArray(sa.aiSearch) && sa.aiSearch.length ? { aiSearch: sa.aiSearch.slice(0, 24) } : {}),
-                urls: [...new Set((sa.citedPages || []).map((u: any) => normUrl(u)).filter(Boolean))].slice(0, 300),
-                // AIO/AI-Mode-Detail (06.08., für die Erwähnungen-Karte): WELCHE
-                // Suchanfragen zitieren den Kunden — bisher nur im Lauf-Response.
-                // answers (13.08.): der echte Antworttext + Quellen je zitierter
-                // Suchanfrage — im Dashboard aufklappbar. Deckel: 60 Antworten
-                // je Engine (jsonb-Größe; die Calls kosten nichts extra).
-                ...(sa.aio ? { aio: { checked: sa.aio.checked, present: sa.aio.present, cited: sa.aio.cited, citations: sa.aio.citations, keywords: (sa.aio.keywords || []).slice(0, 150), answers: (sa.aio.answers || []).slice(0, 60) } } : {}),
-                ...(sa.aim ? { aim: { checked: sa.aim.checked, present: sa.aim.present, cited: sa.aim.cited, citations: sa.aim.citations, keywords: (sa.aim.keywords || []).slice(0, 150), answers: (sa.aim.answers || []).slice(0, 60) } } : {}),
-                gemessenAm: snapshot, // echtes Messdatum (SERP-Drosselung)
-              };
-              if (hasPr && !prPartial) newParts.pr = {
-                mentions: pr.mentions, selfShare: pr.selfShare ?? 0, posQ: pr.positionQuality ?? 0, models: pr.customModels,
-                judge: {
-                  models: pr.judgeModels || [], temperature: SCORE_CFG.judge.temperature,
-                  ...(pr.judgeCalibration ? { calibration: pr.judgeCalibration } : {}),
-                },
-              };
-              // Marken-Check (E3): eigenes parts-Objekt, fliesst NICHT in den
-              // Score. advisory: Tages-Duplikatschutz — der erste Befund des
-              // Tages bleibt stehen, spätere Läufe überschreiben ihn nicht.
-              if (hasPr && !prPartial && pr.brandCheck) {
-                const prevAdvisory = (existingRep?.parts as any)?.bc?.advisory;
-                newParts.bc = {
-                  ...pr.brandCheck,
-                  ...(prevAdvisory && prevAdvisory.date === snapshot ? { advisory: prevAdvisory } : {}),
-                };
+              // Backfill-Modus: rückwirkende Monats-Reports (Ahrefs/GA4), dann fertig.
+              if (mode === "backfill") {
+                jr.backfill = await jobBackfill(c, sb, months);
+                await flushCost(sb);
+                results.push({ client: c.name, domain: c.domain, jobs: jr });
+                continue;
               }
-              const parts: any = { ...((existingRep?.parts as any) || {}), ...newParts };
-              if (Object.keys(parts).length > Object.keys(newParts).length)
-                jr.note = `Merge: bestehende Anteile bewahrt (${Object.keys(parts).filter((k) => !newParts[k]).join(",")})`;
-              // SERP-Drosselung (2026-07-21): läuft an diesem Tag kein SERP-
-              // Check, übernimmt der Tagesreport den letzten sa-Stand
-              // (Score-Kontinuität); gemessenAm bleibt das echte Messdatum.
-              if (!parts.sa) {
-                const { data: prevSaRep } = await sb
-                  .from("ai_visibility_reports").select("snapshot_date, parts")
-                  .eq("client_id", c.id).lt("snapshot_date", snapshot)
-                  .not("parts->sa", "is", null)
-                  .order("snapshot_date", { ascending: false }).limit(1).maybeSingle();
-                const ps = (prevSaRep?.parts as any)?.sa;
-                if (ps) parts.sa = { ...ps, gemessenAm: ps.gemessenAm || String(prevSaRep.snapshot_date), uebernommen: true };
+              // Citations/Seiten-Retro (nur bestehende Monats-Reports), dann fertig.
+              if (mode === "citations-backfill") {
+                jr.citationsBackfill = await withDeadline(
+                  jobCitationsBackfill(c, sb, months),
+                  8 * 60_000,
+                  "citations-backfill",
+                ).catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }));
+                await flushCost(sb);
+                results.push({ client: c.name, domain: c.domain, jobs: jr });
+                continue;
               }
-
-              const mentions = ["br", "ca", "sa", "pr"].reduce((a, k) => a + Number(parts[k]?.mentions || 0), 0);
-              // S3-Dedupe: Ahrefs enthält AI Overviews, der eigene sa-Check misst
-              // AI Overviews — dieselbe (normalisierte) URL wird für die SCORE-
-              // Summe nur 1x gezählt. Rohwerte je Schicht bleiben in parts erhalten.
-              const brUrls: string[] | null = Array.isArray(parts.br?.urls) ? parts.br.urls : null;
-              const saUrls: string[] | null = Array.isArray(parts.sa?.urls) ? parts.sa.urls : null;
-              let citations = Number(parts.br?.citations || 0) + Number(parts.sa?.citations || 0);
-              let citedPagesCount = Number(parts.br?.pages || 0) + Number(parts.sa?.pages || 0);
-              if (brUrls && saUrls) {
-                const brSet = new Set(brUrls);
-                const saUnique = saUrls.filter((u) => !brSet.has(u));
-                citedPagesCount = new Set([...brUrls, ...saUrls]).size;
-                // sa-Zitierungen liegen nicht je URL vor -> anteilig über den
-                // Anteil der sa-URLs, die nicht schon im br-Korpus stehen.
-                const saShare = saUrls.length ? saUnique.length / saUrls.length : 1;
-                citations = Number(parts.br?.citations || 0) + Math.round(Number(parts.sa?.citations || 0) * saShare);
+              // Marken-Check-Korpus-Backfill (H2): on-demand, etappenweise, dann fertig.
+              if (mode === "brand-backfill") {
+                jr.brandBackfill = await withDeadline(
+                  jobBrandBackfill(c, sb, months, backfillProvider),
+                  12 * 60_000,
+                  "brand-backfill",
+                ).catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }));
+                await flushCost(sb);
+                results.push({ client: c.name, domain: c.domain, jobs: jr });
+                continue;
               }
-              const selfShare = Number(parts.pr?.selfShare || 0); // 0..100
-              const posQ = Number(parts.pr?.posQ || 0); // 0..100
-
-              // S4-Glättung: rollierender Durchschnitt über die letzten
-              // smoothing.windowRuns pr-Läufe DERSELBEN Mess-Version.
-              let sovSmooth = selfShare, posQSmooth = posQ;
-              if (parts.pr) {
-                const { data: prevPr } = await sb
+              // Freshness-Guard (Brand Radar kostet Units).
+              if (!force && minIntervalDays > 0) {
+                const since = new Date(Date.now() - minIntervalDays * 86400_000)
+                  .toISOString()
+                  .slice(0, 10);
+                const { data: recent } = await sb
                   .from("ai_visibility_reports")
-                  .select("parts")
+                  .select("id")
+                  .eq("client_id", c.id)
+                  .gte("snapshot_date", since)
+                  .limit(1)
+                  .maybeSingle();
+                if (recent) {
+                  results.push({ client: c.name, skipped: "fresh" });
+                  continue;
+                }
+              }
+
+              // Konkurrentenliste (Fixliste, editierbar) + Semrush-Organik -> beide Layer.
+              diag(`${c.name}: Gate ok, lade Konkurrenten`);
+              const db = semrushDb(c.country);
+              const { data: compRows } = await sb
+                .from("ai_visibility_competitors")
+                .select("name")
+                .eq("client_id", c.id)
+                .eq("active", true);
+              const semrushComps = await semrushCompetitors(cleanDomain(c.domain), db);
+              diag(`${c.name}: semrush ok (${semrushComps.length})`);
+              const ca: any = wanted.includes("canonry") ? await jobCanonry(c) : null;
+              const hasCa = ca && !ca.skipped;
+              const canonryComps: string[] = hasCa ? ca.competitors : [];
+              const newComps = [
+                ...semrushComps.map((n) => ({
+                  client_id: c.id,
+                  name: n,
+                  source: "semrush",
+                  active: true,
+                })),
+                ...canonryComps.map((n) => ({
+                  client_id: c.id,
+                  name: n,
+                  source: "canonry",
+                  active: true,
+                })),
+              ];
+              if (newComps.length)
+                await sb
+                  .from("ai_visibility_competitors")
+                  .upsert(newComps, { onConflict: "client_id,name", ignoreDuplicates: true });
+              const fixedComps: string[] = [
+                ...new Set([
+                  ...(compRows || []).map((r: any) => String(r.name)),
+                  ...semrushComps,
+                  ...canonryComps,
+                ]),
+              ].filter(Boolean);
+
+              // Job-Level-Deadlines (wie serp_ai): kein Job darf den Lauf endlos halten.
+              const br: any = wanted.includes("brand_radar")
+                ? await withDeadline(
+                    jobBrandRadarDfs(c, fixedComps),
+                    6 * 60_000,
+                    "brand_radar",
+                  ).catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }))
+                : null;
+              const at: any = wanted.includes("attribution")
+                ? await withDeadline(jobAttribution(c), 5 * 60_000, "attribution").catch((e) => ({
+                    skipped: String((e as any)?.message || e).slice(0, 160),
+                  }))
+                : null;
+              diag(`${c.name}: starte prompts-Job`);
+              const pr: any = wanted.includes("prompts")
+                ? await withDeadline(
+                    jobPromptRunner(c, sb, fixedComps, {
+                      offset: promptOffset,
+                      target: promptTarget,
+                      snapshot,
+                      engines: engineFilter,
+                    }),
+                    20 * 60_000,
+                    "prompts",
+                  ).catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }))
+                : null;
+              diag(
+                `${c.name}: prompts-Job fertig (${pr?.skipped ? "skipped: " + pr.skipped : "answered " + pr?.answered})`,
+              );
+              await flushCost(sb); // LLM-Token-Kosten dieses Laufs persistieren
+              const sa: any = wanted.includes("serp_ai")
+                ? await withDeadline(jobSerpAi(c, serpKeywords), 25 * 60_000, "serp_ai").catch(
+                    (e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }),
+                  )
+                : null;
+              jr.serp_ai = sa
+                ? sa.skipped
+                  ? { skipped: sa.skipped }
+                  : {
+                      keywords: sa.keywords,
+                      aiOverview: sa.aio,
+                      aiMode: sa.aim,
+                      citations: sa.citations || 0,
+                      citedPages: sa.citedPages?.length || 0,
+                      errors: sa.errors?.length || 0,
+                    }
+                : "skipped";
+              jr.brand_radar = br
+                ? br.skipped
+                  ? { skipped: br.skipped }
+                  : {
+                      mentions: br.mentions,
+                      citations: br.citations,
+                      pages: br.citedPagesCount,
+                      errors: br.errors?.length || 0,
+                    }
+                : "skipped";
+              jr.attribution = at
+                ? at.skipped || at.error
+                  ? at
+                  : { engines: at.engines.length }
+                : "skipped";
+              jr.prompts = pr
+                ? pr.skipped
+                  ? { skipped: pr.skipped, seeded: pr.seeded }
+                  : {
+                      answered: pr.answered,
+                      byEngine: pr.byEngine,
+                      engineErrors: pr.engineErrors,
+                      mentions: pr.mentions,
+                      seeded: pr.seeded,
+                      topics: pr.topics?.length,
+                      selfShare: pr.selfShare,
+                      sov: pr.sov?.length,
+                      judged: pr.judged,
+                      learned: pr.learnedComps?.length,
+                      next: pr.chunk?.next ?? null,
+                      total: pr.chunk?.total ?? null,
+                      partial: !!pr.partial,
+                      brand: pr.brandCheck
+                        ? {
+                            answered: pr.brandCheck.answered,
+                            faktentreueQuote: pr.brandCheck.faktentreueQuote,
+                            advisory: !!pr.brandCheck.advisory,
+                          }
+                        : null,
+                    }
+                : "skipped";
+              jr.canonry = ca
+                ? ca.skipped
+                  ? { skipped: ca.skipped }
+                  : { models: ca.models.length, mentions: ca.mentions, sources: ca.sources.length }
+                : "skipped";
+              jr.semrush = {
+                keyPresent: !!process.env.SEMRUSH_API_KEY,
+                competitors: semrushComps.length,
+                volumesFilled: 0,
+              };
+
+              const hasBr = br && !br.skipped;
+              const hasPr = pr && !pr.skipped && pr.promptRows?.length;
+              // Teil-Häppchen (Chunking): Zeilen anhängen, aber Aggregate
+              // (Themen/SoV/Quellen/parts.pr) erst im letzten Häppchen schreiben.
+              const prPartial = !!(hasPr && pr.partial);
+              const hasSa = sa && !sa.skipped;
+              if (hasBr || hasPr || hasCa || hasSa) {
+                // MERGE-MODELL (2026-07-14): Jeder Lauf legt seinen Beitrag in
+                // reports.parts (jsonb) ab; Totale + Modell-Zeilen werden aus den
+                // GEMERGTEN Parts neu aufgebaut. Teil-Laeufe ergaenzen sich damit,
+                // statt sich gegenseitig zu ueberschreiben (ersetzt den frueheren
+                // Teil-Lauf-Guard vollstaendig).
+                const { data: existingRep } = await sb
+                  .from("ai_visibility_reports")
+                  .select("id, parts")
+                  .eq("client_id", c.id)
+                  .eq("snapshot_date", snapshot)
+                  .maybeSingle();
+                const newParts: any = {};
+                // S3: normalisierte URL-Listen je Schicht mitschreiben (Dedupe-Basis).
+                if (hasBr)
+                  newParts.br = {
+                    mentions: br.mentions,
+                    citations: br.citations,
+                    pages: br.citedPagesCount,
+                    models: br.models,
+                    urls: [
+                      ...new Set(
+                        (br.citedPages || []).map((p: any) => normUrl(p.url)).filter(Boolean),
+                      ),
+                    ].slice(0, 300),
+                  };
+                if (hasCa) newParts.ca = { mentions: ca.mentions, models: ca.models };
+                if (hasSa)
+                  newParts.sa = {
+                    mentions: sa.mentions,
+                    citations: Number(sa.citations || 0),
+                    pages: sa.citedPages?.length || 0,
+                    models: sa.models,
+                    // Query-Fanout light (03.08.): Google-Folgefragen je Keyword (PAA/related).
+                    ...(Array.isArray(sa.fanout) && sa.fanout.length
+                      ? { fanout: sa.fanout.slice(0, 200) }
+                      : {}),
+                    // Echte KI-Suche (13.08.): Antworttext + Quellen + Marken +
+                    // Folgefragen aus der Consumer-Oberfläche von ChatGPT/Gemini.
+                    ...(Array.isArray(sa.aiSearch) && sa.aiSearch.length
+                      ? { aiSearch: sa.aiSearch.slice(0, 24) }
+                      : {}),
+                    urls: [
+                      ...new Set((sa.citedPages || []).map((u: any) => normUrl(u)).filter(Boolean)),
+                    ].slice(0, 300),
+                    // AIO/AI-Mode-Detail (06.08., für die Erwähnungen-Karte): WELCHE
+                    // Suchanfragen zitieren den Kunden — bisher nur im Lauf-Response.
+                    // answers (13.08.): der echte Antworttext + Quellen je zitierter
+                    // Suchanfrage — im Dashboard aufklappbar. Deckel: 60 Antworten
+                    // je Engine (jsonb-Größe; die Calls kosten nichts extra).
+                    ...(sa.aio
+                      ? {
+                          aio: {
+                            checked: sa.aio.checked,
+                            present: sa.aio.present,
+                            cited: sa.aio.cited,
+                            citations: sa.aio.citations,
+                            keywords: (sa.aio.keywords || []).slice(0, 150),
+                            answers: (sa.aio.answers || []).slice(0, 60),
+                          },
+                        }
+                      : {}),
+                    ...(sa.aim
+                      ? {
+                          aim: {
+                            checked: sa.aim.checked,
+                            present: sa.aim.present,
+                            cited: sa.aim.cited,
+                            citations: sa.aim.citations,
+                            keywords: (sa.aim.keywords || []).slice(0, 150),
+                            answers: (sa.aim.answers || []).slice(0, 60),
+                          },
+                        }
+                      : {}),
+                    gemessenAm: snapshot, // echtes Messdatum (SERP-Drosselung)
+                  };
+                if (hasPr && !prPartial)
+                  newParts.pr = {
+                    mentions: pr.mentions,
+                    selfShare: pr.selfShare ?? 0,
+                    posQ: pr.positionQuality ?? 0,
+                    models: pr.customModels,
+                    judge: {
+                      models: pr.judgeModels || [],
+                      temperature: SCORE_CFG.judge.temperature,
+                      ...(pr.judgeCalibration ? { calibration: pr.judgeCalibration } : {}),
+                    },
+                  };
+                // Marken-Check (E3): eigenes parts-Objekt, fliesst NICHT in den
+                // Score. advisory: Tages-Duplikatschutz — der erste Befund des
+                // Tages bleibt stehen, spätere Läufe überschreiben ihn nicht.
+                if (hasPr && !prPartial && pr.brandCheck) {
+                  const prevAdvisory = (existingRep?.parts as any)?.bc?.advisory;
+                  newParts.bc = {
+                    ...pr.brandCheck,
+                    ...(prevAdvisory && prevAdvisory.date === snapshot
+                      ? { advisory: prevAdvisory }
+                      : {}),
+                  };
+                }
+                const parts: any = { ...((existingRep?.parts as any) || {}), ...newParts };
+                if (Object.keys(parts).length > Object.keys(newParts).length)
+                  jr.note = `Merge: bestehende Anteile bewahrt (${Object.keys(parts)
+                    .filter((k) => !newParts[k])
+                    .join(",")})`;
+                // SERP-Drosselung (2026-07-21): läuft an diesem Tag kein SERP-
+                // Check, übernimmt der Tagesreport den letzten sa-Stand
+                // (Score-Kontinuität); gemessenAm bleibt das echte Messdatum.
+                if (!parts.sa) {
+                  const { data: prevSaRep } = await sb
+                    .from("ai_visibility_reports")
+                    .select("snapshot_date, parts")
+                    .eq("client_id", c.id)
+                    .lt("snapshot_date", snapshot)
+                    .not("parts->sa", "is", null)
+                    .order("snapshot_date", { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                  const ps = (prevSaRep?.parts as any)?.sa;
+                  if (ps)
+                    parts.sa = {
+                      ...ps,
+                      gemessenAm: ps.gemessenAm || String(prevSaRep.snapshot_date),
+                      uebernommen: true,
+                    };
+                }
+
+                const mentions = ["br", "ca", "sa", "pr"].reduce(
+                  (a, k) => a + Number(parts[k]?.mentions || 0),
+                  0,
+                );
+                // S3-Dedupe: Ahrefs enthält AI Overviews, der eigene sa-Check misst
+                // AI Overviews — dieselbe (normalisierte) URL wird für die SCORE-
+                // Summe nur 1x gezählt. Rohwerte je Schicht bleiben in parts erhalten.
+                const brUrls: string[] | null = Array.isArray(parts.br?.urls)
+                  ? parts.br.urls
+                  : null;
+                const saUrls: string[] | null = Array.isArray(parts.sa?.urls)
+                  ? parts.sa.urls
+                  : null;
+                let citations = Number(parts.br?.citations || 0) + Number(parts.sa?.citations || 0);
+                let citedPagesCount = Number(parts.br?.pages || 0) + Number(parts.sa?.pages || 0);
+                if (brUrls && saUrls) {
+                  const brSet = new Set(brUrls);
+                  const saUnique = saUrls.filter((u) => !brSet.has(u));
+                  citedPagesCount = new Set([...brUrls, ...saUrls]).size;
+                  // sa-Zitierungen liegen nicht je URL vor -> anteilig über den
+                  // Anteil der sa-URLs, die nicht schon im br-Korpus stehen.
+                  const saShare = saUrls.length ? saUnique.length / saUrls.length : 1;
+                  citations =
+                    Number(parts.br?.citations || 0) +
+                    Math.round(Number(parts.sa?.citations || 0) * saShare);
+                }
+                const selfShare = Number(parts.pr?.selfShare || 0); // 0..100
+                const posQ = Number(parts.pr?.posQ || 0); // 0..100
+
+                // S4-Glättung: rollierender Durchschnitt über die letzten
+                // smoothing.windowRuns pr-Läufe DERSELBEN Mess-Version.
+                let sovSmooth = selfShare,
+                  posQSmooth = posQ;
+                if (parts.pr) {
+                  const { data: prevPr } = await sb
+                    .from("ai_visibility_reports")
+                    .select("parts")
+                    .eq("client_id", c.id)
+                    .eq("measurement_version", MEASUREMENT_VERSION)
+                    .lt("snapshot_date", snapshot)
+                    .not("parts->pr", "is", null)
+                    .order("snapshot_date", { ascending: false })
+                    .limit(Math.max(0, SCORE_CFG.smoothing.windowRuns - 1));
+                  const sovVals = [
+                    selfShare,
+                    ...(prevPr || []).map((x: any) => Number(x.parts?.pr?.selfShare || 0)),
+                  ];
+                  const posVals = [
+                    posQ,
+                    ...(prevPr || []).map((x: any) => Number(x.parts?.pr?.posQ || 0)),
+                  ];
+                  sovSmooth = sovVals.reduce((a, b) => a + b, 0) / sovVals.length;
+                  posQSmooth = posVals.reduce((a, b) => a + b, 0) / posVals.length;
+                  parts.pr.sovSmooth = Math.round(sovSmooth * 10) / 10;
+                  parts.pr.posQSmooth = Math.round(posQSmooth * 10) / 10;
+                }
+
+                // S2: Deltas NUR gegen den letzten Snapshot DERSELBEN Mess-Version.
+                const { data: prev } = await sb
+                  .from("ai_visibility_reports")
+                  .select("mentions, citations, cited_pages, score, measurement_version")
                   .eq("client_id", c.id)
                   .eq("measurement_version", MEASUREMENT_VERSION)
                   .lt("snapshot_date", snapshot)
-                  .not("parts->pr", "is", null)
                   .order("snapshot_date", { ascending: false })
-                  .limit(Math.max(0, SCORE_CFG.smoothing.windowRuns - 1));
-                const sovVals = [selfShare, ...(prevPr || []).map((x: any) => Number(x.parts?.pr?.selfShare || 0))];
-                const posVals = [posQ, ...(prevPr || []).map((x: any) => Number(x.parts?.pr?.posQ || 0))];
-                sovSmooth = sovVals.reduce((a, b) => a + b, 0) / sovVals.length;
-                posQSmooth = posVals.reduce((a, b) => a + b, 0) / posVals.length;
-                parts.pr.sovSmooth = Math.round(sovSmooth * 10) / 10;
-                parts.pr.posQSmooth = Math.round(posQSmooth * 10) / 10;
-              }
-
-              // S2: Deltas NUR gegen den letzten Snapshot DERSELBEN Mess-Version.
-              const { data: prev } = await sb
-                .from("ai_visibility_reports")
-                .select("mentions, citations, cited_pages, score, measurement_version")
-                .eq("client_id", c.id)
-                .eq("measurement_version", MEASUREMENT_VERSION)
-                .lt("snapshot_date", snapshot)
-                .order("snapshot_date", { ascending: false })
-                .limit(1)
-                .maybeSingle();
-              let versionSwitch = false;
-              if (!prev) {
-                const { data: anyPrev } = await sb
-                  .from("ai_visibility_reports").select("id")
-                  .eq("client_id", c.id).lt("snapshot_date", snapshot).limit(1).maybeSingle();
-                versionSwitch = !!anyPrev; // Historie da, aber andere Version -> Delta-Sperre + UI-Marker
-              }
-              if (versionSwitch) parts.meta = { ...(parts.meta || {}), versionSwitch: snapshot };
-
-              // S1: Score v2 — Sättigung statt harter Deckel; scoreRaw ungedeckelt.
-              const scoreV2 = scoreV2Terms(sat, mentions, citations, citedPagesCount, sovSmooth, posQSmooth);
-              const scoreRaw = scoreV2Terms(satRaw, mentions, citations, citedPagesCount, sovSmooth, posQSmooth);
-              const score = Math.min(100, Math.round(scoreV2));
-              const { data: rep, error: repErr } = await sb
-                .from("ai_visibility_reports")
-                .upsert(
-                  {
-                    client_id: c.id,
-                    market: c.country || null,
-                    snapshot_date: snapshot,
-                    score,
-                    score_raw: Math.round(scoreRaw * 10) / 10,
-                    measurement_version: MEASUREMENT_VERSION,
-                    score_delta: versionSwitch ? null : score - Number(prev?.score ?? 0),
-                    mentions,
-                    mentions_delta: versionSwitch ? null : mentions - Number(prev?.mentions ?? 0),
-                    citations,
-                    citations_delta: versionSwitch ? null : citations - Number(prev?.citations ?? 0),
-                    cited_pages: citedPagesCount,
-                    cited_pages_delta: versionSwitch ? null : citedPagesCount - Number(prev?.cited_pages ?? 0),
-                    parts,
-                  },
-                  { onConflict: "client_id,snapshot_date" },
-                )
-                .select("id")
-                .single();
-              if (repErr) throw new Error(repErr.message);
-              const reportId: string = rep.id;
-
-              // H1: Marken-Check-Historie — jeder Lauf ein Zeitreihen-Punkt.
-              // Merge-Modell: Teilläufe desselben Tages upserten denselben
-              // Tagespunkt (Aggregat läuft ohnehin über alle Tageszeilen).
-              // Quelle "eigene-prompts" — NIE mit Korpus-Backfill mischen (H3).
-              if (hasPr && !prPartial && pr.brandCheck) {
-                await sb.from("ai_visibility_brand_history").upsert({
-                  client_id: c.id,
-                  point_date: snapshot,
-                  source: "eigene-prompts",
-                  provider: "",
-                  data: {
-                    faktentreueQuote: pr.brandCheck.faktentreueQuote,
-                    faktentreueVerteilung: pr.brandCheck.faktentreueVerteilung,
-                    tonalitaetsVerteilung: pr.brandCheck.tonalitaetsVerteilung,
-                    halluzinationen: pr.brandCheck.halluzinationen,
-                    konkurrenzNennungen: pr.brandCheck.konkurrenzNennungen,
-                    topQuellen: pr.brandCheck.topQuellen,
-                    answered: pr.brandCheck.answered,
-                    judge: pr.brandCheck.judge,
-                  },
-                  updated_at: new Date().toISOString(),
-                }, { onConflict: "client_id,point_date,source,provider" });
-              }
-
-              // Modelle: IMMER aus den gemergten Parts neu aufbauen, per Modell-
-              // NAME zusammengeführt (Summe der Mentions) -> keine Doppel-Zeilen.
-              // Custom-Modelle (06.08. Bugfix Studioforma): aus der Prompt-Tabelle
-              // aggregieren statt aus parts.pr.models — letzteres enthält nur die
-              // im aktuellen Lauf geprüften Engines und überschreibt die anderen.
-              const { data: dbCustom } = await sb
-                .from("ai_visibility_prompts")
-                .select("platform, status")
-                .eq("report_id", reportId)
-                .eq("is_opportunity", false)
-                .neq("prompt_type", "brand");
-              const dbCustomAgg: Record<string, number> = {};
-              for (const p of dbCustom || []) {
-                if (p.status && p.status !== "Nicht erwähnt") dbCustomAgg[p.platform] = (dbCustomAgg[p.platform] || 0) + 1;
-              }
-              const dbCustomModels = Object.entries(dbCustomAgg).map(([name, mentions]) => ({ name, mentions, byCountry: {} }));
-              await sb.from("ai_visibility_models").delete().eq("report_id", reportId);
-              const rawModels = [
-                ...((parts.br?.models || []).map((m: any) => ({ ...m, layer: "macro" }))),
-                ...((parts.ca?.models || []).map((m: any) => ({ ...m, layer: "macro" }))), // Canonry = Makro-Quelle
-                ...((parts.sa?.models || []).map((m: any) => ({ ...m, layer: "macro" }))), // eigener AI-Overview/AI-Mode-Check
-                ...(dbCustomModels.map((m: any) => ({ ...m, layer: "custom" }))), // aus DB statt parts.pr
-              ];
-              const modelAgg: Record<string, { mentions: number; byCountry: Record<string, number>; layers: Set<string> }> = {};
-              for (const m of rawModels) {
-                const a = (modelAgg[m.name] ??= { mentions: 0, byCountry: {}, layers: new Set<string>() });
-                a.mentions += Number(m.mentions || 0);
-                a.layers.add(m.layer);
-                for (const [ct, v] of Object.entries(m.byCountry || {})) a.byCountry[ct] = (a.byCountry[ct] || 0) + Number(v);
-              }
-              const allModels = Object.entries(modelAgg).map(([name, a]) => ({
-                name,
-                layer: a.layers.has("custom") ? "custom" : "macro",
-                mentions: a.mentions,
-                byCountry: a.byCountry,
-              }));
-              const totalMentions = Math.max(1, mentions);
-              const { data: modelRows, error: mErr } = await sb
-                .from("ai_visibility_models")
-                .insert(
-                  allModels.map((m: any) => ({
-                    report_id: reportId,
-                    client_id: c.id,
-                    model_name: m.name,
-                    layer: m.layer,
-                    mentions: m.mentions,
-                    sov: Math.round((m.mentions / totalMentions) * 100),
-                  })),
-                )
-                .select("id, model_name");
-              if (mErr) throw new Error(mErr.message);
-              const mcInserts: any[] = [];
-              for (const m of allModels) {
-                const row = (modelRows || []).find((x: any) => x.model_name === m.name);
-                if (!row) continue;
-                for (const [country, mentions2] of Object.entries(m.byCountry)) {
-                  mcInserts.push({ model_id: row.id, client_id: c.id, country, mentions: mentions2 });
-                }
-              }
-              if (mcInserts.length) await sb.from("ai_visibility_model_country").insert(mcInserts);
-
-              // Kind-Tabellen JOB-SCOPED ersetzen: jeder Job raeumt nur seine
-              // eigenen Zeilen ab — fremde Anteile bleiben stehen (Merge).
-              if (hasCa) {
-                await sb.from("ai_visibility_sources").delete().eq("report_id", reportId).eq("layer", "canonry");
-                if (ca.sources?.length)
-                  await sb.from("ai_visibility_sources").insert(
-                    ca.sources.map((s: any) => ({ report_id: reportId, client_id: c.id, domain: s.domain, mentions: s.mentions, share: 0, urls: 0, traffic: 0, layer: "canonry" })),
-                  );
-              }
-
-              // Prompts + Themen + SoV + Quellen + Auto-Learning (Custom-Layer).
-              if (hasPr) {
-                // Chunking: nur das ERSTE Häppchen (offset 0 bzw. ungechunkt)
-                // räumt die alten Zeilen ab; Folge-Häppchen hängen an. Vor dem
-                // Anhängen die eigene Slice löschen (Wiederholungs-Idempotenz).
-                const isFirstChunk = !pr.chunk || pr.chunk.offset === 0;
-                if (Array.isArray(pr.engineFilter) && pr.engineFilter.length) {
-                  // Engine-Nachzieh-Modus: NUR die Zeilen der gefilterten Engines
-                  // ersetzen — Antworten der übrigen Engines bleiben stehen.
-                  const slicePrompts = [...new Set(pr.promptRows.map((p: any) => String(p.prompt)))];
-                  await sb.from("ai_visibility_prompts").delete().eq("report_id", reportId).in("platform", pr.engineFilter).in("prompt", slicePrompts);
-                } else if (isFirstChunk) {
-                  await sb.from("ai_visibility_prompts").delete().eq("report_id", reportId);
-                } else {
-                  const slicePrompts = [...new Set(pr.promptRows.map((p: any) => String(p.prompt)))];
-                  await sb.from("ai_visibility_prompts").delete().eq("report_id", reportId).in("prompt", slicePrompts);
-                }
-                if (!prPartial) {
-                  await sb.from("ai_visibility_topics").delete().eq("report_id", reportId);
-                  await sb.from("ai_visibility_sov").delete().eq("report_id", reportId);
-                  await sb.from("ai_visibility_sources").delete().eq("report_id", reportId).eq("layer", "custom");
-                }
-                // Blockweise einfügen — bei vielen Prompts × Engines bleibt
-                // der einzelne Request sonst zu groß.
-                const promptInserts = pr.promptRows.map((p: any) => ({ ...p, report_id: reportId, client_id: c.id }));
-                for (let off = 0; off < promptInserts.length; off += 500)
-                  await sb.from("ai_visibility_prompts").insert(promptInserts.slice(off, off + 500));
-                diag(`${c.name}: prompt-Zeilen geschrieben (${promptInserts.length}${pr.chunk ? `, Häppchen ab ${pr.chunk.offset}` : ""})`);
-                // Sentiment-Score (11.08., Searchable-Parität): pos=100/neu=50/
-                // neg=0 über alle Judge-bewerteten Antworten dieses Reports —
-                // als DB-Aggregat NACH dem Insert (chunk-sicher), additiv in
-                // parts.sentiment (Backfill 11.08. deckt den Bestand ab).
-                try {
-                  const { data: sentRows } = await sb
-                    .from("ai_visibility_prompts").select("sentiment")
-                    .eq("report_id", reportId).not("sentiment", "is", null).limit(5000);
-                  const sc: Record<string, number> = { pos: 0, neu: 0, neg: 0 };
-                  for (const r of sentRows || []) if (sc[r.sentiment as string] != null) sc[r.sentiment as string] += 1;
-                  const totalS = sc.pos + sc.neu + sc.neg;
-                  if (totalS) {
-                    const scoreS = Math.round((sc.pos * 100 + sc.neu * 50) / totalS);
-                    const { data: freshRep } = await sb
-                      .from("ai_visibility_reports").select("parts").eq("id", reportId).maybeSingle();
-                    await sb.from("ai_visibility_reports")
-                      .update({ parts: { ...((freshRep?.parts as any) || {}), sentiment: { score: scoreS, pos: sc.pos, neu: sc.neu, neg: sc.neg } } })
-                      .eq("id", reportId);
-                  }
-                } catch { /* additiv — gefährdet den Lauf nie */ }
-                // Sichtbarkeits-Wächter (13.08., Volkan): erzeugt In-App-
-                // Meldungen (app_notifications, Glocke im EzyAI-Header) bei
-                // Einbrüchen. Nutzt die vom Sync bereits berechneten Deltas
-                // (bei Instrumentierungswechsel null → keine Fehlalarme) und
-                // den SoV-Vergleich zum Vorreport. Dedupe: gleiche Art je
-                // Kunde max. 1×/6 Tage. Additiv — gefährdet den Lauf nie.
-                if (!prPartial) try {
-                  const { data: repRow } = await sb
+                  .limit(1)
+                  .maybeSingle();
+                let versionSwitch = false;
+                if (!prev) {
+                  const { data: anyPrev } = await sb
                     .from("ai_visibility_reports")
-                    .select("score, score_delta, citations_delta, snapshot_date")
-                    .eq("id", reportId).maybeSingle();
-                  const alerts: Array<{ kind: string; severity: string; title: string; body: string }> = [];
-                  const sd = Number(repRow?.score_delta ?? 0);
-                  const cd = Number(repRow?.citations_delta ?? 0);
-                  if (repRow?.score_delta != null && sd <= -8) alerts.push({
-                    kind: "score_drop", severity: sd <= -15 ? "kritisch" : "hoch",
-                    title: `${c.name}: KI-Sichtbarkeits-Score eingebrochen (${sd})`,
-                    body: `Der Score fiel auf ${repRow.score}. Prompt-Details und Quellen im Dashboard prüfen.`,
-                  });
-                  if (repRow?.citations_delta != null && cd <= -3) alerts.push({
-                    kind: "citations_lost", severity: "hoch",
-                    title: `${c.name}: ${Math.abs(cd)} KI-Zitierungen verloren`,
-                    body: "KI-Antworten führen die Website seltener als Quelle. Betroffene Prompts im Dashboard prüfen.",
-                  });
-                  // SoV-Überholung: war der Kunde im Vorreport vor dem Rivalen?
-                  const { data: prevRep2 } = await sb
-                    .from("ai_visibility_reports").select("id").eq("client_id", c.id)
-                    .lt("snapshot_date", repRow?.snapshot_date || "9999-12-31")
-                    .order("snapshot_date", { ascending: false }).limit(1).maybeSingle();
-                  if (prevRep2?.id) {
-                    const sovOf = async (rid: string) => {
-                      const { data } = await sb.from("ai_visibility_sov").select("brand, is_self, share").eq("report_id", rid);
-                      const self = (data || []).find((s: any) => s.is_self);
-                      const rival = (data || []).filter((s: any) => !s.is_self).sort((a: any, b: any) => Number(b.share) - Number(a.share))[0];
-                      return { self: Number(self?.share ?? -1), rival, rivalShare: Number(rival?.share ?? -1) };
-                    };
-                    const [now, prev] = [await sovOf(reportId), await sovOf(prevRep2.id)];
-                    if (now.self >= 0 && now.rivalShare > now.self && prev.self >= prev.rivalShare) alerts.push({
-                      kind: "sov_overtaken", severity: "hoch",
-                      title: `${c.name}: ${String(now.rival?.brand || "Ein Konkurrent")} hat im Share of Voice überholt`,
-                      body: `SoV jetzt ${now.self}% vs. ${now.rivalShare}% — im Vorreport lag ${c.name} noch vorn.`,
-                    });
-                  }
-                  for (const a of alerts) {
-                    const { data: dup } = await sb
-                      .from("app_notifications").select("id").eq("client_id", c.id).eq("kind", a.kind)
-                      .gte("created_at", new Date(Date.now() - 6 * 864e5).toISOString()).limit(1).maybeSingle();
-                    if (!dup) await sb.from("app_notifications").insert({
-                      organization_id: c.organization_id, client_id: c.id,
-                      kind: a.kind, severity: a.severity, title: a.title, body: a.body, link_section: "aeo-insights",
-                    });
-                  }
-                  if (alerts.length) diag(`${c.name}: ${alerts.length} Sichtbarkeits-Alarm(e) erzeugt`);
-                } catch { /* additiv — gefährdet den Lauf nie */ }
-                // AI-Suchvolumen in die Themen (seit 2026-07-19 DataForSEO
-                // AI Keyword Data statt Semrush): misst, wie oft solche Fragen
-                // tatsächlich an KI-Tools gehen — EIN Call für alle Themen.
-                // AI-Suchvolumen (2026-07-21 überarbeitet): Themen-Labels sind
-                // LLM-Kurzbezeichnungen ("Agriturismo vs Landhotel") — dafür
-                // kennt DataForSEO praktisch nie ein Volumen (live belegt).
-                // Deshalb: ECHTE Kunden-Keywords (GSC) abfragen und einem Thema
-                // per Wort-Überlappung zuordnen; ohne Datenlage bleibt volume
-                // NULL ("–" im UI) statt 0 ("keine Nachfrage").
-                if (!prPartial && pr.topics?.length) {
-                  const gscPairs = await gscTopQueryCountryPairs(c, 200).catch(() => []);
-                  const gscKws = [...new Set(gscPairs.map((p: any) => String(p.kw).toLowerCase().trim()))].slice(0, 150);
-                  const kandidaten = [...new Set([
-                    ...pr.topics.map((t: any) => String(t.topic).slice(0, 80).toLowerCase().trim()),
-                    ...gscKws,
-                  ])].filter(Boolean).slice(0, 400);
-                  const vr = await withDeadline(
-                    dfsAiCall("ai_optimization/ai_keyword_data/keywords_search_volume/live", {
-                      keywords: kandidaten,
-                      language_code: (c.language || "de").slice(0, 2),
-                      location_name: "Switzerland",
-                    }),
-                    60_000,
-                    "ai-volumes",
-                  ).catch(() => null);
-                  const items: any[] = (vr && (vr as any).ok ? ((vr as any).result?.[0]?.items ?? []) : []) as any[];
-                  // Nur Keywords MIT Datenlage; alles andere bleibt unbekannt.
-                  const treffer = items
-                    .filter((i: any) => Number(i.ai_search_volume || 0) > 0)
-                    .map((i: any) => ({ kw: String(i.keyword || "").toLowerCase(), vol: Number(i.ai_search_volume) }));
-                  const volByKw = new Map(treffer.map((t) => [t.kw, t.vol]));
-                  const wortSet = (s: string) => new Set(String(s).toLowerCase().match(/[\p{L}\d]{3,}/gu) || []);
-                  let vf = 0;
-                  pr.topics.forEach((t: any) => {
-                    const label = String(t.topic).slice(0, 80).toLowerCase();
-                    let vol = volByKw.get(label) ?? null;
-                    if (vol == null) {
-                      // Bestes passendes Kunden-Keyword: alle Keyword-Wörter
-                      // müssen im Thema vorkommen; bei mehreren gewinnt das
-                      // spezifischste (meiste Wörter), dann das grösste Volumen.
-                      const tw = wortSet(label);
-                      let best: { n: number; vol: number } | null = null;
-                      for (const cand of treffer) {
-                        const cw = [...wortSet(cand.kw)];
-                        if (!cw.length || !cw.every((w) => tw.has(w))) continue;
-                        if (!best || cw.length > best.n || (cw.length === best.n && cand.vol > best.vol)) best = { n: cw.length, vol: cand.vol };
-                      }
-                      vol = best ? best.vol : null;
-                    }
-                    t.volume = vol; // null = keine Daten (UI zeigt "–")
-                    if (vol != null) vf++;
-                  });
-                  (jr.semrush as any).volumesFilled = vf;
-                  (jr.semrush as any).quelle = "dataforseo-ai (Themen + GSC-Keywords)";
-                  diag(`${c.name}: AI-Volumina ${vf}/${pr.topics.length} Themen (aus ${treffer.length} Keywords mit Daten)`);
+                    .select("id")
+                    .eq("client_id", c.id)
+                    .lt("snapshot_date", snapshot)
+                    .limit(1)
+                    .maybeSingle();
+                  versionSwitch = !!anyPrev; // Historie da, aber andere Version -> Delta-Sperre + UI-Marker
                 }
-                if (pr.topics?.length && !prPartial)
-                  await sb.from("ai_visibility_topics").insert(
-                    pr.topics.map((t: any) => ({ ...t, report_id: reportId, client_id: c.id })),
-                  );
-                // C) Share-of-Voice
-                if (pr.sov?.length && !prPartial)
-                  await sb.from("ai_visibility_sov").insert(
-                    pr.sov.map((s: any) => ({ report_id: reportId, client_id: c.id, brand: s.brand, is_self: s.is_self, mentions: s.mentions, share: s.share })),
-                  );
-                // E) Quellen aus den Antworten (Custom-Layer)
-                if (pr.customSources?.length && !prPartial)
-                  await sb.from("ai_visibility_sources").insert(
-                    pr.customSources.map((s: any) => ({ report_id: reportId, client_id: c.id, domain: s.domain, mentions: s.mentions, share: 0, urls: 0, traffic: 0, layer: "custom" })),
-                  );
-                // Auto-Learning: neue Konkurrenten in die Fixliste (source='auto').
-                if (pr.learnedComps?.length && !prPartial)
-                  await sb.from("ai_visibility_competitors").upsert(
-                    pr.learnedComps.map((n: string) => ({ client_id: c.id, name: n, source: "auto", active: true })),
-                    { onConflict: "client_id,name", ignoreDuplicates: true },
-                  );
-              }
+                if (versionSwitch) parts.meta = { ...(parts.meta || {}), versionSwitch: snapshot };
 
-              if (hasBr) {
-                await sb.from("ai_visibility_sources").delete().eq("report_id", reportId).is("layer", null);
-                if (br.citedPages?.length) {
-                  const domain = cleanDomain(c.domain);
-                  await sb.from("ai_visibility_sources").insert({
+                // S1: Score v2 — Sättigung statt harter Deckel; scoreRaw ungedeckelt.
+                const scoreV2 = scoreV2Terms(
+                  sat,
+                  mentions,
+                  citations,
+                  citedPagesCount,
+                  sovSmooth,
+                  posQSmooth,
+                );
+                const scoreRaw = scoreV2Terms(
+                  satRaw,
+                  mentions,
+                  citations,
+                  citedPagesCount,
+                  sovSmooth,
+                  posQSmooth,
+                );
+                const score = Math.min(100, Math.round(scoreV2));
+                const { data: rep, error: repErr } = await sb
+                  .from("ai_visibility_reports")
+                  .upsert(
+                    {
+                      client_id: c.id,
+                      market: c.country || null,
+                      snapshot_date: snapshot,
+                      score,
+                      score_raw: Math.round(scoreRaw * 10) / 10,
+                      measurement_version: MEASUREMENT_VERSION,
+                      score_delta: versionSwitch ? null : score - Number(prev?.score ?? 0),
+                      mentions,
+                      mentions_delta: versionSwitch ? null : mentions - Number(prev?.mentions ?? 0),
+                      citations,
+                      citations_delta: versionSwitch
+                        ? null
+                        : citations - Number(prev?.citations ?? 0),
+                      cited_pages: citedPagesCount,
+                      cited_pages_delta: versionSwitch
+                        ? null
+                        : citedPagesCount - Number(prev?.cited_pages ?? 0),
+                      parts,
+                    },
+                    { onConflict: "client_id,snapshot_date" },
+                  )
+                  .select("id")
+                  .single();
+                if (repErr) throw new Error(repErr.message);
+                const reportId: string = rep.id;
+
+                // H1: Marken-Check-Historie — jeder Lauf ein Zeitreihen-Punkt.
+                // Merge-Modell: Teilläufe desselben Tages upserten denselben
+                // Tagespunkt (Aggregat läuft ohnehin über alle Tageszeilen).
+                // Quelle "eigene-prompts" — NIE mit Korpus-Backfill mischen (H3).
+                if (hasPr && !prPartial && pr.brandCheck) {
+                  await sb.from("ai_visibility_brand_history").upsert(
+                    {
+                      client_id: c.id,
+                      point_date: snapshot,
+                      source: "eigene-prompts",
+                      provider: "",
+                      data: {
+                        faktentreueQuote: pr.brandCheck.faktentreueQuote,
+                        faktentreueVerteilung: pr.brandCheck.faktentreueVerteilung,
+                        tonalitaetsVerteilung: pr.brandCheck.tonalitaetsVerteilung,
+                        halluzinationen: pr.brandCheck.halluzinationen,
+                        konkurrenzNennungen: pr.brandCheck.konkurrenzNennungen,
+                        topQuellen: pr.brandCheck.topQuellen,
+                        answered: pr.brandCheck.answered,
+                        judge: pr.brandCheck.judge,
+                      },
+                      updated_at: new Date().toISOString(),
+                    },
+                    { onConflict: "client_id,point_date,source,provider" },
+                  );
+                }
+
+                // Modelle: IMMER aus den gemergten Parts neu aufbauen, per Modell-
+                // NAME zusammengeführt (Summe der Mentions) -> keine Doppel-Zeilen.
+                // Custom-Modelle (06.08. Bugfix Studioforma): aus der Prompt-Tabelle
+                // aggregieren statt aus parts.pr.models — letzteres enthält nur die
+                // im aktuellen Lauf geprüften Engines und überschreibt die anderen.
+                const { data: dbCustom } = await sb
+                  .from("ai_visibility_prompts")
+                  .select("platform, status")
+                  .eq("report_id", reportId)
+                  .eq("is_opportunity", false)
+                  .neq("prompt_type", "brand");
+                const dbCustomAgg: Record<string, number> = {};
+                for (const p of dbCustom || []) {
+                  if (p.status && p.status !== "Nicht erwähnt")
+                    dbCustomAgg[p.platform] = (dbCustomAgg[p.platform] || 0) + 1;
+                }
+                const dbCustomModels = Object.entries(dbCustomAgg).map(([name, mentions]) => ({
+                  name,
+                  mentions,
+                  byCountry: {},
+                }));
+                await sb.from("ai_visibility_models").delete().eq("report_id", reportId);
+                const rawModels = [
+                  ...(parts.br?.models || []).map((m: any) => ({ ...m, layer: "macro" })),
+                  ...(parts.ca?.models || []).map((m: any) => ({ ...m, layer: "macro" })), // Canonry = Makro-Quelle
+                  ...(parts.sa?.models || []).map((m: any) => ({ ...m, layer: "macro" })), // eigener AI-Overview/AI-Mode-Check
+                  ...dbCustomModels.map((m: any) => ({ ...m, layer: "custom" })), // aus DB statt parts.pr
+                ];
+                const modelAgg: Record<
+                  string,
+                  { mentions: number; byCountry: Record<string, number>; layers: Set<string> }
+                > = {};
+                for (const m of rawModels) {
+                  const a = (modelAgg[m.name] ??= {
+                    mentions: 0,
+                    byCountry: {},
+                    layers: new Set<string>(),
+                  });
+                  a.mentions += Number(m.mentions || 0);
+                  a.layers.add(m.layer);
+                  for (const [ct, v] of Object.entries(m.byCountry || {}))
+                    a.byCountry[ct] = (a.byCountry[ct] || 0) + Number(v);
+                }
+                const allModels = Object.entries(modelAgg).map(([name, a]) => ({
+                  name,
+                  layer: a.layers.has("custom") ? "custom" : "macro",
+                  mentions: a.mentions,
+                  byCountry: a.byCountry,
+                }));
+                const totalMentions = Math.max(1, mentions);
+                const { data: modelRows, error: mErr } = await sb
+                  .from("ai_visibility_models")
+                  .insert(
+                    allModels.map((m: any) => ({
+                      report_id: reportId,
+                      client_id: c.id,
+                      model_name: m.name,
+                      layer: m.layer,
+                      mentions: m.mentions,
+                      sov: Math.round((m.mentions / totalMentions) * 100),
+                    })),
+                  )
+                  .select("id, model_name");
+                if (mErr) throw new Error(mErr.message);
+                const mcInserts: any[] = [];
+                for (const m of allModels) {
+                  const row = (modelRows || []).find((x: any) => x.model_name === m.name);
+                  if (!row) continue;
+                  for (const [country, mentions2] of Object.entries(m.byCountry)) {
+                    mcInserts.push({
+                      model_id: row.id,
+                      client_id: c.id,
+                      country,
+                      mentions: mentions2,
+                    });
+                  }
+                }
+                if (mcInserts.length)
+                  await sb.from("ai_visibility_model_country").insert(mcInserts);
+
+                // Kind-Tabellen JOB-SCOPED ersetzen: jeder Job raeumt nur seine
+                // eigenen Zeilen ab — fremde Anteile bleiben stehen (Merge).
+                if (hasCa) {
+                  await sb
+                    .from("ai_visibility_sources")
+                    .delete()
+                    .eq("report_id", reportId)
+                    .eq("layer", "canonry");
+                  if (ca.sources?.length)
+                    await sb.from("ai_visibility_sources").insert(
+                      ca.sources.map((s: any) => ({
+                        report_id: reportId,
+                        client_id: c.id,
+                        domain: s.domain,
+                        mentions: s.mentions,
+                        share: 0,
+                        urls: 0,
+                        traffic: 0,
+                        layer: "canonry",
+                      })),
+                    );
+                }
+
+                // Prompts + Themen + SoV + Quellen + Auto-Learning (Custom-Layer).
+                if (hasPr) {
+                  // Chunking: nur das ERSTE Häppchen (offset 0 bzw. ungechunkt)
+                  // räumt die alten Zeilen ab; Folge-Häppchen hängen an. Vor dem
+                  // Anhängen die eigene Slice löschen (Wiederholungs-Idempotenz).
+                  const isFirstChunk = !pr.chunk || pr.chunk.offset === 0;
+                  if (Array.isArray(pr.engineFilter) && pr.engineFilter.length) {
+                    // Engine-Nachzieh-Modus: NUR die Zeilen der gefilterten Engines
+                    // ersetzen — Antworten der übrigen Engines bleiben stehen.
+                    const slicePrompts = [
+                      ...new Set(pr.promptRows.map((p: any) => String(p.prompt))),
+                    ];
+                    await sb
+                      .from("ai_visibility_prompts")
+                      .delete()
+                      .eq("report_id", reportId)
+                      .in("platform", pr.engineFilter)
+                      .in("prompt", slicePrompts);
+                  } else if (isFirstChunk) {
+                    await sb.from("ai_visibility_prompts").delete().eq("report_id", reportId);
+                  } else {
+                    const slicePrompts = [
+                      ...new Set(pr.promptRows.map((p: any) => String(p.prompt))),
+                    ];
+                    await sb
+                      .from("ai_visibility_prompts")
+                      .delete()
+                      .eq("report_id", reportId)
+                      .in("prompt", slicePrompts);
+                  }
+                  if (!prPartial) {
+                    await sb.from("ai_visibility_topics").delete().eq("report_id", reportId);
+                    await sb.from("ai_visibility_sov").delete().eq("report_id", reportId);
+                    await sb
+                      .from("ai_visibility_sources")
+                      .delete()
+                      .eq("report_id", reportId)
+                      .eq("layer", "custom");
+                  }
+                  // Blockweise einfügen — bei vielen Prompts × Engines bleibt
+                  // der einzelne Request sonst zu groß.
+                  const promptInserts = pr.promptRows.map((p: any) => ({
+                    ...p,
                     report_id: reportId,
                     client_id: c.id,
-                    domain,
-                    mentions: br.citations,
-                    share: 100,
-                    urls: br.citedPagesCount,
-                    traffic: 0,
-                  });
+                  }));
+                  for (let off = 0; off < promptInserts.length; off += 500)
+                    await sb
+                      .from("ai_visibility_prompts")
+                      .insert(promptInserts.slice(off, off + 500));
+                  diag(
+                    `${c.name}: prompt-Zeilen geschrieben (${promptInserts.length}${pr.chunk ? `, Häppchen ab ${pr.chunk.offset}` : ""})`,
+                  );
+                  // Sentiment-Score (11.08., Searchable-Parität): pos=100/neu=50/
+                  // neg=0 über alle Judge-bewerteten Antworten dieses Reports —
+                  // als DB-Aggregat NACH dem Insert (chunk-sicher), additiv in
+                  // parts.sentiment (Backfill 11.08. deckt den Bestand ab).
+                  try {
+                    const { data: sentRows } = await sb
+                      .from("ai_visibility_prompts")
+                      .select("sentiment")
+                      .eq("report_id", reportId)
+                      .not("sentiment", "is", null)
+                      .limit(5000);
+                    const sc: Record<string, number> = { pos: 0, neu: 0, neg: 0 };
+                    for (const r of sentRows || [])
+                      if (sc[r.sentiment as string] != null) sc[r.sentiment as string] += 1;
+                    const totalS = sc.pos + sc.neu + sc.neg;
+                    if (totalS) {
+                      const scoreS = Math.round((sc.pos * 100 + sc.neu * 50) / totalS);
+                      const { data: freshRep } = await sb
+                        .from("ai_visibility_reports")
+                        .select("parts")
+                        .eq("id", reportId)
+                        .maybeSingle();
+                      await sb
+                        .from("ai_visibility_reports")
+                        .update({
+                          parts: {
+                            ...((freshRep?.parts as any) || {}),
+                            sentiment: { score: scoreS, pos: sc.pos, neu: sc.neu, neg: sc.neg },
+                          },
+                        })
+                        .eq("id", reportId);
+                    }
+                  } catch {
+                    /* additiv — gefährdet den Lauf nie */
+                  }
+                  // Sichtbarkeits-Wächter (13.08., Volkan): erzeugt In-App-
+                  // Meldungen (app_notifications, Glocke im EzyAI-Header) bei
+                  // Einbrüchen. Nutzt die vom Sync bereits berechneten Deltas
+                  // (bei Instrumentierungswechsel null → keine Fehlalarme) und
+                  // den SoV-Vergleich zum Vorreport. Dedupe: gleiche Art je
+                  // Kunde max. 1×/6 Tage. Additiv — gefährdet den Lauf nie.
+                  if (!prPartial)
+                    try {
+                      const { data: repRow } = await sb
+                        .from("ai_visibility_reports")
+                        .select("score, score_delta, citations_delta, snapshot_date")
+                        .eq("id", reportId)
+                        .maybeSingle();
+                      const alerts: Array<{
+                        kind: string;
+                        severity: string;
+                        title: string;
+                        body: string;
+                      }> = [];
+                      const sd = Number(repRow?.score_delta ?? 0);
+                      const cd = Number(repRow?.citations_delta ?? 0);
+                      if (repRow?.score_delta != null && sd <= -8)
+                        alerts.push({
+                          kind: "score_drop",
+                          severity: sd <= -15 ? "kritisch" : "hoch",
+                          title: `${c.name}: KI-Sichtbarkeits-Score eingebrochen (${sd})`,
+                          body: `Der Score fiel auf ${repRow.score}. Prompt-Details und Quellen im Dashboard prüfen.`,
+                        });
+                      if (repRow?.citations_delta != null && cd <= -3)
+                        alerts.push({
+                          kind: "citations_lost",
+                          severity: "hoch",
+                          title: `${c.name}: ${Math.abs(cd)} KI-Zitierungen verloren`,
+                          body: "KI-Antworten führen die Website seltener als Quelle. Betroffene Prompts im Dashboard prüfen.",
+                        });
+                      // SoV-Überholung: war der Kunde im Vorreport vor dem Rivalen?
+                      const { data: prevRep2 } = await sb
+                        .from("ai_visibility_reports")
+                        .select("id")
+                        .eq("client_id", c.id)
+                        .lt("snapshot_date", repRow?.snapshot_date || "9999-12-31")
+                        .order("snapshot_date", { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+                      if (prevRep2?.id) {
+                        const sovOf = async (rid: string) => {
+                          const { data } = await sb
+                            .from("ai_visibility_sov")
+                            .select("brand, is_self, share")
+                            .eq("report_id", rid);
+                          const self = (data || []).find((s: any) => s.is_self);
+                          const rival = (data || [])
+                            .filter((s: any) => !s.is_self)
+                            .sort((a: any, b: any) => Number(b.share) - Number(a.share))[0];
+                          return {
+                            self: Number(self?.share ?? -1),
+                            rival,
+                            rivalShare: Number(rival?.share ?? -1),
+                          };
+                        };
+                        const [now, prev] = [await sovOf(reportId), await sovOf(prevRep2.id)];
+                        if (
+                          now.self >= 0 &&
+                          now.rivalShare > now.self &&
+                          prev.self >= prev.rivalShare
+                        )
+                          alerts.push({
+                            kind: "sov_overtaken",
+                            severity: "hoch",
+                            title: `${c.name}: ${String(now.rival?.brand || "Ein Konkurrent")} hat im Share of Voice überholt`,
+                            body: `SoV jetzt ${now.self}% vs. ${now.rivalShare}% — im Vorreport lag ${c.name} noch vorn.`,
+                          });
+                      }
+                      for (const a of alerts) {
+                        const { data: dup } = await sb
+                          .from("app_notifications")
+                          .select("id")
+                          .eq("client_id", c.id)
+                          .eq("kind", a.kind)
+                          .gte("created_at", new Date(Date.now() - 6 * 864e5).toISOString())
+                          .limit(1)
+                          .maybeSingle();
+                        if (!dup)
+                          await sb.from("app_notifications").insert({
+                            organization_id: c.organization_id,
+                            client_id: c.id,
+                            kind: a.kind,
+                            severity: a.severity,
+                            title: a.title,
+                            body: a.body,
+                            link_section: "aeo-insights",
+                          });
+                      }
+                      if (alerts.length)
+                        diag(`${c.name}: ${alerts.length} Sichtbarkeits-Alarm(e) erzeugt`);
+                    } catch {
+                      /* additiv — gefährdet den Lauf nie */
+                    }
+                  // AI-Suchvolumen in die Themen (seit 2026-07-19 DataForSEO
+                  // AI Keyword Data statt Semrush): misst, wie oft solche Fragen
+                  // tatsächlich an KI-Tools gehen — EIN Call für alle Themen.
+                  // AI-Suchvolumen (2026-07-21 überarbeitet): Themen-Labels sind
+                  // LLM-Kurzbezeichnungen ("Agriturismo vs Landhotel") — dafür
+                  // kennt DataForSEO praktisch nie ein Volumen (live belegt).
+                  // Deshalb: ECHTE Kunden-Keywords (GSC) abfragen und einem Thema
+                  // per Wort-Überlappung zuordnen; ohne Datenlage bleibt volume
+                  // NULL ("–" im UI) statt 0 ("keine Nachfrage").
+                  if (!prPartial && pr.topics?.length) {
+                    const gscPairs = await gscTopQueryCountryPairs(c, 200).catch(() => []);
+                    const gscKws = [
+                      ...new Set(gscPairs.map((p: any) => String(p.kw).toLowerCase().trim())),
+                    ].slice(0, 150);
+                    const kandidaten = [
+                      ...new Set([
+                        ...pr.topics.map((t: any) =>
+                          String(t.topic).slice(0, 80).toLowerCase().trim(),
+                        ),
+                        ...gscKws,
+                      ]),
+                    ]
+                      .filter(Boolean)
+                      .slice(0, 400);
+                    const vr = await withDeadline(
+                      dfsAiCall("ai_optimization/ai_keyword_data/keywords_search_volume/live", {
+                        keywords: kandidaten,
+                        language_code: (c.language || "de").slice(0, 2),
+                        location_name: "Switzerland",
+                      }),
+                      60_000,
+                      "ai-volumes",
+                    ).catch(() => null);
+                    const items: any[] = (
+                      vr && (vr as any).ok ? ((vr as any).result?.[0]?.items ?? []) : []
+                    ) as any[];
+                    // Nur Keywords MIT Datenlage; alles andere bleibt unbekannt.
+                    const treffer = items
+                      .filter((i: any) => Number(i.ai_search_volume || 0) > 0)
+                      .map((i: any) => ({
+                        kw: String(i.keyword || "").toLowerCase(),
+                        vol: Number(i.ai_search_volume),
+                      }));
+                    const volByKw = new Map(treffer.map((t) => [t.kw, t.vol]));
+                    const wortSet = (s: string) =>
+                      new Set(
+                        String(s)
+                          .toLowerCase()
+                          .match(/[\p{L}\d]{3,}/gu) || [],
+                      );
+                    let vf = 0;
+                    pr.topics.forEach((t: any) => {
+                      const label = String(t.topic).slice(0, 80).toLowerCase();
+                      let vol = volByKw.get(label) ?? null;
+                      if (vol == null) {
+                        // Bestes passendes Kunden-Keyword: alle Keyword-Wörter
+                        // müssen im Thema vorkommen; bei mehreren gewinnt das
+                        // spezifischste (meiste Wörter), dann das grösste Volumen.
+                        const tw = wortSet(label);
+                        let best: { n: number; vol: number } | null = null;
+                        for (const cand of treffer) {
+                          const cw = [...wortSet(cand.kw)];
+                          if (!cw.length || !cw.every((w) => tw.has(w))) continue;
+                          if (
+                            !best ||
+                            cw.length > best.n ||
+                            (cw.length === best.n && cand.vol > best.vol)
+                          )
+                            best = { n: cw.length, vol: cand.vol };
+                        }
+                        vol = best ? best.vol : null;
+                      }
+                      t.volume = vol; // null = keine Daten (UI zeigt "–")
+                      if (vol != null) vf++;
+                    });
+                    (jr.semrush as any).volumesFilled = vf;
+                    (jr.semrush as any).quelle = "dataforseo-ai (Themen + GSC-Keywords)";
+                    diag(
+                      `${c.name}: AI-Volumina ${vf}/${pr.topics.length} Themen (aus ${treffer.length} Keywords mit Daten)`,
+                    );
+                  }
+                  if (pr.topics?.length && !prPartial)
+                    await sb
+                      .from("ai_visibility_topics")
+                      .insert(
+                        pr.topics.map((t: any) => ({ ...t, report_id: reportId, client_id: c.id })),
+                      );
+                  // C) Share-of-Voice
+                  if (pr.sov?.length && !prPartial)
+                    await sb.from("ai_visibility_sov").insert(
+                      pr.sov.map((s: any) => ({
+                        report_id: reportId,
+                        client_id: c.id,
+                        brand: s.brand,
+                        is_self: s.is_self,
+                        mentions: s.mentions,
+                        share: s.share,
+                      })),
+                    );
+                  // E) Quellen aus den Antworten (Custom-Layer)
+                  if (pr.customSources?.length && !prPartial)
+                    await sb.from("ai_visibility_sources").insert(
+                      pr.customSources.map((s: any) => ({
+                        report_id: reportId,
+                        client_id: c.id,
+                        domain: s.domain,
+                        mentions: s.mentions,
+                        share: 0,
+                        urls: 0,
+                        traffic: 0,
+                        layer: "custom",
+                      })),
+                    );
+                  // Auto-Learning: neue Konkurrenten in die Fixliste (source='auto').
+                  if (pr.learnedComps?.length && !prPartial)
+                    await sb.from("ai_visibility_competitors").upsert(
+                      pr.learnedComps.map((n: string) => ({
+                        client_id: c.id,
+                        name: n,
+                        source: "auto",
+                        active: true,
+                      })),
+                      { onConflict: "client_id,name", ignoreDuplicates: true },
+                    );
+                }
+
+                if (hasBr) {
+                  await sb
+                    .from("ai_visibility_sources")
+                    .delete()
+                    .eq("report_id", reportId)
+                    .is("layer", null);
+                  if (br.citedPages?.length) {
+                    const domain = cleanDomain(c.domain);
+                    await sb.from("ai_visibility_sources").insert({
+                      report_id: reportId,
+                      client_id: c.id,
+                      domain,
+                      mentions: br.citations,
+                      share: 100,
+                      urls: br.citedPagesCount,
+                      traffic: 0,
+                    });
+                  }
+                }
+                jr.report = { id: reportId, score, snapshot };
+              }
+              // Attribution UNABHÄNGIG vom Report-Block schreiben: hängt am
+              // neuesten Report des Kunden. So aktualisiert auch ein reiner
+              // attribution-Lauf die Conversion-Details (inkl. events-Aufschlüsselung).
+              if (at?.engines?.length) {
+                const { data: lastRep } = await sb
+                  .from("ai_visibility_reports")
+                  .select("id")
+                  .eq("client_id", c.id)
+                  .order("snapshot_date", { ascending: false })
+                  .limit(1)
+                  .maybeSingle();
+                if (lastRep?.id) {
+                  await sb.from("ai_visibility_attribution").delete().eq("report_id", lastRep.id);
+                  await sb.from("ai_visibility_attribution").insert(
+                    at.engines.map((e: any) => ({
+                      report_id: lastRep.id,
+                      client_id: c.id,
+                      engine: e.engine,
+                      sessions: e.sessions,
+                      conversions: e.conversions,
+                      events: Array.isArray(e.events) ? e.events : [],
+                      visitors: Array.isArray(e.visitors) ? e.visitors : [],
+                    })),
+                  );
                 }
               }
-              jr.report = { id: reportId, score, snapshot };
+            } catch (e) {
+              jr.error = redactSecrets(e);
             }
-            // Attribution UNABHÄNGIG vom Report-Block schreiben: hängt am
-            // neuesten Report des Kunden. So aktualisiert auch ein reiner
-            // attribution-Lauf die Conversion-Details (inkl. events-Aufschlüsselung).
-            if (at?.engines?.length) {
-              const { data: lastRep } = await sb
-                .from("ai_visibility_reports")
-                .select("id")
-                .eq("client_id", c.id)
-                .order("snapshot_date", { ascending: false })
-                .limit(1)
-                .maybeSingle();
-              if (lastRep?.id) {
-                await sb.from("ai_visibility_attribution").delete().eq("report_id", lastRep.id);
-                await sb.from("ai_visibility_attribution").insert(
-                  at.engines.map((e: any) => ({
-                    report_id: lastRep.id,
-                    client_id: c.id,
-                    engine: e.engine,
-                    sessions: e.sessions,
-                    conversions: e.conversions,
-                    events: Array.isArray(e.events) ? e.events : [],
-                    visitors: Array.isArray(e.visitors) ? e.visitors : [],
-                  })),
-                );
-              }
-            }
-          } catch (e) {
-            jr.error = redactSecrets(e);
+            results.push({ client: c.name, domain: c.domain, jobs: jr });
           }
-          results.push({ client: c.name, domain: c.domain, jobs: jr });
-        }
-        return { ok: true, count: clients.length, snapshot, results };
+          return { ok: true, count: clients.length, snapshot, results };
         }; // Ende runAll
 
         try {
           const payload = await runAll();
           if (syncRunId)
-            await sb.from("ai_visibility_sync_runs").update({ status: "done", finished_at: new Date().toISOString(), result: { ...payload, phases: diagLog } }).eq("id", syncRunId);
+            await sb
+              .from("ai_visibility_sync_runs")
+              .update({
+                status: "done",
+                finished_at: new Date().toISOString(),
+                result: { ...payload, phases: diagLog },
+              })
+              .eq("id", syncRunId);
           return Response.json(payload);
         } catch (err) {
           if (syncRunId)
-            await sb.from("ai_visibility_sync_runs").update({ status: "error", finished_at: new Date().toISOString(), error: String((err as any)?.message || err).slice(0, 300) }).eq("id", syncRunId);
+            await sb
+              .from("ai_visibility_sync_runs")
+              .update({
+                status: "error",
+                finished_at: new Date().toISOString(),
+                error: String((err as any)?.message || err).slice(0, 300),
+              })
+              .eq("id", syncRunId);
           throw err;
         }
       },
@@ -3321,7 +4847,10 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
       GET: async ({ request }) => {
         const secret = process.env.ADMIN_AUTOMATION_SECRET;
         if (!secret)
-          return Response.json({ ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" }, { status: 503 });
+          return Response.json(
+            { ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" },
+            { status: 503 },
+          );
         if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
           return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
         const sb = supabaseAdmin as any;
@@ -3331,14 +4860,19 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         if (costParam) {
           const tag = /^\d{4}-\d{2}-\d{2}$/.test(costParam) ? costParam : today();
           const { data: rows } = await sb
-            .from("api_cost_daily").select("provider, calls, tokens_in, tokens_out, cost_usd")
-            .eq("day", tag).order("cost_usd", { ascending: false });
+            .from("api_cost_daily")
+            .select("provider, calls, tokens_in, tokens_out, cost_usd")
+            .eq("day", tag)
+            .order("cost_usd", { ascending: false });
           const providers = (rows || []).map((r: any) => ({
-            provider: r.provider, calls: Number(r.calls || 0),
-            tokensIn: Number(r.tokens_in || 0), tokensOut: Number(r.tokens_out || 0),
+            provider: r.provider,
+            calls: Number(r.calls || 0),
+            tokensIn: Number(r.tokens_in || 0),
+            tokensOut: Number(r.tokens_out || 0),
             costUsd: Math.round(Number(r.cost_usd || 0) * 100) / 100,
           }));
-          const total = Math.round(providers.reduce((a: number, p: any) => a + p.costUsd, 0) * 100) / 100;
+          const total =
+            Math.round(providers.reduce((a: number, p: any) => a + p.costUsd, 0) * 100) / 100;
           return Response.json({ ok: true, day: tag, providers, totalUsd: total });
         }
 
@@ -3348,19 +4882,32 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         if (new URL(request.url).searchParams.get("engineHealth")) {
           const heute = today();
           const { data: reps } = await sb
-            .from("ai_visibility_reports").select("id").eq("snapshot_date", heute);
+            .from("ai_visibility_reports")
+            .select("id")
+            .eq("snapshot_date", heute);
           const ids = (reps || []).map((r: any) => r.id);
           const gesehen = new Set<string>();
           if (ids.length) {
             for (let off = 0; off < ids.length; off += 50) {
               const { data: rows } = await sb
-                .from("ai_visibility_prompts").select("platform").in("report_id", ids.slice(off, off + 50));
+                .from("ai_visibility_prompts")
+                .select("platform")
+                .in("report_id", ids.slice(off, off + 50));
               for (const r of rows || []) gesehen.add(String(r.platform));
             }
           }
           // Grok nur an seinen Mess-Tagen als "fehlend" werten (sonst täglicher Fehlalarm).
-          const missing = activePromptEngines().map((e) => e.name).filter((n) => !gesehen.has(n));
-          return Response.json({ ok: true, build: BUILD_TAG, date: heute, present: [...gesehen], missing, reports: ids.length });
+          const missing = activePromptEngines()
+            .map((e) => e.name)
+            .filter((n) => !gesehen.has(n));
+          return Response.json({
+            ok: true,
+            build: BUILD_TAG,
+            date: heute,
+            present: [...gesehen],
+            missing,
+            reports: ids.length,
+          });
         }
 
         // ?engineProbe=1: jede Engine einmal minimal anpingen und den ECHTEN
@@ -3375,11 +4922,22 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               try {
                 const r: any = await e.ask("ping");
                 const ms = Date.now() - t0;
-                if (r === null) return { engine: e.name, ok: false, ms, grund: "kein Key gesetzt ODER leere Antwort" };
+                if (r === null)
+                  return {
+                    engine: e.name,
+                    ok: false,
+                    ms,
+                    grund: "kein Key gesetzt ODER leere Antwort",
+                  };
                 if (r.error) return { engine: e.name, ok: false, ms, grund: String(r.error) };
                 return { engine: e.name, ok: true, ms, model: r.model ?? null };
               } catch (err) {
-                return { engine: e.name, ok: false, ms: Date.now() - t0, grund: redactSecrets(err) };
+                return {
+                  engine: e.name,
+                  ok: false,
+                  ms: Date.now() - t0,
+                  grund: redactSecrets(err),
+                };
               }
             }),
           );
@@ -3398,7 +4956,13 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             let targets = cls || [];
             if (acParam !== "all") {
               const q = acParam.toLowerCase();
-              targets = targets.filter((c: any) => String(c.id) === acParam || String(c.name || "").toLowerCase().includes(q));
+              targets = targets.filter(
+                (c: any) =>
+                  String(c.id) === acParam ||
+                  String(c.name || "")
+                    .toLowerCase()
+                    .includes(q),
+              );
             } else {
               const active: any[] = [];
               for (const c of targets) {
@@ -3408,7 +4972,13 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             }
             const results: any[] = [];
             for (const c of targets) {
-              const cur = await autoCuratePrompts(c, sb).catch((e) => ({ pending: -1, approved: 0, archived: 0, unclear: 0, skipped: redactSecrets(e) }));
+              const cur = await autoCuratePrompts(c, sb).catch((e) => ({
+                pending: -1,
+                approved: 0,
+                archived: 0,
+                unclear: 0,
+                skipped: redactSecrets(e),
+              }));
               results.push({ client: c.name, ...cur, archivedIds: undefined });
             }
             await flushCost(sb);
@@ -3427,7 +4997,13 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             let targets = cls || [];
             if (raParam !== "all") {
               const q = raParam.toLowerCase();
-              targets = targets.filter((c: any) => String(c.id) === raParam || String(c.name || "").toLowerCase().includes(q));
+              targets = targets.filter(
+                (c: any) =>
+                  String(c.id) === raParam ||
+                  String(c.name || "")
+                    .toLowerCase()
+                    .includes(q),
+              );
             } else {
               // "all" = nur Kunden mit aktivem Service + EzyAI-App-Zugriff.
               const active: any[] = [];
@@ -3438,24 +5014,40 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             }
             const results: any[] = [];
             for (const c of targets) {
-              const audit = await auditPromptRelevance(c, sb).catch((e) => ({ checked: 0, flagged: 0, skipped: redactSecrets(e) }));
+              const audit = await auditPromptRelevance(c, sb).catch((e) => ({
+                checked: 0,
+                flagged: 0,
+                skipped: redactSecrets(e),
+              }));
               let purged = 0;
               const flagged = (audit as any).flaggedPrompts as string[] | undefined;
               if (flagged && flagged.length) {
                 // Heutige Report-Zeilen der geflaggten Prompts entfernen.
                 const { data: reps } = await sb
-                  .from("ai_visibility_reports").select("id").eq("client_id", c.id).eq("snapshot_date", today());
+                  .from("ai_visibility_reports")
+                  .select("id")
+                  .eq("client_id", c.id)
+                  .eq("snapshot_date", today());
                 const repIds = (reps || []).map((r: any) => r.id);
                 if (repIds.length) {
                   for (let i = 0; i < flagged.length; i += 100) {
-                    const { count } = await sb.from("ai_visibility_prompts")
+                    const { count } = await sb
+                      .from("ai_visibility_prompts")
                       .delete({ count: "exact" })
-                      .in("report_id", repIds).in("prompt", flagged.slice(i, i + 100));
+                      .in("report_id", repIds)
+                      .in("prompt", flagged.slice(i, i + 100));
                     purged += Number(count || 0);
                   }
                 }
               }
-              results.push({ client: c.name, checked: (audit as any).checked, flagged: (audit as any).flagged, purgedRows: purged, skipped: (audit as any).skipped, examples: (flagged || []).slice(0, 8) });
+              results.push({
+                client: c.name,
+                checked: (audit as any).checked,
+                flagged: (audit as any).flagged,
+                purgedRows: purged,
+                skipped: (audit as any).skipped,
+                examples: (flagged || []).slice(0, 8),
+              });
             }
             await flushCost(sb);
             return Response.json({ ok: true, build: BUILD_TAG, results });
@@ -3472,7 +5064,13 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             let targets = cls || [];
             if (caParam !== "all") {
               const q = caParam.toLowerCase();
-              targets = targets.filter((c: any) => String(c.id) === caParam || String(c.name || "").toLowerCase().includes(q));
+              targets = targets.filter(
+                (c: any) =>
+                  String(c.id) === caParam ||
+                  String(c.name || "")
+                    .toLowerCase()
+                    .includes(q),
+              );
             } else {
               const active: any[] = [];
               for (const c of targets) {
@@ -3482,7 +5080,11 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             }
             const results: any[] = [];
             for (const c of targets) {
-              const audit = await auditCompetitorRelevance(c, sb).catch((e) => ({ checked: 0, flagged: 0, skipped: redactSecrets(e) }));
+              const audit = await auditCompetitorRelevance(c, sb).catch((e) => ({
+                checked: 0,
+                flagged: 0,
+                skipped: redactSecrets(e),
+              }));
               results.push({ client: c.name, ...audit });
             }
             await flushCost(sb);
@@ -3500,12 +5102,14 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             .select("client_id, parts, clients!inner(name)")
             .eq("snapshot_date", heute)
             .not("parts->bc->advisory", "is", null);
-          const advisories = (reps || []).map((r: any) => ({
-            client: r.clients?.name || null,
-            text: r.parts?.bc?.advisory?.text || null,
-            date: r.parts?.bc?.advisory?.date || heute,
-            since: r.parts?.bc?.advisory?.since || null, // Korpus-Datierung (H3)
-          })).filter((a: any) => a.client && a.text);
+          const advisories = (reps || [])
+            .map((r: any) => ({
+              client: r.clients?.name || null,
+              text: r.parts?.bc?.advisory?.text || null,
+              date: r.parts?.bc?.advisory?.date || heute,
+              since: r.parts?.bc?.advisory?.since || null, // Korpus-Datierung (H3)
+            }))
+            .filter((a: any) => a.client && a.text);
           return Response.json({ ok: true, build: BUILD_TAG, advisories });
         }
 
@@ -3520,11 +5124,16 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
           for (const c of cls || []) {
             if (!(await aivisAllowed(sb, c.id)).ok) continue;
             const { data: rep } = await sb
-              .from("ai_visibility_reports").select("id, parts, snapshot_date")
+              .from("ai_visibility_reports")
+              .select("id, parts, snapshot_date")
               .eq("client_id", c.id)
               .order("snapshot_date", { ascending: false })
-              .limit(1).maybeSingle();
-            if (!rep) { pending.push({ id: c.id, name: c.name, domain: c.domain, missing: ["all"] }); continue; }
+              .limit(1)
+              .maybeSingle();
+            if (!rep) {
+              pending.push({ id: c.id, name: c.name, domain: c.domain, missing: ["all"] });
+              continue;
+            }
             const parts: any = rep.parts || {};
             const missing: string[] = [];
             // Globaler Messtakt (2026-08-17, Volkan: "alle Kunden immer auf
@@ -3537,10 +5146,17 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             // nachgeholt haben — dann sind sie wieder im Raster.
             const anchor = Date.parse(String((SCORE_CFG as any).cycleAnchor || "2026-08-17"));
             const dayN = (iso: string) => Math.floor((Date.parse(iso) - anchor) / 86400_000);
-            const lastCycleDay = (interval: number) => { const t = dayN(today()); return t - (((t % interval) + interval) % interval); };
+            const lastCycleDay = (interval: number) => {
+              const t = dayN(today());
+              return t - (((t % interval) + interval) % interval);
+            };
             // SERP-Drosselung (2026-07-21): sa nur im serp.intervalDays-Takt
             // (gemessenAm zählt; übernommene Stände nicht) — grösster DFS-Posten.
-            const saMeasured = parts.sa?.uebernommen ? String(parts.sa?.gemessenAm || "") : (parts.sa ? String(parts.sa.gemessenAm || rep.snapshot_date) : "");
+            const saMeasured = parts.sa?.uebernommen
+              ? String(parts.sa?.gemessenAm || "")
+              : parts.sa
+                ? String(parts.sa.gemessenAm || rep.snapshot_date)
+                : "";
             const saInterval = Math.max(1, Number((SCORE_CFG as any).serp?.intervalDays ?? 2));
             const saDue = !saMeasured || dayN(saMeasured) < lastCycleDay(saInterval);
             if (!parts.pr) missing.push("pr");
@@ -3567,7 +5183,9 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         // Rank-Tracking-Sets an (User-Vorgabe 2026-07-19, Anlass B5: Rankings
         // fehlten allen Kunden, die nie auf Keyword.com waren).
         if (new URL(request.url).searchParams.get("rankClients")) {
-          const { data: cls } = await sb.from("clients").select("id, name, domain, gsc_property, brand_terms, metadata");
+          const { data: cls } = await sb
+            .from("clients")
+            .select("id, name, domain, gsc_property, brand_terms, metadata");
           const out: any[] = [];
           for (const c of cls || []) {
             const tabs = c.metadata?.defaults?.visibleTabs;
@@ -3588,10 +5206,15 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                   `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(c.gsc_property)}/searchAnalytics/query`,
                   {
                     method: "POST",
-                    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+                    headers: {
+                      Authorization: `Bearer ${accessToken}`,
+                      "Content-Type": "application/json",
+                    },
                     body: JSON.stringify({
-                      startDate: fmt(start), endDate: fmt(end),
-                      dimensions: ["query"], rowLimit: 250,
+                      startDate: fmt(start),
+                      endDate: fmt(end),
+                      dimensions: ["query"],
+                      rowLimit: 250,
                       orderBy: [{ field: "clicks", descending: true }],
                     }),
                     signal: AbortSignal.timeout(30_000),
@@ -3600,22 +5223,36 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 if (gr.ok) {
                   const gj: any = await gr.json().catch(() => ({}));
                   rows = (gj.rows || []).map((r: any) => ({
-                    query: r.keys?.[0], clicks: r.clicks, impressions: r.impressions,
+                    query: r.keys?.[0],
+                    clicks: r.clicks,
+                    impressions: r.impressions,
                   }));
                 }
-              } catch { /* Fallback unten */ }
+              } catch {
+                /* Fallback unten */
+              }
             }
             if (!rows.length) {
               const { data: gq } = await sb
-                .from("audit_runs").select("result")
-                .eq("client_id", c.id).eq("audit_type", "gsc_queries").eq("status", "succeeded")
-                .order("created_at", { ascending: false }).limit(1).maybeSingle();
+                .from("audit_runs")
+                .select("result")
+                .eq("client_id", c.id)
+                .eq("audit_type", "gsc_queries")
+                .eq("status", "succeeded")
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
               const { data: gs } = gq?.result
                 ? { data: null }
                 : await sb
-                    .from("audit_runs").select("result")
-                    .eq("client_id", c.id).eq("audit_type", "gsc_summary").eq("status", "succeeded")
-                    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+                    .from("audit_runs")
+                    .select("result")
+                    .eq("client_id", c.id)
+                    .eq("audit_type", "gsc_summary")
+                    .eq("status", "succeeded")
+                    .order("created_at", { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
               rows = gq?.result?.topNonbrandQueries || gs?.result?.topQueries || [];
             }
             const queries = rows
@@ -3645,7 +5282,11 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
           // build: Deploy-Verifikation (welcher Stand serviert wird).
           return Response.json({ ok: true, build: BUILD_TAG, runs: data || [] });
         }
-        const { data } = await sb.from("ai_visibility_sync_runs").select("*").eq("id", runId).maybeSingle();
+        const { data } = await sb
+          .from("ai_visibility_sync_runs")
+          .select("*")
+          .eq("id", runId)
+          .maybeSingle();
         if (!data) return Response.json({ ok: false, error: "runId unbekannt" }, { status: 404 });
         return Response.json({ ok: true, build: BUILD_TAG, run: data });
       },

@@ -37,7 +37,7 @@ function cellAt(px: number, py: number): { key: string; cx: number; cy: number }
   let bestD = Infinity;
   for (let a = a0 - 1; a <= a0 + 1; a++) {
     for (let b = b0 - 1; b <= b0 + 1; b++) {
-      if (((a + b) % 2 + 2) % 2 !== 0) continue;
+      if ((((a + b) % 2) + 2) % 2 !== 0) continue;
       const cx = a * CELL_X;
       const cy = b * CELL_Y - 0.25;
       const dx = cx - px;
@@ -178,8 +178,15 @@ export function HexGlowLayer() {
     // Sidebar (z50) gefangen (Datumsfilter unlesbar). Voraussetzung: der
     // Shell-Container selbst ist transparent; Grundfarbe + Waben-Pattern
     // liegen auf einer eigenen Unterlage-Ebene (ebenfalls -1, vor dieser).
-    <div ref={anchorRef} aria-hidden style={{ position: "absolute", inset: 0, zIndex: -1, pointerEvents: "none" }}>
-      <canvas ref={canvasRef} style={{ position: "fixed", top: 0, left: 0, pointerEvents: "none" }} />
+    <div
+      ref={anchorRef}
+      aria-hidden
+      style={{ position: "absolute", inset: 0, zIndex: -1, pointerEvents: "none" }}
+    >
+      <canvas
+        ref={canvasRef}
+        style={{ position: "fixed", top: 0, left: 0, pointerEvents: "none" }}
+      />
     </div>
   );
 }

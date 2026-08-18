@@ -22,7 +22,10 @@ export type ClaudeSessionView = ClaudeSessionRow & {
  * Prueft den Bearer-Token aus dem Authorization-Header gegen den konfigurierten
  * Widget-Token. Ohne konfigurierten Token ist die Route deaktiviert (=> false).
  */
-export function isAuthorized(authHeader: string | null, expectedToken: string | undefined): boolean {
+export function isAuthorized(
+  authHeader: string | null,
+  expectedToken: string | undefined,
+): boolean {
   if (!expectedToken || expectedToken.length < 16) return false;
   if (!authHeader) return false;
   const match = /^bearer\s+(.+)$/i.exec(authHeader.trim());

@@ -29,14 +29,16 @@ export const Route = createFileRoute("/api/google/gsc-sites")({
           const user = await authedUser(request);
           if (!user) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
           const parsed = Body.safeParse(await request.json().catch(() => ({})));
-          if (!parsed.success) return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
+          if (!parsed.success)
+            return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
 
           const { data: client } = await supabaseAdmin
             .from("clients")
             .select("id, organization_id")
             .eq("id", parsed.data.clientId)
             .maybeSingle();
-          if (!client) return Response.json({ ok: false, error: "Client not found" }, { status: 404 });
+          if (!client)
+            return Response.json({ ok: false, error: "Client not found" }, { status: 404 });
           const { data: m } = await supabaseAdmin
             .from("app_users")
             .select("role")
@@ -54,9 +56,13 @@ export const Route = createFileRoute("/api/google/gsc-sites")({
             if (API_DISABLED.test(t))
               return Response.json({
                 ok: false,
-                error: "Search Console API nicht aktiviert ('APIs & Services → Library' aktivieren).",
+                error:
+                  "Search Console API nicht aktiviert ('APIs & Services → Library' aktivieren).",
               });
-            return Response.json({ ok: false, error: redactSecrets(`GSC sites.list HTTP ${r.status}: ${t}`) });
+            return Response.json({
+              ok: false,
+              error: redactSecrets(`GSC sites.list HTTP ${r.status}: ${t}`),
+            });
           }
           const j = (await r.json()) as {
             siteEntry?: Array<{ siteUrl: string; permissionLevel?: string }>;

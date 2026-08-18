@@ -184,7 +184,9 @@ export function useEzyClients() {
       setClients(
         (data ?? [])
           .map(rowToClient)
-          .sort((a, b) => String(a.name).localeCompare(String(b.name), "de-CH", { sensitivity: "base" })),
+          .sort((a, b) =>
+            String(a.name).localeCompare(String(b.name), "de-CH", { sensitivity: "base" }),
+          ),
       );
     }
     setLoading(false);

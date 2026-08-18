@@ -115,7 +115,8 @@ export function AhrefsPanel({ clientId, domain }: Props) {
             <Section title="Metrics" payload={data.metrics} error={data.errors?.metrics} />
           </div>
           <p className="text-xs text-muted-foreground">
-            {fromStore ? "Stand vom" : "Geprüft:"} {new Date(data.generated_at).toLocaleString("de-DE")}
+            {fromStore ? "Stand vom" : "Geprüft:"}{" "}
+            {new Date(data.generated_at).toLocaleString("de-DE")}
             {fromStore
               ? " (gespeicherter Lauf — „Aktualisieren“ holt Live-Daten)"
               : " — Ergebnis in audit_runs gespeichert."}

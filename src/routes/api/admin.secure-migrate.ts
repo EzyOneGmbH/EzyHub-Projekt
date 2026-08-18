@@ -23,11 +23,19 @@ export const Route = createFileRoute("/api/admin/secure-migrate")({
           .eq("provider", "wordpress");
         if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 
-        let migriert = 0, bereitsAktuell = 0, fehler = 0;
+        let migriert = 0,
+          bereitsAktuell = 0,
+          fehler = 0;
         for (const r of rows ?? []) {
           const stored = String(r.access_token ?? "");
-          if (!stored) { bereitsAktuell++; continue; }
-          if (!brauchtUmschluesselung(stored)) { bereitsAktuell++; continue; }
+          if (!stored) {
+            bereitsAktuell++;
+            continue;
+          }
+          if (!brauchtUmschluesselung(stored)) {
+            bereitsAktuell++;
+            continue;
+          }
           try {
             const plain = decryptSecret(stored); // Klartext geht unveraendert durch
             const { error: upErr } = await sb
@@ -40,7 +48,13 @@ export const Route = createFileRoute("/api/admin/secure-migrate")({
             fehler++; // bewusst ohne Details — keine Secret-Spuren in Logs/Antworten
           }
         }
-        return Response.json({ ok: true, migriert, bereitsAktuell, fehler, gesamt: (rows ?? []).length });
+        return Response.json({
+          ok: true,
+          migriert,
+          bereitsAktuell,
+          fehler,
+          gesamt: (rows ?? []).length,
+        });
       },
     },
   },

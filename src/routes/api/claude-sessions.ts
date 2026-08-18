@@ -41,7 +41,9 @@ export const Route = createFileRoute("/api/claude-sessions")({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        if (!isAuthorized(request.headers.get("authorization"), process.env.CLAUDE_SESSIONS_TOKEN)) {
+        if (
+          !isAuthorized(request.headers.get("authorization"), process.env.CLAUDE_SESSIONS_TOKEN)
+        ) {
           return unauthorized();
         }
         const supabase = adminClient();
@@ -62,7 +64,11 @@ export const Route = createFileRoute("/api/claude-sessions")({
           return Response.json({ error: "claude_sessions not available" }, { status: 503 });
         }
 
-        const sessions = withConnected((data ?? []) as ClaudeSessionRow[], Date.now(), staleMinutes);
+        const sessions = withConnected(
+          (data ?? []) as ClaudeSessionRow[],
+          Date.now(),
+          staleMinutes,
+        );
         return new Response(
           JSON.stringify({
             generated_at: new Date().toISOString(),
@@ -78,7 +84,9 @@ export const Route = createFileRoute("/api/claude-sessions")({
       },
 
       POST: async ({ request }) => {
-        if (!isAuthorized(request.headers.get("authorization"), process.env.CLAUDE_SESSIONS_TOKEN)) {
+        if (
+          !isAuthorized(request.headers.get("authorization"), process.env.CLAUDE_SESSIONS_TOKEN)
+        ) {
           return unauthorized();
         }
         const supabase = adminClient();

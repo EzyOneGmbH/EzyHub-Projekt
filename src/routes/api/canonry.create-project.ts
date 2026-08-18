@@ -63,10 +63,17 @@ export const Route = createFileRoute("/api/canonry/create-project")({
         if (!(await canRunAudits(user.id, client.organization_id)))
           return Response.json({ ok: false, error: "Keine Berechtigung." }, { status: 403 });
         if (!(await isProviderEnabled(client.id, "canonry")))
-          return Response.json({ ok: false, error: "Canonry für diesen Kunden deaktiviert." }, { status: 403 });
+          return Response.json(
+            { ok: false, error: "Canonry für diesen Kunden deaktiviert." },
+            { status: 403 },
+          );
 
         const slug = client.canonry_project || slugify(client.domain || client.name);
-        if (!slug) return Response.json({ ok: false, error: "Keine Domain/Name für Slug." }, { status: 400 });
+        if (!slug)
+          return Response.json(
+            { ok: false, error: "Keine Domain/Name für Slug." },
+            { status: 400 },
+          );
 
         const base = normalizeCanonryBase(baseUrl);
         const body = {
@@ -86,14 +93,21 @@ export const Route = createFileRoute("/api/canonry/create-project")({
             signal: AbortSignal.timeout(20_000),
           });
           status = res.status;
-          if (!res.ok) errText = redact(`Canonry HTTP ${res.status}: ${await res.text().catch(() => "")}`, secrets);
+          if (!res.ok)
+            errText = redact(
+              `Canonry HTTP ${res.status}: ${await res.text().catch(() => "")}`,
+              secrets,
+            );
         } catch (e) {
           errText = redact(e, secrets);
         }
 
         // 201 created, 200 updated, 204 no-content all count as success.
         if (![200, 201, 204].includes(status)) {
-          return Response.json({ ok: false, error: errText || "Canonry-Projekt konnte nicht angelegt werden" }, { status: 502 });
+          return Response.json(
+            { ok: false, error: errText || "Canonry-Projekt konnte nicht angelegt werden" },
+            { status: 502 },
+          );
         }
 
         // Persist the slug on the client.

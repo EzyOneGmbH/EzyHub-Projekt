@@ -58,7 +58,10 @@ export function useEzyDashboardConfig() {
       const next = { ...cfg, [key]: enabled };
       setCfg(next);
       if (organizationId) {
-        await supabase.from("organizations").update({ dashboard_config: next }).eq("id", organizationId);
+        await supabase
+          .from("organizations")
+          .update({ dashboard_config: next })
+          .eq("id", organizationId);
       }
     },
     [cfg, organizationId],

@@ -24,11 +24,16 @@ export const Route = createFileRoute("/api/google/pagespeed")({
     handlers: {
       POST: async ({ request }) => {
         const apiKey = process.env.GOOGLE_API_KEY;
-        if (!apiKey) return Response.json({ ok: false, error: "GOOGLE_API_KEY not configured" }, { status: 503 });
+        if (!apiKey)
+          return Response.json(
+            { ok: false, error: "GOOGLE_API_KEY not configured" },
+            { status: 503 },
+          );
 
         const supabaseUrl = process.env.SUPABASE_URL;
         const anonKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
-        if (!supabaseUrl || !anonKey) return Response.json({ error: "Server not configured" }, { status: 503 });
+        if (!supabaseUrl || !anonKey)
+          return Response.json({ error: "Server not configured" }, { status: 503 });
 
         const sb = createClient(supabaseUrl, anonKey, {
           global: { headers: { Authorization: request.headers.get("authorization") ?? "" } },
@@ -46,14 +51,22 @@ export const Route = createFileRoute("/api/google/pagespeed")({
           .select("id, domain, organization_id")
           .eq("id", parsed.data.clientId)
           .maybeSingle();
-        if (!client) return Response.json({ ok: false, error: "Client not found" }, { status: 404 });
+        if (!client)
+          return Response.json({ ok: false, error: "Client not found" }, { status: 404 });
         if (!(await canRunAudits(user.id, client.organization_id)))
-          return Response.json({ ok: false, error: "Keine Berechtigung für Audit-Läufe." }, { status: 403 });
+          return Response.json(
+            { ok: false, error: "Keine Berechtigung für Audit-Läufe." },
+            { status: 403 },
+          );
         if (!(await isProviderEnabled(client.id, "google")))
-          return Response.json({ ok: false, error: "Google-Integration deaktiviert." }, { status: 403 });
+          return Response.json(
+            { ok: false, error: "Google-Integration deaktiviert." },
+            { status: 403 },
+          );
 
         const target = parsed.data.url || (client.domain ? `https://${client.domain}` : "");
-        if (!target) return Response.json({ ok: false, error: "Keine URL/Domain." }, { status: 400 });
+        if (!target)
+          return Response.json({ ok: false, error: "Keine URL/Domain." }, { status: 400 });
 
         const psi = new URL("https://www.googleapis.com/pagespeedonline/v5/runPagespeed");
         psi.searchParams.set("url", target);
@@ -65,7 +78,11 @@ export const Route = createFileRoute("/api/google/pagespeed")({
         try {
           const res = await fetch(psi.toString(), { signal: AbortSignal.timeout(60_000) });
           json = await res.json().catch(() => ({}));
-          if (!res.ok) return Response.json({ ok: false, error: redact(json?.error?.message || `PSI HTTP ${res.status}`, apiKey) });
+          if (!res.ok)
+            return Response.json({
+              ok: false,
+              error: redact(json?.error?.message || `PSI HTTP ${res.status}`, apiKey),
+            });
         } catch (e) {
           return Response.json({ ok: false, error: redact(e, apiKey) });
         }

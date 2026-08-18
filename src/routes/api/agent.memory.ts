@@ -20,7 +20,8 @@ async function requireUser(request: Request): Promise<Response | null> {
 async function proxy(request: Request, method: string): Promise<Response> {
   const base = process.env.AGENT_BASE_URL;
   const secret = process.env.AGENT_SHARED_SECRET;
-  if (!base || !secret) return Response.json({ error: "Agent service not configured" }, { status: 503 });
+  if (!base || !secret)
+    return Response.json({ error: "Agent service not configured" }, { status: 503 });
   const unauth = await requireUser(request);
   if (unauth) return unauth;
 

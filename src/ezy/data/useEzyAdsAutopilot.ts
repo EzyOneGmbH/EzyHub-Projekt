@@ -106,7 +106,11 @@ export function useEzyAdsAutopilot(clientId: string | undefined, limit = 30) {
       setConfig((cfgRes.data as AdsConfigRow) ?? null);
       setApprovals((apprRes.data as AdsApprovalRow[]) || []);
       setChangelog((logRes.data as AdsChangelogRow[]) || []);
-      setRecommendations(((recRes.data as AdsRecommendationRow[]) || []).filter((r) => r.recommendation_type !== "test_dummy"));
+      setRecommendations(
+        ((recRes.data as AdsRecommendationRow[]) || []).filter(
+          (r) => r.recommendation_type !== "test_dummy",
+        ),
+      );
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -179,5 +183,17 @@ export function useEzyAdsAutopilot(clientId: string | undefined, limit = 30) {
     }
   }, [clientId, refresh]);
 
-  return { config, approvals, changelog, recommendations, loading, error, busyId, refresh, decide, runDryRun, markRecommendation };
+  return {
+    config,
+    approvals,
+    changelog,
+    recommendations,
+    loading,
+    error,
+    busyId,
+    refresh,
+    decide,
+    runDryRun,
+    markRecommendation,
+  };
 }

@@ -15,44 +15,80 @@ export const Route = createFileRoute("/reakt")({
 // nur der 03:00-Zeitplan lässt sich (mit Bestätigung) schalten.
 // Light Studio (2026-08-03): hell à la Searchable
 const S = {
-  bg: "#f7f6f2", panel: "#ffffff", line: "#e8e6df",
-  txt: "#1c1c1e", mut: "#6e6c64", app: "#059669", appTint: "rgba(5,150,105,.10)",
-  warn: "#b45309", red: "#dc2626",
+  bg: "#f7f6f2",
+  panel: "#ffffff",
+  line: "#e8e6df",
+  txt: "#1c1c1e",
+  mut: "#6e6c64",
+  app: "#059669",
+  appTint: "rgba(5,150,105,.10)",
+  warn: "#b45309",
+  red: "#dc2626",
 };
 
-type Wave = { file: string; rows: number; byStatus: Record<string, number>; modified: string | null };
-type Draft = { file: string; date: string | null; id: number | null; org: string; ort: string; status: string; alias: string; name: string; weblink: string };
+type Wave = {
+  file: string;
+  rows: number;
+  byStatus: Record<string, number>;
+  modified: string | null;
+};
+type Draft = {
+  file: string;
+  date: string | null;
+  id: number | null;
+  org: string;
+  ort: string;
+  status: string;
+  alias: string;
+  name: string;
+  weblink: string;
+};
 
 const waveLabel = (f: string) =>
-  f.replace(/^results_/, "").replace(/\.json$/, "")
-    .replace(/^wave(\d+)$/, "Welle $1").replace(/^test_/, "Testlauf ").replace(/_run1$/, " (Lauf 1)");
+  f
+    .replace(/^results_/, "")
+    .replace(/\.json$/, "")
+    .replace(/^wave(\d+)$/, "Welle $1")
+    .replace(/^test_/, "Testlauf ")
+    .replace(/_run1$/, " (Lauf 1)");
 
 function ReaktApp() {
   const navigate = useNavigate();
   const { session, loading: authLoading, role, isOrgAdmin } = useAuth();
   const { canOpen, loading: accessLoading } = useAppAccess();
   const [swOpen, setSwOpen] = useState(false);
-  const [status, setStatus] = useState<{ waves: Wave[]; noted: number; targets: number; schedule: { time: string; enabled: boolean; lastRunDate: string | null } | null } | null>(null);
+  const [status, setStatus] = useState<{
+    waves: Wave[];
+    noted: number;
+    targets: number;
+    schedule: { time: string; enabled: boolean; lastRunDate: string | null } | null;
+  } | null>(null);
   const [drafts, setDrafts] = useState<Draft[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState<"ENTWURF" | "alle">("ENTWURF");
 
   useEffect(() => {
-    if (!authLoading && !session) navigate({ to: "/login", search: { next: "/reakt" }, replace: true });
+    if (!authLoading && !session)
+      navigate({ to: "/login", search: { next: "/reakt" }, replace: true });
   }, [authLoading, session, navigate]);
   useEffect(() => {
     if (!authLoading && role === "viewer") window.location.replace("/dashboard");
   }, [authLoading, role]);
   useEffect(() => {
-    if (!accessLoading && session && role !== "viewer" && !canOpen("reakt")) window.location.replace("/apps");
+    if (!accessLoading && session && role !== "viewer" && !canOpen("reakt"))
+      window.location.replace("/apps");
   }, [accessLoading, session, role, canOpen]);
 
   const call = useCallback(async (qs: string, init?: RequestInit) => {
     const token = (await supabase.auth.getSession()).data.session?.access_token;
     const r = await fetch(`/api/agent/reakt${qs}`, {
       ...init,
-      headers: { Authorization: `Bearer ${token || ""}`, "Content-Type": "application/json", ...(init?.headers || {}) },
+      headers: {
+        Authorization: `Bearer ${token || ""}`,
+        "Content-Type": "application/json",
+        ...(init?.headers || {}),
+      },
     });
     return r.json().catch(() => ({ ok: false, error: "Antwort ungültig" }));
   }, []);
@@ -60,10 +96,13 @@ function ReaktApp() {
   const load = useCallback(async () => {
     setErr(null);
     const [s, e] = await Promise.all([call("?what=status"), call("?what=entwuerfe")]);
-    if (s.ok) setStatus(s); else setErr(s.error || "Status nicht erreichbar (läuft der Cloud-PC?)");
+    if (s.ok) setStatus(s);
+    else setErr(s.error || "Status nicht erreichbar (läuft der Cloud-PC?)");
     if (e.ok) setDrafts(e.rows || []);
   }, [call]);
-  useEffect(() => { if (session && !authLoading) void load(); }, [session, authLoading, load]);
+  useEffect(() => {
+    if (session && !authLoading) void load();
+  }, [session, authLoading, load]);
 
   const toggleSchedule = async () => {
     if (!status?.schedule) return;
@@ -75,7 +114,8 @@ function ReaktApp() {
     setBusy(true);
     const j = await call("", { method: "POST", body: JSON.stringify({ enabled: on }) });
     setBusy(false);
-    if (j.ok) await load(); else setErr(j.error || "Schalten fehlgeschlagen");
+    if (j.ok) await load();
+    else setErr(j.error || "Schalten fehlgeschlagen");
   };
 
   const rows = useMemo(() => {
@@ -87,111 +127,372 @@ function ReaktApp() {
 
   const sched = status?.schedule;
   const totalByStatus: Record<string, number> = {};
-  for (const w of status?.waves || []) for (const [k, v] of Object.entries(w.byStatus)) totalByStatus[k] = (totalByStatus[k] || 0) + v;
+  for (const w of status?.waves || [])
+    for (const [k, v] of Object.entries(w.byStatus)) totalByStatus[k] = (totalByStatus[k] || 0) + v;
 
   return (
-    <div style={{ minHeight: "100vh", background: S.bg, color: S.txt, fontFamily: '"Segoe UI",system-ui,-apple-system,sans-serif' }}>
+    <div
+      style={{
+        minHeight: "100vh",
+        background: S.bg,
+        color: S.txt,
+        fontFamily: '"Segoe UI",system-ui,-apple-system,sans-serif',
+      }}
+    >
       {/* Mobile (01.08.): Header umbricht, engere Paddings, Karten einspaltig */}
       <style>{`@media(max-width:640px){
         .reakt-head{flex-wrap:wrap!important;gap:8px!important;padding:8px 10px!important}
         .reakt-main{padding:14px 10px 48px!important}
       }`}</style>
-      <header className="reakt-head" style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 18px", background: S.panel, borderBottom: `1px solid ${S.line}`, position: "sticky", top: 0, zIndex: 100 }}>
+      <header
+        className="reakt-head"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          padding: "10px 18px",
+          background: S.panel,
+          borderBottom: `1px solid ${S.line}`,
+          position: "sticky",
+          top: 0,
+          zIndex: 100,
+        }}
+      >
         <div style={{ position: "relative" }}>
-          <button onClick={() => setSwOpen((v) => !v)} title="App wechseln"
-            style={{ background: "none", border: "none", color: S.mut, fontSize: 16, cursor: "pointer", padding: "6px 8px", borderRadius: 8, letterSpacing: 1 }}>⣿</button>
+          <button
+            onClick={() => setSwOpen((v) => !v)}
+            title="App wechseln"
+            style={{
+              background: "none",
+              border: "none",
+              color: S.mut,
+              fontSize: 16,
+              cursor: "pointer",
+              padding: "6px 8px",
+              borderRadius: 8,
+              letterSpacing: 1,
+            }}
+          >
+            ⣿
+          </button>
           {swOpen && (
-            <div style={{ position: "absolute", top: "100%", left: 0, zIndex: 200, width: 240, background: S.panel, border: `1px solid ${S.line}`, borderRadius: 12, padding: 8, boxShadow: "0 14px 44px rgba(0,0,0,.14)" }}>
-              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".08em", color: S.mut, padding: "4px 10px 8px", fontWeight: 700 }}>Apps wechseln</div>
+            <div
+              style={{
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                zIndex: 200,
+                width: 240,
+                background: S.panel,
+                border: `1px solid ${S.line}`,
+                borderRadius: 12,
+                padding: 8,
+                boxShadow: "0 14px 44px rgba(0,0,0,.14)",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 10,
+                  textTransform: "uppercase",
+                  letterSpacing: ".08em",
+                  color: S.mut,
+                  padding: "4px 10px 8px",
+                  fontWeight: 700,
+                }}
+              >
+                Apps wechseln
+              </div>
               {EZY_APPS.filter((a) => canOpen(a.id)).map((a) => {
                 const active = a.id === "reakt";
                 return (
-                  <a key={a.id} href={a.href} onClick={(e) => { if (active) { e.preventDefault(); setSwOpen(false); } }}
-                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8, fontSize: 13, textDecoration: "none", color: active ? a.color : S.txt, background: active ? a.tint : "none" }}>
-                    <span style={{ width: 24, height: 24, borderRadius: 6, background: a.tint, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>{a.icon}</span>
+                  <a
+                    key={a.id}
+                    href={a.href}
+                    onClick={(e) => {
+                      if (active) {
+                        e.preventDefault();
+                        setSwOpen(false);
+                      }
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      padding: "8px 10px",
+                      borderRadius: 8,
+                      fontSize: 13,
+                      textDecoration: "none",
+                      color: active ? a.color : S.txt,
+                      background: active ? a.tint : "none",
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: 6,
+                        background: a.tint,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 13,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {a.icon}
+                    </span>
                     {a.name}
                   </a>
                 );
               })}
               <div style={{ borderTop: `1px solid ${S.line}`, margin: "8px 4px" }} />
-              <a href="/apps" style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8, fontSize: 12.5, textDecoration: "none", color: S.mut }}>✦ Zum Launcher</a>
+              <a
+                href="/apps"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  fontSize: 12.5,
+                  textDecoration: "none",
+                  color: S.mut,
+                }}
+              >
+                ✦ Zum Launcher
+              </a>
             </div>
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-          <span style={{ width: 30, height: 30, borderRadius: 8, background: S.appTint, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>✉️</span>
+          <span
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: 8,
+              background: S.appTint,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 15,
+            }}
+          >
+            ✉️
+          </span>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 14.5, color: S.app, lineHeight: 1.1 }}>Reaktivierung</div>
-            <div style={{ fontSize: 10.5, color: S.mut }}>GEO-Beweis-Kampagnen · nur Entwürfe, nie Versand</div>
+            <div style={{ fontWeight: 700, fontSize: 14.5, color: S.app, lineHeight: 1.1 }}>
+              Reaktivierung
+            </div>
+            <div style={{ fontSize: 10.5, color: S.mut }}>
+              GEO-Beweis-Kampagnen · nur Entwürfe, nie Versand
+            </div>
           </div>
         </div>
-        <button onClick={() => void load()} style={{ marginLeft: "auto", background: "none", border: `1px solid ${S.line}`, color: S.mut, borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 12 }}>
+        <button
+          onClick={() => void load()}
+          style={{
+            marginLeft: "auto",
+            background: "none",
+            border: `1px solid ${S.line}`,
+            color: S.mut,
+            borderRadius: 8,
+            padding: "6px 12px",
+            cursor: "pointer",
+            fontSize: 12,
+          }}
+        >
           Aktualisieren
         </button>
       </header>
 
-      <main className="reakt-main" style={{ maxWidth: 1100, margin: "0 auto", padding: "22px 18px 60px", display: "flex", flexDirection: "column", gap: 18 }}>
+      <main
+        className="reakt-main"
+        style={{
+          maxWidth: 1100,
+          margin: "0 auto",
+          padding: "22px 18px 60px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 18,
+        }}
+      >
         {err && (
-          <div style={{ background: "rgba(248,113,113,.1)", border: `1px solid ${S.red}45`, borderRadius: 12, padding: "12px 16px", fontSize: 13 }}>
+          <div
+            style={{
+              background: "rgba(248,113,113,.1)",
+              border: `1px solid ${S.red}45`,
+              borderRadius: 12,
+              padding: "12px 16px",
+              fontSize: 13,
+            }}
+          >
             ⚠️ {err}
           </div>
         )}
 
         {/* Status-Karten */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12 }}>
-          <div style={{ background: S.panel, border: `1px solid ${S.line}`, borderRadius: 12, padding: 16 }}>
-            <div style={{ fontSize: 11, color: S.mut, textTransform: "uppercase", letterSpacing: ".06em", fontWeight: 700 }}>Nacht-Zeitplan</div>
-            <div style={{ fontSize: 20, fontWeight: 700, margin: "6px 0", color: sched?.enabled ? S.app : S.warn }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
+            gap: 12,
+          }}
+        >
+          <div
+            style={{
+              background: S.panel,
+              border: `1px solid ${S.line}`,
+              borderRadius: 12,
+              padding: 16,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                color: S.mut,
+                textTransform: "uppercase",
+                letterSpacing: ".06em",
+                fontWeight: 700,
+              }}
+            >
+              Nacht-Zeitplan
+            </div>
+            <div
+              style={{
+                fontSize: 20,
+                fontWeight: 700,
+                margin: "6px 0",
+                color: sched?.enabled ? S.app : S.warn,
+              }}
+            >
               {sched ? (sched.enabled ? `AKTIV · ${sched.time}` : `AUS · ${sched.time}`) : "—"}
             </div>
             <div style={{ fontSize: 11.5, color: S.mut, marginBottom: 10 }}>
-              {sched?.lastRunDate ? `letzter Lauf: ${sched.lastRunDate}` : "noch kein automatischer Lauf"}
+              {sched?.lastRunDate
+                ? `letzter Lauf: ${sched.lastRunDate}`
+                : "noch kein automatischer Lauf"}
             </div>
             {isOrgAdmin && sched && (
-              <button onClick={toggleSchedule} disabled={busy}
-                style={{ width: "100%", padding: "8px 12px", borderRadius: 8, cursor: "pointer", fontSize: 12.5, fontWeight: 600, border: `1px solid ${sched.enabled ? S.red : S.app}`, background: "transparent", color: sched.enabled ? S.red : S.app }}>
+              <button
+                onClick={toggleSchedule}
+                disabled={busy}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  border: `1px solid ${sched.enabled ? S.red : S.app}`,
+                  background: "transparent",
+                  color: sched.enabled ? S.red : S.app,
+                }}
+              >
                 {busy ? "…" : sched.enabled ? "Zeitplan deaktivieren" : "Scharf schalten (03:00)"}
               </button>
             )}
           </div>
-          <div style={{ background: S.panel, border: `1px solid ${S.line}`, borderRadius: 12, padding: 16 }}>
-            <div style={{ fontSize: 11, color: S.mut, textTransform: "uppercase", letterSpacing: ".06em", fontWeight: 700 }}>Ziel-Pool</div>
-            <div style={{ fontSize: 20, fontWeight: 700, margin: "6px 0" }}>{status?.targets ?? "—"} Leads</div>
-            <div style={{ fontSize: 11.5, color: S.mut }}>{status?.noted ?? 0} manuell notierte Deals (Sperrliste)</div>
-          </div>
-          <div style={{ background: S.panel, border: `1px solid ${S.line}`, borderRadius: 12, padding: 16 }}>
-            <div style={{ fontSize: 11, color: S.mut, textTransform: "uppercase", letterSpacing: ".06em", fontWeight: 700 }}>Bisher erzeugt</div>
-            <div style={{ fontSize: 20, fontWeight: 700, margin: "6px 0", color: S.app }}>{totalByStatus["ENTWURF"] || 0} Entwürfe</div>
+          <div
+            style={{
+              background: S.panel,
+              border: `1px solid ${S.line}`,
+              borderRadius: 12,
+              padding: 16,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                color: S.mut,
+                textTransform: "uppercase",
+                letterSpacing: ".06em",
+                fontWeight: 700,
+              }}
+            >
+              Ziel-Pool
+            </div>
+            <div style={{ fontSize: 20, fontWeight: 700, margin: "6px 0" }}>
+              {status?.targets ?? "—"} Leads
+            </div>
             <div style={{ fontSize: 11.5, color: S.mut }}>
-              {Object.entries(totalByStatus).filter(([k]) => k.startsWith("skip")).reduce((a, [, v]) => a + v, 0)} Skips ·{" "}
-              {Object.entries(totalByStatus).filter(([k]) => k.startsWith("FEHLER")).reduce((a, [, v]) => a + v, 0)} Fehler
+              {status?.noted ?? 0} manuell notierte Deals (Sperrliste)
+            </div>
+          </div>
+          <div
+            style={{
+              background: S.panel,
+              border: `1px solid ${S.line}`,
+              borderRadius: 12,
+              padding: 16,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                color: S.mut,
+                textTransform: "uppercase",
+                letterSpacing: ".06em",
+                fontWeight: 700,
+              }}
+            >
+              Bisher erzeugt
+            </div>
+            <div style={{ fontSize: 20, fontWeight: 700, margin: "6px 0", color: S.app }}>
+              {totalByStatus["ENTWURF"] || 0} Entwürfe
+            </div>
+            <div style={{ fontSize: 11.5, color: S.mut }}>
+              {Object.entries(totalByStatus)
+                .filter(([k]) => k.startsWith("skip"))
+                .reduce((a, [, v]) => a + v, 0)}{" "}
+              Skips ·{" "}
+              {Object.entries(totalByStatus)
+                .filter(([k]) => k.startsWith("FEHLER"))
+                .reduce((a, [, v]) => a + v, 0)}{" "}
+              Fehler
             </div>
           </div>
         </div>
 
         {/* Wellen */}
-        <div style={{ background: S.panel, border: `1px solid ${S.line}`, borderRadius: 12, padding: 16 }}>
+        <div
+          style={{
+            background: S.panel,
+            border: `1px solid ${S.line}`,
+            borderRadius: 12,
+            padding: 16,
+          }}
+        >
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Läufe / Wellen</div>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-              <thead><tr style={{ color: S.mut, textAlign: "left" }}>
-                <th style={{ padding: "6px 8px", fontWeight: 600 }}>Lauf</th>
-                <th style={{ padding: "6px 8px", fontWeight: 600 }}>Datum</th>
-                <th style={{ padding: "6px 8px", fontWeight: 600 }}>Gesichtet</th>
-                <th style={{ padding: "6px 8px", fontWeight: 600 }}>Entwürfe</th>
-                <th style={{ padding: "6px 8px", fontWeight: 600 }}>Skips</th>
-                <th style={{ padding: "6px 8px", fontWeight: 600 }}>Fehler</th>
-              </tr></thead>
+              <thead>
+                <tr style={{ color: S.mut, textAlign: "left" }}>
+                  <th style={{ padding: "6px 8px", fontWeight: 600 }}>Lauf</th>
+                  <th style={{ padding: "6px 8px", fontWeight: 600 }}>Datum</th>
+                  <th style={{ padding: "6px 8px", fontWeight: 600 }}>Gesichtet</th>
+                  <th style={{ padding: "6px 8px", fontWeight: 600 }}>Entwürfe</th>
+                  <th style={{ padding: "6px 8px", fontWeight: 600 }}>Skips</th>
+                  <th style={{ padding: "6px 8px", fontWeight: 600 }}>Fehler</th>
+                </tr>
+              </thead>
               <tbody>
                 {(status?.waves || []).map((w) => {
-                  const skips = Object.entries(w.byStatus).filter(([k]) => k.startsWith("skip")).reduce((a, [, v]) => a + v, 0);
-                  const fails = Object.entries(w.byStatus).filter(([k]) => k.startsWith("FEHLER")).reduce((a, [, v]) => a + v, 0);
+                  const skips = Object.entries(w.byStatus)
+                    .filter(([k]) => k.startsWith("skip"))
+                    .reduce((a, [, v]) => a + v, 0);
+                  const fails = Object.entries(w.byStatus)
+                    .filter(([k]) => k.startsWith("FEHLER"))
+                    .reduce((a, [, v]) => a + v, 0);
                   return (
                     <tr key={w.file} style={{ borderTop: `1px solid ${S.line}` }}>
                       <td style={{ padding: "7px 8px", fontWeight: 600 }}>{waveLabel(w.file)}</td>
-                      <td style={{ padding: "7px 8px", color: S.mut }}>{w.modified ? w.modified.slice(0, 10) : "—"}</td>
+                      <td style={{ padding: "7px 8px", color: S.mut }}>
+                        {w.modified ? w.modified.slice(0, 10) : "—"}
+                      </td>
                       <td style={{ padding: "7px 8px" }}>{w.rows}</td>
-                      <td style={{ padding: "7px 8px", color: S.app, fontWeight: 600 }}>{w.byStatus["ENTWURF"] || 0}</td>
+                      <td style={{ padding: "7px 8px", color: S.app, fontWeight: 600 }}>
+                        {w.byStatus["ENTWURF"] || 0}
+                      </td>
                       <td style={{ padding: "7px 8px" }}>{skips}</td>
                       <td style={{ padding: "7px 8px", color: fails ? S.red : S.mut }}>{fails}</td>
                     </tr>
@@ -203,13 +504,39 @@ function ReaktApp() {
         </div>
 
         {/* Entwürfe */}
-        <div style={{ background: S.panel, border: `1px solid ${S.line}`, borderRadius: 12, padding: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
+        <div
+          style={{
+            background: S.panel,
+            border: `1px solid ${S.line}`,
+            borderRadius: 12,
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              marginBottom: 10,
+              flexWrap: "wrap",
+            }}
+          >
             <div style={{ fontSize: 13, fontWeight: 700 }}>Entwürfe</div>
             <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
               {(["ENTWURF", "alle"] as const).map((f) => (
-                <button key={f} onClick={() => setFilter(f)}
-                  style={{ padding: "4px 12px", borderRadius: 99, fontSize: 11.5, cursor: "pointer", border: `1px solid ${filter === f ? S.app : S.line}`, background: filter === f ? S.appTint : "transparent", color: filter === f ? S.app : S.mut }}>
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  style={{
+                    padding: "4px 12px",
+                    borderRadius: 99,
+                    fontSize: 11.5,
+                    cursor: "pointer",
+                    border: `1px solid ${filter === f ? S.app : S.line}`,
+                    background: filter === f ? S.appTint : "transparent",
+                    color: filter === f ? S.app : S.mut,
+                  }}
+                >
                   {f === "ENTWURF" ? "Nur Entwürfe" : "Alle Zeilen"}
                 </button>
               ))}
@@ -222,27 +549,55 @@ function ReaktApp() {
           ) : (
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-                <thead><tr style={{ color: S.mut, textAlign: "left" }}>
-                  <th style={{ padding: "6px 8px", fontWeight: 600 }}>Firma</th>
-                  <th style={{ padding: "6px 8px", fontWeight: 600 }}>Ort</th>
-                  <th style={{ padding: "6px 8px", fontWeight: 600 }}>Empfänger-Name</th>
-                  <th style={{ padding: "6px 8px", fontWeight: 600 }}>Absender-Alias</th>
-                  <th style={{ padding: "6px 8px", fontWeight: 600 }}>Status</th>
-                  <th style={{ padding: "6px 8px", fontWeight: 600 }}>Lauf</th>
-                  <th style={{ padding: "6px 8px", fontWeight: 600 }}></th>
-                </tr></thead>
+                <thead>
+                  <tr style={{ color: S.mut, textAlign: "left" }}>
+                    <th style={{ padding: "6px 8px", fontWeight: 600 }}>Firma</th>
+                    <th style={{ padding: "6px 8px", fontWeight: 600 }}>Ort</th>
+                    <th style={{ padding: "6px 8px", fontWeight: 600 }}>Empfänger-Name</th>
+                    <th style={{ padding: "6px 8px", fontWeight: 600 }}>Absender-Alias</th>
+                    <th style={{ padding: "6px 8px", fontWeight: 600 }}>Status</th>
+                    <th style={{ padding: "6px 8px", fontWeight: 600 }}>Lauf</th>
+                    <th style={{ padding: "6px 8px", fontWeight: 600 }}></th>
+                  </tr>
+                </thead>
                 <tbody>
                   {rows.map((r, i) => (
                     <tr key={`${r.file}-${r.id}-${i}`} style={{ borderTop: `1px solid ${S.line}` }}>
                       <td style={{ padding: "7px 8px", fontWeight: 600 }}>{r.org || "—"}</td>
                       <td style={{ padding: "7px 8px" }}>{r.ort || "—"}</td>
-                      <td style={{ padding: "7px 8px" }}>{r.name || <span style={{ color: S.mut }}>ohne Anrede</span>}</td>
+                      <td style={{ padding: "7px 8px" }}>
+                        {r.name || <span style={{ color: S.mut }}>ohne Anrede</span>}
+                      </td>
                       <td style={{ padding: "7px 8px", color: S.mut }}>{r.alias || "—"}</td>
-                      <td style={{ padding: "7px 8px", color: r.status === "ENTWURF" ? S.app : r.status.startsWith("FEHLER") ? S.red : S.mut }}>{r.status}</td>
+                      <td
+                        style={{
+                          padding: "7px 8px",
+                          color:
+                            r.status === "ENTWURF"
+                              ? S.app
+                              : r.status.startsWith("FEHLER")
+                                ? S.red
+                                : S.mut,
+                        }}
+                      >
+                        {r.status}
+                      </td>
                       <td style={{ padding: "7px 8px", color: S.mut }}>{waveLabel(r.file)}</td>
                       <td style={{ padding: "7px 8px" }}>
                         {r.weblink ? (
-                          <a href={r.weblink} target="_blank" rel="noreferrer" style={{ color: S.app, fontSize: 12, textDecoration: "none", border: `1px solid ${S.app}55`, borderRadius: 7, padding: "3px 10px" }}>
+                          <a
+                            href={r.weblink}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                              color: S.app,
+                              fontSize: 12,
+                              textDecoration: "none",
+                              border: `1px solid ${S.app}55`,
+                              borderRadius: 7,
+                              padding: "3px 10px",
+                            }}
+                          >
                             In Outlook öffnen ↗
                           </a>
                         ) : null}
@@ -254,7 +609,8 @@ function ReaktApp() {
             </div>
           )}
           <p style={{ fontSize: 11, color: S.mut, margin: "12px 0 0" }}>
-            Versand ausschließlich manuell aus Outlook heraus — diese Ansicht und die Maschine können keine E-Mails senden (Graph-App hat kein Mail.Send).
+            Versand ausschließlich manuell aus Outlook heraus — diese Ansicht und die Maschine
+            können keine E-Mails senden (Graph-App hat kein Mail.Send).
           </p>
         </div>
       </main>

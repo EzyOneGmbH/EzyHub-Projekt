@@ -26,29 +26,50 @@ export const Route = createFileRoute("/api/admin/agent-run")({
     handlers: {
       POST: async ({ request }) => {
         const secret = process.env.ADMIN_AUTOMATION_SECRET;
-        if (!secret) return Response.json({ ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" }, { status: 503 });
+        if (!secret)
+          return Response.json(
+            { ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" },
+            { status: 503 },
+          );
         if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
           return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
         const parsed = Body.safeParse(await request.json().catch(() => ({})));
-        if (!parsed.success) return Response.json({ ok: false, error: "Invalid input", details: parsed.error.issues }, { status: 400 });
+        if (!parsed.success)
+          return Response.json(
+            { ok: false, error: "Invalid input", details: parsed.error.issues },
+            { status: 400 },
+          );
         const d = parsed.data;
 
         // Resolve client (id or name) + its organization.
         let clientId = d.clientId || null;
         let orgId: string | null = null;
         if (clientId) {
-          const { data } = await supabaseAdmin.from("clients").select("id, organization_id").eq("id", clientId).maybeSingle();
+          const { data } = await supabaseAdmin
+            .from("clients")
+            .select("id, organization_id")
+            .eq("id", clientId)
+            .maybeSingle();
           orgId = data?.organization_id || null;
           clientId = data?.id || null;
         } else if (d.clientName) {
-          const { data } = await supabaseAdmin.from("clients").select("id, organization_id").ilike("name", d.clientName).limit(1).maybeSingle();
+          const { data } = await supabaseAdmin
+            .from("clients")
+            .select("id, organization_id")
+            .ilike("name", d.clientName)
+            .limit(1)
+            .maybeSingle();
           clientId = data?.id || null;
           orgId = data?.organization_id || null;
         }
-        if (!clientId || !orgId) return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
+        if (!clientId || !orgId)
+          return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
 
-        const runAt = d.runAt && !Number.isNaN(Date.parse(d.runAt)) ? new Date(d.runAt).toISOString() : new Date().toISOString();
+        const runAt =
+          d.runAt && !Number.isNaN(Date.parse(d.runAt))
+            ? new Date(d.runAt).toISOString()
+            : new Date().toISOString();
 
         const { data: created, error } = await supabaseAdmin
           .from("agent_runs")

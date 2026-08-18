@@ -20,7 +20,10 @@ export type MeasurementState = {
 const inflight = new Map<string, Promise<unknown>>();
 
 /** Pure Guard-Logik (separat testbar): startet fn nur, wenn key nicht läuft. */
-export function startGuarded<T>(key: string, fn: () => Promise<T>): { started: boolean; promise: Promise<T> } {
+export function startGuarded<T>(
+  key: string,
+  fn: () => Promise<T>,
+): { started: boolean; promise: Promise<T> } {
   const existing = inflight.get(key);
   if (existing) return { started: false, promise: existing as Promise<T> };
   const p = fn().finally(() => {
@@ -65,7 +68,11 @@ export function useMeasurement(
 
   const start = useCallback(async (): Promise<boolean> => {
     if (!clientId || !isUuid(clientId)) {
-      setState({ status: "error", error: "Kunde ohne gültige ID — Messung nicht möglich", startedAt: null });
+      setState({
+        status: "error",
+        error: "Kunde ohne gültige ID — Messung nicht möglich",
+        startedAt: null,
+      });
       return false;
     }
     const startedAt = Date.now();

@@ -25,12 +25,12 @@ const Body = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   domain: z.string().min(1),
   months: z.array(MonthRow),
-  traffic: z
-    .object({ etv: z.number().nullable(), keywords: z.number().nullable() })
-    .optional(),
+  traffic: z.object({ etv: z.number().nullable(), keywords: z.number().nullable() }).optional(),
   // Wettbewerber-Traffic (gleicher bulk-Call) — tolerant, optional.
   competitors: z
-    .array(z.object({ domain: z.string(), etv: z.number().nullable(), keywords: z.number().nullable() }))
+    .array(
+      z.object({ domain: z.string(), etv: z.number().nullable(), keywords: z.number().nullable() }),
+    )
     .optional(),
 });
 
@@ -71,10 +71,18 @@ export const Route = createFileRoute("/api/admin/labs-history")({
         const target = (clients || []).find(
           (c: any) =>
             slugifyName(c.name) === d.client ||
-            slugifyName(String(c.domain || "").replace(/^https?:\/\//, "").replace(/^www\./, "").split(".")[0]) === d.client,
+            slugifyName(
+              String(c.domain || "")
+                .replace(/^https?:\/\//, "")
+                .replace(/^www\./, "")
+                .split(".")[0],
+            ) === d.client,
         );
         if (!target)
-          return Response.json({ ok: false, error: `Kunde '${d.client}' nicht gefunden` }, { status: 404 });
+          return Response.json(
+            { ok: false, error: `Kunde '${d.client}' nicht gefunden` },
+            { status: 404 },
+          );
 
         const { data: users } = await supabaseAdmin
           .from("app_users")
@@ -84,7 +92,10 @@ export const Route = createFileRoute("/api/admin/labs-history")({
         const owner =
           (users || []).find((u: any) => ["owner", "admin"].includes(u.role)) || (users || [])[0];
         if (!owner)
-          return Response.json({ ok: false, error: "Kein Org-User fuer triggered_by" }, { status: 500 });
+          return Response.json(
+            { ok: false, error: "Kein Org-User fuer triggered_by" },
+            { status: 500 },
+          );
 
         const result: Record<string, unknown> = {
           client: d.client,

@@ -50,11 +50,17 @@ export const Route = createFileRoute("/api/admin/team")({
           .maybeSingle();
         const orgId = (me as any)?.organization_id as string | undefined;
         if (!orgId || !(await isOrgAdmin(user.id, orgId)))
-          return Response.json({ error: "Keine Berechtigung (nur SuperAdmin/Admin)." }, { status: 403 });
+          return Response.json(
+            { error: "Keine Berechtigung (nur SuperAdmin/Admin)." },
+            { status: 403 },
+          );
 
         const parsed = Body.safeParse(await request.json().catch(() => ({})));
         if (!parsed.success)
-          return Response.json({ error: "Invalid input", details: parsed.error.issues }, { status: 400 });
+          return Response.json(
+            { error: "Invalid input", details: parsed.error.issues },
+            { status: 400 },
+          );
         const d = parsed.data;
 
         // ── list ──────────────────────────────────────────────────────────────
@@ -98,13 +104,23 @@ export const Route = createFileRoute("/api/admin/team")({
           // Nur owner darf admin einladen; admin kann member/viewer.
           const myRole = await orgRoleOf(user.id, orgId);
           if (role === "admin" && myRole !== "owner")
-            return Response.json({ error: "Nur der SuperAdmin darf Admins anlegen." }, { status: 403 });
+            return Response.json(
+              { error: "Nur der SuperAdmin darf Admins anlegen." },
+              { status: 403 },
+            );
           const origin = (() => {
-            try { return new URL(request.url).origin; } catch { return process.env.PUBLIC_SITE_URL || ""; }
+            try {
+              return new URL(request.url).origin;
+            } catch {
+              return process.env.PUBLIC_SITE_URL || "";
+            }
           })();
-          const { data: inv, error: invErr } = await supabaseAdmin.auth.admin.inviteUserByEmail(d.email, {
-            redirectTo: origin ? `${origin}/set-password` : undefined,
-          });
+          const { data: inv, error: invErr } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+            d.email,
+            {
+              redirectTo: origin ? `${origin}/set-password` : undefined,
+            },
+          );
           let newUserId = inv?.user?.id;
           if (invErr || !newUserId) {
             // Nutzer existiert evtl. schon -> per E-Mail auflösen.
@@ -113,7 +129,10 @@ export const Route = createFileRoute("/api/admin/team")({
               (u) => (u.email || "").toLowerCase() === d.email!.toLowerCase(),
             );
             if (!found)
-              return Response.json({ error: invErr?.message || "Einladung fehlgeschlagen" }, { status: 500 });
+              return Response.json(
+                { error: invErr?.message || "Einladung fehlgeschlagen" },
+                { status: 500 },
+              );
             newUserId = found.id;
           }
           // Vorhandene Org-Mitgliedschaft? -> Rolle aktualisieren, sonst anlegen
@@ -126,7 +145,11 @@ export const Route = createFileRoute("/api/admin/team")({
             .maybeSingle();
           const upErr = existing?.id
             ? (await supabaseAdmin.from("app_users").update({ role }).eq("id", existing.id)).error
-            : (await supabaseAdmin.from("app_users").insert({ user_id: newUserId, organization_id: orgId, role })).error;
+            : (
+                await supabaseAdmin
+                  .from("app_users")
+                  .insert({ user_id: newUserId, organization_id: orgId, role })
+              ).error;
           if (upErr) return Response.json({ error: upErr.message }, { status: 500 });
 
           // Ein Signup-Trigger legt fuer neue Auth-User automatisch eine EIGENE
@@ -147,7 +170,11 @@ export const Route = createFileRoute("/api/admin/team")({
                 .select("id", { count: "exact", head: true })
                 .eq("organization_id", oid);
               if (!count) {
-                await supabaseAdmin.from("app_users").delete().eq("user_id", newUserId).eq("organization_id", oid);
+                await supabaseAdmin
+                  .from("app_users")
+                  .delete()
+                  .eq("user_id", newUserId)
+                  .eq("organization_id", oid);
                 // Org nur loeschen, wenn danach keine Mitglieder mehr uebrig sind.
                 const { count: remaining } = await supabaseAdmin
                   .from("app_users")
@@ -182,13 +209,23 @@ export const Route = createFileRoute("/api/admin/team")({
 
         // ── setRole ───────────────────────────────────────────────────────────
         if (d.action === "setRole") {
-          if (!d.userId || !d.role) return Response.json({ error: "userId + role erforderlich" }, { status: 400 });
+          if (!d.userId || !d.role)
+            return Response.json({ error: "userId + role erforderlich" }, { status: 400 });
           if (d.userId === user.id)
-            return Response.json({ error: "Die eigene Rolle kann hier nicht geändert werden." }, { status: 400 });
+            return Response.json(
+              { error: "Die eigene Rolle kann hier nicht geändert werden." },
+              { status: 400 },
+            );
           const myRole = await orgRoleOf(user.id, orgId);
           const targetRole = await orgRoleOf(d.userId, orgId);
-          if ((d.role === "admin" || targetRole === "owner" || targetRole === "admin") && myRole !== "owner")
-            return Response.json({ error: "Nur der SuperAdmin darf Admin-Rollen verwalten." }, { status: 403 });
+          if (
+            (d.role === "admin" || targetRole === "owner" || targetRole === "admin") &&
+            myRole !== "owner"
+          )
+            return Response.json(
+              { error: "Nur der SuperAdmin darf Admin-Rollen verwalten." },
+              { status: 403 },
+            );
           const { error } = await supabaseAdmin
             .from("app_users")
             .update({ role: d.role })
@@ -209,7 +246,11 @@ export const Route = createFileRoute("/api/admin/team")({
             .eq("organization_id", orgId)
             .in("id", clientIds.length ? clientIds : ["00000000-0000-0000-0000-000000000000"]);
           const validIds = new Set((valid || []).map((c: any) => c.id));
-          await supabaseAdmin.from("client_access").delete().eq("user_id", d.userId).eq("organization_id", orgId);
+          await supabaseAdmin
+            .from("client_access")
+            .delete()
+            .eq("user_id", d.userId)
+            .eq("organization_id", orgId);
           const rows = [...validIds].map((cid) => ({
             organization_id: orgId,
             client_id: cid,
@@ -227,15 +268,32 @@ export const Route = createFileRoute("/api/admin/team")({
         if (d.action === "remove") {
           if (!d.userId) return Response.json({ error: "userId erforderlich" }, { status: 400 });
           if (d.userId === user.id)
-            return Response.json({ error: "Der eigene Zugang kann nicht entfernt werden." }, { status: 400 });
+            return Response.json(
+              { error: "Der eigene Zugang kann nicht entfernt werden." },
+              { status: 400 },
+            );
           const targetRole = await orgRoleOf(d.userId, orgId);
           const myRole = await orgRoleOf(user.id, orgId);
           if ((targetRole === "owner" || targetRole === "admin") && myRole !== "owner")
-            return Response.json({ error: "Nur der SuperAdmin darf Admins entfernen." }, { status: 403 });
+            return Response.json(
+              { error: "Nur der SuperAdmin darf Admins entfernen." },
+              { status: 403 },
+            );
           if (targetRole === "owner")
-            return Response.json({ error: "Der SuperAdmin (owner) kann nicht entfernt werden." }, { status: 400 });
-          await supabaseAdmin.from("client_access").delete().eq("user_id", d.userId).eq("organization_id", orgId);
-          await supabaseAdmin.from("app_users").delete().eq("user_id", d.userId).eq("organization_id", orgId);
+            return Response.json(
+              { error: "Der SuperAdmin (owner) kann nicht entfernt werden." },
+              { status: 400 },
+            );
+          await supabaseAdmin
+            .from("client_access")
+            .delete()
+            .eq("user_id", d.userId)
+            .eq("organization_id", orgId);
+          await supabaseAdmin
+            .from("app_users")
+            .delete()
+            .eq("user_id", d.userId)
+            .eq("organization_id", orgId);
           return Response.json({ ok: true });
         }
 

@@ -10,7 +10,7 @@ const AWORK_BASE = "https://api.awork.com/api/v1";
 async function aworkFetch<T = any>(
   path: string,
   key: string,
-  options?: { method?: string; body?: any }
+  options?: { method?: string; body?: any },
 ): Promise<{ ok: boolean; status: number; data: T | null; error?: string }> {
   const res = await fetch(`${AWORK_BASE}${path}`, {
     method: options?.method || "GET",
@@ -37,7 +37,9 @@ async function verifyAuth(request: Request) {
   const sb = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: request.headers.get("authorization") ?? "" } },
   });
-  const { data: { user } } = await sb.auth.getUser();
+  const {
+    data: { user },
+  } = await sb.auth.getUser();
   if (!user) return { error: "Unauthorized", status: 401 };
 
   // Get user's organizations
@@ -72,11 +74,13 @@ export const Route = createFileRoute("/api/awork/task")({
       GET: async ({ request }) => {
         try {
           const auth = await verifyAuth(request);
-          if ("error" in auth) return Response.json({ ok: false, error: auth.error }, { status: auth.status });
+          if ("error" in auth)
+            return Response.json({ ok: false, error: auth.error }, { status: auth.status });
 
           const url = new URL(request.url);
           const taskId = url.searchParams.get("taskId");
-          if (!taskId) return Response.json({ ok: false, error: "taskId required" }, { status: 400 });
+          if (!taskId)
+            return Response.json({ ok: false, error: "taskId required" }, { status: 400 });
 
           const key = process.env.AWORK_API_KEY;
           if (!key) return Response.json({ ok: false, error: "AWORK_API_KEY nicht konfiguriert" });
@@ -88,7 +92,10 @@ export const Route = createFileRoute("/api/awork/task")({
           ]);
 
           if (!taskRes.ok) {
-            return Response.json({ ok: false, error: `Task nicht gefunden: ${taskRes.error}` }, { status: taskRes.status });
+            return Response.json(
+              { ok: false, error: `Task nicht gefunden: ${taskRes.error}` },
+              { status: taskRes.status },
+            );
           }
 
           const task = taskRes.data;
@@ -96,11 +103,14 @@ export const Route = createFileRoute("/api/awork/task")({
             id: c.id,
             message: c.message || "",
             createdOn: c.createdOn,
-            createdBy: c.createdBy ? {
-              id: c.createdBy.id,
-              name: `${c.createdBy.firstName || ""} ${c.createdBy.lastName || ""}`.trim(),
-              initials: `${(c.createdBy.firstName || "")[0] || ""}${(c.createdBy.lastName || "")[0] || ""}`.toUpperCase(),
-            } : null,
+            createdBy: c.createdBy
+              ? {
+                  id: c.createdBy.id,
+                  name: `${c.createdBy.firstName || ""} ${c.createdBy.lastName || ""}`.trim(),
+                  initials:
+                    `${(c.createdBy.firstName || "")[0] || ""}${(c.createdBy.lastName || "")[0] || ""}`.toUpperCase(),
+                }
+              : null,
           }));
 
           // Get checklist items
@@ -127,11 +137,13 @@ export const Route = createFileRoute("/api/awork/task")({
               name: task.name,
               description: task.description || "",
               taskStatusId: task.taskStatusId,
-              taskStatus: task.taskStatus ? {
-                id: task.taskStatus.id,
-                name: task.taskStatus.name,
-                type: task.taskStatus.type,
-              } : null,
+              taskStatus: task.taskStatus
+                ? {
+                    id: task.taskStatus.id,
+                    name: task.taskStatus.name,
+                    type: task.taskStatus.type,
+                  }
+                : null,
               projectId: task.projectId,
               project: task.project ? { id: task.project.id, name: task.project.name } : null,
               dueOn: task.dueOn,
@@ -139,7 +151,8 @@ export const Route = createFileRoute("/api/awork/task")({
               assignees: (task.assignees || []).map((a: any) => ({
                 id: a.id || a.userId,
                 name: `${a.firstName || ""} ${a.lastName || ""}`.trim(),
-                initials: `${(a.firstName || "")[0] || ""}${(a.lastName || "")[0] || ""}`.toUpperCase(),
+                initials:
+                  `${(a.firstName || "")[0] || ""}${(a.lastName || "")[0] || ""}`.toUpperCase(),
               })),
               createdOn: task.createdOn,
               updatedOn: task.updatedOn,
@@ -150,7 +163,10 @@ export const Route = createFileRoute("/api/awork/task")({
             comments,
           });
         } catch (e) {
-          return Response.json({ ok: false, error: String((e as Error)?.message || e) }, { status: 500 });
+          return Response.json(
+            { ok: false, error: String((e as Error)?.message || e) },
+            { status: 500 },
+          );
         }
       },
 
@@ -158,15 +174,18 @@ export const Route = createFileRoute("/api/awork/task")({
       PUT: async ({ request }) => {
         try {
           const auth = await verifyAuth(request);
-          if ("error" in auth) return Response.json({ ok: false, error: auth.error }, { status: auth.status });
+          if ("error" in auth)
+            return Response.json({ ok: false, error: auth.error }, { status: auth.status });
 
           const url = new URL(request.url);
           const taskId = url.searchParams.get("taskId");
-          if (!taskId) return Response.json({ ok: false, error: "taskId required" }, { status: 400 });
+          if (!taskId)
+            return Response.json({ ok: false, error: "taskId required" }, { status: 400 });
 
           const body = await request.json().catch(() => ({}));
           const parsed = UpdateTaskBody.safeParse(body);
-          if (!parsed.success) return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
+          if (!parsed.success)
+            return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
 
           const key = process.env.AWORK_API_KEY;
           if (!key) return Response.json({ ok: false, error: "AWORK_API_KEY nicht konfiguriert" });
@@ -183,22 +202,35 @@ export const Route = createFileRoute("/api/awork/task")({
           if (wantsFieldUpdate) {
             const currentRes = await aworkFetch<any>(`/tasks/${taskId}`, key);
             if (!currentRes.ok || !currentRes.data) {
-              return Response.json({ ok: false, error: `Task nicht gefunden: ${currentRes.error}` }, { status: currentRes.status });
+              return Response.json(
+                { ok: false, error: `Task nicht gefunden: ${currentRes.error}` },
+                { status: currentRes.status },
+              );
             }
             const cur = currentRes.data;
             const updates: any = {
               name: parsed.data.name !== undefined ? parsed.data.name : cur.name,
-              description: parsed.data.description !== undefined ? parsed.data.description : cur.description,
-              taskStatusId: parsed.data.taskStatusId !== undefined ? parsed.data.taskStatusId : cur.taskStatusId,
+              description:
+                parsed.data.description !== undefined ? parsed.data.description : cur.description,
+              taskStatusId:
+                parsed.data.taskStatusId !== undefined
+                  ? parsed.data.taskStatusId
+                  : cur.taskStatusId,
               dueOn: parsed.data.dueOn !== undefined ? parsed.data.dueOn : cur.dueOn,
               baseType: cur.baseType,
               entityId: cur.entityId,
               typeOfWorkId: cur.typeOfWorkId,
               isPrio: cur.isPrio,
             };
-            const updateRes = await aworkFetch(`/tasks/${taskId}`, key, { method: "PUT", body: updates });
+            const updateRes = await aworkFetch(`/tasks/${taskId}`, key, {
+              method: "PUT",
+              body: updates,
+            });
             if (!updateRes.ok) {
-              return Response.json({ ok: false, error: `Update fehlgeschlagen: ${updateRes.error}` }, { status: updateRes.status });
+              return Response.json(
+                { ok: false, error: `Update fehlgeschlagen: ${updateRes.error}` },
+                { status: updateRes.status },
+              );
             }
           }
 
@@ -210,13 +242,19 @@ export const Route = createFileRoute("/api/awork/task")({
               body: parsed.data.assigneeIds,
             });
             if (!asgRes.ok) {
-              return Response.json({ ok: false, error: `Zuweisung fehlgeschlagen: ${asgRes.error}` }, { status: asgRes.status });
+              return Response.json(
+                { ok: false, error: `Zuweisung fehlgeschlagen: ${asgRes.error}` },
+                { status: asgRes.status },
+              );
             }
           }
 
           return Response.json({ ok: true });
         } catch (e) {
-          return Response.json({ ok: false, error: String((e as Error)?.message || e) }, { status: 500 });
+          return Response.json(
+            { ok: false, error: String((e as Error)?.message || e) },
+            { status: 500 },
+          );
         }
       },
 
@@ -224,13 +262,15 @@ export const Route = createFileRoute("/api/awork/task")({
       POST: async ({ request }) => {
         try {
           const auth = await verifyAuth(request);
-          if ("error" in auth) return Response.json({ ok: false, error: auth.error }, { status: auth.status });
+          if ("error" in auth)
+            return Response.json({ ok: false, error: auth.error }, { status: auth.status });
 
           const url = new URL(request.url);
           const taskId = url.searchParams.get("taskId");
           const action = url.searchParams.get("action");
 
-          if (!taskId) return Response.json({ ok: false, error: "taskId required" }, { status: 400 });
+          if (!taskId)
+            return Response.json({ ok: false, error: "taskId required" }, { status: 400 });
 
           const key = process.env.AWORK_API_KEY;
           if (!key) return Response.json({ ok: false, error: "AWORK_API_KEY nicht konfiguriert" });
@@ -239,7 +279,8 @@ export const Route = createFileRoute("/api/awork/task")({
 
           if (action === "comment") {
             const parsed = CommentBody.safeParse(body);
-            if (!parsed.success) return Response.json({ ok: false, error: "message required" }, { status: 400 });
+            if (!parsed.success)
+              return Response.json({ ok: false, error: "message required" }, { status: 400 });
 
             const commentRes = await aworkFetch(`/tasks/${taskId}/comments`, key, {
               method: "POST",
@@ -247,7 +288,10 @@ export const Route = createFileRoute("/api/awork/task")({
             });
 
             if (!commentRes.ok) {
-              return Response.json({ ok: false, error: `Kommentar fehlgeschlagen: ${commentRes.error}` }, { status: commentRes.status });
+              return Response.json(
+                { ok: false, error: `Kommentar fehlgeschlagen: ${commentRes.error}` },
+                { status: commentRes.status },
+              );
             }
 
             return Response.json({ ok: true, comment: commentRes.data });
@@ -263,7 +307,10 @@ export const Route = createFileRoute("/api/awork/task")({
             });
 
             if (!res.ok) {
-              return Response.json({ ok: false, error: `Checklist fehlgeschlagen: ${res.error}` }, { status: res.status });
+              return Response.json(
+                { ok: false, error: `Checklist fehlgeschlagen: ${res.error}` },
+                { status: res.status },
+              );
             }
 
             return Response.json({ ok: true, item: res.data });
@@ -272,7 +319,8 @@ export const Route = createFileRoute("/api/awork/task")({
           if (action === "checklist-toggle") {
             const itemId = body.itemId;
             const isDone = body.isDone;
-            if (!itemId) return Response.json({ ok: false, error: "itemId required" }, { status: 400 });
+            if (!itemId)
+              return Response.json({ ok: false, error: "itemId required" }, { status: 400 });
 
             const res = await aworkFetch(`/tasks/${taskId}/checklistitems/${itemId}`, key, {
               method: "PUT",
@@ -280,7 +328,10 @@ export const Route = createFileRoute("/api/awork/task")({
             });
 
             if (!res.ok) {
-              return Response.json({ ok: false, error: `Toggle fehlgeschlagen: ${res.error}` }, { status: res.status });
+              return Response.json(
+                { ok: false, error: `Toggle fehlgeschlagen: ${res.error}` },
+                { status: res.status },
+              );
             }
 
             return Response.json({ ok: true });
@@ -288,7 +339,10 @@ export const Route = createFileRoute("/api/awork/task")({
 
           return Response.json({ ok: false, error: "Unknown action" }, { status: 400 });
         } catch (e) {
-          return Response.json({ ok: false, error: String((e as Error)?.message || e) }, { status: 500 });
+          return Response.json(
+            { ok: false, error: String((e as Error)?.message || e) },
+            { status: 500 },
+          );
         }
       },
     },

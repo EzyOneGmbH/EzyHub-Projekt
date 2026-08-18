@@ -60,7 +60,10 @@ export const Route = createFileRoute("/api/admin/ewww-provision")({
       POST: async ({ request }) => {
         const secret = process.env.ADMIN_AUTOMATION_SECRET;
         if (!secret)
-          return Response.json({ ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" }, { status: 503 });
+          return Response.json(
+            { ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" },
+            { status: 503 },
+          );
         if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
           return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
         const KEY = process.env.EWWW_CLOUD_KEY;
@@ -72,7 +75,10 @@ export const Route = createFileRoute("/api/admin/ewww-provision")({
 
         const parsed = Body.safeParse(await request.json().catch(() => ({})));
         if (!parsed.success)
-          return Response.json({ ok: false, error: "Invalid input", details: parsed.error.issues }, { status: 400 });
+          return Response.json(
+            { ok: false, error: "Invalid input", details: parsed.error.issues },
+            { status: 400 },
+          );
         const b = parsed.data;
 
         // WP-verbundene Kunden ermitteln
@@ -81,25 +87,42 @@ export const Route = createFileRoute("/api/admin/ewww-provision")({
           let cid = isUuid(b.client) ? b.client : "";
           if (!cid) {
             const { data } = await supabaseAdmin
-              .from("clients").select("id").ilike("name", `%${b.client}%`).limit(1).maybeSingle();
+              .from("clients")
+              .select("id")
+              .ilike("name", `%${b.client}%`)
+              .limit(1)
+              .maybeSingle();
             cid = data?.id || "";
           }
           if (cid) clientIds = [cid];
         } else {
           const { data } = await supabaseAdmin
-            .from("oauth_connections").select("client_id").eq("provider", "wordpress");
-          clientIds = [...new Set((data || []).map((r: any) => r.client_id).filter(Boolean))] as string[];
+            .from("oauth_connections")
+            .select("client_id")
+            .eq("provider", "wordpress");
+          clientIds = [
+            ...new Set((data || []).map((r: any) => r.client_id).filter(Boolean)),
+          ] as string[];
         }
         // Gate: nur Agenten-Kunden (SEO-Massnahmen) einrichten.
         clientIds = clientIds.filter((id) => AGENT_CLIENTS.has(id));
         if (!clientIds.length)
           return Response.json(
-            { ok: false, error: "Keine WP-verbundenen Agenten-Kunden gefunden (nur Kunden mit SEO-Agent werden eingerichtet)" },
+            {
+              ok: false,
+              error:
+                "Keine WP-verbundenen Agenten-Kunden gefunden (nur Kunden mit SEO-Agent werden eingerichtet)",
+            },
             { status: 404 },
           );
 
-        const { data: cRows } = await supabaseAdmin.from("clients").select("id, name").in("id", clientIds);
-        const nameOf: Record<string, string> = Object.fromEntries((cRows || []).map((c: any) => [c.id, c.name]));
+        const { data: cRows } = await supabaseAdmin
+          .from("clients")
+          .select("id, name")
+          .in("id", clientIds);
+        const nameOf: Record<string, string> = Object.fromEntries(
+          (cRows || []).map((c: any) => [c.id, c.name]),
+        );
 
         const results: any[] = [];
         for (const clientId of clientIds) {
@@ -112,11 +135,18 @@ export const Route = createFileRoute("/api/admin/ewww-provision")({
           const steps: Record<string, any> = {};
           try {
             // 1) EWWW-Status
-            const list = await wpFetch<any[]>(conn, "/wp/v2/plugins", { query: { search: "ewww" } });
+            const list = await wpFetch<any[]>(conn, "/wp/v2/plugins", {
+              query: { search: "ewww" },
+            });
             const installed = hasEwww(list.data);
             const active = ewwwActive(list.data);
             if (b.dryRun) {
-              results.push({ client: name, ewwwInstalled: installed, ewwwActive: active, dryRun: true });
+              results.push({
+                client: name,
+                ewwwInstalled: installed,
+                ewwwActive: active,
+                dryRun: true,
+              });
               continue;
             }
             // 1b) installieren + aktivieren, falls nötig
@@ -172,9 +202,9 @@ export const Route = createFileRoute("/api/admin/ewww-provision")({
               });
               // ex.data.needsZone -> Site muss erst im EasyIO-Konto registriert werden.
               steps.exactdn = ex.ok
-                ? (ex.data?.ok === false
-                    ? { needsZone: true, hint: ex.data?.hint }
-                    : { enabled: ex.data?.exactdn, domain: ex.data?.domain })
+                ? ex.data?.ok === false
+                  ? { needsZone: true, hint: ex.data?.hint }
+                  : { enabled: ex.data?.exactdn, domain: ex.data?.domain }
                 : ex.error;
             }
 

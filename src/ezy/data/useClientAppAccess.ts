@@ -43,7 +43,11 @@ export function useClientAppAccess() {
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
-    if (!user) { setRows([]); setLoading(false); return; }
+    if (!user) {
+      setRows([]);
+      setLoading(false);
+      return;
+    }
     // Supabase-Types kennen die neue Tabelle noch nicht — as any wie app_access.
     const { data, error } = await (supabase as any)
       .from("client_app_access")
@@ -66,7 +70,9 @@ export function useClientAppAccess() {
     setLoading(false);
   }, [user?.id]);
 
-  useEffect(() => { void reload(); }, [reload]);
+  useEffect(() => {
+    void reload();
+  }, [reload]);
 
   const map: ClientAppMap = useMemo(() => {
     const m: ClientAppMap = new Map();

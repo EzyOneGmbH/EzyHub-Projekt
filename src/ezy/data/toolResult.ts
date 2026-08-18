@@ -16,7 +16,17 @@ export type NormalizedToolResult = {
 
 // Schlüssel in Prioritätsreihenfolge. "message" fehlt BEWUSST: das ist bei
 // unseren Routen der Status-Text ("Live-Lauf abgeschlossen"), kein Inhalt.
-const TEXT_KEYS = ["content", "markdown", "text", "output", "result", "data", "answer", "completion", "response"] as const;
+const TEXT_KEYS = [
+  "content",
+  "markdown",
+  "text",
+  "output",
+  "result",
+  "data",
+  "answer",
+  "completion",
+  "response",
+] as const;
 
 const MAX_DEPTH = 5;
 
@@ -55,7 +65,9 @@ function extractText(v: unknown, depth: number, seen: Set<unknown>): string | nu
   if (Array.isArray(choices) && choices.length) {
     const c0 = choices[0];
     if (isPlainObject(c0)) {
-      const viaMessage = isPlainObject(c0.message) ? extractText(c0.message, depth + 1, seen) : null;
+      const viaMessage = isPlainObject(c0.message)
+        ? extractText(c0.message, depth + 1, seen)
+        : null;
       const found = viaMessage ?? nonEmpty(c0.text);
       if (found) return found;
     }
