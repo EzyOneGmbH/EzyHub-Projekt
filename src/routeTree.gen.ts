@@ -62,6 +62,7 @@ import { Route as ApiGoogleAdsDataRouteImport } from './routes/api/google.ads-da
 import { Route as ApiGoogleAdsCustomersRouteImport } from './routes/api/google.ads-customers'
 import { Route as ApiGoogleAdsAutopilotRunRouteImport } from './routes/api/google.ads-autopilot-run'
 import { Route as ApiGoogleAdsAutopilotDecideRouteImport } from './routes/api/google.ads-autopilot-decide'
+import { Route as ApiGoogleAdsAutopilotConfigRouteImport } from './routes/api/google.ads-autopilot-config'
 import { Route as ApiContentRefreshBriefRouteImport } from './routes/api/content.refresh-brief'
 import { Route as ApiCanonryCreateProjectRouteImport } from './routes/api/canonry.create-project'
 import { Route as ApiAworkUsersRouteImport } from './routes/api/awork.users'
@@ -404,6 +405,12 @@ const ApiGoogleAdsAutopilotDecideRoute =
   ApiGoogleAdsAutopilotDecideRouteImport.update({
     id: '/api/google/ads-autopilot-decide',
     path: '/api/google/ads-autopilot-decide',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiGoogleAdsAutopilotConfigRoute =
+  ApiGoogleAdsAutopilotConfigRouteImport.update({
+    id: '/api/google/ads-autopilot-config',
+    path: '/api/google/ads-autopilot-config',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiContentRefreshBriefRoute = ApiContentRefreshBriefRouteImport.update({
@@ -888,6 +895,7 @@ export interface FileRoutesByFullPath {
   '/api/awork/users': typeof ApiAworkUsersRoute
   '/api/canonry/create-project': typeof ApiCanonryCreateProjectRoute
   '/api/content/refresh-brief': typeof ApiContentRefreshBriefRoute
+  '/api/google/ads-autopilot-config': typeof ApiGoogleAdsAutopilotConfigRoute
   '/api/google/ads-autopilot-decide': typeof ApiGoogleAdsAutopilotDecideRoute
   '/api/google/ads-autopilot-run': typeof ApiGoogleAdsAutopilotRunRoute
   '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
@@ -1016,6 +1024,7 @@ export interface FileRoutesByTo {
   '/api/awork/users': typeof ApiAworkUsersRoute
   '/api/canonry/create-project': typeof ApiCanonryCreateProjectRoute
   '/api/content/refresh-brief': typeof ApiContentRefreshBriefRoute
+  '/api/google/ads-autopilot-config': typeof ApiGoogleAdsAutopilotConfigRoute
   '/api/google/ads-autopilot-decide': typeof ApiGoogleAdsAutopilotDecideRoute
   '/api/google/ads-autopilot-run': typeof ApiGoogleAdsAutopilotRunRoute
   '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
@@ -1145,6 +1154,7 @@ export interface FileRoutesById {
   '/api/awork/users': typeof ApiAworkUsersRoute
   '/api/canonry/create-project': typeof ApiCanonryCreateProjectRoute
   '/api/content/refresh-brief': typeof ApiContentRefreshBriefRoute
+  '/api/google/ads-autopilot-config': typeof ApiGoogleAdsAutopilotConfigRoute
   '/api/google/ads-autopilot-decide': typeof ApiGoogleAdsAutopilotDecideRoute
   '/api/google/ads-autopilot-run': typeof ApiGoogleAdsAutopilotRunRoute
   '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
@@ -1275,6 +1285,7 @@ export interface FileRouteTypes {
     | '/api/awork/users'
     | '/api/canonry/create-project'
     | '/api/content/refresh-brief'
+    | '/api/google/ads-autopilot-config'
     | '/api/google/ads-autopilot-decide'
     | '/api/google/ads-autopilot-run'
     | '/api/google/ads-customers'
@@ -1403,6 +1414,7 @@ export interface FileRouteTypes {
     | '/api/awork/users'
     | '/api/canonry/create-project'
     | '/api/content/refresh-brief'
+    | '/api/google/ads-autopilot-config'
     | '/api/google/ads-autopilot-decide'
     | '/api/google/ads-autopilot-run'
     | '/api/google/ads-customers'
@@ -1531,6 +1543,7 @@ export interface FileRouteTypes {
     | '/api/awork/users'
     | '/api/canonry/create-project'
     | '/api/content/refresh-brief'
+    | '/api/google/ads-autopilot-config'
     | '/api/google/ads-autopilot-decide'
     | '/api/google/ads-autopilot-run'
     | '/api/google/ads-customers'
@@ -1655,6 +1668,7 @@ export interface RootRouteChildren {
   ApiAworkUsersRoute: typeof ApiAworkUsersRoute
   ApiCanonryCreateProjectRoute: typeof ApiCanonryCreateProjectRoute
   ApiContentRefreshBriefRoute: typeof ApiContentRefreshBriefRoute
+  ApiGoogleAdsAutopilotConfigRoute: typeof ApiGoogleAdsAutopilotConfigRoute
   ApiGoogleAdsAutopilotDecideRoute: typeof ApiGoogleAdsAutopilotDecideRoute
   ApiGoogleAdsAutopilotRunRoute: typeof ApiGoogleAdsAutopilotRunRoute
   ApiGoogleAdsCustomersRoute: typeof ApiGoogleAdsCustomersRoute
@@ -2052,6 +2066,13 @@ declare module '@tanstack/react-router' {
       path: '/api/google/ads-autopilot-decide'
       fullPath: '/api/google/ads-autopilot-decide'
       preLoaderRoute: typeof ApiGoogleAdsAutopilotDecideRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/google/ads-autopilot-config': {
+      id: '/api/google/ads-autopilot-config'
+      path: '/api/google/ads-autopilot-config'
+      fullPath: '/api/google/ads-autopilot-config'
+      preLoaderRoute: typeof ApiGoogleAdsAutopilotConfigRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/content/refresh-brief': {
@@ -2722,6 +2743,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAworkUsersRoute: ApiAworkUsersRoute,
   ApiCanonryCreateProjectRoute: ApiCanonryCreateProjectRoute,
   ApiContentRefreshBriefRoute: ApiContentRefreshBriefRoute,
+  ApiGoogleAdsAutopilotConfigRoute: ApiGoogleAdsAutopilotConfigRoute,
   ApiGoogleAdsAutopilotDecideRoute: ApiGoogleAdsAutopilotDecideRoute,
   ApiGoogleAdsAutopilotRunRoute: ApiGoogleAdsAutopilotRunRoute,
   ApiGoogleAdsCustomersRoute: ApiGoogleAdsCustomersRoute,

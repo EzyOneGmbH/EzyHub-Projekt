@@ -1,89 +1,208 @@
 import React from "react";
+import { C } from "@/ezy/theme";
+import { Btn, Badge } from "@/ezy/shared-ui.jsx";
+import { useAuth } from "@/hooks/use-auth";
 import { useEzyAdsAutopilot } from "./data/useEzyAdsAutopilot";
+import { useEzyLatestRun, googleAdsFromResult } from "./data/useEzyLatestRun";
+import { canConfigureAutopilot, describeConfigChange } from "./data/adsAutopilotPolicy";
 
-// Google Ads Autopilot panel: config summary, pending approval queue (Approve/
-// Reject), recent changelog. Reads via Supabase RLS; mutates via user-authed
-// /api/google/ads-autopilot-* endpoints. Self-contained inline styling to match
-// the EzyOneApp dark theme without depending on its local palette.
-
-const P = {
-  card: "#181923",
-  border: "#252636",
-  text: "#f0f1f8", // heller (war #e2e4f0)
-  textMuted: "#c2c4d6", // deutlich heller lesbar (war #8b8da3)
-  textDim: "#9fa1b8", // heller, aber sekundaer erkennbar (war #5c5e72)
-  accent: "#e07bd3", // Ezy One CD: helles Violet-Red auf dunklem Grund (war #8b7dff)
-  green: "#10b981",
-  greenDim: "rgba(16,185,129,0.12)",
-  red: "#ef4444",
-  redDim: "rgba(239,68,68,0.12)",
-  blue: "#3b82f6",
-  blueDim: "rgba(59,130,246,0.12)",
-  orange: "#f59e0b",
-  orangeDim: "rgba(245,158,11,0.12)",
-};
+// Google Ads Autopilot Panel (EzyPerformance): Konfiguration (Owner/Admin),
+// Freigabe-Queue, offene Massnahmen, Befunde, Detailanalyse-Drilldowns und
+// Aenderungs-Log - im hellen Ezy-One-Design (gemeinsame Palette aus theme.js,
+// Btn/Badge aus shared-ui). Reads via Supabase RLS; Mutationen ausschliesslich
+// ueber user-authed /api/google/ads-autopilot-* Endpoints.
 
 const STATUS_COLOR = {
-  executed: P.green,
-  approved: P.green,
-  "dry-run": P.blue,
-  pending: P.orange,
-  failed: P.red,
-  rejected: P.red,
-  expired: P.textDim,
+  executed: C.green,
+  approved: C.green,
+  "dry-run": C.blue,
+  pending: C.orange,
+  failed: C.red,
+  rejected: C.red,
+  expired: C.textDim,
+  blocked_tracking: C.red,
+  "report-only": C.textMuted,
 };
 
-function Badge({ children, color = P.accent, bg }) {
-  return (
-    <span
-      style={{
-        display: "inline-block",
-        padding: "2px 8px",
-        borderRadius: 6,
-        fontSize: 12,
-        fontWeight: 600,
-        color,
-        background: bg || "rgba(108,92,231,0.15)",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {children}
-    </span>
-  );
-}
+const chf = (n, dec = 0) =>
+  `CHF ${Number(n || 0).toLocaleString("de-CH", { minimumFractionDigits: dec, maximumFractionDigits: dec })}`;
+const pct = (v) => (v == null ? "—" : `${Math.round(Number(v) * 100)} %`);
+const dateCH = (iso) => (iso ? new Date(iso).toLocaleDateString("de-CH") : "—");
 
 function StatusBadge({ status }) {
-  const color = STATUS_COLOR[status] || P.textMuted;
-  return (
-    <Badge color={color} bg={`${color}22`}>
-      {status}
-    </Badge>
-  );
+  return <Badge color={STATUS_COLOR[status] || C.textMuted}>{status}</Badge>;
 }
 
-function Btn({ children, onClick, disabled, variant }) {
-  const styles =
-    variant === "approve"
-      ? { color: P.green, background: P.greenDim, border: `1px solid ${P.green}55` }
-      : variant === "reject"
-        ? { color: P.red, background: P.redDim, border: `1px solid ${P.red}55` }
-        : { color: P.text, background: "transparent", border: `1px solid ${P.border}` };
+// Karte im Stil der Dashboard-Karten (weiss, runde Ecken, feiner Rand).
+function Card({ children, style }) {
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
+    <div
       style={{
-        padding: "6px 12px",
-        borderRadius: 8,
-        fontSize: 13,
-        fontWeight: 600,
-        cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.5 : 1,
-        ...styles,
+        background: C.card,
+        border: `1px solid ${C.border}`,
+        borderRadius: 12,
+        padding: "18px 20px",
+        ...style,
       }}
     >
       {children}
-    </button>
+    </div>
+  );
+}
+
+function SectionTitle({ title, hint, count }) {
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ fontSize: 16, fontWeight: 600, color: C.text }}>
+        {title}
+        {count != null && <span style={{ color: C.textMuted, fontWeight: 500 }}> ({count})</span>}
+      </div>
+      {hint && <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>{hint}</div>}
+    </div>
+  );
+}
+
+function Banner({ color, colorDim, children }) {
+  return (
+    <div
+      style={{
+        padding: "10px 14px",
+        borderRadius: 10,
+        background: colorDim,
+        border: `1px solid ${color}33`,
+        color,
+        fontSize: 13,
+        lineHeight: 1.5,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// Expliziter Hinweis, wenn eine Datenquelle fehlt: benennt Feld/Abfrage und den
+// Weg, sie zu fuellen - statt leerer oder simulierter Tabellen.
+function MissingData({ source, action }) {
+  return (
+    <div
+      style={{
+        padding: "14px 16px",
+        borderRadius: 10,
+        background: C.surface,
+        border: `1px dashed ${C.border}`,
+        fontSize: 13,
+        color: C.textMuted,
+        lineHeight: 1.6,
+      }}
+    >
+      <div style={{ fontWeight: 600, color: C.text, marginBottom: 4 }}>Daten fehlen</div>
+      <div>
+        Fehlende Quelle:{" "}
+        <code style={{ fontSize: 12, background: C.bg, padding: "1px 5px", borderRadius: 4 }}>
+          {source}
+        </code>
+      </div>
+      {action && <div style={{ marginTop: 4 }}>{action}</div>}
+    </div>
+  );
+}
+
+function Modal({ title, onClose, children, maxWidth = 580 }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 1000,
+        background: "rgba(22,18,23,0.45)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: 14,
+          boxShadow: "0 20px 60px rgba(22,18,23,0.18)",
+          padding: 20,
+          maxWidth,
+          width: "100%",
+          maxHeight: "88vh",
+          overflowY: "auto",
+          animation: "fadeScale .15s ease",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: 12,
+          }}
+        >
+          <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{title}</div>
+          <button
+            onClick={onClose}
+            aria-label="Schliessen"
+            style={{
+              background: "transparent",
+              border: "none",
+              color: C.textMuted,
+              fontSize: 20,
+              cursor: "pointer",
+              lineHeight: 1,
+            }}
+          >
+            ×
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function ModalSection({ title, color, children }) {
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div
+        style={{
+          fontSize: 11.5,
+          fontWeight: 700,
+          color: color || C.textMuted,
+          textTransform: "uppercase",
+          letterSpacing: 0.5,
+        }}
+      >
+        {title}
+      </div>
+      <div style={{ fontSize: 13, color: C.text, marginTop: 4, lineHeight: 1.55 }}>{children}</div>
+    </div>
+  );
+}
+
+// Mobile-taugliche Tabelle: horizontales Scrollen im eigenen Container.
+function ScrollTable({ head, rows, minWidth = 560 }) {
+  return (
+    <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+      <table style={{ width: "100%", minWidth, borderCollapse: "collapse", fontSize: 13 }}>
+        <thead>
+          <tr style={{ color: C.textMuted, textAlign: "left" }}>
+            {head.map((h) => (
+              <th key={h} style={{ padding: "6px 8px", fontWeight: 600, whiteSpace: "nowrap" }}>
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>{rows}</tbody>
+      </table>
+    </div>
   );
 }
 
@@ -97,12 +216,12 @@ const TYPE_INFO = {
   },
   add_negative: {
     label: "Suchbegriff ausschliessen",
-    action: (a) =>
+    action: () =>
       `Bei Freigabe wird dieser Suchbegriff als «auszuschliessendes Keyword» hinterlegt. Die Anzeige erscheint dann nicht mehr, wenn jemand genau danach sucht — das Budget fliesst stattdessen in Suchanfragen, die tatsächlich Buchungen bringen. Der Begriff hat Geld gekostet, aber keine einzige Buchung gebracht.`,
   },
   negative_keyword_semantic: {
     label: "Suchbegriff ausschliessen (KI-geprüft)",
-    action: (a) =>
+    action: () =>
       `Bei Freigabe wird dieser Suchbegriff als «auszuschliessendes Keyword» hinterlegt, weil er inhaltlich nicht zum Angebot passt (z. B. falsche Region oder Stellensuche). Der Vorschlag stammt von der KI-Bewertung, wurde aber automatisch gegengeprüft (kein Konflikt mit buchenden Suchbegriffen, kein Duplikat). Solche Vorschläge werden grundsätzlich NIE ohne menschliche Freigabe umgesetzt.`,
   },
   campaign_proposal: {
@@ -118,7 +237,7 @@ const TYPE_INFO = {
 };
 const typeLabel = (t) => TYPE_INFO[t]?.label || FINDING_INFO[t]?.label || t;
 
-// Report-only-Befunde: deutsche Labels + Laien-Erklaerung, was der Befund bedeutet.
+// Report-only-Befunde: deutsche Labels + Gruppe fuer die Uebersicht.
 const FINDING_INFO = {
   brand_is_alert: { label: "Brand-Sichtbarkeit unter Ziel", gruppe: "Sichtbarkeit" },
   brand_ota_pressure: { label: "OTA-Druck auf Brand", gruppe: "Sichtbarkeit" },
@@ -134,9 +253,7 @@ const FINDING_INFO = {
 };
 const findingGroup = (t) => FINDING_INFO[t]?.gruppe || "Weitere";
 
-// Offene Massnahmen (Empfehlungen): deutsches Label + Laien-Erklaerung je Typ -
-// WAS ist das Problem (Problemklasse) und WAS ist generell zu tun (Massnahmenart).
-// Der konkrete Fall steht zusaetzlich in rationale/expected_impact der Empfehlung.
+// Offene Massnahmen (Empfehlungen): deutsches Label + Laien-Erklaerung je Typ.
 const RECO_INFO = {
   bid_target_adjustment: {
     label: "Gebotsziel anpassen",
@@ -205,134 +322,855 @@ function daysUntil(iso) {
   return Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000);
 }
 
-// Popup: warum wurde die Empfehlung erzeugt + was wird bei Freigabe gemacht.
-function ApprovalDetailModal({ approval: a, observeOnly, busy, onDecide, onClose }) {
-  if (!a) return null;
-  const info = TYPE_INFO[a.type];
-  const rest = daysUntil(a.expires_at);
-  const section = (title, body, color) => (
-    <div style={{ marginTop: 14 }}>
-      <div
+const AUTONOMY_LABELS = [
+  "0 — nur berichten",
+  "1 — Negatives automatisch",
+  "2 — + Gebote automatisch",
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Konfigurations-Dialog (Owner/Admin): Formular -> Zusammenfassung + Pflicht-
+// Begruendung -> Speichern. Sichere Defaults; Warnung beim Schaerfen.
+// ─────────────────────────────────────────────────────────────────────────────
+function ConfigModal({ config, busy, onSave, onClose }) {
+  const base = {
+    observe_only: config?.observe_only !== false,
+    kill_switch: config?.kill_switch === true,
+    autonomy_level: config?.autonomy_level ?? 0,
+    target_cpa_chf: config?.target_cpa_chf ?? null,
+    target_roas: config?.target_roas ?? null,
+    monthly_budget_chf: config?.monthly_budget_chf ?? 0,
+    no_touch_campaigns: config?.no_touch_campaigns ?? [],
+  };
+  const [draft, setDraft] = React.useState({
+    observe_only: base.observe_only,
+    kill_switch: base.kill_switch,
+    autonomy_level: base.autonomy_level,
+    target_cpa_chf: base.target_cpa_chf ?? "",
+    target_roas: base.target_roas ?? "",
+    monthly_budget_chf: base.monthly_budget_chf || "",
+    no_touch_text: (base.no_touch_campaigns || []).join("\n"),
+  });
+  const [step, setStep] = React.useState("form"); // form | confirm
+  const [summary, setSummary] = React.useState("");
+  const [saveError, setSaveError] = React.useState("");
+
+  const buildPatch = () => ({
+    observe_only: draft.observe_only,
+    kill_switch: draft.kill_switch,
+    autonomy_level: Number(draft.autonomy_level),
+    target_cpa_chf: draft.target_cpa_chf === "" ? null : Number(draft.target_cpa_chf),
+    target_roas: draft.target_roas === "" ? null : Number(draft.target_roas),
+    monthly_budget_chf: draft.monthly_budget_chf === "" ? 0 : Number(draft.monthly_budget_chf),
+    no_touch_campaigns: draft.no_touch_text
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean),
+  });
+  const patch = buildPatch();
+  const diffLines = describeConfigChange(base, patch);
+  const sharpens =
+    (base.observe_only && !patch.observe_only) || patch.autonomy_level > base.autonomy_level;
+
+  const field = (label, control, hint) => (
+    <div style={{ marginBottom: 14 }}>
+      <label
         style={{
+          display: "block",
           fontSize: 12,
-          fontWeight: 700,
-          color: P.textMuted,
-          textTransform: "uppercase",
-          letterSpacing: 0.5,
+          color: C.textMuted,
+          marginBottom: 5,
+          fontWeight: 500,
         }}
       >
-        {title}
-      </div>
-      <div style={{ fontSize: 13, color: color || P.text, marginTop: 4, lineHeight: 1.55 }}>
-        {body}
-      </div>
+        {label}
+      </label>
+      {control}
+      {hint && (
+        <div style={{ fontSize: 11.5, color: C.textDim, marginTop: 4, lineHeight: 1.5 }}>
+          {hint}
+        </div>
+      )}
     </div>
   );
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 1000,
-        background: "rgba(10,10,16,0.7)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 20,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: P.card,
-          border: `1px solid ${P.border}`,
-          borderRadius: 14,
-          padding: 20,
-          maxWidth: 560,
-          width: "100%",
-          maxHeight: "85vh",
-          overflowY: "auto",
-        }}
-      >
-        <div
+  const inputStyle = {
+    width: "100%",
+    padding: "9px 12px",
+    borderRadius: 8,
+    background: C.card,
+    border: `1px solid ${C.border}`,
+    color: C.text,
+    fontSize: 13,
+    outline: "none",
+    fontFamily: "inherit",
+    boxSizing: "border-box",
+  };
+  const toggle = (key, onLabel, offLabel) => (
+    <div style={{ display: "flex", gap: 8 }}>
+      {[true, false].map((v) => (
+        <button
+          key={String(v)}
+          onClick={() => setDraft((d) => ({ ...d, [key]: v }))}
           style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: 12,
+            flex: 1,
+            padding: "8px 10px",
+            borderRadius: 8,
+            fontSize: 13,
+            fontWeight: 600,
+            fontFamily: "inherit",
+            cursor: "pointer",
+            border: `1px solid ${draft[key] === v ? C.accent : C.border}`,
+            background: draft[key] === v ? C.accentDim : C.card,
+            color: draft[key] === v ? C.accent : C.textMuted,
           }}
         >
-          <div>
-            <Badge>{typeLabel(a.type)}</Badge>
-            <div style={{ fontSize: 15, fontWeight: 700, color: P.text, marginTop: 8 }}>
-              {a.entity || "-"}
-            </div>
-            {(a.current_value || a.proposed_value) && (
-              <div style={{ fontSize: 13, color: P.textMuted, marginTop: 4 }}>
-                {a.current_value ? `${a.current_value} ` : ""}
-                {a.proposed_value ? (
-                  <span style={{ color: P.text }}>-&gt; {a.proposed_value}</span>
-                ) : null}
-              </div>
+          {v ? onLabel : offLabel}
+        </button>
+      ))}
+    </div>
+  );
+
+  return (
+    <Modal title="Autopilot konfigurieren" onClose={onClose} maxWidth={620}>
+      {step === "form" && (
+        <>
+          <div
+            style={{ fontSize: 12.5, color: C.textMuted, margin: "6px 0 16px", lineHeight: 1.5 }}
+          >
+            Gilt nur für diesen Kunden. Sichere Standardwerte: Beobachtungsmodus <b>an</b>,
+            Autonomie-Level <b>0</b> — damit ändert der Autopilot nichts an Google Ads.
+          </div>
+          <div
+            className="ezy-form-grid"
+            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}
+          >
+            {field(
+              "Beobachtungsmodus",
+              toggle("observe_only", "An (nur dokumentieren)", "Aus (Ausführung möglich)"),
+              "Solange an: KEINE Änderungen an Google Ads, unabhängig vom Autonomie-Level. Freigaben sind gesperrt.",
+            )}
+            {field(
+              "Kill-Switch",
+              toggle("kill_switch", "Aktiv (alles stoppen)", "Inaktiv"),
+              "Not-Aus: Überspringt Läufe komplett und blockiert auch die Ausführung bereits erteilter Freigaben.",
+            )}
+            {field(
+              "Autonomie-Level",
+              <select
+                value={String(draft.autonomy_level)}
+                onChange={(e) =>
+                  setDraft((d) => ({ ...d, autonomy_level: Number(e.target.value) }))
+                }
+                style={{ ...inputStyle, appearance: "auto" }}
+              >
+                {AUTONOMY_LABELS.map((l, i) => (
+                  <option key={i} value={i}>
+                    {l}
+                  </option>
+                ))}
+              </select>,
+              "Nur die freigegebene Klasse läuft automatisch; alles andere wartet auf Freigabe.",
+            )}
+            {field(
+              "Monatsbudget (CHF)",
+              <input
+                type="number"
+                min="0"
+                value={draft.monthly_budget_chf}
+                onChange={(e) => setDraft((d) => ({ ...d, monthly_budget_chf: e.target.value }))}
+                placeholder="z. B. 3000"
+                style={inputStyle}
+              />,
+              "Soll-Budget für den Budget-Pacing-Check. 0/leer = nicht gepflegt (Pacing zeigt dann einen Setup-Hinweis).",
+            )}
+            {field(
+              "Ziel-CPA (CHF)",
+              <input
+                type="number"
+                min="0"
+                value={draft.target_cpa_chf}
+                onChange={(e) => setDraft((d) => ({ ...d, target_cpa_chf: e.target.value }))}
+                placeholder="leer = kein Ziel"
+                style={inputStyle}
+              />,
+              "Kosten pro Conversion, die höchstens anfallen sollen. Entweder Ziel-CPA ODER Ziel-ROAS pflegen.",
+            )}
+            {field(
+              "Ziel-ROAS",
+              <input
+                type="number"
+                min="0"
+                step="0.1"
+                value={draft.target_roas}
+                onChange={(e) => setDraft((d) => ({ ...d, target_roas: e.target.value }))}
+                placeholder="leer = kein Ziel"
+                style={inputStyle}
+              />,
+              "Umsatz pro Werbefranken (z. B. 4 = CHF 4 Umsatz je CHF 1 Budget).",
             )}
           </div>
-          <button
-            onClick={onClose}
+          {field(
+            "Geschützte Kampagnen (no-touch, eine pro Zeile)",
+            <textarea
+              rows={3}
+              value={draft.no_touch_text}
+              onChange={(e) => setDraft((d) => ({ ...d, no_touch_text: e.target.value }))}
+              placeholder={"Brand CH\nMarken-Kampagne DE"}
+              style={{ ...inputStyle, resize: "vertical" }}
+            />,
+            "Exakter Kampagnenname. Diese Kampagnen fasst der Autopilot NIE an — auch nicht nach Freigabe.",
+          )}
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 6 }}>
+            <Btn variant="secondary" onClick={onClose}>
+              Abbrechen
+            </Btn>
+            <Btn
+              onClick={() => {
+                setSaveError("");
+                setStep("confirm");
+              }}
+              disabled={diffLines.length === 0}
+              title={diffLines.length === 0 ? "Keine Änderung erkannt" : undefined}
+            >
+              Weiter zur Bestätigung
+            </Btn>
+          </div>
+        </>
+      )}
+
+      {step === "confirm" && (
+        <>
+          <ModalSection title="Zusammenfassung der Änderungen">
+            <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+              {diffLines.map((l) => (
+                <li key={l} style={{ marginBottom: 4 }}>
+                  {l}
+                </li>
+              ))}
+            </ul>
+          </ModalSection>
+          {sharpens && (
+            <div style={{ marginTop: 12 }}>
+              <Banner color={C.red} colorDim={C.redDim}>
+                <b>Achtung:</b> Diese Änderung erlaubt dem Autopiloten mehr Autonomie bzw. echte
+                Ausführungen an Google Ads. Bitte nur nach Qualitätsprüfung bestätigen.
+              </Banner>
+            </div>
+          )}
+          <ModalSection title="Begründung (Pflicht, landet im Änderungsprotokoll)">
+            <textarea
+              rows={2}
+              value={summary}
+              onChange={(e) => setSummary(e.target.value)}
+              placeholder="Warum wird das geändert? (min. 5 Zeichen)"
+              style={{
+                width: "100%",
+                padding: "9px 12px",
+                borderRadius: 8,
+                border: `1px solid ${C.border}`,
+                fontSize: 13,
+                fontFamily: "inherit",
+                boxSizing: "border-box",
+                resize: "vertical",
+              }}
+            />
+          </ModalSection>
+          {saveError && (
+            <div style={{ marginTop: 10 }}>
+              <Banner color={C.red} colorDim={C.redDim}>
+                {saveError}
+              </Banner>
+            </div>
+          )}
+          <div
             style={{
-              background: "transparent",
-              border: "none",
-              color: P.textMuted,
-              fontSize: 20,
-              cursor: "pointer",
-              lineHeight: 1,
+              display: "flex",
+              gap: 8,
+              justifyContent: "flex-end",
+              marginTop: 16,
+              flexWrap: "wrap",
             }}
-            aria-label="Schliessen"
           >
-            ×
-          </button>
-        </div>
-
-        {section("Warum gibt es diese Empfehlung?", a.rationale || "Keine Begründung hinterlegt.")}
-        {section(
-          "Was wird bei Freigabe gemacht?",
-          info
-            ? info.action(a)
-            : "Bei Freigabe wird die vorgeschlagene Änderung umgesetzt; bei Ablehnung passiert nichts.",
-        )}
-        {a.estimated_impact && section("Erwartete Wirkung", a.estimated_impact, P.accent)}
-        {section(
-          "Fristen & Herkunft",
-          <>
-            Erstellt am {new Date(a.created_at).toLocaleDateString("de-CH")} (Lauf {a.run_id || "?"}
-            ).{" "}
-            {a.expires_at ? (
-              <span style={{ color: rest !== null && rest <= 2 ? P.orange : P.textMuted }}>
-                Läuft ab am {new Date(a.expires_at).toLocaleDateString("de-CH")}
-                {rest !== null ? ` — noch ${Math.max(rest, 0)} Tag${rest === 1 ? "" : "e"}` : ""}.
-              </span>
-            ) : (
-              "Kein Ablaufdatum."
-            )}{" "}
-            Ohne Entscheid verfällt die Empfehlung automatisch — es wird dann nichts verändert.
-          </>,
-          P.textMuted,
-        )}
-
-        <div style={{ display: "flex", gap: 8, marginTop: 18, justifyContent: "flex-end" }}>
-          <Btn onClick={onClose}>Schliessen</Btn>
-          <Btn variant="reject" disabled={busy} onClick={() => onDecide("reject")}>
-            Ablehnen
-          </Btn>
-          <Btn variant="approve" disabled={busy || observeOnly} onClick={() => onDecide("approve")}>
-            {observeOnly ? "Freigabe gesperrt" : "Freigeben"}
-          </Btn>
-        </div>
-      </div>
-    </div>
+            <Btn variant="secondary" onClick={() => setStep("form")}>
+              Zurück
+            </Btn>
+            <Btn
+              disabled={busy || summary.trim().length < 5}
+              onClick={async () => {
+                setSaveError("");
+                const r = await onSave(buildPatch(), summary.trim());
+                if (r?.ok) onClose();
+                else setSaveError(r?.error || "Speichern fehlgeschlagen.");
+              }}
+            >
+              {busy ? "Speichert…" : "Änderungen bestätigen & speichern"}
+            </Btn>
+          </div>
+        </>
+      )}
+    </Modal>
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Freigabe-Detail: aktueller Wert, vorgeschlagener Wert, Begruendung, erwartete
+// Wirkung und Ablaufdatum - immer sichtbar, bevor freigegeben wird.
+// ─────────────────────────────────────────────────────────────────────────────
+function ApprovalDetailModal({ approval: a, observeOnly, canDecide, busy, onDecide, onClose }) {
+  if (!a) return null;
+  const info = TYPE_INFO[a.type];
+  const rest = daysUntil(a.expires_at);
+  return (
+    <Modal title={a.entity || typeLabel(a.type)} onClose={onClose}>
+      <div style={{ marginTop: 6 }}>
+        <Badge>{typeLabel(a.type)}</Badge>
+      </div>
+      <ModalSection title="Aktueller Wert → vorgeschlagener Wert">
+        <span style={{ color: C.textMuted }}>{a.current_value || "—"}</span>{" "}
+        <span style={{ color: C.textDim }}>→</span>{" "}
+        <b style={{ color: C.accent }}>{a.proposed_value || "—"}</b>
+      </ModalSection>
+      <ModalSection title="Warum gibt es diese Empfehlung?">
+        {a.rationale || "Keine Begründung hinterlegt."}
+      </ModalSection>
+      <ModalSection title="Was wird bei Freigabe gemacht?">
+        {info
+          ? info.action(a)
+          : "Bei Freigabe wird die vorgeschlagene Änderung umgesetzt; bei Ablehnung passiert nichts."}
+      </ModalSection>
+      <ModalSection title="Erwartete Wirkung" color={C.accent}>
+        {a.estimated_impact || "Keine Angabe."}
+      </ModalSection>
+      <ModalSection title="Fristen & Herkunft" color={C.textMuted}>
+        Erstellt am {dateCH(a.created_at)} (Lauf {a.run_id || "?"}).{" "}
+        {a.expires_at ? (
+          <span style={{ color: rest !== null && rest <= 2 ? C.orange : C.textMuted }}>
+            Läuft ab am {dateCH(a.expires_at)}
+            {rest !== null ? ` — noch ${Math.max(rest, 0)} Tag${rest === 1 ? "" : "e"}` : ""}.
+          </span>
+        ) : (
+          "Kein Ablaufdatum."
+        )}{" "}
+        Ohne Entscheid verfällt die Empfehlung automatisch — es wird dann nichts verändert.
+      </ModalSection>
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          marginTop: 18,
+          justifyContent: "flex-end",
+          flexWrap: "wrap",
+        }}
+      >
+        <Btn variant="secondary" onClick={onClose}>
+          Schliessen
+        </Btn>
+        {canDecide && (
+          <>
+            <Btn variant="danger" disabled={busy} onClick={() => onDecide("reject")}>
+              Ablehnen
+            </Btn>
+            <Btn
+              variant="success"
+              disabled={busy || observeOnly}
+              onClick={() => onDecide("approve")}
+            >
+              {observeOnly ? "Freigabe gesperrt (Beobachtungsmodus)" : "Freigeben"}
+            </Btn>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Detailanalyse: Drilldowns aus dem letzten Autopilot-Lauf (audit_runs/
+// ads_autopilot) + google_ads-Snapshot. Fehlende Quellen werden benannt.
+// ─────────────────────────────────────────────────────────────────────────────
+function DetailAnalysis({ autopilotRun, adsSnapshot }) {
+  const [tab, setTab] = React.useState("campaigns");
+  const run = autopilotRun?.result || null;
+  const runDate = autopilotRun?.created_at ? dateCH(autopilotRun.created_at) : null;
+  const ads = adsSnapshot;
+
+  const tabs = [
+    { id: "campaigns", label: "Kampagnen" },
+    { id: "conversions", label: "Conversion-Aktionen" },
+    { id: "searchterms", label: "Suchbegriffsverluste" },
+    { id: "pacing", label: "Budget-Pacing" },
+    { id: "tracking", label: "Tracking-Gesundheit" },
+  ];
+  const noRunHint = (
+    <MissingData
+      source="audit_runs(audit_type=ads_autopilot).result"
+      action="Noch kein Autopilot-Lauf gespeichert — oben «Dry-Run jetzt» ausführen, dann füllt sich dieser Bereich (rein lesend, keine Änderungen an Google Ads)."
+    />
+  );
+
+  const cellStyle = { padding: "7px 8px", whiteSpace: "nowrap" };
+
+  return (
+    <Card>
+      <SectionTitle
+        title="Detailanalyse"
+        hint={
+          runDate
+            ? `Datenstand: letzter Autopilot-Lauf vom ${runDate}${run?.runId ? ` (${run.runId})` : ""} — Fenster: letzte 30 Tage.`
+            : "Datenstand: noch kein Autopilot-Lauf vorhanden."
+        }
+      />
+      <div
+        className="tabbar"
+        style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}
+      >
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            style={{
+              padding: "7px 12px",
+              borderRadius: 8,
+              fontSize: 12.5,
+              fontWeight: 600,
+              fontFamily: "inherit",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              border: `1px solid ${tab === t.id ? C.accent : C.border}`,
+              background: tab === t.id ? C.accentDim : C.card,
+              color: tab === t.id ? C.accent : C.textMuted,
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Kampagnen */}
+      {tab === "campaigns" &&
+        (run?.campaignDetail?.length ? (
+          <ScrollTable
+            minWidth={860}
+            head={[
+              "Kampagne",
+              "Tagesbudget",
+              "Kosten 30T",
+              "Conv.",
+              "Umsatz",
+              "ROAS",
+              "IS Suche",
+              "IS-Verlust Budget",
+              "IS-Verlust Rang",
+              "Strategie",
+            ]}
+            rows={run.campaignDetail.map((c) => (
+              <tr key={c.name} style={{ borderTop: `1px solid ${C.border}`, color: C.textMuted }}>
+                <td
+                  style={{
+                    ...cellStyle,
+                    color: C.text,
+                    fontWeight: 600,
+                    whiteSpace: "normal",
+                    minWidth: 180,
+                  }}
+                >
+                  {c.name}
+                  {c.noTouch && (
+                    <span style={{ marginLeft: 6 }}>
+                      <Badge color={C.blue}>geschützt</Badge>
+                    </span>
+                  )}
+                  {c.learning && (
+                    <span style={{ marginLeft: 6 }}>
+                      <Badge color={C.orange}>Lernphase</Badge>
+                    </span>
+                  )}
+                </td>
+                <td style={cellStyle}>{chf(c.dailyBudgetChf, 2)}</td>
+                <td style={cellStyle}>{chf(c.costChf)}</td>
+                <td style={cellStyle}>{Math.round(c.conversions * 10) / 10}</td>
+                <td style={cellStyle}>{chf(c.conversionValue)}</td>
+                <td
+                  style={{
+                    ...cellStyle,
+                    color: c.roas != null && c.roas < 1 ? C.red : C.text,
+                    fontWeight: 600,
+                  }}
+                >
+                  {c.roas != null ? `${c.roas.toFixed(1).replace(".", ",")}×` : "—"}
+                </td>
+                <td style={cellStyle}>{pct(c.searchImpressionShare)}</td>
+                <td
+                  style={{
+                    ...cellStyle,
+                    color: (c.budgetLostIs ?? 0) > 0.1 ? C.orange : C.textMuted,
+                  }}
+                >
+                  {pct(c.budgetLostIs)}
+                </td>
+                <td style={cellStyle}>{pct(c.rankLostIs)}</td>
+                <td style={cellStyle}>
+                  {c.strategyType}
+                  {c.targetRoas ? ` (tROAS ${c.targetRoas})` : ""}
+                  {c.targetCpaChf ? ` (tCPA ${chf(c.targetCpaChf)})` : ""}
+                </td>
+              </tr>
+            ))}
+          />
+        ) : run ? (
+          <MissingData
+            source="result.campaignDetail (Autopilot-Lauf)"
+            action="Der letzte gespeicherte Lauf ist älter als dieses Feld — einmal «Dry-Run jetzt» ausführen, dann erscheint die Kampagnen-Tabelle."
+          />
+        ) : (
+          noRunHint
+        ))}
+
+      {/* Conversion-Aktionen */}
+      {tab === "conversions" &&
+        (ads?.conversionActions?.length ? (
+          <>
+            <ScrollTable
+              minWidth={480}
+              head={["Conversion-Aktion", "Anzahl", "Wert", "Anteil am Wert"]}
+              rows={(() => {
+                const totalValue = ads.conversionActions.reduce((s, a) => s + (a.value || 0), 0);
+                return ads.conversionActions.map((a) => (
+                  <tr
+                    key={a.name}
+                    style={{ borderTop: `1px solid ${C.border}`, color: C.textMuted }}
+                  >
+                    <td
+                      style={{ ...cellStyle, color: C.text, fontWeight: 600, whiteSpace: "normal" }}
+                    >
+                      {a.name}
+                    </td>
+                    <td style={cellStyle}>{Math.round(a.count).toLocaleString("de-CH")}</td>
+                    <td style={cellStyle}>{a.value > 0 ? chf(a.value) : "—"}</td>
+                    <td style={cellStyle}>
+                      {totalValue > 0
+                        ? `${Math.round(((a.value || 0) / totalValue) * 100)} %`
+                        : "—"}
+                    </td>
+                  </tr>
+                ));
+              })()}
+            />
+            <div style={{ fontSize: 11.5, color: C.textDim, marginTop: 8 }}>
+              Quelle: google_ads-Snapshot (Ads-Dashboard). Zeitraum wie im Dashboard gewählt.
+            </div>
+          </>
+        ) : (
+          <MissingData
+            source="audit_runs(google_ads).result.conversionActions"
+            action="Im Ads-Dashboard oben «⟳ Aktualisieren» klicken, damit ein frischer google_ads-Snapshot mit Conversion-Aktionen gespeichert wird."
+          />
+        ))}
+
+      {/* Suchbegriffsverluste */}
+      {tab === "searchterms" &&
+        (run?.semanticCandidates?.length ? (
+          <>
+            <div style={{ fontSize: 12.5, color: C.textMuted, marginBottom: 10, lineHeight: 1.5 }}>
+              Suchbegriffe mit Kosten, aber <b>0 Conversions</b> im Conversion-Lag-Fenster —
+              Kandidaten für Ausschlüsse. Vorschläge daraus erscheinen unter «Wartet auf Freigabe»;
+              hier ist die vollständige Verlustliste.
+            </div>
+            <ScrollTable
+              minWidth={640}
+              head={["Suchbegriff", "Kampagne", "Anzeigengruppe", "Kosten", "Klicks"]}
+              rows={run.semanticCandidates.slice(0, 50).map((t, i) => (
+                <tr
+                  key={`${t.term}-${i}`}
+                  style={{ borderTop: `1px solid ${C.border}`, color: C.textMuted }}
+                >
+                  <td
+                    style={{ ...cellStyle, color: C.text, fontWeight: 600, whiteSpace: "normal" }}
+                  >
+                    {t.term}
+                  </td>
+                  <td style={{ ...cellStyle, whiteSpace: "normal" }}>{t.campaign}</td>
+                  <td style={{ ...cellStyle, whiteSpace: "normal" }}>{t.adGroup}</td>
+                  <td style={{ ...cellStyle, color: C.red, fontWeight: 600 }}>
+                    {chf(t.costChf, 2)}
+                  </td>
+                  <td style={cellStyle}>{t.clicks}</td>
+                </tr>
+              ))}
+            />
+            {run.semanticCandidates.length > 50 && (
+              <div style={{ fontSize: 11.5, color: C.textDim, marginTop: 8 }}>
+                Zeigt die 50 teuersten von {run.semanticCandidates.length} Begriffen.
+              </div>
+            )}
+          </>
+        ) : run ? (
+          run.semanticCandidates ? (
+            <div style={{ fontSize: 13, color: C.textMuted }}>
+              Keine Suchbegriffe mit Kosten ohne Conversions im letzten Lauf — kein erkennbarer
+              Streuverlust.
+            </div>
+          ) : (
+            <MissingData
+              source="result.semanticCandidates (Autopilot-Lauf)"
+              action="Der letzte gespeicherte Lauf ist älter als dieses Feld — einmal «Dry-Run jetzt» ausführen."
+            />
+          )
+        ) : (
+          noRunHint
+        ))}
+
+      {/* Budget-Pacing */}
+      {tab === "pacing" &&
+        (() => {
+          const p = run?.budgetPacing;
+          if (!run) return noRunHint;
+          if (!p)
+            return (
+              <MissingData
+                source="result.budgetPacing (Autopilot-Lauf)"
+                action="Der letzte Lauf enthält kein Pacing (älterer Lauf oder MTD-Abfrage fehlgeschlagen — siehe Tab «Tracking-Gesundheit», Abschnitt Datenquellen). Einmal «Dry-Run jetzt» ausführen."
+              />
+            );
+          if (p.status === "no_budget")
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <Banner color={C.orange} colorDim={C.orangeDim}>
+                  <b>Monatsbudget nicht gepflegt.</b> Für diesen Kunden ist kein Soll-Budget
+                  hinterlegt — der Pacing-Check kann den Ist-Spend ({chf(p.mtdSpendChf)} seit
+                  Monatsbeginn) nicht gegen ein Soll stellen. Owner/Admin: oben «Konfigurieren»
+                  öffnen und «Monatsbudget (CHF)» setzen.
+                </Banner>
+                {p.forecastEomChf != null && (
+                  <div style={{ fontSize: 13, color: C.textMuted }}>
+                    Lineare Prognose bis Monatsende (nur aus Ist-Spend):{" "}
+                    <b style={{ color: C.text }}>{chf(p.forecastEomChf)}</b>
+                  </div>
+                )}
+              </div>
+            );
+          const ratioPct = p.pacingRatio != null ? Math.round(p.pacingRatio * 100) : null;
+          const statusInfo = {
+            under: { label: "Unterpacing", color: C.blue },
+            on_track: { label: "Im Plan", color: C.green },
+            over: { label: "Überpacing", color: C.red },
+          }[p.status];
+          const spendPct = p.monthlyBudgetChf
+            ? Math.min(100, (p.mtdSpendChf / p.monthlyBudgetChf) * 100)
+            : 0;
+          const expectedPct = p.monthlyBudgetChf
+            ? Math.min(100, ((p.expectedToDateChf || 0) / p.monthlyBudgetChf) * 100)
+            : 0;
+          const forecastOver =
+            p.forecastEomChf != null &&
+            p.monthlyBudgetChf != null &&
+            p.forecastEomChf > p.monthlyBudgetChf * 1.05;
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <Badge color={statusInfo.color}>{statusInfo.label}</Badge>
+                <span style={{ fontSize: 13, color: C.textMuted }}>
+                  Tag {p.elapsedDays} von {p.daysInMonth} — Budget-Quelle:{" "}
+                  {p.budgetSource === "client"
+                    ? "gepflegtes Soll-Budget"
+                    : `abgeleitet (${p.budgetSource})`}
+                </span>
+              </div>
+              <div
+                className="dash-kpis"
+                style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}
+              >
+                {[
+                  { l: "Ausgegeben (MTD)", v: chf(p.mtdSpendChf) },
+                  {
+                    l: "Soll bis heute",
+                    v: p.expectedToDateChf != null ? chf(p.expectedToDateChf) : "—",
+                  },
+                  { l: "Monatsbudget", v: chf(p.monthlyBudgetChf) },
+                  {
+                    l: "Prognose Monatsende",
+                    v: p.forecastEomChf != null ? chf(p.forecastEomChf) : "—",
+                    warn: forecastOver,
+                  },
+                ].map((k) => (
+                  <div
+                    key={k.l}
+                    style={{
+                      background: C.surface,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 10,
+                      padding: "12px 14px",
+                    }}
+                  >
+                    <div style={{ fontSize: 11.5, color: C.textMuted, marginBottom: 5 }}>{k.l}</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: k.warn ? C.red : C.text }}>
+                      {k.v}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <div
+                  style={{
+                    position: "relative",
+                    height: 12,
+                    background: C.bg,
+                    borderRadius: 8,
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${spendPct}%`,
+                      background: statusInfo.color,
+                      borderRadius: 8,
+                      transition: "width .3s",
+                    }}
+                  />
+                  <div
+                    title="Soll bis heute"
+                    style={{
+                      position: "absolute",
+                      top: -2,
+                      bottom: -2,
+                      left: `${expectedPct}%`,
+                      width: 2,
+                      background: C.text,
+                    }}
+                  />
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontSize: 11.5,
+                    color: C.textDim,
+                    marginTop: 4,
+                  }}
+                >
+                  <span>
+                    {ratioPct != null ? `${ratioPct} % des anteiligen Solls ausgegeben` : ""}
+                  </span>
+                  <span>Markierung = Soll bis heute</span>
+                </div>
+              </div>
+              {p.status !== "on_track" && (
+                <div style={{ fontSize: 12.5, color: C.textMuted, lineHeight: 1.55 }}>
+                  {p.status === "under"
+                    ? "Unterpacing: Es wird deutlich weniger ausgegeben als geplant — mögliche Ursachen: Budgetlimits, schwache Auslieferung (Rang/Qualität) oder Saison. Details im Tab «Kampagnen» (IS-Verluste)."
+                    : "Überpacing: Bei gleichem Tempo wird das Monatsbudget überschritten. Prüfen, ob das gewollt ist (Saison) oder Tagesbudgets angepasst werden sollten — Vorschläge dazu erscheinen als Freigabe-Punkte, nie automatisch."}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+      {/* Tracking-Gesundheit */}
+      {tab === "tracking" &&
+        (() => {
+          if (!run) return noRunHint;
+          const t = run.trackingHealth;
+          if (!t)
+            return (
+              <MissingData
+                source="result.trackingHealth (Autopilot-Lauf)"
+                action="Einmal «Dry-Run jetzt» ausführen — der Lauf misst dann Spend/Conversions (7 Tage) gegen die 30-Tage-Baseline."
+              />
+            );
+          const info =
+            t.status === "OK"
+              ? {
+                  color: C.green,
+                  dim: C.greenDim,
+                  label: "OK",
+                  text: "Conversions kommen an — keine Auffälligkeit im Vergleich zur Baseline.",
+                }
+              : t.status === "BROKEN"
+                ? {
+                    color: C.red,
+                    dim: C.redDim,
+                    label: "Tracking-Verdacht",
+                    text: "Es läuft Spend auf, aber es kommen keine Conversions an, obwohl die Baseline welche zeigt. ALLE Schreib-Operationen des Autopiloten sind blockiert, bis das geklärt ist (Conversion-Tag/GA4-Import prüfen).",
+                  }
+                : {
+                    color: C.orange,
+                    dim: C.orangeDim,
+                    label: "Keine Baseline",
+                    text: "Zu wenige Conversions in der 30-Tage-Baseline, um einen Ausfall zuverlässig zu erkennen — der Check ist informativ, blockiert aber nichts.",
+                  };
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <Banner color={info.color} colorDim={info.dim}>
+                <b>{info.label}.</b> {info.text}
+              </Banner>
+              <div
+                className="dash-kpis"
+                style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}
+              >
+                {[
+                  { l: "Spend letzte 7 Tage", v: chf(t.spend7d, 2) },
+                  {
+                    l: "Conversions letzte 7 Tage",
+                    v: String(Math.round(t.conversions7d * 10) / 10),
+                  },
+                  {
+                    l: "Baseline (Tag −37 bis −8)",
+                    v: `${Math.round(t.conversionsBaseline30d * 10) / 10} Conv.`,
+                  },
+                ].map((k) => (
+                  <div
+                    key={k.l}
+                    style={{
+                      background: C.surface,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 10,
+                      padding: "12px 14px",
+                    }}
+                  >
+                    <div style={{ fontSize: 11.5, color: C.textMuted, marginBottom: 5 }}>{k.l}</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: C.text }}>{k.v}</div>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 6 }}>
+                  Datenquellen des letzten Laufs
+                </div>
+                {run.dataSourceErrors?.length ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {run.dataSourceErrors.map((e, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          fontSize: 12,
+                          color: C.orange,
+                          background: C.orangeDim,
+                          borderRadius: 8,
+                          padding: "7px 10px",
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        Nicht geliefert: {e}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12.5, color: C.textMuted }}>
+                    Alle Zusatzquellen haben geliefert — keine fehlenden API-Abfragen.
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Haupt-Panel
+// ─────────────────────────────────────────────────────────────────────────────
 export default function AdsAutopilotPanel({ selectedClient }) {
   const clientId = selectedClient?.id;
   const {
@@ -340,6 +1178,8 @@ export default function AdsAutopilotPanel({ selectedClient }) {
     approvals,
     changelog,
     recommendations,
+    configHistory,
+    autopilotRun,
     loading,
     error,
     busyId,
@@ -347,21 +1187,27 @@ export default function AdsAutopilotPanel({ selectedClient }) {
     decide,
     runDryRun,
     markRecommendation,
-  } = useEzyAdsAutopilot(clientId, 80); // Befunde (~15/Lauf) + Eingriffe brauchen mehr als 30 Zeilen
+    saveConfig,
+  } = useEzyAdsAutopilot(clientId, 80);
+  const { role } = useAuth();
+  const canConfigure = canConfigureAutopilot(role);
+  const canDecide = role !== "viewer";
+  const adsRun = useEzyLatestRun(clientId, "google_ads");
+  const adsSnapshot = googleAdsFromResult(adsRun.run?.result);
   const [detail, setDetail] = React.useState(null);
   const [findingDetail, setFindingDetail] = React.useState(null);
   const [recoDetail, setRecoDetail] = React.useState(null);
+  const [showConfig, setShowConfig] = React.useState(false);
 
   if (!clientId) return null;
 
-  // Nur aktuelle Empfehlungen zeigen: abgelaufene pending-Eintraege ausblenden
-  // (sie verfallen serverseitig, sollen aber gar nicht erst als "offen" wirken).
+  // Nur aktuelle Empfehlungen zeigen: abgelaufene pending-Eintraege ausblenden.
   const activeApprovals = approvals.filter(
     (a) => !a.expires_at || new Date(a.expires_at).getTime() > Date.now(),
   );
 
-  // Befunde des letzten Laufs: report-only-Zeilen des juengsten Runs, der
-  // welche hat (gruppiert). Aeltere Laeufe bleiben im Vault-Protokoll.
+  // Befunde des letzten Laufs (report-only-Zeilen des juengsten Runs mit welchen);
+  // config_change-Zeilen sind bereits hook-seitig ausgefiltert.
   const reportRows = changelog.filter(
     (c) => c.action_class === "report-only" && c.status === "report-only",
   );
@@ -372,134 +1218,198 @@ export default function AdsAutopilotPanel({ selectedClient }) {
     (m[g] = m[g] || []).push(f);
     return m;
   }, {});
-  // Aenderungs-Log ohne Befunde (zeigt weiterhin nur echte Eingriffe/Queues).
   const changeRows = changelog.filter(
     (c) => !(c.action_class === "report-only" && c.status === "report-only"),
   );
 
-  const autonomyLabel = ["0 - report-only", "1 - Negatives auto", "2 - + Bids auto"][
-    config?.autonomy_level ?? 0
-  ];
   const observeOnly = config?.observe_only !== false; // Default sicher: an
+  const lastConfigChange = configHistory[0] || null;
 
-  const cardStyle = {
-    background: P.card,
-    border: `1px solid ${P.border}`,
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 16,
-  };
+  const configItems = [
+    {
+      l: "Beobachtungsmodus",
+      v: observeOnly ? "An — nur dokumentieren" : "Aus — Ausführung möglich",
+      color: observeOnly ? C.blue : C.orange,
+    },
+    {
+      l: "Kill-Switch",
+      v: config?.kill_switch ? "AKTIV — alles gestoppt" : "Inaktiv",
+      color: config?.kill_switch ? C.red : C.green,
+    },
+    { l: "Autonomie-Level", v: AUTONOMY_LABELS[config?.autonomy_level ?? 0] },
+    {
+      l: "Monatsbudget",
+      v: config?.monthly_budget_chf ? chf(config.monthly_budget_chf) : "nicht gepflegt",
+      color: config?.monthly_budget_chf ? undefined : C.orange,
+    },
+    { l: "Ziel-CPA", v: config?.target_cpa_chf ? chf(config.target_cpa_chf) : "—" },
+    { l: "Ziel-ROAS", v: config?.target_roas ? `${config.target_roas}×` : "—" },
+    {
+      l: "Geschützte Kampagnen",
+      v: config?.no_touch_campaigns?.length ? config.no_touch_campaigns.join(", ") : "keine",
+    },
+  ];
 
   return (
-    <div style={cardStyle}>
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: 12,
-        }}
-      >
-        <div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: P.text }}>Google Ads Autopilot</div>
-          <div style={{ fontSize: 13, color: P.textMuted, marginTop: 2 }}>
-            Teilautonom: nur die freigegebene Klasse wird ausgefuehrt. Alles Uebrige wartet auf
-            Freigabe.
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 20 }}>
+      {/* Kopf */}
+      <Card>
+        <div
+          className="mobile-wrap"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 12,
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>Google Ads Autopilot</div>
+            <div style={{ fontSize: 13, color: C.textMuted, marginTop: 2 }}>
+              Teilautonom: Nur die freigegebene Klasse wird ausgeführt — alles Übrige wartet auf
+              Freigabe.
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {observeOnly && <Badge color={C.blue}>Beobachtungsmodus</Badge>}
+            <Badge color={C.textMuted}>Autonomie {config?.autonomy_level ?? 0}</Badge>
+            {config?.kill_switch && <Badge color={C.red}>Kill-Switch aktiv</Badge>}
+            <Btn variant="secondary" onClick={() => runDryRun()} disabled={loading}>
+              {loading ? "Läuft…" : "Dry-Run jetzt"}
+            </Btn>
+            <Btn variant="secondary" onClick={() => refresh()} disabled={loading}>
+              Aktualisieren
+            </Btn>
+            {canConfigure && <Btn onClick={() => setShowConfig(true)}>Konfigurieren</Btn>}
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          {observeOnly && (
-            <Badge color={P.blue} bg={P.blueDim}>
-              Beobachtungsmodus - nur Dokumentation
-            </Badge>
-          )}
-          <Badge color={P.textMuted} bg="rgba(139,141,163,0.12)">
-            Autonomie {autonomyLabel}
-          </Badge>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
           {config?.kill_switch && (
-            <Badge color={P.red} bg={P.redDim}>
-              Kill-Switch aktiv
-            </Badge>
+            <Banner color={C.red} colorDim={C.redDim}>
+              Kill-Switch ist aktiv — der Autopilot führt für diesen Kunden keine Änderungen aus und
+              überspringt Läufe komplett. Auch bereits erteilte Freigaben werden nicht ausgeführt.
+            </Banner>
           )}
-          <Btn onClick={() => runDryRun()} disabled={loading}>
-            Dry-Run jetzt
-          </Btn>
-          <Btn onClick={() => refresh()} disabled={loading}>
-            Aktualisieren
-          </Btn>
+          {observeOnly && (
+            <Banner color={C.blue} colorDim={C.blueDim}>
+              Beobachtungsmodus: Der Autopilot dokumentiert nur Massnahmen und Empfehlungen — es
+              werden unter keinen Umständen Änderungen an Google Ads vorgenommen (unabhängig vom
+              Autonomie-Level). Freigaben sind gesperrt, bis der Beobachtungsmodus nach
+              Qualitätsprüfung deaktiviert wird.
+            </Banner>
+          )}
+          {error && (
+            <Banner color={C.red} colorDim={C.redDim}>
+              Fehler: {error}
+            </Banner>
+          )}
+          {!config && !loading && (
+            <Banner color={C.orange} colorDim={C.orangeDim}>
+              Für diesen Kunden ist noch keine Autopilot-Konfiguration hinterlegt — es gelten die
+              sicheren Standardwerte (Beobachtungsmodus an, Autonomie 0: nichts wird geändert).{" "}
+              {canConfigure
+                ? "Mit «Konfigurieren» legst du sie an."
+                : "Ein Owner/Admin kann sie über «Konfigurieren» anlegen."}
+            </Banner>
+          )}
         </div>
-      </div>
+      </Card>
 
-      {config?.kill_switch && (
+      {/* Konfiguration */}
+      <Card>
         <div
           style={{
-            marginTop: 12,
-            padding: "10px 12px",
-            borderRadius: 8,
-            background: P.redDim,
-            color: P.red,
-            fontSize: 13,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: 12,
+            flexWrap: "wrap",
           }}
         >
-          Kill-Switch ist aktiv - der Autopilot fuehrt fuer diesen Kunden keine Aenderungen aus.
+          <SectionTitle
+            title="Konfiguration"
+            hint="Pro Kunde. Änderungen nur durch Owner/Admin, mit Zusammenfassung und Bestätigung."
+          />
+          {canConfigure && (
+            <Btn variant="secondary" size="sm" onClick={() => setShowConfig(true)}>
+              Bearbeiten
+            </Btn>
+          )}
         </div>
-      )}
-      {observeOnly && (
         <div
           style={{
-            marginTop: 12,
-            padding: "10px 12px",
-            borderRadius: 8,
-            background: P.blueDim,
-            color: P.blue,
-            fontSize: 13,
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+            gap: 10,
           }}
         >
-          Beobachtungsmodus: Der Autopilot dokumentiert nur Massnahmen und Empfehlungen - es werden
-          KEINE Aenderungen an Google Ads vorgenommen (unabhaengig vom Autonomie-Level). Freigaben
-          sind deaktiviert, bis observe_only=false gesetzt wird (nach Qualitaetspruefung).
+          {configItems.map((it) => (
+            <div
+              key={it.l}
+              style={{
+                background: C.surface,
+                border: `1px solid ${C.border}`,
+                borderRadius: 10,
+                padding: "10px 12px",
+              }}
+            >
+              <div style={{ fontSize: 11.5, color: C.textMuted, marginBottom: 4 }}>{it.l}</div>
+              <div
+                style={{
+                  fontSize: 13.5,
+                  fontWeight: 600,
+                  color: it.color || C.text,
+                  overflowWrap: "anywhere",
+                }}
+              >
+                {it.v}
+              </div>
+            </div>
+          ))}
         </div>
-      )}
-      {error && (
-        <div
-          style={{
-            marginTop: 12,
-            padding: "10px 12px",
-            borderRadius: 8,
-            background: P.redDim,
-            color: P.red,
-            fontSize: 13,
-          }}
-        >
-          Fehler: {error}
+        <div style={{ fontSize: 12, color: C.textDim, marginTop: 10, lineHeight: 1.5 }}>
+          {lastConfigChange ? (
+            <>
+              Zuletzt geändert am {dateCH(lastConfigChange.created_at)} von{" "}
+              <b style={{ color: C.textMuted }}>{lastConfigChange.approved_by || "unbekannt"}</b>
+              {lastConfigChange.rationale ? <> — {lastConfigChange.rationale}</> : null}
+            </>
+          ) : config?.updated_at ? (
+            <>
+              Zuletzt geändert am {dateCH(config.updated_at)} (vor Einführung des
+              Änderungsprotokolls).
+            </>
+          ) : (
+            <>Noch nie geändert — es gelten die sicheren Standardwerte.</>
+          )}
         </div>
-      )}
-      {!config && !loading && (
-        <div
-          style={{
-            marginTop: 12,
-            padding: "10px 12px",
-            borderRadius: 8,
-            background: P.orangeDim,
-            color: P.orange,
-            fontSize: 13,
-          }}
-        >
-          Keine Autopilot-Konfiguration fuer diesen Kunden. Bitte eine ads_autopilot_config-Zeile
-          anlegen (autonomy_level, Ziel-CPA/ROAS, no_touch, Saison).
-        </div>
-      )}
+        {configHistory.length > 1 && (
+          <details style={{ marginTop: 8 }}>
+            <summary style={{ fontSize: 12, color: C.accent, cursor: "pointer" }}>
+              Frühere Konfigurations-Änderungen ({configHistory.length - 1})
+            </summary>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+              {configHistory.slice(1).map((h) => (
+                <div key={h.id} style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.5 }}>
+                  {dateCH(h.created_at)} — {h.approved_by || "unbekannt"}: {h.rationale || "—"}
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+      </Card>
 
-      {/* Approval queue */}
-      <div style={{ marginTop: 20 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: P.text, marginBottom: 8 }}>
-          {observeOnly ? "Empfehlungen (Dokumentation)" : "Wartet auf Freigabe"} (
-          {activeApprovals.length})
-        </div>
+      {/* Freigaben */}
+      <Card>
+        <SectionTitle
+          title={observeOnly ? "Empfehlungen (Dokumentation)" : "Wartet auf Freigabe"}
+          count={activeApprovals.length}
+          hint="Vor jeder Freigabe sichtbar: aktueller Wert, vorgeschlagener Wert, Begründung, erwartete Wirkung und Ablaufdatum."
+        />
         {activeApprovals.length === 0 && (
-          <div style={{ fontSize: 13, color: P.textDim }}>Keine offenen Freigaben.</div>
+          <div style={{ fontSize: 13, color: C.textDim }}>Keine offenen Freigaben.</div>
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {activeApprovals.map((a) => {
@@ -508,15 +1418,17 @@ export default function AdsAutopilotPanel({ selectedClient }) {
               <div
                 key={a.id}
                 onClick={() => setDetail(a)}
+                title="Klicken für Erklärung und Details"
                 style={{
-                  border: `1px solid ${P.border}`,
+                  border: `1px solid ${C.border}`,
                   borderRadius: 10,
                   padding: 12,
                   cursor: "pointer",
+                  background: C.surface,
                 }}
-                title="Klicken für Erklärung und Details"
               >
                 <div
+                  className="mobile-wrap"
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
@@ -524,77 +1436,88 @@ export default function AdsAutopilotPanel({ selectedClient }) {
                     flexWrap: "wrap",
                   }}
                 >
-                  <div style={{ minWidth: 0 }}>
+                  <div style={{ minWidth: 0, flex: "1 1 320px" }}>
                     <div
                       style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}
                     >
                       <Badge>{typeLabel(a.type)}</Badge>
-                      <span style={{ color: P.text, fontWeight: 600, fontSize: 14 }}>
-                        {a.entity || "-"}
+                      <span style={{ color: C.text, fontWeight: 600, fontSize: 14 }}>
+                        {a.entity || "—"}
                       </span>
-                      {rest !== null && rest <= 2 && (
-                        <Badge color={P.orange} bg={P.orangeDim}>
-                          läuft in {Math.max(rest, 0)} Tag{rest === 1 ? "" : "en"} ab
-                        </Badge>
-                      )}
                     </div>
-                    <div style={{ fontSize: 13, color: P.textMuted, marginTop: 6 }}>
-                      {a.current_value ? <span>{a.current_value} </span> : null}
-                      {a.proposed_value ? (
-                        <span style={{ color: P.text }}>-&gt; {a.proposed_value}</span>
-                      ) : null}
-                    </div>
+                    {(a.current_value || a.proposed_value) && (
+                      <div style={{ fontSize: 13, color: C.textMuted, marginTop: 6 }}>
+                        {a.current_value || "—"} <span style={{ color: C.textDim }}>→</span>{" "}
+                        <b style={{ color: C.text }}>{a.proposed_value || "—"}</b>
+                      </div>
+                    )}
                     {a.rationale && (
-                      <div style={{ fontSize: 12, color: P.textDim, marginTop: 4 }}>
+                      <div
+                        style={{ fontSize: 12, color: C.textMuted, marginTop: 4, lineHeight: 1.5 }}
+                      >
                         {a.rationale}
                       </div>
                     )}
                     {a.estimated_impact && (
-                      <div style={{ fontSize: 12, color: P.accent, marginTop: 4 }}>
+                      <div style={{ fontSize: 12, color: C.accent, marginTop: 4 }}>
                         Erwartet: {a.estimated_impact}
                       </div>
                     )}
-                    <div style={{ fontSize: 11, color: P.textDim, marginTop: 6 }}>
-                      Klicken für Erklärung &amp; Details
+                    <div
+                      style={{
+                        fontSize: 11.5,
+                        color: rest !== null && rest <= 2 ? C.orange : C.textDim,
+                        marginTop: 6,
+                      }}
+                    >
+                      {a.expires_at
+                        ? `Läuft ab am ${dateCH(a.expires_at)}${rest !== null ? ` (noch ${Math.max(rest, 0)} Tag${rest === 1 ? "" : "e"})` : ""}`
+                        : "Kein Ablaufdatum"}{" "}
+                      · Klicken für Details
                     </div>
                   </div>
-                  <div
-                    style={{ display: "flex", gap: 8, alignItems: "flex-start" }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Btn
-                      variant="approve"
-                      disabled={busyId === a.id || observeOnly}
-                      onClick={() => decide(a.id, "approve")}
+                  {canDecide && (
+                    <div
+                      style={{ display: "flex", gap: 8, alignItems: "flex-start" }}
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      {busyId === a.id ? "..." : observeOnly ? "Freigabe gesperrt" : "Freigeben"}
-                    </Btn>
-                    <Btn
-                      variant="reject"
-                      disabled={busyId === a.id}
-                      onClick={() => decide(a.id, "reject")}
-                    >
-                      Ablehnen
-                    </Btn>
-                  </div>
+                      <Btn
+                        variant="success"
+                        size="sm"
+                        disabled={busyId === a.id || observeOnly}
+                        title={
+                          observeOnly ? "Beobachtungsmodus aktiv — Freigaben gesperrt" : undefined
+                        }
+                        onClick={() => decide(a.id, "approve")}
+                      >
+                        {busyId === a.id ? "…" : observeOnly ? "Gesperrt" : "Freigeben"}
+                      </Btn>
+                      <Btn
+                        variant="danger"
+                        size="sm"
+                        disabled={busyId === a.id}
+                        onClick={() => decide(a.id, "reject")}
+                      >
+                        Ablehnen
+                      </Btn>
+                    </div>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
-      </div>
+      </Card>
 
-      {/* Offene Massnahmen (Phase C): Empfehlungen mit Statuszyklus - Umsetzung ist Mensch-Sache */}
-      <div style={{ marginTop: 20 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: P.text, marginBottom: 4 }}>
-          Offene Massnahmen ({recommendations.length})
-        </div>
-        <div style={{ fontSize: 12, color: P.textDim, marginBottom: 8 }}>
-          Empfehlungen der Analyse-Module. Umsetzung erfolgt manuell — hier nur den Status pflegen
-          (nichts wird an Google Ads geschrieben).
-        </div>
+      {/* Offene Massnahmen */}
+      <Card>
+        <SectionTitle
+          title="Offene Massnahmen"
+          count={recommendations.length}
+          hint="Empfehlungen der Analyse-Module. Umsetzung erfolgt manuell — hier nur den Status pflegen (nichts wird an Google Ads geschrieben)."
+        />
         {recommendations.length === 0 && (
-          <div style={{ fontSize: 13, color: P.textDim }}>Keine offenen Massnahmen.</div>
+          <div style={{ fontSize: 13, color: C.textDim }}>Keine offenen Massnahmen.</div>
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {recommendations.map((r) => (
@@ -603,13 +1526,15 @@ export default function AdsAutopilotPanel({ selectedClient }) {
               onClick={() => setRecoDetail(r)}
               title="Klicken für Erklärung: Problem & was zu tun ist"
               style={{
-                border: `1px solid ${P.border}`,
+                border: `1px solid ${C.border}`,
                 borderRadius: 10,
                 padding: 12,
                 cursor: "pointer",
+                background: C.surface,
               }}
             >
               <div
+                className="mobile-wrap"
                 style={{
                   display: "flex",
                   justifyContent: "space-between",
@@ -617,253 +1542,73 @@ export default function AdsAutopilotPanel({ selectedClient }) {
                   flexWrap: "wrap",
                 }}
               >
-                <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ minWidth: 0, flex: "1 1 320px" }}>
                   <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                    <Badge color={P.green} bg={P.greenDim}>
-                      {recoLabel(r.recommendation_type)}
-                    </Badge>
-                    <span style={{ color: P.text, fontWeight: 600, fontSize: 14 }}>{r.title}</span>
+                    <Badge color={C.green}>{recoLabel(r.recommendation_type)}</Badge>
+                    <span style={{ color: C.text, fontWeight: 600, fontSize: 14 }}>{r.title}</span>
                   </div>
-                  <div style={{ fontSize: 12, color: P.textMuted, marginTop: 4 }}>{r.entity}</div>
-                  {RECO_INFO[r.recommendation_type]?.problem && (
-                    <div style={{ fontSize: 12, color: P.textDim, marginTop: 4 }}>
-                      {RECO_INFO[r.recommendation_type].problem}
-                    </div>
-                  )}
+                  <div style={{ fontSize: 12, color: C.textMuted, marginTop: 4 }}>{r.entity}</div>
                   {r.expected_impact && (
-                    <div style={{ fontSize: 12, color: P.accent, marginTop: 4 }}>
+                    <div style={{ fontSize: 12, color: C.accent, marginTop: 4 }}>
                       Erwartet: {r.expected_impact}
                     </div>
                   )}
-                  <div style={{ fontSize: 11, color: P.textDim, marginTop: 6 }}>
+                  <div style={{ fontSize: 11.5, color: C.textDim, marginTop: 6 }}>
                     Klicken für Erklärung &amp; Details
                   </div>
                 </div>
-                <div
-                  style={{ display: "flex", gap: 8, alignItems: "flex-start" }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Btn
-                    variant="approve"
-                    disabled={busyId === r.id}
-                    onClick={() => {
-                      const note = window.prompt("Umgesetzt — optionale Notiz (was/wann):", "");
-                      if (note === null) return;
-                      void markRecommendation(r.id, "implemented", note || undefined);
-                    }}
+                {canDecide && (
+                  <div
+                    style={{ display: "flex", gap: 8, alignItems: "flex-start" }}
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    {busyId === r.id ? "..." : "Umgesetzt"}
-                  </Btn>
-                  <Btn
-                    variant="reject"
-                    disabled={busyId === r.id}
-                    onClick={() => {
-                      const note = window.prompt(
-                        "Verworfen — warum? (Pflicht fuer den Verlauf):",
-                        "",
-                      );
-                      if (note === null) return;
-                      void markRecommendation(r.id, "dismissed", note || undefined);
-                    }}
-                  >
-                    Verworfen
-                  </Btn>
-                </div>
+                    <Btn
+                      variant="success"
+                      size="sm"
+                      disabled={busyId === r.id}
+                      onClick={() => {
+                        const note = window.prompt("Umgesetzt — optionale Notiz (was/wann):", "");
+                        if (note === null) return;
+                        void markRecommendation(r.id, "implemented", note || undefined);
+                      }}
+                    >
+                      {busyId === r.id ? "…" : "Umgesetzt"}
+                    </Btn>
+                    <Btn
+                      variant="danger"
+                      size="sm"
+                      disabled={busyId === r.id}
+                      onClick={() => {
+                        const note = window.prompt(
+                          "Verworfen — warum? (Pflicht für den Verlauf):",
+                          "",
+                        );
+                        if (note === null) return;
+                        void markRecommendation(r.id, "dismissed", note || undefined);
+                      }}
+                    >
+                      Verworfen
+                    </Btn>
+                  </div>
+                )}
               </div>
             </div>
           ))}
         </div>
-      </div>
+      </Card>
 
-      {recoDetail && (
-        <div
-          onClick={() => setRecoDetail(null)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 1000,
-            background: "rgba(10,10,16,0.7)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 20,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: P.card,
-              border: `1px solid ${P.border}`,
-              borderRadius: 14,
-              padding: 20,
-              maxWidth: 580,
-              width: "100%",
-              maxHeight: "85vh",
-              overflowY: "auto",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-              <div>
-                <Badge color={P.green} bg={P.greenDim}>
-                  {recoLabel(recoDetail.recommendation_type)}
-                </Badge>
-                <div style={{ fontSize: 15, fontWeight: 700, color: P.text, marginTop: 8 }}>
-                  {recoDetail.title}
-                </div>
-                <div style={{ fontSize: 12, color: P.textMuted, marginTop: 4 }}>
-                  {recoDetail.entity}
-                </div>
-              </div>
-              <button
-                onClick={() => setRecoDetail(null)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: P.textMuted,
-                  fontSize: 20,
-                  cursor: "pointer",
-                  lineHeight: 1,
-                }}
-                aria-label="Schliessen"
-              >
-                ×
-              </button>
-            </div>
+      {/* Detailanalyse-Drilldowns */}
+      <DetailAnalysis autopilotRun={autopilotRun} adsSnapshot={adsSnapshot} />
 
-            <div style={{ marginTop: 14 }}>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: P.orange,
-                  textTransform: "uppercase",
-                  letterSpacing: 0.5,
-                }}
-              >
-                Was ist das Problem?
-              </div>
-              <div style={{ fontSize: 13, color: P.text, marginTop: 4, lineHeight: 1.55 }}>
-                {RECO_INFO[recoDetail.recommendation_type]?.problem || "—"}
-              </div>
-            </div>
-            <div style={{ marginTop: 14 }}>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: P.green,
-                  textTransform: "uppercase",
-                  letterSpacing: 0.5,
-                }}
-              >
-                Was ist zu tun?
-              </div>
-              <div style={{ fontSize: 13, color: P.text, marginTop: 4, lineHeight: 1.55 }}>
-                {RECO_INFO[recoDetail.recommendation_type]?.todo ||
-                  "Siehe vorgeschlagene Massnahme."}
-              </div>
-              <div style={{ fontSize: 13, color: P.textMuted, marginTop: 6, lineHeight: 1.55 }}>
-                <b style={{ color: P.text }}>Konkret hier:</b> {recoDetail.title}
-              </div>
-            </div>
-            {recoDetail.rationale && (
-              <div style={{ marginTop: 14 }}>
-                <div
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: P.textMuted,
-                    textTransform: "uppercase",
-                    letterSpacing: 0.5,
-                  }}
-                >
-                  Begründung & Datenlage
-                </div>
-                <div style={{ fontSize: 13, color: P.textDim, marginTop: 4, lineHeight: 1.55 }}>
-                  {recoDetail.rationale}
-                </div>
-              </div>
-            )}
-            {recoDetail.expected_impact && (
-              <div style={{ marginTop: 14 }}>
-                <div
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: P.textMuted,
-                    textTransform: "uppercase",
-                    letterSpacing: 0.5,
-                  }}
-                >
-                  Erwartete Wirkung
-                </div>
-                <div style={{ fontSize: 13, color: P.accent, marginTop: 4, lineHeight: 1.55 }}>
-                  {recoDetail.expected_impact}
-                </div>
-              </div>
-            )}
-            <div style={{ marginTop: 14 }}>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: P.textMuted,
-                  textTransform: "uppercase",
-                  letterSpacing: 0.5,
-                }}
-              >
-                Herkunft & Ablauf
-              </div>
-              <div style={{ fontSize: 13, color: P.textMuted, marginTop: 4, lineHeight: 1.55 }}>
-                Erstmals erkannt am {new Date(recoDetail.created_at).toLocaleDateString("de-CH")},
-                zuletzt bestätigt im Lauf {recoDetail.last_seen_run}. Die Umsetzung ist manuell —
-                der Autopilot ändert hier nichts. Nach der Umsetzung „Umgesetzt" markieren, dann
-                misst der Autopilot die Wirkung (14/30 Tage) und weist ein Ergebnis aus.
-              </div>
-            </div>
-
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 18 }}>
-              <Btn onClick={() => setRecoDetail(null)}>Schliessen</Btn>
-              <Btn
-                variant="reject"
-                disabled={busyId === recoDetail.id}
-                onClick={async () => {
-                  const note = window.prompt("Verworfen — warum? (Pflicht fuer den Verlauf):", "");
-                  if (note === null) return;
-                  await markRecommendation(recoDetail.id, "dismissed", note || undefined);
-                  setRecoDetail(null);
-                }}
-              >
-                Verworfen
-              </Btn>
-              <Btn
-                variant="approve"
-                disabled={busyId === recoDetail.id}
-                onClick={async () => {
-                  const note = window.prompt("Umgesetzt — optionale Notiz (was/wann):", "");
-                  if (note === null) return;
-                  await markRecommendation(recoDetail.id, "implemented", note || undefined);
-                  setRecoDetail(null);
-                }}
-              >
-                {busyId === recoDetail.id ? "..." : "Umgesetzt"}
-              </Btn>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Befunde des letzten Laufs (report-only): dokumentiert, kein Eingriff */}
-      <div style={{ marginTop: 20 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: P.text, marginBottom: 4 }}>
-          Befunde des letzten Laufs ({findings.length})
-        </div>
-        <div style={{ fontSize: 12, color: P.textDim, marginBottom: 8 }}>
-          Beobachtungen aus {latestFindingRun || "-"} — der Autopilot ändert hier nichts
-          automatisch; Details per Klick.
-        </div>
+      {/* Befunde des letzten Laufs */}
+      <Card>
+        <SectionTitle
+          title="Befunde des letzten Laufs"
+          count={findings.length}
+          hint={`Beobachtungen aus ${latestFindingRun || "—"} — der Autopilot ändert hier nichts automatisch; Details per Klick.`}
+        />
         {findings.length === 0 && (
-          <div style={{ fontSize: 13, color: P.textDim }}>
+          <div style={{ fontSize: 13, color: C.textDim }}>
             Noch keine Befunde gespeichert — sie erscheinen ab dem nächsten Lauf.
           </div>
         )}
@@ -871,9 +1616,9 @@ export default function AdsAutopilotPanel({ selectedClient }) {
           <div key={gruppe} style={{ marginBottom: 10 }}>
             <div
               style={{
-                fontSize: 12,
+                fontSize: 11.5,
                 fontWeight: 700,
-                color: P.textMuted,
+                color: C.textMuted,
                 textTransform: "uppercase",
                 letterSpacing: 0.5,
                 margin: "8px 0 6px",
@@ -888,7 +1633,7 @@ export default function AdsAutopilotPanel({ selectedClient }) {
                   onClick={() => setFindingDetail(f)}
                   title="Klicken für Erklärung"
                   style={{
-                    border: `1px solid ${P.border}`,
+                    border: `1px solid ${C.border}`,
                     borderRadius: 8,
                     padding: "8px 12px",
                     cursor: "pointer",
@@ -896,17 +1641,16 @@ export default function AdsAutopilotPanel({ selectedClient }) {
                     gap: 10,
                     alignItems: "baseline",
                     flexWrap: "wrap",
+                    background: C.surface,
                   }}
                 >
-                  <Badge color={P.blue} bg={P.blueDim}>
-                    {typeLabel(f.action_type)}
-                  </Badge>
-                  <span style={{ color: P.text, fontSize: 13, fontWeight: 600 }}>
-                    {f.entity || "-"}
+                  <Badge color={C.blue}>{typeLabel(f.action_type)}</Badge>
+                  <span style={{ color: C.text, fontSize: 13, fontWeight: 600 }}>
+                    {f.entity || "—"}
                   </span>
                   <span
                     style={{
-                      color: P.textDim,
+                      color: C.textMuted,
                       fontSize: 12,
                       overflow: "hidden",
                       textOverflow: "ellipsis",
@@ -920,7 +1664,7 @@ export default function AdsAutopilotPanel({ selectedClient }) {
                     <span
                       style={{
                         flexBasis: "100%",
-                        color: P.green,
+                        color: C.green,
                         fontSize: 12,
                         overflow: "hidden",
                         textOverflow: "ellipsis",
@@ -935,143 +1679,50 @@ export default function AdsAutopilotPanel({ selectedClient }) {
             </div>
           </div>
         ))}
-      </div>
+      </Card>
 
-      {findingDetail && (
-        <div
-          onClick={() => setFindingDetail(null)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 1000,
-            background: "rgba(10,10,16,0.7)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 20,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: P.card,
-              border: `1px solid ${P.border}`,
-              borderRadius: 14,
-              padding: 20,
-              maxWidth: 560,
-              width: "100%",
-              maxHeight: "85vh",
-              overflowY: "auto",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-              <div>
-                <Badge color={P.blue} bg={P.blueDim}>
-                  {typeLabel(findingDetail.action_type)}
-                </Badge>
-                <div style={{ fontSize: 15, fontWeight: 700, color: P.text, marginTop: 8 }}>
-                  {findingDetail.entity || "-"}
-                </div>
-              </div>
-              <button
-                onClick={() => setFindingDetail(null)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: P.textMuted,
-                  fontSize: 20,
-                  cursor: "pointer",
-                  lineHeight: 1,
-                }}
-                aria-label="Schliessen"
-              >
-                ×
-              </button>
-            </div>
-            <div style={{ marginTop: 14 }}>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: P.textMuted,
-                  textTransform: "uppercase",
-                  letterSpacing: 0.5,
-                }}
-              >
-                Was wurde beobachtet?
-              </div>
-              <div style={{ fontSize: 13, color: P.text, marginTop: 4, lineHeight: 1.55 }}>
-                {findingDetail.rationale || "Keine Begründung hinterlegt."}
-              </div>
-            </div>
-            {(findingDetail.before_value || findingDetail.after_value) && (
-              <div style={{ marginTop: 14 }}>
-                <div
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: P.textMuted,
-                    textTransform: "uppercase",
-                    letterSpacing: 0.5,
-                  }}
-                >
-                  Werte
-                </div>
-                <div style={{ fontSize: 13, color: P.textMuted, marginTop: 4 }}>
-                  {findingDetail.before_value || "-"}{" "}
-                  {findingDetail.after_value ? (
-                    <span style={{ color: P.text }}>-&gt; {findingDetail.after_value}</span>
-                  ) : null}
-                </div>
-              </div>
-            )}
-            <div style={{ marginTop: 14 }}>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: P.textMuted,
-                  textTransform: "uppercase",
-                  letterSpacing: 0.5,
-                }}
-              >
-                Empfohlene Massnahme
-              </div>
-              <div style={{ fontSize: 13, color: P.green, marginTop: 4, lineHeight: 1.55 }}>
-                {findingDetail.recommendation ||
-                  "Für diesen Befund wurde noch keine Massnahme formuliert (Lauf vor der Umstellung) — der nächste Lauf liefert sie mit."}
-              </div>
-            </div>
-            <div style={{ marginTop: 14 }}>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: P.textMuted,
-                  textTransform: "uppercase",
-                  letterSpacing: 0.5,
-                }}
-              >
-                Einordnung
-              </div>
-              <div style={{ fontSize: 13, color: P.textMuted, marginTop: 4, lineHeight: 1.55 }}>
-                Reiner Befund aus Lauf {findingDetail.run_id} vom{" "}
-                {new Date(findingDetail.created_at).toLocaleDateString("de-CH")} — der Autopilot
-                ändert hier nichts automatisch. Der Punkt fliesst in Report, Vault-Doku und
-                Monats-Audit ein; eine Umsetzung wäre ein manueller Schritt oder ein späterer
-                Freigabe-Vorschlag.
-              </div>
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}>
-              <Btn onClick={() => setFindingDetail(null)}>Schliessen</Btn>
-            </div>
-          </div>
-        </div>
+      {/* Aenderungs-Log */}
+      <Card>
+        <SectionTitle
+          title="Änderungs-Log"
+          hint="Jeder Eingriff und jede Queue-Entscheidung des Autopiloten — Konfigurations-Änderungen stehen oben in der Konfigurations-Karte."
+        />
+        {changeRows.length === 0 && (
+          <div style={{ fontSize: 13, color: C.textDim }}>Noch keine Einträge.</div>
+        )}
+        {changeRows.length > 0 && (
+          <ScrollTable
+            minWidth={640}
+            head={["Datum", "Aktion", "Entity", "Status", "Begründung"]}
+            rows={changeRows.map((c) => (
+              <tr key={c.id} style={{ borderTop: `1px solid ${C.border}`, color: C.textMuted }}>
+                <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{dateCH(c.created_at)}</td>
+                <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{c.action_type}</td>
+                <td style={{ padding: "6px 8px", color: C.text }}>{c.entity || "—"}</td>
+                <td style={{ padding: "6px 8px" }}>
+                  <StatusBadge status={c.status} />
+                </td>
+                <td style={{ padding: "6px 8px", maxWidth: 360 }}>{c.rationale || "—"}</td>
+              </tr>
+            ))}
+          />
+        )}
+      </Card>
+
+      {/* Modals */}
+      {showConfig && (
+        <ConfigModal
+          config={config}
+          busy={busyId === "config"}
+          onSave={saveConfig}
+          onClose={() => setShowConfig(false)}
+        />
       )}
 
       <ApprovalDetailModal
         approval={detail}
         observeOnly={observeOnly}
+        canDecide={canDecide}
         busy={detail ? busyId === detail.id : false}
         onClose={() => setDetail(null)}
         onDecide={async (decision) => {
@@ -1081,45 +1732,123 @@ export default function AdsAutopilotPanel({ selectedClient }) {
         }}
       />
 
-      {/* Changelog */}
-      <div style={{ marginTop: 20 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: P.text, marginBottom: 8 }}>
-          Aenderungs-Log
-        </div>
-        {changeRows.length === 0 && (
-          <div style={{ fontSize: 13, color: P.textDim }}>Noch keine Eintraege.</div>
-        )}
-        {changeRows.length > 0 && (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead>
-                <tr style={{ color: P.textDim, textAlign: "left" }}>
-                  <th style={{ padding: "6px 8px", fontWeight: 600 }}>Datum</th>
-                  <th style={{ padding: "6px 8px", fontWeight: 600 }}>Aktion</th>
-                  <th style={{ padding: "6px 8px", fontWeight: 600 }}>Entity</th>
-                  <th style={{ padding: "6px 8px", fontWeight: 600 }}>Status</th>
-                  <th style={{ padding: "6px 8px", fontWeight: 600 }}>Begruendung</th>
-                </tr>
-              </thead>
-              <tbody>
-                {changeRows.map((c) => (
-                  <tr key={c.id} style={{ borderTop: `1px solid ${P.border}`, color: P.textMuted }}>
-                    <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>
-                      {new Date(c.created_at).toLocaleDateString("de-CH")}
-                    </td>
-                    <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{c.action_type}</td>
-                    <td style={{ padding: "6px 8px", color: P.text }}>{c.entity || "-"}</td>
-                    <td style={{ padding: "6px 8px" }}>
-                      <StatusBadge status={c.status} />
-                    </td>
-                    <td style={{ padding: "6px 8px", maxWidth: 320 }}>{c.rationale || "-"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {recoDetail && (
+        <Modal title={recoDetail.title} onClose={() => setRecoDetail(null)} maxWidth={600}>
+          <div
+            style={{
+              marginTop: 6,
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <Badge color={C.green}>{recoLabel(recoDetail.recommendation_type)}</Badge>
+            <span style={{ fontSize: 12, color: C.textMuted }}>{recoDetail.entity}</span>
           </div>
-        )}
-      </div>
+          <ModalSection title="Was ist das Problem?" color={C.orange}>
+            {RECO_INFO[recoDetail.recommendation_type]?.problem || "—"}
+          </ModalSection>
+          <ModalSection title="Was ist zu tun?" color={C.green}>
+            {RECO_INFO[recoDetail.recommendation_type]?.todo || "Siehe vorgeschlagene Massnahme."}
+            <div style={{ color: C.textMuted, marginTop: 6 }}>
+              <b style={{ color: C.text }}>Konkret hier:</b> {recoDetail.title}
+            </div>
+          </ModalSection>
+          {recoDetail.rationale && (
+            <ModalSection title="Begründung & Datenlage">{recoDetail.rationale}</ModalSection>
+          )}
+          {recoDetail.expected_impact && (
+            <ModalSection title="Erwartete Wirkung" color={C.accent}>
+              {recoDetail.expected_impact}
+            </ModalSection>
+          )}
+          <ModalSection title="Herkunft & Ablauf" color={C.textMuted}>
+            Erstmals erkannt am {dateCH(recoDetail.created_at)}, zuletzt bestätigt im Lauf{" "}
+            {recoDetail.last_seen_run}. Die Umsetzung ist manuell — der Autopilot ändert hier
+            nichts. Nach der Umsetzung «Umgesetzt» markieren, dann misst der Autopilot die Wirkung
+            (14/30 Tage) und weist ein Ergebnis aus.
+          </ModalSection>
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              justifyContent: "flex-end",
+              marginTop: 18,
+              flexWrap: "wrap",
+            }}
+          >
+            <Btn variant="secondary" onClick={() => setRecoDetail(null)}>
+              Schliessen
+            </Btn>
+            {canDecide && (
+              <>
+                <Btn
+                  variant="danger"
+                  disabled={busyId === recoDetail.id}
+                  onClick={async () => {
+                    const note = window.prompt("Verworfen — warum? (Pflicht für den Verlauf):", "");
+                    if (note === null) return;
+                    await markRecommendation(recoDetail.id, "dismissed", note || undefined);
+                    setRecoDetail(null);
+                  }}
+                >
+                  Verworfen
+                </Btn>
+                <Btn
+                  variant="success"
+                  disabled={busyId === recoDetail.id}
+                  onClick={async () => {
+                    const note = window.prompt("Umgesetzt — optionale Notiz (was/wann):", "");
+                    if (note === null) return;
+                    await markRecommendation(recoDetail.id, "implemented", note || undefined);
+                    setRecoDetail(null);
+                  }}
+                >
+                  {busyId === recoDetail.id ? "…" : "Umgesetzt"}
+                </Btn>
+              </>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {findingDetail && (
+        <Modal title={findingDetail.entity || "Befund"} onClose={() => setFindingDetail(null)}>
+          <div style={{ marginTop: 6 }}>
+            <Badge color={C.blue}>{typeLabel(findingDetail.action_type)}</Badge>
+          </div>
+          <ModalSection title="Was wurde beobachtet?">
+            {findingDetail.rationale || "Keine Begründung hinterlegt."}
+          </ModalSection>
+          {(findingDetail.before_value || findingDetail.after_value) && (
+            <ModalSection title="Werte">
+              {findingDetail.before_value || "—"}{" "}
+              {findingDetail.after_value ? (
+                <>
+                  <span style={{ color: C.textDim }}>→</span>{" "}
+                  <b style={{ color: C.text }}>{findingDetail.after_value}</b>
+                </>
+              ) : null}
+            </ModalSection>
+          )}
+          <ModalSection title="Empfohlene Massnahme" color={C.green}>
+            {findingDetail.recommendation ||
+              "Für diesen Befund wurde noch keine Massnahme formuliert (Lauf vor der Umstellung) — der nächste Lauf liefert sie mit."}
+          </ModalSection>
+          <ModalSection title="Einordnung" color={C.textMuted}>
+            Reiner Befund aus Lauf {findingDetail.run_id} vom {dateCH(findingDetail.created_at)} —
+            der Autopilot ändert hier nichts automatisch. Der Punkt fliesst in Report, Vault-Doku
+            und Monats-Audit ein; eine Umsetzung wäre ein manueller Schritt oder ein späterer
+            Freigabe-Vorschlag.
+          </ModalSection>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}>
+            <Btn variant="secondary" onClick={() => setFindingDetail(null)}>
+              Schliessen
+            </Btn>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

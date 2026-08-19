@@ -10,6 +10,12 @@ import {
 } from "./google-ads-budget.server";
 import { getGoogleAccessToken } from "./google-tokens.server";
 import { addNegativeKeyword, setCampaignBudget } from "./google-ads-mutate.server";
+import {
+  computeBudgetPacing,
+  computeEffectiveDryRun,
+  executionGate,
+  type BudgetPacing,
+} from "@/ezy/data/adsAutopilotPolicy";
 
 // Autopilot brain (deterministic layer). Pulls the data the classifier needs,
 // applies the numeric rules from the build brief, auto-executes only the
@@ -2003,6 +2009,27 @@ export type AutopilotRunSummary = {
   multiWindow?: MultiWindowExtract | null;
   // Budget-Anker mit Herkunftsnachweis (client/account/historical/none)
   budgetAnchor?: BudgetAnchor | null;
+  // Budget-Pacing: Monats-Spend (Kalendermonat, MTD) gegen anteiliges Soll +
+  // lineare Prognose bis Monatsende. status=no_budget -> Setup-Hinweis in der UI.
+  budgetPacing?: BudgetPacing | null;
+  // Kampagnen-Detail fuer den EzyPerformance-Drilldown (L30, nur ENABLED):
+  // Budget/Spend/Conv/ROAS + IS-Verluste + Gebotsstrategie je Kampagne.
+  campaignDetail?: Array<{
+    name: string;
+    dailyBudgetChf: number;
+    costChf: number;
+    conversions: number;
+    conversionValue: number;
+    roas: number | null;
+    budgetLostIs: number | null;
+    rankLostIs: number | null;
+    searchImpressionShare: number | null;
+    learning: boolean;
+    strategyType: string;
+    targetRoas: number | null;
+    targetCpaChf: number | null;
+    noTouch: boolean;
+  }>;
   // Phase B.2: Asset-Detail (Servings/Pinning/Abdeckung/PMax-Videos, L90)
   assetDetail?: AutopilotData["assetDetail"] | null;
   // Phase C: Report-Pflichtblock "Offene Massnahmen" aus dem Register
@@ -2069,7 +2096,7 @@ export async function runAutopilot(
 
   const { data: client } = await supabaseAdmin
     .from("clients")
-    .select("id, name, google_ads_customer")
+    .select("id, name, organization_id, google_ads_customer")
     .eq("id", clientId)
     .maybeSingle();
   const runId = `${now.toISOString().slice(0, 10)}-${slugify(client?.name ?? "")}-${now.getTime().toString().slice(-4)}`;
@@ -2217,12 +2244,58 @@ export async function runAutopilot(
   } catch {
     base.budgetAnchor = null;
   }
+  // Budget-Pacing (Kalendermonat): MTD-Spend des Kontos gegen anteiliges Soll.
+  // Quelle des Monatsbudgets ist der Anker (client > account > historical);
+  // ohne Anker meldet die UI einen Setup-Hinweis statt Scheinwerten.
+  try {
+    const monthStart = `${isoDay(now).slice(0, 7)}-01`;
+    const mtdRows = await adsQuery(
+      clientId,
+      client.google_ads_customer,
+      `SELECT metrics.cost_micros FROM customer WHERE segments.date BETWEEN '${monthStart}' AND '${isoDay(now)}'`,
+    );
+    if (mtdRows.ok) {
+      const mtdSpend = Number(mtdRows.rows?.[0]?.metrics?.costMicros ?? 0) / MICROS;
+      base.budgetPacing = computeBudgetPacing({
+        monthlyBudgetChf: base.budgetAnchor?.monthlyBudgetChf ?? null,
+        budgetSource: base.budgetAnchor?.source ?? "none",
+        mtdSpendChf: mtdSpend,
+        today: now,
+      });
+    } else {
+      base.budgetPacing = null;
+      // d3.dataSourceErrors wird weiter unten in die Summary uebernommen.
+      d3.dataSourceErrors.push(
+        `budget_pacing: ${mtdRows.error ?? mtdRows.skipped ?? "MTD-Spend nicht abrufbar"}`,
+      );
+    }
+  } catch {
+    base.budgetPacing = null;
+  }
   base.biddingStrategies = d3.campaigns.map((c) => ({
     campaign: c.name,
     strategyType: c.biddingStrategyType ?? "UNKNOWN",
     targetRoas: c.targetRoas ?? null,
     targetCpaChf: c.targetCpaChf ?? null,
     systemStatus: c.biddingSystemStatus,
+  }));
+  // Kampagnen-Drilldown fuer EzyPerformance (eine Zeile je aktive Kampagne).
+  const noTouchSet = new Set((cfg.no_touch_campaigns ?? []).map((n) => n.toLowerCase()));
+  base.campaignDetail = d3.campaigns.map((c) => ({
+    name: c.name,
+    dailyBudgetChf: Math.round(c.dailyBudgetChf * 100) / 100,
+    costChf: Math.round(c.costChf * 100) / 100,
+    conversions: c.conversions,
+    conversionValue: Math.round(c.conversionValue * 100) / 100,
+    roas: c.roas != null ? Math.round(c.roas * 100) / 100 : null,
+    budgetLostIs: c.budgetLostIs ?? null,
+    rankLostIs: c.rankLostIs ?? null,
+    searchImpressionShare: c.searchImpressionShare ?? null,
+    learning: c.learning,
+    strategyType: c.biddingStrategyType ?? "UNKNOWN",
+    targetRoas: c.targetRoas ?? null,
+    targetCpaChf: c.targetCpaChf ?? null,
+    noTouch: noTouchSet.has(c.name.toLowerCase()),
   }));
   base.changeHistory = d3.changeHistory
     .slice(0, 20)
@@ -2337,7 +2410,12 @@ export async function runAutopilot(
   }
 
   // observe_only (Evaluations-Gate) erzwingt Dry-Run; Tracking-BROKEN blockiert hart.
-  const effectiveDryRun = dryRun || cfg.observe_only || cfg.autonomy_level < 1 || trackingBroken;
+  const effectiveDryRun = computeEffectiveDryRun({
+    requestedDryRun: dryRun,
+    observeOnly: cfg.observe_only,
+    autonomyLevel: cfg.autonomy_level,
+    trackingBroken,
+  });
 
   // Dedup: bereits offene (pending) Approvals dieses Kunden nicht erneut anlegen
   // (sonst haeufen sich bei wiederholten Laeufen identische Empfehlungen).
@@ -2498,6 +2576,35 @@ export async function runAutopilot(
       });
     }
   }
+
+  // Summary persistieren (audit_runs, audit_type "ads_autopilot"), damit die
+  // EzyPerformance-Drilldowns (Kampagnen/Suchbegriffe/Pacing/Tracking) ohne
+  // Live-Ads-Abfrage aus dem letzten Lauf lesen koennen. Nie run-blockierend.
+  // triggered_by ist NOT NULL -> Org-Owner-Muster (wie admin.aivis-competitors).
+  try {
+    const { data: users } = await supabaseAdmin
+      .from("app_users")
+      .select("user_id, role")
+      .eq("organization_id", client.organization_id)
+      .limit(20);
+    const owner =
+      (users ?? []).find((u) => ["owner", "admin"].includes(u.role)) || (users ?? [])[0];
+    if (owner) {
+      await supabaseAdmin.from("audit_runs").insert({
+        client_id: clientId,
+        organization_id: client.organization_id,
+        triggered_by: owner.user_id,
+        audit_type: "ads_autopilot",
+        status: "succeeded",
+        input: { dryRun, effectiveDryRun },
+        result: base as never,
+        started_at: now.toISOString(),
+        finished_at: new Date().toISOString(),
+      });
+    }
+  } catch {
+    /* Persistenz ist Komfort - der Run-Rueckgabewert bleibt die Quelle */
+  }
   return base;
 }
 
@@ -2622,14 +2729,10 @@ export async function decideApproval(p: {
     .maybeSingle();
   if (!client) return { ok: false, httpStatus: 404, error: "Client not found" };
   const cfg = await loadConfig(appr.client_id);
-  if (cfg.observe_only)
-    return {
-      ok: false,
-      httpStatus: 423,
-      error:
-        "Beobachtungsmodus aktiv - Ausfuehrung deaktiviert. Erst observe_only=false setzen (nach Qualitaetspruefung).",
-      approvalId: appr.id,
-    };
+  // Gemeinsames Gate (Policy-Modul): Kill-Switch UND observe_only blockieren
+  // auch den Freigabe-Execute-Pfad - eine Freigabe darf sie nie umgehen.
+  const gate = executionGate({ observeOnly: cfg.observe_only, killSwitch: cfg.kill_switch });
+  if (!gate.allowed) return { ok: false, httpStatus: 423, error: gate.reason, approvalId: appr.id };
   const payload = (appr.payload && typeof appr.payload === "object" ? appr.payload : {}) as Record<
     string,
     any
