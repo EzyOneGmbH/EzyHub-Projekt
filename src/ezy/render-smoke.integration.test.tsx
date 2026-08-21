@@ -25,6 +25,8 @@ vi.mock("@/integrations/supabase/client", () => ({
       onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
     },
     from: () => leereKette,
+    rpc: () => leereKette,
+    functions: { invoke: async () => ({ data: null, error: null }) },
     channel: () => ({ on: () => ({ subscribe: () => ({}) }), subscribe: () => ({}) }),
     removeChannel: () => {},
   },
