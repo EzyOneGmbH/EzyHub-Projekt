@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { aktiveMitgliedschaft } from "@/server/team-guard.server";
+import { tickeAdminJobs } from "@/server/admin-jobs.server";
 import {
   startAudit,
   tickAudit,
@@ -136,10 +137,16 @@ export const Route = createFileRoute("/api/agent/analyse")({
           if (!admin || (request.headers.get("authorization") || "") !== `Bearer ${admin}`)
             return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
           try {
-            const r = await tickeOffeneAudits(
-              Number(body.budgetMs) > 0 ? Number(body.budgetMs) : undefined,
+            const budget = Number(body.budgetMs) > 0 ? Number(body.budgetMs) : 230_000;
+            const t0 = Date.now();
+            // Analyse-Jobs zuerst (max 150 s), Admin-Jobs (z.B. Datenlaeufe)
+            // bekommen das Restbudget desselben Minuten-Ticks.
+            const r = await tickeOffeneAudits(Math.min(budget, 150_000));
+            const admin = await tickeAdminJobs(
+              budget - (Date.now() - t0),
+              new URL(request.url).origin,
             );
-            return Response.json({ ok: true, ...r });
+            return Response.json({ ok: true, ...r, adminJobs: admin });
           } catch (e) {
             return Response.json(
               { ok: false, error: e instanceof Error ? e.message : String(e) },

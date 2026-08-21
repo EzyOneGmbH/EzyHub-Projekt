@@ -128,6 +128,10 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
       setMsg("Properties gespeichert" + adsNote);
       onLog?.({ ok: true, kind: "save", text: "Properties gespeichert" });
       onSaved?.();
+      // Einsatzbereitschaft automatisch neu berechnen (21.08.).
+      try {
+        window.dispatchEvent(new CustomEvent("ezy:readiness-refresh"));
+      } catch {}
     } catch (e) {
       setMsg(e?.message || String(e));
     } finally {
@@ -409,7 +413,7 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
             style={inputStyle}
           />
         </div>
-        <div>
+        <div id="anker-google-ads" style={{ borderRadius: 8 }}>
           <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>
             Google Ads Customer ID
           </div>

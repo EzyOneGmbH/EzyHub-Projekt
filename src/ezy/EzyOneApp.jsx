@@ -11875,6 +11875,7 @@ function WordPressClientPanel({ client }) {
       const j = await r.json().catch(() => ({}));
       if (j.ok) {
         toast(`WordPress verbunden${j.seoPlugin ? ` · SEO: ${j.seoPlugin}` : ""}`, "success");
+        window.dispatchEvent(new CustomEvent(READINESS_EVENT));
         setAppPassword("");
         await load();
       } else {
@@ -11901,6 +11902,7 @@ function WordPressClientPanel({ client }) {
         body: JSON.stringify({ clientId: client.id }),
       });
       toast("WordPress getrennt", "success");
+      window.dispatchEvent(new CustomEvent(READINESS_EVENT));
       setStatus(null);
       await load();
     } catch (e) {
@@ -12157,13 +12159,29 @@ function OnboardingCard({ client, onUpdated }) {
           </div>
         ))}
       </div>
-      <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
+      <div
+        id="anker-google-props"
+        style={{
+          marginTop: 14,
+          paddingTop: 14,
+          borderTop: `1px solid ${C.border}`,
+          borderRadius: 10,
+        }}
+      >
         <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 8 }}>
           Google: Search Console &amp; GA4 verbinden
         </div>
         <GoogleClientPanel client={client} onSaved={onUpdated} />
       </div>
-      <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
+      <div
+        id="anker-wordpress"
+        style={{
+          marginTop: 14,
+          paddingTop: 14,
+          borderTop: `1px solid ${C.border}`,
+          borderRadius: 10,
+        }}
+      >
         <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 8 }}>
           WordPress verbinden (Content veröffentlichen, Beiträge lesen, SEO schreiben)
         </div>
@@ -13373,12 +13391,178 @@ function ClientSettingsPanel({ client, onUpsertClient }) {
 // Integration, letzter Datenlauf, Portalzugang) — serverseitig berechnet
 // (/api/admin/client-readiness, nur Owner/Admin), Anforderungen zentral in
 // appRequirements.ts. Jede Luecke hat eine konkrete, rollensichere Aktion.
+// Gezielte Navigation (21.08.): scrollt zum konkreten Feld (Anker-Id) im
+// Kunden-Detail, hebt es kurz hervor und fokussiert den Eingabe-Input.
+function fokusFeld(ankerId) {
+  const el = document.getElementById(ankerId);
+  if (!el) return false;
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  const input = el.querySelector("input, select, button");
+  setTimeout(() => input?.focus?.(), 450);
+  el.style.transition = "box-shadow .3s";
+  el.style.boxShadow = `0 0 0 3px ${C.accent}66`;
+  setTimeout(() => {
+    el.style.boxShadow = "none";
+  }, 2200);
+  return true;
+}
+// Nach jedem Verbindungs-/Property-Speichern feuern die Panels dieses Event —
+// die Einsatzbereitschaft berechnet sich dann automatisch neu.
+const READINESS_EVENT = "ezy:readiness-refresh";
+
 async function fetchReadiness(clientId) {
   const token = (await supabase.auth.getSession()).data.session?.access_token;
   const r = await fetch(`/api/admin/client-readiness?client=${encodeURIComponent(clientId)}`, {
     headers: { Authorization: `Bearer ${token || ""}` },
   });
   return r.json().catch(() => ({ ok: false, error: "Antwort ungültig" }));
+}
+
+// Portal-Einladung (21.08.): validierter Dialog statt window.prompt — E-Mail,
+// Rolle, Kundenzuweisung und optionale Nachricht; doppelte Einladungen weist
+// der Server mit einem verstaendlichen 409 ab.
+function PortalEinladungDialog({ client, onClose, onInvited }) {
+  const toast = useToast();
+  const [email, setEmail] = useState("");
+  const [rolle, setRolle] = useState("viewer");
+  const [nachricht, setNachricht] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [fehler, setFehler] = useState("");
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
+  const senden = async () => {
+    if (!emailOk) {
+      setFehler("Bitte eine gültige E-Mail-Adresse eingeben.");
+      return;
+    }
+    setBusy(true);
+    setFehler("");
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const r = await fetch("/api/admin/team", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token || ""}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "invite",
+          email: email.trim(),
+          role: rolle,
+          clientIds: [client.id],
+          ...(nachricht.trim() ? { nachricht: nachricht.trim() } : {}),
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.error) {
+        setFehler(String(j.error || `Einladung fehlgeschlagen (HTTP ${r.status})`));
+        return;
+      }
+      toast(`Einladung an ${email.trim()} verschickt`, "success");
+      onInvited?.();
+    } catch (e) {
+      setFehler(String(e?.message || e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const feld = {
+    width: "100%",
+    padding: "9px 12px",
+    borderRadius: 8,
+    border: `1px solid ${C.border}`,
+    background: C.bg,
+    color: C.text,
+    fontSize: 13,
+    fontFamily: "inherit",
+    boxSizing: "border-box",
+  };
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(15,10,25,.55)",
+        zIndex: 400,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: 14,
+          padding: 22,
+          width: "min(440px, 100%)",
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ fontSize: 15, fontWeight: 700 }}>Portalzugang einladen</div>
+        <div>
+          <div style={{ fontSize: 11.5, color: C.textMuted, marginBottom: 4 }}>
+            E-Mail-Adresse *
+          </div>
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="person@firma.ch"
+            style={feld}
+            autoFocus
+          />
+        </div>
+        <div>
+          <div style={{ fontSize: 11.5, color: C.textMuted, marginBottom: 4 }}>Rolle</div>
+          <select value={rolle} onChange={(e) => setRolle(e.target.value)} style={feld}>
+            <option value="viewer">Kunde (Portal, nur zugewiesene Kunden)</option>
+            <option value="member">Mitarbeiter (Team, zugewiesene Kunden)</option>
+          </select>
+        </div>
+        <div>
+          <div style={{ fontSize: 11.5, color: C.textMuted, marginBottom: 4 }}>Kundenzuweisung</div>
+          <div
+            style={{
+              fontSize: 12.5,
+              color: C.text,
+              background: C.bg,
+              border: `1px solid ${C.border}`,
+              borderRadius: 8,
+              padding: "8px 12px",
+            }}
+          >
+            {client.name} <span style={{ color: C.textDim }}>({client.domain})</span>
+          </div>
+          <div style={{ fontSize: 11, color: C.textDim, marginTop: 4 }}>
+            Weitere Kunden lassen sich danach unter App-Zugriff bzw. Team zuweisen.
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11.5, color: C.textMuted, marginBottom: 4 }}>
+            Nachricht (optional)
+          </div>
+          <textarea
+            value={nachricht}
+            onChange={(e) => setNachricht(e.target.value)}
+            rows={2}
+            maxLength={500}
+            placeholder="Persönliche Zeile in der Einladungs-Mail…"
+            style={{ ...feld, resize: "vertical" }}
+          />
+        </div>
+        {fehler && <div style={{ fontSize: 12.5, color: C.red }}>{fehler}</div>}
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <Btn variant="secondary" onClick={onClose}>
+            Abbrechen
+          </Btn>
+          <Btn onClick={senden} disabled={busy || !emailOk}>
+            {busy ? "Sende…" : "Einladung senden"}
+          </Btn>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function ClientReadinessPanel({ client, onOpenSettings }) {
@@ -13399,6 +13583,50 @@ function ClientReadinessPanel({ client, onOpenSettings }) {
     setData(null);
     void reload();
   }, [reload]);
+  // Nach Speicherungen in den Verbindungs-Panels automatisch neu berechnen.
+  useEffect(() => {
+    const h = () => void reload();
+    window.addEventListener(READINESS_EVENT, h);
+    return () => window.removeEventListener(READINESS_EVENT, h);
+  }, [reload]);
+  const [einladungOffen, setEinladungOffen] = useState(false);
+  const [lauf, setLauf] = useState(null); // { jobId, status }
+  const laufRef = useRef(false);
+  // Async-Datenlauf (21.08.): sofortige jobId, danach Status-Polling — kein
+  // minutenlang blockierender Request mehr.
+  const pollJob = useCallback(
+    async (jobId) => {
+      if (laufRef.current) return;
+      laufRef.current = true;
+      try {
+        for (;;) {
+          const token = (await supabase.auth.getSession()).data.session?.access_token;
+          const r = await fetch(`/api/admin/client-readiness?job=${encodeURIComponent(jobId)}`, {
+            headers: { Authorization: `Bearer ${token || ""}` },
+          });
+          const j = await r.json().catch(() => ({}));
+          if (j?.ok) {
+            setLauf({ jobId, status: j.job.status, error: j.job.error });
+            if (j.job.status === "fertig") {
+              toast("Datenlauf abgeschlossen", "success");
+              setLauf(null);
+              await reload();
+              return;
+            }
+            if (j.job.status === "fehler") {
+              toast(`Datenlauf fehlgeschlagen: ${j.job.error || "unbekannt"}`, "error");
+              setLauf(null);
+              return;
+            }
+          }
+          await new Promise((res) => setTimeout(res, 5000));
+        }
+      } finally {
+        laufRef.current = false;
+      }
+    },
+    [reload, toast],
+  );
 
   const statusColor = (st) =>
     st === "bereit"
@@ -13450,31 +13678,20 @@ function ClientReadinessPanel({ client, onOpenSettings }) {
         case "google_verbinden":
           await connectGoogle();
           break;
-        case "property_waehlen":
-        case "wordpress_verbinden":
-          onOpenSettings?.();
+        case "property_waehlen": {
+          // Gezielt zum konkreten Feld (21.08.): Ads-Kundennummer bzw. GSC/GA4.
+          const anker = app === "ads" ? "anker-google-ads" : "anker-google-props";
+          if (!fokusFeld(anker)) onOpenSettings?.();
           return;
-        case "portal_einladen": {
-          const email = window.prompt("E-Mail-Adresse für den Portalzugang (Rolle Kunde):");
-          if (!email || !email.includes("@")) return;
-          const token = (await supabase.auth.getSession()).data.session?.access_token;
-          const r = await fetch("/api/admin/team", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token || ""}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              action: "invite",
-              email: email.trim(),
-              role: "viewer",
-              clientIds: [client.id],
-            }),
-          });
-          const j = await r.json().catch(() => ({}));
-          if (!r.ok || j.error) throw new Error(j.error || `HTTP ${r.status}`);
-          toast(`Einladung an ${email.trim()} verschickt`, "success");
-          break;
         }
+        case "wordpress_verbinden":
+          if (!fokusFeld("anker-wordpress")) onOpenSettings?.();
+          return;
+        case "portal_einladen":
+          // Validierter Dialog statt window.prompt (21.08.).
+          setEinladungOffen(true);
+          return;
         case "datenlauf_starten": {
-          toast("Datenlauf gestartet — dauert typischerweise 1–4 Minuten…", "info");
           const token = (await supabase.auth.getSession()).data.session?.access_token;
           const r = await fetch("/api/admin/client-readiness", {
             method: "POST",
@@ -13483,7 +13700,14 @@ function ClientReadinessPanel({ client, onOpenSettings }) {
           });
           const j = await r.json().catch(() => ({}));
           if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
-          toast("Datenlauf abgeschlossen", "success");
+          setLauf({ jobId: j.jobId, status: j.status });
+          toast(
+            j.bereitsLaufend
+              ? "Für diesen Kunden läuft bereits ein Datenlauf — Fortschritt wird angezeigt."
+              : "Datenlauf eingeplant — läuft im Hintergrund (1–4 Minuten).",
+            "info",
+          );
+          void pollJob(j.jobId);
           break;
         }
         default:
@@ -13507,6 +13731,35 @@ function ClientReadinessPanel({ client, onOpenSettings }) {
         Serverseitig geprüft: App-Zugriff, Services, Integrationen, Datenläufe und Portalzugang —
         jede Lücke hat eine direkte Aktion.
       </p>
+      {lauf && (
+        <div
+          style={{
+            background: C.blueDim,
+            border: `1px solid ${C.blue}30`,
+            borderRadius: 10,
+            padding: "9px 14px",
+            fontSize: 12.5,
+            color: C.text,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <RefreshCw size={13} color={C.blue} style={{ animation: "spin 1.2s linear infinite" }} />
+          Datenlauf läuft im Hintergrund ({lauf.status}) — die Ansicht aktualisiert sich
+          automatisch.
+        </div>
+      )}
+      {einladungOffen && (
+        <PortalEinladungDialog
+          client={client}
+          onClose={() => setEinladungOffen(false)}
+          onInvited={async () => {
+            setEinladungOffen(false);
+            await reload();
+          }}
+        />
+      )}
       {data.readiness.map((r) => (
         <div
           key={r.app}
@@ -14119,9 +14372,35 @@ function ClientsPage({
   useEffect(() => {
     if (detailId && !clients.some((c) => c.id === detailId)) setDetailId(null);
   }, [clients, detailId]);
+  // Kundenuebersicht-Readiness (21.08.): ein Batch-Call fuer alle Kunden.
+  const [readyAll, setReadyAll] = useState(null); // Map id -> {status, luecke}
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const token = (await supabase.auth.getSession()).data.session?.access_token;
+        const r = await fetch("/api/admin/client-readiness?all=1", {
+          headers: { Authorization: `Bearer ${token || ""}` },
+        });
+        const j = await r.json().catch(() => null);
+        if (alive && j?.ok) {
+          const m = {};
+          for (const k of j.kunden || []) m[k.id] = { status: k.status, luecke: k.luecke };
+          setReadyAll(m);
+        }
+      } catch {
+        /* Readiness ist Zusatzinfo — Liste funktioniert auch ohne */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [clients.length]);
+  const READY_FILTER = ["bereit", "unvollstaendig", "fehler", "deaktiviert"];
   const fl = clients.filter(
     (c) =>
-      (sf === "all" || c.status === sf) &&
+      (sf === "all" ||
+        (READY_FILTER.includes(sf) ? (readyAll?.[c.id]?.status || "") === sf : c.status === sf)) &&
       (c.name.toLowerCase().includes(search.toLowerCase()) || c.domain.includes(search)),
   );
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -14227,6 +14506,11 @@ function ClientsPage({
             { id: "all", label: "Alle" },
             { id: "active", label: "Aktiv" },
             { id: "paused", label: "Pausiert" },
+            // Einsatzbereitschafts-Filter (21.08.)
+            { id: "bereit", label: "Bereit" },
+            { id: "unvollstaendig", label: "Unvollständig" },
+            { id: "fehler", label: "Fehler" },
+            { id: "deaktiviert", label: "Deaktiviert" },
           ]}
           active={sf}
           onChange={setSf}
@@ -14282,8 +14566,34 @@ function ClientsPage({
                 <Badge color={c.status === "active" ? C.green : C.textMuted}>
                   {c.status === "active" ? "Aktiv" : "Pausiert"}
                 </Badge>
+                {readyAll?.[c.id] && (
+                  <Badge
+                    color={
+                      readyAll[c.id].status === "bereit"
+                        ? C.green
+                        : readyAll[c.id].status === "unvollstaendig"
+                          ? C.orange
+                          : readyAll[c.id].status === "fehler"
+                            ? C.red
+                            : C.textDim
+                    }
+                  >
+                    {READINESS_STATUS_LABEL[readyAll[c.id].status] || readyAll[c.id].status}
+                  </Badge>
+                )}
               </div>
             </div>
+            {readyAll?.[c.id]?.luecke && readyAll[c.id].status !== "bereit" && (
+              <div
+                style={{
+                  fontSize: 11.5,
+                  color: readyAll[c.id].status === "fehler" ? C.red : C.orange,
+                  margin: "-6px 0 10px",
+                }}
+              >
+                Wichtigste Lücke: {readyAll[c.id].luecke}
+              </div>
+            )}
             <div style={{ display: "flex", gap: 5, marginBottom: 14, flexWrap: "wrap" }}>
               <Badge color={C.textDim}>{c.industry || "—"}</Badge>
               {c.tags.map((t) => (
@@ -15099,6 +15409,169 @@ function AnalyseWorkerCard() {
   );
 }
 
+// Systemcheck (Admin-Ausbau 21.08.): zeigt serverseitig geprueft, ob die
+// erwarteten Tabellen/Spalten/RLS wirklich existieren (fehlende Migrationen
+// erschienen frueher als "leere Daten"), plus Worker-Heartbeat und
+// WP-Secret-Migrationsstatus. Quelle: /api/admin/system-check (owner/admin).
+function SystemCheckPanel() {
+  const [data, setData] = useState(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const lade = useCallback(async () => {
+    setBusy(true);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const r = await fetch("/api/admin/system-check", {
+        headers: { Authorization: `Bearer ${token || ""}` },
+      });
+      const j = await r.json().catch(() => null);
+      if (j?.ok) {
+        setData(j);
+        setErr("");
+      } else setErr(j?.error || `HTTP ${r.status}`);
+    } catch (e) {
+      setErr(String(e?.message || e));
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+  useEffect(() => {
+    void lade();
+  }, [lade]);
+  const farbe = (st) =>
+    st === "vorhanden" ? C.green : st === "fehlt" ? C.red : st === "fehlerhaft" ? C.red : C.orange;
+  const label = (st) =>
+    st === "vorhanden"
+      ? "vorhanden"
+      : st === "fehlt"
+        ? "FEHLT"
+        : st === "fehlerhaft"
+          ? "FEHLERHAFT"
+          : "nicht prüfbar";
+  if (err) return <div style={{ fontSize: 13, color: C.red }}>{err}</div>;
+  if (!data) return <div style={{ fontSize: 13, color: C.textMuted }}>Prüfe System…</div>;
+  const workerFarbe =
+    data.worker?.zustand === "aktiv"
+      ? C.green
+      : data.worker?.zustand === "verzoegert"
+        ? C.orange
+        : C.red;
+  const pill = (bg, txt) => (
+    <span
+      style={{
+        fontSize: 11,
+        fontWeight: 700,
+        padding: "3px 10px",
+        borderRadius: 8,
+        background: `${bg}18`,
+        color: bg,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {txt}
+    </span>
+  );
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Systemcheck</h2>
+        <Btn size="sm" variant="secondary" icon={RefreshCw} onClick={lade} disabled={busy}>
+          {busy ? "Prüft…" : "Neu prüfen"}
+        </Btn>
+        <span style={{ fontSize: 11, color: C.textDim }}>
+          Stand {new Date(data.stand).toLocaleTimeString("de-CH")}
+        </span>
+      </div>
+      <div
+        style={{
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: 10,
+          padding: "12px 16px",
+          marginBottom: 14,
+        }}
+      >
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Analyse-Worker</div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          {pill(workerFarbe, data.worker?.zustand || "nicht prüfbar")}
+          <span style={{ fontSize: 11.5, color: C.textMuted }}>
+            {data.worker?.lastRunAt
+              ? `Letzter Lauf ${new Date(data.worker.lastRunAt).toLocaleString("de-CH")} · ${data.worker.jobsProcessed} Etappe(n) · ${data.worker.errors} Fehler`
+              : "Noch kein Lauf registriert"}
+          </span>
+        </div>
+      </div>
+      <div
+        style={{
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: 10,
+          padding: "12px 16px",
+          marginBottom: 14,
+        }}
+      >
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>WordPress-Secrets</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          {pill(C.green, `Aktuell: ${data.secrets.aktuell}`)}
+          {pill(
+            data.secrets.veraltet ? C.orange : C.textMuted,
+            `Veraltet: ${data.secrets.veraltet}`,
+          )}
+          {pill(data.secrets.klartext ? C.red : C.textMuted, `Klartext: ${data.secrets.klartext}`)}
+          {pill(
+            data.secrets.fehlerhaft ? C.red : C.textMuted,
+            `Fehlerhaft: ${data.secrets.fehlerhaft}`,
+          )}
+          <span style={{ fontSize: 11, color: C.textDim }}>
+            {data.secrets.dedizierterSchluessel
+              ? "dedizierter Schlüssel aktiv"
+              : "WP_SECRET_KEY_V1 noch nicht gesetzt"}
+            {data.secrets.strictModus ? " · Klartext-Fallback deaktiviert" : ""}
+          </span>
+        </div>
+      </div>
+      <div
+        style={{
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: 10,
+          padding: "6px 16px",
+        }}
+      >
+        {data.checks.map((c) => (
+          <div
+            key={c.id}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              padding: "9px 0",
+              borderBottom: `1px solid ${C.border}55`,
+              fontSize: 13,
+            }}
+          >
+            <span style={{ flex: 1, minWidth: 0 }}>{c.name}</span>
+            <span
+              style={{
+                fontSize: 11.5,
+                color: C.textDim,
+                maxWidth: 360,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+              title={c.detail}
+            >
+              {c.detail !== "ok" ? c.detail : ""}
+            </span>
+            {pill(farbe(c.status), label(c.status))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SettingsPage({
   tools,
   onToggleTool,
@@ -15127,6 +15600,7 @@ function SettingsPage({
     // Admin-Umbau 06.08.: Agenten-Verwaltung wohnt jetzt hier (statt eigenem
     // Nav-Punkt) — der Eintrag springt auf die (unveränderte) Agents-Seite.
     ...(onOpenAgents ? [["agents", "Agenten & Automatisierung", Bot]] : []),
+    ["system", "Systemcheck", Activity],
     ["about", "Über Ezy One", Info],
   ];
   const providerRows = [
@@ -15694,6 +16168,7 @@ function SettingsPage({
             ))}
           </div>
         )}
+        {sec === "system" && <SystemCheckPanel />}
         {sec === "about" && (
           <div>
             <h2 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 16px" }}>Über Ezy One</h2>

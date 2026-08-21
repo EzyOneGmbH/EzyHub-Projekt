@@ -23,6 +23,7 @@ const Body = z.object({
   role: z.enum(["admin", "member", "viewer"]).optional(),
   userId: z.string().uuid().optional(),
   clientIds: z.array(z.string().uuid()).optional(),
+  nachricht: z.string().max(500).optional(),
 });
 
 export const Route = createFileRoute("/api/admin/team")({
@@ -115,10 +116,37 @@ export const Route = createFileRoute("/api/admin/team")({
               return process.env.PUBLIC_SITE_URL || "";
             }
           })();
+          // Doppelte Einladungen verhindern (21.08.): ist die E-Mail bereits
+          // Mitglied DIESER Organisation, gibt es einen verstaendlichen 409 —
+          // frueher wurde die Rolle still ueberschrieben (Downgrade-Risiko).
+          {
+            const { data: list0 } = await supabaseAdmin.auth.admin.listUsers();
+            const vorhanden = (list0?.users || []).find(
+              (u2) => (u2.email || "").toLowerCase() === d.email!.toLowerCase(),
+            );
+            if (vorhanden) {
+              const { data: mitglied } = await supabaseAdmin
+                .from("app_users")
+                .select("role")
+                .eq("user_id", vorhanden.id)
+                .eq("organization_id", orgId)
+                .maybeSingle();
+              if (mitglied)
+                return Response.json(
+                  {
+                    error: `${d.email} ist bereits Mitglied (Rolle ${(mitglied as any).role}). Rolle oder Kundenzuweisung unter Team bzw. App-Zugriff ändern — keine zweite Einladung nötig.`,
+                  },
+                  { status: 409 },
+                );
+            }
+          }
           const { data: inv, error: invErr } = await supabaseAdmin.auth.admin.inviteUserByEmail(
             d.email,
             {
               redirectTo: origin ? `${origin}/set-password` : undefined,
+              // Optionale persoenliche Nachricht — landet als Invite-Metadata
+              // (im Mail-Template als {{ .Data.nachricht }} verwendbar).
+              ...(d.nachricht ? { data: { nachricht: d.nachricht } } : {}),
             },
           );
           let newUserId = inv?.user?.id;
