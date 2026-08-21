@@ -129,9 +129,7 @@ import {
   EzyPilotButton,
   EzyPilotPage,
 } from "./shared-ui";
-// Re-Export fuer bestehende Importeure (ezyai & Co. importieren inzwischen direkt).
 export { ToastProvider, EzyPilotProvider, EzyPilotPopup, EzyPilotButton };
-export { AiVisibilityTab } from "./AiVisibilityTab";
 // CD-Pattern: durchgehendes Hexagon-Waben-Mesh als Seiten-Textur, sehr dezent
 // Modularisierung 21.08.2026: Bereichs-Module (reines Verschieben).
 // Bundle-Split (21.08.): Bereichs-Module laden LAZY erst in ihrer Ansicht —
