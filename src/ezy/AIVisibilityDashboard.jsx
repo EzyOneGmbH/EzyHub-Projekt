@@ -129,14 +129,15 @@ function HeatLegend({ from = "Schwach", to = "Stark" }) {
 // ── Tokens (angeglichen an EzyOneApps C-Palette) ─────────────────────────────
 // Ezy One CD (2026-08-10): Pale Gray mit Purple-Bias, Purple #77008C als
 // EINE Akzentfarbe für alles Klickbare (vorher generisches #7c3aed-Violett).
+// Redesign 1b (21.08.): Hi-Fi-Tokens (Flächen/Hairlines/Text) — Akzent bleibt.
 const C = {
   page: "transparent",
   card: "#ffffff",
-  cardAlt: "#f7f5f9", // aufgeklappte Zeilen / subtile Panels
-  track: "#ede8f1", // Balken-/Fortschritt-Hintergrund, Chips
-  ink: "#161217", // Haupttext
-  sub: "#6d6473", // gedämpft
-  line: "#eae4ee", // Rahmen
+  cardAlt: "#faf8fb", // aufgeklappte Zeilen / subtile Panels
+  track: "rgba(43,0,51,.06)", // Balken-/Fortschritt-Hintergrund, Chips
+  ink: "#0D0D0D", // Haupttext
+  sub: "#5d5563", // gedämpft
+  line: "rgba(43,0,51,.08)", // Rahmen
   indigo: "#77008C", // Marken-Purple — EINE Akzentfarbe für alles Klickbare
   teal: "#0d9488",
   amber: "#d97706",

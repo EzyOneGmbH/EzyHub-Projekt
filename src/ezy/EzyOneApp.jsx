@@ -1887,6 +1887,34 @@ function TasksDashboard({ selectedClient }) {
             </div>
           </div>
         </div>
+        {/* Redesign 1b (Screen 4e): Gradient-Fortschrittsbalken im Kopf */}
+        {projectTasksAll.length > 0 && (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+            <span
+              style={{
+                width: 120,
+                height: 8,
+                borderRadius: C.rPill,
+                background: "rgba(43,0,51,.06)",
+                display: "inline-block",
+                overflow: "hidden",
+              }}
+            >
+              <span
+                style={{
+                  display: "block",
+                  width: `${Math.round((projectDone / projectTasksAll.length) * 100)}%`,
+                  height: 8,
+                  background: "linear-gradient(90deg,#71008B,#B9009C)",
+                  transition: "width .3s",
+                }}
+              />
+            </span>
+            <span style={{ fontWeight: 700, color: C.accent }}>
+              {Math.round((projectDone / projectTasksAll.length) * 100)} % erledigt
+            </span>
+          </span>
+        )}
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <HideDoneToggle />
           {selectedProject && (
