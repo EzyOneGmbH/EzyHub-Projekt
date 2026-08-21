@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useAppAccess } from "@/ezy/data/useAppAccess";
+import { AppRail, SegmentedTabs } from "@/ezy/shell";
 // Bundle-Split 18.08.: Direktimport aus shared-ui statt aus dem Monolithen.
 import { ToastProvider, EzyPilotProvider, EzyPilotButton, EzyPilotPopup } from "@/ezy/shared-ui";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
@@ -21,14 +22,15 @@ export const Route = createFileRoute("/ezyai-analyse")({
 });
 
 // Ezy One CD Tokens (identisch zu ezyai.tsx).
+// Redesign 1b (21.08.): Hi-Fi-Tokens (Screen 3b).
 const S = {
-  bg: "#f7f5f9",
+  bg: "#FCFCFC",
   panel: "#ffffff",
-  line: "#eae4ee",
-  lineHover: "#d8cede",
-  txt: "#161217",
-  mut: "#6d6473",
-  dim: "#a49dab",
+  line: "rgba(43,0,51,.08)",
+  lineHover: "rgba(43,0,51,.16)",
+  txt: "#0D0D0D",
+  mut: "#5d5563",
+  dim: "#8b8092",
   app: "#77008C",
   appLight: "#B9009C",
   tint: "rgba(119,0,140,.09)",
@@ -307,15 +309,16 @@ function EzyAiAnalyseApp() {
           }}
         >
           <style>{`
-            .anl-side { width: 256px; }
-            @media (max-width: 900px) { .anl-side { display: none; } }
+            .anl-body { margin-left: 76px; }
+            @media (max-width: 900px) { .app-sidebar { display: none; } .anl-body { margin-left: 0; } }
             details.anl-fold > summary { list-style: none; cursor: pointer; }
             details.anl-fold > summary::-webkit-details-marker { display: none; }
             details.anl-fold[open] > summary { border-bottom: 1px solid ${S.line}; }
             details.anl-fold[open] > summary .anl-cl { display: none; }
             details.anl-fold:not([open]) > summary .anl-op { display: none; }
             @media print {
-              .anl-side, .anl-head, .anl-noprint { display: none !important; }
+              .app-sidebar, .anl-head, .anl-noprint { display: none !important; }
+              .anl-body { margin-left: 0 !important; }
               .anl-root { background: #fff !important; background-image: none !important; }
               .anl-main { max-width: none !important; padding: 0 !important; }
               .anl-print-head { display: flex !important; }
@@ -325,233 +328,57 @@ function EzyAiAnalyseApp() {
           `}</style>
           <HexGlowLayer />
 
-          {/* ── Sidebar ── */}
-          <aside
-            className="anl-side"
-            style={{
-              flexShrink: 0,
-              background: S.panel,
-              borderRight: `1px solid ${S.line}`,
-              padding: "18px 14px",
-              display: "flex",
-              flexDirection: "column",
-              gap: 4,
-              boxSizing: "border-box",
-              position: "sticky",
-              top: 0,
-              height: "100vh",
-            }}
-          >
-            <div
-              style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 8px 16px" }}
-            >
-              <div
-                style={{
-                  width: 34,
-                  height: 38,
-                  flexShrink: 0,
-                  background: S.grad,
-                  clipPath: "polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#fff",
-                  fontWeight: 800,
-                  fontSize: 14,
-                  fontFamily: "'Kamerik 105',Poppins,sans-serif",
-                }}
-              >
-                EO
-              </div>
-              <div
-                style={{
-                  fontWeight: 800,
-                  fontSize: 15,
-                  fontFamily: "'Kamerik 105',Poppins,sans-serif",
-                }}
-              >
-                Ezy One
-                <div
-                  style={{
-                    fontWeight: 600,
-                    fontSize: 10.5,
-                    color: S.appLight,
-                    letterSpacing: ".04em",
-                  }}
-                >
-                  ANALYSE
-                </div>
-              </div>
-            </div>
-            <a
-              href="/apps"
-              style={{
-                fontSize: 12,
-                color: S.mut,
-                textDecoration: "none",
-                padding: "6px 10px",
-                borderRadius: 8,
-                marginBottom: 8,
-              }}
-            >
-              ‹ Alle Apps
-            </a>
-            <div
-              style={{
-                fontSize: 10.5,
-                fontWeight: 700,
-                letterSpacing: ".09em",
-                textTransform: "uppercase",
-                color: S.dim,
-                padding: "10px 10px 4px",
-              }}
-            >
-              App
-            </div>
-            <button
-              onClick={() => {
-                setDetail(null);
-                setTab("analyse");
-              }}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "9px 12px",
-                borderRadius: 10,
-                fontSize: 13.5,
-                fontWeight: 600,
-                color: !detail && tab === "analyse" ? S.app : S.mut,
-                background: !detail && tab === "analyse" ? S.tint : "transparent",
-                border: "none",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                textAlign: "left",
-                width: "100%",
-              }}
-            >
-              🔎 Analyse
-            </button>
-            <button
-              onClick={() => {
-                setDetail(null);
-                setTab("verlauf");
-                void loadList();
-              }}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "9px 12px",
-                borderRadius: 10,
-                fontSize: 13.5,
-                fontWeight: 600,
-                color: !detail && tab === "verlauf" ? S.app : S.mut,
-                background: !detail && tab === "verlauf" ? S.tint : "transparent",
-                border: "none",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                textAlign: "left",
-                width: "100%",
-              }}
-            >
-              🕘 Verlauf
-            </button>
-            <div
-              style={{
-                fontSize: 10.5,
-                fontWeight: 700,
-                letterSpacing: ".09em",
-                textTransform: "uppercase",
-                color: S.dim,
-                padding: "12px 10px 4px",
-              }}
-            >
-              Demnächst
-            </div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "9px 12px",
-                fontSize: 13.5,
-                fontWeight: 600,
-                color: S.dim,
-                opacity: 0.5,
-              }}
-            >
-              ⚡ Live-Abfrage (Demo)
-            </div>
-            <div
-              style={{
-                marginTop: "auto",
-                borderTop: `1px solid ${S.line}`,
-                paddingTop: 12,
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-              }}
-            >
-              <div
-                style={{
-                  width: 30,
-                  height: 30,
-                  borderRadius: 999,
-                  background: S.tint,
-                  color: S.appLight,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontWeight: 700,
-                  fontSize: 12,
-                }}
-              >
-                {String((profile as any)?.name || "?")
-                  .trim()
-                  .split(/\s+/)
-                  .map((w: string) => w[0])
-                  .slice(0, 2)
-                  .join("")
-                  .toUpperCase() || "?"}
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div
-                  style={{
-                    fontSize: 12.5,
-                    fontWeight: 600,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
-                  {(profile as any)?.name || "—"}
-                </div>
-                <AppVersionBadge appId="analyse" />
-              </div>
-            </div>
-          </aside>
+          {/* Redesign 1b: Icon-Rail; Analyse/Verlauf wandern als
+            Segmented in den Glas-Header. */}
+          <AppRail
+            current="analyse"
+            canOpen={canOpen}
+            profile={profile}
+            initials={String((profile as any)?.name || "?")
+              .trim()
+              .split(/\s+/)
+              .map((w: string) => w[0])
+              .slice(0, 2)
+              .join("")
+              .toUpperCase()}
+            onLogout={() => supabase.auth.signOut()}
+          />
 
           {/* ── Hauptbereich ── */}
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="anl-body" style={{ flex: 1, minWidth: 0 }}>
             <header
               className="anl-head"
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
-                padding: "12px 22px",
-                background: S.panel,
+                padding: "12px 24px",
+                background: "rgba(252,252,252,.72)",
+                backdropFilter: "blur(20px) saturate(180%)",
                 borderBottom: `1px solid ${S.line}`,
                 position: "sticky",
                 top: 0,
                 zIndex: 30,
               }}
             >
-              <span style={{ fontSize: 12.5, color: S.mut, fontWeight: 600 }}>
-                {detail ? "Ergebnis" : tab === "verlauf" ? "Verlauf" : "Analyse"}
-              </span>
+              <SegmentedTabs
+                color={S.app}
+                items={[
+                  { id: "analyse", label: "Analyse" },
+                  { id: "verlauf", label: "Verlauf" },
+                ]}
+                active={detail ? "verlauf" : tab}
+                onChange={(id: string) => {
+                  setDetail(null);
+                  setTab(id as any);
+                  if (id === "verlauf") void loadList();
+                }}
+              />
+              {detail && (
+                <span style={{ fontSize: 12.5, color: S.mut, fontWeight: 600 }}>› Ergebnis</span>
+              )}
               <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+                <AppVersionBadge appId="analyse" />
                 <EzyPilotButton />
               </div>
             </header>

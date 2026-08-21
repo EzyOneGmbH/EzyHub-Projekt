@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useAppAccess } from "@/ezy/data/useAppAccess";
-import { EZY_APPS } from "@/ezy/data/appRegistry";
+import { AppRail } from "@/ezy/shell";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/reakt")({
@@ -14,12 +14,13 @@ export const Route = createFileRoute("/reakt")({
 // EISERNE REGEL: diese UI kann NIE senden — Entwürfe öffnet man in Outlook,
 // nur der 03:00-Zeitplan lässt sich (mit Bestätigung) schalten.
 // Light Studio (2026-08-03): hell à la Searchable
+// Redesign 1b (21.08.): Hi-Fi-Neutrale; Reakt-Gruen bleibt App-Farbe.
 const S = {
-  bg: "#f7f6f2",
+  bg: "#FCFCFC",
   panel: "#ffffff",
-  line: "#e8e6df",
-  txt: "#1c1c1e",
-  mut: "#6e6c64",
+  line: "rgba(43,0,51,.08)",
+  txt: "#0D0D0D",
+  mut: "#5d5563",
   app: "#059669",
   appTint: "rgba(5,150,105,.10)",
   warn: "#b45309",
@@ -56,7 +57,6 @@ function ReaktApp() {
   const navigate = useNavigate();
   const { session, loading: authLoading, role, isOrgAdmin } = useAuth();
   const { canOpen, loading: accessLoading } = useAppAccess();
-  const [swOpen, setSwOpen] = useState(false);
   const [status, setStatus] = useState<{
     waves: Wave[];
     noted: number;
@@ -132,6 +132,7 @@ function ReaktApp() {
 
   return (
     <div
+      className="reakt-root"
       style={{
         minHeight: "100vh",
         background: S.bg,
@@ -140,130 +141,36 @@ function ReaktApp() {
       }}
     >
       {/* Mobile (01.08.): Header umbricht, engere Paddings, Karten einspaltig */}
-      <style>{`@media(max-width:640px){
+      <style>{`
+      .reakt-root{padding-left:76px}
+      @media(max-width:900px){.reakt-root{padding-left:0}.app-sidebar{display:none}}
+      @media(max-width:640px){
         .reakt-head{flex-wrap:wrap!important;gap:8px!important;padding:8px 10px!important}
         .reakt-main{padding:14px 10px 48px!important}
       }`}</style>
+      {/* Redesign 1b: Icon-Rail ersetzt den Grip-Switcher im Header. */}
+      <AppRail
+        current="reakt"
+        canOpen={canOpen}
+        profile={{ name: session.user?.email || "", role }}
+        initials={(session.user?.email || "?").slice(0, 2).toUpperCase()}
+        onLogout={() => supabase.auth.signOut()}
+      />
       <header
         className="reakt-head"
         style={{
           display: "flex",
           alignItems: "center",
           gap: 14,
-          padding: "10px 18px",
-          background: S.panel,
+          padding: "12px 24px",
+          background: "rgba(252,252,252,.72)",
+          backdropFilter: "blur(20px) saturate(180%)",
           borderBottom: `1px solid ${S.line}`,
           position: "sticky",
           top: 0,
           zIndex: 100,
         }}
       >
-        <div style={{ position: "relative" }}>
-          <button
-            onClick={() => setSwOpen((v) => !v)}
-            title="App wechseln"
-            style={{
-              background: "none",
-              border: "none",
-              color: S.mut,
-              fontSize: 16,
-              cursor: "pointer",
-              padding: "6px 8px",
-              borderRadius: 8,
-              letterSpacing: 1,
-            }}
-          >
-            ⣿
-          </button>
-          {swOpen && (
-            <div
-              style={{
-                position: "absolute",
-                top: "100%",
-                left: 0,
-                zIndex: 200,
-                width: 240,
-                background: S.panel,
-                border: `1px solid ${S.line}`,
-                borderRadius: 12,
-                padding: 8,
-                boxShadow: "0 14px 44px rgba(0,0,0,.14)",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 10,
-                  textTransform: "uppercase",
-                  letterSpacing: ".08em",
-                  color: S.mut,
-                  padding: "4px 10px 8px",
-                  fontWeight: 700,
-                }}
-              >
-                Apps wechseln
-              </div>
-              {EZY_APPS.filter((a) => canOpen(a.id)).map((a) => {
-                const active = a.id === "reakt";
-                return (
-                  <a
-                    key={a.id}
-                    href={a.href}
-                    onClick={(e) => {
-                      if (active) {
-                        e.preventDefault();
-                        setSwOpen(false);
-                      }
-                    }}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      padding: "8px 10px",
-                      borderRadius: 8,
-                      fontSize: 13,
-                      textDecoration: "none",
-                      color: active ? a.color : S.txt,
-                      background: active ? a.tint : "none",
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: 24,
-                        height: 24,
-                        borderRadius: 6,
-                        background: a.tint,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 13,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {a.icon}
-                    </span>
-                    {a.name}
-                  </a>
-                );
-              })}
-              <div style={{ borderTop: `1px solid ${S.line}`, margin: "8px 4px" }} />
-              <a
-                href="/apps"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: "8px 10px",
-                  borderRadius: 8,
-                  fontSize: 12.5,
-                  textDecoration: "none",
-                  color: S.mut,
-                }}
-              >
-                ✦ Zum Launcher
-              </a>
-            </div>
-          )}
-        </div>
         <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
           <span
             style={{
