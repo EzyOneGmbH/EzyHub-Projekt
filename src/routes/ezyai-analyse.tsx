@@ -311,7 +311,7 @@ function EzyAiAnalyseApp() {
           <style>{`
             .anl-body { margin-left: 76px; }
             .anl-apps { display: none; }
-            @media (max-width: 900px) { .app-sidebar { display: none; } .anl-body { margin-left: 0; } .anl-apps { display: inline-flex; } }
+            @media (max-width: 900px) { .app-sidebar { display: none !important; } .anl-body { margin-left: 0; } .anl-apps { display: inline-flex; } }
             details.anl-fold > summary { list-style: none; cursor: pointer; }
             details.anl-fold > summary::-webkit-details-marker { display: none; }
             details.anl-fold[open] > summary { border-bottom: 1px solid ${S.line}; }

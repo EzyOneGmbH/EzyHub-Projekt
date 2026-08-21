@@ -144,7 +144,7 @@ function ReaktApp() {
       <style>{`
       .reakt-root{padding-left:76px}
       .reakt-apps{display:none}
-      @media(max-width:900px){.reakt-root{padding-left:0}.app-sidebar{display:none}.reakt-apps{display:inline-flex}}
+      @media(max-width:900px){.reakt-root{padding-left:0}.app-sidebar{display:none!important}.reakt-apps{display:inline-flex}}
       @media(max-width:640px){
         .reakt-head{flex-wrap:wrap!important;gap:8px!important;padding:8px 10px!important}
         .reakt-main{padding:14px 10px 48px!important}

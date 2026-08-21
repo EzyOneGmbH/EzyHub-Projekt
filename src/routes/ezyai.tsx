@@ -5331,7 +5331,7 @@ function EzyAiApp() {
         .ezyai-body{flex:1;min-width:0;margin-left:${SIDEBAR_W}px}
         .ezyai-mnav{display:none}
         @media(max-width:900px){
-          .app-sidebar{display:none}
+          .app-sidebar{display:none!important}
           .ezyai-body{margin-left:0}
           .ezyai-mnav{display:block;position:sticky;top:0;z-index:40;background:${S.panel};border-bottom:1px solid ${S.line};padding:8px 10px;overflow-x:auto}
           /* Mobile (08.08.): nur die Chip-Nav bleibt sticky — Kopfzeile scrollt
