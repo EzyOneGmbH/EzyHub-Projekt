@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { AppRail, SegmentedTabs } from "@/ezy/shell";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -5121,19 +5122,20 @@ export const Route = createFileRoute("/ezyai")({
 // neu gebaut — diese Route liefert nur die App-Shell drumherum (Header mit
 // App-Switcher, Kunden-Auswahl, Service-Gate). Muster für Phase 3.
 // Ezy One CD (2026-08-10): Pale Gray mit Purple-Bias, Purple #77008C als Akzent.
+// Redesign 1b (21.08.): Hi-Fi-Tokens — EzyAI-App-Farbe #7c3aed fuer die
+// Segmented-Auszeichnung, Marken-Purple bleibt fuer Aktionen.
 const S = {
-  bg: "#f7f5f9",
+  bg: "#FCFCFC",
   panel: "#ffffff",
-  line: "#eae4ee",
-  txt: "#161217",
-  mut: "#6d6473",
+  line: "rgba(43,0,51,.08)",
+  txt: "#0D0D0D",
+  mut: "#5d5563",
   app: "#77008C",
-  appTint: "rgba(119,0,140,.09)",
-  // Shell-Nav (identisch zur EzyRank-Shell): accentDim/accentLight.
-  navAccent: "#B9009C",
-  navDim: "rgba(119,0,140,0.09)",
+  appTint: "rgba(119,0,140,.10)",
+  navAccent: "#7c3aed",
+  navDim: "rgba(124,58,237,.10)",
 };
-const SIDEBAR_W = 256;
+const SIDEBAR_W = 76;
 // CD-Pattern: Hexagon-Waben-Mesh als Seiten-Textur, sehr dezent (4% Purple).
 const HEX_BG = `url("data:image/svg+xml,%3Csvg width='28' height='49' viewBox='0 0 28 49' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M13.99 9.25l13 7.5v15l-13 7.5L1 31.75v-15l12.99-7.5zM3 17.9v12.7l10.99 6.34 11-6.35V17.9l-11-6.34L3 17.9zM0 15l12.98-7.5V0h-2v6.35L0 12.69v2.3zm0 18.5L12.98 41v8h-2v-6.85L0 35.81v-2.3zM15 0v7.5L27.99 15H28v-2.31h-.01L17 6.35V0h-2zm0 49v-8l12.99-7.5H28v2.31h-.01L17 42.15V49h-2z' fill='%2377008C' fill-opacity='0.04' fill-rule='evenodd'/%3E%3C/svg%3E")`;
 const CLIENT_LS = "ezyai.clientId";
@@ -5325,11 +5327,11 @@ function EzyAiApp() {
           {/* Mobile (04.08.): Shell-Sidebar wird zur horizontalen Leiste oben. */}
           <style>{`
         .ezyai-shell{display:flex;min-height:100vh}
-        .ezyai-side{width:${SIDEBAR_W}px;flex-shrink:0;background:${S.panel};border-right:1px solid ${S.line};display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:50;overflow-y:auto}
+        .ezyai-side{display:none}
         .ezyai-body{flex:1;min-width:0;margin-left:${SIDEBAR_W}px}
         .ezyai-mnav{display:none}
         @media(max-width:900px){
-          .ezyai-side{display:none}
+          .app-sidebar{display:none}
           .ezyai-body{margin-left:0}
           .ezyai-mnav{display:block;position:sticky;top:0;z-index:40;background:${S.panel};border-bottom:1px solid ${S.line};padding:8px 10px;overflow-x:auto}
           /* Mobile (08.08.): nur die Chip-Nav bleibt sticky — Kopfzeile scrollt
@@ -5341,361 +5343,15 @@ function EzyAiApp() {
 
           <div className="ezyai-shell">
             {/* ── Shell-Seitenleiste (identisch zur EzyRank-Shell) ─────────────── */}
-            <aside className="ezyai-side">
-              {/* Logo */}
-              <div
-                style={{
-                  padding: "20px 20px",
-                  borderBottom: `1px solid ${S.line}`,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                }}
-              >
-                {/* CD-Symbol: neues Marken-Icon (E + Power-O im Hexagon). */}
-                <EzyOneMark width={34} />
-                <div>
-                  {/* CD: Wortmarke "Ezy One" — Sentence case, nie ALL CAPS. */}
-                  <div
-                    style={{
-                      fontWeight: 700,
-                      fontSize: 15,
-                      letterSpacing: "-.2px",
-                      fontFamily: "'Kamerik 105',Poppins,sans-serif",
-                    }}
-                  >
-                    Ezy One
-                  </div>
-                  <div style={{ fontSize: 10, color: S.mut }}>SEO &amp; GEO Platform</div>
-                </div>
-              </div>
-
-              {/* App-Switcher */}
-              <div
-                style={{
-                  position: "relative",
-                  borderBottom: `1px solid ${S.line}`,
-                  padding: "8px 10px",
-                }}
-              >
-                <button
-                  onClick={() => setSwOpen((v) => !v)}
-                  title="App wechseln"
-                  style={{
-                    width: "100%",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 9,
-                    background: swOpen ? "rgba(0,0,0,.05)" : "none",
-                    border: "none",
-                    borderRadius: 8,
-                    padding: "8px 10px",
-                    color: S.app,
-                    cursor: "pointer",
-                    fontSize: 12.5,
-                    fontWeight: 600,
-                  }}
-                >
-                  <span style={{ fontSize: 14, lineHeight: 1, letterSpacing: 1 }}>⣿</span>
-                  <span style={{ color: S.app }}>EzyAI</span>
-                </button>
-                {swOpen && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: "100%",
-                      left: 10,
-                      zIndex: 200,
-                      width: 236,
-                      background: S.panel,
-                      border: `1px solid ${S.line}`,
-                      borderRadius: 12,
-                      padding: 8,
-                      boxShadow: "0 14px 44px rgba(0,0,0,.14)",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 10,
-                        textTransform: "uppercase",
-                        letterSpacing: ".08em",
-                        color: S.mut,
-                        padding: "4px 10px 8px",
-                        fontWeight: 700,
-                      }}
-                    >
-                      Apps wechseln
-                    </div>
-                    {EZY_APPS.filter((a) => canOpen(a.id)).map((a) => {
-                      const active = a.id === "geo";
-                      return (
-                        <a
-                          key={a.id}
-                          href={a.href}
-                          onClick={(e) => {
-                            if (active) {
-                              e.preventDefault();
-                              setSwOpen(false);
-                            }
-                          }}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 10,
-                            padding: "8px 10px",
-                            borderRadius: 8,
-                            fontSize: 13,
-                            textDecoration: "none",
-                            color: active ? a.color : S.txt,
-                            background: active ? a.tint : "none",
-                          }}
-                        >
-                          <span
-                            style={{
-                              width: 24,
-                              height: 24,
-                              borderRadius: 6,
-                              background: a.tint,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              fontSize: 13,
-                              flexShrink: 0,
-                            }}
-                          >
-                            {a.icon}
-                          </span>
-                          {a.name}
-                        </a>
-                      );
-                    })}
-                    <div style={{ borderTop: `1px solid ${S.line}`, margin: "8px 4px" }} />
-                    <a
-                      href="/apps"
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                        padding: "8px 10px",
-                        borderRadius: 8,
-                        fontSize: 12.5,
-                        textDecoration: "none",
-                        color: S.mut,
-                      }}
-                    >
-                      ✦ Zum Launcher
-                    </a>
-                  </div>
-                )}
-              </div>
-
-              {/* Kunden-Auswahl (Searchable-Position: oben in der Sidebar) */}
-              <div style={{ padding: "10px 12px", borderBottom: `1px solid ${S.line}` }}>
-                <select
-                  value={showAll ? "__all" : client?.id || ""}
-                  onChange={(e) => pickClient(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    background: S.bg,
-                    color: S.txt,
-                    border: `1px solid ${S.line}`,
-                    fontSize: 13,
-                    fontFamily: "inherit",
-                  }}
-                >
-                  <option value="__all">Alle Kunden</option>
-                  {clients.map((c: any) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Dashboard / Agent — Switcher */}
-              <div style={{ padding: "10px 12px", borderBottom: `1px solid ${S.line}` }}>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 4,
-                    background: S.bg,
-                    border: `1px solid ${S.line}`,
-                    borderRadius: 10,
-                    padding: 3,
-                  }}
-                >
-                  {(
-                    [
-                      ["dashboard", "Dashboard", LayoutDashboard],
-                      ["agent", "Agent", Bot],
-                    ] as const
-                  ).map(([v, label, Icon]) => {
-                    const a = view === v;
-                    return (
-                      <button
-                        key={v}
-                        onClick={() => setView(v)}
-                        style={{
-                          flex: 1,
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: 6,
-                          padding: "7px 10px",
-                          borderRadius: 8,
-                          border: "none",
-                          cursor: "pointer",
-                          background: a ? S.panel : "transparent",
-                          color: a ? S.txt : S.mut,
-                          fontSize: 12.5,
-                          fontWeight: a ? 700 : 500,
-                          boxShadow: a ? "0 1px 2px rgba(0,0,0,.06)" : "none",
-                          fontFamily: "inherit",
-                        }}
-                      >
-                        <Icon size={14} />
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* App-Nav (AEO Insights aktiv, Rest In Vorbereitung). Bei "Alle
-              Kunden" (Agentur-Übersicht) bleibt die Navigation bewusst leer —
-              die Bereiche sind kundenspezifisch (Volkan 10.08.). */}
-              <nav style={{ flex: 1, padding: "12px 8px", overflowY: "auto" }}>
-                {!showAll &&
-                  APP_NAV.map((g, gi) => (
-                    <div key={g.group} style={{ marginTop: gi ? 14 : 0 }}>
-                      <div
-                        style={{
-                          padding: "0 14px 6px",
-                          fontSize: 10.5,
-                          fontWeight: 600,
-                          letterSpacing: ".06em",
-                          textTransform: "uppercase",
-                          color: S.mut,
-                        }}
-                      >
-                        {g.group}
-                      </div>
-                      {g.items.map((t) => {
-                        const Icon = t.icon;
-                        const a = view === "dashboard" && section === t.id;
-                        return (
-                          <button
-                            key={t.id}
-                            onClick={() => {
-                              setView("dashboard");
-                              setSection(t.id);
-                            }}
-                            style={{
-                              width: "100%",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 12,
-                              padding: "10px 14px",
-                              borderRadius: 10,
-                              border: "none",
-                              cursor: "pointer",
-                              background: a ? S.navDim : "transparent",
-                              color: a ? S.navAccent : S.mut,
-                              fontSize: 13,
-                              fontWeight: a ? 600 : 400,
-                              marginBottom: 2,
-                              transition: "all .15s",
-                              fontFamily: "inherit",
-                            }}
-                          >
-                            <Icon size={18} />
-                            <span
-                              style={{
-                                flex: 1,
-                                minWidth: 0,
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                                textAlign: "left",
-                              }}
-                            >
-                              {t.label}
-                            </span>
-                            {t.badge && t.badge > 0 ? (
-                              <span
-                                style={{
-                                  background: "#fdf6e3",
-                                  color: "#8a6d1b",
-                                  borderRadius: 99,
-                                  padding: "1px 7px",
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                }}
-                              >
-                                {t.badge}
-                              </span>
-                            ) : null}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ))}
-              </nav>
-
-              {/* Der frühere "Prompts verwalten"-Button ist weg (18.08.) — die
-              Kuration lebt als regulärer Bereich "Your Prompts" in der Nav. */}
-
-              {/* Profil */}
-              <div
-                style={{
-                  padding: "12px 16px",
-                  borderTop: `1px solid ${S.line}`,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                }}
-              >
-                <div
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 8,
-                    background: S.app,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: "#fff",
-                  }}
-                >
-                  {initials(profile.name)}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: S.txt,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {profile.name || "—"}
-                  </div>
-                  <div style={{ fontSize: 10, color: S.mut }}>{profile.role}</div>
-                </div>
-                <LogOut
-                  size={14}
-                  color={S.mut}
-                  style={{ cursor: "pointer" }}
-                  onClick={() => supabase.auth.signOut()}
-                />
-              </div>
-            </aside>
+            {/* Redesign 1b: Icon-Rail ersetzt die Sidebar; Kunden-Pill,
+              Dashboard/Agent und Bereichs-Segmented leben im Glas-Header. */}
+            <AppRail
+              current="geo"
+              canOpen={canOpen}
+              profile={profile}
+              initials={initials(profile.name)}
+              onLogout={() => supabase.auth.signOut()}
+            />
 
             {/* ── Content ──────────────────────────────────────────────────────── */}
             <div className="ezyai-body">
@@ -5792,14 +5448,67 @@ function EzyAiApp() {
                   display: "flex",
                   alignItems: "center",
                   gap: 10,
-                  padding: "12px 22px",
-                  background: S.panel,
+                  padding: "12px 24px",
+                  background: "rgba(252,252,252,.72)",
+                  backdropFilter: "blur(20px) saturate(180%)",
                   borderBottom: `1px solid ${S.line}`,
                   position: "sticky",
                   top: 0,
                   zIndex: 30,
                 }}
               >
+                {/* Kunden-Pill (Hi-Fi ClientSwitcher) — funktional das select */}
+                <select
+                  aria-label="Kunde"
+                  value={showAll ? "__all" : client?.id || ""}
+                  onChange={(e) => pickClient(e.target.value)}
+                  style={{
+                    appearance: "none",
+                    WebkitAppearance: "none",
+                    padding: "8px 26px 8px 12px",
+                    borderRadius: 10,
+                    background:
+                      "#fff url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%238b8092%22 stroke-width=%222.5%22><path d=%22m6 9 6 6 6-6%22/></svg>') no-repeat right 9px center",
+                    color: S.txt,
+                    border: `1px solid rgba(43,0,51,.09)`,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    fontFamily: "inherit",
+                    outline: "none",
+                    maxWidth: 210,
+                    flexShrink: 0,
+                    boxShadow: "0 1px 2px rgba(43,0,51,.04)",
+                  }}
+                >
+                  <option value="__all">Alle Kunden</option>
+                  {clients.map((c: any) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                {/* Bereichs-Segmented (Hi-Fi 3a) — App-Nav + Agent, scrollbar */}
+                {!showAll && (
+                  <SegmentedTabs
+                    color={S.navAccent}
+                    items={[
+                      ...APP_NAV.flatMap((g: any) => g.items).map((t: any) => ({
+                        id: `sec:${t.id}`,
+                        label: t.badge && t.badge > 0 ? `${t.label} (${t.badge})` : t.label,
+                      })),
+                      { id: "view:agent", label: "Agent" },
+                    ]}
+                    active={view === "agent" ? "view:agent" : `sec:${section}`}
+                    onChange={(id: string) => {
+                      const [art, wert] = id.split(":");
+                      if (art === "view") setView(wert as any);
+                      else {
+                        setView("dashboard");
+                        setSection(wert);
+                      }
+                    }}
+                  />
+                )}
                 {/* Filter statt Titel im Header (Volkan 10.08., wie EzyRank) —
                 der Bereichs-Titel steht jetzt im Body. */}
                 {view !== "agent" && !showAll && (

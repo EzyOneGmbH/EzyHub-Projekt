@@ -21,7 +21,8 @@ const ERWARTET: Record<string, string[]> = {
 
 describe("Bereichs-Module exportieren ihre Lazy-Oberflaeche", () => {
   for (const [mod, namen] of Object.entries(ERWARTET)) {
-    it(mod, async () => {
+    // 30s-Timeout: der erste Import eines grossen Moduls transformiert kalt >5s.
+    it(mod, { timeout: 30_000 }, async () => {
       const m: Record<string, unknown> = await import(/* @vite-ignore */ mod);
       for (const n of namen) {
         expect(typeof m[n], `${mod} → ${n}`).toMatch(/function|object/);
