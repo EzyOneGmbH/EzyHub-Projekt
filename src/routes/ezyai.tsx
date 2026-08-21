@@ -12,7 +12,13 @@ import { useEzyServiceMatrix } from "@/ezy/data/useEzyServiceMatrix";
 // Bundle-Split 18.08.: Direktimporte aus den extrahierten Modulen — /ezyai
 // laedt den 1.2-MB-Monolith-Chunk (EzyOneApp) nicht mehr.
 import { AiVisibilityTab } from "@/ezy/AiVisibilityTab";
-import { ToastProvider, EzyPilotProvider, EzyPilotButton, EzyPilotPopup } from "@/ezy/shared-ui";
+import {
+  ToastProvider,
+  EzyPilotProvider,
+  EzyPilotButton,
+  EzyPilotFab,
+  EzyPilotPopup,
+} from "@/ezy/shared-ui";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
 import { EzyOneMark } from "@/components/ezy-one-mark";
 import {
@@ -54,6 +60,7 @@ import {
   Sparkles,
   Trophy,
   Bell,
+  LayoutGrid,
 } from "lucide-react";
 
 // Initialen aus einem Namen (Shell-Profilblock, wie in der EzyRank-Shell).
@@ -5136,6 +5143,21 @@ const S = {
   navDim: "rgba(124,58,237,.10)",
 };
 const SIDEBAR_W = 76;
+
+// Redesign 1b (2h): Stil eines Bottom-Tab-Bar-Buttons (aktiv = Akzentfarbe).
+const tabBtn = (active: boolean): React.CSSProperties => ({
+  flex: 1,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  gap: 3,
+  padding: "2px 0",
+  border: "none",
+  background: "transparent",
+  cursor: "pointer",
+  fontFamily: "inherit",
+  color: active ? S.navAccent : S.mut,
+});
 // CD-Pattern: Hexagon-Waben-Mesh als Seiten-Textur, sehr dezent (4% Purple).
 const HEX_BG = `url("data:image/svg+xml,%3Csvg width='28' height='49' viewBox='0 0 28 49' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M13.99 9.25l13 7.5v15l-13 7.5L1 31.75v-15l12.99-7.5zM3 17.9v12.7l10.99 6.34 11-6.35V17.9l-11-6.34L3 17.9zM0 15l12.98-7.5V0h-2v6.35L0 12.69v2.3zm0 18.5L12.98 41v8h-2v-6.85L0 35.81v-2.3zM15 0v7.5L27.99 15H28v-2.31h-.01L17 6.35V0h-2zm0 49v-8l12.99-7.5H28v2.31h-.01L17 42.15V49h-2z' fill='%2377008C' fill-opacity='0.04' fill-rule='evenodd'/%3E%3C/svg%3E")`;
 const CLIENT_LS = "ezyai.clientId";
@@ -5330,9 +5352,12 @@ function EzyAiApp() {
         .ezyai-side{display:none}
         .ezyai-body{flex:1;min-width:0;margin-left:${SIDEBAR_W}px}
         .ezyai-mnav{display:none}
+        .ezyai-tabbar{display:none}
         @media(max-width:900px){
           .app-sidebar{display:none!important}
           .ezyai-body{margin-left:0}
+          .ezyai-main{padding-bottom:calc(env(safe-area-inset-bottom, 0px) + 84px)!important}
+          .ezyai-tabbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:90;justify-content:space-around;align-items:stretch;padding:8px 6px calc(env(safe-area-inset-bottom, 0px) + 8px);background:rgba(252,252,252,.9);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border-top:1px solid ${S.line}}
           .ezyai-mnav{display:block;position:sticky;top:0;z-index:40;background:${S.panel};border-bottom:1px solid ${S.line};padding:8px 10px;overflow-x:auto}
           /* Mobile (08.08.): nur die Chip-Nav bleibt sticky — Kopfzeile scrollt
              mit, sonst fressen zwei fixierte Leisten ~110px Viewport-Höhe. */
@@ -5356,61 +5381,23 @@ function EzyAiApp() {
 
             {/* ── Content ──────────────────────────────────────────────────────── */}
             <div className="ezyai-body">
-              {/* Mobile-Nav: Dashboard/Agent + Kunden + App-Bereiche als Chips */}
+              {/* Mobile-Nav (2h): Kunden-Pill + App-Bereiche als Chips.
+                Dashboard/Agent + Apps + EzyPilot leben in der Bottom-Tab-Bar. */}
               <div className="ezyai-mnav">
                 <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 8 }}>
-                  {/* 2j: mobiler App-Einstieg — die Rail ist <900px ausgeblendet */}
-                  <a
-                    href="/apps"
-                    style={{
-                      padding: "6px 10px",
-                      borderRadius: 8,
-                      textDecoration: "none",
-                      background: S.bg,
-                      color: S.mut,
-                      fontSize: 12.5,
-                      fontWeight: 700,
-                      flexShrink: 0,
-                    }}
-                  >
-                    ✦ Apps
-                  </a>
-                  {(
-                    [
-                      ["dashboard", "Dashboard"],
-                      ["agent", "Agent"],
-                    ] as const
-                  ).map(([v, label]) => (
-                    <button
-                      key={v}
-                      onClick={() => setView(v)}
-                      style={{
-                        padding: "6px 12px",
-                        borderRadius: 8,
-                        border: "none",
-                        cursor: "pointer",
-                        background: view === v ? S.navDim : S.bg,
-                        color: view === v ? S.navAccent : S.mut,
-                        fontSize: 12.5,
-                        fontWeight: view === v ? 700 : 500,
-                        fontFamily: "inherit",
-                      }}
-                    >
-                      {label}
-                    </button>
-                  ))}
                   <select
                     value={showAll ? "__all" : client?.id || ""}
                     onChange={(e) => pickClient(e.target.value)}
                     style={{
-                      marginLeft: "auto",
-                      padding: "6px 8px",
-                      borderRadius: 8,
-                      background: S.bg,
+                      padding: "8px 10px",
+                      borderRadius: 999,
+                      background: "#fff",
                       color: S.txt,
                       border: `1px solid ${S.line}`,
                       fontSize: 12.5,
-                      maxWidth: 180,
+                      fontWeight: 700,
+                      fontFamily: "inherit",
+                      maxWidth: "70%",
                     }}
                   >
                     <option value="__all">Alle Kunden</option>
@@ -5767,6 +5754,29 @@ function EzyAiApp() {
               </main>
             </div>
           </div>
+          {/* Redesign 1b (Screen 2h): native Bottom-Tab-Bar (nur <900px) —
+            Dashboard/Agent + EzyPilot + Apps; ersetzt die Rail auf dem Handy. */}
+          <nav className="ezyai-tabbar">
+            <button
+              onClick={() => setView("dashboard")}
+              style={tabBtn(view === "dashboard")}
+              title="Dashboard"
+            >
+              <LayoutDashboard size={21} />
+              <span style={{ fontSize: 9.5, fontWeight: 700 }}>Dashboard</span>
+            </button>
+            <button onClick={() => setView("agent")} style={tabBtn(view === "agent")} title="Agent">
+              <Bot size={21} />
+              <span style={{ fontSize: 9.5, fontWeight: 700 }}>Agent</span>
+            </button>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <EzyPilotFab size={44} elevated />
+            </div>
+            <a href="/apps" style={{ ...tabBtn(false), textDecoration: "none" }} title="Alle Apps">
+              <LayoutGrid size={21} />
+              <span style={{ fontSize: 9.5, fontWeight: 700 }}>Apps</span>
+            </a>
+          </nav>
           {/* EzyPilot-Popup (identisch zu den anderen Apps, Volkan 13.08.). */}
           <EzyPilotPopup />
         </div>

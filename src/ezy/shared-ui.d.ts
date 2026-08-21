@@ -24,6 +24,7 @@ export declare function EzyPilotProvider(props: {
 }): ReactElement;
 export declare function EzyPilotPopup(): ReactElement | null;
 export declare function EzyPilotButton(): ReactElement;
+export declare function EzyPilotFab(props: { size?: number; elevated?: boolean }): ReactElement;
 export declare function EzyPilotPage(props: {
   selectedClient: { id: string } | null;
 }): ReactElement;
