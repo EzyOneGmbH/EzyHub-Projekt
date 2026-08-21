@@ -5337,6 +5337,7 @@ function EzyAiApp() {
           /* Mobile (08.08.): nur die Chip-Nav bleibt sticky — Kopfzeile scrollt
              mit, sonst fressen zwei fixierte Leisten ~110px Viewport-Höhe. */
           .ezyai-chead{flex-wrap:wrap!important;gap:8px!important;padding:10px!important;position:static!important}
+          .ezyai-chead-nav{display:none!important}
           .ezyai-main{padding:14px 10px 48px!important}
         }
       `}</style>
@@ -5473,58 +5474,65 @@ function EzyAiApp() {
                   zIndex: 30,
                 }}
               >
-                {/* Kunden-Pill (Hi-Fi ClientSwitcher) — funktional das select */}
-                <select
-                  aria-label="Kunde"
-                  value={showAll ? "__all" : client?.id || ""}
-                  onChange={(e) => pickClient(e.target.value)}
-                  style={{
-                    appearance: "none",
-                    WebkitAppearance: "none",
-                    padding: "8px 26px 8px 12px",
-                    borderRadius: 10,
-                    background:
-                      "#fff url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%238b8092%22 stroke-width=%222.5%22><path d=%22m6 9 6 6 6-6%22/></svg>') no-repeat right 9px center",
-                    color: S.txt,
-                    border: `1px solid rgba(43,0,51,.09)`,
-                    fontSize: 13,
-                    fontWeight: 700,
-                    fontFamily: "inherit",
-                    outline: "none",
-                    maxWidth: 210,
-                    flexShrink: 0,
-                    boxShadow: "0 1px 2px rgba(43,0,51,.04)",
-                  }}
+                {/* Kunden-Pill + Bereichs-Segmented — auf Mobile ausgeblendet,
+                  dort übernimmt die Chip-Leiste (.ezyai-mnav) beides. */}
+                <div
+                  className="ezyai-chead-nav"
+                  style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}
                 >
-                  <option value="__all">Alle Kunden</option>
-                  {clients.map((c: any) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-                {/* Bereichs-Segmented (Hi-Fi 3a) — App-Nav + Agent, scrollbar */}
-                {!showAll && (
-                  <SegmentedTabs
-                    color={S.navAccent}
-                    items={[
-                      ...APP_NAV.flatMap((g: any) => g.items).map((t: any) => ({
-                        id: `sec:${t.id}`,
-                        label: t.badge && t.badge > 0 ? `${t.label} (${t.badge})` : t.label,
-                      })),
-                      { id: "view:agent", label: "Agent" },
-                    ]}
-                    active={view === "agent" ? "view:agent" : `sec:${section}`}
-                    onChange={(id: string) => {
-                      const [art, wert] = id.split(":");
-                      if (art === "view") setView(wert as any);
-                      else {
-                        setView("dashboard");
-                        setSection(wert);
-                      }
+                  {/* Kunden-Pill (Hi-Fi ClientSwitcher) — funktional das select */}
+                  <select
+                    aria-label="Kunde"
+                    value={showAll ? "__all" : client?.id || ""}
+                    onChange={(e) => pickClient(e.target.value)}
+                    style={{
+                      appearance: "none",
+                      WebkitAppearance: "none",
+                      padding: "8px 26px 8px 12px",
+                      borderRadius: 10,
+                      background:
+                        "#fff url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%238b8092%22 stroke-width=%222.5%22><path d=%22m6 9 6 6 6-6%22/></svg>') no-repeat right 9px center",
+                      color: S.txt,
+                      border: `1px solid rgba(43,0,51,.09)`,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      fontFamily: "inherit",
+                      outline: "none",
+                      maxWidth: 210,
+                      flexShrink: 0,
+                      boxShadow: "0 1px 2px rgba(43,0,51,.04)",
                     }}
-                  />
-                )}
+                  >
+                    <option value="__all">Alle Kunden</option>
+                    {clients.map((c: any) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                  {/* Bereichs-Segmented (Hi-Fi 3a) — App-Nav + Agent, scrollbar */}
+                  {!showAll && (
+                    <SegmentedTabs
+                      color={S.navAccent}
+                      items={[
+                        ...APP_NAV.flatMap((g: any) => g.items).map((t: any) => ({
+                          id: `sec:${t.id}`,
+                          label: t.badge && t.badge > 0 ? `${t.label} (${t.badge})` : t.label,
+                        })),
+                        { id: "view:agent", label: "Agent" },
+                      ]}
+                      active={view === "agent" ? "view:agent" : `sec:${section}`}
+                      onChange={(id: string) => {
+                        const [art, wert] = id.split(":");
+                        if (art === "view") setView(wert as any);
+                        else {
+                          setView("dashboard");
+                          setSection(wert);
+                        }
+                      }}
+                    />
+                  )}
+                </div>
                 {/* Filter statt Titel im Header (Volkan 10.08., wie EzyRank) —
                 der Bereichs-Titel steht jetzt im Body. */}
                 {view !== "agent" && !showAll && (
