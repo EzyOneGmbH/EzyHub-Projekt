@@ -6354,7 +6354,7 @@ function App({ appScope = null }) {
           >
             <div
               className="header-left"
-              style={{ display: "flex", alignItems: "center", gap: 16, minWidth: 0 }}
+              style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, flex: 1 }}
             >
               {/* Mobile-App-Wechsler (01.08.): die Sidebar (inkl. ⣿-Switcher) ist
                 unter 760px ausgeblendet — ohne dieses Select wären die Apps auf
@@ -6417,6 +6417,8 @@ function App({ appScope = null }) {
                     fontSize: 13,
                     fontWeight: 600,
                     fontFamily: "inherit",
+                    whiteSpace: "nowrap",
+                    flexShrink: 0,
                   }}
                 >
                   {showAll ? (
@@ -6579,38 +6581,6 @@ function App({ appScope = null }) {
                   </span>
                 </div>
               )}
-              {/* Filter/Aktionen links neben dem Titel (Volkan 10.08.): Zeitraum,
-                Vergleich, Export, Aktualisieren aus dem rechten Cluster nach links
-                verschoben — EzyPilot/Audit/Glocke bleiben rechts. */}
-              <div
-                className="header-filters"
-                style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}
-              >
-                {page !== "tasks" && <DateRangePicker value={dateRange} onChange={setDateRange} />}
-                {page === "dashboard" && (
-                  <ComparePicker value={compareMode} onChange={setCompareMode} />
-                )}
-                {page === "dashboard" && (
-                  <Btn
-                    variant="secondary"
-                    size="md"
-                    icon={Download}
-                    onClick={() => exportCSV(toast, client)}
-                    disabled={!hasClients}
-                  >
-                    Export
-                  </Btn>
-                )}
-                <Btn
-                  variant="secondary"
-                  size="md"
-                  icon={RefreshCw}
-                  onClick={refreshAll}
-                  title="Liest nur den gespeicherten Datenbankstand neu — startet KEINE Messung"
-                >
-                  {isMobile ? null : "Daten neu laden"}
-                </Btn>
-              </div>
               {!(showAll && (appScope === "seo" || appScope === "ads")) && (
                 <SegmentedTabs
                   color={
@@ -6645,10 +6615,44 @@ function App({ appScope = null }) {
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 10,
+                gap: 8,
+                flexShrink: 0,
                 justifyContent: isMobile ? "flex-start" : "flex-end",
               }}
             >
+              {/* Filter/Aktionen links neben dem Titel (Volkan 10.08.): Zeitraum,
+                Vergleich, Export, Aktualisieren aus dem rechten Cluster nach links
+                verschoben — EzyPilot/Audit/Glocke bleiben rechts. */}
+              <div
+                className="header-filters"
+                style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}
+              >
+                {page !== "tasks" && <DateRangePicker value={dateRange} onChange={setDateRange} />}
+                {page === "dashboard" && (
+                  <ComparePicker value={compareMode} onChange={setCompareMode} />
+                )}
+                {page === "dashboard" && (
+                  <Btn
+                    variant="secondary"
+                    size="md"
+                    icon={Download}
+                    onClick={() => exportCSV(toast, client)}
+                    disabled={!hasClients}
+                    title="Export (CSV)"
+                  >
+                    {null}
+                  </Btn>
+                )}
+                <Btn
+                  variant="secondary"
+                  size="md"
+                  icon={RefreshCw}
+                  onClick={refreshAll}
+                  title="Liest nur den gespeicherten Datenbankstand neu — startet KEINE Messung"
+                >
+                  {null}
+                </Btn>
+              </div>
               {!isViewer && <EzyPilotButton />}
               <Btn icon={Zap} onClick={() => setShowTools(true)}>
                 Audit
