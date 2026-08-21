@@ -13,6 +13,10 @@ export default tseslint.config(
       ".vinxi",
       "supabase/functions/**",
       "src/routeTree.gen.ts",
+      // Von Lovable regeneriert (supabase gen types, eigenes Format) — wie der
+      // routeTree eine generierte Datei; Prettier-Zwang erzeugt sonst eine
+      // endlose Format-Ping-Pong-Schleife mit dem Codegen (Befund 21.08.).
+      "src/integrations/supabase/types.ts",
       // Scriptable-iOS-Widget: laeuft in der Scriptable-App mit eigenen
       // Globals (ListWidget, Color, Font, ...), nicht im Browser.
       "scripts/iphone-widget/**",
