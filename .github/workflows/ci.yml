@@ -17,13 +17,16 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Vereinheitlicht mit .nvmrc/engines (21.08.): lokal wie CI Node 24 /
+          # npm 11 — damit erzeugen beide Seiten dasselbe Lockfile-Layout.
+          node-version-file: .nvmrc
           cache: npm
       - name: Abhaengigkeiten
-        # npm ci scheitert an npm-Versions-Drift zwischen lokalem npm 24 und
-        # CI-npm (Lockfile-Dedupe-Differenzen) — npm install ist hier bewaehrt
-        # und bleibt ueber das eingecheckte Lockfile reproduzierbar genug.
-        run: npm install --no-audit --no-fund
+        # Reproduzierbar via npm ci. Faellt dieser Step mit EUSAGE (lock out of
+        # sync), hat ein Commit package.json ohne Lockfile geaendert (z.B. eine
+        # Lovable-Sandbox-Aenderung): lokal `npm install` ausfuehren und das
+        # package-lock.json mit-committen.
+        run: npm ci --no-audit --no-fund
       - name: Tests
         run: npm test
       - name: TypeScript
