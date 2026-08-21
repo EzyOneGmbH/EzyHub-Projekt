@@ -1,5 +1,6 @@
 // Admin-Einstellungen (aus EzyOneApp.jsx extrahiert, 21.08.2026 — reines
 // Verschieben): SettingsPage inkl. Systemcheck/Worker-/Secret-Karten.
+import { ExternalLink, GitBranch } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { Badge, Btn, useToast } from "./shared-ui";
 import { C } from "./theme";

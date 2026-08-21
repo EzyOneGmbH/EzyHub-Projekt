@@ -1,6 +1,16 @@
 // Gemeinsames UI-/Daten-Toolkit (aus EzyOneApp.jsx extrahiert, 21.08.2026 —
 // reines Verschieben): Form-/Chart-Primitives, Datums-/Vergleichs-Helfer,
 // GA4-Live-Hooks und die Canonry-Aufbereitung.
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  Calendar,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  GitBranch,
+  Minus,
+} from "lucide-react";
 import { useRangeData } from "@/ezy/data/rangeStore";
 import { supabase } from "@/integrations/supabase/client";
 import { Component, useMemo, useRef } from "react";
@@ -575,7 +585,7 @@ export function buildCanonryLiveModel(selectedClient, payload) {
 
 // Local error boundary so a render glitch in one dashboard section shows an
 // inline message instead of crashing the whole app.
-class SectionErrorBoundary extends Component {
+export class SectionErrorBoundary extends Component {
   constructor(props) {
     super(props);
     this.state = { error: null };

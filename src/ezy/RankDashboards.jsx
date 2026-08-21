@@ -1,6 +1,17 @@
 // EzyRank-Dashboards (aus EzyOneApp.jsx extrahiert, 21.08.2026 — reines
 // Verschieben): Agentur-Uebersicht, SEO/GEO/Conversions/Overview-Dashboards,
 // KI-Sichtbarkeit (Makro) und Onboarding-Scan-Panel.
+import { Btn } from "./shared-ui";
+import {
+  CTooltip,
+  ChartCard,
+  CompareBanner,
+  DTable,
+  LiveEmptyState,
+  SectionErrorBoundary,
+  Skeleton,
+} from "./ui-kit";
+import { Fragment } from "react";
 import {
   AI_COLORS,
   buildCanonryLiveModel,

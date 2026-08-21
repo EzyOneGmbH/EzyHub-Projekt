@@ -3,6 +3,7 @@ import eslintPluginPrettier from "eslint-plugin-prettier/recommended";
 import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
+import react from "eslint-plugin-react";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
@@ -38,9 +39,13 @@ export default tseslint.config(
     plugins: {
       "react-hooks": reactHooks,
       "react-refresh": reactRefresh,
+      react,
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      // 21.08.: Core-no-undef prueft KEINE JSX-Tags — erst diese Regel fing
+      // <Skeleton/>-artige Luecken nach der Modularisierung (Live-Crash).
+      "react/jsx-no-undef": "error",
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "@typescript-eslint/no-unused-vars": "off",
       "@typescript-eslint/no-explicit-any": "off",
@@ -58,9 +63,11 @@ export default tseslint.config(
     },
     plugins: {
       "react-hooks": reactHooks,
+      react,
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      "react/jsx-no-undef": "error",
       "no-unused-vars": "off",
       "no-empty": ["error", { allowEmptyCatch: true }],
     },

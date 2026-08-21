@@ -1,4 +1,5 @@
 import { lazy, Suspense } from "react";
+import { Inp, Modal } from "./ui-kit";
 import { useState, useEffect, useCallback, useRef, useMemo, Component } from "react";
 import {
   DEFAULT_PROFILE,

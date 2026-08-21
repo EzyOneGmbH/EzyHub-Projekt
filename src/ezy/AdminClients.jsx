@@ -1,5 +1,12 @@
 // Admin-Kundenverwaltung (aus EzyOneApp.jsx extrahiert, 21.08.2026 — reines
 // Verschieben): Kundenliste/-detail, Onboarding, Readiness, Zugriff, Portal.
+import { ServicesPanel, ServicesPicker } from "@/ezy/components/ServicesPanel.jsx";
+import { Badge, Btn } from "./shared-ui";
+import { Inp, LiveEmptyState, Modal, TabBar } from "./ui-kit";
+import { ClientAvatar } from "@/ezy/ClientAvatar";
+import GoogleClientPanel from "@/ezy/GoogleClientPanel.jsx";
+import { Search } from "lucide-react";
+import { Fragment } from "react";
 import {
   DEFAULT_CUSTOMER_DEFAULTS,
   clientFormFromClient,
