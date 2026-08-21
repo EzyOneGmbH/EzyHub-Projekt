@@ -5358,6 +5358,22 @@ function EzyAiApp() {
               {/* Mobile-Nav: Dashboard/Agent + Kunden + App-Bereiche als Chips */}
               <div className="ezyai-mnav">
                 <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 8 }}>
+                  {/* 2j: mobiler App-Einstieg — die Rail ist <900px ausgeblendet */}
+                  <a
+                    href="/apps"
+                    style={{
+                      padding: "6px 10px",
+                      borderRadius: 8,
+                      textDecoration: "none",
+                      background: S.bg,
+                      color: S.mut,
+                      fontSize: 12.5,
+                      fontWeight: 700,
+                      flexShrink: 0,
+                    }}
+                  >
+                    ✦ Apps
+                  </a>
                   {(
                     [
                       ["dashboard", "Dashboard"],

@@ -56,6 +56,7 @@ import {
   ListChecks,
   MessageSquare,
   ArrowRight,
+  SlidersHorizontal,
 } from "lucide-react";
 import { ezyFetch } from "@/ezy/data/api";
 import { useAuth } from "@/hooks/use-auth";
@@ -120,7 +121,7 @@ const toolHasLiveProvider = (id) => toolProvider(id) !== null;
 // (CD-Gradient 135° #71008B→#B9009C). Semantikfarben (grün/rot/…) bleiben.
 
 import { C } from "./theme";
-import { AppRail, SegmentedTabs } from "./shell";
+import { AppRail, SegmentedTabs, APP_GLYPHS } from "./shell";
 import {
   ToastProvider,
   useToast,
@@ -6050,6 +6051,9 @@ function App({ appScope = null }) {
     else if (!isViewer && page === "reports") setPage("content");
   }, [page, isViewer]);
   const [cdd, setCdd] = useState(false);
+  // Redesign 1b (Screen 2j): Bottom-Sheet ersetzt <760px die Header-Selects
+  // (App-Wechsler, Kunden-Switcher, Zeitraum/Vergleich).
+  const [mobileSheet, setMobileSheet] = useState(false);
   const [showTools, setShowTools] = useState(false);
   // App-Switcher (Plattform-Umbau Phase 1)
   const appAccess = useAppAccess();
@@ -6406,50 +6410,20 @@ function App({ appScope = null }) {
               className="header-left"
               style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, flex: 1 }}
             >
-              {/* Mobile-App-Wechsler (01.08.): die Sidebar (inkl. ⣿-Switcher) ist
-                unter 760px ausgeblendet — ohne dieses Select wären die Apps auf
-                dem Handy unerreichbar. */}
-              {isMobile && !isViewer && (
-                <select
-                  aria-label="App wechseln"
-                  value={appScope || currentAppOf(page, tab)}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (v === "__launcher") {
-                      window.location.href = "/apps";
-                      return;
-                    }
-                    const a = EZY_APPS.find((x) => x.id === v);
-                    if (a) window.location.href = a.href;
-                  }}
-                  style={{
-                    background: C.card,
-                    border: `1px solid ${C.border}`,
-                    borderRadius: 10,
-                    padding: "8px 8px",
-                    color: C.text,
-                    fontSize: 13,
-                    fontWeight: 700,
-                    fontFamily: "inherit",
-                    outline: "none",
-                    maxWidth: 130,
-                  }}
-                >
-                  {EZY_APPS.filter((a) => appAccess.canOpen(a.id)).map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.icon} {a.name}
-                    </option>
-                  ))}
-                  <option value="__launcher">✦ Launcher</option>
-                </select>
-              )}
+              {/* Redesign 1b (2j): das frühere Mobile-App-Select lebt jetzt im
+                Bottom-Sheet (Apps-Raster + Kunde + Zeitraum). */}
               {/* Seiten-Navigation: SegmentedTabs (scrollbar) — ersetzt das Mobile-Select. */}
               {/* Kunden-Switcher: auf Desktop in der Sidebar (wie EzyAI), im Header nur mobil.
                 Im Admin ausgeblendet (außer Agenten-Seite) — siehe Sidebar-Kommentar. */}
               <div
                 style={{
                   position: "relative",
-                  display: appScope !== "admin" || page === "agents" ? "block" : "none",
+                  // 2j: mobil wandert der Kunden-Switcher ins Bottom-Sheet.
+                  display: isMobile
+                    ? "none"
+                    : appScope !== "admin" || page === "agents"
+                      ? "block"
+                      : "none",
                 }}
               >
                 <button
@@ -6675,7 +6649,13 @@ function App({ appScope = null }) {
                 verschoben — EzyPilot/Audit/Glocke bleiben rechts. */}
               <div
                 className="header-filters"
-                style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}
+                style={{
+                  // 2j: Filter-Cluster mobil im Bottom-Sheet statt im Header.
+                  display: isMobile ? "none" : "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  flexShrink: 0,
+                }}
               >
                 {page !== "tasks" && <DateRangePicker value={dateRange} onChange={setDateRange} />}
                 {page === "dashboard" && (
@@ -6703,6 +6683,18 @@ function App({ appScope = null }) {
                   {null}
                 </Btn>
               </div>
+              {/* 2j: Sheet-Öffner — ersetzt mobil App-/Kunden-Select + Filter */}
+              {isMobile && (
+                <Btn
+                  variant="secondary"
+                  size="md"
+                  icon={SlidersHorizontal}
+                  onClick={() => setMobileSheet(true)}
+                  title="Apps, Kunde & Zeitraum"
+                >
+                  {null}
+                </Btn>
+              )}
               {!isViewer && <EzyPilotButton />}
               <Btn icon={Zap} onClick={() => setShowTools(true)}>
                 Audit
@@ -6724,6 +6716,213 @@ function App({ appScope = null }) {
               </div>
             </div>
           </header>
+          {/* Redesign 1b (Screen 2j): Mobile-Bottom-Sheet — Apps, Kunde,
+            Zeitraum/Vergleich, Export/Aktualisieren. Nur <760px erreichbar. */}
+          {mobileSheet && (
+            <>
+              <div
+                onClick={() => setMobileSheet(false)}
+                style={{
+                  position: "fixed",
+                  inset: 0,
+                  background: "rgba(13,13,13,.35)",
+                  zIndex: 110,
+                }}
+              />
+              <div
+                style={{
+                  position: "fixed",
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  maxHeight: "82vh",
+                  overflowY: "auto",
+                  background: C.surface,
+                  borderTop: `1px solid ${C.border}`,
+                  borderRadius: "20px 20px 0 0",
+                  boxShadow: "0 -24px 60px -36px rgba(43,0,51,.35)",
+                  animation: "sheetUp .25s ease",
+                  zIndex: 111,
+                  padding: "10px 18px 26px",
+                }}
+              >
+                <div
+                  style={{
+                    width: 40,
+                    height: 4,
+                    borderRadius: 99,
+                    background: "rgba(43,0,51,.15)",
+                    margin: "0 auto 14px",
+                  }}
+                />
+                {!isViewer && (
+                  <>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: C.textDim,
+                        textTransform: "uppercase",
+                        letterSpacing: ".06em",
+                        margin: "0 0 8px",
+                      }}
+                    >
+                      Apps
+                    </div>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(3,1fr)",
+                        gap: 8,
+                        marginBottom: 16,
+                      }}
+                    >
+                      {EZY_APPS.filter((a) => appAccess.canOpen(a.id)).map((a) => {
+                        const Glyph = APP_GLYPHS[a.id] || LayoutGrid;
+                        const aktiv = (appScope || currentAppOf(page, tab)) === a.id;
+                        return (
+                          <a
+                            key={a.id}
+                            href={a.href}
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "center",
+                              gap: 5,
+                              padding: "12px 4px",
+                              borderRadius: 12,
+                              textDecoration: "none",
+                              background: aktiv ? a.tint : C.card,
+                              border: `1px solid ${aktiv ? a.color : C.hairline}`,
+                            }}
+                          >
+                            <Glyph size={19} color={aktiv ? a.color : C.textDim} />
+                            <span
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                color: aktiv ? a.color : C.textMuted,
+                              }}
+                            >
+                              {a.name}
+                            </span>
+                          </a>
+                        );
+                      })}
+                      <a
+                        href="/apps"
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          gap: 5,
+                          padding: "12px 4px",
+                          borderRadius: 12,
+                          textDecoration: "none",
+                          background: C.card,
+                          border: `1px dashed ${C.border}`,
+                        }}
+                      >
+                        <LayoutGrid size={19} color={C.textDim} />
+                        <span style={{ fontSize: 11, fontWeight: 700, color: C.textMuted }}>
+                          Launcher
+                        </span>
+                      </a>
+                    </div>
+                  </>
+                )}
+                {(appScope !== "admin" || page === "agents") && (
+                  <>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: C.textDim,
+                        textTransform: "uppercase",
+                        letterSpacing: ".06em",
+                        margin: "0 0 8px",
+                      }}
+                    >
+                      Kunde
+                    </div>
+                    <select
+                      aria-label="Kunde wählen"
+                      value={showAll ? "__all" : client?.id || ""}
+                      onChange={(e) => {
+                        if (e.target.value === "__all") setShowAll(true);
+                        else {
+                          setClientId(e.target.value);
+                          setShowAll(false);
+                        }
+                      }}
+                      style={{
+                        width: "100%",
+                        padding: "11px 12px",
+                        borderRadius: 11,
+                        background: C.card,
+                        color: C.text,
+                        border: `1px solid ${C.inputBorder}`,
+                        fontSize: 13.5,
+                        fontWeight: 600,
+                        fontFamily: "inherit",
+                        outline: "none",
+                        marginBottom: 16,
+                      }}
+                    >
+                      {!isViewer && <option value="__all">✦ Alle Kunden</option>}
+                      {clients.map((entry) => (
+                        <option key={entry.id} value={entry.id}>
+                          {entry.name}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: C.textDim,
+                    textTransform: "uppercase",
+                    letterSpacing: ".06em",
+                    margin: "0 0 8px",
+                  }}
+                >
+                  Zeitraum &amp; Aktionen
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  {page !== "tasks" && (
+                    <DateRangePicker value={dateRange} onChange={setDateRange} />
+                  )}
+                  {page === "dashboard" && (
+                    <ComparePicker value={compareMode} onChange={setCompareMode} />
+                  )}
+                  {page === "dashboard" && (
+                    <Btn
+                      variant="secondary"
+                      size="md"
+                      icon={Download}
+                      onClick={() => exportCSV(toast, client)}
+                      disabled={!hasClients}
+                    >
+                      Export
+                    </Btn>
+                  )}
+                  <Btn variant="secondary" size="md" icon={RefreshCw} onClick={refreshAll}>
+                    Aktualisieren
+                  </Btn>
+                </div>
+                <Btn
+                  variant="secondary"
+                  size="md"
+                  onClick={() => setMobileSheet(false)}
+                  style={{ width: "100%", marginTop: 16, justifyContent: "center" }}
+                >
+                  Schliessen
+                </Btn>
+              </div>
+            </>
+          )}
           <div
             key={refreshNonce}
             className="app-content"

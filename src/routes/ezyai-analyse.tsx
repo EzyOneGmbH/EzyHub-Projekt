@@ -310,7 +310,8 @@ function EzyAiAnalyseApp() {
         >
           <style>{`
             .anl-body { margin-left: 76px; }
-            @media (max-width: 900px) { .app-sidebar { display: none; } .anl-body { margin-left: 0; } }
+            .anl-apps { display: none; }
+            @media (max-width: 900px) { .app-sidebar { display: none; } .anl-body { margin-left: 0; } .anl-apps { display: inline-flex; } }
             details.anl-fold > summary { list-style: none; cursor: pointer; }
             details.anl-fold > summary::-webkit-details-marker { display: none; }
             details.anl-fold[open] > summary { border-bottom: 1px solid ${S.line}; }
@@ -361,6 +362,23 @@ function EzyAiAnalyseApp() {
                 zIndex: 30,
               }}
             >
+              {/* 2j: mobiler App-Einstieg (Rail ist <900px ausgeblendet) */}
+              <a
+                className="anl-apps"
+                href="/apps"
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: 8,
+                  textDecoration: "none",
+                  background: S.tint,
+                  color: S.app,
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  flexShrink: 0,
+                }}
+              >
+                ✦ Apps
+              </a>
               <SegmentedTabs
                 color={S.app}
                 items={[
