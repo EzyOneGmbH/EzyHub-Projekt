@@ -15014,6 +15014,80 @@ function WpSecretStatusCard() {
   );
 }
 
+// Analyse-Worker-Ueberwachung (21.08.): letzter Lauf, Laufzeit, bearbeitete
+// Jobs und Fehler des EzyAI-Analyse-Workers — Zustand aktiv/verzoegert/
+// ausgefallen. Quelle: /api/agent/analyse?worker=1 (Heartbeat-Tabelle).
+function AnalyseWorkerCard() {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const token = (await supabase.auth.getSession()).data.session?.access_token;
+        const r = await fetch("/api/agent/analyse?worker=1", {
+          headers: { Authorization: `Bearer ${token || ""}` },
+        });
+        const j = await r.json().catch(() => null);
+        if (alive && j?.ok) setData(j);
+      } catch {}
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+  if (!data) return null;
+  const farbe =
+    data.zustand === "aktiv" ? C.green : data.zustand === "verzoegert" ? C.orange : C.red;
+  const label =
+    data.zustand === "aktiv"
+      ? "aktiv"
+      : data.zustand === "verzoegert"
+        ? "verzögert"
+        : "ausgefallen";
+  const hb = data.heartbeat || {};
+  return (
+    <div
+      style={{
+        background: C.card,
+        border: `1px solid ${C.border}`,
+        borderRadius: 10,
+        padding: "12px 16px",
+        marginBottom: 16,
+      }}
+    >
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
+        Analyse-Worker (EzyAI Analyse)
+      </div>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            padding: "3px 10px",
+            borderRadius: 8,
+            background: `${farbe}18`,
+            color: farbe,
+          }}
+        >
+          {label}
+        </span>
+        <span style={{ fontSize: 11, color: C.textMuted }}>
+          {hb.last_run_at
+            ? `Letzter Lauf ${new Date(hb.last_run_at).toLocaleString("de-CH")} · ${hb.duration_ms} ms · ${hb.jobs_processed} Etappe(n) · ${hb.errors} Fehler`
+            : "Noch kein Lauf registriert"}
+          {" · Zeitplan: Task «EzyOne-Analyse-Worker», minütlich"}
+        </span>
+      </div>
+      {data.zustand !== "aktiv" && (
+        <div style={{ marginTop: 8, fontSize: 12, color: farbe, fontWeight: 600 }}>
+          Der Worker lief länger als das erlaubte Intervall nicht — Analysen bleiben in der
+          Warteschlange. Task-Scheduler auf dem Cloud-PC prüfen.
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SettingsPage({
   tools,
   onToggleTool,
@@ -15181,6 +15255,7 @@ function SettingsPage({
               </span>
             </div>
             <WpSecretStatusCard />
+            <AnalyseWorkerCard />
             {live.loading && (
               <div
                 style={{

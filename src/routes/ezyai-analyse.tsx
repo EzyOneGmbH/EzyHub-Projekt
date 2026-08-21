@@ -93,6 +93,11 @@ const scoreBg = (n: number | null | undefined) =>
 // Etappen-Anzeige des Laufs (Wizard-Schritt 4 + Fortschritt aus dem Verlauf).
 const STAGES: Array<{ keys: string[]; name: string; desc: string }> = [
   {
+    keys: ["prompts"],
+    name: "Prompt-Set",
+    desc: "15 massgeschneiderte Prompts aus den Website-Themen generieren",
+  },
+  {
     keys: ["technik"],
     name: "Technik & SiteHealth",
     desc: "robots.txt-AI-Bots, OnPage-Audit (bis 50 Seiten), Tech-Stack",
@@ -120,6 +125,18 @@ const STAGES: Array<{ keys: string[]; name: string; desc: string }> = [
     desc: "AI-Readiness-Score + Top-5-Empfehlungen",
   },
 ];
+const OFFEN = ["queued", "laufend", "retry"];
+const istOffen = (st: string | undefined | null) => OFFEN.includes(String(st || ""));
+const statusText = (st: string | undefined | null) =>
+  st === "queued"
+    ? "in Warteschlange"
+    : st === "retry"
+      ? "wartet auf Retry"
+      : st === "laufend"
+        ? "läuft…"
+        : st === "fehler"
+          ? "fehlgeschlagen"
+          : st || "";
 const stageIndex = (stage: string) => {
   const i = STAGES.findIndex((s) => s.keys.includes(stage));
   return i === -1 ? STAGES.length : i;
@@ -539,10 +556,12 @@ function EzyAiAnalyseApp() {
               </div>
             </header>
 
+            {/* Banner rendert nur bei verzoegert/ausgefallen */}
             <main
               className="anl-main"
               style={{ maxWidth: 1180, margin: "0 auto", padding: "22px 22px 60px" }}
             >
+              <WorkerStatusBanner />
               {detail ? (
                 <ResultView
                   audit={detail}
@@ -572,6 +591,7 @@ function EzyAiAnalyseApp() {
 
           {wizOpen && (
             <Wizard
+              darfAbbrechen={!!isOrgAdmin}
               resumeId={resumeIdRef.current}
               prefill={
                 detail
@@ -742,7 +762,17 @@ function HomeView({
                     <td style={{ ...td, fontWeight: 600 }}>{r.domain}</td>
                     <td style={td}>{r.firmenname}</td>
                     <td style={td}>
-                      {r.status === "laufend" ? (
+                      {r.status === "queued" ? (
+                        <span style={{ ...pillStyle(S.tint, S.app) }}>in Warteschlange</span>
+                      ) : r.status === "retry" ? (
+                        <span
+                          style={{ ...pillStyle(S.orangeDim, S.orange) }}
+                          title={(r as any).error || ""}
+                        >
+                          wartet auf Retry · Versuch {(r as any).attempts}/
+                          {(r as any).max_attempts || 3}
+                        </span>
+                      ) : r.status === "laufend" ? (
                         <span style={{ ...pillStyle(S.orangeDim, S.orange) }}>
                           läuft · {r.progress}%
                         </span>
@@ -820,16 +850,61 @@ const pillStyle = (bg: string, fg: string): React.CSSProperties => ({
 });
 
 // ── Onboarding-Wizard (Pop-Up, 4 Schritte) ──────────────────────────────────
+// Worker-Ueberwachung (21.08.): zeigt eine Warnung, wenn der Analyse-Worker
+// laenger als das erlaubte Intervall nicht lief (Scheduler-Ausfall sichtbar).
+function WorkerStatusBanner() {
+  const [st, setSt] = useState<{ zustand: string; last: string | null } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      const j = await api("GET", "?worker=1");
+      if (alive && j?.ok) {
+        setSt({ zustand: j.zustand, last: j.heartbeat?.last_run_at || null });
+      }
+    };
+    void load();
+    const t = setInterval(load, 60_000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, []);
+  if (!st || st.zustand === "aktiv") return null;
+  const ausgefallen = st.zustand === "ausgefallen";
+  return (
+    <div
+      style={{
+        margin: "0 0 14px",
+        padding: "10px 14px",
+        borderRadius: 10,
+        background: ausgefallen ? S.redDim : S.orangeDim,
+        color: ausgefallen ? S.red : S.orange,
+        fontSize: 12.5,
+        fontWeight: 600,
+      }}
+    >
+      {ausgefallen
+        ? "Analyse-Worker ausgefallen — neue Analysen bleiben in der Warteschlange. Bitte den Zeitplan (Task «EzyOne-Analyse-Worker») pruefen."
+        : "Analyse-Worker verzoegert — laeuft laenger als das erlaubte Intervall nicht. Analysen koennen sich verspaeten."}
+      {st.last
+        ? ` Letzter Lauf: ${new Date(st.last).toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" })}.`
+        : " Noch kein Lauf registriert."}
+    </div>
+  );
+}
+
 function Wizard({
   onClose,
   onDone,
   resumeId,
   prefill,
+  darfAbbrechen,
 }: {
   onClose: () => void;
   onDone: (id: string) => void;
   resumeId: string | null;
   prefill: { domain: string; firmenname: string; branche: string; ort: string } | null;
+  darfAbbrechen: boolean;
 }) {
   const [step, setStep] = useState(resumeId ? 4 : 1);
   const [form, setForm] = useState({
@@ -869,7 +944,7 @@ function Wizard({
         setErr(
           j.audit?.status === "fehler" ? j.audit?.error || "Fehlgeschlagen" : j.audit?.error || "",
         );
-        if (j.audit.status !== "laufend") return;
+        if (!istOffen(j.audit.status)) return;
       } else {
         setErr(j?.error || "Status nicht abrufbar — neuer Versuch…");
       }
@@ -890,7 +965,7 @@ function Wizard({
             branche: j.audit.branche || "",
             ort: j.audit.ort || "",
           });
-          if (j.audit.status === "laufend") void pollStatus(resumeId);
+          if (istOffen(j.audit.status)) void pollStatus(resumeId);
         }
       })();
     }
@@ -1312,7 +1387,7 @@ function Wizard({
                 disabled={startBusy}
                 onClick={start}
               >
-                {startBusy ? "Prompt-Set wird generiert…" : "Analyse starten"}
+                {startBusy ? "Wird gestartet…" : "Analyse starten"}
               </button>
             </div>
           </>
@@ -1335,7 +1410,11 @@ function Wizard({
                     ? "Analyse fehlgeschlagen"
                     : audit?.status === "abgebrochen"
                       ? "Analyse abgebrochen"
-                      : "Analyse läuft…"}
+                      : audit?.status === "queued"
+                        ? "Analyse in Warteschlange"
+                        : audit?.status === "retry"
+                          ? "Analyse wartet auf Retry"
+                          : "Analyse läuft…"}
               </h2>
               <p style={{ fontSize: 13, color: S.mut, margin: "0 0 10px" }}>
                 {form.domain} — der Lauf läuft auf dem Server weiter:{" "}
@@ -1372,6 +1451,20 @@ function Wizard({
                       : "—"}
                   </span>
                   <span>Phase: {STAGES[stageIndex(audit.stage)]?.name || audit.stage}</span>
+                  {Number((audit as any).attempts) > 0 && (
+                    <span style={{ color: S.orange }}>
+                      Versuch {(audit as any).attempts}/{(audit as any).max_attempts || 3}
+                    </span>
+                  )}
+                  {audit.status === "retry" && (audit as any).next_retry_at && (
+                    <span style={{ color: S.orange }}>
+                      nächster Versuch{" "}
+                      {new Date((audit as any).next_retry_at).toLocaleTimeString("de-CH", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  )}
                 </div>
               )}
               <div
@@ -1403,11 +1496,11 @@ function Wizard({
                 }}
               >
                 <span>{audit?.progress ?? 0}%</span>
-                <span>{audit?.status === "laufend" ? "läuft…" : audit?.status || ""}</span>
+                <span>{statusText(audit?.status)}</span>
               </div>
               {STAGES.map((st2, i) => {
                 const done = audit?.status === "fertig" || i < curIdx;
-                const run = audit?.status === "laufend" && i === curIdx;
+                const run = istOffen(audit?.status) && i === curIdx;
                 let zwischenbefund = st2.desc;
                 if (i === 0 && d.technik)
                   zwischenbefund = `SiteHealth ${d.technik.scores?.overall ?? "?"}/100 · ${(d.technik.issues || []).length} Probleme${d.anbindung?.cms ? ` · ${d.anbindung.cms}` : ""}`;
@@ -1483,7 +1576,7 @@ function Wizard({
               <button style={ghostBtn} onClick={onClose}>
                 Schliessen
               </button>
-              {audit?.status === "laufend" && (
+              {istOffen(audit?.status) && darfAbbrechen && (
                 <button
                   style={{ ...ghostBtn, color: S.red, borderColor: `${S.red}55` }}
                   onClick={doAbbruch}

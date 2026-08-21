@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { aktiveMitgliedschaft } from "@/server/team-guard.server";
 import {
   startAudit,
   tickAudit,
@@ -21,7 +22,9 @@ import {
 // GET  ?id=<uuid>      → kompletter Lauf (Status/Ergebnis, fuers Polling)
 // POST {action:"competitors", domain, firmenname, branche?, ort?}
 // POST {action:"start", domain, firmenname, branche?, ort?, wettbewerber[]}
-// POST {action:"tick", id}   → EINE Etappe ausfuehren (Frontend treibt den Lauf)
+// POST {action:"tick", id}   → EINE Etappe ausfuehren (Diagnose/Tests)
+// POST {action:"worker"}     → alle offenen Jobs abarbeiten (Scheduler, Secret)
+// GET  ?worker=1             → Worker-Heartbeat (aktiv/verzoegert/ausgefallen)
 
 async function requireTeam(
   request: Request,
@@ -45,17 +48,12 @@ async function requireTeam(
   });
   const { data } = await sb.auth.getUser();
   if (!data.user) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-  const { data: m } = await (supabaseAdmin as any)
-    .from("app_users")
-    .select("role, organization_id")
-    .eq("user_id", data.user.id)
-    .order("role", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  const role = (m?.role as string) || "viewer";
-  if (role === "viewer" || !m?.organization_id)
+  // Runde 2 (21.08.): Mehrfach-Mitgliedschaften explizit — nie einfach der
+  // erste app_users-Eintrag; aktive Org via X-Ezy-Active-Org (validiert).
+  const aktiv = await aktiveMitgliedschaft(data.user.id, request.headers.get("x-ezy-active-org"));
+  if (!aktiv || aktiv.role === "viewer")
     return Response.json({ ok: false, error: "Forbidden" }, { status: 403 });
-  return { userId: data.user.id, organizationId: m.organization_id as string, role };
+  return { userId: data.user.id, organizationId: aktiv.organizationId, role: aktiv.role };
 }
 
 const UUID_RE = /^[0-9a-f-]{36}$/i;
@@ -67,6 +65,26 @@ export const Route = createFileRoute("/api/agent/analyse")({
         const u = await requireTeam(request);
         if (u instanceof Response) return u;
         const sp = new URL(request.url).searchParams;
+        // Worker-Heartbeat (21.08.): aktiv/verzoegert/ausgefallen fuer Admin-
+        // Anzeige und Warnbanner. Erlaubtes Intervall: 60 s (Task-Scheduler).
+        if (sp.get("worker") === "1") {
+          const { data: hb } = await (supabaseAdmin as any)
+            .from("analyse_worker_heartbeat")
+            .select("*")
+            .eq("id", 1)
+            .maybeSingle();
+          const alterMs = hb?.last_run_at ? Date.now() - new Date(hb.last_run_at).getTime() : null;
+          const zustand =
+            alterMs == null || alterMs > 10 * 60_000
+              ? "ausgefallen"
+              : alterMs > 3 * 60_000
+                ? "verzoegert"
+                : "aktiv";
+          return Response.json(
+            { ok: true, heartbeat: hb ?? null, zustand, intervallSek: 60 },
+            { headers: { "Cache-Control": "no-store" } },
+          );
+        }
         const id = sp.get("id");
         if (id && UUID_RE.test(id)) {
           const { data } = await (supabaseAdmin as any)
@@ -80,7 +98,9 @@ export const Route = createFileRoute("/api/agent/analyse")({
         }
         const { data } = await (supabaseAdmin as any)
           .from("prospect_audits")
-          .select("id, domain, firmenname, status, stage, progress, score, dims, created_at, data")
+          .select(
+            "id, domain, firmenname, status, stage, progress, score, dims, created_at, updated_at, data, attempts, max_attempts, next_retry_at, last_started_at, error",
+          )
           .eq("organization_id", u.organizationId)
           .order("created_at", { ascending: false })
           .limit(60);
@@ -94,6 +114,12 @@ export const Route = createFileRoute("/api/agent/analyse")({
           score: r.score,
           dims: r.dims,
           created_at: r.created_at,
+          updated_at: r.updated_at,
+          attempts: r.attempts,
+          max_attempts: r.max_attempts,
+          next_retry_at: r.next_retry_at,
+          last_started_at: r.last_started_at,
+          error: r.error,
           missedVol: r.data?.missedVol ?? null,
         }));
         return Response.json({ ok: true, audits: rows });
@@ -163,8 +189,15 @@ export const Route = createFileRoute("/api/agent/analyse")({
               .maybeSingle();
             if (!own) return Response.json({ ok: false, error: "Nicht gefunden" }, { status: 404 });
             if (action === "retry") return Response.json({ ok: true, audit: await retryAudit(id) });
-            if (action === "abbrechen")
+            if (action === "abbrechen") {
+              // Abbruch ist ein Eingriff: NUR Owner/Admin (21.08.).
+              if (!uebernahmeErlaubt(u.role))
+                return Response.json(
+                  { ok: false, error: "Nur Owner/Admin dürfen abbrechen" },
+                  { status: 403 },
+                );
               return Response.json({ ok: true, audit: await abbrechenAudit(id) });
+            }
             // Lead → Kunde: NUR Owner/Admin (serverseitig), idempotent.
             if (!uebernahmeErlaubt(u.role))
               return Response.json(

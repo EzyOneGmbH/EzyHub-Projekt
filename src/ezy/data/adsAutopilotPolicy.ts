@@ -118,9 +118,27 @@ export function computeBudgetPacing(p: {
   };
 }
 
+// ── Erlaubte Aenderungsklassen ───────────────────────────────────────────────
+// Das Autonomie-Level IST der Mechanismus fuer erlaubte Aenderungsklassen
+// (Server: autonomy_level >= 1 -> Negatives auto-execute, >= 2 -> + Gebote).
+// Diese Matrix macht das in UI und Bestaetigungs-Dialog explizit sichtbar.
+
+export type ChangeClassBehavior = "automatisch" | "nur mit Freigabe" | "nie automatisch";
+
+export function changeClassMatrix(
+  autonomyLevel: number,
+): Array<{ klasse: string; verhalten: ChangeClassBehavior }> {
+  const lvl = Number.isFinite(autonomyLevel) ? autonomyLevel : 0;
+  return [
+    { klasse: "Negative Keywords", verhalten: lvl >= 1 ? "automatisch" : "nur mit Freigabe" },
+    { klasse: "Gebote & Budgets", verhalten: lvl >= 2 ? "automatisch" : "nur mit Freigabe" },
+    { klasse: "Kampagnen-Struktur & Anzeigen", verhalten: "nie automatisch" },
+  ];
+}
+
 // ── Konfigurations-Patch (UI -> Server) ──────────────────────────────────────
-// Nur diese Felder sind ueber die UI aenderbar; alles andere (Saison, Lag,
-// Schwellwerte, notes) bleibt bewusst beim bisherigen Pflegeweg.
+// Nur diese Felder sind ueber die UI aenderbar; alles andere (Lag, Schwell-
+// werte, notes, industry) bleibt bewusst beim bisherigen Pflegeweg.
 
 export type AutopilotConfigPatch = {
   observe_only?: boolean;
@@ -130,6 +148,8 @@ export type AutopilotConfigPatch = {
   target_roas?: number | null;
   monthly_budget_chf?: number;
   no_touch_campaigns?: string[];
+  season_high?: string[];
+  season_low?: string[];
 };
 
 export const CONFIG_FIELD_LABELS: Record<keyof AutopilotConfigPatch, string> = {
@@ -140,7 +160,13 @@ export const CONFIG_FIELD_LABELS: Record<keyof AutopilotConfigPatch, string> = {
   target_roas: "Ziel-ROAS",
   monthly_budget_chf: "Monatsbudget (CHF)",
   no_touch_campaigns: "Geschuetzte Kampagnen",
+  season_high: "Hochsaison-Fenster",
+  season_low: "Nebensaison-Fenster",
 };
+
+// Saison-Fenster im Format "MM-TT..MM-TT" (z. B. "06-01..09-15"); Jahreswechsel
+// via Start > Ende ist erlaubt (z. B. "12-01..02-28") - so liest es der Server.
+export const SEASON_WINDOW_RE = /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])\.\.(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
 export function sanitizeConfigPatch(raw: unknown): {
   ok: boolean;
@@ -198,6 +224,19 @@ export function sanitizeConfigPatch(raw: unknown): {
       .slice(0, 100)
       .map((x) => x.slice(0, 200));
     patch.no_touch_campaigns = [...new Set(list)];
+  }
+
+  for (const key of ["season_high", "season_low"] as const) {
+    if (!(key in r)) continue;
+    if (!Array.isArray(r[key])) return { ok: false, error: `${key} muss eine Liste sein` };
+    const list = (r[key] as unknown[]).map((x) => String(x ?? "").trim()).filter((x) => x.length > 0);
+    const bad = list.find((x) => !SEASON_WINDOW_RE.test(x));
+    if (bad)
+      return {
+        ok: false,
+        error: `${CONFIG_FIELD_LABELS[key]}: "${bad}" ist ungueltig - Format MM-TT..MM-TT (z. B. 06-01..09-15)`,
+      };
+    patch[key] = [...new Set(list)].slice(0, 12);
   }
 
   if (Object.keys(patch).length === 0)

@@ -1,16 +1,20 @@
 // EzyAI – Analyse (14.08.2026): Pre-Onboarding-Schnellaudit fuer Leads.
 // Domain-basiert (KEIN clients-Eintrag noetig), Ergebnisse in prospect_audits.
 //
-// Ablauf: startAudit legt die Zeile an + generiert das Prompt-Set; danach
-// treibt das Frontend den Lauf mit tickAudit-Aufrufen Etappe fuer Etappe
-// voran (Gateway kappt ~300 s pro Request — deshalb Etappen statt einem
-// grossen Lauf, gleiches Muster wie aivis-Etappen/populate).
+// Ablauf (vollstaendig asynchron, 21.08.2026): startAudit legt NUR den Job an
+// (status=queued, stage=prompts, progress=0) und antwortet sofort — der
+// externe Scheduler (Task-Scheduler-Tick, scripts/analyse-worker.ps1) ruft
+// den Worker-Endpunkt, der via tickeOffeneAudits Etappe fuer Etappe abarbeitet
+// (Gateway kappt ~300 s pro Request — deshalb Etappen statt einem grossen
+// Lauf). Fehler laufen ueber ein begrenztes exponentielles Retry (attempts/
+// max_attempts/next_retry_at); der Worker schreibt einen Heartbeat.
 //
-// Etappen: technik (SiteHealth deep + Tech-Detect/Anbindung) -> seo (Labs-
-// Sichtbarkeit + Backlinks + LLM-Mentions-Makro) -> volumen (AI-Suchvolumen
-// je Prompt) -> ai1/ai2/ai3 (Prompt-Runner: 4 Engines via DataForSEO) ->
-// entitaet (Wikidata + Brand-SERP) -> benchmark (Wettbewerber Quick-Score)
-// -> score (Dimensionen + Top-5-Massnahmen, LLM Subscription-first).
+// Etappen: prompts (Prompt-Set generieren) -> technik (SiteHealth deep +
+// Tech-Detect/Anbindung) -> seo (Labs-Sichtbarkeit + Backlinks + LLM-
+// Mentions-Makro) -> volumen (AI-Suchvolumen je Prompt) -> ai1/ai2/ai3
+// (Prompt-Runner: 4 Engines via DataForSEO) -> entitaet (Wikidata + Brand-
+// SERP) -> benchmark (Wettbewerber Quick-Score) -> score (Dimensionen +
+// Top-5-Massnahmen, LLM Subscription-first).
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { generateViaSubscription } from "./claude-generate.server";
 import {
@@ -532,8 +536,8 @@ async function saveRow(id: string, patch: any) {
   return data;
 }
 
-// ── Pure Job-Helfer (Haertung 18.08., von vitest abgedeckt) ─────────────────
-/** Retry eines fehlgeschlagenen Laufs: Fehlversuchs-Zaehler der Etappe leeren. */
+// ── Pure Job-Helfer (Haertung 18.08. / Async-Umbau 21.08., vitest-gedeckt) ──
+/** Manueller Retry eines fehlgeschlagenen Laufs: zurueck in die Queue. */
 export function retryPatch(row: { status: string; stage: string; data?: any }): any | null {
   if (row.status !== "fehler") return null;
   const data = { ...(row.data || {}) };
@@ -542,7 +546,48 @@ export function retryPatch(row: { status: string; stage: string; data?: any }): 
     delete f[row.stage];
     data.stageFails = f;
   }
-  return { status: "laufend", error: null, data };
+  return {
+    status: "queued",
+    error: null,
+    data,
+    attempts: 0,
+    next_retry_at: null,
+    last_error: null,
+    failed_at: null,
+  };
+}
+
+/**
+ * Begrenztes exponentielles Retry (pure, vitest-gedeckt): nach einem
+ * Etappen-Fehler wartet der Job 1min, 2min, 4min ... (Kappe 30min); ab
+ * max_attempts ist er endgueltig fehlgeschlagen.
+ */
+export function fehlerPatch(
+  row: { stage: string; attempts?: number; max_attempts?: number },
+  fehlermeldung: string,
+  jetztMs: number,
+): any {
+  const attempts = (Number(row.attempts) || 0) + 1;
+  const max = Number(row.max_attempts) || 3;
+  const kurz = `${row.stage} (Versuch ${attempts}/${max}): ${fehlermeldung}`.slice(0, 400);
+  if (attempts >= max) {
+    return {
+      attempts,
+      status: "fehler",
+      error: kurz,
+      last_error: kurz,
+      failed_at: new Date(jetztMs).toISOString(),
+      next_retry_at: null,
+    };
+  }
+  const delayMs = Math.min(30 * 60_000, 60_000 * 2 ** (attempts - 1));
+  return {
+    attempts,
+    status: "retry",
+    error: kurz,
+    last_error: kurz,
+    next_retry_at: new Date(jetztMs + delayMs).toISOString(),
+  };
 }
 
 /** Lead-Uebernahme ist Admin-Sache (serverseitig geprueft). */
@@ -560,7 +605,12 @@ const addCost = (data: any, c: number) => {
   data.kostenUsd = Math.round(((Number(data.kostenUsd) || 0) + c) * 10000) / 10000;
 };
 
-// ── Start: Zeile anlegen + Prompt-Set generieren ────────────────────────────
+// ── Start: NUR den Job anlegen (Async-Umbau 21.08.) ─────────────────────────
+// Der Request macht keinerlei externe Aufrufe mehr — auch die Prompt-
+// Generierung laeuft als erste Worker-Etappe "prompts". Antwortzeit dadurch
+// im Normalfall deutlich unter 2 Sekunden; der Job ist sofort sichtbar.
+export const OFFENE_STATUS = ["queued", "laufend", "retry"] as const;
+
 export async function startAudit(opts: {
   organizationId: string;
   userId: string | null;
@@ -572,13 +622,14 @@ export async function startAudit(opts: {
 }): Promise<{ audit: any; bereitsLaufend: boolean }> {
   const domain = normDomain(opts.domain);
   if (!domain || !domain.includes(".")) throw new Error("Gueltige Domain erforderlich");
-  // Doppelstart-Schutz (Reload/Doppelklick): laeuft fuer diese Domain in der
-  // Organisation bereits eine Analyse, wird DEREN Job zurueckgegeben.
+  // Doppelstart-Schutz (Reload/Doppelklick): existiert fuer diese Domain in
+  // der Organisation bereits ein OFFENER Job (queued/laufend/retry), wird
+  // DESSEN Job zurueckgegeben — nie ein zweiter angelegt.
   const { data: offen } = await SB.from("prospect_audits")
     .select("*")
     .eq("organization_id", opts.organizationId)
     .eq("domain", domain)
-    .eq("status", "laufend")
+    .in("status", OFFENE_STATUS as unknown as string[])
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -587,12 +638,6 @@ export async function startAudit(opts: {
   const wettbewerber = [
     ...new Set(opts.wettbewerber.map(normDomain).filter((d) => d && d !== domain)),
   ].slice(0, 3);
-  const prompts = await buildPrompts({
-    firmenname: opts.firmenname,
-    branche: opts.branche,
-    ort: opts.ort,
-    domain,
-  });
   const { data, error } = await SB.from("prospect_audits")
     .insert({
       organization_id: opts.organizationId,
@@ -602,10 +647,12 @@ export async function startAudit(opts: {
       branche: (opts.branche || "").trim(),
       ort: (opts.ort || "").trim(),
       wettbewerber,
-      status: "laufend",
-      stage: "technik",
-      progress: 5,
-      data: { prompts, kostenUsd: 0 },
+      status: "queued",
+      stage: "prompts",
+      progress: 0,
+      attempts: 0,
+      max_attempts: 3,
+      data: { kostenUsd: 0 },
     })
     .select("*")
     .single();
@@ -625,9 +672,14 @@ export async function retryAudit(id: string) {
 /** Abbruch: sicher, weil der Worker abgebrochene Jobs nie mehr anfasst. */
 export async function abbrechenAudit(id: string) {
   const { data } = await SB.from("prospect_audits")
-    .update({ status: "abgebrochen", updated_at: new Date().toISOString(), locked_until: null })
+    .update({
+      status: "abgebrochen",
+      updated_at: new Date().toISOString(),
+      locked_until: null,
+      next_retry_at: null,
+    })
     .eq("id", id)
-    .eq("status", "laufend")
+    .in("status", OFFENE_STATUS as unknown as string[])
     .select("*")
     .maybeSingle();
   return data ?? (await loadRow(id));
@@ -642,10 +694,14 @@ export async function tickeOffeneAudits(budgetMs = 230_000) {
   const out = { getickt: 0, fertig: 0, fehler: 0 };
   for (let i = 0; i < 60; i++) {
     if (Date.now() - start > budgetMs) break;
+    const nowIso = new Date().toISOString();
+    // Offene Jobs: queued/laufend sofort, retry erst ab next_retry_at.
+    // Abgebrochene/fehlgeschlagene Jobs werden NIE wieder aufgenommen.
     const { data: rows } = await SB.from("prospect_audits")
       .select("id")
-      .eq("status", "laufend")
-      .or(`locked_until.is.null,locked_until.lt.${new Date().toISOString()}`)
+      .in("status", OFFENE_STATUS as unknown as string[])
+      .or(`locked_until.is.null,locked_until.lt.${nowIso}`)
+      .or(`next_retry_at.is.null,next_retry_at.lte.${nowIso}`)
       .order("updated_at", { ascending: true })
       .limit(1);
     const next = rows?.[0];
@@ -654,6 +710,18 @@ export async function tickeOffeneAudits(budgetMs = 230_000) {
     out.getickt++;
     if (r?.status === "fertig") out.fertig++;
     if (r?.status === "fehler") out.fehler++;
+  }
+  // Worker-Heartbeat (21.08.): sichtbar machen, dass und wie der Worker lief.
+  try {
+    await SB.from("analyse_worker_heartbeat").upsert({
+      id: 1,
+      last_run_at: new Date().toISOString(),
+      duration_ms: Date.now() - start,
+      jobs_processed: out.getickt,
+      errors: out.fehler,
+    });
+  } catch {
+    /* Heartbeat ist Diagnose — nie den Worker scheitern lassen */
   }
   return out;
 }
@@ -719,22 +787,41 @@ export async function leadZuKunde(id: string, organizationId: string, userId: st
 export async function tickAudit(id: string) {
   const nowIso = new Date().toISOString();
   const lockIso = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+  // Lock-Claim ist zugleich der Statuswechsel queued/retry -> laufend; nur
+  // offene, nicht gelockte, nicht retry-wartende Jobs sind claimbar —
+  // ueberlappende Worker koennen dieselbe Etappe dadurch nie doppelt fahren.
   const { data: row } = await SB.from("prospect_audits")
-    .update({ locked_until: lockIso })
+    .update({ locked_until: lockIso, status: "laufend", last_started_at: nowIso })
     .eq("id", id)
-    .eq("status", "laufend")
+    .in("status", OFFENE_STATUS as unknown as string[])
     .or(`locked_until.is.null,locked_until.lt.${nowIso}`)
+    .or(`next_retry_at.is.null,next_retry_at.lte.${nowIso}`)
     .select("*")
     .maybeSingle();
   if (!row) {
     const cur = await loadRow(id);
     if (!cur) throw new Error("Analyse nicht gefunden");
-    return cur; // nicht (mehr) laufend ODER ein anderer Tick haelt den Lock
+    return cur; // nicht (mehr) offen ODER ein anderer Tick haelt den Lock
   }
   const data = row.data || {};
   const domain: string = row.domain;
+  // Erfolgreicher Etappenabschluss setzt die Retry-Felder zurueck — jede
+  // Etappe ist idempotent (schreibt ihre data-Felder deterministisch neu).
+  const saveStage = (patch: any) =>
+    saveRow(id, { ...patch, attempts: 0, next_retry_at: null, last_error: null });
   try {
     switch (row.stage) {
+      case "prompts": {
+        // Async-Umbau 21.08.: Prompt-Set als ERSTE Worker-Etappe (frueher im
+        // startAudit-Request) — der Start antwortet dadurch sofort.
+        data.prompts = await buildPrompts({
+          firmenname: row.firmenname,
+          branche: row.branche,
+          ort: row.ort,
+          domain,
+        });
+        return await saveStage({ data, stage: "technik", progress: 5 });
+      }
       case "technik": {
         const sh = await runSiteHealthForDomain(domain, "deep");
         data.technik = {
@@ -759,7 +846,7 @@ export async function tickAudit(id: string) {
           }
         }
         data.anbindung = deriveAnbindung(flat, sh.homeHtml || "");
-        return await saveRow(id, { data, stage: "seo", progress: 25 });
+        return await saveStage({ data, stage: "seo", progress: 25 });
       }
       case "seo": {
         const [ov, bl, am] = await Promise.all([
@@ -802,7 +889,7 @@ export async function tickAudit(id: string) {
             .filter((s: any) => s.domain)
             .slice(0, 15),
         };
-        return await saveRow(id, { data, stage: "volumen", progress: 35 });
+        return await saveStage({ data, stage: "volumen", progress: 35 });
       }
       case "volumen": {
         const kws = (data.prompts || []).map((p: any) => p.q);
@@ -818,7 +905,7 @@ export async function tickAudit(id: string) {
             map.set(String(it.keyword).toLowerCase(), Number(it.ai_search_volume) || 0);
         }
         for (const p of data.prompts || []) p.vol = map.get(String(p.q).toLowerCase()) ?? null;
-        return await saveRow(id, { data, stage: "ai1", progress: 45 });
+        return await saveStage({ data, stage: "ai1", progress: 45 });
       }
       case "ai1":
       case "ai2":
@@ -859,7 +946,7 @@ export async function tickAudit(id: string) {
           4,
         );
         const next = part < 3 ? `ai${part + 1}` : "entitaet";
-        return await saveRow(id, { data, stage: next, progress: 45 + part * 12 });
+        return await saveStage({ data, stage: next, progress: 45 + part * 12 });
       }
       case "entitaet": {
         // Wikidata: gibt es die Marke als eindeutige Entitaet?
@@ -907,7 +994,7 @@ export async function tickAudit(id: string) {
         }
         const orgSchemaOk = !(data.technik?.issues || []).some((i: any) => i.id === "orgschema");
         data.entitaet = { wikidata, brandPos, fremdeDomains: fremde, orgSchema: orgSchemaOk };
-        return await saveRow(id, { data, stage: "benchmark", progress: 88 });
+        return await saveStage({ data, stage: "benchmark", progress: 88 });
       }
       case "benchmark": {
         const quickScore = async (d: string) => {
@@ -951,7 +1038,7 @@ export async function tickAudit(id: string) {
         const own = await quickScore(domain);
         const comps = await pMap((row.wettbewerber || []) as string[], quickScore, 2);
         data.benchmark = { eigen: own, wettbewerber: comps };
-        return await saveRow(id, { data, stage: "score", progress: 94 });
+        return await saveStage({ data, stage: "score", progress: 94 });
       }
       case "score": {
         // Domain bereits EzyAI-Kunde? Dann zeigt der Report einen Einordnungs-
@@ -1080,7 +1167,7 @@ export async function tickAudit(id: string) {
             prio: ["hoch", "mittel", "leicht"].includes(x.prio) ? x.prio : "mittel",
           }));
         data.massnahmen = massnahmen;
-        return await saveRow(id, {
+        return await saveStage({
           data,
           dims: { ai, technik, entitaet, seo },
           score,
@@ -1090,16 +1177,16 @@ export async function tickAudit(id: string) {
         });
       }
       default:
-        return await saveRow(id, { status: "fertig", progress: 100 });
+        return await saveStage({ status: "fertig", progress: 100 });
     }
   } catch (e) {
-    // Etappe notieren, aber nicht endgueltig scheitern lassen — naechster Tick versucht erneut;
-    // nach 3 Fehlversuchen derselben Etappe wird der Lauf als Fehler beendet.
-    const fails = (Number(data.stageFails?.[row.stage]) || 0) + 1;
-    data.stageFails = { ...(data.stageFails || {}), [row.stage]: fails };
+    // Begrenztes exponentielles Retry (21.08.): Fehlversuch zaehlen, Job in
+    // den retry-Wartezustand legen; ab max_attempts endgueltig "fehler".
     const msg = String((e as any)?.message || e).slice(0, 300);
-    if (fails >= 3)
-      return await saveRow(id, { data, status: "fehler", error: `${row.stage}: ${msg}` });
-    return await saveRow(id, { data, error: `${row.stage} (Versuch ${fails}): ${msg}` });
+    data.stageFails = {
+      ...(data.stageFails || {}),
+      [row.stage]: (Number(data.stageFails?.[row.stage]) || 0) + 1,
+    };
+    return await saveStage({ data, ...fehlerPatch(row, msg, Date.now()) });
   }
 }
