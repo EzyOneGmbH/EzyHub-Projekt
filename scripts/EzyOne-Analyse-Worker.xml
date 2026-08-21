@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <!-- EzyAI-Analyse-Worker (Async-Umbau 21.08.2026): minuetlicher Tick des
+       geschuetzten Worker-Endpunkts. Versionierte Scheduler-Konfiguration —
+       Registrierung:  schtasks /create /tn "EzyOne-Analyse-Worker" /xml scripts\EzyOne-Analyse-Worker.xml /f
+       Der 8.3-Pfad VOLKAN~1 umgeht das Umlaut-Encoding-Problem von schtasks /tr. -->
+  <RegistrationInfo>
+    <Description>EzyAI-Analyse-Worker: tickt jede Minute alle offenen prospect_audits-Jobs (scripts/analyse-worker.ps1 im EzyHub-Repo).</Description>
+  </RegistrationInfo>
+  <Triggers>
+    <TimeTrigger>
+      <StartBoundary>2026-08-21T00:00:00</StartBoundary>
+      <Repetition>
+        <Interval>PT1M</Interval>
+        <StopAtDurationEnd>false</StopAtDurationEnd>
+      </Repetition>
+      <Enabled>true</Enabled>
+    </TimeTrigger>
+  </Triggers>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>true</RunOnlyIfNetworkAvailable>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <ExecutionTimeLimit>PT10M</ExecutionTimeLimit>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>powershell</Command>
+      <Arguments>-NoProfile -ExecutionPolicy Bypass -File C:\Users\VOLKAN~1\EzyHub-chat-aivis\scripts\analyse-worker.ps1</Arguments>
+    </Exec>
+  </Actions>
+</Task>
