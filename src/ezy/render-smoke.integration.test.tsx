@@ -150,7 +150,7 @@ describe("Render-Smoke der Bereichs-Module (Minimal-Props, leere Daten)", () => 
   });
 
   it("Shell: EzyOneApp-Default-Export rendert (Launcher-Gate)", async () => {
-    const m = await import("@/ezy/EzyOneApp");
+    const m = await import("@/ezy/EzyOneApp.jsx");
     expect(() => render(<m.default appScope={null} />)).not.toThrow();
   });
 });
