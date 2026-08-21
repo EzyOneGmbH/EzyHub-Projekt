@@ -14,7 +14,7 @@ function initialsFromName(name = ""): string {
 }
 
 /** Blanke Host-Form aus einem Domain-/URL-String (ohne Protokoll, www, Pfad). */
-export function hostOf(domain?: string | null): string | null {
+function hostOf(domain?: string | null): string | null {
   if (!domain) return null;
   const d = String(domain)
     .trim()
@@ -27,7 +27,7 @@ export function hostOf(domain?: string | null): string | null {
   return d && d.includes(".") ? d : null;
 }
 
-export function faviconUrl(domain?: string | null, size = 64): string | null {
+function faviconUrl(domain?: string | null, size = 64): string | null {
   const host = hostOf(domain);
   return host
     ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=${size}`

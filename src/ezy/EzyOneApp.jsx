@@ -2824,7 +2824,7 @@ function AgencyOverview({ clients, onSelect, appScope = null }) {
     return () => {
       alive = false;
     };
-  }, [clients]);
+  }, [clients, isAds]);
   // Kacheln alphabetisch — Kundenreihenfolge ist überall gleich (Volkan 13.08.).
   const tiles = [...clients].sort((a, b) =>
     String(a.name).localeCompare(String(b.name), "de-CH", { sensitivity: "base" }),
@@ -3028,8 +3028,12 @@ function OnboardingPanel({ selectedClient }) {
   const [brandStr, setBrandStr] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState("");
+  // exhaustive-deps-Fix (21.08.): Vorauswahl exakt EINMAL je Lauf-ID setzen —
+  // ein Objekt-Refresh derselben ID ueberschreibt die Nutzer-Auswahl nicht.
+  const initRef = useRef(null);
   useEffect(() => {
-    if (!res) return;
+    if (!res || initRef.current === run?.id) return;
+    initRef.current = run?.id;
     const money = new Set(
       (res.suggestions?.moneyKeywordCandidates || []).map((s) => String(s).toLowerCase()),
     );
@@ -3045,7 +3049,7 @@ function OnboardingPanel({ selectedClient }) {
     setSelKw(pre);
     setCtype(res.suggestions?.clientType || "generic");
     setBrandStr((res.suggestions?.brandTerms || []).join(", "));
-  }, [run?.id]);
+  }, [res, run?.id]);
   if (!res || selKw === null) return null;
   const counts = res.counts || {};
   const changes = res.changes;
@@ -3461,11 +3465,22 @@ function SectionPlaceholder({ title, hint }) {
 
 // Stabiler Body-Builder fuer die CWV-Messung (Mobile wie der Sammel-Lauf).
 const PSI_MOBILE_BODY = () => ({ strategy: "mobile" });
+// Map provider/audit_type -> Tool-Label-Fallback (statisch, 21.08. aus der
+// Komponente gehoben — stabil fuer useMemo-Abhaengigkeiten).
+const AUDIT_TYPE_TO_TOOL_ID = {
+  ahrefs: "full-seo-audit",
+  geo: "geo-aeo-audit",
+  geo_overview: "canonry",
+  seo: "open-seo-audit",
+};
 function SeoDashboard({ selectedClient, dateRange }) {
   const { run, refresh: refreshAhrefs } = useEzyLatestRun(selectedClient?.id, "ahrefs");
   const live = run ? ahrefsKpisFromResult(run.result) : null;
   const { runs, refresh: refreshHistory } = useEzyAuditHistory(selectedClient?.id);
-  const startDate = dateRange?.start || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const startDate = useMemo(
+    () => dateRange?.start || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+    [dateRange?.start],
+  );
   const trend = useMemo(
     () =>
       (runs || [])
@@ -4875,16 +4890,18 @@ function GeoDashboard({ selectedClient, dateRange }) {
   const live = useLiveIntegrations();
   const overview = useCanonryOverview(selectedClient);
   const liveCanonry = live.data?.canonry;
+  const liveRefresh = live.refresh;
+  const overviewRefresh = overview.refresh;
   useEffect(() => {
     const interval = setInterval(
       () => {
-        live.refresh?.();
-        overview.refresh?.();
+        liveRefresh?.();
+        overviewRefresh?.();
       },
       12 * 60 * 60 * 1000,
     ); // 12 Stunden
     return () => clearInterval(interval);
-  }, [live.refresh, overview.refresh]);
+  }, [liveRefresh, overviewRefresh]);
   const verifiedProviders = Object.entries(live.data?.providers || {})
     .filter(([, v]) => v?.verified)
     .map(([k]) => canonryProviderLabel(k));
@@ -5311,7 +5328,10 @@ function ConvDashboard({ selectedClient, dateRange }) {
   const ga4Revenue = Number(ga4?.totalRevenue || 0);
   // Serien-Fallback (11.08.): liefert die Live-Antwort keine Tagesreihe,
   // greift der Agent-Snapshot — sonst verschwindet der Traffic-Verlauf.
-  const ga4SeriesRaw = ga4?.series?.length ? ga4.series : run?.result?.series || [];
+  const ga4SeriesRaw = useMemo(
+    () => (ga4?.series?.length ? ga4.series : run?.result?.series || []),
+    [ga4?.series, run?.result?.series],
+  );
   const ga4Series = useMemo(() => ga4SeriesRaw.slice(-days), [ga4SeriesRaw, days]);
   // Live GA4 comparison (real YoY/MoM) — falls back to series-based deltas if unavailable.
   const { data: cmpData, deltas: liveDeltas } = useGa4Compare(selectedClient?.id, dateRange);
@@ -6040,16 +6060,19 @@ function OverviewDashboard({ selectedClient, dateRange }) {
     : 0;
   const visibility = Number(ahrefs?.visibility || 0);
   const countries = traf?.countries || [];
-  const aiSeriesRaw = traf?.aiSeries || [];
+  const aiSeriesRaw = useMemo(() => traf?.aiSeries || [], [traf?.aiSeries]);
   const aiSeries = useMemo(() => aiSeriesRaw.slice(-days), [aiSeriesRaw, days]);
   const aiBySource = traf?.aiReferral.bySource || [];
   const COUNTRY_COLORS = [C.accent, C.blue, C.green, C.orange, C.cyan, C.pink, C.textDim];
   // Live GA4 comparison (real YoY/MoM) — falls back to series-based deltas.
   const { data: ovCmpData, deltas: ovLiveDeltas } = useGa4Compare(selectedClient?.id, dateRange);
-  const ga4SeriesForDelta = ga4Run ? ga4KpisFromResult(ga4Run.result)?.series || [] : [];
+  const ga4SeriesForDelta = useMemo(
+    () => (ga4Run ? ga4KpisFromResult(ga4Run.result)?.series || [] : []),
+    [ga4Run],
+  );
   const sOrganic = useMemo(
     () => seriesDelta(ga4SeriesForDelta, "sessions", dateRange),
-    [ga4Run, dateRange],
+    [ga4SeriesForDelta, dateRange],
   );
   const dOrganic = ovLiveDeltas.sessions !== undefined ? ovLiveDeltas.sessions : sOrganic;
   const dAiRef = useMemo(
@@ -6622,7 +6645,7 @@ function AiVisibilityDashboard({ selectedClient }) {
   const kpis = result
     ? aiVisibilityKpisFromResult(result)
     : { mentions: 0, citations: 0, referencedPages: 0, mentionsDelta: null, citationsDelta: null };
-  const seriesAll = result ? aiVisibilitySeriesFromResult(result) : [];
+  const seriesAll = useMemo(() => (result ? aiVisibilitySeriesFromResult(result) : []), [result]);
   const providers = result ? aiVisibilityProvidersFromResult(result) : [];
   const sources = result ? aiVisibilitySourcesFromResult(result) : [];
   const topics = result ? aiVisibilityTopicsFromResult(result) : [];
@@ -10184,20 +10207,13 @@ function ToolsPage({ selectedClient, tools, onSaveDraft, onOpenDraft }) {
   const onComplete = () => {
     void refreshHistory();
   };
-  // Map provider/audit_type → tool label fallback.
-  const auditTypeToToolId = {
-    ahrefs: "full-seo-audit",
-    geo: "geo-aeo-audit",
-    geo_overview: "canonry",
-    seo: "open-seo-audit",
-  };
   const history = useMemo(
     () =>
       runs.map((r) => {
         const created = r.finished_at || r.started_at || r.created_at;
         const d = new Date(created);
         const inputToolId =
-          (r.input && r.input.toolId) || auditTypeToToolId[r.audit_type] || r.audit_type;
+          (r.input && r.input.toolId) || AUDIT_TYPE_TO_TOOL_ID[r.audit_type] || r.audit_type;
         return {
           id: r.id,
           toolId: inputToolId,
@@ -15058,14 +15074,18 @@ function ConversionValuesPanel({ client }) {
   const [drafts, setDrafts] = useState({}); // event -> { value, currency }
   const [saving, setSaving] = useState(false);
 
-  const load = async () => {
-    if (!client?.id) return;
+  const clientIdStabil = client?.id;
+  const load = useCallback(async () => {
+    if (!clientIdStabil) return;
     setState((s) => ({ ...s, loading: true, error: "" }));
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const r = await fetch(`/api/admin/ga4-conversions?client=${encodeURIComponent(client.id)}`, {
-        headers: { Authorization: `Bearer ${session?.access_token || ""}` },
-      });
+      const r = await fetch(
+        `/api/admin/ga4-conversions?client=${encodeURIComponent(clientIdStabil)}`,
+        {
+          headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+        },
+      );
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
       setState({
@@ -15079,10 +15099,10 @@ function ConversionValuesPanel({ client }) {
     } catch (e) {
       setState((s) => ({ ...s, loading: false, error: String(e?.message || e) }));
     }
-  };
+  }, [clientIdStabil]);
   useEffect(() => {
     load();
-  }, [client?.id]);
+  }, [load]);
 
   const draftOf = (ev) =>
     drafts[ev.name] ?? { value: ev.manualValue || "", currency: ev.currency || "CHF" };
@@ -18130,7 +18150,7 @@ function App({ appScope = null }) {
       : all;
     if (!appScope || appScope === "admin") return svc;
     return svc.filter((c) => appEnabledFor(caa.map, c.id, appScope));
-  }, [ezy.clients, scope, svcMatrix.hasService, appScope, caa.map]);
+  }, [ezy.clients, scope, svcMatrix, appScope, caa.map]);
   const ui0 = useMemo(() => loadUiState(), []); // letzter UI-Stand aus localStorage
   const [clientId, setClientId] = useState(ui0.clientId || "");
   // App-Einstieg (Volkan 11.08., präzisiert): "Alle Kunden" nur beim FRISCHEN

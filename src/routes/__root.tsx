@@ -1,7 +1,8 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { AuthProvider } from "@/hooks/use-auth";
 import { Toaster } from "@/components/ui/sonner";
-import { SupabaseConfigError, getMissingSupabaseEnv } from "@/components/supabase-config-error";
+import { SupabaseConfigError } from "@/components/supabase-config-error";
+import { getMissingSupabaseEnv } from "@/components/supabase-env";
 
 import appCss from "../styles.css?url";
 

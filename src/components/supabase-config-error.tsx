@@ -70,19 +70,3 @@ export function SupabaseConfigError({ missing }: Props) {
     </div>
   );
 }
-
-export function getMissingSupabaseEnv(): string[] {
-  const env = (typeof import.meta !== "undefined" ? import.meta.env : undefined) as
-    | Record<string, string | undefined>
-    | undefined;
-  const missing: string[] = [];
-  const supabaseUrl = env?.VITE_SUPABASE_URL || process.env.SUPABASE_URL || FALLBACK_SUPABASE_URL;
-  const supabasePublishableKey =
-    env?.VITE_SUPABASE_PUBLISHABLE_KEY ||
-    process.env.SUPABASE_PUBLISHABLE_KEY ||
-    FALLBACK_SUPABASE_PUBLISHABLE_KEY;
-
-  if (!supabaseUrl) missing.push("VITE_SUPABASE_URL");
-  if (!supabasePublishableKey) missing.push("VITE_SUPABASE_PUBLISHABLE_KEY");
-  return missing;
-}

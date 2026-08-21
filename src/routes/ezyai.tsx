@@ -444,7 +444,7 @@ function LlmAnalyticsPanel({
   }, [clientId, cmpStart, cmpEnd]);
 
   // Lückenlose Tages-Skala (fehlende Tage = 0), GA4-Format YYYYMMDD.
-  const dayKeys = useMemo(() => rangeDayKeys(range.start, range.end), [startKey, endKey]);
+  const dayKeys = useMemo(() => rangeDayKeys(range.start, range.end), [range.start, range.end]);
   const dayLabel = (k: string) => `${k.slice(6, 8)}.${k.slice(4, 6)}.`;
 
   const crawler = useMemo(() => {
@@ -1343,7 +1343,7 @@ function TrafficPanel({
     borderRadius: 14,
     padding: 18,
   };
-  const dayKeys = useMemo(() => rangeDayKeys(range.start, range.end), [startKey, endKey]);
+  const dayKeys = useMemo(() => rangeDayKeys(range.start, range.end), [range.start, range.end]);
   const dayLabel = (k: string) => `${k.slice(6, 8)}.${k.slice(4, 6)}.`;
   const labelEvery = Math.max(1, Math.ceil(dayKeys.length / 10));
   const [qwRef, QW] = useChartWidth(1000, 640); // Quadranten-Matrix (mobil scrollbar)
@@ -5251,7 +5251,7 @@ function EzyAiApp() {
       (ezy.clients || [])
         .filter((c: any) => svcMatrix.hasService(c.id, ["canonry", "perplexity"]))
         .filter((c: any) => appEnabledFor(caa.map, c.id, "geo")),
-    [ezy.clients, svcMatrix.hasService, caa.map],
+    [ezy.clients, svcMatrix, caa.map],
   );
   const client = useMemo(
     () => clients.find((c: any) => c.id === clientId) || clients[0] || null,

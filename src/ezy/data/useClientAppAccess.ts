@@ -42,8 +42,10 @@ export function useClientAppAccess() {
   const [legacy, setLegacy] = useState(false); // Tabelle (noch) nicht vorhanden
   const [loading, setLoading] = useState(true);
 
+  // exhaustive-deps-Fix (21.08.): fachlich zaehlt nur die User-ID.
+  const userId = user?.id;
   const reload = useCallback(async () => {
-    if (!user) {
+    if (!userId) {
       setRows([]);
       setLoading(false);
       return;
@@ -68,7 +70,7 @@ export function useClientAppAccess() {
       );
     }
     setLoading(false);
-  }, [user?.id]);
+  }, [userId]);
 
   useEffect(() => {
     void reload();

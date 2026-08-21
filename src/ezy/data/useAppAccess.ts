@@ -12,10 +12,13 @@ export function useAppAccess() {
   const { user, role, isOrgAdmin, organizationId, loading: authLoading } = useAuth();
   const [apps, setApps] = useState<Set<EzyAppId> | null>(null);
 
+  // exhaustive-deps-Fix (21.08.): der Effect haengt fachlich nur an der
+  // User-ID, nicht an der Objekt-Identitaet von `user`.
+  const userId = user?.id;
   useEffect(() => {
     let alive = true;
     if (authLoading) return;
-    if (!user) {
+    if (!userId) {
       setApps(new Set());
       return;
     }
@@ -32,14 +35,14 @@ export function useAppAccess() {
     (supabase as any)
       .from("app_access")
       .select("app")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .then(({ data }: { data: Array<{ app: EzyAppId }> | null }) => {
         if (alive) setApps(new Set((data ?? []).map((r) => r.app)));
       });
     return () => {
       alive = false;
     };
-  }, [user?.id, role, isOrgAdmin, authLoading]);
+  }, [userId, role, isOrgAdmin, authLoading]);
 
   const canOpen = (id: EzyAppId) =>
     id === "admin" ? isOrgAdmin : isOrgAdmin || (apps?.has(id) ?? false);
