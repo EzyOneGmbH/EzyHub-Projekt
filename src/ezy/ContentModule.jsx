@@ -157,15 +157,18 @@ export function ContentEditor({ item, stCo, stLb, onBack, onSave }) {
           notify={toast}
         />
       )}
+      {/* Redesign 1b (Screen 2g): Editor als Hi-Fi-Karte — Toolbar mit
+        Hairline, Panes r16, Dokument-Typografie in der Vorschau. */}
       <div
         style={{
           display: "flex",
           gap: 4,
-          padding: "6px 8px",
+          padding: "8px 12px",
           background: C.card,
-          borderRadius: "10px 10px 0 0",
+          borderRadius: "16px 16px 0 0",
           border: `1px solid ${C.border}`,
-          borderBottom: "none",
+          borderBottom: `1px solid ${C.hairline}`,
+          boxShadow: C.cardShadow,
         }}
       >
         {[
@@ -202,7 +205,9 @@ export function ContentEditor({ item, stCo, stLb, onBack, onSave }) {
           gridTemplateColumns: "1fr 1fr",
           flex: 1,
           border: `1px solid ${C.border}`,
-          borderRadius: "0 0 10px 10px",
+          borderTop: "none",
+          borderRadius: "0 0 16px 16px",
+          boxShadow: C.cardShadow,
           overflow: "hidden",
         }}
       >
@@ -213,8 +218,8 @@ export function ContentEditor({ item, stCo, stLb, onBack, onSave }) {
             background: C.bg,
             color: C.text,
             border: "none",
-            borderRight: `1px solid ${C.border}`,
-            padding: 16,
+            borderRight: `1px solid ${C.hairline}`,
+            padding: "20px 22px",
             fontSize: 13,
             fontFamily: "'JetBrains Mono',monospace",
             lineHeight: 1.7,
@@ -225,10 +230,10 @@ export function ContentEditor({ item, stCo, stLb, onBack, onSave }) {
         <div
           style={{
             background: C.surface,
-            padding: 16,
-            fontSize: 13,
-            lineHeight: 1.7,
-            color: C.textMuted,
+            padding: "24px 28px",
+            fontSize: 14.5,
+            lineHeight: 1.75,
+            color: "#3a3340",
             overflowY: "auto",
           }}
           dangerouslySetInnerHTML={{ __html: renderMd(md) }}

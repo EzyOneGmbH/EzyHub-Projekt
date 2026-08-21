@@ -324,6 +324,44 @@ export function PosBadge({ pos }) {
   );
 }
 
+/**
+ * ScoreRing — 60px-Kreisscore (Hi-Fi 2g): Hairline-Ring, farbiger Bogen,
+ * Zahl mittig. value 0–100; Farbe default nach Ampel (≥80 grün, ≥50 orange).
+ */
+export function ScoreRing({ value, size = 60, color, label }) {
+  const v = Math.max(0, Math.min(100, Number(value) || 0));
+  const r = 26;
+  const umfang = 2 * Math.PI * r;
+  const fg = color || (v >= 80 ? C.green : v >= 50 ? C.orange : C.red);
+  return (
+    <svg viewBox="0 0 60 60" width={size} height={size} role="img" aria-label={label || `${v}`}>
+      <circle cx="30" cy="30" r={r} fill="none" stroke="rgba(43,0,51,.07)" strokeWidth="6" />
+      <circle
+        cx="30"
+        cy="30"
+        r={r}
+        fill="none"
+        stroke={fg}
+        strokeWidth="6"
+        strokeLinecap="round"
+        strokeDasharray={`${(umfang * v) / 100} ${umfang}`}
+        transform="rotate(-90 30 30)"
+      />
+      <text
+        x="30"
+        y="35"
+        textAnchor="middle"
+        fontSize="16"
+        fontWeight="800"
+        fill={C.text}
+        fontFamily="inherit"
+      >
+        {Math.round(v)}
+      </text>
+    </svg>
+  );
+}
+
 /** ToggleSwitch — 38×22 (Hi-Fi 7). */
 export function ToggleSwitch({ on, onChange, title }) {
   return (

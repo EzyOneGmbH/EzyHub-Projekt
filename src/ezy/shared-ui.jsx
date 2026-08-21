@@ -443,9 +443,9 @@ function EzyPilotChat({ compact = false }) {
                   key={i}
                   onClick={() => send(s)}
                   style={{
-                    padding: "7px 12px",
-                    borderRadius: 18,
-                    border: `1px solid ${C.border}`,
+                    padding: "8px 14px",
+                    borderRadius: C.rPill,
+                    border: "1px solid rgba(43,0,51,.10)",
                     background: C.card,
                     color: C.text,
                     fontSize: 12.5,
@@ -468,14 +468,18 @@ function EzyPilotChat({ compact = false }) {
               justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
             }}
           >
+            {/* Redesign 1b (Screen 2e): Nutzer = Gradient-Bubble mit spitzer
+              Ecke rechts unten, EzyPilot = weisse Bubble mit spitzer Ecke links. */}
             <div
               style={{
                 maxWidth: "85%",
-                background: msg.role === "user" ? C.accent : C.card,
+                background: msg.role === "user" ? C.grad : C.card,
                 color: msg.role === "user" ? "#fff" : C.text,
                 border: msg.role === "user" ? "none" : `1px solid ${C.border}`,
-                borderRadius: 14,
-                padding: "10px 14px",
+                borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                boxShadow:
+                  msg.role === "user" ? "0 8px 20px -12px rgba(119,0,140,.5)" : C.cardShadow,
+                padding: msg.role === "user" ? "12px 16px" : "14px 18px",
                 fontSize: compact ? 13 : 14,
                 lineHeight: 1.55,
                 whiteSpace: "pre-wrap",
@@ -532,7 +536,8 @@ function EzyPilotChat({ compact = false }) {
               style={{
                 background: C.card,
                 border: `1px solid ${C.border}`,
-                borderRadius: 14,
+                borderRadius: "18px 18px 18px 4px",
+                boxShadow: C.cardShadow,
                 padding: "10px 14px",
                 fontSize: 13,
                 color: C.textMuted,
@@ -543,7 +548,21 @@ function EzyPilotChat({ compact = false }) {
           </div>
         )}
       </div>
-      <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "flex-end" }}>
+      {/* Redesign 1b (Screen 2e): Glas-Eingabebar mit Gradient-Sende-Kachel */}
+      <div
+        style={{
+          display: "flex",
+          gap: 10,
+          marginTop: 12,
+          alignItems: "flex-end",
+          background: "rgba(255,255,255,.85)",
+          backdropFilter: "blur(16px)",
+          border: "1px solid rgba(43,0,51,.10)",
+          borderRadius: 16,
+          padding: "8px 8px 8px 16px",
+          boxShadow: "0 12px 32px -20px rgba(43,0,51,.3)",
+        }}
+      >
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -557,10 +576,9 @@ function EzyPilotChat({ compact = false }) {
           rows={compact ? 1 : 2}
           style={{
             flex: 1,
-            padding: "10px 12px",
-            borderRadius: 10,
-            border: `1px solid ${C.border}`,
-            background: C.card,
+            padding: "8px 0",
+            border: "none",
+            background: "transparent",
             color: C.text,
             fontSize: 13.5,
             fontFamily: "inherit",
@@ -569,9 +587,26 @@ function EzyPilotChat({ compact = false }) {
             boxSizing: "border-box",
           }}
         />
-        <Btn icon={ArrowRight} onClick={submit} disabled={busy || !input.trim()}>
-          Senden
-        </Btn>
+        <button
+          onClick={submit}
+          disabled={busy || !input.trim()}
+          title="Senden"
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: 12,
+            border: "none",
+            background: C.grad,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: busy || !input.trim() ? "default" : "pointer",
+            opacity: busy || !input.trim() ? 0.5 : 1,
+            flexShrink: 0,
+          }}
+        >
+          <ArrowRight size={17} color="#fff" />
+        </button>
       </div>
     </div>
   );

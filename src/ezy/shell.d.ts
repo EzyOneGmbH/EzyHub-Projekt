@@ -10,4 +10,10 @@ export const AppRail: React.ComponentType<any>;
 export const SegmentedTabs: React.ComponentType<any>;
 export const StatusPill: React.ComponentType<any>;
 export const PosBadge: React.ComponentType<{ pos: number | string }>;
+export const ScoreRing: React.ComponentType<{
+  value: number;
+  size?: number;
+  color?: string;
+  label?: string;
+}>;
 export const ToggleSwitch: React.ComponentType<any>;
