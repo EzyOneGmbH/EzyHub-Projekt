@@ -9934,9 +9934,14 @@ function ToolRunner({ tool, onClose, client, onComplete, onSaveDraft, onOpenDraf
     setPhase("running");
     setRunStatus("");
     try {
-      const r = await runToolLive(tool.id, client || { id: "", domain: clientDomain }, form, (m) => {
-        if (!closedRef.current) setRunStatus(m);
-      });
+      const r = await runToolLive(
+        tool.id,
+        client || { id: "", domain: clientDomain },
+        form,
+        (m) => {
+          if (!closedRef.current) setRunStatus(m);
+        },
+      );
       if (closedRef.current) return;
       setResult(r);
       setPhase("done");
