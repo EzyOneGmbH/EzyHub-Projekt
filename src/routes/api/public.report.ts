@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { requireTeamRole } from "@/server/team-guard.server";
 import { makeReportToken, verifyReportToken, reportTokenHash } from "@/server/report-token.server";
 
 // Teilbare Kunden-Reports (Searchable-Nachbau, 2026-08-03).
@@ -17,25 +17,18 @@ async function requireOrgAdmin(
   | { ok: true; userId: string; organizationId: string }
   | { ok: false; status: number; error: string }
 > {
-  const url = process.env.SUPABASE_URL;
-  const anon = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
-  if (!url || !anon) return { ok: false, status: 503, error: "Server not configured" };
-  const sb = createClient(url, anon, {
-    global: { headers: { Authorization: request.headers.get("authorization") ?? "" } },
-  });
-  const { data } = await sb.auth.getUser();
-  if (!data.user) return { ok: false, status: 401, error: "Unauthorized" };
-  const { data: m } = await (supabaseAdmin as any)
-    .from("app_users")
-    .select("role, organization_id")
-    .eq("user_id", data.user.id)
-    .order("role", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  const role = (m?.role as string) || "viewer";
-  if ((role !== "owner" && role !== "admin") || !m?.organization_id)
-    return { ok: false, status: 403, error: "Nur Admins können Report-Links erstellen" };
-  return { ok: true, userId: data.user.id, organizationId: m.organization_id as string };
+  // Security-Runde 2 (21.08.): gemeinsamer Team-Guard — Mehrfach-Mitglied-
+  // schaften werden validiert (aktive Org via X-Ezy-Active-Org), es wird nie
+  // einfach der erste app_users-Eintrag genommen.
+  const ctx = await requireTeamRole(request, "admin");
+  if (ctx instanceof Response) {
+    const j: any = await ctx
+      .clone()
+      .json()
+      .catch(() => ({}));
+    return { ok: false, status: ctx.status, error: String(j?.error || "Unauthorized") };
+  }
+  return { ok: true, userId: ctx.userId, organizationId: ctx.organizationId };
 }
 
 export const Route = createFileRoute("/api/public/report")({

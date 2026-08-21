@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { normalizeSiteUrl, verifyWpConnection, detectSeoPlugin } from "@/server/wordpress.server";
 import { encryptSecret } from "@/server/secretbox.server";
+import { rolleErlaubt } from "@/server/team-guard.server";
 
 // Per-client WordPress connection: GET status, POST connect (verify + store),
 // DELETE disconnect. Credentials live in oauth_connections (provider="wordpress").
@@ -31,6 +32,9 @@ async function authClient(request: Request, clientId: string, requireAdmin = fal
     .eq("organization_id", client.organization_id)
     .maybeSingle();
   if (!m) return { error: "Forbidden", status: 403 as const };
+  // Security-Runde 2 (21.08.): Viewer (Kundenportal) sehen die WP-Verbindung
+  // NIE — auch der Status (Site-URL/Benutzername) ist Team-intern.
+  if (!rolleErlaubt((m as any).role, "member")) return { error: "Forbidden", status: 403 as const };
   if (requireAdmin && !["owner", "admin"].includes((m as any).role))
     return { error: "Forbidden", status: 403 as const };
   return { user, client };

@@ -35,7 +35,14 @@ export const Route = createFileRoute("/api/agent/approvals")({
               signal: AbortSignal.timeout(10_000),
             },
           );
-          const j = await r.json().catch(() => ({}));
+          const j: any = await r.json().catch(() => ({}));
+          // Defensive Org-Filterung (Runde 2, 21.08.): nur Items mit EXAKT
+          // passender organizationId — unmarkierte Eintraege werden NIE
+          // ausgeliefert; openCount wird auf die gefilterte Liste neu gerechnet.
+          if (Array.isArray(j?.items)) {
+            j.items = j.items.filter((i: any) => i?.organizationId === ctx.organizationId);
+            j.openCount = j.items.filter((i: any) => i?.status === "offen").length;
+          }
           return Response.json(j, { headers: { "Cache-Control": "no-store" } });
         } catch (e) {
           return Response.json(

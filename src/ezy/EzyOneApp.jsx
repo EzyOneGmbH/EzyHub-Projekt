@@ -14954,6 +14954,66 @@ function ConversionValuesPanel({ client }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // PAGE: SETTINGS (5 tabs)
 // ═══════════════════════════════════════════════════════════════════════════
+// Security-Runde 2 (21.08.): Zustand der WordPress-Secrets — NUR Zaehler
+// (aktuell/veraltet/Klartext/fehlerhaft), niemals Inhalte. Quelle:
+// /api/admin/secret-status (owner/admin, Org-gebunden).
+function WpSecretStatusCard() {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = (await supabase.auth.getSession()).data.session?.access_token;
+        const r = await fetch("/api/admin/secret-status", {
+          headers: { Authorization: `Bearer ${token || ""}` },
+        });
+        const j = await r.json().catch(() => null);
+        if (j?.ok) setData(j);
+      } catch {}
+    })();
+  }, []);
+  if (!data) return null;
+  const pill = (label, n, color) => (
+    <span
+      style={{
+        fontSize: 11,
+        fontWeight: 700,
+        padding: "3px 10px",
+        borderRadius: 8,
+        background: `${color}18`,
+        color,
+      }}
+    >
+      {label}: {n}
+    </span>
+  );
+  return (
+    <div
+      style={{
+        background: C.card,
+        border: `1px solid ${C.border}`,
+        borderRadius: 10,
+        padding: "12px 16px",
+        marginBottom: 16,
+      }}
+    >
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
+        WordPress-Zugänge (verschlüsselt gespeichert)
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        {pill("Aktuell", data.aktuell, C.green)}
+        {pill("Veraltete Version", data.veraltet, C.orange)}
+        {pill("Klartext", data.klartext, data.klartext ? C.red : C.textMuted)}
+        {pill("Fehlerhaft", data.fehlerhaft, data.fehlerhaft ? C.red : C.textMuted)}
+        <span style={{ fontSize: 11, color: C.textMuted }}>
+          {data.gesamt} Verbindung(en)
+          {data.strictModus ? " · Klartext-Fallback deaktiviert" : ""}
+          {!data.dedizierterSchluessel ? " · Hinweis: WP_SECRET_KEY_V1 noch nicht gesetzt" : ""}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function SettingsPage({
   tools,
   onToggleTool,
@@ -15120,6 +15180,7 @@ function SettingsPage({
                 Frontend-Bundle geschrieben.
               </span>
             </div>
+            <WpSecretStatusCard />
             {live.loading && (
               <div
                 style={{

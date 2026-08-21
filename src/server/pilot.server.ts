@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { aktiveMitgliedschaft } from "@/server/team-guard.server";
 
 // Geteilte EzyPilot-Serverlogik (2026-07-20): wird vom Web-Proxy
 // (/api/agent/pilot) UND den MCP-Tools (pilot_ask/pilot_note) genutzt, damit
@@ -26,20 +27,26 @@ export function svc() {
 export type PilotScope = {
   isOwner: boolean;
   role: string;
+  organizationId: string;
   clients: { id: string; name: string; slug: string }[];
   allowedSlugs: string[];
 };
 
-/** Scope des Aufrufers: Rolle + zugewiesene Kunden (id/name/slug). */
-export async function pilotScope(userId: string): Promise<PilotScope | null> {
-  const { data: me } = await supabaseAdmin
-    .from("app_users")
-    .select("organization_id, role")
-    .eq("user_id", userId)
-    .maybeSingle();
-  const orgId = (me as any)?.organization_id as string | undefined;
-  if (!orgId) return null;
-  const role = String((me as any)?.role || "");
+/**
+ * Scope des Aufrufers: Rolle + zugewiesene Kunden (id/name/slug).
+ * Security-Runde 2 (21.08.): Mehrfach-Mitgliedschaften laufen ueber
+ * aktiveMitgliedschaft() — bei mehreren Organisationen ohne explizite
+ * (validierte) Wunsch-Org gibt es KEINEN Scope (fail-closed), es wird nie
+ * einfach der erste app_users-Eintrag genommen.
+ */
+export async function pilotScope(
+  userId: string,
+  activeOrg?: string | null,
+): Promise<PilotScope | null> {
+  const aktiv = await aktiveMitgliedschaft(userId, activeOrg);
+  if (!aktiv) return null;
+  const orgId = aktiv.organizationId;
+  const role = aktiv.role;
   const isOwner = role === "owner" || role === "admin";
 
   let clientIds: string[] | null = null; // null = alle (owner/admin)
@@ -67,7 +74,13 @@ export async function pilotScope(userId: string): Promise<PilotScope | null> {
     name: c.name,
     slug: slugifyName(c.name),
   }));
-  return { isOwner, role, clients: list, allowedSlugs: list.map((c) => c.slug) };
+  return {
+    isOwner,
+    role,
+    organizationId: orgId,
+    clients: list,
+    allowedSlugs: list.map((c) => c.slug),
+  };
 }
 
 // Einfache Drossel pro Nutzer (In-Memory, pro Server-Instanz): 30 Aktionen/Std.

@@ -40,7 +40,7 @@ export const agentListTool = defineTool({
     if (!s)
       return { content: [{ type: "text", text: "Agent service not configured" }], isError: true };
     const r = await fetch(
-      `${s.base}/agents?clientId=${encodeURIComponent(client_id || "global")}`,
+      `${s.base}/agents?clientId=${encodeURIComponent(client_id || "global")}&org=${encodeURIComponent(gate.scope!.organizationId)}`,
       {
         headers: { Authorization: `Bearer ${s.secret}` },
         signal: AbortSignal.timeout(15_000),
@@ -106,20 +106,24 @@ export const agentUpsertTool = defineTool({
     if (!s)
       return { content: [{ type: "text", text: "Agent service not configured" }], isError: true };
     const clientId = client_id || "global";
-    const r = await fetch(`${s.base}/agents?clientId=${encodeURIComponent(clientId)}`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${s.secret}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...(id ? { id } : {}),
-        clientId,
-        name,
-        description: description || "",
-        model: model || "claude-sonnet-4-6",
-        skills,
-        instructions,
-      }),
-      signal: AbortSignal.timeout(15_000),
-    });
+    const orgId = gate.scope!.organizationId;
+    const r = await fetch(
+      `${s.base}/agents?clientId=${encodeURIComponent(clientId)}&org=${encodeURIComponent(orgId)}`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${s.secret}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(id ? { id } : {}),
+          clientId,
+          name,
+          description: description || "",
+          model: model || "claude-sonnet-4-6",
+          skills,
+          instructions,
+        }),
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.agent) {
       return {

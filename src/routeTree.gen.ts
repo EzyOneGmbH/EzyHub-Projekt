@@ -92,6 +92,7 @@ import { Route as ApiAdminTeamRouteImport } from './routes/api/admin.team'
 import { Route as ApiAdminSiteHealthRouteImport } from './routes/api/admin.site-health'
 import { Route as ApiAdminSetCanonryProjectRouteImport } from './routes/api/admin.set-canonry-project'
 import { Route as ApiAdminSecureMigrateRouteImport } from './routes/api/admin.secure-migrate'
+import { Route as ApiAdminSecretStatusRouteImport } from './routes/api/admin.secret-status'
 import { Route as ApiAdminRankSnapshotRouteImport } from './routes/api/admin.rank-snapshot'
 import { Route as ApiAdminPopulateRouteImport } from './routes/api/admin.populate'
 import { Route as ApiAdminOnboardingSnapshotRouteImport } from './routes/api/admin.onboarding-snapshot'
@@ -559,6 +560,11 @@ const ApiAdminSecureMigrateRoute = ApiAdminSecureMigrateRouteImport.update({
   path: '/api/admin/secure-migrate',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminSecretStatusRoute = ApiAdminSecretStatusRouteImport.update({
+  id: '/api/admin/secret-status',
+  path: '/api/admin/secret-status',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminRankSnapshotRoute = ApiAdminRankSnapshotRouteImport.update({
   id: '/api/admin/rank-snapshot',
   path: '/api/admin/rank-snapshot',
@@ -866,6 +872,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
+  '/api/admin/secret-status': typeof ApiAdminSecretStatusRoute
   '/api/admin/secure-migrate': typeof ApiAdminSecureMigrateRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
   '/api/admin/site-health': typeof ApiAdminSiteHealthRoute
@@ -995,6 +1002,7 @@ export interface FileRoutesByTo {
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
+  '/api/admin/secret-status': typeof ApiAdminSecretStatusRoute
   '/api/admin/secure-migrate': typeof ApiAdminSecureMigrateRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
   '/api/admin/site-health': typeof ApiAdminSiteHealthRoute
@@ -1125,6 +1133,7 @@ export interface FileRoutesById {
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
+  '/api/admin/secret-status': typeof ApiAdminSecretStatusRoute
   '/api/admin/secure-migrate': typeof ApiAdminSecureMigrateRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
   '/api/admin/site-health': typeof ApiAdminSiteHealthRoute
@@ -1256,6 +1265,7 @@ export interface FileRouteTypes {
     | '/api/admin/onboarding-snapshot'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
+    | '/api/admin/secret-status'
     | '/api/admin/secure-migrate'
     | '/api/admin/set-canonry-project'
     | '/api/admin/site-health'
@@ -1385,6 +1395,7 @@ export interface FileRouteTypes {
     | '/api/admin/onboarding-snapshot'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
+    | '/api/admin/secret-status'
     | '/api/admin/secure-migrate'
     | '/api/admin/set-canonry-project'
     | '/api/admin/site-health'
@@ -1514,6 +1525,7 @@ export interface FileRouteTypes {
     | '/api/admin/onboarding-snapshot'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
+    | '/api/admin/secret-status'
     | '/api/admin/secure-migrate'
     | '/api/admin/set-canonry-project'
     | '/api/admin/site-health'
@@ -1639,6 +1651,7 @@ export interface RootRouteChildren {
   ApiAdminOnboardingSnapshotRoute: typeof ApiAdminOnboardingSnapshotRoute
   ApiAdminPopulateRoute: typeof ApiAdminPopulateRoute
   ApiAdminRankSnapshotRoute: typeof ApiAdminRankSnapshotRoute
+  ApiAdminSecretStatusRoute: typeof ApiAdminSecretStatusRoute
   ApiAdminSecureMigrateRoute: typeof ApiAdminSecureMigrateRoute
   ApiAdminSetCanonryProjectRoute: typeof ApiAdminSetCanonryProjectRoute
   ApiAdminSiteHealthRoute: typeof ApiAdminSiteHealthRoute
@@ -2278,6 +2291,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminSecureMigrateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/secret-status': {
+      id: '/api/admin/secret-status'
+      path: '/api/admin/secret-status'
+      fullPath: '/api/admin/secret-status'
+      preLoaderRoute: typeof ApiAdminSecretStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/rank-snapshot': {
       id: '/api/admin/rank-snapshot'
       path: '/api/admin/rank-snapshot'
@@ -2714,6 +2734,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminOnboardingSnapshotRoute: ApiAdminOnboardingSnapshotRoute,
   ApiAdminPopulateRoute: ApiAdminPopulateRoute,
   ApiAdminRankSnapshotRoute: ApiAdminRankSnapshotRoute,
+  ApiAdminSecretStatusRoute: ApiAdminSecretStatusRoute,
   ApiAdminSecureMigrateRoute: ApiAdminSecureMigrateRoute,
   ApiAdminSetCanonryProjectRoute: ApiAdminSetCanonryProjectRoute,
   ApiAdminSiteHealthRoute: ApiAdminSiteHealthRoute,

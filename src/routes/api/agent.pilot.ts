@@ -28,7 +28,7 @@ export const Route = createFileRoute("/api/agent/pilot")({
       GET: async ({ request }) => {
         const user = await getUser(request);
         if (!user) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-        const scope = await pilotScope(user.id);
+        const scope = await pilotScope(user.id, request.headers.get("x-ezy-active-org"));
         if (!scope)
           return Response.json({ ok: false, error: "Kein Organisations-Zugang." }, { status: 403 });
         let topics: { slug: string; title: string }[] = [];
@@ -58,7 +58,7 @@ export const Route = createFileRoute("/api/agent/pilot")({
           );
         const user = await getUser(request);
         if (!user) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-        const scope = await pilotScope(user.id);
+        const scope = await pilotScope(user.id, request.headers.get("x-ezy-active-org"));
         if (!scope)
           return Response.json({ ok: false, error: "Kein Organisations-Zugang." }, { status: 403 });
         if (throttled(user.id))

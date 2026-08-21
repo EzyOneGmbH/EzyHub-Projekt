@@ -42,14 +42,15 @@ async function proxy(request: Request, method: string): Promise<Response> {
   try {
     const r = await fetch(target, init);
     const text = await r.text().catch(() => "");
-    // Defensive Org-Filterung der Listen-Antwort (no-op, solange Agenten keine
-    // organizationId tragen — fremd markierte Eintraege kommen nie durch).
+    // Defensive Org-Filterung der Listen-Antwort — STRIKT (Runde 2, 21.08.):
+    // nur Agenten mit EXAKT passender organizationId kommen durch. Eintraege
+    // ohne Markierung werden NIE ausgeliefert (der agent-service stempelt
+    // seine Organisation auf jeden Agenten; ungestempelte Altbestaende sind
+    // dort einmalig migriert).
     try {
       const j = JSON.parse(text);
       if (Array.isArray(j?.agents)) {
-        j.agents = j.agents.filter(
-          (a: any) => !a?.organizationId || a.organizationId === ctx.organizationId,
-        );
+        j.agents = j.agents.filter((a: any) => a?.organizationId === ctx.organizationId);
         return Response.json(j, { status: r.status, headers: { "Cache-Control": "no-store" } });
       }
     } catch {

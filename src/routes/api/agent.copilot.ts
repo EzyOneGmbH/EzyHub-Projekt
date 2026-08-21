@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { aktiveMitgliedschaft } from "@/server/team-guard.server";
 
 // EzyHub Co-Pilot: a single, always-available Opus 4.8 assistant that answers
 // data/portal questions, helps build agents (emits agent-spec blocks the UI can
@@ -74,15 +74,14 @@ async function getUser(request: Request) {
 // Vault-Schreibzugriff via Dateisystem — an der client_access-RLS vorbei) und
 // darf deshalb nur von owner/admin genutzt werden. Mitarbeiter bekommen den
 // werkzeuglosen, scope-begrenzten /api/agent/pilot (Seite /pilot).
-async function isAdminUser(request: Request) {
+async function adminKontext(request: Request): Promise<{ orgId: string } | null> {
   const user = await getUser(request);
-  if (!user) return false;
-  const { data: me } = await supabaseAdmin
-    .from("app_users")
-    .select("role")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  return ["owner", "admin"].includes(String((me as any)?.role || ""));
+  if (!user) return null;
+  // Security-Runde 2 (21.08.): Mehrfach-Mitgliedschaften explizit — aktive Org
+  // validiert ermitteln, Rolle exakt IN dieser Organisation auswerten.
+  const aktiv = await aktiveMitgliedschaft(user.id, request.headers.get("x-ezy-active-org"));
+  if (!aktiv || !["owner", "admin"].includes(aktiv.role)) return null;
+  return { orgId: aktiv.organizationId };
 }
 
 function svc() {
@@ -92,8 +91,12 @@ function svc() {
 }
 
 // Find or create the global Co-Pilot agent in the agent-service.
-async function ensureCopilot(base: string, secret: string): Promise<string | null> {
-  const headers = { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" };
+async function ensureCopilot(base: string, secret: string, orgId: string): Promise<string | null> {
+  const headers = {
+    Authorization: `Bearer ${secret}`,
+    "Content-Type": "application/json",
+    "X-Ezy-Organization": orgId,
+  };
   const listRes = await fetch(`${base}/agents?clientId=global`, {
     headers,
     signal: AbortSignal.timeout(15_000),
@@ -149,10 +152,10 @@ export const Route = createFileRoute("/api/agent/copilot")({
             { ok: false, error: "Agent service not configured" },
             { status: 503 },
           );
-        if (!(await isAdminUser(request)))
-          return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        const admin = await adminKontext(request);
+        if (!admin) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
         try {
-          const agentId = await ensureCopilot(s.base, s.secret);
+          const agentId = await ensureCopilot(s.base, s.secret, admin.orgId);
           if (!agentId)
             return Response.json({ ok: false, error: "Co-Pilot konnte nicht angelegt werden" });
           return Response.json({ ok: true, agentId, model: COPILOT_MODEL });
@@ -172,11 +175,11 @@ export const Route = createFileRoute("/api/agent/copilot")({
             { ok: false, error: "Agent service not configured" },
             { status: 503 },
           );
-        if (!(await isAdminUser(request)))
-          return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        const admin = await adminKontext(request);
+        if (!admin) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
         const body = await request.json().catch(() => ({}));
         try {
-          const agentId = await ensureCopilot(s.base, s.secret);
+          const agentId = await ensureCopilot(s.base, s.secret, admin.orgId);
           if (!agentId) return Response.json({ ok: false, error: "Co-Pilot nicht verfügbar" });
 
           // Prepend the portal context so the assistant can answer data/portal questions.

@@ -83,7 +83,8 @@ describe("Secretbox (WordPress Application Passwords)", () => {
     const alt = encryptSecret(PASS, envV1); // v1
     const neu = encryptSecret(PASS, envV2); // v2
     expect(alt.startsWith("enc:v1:")).toBe(true);
-    expect(neu.startsWith("enc:v2:")).toBe(true);
+    // Runde 2 (21.08.): WP_SECRET_KEY_V<N> mappt jetzt auf dedizierte w-Versionen.
+    expect(neu.startsWith("enc:w2:")).toBe(true);
     expect(decryptSecret(alt, envV2)).toBe(PASS); // Rotation bricht Bestand nicht
     expect(brauchtUmschluesselung(alt, envV2)).toBe(true); // Migration faellig
     expect(brauchtUmschluesselung(neu, envV2)).toBe(false);
