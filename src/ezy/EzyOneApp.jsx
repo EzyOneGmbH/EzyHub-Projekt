@@ -56,6 +56,7 @@ import {
   ListChecks,
   MessageSquare,
   ArrowRight,
+  Home,
 } from "lucide-react";
 import { ezyFetch } from "@/ezy/data/api";
 import { useAuth } from "@/hooks/use-auth";
@@ -984,6 +985,163 @@ const AWORK_COLORS = {
   gray: "#6b7280",
   grey: "#6b7280",
 };
+
+// Redesign 1b (Screen 2h): "Heute" — nativer Handy-Einstieg statt Dashboard.
+// Ehrliche Inhalte: echtes Datum + Begrüssung + aktiver Kunde + Schnellzugriff
+// in die App-Bereiche. Keine erfundenen KPIs (kommen, wenn echte Summen
+// zuverlässig verdrahtet sind).
+function HeuteHome({ client, hasClients, profileName, nav, onOpen, onDashboard }) {
+  const now = new Date();
+  const stunde = now.getHours();
+  const gruss = stunde < 11 ? "Guten Morgen" : stunde < 18 ? "Guten Tag" : "Guten Abend";
+  const datum = now.toLocaleDateString("de-CH", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+  const vorname =
+    String(profileName || "")
+      .trim()
+      .split(/\s+/)[0] || "";
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div>
+        <h1
+          style={{
+            fontFamily: "'Kamerik 105',Poppins,sans-serif",
+            fontSize: 30,
+            fontWeight: 700,
+            letterSpacing: "-.02em",
+            margin: 0,
+            color: C.text,
+          }}
+        >
+          Heute
+        </h1>
+        <div
+          style={{
+            fontSize: 13,
+            color: C.textMuted,
+            marginTop: 2,
+            textTransform: "capitalize",
+          }}
+        >
+          {datum}
+        </div>
+      </div>
+      <div
+        style={{
+          background: C.grad,
+          borderRadius: 20,
+          padding: "20px 22px",
+          color: "#fff",
+          boxShadow: "0 14px 30px -16px rgba(119,0,140,.55)",
+        }}
+      >
+        <div
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            opacity: 0.85,
+            textTransform: "uppercase",
+            letterSpacing: ".06em",
+            marginBottom: 8,
+          }}
+        >
+          Willkommen zurück
+        </div>
+        <div
+          style={{
+            fontFamily: "'Kamerik 105',Poppins,sans-serif",
+            fontSize: 22,
+            fontWeight: 700,
+            lineHeight: 1.3,
+          }}
+        >
+          {gruss}
+          {vorname ? `, ${vorname}` : ""}
+        </div>
+        {hasClients && (
+          <div style={{ fontSize: 13, opacity: 0.9, marginTop: 4 }}>
+            {client?.name}
+            {client?.domain ? ` · ${client.domain}` : ""}
+          </div>
+        )}
+        <button
+          onClick={onDashboard}
+          style={{
+            marginTop: 14,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            background: "rgba(255,255,255,.18)",
+            border: "none",
+            color: "#fff",
+            borderRadius: 99,
+            padding: "8px 15px",
+            fontSize: 12.5,
+            fontWeight: 700,
+            fontFamily: "inherit",
+            cursor: "pointer",
+          }}
+        >
+          Zum Dashboard <ChevronRight size={14} />
+        </button>
+      </div>
+      <div
+        style={{
+          fontSize: 12,
+          fontWeight: 700,
+          color: C.textDim,
+          textTransform: "uppercase",
+          letterSpacing: ".06em",
+        }}
+      >
+        Schnellzugriff
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        {nav.map((n) => {
+          const Icon = n.icon;
+          return (
+            <button
+              key={n.id}
+              onClick={() => onOpen(n.id)}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                alignItems: "flex-start",
+                background: C.card,
+                border: `1px solid ${C.hairline}`,
+                borderRadius: 16,
+                padding: "16px",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                textAlign: "left",
+                boxShadow: C.cardShadow,
+              }}
+            >
+              <span
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 11,
+                  background: C.accentDim,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {Icon && <Icon size={18} color={C.accent} />}
+              </span>
+              <span style={{ fontSize: 13.5, fontWeight: 700, color: C.text }}>{n.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function AworkListView({
   tasks,
@@ -6018,7 +6176,8 @@ function App({ appScope = null }) {
   }, [appParam]);
   // Viewers (Kunden) dürfen Dashboard + ihre Reports sehen, sonst nichts.
   useEffect(() => {
-    if (isViewer && page !== "dashboard" && page !== "reports") setPage("dashboard");
+    if (isViewer && page !== "dashboard" && page !== "reports" && page !== "heute")
+      setPage("dashboard");
   }, [isViewer, page]);
   // Mitarbeiter (kein Admin) haben keinen Zugriff auf Einstellungen/Team –
   // auch nicht per direkter URL/localStorage-Wiederherstellung.
@@ -6039,8 +6198,20 @@ function App({ appScope = null }) {
   // Phase 3: der (App-übergreifend gemerkte) UI-Stand darf nicht aus dem Scope
   // der aktuellen App herausführen — sonst zeigt EzyPerformance z. B. "clients".
   useEffect(() => {
-    if (scope && !scope.pages.includes(page)) setPage(scope.pages[0]);
+    if (scope && page !== "heute" && !scope.pages.includes(page)) setPage(scope.pages[0]);
   }, [scope, page]);
+  // Native-Mobile (2h): "Heute" ist der Handy-Einstieg statt Dashboard —
+  // nur beim frischen Einstieg (kein Reload/Deep-Link) und nur wo es ein
+  // Dashboard gibt. Auf dem Desktop wird "heute" nie gerendert → zurück.
+  const heuteInit = useRef(false);
+  useEffect(() => {
+    if (heuteInit.current) return;
+    heuteInit.current = true;
+    if (isMobile && !appStart && page === "dashboard" && !isReloadNavigation()) setPage("heute");
+  }, [isMobile, appStart, page]);
+  useEffect(() => {
+    if (!isMobile && page === "heute") setPage("dashboard");
+  }, [isMobile, page]);
   useEffect(() => {
     if (scope && page === "dashboard" && !scope.tabs.includes(tab)) setTab(scope.primary);
   }, [scope, page, tab]);
@@ -6851,7 +7022,7 @@ function App({ appScope = null }) {
                 </div>
               }
             >
-              {!hasClients && page !== "clients" && page !== "settings" && (
+              {!hasClients && page !== "clients" && page !== "settings" && page !== "heute" && (
                 <div
                   style={{
                     background: C.card,
@@ -6880,6 +7051,16 @@ function App({ appScope = null }) {
                     Kunde anlegen
                   </Btn>
                 </div>
+              )}
+              {page === "heute" && (
+                <HeuteHome
+                  client={client}
+                  hasClients={hasClients}
+                  profileName={profile.name}
+                  nav={nav.filter((n) => n.id !== "dashboard")}
+                  onOpen={(id) => setPage(id)}
+                  onDashboard={() => setPage("dashboard")}
+                />
               )}
               {hasClients && page === "dashboard" && (
                 <>
@@ -7079,7 +7260,14 @@ function App({ appScope = null }) {
             }}
           >
             {[
-              ...nav.slice(0, 4).map((n) => ({
+              {
+                id: "heute",
+                label: "Heute",
+                Icon: Home,
+                on: () => setPage("heute"),
+                active: page === "heute",
+              },
+              ...nav.slice(0, 3).map((n) => ({
                 id: n.id,
                 label: n.label,
                 Icon: n.icon,

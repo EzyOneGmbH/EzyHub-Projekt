@@ -5,7 +5,13 @@ import { useAuth } from "@/hooks/use-auth";
 import { useAppAccess } from "@/ezy/data/useAppAccess";
 import { AppRail, SegmentedTabs } from "@/ezy/shell";
 // Bundle-Split 18.08.: Direktimport aus shared-ui statt aus dem Monolithen.
-import { ToastProvider, EzyPilotProvider, EzyPilotButton, EzyPilotPopup } from "@/ezy/shared-ui";
+import {
+  ToastProvider,
+  EzyPilotProvider,
+  EzyPilotButton,
+  EzyPilotFab,
+  EzyPilotPopup,
+} from "@/ezy/shared-ui";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
 import { HexGlowLayer } from "@/ezy/HexGlow";
 import { AppVersionBadge } from "@/ezy/AppVersionBadge";
@@ -42,6 +48,20 @@ const S = {
   orangeDim: "rgba(245,158,11,.12)",
   grad: "linear-gradient(135deg,#71008B,#B9009C)",
 };
+// Redesign 1b (2h): Bottom-Tab-Bar-Button (aktiv = App-Purple).
+const anlTab = (active: boolean): React.CSSProperties => ({
+  flex: 1,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  gap: 3,
+  padding: "2px 0",
+  border: "none",
+  background: "transparent",
+  cursor: "pointer",
+  fontFamily: "inherit",
+  color: active ? S.app : S.dim,
+});
 const HEX_BG = `url("data:image/svg+xml,%3Csvg width='28' height='49' viewBox='0 0 28 49' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M13.99 9.25l13 7.5v15l-13 7.5L1 31.75v-15l12.99-7.5zM3 17.9v12.7l10.99 6.34 11-6.35V17.9l-11-6.34L3 17.9zM0 15l12.98-7.5V0h-2v6.35L0 12.69v2.3zm0 18.5L12.98 41v8h-2v-6.85L0 35.81v-2.3zM15 0v7.5L27.99 15H28v-2.31h-.01L17 6.35V0h-2zm0 49v-8l12.99-7.5H28v2.31h-.01L17 42.15V49h-2z' fill='%2377008C' fill-opacity='0.04' fill-rule='evenodd'/%3E%3C/svg%3E")`;
 
 const ENGINE_COLS = ["ChatGPT", "Perplexity", "Gemini", "Claude", "Grok", "DeepSeek"] as const;
@@ -311,7 +331,14 @@ function EzyAiAnalyseApp() {
           <style>{`
             .anl-body { margin-left: 76px; }
             .anl-apps { display: none; }
-            @media (max-width: 900px) { .app-sidebar { display: none !important; } .anl-body { margin-left: 0; } .anl-apps { display: inline-flex; } }
+            .anl-tabbar { display: none; }
+            @media (max-width: 900px) {
+              .app-sidebar { display: none !important; }
+              .anl-body { margin-left: 0; }
+              .anl-apps { display: inline-flex; }
+              .anl-main { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 84px) !important; }
+              .anl-tabbar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 90; justify-content: space-around; align-items: stretch; padding: 8px 6px calc(env(safe-area-inset-bottom, 0px) + 8px); background: rgba(252,252,252,.9); backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); border-top: 1px solid ${S.line}; }
+            }
             details.anl-fold > summary { list-style: none; cursor: pointer; }
             details.anl-fold > summary::-webkit-details-marker { display: none; }
             details.anl-fold[open] > summary { border-bottom: 1px solid ${S.line}; }
@@ -433,6 +460,38 @@ function EzyAiAnalyseApp() {
               )}
             </main>
           </div>
+
+          {/* Redesign 1b (2h): native Bottom-Tab-Bar (<900px) */}
+          <nav className="anl-tabbar">
+            <button
+              onClick={() => {
+                setDetail(null);
+                setTab("analyse");
+              }}
+              style={anlTab(!detail && tab === "analyse")}
+            >
+              <span style={{ fontSize: 19 }}>🔎</span>
+              <span style={{ fontSize: 9.5, fontWeight: 700 }}>Analyse</span>
+            </button>
+            <button
+              onClick={() => {
+                setDetail(null);
+                setTab("verlauf");
+                void loadList();
+              }}
+              style={anlTab(!detail && tab === "verlauf")}
+            >
+              <span style={{ fontSize: 19 }}>🕘</span>
+              <span style={{ fontSize: 9.5, fontWeight: 700 }}>Verlauf</span>
+            </button>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <EzyPilotFab size={44} elevated />
+            </div>
+            <a href="/apps" style={{ ...anlTab(false), textDecoration: "none" }}>
+              <span style={{ fontSize: 19 }}>✦</span>
+              <span style={{ fontSize: 9.5, fontWeight: 700 }}>Apps</span>
+            </a>
+          </nav>
 
           {wizOpen && (
             <Wizard

@@ -26,6 +26,20 @@ const S = {
   warn: "#b45309",
   red: "#dc2626",
 };
+// Redesign 1b (2h): Bottom-Tab-Bar-Button (aktiv = Reakt-Grün).
+const reaktTab = (active: boolean): React.CSSProperties => ({
+  flex: 1,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  gap: 3,
+  padding: "2px 0",
+  border: "none",
+  background: "transparent",
+  cursor: "pointer",
+  fontFamily: "inherit",
+  color: active ? S.app : S.mut,
+});
 
 type Wave = {
   file: string;
@@ -144,10 +158,17 @@ function ReaktApp() {
       <style>{`
       .reakt-root{padding-left:76px}
       .reakt-apps{display:none}
-      @media(max-width:900px){.reakt-root{padding-left:0}.app-sidebar{display:none!important}.reakt-apps{display:inline-flex}}
+      .reakt-tabbar{display:none}
+      @media(max-width:900px){
+        .reakt-root{padding-left:0}
+        .app-sidebar{display:none!important}
+        .reakt-apps{display:inline-flex}
+        .reakt-main{padding-bottom:calc(env(safe-area-inset-bottom, 0px) + 84px)!important}
+        .reakt-tabbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:90;justify-content:space-around;align-items:stretch;padding:8px 6px calc(env(safe-area-inset-bottom, 0px) + 8px);background:rgba(252,252,252,.9);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border-top:1px solid ${S.line}}
+      }
       @media(max-width:640px){
         .reakt-head{flex-wrap:wrap!important;gap:8px!important;padding:8px 10px!important}
-        .reakt-main{padding:14px 10px 48px!important}
+        .reakt-main{padding:14px 10px calc(env(safe-area-inset-bottom, 0px) + 84px)!important}
       }`}</style>
       {/* Redesign 1b: Icon-Rail ersetzt den Grip-Switcher im Header. */}
       <AppRail
@@ -539,6 +560,23 @@ function ReaktApp() {
           </p>
         </div>
       </main>
+      {/* Redesign 1b (2h): native Bottom-Tab-Bar (<900px) */}
+      <nav className="reakt-tabbar">
+        <button
+          onClick={() => {
+            window.scrollTo({ top: 0, behavior: "smooth" });
+            void load();
+          }}
+          style={reaktTab(true)}
+        >
+          <span style={{ fontSize: 19 }}>✉️</span>
+          <span style={{ fontSize: 9.5, fontWeight: 700 }}>Reakt</span>
+        </button>
+        <a href="/apps" style={{ ...reaktTab(false), textDecoration: "none" }}>
+          <span style={{ fontSize: 19 }}>✦</span>
+          <span style={{ fontSize: 9.5, fontWeight: 700 }}>Apps</span>
+        </a>
+      </nav>
     </div>
   );
 }
