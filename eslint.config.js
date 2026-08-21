@@ -20,8 +20,8 @@ export default tseslint.config(
       // REGENERIERTE Routen-Dateien — der Codegen schreibt einzeilig und
       // kollidiert sonst dauerhaft mit Prettier.
       "src/routes/mcp.ts",
-      "src/routes/[.mcp]/**",
-      "src/routes/[.well-known]/**",
+      "src/routes/\\[.mcp\\]/**",
+      "src/routes/\\[.well-known\\]/**",
     ],
   },
   {
