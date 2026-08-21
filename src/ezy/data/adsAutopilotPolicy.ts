@@ -166,7 +166,8 @@ export const CONFIG_FIELD_LABELS: Record<keyof AutopilotConfigPatch, string> = {
 
 // Saison-Fenster im Format "MM-TT..MM-TT" (z. B. "06-01..09-15"); Jahreswechsel
 // via Start > Ende ist erlaubt (z. B. "12-01..02-28") - so liest es der Server.
-export const SEASON_WINDOW_RE = /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])\.\.(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+export const SEASON_WINDOW_RE =
+  /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])\.\.(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
 export function sanitizeConfigPatch(raw: unknown): {
   ok: boolean;
@@ -229,7 +230,9 @@ export function sanitizeConfigPatch(raw: unknown): {
   for (const key of ["season_high", "season_low"] as const) {
     if (!(key in r)) continue;
     if (!Array.isArray(r[key])) return { ok: false, error: `${key} muss eine Liste sein` };
-    const list = (r[key] as unknown[]).map((x) => String(x ?? "").trim()).filter((x) => x.length > 0);
+    const list = (r[key] as unknown[])
+      .map((x) => String(x ?? "").trim())
+      .filter((x) => x.length > 0);
     const bad = list.find((x) => !SEASON_WINDOW_RE.test(x));
     if (bad)
       return {

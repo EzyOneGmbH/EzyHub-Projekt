@@ -20,6 +20,10 @@ export async function executeTool(
   toolId: string,
   client: { id: string; domain?: string; name?: string },
   inputs: Record<string, string>,
+  // Echter Jobstatus fuer asynchrone Laeufe (2026-08-21): Agent-Skill-Tools
+  // starten einen Hintergrund-Job und pollen — der Aufrufer (ToolRunner) zeigt
+  // diese Meldungen live an, statt eines statischen "API-Call wird ausgefuehrt".
+  onProgress?: (msg: string) => void,
 ): Promise<ToolRunResult> {
   const provider = toolProvider(toolId);
   if (!provider) {
@@ -127,9 +131,15 @@ export async function executeTool(
         };
       }
       const runId: string = startPayload.runId;
-      const deadline = Date.now() + 12 * 60 * 1000;
+      const startedAt = Date.now();
+      const deadline = startedAt + 12 * 60 * 1000;
+      onProgress?.("Hintergrund-Job gestartet — der Skill läuft auf dem Agent-Service.");
       for (;;) {
         await new Promise((r) => setTimeout(r, 3000));
+        const elapsedS = Math.round((Date.now() - startedAt) / 1000);
+        onProgress?.(
+          `Job läuft seit ${elapsedS >= 90 ? `${Math.round(elapsedS / 60)} Min.` : `${elapsedS} Sek.`} — Status wird alle 3 Sekunden geprüft.`,
+        );
         let poll: any = { status: "running" };
         try {
           const pollRes = await ezyFetch(`/api/agent/job?runId=${encodeURIComponent(runId)}`, {
@@ -335,6 +345,13 @@ export async function executeTool(
   // Detect Ahrefs all-failed / rate-limited even on HTTP 200.
   let partial = false;
   let effectiveOk = httpOk;
+  // Regressions-Fix (2026-08-21): Routen mit { ok:false, error } bei HTTP 200
+  // (z. B. PageSpeed bei PSI-Fehler) galten bisher als Erfolg — Toast/Badge
+  // meldeten "abgeschlossen", obwohl kein Ergebnis gespeichert wurde.
+  if (httpOk && payload && typeof payload === "object" && (payload as any).ok === false) {
+    effectiveOk = false;
+    errorMsg = (payload as any).error || "Live-Lauf fehlgeschlagen";
+  }
   if (httpOk && payload && typeof payload === "object" && "errors" in payload) {
     const errs = (payload as any).errors || {};
     const sections = Object.values(errs);

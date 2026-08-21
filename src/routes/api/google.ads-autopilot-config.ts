@@ -15,11 +15,17 @@ import {
 // ads_changelog (action_type config_change) - wer, wann, was.
 // Sichere Defaults bleiben Sache der DB (observe_only=true, autonomy_level=0).
 
-const Body = z.object({
-  clientId: z.string().uuid(),
-  patch: z.record(z.string(), z.unknown()),
-  summary: z.string().trim().min(5).max(2000),
-});
+const Body = z.union([
+  // ensure: legt die Config-Zeile mit den sicheren DB-Defaults an, falls sie
+  // fehlt (observe_only=true, autonomy_level=0). Kein SQL-Handgriff mehr noetig;
+  // darf jedes Org-Mitglied ausloesen, weil nichts scharfgeschaltet wird.
+  z.object({ clientId: z.string().uuid(), ensure: z.literal(true) }),
+  z.object({
+    clientId: z.string().uuid(),
+    patch: z.record(z.string(), z.unknown()),
+    summary: z.string().trim().min(5).max(2000),
+  }),
+]);
 
 // Felder, die im Audit-Trail als Vorher/Nachher-Schnappschuss festgehalten werden.
 const TRACKED: Array<keyof AutopilotConfigPatch> = [
@@ -30,6 +36,8 @@ const TRACKED: Array<keyof AutopilotConfigPatch> = [
   "target_roas",
   "monthly_budget_chf",
   "no_touch_campaigns",
+  "season_high",
+  "season_low",
 ];
 
 async function authedUser(request: Request) {
@@ -67,6 +75,23 @@ export const Route = createFileRoute("/api/google/ads-autopilot-config")({
           .eq("organization_id", client.organization_id)
           .maybeSingle();
         if (!m) return Response.json({ ok: false, error: "Forbidden" }, { status: 403 });
+
+        if ("ensure" in parsed.data) {
+          const { data: existing } = await supabaseAdmin
+            .from("ads_autopilot_config")
+            .select("*")
+            .eq("client_id", client.id)
+            .maybeSingle();
+          if (existing) return Response.json({ ok: true, config: existing, created: false });
+          const { data: created, error: insErr } = await supabaseAdmin
+            .from("ads_autopilot_config")
+            .insert({ client_id: client.id })
+            .select("*")
+            .maybeSingle();
+          if (insErr) return Response.json({ ok: false, error: insErr.message }, { status: 500 });
+          return Response.json({ ok: true, config: created ?? null, created: true });
+        }
+
         if (!canConfigureAutopilot(m.role))
           return Response.json(
             { ok: false, error: "Nur Owner/Admin duerfen den Autopilot konfigurieren." },

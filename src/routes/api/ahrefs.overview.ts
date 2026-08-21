@@ -105,10 +105,19 @@ export const Route = createFileRoute("/api/ahrefs/overview")({
           });
         }
 
-        return Response.json(result, {
-          status: 200,
-          headers: { "Cache-Control": "no-store" },
-        });
+        // ok-Feld (Regressions-Fix 2026-08-21, additiv): Messstatus auch bei
+        // HTTP 200 maschinenlesbar — all_failed hiess bisher "200 ohne Signal",
+        // useMeasurement/runTool meldeten dann faelschlich Erfolg. Bestehende
+        // Konsumenten (ahrefs-panel, GoogleClientPanel) lesen nur Datenfelder.
+        return Response.json(
+          allFailed
+            ? { ok: false, error: "Alle DataForSEO-Sektionen fehlgeschlagen", ...result }
+            : { ok: true, ...result },
+          {
+            status: 200,
+            headers: { "Cache-Control": "no-store" },
+          },
+        );
       },
     },
   },

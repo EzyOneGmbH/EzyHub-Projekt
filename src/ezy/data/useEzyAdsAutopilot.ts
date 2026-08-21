@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ezyFetch } from "./api";
 import type { AutopilotConfigPatch } from "./adsAutopilotPolicy";
@@ -57,6 +57,8 @@ export type AdsConfigRow = {
   target_cpa_chf: number | null;
   target_roas: number | null;
   no_touch_campaigns: string[];
+  season_high: string[];
+  season_low: string[];
   updated_at: string | null;
 };
 
@@ -105,6 +107,15 @@ export type AdsAutopilotRunResult = Record<string, unknown> & {
     costChf: number;
     clicks: number;
   }>;
+  geoTop?: Array<{ location: string; costChf: number; conversions: number }>;
+  deviceSplit?: Array<{ device: string; costChf: number; conversions: number }>;
+  biddingStrategies?: Array<{
+    campaign: string;
+    strategyType: string;
+    targetRoas: number | null;
+    targetCpaChf: number | null;
+    systemStatus: string;
+  }>;
   dataSourceErrors?: string[];
 };
 
@@ -125,6 +136,9 @@ export function useEzyAdsAutopilot(clientId: string | undefined, limit = 30) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Auto-Anlage der Config-Zeile (sichere DB-Defaults) hoechstens 1x je Kunde,
+  // damit ein Server-Fehler keine Request-Schleife ausloest.
+  const ensuredFor = useRef<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!clientId || !isUuid(clientId)) {
@@ -179,7 +193,23 @@ export function useEzyAdsAutopilot(clientId: string | undefined, limit = 30) {
       if (cfgRes.error) throw cfgRes.error;
       if (apprRes.error) throw apprRes.error;
       if (logRes.error) throw logRes.error;
-      setConfig((cfgRes.data as AdsConfigRow) ?? null);
+      let cfg = (cfgRes.data as AdsConfigRow) ?? null;
+      if (!cfg && ensuredFor.current !== clientId) {
+        // Zeile fehlt -> serverseitig mit sicheren Defaults anlegen (kein SQL).
+        ensuredFor.current = clientId;
+        try {
+          const res = await ezyFetch("/api/google/ads-autopilot-config", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ clientId, ensure: true }),
+          });
+          const json = await res.json().catch(() => ({}));
+          if (json?.ok && json.config) cfg = json.config as AdsConfigRow;
+        } catch {
+          /* Anlage ist Komfort - Panel funktioniert auch mit Default-Anzeige */
+        }
+      }
+      setConfig(cfg);
       setApprovals((apprRes.data as AdsApprovalRow[]) || []);
       setChangelog((logRes.data as AdsChangelogRow[]) || []);
       setRecommendations(

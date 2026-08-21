@@ -4,7 +4,12 @@ import { Btn, Badge } from "@/ezy/shared-ui.jsx";
 import { useAuth } from "@/hooks/use-auth";
 import { useEzyAdsAutopilot } from "./data/useEzyAdsAutopilot";
 import { useEzyLatestRun, googleAdsFromResult } from "./data/useEzyLatestRun";
-import { canConfigureAutopilot, describeConfigChange } from "./data/adsAutopilotPolicy";
+import {
+  canConfigureAutopilot,
+  changeClassMatrix,
+  describeConfigChange,
+  SEASON_WINDOW_RE,
+} from "./data/adsAutopilotPolicy";
 
 // Google Ads Autopilot Panel (EzyPerformance): Konfiguration (Owner/Admin),
 // Freigabe-Queue, offene Massnahmen, Befunde, Detailanalyse-Drilldowns und
@@ -191,15 +196,17 @@ function ScrollTable({ head, rows, minWidth = 560 }) {
   return (
     <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
       <table style={{ width: "100%", minWidth, borderCollapse: "collapse", fontSize: 13 }}>
-        <thead>
-          <tr style={{ color: C.textMuted, textAlign: "left" }}>
-            {head.map((h) => (
-              <th key={h} style={{ padding: "6px 8px", fontWeight: 600, whiteSpace: "nowrap" }}>
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
+        {head.length > 0 && (
+          <thead>
+            <tr style={{ color: C.textMuted, textAlign: "left" }}>
+              {head.map((h) => (
+                <th key={h} style={{ padding: "6px 8px", fontWeight: 600, whiteSpace: "nowrap" }}>
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+        )}
         <tbody>{rows}</tbody>
       </table>
     </div>
@@ -341,6 +348,8 @@ function ConfigModal({ config, busy, onSave, onClose }) {
     target_roas: config?.target_roas ?? null,
     monthly_budget_chf: config?.monthly_budget_chf ?? 0,
     no_touch_campaigns: config?.no_touch_campaigns ?? [],
+    season_high: config?.season_high ?? [],
+    season_low: config?.season_low ?? [],
   };
   const [draft, setDraft] = React.useState({
     observe_only: base.observe_only,
@@ -350,11 +359,18 @@ function ConfigModal({ config, busy, onSave, onClose }) {
     target_roas: base.target_roas ?? "",
     monthly_budget_chf: base.monthly_budget_chf || "",
     no_touch_text: (base.no_touch_campaigns || []).join("\n"),
+    season_high_text: (base.season_high || []).join("\n"),
+    season_low_text: (base.season_low || []).join("\n"),
   });
   const [step, setStep] = React.useState("form"); // form | confirm
   const [summary, setSummary] = React.useState("");
   const [saveError, setSaveError] = React.useState("");
 
+  const splitLines = (t) =>
+    t
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
   const buildPatch = () => ({
     observe_only: draft.observe_only,
     kill_switch: draft.kill_switch,
@@ -362,12 +378,15 @@ function ConfigModal({ config, busy, onSave, onClose }) {
     target_cpa_chf: draft.target_cpa_chf === "" ? null : Number(draft.target_cpa_chf),
     target_roas: draft.target_roas === "" ? null : Number(draft.target_roas),
     monthly_budget_chf: draft.monthly_budget_chf === "" ? 0 : Number(draft.monthly_budget_chf),
-    no_touch_campaigns: draft.no_touch_text
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean),
+    no_touch_campaigns: splitLines(draft.no_touch_text),
+    season_high: splitLines(draft.season_high_text),
+    season_low: splitLines(draft.season_low_text),
   });
   const patch = buildPatch();
+  // Ungueltige Saison-Fenster sofort im Formular markieren (Format MM-TT..MM-TT).
+  const badSeason = [...patch.season_high, ...patch.season_low].find(
+    (w) => !SEASON_WINDOW_RE.test(w),
+  );
   const diffLines = describeConfigChange(base, patch);
   const sharpens =
     (base.observe_only && !patch.observe_only) || patch.autonomy_level > base.autonomy_level;
@@ -469,7 +488,29 @@ function ConfigModal({ config, busy, onSave, onClose }) {
                   </option>
                 ))}
               </select>,
-              "Nur die freigegebene Klasse läuft automatisch; alles andere wartet auf Freigabe.",
+              <>
+                Erlaubte Änderungsklassen bei diesem Level:
+                {changeClassMatrix(Number(draft.autonomy_level)).map((row) => (
+                  <div
+                    key={row.klasse}
+                    style={{ display: "flex", justifyContent: "space-between", gap: 8 }}
+                  >
+                    <span>{row.klasse}</span>
+                    <b
+                      style={{
+                        color:
+                          row.verhalten === "automatisch"
+                            ? C.orange
+                            : row.verhalten === "nie automatisch"
+                              ? C.textDim
+                              : C.green,
+                      }}
+                    >
+                      {row.verhalten}
+                    </b>
+                  </div>
+                ))}
+              </>,
             )}
             {field(
               "Monatsbudget (CHF)",
@@ -520,6 +561,40 @@ function ConfigModal({ config, busy, onSave, onClose }) {
             />,
             "Exakter Kampagnenname. Diese Kampagnen fasst der Autopilot NIE an — auch nicht nach Freigabe.",
           )}
+          <div
+            className="ezy-form-grid"
+            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}
+          >
+            {field(
+              "Hochsaison-Fenster (eines pro Zeile)",
+              <textarea
+                rows={2}
+                value={draft.season_high_text}
+                onChange={(e) => setDraft((d) => ({ ...d, season_high_text: e.target.value }))}
+                placeholder={"06-01..09-15"}
+                style={{ ...inputStyle, resize: "vertical" }}
+              />,
+              "Format MM-TT..MM-TT. In der Hochsaison bewertet der Autopilot Budget-/Leistungssignale saisonbewusst.",
+            )}
+            {field(
+              "Nebensaison-Fenster (eines pro Zeile)",
+              <textarea
+                rows={2}
+                value={draft.season_low_text}
+                onChange={(e) => setDraft((d) => ({ ...d, season_low_text: e.target.value }))}
+                placeholder={"11-01..12-15"}
+                style={{ ...inputStyle, resize: "vertical" }}
+              />,
+              "Jahreswechsel erlaubt (z. B. 12-01..02-28).",
+            )}
+          </div>
+          {badSeason && (
+            <div style={{ marginBottom: 10 }}>
+              <Banner color={C.red} colorDim={C.redDim}>
+                Saison-Fenster «{badSeason}» ist ungültig — Format MM-TT..MM-TT, z. B. 06-01..09-15.
+              </Banner>
+            </div>
+          )}
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 6 }}>
             <Btn variant="secondary" onClick={onClose}>
               Abbrechen
@@ -529,7 +604,7 @@ function ConfigModal({ config, busy, onSave, onClose }) {
                 setSaveError("");
                 setStep("confirm");
               }}
-              disabled={diffLines.length === 0}
+              disabled={diffLines.length === 0 || !!badSeason}
               title={diffLines.length === 0 ? "Keine Änderung erkannt" : undefined}
             >
               Weiter zur Bestätigung
@@ -690,15 +765,82 @@ function ApprovalDetailModal({ approval: a, observeOnly, canDecide, busy, onDeci
 // ─────────────────────────────────────────────────────────────────────────────
 function DetailAnalysis({ autopilotRun, adsSnapshot }) {
   const [tab, setTab] = React.useState("campaigns");
+  // Kampagnenansicht: Sortierung, Filter, Detail-Modal.
+  const [sortKey, setSortKey] = React.useState("cost");
+  const [sortDir, setSortDir] = React.useState(-1); // -1 = absteigend
+  const [campQuery, setCampQuery] = React.useState("");
+  const [statusFilter, setStatusFilter] = React.useState("alle");
+  const [campDetail, setCampDetail] = React.useState(null);
   const run = autopilotRun?.result || null;
   const runDate = autopilotRun?.created_at ? dateCH(autopilotRun.created_at) : null;
   const ads = adsSnapshot;
 
+  // Kampagnenzeilen: Basis = google_ads-Snapshot (folgt dem global gewaehlten
+  // Dashboard-Zeitraum, inkl. Status/Klicks/Impressionen), angereichert per
+  // Namens-Match mit den Autopilot-Feldern (IS-Verluste, Strategie, Schutz).
+  const campaignRows = React.useMemo(() => {
+    const enrich = new Map(
+      (run?.campaignDetail ?? []).map((c) => [String(c.name).toLowerCase(), c]),
+    );
+    const snap = ads?.campaigns ?? [];
+    const base = snap.length
+      ? snap.map((c) => ({
+          name: c.name,
+          status: c.status || "—",
+          cost: Number(c.cost || 0),
+          clicks: Number(c.clicks || 0),
+          impressions: Number(c.impressions || 0),
+          conversions: Number(c.conversions || 0),
+          value: Number(c.conversionValue || 0),
+          source: "snapshot",
+        }))
+      : (run?.campaignDetail ?? []).map((c) => ({
+          // Fallback ohne Snapshot: Autopilot-Fenster (30 Tage), ohne Klicks/Impr.
+          name: c.name,
+          status: "ENABLED",
+          cost: Number(c.costChf || 0),
+          clicks: null,
+          impressions: null,
+          conversions: Number(c.conversions || 0),
+          value: Number(c.conversionValue || 0),
+          source: "autopilot",
+        }));
+    return base.map((c) => {
+      const e = enrich.get(String(c.name).toLowerCase()) || null;
+      return {
+        ...c,
+        cpa: c.conversions > 0 ? c.cost / c.conversions : null,
+        roas: c.cost > 0 && c.value > 0 ? c.value / c.cost : null,
+        auto: e,
+      };
+    });
+  }, [ads, run]);
+  const filteredCampaigns = React.useMemo(() => {
+    const q = campQuery.trim().toLowerCase();
+    const rows = campaignRows.filter(
+      (c) =>
+        (!q || c.name.toLowerCase().includes(q)) &&
+        (statusFilter === "alle" || c.status === statusFilter),
+    );
+    const val = (c) => {
+      const v = c[sortKey];
+      return v == null ? -Infinity : typeof v === "string" ? v.toLowerCase() : Number(v);
+    };
+    return [...rows].sort((a, b) => (val(a) < val(b) ? sortDir : val(a) > val(b) ? -sortDir : 0));
+  }, [campaignRows, campQuery, statusFilter, sortKey, sortDir]);
+  const campaignStatuses = React.useMemo(
+    () => [...new Set(campaignRows.map((c) => c.status))].sort(),
+    [campaignRows],
+  );
+
   const tabs = [
     { id: "campaigns", label: "Kampagnen" },
-    { id: "conversions", label: "Conversion-Aktionen" },
     { id: "searchterms", label: "Suchbegriffsverluste" },
     { id: "pacing", label: "Budget-Pacing" },
+    { id: "conversions", label: "Conversion-Aktionen" },
+    { id: "regions", label: "Regionen" },
+    { id: "devices", label: "Geräte" },
+    { id: "bidding", label: "Gebotsstrategien" },
     { id: "tracking", label: "Tracking-Gesundheit" },
   ];
   const noRunHint = (
@@ -716,7 +858,7 @@ function DetailAnalysis({ autopilotRun, adsSnapshot }) {
         title="Detailanalyse"
         hint={
           runDate
-            ? `Datenstand: letzter Autopilot-Lauf vom ${runDate}${run?.runId ? ` (${run.runId})` : ""} — Fenster: letzte 30 Tage.`
+            ? `Datenstand: letzter Autopilot-Lauf vom ${runDate}${run?.runId ? ` (${run.runId})` : ""} (Fenster 30 Tage); Kampagnen-Kennzahlen folgen dem im Ads-Dashboard gewählten Zeitraum.`
             : "Datenstand: noch kein Autopilot-Lauf vorhanden."
         }
       />
@@ -746,85 +888,234 @@ function DetailAnalysis({ autopilotRun, adsSnapshot }) {
         ))}
       </div>
 
-      {/* Kampagnen */}
+      {/* Kampagnen (Snapshot-Basis = globaler Dashboard-Zeitraum, Autopilot-Anreicherung) */}
       {tab === "campaigns" &&
-        (run?.campaignDetail?.length ? (
-          <ScrollTable
-            minWidth={860}
-            head={[
-              "Kampagne",
-              "Tagesbudget",
-              "Kosten 30T",
-              "Conv.",
-              "Umsatz",
-              "ROAS",
-              "IS Suche",
-              "IS-Verlust Budget",
-              "IS-Verlust Rang",
-              "Strategie",
-            ]}
-            rows={run.campaignDetail.map((c) => (
-              <tr key={c.name} style={{ borderTop: `1px solid ${C.border}`, color: C.textMuted }}>
-                <td
-                  style={{
-                    ...cellStyle,
-                    color: C.text,
-                    fontWeight: 600,
-                    whiteSpace: "normal",
-                    minWidth: 180,
-                  }}
-                >
-                  {c.name}
-                  {c.noTouch && (
-                    <span style={{ marginLeft: 6 }}>
-                      <Badge color={C.blue}>geschützt</Badge>
-                    </span>
-                  )}
-                  {c.learning && (
-                    <span style={{ marginLeft: 6 }}>
-                      <Badge color={C.orange}>Lernphase</Badge>
-                    </span>
-                  )}
-                </td>
-                <td style={cellStyle}>{chf(c.dailyBudgetChf, 2)}</td>
-                <td style={cellStyle}>{chf(c.costChf)}</td>
-                <td style={cellStyle}>{Math.round(c.conversions * 10) / 10}</td>
-                <td style={cellStyle}>{chf(c.conversionValue)}</td>
-                <td
-                  style={{
-                    ...cellStyle,
-                    color: c.roas != null && c.roas < 1 ? C.red : C.text,
-                    fontWeight: 600,
-                  }}
-                >
-                  {c.roas != null ? `${c.roas.toFixed(1).replace(".", ",")}×` : "—"}
-                </td>
-                <td style={cellStyle}>{pct(c.searchImpressionShare)}</td>
-                <td
-                  style={{
-                    ...cellStyle,
-                    color: (c.budgetLostIs ?? 0) > 0.1 ? C.orange : C.textMuted,
-                  }}
-                >
-                  {pct(c.budgetLostIs)}
-                </td>
-                <td style={cellStyle}>{pct(c.rankLostIs)}</td>
-                <td style={cellStyle}>
-                  {c.strategyType}
-                  {c.targetRoas ? ` (tROAS ${c.targetRoas})` : ""}
-                  {c.targetCpaChf ? ` (tCPA ${chf(c.targetCpaChf)})` : ""}
-                </td>
-              </tr>
-            ))}
-          />
+        (campaignRows.length ? (
+          <>
+            <div
+              style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}
+            >
+              <input
+                value={campQuery}
+                onChange={(e) => setCampQuery(e.target.value)}
+                placeholder="Kampagne filtern…"
+                style={{
+                  padding: "7px 10px",
+                  borderRadius: 8,
+                  border: `1px solid ${C.border}`,
+                  fontSize: 12.5,
+                  fontFamily: "inherit",
+                  minWidth: 180,
+                }}
+              />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                style={{
+                  padding: "7px 10px",
+                  borderRadius: 8,
+                  border: `1px solid ${C.border}`,
+                  fontSize: 12.5,
+                  fontFamily: "inherit",
+                }}
+              >
+                <option value="alle">Status: alle</option>
+                {campaignStatuses.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+              <span style={{ fontSize: 11.5, color: C.textDim }}>
+                {filteredCampaigns.length} von {campaignRows.length} Kampagnen · Klick auf
+                Spaltentitel sortiert, Klick auf Zeile öffnet Details
+              </span>
+            </div>
+            <ScrollTable
+              minWidth={900}
+              head={[]}
+              rows={
+                <>
+                  <tr style={{ color: C.textMuted, textAlign: "left" }}>
+                    {[
+                      ["name", "Kampagne"],
+                      ["status", "Status"],
+                      ["cost", "Kosten"],
+                      ["clicks", "Klicks"],
+                      ["impressions", "Impr."],
+                      ["conversions", "Conv."],
+                      ["value", "Wert"],
+                      ["cpa", "CPA"],
+                      ["roas", "ROAS"],
+                    ].map(([key, label]) => (
+                      <th
+                        key={key}
+                        onClick={() => {
+                          if (sortKey === key) setSortDir(-sortDir);
+                          else {
+                            setSortKey(key);
+                            setSortDir(key === "name" || key === "status" ? 1 : -1);
+                          }
+                        }}
+                        style={{
+                          padding: "6px 8px",
+                          fontWeight: 600,
+                          whiteSpace: "nowrap",
+                          cursor: "pointer",
+                          userSelect: "none",
+                          color: sortKey === key ? C.accent : C.textMuted,
+                        }}
+                      >
+                        {label}
+                        {sortKey === key ? (sortDir === -1 ? " ↓" : " ↑") : ""}
+                      </th>
+                    ))}
+                  </tr>
+                  {filteredCampaigns.map((c) => (
+                    <tr
+                      key={c.name}
+                      onClick={() => setCampDetail(c)}
+                      title="Klicken für Detailansicht"
+                      style={{
+                        borderTop: `1px solid ${C.border}`,
+                        color: C.textMuted,
+                        cursor: "pointer",
+                      }}
+                    >
+                      <td
+                        style={{
+                          ...cellStyle,
+                          color: C.text,
+                          fontWeight: 600,
+                          whiteSpace: "normal",
+                          minWidth: 180,
+                        }}
+                      >
+                        {c.name}
+                        {c.auto?.noTouch && (
+                          <span style={{ marginLeft: 6 }}>
+                            <Badge color={C.blue}>geschützt</Badge>
+                          </span>
+                        )}
+                        {c.auto?.learning && (
+                          <span style={{ marginLeft: 6 }}>
+                            <Badge color={C.orange}>Lernphase</Badge>
+                          </span>
+                        )}
+                      </td>
+                      <td style={cellStyle}>
+                        <Badge color={c.status === "ENABLED" ? C.green : C.textMuted}>
+                          {c.status}
+                        </Badge>
+                      </td>
+                      <td style={cellStyle}>{chf(c.cost)}</td>
+                      <td style={cellStyle}>
+                        {c.clicks != null ? c.clicks.toLocaleString("de-CH") : "—"}
+                      </td>
+                      <td style={cellStyle}>
+                        {c.impressions != null ? c.impressions.toLocaleString("de-CH") : "—"}
+                      </td>
+                      <td style={cellStyle}>{Math.round(c.conversions * 10) / 10}</td>
+                      <td style={cellStyle}>{c.value > 0 ? chf(c.value) : "—"}</td>
+                      <td style={cellStyle}>{c.cpa != null ? chf(c.cpa, 2) : "—"}</td>
+                      <td
+                        style={{
+                          ...cellStyle,
+                          color: c.roas != null && c.roas < 1 ? C.red : C.text,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {c.roas != null ? `${c.roas.toFixed(1).replace(".", ",")}×` : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </>
+              }
+            />
+            <div style={{ fontSize: 11.5, color: C.textDim, marginTop: 8 }}>
+              {campaignRows[0]?.source === "snapshot"
+                ? "Kennzahlen: google_ads-Snapshot — Zeitraum wie im Ads-Dashboard gewählt. Badges/IS-Werte: letzter Autopilot-Lauf (30 Tage)."
+                : "Kein google_ads-Snapshot vorhanden — Kennzahlen aus dem Autopilot-Fenster (30 Tage, ohne Klicks/Impressionen). Im Ads-Dashboard «⟳ Aktualisieren» klicken für den globalen Zeitraum."}
+            </div>
+          </>
         ) : run ? (
           <MissingData
-            source="result.campaignDetail (Autopilot-Lauf)"
-            action="Der letzte gespeicherte Lauf ist älter als dieses Feld — einmal «Dry-Run jetzt» ausführen, dann erscheint die Kampagnen-Tabelle."
+            source="audit_runs(google_ads).result.campaigns + result.campaignDetail"
+            action="Im Ads-Dashboard «⟳ Aktualisieren» klicken (Snapshot) oder «Dry-Run jetzt» ausführen (Autopilot-Daten)."
           />
         ) : (
           noRunHint
         ))}
+
+      {/* Kampagnen-Detail-Modal */}
+      {campDetail && (
+        <Modal title={campDetail.name} onClose={() => setCampDetail(null)} maxWidth={600}>
+          <div
+            style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}
+          >
+            <Badge color={campDetail.status === "ENABLED" ? C.green : C.textMuted}>
+              {campDetail.status}
+            </Badge>
+            {campDetail.auto?.noTouch && <Badge color={C.blue}>geschützt (no-touch)</Badge>}
+            {campDetail.auto?.learning && <Badge color={C.orange}>Lernphase</Badge>}
+          </div>
+          <ModalSection title="Leistung (Zeitraum wie im Ads-Dashboard)">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px" }}>
+              <span>Kosten: <b>{chf(campDetail.cost, 2)}</b></span>
+              <span>
+                Klicks:{" "}
+                <b>{campDetail.clicks != null ? campDetail.clicks.toLocaleString("de-CH") : "—"}</b>
+              </span>
+              <span>
+                Impressionen:{" "}
+                <b>
+                  {campDetail.impressions != null
+                    ? campDetail.impressions.toLocaleString("de-CH")
+                    : "—"}
+                </b>
+              </span>
+              <span>Conversions: <b>{Math.round(campDetail.conversions * 10) / 10}</b></span>
+              <span>Conversion-Wert: <b>{campDetail.value > 0 ? chf(campDetail.value) : "—"}</b></span>
+              <span>CPA: <b>{campDetail.cpa != null ? chf(campDetail.cpa, 2) : "—"}</b></span>
+              <span>
+                ROAS:{" "}
+                <b>
+                  {campDetail.roas != null
+                    ? `${campDetail.roas.toFixed(1).replace(".", ",")}×`
+                    : "—"}
+                </b>
+              </span>
+            </div>
+          </ModalSection>
+          {campDetail.auto ? (
+            <ModalSection title="Autopilot-Sicht (letzter Lauf, 30 Tage)" color={C.accent}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px" }}>
+                <span>Tagesbudget: <b>{chf(campDetail.auto.dailyBudgetChf, 2)}</b></span>
+                <span>
+                  Strategie: <b>{campDetail.auto.strategyType}</b>
+                  {campDetail.auto.targetRoas ? ` (tROAS ${campDetail.auto.targetRoas})` : ""}
+                  {campDetail.auto.targetCpaChf
+                    ? ` (tCPA ${chf(campDetail.auto.targetCpaChf)})`
+                    : ""}
+                </span>
+                <span>IS Suche: <b>{pct(campDetail.auto.searchImpressionShare)}</b></span>
+                <span>IS-Verlust Budget: <b>{pct(campDetail.auto.budgetLostIs)}</b></span>
+                <span>IS-Verlust Rang: <b>{pct(campDetail.auto.rankLostIs)}</b></span>
+              </div>
+            </ModalSection>
+          ) : (
+            <ModalSection title="Autopilot-Sicht" color={C.textMuted}>
+              Keine Autopilot-Daten zu dieser Kampagne im letzten Lauf (Quelle:
+              result.campaignDetail) — «Dry-Run jetzt» ausführen.
+            </ModalSection>
+          )}
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+            <Btn variant="secondary" onClick={() => setCampDetail(null)}>
+              Schliessen
+            </Btn>
+          </div>
+        </Modal>
+      )}
 
       {/* Conversion-Aktionen */}
       {tab === "conversions" &&
@@ -865,6 +1156,156 @@ function DetailAnalysis({ autopilotRun, adsSnapshot }) {
             source="audit_runs(google_ads).result.conversionActions"
             action="Im Ads-Dashboard oben «⟳ Aktualisieren» klicken, damit ein frischer google_ads-Snapshot mit Conversion-Aktionen gespeichert wird."
           />
+        ))}
+
+      {/* Regionen */}
+      {tab === "regions" &&
+        (run?.geoTop?.length ? (
+          <>
+            <ScrollTable
+              minWidth={420}
+              head={["Region", "Kosten 30T", "Conversions", "Kosten je Conversion"]}
+              rows={run.geoTop.map((g) => (
+                <tr
+                  key={g.location}
+                  style={{ borderTop: `1px solid ${C.border}`, color: C.textMuted }}
+                >
+                  <td style={{ ...cellStyle, color: C.text, fontWeight: 600 }}>{g.location}</td>
+                  <td style={cellStyle}>{chf(g.costChf)}</td>
+                  <td style={cellStyle}>{Math.round(g.conversions * 10) / 10}</td>
+                  <td
+                    style={{
+                      ...cellStyle,
+                      color: g.conversions === 0 && g.costChf > 0 ? C.red : C.textMuted,
+                      fontWeight: g.conversions === 0 && g.costChf > 0 ? 600 : 400,
+                    }}
+                  >
+                    {g.conversions > 0
+                      ? chf(g.costChf / g.conversions, 2)
+                      : g.costChf > 0
+                        ? "Geld ohne Ertrag"
+                        : "—"}
+                  </td>
+                </tr>
+              ))}
+            />
+            <div style={{ fontSize: 11.5, color: C.textDim, marginTop: 8 }}>
+              Länder-Ebene (geographic_view), Top-Regionen nach Kosten, Fenster 30 Tage. Auffällige
+              Regionen erscheinen zusätzlich als Befund «Geld ohne Ertrag (Region)».
+            </div>
+          </>
+        ) : run ? (
+          <MissingData
+            source="result.geoTop (Autopilot-Lauf, GAQL geographic_view)"
+            action="Einmal «Dry-Run jetzt» ausführen — bleibt der Tab leer, hat die geo_performance-Abfrage nicht geliefert (siehe Tab «Tracking-Gesundheit», Datenquellen)."
+          />
+        ) : (
+          noRunHint
+        ))}
+
+      {/* Geraete */}
+      {tab === "devices" &&
+        (run?.deviceSplit?.length ? (
+          <>
+            <ScrollTable
+              minWidth={420}
+              head={["Gerät", "Kosten 30T", "Conversions", "Kostenanteil"]}
+              rows={(() => {
+                const total = run.deviceSplit.reduce((s, d) => s + (d.costChf || 0), 0);
+                const NAME = {
+                  MOBILE: "Mobil",
+                  DESKTOP: "Desktop",
+                  TABLET: "Tablet",
+                  CONNECTED_TV: "TV",
+                  OTHER: "Andere",
+                };
+                return [...run.deviceSplit]
+                  .sort((a, b) => b.costChf - a.costChf)
+                  .map((d) => (
+                    <tr
+                      key={d.device}
+                      style={{ borderTop: `1px solid ${C.border}`, color: C.textMuted }}
+                    >
+                      <td style={{ ...cellStyle, color: C.text, fontWeight: 600 }}>
+                        {NAME[d.device] || d.device}
+                      </td>
+                      <td style={cellStyle}>{chf(d.costChf)}</td>
+                      <td style={cellStyle}>{Math.round(d.conversions * 10) / 10}</td>
+                      <td style={cellStyle}>
+                        {total > 0 ? `${Math.round((d.costChf / total) * 100)} %` : "—"}
+                      </td>
+                    </tr>
+                  ));
+              })()}
+            />
+            <div style={{ fontSize: 11.5, color: C.textDim, marginTop: 8 }}>
+              Aggregiert über alle aktiven Kampagnen, Fenster 30 Tage. Auffälligkeiten erscheinen
+              zusätzlich als Befund «Geräte-Auffälligkeit».
+            </div>
+          </>
+        ) : run ? (
+          <MissingData
+            source="result.deviceSplit (Autopilot-Lauf, GAQL segments.device)"
+            action="Einmal «Dry-Run jetzt» ausführen — bleibt der Tab leer, hat die device_performance-Abfrage nicht geliefert."
+          />
+        ) : (
+          noRunHint
+        ))}
+
+      {/* Gebotsstrategien */}
+      {tab === "bidding" &&
+        (run?.biddingStrategies?.length ? (
+          <>
+            <ScrollTable
+              minWidth={560}
+              head={["Kampagne", "Strategie", "Ziel", "System-Status"]}
+              rows={run.biddingStrategies.map((b) => (
+                <tr
+                  key={b.campaign}
+                  style={{ borderTop: `1px solid ${C.border}`, color: C.textMuted }}
+                >
+                  <td
+                    style={{ ...cellStyle, color: C.text, fontWeight: 600, whiteSpace: "normal" }}
+                  >
+                    {b.campaign}
+                  </td>
+                  <td style={cellStyle}>{b.strategyType}</td>
+                  <td style={cellStyle}>
+                    {b.targetRoas
+                      ? `tROAS ${b.targetRoas}`
+                      : b.targetCpaChf
+                        ? `tCPA ${chf(b.targetCpaChf)}`
+                        : "—"}
+                  </td>
+                  <td style={cellStyle}>
+                    <Badge
+                      color={
+                        String(b.systemStatus).includes("LEARNING")
+                          ? C.orange
+                          : String(b.systemStatus) === "ENABLED"
+                            ? C.green
+                            : C.textMuted
+                      }
+                    >
+                      {b.systemStatus || "—"}
+                    </Badge>
+                  </td>
+                </tr>
+              ))}
+            />
+            <div style={{ fontSize: 11.5, color: C.textDim, marginTop: 8 }}>
+              «LEARNING» = Lernphase: Kampagne wird vom Autopilot nicht angefasst, bis sie stabil
+              ist. Ziel-Anpassungen erscheinen als «Offene Massnahmen» (Gebotsziel anpassen), nie
+              automatisch.
+            </div>
+          </>
+        ) : run ? (
+          <MissingData
+            source="result.biddingStrategies (Autopilot-Lauf)"
+            action="Einmal «Dry-Run jetzt» ausführen, dann erscheint die Strategie-Übersicht."
+          />
+        ) : (
+          noRunHint
         ))}
 
       {/* Suchbegriffsverluste */}
@@ -976,6 +1417,17 @@ function DetailAnalysis({ autopilotRun, adsSnapshot }) {
                     : `abgeleitet (${p.budgetSource})`}
                 </span>
               </div>
+              {p.budgetSource !== "client" && (
+                <Banner color={C.orange} colorDim={C.orangeDim}>
+                  <b>Budget nicht bestätigt.</b> Das Monatsbudget ist aus{" "}
+                  {p.budgetSource === "account"
+                    ? "den aktuellen Tagesbudgets des Kontos"
+                    : "historischem Spend"}{" "}
+                  abgeleitet — der Pacing-Check meldet deshalb nur Beobachtungen, keine
+                  bestätigten Überschreitungen. Owner/Admin: oben «Konfigurieren» öffnen und das
+                  Soll-Budget unter «Monatsbudget (CHF)» bestätigen.
+                </Banner>
+              )}
               <div
                 className="dash-kpis"
                 style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}
@@ -1247,6 +1699,21 @@ export default function AdsAutopilotPanel({ selectedClient }) {
     {
       l: "Geschützte Kampagnen",
       v: config?.no_touch_campaigns?.length ? config.no_touch_campaigns.join(", ") : "keine",
+    },
+    {
+      l: "Hochsaison",
+      v: config?.season_high?.length ? config.season_high.join(", ") : "nicht gepflegt",
+    },
+    {
+      l: "Nebensaison",
+      v: config?.season_low?.length ? config.season_low.join(", ") : "nicht gepflegt",
+    },
+    {
+      l: "Erlaubte Änderungsklassen",
+      v: changeClassMatrix(config?.autonomy_level ?? 0)
+        .filter((r) => r.verhalten === "automatisch")
+        .map((r) => r.klasse)
+        .join(", ") || "keine (alles wartet auf Freigabe)",
     },
   ];
 

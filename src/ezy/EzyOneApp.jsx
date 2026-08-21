@@ -9911,6 +9911,9 @@ function ToolRunner({ tool, onClose, client, onComplete, onSaveDraft, onOpenDraf
   });
   const [phase, setPhase] = useState("form");
   const [result, setResult] = useState(null); // {ok, liveConnected, message, data, error}
+  // Echter Jobstatus (2026-08-21): asynchrone Agent-Skill-Jobs melden ihren
+  // Fortschritt (gestartet/laeuft seit X) — kein statischer Platzhaltertext.
+  const [runStatus, setRunStatus] = useState("");
   const closedRef = useRef(false);
   useEffect(
     () => () => {
@@ -9929,8 +9932,11 @@ function ToolRunner({ tool, onClose, client, onComplete, onSaveDraft, onOpenDraf
       return;
     }
     setPhase("running");
+    setRunStatus("");
     try {
-      const r = await runToolLive(tool.id, client || { id: "", domain: clientDomain }, form);
+      const r = await runToolLive(tool.id, client || { id: "", domain: clientDomain }, form, (m) => {
+        if (!closedRef.current) setRunStatus(m);
+      });
       if (closedRef.current) return;
       setResult(r);
       setPhase("done");
@@ -10089,7 +10095,7 @@ function ToolRunner({ tool, onClose, client, onComplete, onSaveDraft, onOpenDraf
             />
             <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>Live-Lauf läuft …</div>
             <div style={{ fontSize: 12, color: C.textMuted, marginTop: 6 }}>
-              API-Call wird ausgeführt
+              {runStatus || "API-Call wird ausgeführt"}
             </div>
           </div>
         )}

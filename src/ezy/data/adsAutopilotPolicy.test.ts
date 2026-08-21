@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canConfigureAutopilot,
+  changeClassMatrix,
   computeBudgetPacing,
   computeEffectiveDryRun,
   describeConfigChange,
@@ -174,6 +175,50 @@ describe("sanitizeConfigPatch", () => {
     expect(sanitizeConfigPatch({ target_cpa_chf: -5 }).ok).toBe(false);
     expect(sanitizeConfigPatch({}).ok).toBe(false);
     expect(sanitizeConfigPatch(null).ok).toBe(false);
+  });
+});
+
+describe("sanitizeConfigPatch (Saison-Fenster)", () => {
+  it("akzeptiert gueltige Fenster im Format MM-TT..MM-TT inkl. Jahreswechsel", () => {
+    const r = sanitizeConfigPatch({
+      season_high: ["06-01..09-15", " 12-01..02-28 ", "06-01..09-15"],
+      season_low: [],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.patch?.season_high).toEqual(["06-01..09-15", "12-01..02-28"]);
+    expect(r.patch?.season_low).toEqual([]);
+  });
+  it("lehnt ungueltige Fenster mit klarer Fehlermeldung ab", () => {
+    const r = sanitizeConfigPatch({ season_high: ["13-01..02-28"] });
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(/MM-TT\.\.MM-TT/);
+    expect(sanitizeConfigPatch({ season_low: ["Juni bis September"] }).ok).toBe(false);
+    expect(sanitizeConfigPatch({ season_high: "06-01..09-15" }).ok).toBe(false);
+  });
+});
+
+describe("changeClassMatrix (erlaubte Aenderungsklassen)", () => {
+  it("Level 0: alles nur mit Freigabe, Struktur nie automatisch", () => {
+    const m = changeClassMatrix(0);
+    expect(m.find((x) => x.klasse === "Negative Keywords")?.verhalten).toBe("nur mit Freigabe");
+    expect(m.find((x) => x.klasse === "Gebote & Budgets")?.verhalten).toBe("nur mit Freigabe");
+    expect(m.find((x) => x.klasse.startsWith("Kampagnen-Struktur"))?.verhalten).toBe(
+      "nie automatisch",
+    );
+  });
+  it("Level 1 schaltet nur Negatives frei, Level 2 zusaetzlich Gebote", () => {
+    expect(changeClassMatrix(1).find((x) => x.klasse === "Negative Keywords")?.verhalten).toBe(
+      "automatisch",
+    );
+    expect(changeClassMatrix(1).find((x) => x.klasse === "Gebote & Budgets")?.verhalten).toBe(
+      "nur mit Freigabe",
+    );
+    expect(changeClassMatrix(2).find((x) => x.klasse === "Gebote & Budgets")?.verhalten).toBe(
+      "automatisch",
+    );
+    expect(changeClassMatrix(2).find((x) => x.klasse.startsWith("Kampagnen-Struktur"))?.verhalten).toBe(
+      "nie automatisch",
+    );
   });
 });
 

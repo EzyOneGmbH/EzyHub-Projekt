@@ -27,7 +27,14 @@ import {
   type ResolvedRange,
   type SharedRange,
 } from "@/ezy/data/rangeStore";
-import { oppFingerprint, OPP_STATUS, type OppStatus } from "@/ezy/data/aiOpportunities";
+import {
+  oppFingerprint,
+  oppFingerprintLegacy,
+  gapKey,
+  isResurfaceDue,
+  OPP_STATUS,
+  type OppStatus,
+} from "@/ezy/data/aiOpportunities";
 import { HexGlowLayer } from "@/ezy/HexGlow";
 import { AppVersionBadge } from "@/ezy/AppVersionBadge";
 import { ClientAvatar } from "@/ezy/ClientAvatar";
@@ -2597,20 +2604,37 @@ function OpportunitiesPanel({
   const [items, setItems] = useState<any[] | null>(null);
   const [err, setErr] = useState("");
 
-  // Workflow-Zustände (18.08.): je Chance ein persistenter Status in
+  // Workflow-Zustände (18.08., v2 21.08.): je Chance ein persistenter Status in
   // ai_opportunity_states, verknüpft über den stabilen Fingerprint — überlebt
   // Reload UND neue Messläufe (dieselbe erkannte Chance ⇒ derselbe Fingerprint).
   const [states, setStates] = useState<Record<string, any> | null>(null);
+  // Supabase-Fehler werden NICHT mehr als "leerer Zustand" maskiert (21.08.):
+  // fehlende Tabelle/Migration/RLS wird als Klartext-Banner gezeigt, Schreib-
+  // aktionen sind dann gesperrt und ein Retry-Button lädt neu.
+  const [statesErr, setStatesErr] = useState<string | null>(null);
   const loadStates = useCallback(async () => {
+    setStatesErr(null);
     try {
-      const { data } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from("ai_opportunity_states")
-        .select("fingerprint, status, assignee, note, resurface_on, title, source, updated_at")
+        .select(
+          "fingerprint, status, assignee, assignee_user_id, note, resurface_on, title, source, updated_at",
+        )
         .eq("client_id", clientId);
+      if (error) throw error;
       const m: Record<string, any> = {};
       for (const r of data || []) m[r.fingerprint] = r;
       setStates(m);
-    } catch {
+    } catch (e: any) {
+      const code = String(e?.code || "");
+      const msg = String(e?.message || e);
+      const hint =
+        code === "42P01" || code === "PGRST205" || /does not exist|schema cache/i.test(msg)
+          ? "Tabelle ai_opportunity_states fehlt — Migration 20260818090000/20260821100000 wurde in dieser Umgebung nicht angewendet."
+          : code === "42501" || /permission denied|row-level security/i.test(msg)
+            ? "Zugriff verweigert (RLS-Policy) — Rolle/Policies für ai_opportunity_states prüfen."
+            : "Workflow-Zustände konnten nicht geladen werden.";
+      setStatesErr(`${hint} (${msg})`);
       setStates({});
     }
   }, [clientId]);
@@ -2619,16 +2643,72 @@ function OpportunitiesPanel({
     void loadStates();
   }, [loadStates]);
 
+  // Team-Liste für die Verantwortlichen-Auswahl (RPC, RLS-sicher via
+  // SECURITY DEFINER — profiles selbst ist nur fürs eigene Profil lesbar).
+  // Eigene Rolle daraus = Schreibrecht (Viewer sehen alles, ändern nichts).
+  const [team, setTeam] = useState<Array<{
+    user_id: string;
+    name: string;
+    email: string | null;
+    org_role: string;
+  }> | null>(null);
+  const [meId, setMeId] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setTeam(null);
+    (async () => {
+      try {
+        const uid = (await supabase.auth.getSession()).data.session?.user?.id || null;
+        const { data, error } = await (supabase as any).rpc("ezyai_team_members", {
+          _client_id: clientId,
+        });
+        if (!alive) return;
+        setMeId(uid);
+        setTeam(error ? [] : ((data as any[]) ?? []));
+      } catch {
+        if (alive) setTeam([]);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [clientId]);
+  const teamById = useMemo(() => {
+    const m = new Map<string, { name: string; email: string | null }>();
+    for (const t of team || []) m.set(t.user_id, { name: t.name, email: t.email });
+    return m;
+  }, [team]);
+  const myRole = useMemo(
+    () => (team || []).find((t) => t.user_id === meId)?.org_role || null,
+    [team, meId],
+  );
+  // Schreibrecht: kein Fehlerzustand UND nicht Viewer. Solange die Team-Liste
+  // lädt, lassen wir Bedienung zu — die RLS blockt Unbefugte ohnehin serverseitig.
+  const canWrite = !statesErr && myRole !== "viewer";
+
+  // Zustand einer Chance: v2-Fingerprint zuerst, Legacy-FNV als Fallback,
+  // bis die Lazy-Migration (unten) die Zeile umgeschrieben hat.
+  const stateFor = useCallback(
+    (i: any) => (states || {})[i.fp] ?? (i.legacyFp ? (states || {})[i.legacyFp] : undefined),
+    [states],
+  );
+
+  const [saveErr, setSaveErr] = useState("");
   // organization_id wird serverseitig per Trigger aus dem Kunden gesetzt —
   // hier bewusst NICHT mitschicken (kein Client-Input für Mandanten-Zuordnung).
   const saveState = useCallback(
     async (item: any, patch: Record<string, any>) => {
-      const cur = (states || {})[item.fp] || {};
+      if (statesErr) return; // Schreibaktionen im Fehlerfall deaktiviert
+      const cur = stateFor(item) || {};
       const row = {
         client_id: clientId,
         fingerprint: item.fp,
         status: patch.status ?? cur.status ?? "offen",
         assignee: patch.assignee !== undefined ? patch.assignee || null : (cur.assignee ?? null),
+        assignee_user_id:
+          patch.assignee_user_id !== undefined
+            ? patch.assignee_user_id || null
+            : (cur.assignee_user_id ?? null),
         note: patch.note !== undefined ? patch.note || null : (cur.note ?? null),
         resurface_on:
           patch.resurface_on !== undefined
@@ -2640,17 +2720,42 @@ function OpportunitiesPanel({
       const { error } = await (supabase as any)
         .from("ai_opportunity_states")
         .upsert(row, { onConflict: "client_id,fingerprint" });
-      if (error) setErr(error.message);
-      else await loadStates();
+      if (error) {
+        setSaveErr(
+          /row-level security|permission denied/i.test(String(error.message))
+            ? `Speichern nicht erlaubt (Viewer sind read-only). ${error.message}`
+            : `Speichern fehlgeschlagen: ${error.message}`,
+        );
+      } else {
+        setSaveErr("");
+        // Migration im Vorbeigehen: existierte der Zustand nur unter dem alten
+        // FNV-Fingerprint, ist er jetzt unter v2 gespeichert — Altzeile weg.
+        if (item.legacyFp && item.legacyFp !== item.fp && (states || {})[item.legacyFp]) {
+          await (supabase as any)
+            .from("ai_opportunity_states")
+            .delete()
+            .eq("client_id", clientId)
+            .eq("fingerprint", item.legacyFp);
+        }
+        await loadStates();
+      }
     },
-    [states, clientId, loadStates],
+    [states, stateFor, clientId, loadStates, statesErr],
   );
+  // Teilfehler je Chancenquelle (21.08.): jede Quelle meldet ihren Fehler
+  // separat, die übrigen Quellen liefern trotzdem — vorher verschwanden
+  // Ausfälle still in leeren Listen.
+  const [srcErrors, setSrcErrors] = useState<Array<{ quelle: string; msg: string }>>([]);
   useEffect(() => {
     let alive = true;
     setItems(null);
     setErr("");
+    setSrcErrors([]);
     (async () => {
       const out: any[] = [];
+      const fails: Array<{ quelle: string; msg: string }> = [];
+      const fail = (quelle: string, e: any) =>
+        fails.push({ quelle, msg: String(e?.message || e).slice(0, 160) });
       const session = (await supabase.auth.getSession()).data.session;
       const authH = { Authorization: `Bearer ${session?.access_token || ""}` };
       // 1) Site-Health-Issues (letzter Audit; ohne Audit einfach leer).
@@ -2659,17 +2764,21 @@ function OpportunitiesPanel({
           headers: authH,
         });
         const j = await r.json().catch(() => ({}));
-        for (const i of j?.audit?.issues || [])
+        if (!r.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+        for (const i of j?.audit?.issues || []) {
+          const key = String(i.id || i.label || "");
           out.push({
             sev: String(i.severity || "niedrig"),
             quelle: "Site Health",
             titel: String(i.label || ""),
             text: String(i.tipp || i.detail || ""),
             go: "issues",
-            fp: oppFingerprint("sh", String(i.id || i.label || "")),
+            fp: oppFingerprint("sh", key),
+            legacyFp: oppFingerprintLegacy("sh", key),
           });
-      } catch {
-        /* additiv */
+        }
+      } catch (e) {
+        fail("Site Health", e);
       }
       // 1b) KI-Zitat-Gaps (12.08., DataForSEO include/exclude): echte Fragen
       // aus dem CH-Korpus, bei denen ein Rival zitiert wird, der Kunde nicht.
@@ -2679,7 +2788,9 @@ function OpportunitiesPanel({
           { headers: authH },
         );
         const j = await r.json().catch(() => ({}));
-        for (const g of j?.gaps || [])
+        if (!r.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+        for (const g of j?.gaps || []) {
+          const thema = `KI-Zitat-Gap vs. ${g.rival}`;
           out.push({
             sev: "hoch",
             quelle: "KI-Zitat-Gap",
@@ -2692,30 +2803,44 @@ function OpportunitiesPanel({
             // Content-Loop (13.08.): direkt aus dem Gap einen Brief erzeugen.
             brief: {
               rival: g.rival,
-              thema: `KI-Zitat-Gap vs. ${g.rival}`,
+              thema,
               questions: g.questions.slice(0, 8),
             },
-            fp: oppFingerprint("gap", String(g.rival || "")),
+            // v2 (21.08.): Rivale + Thema + Quelle + sortierte Fragen — zwei
+            // verschiedene Gaps gegen denselben Rivalen kollidieren nicht mehr.
+            fp: oppFingerprint(
+              "gap",
+              gapKey(
+                String(g.rival || ""),
+                thema,
+                "aivis-korpus-ch",
+                (g.questions || []).map((q: any) => String(q?.q ?? q ?? "")),
+              ),
+            ),
+            legacyFp: oppFingerprintLegacy("gap", String(g.rival || "")),
           });
-      } catch {
-        /* additiv */
+        }
+      } catch (e) {
+        fail("KI-Zitat-Gaps", e);
       }
       // 2) Prompt-Chancen: Konkurrenz wird empfohlen, der Kunde nicht.
       try {
-        const { data: rep } = await (supabase as any)
+        const { data: rep, error: repErr } = await (supabase as any)
           .from("ai_visibility_reports")
           .select("id")
           .eq("client_id", clientId)
           .order("snapshot_date", { ascending: false })
           .limit(1)
           .maybeSingle();
+        if (repErr) throw repErr;
         if (rep?.id) {
-          const { data: opps } = await (supabase as any)
+          const { data: opps, error: oppErr } = await (supabase as any)
             .from("ai_visibility_prompts")
             .select("prompt, platform, competitors")
             .eq("report_id", rep.id)
             .eq("is_opportunity", true)
             .limit(1000);
+          if (oppErr) throw oppErr;
           const byPrompt = new Map<string, { engines: number; comps: Set<string> }>();
           for (const o of opps || []) {
             const g = byPrompt.get(o.prompt) || { engines: 0, comps: new Set<string>() };
@@ -2734,19 +2859,21 @@ function OpportunitiesPanel({
                 text: `${g.engines} KI-${g.engines === 1 ? "Antwort nennt" : "Antworten nennen"} ${[...g.comps].slice(0, 3).join(", ")}${g.comps.size > 3 ? ` (+${g.comps.size - 3})` : ""} — ${clientName} fehlt. Zitierfähigen Inhalt zu dieser Frage aufbauen.`,
                 go: "aeo-insights",
                 fp: oppFingerprint("opp", prompt),
+                legacyFp: oppFingerprintLegacy("opp", prompt),
               }),
             );
         }
-      } catch {
-        /* additiv */
+      } catch (e) {
+        fail("KI-Sichtbarkeit", e);
       }
       // 3) Prüf-Aufgaben: Prompt-Queue + Faktenprofil.
       try {
-        const { count } = await (supabase as any)
+        const { count, error: cntErr } = await (supabase as any)
           .from("ai_visibility_prompt_defs")
           .select("id", { count: "exact", head: true })
           .eq("client_id", clientId)
           .eq("needs_review", true);
+        if (cntErr) throw cntErr;
         if (count)
           out.push({
             sev: "niedrig",
@@ -2755,15 +2882,17 @@ function OpportunitiesPanel({
             text: "Unklare Vorschläge freigeben oder archivieren — nur Bestätigtes wird gemessen.",
             action: "curation",
             fp: oppFingerprint("cur", "prompt-review"),
+            legacyFp: oppFingerprintLegacy("cur", "prompt-review"),
           });
-      } catch {
-        /* additiv */
+      } catch (e) {
+        fail("Kuration (Prompt-Queue)", e);
       }
       try {
         const r = await fetch(`/api/admin/brand-facts?client=${encodeURIComponent(clientId)}`, {
           headers: authH,
         });
         const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j?.error || `HTTP ${r.status}`);
         if (j?.ok && j.needsReview)
           out.push({
             sev: "niedrig",
@@ -2772,9 +2901,10 @@ function OpportunitiesPanel({
             text: "Der Fakten-Check prüft KI-Antworten gegen dieses Profil — einmal prüfen und bestätigen erhöht die Treffsicherheit.",
             action: "curation",
             fp: oppFingerprint("cur", "brand-facts"),
+            legacyFp: oppFingerprintLegacy("cur", "brand-facts"),
           });
-      } catch {
-        /* additiv */
+      } catch (e) {
+        fail("Kuration (Faktenprofil)", e);
       }
       // 4) Entity-Check (13.08.): existiert die Marke als Wikidata-Entität?
       // Ohne eindeutige Entität können KIs die Firma schwer zuordnen (GEO-
@@ -2792,12 +2922,16 @@ function OpportunitiesPanel({
             text: `Für „${clientName}" existiert keine Wikidata-Entität — KI-Systeme können die Firma schwerer eindeutig zuordnen (Verwechslungsgefahr). Einen Basis-Eintrag mit Branche, Ort und Website anlegen.`,
             go: "aeo-insights",
             fp: oppFingerprint("ent", "wikidata"),
+            legacyFp: oppFingerprintLegacy("ent", "wikidata"),
           });
-      } catch {
-        /* additiv — externes API */
+      } catch (e) {
+        fail("Entitäten (Wikidata)", e);
       }
       out.sort((a, b) => (OPP_SEV_ORDER[a.sev] ?? 9) - (OPP_SEV_ORDER[b.sev] ?? 9));
-      if (alive) setItems(out);
+      if (alive) {
+        setItems(out);
+        setSrcErrors(fails);
+      }
     })().catch((e) => {
       if (alive) {
         setErr(String(e?.message || e));
@@ -2808,6 +2942,57 @@ function OpportunitiesPanel({
       alive = false;
     };
   }, [clientId, clientName]);
+
+  // Lazy-Migration alter FNV-Fingerprints (21.08.): existiert ein Zustand nur
+  // unter dem Legacy-Fingerprint, wird er einmalig auf v2 umgeschrieben — für
+  // Viewer (kein Schreibrecht) greift stattdessen dauerhaft der Lese-Fallback.
+  const migratedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!items || !states || statesErr || !canWrite) return;
+    if (migratedRef.current === clientId) return;
+    const todo = items.filter(
+      (i) => i.legacyFp && i.legacyFp !== i.fp && states[i.legacyFp] && !states[i.fp],
+    );
+    if (!todo.length) {
+      migratedRef.current = clientId;
+      return;
+    }
+    migratedRef.current = clientId;
+    (async () => {
+      for (const i of todo) {
+        const { error } = await (supabase as any)
+          .from("ai_opportunity_states")
+          .update({ fingerprint: i.fp, title: i.titel || null, source: i.quelle || null })
+          .eq("client_id", clientId)
+          .eq("fingerprint", i.legacyFp);
+        if (error) return; // Viewer/RLS oder Konflikt — Lese-Fallback bleibt aktiv
+      }
+      await loadStates();
+    })();
+  }, [items, states, statesErr, canWrite, clientId, loadStates]);
+
+  // Fällige Wiedervorlagen → einmalige In-App-Benachrichtigung (Glocke).
+  // Dedupe passiert HART in der DB (unique dedupe_key je Kunde+Fingerprint+
+  // Fälligkeitsdatum) — Reloads erzeugen keine Duplikate; das Session-Set
+  // spart nur wiederholte RPC-Calls. Viewer lösen nichts aus (RPC prüft
+  // can_edit_client serverseitig nochmals).
+  const notifiedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!states || statesErr || !canWrite) return;
+    const today = isoDay(new Date());
+    for (const s of Object.values(states) as any[]) {
+      if (!isResurfaceDue(s.status, s.resurface_on, today)) continue;
+      const key = `${clientId}:${s.fingerprint}:${s.resurface_on}`;
+      if (notifiedRef.current.has(key)) continue;
+      notifiedRef.current.add(key);
+      void (supabase as any).rpc("ezyai_notify_resurface", {
+        _client_id: clientId,
+        _fingerprint: s.fingerprint,
+        _title: `Wiedervorlage fällig: ${s.title || "Chance"}`,
+        _due: s.resurface_on,
+      });
+    }
+  }, [states, statesErr, canWrite, clientId]);
 
   const card: any = {
     background: S.panel,
@@ -2840,17 +3025,19 @@ function OpportunitiesPanel({
     }
   };
 
-  const [showDone, setShowDone] = useState(false);
+  const [filter, setFilter] = useState<"aktiv" | "faellig" | "archiv">("aktiv");
   const [editFp, setEditFp] = useState<string | null>(null);
-  const [draft, setDraft] = useState<{ assignee: string; note: string; resurface: string }>({
-    assignee: "",
+  // Verantwortlich seit 21.08. als Team-User (assignee_user_id); der Sentinel
+  // "__legacy__" erhält einen bestehenden Freitext-Wert unangetastet.
+  const [draft, setDraft] = useState<{ assigneeId: string; note: string; resurface: string }>({
+    assigneeId: "",
     note: "",
     resurface: "",
   });
   const openEditor = (i: any) => {
-    const st = (states || {})[i.fp] || {};
+    const st = stateFor(i) || {};
     setDraft({
-      assignee: st.assignee || "",
+      assigneeId: st.assignee_user_id || (st.assignee ? "__legacy__" : ""),
       note: st.note || "",
       resurface: st.resurface_on || "",
     });
@@ -2861,13 +3048,27 @@ function OpportunitiesPanel({
     return <div style={{ ...card, color: S.mut, fontSize: 13 }}>Chancen werden gesammelt…</div>;
 
   const today = isoDay(new Date());
-  const statusOf = (i: any): OppStatus => (states[i.fp]?.status as OppStatus) || "offen";
+  const statusOf = (i: any): OppStatus => (stateFor(i)?.status as OppStatus) || "offen";
   const isDone = (s: OppStatus) => s === "erledigt" || s === "verworfen";
-  const active = items.filter((i) => !isDone(statusOf(i)));
+  const dueOf = (i: any) => {
+    const st = stateFor(i);
+    return st && isResurfaceDue(st.status, st.resurface_on, today) ? String(st.resurface_on) : null;
+  };
+  // Fällige Wiedervorlagen automatisch nach oben (älteste zuerst), danach Schwere.
+  const active = items
+    .filter((i) => !isDone(statusOf(i)))
+    .sort((a, b) => {
+      const da = dueOf(a);
+      const db = dueOf(b);
+      if (!!da !== !!db) return da ? -1 : 1;
+      if (da && db && da !== db) return da < db ? -1 : 1;
+      return (OPP_SEV_ORDER[a.sev] ?? 9) - (OPP_SEV_ORDER[b.sev] ?? 9);
+    });
+  const dueItems = active.filter((i) => dueOf(i));
   const done = items.filter((i) => isDone(statusOf(i)));
   // Erledigte/verworfene Zustände, deren Quelle inzwischen verschwunden ist
   // (z. B. behobenes Site-Health-Issue) — im Archiv über den Snapshot lesbar.
-  const knownFp = new Set(items.map((i) => i.fp));
+  const knownFp = new Set(items.flatMap((i) => [i.fp, i.legacyFp].filter(Boolean)));
   const orphaned = Object.values(states).filter(
     (s: any) =>
       !knownFp.has(s.fingerprint) && (s.status === "erledigt" || s.status === "verworfen"),
@@ -2876,7 +3077,16 @@ function OpportunitiesPanel({
     m[i.sev] = (m[i.sev] || 0) + 1;
     return m;
   }, {});
-  const shown = showDone ? done : active;
+  const shown = filter === "archiv" ? done : filter === "faellig" ? dueItems : active;
+  // Anzeige-Name des Verantwortlichen: Team-User (Name + E-Mail) vor Freitext-Erbe.
+  const assigneeLabel = (st: any): string | null => {
+    if (st?.assignee_user_id) {
+      const t = teamById.get(st.assignee_user_id);
+      if (t) return t.email ? `${t.name} (${t.email})` : t.name;
+      return st.assignee || "Unbekannter Nutzer";
+    }
+    return st?.assignee ? `${st.assignee} (Freitext)` : null;
+  };
 
   const statusSelect = (i: any) => {
     const s = statusOf(i);
@@ -2884,8 +3094,9 @@ function OpportunitiesPanel({
     return (
       <select
         value={s}
+        disabled={!canWrite}
         onChange={(e) => void saveState(i, { status: e.target.value })}
-        title="Bearbeitungsstatus"
+        title={canWrite ? "Bearbeitungsstatus" : "Nur Lesen (Viewer oder Ladefehler)"}
         style={{
           flexShrink: 0,
           alignSelf: "center",
@@ -2897,7 +3108,8 @@ function OpportunitiesPanel({
           fontSize: 11,
           fontWeight: 700,
           fontFamily: "inherit",
-          cursor: "pointer",
+          cursor: canWrite ? "pointer" : "not-allowed",
+          opacity: canWrite ? 1 : 0.6,
         }}
       >
         {OPP_STATUS.map((o) => (
@@ -2911,9 +3123,9 @@ function OpportunitiesPanel({
 
   const renderRow = (i: any, idx: number) => {
     const sv = SEV_STYLE[i.sev] || SEV_STYLE.niedrig;
-    const st = states[i.fp];
-    const resurfaceDue =
-      st?.status === "pausiert" && st?.resurface_on && String(st.resurface_on) <= today;
+    const st = stateFor(i);
+    const resurfaceDue = !!dueOf(i);
+    const who = assigneeLabel(st);
     return (
       <div
         key={i.fp || idx}
@@ -2946,7 +3158,7 @@ function OpportunitiesPanel({
                 color: S.mut,
               }}
             >
-              {st?.assignee && <span>👤 {st.assignee}</span>}
+              {who && <span>👤 {who}</span>}
               {st?.resurface_on && (
                 <span
                   style={{
@@ -2978,7 +3190,10 @@ function OpportunitiesPanel({
           {statusSelect(i)}
           <button
             onClick={() => openEditor(i)}
-            title="Verantwortlicher, Notiz, Wiedervorlage"
+            disabled={!canWrite}
+            title={
+              canWrite ? "Verantwortlicher, Notiz, Wiedervorlage" : "Nur Lesen (Viewer/Fehler)"
+            }
             style={{
               flexShrink: 0,
               alignSelf: "center",
@@ -2989,7 +3204,8 @@ function OpportunitiesPanel({
               color: S.mut,
               fontSize: 11.5,
               fontWeight: 600,
-              cursor: "pointer",
+              cursor: canWrite ? "pointer" : "not-allowed",
+              opacity: canWrite ? 1 : 0.6,
               fontFamily: "inherit",
             }}
           >
@@ -3060,10 +3276,12 @@ function OpportunitiesPanel({
               }}
             >
               Verantwortlich
-              <input
-                value={draft.assignee}
-                onChange={(e) => setDraft({ ...draft, assignee: e.target.value })}
-                placeholder="Name"
+              {/* Team-Auswahl statt Freitext (21.08.): eindeutig per user_id.
+                  Ein bestehender Freitext-Wert bleibt als eigene Option lesbar
+                  erhalten, bis bewusst ein Team-Mitglied gewählt wird. */}
+              <select
+                value={draft.assigneeId}
+                onChange={(e) => setDraft({ ...draft, assigneeId: e.target.value })}
                 style={{
                   padding: "6px 8px",
                   borderRadius: 8,
@@ -3072,9 +3290,26 @@ function OpportunitiesPanel({
                   border: `1px solid ${S.line}`,
                   fontSize: 12,
                   fontFamily: "inherit",
-                  width: 150,
+                  minWidth: 180,
+                  maxWidth: 260,
                 }}
-              />
+              >
+                <option value="">— niemand —</option>
+                {draft.assigneeId === "__legacy__" && (
+                  <option value="__legacy__">
+                    Bisher (Freitext): {stateFor(i)?.assignee || "?"}
+                  </option>
+                )}
+                {(team || []).map((t) => (
+                  <option key={t.user_id} value={t.user_id}>
+                    {t.name}
+                    {t.email ? ` (${t.email})` : ""}
+                  </option>
+                ))}
+              </select>
+              {team !== null && !team.length && (
+                <span style={{ color: "#d97706" }}>Team-Liste nicht verfügbar</span>
+              )}
             </label>
             <label
               style={{
@@ -3131,11 +3366,18 @@ function OpportunitiesPanel({
             </label>
             <button
               onClick={() => {
-                void saveState(i, {
-                  assignee: draft.assignee,
+                // "__legacy__" = Freitext-Erbe unangetastet lassen; sonst wird
+                // eindeutig per user_id gespeichert (Name/E-Mail als Snapshot).
+                const patch: Record<string, any> = {
                   note: draft.note,
                   resurface_on: draft.resurface,
-                });
+                };
+                if (draft.assigneeId !== "__legacy__") {
+                  const t = teamById.get(draft.assigneeId);
+                  patch.assignee_user_id = draft.assigneeId || null;
+                  patch.assignee = t ? t.name : null;
+                }
+                void saveState(i, patch);
                 setEditFp(null);
               }}
               style={{

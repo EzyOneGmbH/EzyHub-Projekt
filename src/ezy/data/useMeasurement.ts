@@ -84,7 +84,12 @@ export function useMeasurement(
         body: JSON.stringify(body),
       });
       const j: any = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(j?.error || `HTTP ${res.status}`);
+      // Regressions-Fix (2026-08-21): einige Routen melden Messfehler als
+      // HTTP 200 + { ok:false, error } (z. B. PageSpeed bei PSI-Fehler,
+      // Backlink-Overview bei all_failed). Ohne diesen Check würde die UI
+      // "erfolgreich" zeigen, obwohl kein neuer Lauf gespeichert wurde.
+      if (!res.ok || j?.ok === false)
+        throw new Error(j?.error || (!res.ok ? `HTTP ${res.status}` : "Messung fehlgeschlagen"));
       return j;
     });
     // Auch beim Anhängen an einen bereits laufenden Lauf: Status zeigen,
