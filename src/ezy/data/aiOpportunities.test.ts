@@ -14,9 +14,7 @@ import { resolveRange, previousPeriod, isoDay } from "./rangeStore";
 // hängen an dieser Implementierung, sie muss exakt Standard sein.
 describe("sha256Hex", () => {
   it("Standard-Testvektoren", () => {
-    expect(sha256Hex("")).toBe(
-      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    );
+    expect(sha256Hex("")).toBe("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
     expect(sha256Hex("abc")).toBe(
       "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
     );
@@ -94,7 +92,9 @@ describe("gapKey", () => {
   });
 
   it("leere/fehlende Fragen kippen den Schlüssel nicht", () => {
-    expect(gapKey("R", "T", "Q", ["f1", null, undefined, "  "])).toBe(gapKey("R", "T", "Q", ["f1"]));
+    expect(gapKey("R", "T", "Q", ["f1", null, undefined, "  "])).toBe(
+      gapKey("R", "T", "Q", ["f1"]),
+    );
   });
 });
 

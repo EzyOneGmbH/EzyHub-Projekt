@@ -3426,36 +3426,109 @@ function OpportunitiesPanel({
               </span>
             ) : null,
           )}
+          {(
+            [
+              ["aktiv", `Aktiv (${active.length})`],
+              ["faellig", `Fällig (${dueItems.length})`],
+              ["archiv", `Erledigt & Verworfen (${done.length + orphaned.length})`],
+            ] as Array<["aktiv" | "faellig" | "archiv", string]>
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              onClick={() => setFilter(id)}
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                borderRadius: 99,
+                padding: "3px 10px",
+                border: `1px solid ${filter === id ? S.app : S.line}`,
+                background: filter === id ? S.appTint : "transparent",
+                color:
+                  filter === id ? S.app : id === "faellig" && dueItems.length ? "#dc2626" : S.mut,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </span>
+      </div>
+      {/* Workflow-Speicher nicht erreichbar: Klartext + Retry; Schreiben ist
+          solange gesperrt, die Chancen selbst bleiben lesbar. */}
+      {statesErr && (
+        <div
+          style={{
+            ...card,
+            borderColor: "#dc262655",
+            display: "flex",
+            gap: 12,
+            alignItems: "center",
+          }}
+        >
+          <div style={{ flex: 1, fontSize: 12.5, color: "#dc2626" }}>
+            <b>Chancen-Workflow nicht verfügbar:</b> {statesErr}
+            <div style={{ color: S.mut, marginTop: 2 }}>
+              Status, Verantwortliche und Wiedervorlagen sind bis dahin schreibgeschützt.
+            </div>
+          </div>
           <button
-            onClick={() => setShowDone((v) => !v)}
+            onClick={() => {
+              setStates(null);
+              void loadStates();
+            }}
             style={{
-              fontSize: 11,
-              fontWeight: 600,
-              borderRadius: 99,
-              padding: "3px 10px",
-              border: `1px solid ${showDone ? S.app : S.line}`,
-              background: showDone ? S.appTint : "transparent",
-              color: showDone ? S.app : S.mut,
+              flexShrink: 0,
+              padding: "7px 14px",
+              borderRadius: 8,
+              border: "none",
+              background: S.app,
+              color: "#fff",
+              fontSize: 12,
+              fontWeight: 700,
               cursor: "pointer",
               fontFamily: "inherit",
             }}
           >
-            Erledigt & Verworfen ({done.length + orphaned.length})
+            Erneut versuchen
           </button>
-        </span>
-      </div>
+        </div>
+      )}
+      {/* Teilfehler einzelner Chancenquellen — die übrigen Quellen laufen weiter. */}
+      {srcErrors.length > 0 && (
+        <div style={{ ...card, borderColor: "#d9770655", fontSize: 12, color: "#d97706" }}>
+          <b>
+            {srcErrors.length === 1
+              ? "Eine Chancenquelle konnte nicht geladen werden"
+              : `${srcErrors.length} Chancenquellen konnten nicht geladen werden`}
+          </b>{" "}
+          — angezeigt wird, was die übrigen Quellen liefern.
+          <div
+            style={{ color: S.mut, marginTop: 4, display: "flex", flexDirection: "column", gap: 2 }}
+          >
+            {srcErrors.map((se, k) => (
+              <span key={k}>
+                {se.quelle}: {se.msg}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
       {err && <div style={{ ...card, color: "#dc2626", fontSize: 12.5 }}>{err}</div>}
+      {saveErr && <div style={{ ...card, color: "#dc2626", fontSize: 12.5 }}>{saveErr}</div>}
       {briefErr && <div style={{ ...card, color: "#dc2626", fontSize: 12.5 }}>{briefErr}</div>}
-      {!shown.length && !(showDone && orphaned.length) ? (
+      {!shown.length && !(filter === "archiv" && orphaned.length) ? (
         <div style={{ ...card, textAlign: "center", color: S.mut, fontSize: 13 }}>
-          {showDone
+          {filter === "archiv"
             ? "Noch nichts erledigt oder verworfen."
-            : "🎉 Keine offenen Chancen — alle Signalquellen sind sauber. Neue Chancen erscheinen nach dem nächsten Messlauf/Audit."}
+            : filter === "faellig"
+              ? "Keine fälligen Wiedervorlagen."
+              : "🎉 Keine offenen Chancen — alle Signalquellen sind sauber. Neue Chancen erscheinen nach dem nächsten Messlauf/Audit."}
         </div>
       ) : (
         <div style={card}>
           {shown.map(renderRow)}
-          {showDone &&
+          {filter === "archiv" &&
             orphaned.map((s: any, idx: number) => (
               <div
                 key={s.fingerprint}

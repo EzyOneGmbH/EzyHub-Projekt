@@ -33,8 +33,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.4.0",
+    version: "1.5.0",
     changelog: [
+      {
+        version: "1.5.0",
+        date: "2026-08-21",
+        note: "Chancen: Team-Verantwortliche, Fällig-Filter + Benachrichtigung, robuste Fingerprints, Fehler je Quelle sichtbar",
+      },
       {
         version: "1.4.0",
         date: "2026-08-18",
