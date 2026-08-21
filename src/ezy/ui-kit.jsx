@@ -782,10 +782,12 @@ export function TabBar({ tabs, active, onChange }) {
     <div
       className="tabbar"
       style={{
+        // Redesign 1b: Apple-Segmented (Hi-Fi 2a) — Tint-Container, aktives
+        // Segment weiss mit Schatten + Akzentfarbe.
         display: "flex",
-        background: C.card,
-        borderRadius: 10,
-        border: `1px solid ${C.border}`,
+        gap: 2,
+        background: C.segBg,
+        borderRadius: C.rCtl,
         padding: 3,
         width: "fit-content",
         maxWidth: "100%",
@@ -804,11 +806,12 @@ export function TabBar({ tabs, active, onChange }) {
             borderRadius: 8,
             border: "none",
             cursor: "pointer",
-            fontSize: 12,
-            fontWeight: active === t.id ? 600 : 400,
-            background: active === t.id ? C.accent : "transparent",
-            color: active === t.id ? "#fff" : C.textMuted,
+            fontSize: 12.5,
+            fontWeight: active === t.id ? 700 : 600,
+            background: active === t.id ? "#fff" : "transparent",
+            boxShadow: active === t.id ? C.segShadow : "none",
             transition: "all .15s",
+            color: active === t.id ? C.accent : C.textMuted,
             fontFamily: "inherit",
           }}
         >

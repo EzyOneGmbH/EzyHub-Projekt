@@ -3921,10 +3921,32 @@ function TeamPage({ clients }) {
             {users.map((u) => (
               <div
                 key={u.userId}
-                style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px" }}
+                style={{
+                  border: `1px solid ${C.hairline}`,
+                  borderRadius: 12,
+                  padding: "12px 14px",
+                }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                  {/* Redesign 1b (Screen 4i): Avatar-Kreis in Rollen-Tint */}
+                  <span
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: "50%",
+                      background: `${roleColor[u.role] || C.textDim}1a`,
+                      color: roleColor[u.role] || C.textDim,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 12,
+                      fontWeight: 800,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {(u.email || u.userId).slice(0, 2).toUpperCase()}
+                  </span>
+                  <span style={{ fontSize: 13, color: C.text, fontWeight: 700 }}>
                     {u.email || u.userId.slice(0, 8)}
                   </span>
                   <Badge color={roleColor[u.role] || C.textDim}>

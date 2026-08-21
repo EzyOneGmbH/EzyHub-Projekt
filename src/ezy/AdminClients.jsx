@@ -2072,9 +2072,8 @@ export function MatrixPage({ clients }) {
       <div>
         <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Zugriffs-Matrix</h2>
         <p style={{ fontSize: 12, color: C.textMuted, margin: "4px 0 0" }}>
-          Welcher Kunde erscheint in welcher App. Zelle klicken zum Umschalten; Kunde aufklappen für
-          Funktions-Freischaltung und Portal-Zugänge. Mitarbeiter-Rechte verwaltest du auf der
-          Team-Seite.
+          Welcher Kunde erscheint in welcher App — Änderungen gelten sofort. Kunde aufklappen für
+          Funktions-Freischaltung und Portal-Zugänge.
         </p>
       </div>
       {caa.legacy && (
@@ -2092,119 +2091,154 @@ export function MatrixPage({ clients }) {
           (alle Apps gelten als aktiv).
         </div>
       )}
+      {/* Redesign 1b (Screen 3e): Full-Bleed-Tabelle, App-farbige Kopfzeile,
+        Pill-Schalter statt Häkchen-Kacheln. */}
       <div
         style={{
           background: C.card,
           border: `1px solid ${C.border}`,
-          borderRadius: 14,
-          padding: 16,
-          overflowX: "auto",
+          borderRadius: C.rCard,
+          boxShadow: C.cardShadow,
+          overflow: "hidden",
         }}
       >
-        <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 560 }}>
-          <thead>
-            <tr>
-              <th
-                style={{
-                  textAlign: "left",
-                  fontSize: 11.5,
-                  color: C.textMuted,
-                  fontWeight: 600,
-                  padding: "6px 10px",
-                }}
-              >
-                Kunde
-              </th>
-              {apps.map((a) => (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 560 }}>
+            <thead>
+              <tr style={{ background: "rgba(43,0,51,.025)" }}>
                 <th
-                  key={a.id}
                   style={{
-                    fontSize: 11.5,
-                    color: C.textMuted,
+                    textAlign: "left",
+                    fontSize: 11,
+                    color: C.textDim,
                     fontWeight: 600,
-                    padding: "6px 10px",
-                    whiteSpace: "nowrap",
+                    textTransform: "uppercase",
+                    letterSpacing: ".06em",
+                    padding: "12px 18px",
+                    borderBottom: `1px solid ${C.border}`,
                   }}
                 >
-                  {a.icon} {a.name}
+                  Kunde
                 </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {clients.map((c) => (
-              <Fragment key={c.id}>
-                <tr style={{ borderTop: `1px solid ${C.border}` }}>
-                  <td style={{ padding: "8px 10px" }}>
-                    <button
-                      type="button"
-                      onClick={() => setExpanded(expanded === c.id ? null : c.id)}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        color: C.text,
-                        fontSize: 13,
-                        fontWeight: 600,
-                        padding: 0,
-                        fontFamily: "inherit",
-                      }}
-                    >
-                      <span style={{ width: 12 }}>{expanded === c.id ? "▾" : "▸"}</span>
-                      <ClientAvatar
-                        name={c.name}
-                        domain={c.domain}
-                        size={22}
-                        radius={6}
-                        bg={C.accentDim}
-                        fg={C.accentLight}
-                        fontSize={9}
-                      />
-                      {c.name}
-                    </button>
-                  </td>
-                  {apps.map((a) => {
-                    const on = appEnabledFor(caa.map, c.id, a.id);
-                    return (
-                      <td key={a.id} style={{ textAlign: "center", padding: "8px 10px" }}>
-                        <button
-                          type="button"
-                          onClick={() => toggle(c.id, a.id)}
-                          disabled={caa.legacy}
-                          title={`${a.name} für ${c.name} ${on ? "deaktivieren" : "aktivieren"}`}
+                {apps.map((a) => (
+                  <th
+                    key={a.id}
+                    style={{
+                      fontSize: 11,
+                      color: a.color,
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: ".06em",
+                      padding: "12px 10px",
+                      whiteSpace: "nowrap",
+                      borderBottom: `1px solid ${C.border}`,
+                    }}
+                  >
+                    {a.name}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {clients.map((c) => (
+                <Fragment key={c.id}>
+                  <tr>
+                    <td style={{ padding: "13px 18px", borderBottom: `1px solid ${C.hairline}` }}>
+                      <button
+                        type="button"
+                        onClick={() => setExpanded(expanded === c.id ? null : c.id)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          color: C.text,
+                          fontSize: 13,
+                          fontWeight: 600,
+                          padding: 0,
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        <span style={{ width: 12 }}>{expanded === c.id ? "▾" : "▸"}</span>
+                        <ClientAvatar
+                          name={c.name}
+                          domain={c.domain}
+                          size={22}
+                          radius={6}
+                          bg={C.accentDim}
+                          fg={C.accentLight}
+                          fontSize={9}
+                        />
+                        {c.name}
+                      </button>
+                    </td>
+                    {apps.map((a) => {
+                      const on = appEnabledFor(caa.map, c.id, a.id);
+                      return (
+                        <td
+                          key={a.id}
                           style={{
-                            width: 26,
-                            height: 26,
-                            borderRadius: 7,
-                            cursor: caa.legacy ? "default" : "pointer",
-                            border: `1px solid ${on ? a.color : C.border}`,
-                            background: on ? a.tint : "transparent",
-                            color: on ? a.color : C.textDim,
-                            fontSize: 13,
-                            fontWeight: 700,
+                            textAlign: "center",
+                            padding: "13px 10px",
+                            borderBottom: `1px solid ${C.hairline}`,
                           }}
                         >
-                          {on ? "✓" : "–"}
-                        </button>
-                      </td>
-                    );
-                  })}
-                </tr>
-                {expanded === c.id && (
-                  <tr>
-                    <td colSpan={apps.length + 1} style={{ padding: "4px 10px 14px" }}>
-                      <ClientAppAccessPanel client={c} />
-                    </td>
+                          {/* Pill-Schalter (Hi-Fi 7) in App-Farbe */}
+                          <button
+                            type="button"
+                            onClick={() => toggle(c.id, a.id)}
+                            disabled={caa.legacy}
+                            title={`${a.name} für ${c.name} ${on ? "deaktivieren" : "aktivieren"}`}
+                            style={{
+                              width: 38,
+                              height: 22,
+                              borderRadius: C.rPill,
+                              border: "none",
+                              cursor: caa.legacy ? "default" : "pointer",
+                              background: on ? a.color : "rgba(43,0,51,.12)",
+                              position: "relative",
+                              transition: "background .15s",
+                              padding: 0,
+                              verticalAlign: "middle",
+                            }}
+                          >
+                            <span
+                              style={{
+                                position: "absolute",
+                                top: 2,
+                                left: on ? 18 : 2,
+                                width: 18,
+                                height: 18,
+                                borderRadius: "50%",
+                                background: "#fff",
+                                boxShadow: "0 1px 3px rgba(0,0,0,.25)",
+                                transition: "left .15s",
+                              }}
+                            />
+                          </button>
+                        </td>
+                      );
+                    })}
                   </tr>
-                )}
-              </Fragment>
-            ))}
-          </tbody>
-        </table>
+                  {expanded === c.id && (
+                    <tr>
+                      <td colSpan={apps.length + 1} style={{ padding: "4px 18px 14px" }}>
+                        <ClientAppAccessPanel client={c} />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
+      <p style={{ fontSize: 11.5, color: C.textDim, margin: 0 }}>
+        Mitarbeiter-Rechte verwaltest du auf der Team-Seite; Portal-Freigaben laufen über
+        App-Zugriff im Kunden-Detail.
+      </p>
     </div>
   );
 }
@@ -2489,37 +2523,51 @@ export function ClientsPage({
             top: 0,
             right: 0,
             bottom: 0,
-            width: "min(480px,100vw)",
+            width: "min(560px,100vw)",
             background: C.surface,
             borderLeft: `1px solid ${C.border}`,
+            boxShadow: "-24px 0 60px -36px rgba(43,0,51,.35)",
             zIndex: 100,
             overflowY: "auto",
             animation: "slideIn .2s ease",
           }}
         >
+          {/* Redesign 1b (Screen 4k): 48er-Avatar-Kachel + grosser Name + Meta-Zeile */}
           <div
             style={{
-              padding: "18px 22px",
+              padding: "20px 24px",
               borderBottom: `1px solid ${C.border}`,
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
             }}
           >
-            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
               {/* Favicon der Kundendomain, Fallback auf Initialen (Volkan 13.08.). */}
               <ClientAvatar
                 name={detail.name}
                 domain={detail.domain}
-                size={36}
-                radius={8}
+                size={48}
+                radius={14}
                 bg={C.accentDim}
-                fg={C.accentLight}
-                fontSize={14}
+                fg={C.accent}
+                fontSize={16}
               />
               <div>
-                <div style={{ fontWeight: 700, color: C.text }}>{detail.name}</div>
-                <div style={{ fontSize: 11, color: C.textMuted }}>{detail.domain}</div>
+                <div
+                  style={{
+                    fontWeight: 700,
+                    fontSize: 19,
+                    letterSpacing: "-.02em",
+                    color: C.text,
+                    fontFamily: "'Kamerik 105',Poppins,sans-serif",
+                  }}
+                >
+                  {detail.name}
+                </div>
+                <div style={{ fontSize: 12.5, color: C.textMuted, marginTop: 2 }}>
+                  {[detail.domain, detail.industry].filter(Boolean).join(" · ")}
+                </div>
               </div>
             </div>
             <button
