@@ -893,7 +893,13 @@ function DetailAnalysis({ autopilotRun, adsSnapshot }) {
         (campaignRows.length ? (
           <>
             <div
-              style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}
+              style={{
+                display: "flex",
+                gap: 8,
+                flexWrap: "wrap",
+                alignItems: "center",
+                marginBottom: 10,
+              }}
             >
               <input
                 value={campQuery}
@@ -1051,7 +1057,13 @@ function DetailAnalysis({ autopilotRun, adsSnapshot }) {
       {campDetail && (
         <Modal title={campDetail.name} onClose={() => setCampDetail(null)} maxWidth={600}>
           <div
-            style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}
+            style={{
+              marginTop: 6,
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
           >
             <Badge color={campDetail.status === "ENABLED" ? C.green : C.textMuted}>
               {campDetail.status}
@@ -1061,7 +1073,9 @@ function DetailAnalysis({ autopilotRun, adsSnapshot }) {
           </div>
           <ModalSection title="Leistung (Zeitraum wie im Ads-Dashboard)">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px" }}>
-              <span>Kosten: <b>{chf(campDetail.cost, 2)}</b></span>
+              <span>
+                Kosten: <b>{chf(campDetail.cost, 2)}</b>
+              </span>
               <span>
                 Klicks:{" "}
                 <b>{campDetail.clicks != null ? campDetail.clicks.toLocaleString("de-CH") : "—"}</b>
@@ -1074,9 +1088,15 @@ function DetailAnalysis({ autopilotRun, adsSnapshot }) {
                     : "—"}
                 </b>
               </span>
-              <span>Conversions: <b>{Math.round(campDetail.conversions * 10) / 10}</b></span>
-              <span>Conversion-Wert: <b>{campDetail.value > 0 ? chf(campDetail.value) : "—"}</b></span>
-              <span>CPA: <b>{campDetail.cpa != null ? chf(campDetail.cpa, 2) : "—"}</b></span>
+              <span>
+                Conversions: <b>{Math.round(campDetail.conversions * 10) / 10}</b>
+              </span>
+              <span>
+                Conversion-Wert: <b>{campDetail.value > 0 ? chf(campDetail.value) : "—"}</b>
+              </span>
+              <span>
+                CPA: <b>{campDetail.cpa != null ? chf(campDetail.cpa, 2) : "—"}</b>
+              </span>
               <span>
                 ROAS:{" "}
                 <b>
@@ -1090,7 +1110,9 @@ function DetailAnalysis({ autopilotRun, adsSnapshot }) {
           {campDetail.auto ? (
             <ModalSection title="Autopilot-Sicht (letzter Lauf, 30 Tage)" color={C.accent}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px" }}>
-                <span>Tagesbudget: <b>{chf(campDetail.auto.dailyBudgetChf, 2)}</b></span>
+                <span>
+                  Tagesbudget: <b>{chf(campDetail.auto.dailyBudgetChf, 2)}</b>
+                </span>
                 <span>
                   Strategie: <b>{campDetail.auto.strategyType}</b>
                   {campDetail.auto.targetRoas ? ` (tROAS ${campDetail.auto.targetRoas})` : ""}
@@ -1098,9 +1120,15 @@ function DetailAnalysis({ autopilotRun, adsSnapshot }) {
                     ? ` (tCPA ${chf(campDetail.auto.targetCpaChf)})`
                     : ""}
                 </span>
-                <span>IS Suche: <b>{pct(campDetail.auto.searchImpressionShare)}</b></span>
-                <span>IS-Verlust Budget: <b>{pct(campDetail.auto.budgetLostIs)}</b></span>
-                <span>IS-Verlust Rang: <b>{pct(campDetail.auto.rankLostIs)}</b></span>
+                <span>
+                  IS Suche: <b>{pct(campDetail.auto.searchImpressionShare)}</b>
+                </span>
+                <span>
+                  IS-Verlust Budget: <b>{pct(campDetail.auto.budgetLostIs)}</b>
+                </span>
+                <span>
+                  IS-Verlust Rang: <b>{pct(campDetail.auto.rankLostIs)}</b>
+                </span>
               </div>
             </ModalSection>
           ) : (
@@ -1423,9 +1451,9 @@ function DetailAnalysis({ autopilotRun, adsSnapshot }) {
                   {p.budgetSource === "account"
                     ? "den aktuellen Tagesbudgets des Kontos"
                     : "historischem Spend"}{" "}
-                  abgeleitet — der Pacing-Check meldet deshalb nur Beobachtungen, keine
-                  bestätigten Überschreitungen. Owner/Admin: oben «Konfigurieren» öffnen und das
-                  Soll-Budget unter «Monatsbudget (CHF)» bestätigen.
+                  abgeleitet — der Pacing-Check meldet deshalb nur Beobachtungen, keine bestätigten
+                  Überschreitungen. Owner/Admin: oben «Konfigurieren» öffnen und das Soll-Budget
+                  unter «Monatsbudget (CHF)» bestätigen.
                 </Banner>
               )}
               <div
@@ -1710,10 +1738,11 @@ export default function AdsAutopilotPanel({ selectedClient }) {
     },
     {
       l: "Erlaubte Änderungsklassen",
-      v: changeClassMatrix(config?.autonomy_level ?? 0)
-        .filter((r) => r.verhalten === "automatisch")
-        .map((r) => r.klasse)
-        .join(", ") || "keine (alles wartet auf Freigabe)",
+      v:
+        changeClassMatrix(config?.autonomy_level ?? 0)
+          .filter((r) => r.verhalten === "automatisch")
+          .map((r) => r.klasse)
+          .join(", ") || "keine (alles wartet auf Freigabe)",
     },
   ];
 

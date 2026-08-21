@@ -216,9 +216,9 @@ describe("changeClassMatrix (erlaubte Aenderungsklassen)", () => {
     expect(changeClassMatrix(2).find((x) => x.klasse === "Gebote & Budgets")?.verhalten).toBe(
       "automatisch",
     );
-    expect(changeClassMatrix(2).find((x) => x.klasse.startsWith("Kampagnen-Struktur"))?.verhalten).toBe(
-      "nie automatisch",
-    );
+    expect(
+      changeClassMatrix(2).find((x) => x.klasse.startsWith("Kampagnen-Struktur"))?.verhalten,
+    ).toBe("nie automatisch");
   });
 });
 
