@@ -889,4 +889,33 @@ export function EzyPilotButton() {
   );
 }
 
+// Redesign 1b (Screen 2h): EzyPilot als runder Gradient-Button — Top-Bar
+// (mobil) und Bottom-Tab-Bar-Zentrum. Reine Kreis-Variante von EzyPilotButton.
+export function EzyPilotFab({ size = 40, elevated = false }) {
+  const { open, setOpen } = useEzyPilot();
+  return (
+    <button
+      onClick={() => setOpen((v) => !v)}
+      title="EzyPilot öffnen"
+      aria-label="EzyPilot öffnen"
+      style={{
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        border: "none",
+        background: C.grad,
+        color: "#fff",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+        flexShrink: 0,
+        boxShadow: elevated ? "0 8px 20px -8px rgba(119,0,140,.6)" : "none",
+      }}
+    >
+      <Sparkles size={Math.round(size * 0.42)} />
+    </button>
+  );
+}
+
 export { useToast, Btn, Badge, EzyPilotPage, useEzyPilot };

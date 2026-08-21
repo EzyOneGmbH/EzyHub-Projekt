@@ -56,7 +56,6 @@ import {
   ListChecks,
   MessageSquare,
   ArrowRight,
-  SlidersHorizontal,
 } from "lucide-react";
 import { ezyFetch } from "@/ezy/data/api";
 import { useAuth } from "@/hooks/use-auth";
@@ -121,7 +120,7 @@ const toolHasLiveProvider = (id) => toolProvider(id) !== null;
 // (CD-Gradient 135° #71008B→#B9009C). Semantikfarben (grün/rot/…) bleiben.
 
 import { C } from "./theme";
-import { AppRail, SegmentedTabs, APP_GLYPHS } from "./shell";
+import { AppRail, SegmentedTabs } from "./shell";
 import {
   ToastProvider,
   useToast,
@@ -130,6 +129,7 @@ import {
   EzyPilotProvider,
   EzyPilotPopup,
   EzyPilotButton,
+  EzyPilotFab,
   EzyPilotPage,
 } from "./shared-ui";
 export { ToastProvider, EzyPilotProvider, EzyPilotPopup, EzyPilotButton };
@@ -163,7 +163,7 @@ import {
 
 const HEX_BG = `url("data:image/svg+xml,%3Csvg width='28' height='49' viewBox='0 0 28 49' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M13.99 9.25l13 7.5v15l-13 7.5L1 31.75v-15l12.99-7.5zM3 17.9v12.7l10.99 6.34 11-6.35V17.9l-11-6.34L3 17.9zM0 15l12.98-7.5V0h-2v6.35L0 12.69v2.3zm0 18.5L12.98 41v8h-2v-6.85L0 35.81v-2.3zM15 0v7.5L27.99 15H28v-2.31h-.01L17 6.35V0h-2zm0 49v-8l12.99-7.5H28v2.31h-.01L17 42.15V49h-2z' fill='%2377008C' fill-opacity='0.04' fill-rule='evenodd'/%3E%3C/svg%3E")`;
 
-const CSS = `html,body,#root{min-height:100%;margin:0;overflow-x:hidden}*{box-sizing:border-box}@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}@keyframes slideUp{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}@keyframes fadeScale{from{transform:scale(.96);opacity:0}to{transform:scale(1);opacity:1}}@keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}::selection{background:rgba(119,0,140,.18);color:#161217}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:${C.bg}}::-webkit-scrollbar-thumb{background:${C.border};border-radius:3px}@media(max-width:760px){.app-sidebar{display:none!important}.app-main{margin-left:0!important;min-width:0!important;width:100%!important}.app-header{align-items:flex-start!important;gap:10px!important}.header-left,.header-actions{width:100%;flex-wrap:wrap}.app-content{padding:16px 12px!important}.settings-shell{flex-direction:column!important;gap:16px!important}.settings-nav{width:100%!important;display:flex!important;overflow-x:auto;padding-bottom:4px}.settings-nav button{width:auto!important;white-space:nowrap;flex-shrink:0}.settings-panel{max-width:none!important}.client-toolbar{flex-direction:column!important;align-items:stretch!important}.client-toolbar>div{width:100%!important}.client-grid{grid-template-columns:minmax(0,1fr)!important}.ezy-form-grid{grid-template-columns:1fr!important}.kpi-grid{grid-template-columns:1fr!important}.kpi-grid>div{grid-column:auto!important}.client-drawer,.quick-audit-panel{width:100vw!important;max-width:100vw!important;top:auto!important;height:88vh!important;border-radius:20px 20px 0 0!important;border-left:none!important;border-top:1px solid rgba(43,0,51,.08)!important;animation:sheetUp .25s ease!important;box-shadow:0 -24px 60px -36px rgba(43,0,51,.35)!important}.quick-audit-panel{padding:18px 14px!important}.cmd-palette{width:min(calc(100vw - 24px),520px)!important}.mobile-wrap{flex-wrap:wrap!important}.dash-kpis{grid-template-columns:1fr 1fr!important}.split-pane{grid-template-columns:1fr!important}.tabbar{flex-wrap:nowrap!important;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;max-width:100%}.tabbar::-webkit-scrollbar{display:none}.tabbar button{flex-shrink:0;white-space:nowrap}.tools-shell{flex-direction:column!important;gap:12px!important}.tools-cats{display:flex!important;flex-direction:row!important;width:100%!important;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:6px;padding-bottom:6px;scrollbar-width:none}.tools-cats::-webkit-scrollbar{display:none}.tools-cats>div:first-child{display:none}.tools-cats button{width:auto!important;flex-shrink:0;white-space:nowrap;margin-bottom:0!important}.google-props-grid{grid-template-columns:1fr!important}.ads-hero-head{flex-wrap:nowrap!important;align-items:flex-start!important}.ads-hero-head>button{flex:none!important}.ads-flow{display:grid!important;grid-template-columns:1fr 1fr!important;gap:14px 16px!important;align-items:start!important}.ads-arrow{display:none!important}.ads-roas{order:-1!important;grid-column:1/-1!important;flex-direction:row!important;align-items:baseline!important;justify-content:flex-start!important;gap:9px!important;padding:0!important}.ads-roas>div:last-child{margin-top:0!important}.ads-stat-right{text-align:left!important}.ads-flow .ads-val{font-size:24px!important}.app-content [style*="minmax(200px"],.app-content [style*="minmax(220px"],.app-content [style*="minmax(240px"]{grid-template-columns:1fr 1fr!important;gap:10px!important}.app-content [style*="minmax(320px"]{grid-template-columns:1fr!important}}@media(max-width:480px){.app-header{padding:8px 10px!important}.app-content{padding:12px 10px!important}.app-content [style*="minmax(200px"],.app-content [style*="minmax(220px"],.app-content [style*="minmax(240px"]{grid-template-columns:1fr!important}}
+const CSS = `html,body,#root{min-height:100%;margin:0;overflow-x:hidden}*{box-sizing:border-box}@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}@keyframes slideUp{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}@keyframes fadeScale{from{transform:scale(.96);opacity:0}to{transform:scale(1);opacity:1}}@keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}::selection{background:rgba(119,0,140,.18);color:#161217}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:${C.bg}}::-webkit-scrollbar-thumb{background:${C.border};border-radius:3px}@media(max-width:760px){.app-sidebar{display:none!important}.app-main{margin-left:0!important;min-width:0!important;width:100%!important}.app-header{align-items:flex-start!important;gap:10px!important}.header-left,.header-actions{width:100%;flex-wrap:wrap}.app-content{padding:16px 12px calc(env(safe-area-inset-bottom, 0px) + 84px)!important}.settings-shell{flex-direction:column!important;gap:16px!important}.settings-nav{width:100%!important;display:flex!important;overflow-x:auto;padding-bottom:4px}.settings-nav button{width:auto!important;white-space:nowrap;flex-shrink:0}.settings-panel{max-width:none!important}.client-toolbar{flex-direction:column!important;align-items:stretch!important}.client-toolbar>div{width:100%!important}.client-grid{grid-template-columns:minmax(0,1fr)!important}.ezy-form-grid{grid-template-columns:1fr!important}.kpi-grid{grid-template-columns:1fr!important}.kpi-grid>div{grid-column:auto!important}.client-drawer,.quick-audit-panel{width:100vw!important;max-width:100vw!important;top:auto!important;height:88vh!important;border-radius:20px 20px 0 0!important;border-left:none!important;border-top:1px solid rgba(43,0,51,.08)!important;animation:sheetUp .25s ease!important;box-shadow:0 -24px 60px -36px rgba(43,0,51,.35)!important}.quick-audit-panel{padding:18px 14px!important}.cmd-palette{width:min(calc(100vw - 24px),520px)!important}.mobile-wrap{flex-wrap:wrap!important}.dash-kpis{grid-template-columns:1fr 1fr!important}.split-pane{grid-template-columns:1fr!important}.tabbar{flex-wrap:nowrap!important;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;max-width:100%}.tabbar::-webkit-scrollbar{display:none}.tabbar button{flex-shrink:0;white-space:nowrap}.tools-shell{flex-direction:column!important;gap:12px!important}.tools-cats{display:flex!important;flex-direction:row!important;width:100%!important;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:6px;padding-bottom:6px;scrollbar-width:none}.tools-cats::-webkit-scrollbar{display:none}.tools-cats>div:first-child{display:none}.tools-cats button{width:auto!important;flex-shrink:0;white-space:nowrap;margin-bottom:0!important}.google-props-grid{grid-template-columns:1fr!important}.ads-hero-head{flex-wrap:nowrap!important;align-items:flex-start!important}.ads-hero-head>button{flex:none!important}.ads-flow{display:grid!important;grid-template-columns:1fr 1fr!important;gap:14px 16px!important;align-items:start!important}.ads-arrow{display:none!important}.ads-roas{order:-1!important;grid-column:1/-1!important;flex-direction:row!important;align-items:baseline!important;justify-content:flex-start!important;gap:9px!important;padding:0!important}.ads-roas>div:last-child{margin-top:0!important}.ads-stat-right{text-align:left!important}.ads-flow .ads-val{font-size:24px!important}.app-content [style*="minmax(200px"],.app-content [style*="minmax(220px"],.app-content [style*="minmax(240px"]{grid-template-columns:1fr 1fr!important;gap:10px!important}.app-content [style*="minmax(320px"]{grid-template-columns:1fr!important}}@media(max-width:480px){.app-header{padding:8px 10px!important}.app-content{padding:12px 10px!important}.app-content [style*="minmax(200px"],.app-content [style*="minmax(220px"],.app-content [style*="minmax(240px"]{grid-template-columns:1fr!important}}
 .ezy-md{font-size:13.5px;line-height:1.65;color:${C.text};overflow-wrap:break-word}.ezy-md h1{font-size:19px;margin:18px 0 8px;color:${C.text}}.ezy-md h2{font-size:16px;margin:16px 0 6px;color:${C.text}}.ezy-md h3{font-size:14px;margin:14px 0 4px;color:${C.text}}.ezy-md p{margin:7px 0}.ezy-md ul,.ezy-md ol{margin:7px 0;padding-left:22px}.ezy-md li{margin:3px 0}.ezy-md code{background:${C.bg};border:1px solid ${C.border};border-radius:4px;padding:1px 5px;font-size:12px}.ezy-md a{color:${C.accent}}.ezy-md h1:first-child,.ezy-md h2:first-child,.ezy-md h3:first-child{margin-top:0}`;
 
 const CONTENT_ITEMS = [
@@ -6418,12 +6418,7 @@ function App({ appScope = null }) {
               <div
                 style={{
                   position: "relative",
-                  // 2j: mobil wandert der Kunden-Switcher ins Bottom-Sheet.
-                  display: isMobile
-                    ? "none"
-                    : appScope !== "admin" || page === "agents"
-                      ? "block"
-                      : "none",
+                  display: appScope !== "admin" || page === "agents" ? "block" : "none",
                 }}
               >
                 <button
@@ -6683,41 +6678,85 @@ function App({ appScope = null }) {
                   {null}
                 </Btn>
               </div>
-              {/* 2j: Sheet-Öffner — ersetzt mobil App-/Kunden-Select + Filter */}
-              {isMobile && (
-                <Btn
-                  variant="secondary"
-                  size="md"
-                  icon={SlidersHorizontal}
-                  onClick={() => setMobileSheet(true)}
-                  title="Apps, Kunde & Zeitraum"
-                >
-                  {null}
-                </Btn>
+              {/* Native-Mobile (2h): schlanke Top-Bar = kompakte Zeitraum-Pille
+                (öffnet Filter-Sheet) + EzyPilot-Kreis. Audit/Bell/Segmented
+                wandern in die Bottom-Tab-Bar. */}
+              {isMobile ? (
+                <>
+                  {page !== "tasks" && (
+                    <button
+                      onClick={() => setMobileSheet(true)}
+                      title="Zeitraum & Filter"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 5,
+                        background: C.card,
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 999,
+                        padding: "6px 11px",
+                        color: C.text,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        fontFamily: "inherit",
+                        cursor: "pointer",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Calendar size={12} color={C.accent} />
+                      {dateRange?.days ? `${dateRange.days}T` : "Zeitraum"}
+                    </button>
+                  )}
+                  {!isViewer && (
+                    <button
+                      onClick={() => setShowTools(true)}
+                      title="Audit"
+                      aria-label="Audit"
+                      style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: "50%",
+                        border: `1px solid ${C.border}`,
+                        background: C.card,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Zap size={15} color={C.accent} />
+                    </button>
+                  )}
+                  {!isViewer && <EzyPilotFab size={34} />}
+                </>
+              ) : (
+                <>
+                  {!isViewer && <EzyPilotButton />}
+                  <Btn icon={Zap} onClick={() => setShowTools(true)}>
+                    Audit
+                  </Btn>
+                  <div
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: 8,
+                      background: C.card,
+                      border: `1px solid ${C.border}`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <Bell size={15} color={C.textMuted} />
+                  </div>
+                </>
               )}
-              {!isViewer && <EzyPilotButton />}
-              <Btn icon={Zap} onClick={() => setShowTools(true)}>
-                Audit
-              </Btn>
-              <div
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 8,
-                  background: C.card,
-                  border: `1px solid ${C.border}`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                }}
-              >
-                <Bell size={15} color={C.textMuted} />
-              </div>
             </div>
           </header>
-          {/* Redesign 1b (Screen 2j): Mobile-Bottom-Sheet — Apps, Kunde,
-            Zeitraum/Vergleich, Export/Aktualisieren. Nur <760px erreichbar. */}
+          {/* Native-Mobile (2h): Filter-Sheet — nur Zeitraum/Vergleich/Aktionen.
+            Kunde lebt in der Top-Pill, Apps/Seiten in der Bottom-Tab-Bar. */}
           {mobileSheet && (
             <>
               <div
@@ -6755,129 +6794,6 @@ function App({ appScope = null }) {
                     margin: "0 auto 14px",
                   }}
                 />
-                {!isViewer && (
-                  <>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: C.textDim,
-                        textTransform: "uppercase",
-                        letterSpacing: ".06em",
-                        margin: "0 0 8px",
-                      }}
-                    >
-                      Apps
-                    </div>
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(3,1fr)",
-                        gap: 8,
-                        marginBottom: 16,
-                      }}
-                    >
-                      {EZY_APPS.filter((a) => appAccess.canOpen(a.id)).map((a) => {
-                        const Glyph = APP_GLYPHS[a.id] || LayoutGrid;
-                        const aktiv = (appScope || currentAppOf(page, tab)) === a.id;
-                        return (
-                          <a
-                            key={a.id}
-                            href={a.href}
-                            style={{
-                              display: "flex",
-                              flexDirection: "column",
-                              alignItems: "center",
-                              gap: 5,
-                              padding: "12px 4px",
-                              borderRadius: 12,
-                              textDecoration: "none",
-                              background: aktiv ? a.tint : C.card,
-                              border: `1px solid ${aktiv ? a.color : C.hairline}`,
-                            }}
-                          >
-                            <Glyph size={19} color={aktiv ? a.color : C.textDim} />
-                            <span
-                              style={{
-                                fontSize: 11,
-                                fontWeight: 700,
-                                color: aktiv ? a.color : C.textMuted,
-                              }}
-                            >
-                              {a.name}
-                            </span>
-                          </a>
-                        );
-                      })}
-                      <a
-                        href="/apps"
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          gap: 5,
-                          padding: "12px 4px",
-                          borderRadius: 12,
-                          textDecoration: "none",
-                          background: C.card,
-                          border: `1px dashed ${C.border}`,
-                        }}
-                      >
-                        <LayoutGrid size={19} color={C.textDim} />
-                        <span style={{ fontSize: 11, fontWeight: 700, color: C.textMuted }}>
-                          Launcher
-                        </span>
-                      </a>
-                    </div>
-                  </>
-                )}
-                {(appScope !== "admin" || page === "agents") && (
-                  <>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: C.textDim,
-                        textTransform: "uppercase",
-                        letterSpacing: ".06em",
-                        margin: "0 0 8px",
-                      }}
-                    >
-                      Kunde
-                    </div>
-                    <select
-                      aria-label="Kunde wählen"
-                      value={showAll ? "__all" : client?.id || ""}
-                      onChange={(e) => {
-                        if (e.target.value === "__all") setShowAll(true);
-                        else {
-                          setClientId(e.target.value);
-                          setShowAll(false);
-                        }
-                      }}
-                      style={{
-                        width: "100%",
-                        padding: "11px 12px",
-                        borderRadius: 11,
-                        background: C.card,
-                        color: C.text,
-                        border: `1px solid ${C.inputBorder}`,
-                        fontSize: 13.5,
-                        fontWeight: 600,
-                        fontFamily: "inherit",
-                        outline: "none",
-                        marginBottom: 16,
-                      }}
-                    >
-                      {!isViewer && <option value="__all">✦ Alle Kunden</option>}
-                      {clients.map((entry) => (
-                        <option key={entry.id} value={entry.id}>
-                          {entry.name}
-                        </option>
-                      ))}
-                    </select>
-                  </>
-                )}
                 <div
                   style={{
                     fontSize: 11,
@@ -7140,6 +7056,69 @@ function App({ appScope = null }) {
             </Suspense>
           </div>
         </main>
+
+        {/* Redesign 1b (Screen 2h): native Bottom-Tab-Bar — Seiten-Nav + Apps,
+          nur <760px. Ersetzt die Desktop-Sidebar; EzyPilot/Audit sitzen in der
+          Top-Bar, Dashboard-Sektionen im Pillen-Segmented darüber. */}
+        {isMobile && (
+          <nav
+            className="mobile-tabbar"
+            style={{
+              position: "fixed",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 90,
+              display: "flex",
+              justifyContent: "space-around",
+              alignItems: "stretch",
+              padding: "8px 6px calc(env(safe-area-inset-bottom, 0px) + 8px)",
+              background: "rgba(252,252,252,.9)",
+              backdropFilter: "blur(20px) saturate(180%)",
+              borderTop: `1px solid ${C.border}`,
+            }}
+          >
+            {[
+              ...nav.slice(0, 4).map((n) => ({
+                id: n.id,
+                label: n.label,
+                Icon: n.icon,
+                on: () => setPage(n.id),
+                active: page === n.id,
+              })),
+              {
+                id: "__apps",
+                label: "Apps",
+                Icon: LayoutGrid,
+                on: () => {
+                  window.location.href = "/apps";
+                },
+                active: false,
+              },
+            ].map((t) => (
+              <button
+                key={t.id}
+                onClick={t.on}
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 3,
+                  padding: "2px 0",
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  color: t.active ? C.accent : C.textDim,
+                }}
+              >
+                {t.Icon && <t.Icon size={21} />}
+                <span style={{ fontSize: 9.5, fontWeight: 700 }}>{t.label}</span>
+              </button>
+            ))}
+          </nav>
+        )}
 
         {/* Quick Tools */}
         {showTools && (
