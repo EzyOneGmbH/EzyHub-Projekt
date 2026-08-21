@@ -16,6 +16,12 @@ export default tseslint.config(
       // Scriptable-iOS-Widget: laeuft in der Scriptable-App mit eigenen
       // Globals (ListWidget, Color, Font, ...), nicht im Browser.
       "scripts/iphone-widget/**",
+      // Vom mcpPlugin (@lovable.dev/mcp-js, vite.config) bei jedem Build
+      // REGENERIERTE Routen-Dateien — der Codegen schreibt einzeilig und
+      // kollidiert sonst dauerhaft mit Prettier.
+      "src/routes/mcp.ts",
+      "src/routes/[.mcp]/**",
+      "src/routes/[.well-known]/**",
     ],
   },
   {
