@@ -10,5 +10,21 @@ import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/tanstack/vite";
 export default defineConfig({
   vite: {
     plugins: [mcpPlugin()],
+    build: {
+      rollupOptions: {
+        output: {
+          // Bundle-Split (21.08.2026): grosse Vendor-Pakete in eigene Chunks —
+          // Ziel: kein Client-Chunk ueber 500 KB. recharts laedt damit nur,
+          // wenn eine Chart-Ansicht es wirklich braucht.
+          manualChunks(id) {
+            if (id.includes("node_modules/recharts") || id.includes("node_modules/d3-"))
+              return "vendor-recharts";
+            if (id.includes("node_modules/lucide-react")) return "vendor-lucide";
+            if (id.includes("node_modules/@supabase/")) return "vendor-supabase";
+            return undefined;
+          },
+        },
+      },
+    },
   },
 });

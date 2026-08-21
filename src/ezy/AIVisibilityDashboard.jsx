@@ -29,7 +29,6 @@ import {
   MousePointerClick,
   ChevronRight,
   ChevronLeft,
-  MessageSquareQuote,
   Filter,
   Hash,
   Layers,

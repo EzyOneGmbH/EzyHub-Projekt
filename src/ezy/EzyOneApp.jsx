@@ -1,14 +1,5 @@
-import {
-  useState,
-  useEffect,
-  useCallback,
-  createContext,
-  useContext,
-  useRef,
-  useMemo,
-  Component,
-  Fragment,
-} from "react";
+import { lazy, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, Component } from "react";
 import {
   DEFAULT_PROFILE,
   computeCompareRange,
@@ -16,23 +7,7 @@ import {
   normalizeClientShape,
   useMediaQuery,
 } from "./ui-kit";
-import {
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-  BarChart,
-  Bar,
-} from "recharts";
+
 import {
   Search,
   Bell,
@@ -45,10 +20,8 @@ import {
   Bot,
   LayoutDashboard,
   Sparkles,
-  Phone,
   Mail,
   MapPin,
-  FileInput,
   DollarSign,
   BarChart3,
   Activity,
@@ -61,42 +34,22 @@ import {
   Download,
   RefreshCw,
   Play,
-  ArrowUpRight,
-  ArrowDownRight,
-  Minus,
   Layers,
   Target,
-  Award,
   Plus,
   Check,
   X,
   Clock,
   AlertCircle,
   CheckCircle,
-  Copy,
-  Save,
   PenTool,
   LayoutGrid,
   List,
   Key,
   Palette,
-  Database,
-  HelpCircle,
-  Terminal,
-  Code,
   Bookmark,
-  Link2,
   ExternalLink,
-  Hash,
-  Bold,
-  Italic,
-  Heading2,
-  Heading3,
   Command,
-  Info,
-  ToggleLeft,
-  ToggleRight,
-  GitBranch,
   Type,
   Megaphone,
   ListChecks,
@@ -106,12 +59,7 @@ import {
 import { ezyFetch } from "@/ezy/data/api";
 import { useAuth } from "@/hooks/use-auth";
 import { useEzyClients } from "@/ezy/data/useEzyClients";
-import {
-  loadSharedRange,
-  saveSharedRange,
-  useRangeData,
-  isReloadNavigation,
-} from "@/ezy/data/rangeStore";
+import { loadSharedRange, saveSharedRange, isReloadNavigation } from "@/ezy/data/rangeStore";
 import { HexGlowLayer } from "@/ezy/HexGlow";
 import { EzyOneMark } from "@/components/ezy-one-mark";
 import { AppVersionBadge } from "@/ezy/AppVersionBadge";
@@ -121,31 +69,22 @@ import { useEzyProfile } from "@/ezy/data/useEzyProfile";
 import { useEzyContent } from "@/ezy/data/useEzyContent";
 import { useEzyServiceSettings } from "@/ezy/data/useEzyServiceSettings";
 import { useEzyToolSettings, toolProvider } from "@/ezy/data/useEzyToolSettings";
-import { ServicesPicker, ServicesPanel } from "@/ezy/components/ServicesPanel";
-import { DEFAULT_ON_SERVICES } from "@/lib/services";
-import { useEzyDashboardConfig } from "@/ezy/data/useEzyDashboardConfig";
+
 import {
   EZY_APPS,
   APP_START,
   APP_SCOPES,
-  APP_FEATURES,
   TAB_APP_FEATURE,
   currentAppOf,
 } from "@/ezy/data/appRegistry";
-import {
-  warneBeimAppAktivieren,
-  warneBeimLocalGrid,
-  STATUS_LABEL as READINESS_STATUS_LABEL,
-  appLabel as readinessAppLabel,
-} from "@/ezy/data/appRequirements";
+
 // Local-Grid-Tab (2026-08-17): Maps-Heatmap (Geo-Grid) — eigene Datei, damit
 // der Monolith klein bleibt (parallele Sessions!).
 import LocalGridDashboard from "@/ezy/LocalGridDashboard";
-import DataStatus, { runStatusItem } from "@/ezy/DataStatus";
+import DataStatus from "@/ezy/DataStatus";
 // Architektur-Extraktion 2026-08-18: Markdown-Helfer leben jetzt testbar in
 // lib/markdown.ts (XSS-Tests) — Verhalten unveraendert, nur verschoben.
-import { escapeHtml, sanitizeHref, markdownToHtml } from "@/ezy/lib/markdown";
-import { useMeasurement } from "@/ezy/data/useMeasurement";
+
 import { normalizeToolResult } from "@/ezy/data/toolResult";
 import ToolResultView from "@/ezy/ToolResult";
 import ToolActions from "@/ezy/ToolActions";
@@ -161,31 +100,11 @@ import { useAppAccess } from "@/ezy/data/useAppAccess";
 import { useEzyServiceMatrix } from "@/ezy/data/useEzyServiceMatrix";
 import { executeTool as runToolLive } from "@/ezy/data/runTool";
 import { useEzyAuditHistory } from "@/ezy/data/useEzyAuditHistory";
-import { useEzyAgentRuns } from "@/ezy/data/useEzyAgentRuns";
-import {
-  useEzyLatestRun,
-  ahrefsKpisFromResult,
-  ahrefsRefdomainsSeriesFromResult,
-  gscRankingDistributionFromResult,
-  ga4KpisFromResult,
-  ga4TrafficFromResult,
-  ga4ConversionsFromResult,
-  gscKpisFromResult,
-  pagespeedKpisFromResult,
-  aiVisibilityScoreFromResult,
-  aiVisibilityKpisFromResult,
-  aiVisibilitySeriesFromResult,
-  aiVisibilityProvidersFromResult,
-  aiVisibilitySourcesFromResult,
-  aiVisibilityTopicsFromResult,
-  googleAdsFromResult,
-  aworkTasksFromResult,
-  useEzyHealthComponents,
-} from "@/ezy/data/useEzyLatestRun";
+
+import { useEzyLatestRun, aworkTasksFromResult } from "@/ezy/data/useEzyLatestRun";
 import GoogleClientPanel from "@/ezy/GoogleClientPanel.jsx";
-import AIVisibilityReport, { AIVisibilitySkeleton } from "@/ezy/AIVisibilityDashboard.jsx";
 import AdsAutopilotPanel from "@/ezy/AdsAutopilotPanel.jsx";
-import { useEzyAIVisibility } from "@/ezy/data/useEzyAIVisibility";
+
 import { supabase } from "@/integrations/supabase/client";
 import { SKILL_CATALOG } from "@/ezy/data/skillCatalog";
 const toolHasLiveProvider = (id) => toolProvider(id) !== null;
@@ -209,18 +128,27 @@ import {
   EzyPilotPopup,
   EzyPilotButton,
   EzyPilotPage,
-  useEzyPilot,
 } from "./shared-ui";
 // Re-Export fuer bestehende Importeure (ezyai & Co. importieren inzwischen direkt).
 export { ToastProvider, EzyPilotProvider, EzyPilotPopup, EzyPilotButton };
 export { AiVisibilityTab } from "./AiVisibilityTab";
 // CD-Pattern: durchgehendes Hexagon-Waben-Mesh als Seiten-Textur, sehr dezent
 // Modularisierung 21.08.2026: Bereichs-Module (reines Verschieben).
-import { AgentRunsPanel, ClientsPage, MatrixPage } from "./AdminClients";
-import { SettingsPage } from "./AdminSettings";
-import { AdsDashboard } from "./AdsDashboardModule";
-import { ContentPage, RefreshRadar, ReportsPage } from "./ContentModule";
-import { AgencyOverview, ConvDashboard, OverviewDashboard, SeoDashboard } from "./RankDashboards";
+// Bundle-Split (21.08.): Bereichs-Module laden LAZY erst in ihrer Ansicht —
+// der EzyOneApp-Chunk enthaelt nur noch Shell + Tools/Tasks/Agents.
+const lazyTeil = (lade, name) => lazy(() => lade().then((m) => ({ default: m[name] })));
+const AgentRunsPanel = lazyTeil(() => import("./AdminClients"), "AgentRunsPanel");
+const ClientsPage = lazyTeil(() => import("./AdminClients"), "ClientsPage");
+const MatrixPage = lazyTeil(() => import("./AdminClients"), "MatrixPage");
+const SettingsPage = lazyTeil(() => import("./AdminSettings"), "SettingsPage");
+const AdsDashboard = lazyTeil(() => import("./AdsDashboardModule"), "AdsDashboard");
+const ContentPage = lazyTeil(() => import("./ContentModule"), "ContentPage");
+const RefreshRadar = lazyTeil(() => import("./ContentModule"), "RefreshRadar");
+const ReportsPage = lazyTeil(() => import("./ContentModule"), "ReportsPage");
+const AgencyOverview = lazyTeil(() => import("./RankDashboards"), "AgencyOverview");
+const ConvDashboard = lazyTeil(() => import("./RankDashboards"), "ConvDashboard");
+const OverviewDashboard = lazyTeil(() => import("./RankDashboards"), "OverviewDashboard");
+const SeoDashboard = lazyTeil(() => import("./RankDashboards"), "SeoDashboard");
 import {
   CalendarMonth,
   ComparePicker,
@@ -7156,199 +7084,216 @@ function App({ appScope = null }) {
             className="app-content"
             style={{ padding: isMobile ? "16px 12px" : "24px 28px" }}
           >
-            {!hasClients && page !== "clients" && page !== "settings" && (
-              <div
-                style={{
-                  background: C.card,
-                  border: `1px dashed ${C.border}`,
-                  borderRadius: 14,
-                  padding: "48px 24px",
-                  textAlign: "center",
-                }}
-              >
-                <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 6 }}>
-                  Noch kein Kunde angelegt
+            <Suspense
+              fallback={
+                <div style={{ padding: 40, textAlign: "center", color: C.textMuted, fontSize: 13 }}>
+                  Bereich wird geladen…
                 </div>
+              }
+            >
+              {!hasClients && page !== "clients" && page !== "settings" && (
                 <div
                   style={{
-                    fontSize: 13,
-                    color: C.textMuted,
-                    marginBottom: 16,
-                    maxWidth: 480,
-                    margin: "0 auto 16px",
+                    background: C.card,
+                    border: `1px dashed ${C.border}`,
+                    borderRadius: 14,
+                    padding: "48px 24px",
+                    textAlign: "center",
                   }}
                 >
-                  Lege deinen ersten Kunden an, um Dashboards, Tools und Reports mit Live-Daten zu
-                  füllen.
-                </div>
-                <Btn icon={Plus} onClick={() => setPage("clients")}>
-                  Kunde anlegen
-                </Btn>
-              </div>
-            )}
-            {hasClients && page === "dashboard" && (
-              <>
-                {/* "Alle Kunden": gleicher zentrierter 1180px-Rahmen wie in EzyAI
-                  (Volkan 11.08.) — Titel und Kacheln bündig, ein Layout überall. */}
-                <div
-                  style={showAll ? { maxWidth: 1180, margin: "0 auto 20px" } : { marginBottom: 20 }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                    <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
-                      {showAll
-                        ? "Agentur-Übersicht"
-                        : tab === "overview"
-                          ? "Übersicht"
-                          : tab === "seo"
-                            ? "SEO Dashboard"
-                            : tab === "localgrid"
-                              ? "Local Grid"
-                              : tab === "blog"
-                                ? "Blog"
-                                : tab === "aivis"
-                                  ? "KI-Sichtbarkeit"
-                                  : tab === "ads"
-                                    ? "Ads Dashboard"
-                                    : "Conversions"}
-                    </h1>
-                    {isViewer && <Badge color={C.blue}>Nur-Lese-Ansicht</Badge>}
+                  <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 6 }}>
+                    Noch kein Kunde angelegt
                   </div>
-                  <p style={{ color: C.textMuted, fontSize: 13, margin: "4px 0 0" }}>
-                    {showAll ? "Alle Kunden" : `${client.name} — ${client.domain}`}
-                    {dateRange.label ? ` • ${dateRange.label}` : ""}
-                    {dateRangeWithCompare.compare && (
-                      <span style={{ color: C.accentLight }}>
-                        {" "}
-                        vs. {dateRangeWithCompare.compare.label}
-                      </span>
-                    )}
-                  </p>
-                </div>
-                {showAll && (
-                  <div style={{ maxWidth: 1180, margin: "0 auto" }}>
-                    <AgencyOverview
-                      clients={clients}
-                      appScope={appScope}
-                      onSelect={(id) => {
-                        setClientId(id);
-                        setShowAll(false);
-                      }}
-                    />
-                  </div>
-                )}
-                {!showAll && (
-                  <>
-                    {tab === "overview" && (
-                      <OverviewDashboard selectedClient={client} dateRange={dateRangeWithCompare} />
-                    )}
-                    {tab === "seo" && (
-                      <SeoDashboard selectedClient={client} dateRange={dateRangeWithCompare} />
-                    )}
-                    {tab === "localgrid" && <LocalGridDashboard selectedClient={client} />}
-                    {tab === "blog" && <RefreshRadar selectedClient={client} />}
-                    {/* aivis: seit Phase 2 in der EzyAI-App (/ezyai) */}
-                    {tab === "conversions" && (
-                      <ConvDashboard selectedClient={client} dateRange={dateRangeWithCompare} />
-                    )}
-                    {tab === "ads" && (
-                      <>
-                        <AdsDashboard selectedClient={client} dateRange={dateRangeWithCompare} />
-                        <AdsAutopilotPanel selectedClient={client} />
-                      </>
-                    )}
-                    {tab === "runs" && <AgentRunsPanel selectedClient={client} />}
-                  </>
-                )}
-              </>
-            )}
-            {hasClients && page === "tasks" && <TasksDashboard selectedClient={client} />}
-            {!isViewer && hasClients && page === "tools" && (
-              <ToolsPage
-                selectedClient={client}
-                tools={tools}
-                onSaveDraft={onCreateContent}
-                onOpenDraft={openDraftInEditor}
-              />
-            )}
-            {!isViewer && hasClients && page === "content" && (
-              <ContentPage
-                clients={clients}
-                items={contentHook.items}
-                onSaveContent={onSaveContent}
-                selectedClient={client}
-                openEditId={contentEditId}
-                onOpenEditConsumed={() => setContentEditId(null)}
-              />
-            )}
-            {hasClients && page === "reports" && (
-              <ReportsPage items={contentHook.items} selectedClient={client} />
-            )}
-            {!isViewer && page === "clients" && (
-              <ClientsPage
-                clients={clients}
-                selectedClientId={client.id}
-                onSelectClient={selectClient}
-                onUpsertClient={upsertClient}
-                onDeleteClient={deleteClient}
-                onReload={ezy.reload}
-                customerDefaults={customerDefaults}
-              />
-            )}
-            {isOrgAdmin && page === "team" && <TeamPage clients={clients} />}
-            {isOrgAdmin && page === "matrix" && <MatrixPage clients={clients} />}
-            {isOrgAdmin && page === "settings" && (
-              <SettingsPage
-                tools={tools}
-                onToggleTool={toggleTool}
-                selectedClient={client}
-                profile={profile}
-                onSaveProfile={saveProfile}
-                customerDefaults={customerDefaults}
-                onSaveDefaults={saveCustomerDefaults}
-                onClientUpdated={ezy.reload}
-                onOpenAgents={appScope === "admin" ? () => setPage("agents") : null}
-              />
-            )}
-            {!isViewer && page === "agents" && (
-              <>
-                <AgentsPage selectedClient={client} />
-                <div style={{ marginTop: 28, paddingTop: 24, borderTop: `1px solid ${C.border}` }}>
-                  <ActivityPage selectedClient={client} clients={clients} />
-                </div>
-              </>
-            )}
-            {!isViewer &&
-              page === "copilot" &&
-              // RBAC 2026-07-20: der volle EzyPilot-Agent (Bash/WP-Publish/Vault)
-              // ist owner/admin vorbehalten; Mitarbeiter bekommen den werkzeug-
-              // losen, kunden-scoped Frage-&-Notiz-Piloten unter /pilot.
-              (isOrgAdmin ? (
-                <EzyPilotPage selectedClient={client} />
-              ) : (
-                <div style={{ padding: 40, textAlign: "center", color: C.muted }}>
-                  <div style={{ fontSize: 18, color: C.text, marginBottom: 8 }}>
-                    EzyPilot für Mitarbeitende
-                  </div>
-                  <div style={{ marginBottom: 20 }}>
-                    Dein EzyPilot beantwortet Fragen zu deinen Kunden und nimmt Notizen ins
-                    Firmen-Gedächtnis auf.
-                  </div>
-                  <a
-                    href="/pilot"
+                  <div
                     style={{
-                      display: "inline-block",
-                      background: C.accent,
-                      color: "#fff",
-                      padding: "10px 22px",
-                      borderRadius: 8,
-                      textDecoration: "none",
-                      fontWeight: 600,
+                      fontSize: 13,
+                      color: C.textMuted,
+                      marginBottom: 16,
+                      maxWidth: 480,
+                      margin: "0 auto 16px",
                     }}
                   >
-                    EzyPilot öffnen
-                  </a>
+                    Lege deinen ersten Kunden an, um Dashboards, Tools und Reports mit Live-Daten zu
+                    füllen.
+                  </div>
+                  <Btn icon={Plus} onClick={() => setPage("clients")}>
+                    Kunde anlegen
+                  </Btn>
                 </div>
-              ))}
+              )}
+              {hasClients && page === "dashboard" && (
+                <>
+                  {/* "Alle Kunden": gleicher zentrierter 1180px-Rahmen wie in EzyAI
+                  (Volkan 11.08.) — Titel und Kacheln bündig, ein Layout überall. */}
+                  <div
+                    style={
+                      showAll ? { maxWidth: 1180, margin: "0 auto 20px" } : { marginBottom: 20 }
+                    }
+                  >
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}
+                    >
+                      <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
+                        {showAll
+                          ? "Agentur-Übersicht"
+                          : tab === "overview"
+                            ? "Übersicht"
+                            : tab === "seo"
+                              ? "SEO Dashboard"
+                              : tab === "localgrid"
+                                ? "Local Grid"
+                                : tab === "blog"
+                                  ? "Blog"
+                                  : tab === "aivis"
+                                    ? "KI-Sichtbarkeit"
+                                    : tab === "ads"
+                                      ? "Ads Dashboard"
+                                      : "Conversions"}
+                      </h1>
+                      {isViewer && <Badge color={C.blue}>Nur-Lese-Ansicht</Badge>}
+                    </div>
+                    <p style={{ color: C.textMuted, fontSize: 13, margin: "4px 0 0" }}>
+                      {showAll ? "Alle Kunden" : `${client.name} — ${client.domain}`}
+                      {dateRange.label ? ` • ${dateRange.label}` : ""}
+                      {dateRangeWithCompare.compare && (
+                        <span style={{ color: C.accentLight }}>
+                          {" "}
+                          vs. {dateRangeWithCompare.compare.label}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  {showAll && (
+                    <div style={{ maxWidth: 1180, margin: "0 auto" }}>
+                      <AgencyOverview
+                        clients={clients}
+                        appScope={appScope}
+                        onSelect={(id) => {
+                          setClientId(id);
+                          setShowAll(false);
+                        }}
+                      />
+                    </div>
+                  )}
+                  {!showAll && (
+                    <>
+                      {tab === "overview" && (
+                        <OverviewDashboard
+                          selectedClient={client}
+                          dateRange={dateRangeWithCompare}
+                        />
+                      )}
+                      {tab === "seo" && (
+                        <SeoDashboard selectedClient={client} dateRange={dateRangeWithCompare} />
+                      )}
+                      {tab === "localgrid" && <LocalGridDashboard selectedClient={client} />}
+                      {tab === "blog" && <RefreshRadar selectedClient={client} />}
+                      {/* aivis: seit Phase 2 in der EzyAI-App (/ezyai) */}
+                      {tab === "conversions" && (
+                        <ConvDashboard selectedClient={client} dateRange={dateRangeWithCompare} />
+                      )}
+                      {tab === "ads" && (
+                        <>
+                          <AdsDashboard selectedClient={client} dateRange={dateRangeWithCompare} />
+                          <AdsAutopilotPanel selectedClient={client} />
+                        </>
+                      )}
+                      {tab === "runs" && <AgentRunsPanel selectedClient={client} />}
+                    </>
+                  )}
+                </>
+              )}
+              {hasClients && page === "tasks" && <TasksDashboard selectedClient={client} />}
+              {!isViewer && hasClients && page === "tools" && (
+                <ToolsPage
+                  selectedClient={client}
+                  tools={tools}
+                  onSaveDraft={onCreateContent}
+                  onOpenDraft={openDraftInEditor}
+                />
+              )}
+              {!isViewer && hasClients && page === "content" && (
+                <ContentPage
+                  clients={clients}
+                  items={contentHook.items}
+                  onSaveContent={onSaveContent}
+                  selectedClient={client}
+                  openEditId={contentEditId}
+                  onOpenEditConsumed={() => setContentEditId(null)}
+                />
+              )}
+              {hasClients && page === "reports" && (
+                <ReportsPage items={contentHook.items} selectedClient={client} />
+              )}
+              {!isViewer && page === "clients" && (
+                <ClientsPage
+                  clients={clients}
+                  selectedClientId={client.id}
+                  onSelectClient={selectClient}
+                  onUpsertClient={upsertClient}
+                  onDeleteClient={deleteClient}
+                  onReload={ezy.reload}
+                  customerDefaults={customerDefaults}
+                />
+              )}
+              {isOrgAdmin && page === "team" && <TeamPage clients={clients} />}
+              {isOrgAdmin && page === "matrix" && <MatrixPage clients={clients} />}
+              {isOrgAdmin && page === "settings" && (
+                <SettingsPage
+                  tools={tools}
+                  onToggleTool={toggleTool}
+                  selectedClient={client}
+                  profile={profile}
+                  onSaveProfile={saveProfile}
+                  customerDefaults={customerDefaults}
+                  onSaveDefaults={saveCustomerDefaults}
+                  onClientUpdated={ezy.reload}
+                  onOpenAgents={appScope === "admin" ? () => setPage("agents") : null}
+                />
+              )}
+              {!isViewer && page === "agents" && (
+                <>
+                  <AgentsPage selectedClient={client} />
+                  <div
+                    style={{ marginTop: 28, paddingTop: 24, borderTop: `1px solid ${C.border}` }}
+                  >
+                    <ActivityPage selectedClient={client} clients={clients} />
+                  </div>
+                </>
+              )}
+              {!isViewer &&
+                page === "copilot" &&
+                // RBAC 2026-07-20: der volle EzyPilot-Agent (Bash/WP-Publish/Vault)
+                // ist owner/admin vorbehalten; Mitarbeiter bekommen den werkzeug-
+                // losen, kunden-scoped Frage-&-Notiz-Piloten unter /pilot.
+                (isOrgAdmin ? (
+                  <EzyPilotPage selectedClient={client} />
+                ) : (
+                  <div style={{ padding: 40, textAlign: "center", color: C.muted }}>
+                    <div style={{ fontSize: 18, color: C.text, marginBottom: 8 }}>
+                      EzyPilot für Mitarbeitende
+                    </div>
+                    <div style={{ marginBottom: 20 }}>
+                      Dein EzyPilot beantwortet Fragen zu deinen Kunden und nimmt Notizen ins
+                      Firmen-Gedächtnis auf.
+                    </div>
+                    <a
+                      href="/pilot"
+                      style={{
+                        display: "inline-block",
+                        background: C.accent,
+                        color: "#fff",
+                        padding: "10px 22px",
+                        borderRadius: 8,
+                        textDecoration: "none",
+                        fontWeight: 600,
+                      }}
+                    >
+                      EzyPilot öffnen
+                    </a>
+                  </div>
+                ))}
+            </Suspense>
           </div>
         </main>
 
