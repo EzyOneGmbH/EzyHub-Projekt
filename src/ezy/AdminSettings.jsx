@@ -307,7 +307,7 @@ export function SystemCheckPanel() {
               alignItems: "center",
               gap: 12,
               padding: "9px 0",
-              borderBottom: `1px solid ${C.border}55`,
+              borderBottom: `1px solid ${C.hairline}`,
               fontSize: 13,
             }}
           >
@@ -978,7 +978,7 @@ export function SettingsPage({
                     color: C.accent,
                     fontSize: 13,
                     textDecoration: "none",
-                    borderBottom: `1px solid ${C.border}08`,
+                    borderBottom: `1px solid ${C.hairline}`,
                   }}
                 >
                   <GitBranch size={14} />

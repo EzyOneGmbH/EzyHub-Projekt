@@ -2355,7 +2355,7 @@ export function GeoDashboard({ selectedClient, dateRange }) {
                         color: C.text,
                         lineHeight: 1.5,
                         background: "rgba(10,11,15,.24)",
-                        border: `1px solid ${C.border}55`,
+                        border: `1px solid ${C.hairline}`,
                         borderRadius: 10,
                         padding: "10px 12px",
                       }}

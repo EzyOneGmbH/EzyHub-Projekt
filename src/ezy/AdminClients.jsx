@@ -1667,7 +1667,7 @@ export function ClientReadinessPanel({ client, onOpenSettings }) {
                 alignItems: "center",
                 gap: 10,
                 padding: "7px 0",
-                borderTop: `1px solid ${C.border}55`,
+                borderTop: `1px solid ${C.hairline}`,
                 fontSize: 13,
               }}
             >
@@ -1777,7 +1777,7 @@ export function ClientAuditLogPanel({ client }) {
       {entries.map((e) => (
         <div
           key={e.id}
-          style={{ padding: "9px 0", borderBottom: `1px solid ${C.border}55`, fontSize: 12.5 }}
+          style={{ padding: "9px 0", borderBottom: `1px solid ${C.hairline}`, fontSize: 12.5 }}
         >
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <span style={{ color: C.textMuted, fontVariantNumeric: "tabular-nums" }}>
@@ -2619,7 +2619,7 @@ export function ClientsPage({
                         justifyContent: "space-between",
                         gap: 12,
                         padding: "8px 0",
-                        borderBottom: `1px solid ${C.border}08`,
+                        borderBottom: `1px solid ${C.hairline}`,
                       }}
                     >
                       <span style={{ fontSize: 12, color: C.textMuted }}>{l}</span>

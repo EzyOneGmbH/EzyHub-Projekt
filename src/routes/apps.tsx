@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { APP_GLYPHS } from "@/ezy/shell";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useAppAccess } from "@/ezy/data/useAppAccess";
@@ -100,7 +101,7 @@ function AppsLauncher() {
           textDecoration: "none",
           color: S.txt,
           background: S.panel2,
-          borderRadius: 12,
+          borderRadius: 18,
           padding: 18,
           border: `1px solid ${isHover ? a.color : S.line}`,
           boxShadow: isHover ? "0 8px 28px rgba(0,0,0,.08)" : "0 1px 2px rgba(0,0,0,.04)",
@@ -132,18 +133,24 @@ function AppsLauncher() {
         )}
         <div
           style={{
-            width: 38,
-            height: 38,
-            borderRadius: 9,
+            width: 52,
+            height: 52,
+            borderRadius: 14,
             background: a.tint,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: 19,
             marginBottom: 12,
           }}
         >
-          {a.icon}
+          {(() => {
+            const Glyph = APP_GLYPHS[a.id as keyof typeof APP_GLYPHS];
+            return Glyph ? (
+              <Glyph size={24} color={a.color} />
+            ) : (
+              <span style={{ fontSize: 22 }}>{a.icon}</span>
+            );
+          })()}
         </div>
         <div style={{ fontWeight: 700, fontSize: 15.5, color: a.color, marginBottom: 4 }}>
           {a.name}

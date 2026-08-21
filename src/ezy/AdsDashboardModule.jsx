@@ -514,7 +514,7 @@ export function AdsDashboard({ selectedClient, dateRange }) {
                 ? `${C.red}22`
                 : c.roas >= 5
                   ? `${C.green}22`
-                  : `${C.textMuted}22`;
+                  : `rgba(93,85,99,.14)`;
               const chipCol = warn ? C.red : c.roas >= 5 ? C.green : C.textMuted;
               return (
                 <div key={i} style={{ marginBottom: 13 }}>

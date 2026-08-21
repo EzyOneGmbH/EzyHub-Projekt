@@ -1563,28 +1563,31 @@ export function KpiCard({
     <div
       style={{
         background: C.card,
-        border: `1px solid ${hasCompare ? (n ? C.border : u ? C.green : C.red) + "66" : C.border}`,
-        borderRadius: 14,
-        padding: "20px 22px",
+        border: `1px solid ${C.border}`,
+        borderRadius: C.rCard,
+        padding: "18px 20px",
+        boxShadow: C.cardShadow,
         display: "flex",
         flexDirection: "column",
-        gap: 12,
-        transition: "border-color .2s",
+        gap: 14,
+        transition: "border-color .15s, transform .15s",
       }}
-      onMouseEnter={(e) => (e.currentTarget.style.borderColor = C.borderHover)}
-      onMouseLeave={(e) =>
-        (e.currentTarget.style.borderColor = hasCompare
-          ? (n ? C.border : u ? C.green : C.red) + "66"
-          : C.border)
-      }
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = C.borderHover;
+        e.currentTarget.style.transform = "translateY(-1px)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = C.border;
+        e.currentTarget.style.transform = "none";
+      }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div
           style={{
-            width: 38,
-            height: 38,
-            borderRadius: 10,
-            background: `${color}18`,
+            width: 36,
+            height: 36,
+            borderRadius: 11,
+            background: `${color}1a`,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -1601,9 +1604,9 @@ export function KpiCard({
               fontSize: 13,
               fontWeight: 700,
               color: n ? C.textMuted : u ? C.green : C.red,
-              background: n ? C.border + "44" : u ? C.greenDim : C.redDim,
-              padding: "4px 9px",
-              borderRadius: 6,
+              background: n ? C.segBg : u ? C.greenDim : C.redDim,
+              padding: "3px 9px",
+              borderRadius: C.rPill,
             }}
           >
             {n ? (
@@ -1655,7 +1658,8 @@ export function ChartCard({ title, children, action, minH = 280 }) {
       style={{
         background: C.card,
         border: `1px solid ${C.border}`,
-        borderRadius: 14,
+        boxShadow: C.cardShadow,
+        borderRadius: C.rCard,
         padding: "18px 20px",
         minHeight: minH,
       }}
@@ -1753,11 +1757,11 @@ export function DTable({ columns, data }) {
                 style={{
                   textAlign: c.align || "left",
                   padding: "10px 12px",
-                  color: C.textMuted,
-                  fontWeight: 500,
+                  color: C.textDim,
+                  fontWeight: 600,
                   fontSize: 11,
                   textTransform: "uppercase",
-                  letterSpacing: ".5px",
+                  letterSpacing: ".06em",
                   borderBottom: `1px solid ${C.border}`,
                 }}
               >

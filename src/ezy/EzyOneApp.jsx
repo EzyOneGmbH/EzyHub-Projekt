@@ -120,6 +120,7 @@ const toolHasLiveProvider = (id) => toolProvider(id) !== null;
 // (CD-Gradient 135° #71008B→#B9009C). Semantikfarben (grün/rot/…) bleiben.
 
 import { C } from "./theme";
+import { AppRail, SegmentedTabs } from "./shell";
 import {
   ToastProvider,
   useToast,
@@ -6319,429 +6320,17 @@ function App({ appScope = null }) {
           }}
         />
 
-        {/* Sidebar */}
-        <aside
-          className="app-sidebar"
-          style={{
-            width: sw,
-            background: C.surface,
-            borderRight: `1px solid ${C.border}`,
-            display: "flex",
-            flexDirection: "column",
-            transition: "width .2s",
-            position: "fixed",
-            top: 0,
-            left: 0,
-            bottom: 0,
-            zIndex: 50,
-          }}
-        >
-          <div
-            style={{
-              padding: collapsed ? "20px 12px" : "20px 20px",
-              borderBottom: `1px solid ${C.border}`,
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              cursor: "pointer",
-            }}
-            onClick={() => setCollapsed(!collapsed)}
-          >
-            {/* CD-Symbol: neues Marken-Icon (E + Power-O im Hexagon). */}
-            <EzyOneMark width={34} />
-            {!collapsed && (
-              <div>
-                {/* CD: Wortmarke "Ezy One" — Sentence case, nie ALL CAPS. */}
-                <div
-                  style={{
-                    fontWeight: 700,
-                    fontSize: 15,
-                    letterSpacing: "-.2px",
-                    fontFamily: "'Kamerik 105',Poppins,sans-serif",
-                  }}
-                >
-                  Ezy One
-                </div>
-                <div style={{ fontSize: 10, color: C.textMuted }}>SEO & GEO Platform</div>
-              </div>
-            )}
-          </div>
-          {/* App-Switcher (Plattform-Umbau Phase 1, 2026-07-31): Atlassian-Muster —
-            Raster-Button unter dem Logo, Dropdown mit erlaubten Apps + Launcher. */}
-          {!isViewer && (
-            <div
-              style={{
-                position: "relative",
-                borderBottom: `1px solid ${C.border}`,
-                padding: "8px 10px",
-              }}
-            >
-              <button
-                onClick={() => setSwOpen((v) => !v)}
-                title="App wechseln"
-                style={{
-                  width: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 9,
-                  background: swOpen ? "rgba(0,0,0,.05)" : "none",
-                  border: "none",
-                  borderRadius: 8,
-                  padding: collapsed ? "8px 6px" : "8px 10px",
-                  color: C.text,
-                  cursor: "pointer",
-                  fontSize: 12.5,
-                  fontWeight: 600,
-                  justifyContent: collapsed ? "center" : "flex-start",
-                }}
-              >
-                <span style={{ fontSize: 14, lineHeight: 1, letterSpacing: 1 }}>⣿</span>
-                {!collapsed &&
-                  (() => {
-                    const cur = EZY_APPS.find(
-                      (a) => a.id === (appScope || currentAppOf(page, tab)),
-                    );
-                    return (
-                      <span style={{ color: cur?.color || C.text }}>{cur?.name || "Apps"}</span>
-                    );
-                  })()}
-              </button>
-              {swOpen && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "100%",
-                    left: 10,
-                    zIndex: 200,
-                    width: 236,
-                    background: C.surface,
-                    border: `1px solid ${C.border}`,
-                    borderRadius: 12,
-                    padding: 8,
-                    boxShadow: "0 14px 44px rgba(0,0,0,.55)",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 10,
-                      textTransform: "uppercase",
-                      letterSpacing: ".08em",
-                      color: C.textMuted,
-                      padding: "4px 10px 8px",
-                      fontWeight: 700,
-                    }}
-                  >
-                    Apps wechseln
-                  </div>
-                  {EZY_APPS.filter((a) => appAccess.canOpen(a.id)).map((a) => {
-                    const active = (appScope || currentAppOf(page, tab)) === a.id;
-                    return (
-                      <a
-                        key={a.id}
-                        href={a.href}
-                        onClick={(e) => {
-                          if (active) {
-                            e.preventDefault();
-                            setSwOpen(false);
-                          }
-                        }}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                          padding: "8px 10px",
-                          borderRadius: 8,
-                          fontSize: 13,
-                          textDecoration: "none",
-                          color: active ? a.color : C.text,
-                          background: active ? a.tint : "none",
-                        }}
-                      >
-                        <span
-                          style={{
-                            width: 24,
-                            height: 24,
-                            borderRadius: 6,
-                            background: a.tint,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: 13,
-                            flexShrink: 0,
-                          }}
-                        >
-                          {a.icon}
-                        </span>
-                        {a.name}
-                      </a>
-                    );
-                  })}
-                  <div style={{ borderTop: `1px solid ${C.border}`, margin: "8px 4px" }} />
-                  <a
-                    href="/apps"
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      padding: "8px 10px",
-                      borderRadius: 8,
-                      fontSize: 12.5,
-                      textDecoration: "none",
-                      color: C.textMuted,
-                    }}
-                  >
-                    ✦ Zum Launcher
-                  </a>
-                </div>
-              )}
-            </div>
-          )}
-          {/* Kunden-Auswahl in der Sidebar (Position wie EzyAI; Desktop).
-            Admin-Umbau Teil 2 (06.08.): im Admin überflüssig — alle kunden-
-            bezogenen Einstellungen leben im Kunden-Detail; nur die Agenten-
-            Seite (unter Einstellungen) braucht die Auswahl noch. */}
-          {!collapsed && hasClients && (appScope !== "admin" || page === "agents") && (
-            <div style={{ padding: "10px 12px", borderBottom: `1px solid ${C.border}` }}>
-              <select
-                aria-label="Kunde"
-                value={showAll ? "__all" : client?.id || ""}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (v === "__all") {
-                    setShowAll(true);
-                  } else {
-                    setClientId(v);
-                    setShowAll(false);
-                  }
-                }}
-                style={{
-                  width: "100%",
-                  padding: "8px 10px",
-                  borderRadius: 8,
-                  background: C.bg,
-                  color: C.text,
-                  border: `1px solid ${C.border}`,
-                  fontSize: 13,
-                  fontFamily: "inherit",
-                  outline: "none",
-                }}
-              >
-                {!isViewer && <option value="__all">Alle Kunden</option>}
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          {/* Dashboard / Agent — Switcher (nur Apps mit EzyPilot: seo/ads). */}
-          {!isViewer && !collapsed && scope?.pages?.includes("copilot") && (
-            <div style={{ padding: "10px 12px", borderBottom: `1px solid ${C.border}` }}>
-              <div
-                style={{
-                  display: "flex",
-                  gap: 4,
-                  background: C.bg,
-                  border: `1px solid ${C.border}`,
-                  borderRadius: 10,
-                  padding: 3,
-                }}
-              >
-                {[
-                  ["dashboard", "Dashboard", LayoutDashboard],
-                  ["agent", "Agent", Bot],
-                ].map(([v, label, Icon]) => {
-                  const on = v === "agent" ? page === "copilot" : page !== "copilot";
-                  return (
-                    <button
-                      key={v}
-                      onClick={() =>
-                        setPage(v === "agent" ? "copilot" : lastDashRef.current || "dashboard")
-                      }
-                      style={{
-                        flex: 1,
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 6,
-                        padding: "7px 10px",
-                        borderRadius: 8,
-                        border: "none",
-                        cursor: "pointer",
-                        background: on ? C.surface : "transparent",
-                        color: on ? C.text : C.textMuted,
-                        fontSize: 12.5,
-                        fontWeight: on ? 700 : 500,
-                        boxShadow: on ? "0 1px 2px rgba(0,0,0,.06)" : "none",
-                        fontFamily: "inherit",
-                      }}
-                    >
-                      <Icon size={14} />
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          <nav style={{ flex: 1, padding: "12px 8px" }}>
-            {/* "Alle Kunden" (Volkan 10.08.): in EzyRank/EzyPerformance bleibt die
-              linke Navigation leer — alle Punkte sind kundenspezifisch. Admin
-              behält seine (Verwaltungs-)Navigation. */}
-            {!(showAll && (appScope === "seo" || appScope === "ads")) &&
-              nav.map((n) => {
-                // EzyRank (Volkan 06.08.): die Dashboard-Sub-Tabs (Übersicht/SEO/
-                // Blog/Conversions) wandern aus der oberen Tab-Leiste in die linke
-                // Navigation — der "Dashboard"-Punkt wird durch die Tabs ersetzt.
-                // visibleTabs respektiert bereits Scope, Tab-Auswahl und Service-Gates.
-                if (appScope === "seo" && n.id === "dashboard") {
-                  return visibleTabs.map((t) => {
-                    const T = t.icon;
-                    const on = page === "dashboard" && tab === t.id;
-                    return (
-                      <button
-                        key={`tab-${t.id}`}
-                        onClick={() => {
-                          setPage("dashboard");
-                          setTab(t.id);
-                        }}
-                        style={{
-                          width: "100%",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 12,
-                          padding: "10px 14px",
-                          borderRadius: 10,
-                          border: "none",
-                          cursor: "pointer",
-                          background: on ? C.accentDim : "transparent",
-                          color: on ? C.accentLight : C.textMuted,
-                          fontSize: 13,
-                          fontWeight: on ? 600 : 400,
-                          marginBottom: 2,
-                          transition: "all .15s",
-                          justifyContent: collapsed ? "center" : "flex-start",
-                          fontFamily: "inherit",
-                        }}
-                      >
-                        <T size={18} />
-                        {!collapsed && t.label}
-                      </button>
-                    );
-                  });
-                }
-                const I = n.icon;
-                const a = page === n.id;
-                return (
-                  <button
-                    key={n.id}
-                    onClick={() => setPage(n.id)}
-                    style={{
-                      width: "100%",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                      padding: "10px 14px",
-                      borderRadius: 10,
-                      border: "none",
-                      cursor: "pointer",
-                      background: a ? C.accentDim : "transparent",
-                      color: a ? C.accentLight : C.textMuted,
-                      fontSize: 13,
-                      fontWeight: a ? 600 : 400,
-                      marginBottom: 2,
-                      transition: "all .15s",
-                      justifyContent: collapsed ? "center" : "flex-start",
-                      fontFamily: "inherit",
-                    }}
-                  >
-                    <I size={18} />
-                    {!collapsed && n.label}
-                  </button>
-                );
-              })}
-          </nav>
-          {!collapsed && (
-            <div style={{ padding: "10px 12px", borderTop: `1px solid ${C.border}` }}>
-              <button
-                onClick={() => setCmdOpen(true)}
-                style={{
-                  width: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "8px 12px",
-                  borderRadius: 8,
-                  background: C.card,
-                  border: `1px solid ${C.border}`,
-                  cursor: "pointer",
-                  color: C.textMuted,
-                  fontSize: 12,
-                  fontFamily: "inherit",
-                }}
-              >
-                <Search size={13} />
-                Suche...
-                <span
-                  style={{
-                    marginLeft: "auto",
-                    fontSize: 10,
-                    color: C.textDim,
-                    background: C.bg,
-                    padding: "1px 5px",
-                    borderRadius: 4,
-                  }}
-                >
-                  ⌘K
-                </span>
-              </button>
-            </div>
-          )}
-          {!collapsed && (
-            <div
-              style={{
-                padding: "12px 16px",
-                borderTop: `1px solid ${C.border}`,
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-              }}
-            >
-              <div
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 8,
-                  background: C.accent,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: "#fff",
-                }}
-              >
-                {initialsFromName(profile.name)}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{profile.name}</div>
-                <div style={{ fontSize: 10, color: C.textMuted }}>{profile.role}</div>
-              </div>
-              <LogOut
-                size={14}
-                color={C.textDim}
-                style={{ cursor: "pointer" }}
-                onClick={() => supabase.auth.signOut()}
-              />
-            </div>
-          )}
-        </aside>
+        {/* Redesign 1b: 76px-Icon-Rail ersetzt die Sidebar — Kunden-Auswahl,
+          Seiten-Navigation und Suche leben jetzt im Glas-Header. */}
+        <AppRail
+          current={appScope || currentAppOf(page, tab)}
+          canOpen={(id) => !isViewer && appAccess.canOpen(id)}
+          profile={profile}
+          initials={initialsFromName(profile.name)}
+          onLogout={() => supabase.auth.signOut()}
+        />
 
-        <main
-          className="app-main"
-          style={{ marginLeft: sw, flex: 1, transition: "margin-left .2s", minWidth: 0 }}
-        >
+        <main className="app-main" style={{ marginLeft: isMobile ? 0 : 76, flex: 1, minWidth: 0 }}>
           <header
             className="app-header"
             style={{
@@ -6753,10 +6342,10 @@ function App({ appScope = null }) {
               // abgeschnitten, sobald das Popup über deren Kante ragte.
               // Header und Sidebar überlappen sich räumlich nie (marginLeft).
               zIndex: 60,
-              background: `${C.bg}ee`,
-              backdropFilter: "blur(12px)",
+              background: C.glassBg,
+              backdropFilter: C.glassFx,
               borderBottom: `1px solid ${C.border}`,
-              padding: isMobile ? "10px 12px" : "12px 28px",
+              padding: isMobile ? "10px 12px" : "12px 24px",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
@@ -6804,38 +6393,13 @@ function App({ appScope = null }) {
                   <option value="__launcher">✦ Launcher</option>
                 </select>
               )}
-              {isMobile && (
-                <select
-                  aria-label="Navigation"
-                  value={page}
-                  onChange={(e) => setPage(e.target.value)}
-                  style={{
-                    background: C.card,
-                    border: `1px solid ${C.border}`,
-                    borderRadius: 10,
-                    padding: "8px 10px",
-                    color: C.text,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    fontFamily: "inherit",
-                    outline: "none",
-                    maxWidth: "100%",
-                  }}
-                >
-                  {nav.map((n) => (
-                    <option key={n.id} value={n.id}>
-                      {n.label}
-                    </option>
-                  ))}
-                </select>
-              )}
+              {/* Seiten-Navigation: SegmentedTabs (scrollbar) — ersetzt das Mobile-Select. */}
               {/* Kunden-Switcher: auf Desktop in der Sidebar (wie EzyAI), im Header nur mobil.
                 Im Admin ausgeblendet (außer Agenten-Seite) — siehe Sidebar-Kommentar. */}
               <div
                 style={{
                   position: "relative",
-                  display:
-                    isMobile && (appScope !== "admin" || page === "agents") ? "block" : "none",
+                  display: appScope !== "admin" || page === "agents" ? "block" : "none",
                 }}
               >
                 <button
@@ -7047,6 +6611,34 @@ function App({ appScope = null }) {
                   {isMobile ? null : "Daten neu laden"}
                 </Btn>
               </div>
+              {!(showAll && (appScope === "seo" || appScope === "ads")) && (
+                <SegmentedTabs
+                  color={
+                    (EZY_APPS.find((x) => x.id === (appScope || currentAppOf(page, tab))) || {})
+                      .color || C.accent
+                  }
+                  items={[
+                    ...nav.flatMap((n) =>
+                      appScope === "seo" && n.id === "dashboard"
+                        ? visibleTabs.map((t) => ({ id: `tab:${t.id}`, label: t.label }))
+                        : [{ id: `page:${n.id}`, label: n.label }],
+                    ),
+                    ...(!isViewer && scope?.pages?.includes("copilot")
+                      ? [{ id: "page:copilot", label: "Agent" }]
+                      : []),
+                  ]}
+                  active={
+                    page === "dashboard" && appScope === "seo" ? `tab:${tab}` : `page:${page}`
+                  }
+                  onChange={(id) => {
+                    const [art, wert] = id.split(":");
+                    if (art === "tab") {
+                      setPage("dashboard");
+                      setTab(wert);
+                    } else setPage(wert);
+                  }}
+                />
+              )}
             </div>
             <div
               className="header-actions"
