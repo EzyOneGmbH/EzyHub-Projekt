@@ -947,7 +947,9 @@ export function CalendarMonth({ year, month, rangeStart, rangeEnd, onSelect, hov
   );
 }
 
-export function DateRangePicker({ value, onChange }) {
+// `up` (Mobile-Sheet 22.08.): Popup öffnet nach OBEN — im Bottom-Sheet wurde
+// das nach unten öffnende Menü abgeschnitten und war nicht anwählbar.
+export function DateRangePicker({ value, onChange, up = false }) {
   const [open, setOpen] = useState(false);
   const [a, setA] = useState(value?.preset || "30d");
   const [showCalendar, setShowCalendar] = useState(false);
@@ -1029,15 +1031,16 @@ export function DateRangePicker({ value, onChange }) {
         <div
           style={{
             position: "absolute",
-            top: "100%",
-            right: 0,
-            marginTop: 4,
+            // up = Bottom-Sheet: nach oben + linksbündig (Picker sitzt dort links)
+            ...(up
+              ? { bottom: "100%", marginBottom: 4, left: 0 }
+              : { top: "100%", marginTop: 4, right: 0 }),
             background: C.card,
             border: `1px solid ${C.border}`,
             borderRadius: 10,
             padding: 6,
             minWidth: showCalendar ? 260 : 200,
-            zIndex: 60,
+            zIndex: 120,
             boxShadow: "0 8px 32px rgba(0,0,0,.4)",
           }}
         >
@@ -1459,7 +1462,8 @@ export function useGa4Compare(clientId, dateRange) {
 }
 
 // Comparison-period selector shown next to the DateRangePicker.
-export function ComparePicker({ value, onChange }) {
+// `up` (Mobile-Sheet 22.08.): wie beim DateRangePicker — Popup nach oben.
+export function ComparePicker({ value, onChange, up = false }) {
   const [open, setOpen] = useState(false);
   const ref = useRef();
   useEffect(() => {
@@ -1500,15 +1504,16 @@ export function ComparePicker({ value, onChange }) {
         <div
           style={{
             position: "absolute",
-            top: "100%",
-            right: 0,
-            marginTop: 4,
+            // up = Bottom-Sheet: nach oben + linksbündig (Picker sitzt dort links)
+            ...(up
+              ? { bottom: "100%", marginBottom: 4, left: 0 }
+              : { top: "100%", marginTop: 4, right: 0 }),
             background: C.card,
             border: `1px solid ${C.border}`,
             borderRadius: 10,
             padding: 6,
             minWidth: 220,
-            zIndex: 60,
+            zIndex: 120,
             boxShadow: "0 8px 32px rgba(0,0,0,.4)",
           }}
         >

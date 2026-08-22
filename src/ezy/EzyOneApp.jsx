@@ -7060,7 +7060,8 @@ function App({ appScope = null }) {
                   right: 0,
                   bottom: 0,
                   maxHeight: "82vh",
-                  overflowY: "auto",
+                  // kein overflow:auto — das Picker-Popup (öffnet nach oben)
+                  // würde sonst abgeschnitten; der Filter-Inhalt ist kurz.
                   background: C.surface,
                   borderTop: `1px solid ${C.border}`,
                   borderRadius: "20px 20px 0 0",
@@ -7093,10 +7094,10 @@ function App({ appScope = null }) {
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                   {page !== "tasks" && (
-                    <DateRangePicker value={dateRange} onChange={setDateRange} />
+                    <DateRangePicker value={dateRange} onChange={setDateRange} up />
                   )}
                   {page === "dashboard" && (
-                    <ComparePicker value={compareMode} onChange={setCompareMode} />
+                    <ComparePicker value={compareMode} onChange={setCompareMode} up />
                   )}
                   {page === "dashboard" && (
                     <Btn
