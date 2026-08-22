@@ -779,6 +779,21 @@ export function SeoDashboard({ selectedClient, dateRange }) {
     bis,
   );
   const rank = rankRun?.result || null;
+  // Fenster-Delta (22.08., Volkan): Stand zu Zeitraum-BEGINN als Vergleich —
+  // nur wenn ein früherer, ANDERER Lauf existiert (sonst kein Delta).
+  const von = dateRange?.start || null;
+  const { run: rankVonRun } = useEzyLatestRun(selectedClient?.id, "rankings", von);
+  const { run: ahrefsVonRun } = useEzyLatestRun(selectedClient?.id, "ahrefs", von);
+  const rankVon = rankVonRun && rankRun && rankVonRun.id !== rankRun.id ? rankVonRun.result : null;
+  const ahrefsVon =
+    ahrefsVonRun && run && ahrefsVonRun.id !== run.id
+      ? ahrefsKpisFromResult(ahrefsVonRun.result)
+      : null;
+  const fensterPct = (jetzt, vorher) =>
+    Number(vorher) > 0 && Number.isFinite(Number(jetzt))
+      ? Math.round(((Number(jetzt) - Number(vorher)) / Number(vorher)) * 100)
+      : undefined;
+  const FENSTER_LABEL = "zu Zeitraum-Beginn";
   const { run: gscQRun } = useEzyLatestRun(selectedClient?.id, "gsc_queries", bis);
   const gscQ = gscQRun?.result || null;
   // Sichtbarkeits-Historie aus ECHTEN Daten (2026-08-13, User-Wunsch): monatliche
@@ -1163,12 +1178,16 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                 label="In Top 3"
                 value={rank.aggregate?.top3 ?? "—"}
                 color={C.green}
+                compareValue={rankVon?.aggregate?.top3 ?? undefined}
+                compareLabel={FENSTER_LABEL}
               />
               <KpiCard
                 icon={Target}
                 label="In Top 10"
                 value={rank.aggregate?.top10 ?? "—"}
                 color={C.accent}
+                compareValue={rankVon?.aggregate?.top10 ?? undefined}
+                compareLabel={FENSTER_LABEL}
               />
               {/* Klickbare Filter-Kacheln (2026-08-13): filtern die Rankings-
                 Tabelle auf verbesserte/verschlechterte Keywords (Toggle). */}
@@ -1468,24 +1487,37 @@ export function SeoDashboard({ selectedClient, dateRange }) {
             label="Visibility Index"
             value={visibility > 0 ? visibility : "—"}
             color={C.blue}
+            change={visibility > 0 ? fensterPct(visibility, ahrefsVon?.visibility) : undefined}
+            compareValue={ahrefsVon?.visibility > 0 ? ahrefsVon.visibility : undefined}
+            compareLabel={FENSTER_LABEL}
           />
           <KpiCard
             icon={Award}
             label="Authority Score"
             value={score > 0 ? score : "—"}
             color={C.green}
+            compareValue={ahrefsVon?.score > 0 ? ahrefsVon.score : undefined}
+            compareLabel={FENSTER_LABEL}
           />
           <KpiCard
             icon={Target}
             label="Organic Keywords"
             value={keywords > 0 ? keywords : "—"}
             color={C.orange}
+            change={keywords > 0 ? fensterPct(keywords, ahrefsVon?.keywords) : undefined}
+            compareValue={ahrefsVon?.keywords > 0 ? ahrefsVon.keywords : undefined}
+            compareLabel={FENSTER_LABEL}
           />
           <KpiCard
             icon={Link2}
             label="Backlinks Total"
             value={backlinks > 0 ? backlinks.toLocaleString("de-CH") : "—"}
             color={C.cyan}
+            change={backlinks > 0 ? fensterPct(backlinks, ahrefsVon?.backlinks) : undefined}
+            compareValue={
+              ahrefsVon?.backlinks > 0 ? ahrefsVon.backlinks.toLocaleString("de-CH") : undefined
+            }
+            compareLabel={FENSTER_LABEL}
           />
           {chSessions != null && chSessions > 0 && (
             <KpiCard
