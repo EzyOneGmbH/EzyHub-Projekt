@@ -97,7 +97,9 @@ export const APP_SCOPES: Record<
   }
 > = {
   seo: {
-    pages: ["dashboard", "copilot", "tasks", "tools", "content"],
+    // Projekt/AWORK "tasks" vorerst deaktiviert (Volkan 22.08.) — bei Bedarf
+    // wieder ergänzen (+ NAV-Zeile in EzyOneApp).
+    pages: ["dashboard", "copilot", "tools", "content"],
     // Volkan 10.08.: Übersicht-Tab raus — EzyRank startet direkt im SEO-Tab.
     // Local Grid (17.08.): Maps-Heatmap aus dem Geo-Grid-Scan, opt-in je Kunde.
     tabs: ["seo", "blog", "localgrid", "conversions"],

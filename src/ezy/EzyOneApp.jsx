@@ -53,7 +53,6 @@ import {
   Command,
   Type,
   Megaphone,
-  ListChecks,
   MessageSquare,
   ArrowRight,
   Home,
@@ -6133,7 +6132,9 @@ const TAB_SERVICE = {
 const NAV = [
   { id: "dashboard", label: "Dashboard", icon: BarChart3 },
   { id: "copilot", label: "EzyPilot", icon: Sparkles },
-  { id: "tasks", label: "Projekt", icon: ListChecks },
+  // Projekt/AWORK (Volkan 22.08.): vorerst deaktiviert — bei Bedarf Zeile
+  // wieder einkommentieren (+ "tasks" in appRegistry seo.pages).
+  // { id: "tasks", label: "Projekt", icon: ListChecks },
   { id: "tools", label: "AI Tools", icon: Zap },
   { id: "agents", label: "Agents", icon: Bot },
   { id: "content", label: "Content", icon: FileText },
@@ -6327,6 +6328,8 @@ function App({ appScope = null }) {
   // Viewer behalten ihren eigenen Reports-Tab.
   useEffect(() => {
     if (page === "activity") setPage("agents");
+    else if (page === "tasks")
+      setPage("dashboard"); // Projekt deaktiviert 22.08.
     else if (!isViewer && page === "reports") setPage("content");
   }, [page, isViewer]);
   const [cdd, setCdd] = useState(false);
