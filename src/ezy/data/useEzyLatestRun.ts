@@ -18,13 +18,36 @@ export type LatestRun = {
 const RUN_CACHE = new Map<string, { at: number; run: LatestRun }>();
 const RUN_CACHE_TTL_MS = 3 * 60 * 1000;
 
-/** Latest succeeded audit_runs row of a given audit_type for a client. */
+// Zeitraum-Anbindung (Volkan 22.08.): der gewählte Zeitraum soll die Bereiche
+// aus den GESPEICHERTEN Messläufen bedienen — `until` wählt den letzten Lauf
+// zum Ende des Zeitraums statt stur den neuesten. Ein Zeitraum, der heute
+// endet (alle Presets), verhält sich exakt wie zuvor; nur historische eigene
+// Zeiträume springen auf den damaligen Stand. Kein `until`/heute → Cache-Key
+// "latest" (unverändert).
+const untilKey = (until?: Date | null): string => {
+  if (!until || !(until instanceof Date) || isNaN(until.getTime())) return "latest";
+  const heute = new Date();
+  const key = `${until.getFullYear()}-${until.getMonth() + 1}-${until.getDate()}`;
+  const heuteKey = `${heute.getFullYear()}-${heute.getMonth() + 1}-${heute.getDate()}`;
+  return key === heuteKey ? "latest" : key;
+};
+const untilKeyIso = (endKey: string): string => {
+  const [y, m, d] = endKey.split("-").map(Number);
+  return new Date(y, m - 1, d, 23, 59, 59, 999).toISOString();
+};
+
+/**
+ * Latest succeeded audit_runs row of a given audit_type for a client.
+ * Optionales `until`: letzter Lauf bis zum Ende dieses Tages (Zeitraum-Ende).
+ */
 export function useEzyLatestRun(
   clientId: string | undefined,
   auditType: string,
+  until?: Date | null,
 ): { run: LatestRun; loading: boolean; refresh: (force?: boolean) => Promise<void> } {
   const [run, setRun] = useState<LatestRun>(null);
   const [loading, setLoading] = useState(false);
+  const endKey = untilKey(until);
 
   // force === true (strikt, damit onClick-Events nicht als force zaehlen)
   // umgeht den Sitzungs-Cache — fuer den "Aktualisieren"-Button der DataStatus-Leiste.
@@ -34,7 +57,7 @@ export function useEzyLatestRun(
         setRun(null);
         return;
       }
-      const cacheId = `${clientId}|${auditType}`;
+      const cacheId = `${clientId}|${auditType}|${endKey}`;
       const hit = force === true ? undefined : RUN_CACHE.get(cacheId);
       if (hit && Date.now() - hit.at < RUN_CACHE_TTL_MS) {
         setRun(hit.run);
@@ -42,15 +65,14 @@ export function useEzyLatestRun(
       }
       setLoading(true);
       try {
-        const { data } = await supabase
+        let q = supabase
           .from("audit_runs")
           .select("id, audit_type, status, result, created_at")
           .eq("client_id", clientId)
           .eq("audit_type", auditType)
-          .eq("status", "succeeded")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .eq("status", "succeeded");
+        if (endKey !== "latest") q = q.lte("created_at", untilKeyIso(endKey));
+        const { data } = await q.order("created_at", { ascending: false }).limit(1).maybeSingle();
         const row = (data as LatestRun) || null;
         RUN_CACHE.set(cacheId, { at: Date.now(), run: row });
         setRun(row);
@@ -60,7 +82,7 @@ export function useEzyLatestRun(
         setLoading(false);
       }
     },
-    [clientId, auditType],
+    [clientId, auditType, endKey],
   );
 
   useEffect(() => {

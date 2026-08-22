@@ -14,7 +14,12 @@ import { Activity, CheckCircle, DollarSign, TrendingUp } from "lucide-react";
 // ═══════════════════════════════════════════════════════════════════════════
 export function AdsDashboard({ selectedClient, dateRange }) {
   const { isOn } = useEzyDashboardConfig();
-  const { run, loading, refresh } = useEzyLatestRun(selectedClient?.id, "google_ads");
+  // Zeitraum-Anbindung (22.08.): Ads-Snapshot zum Ende des gewählten Zeitraums.
+  const { run, loading, refresh } = useEzyLatestRun(
+    selectedClient?.id,
+    "google_ads",
+    dateRange?.end || null,
+  );
   const ads = googleAdsFromResult(run?.result);
   const {
     totals,

@@ -731,7 +731,10 @@ export const CLIENT_TYPES = [
 export const PSI_MOBILE_BODY = () => ({ strategy: "mobile" });
 
 export function SeoDashboard({ selectedClient, dateRange }) {
-  const { run, refresh: refreshAhrefs } = useEzyLatestRun(selectedClient?.id, "ahrefs");
+  // Zeitraum-Anbindung (22.08.): Snapshots zum ENDE des gewählten Zeitraums
+  // aus den gespeicherten Messläufen — Presets (Ende = heute) unverändert.
+  const bis = dateRange?.end || null;
+  const { run, refresh: refreshAhrefs } = useEzyLatestRun(selectedClient?.id, "ahrefs", bis);
   const live = run ? ahrefsKpisFromResult(run.result) : null;
   const { runs, refresh: refreshHistory } = useEzyAuditHistory(selectedClient?.id);
   const startDate = useMemo(
@@ -744,7 +747,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
         .filter((r) => {
           if (r.audit_type !== "ahrefs" || r.status !== "succeeded") return false;
           const d = new Date(r.started_at || r.created_at);
-          return d >= startDate;
+          return d >= startDate && (!bis || d <= new Date(bis).setHours(23, 59, 59, 999));
         })
         .map((r) => {
           const k = ahrefsKpisFromResult(r.result);
@@ -757,18 +760,26 @@ export function SeoDashboard({ selectedClient, dateRange }) {
           };
         })
         .reverse(),
-    [runs, startDate],
+    [runs, startDate, bis],
   );
-  const { run: gscRun, refresh: refreshGsc } = useEzyLatestRun(selectedClient?.id, "gsc_summary");
+  const { run: gscRun, refresh: refreshGsc } = useEzyLatestRun(
+    selectedClient?.id,
+    "gsc_summary",
+    bis,
+  );
   // Datumsfilter (2026-08-11): GSC-KPIs live im gewählten Zeitraum (Nur-Lese-
   // Abfrage, gecacht); Agent-Snapshot bleibt Fallback.
   const { data: liveGsc } = useLiveGa4(selectedClient?.id, "gsc-import", liveDaysFor(dateRange));
   const gscRes = liveGsc || gscRun?.result || null;
   const gsc = gscRes ? gscKpisFromResult(gscRes) : null;
   // Dashboard-Ausbau 2026-07-11: B1 Rankings (agent-service Rank-Store) + B2 GSC-Split.
-  const { run: rankRun, refresh: refreshRank } = useEzyLatestRun(selectedClient?.id, "rankings");
+  const { run: rankRun, refresh: refreshRank } = useEzyLatestRun(
+    selectedClient?.id,
+    "rankings",
+    bis,
+  );
   const rank = rankRun?.result || null;
-  const { run: gscQRun } = useEzyLatestRun(selectedClient?.id, "gsc_queries");
+  const { run: gscQRun } = useEzyLatestRun(selectedClient?.id, "gsc_queries", bis);
   const gscQ = gscQRun?.result || null;
   // Sichtbarkeits-Historie aus ECHTEN Daten (2026-08-13, User-Wunsch): monatliche
   // GA4-organisch-Besuche + GSC-Klicks/Query-Anzahl (audit_type seo_history,
@@ -790,7 +801,11 @@ export function SeoDashboard({ selectedClient, dateRange }) {
     () => seoHistSeries.some((m) => (m["Besuche (GA4)"] || 0) > 0),
     [seoHistSeries],
   );
-  const { run: psiRun, refresh: refreshPsi } = useEzyLatestRun(selectedClient?.id, "pagespeed");
+  const { run: psiRun, refresh: refreshPsi } = useEzyLatestRun(
+    selectedClient?.id,
+    "pagespeed",
+    bis,
+  );
   const psi = psiRun ? pagespeedKpisFromResult(psiRun.result) : null;
   // Echte externe Messlaeufe (2026-08-18): bestehende Server-Routen, Status
   // running/success/error, Doppelstart-Guard modulweit in useMeasurement.
@@ -802,7 +817,11 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   );
   const ahrefsMeas = useMeasurement(selectedClient?.id, "ahrefs", "/api/ahrefs/overview");
   const cwvOrigin = psiRun?.result?.metrics?.dataOrigin || null; // B5a
-  const { run: trafRun, refresh: refreshTraf } = useEzyLatestRun(selectedClient?.id, "ga4_traffic");
+  const { run: trafRun, refresh: refreshTraf } = useEzyLatestRun(
+    selectedClient?.id,
+    "ga4_traffic",
+    bis,
+  );
   // Datumsfilter-Fix (2026-08-10): Live-Traffic im gewählten Zeitraum (gecacht),
   // Snapshot-Fallback wie gehabt.
   const { data: liveTrafRes } = useLiveGa4(
@@ -2494,12 +2513,18 @@ export function GeoDashboard({ selectedClient, dateRange }) {
 }
 
 export function ConvDashboard({ selectedClient, dateRange }) {
-  const { run, refresh: refreshGa4 } = useEzyLatestRun(selectedClient?.id, "ga4_summary");
+  const bis = dateRange?.end || null;
+  const { run, refresh: refreshGa4 } = useEzyLatestRun(selectedClient?.id, "ga4_summary", bis);
   const { run: convRun, refresh: refreshConv } = useEzyLatestRun(
     selectedClient?.id,
     "ga4_conversions",
+    bis,
   );
-  const { run: trafRun, refresh: refreshTraf } = useEzyLatestRun(selectedClient?.id, "ga4_traffic");
+  const { run: trafRun, refresh: refreshTraf } = useEzyLatestRun(
+    selectedClient?.id,
+    "ga4_traffic",
+    bis,
+  );
   const days = dateRange?.days || 30;
   // Datumsfilter-Fix (2026-08-10): Live-GA4 im gewählten Zeitraum (gecacht,
   // persist:false); der Agent-Snapshot bleibt Fallback (kein GA4 / Fehler /
@@ -3287,12 +3312,26 @@ export function ConvDashboard({ selectedClient, dateRange }) {
 // OVERVIEW DASHBOARD (EzyRank "Dashboard" blueprint)
 // ═══════════════════════════════════════════════════════════════════════════
 export function OverviewDashboard({ selectedClient, dateRange }) {
-  const { run: ahrefsRun, refresh: refreshAhrefs } = useEzyLatestRun(selectedClient?.id, "ahrefs");
-  const { run: ga4Run, refresh: refreshGa4 } = useEzyLatestRun(selectedClient?.id, "ga4_summary");
-  const { run: trafRun, refresh: refreshTraf } = useEzyLatestRun(selectedClient?.id, "ga4_traffic");
+  const bis = dateRange?.end || null;
+  const { run: ahrefsRun, refresh: refreshAhrefs } = useEzyLatestRun(
+    selectedClient?.id,
+    "ahrefs",
+    bis,
+  );
+  const { run: ga4Run, refresh: refreshGa4 } = useEzyLatestRun(
+    selectedClient?.id,
+    "ga4_summary",
+    bis,
+  );
+  const { run: trafRun, refresh: refreshTraf } = useEzyLatestRun(
+    selectedClient?.id,
+    "ga4_traffic",
+    bis,
+  );
   const { run: convRun, refresh: refreshConv } = useEzyLatestRun(
     selectedClient?.id,
     "ga4_conversions",
+    bis,
   );
   useEffect(() => {
     const interval = setInterval(
