@@ -157,12 +157,10 @@ function ReaktApp() {
       {/* Mobile (01.08.): Header umbricht, engere Paddings, Karten einspaltig */}
       <style>{`
       .reakt-root{padding-left:76px}
-      .reakt-apps{display:none}
       .reakt-tabbar{display:none}
       @media(max-width:900px){
         .reakt-root{padding-left:0}
         .app-sidebar{display:none!important}
-        .reakt-apps{display:inline-flex}
         .reakt-main{padding-bottom:calc(env(safe-area-inset-bottom, 0px) + 84px)!important}
         .reakt-tabbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:90;justify-content:space-around;align-items:stretch;padding:8px 6px calc(env(safe-area-inset-bottom, 0px) + 8px);background:rgba(252,252,252,.9);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border-top:1px solid ${S.line}}
       }
@@ -193,23 +191,6 @@ function ReaktApp() {
           zIndex: 100,
         }}
       >
-        {/* 2j: mobiler App-Einstieg (Rail ist <900px ausgeblendet) */}
-        <a
-          className="reakt-apps"
-          href="/apps"
-          style={{
-            padding: "6px 10px",
-            borderRadius: 8,
-            textDecoration: "none",
-            background: S.appTint,
-            color: S.app,
-            fontSize: 12.5,
-            fontWeight: 700,
-            flexShrink: 0,
-          }}
-        >
-          {"✦"} Apps
-        </a>
         <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
           <span
             style={{

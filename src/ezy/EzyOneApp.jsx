@@ -6860,7 +6860,7 @@ function App({ appScope = null }) {
                 (appScope !== "seo" || isMobile) && (
                   <TabBar tabs={visibleTabs} active={tab} onChange={setTab} />
                 )}
-              {page !== "dashboard" && (
+              {page !== "dashboard" && page !== "heute" && (
                 <div
                   style={{
                     display: "flex",
@@ -6879,7 +6879,10 @@ function App({ appScope = null }) {
                   </span>
                 </div>
               )}
-              {!(showAll && (appScope === "seo" || appScope === "ads")) && (
+              {/* Mobile-QA (22.08.): das kombinierte Seiten+Tabs-Segmented ist
+                Desktop-Nav — mobil doppelt es die Bottom-Tab-Bar (Seiten) bzw.
+                die TabBar oben (Dashboard-Tabs) und quetschte die Buttons. */}
+              {!isMobile && !(showAll && (appScope === "seo" || appScope === "ads")) && (
                 <SegmentedTabs
                   color={
                     (EZY_APPS.find((x) => x.id === (appScope || currentAppOf(page, tab))) || {})

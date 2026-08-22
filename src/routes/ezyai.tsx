@@ -5525,6 +5525,7 @@ function EzyAiApp() {
              mit, sonst fressen zwei fixierte Leisten ~110px Viewport-Höhe. */
           .ezyai-chead{flex-wrap:wrap!important;gap:8px!important;padding:10px!important;position:static!important}
           .ezyai-chead-nav{display:none!important}
+          .ezyai-hm{display:none!important}
           .ezyai-main{padding:14px 10px 48px!important}
         }
       `}</style>
@@ -5573,6 +5574,7 @@ function EzyAiApp() {
                 {/* Bereichs-Chips nur mit gewähltem Kunden — "Alle Kunden" = leer. */}
                 <div style={{ display: "flex", gap: 6, alignItems: "center", overflowX: "auto" }}>
                   {!showAll &&
+                    view !== "heute" &&
                     APP_NAV.flatMap((g) => g.items).map((t) => {
                       const Icon = t.icon;
                       const a = view === "dashboard" && section === t.id;
@@ -5684,7 +5686,7 @@ function EzyAiApp() {
                 </div>
                 {/* Filter statt Titel im Header (Volkan 10.08., wie EzyRank) —
                 der Bereichs-Titel steht jetzt im Body. */}
-                {view !== "agent" && !showAll && (
+                {view !== "agent" && view !== "heute" && !showAll && (
                   <>
                     <RangeControl range={range} onApply={applyShared} S={S} />
                     {/* Vergleich nur dort anbieten, wo die Datenquelle es erlaubt
@@ -5714,6 +5716,7 @@ function EzyAiApp() {
                 <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
                   {isOrgAdmin && client?.id && !showAll && (
                     <button
+                      className="ezyai-hm"
                       onClick={shareReport}
                       style={{
                         fontSize: 12,
@@ -5729,6 +5732,7 @@ function EzyAiApp() {
                     </button>
                   )}
                   <a
+                    className="ezyai-hm"
                     href="/llm-ueberblick"
                     style={{
                       fontSize: 12,
@@ -5742,8 +5746,11 @@ function EzyAiApp() {
                     LLM-Überblick
                   </a>
                   <NotificationsBell S={S} />
-                  {/* EzyPilot oben rechts — wie in EzyRank/EzyPerformance (Volkan 13.08.). */}
-                  <EzyPilotButton />
+                  {/* EzyPilot oben rechts — wie in EzyRank/EzyPerformance (Volkan 13.08.);
+                    mobil versteckt (FAB in der Bottom-Bar). */}
+                  <span className="ezyai-hm" style={{ display: "inline-flex" }}>
+                    <EzyPilotButton />
+                  </span>
                 </div>
               </header>
 
