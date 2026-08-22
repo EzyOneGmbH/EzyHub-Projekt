@@ -2734,7 +2734,11 @@ export function ConvDashboard({ selectedClient, dateRange }) {
   );
   // Comparison absolute values (from live GA4) + friendly period label.
   const cmpName = compareName(dateRange?.compareMode);
-  const cmp = (k) => (cmpData?.compare ? Number(cmpData.compare[k] || 0) : undefined);
+  // null-Totals (Endpoint-Teilfehler) nie als "vorher: 0" anzeigen.
+  const cmp = (k) => {
+    const v = cmpData?.compare?.[k];
+    return v == null ? undefined : Number(v);
+  };
   const { isOn } = useEzyDashboardConfig();
   const hasAnyKpi =
     revenue +
@@ -3470,7 +3474,8 @@ export function OverviewDashboard({ selectedClient, dateRange }) {
     [aiSeriesRaw, dateRange],
   );
   const ovCmpName = compareName(dateRange?.compareMode);
-  const ovOrganicCmp = ovCmpData?.compare ? Number(ovCmpData.compare.sessions || 0) : undefined;
+  const ovOrganicCmp =
+    ovCmpData?.compare?.sessions == null ? undefined : Number(ovCmpData.compare.sessions);
 
   // Dashboard-Ausbau 2026-07-11 (B4): Health-Komponenten + Frische aus populate_meta.
   const { health, populateMeta } = useEzyHealthComponents(selectedClient?.id);

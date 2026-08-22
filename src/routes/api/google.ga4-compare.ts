@@ -65,46 +65,65 @@ export const Route = createFileRoute("/api/google/ga4-compare")({
           const propertyId = client.ga4_property.replace(/^properties\//, "");
           const url = `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`;
 
+          const beideZeitraeume = [
+            {
+              startDate: isoDay(parsed.data.start),
+              endDate: isoDay(parsed.data.end),
+              name: "current",
+            },
+            {
+              startDate: isoDay(parsed.data.compareStart),
+              endDate: isoDay(parsed.data.compareEnd),
+              name: "compare",
+            },
+          ];
+          const runReport = (body: Record<string, unknown>) =>
+            fetch(url, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ dateRanges: beideZeitraeume, ...body }),
+            });
+
           // GA4 returns one row per dateRange (tagged via the dateRange dimension).
-          const res = await fetch(url, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              dateRanges: [
-                {
-                  startDate: isoDay(parsed.data.start),
-                  endDate: isoDay(parsed.data.end),
-                  name: "current",
-                },
-                {
-                  startDate: isoDay(parsed.data.compareStart),
-                  endDate: isoDay(parsed.data.compareEnd),
-                  name: "compare",
-                },
-              ],
-              dimensions: [{ name: "dateRange" }],
-              metrics: [
-                { name: "sessions" },
-                { name: "totalUsers" },
-                { name: "screenPageViews" },
-                { name: "conversions" },
-                { name: "totalRevenue" },
-              ],
-            }),
+          // "conversions" wurde in GA4 durch "keyEvents" ersetzt — je nach
+          // Property lehnt die API die alte Metrik ab. Erst alt versuchen,
+          // bei Fehler mit keyEvents wiederholen (gemappt auf conversions).
+          const totalsMetrics = (convName: string) => [
+            { name: "sessions" },
+            { name: "totalUsers" },
+            { name: "screenPageViews" },
+            { name: convName },
+            { name: "totalRevenue" },
+          ];
+          let res = await runReport({
+            dimensions: [{ name: "dateRange" }],
+            metrics: totalsMetrics("conversions"),
           });
           if (!res.ok) {
-            const t = await res.text().catch(() => "");
-            return Response.json({
-              ok: false,
-              error: redactSecrets(`GA4 HTTP ${res.status}: ${t}`),
+            res = await runReport({
+              dimensions: [{ name: "dateRange" }],
+              metrics: totalsMetrics("keyEvents"),
             });
           }
-          const json = (await res.json()) as {
+          // WICHTIG: bei Fehler NICHT abbrechen — die Organik-/Schweiz-Reports
+          // unten sind unabhängig und sollen trotzdem liefern (vorher riss ein
+          // fehlgeschlagener Totals-Report den ganzen Endpoint mit).
+          let totalsFehler: string | null = null;
+          let json: {
             rows?: Array<{
               dimensionValues: Array<{ value: string }>;
               metricValues: Array<{ value: string }>;
             }>;
-          };
+          } = {};
+          if (res.ok) {
+            json = (await res.json()) as typeof json;
+          } else {
+            const t = await res.text().catch(() => "");
+            totalsFehler = redactSecrets(`GA4 HTTP ${res.status}: ${t}`);
+          }
 
           const parseRow = (row?: { metricValues: Array<{ value: string }> }) => ({
             sessions: Number(row?.metricValues?.[0]?.value ?? 0),
@@ -253,15 +272,26 @@ export const Route = createFileRoute("/api/google/ga4-compare")({
             /* Schweiz-Organik ist Zusatz */
           }
 
+          const totalsOderNull = (row?: { metricValues: Array<{ value: string }> }) =>
+            totalsFehler
+              ? {
+                  sessions: null,
+                  totalUsers: null,
+                  screenPageViews: null,
+                  conversions: null,
+                  totalRevenue: null,
+                }
+              : parseRow(row);
           return Response.json({
             ok: true,
+            totalsError: totalsFehler,
             current: {
-              ...parseRow(currentRow),
+              ...totalsOderNull(currentRow),
               organicSessions: organicCurrent,
               chOrganicSessions: chOrganicCurrent,
             },
             compare: {
-              ...parseRow(compareRow),
+              ...totalsOderNull(compareRow),
               organicSessions: organicCompare,
               chOrganicSessions: chOrganicCompare,
             },
