@@ -181,10 +181,90 @@ export const Route = createFileRoute("/api/google/ga4-compare")({
             /* organisch ist Zusatz — Gesamtwerte bleiben nutzbar */
           }
 
+          // Schweiz-Organik je Zeitraum (22.08.): die Switzerland-Kachel —
+          // die gespeicherten Snapshots führen countriesOrganic erst seit
+          // 13.08., ältere Vergleichsfenster brauchen daher GA4 direkt.
+          let chOrganicCurrent: number | null = null;
+          let chOrganicCompare: number | null = null;
+          try {
+            const chRes = await fetch(url, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                dateRanges: [
+                  {
+                    startDate: isoDay(parsed.data.start),
+                    endDate: isoDay(parsed.data.end),
+                    name: "current",
+                  },
+                  {
+                    startDate: isoDay(parsed.data.compareStart),
+                    endDate: isoDay(parsed.data.compareEnd),
+                    name: "compare",
+                  },
+                ],
+                dimensions: [
+                  { name: "dateRange" },
+                  { name: "sessionDefaultChannelGroup" },
+                  { name: "countryId" },
+                ],
+                metrics: [{ name: "sessions" }],
+                dimensionFilter: {
+                  andGroup: {
+                    expressions: [
+                      {
+                        filter: {
+                          fieldName: "sessionDefaultChannelGroup",
+                          stringFilter: { matchType: "EXACT", value: "Organic Search" },
+                        },
+                      },
+                      {
+                        filter: {
+                          fieldName: "countryId",
+                          stringFilter: { matchType: "EXACT", value: "CH" },
+                        },
+                      },
+                    ],
+                  },
+                },
+              }),
+            });
+            if (chRes.ok) {
+              const cj = (await chRes.json()) as {
+                rows?: Array<{
+                  dimensionValues: Array<{ value: string }>;
+                  metricValues: Array<{ value: string }>;
+                }>;
+              };
+              const cr = cj.rows ?? [];
+              const cc =
+                cr.find((r) => /current|date_range_0/i.test(r.dimensionValues?.[0]?.value ?? "")) ??
+                cr[0];
+              const cp =
+                cr.find((r) => /compare|date_range_1/i.test(r.dimensionValues?.[0]?.value ?? "")) ??
+                cr[1];
+              chOrganicCurrent = cc ? Number(cc.metricValues?.[0]?.value ?? 0) : null;
+              chOrganicCompare = cp ? Number(cp.metricValues?.[0]?.value ?? 0) : null;
+            }
+          } catch {
+            /* Schweiz-Organik ist Zusatz */
+          }
+
           return Response.json({
             ok: true,
-            current: { ...parseRow(currentRow), organicSessions: organicCurrent },
-            compare: { ...parseRow(compareRow), organicSessions: organicCompare },
+            current: {
+              ...parseRow(currentRow),
+              organicSessions: organicCurrent,
+              chOrganicSessions: chOrganicCurrent,
+            },
+            compare: {
+              ...parseRow(compareRow),
+              organicSessions: organicCompare,
+              chOrganicSessions: chOrganicCompare,
+            },
           });
         } catch (e) {
           return Response.json({ ok: false, error: redactSecrets(e) });

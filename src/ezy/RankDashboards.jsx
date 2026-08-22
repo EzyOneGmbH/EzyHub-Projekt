@@ -896,6 +896,10 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   const trafVonResult =
     trafVonRun && trafRun && trafVonRun.id !== trafRun.id ? trafVonRun.result : null;
   const chVonWert = (() => {
+    // Organik-Karte: GA4-Live-Vergleich zuerst (Snapshots führen
+    // countriesOrganic erst seit 13.08. — ältere Fenster wären sonst leer).
+    if (chSessionsOrganic && cmpAktiv && Number(seoCmpData?.compare?.chOrganicSessions) > 0)
+      return Math.round(Number(seoCmpData.compare.chOrganicSessions));
     if (!trafVonResult) return null;
     const liste = chSessionsOrganic ? trafVonResult.countriesOrganic : trafVonResult.countries;
     const v = (liste || []).find((c) => /switzerland|schweiz|^ch$/i.test(c.country))?.sessions;
