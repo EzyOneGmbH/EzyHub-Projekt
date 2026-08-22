@@ -148,7 +148,9 @@ export const Route = createFileRoute("/api/google/ga4-compare")({
                     name: "compare",
                   },
                 ],
-                dimensions: [{ name: "dateRange" }],
+                // WICHTIG: die gefilterte Dimension muss im Request stehen —
+                // sonst lehnt die GA4 Data API den Filter mit 400 ab.
+                dimensions: [{ name: "dateRange" }, { name: "sessionDefaultChannelGroup" }],
                 metrics: [{ name: "sessions" }],
                 dimensionFilter: {
                   filter: {

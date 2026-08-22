@@ -893,6 +893,14 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   )?.sessions;
   const chSessions = chOrganicSessions ?? chAllSessions;
   const chSessionsOrganic = chOrganicSessions != null;
+  const trafVonResult =
+    trafVonRun && trafRun && trafVonRun.id !== trafRun.id ? trafVonRun.result : null;
+  const chVonWert = (() => {
+    if (!trafVonResult) return null;
+    const liste = chSessionsOrganic ? trafVonResult.countriesOrganic : trafVonResult.countries;
+    const v = (liste || []).find((c) => /switzerland|schweiz|^ch$/i.test(c.country))?.sessions;
+    return Number(v) > 0 ? Math.round(Number(v)) : null;
+  })();
   // "Organic Traffic" aus ECHTEN Daten (User-Wunsch 2026-08-13): GA4-Kanal
   // "Organic Search" im gewählten Zeitraum (wie Switzerland Traffic); Fallback
   // GSC-Klicks. Die DFS-ETV-Schätzung (live.traffic) nur noch als letzte
@@ -918,12 +926,10 @@ export function SeoDashboard({ selectedClient, dateRange }) {
           : null;
   // GA4-Quelle: Live-Vergleich (exakter Zeitraum) zuerst; faellt er aus,
   // greift der gespeicherte ga4_traffic-Snapshot zum Vergleichszeitpunkt.
-  const trafVonOrganic =
-    trafVonRun && trafRun && trafVonRun.id !== trafRun.id
-      ? (trafVonRun.result?.channels || []).find((c) =>
-          /^organic search$/i.test(String(c.channel || "")),
-        )?.sessions
-      : null;
+  const trafVonOrganic = trafVonResult
+    ? (trafVonResult.channels || []).find((c) => /^organic search$/i.test(String(c.channel || "")))
+        ?.sessions
+    : null;
   const trafficCmpWert =
     organicTrafficSource === "GA4"
       ? cmpAktiv && Number(seoCmpData?.compare?.organicSessions) > 0
@@ -1576,6 +1582,9 @@ export function SeoDashboard({ selectedClient, dateRange }) {
               }
               value={chSessions.toLocaleString("de-CH")}
               color={C.pink}
+              change={chVonWert != null ? fensterPct(chSessions, chVonWert) : undefined}
+              compareValue={chVonWert != null ? chVonWert.toLocaleString("de-CH") : undefined}
+              compareLabel={FENSTER_LABEL}
             />
           )}
         </div>
