@@ -787,6 +787,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   const von = cmpAktiv ? dateRange.compare.end : dateRange?.start || null;
   const { run: rankVonRun } = useEzyLatestRun(selectedClient?.id, "rankings", von);
   const { run: ahrefsVonRun } = useEzyLatestRun(selectedClient?.id, "ahrefs", von);
+  const { run: trafVonRun } = useEzyLatestRun(selectedClient?.id, "ga4_traffic", von);
   const rankVon = rankVonRun && rankRun && rankVonRun.id !== rankRun.id ? rankVonRun.result : null;
   const ahrefsVon =
     ahrefsVonRun && run && ahrefsVonRun.id !== run.id
@@ -915,11 +916,21 @@ export function SeoDashboard({ selectedClient, dateRange }) {
         : traffic > 0
           ? "DFS-Schätzung"
           : null;
+  // GA4-Quelle: Live-Vergleich (exakter Zeitraum) zuerst; faellt er aus,
+  // greift der gespeicherte ga4_traffic-Snapshot zum Vergleichszeitpunkt.
+  const trafVonOrganic =
+    trafVonRun && trafRun && trafVonRun.id !== trafRun.id
+      ? (trafVonRun.result?.channels || []).find((c) =>
+          /^organic search$/i.test(String(c.channel || "")),
+        )?.sessions
+      : null;
   const trafficCmpWert =
     organicTrafficSource === "GA4"
       ? cmpAktiv && Number(seoCmpData?.compare?.organicSessions) > 0
         ? Math.round(Number(seoCmpData.compare.organicSessions))
-        : null
+        : Number(trafVonOrganic) > 0
+          ? Math.round(Number(trafVonOrganic))
+          : null
       : organicTrafficSource === "DFS-Schätzung" && ahrefsVon?.traffic > 0
         ? Math.round(ahrefsVon.traffic)
         : null;
@@ -1196,6 +1207,11 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                 label="In Top 3"
                 value={rank.aggregate?.top3 ?? "—"}
                 color={C.green}
+                change={
+                  rank.aggregate?.top3 != null
+                    ? fensterPct(rank.aggregate.top3, rankVon?.aggregate?.top3)
+                    : undefined
+                }
                 compareValue={rankVon?.aggregate?.top3 ?? undefined}
                 compareLabel={FENSTER_LABEL}
               />
@@ -1204,6 +1220,11 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                 label="In Top 10"
                 value={rank.aggregate?.top10 ?? "—"}
                 color={C.accent}
+                change={
+                  rank.aggregate?.top10 != null
+                    ? fensterPct(rank.aggregate.top10, rankVon?.aggregate?.top10)
+                    : undefined
+                }
                 compareValue={rankVon?.aggregate?.top10 ?? undefined}
                 compareLabel={FENSTER_LABEL}
               />
@@ -1521,6 +1542,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
             label="Authority Score"
             value={score > 0 ? score : "—"}
             color={C.green}
+            change={score > 0 ? fensterPct(score, ahrefsVon?.score) : undefined}
             compareValue={ahrefsVon?.score > 0 ? ahrefsVon.score : undefined}
             compareLabel={FENSTER_LABEL}
           />
