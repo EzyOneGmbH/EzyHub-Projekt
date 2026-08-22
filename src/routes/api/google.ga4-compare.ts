@@ -123,10 +123,66 @@ export const Route = createFileRoute("/api/google/ga4-compare")({
             rows.find((r) => /compare|date_range_1/i.test(r.dimensionValues?.[0]?.value ?? "")) ??
             rows[1];
 
+          // Organische Sessions je Zeitraum (22.08., Volkan): die SEO-Kachel
+          // "Organic Traffic (GA4)" braucht den Kanal "Organic Search" — die
+          // Gesamt-Sessions oben wären ein Äpfel/Birnen-Vergleich.
+          let organicCurrent: number | null = null;
+          let organicCompare: number | null = null;
+          try {
+            const orgRes = await fetch(url, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                dateRanges: [
+                  {
+                    startDate: isoDay(parsed.data.start),
+                    endDate: isoDay(parsed.data.end),
+                    name: "current",
+                  },
+                  {
+                    startDate: isoDay(parsed.data.compareStart),
+                    endDate: isoDay(parsed.data.compareEnd),
+                    name: "compare",
+                  },
+                ],
+                dimensions: [{ name: "dateRange" }],
+                metrics: [{ name: "sessions" }],
+                dimensionFilter: {
+                  filter: {
+                    fieldName: "sessionDefaultChannelGroup",
+                    stringFilter: { matchType: "EXACT", value: "Organic Search" },
+                  },
+                },
+              }),
+            });
+            if (orgRes.ok) {
+              const oj = (await orgRes.json()) as {
+                rows?: Array<{
+                  dimensionValues: Array<{ value: string }>;
+                  metricValues: Array<{ value: string }>;
+                }>;
+              };
+              const or = oj.rows ?? [];
+              const oc =
+                or.find((r) => /current|date_range_0/i.test(r.dimensionValues?.[0]?.value ?? "")) ??
+                or[0];
+              const op =
+                or.find((r) => /compare|date_range_1/i.test(r.dimensionValues?.[0]?.value ?? "")) ??
+                or[1];
+              organicCurrent = oc ? Number(oc.metricValues?.[0]?.value ?? 0) : null;
+              organicCompare = op ? Number(op.metricValues?.[0]?.value ?? 0) : null;
+            }
+          } catch {
+            /* organisch ist Zusatz — Gesamtwerte bleiben nutzbar */
+          }
+
           return Response.json({
             ok: true,
-            current: parseRow(currentRow),
-            compare: parseRow(compareRow),
+            current: { ...parseRow(currentRow), organicSessions: organicCurrent },
+            compare: { ...parseRow(compareRow), organicSessions: organicCompare },
           });
         } catch (e) {
           return Response.json({ ok: false, error: redactSecrets(e) });

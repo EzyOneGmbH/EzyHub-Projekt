@@ -799,6 +799,10 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   const FENSTER_LABEL = cmpAktiv
     ? compareName(dateRange.compareMode) || "Vergleich"
     : "zu Zeitraum-Beginn";
+  // Organic-Traffic-Vergleich (22.08., Volkan): GA4-Quelle → organische
+  // Sessions des Vergleichszeitraums (Live-Endpoint); DFS-Quelle → gespeicherter
+  // Ahrefs-Stand. GSC-Klicks haben keine Vergleichsquelle → keine Zeile.
+  const { data: seoCmpData } = useGa4Compare(selectedClient?.id, dateRange);
   const { run: gscQRun } = useEzyLatestRun(selectedClient?.id, "gsc_queries", bis);
   const gscQ = gscQRun?.result || null;
   // Sichtbarkeits-Historie aus ECHTEN Daten (2026-08-13, User-Wunsch): monatliche
@@ -911,6 +915,14 @@ export function SeoDashboard({ selectedClient, dateRange }) {
         : traffic > 0
           ? "DFS-Schätzung"
           : null;
+  const trafficCmpWert =
+    organicTrafficSource === "GA4"
+      ? cmpAktiv && Number(seoCmpData?.compare?.organicSessions) > 0
+        ? Math.round(Number(seoCmpData.compare.organicSessions))
+        : null
+      : organicTrafficSource === "DFS-Schätzung" && ahrefsVon?.traffic > 0
+        ? Math.round(ahrefsVon.traffic)
+        : null;
   const hasGsc = isOn("seo.gsc") && Boolean(gsc && (gsc.clicks > 0 || gsc.impressions > 0));
   const hasCwv =
     isOn("seo.cwv") &&
@@ -1487,6 +1499,13 @@ export function SeoDashboard({ selectedClient, dateRange }) {
               organicTraffic != null ? Math.round(organicTraffic).toLocaleString("de-CH") : "—"
             }
             color={C.accent}
+            change={
+              organicTraffic != null && trafficCmpWert != null
+                ? fensterPct(organicTraffic, trafficCmpWert)
+                : undefined
+            }
+            compareValue={trafficCmpWert != null ? trafficCmpWert : undefined}
+            compareLabel={FENSTER_LABEL}
           />
           <KpiCard
             icon={Eye}
