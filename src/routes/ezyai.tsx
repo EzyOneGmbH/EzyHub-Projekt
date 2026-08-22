@@ -61,6 +61,7 @@ import {
   Trophy,
   Bell,
   LayoutGrid,
+  Home,
 } from "lucide-react";
 
 // Initialen aus einem Namen (Shell-Profilblock, wie in der EzyRank-Shell).
@@ -139,6 +140,164 @@ const APP_NAV: Array<{ group: string; items: NavItem[] }> = [
 const NAV_LABEL: Record<string, string> = Object.fromEntries(
   APP_NAV.flatMap((g) => g.items.map((i) => [i.id, i.label])),
 );
+
+// Redesign 1b (2h): "Heute" — nativer Handy-Einstieg für EzyAI. Begrüssung +
+// aktiver Kunde + Schnellzugriff in die Bereiche. Keine erfundenen Zahlen.
+function EzyaiHeuteHome({
+  client,
+  showAll,
+  profileName,
+  onSection,
+}: {
+  client: any;
+  showAll: boolean;
+  profileName: string;
+  onSection: (id: string) => void;
+}) {
+  const now = new Date();
+  const h = now.getHours();
+  const gruss = h < 11 ? "Guten Morgen" : h < 18 ? "Guten Tag" : "Guten Abend";
+  const datum = now.toLocaleDateString("de-CH", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+  const vorname =
+    String(profileName || "")
+      .trim()
+      .split(/\s+/)[0] || "";
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div>
+        <h1
+          style={{
+            fontFamily: "'Kamerik 105',Poppins,sans-serif",
+            fontSize: 30,
+            fontWeight: 700,
+            letterSpacing: "-.02em",
+            margin: 0,
+            color: S.txt,
+          }}
+        >
+          Heute
+        </h1>
+        <div style={{ fontSize: 13, color: S.mut, marginTop: 2, textTransform: "capitalize" }}>
+          {datum}
+        </div>
+      </div>
+      <div
+        style={{
+          background: "linear-gradient(135deg,#71008B,#B9009C)",
+          borderRadius: 20,
+          padding: "20px 22px",
+          color: "#fff",
+          boxShadow: "0 14px 30px -16px rgba(119,0,140,.55)",
+        }}
+      >
+        <div
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            opacity: 0.85,
+            textTransform: "uppercase",
+            letterSpacing: ".06em",
+            marginBottom: 8,
+          }}
+        >
+          KI-Sichtbarkeit
+        </div>
+        <div
+          style={{
+            fontFamily: "'Kamerik 105',Poppins,sans-serif",
+            fontSize: 22,
+            fontWeight: 700,
+            lineHeight: 1.3,
+          }}
+        >
+          {gruss}
+          {vorname ? `, ${vorname}` : ""}
+        </div>
+        {!showAll && client && (
+          <div style={{ fontSize: 13, opacity: 0.9, marginTop: 4 }}>
+            {client.name}
+            {client.domain ? ` · ${client.domain}` : ""}
+          </div>
+        )}
+        <button
+          onClick={() => onSection("aeo-insights")}
+          style={{
+            marginTop: 14,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            background: "rgba(255,255,255,.18)",
+            border: "none",
+            color: "#fff",
+            borderRadius: 99,
+            padding: "8px 15px",
+            fontSize: 12.5,
+            fontWeight: 700,
+            fontFamily: "inherit",
+            cursor: "pointer",
+          }}
+        >
+          Zu den Insights ›
+        </button>
+      </div>
+      <div
+        style={{
+          fontSize: 12,
+          fontWeight: 700,
+          color: S.mut,
+          textTransform: "uppercase",
+          letterSpacing: ".06em",
+        }}
+      >
+        Schnellzugriff
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        {APP_NAV.flatMap((g) => g.items).map((t) => {
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.id}
+              onClick={() => onSection(t.id)}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                alignItems: "flex-start",
+                background: S.panel,
+                border: `1px solid ${S.line}`,
+                borderRadius: 16,
+                padding: "16px",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                textAlign: "left",
+                boxShadow: "0 1px 2px rgba(43,0,51,.04)",
+              }}
+            >
+              <span
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 11,
+                  background: S.appTint,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {Icon && <Icon size={18} color={S.app} />}
+              </span>
+              <span style={{ fontSize: 13.5, fontWeight: 700, color: S.txt }}>{t.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 // ── KI-Crawler-Karte (Searchable-Nachbau ⑤, Beta 08/2026) ────────────────────
 // Zeigt Bot-Besuche der letzten 7 Tage aus ai_crawler_hits (Ingest-Endpoint
@@ -5169,7 +5328,10 @@ function EzyAiApp() {
   const { profile } = useEzyProfile();
   const ezy = useEzyClients();
   const [swOpen, setSwOpen] = useState(false);
-  const [view, setView] = useState<"dashboard" | "agent">("dashboard"); // Dashboard/Agent-Switcher
+  // Native-Mobile (2h): "Heute" ist der Handy-Einstieg (<900px), sonst Dashboard.
+  const [view, setView] = useState<"dashboard" | "agent" | "heute">(() =>
+    typeof window !== "undefined" && window.innerWidth < 900 ? "heute" : "dashboard",
+  );
   const [section, setSection] = useState("aeo-insights"); // aktiver Sidebar-App-Bereich
   // Prompt-Kuration ist seit 18.08. der reguläre Bereich "Your Prompts" —
   // alle früheren "Prompts verwalten"-Einstiege führen hierhin.
@@ -5590,7 +5752,7 @@ function EzyAiApp() {
                 style={{ maxWidth: 1180, margin: "0 auto", padding: "22px 22px 60px" }}
               >
                 {/* Bereichs-Titel im Body (Volkan 10.08., Layout wie EzyRank). */}
-                {view !== "agent" && (
+                {view !== "agent" && view !== "heute" && (
                   <div style={{ marginBottom: 20 }}>
                     <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
                       {showAll ? "Agentur-Übersicht" : NAV_LABEL[section] || "Insights"}
@@ -5606,7 +5768,17 @@ function EzyAiApp() {
                     )}
                   </div>
                 )}
-                {view === "agent" ? (
+                {view === "heute" ? (
+                  <EzyaiHeuteHome
+                    client={client}
+                    showAll={showAll}
+                    profileName={profile.name}
+                    onSection={(id) => {
+                      setView("dashboard");
+                      setSection(id);
+                    }}
+                  />
+                ) : view === "agent" ? (
                   <div
                     style={{
                       background: S.panel,
@@ -5757,13 +5929,17 @@ function EzyAiApp() {
           {/* Redesign 1b (Screen 2h): native Bottom-Tab-Bar (nur <900px) —
             Dashboard/Agent + EzyPilot + Apps; ersetzt die Rail auf dem Handy. */}
           <nav className="ezyai-tabbar">
+            <button onClick={() => setView("heute")} style={tabBtn(view === "heute")} title="Heute">
+              <Home size={21} />
+              <span style={{ fontSize: 9.5, fontWeight: 700 }}>Heute</span>
+            </button>
             <button
               onClick={() => setView("dashboard")}
               style={tabBtn(view === "dashboard")}
               title="Dashboard"
             >
               <LayoutDashboard size={21} />
-              <span style={{ fontSize: 9.5, fontWeight: 700 }}>Dashboard</span>
+              <span style={{ fontSize: 9.5, fontWeight: 700 }}>Insights</span>
             </button>
             <button onClick={() => setView("agent")} style={tabBtn(view === "agent")} title="Agent">
               <Bot size={21} />

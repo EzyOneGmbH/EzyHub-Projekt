@@ -1003,6 +1003,73 @@ function HeuteHome({ client, hasClients, profileName, nav, onOpen, onDashboard }
     String(profileName || "")
       .trim()
       .split(/\s+/)[0] || "";
+  // Echte Wochen-KPIs: die letzten 2 rankings- + ga4_traffic-Läufe des Kunden
+  // (gleiche Quellen wie die Dashboard-Kacheln) — Wert + Delta zur Vorperiode.
+  const [kpi, setKpi] = useState(null);
+  useEffect(() => {
+    const id = client?.id;
+    if (!id || !/^[0-9a-f-]{36}$/i.test(id)) {
+      setKpi(null);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      try {
+        const [rk, ga] = await Promise.all([
+          supabase
+            .from("audit_runs")
+            .select("created_at, agg:result->aggregate")
+            .eq("client_id", id)
+            .eq("audit_type", "rankings")
+            .eq("status", "succeeded")
+            .order("created_at", { ascending: false })
+            .limit(2),
+          supabase
+            .from("audit_runs")
+            .select("created_at, ch:result->channels")
+            .eq("client_id", id)
+            .eq("audit_type", "ga4_traffic")
+            .eq("status", "succeeded")
+            .order("created_at", { ascending: false })
+            .limit(2),
+        ]);
+        if (!alive) return;
+        const rr = rk.data || [];
+        const a0 = rr[0]?.agg || null;
+        const a1 = rr[1]?.agg || null;
+        const orgOf = (row) =>
+          (Array.isArray(row?.ch) ? row.ch : []).find((c) =>
+            /^organic search$/i.test(String(c?.channel || "")),
+          )?.sessions;
+        const g = ga.data || [];
+        const t0 = Number(orgOf(g[0]));
+        const t1 = Number(orgOf(g[1]));
+        setKpi({
+          top3: a0 ? Number(a0.top3 ?? 0) : null,
+          top3d: a0 && a1 ? Number(a0.top3 ?? 0) - Number(a1.top3 ?? 0) : null,
+          top10: a0 ? Number(a0.top10 ?? 0) : null,
+          top10d: a0 && a1 ? Number(a0.top10 ?? 0) - Number(a1.top10 ?? 0) : null,
+          traffic: Number.isFinite(t0) && t0 > 0 ? t0 : null,
+          trafficd:
+            Number.isFinite(t0) && Number.isFinite(t1) && t1 > 0
+              ? Math.round(((t0 - t1) / t1) * 100)
+              : null,
+        });
+      } catch {
+        if (alive) setKpi(null);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [client?.id]);
+  const kpiCards = kpi
+    ? [
+        { label: "In Top 3", value: kpi.top3, delta: kpi.top3d, suffix: "" },
+        { label: "In Top 10", value: kpi.top10, delta: kpi.top10d, suffix: "" },
+        { label: "Organic Traffic", value: kpi.traffic, delta: kpi.trafficd, suffix: "%" },
+      ].filter((c) => c.value != null)
+    : [];
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div>
@@ -1088,6 +1155,47 @@ function HeuteHome({ client, hasClients, profileName, nav, onOpen, onDashboard }
           Zum Dashboard <ChevronRight size={14} />
         </button>
       </div>
+      {/* Echte Wochen-KPIs (nur wenn Messläufe vorliegen) */}
+      {kpiCards.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          {kpiCards.map((c) => {
+            const d = c.delta;
+            const up = d != null && d > 0;
+            const down = d != null && d < 0;
+            return (
+              <div
+                key={c.label}
+                style={{
+                  background: C.card,
+                  border: `1px solid ${C.hairline}`,
+                  borderRadius: 16,
+                  padding: "14px 16px",
+                  boxShadow: C.cardShadow,
+                }}
+              >
+                <div style={{ fontSize: 21, fontWeight: 700, color: C.text }}>
+                  {Number(c.value).toLocaleString("de-CH")}
+                </div>
+                <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 2 }}>{c.label}</div>
+                {d != null && (
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      marginTop: 6,
+                      color: down ? C.red : up ? C.green : C.textDim,
+                    }}
+                  >
+                    {up ? "↗ +" : down ? "↘ " : "→ "}
+                    {Math.abs(d)}
+                    {c.suffix}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
       <div
         style={{
           fontSize: 12,
