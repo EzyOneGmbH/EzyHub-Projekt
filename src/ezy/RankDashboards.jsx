@@ -781,7 +781,10 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   const rank = rankRun?.result || null;
   // Fenster-Delta (22.08., Volkan): Stand zu Zeitraum-BEGINN als Vergleich —
   // nur wenn ein früherer, ANDERER Lauf existiert (sonst kein Delta).
-  const von = dateRange?.start || null;
+  // Vergleichsmodus (22.08., Volkan): aktiver Vergleich → "vorher" = Stand zum
+  // Ende des VERGLEICHS-Zeitraums (Vorperiode/Vorjahr); sonst Zeitraum-Anfang.
+  const cmpAktiv = !!dateRange?.compare;
+  const von = cmpAktiv ? dateRange.compare.end : dateRange?.start || null;
   const { run: rankVonRun } = useEzyLatestRun(selectedClient?.id, "rankings", von);
   const { run: ahrefsVonRun } = useEzyLatestRun(selectedClient?.id, "ahrefs", von);
   const rankVon = rankVonRun && rankRun && rankVonRun.id !== rankRun.id ? rankVonRun.result : null;
@@ -793,7 +796,9 @@ export function SeoDashboard({ selectedClient, dateRange }) {
     Number(vorher) > 0 && Number.isFinite(Number(jetzt))
       ? Math.round(((Number(jetzt) - Number(vorher)) / Number(vorher)) * 100)
       : undefined;
-  const FENSTER_LABEL = "zu Zeitraum-Beginn";
+  const FENSTER_LABEL = cmpAktiv
+    ? compareName(dateRange.compareMode) || "Vergleich"
+    : "zu Zeitraum-Beginn";
   const { run: gscQRun } = useEzyLatestRun(selectedClient?.id, "gsc_queries", bis);
   const gscQ = gscQRun?.result || null;
   // Sichtbarkeits-Historie aus ECHTEN Daten (2026-08-13, User-Wunsch): monatliche
@@ -1095,6 +1100,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <OnboardingPanel selectedClient={selectedClient} />
+      <CompareBanner dateRange={dateRange} />
       {/* Datenstatus je Quelle (EzyRank-Ausbau 2026-08-18): echte Zeitstempel aus
           audit_runs bzw. Live-Abfragen — niemals erfundene Werte. Aktionen klar
           getrennt: "Daten neu laden" = nur Datenbankstand, "Neue Messung
