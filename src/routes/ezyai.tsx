@@ -58,7 +58,6 @@ import {
   LayoutDashboard,
   Bot,
   Sparkles,
-  Trophy,
   Bell,
   LayoutGrid,
   Home,
@@ -113,9 +112,6 @@ const APP_NAV: Array<{ group: string; items: NavItem[] }> = [
       { id: "aeo-insights", label: "Insights", icon: LineChart },
       { id: "llm-analytics", label: "LLM Analytics", icon: Zap },
       { id: "traffic", label: "Traffic", icon: Activity },
-      // KI-Konkurrenz (06.08.): DataForSEO LLM-Mentions top_domains/top_pages —
-      // wer die KI-Antworten in den Mess-Themen des Kunden dominiert.
-      { id: "ki-konkurrenz", label: "KI-Konkurrenz", icon: Trophy },
     ],
   },
   { group: "Prompts", items: [{ id: "your-prompts", label: "Your Prompts", icon: MessageSquare }] },
@@ -1190,56 +1186,32 @@ function RangeControl({
     });
     setOpen(false);
   };
+  // Kompakt (21.08., Header-Entschlackung): EIN Dropdown-Button statt der
+  // vierteiligen Button-Gruppe — die Kopfzeile lief mit allen Bereichs-Tabs
+  // sonst über und schnitt Tabs ab. Presets + eigener Zeitraum im Popover.
   return (
-    <div
-      style={{
-        position: "relative",
-        display: "flex",
-        alignItems: "center",
-        gap: 2,
-        background: S.bg,
-        border: `1px solid ${S.line}`,
-        borderRadius: 10,
-        padding: 3,
-      }}
-    >
-      {[7, 30, 90].map((d) => {
-        const a = range.preset === `${d}d`;
-        return (
-          <button
-            key={d}
-            onClick={() => onApply({ label: `${d} Tage`, days: d, preset: `${d}d` })}
-            style={{
-              padding: "6px 12px",
-              borderRadius: 8,
-              border: "none",
-              cursor: "pointer",
-              fontFamily: "inherit",
-              fontSize: 12.5,
-              fontWeight: 600,
-              background: a ? S.appTint : "transparent",
-              color: a ? S.app : S.mut,
-            }}
-          >
-            {d} Tage
-          </button>
-        );
-      })}
+    <div style={{ position: "relative", flexShrink: 0 }}>
       <button
         onClick={() => setOpen((v) => !v)}
+        title="Zeitraum wählen"
         style={{
-          padding: "6px 12px",
-          borderRadius: 8,
-          border: "none",
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "7px 11px",
+          borderRadius: 10,
+          border: `1px solid ${S.line}`,
+          background: S.bg,
           cursor: "pointer",
           fontFamily: "inherit",
           fontSize: 12.5,
           fontWeight: 600,
-          background: range.preset === "custom" ? S.appTint : "transparent",
-          color: range.preset === "custom" ? S.app : S.mut,
+          color: S.app,
+          whiteSpace: "nowrap",
         }}
       >
-        {range.preset === "custom" ? range.label : "Eigener Zeitraum"}
+        {range.preset === "custom" ? range.label : `${range.days} Tage`}
+        <span style={{ fontSize: 9, color: S.mut }}>▼</span>
       </button>
       {open && (
         <>
@@ -1262,6 +1234,35 @@ function RangeControl({
               minWidth: 230,
             }}
           >
+            <div style={{ display: "flex", gap: 6 }}>
+              {[7, 30, 90].map((d) => {
+                const a = range.preset === `${d}d`;
+                return (
+                  <button
+                    key={d}
+                    onClick={() => {
+                      onApply({ label: `${d} Tage`, days: d, preset: `${d}d` });
+                      setOpen(false);
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: "7px 0",
+                      borderRadius: 8,
+                      border: `1px solid ${a ? S.app : S.line}`,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      background: a ? S.appTint : "transparent",
+                      color: a ? S.app : S.mut,
+                    }}
+                  >
+                    {d} Tage
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: 11, color: S.mut, marginTop: 2 }}>Eigener Zeitraum</div>
             <label style={{ fontSize: 11, color: S.mut }}>
               Von
               <input
@@ -1989,10 +1990,6 @@ function TrafficPanel({
   );
 }
 
-// ── KI-Konkurrenz (06.08.2026, DataForSEO LLM Mentions) ──────────────────────
-// Zeigt je Plattform (Google AIO/AI-Mode vs. ChatGPT), welche Domains, Seiten
-// und Marken in den LLM-Antworten zu den Mess-Themen des Kunden am häufigsten
-// zitiert werden. Daten: /api/admin/aivis-competitors (Targets = aivis-Topics).
 // ── Benachrichtigungs-Glocke (13.08., Volkan) ────────────────────────────────
 // Zeigt Sichtbarkeits-Alarme aus app_notifications (Sync-Wächter: Score-
 // Einbruch, verlorene Zitierungen, SoV-Überholung). RLS filtert auf die
@@ -2172,549 +2169,6 @@ function NotificationsBell({ S }: { S: Record<string, string> }) {
                 </div>
               ))
             )}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-// KI-Erwähnungs-Trend (12.08., DataForSEO historical + timeseries_new_lost):
-// monatliche Erwähnungen der KUNDEN-DOMAIN im LLM-Korpus (domain-basiert =
-// sprachunabhängig, Daten ab 2025-08) + neue/verlorene Erwähnungen.
-function MentionsTrendCard({ clientId, S }: { clientId: string; S: Record<string, string> }) {
-  const [t, setT] = useState<any>(null);
-  useEffect(() => {
-    let alive = true;
-    setT(null);
-    (async () => {
-      try {
-        const session = (await supabase.auth.getSession()).data.session;
-        const r = await fetch(
-          `/api/admin/aivis-competitors?client=${encodeURIComponent(clientId)}&trend=1`,
-          {
-            headers: { Authorization: `Bearer ${session?.access_token || ""}` },
-          },
-        );
-        const j = await r.json().catch(() => ({}));
-        if (alive) setT(j.ok ? j : { ok: false });
-      } catch {
-        if (alive) setT({ ok: false });
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [clientId]);
-  const card: any = {
-    background: S.panel,
-    border: `1px solid ${S.line}`,
-    borderRadius: 14,
-    padding: 18,
-  };
-  if (t === null)
-    return (
-      <div style={{ ...card, color: S.mut, fontSize: 12.5 }}>KI-Erwähnungs-Trend wird geladen…</div>
-    );
-  if (!t.ok) return null;
-  const series: Array<{ label: string; color: string; pts: any[] }> = [
-    { label: "Google AIO", color: "#77008C", pts: t.google || [] },
-    { label: "ChatGPT", color: "#0f9d6c", pts: t.chatgpt || [] },
-  ].filter((s) => s.pts.length);
-  if (!series.length && !(t.newLost || []).length) return null;
-  const months = [
-    ...new Set(
-      series.flatMap((s) => s.pts.map((p: any) => `${p.y}-${String(p.m).padStart(2, "0")}`)),
-    ),
-  ].sort();
-  const maxV = Math.max(1, ...series.flatMap((s) => s.pts.map((p: any) => p.mentions)));
-  const W = 560,
-    H = 130,
-    PL = 30,
-    PR = 8,
-    PT = 8,
-    PB = 18;
-  const x = (i: number) => PL + (months.length > 1 ? (i / (months.length - 1)) * (W - PL - PR) : 0);
-  const y = (v: number) => PT + (1 - v / maxV) * (H - PT - PB);
-  const nl = (t.newLost || []).slice(-6);
-  const latest = nl[nl.length - 1];
-  return (
-    <div style={card}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "baseline",
-          gap: 8,
-          marginBottom: 4,
-          flexWrap: "wrap",
-        }}
-      >
-        <div style={{ fontWeight: 700, fontSize: 13.5, color: S.txt }}>KI-Erwähnungs-Trend</div>
-        <span style={{ fontSize: 11, color: S.mut }}>
-          Erwähnungen von {t.client?.domain} in gespeicherten KI-Antworten, je Monat
-          (sprachunabhängig, Korpus ab Aug 2025)
-        </span>
-        {latest && (latest.new > 0 || latest.lost > 0) && (
-          <span style={{ marginLeft: "auto", fontSize: 11.5, fontWeight: 700 }}>
-            <span style={{ color: "#0f9d6c" }}>+{latest.new} neu</span>
-            <span style={{ color: S.mut }}> / </span>
-            <span style={{ color: "#dc2626" }}>−{latest.lost} verloren</span>
-            <span style={{ color: S.mut, fontWeight: 400 }}> (ChatGPT, aktueller Monat)</span>
-          </span>
-        )}
-      </div>
-      {months.length >= 2 && (
-        <div style={{ overflowX: "auto" }}>
-          <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxWidth: 720, display: "block" }}>
-            {[0, 0.5, 1].map((f) => (
-              <g key={f}>
-                <line
-                  x1={PL}
-                  x2={W - PR}
-                  y1={y(f * maxV)}
-                  y2={y(f * maxV)}
-                  stroke={S.line}
-                  strokeWidth="1"
-                />
-                <text x={PL - 4} y={y(f * maxV) + 3} textAnchor="end" fontSize="8.5" fill={S.mut}>
-                  {Math.round(f * maxV)}
-                </text>
-              </g>
-            ))}
-            {series.map((s) => {
-              const map = new Map(
-                s.pts.map((p: any) => [`${p.y}-${String(p.m).padStart(2, "0")}`, p.mentions]),
-              );
-              const path = months
-                .map(
-                  (mo, i) =>
-                    `${i ? "L" : "M"}${x(i).toFixed(1)},${y(Number(map.get(mo) || 0)).toFixed(1)}`,
-                )
-                .join(" ");
-              return (
-                <path
-                  key={s.label}
-                  d={path}
-                  fill="none"
-                  stroke={s.color}
-                  strokeWidth="2"
-                  strokeLinejoin="round"
-                />
-              );
-            })}
-            {months.map((mo, i) =>
-              i === 0 || i === months.length - 1 || i === Math.floor(months.length / 2) ? (
-                <text key={mo} x={x(i)} y={H - 4} textAnchor="middle" fontSize="8.5" fill={S.mut}>
-                  {mo.slice(2)}
-                </text>
-              ) : null,
-            )}
-          </svg>
-          <div style={{ display: "flex", gap: 12, marginTop: 4 }}>
-            {series.map((s) => {
-              // vs.-Vormonat-Badge (12.08.): aus den bereits geladenen
-              // historical-Monatswerten — kein zusätzlicher API-Call.
-              const pts2 = s.pts.slice(-2);
-              const delta = pts2.length === 2 ? pts2[1].mentions - pts2[0].mentions : 0;
-              return (
-                <span
-                  key={s.label}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 5,
-                    fontSize: 10.5,
-                    color: S.mut,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 10,
-                      height: 3,
-                      borderRadius: 2,
-                      background: s.color,
-                      display: "inline-block",
-                    }}
-                  />
-                  {s.label}
-                  {delta !== 0 && (
-                    <span style={{ fontWeight: 700, color: delta > 0 ? "#0f9d6c" : "#dc2626" }}>
-                      {delta > 0 ? "▲+" : "▼"}
-                      {delta} vs. Vormonat
-                    </span>
-                  )}
-                </span>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function CompetitorsPanel({ clientId, S }: { clientId: string; S: Record<string, string> }) {
-  const [platform, setPlatform] = useState<"google" | "chat_gpt">("google");
-  const [data, setData] = useState<any>(null);
-  const [err, setErr] = useState("");
-
-  useEffect(() => {
-    let alive = true;
-    setData(null);
-    setErr("");
-    (async () => {
-      try {
-        const session = (await supabase.auth.getSession()).data.session;
-        const r = await fetch(
-          `/api/admin/aivis-competitors?client=${encodeURIComponent(clientId)}&platform=${platform}`,
-          {
-            headers: { Authorization: `Bearer ${session?.access_token || ""}` },
-          },
-        );
-        const j = await r.json().catch(() => ({}));
-        if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
-        if (alive) setData(j);
-      } catch (e: any) {
-        if (alive) {
-          setErr(String(e?.message || e));
-          setData({ ok: false });
-        }
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [clientId, platform]);
-
-  const card: any = {
-    background: S.panel,
-    border: `1px solid ${S.line}`,
-    borderRadius: 14,
-    padding: 18,
-  };
-  const ownHost = String(data?.client?.domain || "")
-    .replace(/^www\./, "")
-    .toLowerCase();
-  const isOwn = (key: string) => {
-    if (!ownHost) return false;
-    const h = key
-      .replace(/^https?:\/\//, "")
-      .replace(/^www\./, "")
-      .toLowerCase();
-    return h === ownHost || h.startsWith(ownHost + "/");
-  };
-  const maxMentions = Math.max(1, ...((data?.domains as any[]) || []).map((d) => d.mentions));
-
-  const listCard = (
-    title: string,
-    sub: string,
-    rows: Array<{ key: string; mentions: number; aiVolume: number }>,
-    bar: boolean,
-  ) => (
-    <div style={card}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10 }}>
-        <div style={{ fontWeight: 700, fontSize: 13.5, color: S.txt }}>{title}</div>
-        <span style={{ fontSize: 11, color: S.mut }}>{sub}</span>
-      </div>
-      {!rows.length ? (
-        <div style={{ fontSize: 12, color: S.mut }}>
-          Für die Mess-Themen dieses Kunden liefert die Mentions-Datenbank hier (noch) keine Daten —
-          der Korpus ist bei ChatGPT dünner als bei Google und wächst laufend.
-        </div>
-      ) : (
-        rows.map((r, i) => (
-          <div
-            key={r.key}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              fontSize: 12.5,
-              padding: "6px 0",
-              borderBottom: `1px solid ${S.line}`,
-            }}
-          >
-            <span
-              style={{
-                width: 18,
-                textAlign: "right",
-                color: S.mut,
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
-              {i + 1}.
-            </span>
-            <span
-              style={{
-                flex: 1,
-                minWidth: 0,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                color: isOwn(r.key) ? S.app : S.txt,
-                fontWeight: isOwn(r.key) ? 700 : 500,
-              }}
-            >
-              {r.key}
-              {isOwn(r.key) ? " ← dieser Kunde" : ""}
-            </span>
-            {bar && (
-              <span
-                style={{
-                  width: 90,
-                  height: 5,
-                  borderRadius: 99,
-                  background: S.line,
-                  overflow: "hidden",
-                  flexShrink: 0,
-                }}
-              >
-                <span
-                  style={{
-                    display: "block",
-                    width: `${Math.round((r.mentions / maxMentions) * 100)}%`,
-                    height: "100%",
-                    background: isOwn(r.key) ? S.app : S.mut,
-                    borderRadius: 99,
-                  }}
-                />
-              </span>
-            )}
-            <span
-              style={{ color: S.txt, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}
-              title="Erwähnungen in LLM-Antworten"
-            >
-              {r.mentions}×
-            </span>
-            <span
-              style={{
-                color: S.mut,
-                fontVariantNumeric: "tabular-nums",
-                whiteSpace: "nowrap",
-                fontSize: 11,
-              }}
-              title="AI-Suchvolumen der zugehörigen Prompts"
-            >
-              {r.aiVolume.toLocaleString("de-CH")}
-            </span>
-          </div>
-        ))
-      )}
-    </div>
-  );
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 12, color: S.mut }}>Plattform</span>
-        <div
-          style={{
-            display: "flex",
-            border: `1px solid ${S.line}`,
-            borderRadius: 8,
-            padding: 2,
-            background: S.panel,
-          }}
-        >
-          {(
-            [
-              ["google", "Google AIO / AI Mode"],
-              ["chat_gpt", "ChatGPT"],
-            ] as const
-          ).map(([v, label]) => (
-            <button
-              key={v}
-              onClick={() => setPlatform(v)}
-              style={{
-                padding: "4px 12px",
-                borderRadius: 6,
-                border: "none",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                fontSize: 12,
-                fontWeight: 600,
-                background: platform === v ? S.app : "transparent",
-                color: platform === v ? "#fff" : S.mut,
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        {data?.targets?.length ? (
-          <span style={{ fontSize: 11, color: S.mut }}>
-            Themen: {data.targets.slice(0, 5).join(" · ")}
-            {data.targets.length > 5 ? ` (+${data.targets.length - 5})` : ""}
-          </span>
-        ) : null}
-        {err && <span style={{ fontSize: 12, color: "#dc2626" }}>{err}</span>}
-      </div>
-      <MentionsTrendCard clientId={clientId} S={S} />
-      {data === null ? (
-        <div style={{ ...card, color: S.mut, fontSize: 13 }}>Lade KI-Konkurrenz-Daten…</div>
-      ) : !data.ok ? (
-        <div style={{ ...card, color: S.mut, fontSize: 13 }}>
-          Daten derzeit nicht abrufbar{err ? ` — ${err}` : ""}.
-        </div>
-      ) : (
-        <>
-          {data.note && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: 8,
-                borderRadius: 10,
-                border: "1px solid #f0c36d",
-                background: "#fdf6e3",
-                color: "#8a6d1b",
-                padding: "8px 12px",
-                fontSize: 12,
-              }}
-            >
-              <span aria-hidden>🌐</span>
-              <span>{data.note}</span>
-            </div>
-          )}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))",
-              gap: 16,
-            }}
-          >
-            {listCard(
-              "Meistzitierte Domains",
-              "wer die KI-Antworten dominiert",
-              data.domains || [],
-              true,
-            )}
-            {listCard(
-              "Meistzitierte Seiten",
-              "die konkreten Quellen-URLs",
-              data.pages || [],
-              false,
-            )}
-          </div>
-          {Array.isArray(data.brands) &&
-            data.brands.length > 0 &&
-            listCard(
-              "Meistgenannte Marken",
-              "Brand-Entitäten in den Antworten",
-              data.brands,
-              false,
-            )}
-          {/* Mentions-SoV (12.08., cross_aggregated_metrics): Kunde vs. Rivalen
-              im echten Antwort-Korpus — unabhängige Zweitmessung zum
-              prompt-basierten SoV des Dashboards. */}
-          {Array.isArray(data.sov) && data.sov.some((s: any) => s.mentions > 0) && (
-            <div style={card}>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10 }}>
-                <div style={{ fontWeight: 700, fontSize: 13.5, color: S.txt }}>
-                  Marken-SoV im KI-Korpus
-                </div>
-                <span style={{ fontSize: 11, color: S.mut }}>
-                  Erwähnungen im{" "}
-                  {data.platform === "google" ? "Schweizer Google-AIO" : "globalen ChatGPT"}-Korpus
-                  — unabhängig von unseren Mess-Prompts
-                </span>
-              </div>
-              {(() => {
-                const maxM = Math.max(1, ...data.sov.map((s: any) => s.mentions));
-                return data.sov.map((s: any) => (
-                  <div
-                    key={s.name}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      fontSize: 12.5,
-                      padding: "6px 0",
-                      borderBottom: `1px solid ${S.line}`,
-                    }}
-                  >
-                    <span
-                      style={{
-                        flex: "0 0 220px",
-                        minWidth: 0,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        color: s.isSelf ? S.app : S.txt,
-                        fontWeight: s.isSelf ? 700 : 500,
-                      }}
-                    >
-                      {s.name}
-                      {s.isSelf ? " ← dieser Kunde" : ""}
-                    </span>
-                    <span
-                      style={{
-                        flex: 1,
-                        height: 5,
-                        borderRadius: 99,
-                        background: S.line,
-                        overflow: "hidden",
-                      }}
-                    >
-                      <span
-                        style={{
-                          display: "block",
-                          width: `${Math.round((s.mentions / maxM) * 100)}%`,
-                          height: "100%",
-                          background: s.isSelf ? S.app : S.mut,
-                          borderRadius: 99,
-                        }}
-                      />
-                    </span>
-                    <span
-                      style={{
-                        flexShrink: 0,
-                        width: 90,
-                        textAlign: "right",
-                        color: S.txt,
-                        fontVariantNumeric: "tabular-nums",
-                      }}
-                    >
-                      {s.mentions} · {s.share}%
-                    </span>
-                  </div>
-                ));
-              })()}
-            </div>
-          )}
-          {Array.isArray(data.categories) && data.categories.length > 0 && (
-            <div style={card}>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10 }}>
-                <div style={{ fontWeight: 700, fontSize: 13.5, color: S.txt }}>
-                  KI-Kategorien der Branche
-                </div>
-                <span style={{ fontSize: 11, color: S.mut }}>
-                  in welche Kategorien ChatGPT die genannten Marken einsortiert
-                </span>
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {data.categories.map((c: any) => (
-                  <span
-                    key={c.key}
-                    style={{
-                      borderRadius: 99,
-                      border: `1px solid ${S.line}`,
-                      background: S.bg,
-                      padding: "3px 10px",
-                      fontSize: 11.5,
-                      color: S.txt,
-                    }}
-                  >
-                    {c.key} <span style={{ color: S.mut }}>({c.mentions})</span>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-          <div style={{ fontSize: 11, color: S.mut }}>
-            Quelle: DataForSEO LLM-Mentions-Datenbank (Targets = aivis-Mess-Themen, partial match).
-            Erwähnungen = Zitate in gespeicherten LLM-Antworten; zweite Zahl = AI-Suchvolumen der
-            zugehörigen Prompts.
           </div>
         </>
       )}
@@ -2966,7 +2420,8 @@ function OpportunitiesPanel({
               .slice(0, 4)
               .map((q: any) => `„${q.q}"`)
               .join(" · ")}. Zitierfähigen Inhalt zu diesen Fragen aufbauen.`,
-            go: "ki-konkurrenz",
+            // kein go-Ziel mehr: der Bereich KI-Konkurrenz wurde entfernt,
+            // Hauptaktion des Gaps ist "Brief erstellen".
             // Content-Loop (13.08.): direkt aus dem Gap einen Brief erzeugen.
             brief: {
               rival: g.rival,
@@ -3400,24 +2855,26 @@ function OpportunitiesPanel({
               {briefBusy === idx ? "Erzeuge Brief…" : "Brief erstellen"}
             </button>
           )}
-          <button
-            onClick={() => (i.action === "curation" ? onOpenCuration() : onGo(i.go))}
-            style={{
-              flexShrink: 0,
-              alignSelf: "center",
-              padding: "5px 10px",
-              borderRadius: 8,
-              border: `1px solid ${S.line}`,
-              background: S.bg,
-              color: S.app,
-              fontSize: 11.5,
-              fontWeight: 600,
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            {i.action === "curation" ? "Prüfen" : "Ansehen"}
-          </button>
+          {(i.action === "curation" || i.go) && (
+            <button
+              onClick={() => (i.action === "curation" ? onOpenCuration() : onGo(i.go))}
+              style={{
+                flexShrink: 0,
+                alignSelf: "center",
+                padding: "5px 10px",
+                borderRadius: 8,
+                border: `1px solid ${S.line}`,
+                background: S.bg,
+                color: S.app,
+                fontSize: 11.5,
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              {i.action === "curation" ? "Prüfen" : "Ansehen"}
+            </button>
+          )}
         </div>
         {editFp === i.fp && (
           <div
@@ -5848,8 +5305,6 @@ function EzyAiApp() {
                   <LlmAnalyticsPanel clientId={client.id} S={S} range={range} compare={compare} />
                 ) : section === "traffic" ? (
                   <TrafficPanel clientId={client.id} S={S} range={range} compare={compare} />
-                ) : section === "ki-konkurrenz" ? (
-                  <CompetitorsPanel clientId={client.id} S={S} />
                 ) : section === "site-health" || section === "issues" ? (
                   <SiteHealthPanel
                     clientId={client.id}
