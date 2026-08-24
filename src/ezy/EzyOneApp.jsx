@@ -6514,7 +6514,7 @@ const NAV = [
   // wieder einkommentieren (+ "tasks" in appRegistry seo.pages).
   // { id: "tasks", label: "Projekt", icon: ListChecks },
   // Umbenannt AI Tools → Ezy-Tools (Volkan 24.08.): bündelt Audit Skills + Agents.
-  { id: "tools", label: "Ezy-Tools", icon: Zap },
+  { id: "tools", label: "Ezy Tools", icon: Zap }, // Schreibweise ohne Bindestrich (Volkan 24.08.)
   { id: "agents", label: "Agents", icon: Bot },
   // Content-Tab (Volkan 24.08.): vorerst deaktiviert — bei Bedarf Zeile wieder
   // einkommentieren. Die Seite selbst bleibt im Scope (appRegistry seo.pages),
@@ -7070,8 +7070,14 @@ function App({ appScope = null }) {
                             id: `page:${n.id}`,
                             label: n.label,
                             icon: n.icon,
+                            // Einheitlich fuer die Haupt-Apps (Volkan 24.08.):
+                            // Dashboard-Zone + Werkzeuge-Zone wie in EzyRank.
                             group:
-                              appScope === "seo" && n.id !== "dashboard" ? "Werkzeuge" : undefined,
+                              appScope === "seo" || appScope === "ads"
+                                ? n.id === "dashboard"
+                                  ? "Dashboard"
+                                  : "Werkzeuge"
+                                : undefined,
                             active: page === n.id,
                             onClick: () => setPage(n.id),
                           },

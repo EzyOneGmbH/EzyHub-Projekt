@@ -5017,10 +5017,11 @@ function EzyAiApp() {
                         })),
                       ),
                       {
+                        // Einheitlich mit EzyRank/EzyPerformance (Volkan 24.08.)
                         id: "view:agent",
-                        label: "Agent",
-                        icon: Bot,
-                        group: "App",
+                        label: "Ezy Tools",
+                        icon: Zap,
+                        group: "Werkzeuge",
                         active: view === "agent",
                         onClick: () => setView("agent"),
                       },
@@ -5412,9 +5413,13 @@ function EzyAiApp() {
               <LayoutDashboard size={21} />
               <span style={{ fontSize: 9.5, fontWeight: 700 }}>Insights</span>
             </button>
-            <button onClick={() => setView("agent")} style={tabBtn(view === "agent")} title="Agent">
-              <Bot size={21} />
-              <span style={{ fontSize: 9.5, fontWeight: 700 }}>Agent</span>
+            <button
+              onClick={() => setView("agent")}
+              style={tabBtn(view === "agent")}
+              title="Ezy Tools"
+            >
+              <Zap size={21} />
+              <span style={{ fontSize: 9.5, fontWeight: 700 }}>Ezy Tools</span>
             </button>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
               <EzyPilotFab size={44} elevated />
