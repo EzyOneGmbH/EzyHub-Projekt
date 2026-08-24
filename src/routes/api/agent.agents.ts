@@ -31,7 +31,9 @@ async function proxy(request: Request, method: string): Promise<Response> {
       "X-Ezy-Organization": ctx.organizationId,
       "X-Ezy-Role": ctx.role,
     },
-    signal: AbortSignal.timeout(15_000),
+    // 24.08.: 15s -> 25s — der agent-service auf dem Cloud-PC braucht unter
+    // Last gelegentlich laenger; ein Timeout erschien dem Benutzer als Fehler.
+    signal: AbortSignal.timeout(25_000),
   };
   if (method === "POST" || method === "DELETE") {
     const body: any = await request.json().catch(() => ({}));

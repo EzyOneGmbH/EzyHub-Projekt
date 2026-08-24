@@ -4813,6 +4813,17 @@ function SkillPicker({ selected, onChange }) {
 // whether the agents are running and trace what they did.
 const WEEKDAY_SHORT = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 
+// Agent-Service-Fehler benutzerfreundlich (24.08.): die Proxys brechen nach
+// Timeout ab und reichen "The operation was aborted due to timeout" roh durch —
+// hier wird daraus ein verständlicher Hinweis (die Ansichten laden automatisch nach).
+const AGENT_ERR_TRANSIENT = /timeout|abort|fetch failed|failed to fetch|networkerror|50[234]/i;
+const friendlyAgentError = (e) => {
+  const s = String(e?.message || e || "");
+  return AGENT_ERR_TRANSIENT.test(s)
+    ? "Agent-Service antwortet gerade nicht — es wird automatisch erneut geladen."
+    : s;
+};
+
 function ActivityPage({ selectedClient, clients }) {
   // Kostenübersicht ist ausschliesslich fuer den SuperAdmin (owner) sichtbar –
   // Admins und Mitarbeiter sehen sie nicht (RBAC 2026-07-15).
@@ -4846,13 +4857,13 @@ function ActivityPage({ selectedClient, clients }) {
           costs: j.costs || null,
         });
         setErr("");
-      } else setErr(j.error || "Laden fehlgeschlagen");
+      } else setErr(friendlyAgentError(j.error || "Laden fehlgeschlagen"));
       const ar = await fetch("/api/agent/approvals", { headers: auth })
         .then((x) => x.json())
         .catch(() => ({}));
       if (ar?.ok) setApprovals(ar.items || []);
     } catch (e) {
-      setErr(String(e?.message || e));
+      setErr(friendlyAgentError(e));
     } finally {
       setLoading(false);
     }
@@ -5331,15 +5342,14 @@ function ActivityPage({ selectedClient, clients }) {
         }}
       >
         <FileText size={15} color={C.textDim} />
-        Alle vom Agenten durchgeführten Änderungen werden täglich unter{" "}
-        <strong style={{ color: C.text, margin: "0 3px" }}>Content → Notes</strong> protokolliert
+        Alle vom Agenten durchgeführten Änderungen werden täglich als Notiz protokolliert
         („Agent-Änderungen JJJJ-MM-TT").
       </div>
     </div>
   );
 }
 
-function AgentsPage({ selectedClient }) {
+function AgentsPage({ selectedClient, appScope = null }) {
   // Kosten sind nur fuer den SuperAdmin (owner) sichtbar (RBAC 2026-07-15).
   const { role } = useAuth();
   const isOwner = role === "owner";
@@ -5398,6 +5408,10 @@ function AgentsPage({ selectedClient }) {
     setBusy(false);
   };
 
+  // Laden mit Auto-Retry (24.08.): der agent-service auf dem Cloud-PC kann
+  // kurzzeitig nicht antworten (Timeout im Proxy) — bis zu 3 stille
+  // Wiederholungen statt einer rohen Fehlermeldung.
+  const retryRef = useRef(0);
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -5405,12 +5419,19 @@ function AgentsPage({ selectedClient }) {
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
       setAgents(j.agents || []);
+      retryRef.current = 0;
+      setMsg("");
     } catch (e) {
-      setMsg(String(e?.message || e));
+      setMsg(friendlyAgentError(e));
+      if (AGENT_ERR_TRANSIENT.test(String(e?.message || e)) && retryRef.current < 3) {
+        retryRef.current += 1;
+        setTimeout(() => void load(), 6000);
+      }
     }
     setLoading(false);
   }, [clientId]);
   useEffect(() => {
+    retryRef.current = 0;
     void load();
   }, [load]);
 
@@ -5544,6 +5565,19 @@ function AgentsPage({ selectedClient }) {
     }
     setRunningId(null);
   };
+
+  // Nur der Agent der jeweiligen WebApp (Volkan 24.08.): EzyRank zeigt die
+  // SEO/GEO-Agenten, EzyPerformance nur die Ads-Agenten — erkannt an
+  // ads-Skills (z. B. ads-autopilot) bzw. «Ads» im Namen. Admin/Legacy: alle.
+  const isAdsAgent = (a) =>
+    (a.skills || []).some((s) => /^(ads|google[-_]?ads)/i.test(String(s))) ||
+    /\bads\b/i.test(String(a.name || ""));
+  const visibleAgents =
+    !appScope || appScope === "admin"
+      ? agents
+      : appScope === "ads"
+        ? agents.filter(isAdsAgent)
+        : agents.filter((a) => !isAdsAgent(a));
 
   const inputStyle = {
     width: "100%",
@@ -5815,7 +5849,7 @@ function AgentsPage({ selectedClient }) {
       {!editing &&
         (loading ? (
           <div style={{ color: C.textMuted, fontSize: 13 }}>Lädt…</div>
-        ) : agents.length === 0 ? (
+        ) : visibleAgents.length === 0 ? (
           <div
             style={{
               color: C.textMuted,
@@ -5837,7 +5871,7 @@ function AgentsPage({ selectedClient }) {
               gap: 14,
             }}
           >
-            {agents.map((a) => (
+            {visibleAgents.map((a) => (
               <div
                 key={a.id}
                 style={{
@@ -7264,7 +7298,7 @@ function App({ appScope = null }) {
                           borderTop: `1px solid ${C.border}`,
                         }}
                       >
-                        <AgentsPage selectedClient={client} />
+                        <AgentsPage selectedClient={client} appScope={appScope} />
                       </div>
                     </>
                   )}

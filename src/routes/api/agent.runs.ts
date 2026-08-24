@@ -32,13 +32,15 @@ export const Route = createFileRoute("/api/agent/runs")({
         const b = base.replace(/\/+$/, "");
         const headers = { Authorization: `Bearer ${secret}` };
         try {
+          // 24.08.: 10s -> 20s je Teil-Abfrage — der agent-service braucht
+          // unter Last laenger; die Ansicht laedt ohnehin alle 8s nach.
           const [runsRes, schedRes, upRes, costRes] = await Promise.all([
-            fetch(`${b}/jobs`, { headers, signal: AbortSignal.timeout(10_000) }),
-            fetch(`${b}/schedules`, { headers, signal: AbortSignal.timeout(10_000) }),
-            fetch(`${b}/uptime`, { headers, signal: AbortSignal.timeout(10_000) }).catch(
+            fetch(`${b}/jobs`, { headers, signal: AbortSignal.timeout(20_000) }),
+            fetch(`${b}/schedules`, { headers, signal: AbortSignal.timeout(20_000) }),
+            fetch(`${b}/uptime`, { headers, signal: AbortSignal.timeout(20_000) }).catch(
               () => null,
             ),
-            fetch(`${b}/costs`, { headers, signal: AbortSignal.timeout(10_000) }).catch(() => null),
+            fetch(`${b}/costs`, { headers, signal: AbortSignal.timeout(20_000) }).catch(() => null),
           ]);
           const runsJson = await runsRes.json().catch(() => ({}));
           const schedJson = await schedRes.json().catch(() => ({}));
