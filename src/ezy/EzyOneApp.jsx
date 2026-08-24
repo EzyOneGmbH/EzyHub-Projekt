@@ -4960,6 +4960,99 @@ function ActivityPage({ selectedClient, clients }) {
       });
     } catch {}
   };
+  // Aufgaben aus frueheren Report-Mails, die (noch) keinem gespeicherten Report
+  // zugeordnet sind — das Postfach persistiert Reports erst ab 24.08.
+  const shownTaskIds = new Set(
+    clientReports.flatMap((r) => (Array.isArray(r.taskIds) ? r.taskIds : [])),
+  );
+  const looseTasks = reportTasks.filter(
+    (t) =>
+      t.status === "offen" &&
+      !shownTaskIds.has(t.id) &&
+      (!cid || normName(t.client) === normName(selectedClient?.name)),
+  );
+  // Gemeinsame Aufgaben-Karte (Reports-Accordion + «Offene Aufgaben»-Sektion).
+  const renderReportTask = (t) => {
+    const stc = t.status === "offen" ? C.accent : t.status === "erledigt" ? C.green : C.textDim;
+    return (
+      <div
+        key={t.id}
+        style={{
+          background: C.bg,
+          border: `1px solid ${C.border}`,
+          borderRadius: 10,
+          padding: "11px 13px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: 10,
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{t.titel}</div>
+          <Badge color={stc}>{t.status}</Badge>
+        </div>
+        {t.problem && (
+          <div style={{ fontSize: 12.5, color: C.textMuted, marginTop: 4, lineHeight: 1.5 }}>
+            {t.problem}
+          </div>
+        )}
+        {Array.isArray(t.schritte) && t.schritte.length > 0 && (
+          <ul
+            style={{
+              margin: "6px 0 0",
+              paddingLeft: 18,
+              fontSize: 12.5,
+              color: C.textMuted,
+              lineHeight: 1.55,
+            }}
+          >
+            {t.schritte.map((s, i) => (
+              <li key={i}>{s}</li>
+            ))}
+          </ul>
+        )}
+        <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+          {t.status !== "erledigt" && (
+            <Btn
+              size="sm"
+              variant="secondary"
+              onClick={() => setReportTaskStatus(t.id, "erledigt")}
+            >
+              Erledigt
+            </Btn>
+          )}
+          {t.status !== "offen" && (
+            <Btn size="sm" variant="secondary" onClick={() => setReportTaskStatus(t.id, "offen")}>
+              Wieder öffnen
+            </Btn>
+          )}
+          {t.status !== "verworfen" && (
+            <Btn
+              size="sm"
+              variant="secondary"
+              onClick={() => setReportTaskStatus(t.id, "verworfen")}
+            >
+              Verwerfen
+            </Btn>
+          )}
+          <Btn
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              const k = window.prompt("Kommentar für den Agenten (ändert den Status nicht):");
+              if (k && k.trim()) setReportTaskStatus(t.id, "kommentar", k.trim());
+            }}
+          >
+            Kommentar
+          </Btn>
+        </div>
+      </div>
+    );
+  };
   const setApprovalStatus = async (id, status) => {
     setApprovals((p) => p.map((a) => (a.id === id ? { ...a, status } : a)));
     try {
@@ -5201,115 +5294,7 @@ function ActivityPage({ selectedClient, clients }) {
                             margin: "14px 0",
                           }}
                         >
-                          {tasks.map((t) => {
-                            const stc =
-                              t.status === "offen"
-                                ? C.accent
-                                : t.status === "erledigt"
-                                  ? C.green
-                                  : C.textDim;
-                            return (
-                              <div
-                                key={t.id}
-                                style={{
-                                  background: C.bg,
-                                  border: `1px solid ${C.border}`,
-                                  borderRadius: 10,
-                                  padding: "11px 13px",
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "flex-start",
-                                    justifyContent: "space-between",
-                                    gap: 10,
-                                  }}
-                                >
-                                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>
-                                    {t.titel}
-                                  </div>
-                                  <Badge color={stc}>{t.status}</Badge>
-                                </div>
-                                {t.problem && (
-                                  <div
-                                    style={{
-                                      fontSize: 12.5,
-                                      color: C.textMuted,
-                                      marginTop: 4,
-                                      lineHeight: 1.5,
-                                    }}
-                                  >
-                                    {t.problem}
-                                  </div>
-                                )}
-                                {Array.isArray(t.schritte) && t.schritte.length > 0 && (
-                                  <ul
-                                    style={{
-                                      margin: "6px 0 0",
-                                      paddingLeft: 18,
-                                      fontSize: 12.5,
-                                      color: C.textMuted,
-                                      lineHeight: 1.55,
-                                    }}
-                                  >
-                                    {t.schritte.map((s, i) => (
-                                      <li key={i}>{s}</li>
-                                    ))}
-                                  </ul>
-                                )}
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    gap: 6,
-                                    marginTop: 10,
-                                    flexWrap: "wrap",
-                                  }}
-                                >
-                                  {t.status !== "erledigt" && (
-                                    <Btn
-                                      size="sm"
-                                      variant="secondary"
-                                      onClick={() => setReportTaskStatus(t.id, "erledigt")}
-                                    >
-                                      Erledigt
-                                    </Btn>
-                                  )}
-                                  {t.status !== "offen" && (
-                                    <Btn
-                                      size="sm"
-                                      variant="secondary"
-                                      onClick={() => setReportTaskStatus(t.id, "offen")}
-                                    >
-                                      Wieder öffnen
-                                    </Btn>
-                                  )}
-                                  {t.status !== "verworfen" && (
-                                    <Btn
-                                      size="sm"
-                                      variant="secondary"
-                                      onClick={() => setReportTaskStatus(t.id, "verworfen")}
-                                    >
-                                      Verwerfen
-                                    </Btn>
-                                  )}
-                                  <Btn
-                                    size="sm"
-                                    variant="secondary"
-                                    onClick={() => {
-                                      const k = window.prompt(
-                                        "Kommentar für den Agenten (ändert den Status nicht):",
-                                      );
-                                      if (k && k.trim())
-                                        setReportTaskStatus(t.id, "kommentar", k.trim());
-                                    }}
-                                  >
-                                    Kommentar
-                                  </Btn>
-                                </div>
-                              </div>
-                            );
-                          })}
+                          {tasks.map((t) => renderReportTask(t))}
                         </div>
                       )}
                       <div style={{ marginTop: tasks.length ? 0 : 14 }}>
@@ -5324,11 +5309,47 @@ function ActivityPage({ selectedClient, clients }) {
         </div>
       )}
 
+      {/* Offene Aufgaben aus frueheren Report-Mails (noch ohne gespeicherten
+        Report — das Postfach persistiert Reports erst ab 24.08.). */}
+      {looseTasks.length > 0 && (
+        <div>
+          <div
+            style={{
+              fontSize: 14,
+              fontWeight: 800,
+              color: C.text,
+              marginBottom: 10,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <CheckCircle size={15} color={C.accent} /> Offene Aufgaben
+            <span style={{ color: C.textMuted, fontWeight: 400, fontSize: 12 }}>
+              · {looseTasks.length} aus früheren Reports
+            </span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {looseTasks.map((t) => renderReportTask(t))}
+          </div>
+        </div>
+      )}
+
       {/* Freigaben (Wartet auf dich) */}
       {clientApprovals.length > 0 && (
         <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>
-            Freigaben
+          <div
+            style={{
+              fontSize: 14,
+              fontWeight: 800,
+              color: C.text,
+              marginBottom: 10,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <AlertCircle size={15} color={C.accent} /> Freigaben
             {(() => {
               const o = clientApprovals.filter((a) => a.status === "offen").length;
               return o ? (
@@ -5421,8 +5442,18 @@ function ActivityPage({ selectedClient, clients }) {
 
       {/* Schedules */}
       <div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>
-          Zeitpläne
+        <div
+          style={{
+            fontSize: 14,
+            fontWeight: 800,
+            color: C.text,
+            marginBottom: 10,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <Calendar size={15} color={C.textMuted} /> Zeitpläne
         </div>
         {schedules.length === 0 ? (
           <div style={{ fontSize: 13, color: C.textDim, padding: "8px 0" }}>
@@ -5472,8 +5503,18 @@ function ActivityPage({ selectedClient, clients }) {
 
       {/* Recent runs */}
       <div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>
-          Letzte Läufe
+        <div
+          style={{
+            fontSize: 14,
+            fontWeight: 800,
+            color: C.text,
+            marginBottom: 10,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <Clock size={15} color={C.textMuted} /> Letzte Läufe
         </div>
         {loading ? (
           <div style={{ fontSize: 13, color: C.textDim }}>Lädt…</div>
@@ -5561,8 +5602,18 @@ function ActivityPage({ selectedClient, clients }) {
       {/* Verfügbarkeit (Uptime) */}
       {uptime.length > 0 && (
         <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>
-            Verfügbarkeit{" "}
+          <div
+            style={{
+              fontSize: 14,
+              fontWeight: 800,
+              color: C.text,
+              marginBottom: 10,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <Globe size={15} color={C.textMuted} /> Verfügbarkeit{" "}
             {uptimeDown > 0 ? (
               <span style={{ color: C.red }}>· {uptimeDown} offline</span>
             ) : (
