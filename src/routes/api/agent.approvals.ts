@@ -24,17 +24,24 @@ export const Route = createFileRoute("/api/agent/approvals")({
         const ctx = await requireTeamRole(request, "member");
         if (ctx instanceof Response) return ctx;
         try {
-          const r = await fetch(
-            `${base.replace(/\/+$/, "")}/approvals?org=${encodeURIComponent(ctx.organizationId)}`,
-            {
-              headers: {
-                Authorization: `Bearer ${secret}`,
-                "X-Ezy-Organization": ctx.organizationId,
-                "X-Ezy-Role": ctx.role,
-              },
-              signal: AbortSignal.timeout(10_000),
-            },
-          );
+          const b = base.replace(/\/+$/, "");
+          const headers = {
+            Authorization: `Bearer ${secret}`,
+            "X-Ezy-Organization": ctx.organizationId,
+            "X-Ezy-Role": ctx.role,
+          };
+          // Report-Postfach (24.08.): die Lauf-Reports (frueher Report-Mail)
+          // kommen im selben Load mit — kein zweiter Roundtrip im Client.
+          const [r, rm] = await Promise.all([
+            fetch(`${b}/approvals?org=${encodeURIComponent(ctx.organizationId)}`, {
+              headers,
+              signal: AbortSignal.timeout(15_000),
+            }),
+            fetch(`${b}/report-mails?org=${encodeURIComponent(ctx.organizationId)}`, {
+              headers,
+              signal: AbortSignal.timeout(15_000),
+            }).catch(() => null),
+          ]);
           const j: any = await r.json().catch(() => ({}));
           // Defensive Org-Filterung (Runde 2, 21.08.): nur Items mit EXAKT
           // passender organizationId — unmarkierte Eintraege werden NIE
@@ -43,6 +50,13 @@ export const Route = createFileRoute("/api/agent/approvals")({
             j.items = j.items.filter((i: any) => i?.organizationId === ctx.organizationId);
             j.openCount = j.items.filter((i: any) => i?.status === "offen").length;
           }
+          const rj: any = rm ? await rm.json().catch(() => ({})) : {};
+          j.reports = Array.isArray(rj?.reports)
+            ? rj.reports.filter((x: any) => x?.organizationId === ctx.organizationId)
+            : [];
+          j.reportTasks = Array.isArray(rj?.tasks)
+            ? rj.tasks.filter((x: any) => x?.organizationId === ctx.organizationId)
+            : [];
           return Response.json(j, { headers: { "Cache-Control": "no-store" } });
         } catch (e) {
           return Response.json(
@@ -66,6 +80,38 @@ export const Route = createFileRoute("/api/agent/approvals")({
         const status = String(body?.status || "");
         if (!ID_RE.test(id) || !STATUS_RE.test(status))
           return Response.json({ ok: false, error: "id/status ungültig" }, { status: 400 });
+        // Report-Aufgaben-Entscheid (24.08.): kind="report-task" geht an den
+        // /report-tasks-Endpoint (erledigt/offen/verworfen/kommentar) — dieselbe
+        // Semantik wie die Buttons der frueheren Report-Mail.
+        if (String(body?.kind || "") === "report-task") {
+          const comment = String(body?.comment || "").slice(0, 2000);
+          try {
+            const r = await fetch(`${base.replace(/\/+$/, "")}/report-tasks`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${secret}`,
+                "Content-Type": "application/json",
+                "X-Ezy-Organization": ctx.organizationId,
+                "X-Ezy-Role": ctx.role,
+              },
+              body: JSON.stringify({
+                id,
+                status,
+                comment,
+                organizationId: ctx.organizationId,
+                decidedBy: ctx.userId,
+              }),
+              signal: AbortSignal.timeout(10_000),
+            });
+            const j = await r.json().catch(() => ({}));
+            return Response.json(j, { status: r.status });
+          } catch (e) {
+            return Response.json(
+              { ok: false, error: String((e as Error)?.message || e) },
+              { status: 502 },
+            );
+          }
+        }
         try {
           const r = await fetch(`${base.replace(/\/+$/, "")}/approvals`, {
             method: "POST",
