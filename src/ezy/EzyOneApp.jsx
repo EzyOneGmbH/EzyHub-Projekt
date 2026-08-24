@@ -3776,9 +3776,9 @@ function ToolsPage({ selectedClient, tools, onSaveDraft, onOpenDraft }) {
           }}
         >
           <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>AI Tools</h1>
+            <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Audit Skills</h1>
             <p style={{ color: C.textMuted, fontSize: 13, margin: "4px 0 0" }}>
-              {visibleTools.length} Tools • {selectedClient.name}
+              {visibleTools.length} verfügbare Skills • {selectedClient.name}
             </p>
           </div>
           {unconnectedCount > 0 && (
@@ -6135,7 +6135,8 @@ const NAV = [
   // Projekt/AWORK (Volkan 22.08.): vorerst deaktiviert — bei Bedarf Zeile
   // wieder einkommentieren (+ "tasks" in appRegistry seo.pages).
   // { id: "tasks", label: "Projekt", icon: ListChecks },
-  { id: "tools", label: "AI Tools", icon: Zap },
+  // Umbenannt AI Tools → Ezy-Tools (Volkan 24.08.): bündelt Audit Skills + Agents.
+  { id: "tools", label: "Ezy-Tools", icon: Zap },
   { id: "agents", label: "Agents", icon: Bot },
   // Content-Tab (Volkan 24.08.): vorerst deaktiviert — bei Bedarf Zeile wieder
   // einkommentieren. Die Seite selbst bleibt im Scope (appRegistry seo.pages),
@@ -6341,7 +6342,9 @@ function App({ appScope = null }) {
   // Redesign 1b (Screen 2j): Bottom-Sheet ersetzt <760px die Header-Selects
   // (App-Wechsler, Kunden-Switcher, Zeitraum/Vergleich).
   const [mobileSheet, setMobileSheet] = useState(false);
-  const [showTools, setShowTools] = useState(false);
+  // showTools/Quick-Audit-Panel entfernt (Volkan 24.08.)
+  // Ezy-Tools-Switcher (24.08.): «Audit Skills» | «Agents» unter dem Header.
+  const [toolsSection, setToolsSection] = useState("skills");
   // App-Switcher (Plattform-Umbau Phase 1)
   const appAccess = useAppAccess();
   const [swOpen, setSwOpen] = useState(false);
@@ -6423,7 +6426,6 @@ function App({ appScope = null }) {
     const all = toolSettings.applyTo(ALL_TOOLS);
     return scope?.skillCats ? all.filter((t) => scope.skillCats.includes(t.category)) : all;
   }, [toolSettings, scope]);
-  const enabledTools = useMemo(() => tools.filter((t) => t.enabled), [tools]);
   const toggleTool = useCallback(
     (id) => {
       const cur = tools.find((t) => t.id === id);
@@ -6582,7 +6584,6 @@ function App({ appScope = null }) {
         setCmdOpen(true);
       }
       if (e.key === "Escape") {
-        setShowTools(false);
         setCdd(false);
         setCmdOpen(false);
       }
@@ -6868,25 +6869,8 @@ function App({ appScope = null }) {
                 (appScope !== "seo" || isMobile) && (
                   <TabBar tabs={visibleTabs} active={tab} onChange={setTab} />
                 )}
-              {page !== "dashboard" && page !== "heute" && (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    fontSize: 13,
-                    color: C.textMuted,
-                  }}
-                >
-                  <span style={{ cursor: "pointer" }} onClick={() => setPage("dashboard")}>
-                    Dashboard
-                  </span>
-                  <ChevronRight size={12} />
-                  <span style={{ color: C.text, fontWeight: 600 }}>
-                    {NAV.find((n) => n.id === page)?.label}
-                  </span>
-                </div>
-              )}
+              {/* Breadcrumb «Dashboard › Seite» entfernt (Volkan 24.08.) — die
+                aktive Seite ist bereits in Nav/Segmented markiert. */}
               {/* Mobile-QA (22.08.): das kombinierte Seiten+Tabs-Segmented ist
                 Desktop-Nav — mobil doppelt es die Bottom-Tab-Bar (Seiten) bzw.
                 die TabBar oben (Dashboard-Tabs) und quetschte die Buttons. */}
@@ -6997,35 +6981,15 @@ function App({ appScope = null }) {
                       {dateRange?.days ? `${dateRange.days}T` : "Zeitraum"}
                     </button>
                   )}
-                  {!isViewer && (
-                    <button
-                      onClick={() => setShowTools(true)}
-                      title="Audit"
-                      aria-label="Audit"
-                      style={{
-                        width: 34,
-                        height: 34,
-                        borderRadius: "50%",
-                        border: `1px solid ${C.border}`,
-                        background: C.card,
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        cursor: "pointer",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <Zap size={15} color={C.accent} />
-                    </button>
-                  )}
+                  {/* Audit-Kreis entfernt (Volkan 24.08.) — Audit-Skills leben
+                    unter Ezy-Tools → Audit Skills (Bottom-Tab-Bar). */}
                   {!isViewer && <EzyPilotFab size={34} />}
                 </>
               ) : (
                 <>
                   {!isViewer && <EzyPilotButton />}
-                  <Btn icon={Zap} onClick={() => setShowTools(true)}>
-                    Audit
-                  </Btn>
+                  {/* Audit-Button entfernt (Volkan 24.08.) — Audit-Skills leben
+                    unter Ezy-Tools → Audit Skills. */}
                   <div
                     style={{
                       width: 34,
@@ -7265,13 +7229,46 @@ function App({ appScope = null }) {
                 </>
               )}
               {hasClients && page === "tasks" && <TasksDashboard selectedClient={client} />}
+              {/* Ezy-Tools (Volkan 24.08.): Switcher direkt unter dem Header —
+                «Audit Skills» (verfügbare Skills) | «Agents» (laufende Agents +
+                Massnahmen/Freigaben, die bisher nur per Mail kamen). */}
               {!isViewer && hasClients && page === "tools" && (
-                <ToolsPage
-                  selectedClient={client}
-                  tools={tools}
-                  onSaveDraft={onCreateContent}
-                  onOpenDraft={openDraftInEditor}
-                />
+                <>
+                  <div style={{ display: "flex", marginBottom: 18 }}>
+                    <SegmentedTabs
+                      color={C.accent}
+                      items={[
+                        { id: "skills", label: "Audit Skills", icon: Zap },
+                        { id: "agents", label: "Agents", icon: Bot },
+                      ]}
+                      active={toolsSection}
+                      onChange={setToolsSection}
+                    />
+                  </div>
+                  {toolsSection === "skills" ? (
+                    <ToolsPage
+                      selectedClient={client}
+                      tools={tools}
+                      onSaveDraft={onCreateContent}
+                      onOpenDraft={openDraftInEditor}
+                    />
+                  ) : (
+                    <>
+                      {/* Zuerst der Live-Blick: was läuft + welche Massnahmen
+                        warten (Freigaben) — danach die Agenten-Konfiguration. */}
+                      <ActivityPage selectedClient={client} clients={clients} />
+                      <div
+                        style={{
+                          marginTop: 28,
+                          paddingTop: 24,
+                          borderTop: `1px solid ${C.border}`,
+                        }}
+                      >
+                        <AgentsPage selectedClient={client} />
+                      </div>
+                    </>
+                  )}
+                </>
               )}
               {!isViewer && hasClients && page === "content" && (
                 <ContentPage
@@ -7428,108 +7425,8 @@ function App({ appScope = null }) {
           </nav>
         )}
 
-        {/* Quick Tools */}
-        {showTools && (
-          <div
-            className="quick-audit-panel"
-            style={{
-              position: "fixed",
-              top: 0,
-              right: 0,
-              bottom: 0,
-              width: isMobile ? "100vw" : 400,
-              background: C.surface,
-              borderLeft: `1px solid ${C.border}`,
-              zIndex: 100,
-              padding: isMobile ? 18 : 24,
-              overflowY: "auto",
-              animation: "slideIn .2s ease",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 20,
-              }}
-            >
-              <span style={{ fontSize: 16, fontWeight: 700, color: C.text }}>Quick Audit</span>
-              <button
-                onClick={() => setShowTools(false)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: C.textMuted,
-                  cursor: "pointer",
-                  fontSize: 18,
-                }}
-              >
-                ✕
-              </button>
-            </div>
-            <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 16 }}>
-              {client.name} · {client.domain}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {enabledTools.slice(0, 6).map((t) => {
-                const I = t.icon;
-                return (
-                  <div
-                    key={t.id}
-                    style={{
-                      background: C.card,
-                      border: `1px solid ${C.border}`,
-                      borderRadius: 12,
-                      padding: "12px 14px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                      cursor: "pointer",
-                      transition: "border-color .2s",
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.borderColor = t.color)}
-                    onMouseLeave={(e) => (e.currentTarget.style.borderColor = C.border)}
-                    onClick={() => {
-                      setShowTools(false);
-                      setPage("tools");
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: 10,
-                        background: `${t.color}18`,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <I size={16} color={t.color} />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, color: C.text, fontSize: 13 }}>{t.label}</div>
-                      <div style={{ color: C.textMuted, fontSize: 11 }}>{t.description}</div>
-                    </div>
-                    <ChevronRight size={14} color={C.textDim} />
-                  </div>
-                );
-              })}
-            </div>
-            <Btn
-              variant="secondary"
-              style={{ width: "100%", justifyContent: "center", marginTop: 16 }}
-              onClick={() => {
-                setShowTools(false);
-                setPage("tools");
-              }}
-            >
-              Alle {enabledTools.length} Tools
-            </Btn>
-          </div>
-        )}
+        {/* Quick-Audit-Panel entfernt (Volkan 24.08.) — Audit-Skills leben
+          unter Ezy-Tools -> Audit Skills. */}
 
         {/* Command Palette */}
         <CmdPalette
