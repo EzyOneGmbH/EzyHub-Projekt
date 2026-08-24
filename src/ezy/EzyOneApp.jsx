@@ -6886,9 +6886,9 @@ function App({ appScope = null }) {
                         ? visibleTabs.map((t) => ({ id: `tab:${t.id}`, label: t.label }))
                         : [{ id: `page:${n.id}`, label: n.label }],
                     ),
-                    ...(!isViewer && scope?.pages?.includes("copilot")
-                      ? [{ id: "page:copilot", label: "Agent" }]
-                      : []),
+                    // Agent-Tab deaktiviert (Volkan 24.08.): EzyPilot läuft über
+                    // den EzyPilot-Button rechts im Header (Popup) — bei Bedarf
+                    // den page:copilot-Eintrag hier wieder ergänzen.
                   ]}
                   active={
                     page === "dashboard" && appScope === "seo" ? `tab:${tab}` : `page:${page}`
