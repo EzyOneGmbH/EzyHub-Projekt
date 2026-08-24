@@ -1953,13 +1953,14 @@ function PromptsTable({
   onReview,
   clientId,
 }) {
-  const [tab, setTab] = useState("all");
+  // Vereinfacht (24.08., Volkan): "Alle Prompts" entfernt, Marken-Prompts in
+  // "Erfolgreichste Prompts" integriert und dieser Filter ist Standard —
+  // sichtbar sind nur noch Erfolgreichste Prompts und Prompt-Chancen.
+  const [tab, setTab] = useState("win");
   const [page, setPage] = useState(0);
   const [q, setQ] = useState(""); // Suchfeld (Searchable-Parität)
   const [statusF, setStatusF] = useState("alle"); // Status-Filter
-  const allRows = [...prompts, ...opps.map((o) => ({ ...o, status: "Nicht erwähnt" }))];
-  let source =
-    tab === "all" ? allRows : tab === "win" ? prompts : tab === "brand" ? brandPrompts : opps;
+  let source = tab === "win" ? [...prompts, ...brandPrompts] : opps;
   if (q.trim()) {
     const needle = q.trim().toLowerCase();
     source = source.filter(
@@ -2038,10 +2039,8 @@ function PromptsTable({
           </button>
           <div className="flex rounded-lg border p-0.5" style={{ borderColor: C.line }}>
             {[
-              { k: "all", t: "Alle Prompts" },
               { k: "win", t: "Erfolgreichste Prompts" },
               { k: "opp", t: "Prompt-Chancen" },
-              ...(brandPrompts.length ? [{ k: "brand", t: "Marken-Prompts" }] : []),
             ].map((x) => (
               <button
                 key={x.k}
@@ -2108,13 +2107,9 @@ function PromptsTable({
         style={{ color: C.sub }}
       >
         <span>
-          {tab === "all"
-            ? `${groups.length} Prompts über alle KI-Modelle – Status je Modell für ${brand}. Zeile aufklappen für die echten Antworten.`
-            : tab === "brand"
-              ? `Fragen über die Marke selbst (Reputation/Faktentreue) – Auswertung im Marken-Check, fliesst nicht in den Score ein.`
-              : opportunity
-                ? `Prompts, bei denen Konkurrenten genannt werden – ${brand} aber nicht.`
-                : `Prompts, in denen ${brand} erwähnt oder zitiert wird.`}
+          {opportunity
+            ? `Prompts, bei denen Konkurrenten genannt werden – ${brand} aber nicht.`
+            : `Prompts, in denen ${brand} erwähnt oder zitiert wird – inkl. Marken-Prompts (Fragen über die Marke selbst). Zeile aufklappen für die echten Antworten.`}
         </span>
         {/* Legende */}
         <span className="flex items-center gap-2">

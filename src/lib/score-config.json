@@ -95,7 +95,7 @@
   },
   "serp": {
     "_doc": "SERP-Check (sa-Schicht) misst echte Google-KI-Zitate (AI Overviews + AI Mode) je GSC-Suchanfrage-Land-Paar. Kosten NEU gemessen 2026-08-13: organic live/advanced 0.002 USD + ai_mode live/advanced 0.004 USD = 0.006 USD je Paar (die 2026-07-21-Schaetzung von ~2 USD bei 60 Keywords war zu hoch — sie enthielt Mehrland-Paare). Deckel 2026-08-13 von 25 auf 100 erhoeht (Volkan): ~0.60 USD je Kunde und Lauf, 14 Kunden alle 3 Tage => ~85 USD/Monat. Zwischentage uebernehmen den letzten Stand (gemessenAm = echtes Messdatum).",
-    "intervalDays": 3,
+    "intervalDays": 2,
     "keywords": 100
   },
   "judge": {

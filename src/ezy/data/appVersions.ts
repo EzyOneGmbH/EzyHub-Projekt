@@ -33,8 +33,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.6.1",
+    version: "1.6.2",
     changelog: [
+      {
+        version: "1.6.2",
+        date: "2026-08-24",
+        note: "Antworten-Filter vereinfacht (Erfolgreichste Prompts inkl. Marken-Prompts als Standard, nur noch 2 Filter), Google-KI-Messung wieder im 2-Tage-Takt",
+      },
       {
         version: "1.6.1",
         date: "2026-08-24",

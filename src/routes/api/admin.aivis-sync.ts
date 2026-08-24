@@ -5159,7 +5159,13 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             const saInterval = Math.max(1, Number((SCORE_CFG as any).serp?.intervalDays ?? 2));
             const saDue = !saMeasured || dayN(saMeasured) < lastCycleDay(saInterval);
             if (!parts.pr) missing.push("pr");
-            if (!parts.sa && saDue) missing.push("sa");
+            // Fix 2026-08-24 (Volkan: "AIO wird nicht alle 2 Tage aktualisiert"):
+            // sa wird im EIGENEN serp-Takt fällig — unabhängig davon, ob der
+            // neueste Report einen sa-Part trägt. Vorher galt "!parts.sa &&
+            // saDue"; weil der Tagesreport den letzten sa-Stand als übernommen
+            // hineinkopiert, war parts.sa praktisch immer gefüllt und sa lief
+            // faktisch nur alle freshDays (3) Tage mit dem Tageslauf mit.
+            if (saDue) missing.push("sa");
             // Kosten-Drosselung (2026-07-31): voller Lauf alle
             // AIVIS_FRESHNESS_DAYS (default 3) — seit 17.08. am globalen Takt.
             // Größter LLM-Dauerposten: alle aktiven Prompts × 6 Engines je Lauf.
@@ -5169,8 +5175,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             // sa-Schicht (Bomatec: GSC ohne Suchanfragen) nie wieder einen
             // Tageslauf bekommen — Report blieb tagelang stehen.
             if (dayN(String(rep.snapshot_date)) < lastCycleDay(freshDays)) {
-              missing.push("daily");
-              if (saDue && !missing.includes("sa")) missing.push("sa"); // SERP im eigenen Takt mitfahren
+              missing.push("daily"); // sa fährt oben bereits im eigenen Takt
             }
             if (missing.length) pending.push({ id: c.id, name: c.name, domain: c.domain, missing });
           }
