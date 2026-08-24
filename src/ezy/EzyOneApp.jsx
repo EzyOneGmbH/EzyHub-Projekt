@@ -87,7 +87,7 @@ import DataStatus from "@/ezy/DataStatus";
 // lib/markdown.ts (XSS-Tests) — Verhalten unveraendert, nur verschoben.
 
 import { normalizeToolResult } from "@/ezy/data/toolResult";
-import ToolResultView from "@/ezy/ToolResult";
+import ToolResultView, { MdView } from "@/ezy/ToolResult";
 import ToolActions from "@/ezy/ToolActions";
 // PublishFlow (2026-08-18): WP-Publish-Dialog mit Vorschau + Publish-Schutz,
 // extrahiert aus dem Monolithen. notify = Toast des Aufrufers (kein Zirkular-Import).
@@ -4825,19 +4825,19 @@ const friendlyAgentError = (e) => {
 };
 
 function ActivityPage({ selectedClient, clients }) {
-  // Kostenübersicht ist ausschliesslich fuer den SuperAdmin (owner) sichtbar –
-  // Admins und Mitarbeiter sehen sie nicht (RBAC 2026-07-15).
-  const { role } = useAuth();
-  const isOwner = role === "owner";
+  // Kosten-/Preisanzeige komplett entfernt (Volkan 24.08.).
   const [data, setData] = useState({
     runs: [],
     running: 0,
     schedules: [],
     uptime: [],
     uptimeDown: 0,
-    costs: null,
   });
   const [approvals, setApprovals] = useState([]);
+  // Report-Postfach (24.08.): die Lauf-Reports, die frueher als Mail kamen.
+  const [reports, setReports] = useState([]);
+  const [reportTasks, setReportTasks] = useState([]);
+  const [openReportId, setOpenReportId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
@@ -4854,14 +4854,17 @@ function ActivityPage({ selectedClient, clients }) {
           schedules: j.schedules || [],
           uptime: j.uptime || [],
           uptimeDown: j.uptimeDown || 0,
-          costs: j.costs || null,
         });
         setErr("");
       } else setErr(friendlyAgentError(j.error || "Laden fehlgeschlagen"));
       const ar = await fetch("/api/agent/approvals", { headers: auth })
         .then((x) => x.json())
         .catch(() => ({}));
-      if (ar?.ok) setApprovals(ar.items || []);
+      if (ar?.ok) {
+        setApprovals(ar.items || []);
+        setReports(Array.isArray(ar.reports) ? ar.reports : []);
+        setReportTasks(Array.isArray(ar.reportTasks) ? ar.reportTasks : []);
+      }
     } catch (e) {
       setErr(friendlyAgentError(e));
     } finally {
@@ -4920,10 +4923,6 @@ function ActivityPage({ selectedClient, clients }) {
     cid && selDom
       ? (data.uptime || []).filter((u) => normDom(u.domain) === selDom)
       : data.uptime || [];
-  const costs = data.costs;
-  const fmtUsd = (n) => (n == null ? "—" : `$${Number(n).toFixed(2)}`);
-  const clientCost =
-    costs && cid ? (costs.byClient || []).find((c) => c.name === selectedClient?.name)?.usd : null;
   const running = runs.filter((r) => r.status === "running").length;
   const uptimeDown = uptime.filter((u) => !u.ok).length;
   // Freigaben pro gewähltem Kunde (lose Namens-Übereinstimmung mit dem Vault-Namen).
@@ -4934,6 +4933,33 @@ function ActivityPage({ selectedClient, clients }) {
   const clientApprovals = approvals.filter(
     (a) => !cid || normName(a.clientName) === normName(selectedClient?.name),
   );
+  // Report-Postfach: pro Kunde gefiltert (Namensabgleich wie bei den Freigaben).
+  const clientReports = reports.filter(
+    (r) => !cid || normName(r.client) === normName(selectedClient?.name),
+  );
+  const tasksByReport = (r) => {
+    const ids = new Set(Array.isArray(r.taskIds) ? r.taskIds : []);
+    return reportTasks.filter((t) => ids.has(t.id));
+  };
+  const openTaskCount = reportTasks.filter(
+    (t) => t.status === "offen" && (!cid || normName(t.client) === normName(selectedClient?.name)),
+  ).length;
+  const setReportTaskStatus = async (id, status, comment) => {
+    setReportTasks((p) =>
+      p.map((t) => (t.id === id && status !== "kommentar" ? { ...t, status } : t)),
+    );
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      await fetch("/api/agent/approvals", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session?.access_token || ""}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ kind: "report-task", id, status, comment: comment || "" }),
+      });
+    } catch {}
+  };
   const setApprovalStatus = async (id, status) => {
     setApprovals((p) => p.map((a) => (a.id === id ? { ...a, status } : a)));
     try {
@@ -4991,54 +5017,309 @@ function ActivityPage({ selectedClient, clients }) {
 
       {err && <div style={{ fontSize: 12, color: C.red }}>{err}</div>}
 
-      {/* API-Kosten – nur SuperAdmin (owner) */}
-      {isOwner && costs && (
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>
-            API-Kosten
-            {costs.runs ? (
-              <span style={{ color: C.textDim, fontWeight: 400 }}> · {costs.runs} Läufe</span>
-            ) : null}
+      {/* KPI-Kacheln (Redesign 24.08.) — Preise/Kosten bewusst entfernt. */}
+      <div
+        className="dash-kpis"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))",
+          gap: 12,
+        }}
+      >
+        {[
+          {
+            label: "Laufende Agents",
+            v: running,
+            Icon: Clock,
+            color: running > 0 ? C.blue : C.textDim,
+          },
+          {
+            label: "Offene Massnahmen",
+            v: clientApprovals.filter((a) => a.status === "offen").length + openTaskCount,
+            Icon: AlertCircle,
+            color:
+              clientApprovals.filter((a) => a.status === "offen").length + openTaskCount > 0
+                ? C.accent
+                : C.green,
+          },
+          {
+            label: "Aktive Zeitpläne",
+            v: schedules.filter((s) => s.enabled).length,
+            Icon: Calendar,
+            color: C.textMuted,
+          },
+          {
+            label: "Verfügbarkeit",
+            v: uptime.length ? (uptimeDown > 0 ? `${uptimeDown} offline` : "alle online") : "—",
+            Icon: Globe,
+            color: uptimeDown > 0 ? C.red : C.green,
+          },
+        ].map((s) => (
+          <div
+            key={s.label}
+            style={{
+              background: C.card,
+              border: `1px solid ${C.border}`,
+              borderRadius: 14,
+              padding: "14px 16px",
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+            }}
+          >
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 10,
+                background: `${s.color}18`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <s.Icon size={17} color={s.color} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: C.text, lineHeight: 1.1 }}>
+                {s.v}
+              </div>
+              <div style={{ fontSize: 11, color: C.textMuted, whiteSpace: "nowrap" }}>
+                {s.label}
+              </div>
+            </div>
           </div>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            {[
-              { label: "Heute", v: costs.today },
-              { label: "7 Tage", v: costs.last7Days },
-              { label: "Dieser Monat", v: costs.thisMonth },
-              { label: "Gesamt", v: costs.total },
-              ...(cid
-                ? [
-                    {
-                      label: `${selectedClient?.name || "Kunde"} (gesamt)`,
-                      v: clientCost,
-                      accent: true,
-                    },
-                  ]
-                : []),
-            ].map((s) => (
-              <div
-                key={s.label}
-                style={{
-                  flex: "1 1 130px",
-                  minWidth: 130,
-                  background: C.card,
-                  border: `1px solid ${s.accent ? C.accent : C.border}`,
-                  borderRadius: 10,
-                  padding: "12px 14px",
-                }}
-              >
-                <div style={{ fontSize: 11, color: C.textMuted }}>{s.label}</div>
+        ))}
+      </div>
+
+      {/* Report-Postfach (24.08.): die Lauf-Reports, die frueher per Mail kamen —
+        inkl. Aufgaben mit denselben Aktionen wie die Mail-Buttons. */}
+      {clientReports.length > 0 && (
+        <div>
+          <div
+            style={{
+              fontSize: 14,
+              fontWeight: 800,
+              color: C.text,
+              marginBottom: 10,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <FileText size={15} color={C.accent} /> Reports
+            <span style={{ color: C.textMuted, fontWeight: 400, fontSize: 12 }}>
+              · ersetzt die Report-Mail
+            </span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {clientReports.map((r) => {
+              const open = openReportId === r.id;
+              const tasks = tasksByReport(r);
+              const offen = tasks.filter((t) => t.status === "offen").length;
+              return (
                 <div
+                  key={r.id}
                   style={{
-                    fontSize: 18,
-                    fontWeight: 700,
-                    color: s.accent ? C.accentLight : C.text,
+                    background: C.card,
+                    border: `1px solid ${open ? C.accent : C.border}`,
+                    borderRadius: 14,
+                    overflow: "hidden",
                   }}
                 >
-                  {fmtUsd(s.v)}
+                  <button
+                    onClick={() => setOpenReportId(open ? null : r.id)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      width: "100%",
+                      textAlign: "left",
+                      background: "transparent",
+                      border: "none",
+                      padding: "13px 16px",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: 10,
+                        background: r.ok === false ? `${C.red}18` : C.accentDim,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <FileText size={15} color={r.ok === false ? C.red : C.accent} />
+                    </span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span
+                        style={{
+                          display: "block",
+                          fontSize: 13.5,
+                          fontWeight: 700,
+                          color: C.text,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {r.agent || "Agent"} · {r.client}
+                      </span>
+                      <span style={{ display: "block", fontSize: 11.5, color: C.textMuted }}>
+                        {fmtTime(r.startedAt || r.createdAt)}
+                        {r.durationMin ? ` · ${r.durationMin} min` : ""}
+                        {tasks.length
+                          ? ` · ${tasks.length} Aufgabe${tasks.length === 1 ? "" : "n"}${offen ? ` (${offen} offen)` : ""}`
+                          : ""}
+                      </span>
+                    </span>
+                    {offen > 0 && <Badge color={C.accent}>{offen} offen</Badge>}
+                    <ChevronDown
+                      size={15}
+                      color={C.textMuted}
+                      style={{
+                        transform: open ? "rotate(180deg)" : "none",
+                        transition: "transform .15s",
+                        flexShrink: 0,
+                      }}
+                    />
+                  </button>
+                  {open && (
+                    <div style={{ padding: "0 16px 16px", borderTop: `1px solid ${C.border}` }}>
+                      {tasks.length > 0 && (
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 8,
+                            margin: "14px 0",
+                          }}
+                        >
+                          {tasks.map((t) => {
+                            const stc =
+                              t.status === "offen"
+                                ? C.accent
+                                : t.status === "erledigt"
+                                  ? C.green
+                                  : C.textDim;
+                            return (
+                              <div
+                                key={t.id}
+                                style={{
+                                  background: C.bg,
+                                  border: `1px solid ${C.border}`,
+                                  borderRadius: 10,
+                                  padding: "11px 13px",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "flex-start",
+                                    justifyContent: "space-between",
+                                    gap: 10,
+                                  }}
+                                >
+                                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>
+                                    {t.titel}
+                                  </div>
+                                  <Badge color={stc}>{t.status}</Badge>
+                                </div>
+                                {t.problem && (
+                                  <div
+                                    style={{
+                                      fontSize: 12.5,
+                                      color: C.textMuted,
+                                      marginTop: 4,
+                                      lineHeight: 1.5,
+                                    }}
+                                  >
+                                    {t.problem}
+                                  </div>
+                                )}
+                                {Array.isArray(t.schritte) && t.schritte.length > 0 && (
+                                  <ul
+                                    style={{
+                                      margin: "6px 0 0",
+                                      paddingLeft: 18,
+                                      fontSize: 12.5,
+                                      color: C.textMuted,
+                                      lineHeight: 1.55,
+                                    }}
+                                  >
+                                    {t.schritte.map((s, i) => (
+                                      <li key={i}>{s}</li>
+                                    ))}
+                                  </ul>
+                                )}
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    gap: 6,
+                                    marginTop: 10,
+                                    flexWrap: "wrap",
+                                  }}
+                                >
+                                  {t.status !== "erledigt" && (
+                                    <Btn
+                                      size="sm"
+                                      variant="secondary"
+                                      onClick={() => setReportTaskStatus(t.id, "erledigt")}
+                                    >
+                                      Erledigt
+                                    </Btn>
+                                  )}
+                                  {t.status !== "offen" && (
+                                    <Btn
+                                      size="sm"
+                                      variant="secondary"
+                                      onClick={() => setReportTaskStatus(t.id, "offen")}
+                                    >
+                                      Wieder öffnen
+                                    </Btn>
+                                  )}
+                                  {t.status !== "verworfen" && (
+                                    <Btn
+                                      size="sm"
+                                      variant="secondary"
+                                      onClick={() => setReportTaskStatus(t.id, "verworfen")}
+                                    >
+                                      Verwerfen
+                                    </Btn>
+                                  )}
+                                  <Btn
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() => {
+                                      const k = window.prompt(
+                                        "Kommentar für den Agenten (ändert den Status nicht):",
+                                      );
+                                      if (k && k.trim())
+                                        setReportTaskStatus(t.id, "kommentar", k.trim());
+                                    }}
+                                  >
+                                    Kommentar
+                                  </Btn>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                      <div style={{ marginTop: tasks.length ? 0 : 14 }}>
+                        <MdView md={r.report || ""} />
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -5350,9 +5631,7 @@ function ActivityPage({ selectedClient, clients }) {
 }
 
 function AgentsPage({ selectedClient, appScope = null }) {
-  // Kosten sind nur fuer den SuperAdmin (owner) sichtbar (RBAC 2026-07-15).
-  const { role } = useAuth();
-  const isOwner = role === "owner";
+  // Kosten-/Preisanzeige entfernt (Volkan 24.08.) — kein Rollen-Gate mehr noetig.
   const clientId = selectedClient?.id || "global";
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -6120,11 +6399,7 @@ function AgentsPage({ selectedClient, appScope = null }) {
                     }}
                   >
                     {runResult.text}
-                    {isOwner && runResult.ok && runResult.cost != null && (
-                      <div style={{ fontSize: 10, color: C.textMuted, marginTop: 6 }}>
-                        Kosten: ${Number(runResult.cost).toFixed(3)}
-                      </div>
-                    )}
+                    {/* Kosten-Anzeige entfernt (Volkan 24.08.) */}
                   </div>
                 )}
               </div>
@@ -6696,17 +6971,53 @@ function App({ appScope = null }) {
           }}
         />
 
-        {/* Redesign 1b: 76px-Icon-Rail ersetzt die Sidebar — Kunden-Auswahl,
-          Seiten-Navigation und Suche leben jetzt im Glas-Header. */}
+        {/* Desktop-Nav-Umbau (Volkan 22.08.): Sidebar = Haupt-Apps + alle
+          Tabs/Bereiche der aktiven App (klar getrennt); Analyse/Reakt/Admin
+          nur noch über den Launcher. Mobile unverändert (Bottom-Bar). */}
         <AppRail
           current={appScope || currentAppOf(page, tab)}
           canOpen={(id) => !isViewer && appAccess.canOpen(id)}
           profile={profile}
           initials={initialsFromName(profile.name)}
           onLogout={() => supabase.auth.signOut()}
+          navTitle={
+            (EZY_APPS.find((x) => x.id === (appScope || currentAppOf(page, tab))) || {}).name
+          }
+          nav={
+            isMobile || (showAll && (appScope === "seo" || appScope === "ads"))
+              ? null
+              : [
+                  ...nav.flatMap((n) =>
+                    appScope === "seo" && n.id === "dashboard"
+                      ? visibleTabs.map((t) => ({
+                          id: `tab:${t.id}`,
+                          label: t.label,
+                          group: "Dashboard",
+                          active: page === "dashboard" && tab === t.id,
+                          onClick: () => {
+                            setPage("dashboard");
+                            setTab(t.id);
+                          },
+                        }))
+                      : [
+                          {
+                            id: `page:${n.id}`,
+                            label: n.label,
+                            icon: n.icon,
+                            group:
+                              appScope === "seo" && n.id !== "dashboard" ? "Werkzeuge" : undefined,
+                            active: page === n.id,
+                            onClick: () => setPage(n.id),
+                          },
+                        ],
+                  ),
+                  // Agent-Eintrag bewusst weggelassen (Volkan 24.08.):
+                  // EzyPilot läuft über den Button rechts im Header.
+                ]
+          }
         />
 
-        <main className="app-main" style={{ marginLeft: isMobile ? 0 : 76, flex: 1, minWidth: 0 }}>
+        <main className="app-main" style={{ marginLeft: isMobile ? 0 : 210, flex: 1, minWidth: 0 }}>
           <header
             className="app-header"
             style={{
@@ -6905,37 +7216,9 @@ function App({ appScope = null }) {
                 )}
               {/* Breadcrumb «Dashboard › Seite» entfernt (Volkan 24.08.) — die
                 aktive Seite ist bereits in Nav/Segmented markiert. */}
-              {/* Mobile-QA (22.08.): das kombinierte Seiten+Tabs-Segmented ist
-                Desktop-Nav — mobil doppelt es die Bottom-Tab-Bar (Seiten) bzw.
-                die TabBar oben (Dashboard-Tabs) und quetschte die Buttons. */}
-              {!isMobile && !(showAll && (appScope === "seo" || appScope === "ads")) && (
-                <SegmentedTabs
-                  color={
-                    (EZY_APPS.find((x) => x.id === (appScope || currentAppOf(page, tab))) || {})
-                      .color || C.accent
-                  }
-                  items={[
-                    ...nav.flatMap((n) =>
-                      appScope === "seo" && n.id === "dashboard"
-                        ? visibleTabs.map((t) => ({ id: `tab:${t.id}`, label: t.label }))
-                        : [{ id: `page:${n.id}`, label: n.label }],
-                    ),
-                    // Agent-Tab deaktiviert (Volkan 24.08.): EzyPilot läuft über
-                    // den EzyPilot-Button rechts im Header (Popup) — bei Bedarf
-                    // den page:copilot-Eintrag hier wieder ergänzen.
-                  ]}
-                  active={
-                    page === "dashboard" && appScope === "seo" ? `tab:${tab}` : `page:${page}`
-                  }
-                  onChange={(id) => {
-                    const [art, wert] = id.split(":");
-                    if (art === "tab") {
-                      setPage("dashboard");
-                      setTab(wert);
-                    } else setPage(wert);
-                  }}
-                />
-              )}
+              {/* Desktop-Nav-Umbau (Volkan 22.08.): das Seiten+Tabs-Segmented
+                ist in die linke Sidebar (AppRail nav) gewandert — der Header
+                behält Kunden-Pill, Filter und Aktionen. */}
             </div>
             <div
               className="header-actions"

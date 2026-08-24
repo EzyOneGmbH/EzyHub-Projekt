@@ -16,14 +16,6 @@ export const APP_GLYPHS = {
   reakt: Mail,
   admin: Settings,
 };
-const APP_SHORT = {
-  seo: "Rank",
-  geo: "AI",
-  analyse: "Analyse",
-  ads: "Perf.",
-  reakt: "Reakt",
-  admin: "Admin",
-};
 
 /** Marken-Hexagon (E + Power-O) — SVG nach Hi-Fi, klickbar zum Launcher. */
 export function EzyHexMark({ size = 30 }) {
@@ -67,23 +59,29 @@ export function EzyHexMark({ size = 30 }) {
   );
 }
 
+// Desktop-Nav-Umbau (Volkan 22.08.): links nur noch die Haupt-WebApps —
+// Analyse/Reakt/Admin sind ausschliesslich über den Launcher erreichbar.
+export const RAIL_APPS = ["seo", "geo", "ads"];
+
 /**
- * AppRail — 76px-Icon-Rail links (ersetzt Sidebar-Logo + ⣿-App-Switcher).
+ * AppRail — linke Desktop-Sidebar (Volkan 22.08.): Zone 1 = Haupt-Apps
+ * (EzyRank/EzyAI/EzyPerformance), Hairline-Trennung, Zone 2 = alle Tabs/
+ * Bereiche der aktiven App (nav: [{id,label,icon?,active,onClick,group?}]).
  * current: aktive App-Id; canOpen: Gate aus useAppAccess; profile: {name, role}.
  */
-export function AppRail({ current, canOpen, profile, onLogout, initials }) {
+export function AppRail({ current, canOpen, profile, onLogout, initials, nav = null, navTitle }) {
   const [menue, setMenue] = useState(false);
+  let letzteGruppe = null;
   return (
     <aside
       className="app-sidebar"
       style={{
-        width: 76,
+        width: 210,
         flexShrink: 0,
         display: "flex",
         flexDirection: "column",
-        alignItems: "center",
-        gap: 10,
-        padding: "16px 0",
+        gap: 2,
+        padding: "16px 12px",
         background: "rgba(252,252,252,.92)",
         borderRight: `1px solid ${C.border}`,
         position: "fixed",
@@ -91,12 +89,47 @@ export function AppRail({ current, canOpen, profile, onLogout, initials }) {
         left: 0,
         bottom: 0,
         zIndex: 50,
+        overflowY: "auto",
+        boxSizing: "border-box",
       }}
     >
-      <a href="/apps" title="Zum Launcher" style={{ marginBottom: 8, display: "block" }}>
-        <EzyHexMark size={30} />
+      <a
+        href="/apps"
+        title="Zum Launcher"
+        style={{
+          marginBottom: 14,
+          display: "flex",
+          alignItems: "center",
+          gap: 9,
+          textDecoration: "none",
+          padding: "0 6px",
+        }}
+      >
+        <EzyHexMark size={26} />
+        <span
+          style={{
+            fontFamily: "'Kamerik 105',Poppins,sans-serif",
+            fontWeight: 800,
+            fontSize: 14.5,
+            color: C.text,
+          }}
+        >
+          Ezy One
+        </span>
       </a>
-      {EZY_APPS.filter((a) => canOpen?.(a.id)).map((a) => {
+      <div
+        style={{
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: ".08em",
+          textTransform: "uppercase",
+          color: C.textFaint,
+          padding: "0 8px 4px",
+        }}
+      >
+        Apps
+      </div>
+      {EZY_APPS.filter((a) => RAIL_APPS.includes(a.id) && canOpen?.(a.id)).map((a) => {
         const Glyph = APP_GLYPHS[a.id] || LayoutGrid;
         const aktiv = current === a.id;
         return (
@@ -106,84 +139,173 @@ export function AppRail({ current, canOpen, profile, onLogout, initials }) {
             title={a.name}
             style={{
               display: "flex",
-              flexDirection: "column",
               alignItems: "center",
-              gap: 3,
+              gap: 10,
+              padding: "8px 8px",
+              borderRadius: 10,
               textDecoration: "none",
-              cursor: "pointer",
+              background: aktiv ? a.tint : "transparent",
+              transition: "background .15s",
             }}
           >
+            <Glyph size={17} color={aktiv ? a.color : C.textDim} />
             <span
               style={{
-                width: 40,
-                height: 40,
-                borderRadius: C.rTile,
-                background: aktiv ? a.tint : "transparent",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                transition: "background .15s",
+                fontSize: 13,
+                fontWeight: aktiv ? 700 : 600,
+                color: aktiv ? a.color : C.textMuted,
               }}
             >
-              <Glyph size={19} color={aktiv ? a.color : C.textDim} />
-            </span>
-            <span
-              style={{
-                fontSize: 8.5,
-                fontWeight: 700,
-                letterSpacing: ".03em",
-                color: aktiv ? a.color : C.textDim,
-              }}
-            >
-              {APP_SHORT[a.id] || a.name}
+              {a.name}
             </span>
           </a>
         );
       })}
-      <div style={{ flex: 1 }} />
+      {Array.isArray(nav) && nav.length > 0 && (
+        <>
+          {/* Klare Trennung Apps ↔ Bereichs-Nav (Volkan 22.08.) */}
+          <div style={{ height: 1, background: C.border, margin: "12px 4px" }} />
+          <div
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: ".08em",
+              textTransform: "uppercase",
+              color: C.textFaint,
+              padding: "0 8px 4px",
+            }}
+          >
+            {navTitle || "Bereiche"}
+          </div>
+          {nav.map((t) => {
+            const Icon = t.icon;
+            const gruppenKopf =
+              t.group && t.group !== letzteGruppe ? ((letzteGruppe = t.group), t.group) : null;
+            return (
+              <div key={t.id}>
+                {gruppenKopf && (
+                  <div
+                    style={{
+                      fontSize: 9.5,
+                      fontWeight: 700,
+                      letterSpacing: ".07em",
+                      textTransform: "uppercase",
+                      color: C.textFaint,
+                      padding: "10px 8px 3px",
+                    }}
+                  >
+                    {gruppenKopf}
+                  </div>
+                )}
+                <button
+                  onClick={t.onClick}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    width: "100%",
+                    padding: "7px 8px",
+                    borderRadius: 10,
+                    border: "none",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    fontFamily: "inherit",
+                    background: t.active ? C.accentDim : "transparent",
+                    color: t.active ? C.accent : C.textMuted,
+                    fontSize: 12.5,
+                    fontWeight: t.active ? 700 : 600,
+                    transition: "background .15s",
+                  }}
+                >
+                  {Icon && <Icon size={15} />}
+                  {t.label}
+                </button>
+              </div>
+            );
+          })}
+        </>
+      )}
+      <div style={{ flex: 1, minHeight: 12 }} />
+      <div style={{ height: 1, background: C.border, margin: "8px 4px" }} />
       <a
         href="/apps"
         title="Alle Apps"
         style={{
-          width: 40,
-          height: 40,
-          borderRadius: C.rTile,
           display: "flex",
           alignItems: "center",
-          justifyContent: "center",
+          gap: 10,
+          padding: "8px 8px",
+          borderRadius: 10,
+          textDecoration: "none",
+          color: C.textMuted,
+          fontSize: 12.5,
+          fontWeight: 600,
         }}
       >
-        <LayoutGrid size={18} color={C.textDim} />
+        <LayoutGrid size={16} color={C.textDim} /> Alle Apps
       </a>
       <div style={{ position: "relative" }}>
         <button
           onClick={() => setMenue((v) => !v)}
           title={profile?.name || "Profil"}
           style={{
-            width: 34,
-            height: 34,
-            borderRadius: "50%",
-            background: C.grad,
-            color: "#fff",
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
-            fontSize: 12,
-            fontWeight: 700,
+            gap: 10,
+            width: "100%",
+            padding: "6px 8px",
+            borderRadius: 10,
             border: "none",
+            background: "transparent",
             cursor: "pointer",
             fontFamily: "inherit",
+            textAlign: "left",
           }}
         >
-          {initials || "?"}
+          <span
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: "50%",
+              background: C.grad,
+              color: "#fff",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 11,
+              fontWeight: 700,
+              flexShrink: 0,
+            }}
+          >
+            {initials || "?"}
+          </span>
+          <span style={{ minWidth: 0 }}>
+            <span
+              style={{
+                display: "block",
+                fontSize: 12,
+                fontWeight: 700,
+                color: C.text,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {profile?.name || "—"}
+            </span>
+            <span style={{ display: "block", fontSize: 10.5, color: C.textDim }}>
+              {profile?.role || ""}
+            </span>
+          </span>
         </button>
         {menue && (
           <div
             style={{
               position: "absolute",
-              left: 46,
-              bottom: 0,
-              width: 190,
+              left: 0,
+              bottom: "100%",
+              marginBottom: 6,
+              width: 186,
               background: C.card,
               border: `1px solid ${C.border}`,
               borderRadius: 12,

@@ -156,7 +156,7 @@ function ReaktApp() {
     >
       {/* Mobile (01.08.): Header umbricht, engere Paddings, Karten einspaltig */}
       <style>{`
-      .reakt-root{padding-left:76px}
+      .reakt-root{padding-left:210px}
       .reakt-tabbar{display:none}
       @media(max-width:900px){
         .reakt-root{padding-left:0}

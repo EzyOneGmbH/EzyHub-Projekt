@@ -329,7 +329,7 @@ function EzyAiAnalyseApp() {
           }}
         >
           <style>{`
-            .anl-body { margin-left: 76px; }
+            .anl-body { margin-left: 210px; }
             .anl-tabbar { display: none; }
             @media (max-width: 900px) {
               .app-sidebar { display: none !important; }
@@ -361,6 +361,28 @@ function EzyAiAnalyseApp() {
           <AppRail
             current="analyse"
             canOpen={canOpen}
+            navTitle="Analyse"
+            nav={[
+              {
+                id: "analyse",
+                label: "Analyse",
+                active: !detail && tab === "analyse",
+                onClick: () => {
+                  setDetail(null);
+                  setTab("analyse");
+                },
+              },
+              {
+                id: "verlauf",
+                label: "Verlauf",
+                active: !detail && tab === "verlauf",
+                onClick: () => {
+                  setDetail(null);
+                  setTab("verlauf");
+                  void loadList();
+                },
+              },
+            ]}
             profile={profile}
             initials={String((profile as any)?.name || "?")
               .trim()
@@ -389,19 +411,7 @@ function EzyAiAnalyseApp() {
                 zIndex: 30,
               }}
             >
-              <SegmentedTabs
-                color={S.app}
-                items={[
-                  { id: "analyse", label: "Analyse" },
-                  { id: "verlauf", label: "Verlauf" },
-                ]}
-                active={detail ? "verlauf" : tab}
-                onChange={(id: string) => {
-                  setDetail(null);
-                  setTab(id as any);
-                  if (id === "verlauf") void loadList();
-                }}
-              />
+              {/* Desktop-Nav-Umbau (22.08.): Analyse/Verlauf in der Sidebar */}
               {detail && (
                 <span style={{ fontSize: 12.5, color: S.mut, fontWeight: 600 }}>› Ergebnis</span>
               )}

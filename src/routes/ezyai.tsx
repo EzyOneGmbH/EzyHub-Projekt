@@ -4758,7 +4758,7 @@ const S = {
   navAccent: "#7c3aed",
   navDim: "rgba(124,58,237,.10)",
 };
-const SIDEBAR_W = 76;
+const SIDEBAR_W = 210;
 
 // Redesign 1b (2h): Stil eines Bottom-Tab-Bar-Buttons (aktiv = Akzentfarbe).
 const tabBtn = (active: boolean): React.CSSProperties => ({
@@ -4991,12 +4991,42 @@ function EzyAiApp() {
             {/* ── Shell-Seitenleiste (identisch zur EzyRank-Shell) ─────────────── */}
             {/* Redesign 1b: Icon-Rail ersetzt die Sidebar; Kunden-Pill,
               Dashboard/Agent und Bereichs-Segmented leben im Glas-Header. */}
+            {/* Desktop-Nav-Umbau (Volkan 22.08.): Sidebar = Haupt-Apps +
+              alle EzyAI-Bereiche (Gruppen aus APP_NAV) + Agent, klar getrennt. */}
             <AppRail
               current="geo"
               canOpen={canOpen}
               profile={profile}
               initials={initials(profile.name)}
               onLogout={() => supabase.auth.signOut()}
+              navTitle="EzyAI"
+              nav={
+                showAll
+                  ? null
+                  : [
+                      ...APP_NAV.flatMap((g) =>
+                        g.items.map((t) => ({
+                          id: `sec:${t.id}`,
+                          label: t.badge && t.badge > 0 ? `${t.label} (${t.badge})` : t.label,
+                          icon: t.icon,
+                          group: g.group,
+                          active: view === "dashboard" && section === t.id,
+                          onClick: () => {
+                            setView("dashboard");
+                            setSection(t.id);
+                          },
+                        })),
+                      ),
+                      {
+                        id: "view:agent",
+                        label: "Agent",
+                        icon: Bot,
+                        group: "App",
+                        active: view === "agent",
+                        onClick: () => setView("agent"),
+                      },
+                    ]
+              }
             />
 
             {/* ── Content ──────────────────────────────────────────────────────── */}
@@ -5118,28 +5148,8 @@ function EzyAiApp() {
                       </option>
                     ))}
                   </select>
-                  {/* Bereichs-Segmented (Hi-Fi 3a) — App-Nav + Agent, scrollbar */}
-                  {!showAll && (
-                    <SegmentedTabs
-                      color={S.navAccent}
-                      items={[
-                        ...APP_NAV.flatMap((g: any) => g.items).map((t: any) => ({
-                          id: `sec:${t.id}`,
-                          label: t.badge && t.badge > 0 ? `${t.label} (${t.badge})` : t.label,
-                        })),
-                        { id: "view:agent", label: "Agent" },
-                      ]}
-                      active={view === "agent" ? "view:agent" : `sec:${section}`}
-                      onChange={(id: string) => {
-                        const [art, wert] = id.split(":");
-                        if (art === "view") setView(wert as any);
-                        else {
-                          setView("dashboard");
-                          setSection(wert);
-                        }
-                      }}
-                    />
-                  )}
+                  {/* Desktop-Nav-Umbau (Volkan 22.08.): Bereichs-Segmented in
+                    die linke Sidebar gewandert (AppRail nav). */}
                 </div>
                 {/* Filter statt Titel im Header (Volkan 10.08., wie EzyRank) —
                 der Bereichs-Titel steht jetzt im Body. */}
