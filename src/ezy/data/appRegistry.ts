@@ -99,6 +99,10 @@ export const APP_SCOPES: Record<
   seo: {
     // Projekt/AWORK "tasks" vorerst deaktiviert (Volkan 22.08.) — bei Bedarf
     // wieder ergänzen (+ NAV-Zeile in EzyOneApp).
+    // Content-Tab deaktiviert (Volkan 24.08.): NUR die NAV-Zeile in EzyOneApp
+    // ist auskommentiert; "content" bleibt hier im Scope, damit der Deep-Link
+    // "Im Editor weiterbearbeiten" (ToolRunner → Entwurf) nicht vom
+    // Scope-Guard auf das Dashboard zurückgeworfen wird.
     pages: ["dashboard", "copilot", "tools", "content"],
     // Volkan 10.08.: Übersicht-Tab raus — EzyRank startet direkt im SEO-Tab.
     // Local Grid (17.08.): Maps-Heatmap aus dem Geo-Grid-Scan, opt-in je Kunde.

@@ -3495,7 +3495,7 @@ function ToolRunner({ tool, onClose, client, onComplete, onSaveDraft, onOpenDraf
         status: "draft",
       });
       setDraftSavedId(item?.id || "ok");
-      toast("Als Entwurf gespeichert — zu finden unter Content", "success");
+      toast("Als Entwurf gespeichert — über «Im Editor weiterbearbeiten» öffnen", "success");
     } catch (e) {
       toast(e?.message || "Speichern fehlgeschlagen", "error");
     } finally {
@@ -3820,10 +3820,10 @@ function ToolsPage({ selectedClient, tools, onSaveDraft, onOpenDraft }) {
             Tool-Ergebnisse kannst du direkt im Ergebnis-Fenster{" "}
             <strong style={{ color: C.text }}>als Entwurf speichern</strong> oder{" "}
             <strong style={{ color: C.text }}>an WordPress übergeben</strong> (sofern der Kunde
-            verbunden ist). Gespeicherte Entwürfe findest du unter{" "}
-            <strong style={{ color: C.text }}>Content</strong> — dort gibt es ebenfalls den Button
-            «An WordPress veröffentlichen». WordPress verbindet man je Kunde unter Admin → Kunden →
-            Onboarding.
+            verbunden ist). Gespeicherte Entwürfe öffnest du direkt über{" "}
+            <strong style={{ color: C.text }}>«Im Editor weiterbearbeiten»</strong> — dort gibt es
+            ebenfalls den Button «An WordPress veröffentlichen». WordPress verbindet man je Kunde
+            unter Admin → Kunden → Onboarding.
           </div>
         )}
         {visibleTools.length === 0 && goal !== "publish" && (
@@ -6137,7 +6137,10 @@ const NAV = [
   // { id: "tasks", label: "Projekt", icon: ListChecks },
   { id: "tools", label: "AI Tools", icon: Zap },
   { id: "agents", label: "Agents", icon: Bot },
-  { id: "content", label: "Content", icon: FileText },
+  // Content-Tab (Volkan 24.08.): vorerst deaktiviert — bei Bedarf Zeile wieder
+  // einkommentieren. Die Seite selbst bleibt im Scope (appRegistry seo.pages),
+  // damit "Im Editor weiterbearbeiten" aus dem ToolRunner weiter funktioniert.
+  // { id: "content", label: "Content", icon: FileText },
   { id: "reports", label: "Reports", icon: TrendingUp },
   { id: "clients", label: "Kunden", icon: Users },
   { id: "team", label: "Team", icon: Users }, // nur owner/admin (RBAC 2026-07-15)
@@ -6330,7 +6333,9 @@ function App({ appScope = null }) {
     if (page === "activity") setPage("agents");
     else if (page === "tasks")
       setPage("dashboard"); // Projekt deaktiviert 22.08.
-    else if (!isViewer && page === "reports") setPage("content");
+    // Content-Tab deaktiviert 24.08.: Team-"Reports" landet im Dashboard
+    // (vorher im integrierten Content-Tab).
+    else if (!isViewer && page === "reports") setPage("dashboard");
   }, [page, isViewer]);
   const [cdd, setCdd] = useState(false);
   // Redesign 1b (Screen 2j): Bottom-Sheet ersetzt <760px die Header-Selects
