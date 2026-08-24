@@ -361,7 +361,6 @@ function EzyAiAnalyseApp() {
           <AppRail
             current="analyse"
             canOpen={canOpen}
-            navTitle="Analyse"
             nav={[
               {
                 id: "analyse",

@@ -7031,9 +7031,6 @@ function App({ appScope = null }) {
           profile={profile}
           initials={initialsFromName(profile.name)}
           onLogout={() => supabase.auth.signOut()}
-          navTitle={
-            (EZY_APPS.find((x) => x.id === (appScope || currentAppOf(page, tab))) || {}).name
-          }
           nav={
             isMobile || (showAll && (appScope === "seo" || appScope === "ads"))
               ? null

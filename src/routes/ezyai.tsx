@@ -4999,7 +4999,6 @@ function EzyAiApp() {
               profile={profile}
               initials={initials(profile.name)}
               onLogout={() => supabase.auth.signOut()}
-              navTitle="EzyAI"
               nav={
                 showAll
                   ? null

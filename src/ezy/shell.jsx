@@ -69,7 +69,7 @@ export const RAIL_APPS = ["seo", "geo", "ads"];
  * Bereiche der aktiven App (nav: [{id,label,icon?,active,onClick,group?}]).
  * current: aktive App-Id; canOpen: Gate aus useAppAccess; profile: {name, role}.
  */
-export function AppRail({ current, canOpen, profile, onLogout, initials, nav = null, navTitle }) {
+export function AppRail({ current, canOpen, profile, onLogout, initials, nav = null }) {
   const [menue, setMenue] = useState(false);
   let letzteGruppe = null;
   return (
@@ -163,20 +163,9 @@ export function AppRail({ current, canOpen, profile, onLogout, initials, nav = n
       })}
       {Array.isArray(nav) && nav.length > 0 && (
         <>
-          {/* Klare Trennung Apps ↔ Bereichs-Nav (Volkan 22.08.) */}
+          {/* Klare Trennung Apps ↔ Bereichs-Nav (Volkan 22.08.; App-Titel-
+            Label auf Volkans Wunsch 24.08. wieder entfernt) */}
           <div style={{ height: 1, background: C.border, margin: "12px 4px" }} />
-          <div
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: ".08em",
-              textTransform: "uppercase",
-              color: C.textFaint,
-              padding: "0 8px 4px",
-            }}
-          >
-            {navTitle || "Bereiche"}
-          </div>
           {nav.map((t) => {
             const Icon = t.icon;
             const gruppenKopf =
