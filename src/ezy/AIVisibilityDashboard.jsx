@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 // Prompt-Historie (11.08., Searchable "Response History"): lazy im Detail-Modal.
 import { fetchPromptHistory } from "./data/useEzyAIVisibility";
 // Echte Landkarte (04.08.): react-freie Geo-Bausteine — kein Peer-Dep-Risiko.
-import { geoNaturalEarth1, geoPath, geoBounds } from "d3-geo";
+import { geoNaturalEarth1, geoPath, geoCentroid } from "d3-geo";
 import { feature as topoFeature } from "topojson-client";
 import worldTopo from "world-atlas/countries-110m.json";
 import {
@@ -3081,10 +3081,16 @@ function LocationPanel({ countries, models }) {
     // nachträglichem scale-Cap — der Cap verschob nur den Maßstab, nicht das
     // Zentrum, und schob den Ausschnitt aus dem Bild (leere/abgeschnittene Karte).
     // MultiPoint statt Polygon: keine sphärische Winding-Falle.
-    const [[minX, minY], [maxX, maxY]] = geoBounds({
-      type: "FeatureCollection",
-      features: dataFeatures,
-    });
+    // Fix 24.08.: Zentroide statt geoBounds — geoBounds liefert bei Ländern
+    // über der Datumsgrenze (USA/Alaska) gewickelte Grenzen (maxX < minX)
+    // und schob den Fokus-Ausschnitt nach Asien.
+    const zentren = dataFeatures.map((f) => geoCentroid(f));
+    const lons = zentren.map((z) => z[0]);
+    const lats = zentren.map((z) => z[1]);
+    const minX = Math.min(...lons),
+      maxX = Math.max(...lons),
+      minY = Math.min(...lats),
+      maxY = Math.max(...lats);
     const cx = (minX + maxX) / 2,
       cy = (minY + maxY) / 2;
     const spanX = Math.max(maxX - minX, 22) * 1.35; // Mindest-Ausschnitt + Rand-Kontext
@@ -3415,10 +3421,16 @@ function ConversionRegions({ attribution }) {
     H = 400;
   const projection = geoNaturalEarth1();
   if (dataFeatures.length && mapView === "fokus") {
-    const [[minX, minY], [maxX, maxY]] = geoBounds({
-      type: "FeatureCollection",
-      features: dataFeatures,
-    });
+    // Fix 24.08.: Zentroide statt geoBounds — geoBounds liefert bei Ländern
+    // über der Datumsgrenze (USA/Alaska) gewickelte Grenzen (maxX < minX)
+    // und schob den Fokus-Ausschnitt nach Asien.
+    const zentren = dataFeatures.map((f) => geoCentroid(f));
+    const lons = zentren.map((z) => z[0]);
+    const lats = zentren.map((z) => z[1]);
+    const minX = Math.min(...lons),
+      maxX = Math.max(...lons),
+      minY = Math.min(...lats),
+      maxY = Math.max(...lats);
     const cx = (minX + maxX) / 2,
       cy = (minY + maxY) / 2;
     const spanX = Math.max(maxX - minX, 22) * 1.35;
@@ -5943,9 +5955,11 @@ function buildTabGroups(d) {
     {
       group: "Kontext",
       items: [
-        ...(Array.isArray(d?.countries) && d.countries.length
-          ? [{ id: "standorte", label: "Standorte", icon: MapPin }]
-          : []),
+        // Standorte-Tab deaktiviert (Volkan 24.08.) — bei Bedarf wieder
+        // einkommentieren; LocationPanel + Daten (d.countries) bleiben erhalten.
+        // ...(Array.isArray(d?.countries) && d.countries.length
+        //   ? [{ id: "standorte", label: "Standorte", icon: MapPin }]
+        //   : []),
         ...(hasConv ? [{ id: "conversions", label: "Conversions", icon: MousePointerClick }] : []),
       ],
     },
