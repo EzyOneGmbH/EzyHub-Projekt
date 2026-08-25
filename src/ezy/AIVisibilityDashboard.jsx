@@ -1,7 +1,5 @@
 import React, { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-// Prompt-Historie (11.08., Searchable "Response History"): lazy im Detail-Modal.
-import { fetchPromptHistory } from "./data/useEzyAIVisibility";
 // Echte Landkarte (04.08.): react-freie Geo-Bausteine — kein Peer-Dep-Risiko.
 import { geoNaturalEarth1, geoPath, geoCentroid } from "d3-geo";
 import { feature as topoFeature } from "topojson-client";
@@ -1010,6 +1008,7 @@ function groupPrompts(rows) {
   for (const r of rows) {
     const key = `${r.prompt}·${r.country || ""}`;
     if (!map.has(key)) map.set(key, { prompt: r.prompt, country: r.country, engines: [] });
+    if (r.brandPrompt) map.get(key).brandPrompt = true;
     map.get(key).engines.push(r);
   }
   const groups = [...map.values()].map((g) => {
@@ -1024,8 +1023,13 @@ function groupPrompts(rows) {
     g.total = g.engines.length;
     return g;
   });
+  // Marken-Prompts immer ans Ende der Liste (25.08., Volkan).
   groups.sort(
-    (a, b) => b.mentioned - a.mentioned || b.total - a.total || a.prompt.localeCompare(b.prompt),
+    (a, b) =>
+      (a.brandPrompt ? 1 : 0) - (b.brandPrompt ? 1 : 0) ||
+      b.mentioned - a.mentioned ||
+      b.total - a.total ||
+      a.prompt.localeCompare(b.prompt),
   );
   return groups;
 }
@@ -1224,124 +1228,9 @@ function AnswerBlocks({ text, highlight }) {
 }
 
 // Prompt-Detail als Pop-up (User-Wunsch 2026-07-19, Semrush-Vorbild):
-// ── Antwort-Historie (11.08., Searchable "Response History") ─────────────────
-// Verlauf desselben Prompts über die letzten Mess-Snapshots: Matrix Datum ×
-// Engine (Status-Punkt), Klick auf einen Punkt zeigt die damalige Antwort.
-// Lazy geladen (RLS-Read), damit das Modal ohne Zusatzkosten öffnet.
-function PromptHistorySection({ clientId, prompt, brand }) {
-  const [hist, setHist] = useState(null); // null=lädt, []=keine Daten
-  const [sel, setSel] = useState(null); // { date, platform, response }
-  useEffect(() => {
-    let alive = true;
-    fetchPromptHistory(clientId, prompt)
-      .then((rows) => {
-        if (alive) setHist(rows);
-      })
-      .catch(() => {
-        if (alive) setHist([]);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [clientId, prompt]);
-  if (hist === null)
-    return (
-      <p className="mt-5 text-[11px]" style={{ color: C.sub }}>
-        Verlauf wird geladen…
-      </p>
-    );
-  const dates = [...new Set(hist.map((r) => r.date))]; // absteigend sortiert
-  if (dates.length < 2) return null; // erst ab 2 Snapshots interessant
-  const platforms = [...new Set(hist.map((r) => r.platform))].sort();
-  const cell = new Map(hist.map((r) => [`${r.date}|${r.platform}`, r]));
-  const fmtD = (iso) =>
-    new Date(iso + "T00:00:00").toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit" });
-  return (
-    <div className="mt-5 border-t pt-4" style={{ borderColor: C.line }}>
-      <div className="flex items-center gap-1.5 text-[12px] font-semibold" style={{ color: C.ink }}>
-        Verlauf
-        <span
-          title="Dieselbe Frage über die letzten Messläufe: Wie stabil ist die Erwähnung je KI-Modell? Punkt anklicken für die damalige Antwort."
-          style={{ color: C.sub, cursor: "help", display: "inline-flex" }}
-        >
-          <Info size={12} />
-        </span>
-        <span className="font-normal" style={{ color: C.sub }}>
-          · {dates.length} Messungen
-        </span>
-      </div>
-      <div className="mt-2 overflow-x-auto">
-        <table className="text-[11px]">
-          <thead>
-            <tr style={{ color: C.sub }}>
-              <th className="pr-3 py-1 text-left font-medium">Datum</th>
-              {platforms.map((p) => (
-                <th key={p} className="px-2 py-1 text-center font-medium">
-                  <EngineFavicon platform={p} />
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {dates.slice(0, 12).map((dt) => (
-              <tr key={dt} className="border-t" style={{ borderColor: C.line }}>
-                <td className="pr-3 py-1.5 tabular-nums" style={{ color: C.ink }}>
-                  {fmtD(dt)}
-                </td>
-                {platforms.map((p) => {
-                  const r = cell.get(`${dt}|${p}`);
-                  if (!r)
-                    return (
-                      <td key={p} className="px-2 py-1.5 text-center" style={{ color: C.sub }}>
-                        ·
-                      </td>
-                    );
-                  const active = sel && sel.date === dt && sel.platform === p;
-                  return (
-                    <td key={p} className="px-2 py-1.5 text-center">
-                      <button
-                        onClick={() =>
-                          setSel(
-                            active
-                              ? null
-                              : { date: dt, platform: p, response: r.response, status: r.status },
-                          )
-                        }
-                        title={`${p} · ${r.status || "kein Status"}`}
-                        className="inline-block h-3 w-3 rounded-full transition"
-                        style={{
-                          background: STATUS_COLOR(r.status || "Nicht erwähnt"),
-                          outline: active ? `2px solid ${C.indigo}` : "none",
-                          outlineOffset: 1,
-                        }}
-                      />
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {sel && (
-        <div
-          className="mt-3 rounded-lg border p-3 text-[11.5px] leading-relaxed"
-          style={{ borderColor: C.line, background: C.cardAlt, color: C.ink }}
-        >
-          <div className="mb-1.5 flex items-center gap-2 text-[10.5px]" style={{ color: C.sub }}>
-            <b>{sel.platform}</b> am {fmtD(sel.date)} · <StatusPill s={sel.status} />
-          </div>
-          {String(sel.response || "").slice(0, 1200) || "Keine Antwort gespeichert."}
-          {String(sel.response || "").length > 1200 ? "…" : ""}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // Header = Prompt + Modell-Tabs (Status-Punkt je Engine), linke Spalte =
 // Quellen + Mit-genannt, rechte Spalte = Antwort mit Status/Position/Tonalität.
-function PromptDetailModal({ g, opportunity, brand, clientId, onClose }) {
+function PromptDetailModal({ g, opportunity, brand, onClose }) {
   const [tab, setTab] = useState(0);
   const e = g.engines[Math.min(tab, g.engines.length - 1)] || {};
   useEffect(() => {
@@ -1497,9 +1386,6 @@ function PromptDetailModal({ g, opportunity, brand, clientId, onClose }) {
                 ))}
               </div>
             )}
-            {clientId && (
-              <PromptHistorySection clientId={clientId} prompt={g.prompt} brand={brand} />
-            )}
           </section>
         </div>
       </div>
@@ -1589,7 +1475,7 @@ function YesNoPill({ yes }) {
 }
 // All-Responses-Optik (03.08.): Gruppe aufklappbar, je Engine EINE Zeile mit
 // Erwähnt?/Zitiert?/Position/Marken/Quellen — Detail-Modal weiter per Klick.
-function PromptGroupRow({ g, opportunity, brand, clientId }) {
+function PromptGroupRow({ g, opportunity, brand }) {
   const [open, setOpen] = useState(false); // Detail-Modal (Antwort-Volltexte)
   const [expanded, setExpanded] = useState(false); // Default zu (Volkan 06.08.); Klick auf die Zeile klappt auf
   const rate = g.total ? Math.round((g.mentioned / g.total) * 100) : 0;
@@ -1712,7 +1598,6 @@ function PromptGroupRow({ g, opportunity, brand, clientId }) {
           g={g}
           opportunity={opportunity}
           brand={brand}
-          clientId={clientId}
           onClose={() => setOpen(false)}
         />
       )}
@@ -1944,15 +1829,7 @@ function promptsToCsv(rows) {
   return "﻿" + [head.map(esc).join(";"), ...lines].join("\r\n");
 }
 
-function PromptsTable({
-  prompts,
-  opps,
-  brand,
-  brandPrompts = [],
-  needsReview = 0,
-  onReview,
-  clientId,
-}) {
+function PromptsTable({ prompts, opps, brand, brandPrompts = [], needsReview = 0, onReview }) {
   // Vereinfacht (24.08., Volkan): "Alle Prompts" entfernt, Marken-Prompts in
   // "Erfolgreichste Prompts" integriert und dieser Filter ist Standard —
   // sichtbar sind nur noch Erfolgreichste Prompts und Prompt-Chancen.
@@ -1960,7 +1837,9 @@ function PromptsTable({
   const [page, setPage] = useState(0);
   const [q, setQ] = useState(""); // Suchfeld (Searchable-Parität)
   const [statusF, setStatusF] = useState("alle"); // Status-Filter
-  let source = tab === "win" ? [...prompts, ...brandPrompts] : opps;
+  // brandPrompt-Marker: Marken-Prompts sortieren in der Liste immer ans Ende (25.08., Volkan).
+  let source =
+    tab === "win" ? [...prompts, ...brandPrompts.map((p) => ({ ...p, brandPrompt: true }))] : opps;
   if (q.trim()) {
     const needle = q.trim().toLowerCase();
     source = source.filter(
@@ -2145,7 +2024,6 @@ function PromptsTable({
                 g={g}
                 opportunity={opportunity}
                 brand={brand}
-                clientId={clientId}
               />
             ))}
           </tbody>
@@ -4224,7 +4102,8 @@ function QueryMatrixCard({ prompts, opps, serpAi, aiSearch, brand, ownDomain }) 
         : { state: "nein", text: "" };
     }
   }
-  const TYP_ORDER = { Marke: 0, Keyword: 1, Prompt: 2 };
+  // Marken-Zeilen immer ans Ende (25.08., Volkan) — vorher standen sie zuoberst.
+  const TYP_ORDER = { Keyword: 0, Prompt: 1, Marke: 2 };
   const score = (r) => Object.values(r.cells).filter((c) => c && c.state !== "nein").length;
   let rows = [...kwMap.values(), ...promptRows].sort(
     (a, b) =>
@@ -6509,7 +6388,6 @@ export default function AIVisibilityDashboard({
                     brandPrompts: d.brandPrompts || [],
                     needsReview: d.promptsNeedsReview || 0,
                     onReview: onReviewPrompts,
-                    clientId: d.clientId,
                   }}
                   matrixProps={{
                     prompts: fP,

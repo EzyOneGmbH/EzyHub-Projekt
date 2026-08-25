@@ -33,8 +33,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.6.2",
+    version: "1.6.3",
     changelog: [
+      {
+        version: "1.6.3",
+        date: "2026-08-25",
+        note: "Verlauf im Prompt-Detail entfernt, Marken-Prompts stehen in Liste und Anfragen-Matrix immer am Ende",
+      },
       {
         version: "1.6.2",
         date: "2026-08-24",
