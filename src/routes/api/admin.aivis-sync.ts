@@ -2491,7 +2491,10 @@ async function jobPromptRunner(
   // Aufrufer loopt bis `next` null ist. Aggregation erst im letzten Häppchen.
   // 20 je Etappe = 2 Wellen à max 90s (conc 10) + Judge — passt unter das Kap.
   // 30 riss es bei websearch-lastigen Prompts (B5: Engines allein 4:21).
-  const CHUNK = Math.max(5, Number(process.env.AIVIS_PROMPT_CHUNK ?? 20) || 20);
+  // Chunk-Halbierung bei Web-Suche (26.08.): 20 Defs × 6 Engines mit Suche
+  // sprengten das ~300s-Gateway (2 Wellen à 140s + Overhead) — 10 Defs =
+  // EINE Welle je Engine, Etappe bleibt sicher unter dem Kap.
+  const CHUNK = Math.max(5, Number(process.env.AIVIS_PROMPT_CHUNK ?? (WEB_SUCHE ? 10 : 20)) || 20);
   const allDefs = defs;
   const chunked = opts.offset != null;
   const offset = chunked ? Math.min(opts.offset as number, allDefs.length) : 0;
