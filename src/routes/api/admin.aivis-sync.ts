@@ -1469,7 +1469,11 @@ async function askClaude(
       max_tokens: maxTokens,
       messages: [{ role: "user", content: prompt }],
       ...(WEB_SUCHE
-        ? { tools: [{ type: CLAUDE_SEARCH_TOOL, name: "web_search", max_uses: 3 }] }
+        ? {
+            // max_uses 1 (26.08.): 3 Suchen sprengten die 140s-Deadline —
+            // EINE Suche ist immer noch such-fundiert, aber 2–3× schneller.
+            tools: [{ type: CLAUDE_SEARCH_TOOL, name: "web_search", max_uses: 1 }],
+          }
         : {}),
       ...(temperature != null ? { temperature } : {}),
     }),
