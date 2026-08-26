@@ -346,7 +346,9 @@ async function dfsAiCall(
       method: "POST",
       headers: { Authorization: auth, "Content-Type": "application/json" },
       body: JSON.stringify([task]),
-      signal: AbortSignal.timeout(60_000),
+      // 120s (26.08.): LLM-Antworten ueber DFS koennen >60s brauchen — der
+      // alte 60s-Abort liess den DFS-Primaerweg still scheitern.
+      signal: AbortSignal.timeout(120_000),
     });
     const j: any = await r.json().catch(() => null);
     const t = j?.tasks?.[0];
@@ -1636,19 +1638,22 @@ const DFS_LLM_MAP: Record<string, { se: string; model: string }> = {
   Gemini: { se: "gemini", model: "gemini-2.5-flash" },
   ChatGPT: { se: "chat_gpt", model: "gpt-5.1" },
 };
+// Rueckgabe (26.08.): { error } statt still null — die Nacht vom 25./26.08.
+// zeigte, dass BEIDE Wege scheitern koennen und der DFS-Grund nirgends stand.
 async function askViaDfs(
   engine: string,
   prompt: string,
-): Promise<{ text: string; sources: number; model?: string } | null> {
-  if (process.env.AIVIS_DFS_FALLBACK === "0") return null;
+): Promise<{ text: string; sources: number; model?: string } | { error: string } | null> {
+  if (process.env.AIVIS_DFS_FALLBACK === "0")
+    return { error: "DFS-Weg deaktiviert (AIVIS_DFS_FALLBACK=0)" };
   const def = DFS_LLM_MAP[engine];
   if (!def) return null;
   // user_prompt-Limit der DFS-API: 500 Zeichen (Mess-Prompts liegen weit darunter).
   const r = await dfsAiCall(`ai_optimization/${def.se}/llm_responses/live`, {
     user_prompt: prompt.slice(0, 500),
     model_name: def.model,
-  });
-  if (!r.ok) return null;
+  }).catch((e) => ({ ok: false as const, error: String(e?.message || e) }));
+  if (!r.ok) return { error: `DFS ${r.error || "Fehler"}` };
   const row = (r.result ?? [])[0];
   const text = ((row?.items ?? []) as any[])
     .filter((it) => it?.type === "message")
@@ -1657,7 +1662,7 @@ async function askViaDfs(
     .trim();
   return text
     ? { text, sources: urlsIn(text), model: `${String(row?.model_name || def.model)}@dataforseo` }
-    : null;
+    : { error: "DFS leere Antwort" };
 }
 // Routing-Entscheid (06.08., Volkan): DataForSEO ist PRIMÄR für die 4
 // Mess-Engines — EIN Abrechnungskonto, keine rollierenden Prepaid-Ausfälle
@@ -1666,15 +1671,24 @@ async function askViaDfs(
 // AIVIS_LLM_PRIMARY=direct dreht auf Direkt-zuerst zurück.
 const LLM_PRIMARY = (process.env.AIVIS_LLM_PRIMARY ?? "dfs").toLowerCase();
 const withDfsRouting = (name: string, direct: (p: string) => Promise<any>) => async (p: string) => {
+  const hatText = (x: any) => x && typeof x.text === "string" && x.text;
   if (LLM_PRIMARY === "dfs") {
     const f = await askViaDfs(name, p);
-    if (f) return f;
-    return direct(p).catch(() => null);
+    if (hatText(f)) return f;
+    const r = await direct(p).catch((e) => ({ error: String(e?.message || e) }));
+    if (hatText(r)) return r;
+    // Beide Wege tot: BEIDE Gruende melden (landet in engineErrors).
+    return {
+      error: `DFS-primaer: ${(f as any)?.error || "leer"} | direkt: ${(r as any)?.error || "leer"}`,
+    };
   }
-  const r = await direct(p).catch(() => null);
-  if (r && r.text) return r;
+  const r = await direct(p).catch((e) => ({ error: String(e?.message || e) }));
+  if (hatText(r)) return r;
   const f = await askViaDfs(name, p);
-  return f ?? r;
+  if (hatText(f)) return f;
+  return {
+    error: `direkt: ${(r as any)?.error || "leer"} | DFS-Fallback: ${(f as any)?.error || "leer"}`,
+  };
 };
 
 const PROMPT_ENGINES: Array<{
