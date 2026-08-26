@@ -2517,14 +2517,24 @@ async function jobPromptRunner(
       // Call den gesamten Lauf endlos. Max 10 gleichzeitig je Provider, 90s je
       // Ask: der GESAMTE Lauf muss unter das ~300s-Gateway-Kap; websearch-lastige
       // Prompts (B5) brauchten bei conc 6/120s allein 4+ Min fuer die Engines.
+      // Web-Suche (26.08.): Antworten mit Suche brauchen laenger — 90s killte
+      // JEDE Claude-Antwort still. 140s × 2 Wellen (conc 10 bei 20 Prompts)
+      // bleibt unter dem ~300s-Gateway-Kap; Timeouts landen in engineErrors.
+      const askDeadline = WEB_SUCHE ? 140_000 : 90_000;
       const ask = (d: any) =>
-        withDeadline(eng.ask(d.prompt), 90_000, `ask:${eng.name}`).catch(() => null);
+        withDeadline(eng.ask(d.prompt), askDeadline, `ask:${eng.name}`).catch((e: any) => ({
+          text: "",
+          sources: 0,
+          error: `Deadline/Abbruch: ${String(e?.message || e).slice(0, 80)}`,
+        }));
       const answers = await pMap(defs, ask, 10);
       // Ein Retry-Durchgang fuer leere Antworten (Rate-Limit-Erholung), gedrosselt.
+      // Bei aktiver Web-Suche entfaellt er: das Zeitbudget ist durch die
+      // laengere Deadline bereits ausgereizt (Gateway-Kap).
       const misses = answers
         .map((a: any, i: number) => (!a || !a.text ? i : -1))
         .filter((i) => i >= 0);
-      if (misses.length && misses.length < defs.length) {
+      if (!WEB_SUCHE && misses.length && misses.length < defs.length) {
         await new Promise((r) => setTimeout(r, 2000));
         const retries = await pMap(misses, (i: number) => ask(defs[i]), 5);
         retries.forEach((a: any, k: number) => {
