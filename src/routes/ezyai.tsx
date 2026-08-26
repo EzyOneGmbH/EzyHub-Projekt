@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppRail, SegmentedTabs } from "@/ezy/shell";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useAppAccess } from "@/ezy/data/useAppAccess";
@@ -133,9 +133,85 @@ const APP_NAV: Array<{ group: string; items: NavItem[] }> = [
     ],
   },
 ];
+// Ads-Modus (ChatGPT Ads, 26.08.2026): eigene Bereichs-Nav — der Organic/Ads-
+// Schalter in der AppRail (unter der Trennlinie) wechselt zwischen den Welten.
+const ADS_NAV: Array<{ group: string; items: NavItem[] }> = [
+  {
+    group: "ChatGPT Ads",
+    items: [
+      { id: "ads-overview", label: "Dashboard", icon: LayoutDashboard },
+      { id: "ads-conversions", label: "Conversions", icon: Activity },
+      { id: "ads-events", label: "Event-Log", icon: FileText },
+    ],
+  },
+];
 const NAV_LABEL: Record<string, string> = Object.fromEntries(
-  APP_NAV.flatMap((g) => g.items.map((i) => [i.id, i.label])),
+  [...APP_NAV, ...ADS_NAV].flatMap((g) => g.items.map((i) => [i.id, i.label])),
 );
+// Ads-Panel lazy (Bundle-Split-Muster wie die Bereichs-Module).
+const EzyAiAdsPanel = lazy(() => import("@/ezy/EzyAiAdsPanel"));
+
+/** Organic/Ads-Schalter (Segmented, Hi-Fi) — sitzt in der AppRail unter der
+ *  Trennlinie, damit die Apps-Zone abgegrenzt bleibt (Volkan 26.08.). */
+function OrganicAdsSwitch({
+  adsMode,
+  onChange,
+  compact = false,
+}: {
+  adsMode: boolean;
+  onChange: (ads: boolean) => void;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label="Organic oder Ads"
+      style={{
+        display: "flex",
+        background: "rgba(43,0,51,.05)",
+        border: `1px solid ${S.line}`,
+        borderRadius: 10,
+        padding: 3,
+        margin: compact ? 0 : "0 4px 6px",
+        flexShrink: 0,
+      }}
+    >
+      {(
+        [
+          [false, "Organic"],
+          [true, "Ads"],
+        ] as Array<[boolean, string]>
+      ).map(([ads, label]) => {
+        const aktiv = adsMode === ads;
+        return (
+          <button
+            key={label}
+            role="tab"
+            aria-selected={aktiv}
+            onClick={() => onChange(ads)}
+            style={{
+              flex: 1,
+              padding: compact ? "5px 12px" : "6px 8px",
+              borderRadius: 7,
+              border: "none",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontSize: 11.5,
+              fontWeight: aktiv ? 700 : 600,
+              background: aktiv ? "#fff" : "transparent",
+              color: aktiv ? S.app : S.mut,
+              boxShadow: aktiv ? "0 1px 3px rgba(43,0,51,.10)" : "none",
+              transition: "background .15s",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 // Redesign 1b (2h): "Heute" — nativer Handy-Einstieg für EzyAI. Begrüssung +
 // aktiver Kunde + Schnellzugriff in die Bereiche. Keine erfundenen Zahlen.
@@ -4790,6 +4866,23 @@ function EzyAiApp() {
     typeof window !== "undefined" && window.innerWidth < 900 ? "heute" : "dashboard",
   );
   const [section, setSection] = useState("aeo-insights"); // aktiver Sidebar-App-Bereich
+  // Organic/Ads-Schalter (26.08.): Ads = ChatGPT-Ads-Conversions (OpenAI
+  // Conversions API). Eigener Bereichs-State je Modus, Wahl bleibt erhalten.
+  const [adsMode, setAdsMode] = useState(() => {
+    try {
+      return localStorage.getItem("ezyai.mode.v1") === "ads";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("ezyai.mode.v1", adsMode ? "ads" : "organic");
+    } catch {
+      /* egal */
+    }
+  }, [adsMode]);
+  const [adsSection, setAdsSection] = useState("ads-overview");
   // Prompt-Kuration ist seit 18.08. der reguläre Bereich "Your Prompts" —
   // alle früheren "Prompts verwalten"-Einstiege führen hierhin.
   const goPrompts = useCallback(() => {
@@ -4999,20 +5092,29 @@ function EzyAiApp() {
               profile={profile}
               initials={initials(profile.name)}
               onLogout={() => supabase.auth.signOut()}
+              railExtra={
+                <OrganicAdsSwitch
+                  adsMode={adsMode}
+                  onChange={(ads) => {
+                    setAdsMode(ads);
+                    setView("dashboard");
+                  }}
+                />
+              }
               nav={
                 showAll
                   ? null
                   : [
-                      ...APP_NAV.flatMap((g) =>
+                      ...(adsMode ? ADS_NAV : APP_NAV).flatMap((g) =>
                         g.items.map((t) => ({
                           id: `sec:${t.id}`,
                           label: t.badge && t.badge > 0 ? `${t.label} (${t.badge})` : t.label,
                           icon: t.icon,
                           group: g.group,
-                          active: view === "dashboard" && section === t.id,
+                          active: view === "dashboard" && (adsMode ? adsSection : section) === t.id,
                           onClick: () => {
                             setView("dashboard");
-                            setSection(t.id);
+                            (adsMode ? setAdsSection : setSection)(t.id);
                           },
                         })),
                       ),
@@ -5058,41 +5160,54 @@ function EzyAiApp() {
                     ))}
                   </select>
                 </div>
-                {/* Bereichs-Chips nur mit gewähltem Kunden — "Alle Kunden" = leer. */}
+                {/* Bereichs-Chips nur mit gewähltem Kunden — "Alle Kunden" = leer.
+                  Ads-Modus (26.08.): eigener Chip-Satz + kompakter Schalter. */}
                 <div style={{ display: "flex", gap: 6, alignItems: "center", overflowX: "auto" }}>
+                  {view !== "heute" && (
+                    <OrganicAdsSwitch
+                      adsMode={adsMode}
+                      onChange={(ads) => {
+                        setAdsMode(ads);
+                        setView("dashboard");
+                      }}
+                      compact
+                    />
+                  )}
                   {!showAll &&
                     view !== "heute" &&
-                    APP_NAV.flatMap((g) => g.items).map((t) => {
-                      const Icon = t.icon;
-                      const a = view === "dashboard" && section === t.id;
-                      return (
-                        <button
-                          key={t.id}
-                          onClick={() => {
-                            setView("dashboard");
-                            setSection(t.id);
-                          }}
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 6,
-                            whiteSpace: "nowrap",
-                            padding: "7px 11px",
-                            borderRadius: 10,
-                            border: "none",
-                            cursor: "pointer",
-                            background: a ? S.navDim : "transparent",
-                            color: a ? S.navAccent : S.mut,
-                            fontSize: 12.5,
-                            fontWeight: a ? 600 : 400,
-                            fontFamily: "inherit",
-                          }}
-                        >
-                          <Icon size={15} />
-                          {t.label}
-                        </button>
-                      );
-                    })}
+                    (adsMode ? ADS_NAV : APP_NAV)
+                      .flatMap((g) => g.items)
+                      .map((t) => {
+                        const Icon = t.icon;
+                        const a = view === "dashboard" && (adsMode ? adsSection : section) === t.id;
+                        return (
+                          <button
+                            key={t.id}
+                            onClick={() => {
+                              setView("dashboard");
+                              (adsMode ? setAdsSection : setSection)(t.id);
+                            }}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 6,
+                              whiteSpace: "nowrap",
+                              padding: "7px 11px",
+                              borderRadius: 10,
+                              border: "none",
+                              cursor: "pointer",
+                              background: a ? S.navDim : "transparent",
+                              color: a ? S.navAccent : S.mut,
+                              fontSize: 12.5,
+                              fontWeight: a ? 600 : 400,
+                              fontFamily: "inherit",
+                            }}
+                          >
+                            <Icon size={15} />
+                            {t.label}
+                          </button>
+                        );
+                      })}
                 </div>
               </div>
 
@@ -5158,7 +5273,7 @@ function EzyAiApp() {
                     <RangeControl range={range} onApply={applyShared} S={S} />
                     {/* Vergleich nur dort anbieten, wo die Datenquelle es erlaubt
                     (GA4/Crawler-Log = Range-Panels). Insights ist Snapshot-basiert. */}
-                    {(section === "llm-analytics" || section === "traffic") && (
+                    {!adsMode && (section === "llm-analytics" || section === "traffic") && (
                       <select
                         value={compareMode}
                         onChange={(e) => setCompareMode(e.target.value as any)}
@@ -5181,7 +5296,7 @@ function EzyAiApp() {
                   </>
                 )}
                 <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
-                  {isOrgAdmin && client?.id && !showAll && (
+                  {!adsMode && isOrgAdmin && client?.id && !showAll && (
                     <button
                       className="ezyai-hm"
                       onClick={shareReport}
@@ -5198,20 +5313,22 @@ function EzyAiApp() {
                       Report teilen
                     </button>
                   )}
-                  <a
-                    className="ezyai-hm"
-                    href="/llm-ueberblick"
-                    style={{
-                      fontSize: 12,
-                      color: S.mut,
-                      textDecoration: "none",
-                      border: `1px solid ${S.line}`,
-                      borderRadius: 8,
-                      padding: "6px 12px",
-                    }}
-                  >
-                    LLM-Überblick
-                  </a>
+                  {!adsMode && (
+                    <a
+                      className="ezyai-hm"
+                      href="/llm-ueberblick"
+                      style={{
+                        fontSize: 12,
+                        color: S.mut,
+                        textDecoration: "none",
+                        border: `1px solid ${S.line}`,
+                        borderRadius: 8,
+                        padding: "6px 12px",
+                      }}
+                    >
+                      LLM-Überblick
+                    </a>
+                  )}
                   <NotificationsBell S={S} />
                   {/* EzyPilot oben rechts — wie in EzyRank/EzyPerformance (Volkan 13.08.);
                     mobil versteckt (FAB in der Bottom-Bar). */}
@@ -5229,7 +5346,15 @@ function EzyAiApp() {
                 {view !== "agent" && view !== "heute" && (
                   <div style={{ marginBottom: 20 }}>
                     <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
-                      {showAll ? "Agentur-Übersicht" : NAV_LABEL[section] || "Insights"}
+                      {showAll
+                        ? adsMode
+                          ? "ChatGPT Ads"
+                          : "Agentur-Übersicht"
+                        : adsMode
+                          ? adsSection === "ads-overview"
+                            ? "ChatGPT Ads"
+                            : NAV_LABEL[adsSection] || "ChatGPT Ads"
+                          : NAV_LABEL[section] || "Insights"}
                     </h1>
                     {!showAll && client && (
                       <div style={{ fontSize: 13, color: S.mut, marginTop: 4 }}>
@@ -5248,6 +5373,7 @@ function EzyAiApp() {
                     showAll={showAll}
                     profileName={profile.name}
                     onSection={(id) => {
+                      setAdsMode(false); // Heute-Schnellzugriff zielt auf Organic-Bereiche
                       setView("dashboard");
                       setSection(id);
                     }}
@@ -5306,11 +5432,51 @@ function EzyAiApp() {
                     Lade Kunden…
                   </div>
                 ) : showAll ? (
-                  <AiAgencyOverview clients={clients} S={S} onSelect={pickClient} />
+                  adsMode ? (
+                    <div
+                      style={{
+                        background: S.panel,
+                        border: `1px solid ${S.line}`,
+                        borderRadius: 14,
+                        padding: 40,
+                        textAlign: "center",
+                        maxWidth: 560,
+                        margin: "40px auto 0",
+                      }}
+                    >
+                      <div style={{ fontSize: 30, marginBottom: 12 }}>📣</div>
+                      <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>
+                        ChatGPT Ads — Kunde wählen
+                      </div>
+                      <div style={{ fontSize: 13, color: S.mut }}>
+                        Conversion-Tracking und Event-Log gibt es je Kunde — oben links einen Kunden
+                        auswählen.
+                      </div>
+                    </div>
+                  ) : (
+                    <AiAgencyOverview clients={clients} S={S} onSelect={pickClient} />
+                  )
                 ) : !client ? (
                   <div style={{ color: S.mut, fontSize: 13, padding: 60, textAlign: "center" }}>
                     Keine Kunden zugewiesen.
                   </div>
+                ) : adsMode ? (
+                  <Suspense
+                    fallback={
+                      <div style={{ color: S.mut, fontSize: 13, padding: 60, textAlign: "center" }}>
+                        Lade ChatGPT Ads…
+                      </div>
+                    }
+                  >
+                    <EzyAiAdsPanel
+                      clientId={client.id}
+                      clientName={client.name}
+                      section={adsSection}
+                      range={range}
+                      S={S}
+                      isOrgAdmin={!!isOrgAdmin}
+                    />
+                  </Suspense>
                 ) : section === "llm-analytics" ? (
                   <LlmAnalyticsPanel clientId={client.id} S={S} range={range} compare={compare} />
                 ) : section === "traffic" ? (

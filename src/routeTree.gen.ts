@@ -80,6 +80,8 @@ import { Route as ApiAdminLlmResponsesRouteImport } from './routes/api/admin.llm
 import { Route as ApiAdminLlmTrafficRouteImport } from './routes/api/admin.llm-traffic'
 import { Route as ApiAdminOnboardingPendingRouteImport } from './routes/api/admin.onboarding-pending'
 import { Route as ApiAdminOnboardingSnapshotRouteImport } from './routes/api/admin.onboarding-snapshot'
+import { Route as ApiAdminOpenaiAdsRouteImport } from './routes/api/admin.openai-ads'
+import { Route as ApiAdminOpenaiAdsIngestRouteImport } from './routes/api/admin.openai-ads-ingest'
 import { Route as ApiAdminPopulateRouteImport } from './routes/api/admin.populate'
 import { Route as ApiAdminRankSnapshotRouteImport } from './routes/api/admin.rank-snapshot'
 import { Route as ApiAdminSecretStatusRouteImport } from './routes/api/admin.secret-status'
@@ -507,6 +509,16 @@ const ApiAdminOnboardingSnapshotRoute =
     path: '/api/admin/onboarding-snapshot',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAdminOpenaiAdsRoute = ApiAdminOpenaiAdsRouteImport.update({
+  id: '/api/admin/openai-ads',
+  path: '/api/admin/openai-ads',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminOpenaiAdsIngestRoute = ApiAdminOpenaiAdsIngestRouteImport.update({
+  id: '/api/admin/openai-ads-ingest',
+  path: '/api/admin/openai-ads-ingest',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminPopulateRoute = ApiAdminPopulateRouteImport.update({
   id: '/api/admin/populate',
   path: '/api/admin/populate',
@@ -876,6 +888,8 @@ export interface FileRoutesByFullPath {
   '/api/admin/llm-traffic': typeof ApiAdminLlmTrafficRoute
   '/api/admin/onboarding-pending': typeof ApiAdminOnboardingPendingRoute
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
+  '/api/admin/openai-ads': typeof ApiAdminOpenaiAdsRoute
+  '/api/admin/openai-ads-ingest': typeof ApiAdminOpenaiAdsIngestRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
   '/api/admin/secret-status': typeof ApiAdminSecretStatusRoute
@@ -1007,6 +1021,8 @@ export interface FileRoutesByTo {
   '/api/admin/llm-traffic': typeof ApiAdminLlmTrafficRoute
   '/api/admin/onboarding-pending': typeof ApiAdminOnboardingPendingRoute
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
+  '/api/admin/openai-ads': typeof ApiAdminOpenaiAdsRoute
+  '/api/admin/openai-ads-ingest': typeof ApiAdminOpenaiAdsIngestRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
   '/api/admin/secret-status': typeof ApiAdminSecretStatusRoute
@@ -1139,6 +1155,8 @@ export interface FileRoutesById {
   '/api/admin/llm-traffic': typeof ApiAdminLlmTrafficRoute
   '/api/admin/onboarding-pending': typeof ApiAdminOnboardingPendingRoute
   '/api/admin/onboarding-snapshot': typeof ApiAdminOnboardingSnapshotRoute
+  '/api/admin/openai-ads': typeof ApiAdminOpenaiAdsRoute
+  '/api/admin/openai-ads-ingest': typeof ApiAdminOpenaiAdsIngestRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
   '/api/admin/secret-status': typeof ApiAdminSecretStatusRoute
@@ -1272,6 +1290,8 @@ export interface FileRouteTypes {
     | '/api/admin/llm-traffic'
     | '/api/admin/onboarding-pending'
     | '/api/admin/onboarding-snapshot'
+    | '/api/admin/openai-ads'
+    | '/api/admin/openai-ads-ingest'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
     | '/api/admin/secret-status'
@@ -1403,6 +1423,8 @@ export interface FileRouteTypes {
     | '/api/admin/llm-traffic'
     | '/api/admin/onboarding-pending'
     | '/api/admin/onboarding-snapshot'
+    | '/api/admin/openai-ads'
+    | '/api/admin/openai-ads-ingest'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
     | '/api/admin/secret-status'
@@ -1534,6 +1556,8 @@ export interface FileRouteTypes {
     | '/api/admin/llm-traffic'
     | '/api/admin/onboarding-pending'
     | '/api/admin/onboarding-snapshot'
+    | '/api/admin/openai-ads'
+    | '/api/admin/openai-ads-ingest'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
     | '/api/admin/secret-status'
@@ -1661,6 +1685,8 @@ export interface RootRouteChildren {
   ApiAdminLlmTrafficRoute: typeof ApiAdminLlmTrafficRoute
   ApiAdminOnboardingPendingRoute: typeof ApiAdminOnboardingPendingRoute
   ApiAdminOnboardingSnapshotRoute: typeof ApiAdminOnboardingSnapshotRoute
+  ApiAdminOpenaiAdsRoute: typeof ApiAdminOpenaiAdsRoute
+  ApiAdminOpenaiAdsIngestRoute: typeof ApiAdminOpenaiAdsIngestRoute
   ApiAdminPopulateRoute: typeof ApiAdminPopulateRoute
   ApiAdminRankSnapshotRoute: typeof ApiAdminRankSnapshotRoute
   ApiAdminSecretStatusRoute: typeof ApiAdminSecretStatusRoute
@@ -2220,6 +2246,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminOnboardingSnapshotRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/openai-ads': {
+      id: '/api/admin/openai-ads'
+      path: '/api/admin/openai-ads'
+      fullPath: '/api/admin/openai-ads'
+      preLoaderRoute: typeof ApiAdminOpenaiAdsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/openai-ads-ingest': {
+      id: '/api/admin/openai-ads-ingest'
+      path: '/api/admin/openai-ads-ingest'
+      fullPath: '/api/admin/openai-ads-ingest'
+      preLoaderRoute: typeof ApiAdminOpenaiAdsIngestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/populate': {
       id: '/api/admin/populate'
       path: '/api/admin/populate'
@@ -2752,6 +2792,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminLlmTrafficRoute: ApiAdminLlmTrafficRoute,
   ApiAdminOnboardingPendingRoute: ApiAdminOnboardingPendingRoute,
   ApiAdminOnboardingSnapshotRoute: ApiAdminOnboardingSnapshotRoute,
+  ApiAdminOpenaiAdsRoute: ApiAdminOpenaiAdsRoute,
+  ApiAdminOpenaiAdsIngestRoute: ApiAdminOpenaiAdsIngestRoute,
   ApiAdminPopulateRoute: ApiAdminPopulateRoute,
   ApiAdminRankSnapshotRoute: ApiAdminRankSnapshotRoute,
   ApiAdminSecretStatusRoute: ApiAdminSecretStatusRoute,

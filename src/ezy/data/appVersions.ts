@@ -33,8 +33,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.6.3",
+    version: "1.7.0",
     changelog: [
+      {
+        version: "1.7.0",
+        date: "2026-08-26",
+        note: "ChatGPT Ads: Organic/Ads-Schalter in der Seitenleiste, Conversion-Tracking über die OpenAI Conversions API (Dashboard, Conversions, Event-Log)",
+      },
       {
         version: "1.6.3",
         date: "2026-08-25",

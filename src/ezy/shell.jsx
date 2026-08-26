@@ -69,9 +69,18 @@ export const RAIL_APPS = ["seo", "geo", "ads"];
  * Bereiche der aktiven App (nav: [{id,label,icon?,active,onClick,group?}]).
  * current: aktive App-Id; canOpen: Gate aus useAppAccess; profile: {name, role}.
  */
-export function AppRail({ current, canOpen, profile, onLogout, initials, nav = null }) {
+export function AppRail({
+  current,
+  canOpen,
+  profile,
+  onLogout,
+  initials,
+  nav = null,
+  railExtra = null,
+}) {
   const [menue, setMenue] = useState(false);
   let letzteGruppe = null;
+  const hatNav = Array.isArray(nav) && nav.length > 0;
   return (
     <aside
       className="app-sidebar"
@@ -161,11 +170,16 @@ export function AppRail({ current, canOpen, profile, onLogout, initials, nav = n
           </a>
         );
       })}
-      {Array.isArray(nav) && nav.length > 0 && (
+      {/* Klare Trennung Apps ↔ Bereichs-Nav (Volkan 22.08.; App-Titel-
+        Label auf Volkans Wunsch 24.08. wieder entfernt). railExtra sitzt
+        UNTER der Trennlinie (Volkan 26.08.: Apps-Zone bleibt abgegrenzt) —
+        z. B. der Organic/Ads-Schalter von EzyAI. */}
+      {(hatNav || railExtra) && (
+        <div style={{ height: 1, background: C.border, margin: "12px 4px" }} />
+      )}
+      {railExtra}
+      {hatNav && (
         <>
-          {/* Klare Trennung Apps ↔ Bereichs-Nav (Volkan 22.08.; App-Titel-
-            Label auf Volkans Wunsch 24.08. wieder entfernt) */}
-          <div style={{ height: 1, background: C.border, margin: "12px 4px" }} />
           {nav.map((t) => {
             const Icon = t.icon;
             const gruppenKopf =
