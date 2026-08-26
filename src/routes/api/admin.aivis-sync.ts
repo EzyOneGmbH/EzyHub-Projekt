@@ -1728,17 +1728,25 @@ async function askViaDfs(
 const LLM_PRIMARY = (process.env.AIVIS_LLM_PRIMARY ?? "direct").toLowerCase();
 const withDfsRouting = (name: string, direct: (p: string) => Promise<any>) => async (p: string) => {
   const hatText = (x: any) => x && typeof x.text === "string" && x.text;
+  // Direkt-Budget (26.08.): der Direktweg bekommt ein EIGENES Zeitfenster,
+  // damit bei traegen Suche-Antworten (Claude!) noch Zeit fuer den schnellen
+  // DFS-Fallback bleibt — der Fallback greift damit auch bei Langsamkeit,
+  // nicht nur bei toten Konten. (85s + DFS ~10-30s < 140s-Ask-Deadline.)
+  const direktMitBudget = (p2: string) =>
+    withDeadline(direct(p2), WEB_SUCHE ? 85_000 : 60_000, "direkt").catch((e: any) => ({
+      error: `direkt-Timeout/Fehler: ${String(e?.message || e).slice(0, 60)}`,
+    }));
   if (LLM_PRIMARY === "dfs") {
     const f = await askViaDfs(name, p);
     if (hatText(f)) return f;
-    const r = await direct(p).catch((e) => ({ error: String(e?.message || e) }));
+    const r = await direktMitBudget(p);
     if (hatText(r)) return r;
     // Beide Wege tot: BEIDE Gruende melden (landet in engineErrors).
     return {
       error: `DFS-primaer: ${(f as any)?.error || "leer"} | direkt: ${(r as any)?.error || "leer"}`,
     };
   }
-  const r = await direct(p).catch((e) => ({ error: String(e?.message || e) }));
+  const r = await direktMitBudget(p);
   if (hatText(r)) return r;
   const f = await askViaDfs(name, p);
   if (hatText(f)) return f;
