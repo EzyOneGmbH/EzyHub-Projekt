@@ -1600,7 +1600,10 @@ async function askOpenAICompat(
       ...tokenParam,
       ...(temperature != null ? { temperature } : {}),
     }),
-    signal: AbortSignal.timeout(60_000),
+    // 120s statt 60s (26.08.): unter Volllast (6 Engines parallel, Web-Suche)
+    // brauchen Grok (Reasoning-Modell) und DeepSeek regelmaessig >60s — das
+    // 60s-Limit lieferte konstant 0/10. 120s passt in die 140s-Ask-Deadline.
+    signal: AbortSignal.timeout(120_000),
   });
   if (!r.ok)
     return {
