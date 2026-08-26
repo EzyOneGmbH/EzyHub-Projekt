@@ -1414,6 +1414,16 @@ async function jobAttribution(c: any) {
 
 // ── Stufe 2: Custom-Prompt-Runner (Claude / Perplexity / Gemini) ─────────────
 const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5";
+// Web-Suche in der Prompt-Messung (Volkan 26.08.): Engines antworten mit
+// aktivierter Suche (naeher an der echten Nutzer-Erfahrung, inkl. Quellen).
+// AIVIS_WEB_SEARCH=0 stellt auf reine Modell-Antworten zurueck.
+// ACHTUNG Messreihe: Bruch ab 26.08. — Antworten mit Suche sind nicht 1:1
+// mit den Vortagen vergleichbar.
+const WEB_SUCHE = String(process.env.AIVIS_WEB_SEARCH ?? "1") !== "0";
+// Anthropic: neue Modelle nutzen das Dynamic-Filtering-Suchtool, aeltere das Basis-Tool.
+const CLAUDE_SEARCH_TOOL = /sonnet-5|sonnet-4-6|opus-4-[678]|fable/.test(ANTHROPIC_MODEL)
+  ? "web_search_20260209"
+  : "web_search_20250305";
 const PARSE_MODEL = process.env.ANTHROPIC_PARSE_MODEL ?? "claude-haiku-4-5-20251001";
 const urlsIn = (t: string) => (t.match(/https?:\/\/[^\s)\]"']+/g) || []).length;
 
@@ -1458,9 +1468,12 @@ async function askClaude(
       model: ANTHROPIC_MODEL,
       max_tokens: maxTokens,
       messages: [{ role: "user", content: prompt }],
+      ...(WEB_SUCHE
+        ? { tools: [{ type: CLAUDE_SEARCH_TOOL, name: "web_search", max_uses: 3 }] }
+        : {}),
       ...(temperature != null ? { temperature } : {}),
     }),
-    signal: AbortSignal.timeout(90_000),
+    signal: AbortSignal.timeout(WEB_SUCHE ? 150_000 : 90_000),
   });
   if (!r.ok)
     return {
@@ -1529,13 +1542,14 @@ async function askGemini(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
+        ...(WEB_SUCHE ? { tools: [{ google_search: {} }] } : {}),
         generationConfig: {
           maxOutputTokens: maxTokens,
           thinkingConfig: { thinkingBudget: 0 },
           ...(temperature != null ? { temperature } : {}),
         },
       }),
-      signal: AbortSignal.timeout(60_000),
+      signal: AbortSignal.timeout(WEB_SUCHE ? 120_000 : 60_000),
     },
   );
   if (!r.ok)
@@ -1608,6 +1622,41 @@ async function askOpenAICompat(
   return text ? { text, sources: urlsIn(text), model: String(j?.model || model) } : null;
 }
 
+// ChatGPT MIT Web-Suche laeuft ueber die Responses-API (chat/completions
+// kennt kein Suchtool). Ohne WEB_SUCHE bleibt askOpenAICompat im Einsatz.
+async function askOpenAISearch(
+  prompt: string,
+  maxTokens = 600,
+): Promise<{ text: string; sources: number; model?: string } | null> {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return null;
+  const r = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: process.env.OPENAI_MODEL ?? "gpt-5.1",
+      input: prompt,
+      tools: [{ type: "web_search" }],
+      max_output_tokens: maxTokens,
+    }),
+    signal: AbortSignal.timeout(150_000),
+  });
+  if (!r.ok)
+    return {
+      text: "",
+      sources: 0,
+      error: `ChatGPT HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 140)}`,
+    } as any;
+  const j: any = await r.json().catch(() => null);
+  const text = ((j?.output ?? []) as any[])
+    .filter((o) => o?.type === "message")
+    .flatMap((o) => (o.content ?? []).map((c: any) => String(c?.text ?? "")))
+    .join(" ")
+    .trim();
+  recordUsage("ChatGPT", Number(j?.usage?.input_tokens || 0), Number(j?.usage?.output_tokens || 0));
+  return text ? { text, sources: urlsIn(text), model: String(j?.model || "") } : null;
+}
+
 // Engines aktivieren sich automatisch, sobald der jeweilige Key in der Env liegt.
 // Grok-Drosselung (2026-07-31): teuerster Provider (~44 % der LLM-Kosten 22.–31.07.)
 // und zugleich der unzuverlässigste — misst nur noch WÖCHENTLICH mit. Fenster
@@ -1652,6 +1701,9 @@ async function askViaDfs(
   const r = await dfsAiCall(`ai_optimization/${def.se}/llm_responses/live`, {
     user_prompt: prompt.slice(0, 500),
     model_name: def.model,
+    // Web-Suche auch im Fallback (Paritaet zur Direkt-Messung; 26.08. live
+    // verifiziert fuer chat_gpt/claude/gemini). Perplexity sucht immer.
+    ...(WEB_SUCHE && def.se !== "perplexity" ? { web_search: true } : {}),
   }).catch((e) => ({ ok: false as const, error: String(e?.message || e) }));
   if (!r.ok) return { error: `DFS ${r.error || "Fehler"}` };
   const row = (r.result ?? [])[0];
@@ -1664,12 +1716,12 @@ async function askViaDfs(
     ? { text, sources: urlsIn(text), model: `${String(row?.model_name || def.model)}@dataforseo` }
     : { error: "DFS leere Antwort" };
 }
-// Routing-Entscheid (06.08., Volkan): DataForSEO ist PRIMÄR für die 4
-// Mess-Engines — EIN Abrechnungskonto, keine rollierenden Prepaid-Ausfälle
-// mehr; die Direkt-API ist nur noch Fallback. Die ~4-5× höheren Antwort-
-// kosten sind bewusst in Kauf genommen (Volkan, 06.08.).
-// AIVIS_LLM_PRIMARY=direct dreht auf Direkt-zuerst zurück.
-const LLM_PRIMARY = (process.env.AIVIS_LLM_PRIMARY ?? "dfs").toLowerCase();
+// Routing-Entscheid REVIDIERT (26.08., Volkan, Option B): Direkt-APIs sind
+// PRIMÄR (Bruchteil der Kosten), DataForSEO llm_responses ist der
+// automatische Ausfall-Fallback. Hintergrund: DFS-primär verbrannte
+// ~100–200 USD/Nacht und leerte das Konto wiederholt (25./26.08.).
+// AIVIS_LLM_PRIMARY=dfs stellt auf DFS-zuerst zurück.
+const LLM_PRIMARY = (process.env.AIVIS_LLM_PRIMARY ?? "direct").toLowerCase();
 const withDfsRouting = (name: string, direct: (p: string) => Promise<any>) => async (p: string) => {
   const hatText = (x: any) => x && typeof x.text === "string" && x.text;
   if (LLM_PRIMARY === "dfs") {
@@ -1704,13 +1756,15 @@ const PROMPT_ENGINES: Array<{
   {
     name: "ChatGPT",
     ask: withDfsRouting("ChatGPT", (p) =>
-      askOpenAICompat(
-        "https://api.openai.com/v1/chat/completions",
-        process.env.OPENAI_API_KEY,
-        process.env.OPENAI_MODEL ?? "gpt-5.1",
-        p,
-        ANSWER_MAX_TOKENS,
-      ),
+      WEB_SUCHE
+        ? askOpenAISearch(p, ANSWER_MAX_TOKENS)
+        : askOpenAICompat(
+            "https://api.openai.com/v1/chat/completions",
+            process.env.OPENAI_API_KEY,
+            process.env.OPENAI_MODEL ?? "gpt-5.1",
+            p,
+            ANSWER_MAX_TOKENS,
+          ),
     ),
   },
   {
