@@ -13,7 +13,13 @@ const SCOPES = [
   // bleibt es beim Lesezugriff (und der Sitemap-Job meldet weiter
   // scopeMissing).
   "https://www.googleapis.com/auth/webmasters",
-  "https://www.googleapis.com/auth/analytics.readonly",
+  // analytics.edit statt analytics.readonly — Entscheid 26.08.2026
+  // (Conversion-Scout): Freigegebene Kandidaten werden als Event Create Rule
+  // + Key Event in GA4 angelegt, das braucht Schreibrechte; Edit schliesst
+  // Lesen mit ein. Wie beim webmasters-Wechsel gilt: bestehende Verbindungen
+  // behalten den alten Scope — betroffene Kunden (Pilot: FIH) einmal neu
+  // verbinden, sonst meldet der Executor 403.
+  "https://www.googleapis.com/auth/analytics.edit",
   "https://www.googleapis.com/auth/adwords",
   "https://www.googleapis.com/auth/business.manage",
   "https://www.googleapis.com/auth/tagmanager.readonly",

@@ -112,7 +112,9 @@ export default function EzyAiAdsPanel({
     let alive = true;
     const cacheKey = `openai-ads:${clientId}:${startKey}:${endKey}`;
     const cached = reloadKey === 0 ? cacheGet(cacheKey) : null;
-    setData(cached ? cached.data : null);
+    // Cache liefert unknown — an dieser Stelle ist es immer die AdsData-Antwort
+    // der openai-ads-Route (tsc-Fix 26.08., EzyRank-Session).
+    setData(cached ? (cached.data as AdsData) : null);
     if (cached && Date.now() - cached.at < RANGE_TTL_MS) return;
     (async () => {
       try {

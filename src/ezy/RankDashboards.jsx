@@ -38,6 +38,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Bot, Clock, DollarSign, FileInput, FileText, RefreshCw, Sparkles } from "lucide-react";
 import { useCallback } from "react";
 import { useState, useEffect, useMemo, useRef } from "react";
+import ConversionScoutPanel from "@/ezy/ConversionScoutPanel";
 import DataStatus from "@/ezy/DataStatus";
 import { Badge } from "./shared-ui";
 import { C } from "./theme";
@@ -2808,6 +2809,9 @@ export function ConvDashboard({ selectedClient, dateRange }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {convStatus}
       <CompareBanner dateRange={dateRange} />
+      {/* Conversion-Scout (Pilot 26.08.2026): erkannte Kandidaten einzeln
+          freigeben — erst dann entsteht ein GA4 Key Event (nur Organic). */}
+      <ConversionScoutPanel selectedClient={selectedClient} />
       {isOn("conv.custom") && (
         <div
           style={{

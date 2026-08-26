@@ -70,6 +70,8 @@ import { Route as ApiAdminContentBriefRouteImport } from './routes/api/admin.con
 import { Route as ApiAdminContentDecisionRouteImport } from './routes/api/admin.content-decision'
 import { Route as ApiAdminContentNoteRouteImport } from './routes/api/admin.content-note'
 import { Route as ApiAdminContentSyncRouteImport } from './routes/api/admin.content-sync'
+import { Route as ApiAdminConversionCandidatesRouteImport } from './routes/api/admin.conversion-candidates'
+import { Route as ApiAdminConversionScanRouteImport } from './routes/api/admin.conversion-scan'
 import { Route as ApiAdminEwwwProvisionRouteImport } from './routes/api/admin.ewww-provision'
 import { Route as ApiAdminGa4ConversionsRouteImport } from './routes/api/admin.ga4-conversions'
 import { Route as ApiAdminGbpRouteImport } from './routes/api/admin.gbp'
@@ -455,6 +457,17 @@ const ApiAdminContentNoteRoute = ApiAdminContentNoteRouteImport.update({
 const ApiAdminContentSyncRoute = ApiAdminContentSyncRouteImport.update({
   id: '/api/admin/content-sync',
   path: '/api/admin/content-sync',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminConversionCandidatesRoute =
+  ApiAdminConversionCandidatesRouteImport.update({
+    id: '/api/admin/conversion-candidates',
+    path: '/api/admin/conversion-candidates',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAdminConversionScanRoute = ApiAdminConversionScanRouteImport.update({
+  id: '/api/admin/conversion-scan',
+  path: '/api/admin/conversion-scan',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminEwwwProvisionRoute = ApiAdminEwwwProvisionRouteImport.update({
@@ -878,6 +891,8 @@ export interface FileRoutesByFullPath {
   '/api/admin/content-decision': typeof ApiAdminContentDecisionRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
   '/api/admin/content-sync': typeof ApiAdminContentSyncRoute
+  '/api/admin/conversion-candidates': typeof ApiAdminConversionCandidatesRoute
+  '/api/admin/conversion-scan': typeof ApiAdminConversionScanRoute
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
   '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
@@ -1011,6 +1026,8 @@ export interface FileRoutesByTo {
   '/api/admin/content-decision': typeof ApiAdminContentDecisionRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
   '/api/admin/content-sync': typeof ApiAdminContentSyncRoute
+  '/api/admin/conversion-candidates': typeof ApiAdminConversionCandidatesRoute
+  '/api/admin/conversion-scan': typeof ApiAdminConversionScanRoute
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
   '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
@@ -1145,6 +1162,8 @@ export interface FileRoutesById {
   '/api/admin/content-decision': typeof ApiAdminContentDecisionRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
   '/api/admin/content-sync': typeof ApiAdminContentSyncRoute
+  '/api/admin/conversion-candidates': typeof ApiAdminConversionCandidatesRoute
+  '/api/admin/conversion-scan': typeof ApiAdminConversionScanRoute
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
   '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
@@ -1280,6 +1299,8 @@ export interface FileRouteTypes {
     | '/api/admin/content-decision'
     | '/api/admin/content-note'
     | '/api/admin/content-sync'
+    | '/api/admin/conversion-candidates'
+    | '/api/admin/conversion-scan'
     | '/api/admin/ewww-provision'
     | '/api/admin/ga4-conversions'
     | '/api/admin/gbp'
@@ -1413,6 +1434,8 @@ export interface FileRouteTypes {
     | '/api/admin/content-decision'
     | '/api/admin/content-note'
     | '/api/admin/content-sync'
+    | '/api/admin/conversion-candidates'
+    | '/api/admin/conversion-scan'
     | '/api/admin/ewww-provision'
     | '/api/admin/ga4-conversions'
     | '/api/admin/gbp'
@@ -1546,6 +1569,8 @@ export interface FileRouteTypes {
     | '/api/admin/content-decision'
     | '/api/admin/content-note'
     | '/api/admin/content-sync'
+    | '/api/admin/conversion-candidates'
+    | '/api/admin/conversion-scan'
     | '/api/admin/ewww-provision'
     | '/api/admin/ga4-conversions'
     | '/api/admin/gbp'
@@ -1675,6 +1700,8 @@ export interface RootRouteChildren {
   ApiAdminContentDecisionRoute: typeof ApiAdminContentDecisionRoute
   ApiAdminContentNoteRoute: typeof ApiAdminContentNoteRoute
   ApiAdminContentSyncRoute: typeof ApiAdminContentSyncRoute
+  ApiAdminConversionCandidatesRoute: typeof ApiAdminConversionCandidatesRoute
+  ApiAdminConversionScanRoute: typeof ApiAdminConversionScanRoute
   ApiAdminEwwwProvisionRoute: typeof ApiAdminEwwwProvisionRoute
   ApiAdminGa4ConversionsRoute: typeof ApiAdminGa4ConversionsRoute
   ApiAdminGbpRoute: typeof ApiAdminGbpRoute
@@ -2174,6 +2201,20 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/content-sync'
       fullPath: '/api/admin/content-sync'
       preLoaderRoute: typeof ApiAdminContentSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/conversion-candidates': {
+      id: '/api/admin/conversion-candidates'
+      path: '/api/admin/conversion-candidates'
+      fullPath: '/api/admin/conversion-candidates'
+      preLoaderRoute: typeof ApiAdminConversionCandidatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/conversion-scan': {
+      id: '/api/admin/conversion-scan'
+      path: '/api/admin/conversion-scan'
+      fullPath: '/api/admin/conversion-scan'
+      preLoaderRoute: typeof ApiAdminConversionScanRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/ewww-provision': {
@@ -2782,6 +2823,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminContentDecisionRoute: ApiAdminContentDecisionRoute,
   ApiAdminContentNoteRoute: ApiAdminContentNoteRoute,
   ApiAdminContentSyncRoute: ApiAdminContentSyncRoute,
+  ApiAdminConversionCandidatesRoute: ApiAdminConversionCandidatesRoute,
+  ApiAdminConversionScanRoute: ApiAdminConversionScanRoute,
   ApiAdminEwwwProvisionRoute: ApiAdminEwwwProvisionRoute,
   ApiAdminGa4ConversionsRoute: ApiAdminGa4ConversionsRoute,
   ApiAdminGbpRoute: ApiAdminGbpRoute,

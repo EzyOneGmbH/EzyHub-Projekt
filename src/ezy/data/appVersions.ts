@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "1.2.0",
+    version: "1.3.0",
     changelog: [
+      {
+        version: "1.3.0",
+        date: "2026-08-26",
+        note: "Conversion-Scout im Conversions-Tab: erkannte Kontakt- und Download-Ziele einzeln prüfen, mit Wert freigeben und als GA4 Key Event scharfschalten (nur organische Messung)",
+      },
       { version: "1.2.0", date: "2026-08-13", note: "Kundenreihenfolge überall alphabetisch" },
       {
         version: "1.1.0",
