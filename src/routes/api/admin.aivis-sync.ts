@@ -1733,7 +1733,7 @@ const withDfsRouting = (name: string, direct: (p: string) => Promise<any>) => as
   // DFS-Fallback bleibt — der Fallback greift damit auch bei Langsamkeit,
   // nicht nur bei toten Konten. (85s + DFS ~10-30s < 140s-Ask-Deadline.)
   const direktMitBudget = (p2: string) =>
-    withDeadline(direct(p2), WEB_SUCHE ? 85_000 : 60_000, "direkt").catch((e: any) => ({
+    withDeadline(direct(p2), WEB_SUCHE ? 70_000 : 60_000, "direkt").catch((e: any) => ({
       error: `direkt-Timeout/Fehler: ${String(e?.message || e).slice(0, 60)}`,
     }));
   if (LLM_PRIMARY === "dfs") {
@@ -2542,7 +2542,7 @@ async function jobPromptRunner(
           sources: 0,
           error: `Deadline/Abbruch: ${String(e?.message || e).slice(0, 80)}`,
         }));
-      const answers = await pMap(defs, ask, 10);
+      const answers = await pMap(defs, ask, WEB_SUCHE ? 6 : 10);
       // Ein Retry-Durchgang fuer leere Antworten (Rate-Limit-Erholung), gedrosselt.
       // Bei aktiver Web-Suche entfaellt er: das Zeitbudget ist durch die
       // laengere Deadline bereits ausgereizt (Gateway-Kap).
