@@ -1729,6 +1729,26 @@ async function askViaDfs(
 // ~100–200 USD/Nacht und leerte das Konto wiederholt (25./26.08.).
 // AIVIS_LLM_PRIMARY=dfs stellt auf DFS-zuerst zurück.
 const LLM_PRIMARY = (process.env.AIVIS_LLM_PRIMARY ?? "direct").toLowerCase();
+// Konto-tot-Deckel (2026-08-27, Volkan «Kosten runter»): ist ein Direkt-Konto
+// LEER (nicht bloss langsam), trug der DFS-Fallback sonst STILL die gesamte
+// Messung zum ~5-fachen Preis — Nacht 26./27.08.: DFS-Konto so leergelaufen.
+// Je Engine max. 3 konto-bedingte Fallbacks pro 10-Minuten-Fenster und
+// Instanz; danach wird die Engine als ausgefallen gemeldet (Alarm greift).
+// Timeouts/transiente Fehler fallen weiter ungedeckelt auf DFS zurück.
+const KONTO_TOT_RE =
+  /credit balance|no credits|exceeded your current quota|prepayment|credits are depleted/i;
+const kontoTotFallbacks = new Map<string, { fenster: number; n: number }>();
+const kontoTotBudgetOk = (engine: string) => {
+  const fenster = Math.floor(Date.now() / 600_000);
+  const e = kontoTotFallbacks.get(engine);
+  if (!e || e.fenster !== fenster) {
+    kontoTotFallbacks.set(engine, { fenster, n: 1 });
+    return true;
+  }
+  if (e.n >= 3) return false;
+  e.n++;
+  return true;
+};
 const withDfsRouting = (name: string, direct: (p: string) => Promise<any>) => async (p: string) => {
   const hatText = (x: any) => x && typeof x.text === "string" && x.text;
   // Direkt-Budget (26.08.): der Direktweg bekommt ein EIGENES Zeitfenster,
@@ -1751,10 +1771,15 @@ const withDfsRouting = (name: string, direct: (p: string) => Promise<any>) => as
   }
   const r = await direktMitBudget(p);
   if (hatText(r)) return r;
+  const grund = String((r as any)?.error || "leer");
+  if (KONTO_TOT_RE.test(grund) && !kontoTotBudgetOk(name))
+    return {
+      error: `direkt: ${grund.slice(0, 160)} | DFS-Fallback gedeckelt (Konto leer — bitte aufladen)`,
+    };
   const f = await askViaDfs(name, p);
   if (hatText(f)) return f;
   return {
-    error: `direkt: ${(r as any)?.error || "leer"} | DFS-Fallback: ${(f as any)?.error || "leer"}`,
+    error: `direkt: ${grund} | DFS-Fallback: ${(f as any)?.error || "leer"}`,
   };
 };
 
@@ -4287,6 +4312,31 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                       uebernommen: true,
                     };
                 }
+                // Prompt-Takt-Übernahme (2026-08-27, Volkan «Kosten runter,
+                // Qualität halten»): läuft an diesem Tag kein Prompt-Lauf,
+                // übernimmt der Tagesreport den letzten pr-Stand (Score-
+                // Kontinuität); gemessenAm bleibt das echte Messdatum. Ohne
+                // die Übernahme meldete ?pending=1 nach jedem sa-Teillauf
+                // «pr fehlt» und die teure Prompt-Messung lief faktisch
+                // täglich statt im AIVIS_FRESHNESS_DAYS-Raster.
+                if (!parts.pr) {
+                  const { data: prevPrRep } = await sb
+                    .from("ai_visibility_reports")
+                    .select("snapshot_date, parts")
+                    .eq("client_id", c.id)
+                    .lt("snapshot_date", snapshot)
+                    .not("parts->pr", "is", null)
+                    .order("snapshot_date", { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                  const pp = (prevPrRep?.parts as any)?.pr;
+                  if (pp)
+                    parts.pr = {
+                      ...pp,
+                      gemessenAm: pp.gemessenAm || String(prevPrRep.snapshot_date),
+                      uebernommen: true,
+                    };
+                }
 
                 const mentions = ["br", "ca", "sa", "pr"].reduce(
                   (a, k) => a + Number(parts[k]?.mentions || 0),
@@ -4329,6 +4379,9 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                     .eq("measurement_version", MEASUREMENT_VERSION)
                     .lt("snapshot_date", snapshot)
                     .not("parts->pr", "is", null)
+                    // Übernommene pr-Stände (Takt-Carry-forward) zählen nicht
+                    // als eigener Lauf — sonst verwässern Kopien das Fenster.
+                    .is("parts->pr->uebernommen", null)
                     .order("snapshot_date", { ascending: false })
                     .limit(Math.max(0, SCORE_CFG.smoothing.windowRuns - 1));
                   const sovVals = [
@@ -5254,7 +5307,19 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 : "";
             const saInterval = Math.max(1, Number((SCORE_CFG as any).serp?.intervalDays ?? 2));
             const saDue = !saMeasured || dayN(saMeasured) < lastCycleDay(saInterval);
-            if (!parts.pr) missing.push("pr");
+            // pr im EIGENEN Raster (2026-08-27): wie sa zählt das echte
+            // Messdatum (übernommene Stände nicht). Der alte Check «!parts.pr»
+            // feuerte nach jedem sa-Teillauf (neuer Tagesreport ohne pr) und
+            // machte die teure Prompt-Messung faktisch täglich — grösster
+            // LLM-Posten seit Web-Suche. Selbstheilung bleibt: nie gemessen
+            // oder Raster verpasst → fällig.
+            const freshDays = Math.max(1, Number(process.env.AIVIS_FRESHNESS_DAYS ?? 3) || 3);
+            const prMeasured = parts.pr?.uebernommen
+              ? String(parts.pr?.gemessenAm || "")
+              : parts.pr
+                ? String(parts.pr.gemessenAm || rep.snapshot_date)
+                : "";
+            if (!prMeasured || dayN(prMeasured) < lastCycleDay(freshDays)) missing.push("pr");
             // Fix 2026-08-24 (Volkan: "AIO wird nicht alle 2 Tage aktualisiert"):
             // sa wird im EIGENEN serp-Takt fällig — unabhängig davon, ob der
             // neueste Report einen sa-Part trägt. Vorher galt "!parts.sa &&
@@ -5265,7 +5330,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             // Kosten-Drosselung (2026-07-31): voller Lauf alle
             // AIVIS_FRESHNESS_DAYS (default 3) — seit 17.08. am globalen Takt.
             // Größter LLM-Dauerposten: alle aktiven Prompts × 6 Engines je Lauf.
-            const freshDays = Math.max(1, Number(process.env.AIVIS_FRESHNESS_DAYS ?? 3) || 3);
+            // (freshDays oben beim pr-Raster deklariert.)
             // daily UNABHÄNGIG von pr/sa prüfen (Fix 2026-08-17): das alte
             // "!missing.length"-Gate liess Kunden mit dauerhaft fehlender
             // sa-Schicht (Bomatec: GSC ohne Suchanfragen) nie wieder einen
