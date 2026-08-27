@@ -6,6 +6,7 @@ import { getGoogleAccessToken } from "@/server/google-tokens.server";
 import { redactSecrets } from "@/server/google-oauth.server";
 import { getEnabledServices } from "@/server/integrations.server";
 import { generateViaSubscription } from "@/server/claude-generate.server";
+import { istKundePausiert, ohnePausierte } from "@/server/client-status.server";
 import { normalizeCanonryBase } from "@/lib/canonry-url";
 import SCORE_CFG from "@/lib/score-config.json";
 import JUDGE_ANCHORS from "@/lib/judge-calibration.json";
@@ -3917,10 +3918,12 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         const query = supabaseAdmin
           .from("clients")
           .select(
-            "id, name, domain, organization_id, ga4_property, gsc_property, country, canonry_project, brand_terms, language",
+            "id, name, domain, organization_id, ga4_property, gsc_property, country, canonry_project, brand_terms, language, metadata",
           );
         let clients: any[] = [];
-        if (all) clients = (await query).data || [];
+        // Pausierte Kunden (Admin-Status "paused") laufen in Sammel-Läufen
+        // nicht mit; Einzelkunden-Aufrufe bleiben möglich (Reaktivierung).
+        if (all) clients = ohnePausierte((await query).data);
         else if (sel && isUuid(sel)) clients = (await query.eq("id", sel)).data || [];
         else if (sel) clients = (await query.ilike("name", `%${sel}%`)).data || [];
         else
@@ -5267,9 +5270,10 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         // eine Stage am ~300s-Gateway-Kap starb; Fall Embassy 2026-07-17).
         // Der agent-service-Tick faehrt dann gezielt nur die fehlenden Stages.
         if (new URL(request.url).searchParams.get("pending")) {
-          const { data: cls } = await sb.from("clients").select("id, name, domain");
+          const { data: cls } = await sb.from("clients").select("id, name, domain, metadata");
           const pending: any[] = [];
           for (const c of cls || []) {
+            if (istKundePausiert(c)) continue; // deaktiviert = keine Messläufe
             if (!(await aivisAllowed(sb, c.id)).ok) continue;
             const { data: rep } = await sb
               .from("ai_visibility_reports")
@@ -5353,6 +5357,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             .select("id, name, domain, gsc_property, brand_terms, metadata");
           const out: any[] = [];
           for (const c of cls || []) {
+            if (istKundePausiert(c)) continue; // deaktiviert = kein Rank-Tracking
             const tabs = c.metadata?.defaults?.visibleTabs;
             // null/legacy = Org-Default (enthaelt seo); sonst muss "seo" drin sein.
             const seoEnabled = !Array.isArray(tabs) || tabs.includes("seo");

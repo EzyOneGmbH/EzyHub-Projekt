@@ -27,6 +27,9 @@ export const Route = createFileRoute("/api/admin/ads-clients")({
         if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 
         const clients = (data || [])
+          // Pausierte Kunden (Admin-Status "paused") fallen aus allen
+          // Ads-Automationen (n8n-Hype-Mail, Onboarding-Tick, Guardian).
+          .filter((c: any) => (c?.metadata ?? {})?.status !== "paused")
           .map((c: any) => {
             const customerId = String(c.google_ads_customer ?? "").replace(/\D/g, "");
             const m = c.metadata && typeof c.metadata === "object" ? c.metadata : {};

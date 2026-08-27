@@ -4985,6 +4985,8 @@ function EzyAiApp() {
   const clients = useMemo(
     () =>
       (ezy.clients || [])
+        // Pausierte (= reversibel deaktivierte) Kunden nur im Admin sichtbar.
+        .filter((c: any) => c.status !== "paused")
         .filter((c: any) => svcMatrix.hasService(c.id, ["canonry", "perplexity"]))
         .filter((c: any) => appEnabledFor(caa.map, c.id, "geo")),
     [ezy.clients, svcMatrix, caa.map],

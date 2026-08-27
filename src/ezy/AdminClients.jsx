@@ -41,6 +41,8 @@ import {
   Megaphone,
   PenTool,
   Plus,
+  Pause,
+  Play,
   RefreshCw,
   Save,
   X,
@@ -2354,6 +2356,21 @@ export function ClientsPage({
     setEditorOpen(false);
     toast(editorMode === "create" ? "Kunde erstellt" : "Kunde gespeichert", "success");
   };
+  // Deaktivieren statt löschen (Volkan 27.08.): Status "paused" nimmt den
+  // Kunden reversibel aus allen Apps und Messläufen (Kosten stoppen), die
+  // Daten bleiben vollständig — Reaktivieren holt ihn zurück, der nächste
+  // Messtag füllt automatisch nach.
+  const togglePause = () => {
+    if (!detail) return;
+    const neu = detail.status === "paused" ? "active" : "paused";
+    onUpsertClient({ ...detail, status: neu });
+    toast(
+      neu === "paused"
+        ? "Kunde deaktiviert — Messläufe pausiert, alle Daten bleiben erhalten"
+        : "Kunde reaktiviert — läuft ab dem nächsten Messtag wieder mit",
+      "success",
+    );
+  };
   const removeClient = () => {
     if (!detail) return;
     if (clients.length <= 1) {
@@ -2362,7 +2379,10 @@ export function ClientsPage({
     }
     if (
       typeof window !== "undefined" &&
-      !window.confirm(`Kunde "${detail.name}" wirklich löschen?`)
+      !window.confirm(
+        `Kunde "${detail.name}" ENDGÜLTIG löschen? Alle Messdaten gehen verloren.
+Tipp: «Deaktivieren» pausiert reversibel und behält alle Daten.`,
+      )
     )
       return;
     onDeleteClient(detail.id);
@@ -2617,6 +2637,14 @@ export function ClientsPage({
               </Btn>
               <Btn variant="secondary" size="sm" icon={PenTool} onClick={() => openEdit(detail)}>
                 Bearbeiten
+              </Btn>
+              <Btn
+                variant="secondary"
+                size="sm"
+                icon={detail.status === "paused" ? Play : Pause}
+                onClick={togglePause}
+              >
+                {detail.status === "paused" ? "Reaktivieren" : "Deaktivieren"}
               </Btn>
               <Btn variant="danger" size="sm" icon={X} onClick={removeClient}>
                 Löschen

@@ -6580,8 +6580,13 @@ function App({ appScope = null }) {
     const svc = scope?.services
       ? all.filter((c) => svcMatrix.hasService(c.id, scope.services))
       : all;
-    if (!appScope || appScope === "admin") return svc;
-    return svc.filter((c) => appEnabledFor(caa.map, c.id, appScope));
+    // Nur der Admin sieht pausierte (= reversibel deaktivierte) Kunden — dort
+    // werden sie reaktiviert. In allen Arbeits-Apps sind sie ausgeblendet
+    // (Volkan 27.08.: deaktivieren statt löschen).
+    if (appScope === "admin") return svc;
+    const aktiv = svc.filter((c) => c.status !== "paused");
+    if (!appScope) return aktiv;
+    return aktiv.filter((c) => appEnabledFor(caa.map, c.id, appScope));
   }, [ezy.clients, scope, svcMatrix, appScope, caa.map]);
   const ui0 = useMemo(() => loadUiState(), []); // letzter UI-Stand aus localStorage
   const [clientId, setClientId] = useState(ui0.clientId || "");

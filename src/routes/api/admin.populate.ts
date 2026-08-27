@@ -1331,7 +1331,12 @@ export const Route = createFileRoute("/api/admin/populate")({
         // (brand_terms/revenue_mode) — Deploy-Reihenfolge darf den 12h-Cron nie brechen.
         const query = supabaseAdmin.from("clients").select("*");
         let clients: any[] = [];
-        if (all) clients = (await query).data || [];
+        // Pausierte Kunden (Admin-Status "paused") nehmen an Sammel-Läufen
+        // nicht teil (Volkan 27.08.: deaktivieren statt löschen).
+        if (all)
+          clients = ((await query).data || []).filter(
+            (c: any) => (c?.metadata ?? {})?.status !== "paused",
+          );
         else if (sel && isUuid(sel)) clients = (await query.eq("id", sel)).data || [];
         else if (sel) clients = (await query.ilike("name", `%${sel}%`)).data || [];
         else

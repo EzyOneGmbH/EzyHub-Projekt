@@ -693,7 +693,11 @@ export const Route = createFileRoute("/api/admin/content-sync")({
             "id, name, domain, organization_id, gsc_property, ga4_property, language, metadata",
           );
         let clients: any[] = [];
-        if (all) clients = (await query).data || [];
+        // Pausierte Kunden (Admin-Status "paused") überspringen Sammel-Läufe.
+        if (all)
+          clients = ((await query).data || []).filter(
+            (c: any) => (c?.metadata ?? {})?.status !== "paused",
+          );
         else if (sel && isUuid(sel)) clients = (await query.eq("id", sel)).data || [];
         else if (sel) clients = (await query.ilike("name", `%${sel}%`)).data || [];
         else
