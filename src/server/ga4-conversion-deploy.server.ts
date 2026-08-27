@@ -10,6 +10,15 @@
 //                  Kunde — siehe Spec Abschnitt 5.6).
 //  - download    → nutzt GA4 Enhanced Measurement `file_download` mit
 //                  Parameter `link_url` (Standard aktiv) — KEIN GTM noetig.
+//  - crossdomain → nutzt GA4 Enhanced Measurement Outbound-Klick (`click` mit
+//                  `link_domain` = Checkout-Host, Standard aktiv) — KEIN GTM
+//                  noetig. Misst die Kauf-/Spenden-ABSICHT (Klick auf den
+//                  externen Checkout, z. B. RaiseNow). Der ECHTE Purchase mit
+//                  Betrag entsteht erst als Groundwork (zwei einmalige Schritte,
+//                  siehe crossDomainGroundwork()): (a) Zielhost in die GA4-
+//                  Cross-Domain-Domains aufnehmen (GA4 Tag-Settings → «Configure
+//                  your domains»), (b) der Zielhost muss unser GA4-Tag mitladen
+//                  (RaiseNow-seitige GA4-Einstellung + Purchase-Event).
 //
 // NUR ORGANIC: Key Events werden bewusst NICHT in Google Ads importiert.
 // Auth: Kunden-OAuth (analytics.edit) — Verbindungen, die noch mit dem alten
@@ -59,6 +68,8 @@ export function buildDestinationEvent(type: string, rawValue: string): string {
   let slug = "";
   if (type === "mailto") slug = rawValue.split("@")[0];
   else if (type === "tel") slug = "nr_" + rawValue.replace(/\D/g, "").slice(-4);
+  else if (type === "crossdomain")
+    slug = rawValue; // Host, z. B. donate.raisenow.io
   else {
     const file = rawValue.split("/").pop() || "datei";
     slug = file.replace(/\.[a-z0-9]+$/i, "");
@@ -67,9 +78,27 @@ export function buildDestinationEvent(type: string, rawValue: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
-  const prefix = type === "mailto" ? "conv_mail_" : type === "tel" ? "conv_tel_" : "conv_dl_";
+  const prefix =
+    type === "mailto"
+      ? "conv_mail_"
+      : type === "tel"
+        ? "conv_tel_"
+        : type === "crossdomain"
+          ? "conv_ext_"
+          : "conv_dl_";
   const name = (prefix + (slug || "x")).slice(0, 40).replace(/_+$/g, "");
   return /^[a-z]/.test(name) ? name : "c_" + name.slice(0, 38);
+}
+
+/** Die zwei einmaligen Schritte, damit aus der Cross-Domain-Klick-Absicht der
+ *  ECHTE Purchase (mit Betrag) wird. Bewusst manuell: die GA4-Domains-Liste
+ *  hat kein Admin-API-Feld, und der Zielhost (RaiseNow) liegt ausserhalb
+ *  unseres Zugriffs. Single-Source fuer UI + Doku. */
+export function crossDomainGroundwork(host: string): string[] {
+  return [
+    `GA4 → Datenstreams → Web → «Tag-Einstellungen konfigurieren» → «Konfiguriere deine Domains»: ${host} hinzufügen (verhindert Self-Referral, aktiviert das _gl-Linking).`,
+    `Im Ziel-Konto (${host}, z. B. RaiseNow) unser GA4-Tag mitladen und ein purchase-Event mit Betrag senden — erst dann erscheint der echte Umsatz statt nur der Klick-Absicht.`,
+  ];
 }
 
 async function findWebStream(token: string, propertyId: string): Promise<string> {
@@ -101,24 +130,32 @@ export async function deployToGa4(
     );
 
   const destinationEvent = buildDestinationEvent(candidate.candidate_type, candidate.raw_value);
-  const isDownload = candidate.candidate_type === "download";
   const streamName = await findWebStream(token, propertyId);
+
+  // Bedingungen je Typ:
+  //  download    → Enhanced-Measurement `file_download` + link_url
+  //  crossdomain → Enhanced-Measurement Outbound-Klick `click` + link_domain
+  //  mailto/tel  → GTM-Basisevent `outbound_contact_click` + contact_target
+  let eventConditions: Array<{ field: string; comparisonType: string; value: string }>;
+  if (candidate.candidate_type === "download")
+    eventConditions = [
+      { field: "event_name", comparisonType: "EQUALS", value: "file_download" },
+      { field: "link_url", comparisonType: "EQUALS", value: candidate.raw_value },
+    ];
+  else if (candidate.candidate_type === "crossdomain")
+    eventConditions = [
+      { field: "event_name", comparisonType: "EQUALS", value: "click" },
+      { field: "link_domain", comparisonType: "EQUALS", value: candidate.raw_value },
+    ];
+  else
+    eventConditions = [
+      { field: "event_name", comparisonType: "EQUALS", value: "outbound_contact_click" },
+      { field: "contact_target", comparisonType: "EQUALS", value: candidate.raw_value },
+    ];
 
   const rule = await gaFetch(token, `${ADMIN_ALPHA}/${streamName}/eventCreateRules`, {
     method: "POST",
-    body: JSON.stringify({
-      destinationEvent,
-      eventConditions: isDownload
-        ? [
-            { field: "event_name", comparisonType: "EQUALS", value: "file_download" },
-            { field: "link_url", comparisonType: "EQUALS", value: candidate.raw_value },
-          ]
-        : [
-            { field: "event_name", comparisonType: "EQUALS", value: "outbound_contact_click" },
-            { field: "contact_target", comparisonType: "EQUALS", value: candidate.raw_value },
-          ],
-      sourceCopyParameters: true,
-    }),
+    body: JSON.stringify({ destinationEvent, eventConditions, sourceCopyParameters: true }),
   });
 
   let keyEventName = "";

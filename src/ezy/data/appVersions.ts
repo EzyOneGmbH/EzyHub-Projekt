@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "1.3.0",
+    version: "1.4.0",
     changelog: [
+      {
+        version: "1.4.0",
+        date: "2026-08-27",
+        note: "Conversion-Scout erkennt jetzt auch Cross-Domain-Checkout-Ziele (z. B. RaiseNow/Stripe): der Klick zum externen Kauf/zur Spende wird als GA4 Key Event messbar; Hinweis-Schritte für den echten Betrag (nur organische Messung)",
+      },
       {
         version: "1.3.0",
         date: "2026-08-26",

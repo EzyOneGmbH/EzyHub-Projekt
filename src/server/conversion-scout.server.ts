@@ -1,6 +1,8 @@
 // Conversion-Scout — Schicht 2: Discovery (Pilot FIH, 26.08.2026).
-// Erkennt moegliche GA4-Conversions auf der Kundenseite (mailto/tel/Download)
-// und schreibt sie als Kandidaten in conversion_candidates (status 'pending').
+// Erkennt moegliche GA4-Conversions auf der Kundenseite (mailto/tel/Download
+// sowie Cross-Domain-Checkout-Ziele wie RaiseNow/Stripe, wo der eigentliche
+// Purchase auf einer FREMDEN Domain abgeschlossen wird) und schreibt sie als
+// Kandidaten in conversion_candidates (status 'pending').
 // Deployt NICHTS automatisch — Freigabe passiert manuell im Conversions-Tab.
 //
 // NUR ORGANIC: die spaeter freigegebenen Key Events dienen der organischen
@@ -24,12 +26,28 @@ const PAGE_TIMEOUT_MS = 12_000;
 
 const DOWNLOAD_RE = /\.(pdf|docx?|xlsx?|pptx?|zip)(\?[^"']*)?$/i;
 
+// Cross-Domain-Ziele: externe Hosts, auf denen typischerweise ein Kauf/eine
+// Spende/Buchung ABGESCHLOSSEN wird (der eigentliche "Purchase"). Wird gegen
+// host+pathname geprueft. Bewusst eng auf echte Zahlungs-/Spenden-/Checkout-
+// Anbieter + explizite Checkout-Pfade begrenzt (Social/Behoerden/Partner-Links
+// sollen NICHT als Kandidat auftauchen).
+const CHECKOUT_RE =
+  /(raisenow|payrexx|datatrans|saferpay|wallee|twint|stripe|paypal|gocardless|mollie|sumup|betterplace|donorbox|eventbrite|ticketino|weeztix|billetweb|petitionslist|\/donate|\/spende|\/spenden|\/pay(ment)?\b|\/kasse|\/checkout|\/warenkorb|\/give\b)/i;
+
 export type CandidateFound = {
-  candidate_type: "mailto" | "tel" | "download";
+  candidate_type: "mailto" | "tel" | "download" | "crossdomain";
   raw_value: string;
   label: string | null;
   source_url: string;
 };
+
+/** Host gehoert NICHT zur Domain-Familie des Kunden (apex/www/Subdomains)?
+ *  Cross-Domain ist nur ueber verschiedene registrierbare Domains relevant —
+ *  same-domain-Subdomains misst GA4 ohnehin als eine Site. */
+function isExternalHost(host: string, siteHost: string): boolean {
+  const bare = siteHost.replace(/^www\./, "");
+  return host !== siteHost && host !== bare && host !== "www." + bare && !host.endsWith("." + bare);
+}
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -99,6 +117,20 @@ export function extractFromHtml(
         source_url: pageUrl,
       });
       continue;
+    }
+    // Externer Checkout/Zahlungs-/Spenden-Host → Cross-Domain-Kandidat.
+    // raw_value = Host, damit spaeter GA4 `link_domain` exakt matcht. Ein
+    // Kandidat je Host (Deduplizierung in runConversionScan).
+    if (isExternalHost(abs.host, siteHost)) {
+      if (CHECKOUT_RE.test(abs.host + abs.pathname)) {
+        candidates.push({
+          candidate_type: "crossdomain",
+          raw_value: abs.host,
+          label: label || abs.origin + abs.pathname,
+          source_url: pageUrl,
+        });
+      }
+      continue; // externe Hosts werden nicht weitergecrawlt
     }
     if (abs.host === siteHost) {
       // Query/Fragment weg — WP-Seiten sind pfad-adressiert; verhindert

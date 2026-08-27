@@ -2,7 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { deployToGa4, revokeFromGa4 } from "@/server/ga4-conversion-deploy.server";
+import {
+  deployToGa4,
+  revokeFromGa4,
+  crossDomainGroundwork,
+} from "@/server/ga4-conversion-deploy.server";
 
 // Conversion-Scout — Freigabe-Liste (Pilot FIH, 26.08.2026).
 //
@@ -120,6 +124,7 @@ export const Route = createFileRoute("/api/admin/conversion-candidates")({
           decided_at: new Date().toISOString(),
           decided_by: auth.userId,
         };
+        let groundwork: string[] | undefined;
 
         try {
           if (action === "value") {
@@ -160,6 +165,10 @@ export const Route = createFileRoute("/api/admin/conversion-candidates")({
                 ...decided,
               })
               .eq("id", id);
+            // Cross-Domain: die Klick-Absicht ist jetzt scharf; fuer den echten
+            // Purchase mit Betrag braucht es zwei einmalige manuelle Schritte.
+            if (cand.candidate_type === "crossdomain")
+              groundwork = crossDomainGroundwork(cand.raw_value);
           } else if (action === "revoke") {
             await revokeFromGa4(clientId, {
               ruleName: cand.ga4_event_create_rule,
@@ -181,7 +190,7 @@ export const Route = createFileRoute("/api/admin/conversion-candidates")({
             { status: 502 },
           );
         }
-        return Response.json({ ok: true });
+        return Response.json({ ok: true, groundwork });
       },
     },
   },

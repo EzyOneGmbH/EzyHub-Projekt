@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  ExternalLink,
   FileDown,
   Mail,
   Phone,
@@ -21,6 +22,7 @@ const TYPE_META = {
   mailto: { icon: Mail, label: "E-Mail-Klick" },
   tel: { icon: Phone, label: "Anruf-Klick" },
   download: { icon: FileDown, label: "Download" },
+  crossdomain: { icon: ExternalLink, label: "Cross-Domain-Checkout" },
 };
 
 function fmtTs(ts) {
@@ -40,6 +42,7 @@ export default function ConversionScoutPanel({ selectedClient }) {
   const [scanBusy, setScanBusy] = useState(false);
   const [values, setValues] = useState({}); // id -> {value, currency}
   const [showIgnored, setShowIgnored] = useState(false);
+  const [groundwork, setGroundwork] = useState(null); // Cross-Domain: Schritte für echten Betrag
 
   const load = useCallback(async () => {
     if (!clientId) return;
@@ -77,6 +80,7 @@ export default function ConversionScoutPanel({ selectedClient }) {
       });
       const j = await r.json();
       if (!j.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      if (Array.isArray(j.groundwork) && j.groundwork.length) setGroundwork(j.groundwork);
       await load();
     } catch (e) {
       setError(String(e?.message || e));
@@ -147,6 +151,12 @@ export default function ConversionScoutPanel({ selectedClient }) {
             {c.label ? ` · «${c.label}»` : ""} · gefunden auf{" "}
             {String(c.source_url).replace(/^https?:\/\//, "")}
           </div>
+          {c.candidate_type === "crossdomain" && (
+            <div style={{ fontSize: 10.5, color: C.textDim, marginTop: 3, fontStyle: "italic" }}>
+              Misst den Klick zum Checkout (Kauf-/Spenden-Absicht). Der echte Betrag erscheint erst,
+              wenn der Zielhost unser GA4 mitlädt (RaiseNow-Einstellung) + GTM-Linker gesetzt ist.
+            </div>
+          )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <input
@@ -219,9 +229,9 @@ export default function ConversionScoutPanel({ selectedClient }) {
         </Btn>
       </div>
       <div style={{ fontSize: 11.5, color: C.textDim, marginTop: 6 }}>
-        Automatisch erkannte Kontakt- und Download-Ziele — jede Adresse einzeln freigebbar. Erst
-        nach Freigabe wird ein GA4 Key Event angelegt (nur organische Messung, keine
-        Google-Ads-Anbindung).
+        Automatisch erkannte Kontakt-, Download- und Cross-Domain-Checkout-Ziele — jedes einzeln
+        freigebbar. Erst nach Freigabe wird ein GA4 Key Event angelegt (nur organische Messung,
+        keine Google-Ads-Anbindung).
         {lastRun && lastRun.finished_at && (
           <>
             {" "}
@@ -244,6 +254,50 @@ export default function ConversionScoutPanel({ selectedClient }) {
           }}
         >
           {error}
+        </div>
+      )}
+
+      {groundwork && (
+        <div
+          style={{
+            marginTop: 10,
+            padding: "10px 12px",
+            background: `${C.accent}12`,
+            border: `1px solid ${C.accent}44`,
+            borderRadius: 10,
+            fontSize: 12.5,
+            color: C.text,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <ExternalLink size={14} color={C.accent} />
+            <span style={{ fontWeight: 700 }}>
+              Cross-Domain freigegeben — Klick-Absicht misst ab sofort.
+            </span>
+            <div style={{ flex: 1 }} />
+            <button
+              onClick={() => setGroundwork(null)}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: C.textDim,
+                fontSize: 12,
+              }}
+            >
+              schliessen
+            </button>
+          </div>
+          <div style={{ marginTop: 6, color: C.textDim }}>
+            Für den <b>echten Betrag</b> (statt nur der Klick-Absicht) noch zwei einmalige Schritte:
+          </div>
+          <ol style={{ margin: "6px 0 0", paddingLeft: 20 }}>
+            {groundwork.map((s, i) => (
+              <li key={i} style={{ marginTop: 3 }}>
+                {s}
+              </li>
+            ))}
+          </ol>
         </div>
       )}
 
