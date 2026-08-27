@@ -27,6 +27,22 @@ describe("Conversion-Scout Cross-Domain-Erkennung", () => {
     expect(candidates.some((c) => c.candidate_type === "download")).toBe(true);
   });
 
+  it("erkennt Hotel-Buchungsmaschinen (Mews) und Buchungs-Pfade als crossdomain", () => {
+    const html = `
+      <a href="https://app.mews.com/distributor/abc123">Jetzt buchen</a>
+      <a href="https://booking-engine.example.com/buchen?hotel=ava">Zimmer reservieren</a>
+      <a href="https://www.tripadvisor.com/Hotel_Ava">Bewertungen</a>
+    `;
+    const { candidates } = extractFromHtml(html, "https://hotel-ava.ch/zimmer/", "hotel-ava.ch");
+    const cross = candidates.filter((c) => c.candidate_type === "crossdomain");
+    expect(cross.map((c) => c.raw_value).sort()).toEqual([
+      "app.mews.com",
+      "booking-engine.example.com",
+    ]);
+    // Tripadvisor (Bewertungsportal, kein Checkout) bleibt aussen vor.
+    expect(candidates.some((c) => c.raw_value.includes("tripadvisor"))).toBe(false);
+  });
+
   it("flaggt weder eigene Domain-Familie noch generische externe Links", () => {
     const html = `
       <a href="https://shop.faithinhumanity.ch/x">eigener Shop-Subdomain</a>

@@ -28,11 +28,15 @@ const DOWNLOAD_RE = /\.(pdf|docx?|xlsx?|pptx?|zip)(\?[^"']*)?$/i;
 
 // Cross-Domain-Ziele: externe Hosts, auf denen typischerweise ein Kauf/eine
 // Spende/Buchung ABGESCHLOSSEN wird (der eigentliche "Purchase"). Wird gegen
-// host+pathname geprueft. Bewusst eng auf echte Zahlungs-/Spenden-/Checkout-
-// Anbieter + explizite Checkout-Pfade begrenzt (Social/Behoerden/Partner-Links
-// sollen NICHT als Kandidat auftauchen).
+// host+pathname geprueft. Bewusst eng auf echte Zahlungs-/Spenden-/Checkout-/
+// Buchungs-Anbieter + explizite Checkout-/Buchungs-Pfade begrenzt (Social/
+// Behoerden/Partner-Links sollen NICHT als Kandidat auftauchen).
+// Enthaelt Zahlungs-Gateways (CH: payrexx/datatrans/saferpay/wallee/twint),
+// Spenden-Plattformen und Hotel-Buchungsmaschinen (mews, reguest, seekda,
+// ibelsa, cultuzz, straiv, dirs21, simplebooking, siteminder u. a.) — Ava =
+// Hotel Ava bucht ueber Mews (app.mews.com). Gilt global fuer alle Kunden.
 const CHECKOUT_RE =
-  /(raisenow|payrexx|datatrans|saferpay|wallee|twint|stripe|paypal|gocardless|mollie|sumup|betterplace|donorbox|eventbrite|ticketino|weeztix|billetweb|petitionslist|\/donate|\/spende|\/spenden|\/pay(ment)?\b|\/kasse|\/checkout|\/warenkorb|\/give\b)/i;
+  /(raisenow|payrexx|datatrans|saferpay|wallee|twint|stripe|paypal|gocardless|mollie|sumup|betterplace|donorbox|eventbrite|ticketino|weeztix|billetweb|petitionslist|mews|secure-hotel-booking|reguest|re-guest|seekda|ibelsa|cultuzz|hotelnetsolutions|straiv|dirs21|simplebooking|siteminder|thebookingbutton|availpro|bookassist|apaleo|hqrevenue|\/donate|\/spende|\/spenden|\/pay(ment)?\b|\/kasse|\/checkout|\/warenkorb|\/give\b|\/buchen|\/buchung|\/reservier|\/reservation|\/booking|\/book\b)/i;
 
 export type CandidateFound = {
   candidate_type: "mailto" | "tel" | "download" | "crossdomain";

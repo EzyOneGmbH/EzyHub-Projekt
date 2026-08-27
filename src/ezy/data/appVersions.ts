@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "1.4.0",
+    version: "1.4.1",
     changelog: [
+      {
+        version: "1.4.1",
+        date: "2026-08-27",
+        note: "Conversion-Scout erkennt zusätzlich Hotel-Buchungsmaschinen (Mews, re:guest, Seekda u. a.) und Buchungs-Pfade als Cross-Domain-Ziel",
+      },
       {
         version: "1.4.0",
         date: "2026-08-27",
