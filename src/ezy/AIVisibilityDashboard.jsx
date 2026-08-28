@@ -21,7 +21,6 @@ import {
   TrendingUp,
   TrendingDown,
   Quote,
-  FileText,
   Eye,
   ExternalLink,
   MousePointerClick,
@@ -6231,17 +6230,12 @@ export default function AIVisibilityDashboard({
                     modelCount={d.models.length}
                   />
                 </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:col-span-3">
+                {/* Referenzierte Seiten als Kachel entfernt (Volkan 28.08.):
+                    goto-Wrapper machen die Seiten-Zählung strukturell kleiner
+                    als Citations — die zwei verbleibenden KPIs laufen breit. */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-3">
                   <Kpi icon={Eye} label="Erwähnungen" color={C.indigo} {...d.kpis.mentions} />
                   <Kpi icon={Quote} label="Citations" color={C.teal} {...d.kpis.citations} />
-                  <Kpi
-                    icon={FileText}
-                    label="Referenzierte Seiten"
-                    color={C.amber}
-                    value={d.kpis.citedPages.value}
-                    delta={d.kpis.citedPages.delta}
-                    prev={d.kpis.citedPages.prev}
-                  />
                 </div>
               </div>
               <div

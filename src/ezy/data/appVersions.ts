@@ -48,8 +48,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.7.0",
+    version: "1.7.1",
     changelog: [
+      {
+        version: "1.7.1",
+        date: "2026-08-28",
+        note: "Citations zählen wieder korrekt (Google verpackt Quellen neu als Weiterleitungs-Links); Kachel «Referenzierte Seiten» entfernt, Erwähnungen und Citations laufen breiter",
+      },
       {
         version: "1.7.0",
         date: "2026-08-26",
