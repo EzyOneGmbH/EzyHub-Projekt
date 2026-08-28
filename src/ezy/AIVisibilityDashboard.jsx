@@ -6222,21 +6222,18 @@ export default function AIVisibilityDashboard({
 
           {tab === "uebersicht" && (
             <>
-              <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-4">
-                <div className="rounded-xl border p-5 lg:col-span-1" style={CARD}>
+              {/* Referenzierte Seiten als Kachel entfernt (Volkan 28.08.);
+                  Score + 2 KPIs gleich breit (Drittel, Volkan 28.08.). */}
+              <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <div className="rounded-xl border p-5" style={CARD}>
                   <ScoreRing
                     value={d.score}
                     delta={d.versionSwitch ? 0 : d.scoreDelta}
                     modelCount={d.models.length}
                   />
                 </div>
-                {/* Referenzierte Seiten als Kachel entfernt (Volkan 28.08.):
-                    goto-Wrapper machen die Seiten-Zählung strukturell kleiner
-                    als Citations — die zwei verbleibenden KPIs laufen breit. */}
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-3">
-                  <Kpi icon={Eye} label="Erwähnungen" color={C.indigo} {...d.kpis.mentions} />
-                  <Kpi icon={Quote} label="Citations" color={C.teal} {...d.kpis.citations} />
-                </div>
+                <Kpi icon={Eye} label="Erwähnungen" color={C.indigo} {...d.kpis.mentions} />
+                <Kpi icon={Quote} label="Citations" color={C.teal} {...d.kpis.citations} />
               </div>
               <div
                 className="mt-2 flex flex-wrap items-center gap-2 text-[11px]"
