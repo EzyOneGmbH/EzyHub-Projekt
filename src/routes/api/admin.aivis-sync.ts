@@ -628,8 +628,20 @@ function dfsCollectDomains(node: any, out: Set<string>) {
   }
   if (typeof node === "object") {
     for (const [k, v] of Object.entries(node)) {
-      if ((k === "domain" || k === "url" || k === "source_url") && typeof v === "string") {
-        const dom = v.includes("://") ? domOf(v) : v.replace(/^www\./, "").toLowerCase();
+      // "source" dazu (28.08., Bomatec-Fund): Google AI Mode/AIO wrappen die
+      // Referenz-URLs neu als google.com/goto?url=<Token> (Ziel nicht lesbar),
+      // die ECHTE Quelle steht nur noch im source-Feld ("bomatec" bzw.
+      // "www.bomatec.com") — ohne source zählt kein Eigen-Zitat mehr.
+      if (
+        (k === "domain" || k === "url" || k === "source_url" || k === "source") &&
+        typeof v === "string"
+      ) {
+        const dom = v.includes("://")
+          ? domOf(v)
+          : v
+              .replace(/^www\./, "")
+              .toLowerCase()
+              .trim();
         if (dom) out.add(dom);
       } else dfsCollectDomains(v, out);
     }
@@ -690,7 +702,12 @@ async function jobSerpAi(c: any, limitOverride?: number) {
     dfsCollectDomains(el, doms);
     const urls = new Set<string>();
     if (domain) dfsCollectOwnUrls(el, domain, urls);
-    const cited = (!!domain && doms.has(domain)) || urls.size > 0;
+    // Label-Match (28.08.): das source-Feld der goto-gewrappten Referenzen
+    // trägt oft nur den Site-Namen ohne TLD ("bomatec") — exakter Vergleich
+    // mit dem Domain-Label, KEIN Substring (Generika-Falle).
+    const label = domain ? domain.split(".")[0] : "";
+    const cited =
+      (!!domain && (doms.has(domain) || (label.length >= 3 && doms.has(label)))) || urls.size > 0;
     return { hit: cited || nameRe.test(JSON.stringify(el)), cited, urls };
   };
   const errors: string[] = [];
@@ -713,11 +730,18 @@ async function jobSerpAi(c: any, limitOverride?: number) {
         .join("\n\n");
     const refs = ((el?.references || []) as any[])
       .slice(0, 12)
-      .map((r: any) => ({
-        d: String(r?.domain || "").replace(/^www\./, ""),
-        u: String(r?.url || ""),
-        t: String(r?.title || "").slice(0, 160),
-      }))
+      .map((r: any) => {
+        // goto-Wrapper (28.08.): domain steht dann auf google.com und die URL
+        // ist ein opakes Token — als Anzeige-Domain das source-Feld nehmen.
+        const rawDom = String(r?.domain || "").replace(/^www\./, "");
+        const src = String(r?.source || "").replace(/^www\./, "");
+        const gewrappt = rawDom === "google.com" && String(r?.url || "").includes("/goto");
+        return {
+          d: gewrappt && src ? src : rawDom,
+          u: String(r?.url || ""),
+          t: String(r?.title || "").slice(0, 160),
+        };
+      })
       .filter((r) => r.d);
     return { kw, land, text: md.slice(0, 3000), refs };
   };
