@@ -106,10 +106,18 @@ const Body = z.object({
 const isUuid = (s: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(s || ""));
 const today = () => new Date().toISOString().slice(0, 10);
+// cleanDomain (27.08., Bomatec-Fund): www. und Pfad MÜSSEN weg — DFS/Judge
+// normalisieren Quellen auf die nackte Domain ("bomatec.com"), Kunden stehen
+// aber teils mit "www.bomatec.com" (7 Kunden) oder Pfad ("www.bofrost.ch/de")
+// in clients.domain → jeder Eigen-Domain-Vergleich schlug fehl, Citations
+// blieben dauerhaft 0 obwohl die Antworten die Domain zitierten.
 const cleanDomain = (d: string) =>
   String(d || "")
     .replace(/^https?:\/\//, "")
-    .replace(/\/+$/, "");
+    .replace(/^www\./i, "")
+    .replace(/[/?#].*$/, "")
+    .trim()
+    .toLowerCase();
 
 // ── Semrush Analytics API (CSV): Suchvolumina + organische Konkurrenten ───────
 // Ergänzt Ahrefs (AI-Mentions) + GA4 (Attribution) um die Such-Markt-Ebene.
