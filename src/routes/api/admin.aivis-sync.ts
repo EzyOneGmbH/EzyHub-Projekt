@@ -412,7 +412,7 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
-const BUILD_TAG = "2026-08-28-real-seed"; // Deploy-Verifikation via GET-Antwort
+const BUILD_TAG = "2026-08-28-real-seed2"; // Deploy-Verifikation via GET-Antwort
 
 // ── Score v2 (2026-07-18): Sättigung statt harter Deckel ─────────────────────
 // Konstanten in src/lib/score-config.json (REFs, Gewichte, Glättung, Judge).
@@ -2145,10 +2145,10 @@ async function jobRealSeed(c: any, sbAny: any, realTarget: number) {
     .map((k, i) => `${i}: [${k.quelle}] ${k.frage}`)
     .join("\n");
   const wahlTxt = await askUtility(
-    `Firma: "${c.name}". Angebot: ${angebot}\n\nUnten stehen ECHTE Nutzerfragen (aus Google "People also ask" und einem KI-Anfragen-Korpus). Wähle daraus maximal ${realTarget} Fragen aus, die ein POTENZIELLER KUNDE dieser Firma realistisch stellen würde (Beschaffung/Kauf/Beratung/Vergleich). Verwirf strikt: Fragen zu anderen Firmen/Orten/Homonymen, Allgemeinwissen/Schulstoff, Lohn-/Jobfragen, Definitionsfragen ohne Kaufbezug. Formuliere NICHTS um — gib nur die Indizes zurück.\n\n${liste}\n\nAntworte NUR mit JSON: [{"i":<index>,"thema":"kurzes Thema","intent":"Informativ|Kommerziell|Transaktional"}]`,
+    `Firma: "${c.name}". Angebot: ${angebot}\n\nUnten stehen ECHTE Nutzerfragen (aus Google "People also ask" und einem KI-Anfragen-Korpus). Wähle daraus maximal ${realTarget} Fragen aus, die ein POTENZIELLER KUNDE dieser Firma realistisch stellen würde (Beschaffung/Kauf/Beratung/Vergleich). Verwirf strikt: Fragen zu anderen Firmen/Orten/Homonymen, Allgemeinwissen/Schulstoff, Lohn-/Jobfragen, Definitionsfragen ohne Kaufbezug. WICHTIG: keine sinngleichen Varianten — pro Thema/Aspekt nur EINE Frage (die beste), auch wenn mehrere Formulierungen in der Liste stehen. Formuliere NICHTS um — gib nur die Indizes zurück.\n\n${liste}\n\nAntworte NUR mit JSON: [{"i":<index>,"thema":"kurzes Thema","intent":"Informativ|Kommerziell|Transaktional","sprache":"de|en|fr|it"}]`,
     2500,
   );
-  const wahl: Array<{ i: number; thema?: string; intent?: string }> = (
+  const wahl: Array<{ i: number; thema?: string; intent?: string; sprache?: string }> = (
     parseJson(wahlTxt || "") || []
   ).filter((w: any) => Number.isInteger(w?.i) && w.i >= 0 && w.i < frisch.length);
   if (!wahl.length) return { ...diag, skipped: "LLM-Filter fand keine relevanten Echt-Fragen" };
@@ -2162,7 +2162,9 @@ async function jobRealSeed(c: any, sbAny: any, realTarget: number) {
       ? w.intent
       : "Informativ",
     country: land,
-    language: (c.language || "de").slice(0, 2),
+    language: ["de", "en", "fr", "it"].includes(String(w.sprache))
+      ? String(w.sprache)
+      : (c.language || "de").slice(0, 2),
     active: true,
     prompt_type: "markt",
     needs_review: false,
