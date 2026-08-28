@@ -405,7 +405,7 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
-const BUILD_TAG = "2026-07-23-relevanz"; // Deploy-Verifikation via GET-Antwort
+const BUILD_TAG = "2026-08-28-goto-source"; // Deploy-Verifikation via GET-Antwort
 
 // ── Score v2 (2026-07-18): Sättigung statt harter Deckel ─────────────────────
 // Konstanten in src/lib/score-config.json (REFs, Gewichte, Glättung, Judge).
