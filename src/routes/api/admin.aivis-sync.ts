@@ -73,7 +73,14 @@ const Body = z.object({
   // live | backfill (Monats-Reports Historie) | brand-backfill (Marken-Check-
   // Korpus retro) | citations-backfill (Citations+referenzierte Seiten retro
   // in bestehende Monats-Reports — Erwähnungen bleiben unangetastet)
-  mode: z.enum(["live", "backfill", "brand-backfill", "citations-backfill"]).default("live"),
+  // real-seed (28.08., Volkan «reale Anfragen statt generischer»): erntet ECHTE
+  // Fragen (People-also-ask aus den SERP-Läufen + DFS-LLM-Korpus question-scope),
+  // LLM wählt NUR aus (keine Umformulierung), ersetzt zahlneutral die
+  // generischsten kuratierten Prompts (origin-Spalte auf prompt_defs).
+  mode: z
+    .enum(["live", "backfill", "brand-backfill", "citations-backfill", "real-seed"])
+    .default("live"),
+  realTarget: z.number().int().min(5).max(60).default(25),
   months: z.number().int().min(1).max(12).default(6), // Backfill-Tiefe
   async: z.boolean().default(false), // true = sofort 202 + runId, Verarbeitung im Hintergrund
   // Prompt-Chunking (2026-07-17): das ~300s-Gateway-Kap begrenzt EINEN Request
@@ -405,7 +412,7 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
-const BUILD_TAG = "2026-08-28-goto-source"; // Deploy-Verifikation via GET-Antwort
+const BUILD_TAG = "2026-08-28-real-seed"; // Deploy-Verifikation via GET-Antwort
 
 // ── Score v2 (2026-07-18): Sättigung statt harter Deckel ─────────────────────
 // Konstanten in src/lib/score-config.json (REFs, Gewichte, Glättung, Judge).
@@ -2054,6 +2061,147 @@ async function seedBrandPrompts(c: any, sbAny: any): Promise<any[]> {
 
 // Fakten-Kurzprofil je Kunde (brand_facts): Abgleichsbasis für den Brand-Judge.
 // Initial automatisch aus Name/Domain/Homepage generiert, needs_review=true.
+// ── Echt-Fragen-Seeder (28.08., Volkan «reale Anfragen statt generischer») ───
+// Erntet ECHTE Fragen aus zwei Quellen: (1) People-also-ask der eigenen
+// SERP-Läufe (parts.sa.fanout — echte Google-Nutzerfragen auf den echten
+// GSC-Keywords des Kunden), (2) DFS-LLM-Korpus question-scope (echte, anonyme
+// KI-Anfragen) zu 3 LLM-gewählten Kategorie-Begriffen × Google-CH/DE-Slices.
+// Der LLM-Filter WÄHLT nur aus (Wortlaut bleibt original — sonst wäre es
+// wieder synthetisch); je eingefügter Echt-Frage wird eine der generischsten
+// kuratierten Prompts deaktiviert (zahlneutral, Kosten-Paket 27.08.).
+async function jobRealSeed(c: any, sbAny: any, realTarget: number) {
+  const facts = await getBrandFacts(c, sbAny);
+  const angebot = String(facts?.angebot || "").slice(0, 600);
+  if (!angebot) return { skipped: "kein Faktenprofil (brand_facts)" };
+  const diag: any = { begriffe: [], paaKandidaten: 0, korpusKandidaten: 0 };
+
+  // Kandidaten sammeln (Text → Quelle), dedupliziert case-insensitiv.
+  const kandidaten = new Map<string, { frage: string; quelle: string }>();
+  const addKandidat = (frage: string, quelle: string) => {
+    const f = String(frage || "").trim();
+    if (f.length < 12 || f.length > 220) return;
+    const key = f.toLowerCase();
+    if (!kandidaten.has(key)) kandidaten.set(key, { frage: f, quelle });
+  };
+
+  // (1) PAA-Fragen der letzten 30 Tage.
+  const seit = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+  const { data: reps } = await sbAny
+    .from("ai_visibility_reports")
+    .select("parts")
+    .eq("client_id", c.id)
+    .gte("snapshot_date", seit)
+    .order("snapshot_date", { ascending: false })
+    .limit(12);
+  for (const r of reps || []) {
+    for (const f of ((r.parts as any)?.sa?.fanout || []) as any[]) {
+      for (const q of (f?.questions || []) as any[]) addKandidat(String(q), "paa");
+    }
+  }
+  diag.paaKandidaten = kandidaten.size;
+
+  // (2) DFS-Korpus: 3 Kategorie-Begriffe × Google CH/DE (question-scope).
+  const begriffeTxt = await askUtility(
+    `Nenne 3 kurze deutsche Suchbegriffe (je 1-3 Wörter, generische Kategorie, KEIN Firmenname), mit denen potenzielle Kunden nach diesem Angebot suchen: "${angebot}". Antworte NUR mit JSON: ["begriff1","begriff2","begriff3"]`,
+    300,
+  );
+  const begriffe: string[] = (parseJson(begriffeTxt || "") || [])
+    .filter((b: any) => typeof b === "string" && b.trim())
+    .slice(0, 3);
+  diag.begriffe = begriffe;
+  const slices = [
+    { location_name: "Switzerland", language_code: "de" },
+    { location_name: "Germany", language_code: "de" },
+  ];
+  for (const begriff of begriffe) {
+    for (const slice of slices) {
+      const r = await dfsAiCall("ai_optimization/llm_mentions/search/live", {
+        target: [{ keyword: begriff, match_type: "word_match", search_scope: ["question"] }],
+        ...slice,
+        limit: 20,
+      });
+      if (!r.ok) continue;
+      const items: any[] = (r.result?.[0]?.items ?? r.result?.items ?? []) as any[];
+      for (const it of items) addKandidat(String(it?.question || ""), "ki-korpus");
+    }
+  }
+  diag.korpusKandidaten = kandidaten.size - diag.paaKandidaten;
+
+  // Bereits vorhandene Prompts nie doppelt einfügen.
+  const { data: defsAlle } = await sbAny
+    .from("ai_visibility_prompt_defs")
+    .select("id, prompt, active, prompt_type, origin")
+    .eq("client_id", c.id)
+    .limit(1000);
+  const vorhanden = new Set(
+    (defsAlle || []).map((d: any) => String(d.prompt).toLowerCase().trim()),
+  );
+  const frisch = [...kandidaten.values()].filter((k) => !vorhanden.has(k.frage.toLowerCase()));
+  if (!frisch.length) return { ...diag, skipped: "keine neuen Echt-Kandidaten" };
+
+  // LLM-Auswahl: NUR relevante Kundenfragen behalten, Wortlaut unverändert.
+  const liste = frisch
+    .slice(0, 140)
+    .map((k, i) => `${i}: [${k.quelle}] ${k.frage}`)
+    .join("\n");
+  const wahlTxt = await askUtility(
+    `Firma: "${c.name}". Angebot: ${angebot}\n\nUnten stehen ECHTE Nutzerfragen (aus Google "People also ask" und einem KI-Anfragen-Korpus). Wähle daraus maximal ${realTarget} Fragen aus, die ein POTENZIELLER KUNDE dieser Firma realistisch stellen würde (Beschaffung/Kauf/Beratung/Vergleich). Verwirf strikt: Fragen zu anderen Firmen/Orten/Homonymen, Allgemeinwissen/Schulstoff, Lohn-/Jobfragen, Definitionsfragen ohne Kaufbezug. Formuliere NICHTS um — gib nur die Indizes zurück.\n\n${liste}\n\nAntworte NUR mit JSON: [{"i":<index>,"thema":"kurzes Thema","intent":"Informativ|Kommerziell|Transaktional"}]`,
+    2500,
+  );
+  const wahl: Array<{ i: number; thema?: string; intent?: string }> = (
+    parseJson(wahlTxt || "") || []
+  ).filter((w: any) => Number.isInteger(w?.i) && w.i >= 0 && w.i < frisch.length);
+  if (!wahl.length) return { ...diag, skipped: "LLM-Filter fand keine relevanten Echt-Fragen" };
+
+  const land = String(c.country || "Schweiz");
+  const einfuegen = wahl.slice(0, realTarget).map((w) => ({
+    client_id: c.id,
+    prompt: frisch[w.i].frage,
+    topic: String(w.thema || "").slice(0, 80) || null,
+    intent: ["Informativ", "Kommerziell", "Transaktional"].includes(String(w.intent))
+      ? w.intent
+      : "Informativ",
+    country: land,
+    language: (c.language || "de").slice(0, 2),
+    active: true,
+    prompt_type: "markt",
+    needs_review: false,
+    origin: frisch[w.i].quelle === "paa" ? "echt-paa" : "echt-ki-korpus",
+  }));
+  const { error: insErr } = await sbAny.from("ai_visibility_prompt_defs").insert(einfuegen);
+  if (insErr) return { ...diag, error: `Insert: ${insErr.message}` };
+  diag.eingefuegt = einfuegen.length;
+
+  // Zahlneutral: gleich viele der GENERISCHSTEN kuratierten Prompts stilllegen.
+  const kuratiert = (defsAlle || []).filter(
+    (d: any) => d.active && d.prompt_type === "markt" && (d.origin || "kuratiert") === "kuratiert",
+  );
+  let deaktiviert = 0;
+  if (kuratiert.length > einfuegen.length) {
+    const kListe = kuratiert
+      .slice(0, 150)
+      .map((d: any, i: number) => `${i}: ${String(d.prompt).slice(0, 180)}`)
+      .join("\n");
+    const rausTxt = await askUtility(
+      `Firma: "${c.name}". Angebot: ${angebot}\n\nUnten stehen KI-generierte (simulierte) Kundenfragen. Wähle die ${einfuegen.length} GENERISCHSTEN bzw. unrealistischsten aus (austauschbare Floskeln, konstruierte Anlässe, unglaubwürdige Szenarien) — sie werden durch echte Nutzerfragen ersetzt.\n\n${kListe}\n\nAntworte NUR mit JSON: [<index>, ...]`,
+      1200,
+    );
+    const raus: number[] = (parseJson(rausTxt || "") || []).filter(
+      (i: any) => Number.isInteger(i) && i >= 0 && i < Math.min(kuratiert.length, 150),
+    );
+    const ids = raus.slice(0, einfuegen.length).map((i) => kuratiert[i].id);
+    if (ids.length) {
+      await sbAny
+        .from("ai_visibility_prompt_defs")
+        .update({ active: false, needs_review: true })
+        .in("id", ids);
+      deaktiviert = ids.length;
+    }
+  }
+  diag.deaktiviert = deaktiviert;
+  return diag;
+}
+
 async function getBrandFacts(c: any, sbAny: any): Promise<any> {
   const { data } = await sbAny
     .from("ai_visibility_brand_facts")
@@ -3941,6 +4089,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
           promptTarget,
           backfillProvider,
           engines: engineFilter,
+          realTarget,
         } = parsed.data;
         const wanted =
           jobs && jobs.length
@@ -4054,6 +4203,17 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                   jobBrandBackfill(c, sb, months, backfillProvider),
                   12 * 60_000,
                   "brand-backfill",
+                ).catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }));
+                await flushCost(sb);
+                results.push({ client: c.name, domain: c.domain, jobs: jr });
+                continue;
+              }
+              // Echt-Fragen-Seeder (28.08.): PAA + KI-Korpus → Prompt-Defs.
+              if (mode === "real-seed") {
+                jr.realSeed = await withDeadline(
+                  jobRealSeed(c, sb, realTarget),
+                  4 * 60_000,
+                  "real-seed",
                 ).catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }));
                 await flushCost(sb);
                 results.push({ client: c.name, domain: c.domain, jobs: jr });
