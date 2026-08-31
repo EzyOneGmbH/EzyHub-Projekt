@@ -4,7 +4,12 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useAppAccess } from "@/ezy/data/useAppAccess";
-import { useClientAppAccess, appEnabledFor } from "@/ezy/data/useClientAppAccess";
+import {
+  useClientAppAccess,
+  appEnabledFor,
+  featureEnabledFor,
+} from "@/ezy/data/useClientAppAccess";
+import { GEO_SECTION_FEATURE } from "@/ezy/data/appRegistry";
 import { EZY_APPS } from "@/ezy/data/appRegistry";
 import { useEzyClients } from "@/ezy/data/useEzyClients";
 import { useEzyServiceSettings } from "@/ezy/data/useEzyServiceSettings";
@@ -220,11 +225,13 @@ function EzyaiHeuteHome({
   showAll,
   profileName,
   onSection,
+  nav = APP_NAV,
 }: {
   client: any;
   showAll: boolean;
   profileName: string;
   onSection: (id: string) => void;
+  nav?: typeof APP_NAV;
 }) {
   const now = new Date();
   const h = now.getHours();
@@ -328,44 +335,46 @@ function EzyaiHeuteHome({
         Schnellzugriff
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        {APP_NAV.flatMap((g) => g.items).map((t) => {
-          const Icon = t.icon;
-          return (
-            <button
-              key={t.id}
-              onClick={() => onSection(t.id)}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-                alignItems: "flex-start",
-                background: S.panel,
-                border: `1px solid ${S.line}`,
-                borderRadius: 16,
-                padding: "16px",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                textAlign: "left",
-                boxShadow: "0 1px 2px rgba(43,0,51,.04)",
-              }}
-            >
-              <span
+        {nav
+          .flatMap((g) => g.items)
+          .map((t) => {
+            const Icon = t.icon;
+            return (
+              <button
+                key={t.id}
+                onClick={() => onSection(t.id)}
                 style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 11,
-                  background: S.appTint,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                  alignItems: "flex-start",
+                  background: S.panel,
+                  border: `1px solid ${S.line}`,
+                  borderRadius: 16,
+                  padding: "16px",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  textAlign: "left",
+                  boxShadow: "0 1px 2px rgba(43,0,51,.04)",
                 }}
               >
-                {Icon && <Icon size={18} color={S.app} />}
-              </span>
-              <span style={{ fontSize: 13.5, fontWeight: 700, color: S.txt }}>{t.label}</span>
-            </button>
-          );
-        })}
+                <span
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 11,
+                    background: S.appTint,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {Icon && <Icon size={18} color={S.app} />}
+                </span>
+                <span style={{ fontSize: 13.5, fontWeight: 700, color: S.txt }}>{t.label}</span>
+              </button>
+            );
+          })}
       </div>
     </div>
   );
@@ -4991,6 +5000,26 @@ function EzyAiApp() {
         .filter((c: any) => appEnabledFor(caa.map, c.id, "geo")),
     [ezy.clients, svcMatrix, caa.map],
   );
+  // Inhalts-Gating je Kunde (27.08.): im App-Zugriff abgeschaltete EzyAI-
+  // Bereiche sind fuer Nicht-Admins ausgeblendet (Owner/Admin sehen immer
+  // alles und koennen sich nicht aussperren). Alt-Eintrag "aivis" = alles.
+  const navOrganic = useMemo(() => {
+    return APP_NAV.map((g) => ({
+      ...g,
+      items: g.items.filter((t) => {
+        const f = GEO_SECTION_FEATURE[t.id];
+        if (!f || isOrgAdmin || showAll || !clientId) return true;
+        return featureEnabledFor(caa.map, clientId, "geo", f);
+      }),
+    })).filter((g) => g.items.length > 0);
+  }, [isOrgAdmin, showAll, clientId, caa.map]);
+  // Verschwindet der aktive Bereich durch das Gating, auf den ersten
+  // sichtbaren zurueckfallen.
+  useEffect(() => {
+    const ids = navOrganic.flatMap((g) => g.items.map((t) => t.id));
+    if (ids.length && !ids.includes(section)) setSection(ids[0]);
+  }, [navOrganic, section]);
+
   const client = useMemo(
     () => clients.find((c: any) => c.id === clientId) || clients[0] || null,
     [clients, clientId],
@@ -5107,7 +5136,7 @@ function EzyAiApp() {
                 showAll
                   ? null
                   : [
-                      ...(adsMode ? ADS_NAV : APP_NAV).flatMap((g) =>
+                      ...(adsMode ? ADS_NAV : navOrganic).flatMap((g) =>
                         g.items.map((t) => ({
                           id: `sec:${t.id}`,
                           label: t.badge && t.badge > 0 ? `${t.label} (${t.badge})` : t.label,
@@ -5177,7 +5206,7 @@ function EzyAiApp() {
                   )}
                   {!showAll &&
                     view !== "heute" &&
-                    (adsMode ? ADS_NAV : APP_NAV)
+                    (adsMode ? ADS_NAV : navOrganic)
                       .flatMap((g) => g.items)
                       .map((t) => {
                         const Icon = t.icon;
@@ -5373,6 +5402,7 @@ function EzyAiApp() {
                   <EzyaiHeuteHome
                     client={client}
                     showAll={showAll}
+                    nav={navOrganic}
                     profileName={profile.name}
                     onSection={(id) => {
                       setAdsMode(false); // Heute-Schnellzugriff zielt auf Organic-Bereiche

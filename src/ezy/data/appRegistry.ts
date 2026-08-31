@@ -164,7 +164,17 @@ export const APP_FEATURES: Record<EzyAppId, Array<{ id: string; label: string }>
     { id: "conversions", label: "Conversions" },
     { id: "reports", label: "Reports" },
   ],
-  geo: [{ id: "aivis", label: "KI-Sichtbarkeit (EzyAI)" }],
+  // EzyAI-Inhalte einzeln schaltbar (27.08., Volkan «pro WebApp entscheiden,
+  // welche Inhalte gesehen werden dürfen»). Bestehende Freischaltungen mit dem
+  // alten Sammel-Eintrag "aivis" bleiben gültig (FEATURE_LEGACY_ALIAS).
+  geo: [
+    { id: "aivis-insights", label: "Insights (KI-Sichtbarkeit)" },
+    { id: "aivis-analytics", label: "LLM Analytics & Traffic" },
+    { id: "aivis-prompts", label: "Your Prompts" },
+    { id: "aivis-chancen", label: "Chancen" },
+    { id: "aivis-briefs", label: "Content" },
+    { id: "aivis-sitehealth", label: "Site Health & Issues" },
+  ],
   analyse: [],
   ads: [{ id: "ads", label: "Ads-Dashboard" }],
   reakt: [],
@@ -180,6 +190,33 @@ export const TAB_APP_FEATURE: Record<string, { app: EzyAppId; feature: string }>
   localgrid: { app: "seo", feature: "localgrid" },
   conversions: { app: "seo", feature: "conversions" },
   ads: { app: "ads", feature: "ads" },
+  // Portal-Gating fuer den Dashboard-Tab «KI-Sichtbarkeit» (27.08.).
+  aivis: { app: "geo", feature: "aivis-insights" },
+};
+
+/** EzyAI-Bereich → Funktions-Schalter (App-Zugriff, App geo). Bereiche ohne
+ *  Eintrag sind nie gated. */
+export const GEO_SECTION_FEATURE: Record<string, string> = {
+  "aeo-insights": "aivis-insights",
+  "llm-analytics": "aivis-analytics",
+  traffic: "aivis-analytics",
+  "your-prompts": "aivis-prompts",
+  opportunities: "aivis-chancen",
+  content: "aivis-briefs",
+  "site-health": "aivis-sitehealth",
+  issues: "aivis-sitehealth",
+};
+
+/** Alt-Freischaltungen: der fruehere Sammel-Eintrag deckt alle Nachfolger ab —
+ *  sonst wuerde eine bestehende features-Liste ["aivis"] nach dem Katalog-
+ *  Split ploetzlich ALLE EzyAI-Bereiche sperren. */
+export const FEATURE_LEGACY_ALIAS: Record<string, string> = {
+  "aivis-insights": "aivis",
+  "aivis-analytics": "aivis",
+  "aivis-prompts": "aivis",
+  "aivis-chancen": "aivis",
+  "aivis-briefs": "aivis",
+  "aivis-sitehealth": "aivis",
 };
 
 /** Startzustand in der heutigen EzyOneApp je App (Phase-1-Deep-Link).

@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import type { EzyAppId } from "./appRegistry";
+import { FEATURE_LEGACY_ALIAS, type EzyAppId } from "./appRegistry";
 
 export type ClientAppRow = {
   client_id: string;
@@ -33,7 +33,10 @@ export function featureEnabledFor(
   const e = map?.get(clientId)?.get(app);
   if (!e) return true;
   if (!e.enabled) return false;
-  return e.features.length === 0 || e.features.includes(feature);
+  if (e.features.length === 0 || e.features.includes(feature)) return true;
+  // Alt-Eintrag (z. B. "aivis") deckt seine Nachfolge-Funktionen weiter ab.
+  const alias = FEATURE_LEGACY_ALIAS[feature];
+  return alias != null && e.features.includes(alias);
 }
 
 export function useClientAppAccess() {
