@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "1.5.2",
+    version: "1.5.3",
     changelog: [
+      {
+        version: "1.5.3",
+        date: "2026-08-31",
+        note: "Detailliste im Conversions-Tab schliesst Direktzugriffe jetzt auch im Snapshot-Fallback sicher aus",
+      },
       {
         version: "1.5.2",
         date: "2026-08-31",

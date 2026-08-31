@@ -2698,7 +2698,9 @@ export function ConvDashboard({ selectedClient, dateRange }) {
   const convRowsOrganic = useMemo(
     () =>
       (conv?.rows || []).filter((r) => {
-        if (r.channel == null) return true;
+        // Fallback (alte Snapshots ohne channel-Feld): mindestens Direkt-
+        // zugriffe sicher ausschliessen (Volkan 31.08. — «nur organische»).
+        if (r.channel == null) return !/^\(?direct\)?$/i.test(String(r.source || "").trim());
         const ch = String(r.channel);
         if (/^organic search$/i.test(ch)) return true;
         return isAiConvSource(r.source) && !/^paid|display|cross-network/i.test(ch);
