@@ -420,6 +420,38 @@ export async function loadAIVisibility(
           ).data ?? [];
     }
   }
+  // Attribution-Fallback (01.09., «Conversions-Tab weg»-Fix): die GA4-
+  // Attribution (Besucher je Engine + Regionen-Karte) hängt ebenfalls am
+  // Report des Messlaufs — reine Makro-Tagesreports haben keine Zeilen und
+  // der Conversions-Tab im Insights-Dashboard verschwand (hasConv=false).
+  // Fehlen Zeilen, wird der jüngste Report MIT Attribution nachgeladen
+  // (history ist absteigend sortiert; eine .in()-Query, dann jüngste
+  // nichtleere report_id nehmen).
+  let attribRows: any[] = attribution.data ?? [];
+  if (!attribRows.length) {
+    const recentIds = (history.data ?? []).slice(0, 12).map((h: any) => h.id);
+    if (recentIds.length) {
+      const { data: fb } = await sb
+        .from("ai_visibility_attribution")
+        .select("*")
+        .in("report_id", recentIds)
+        .order("sessions", { ascending: false });
+      if (fb?.length) {
+        const byRep = new Map<string, any[]>();
+        for (const row of fb) {
+          const k = String(row.report_id);
+          (byRep.get(k) ?? byRep.set(k, []).get(k)!).push(row);
+        }
+        for (const id of recentIds) {
+          const rows = byRep.get(String(id));
+          if (rows?.length) {
+            attribRows = rows;
+            break;
+          }
+        }
+      }
+    }
+  }
   const intentTotals: Record<string, number> = {};
   for (const r of promptRows) {
     if (r.intent) intentTotals[r.intent] = (intentTotals[r.intent] || 0) + 1;
@@ -636,7 +668,7 @@ export async function loadAIVisibility(
       urls: Number(s.urls ?? 0),
       traffic: Number(s.traffic ?? 0),
     })),
-    attribution: (attribution.data ?? []).map((a: any) => ({
+    attribution: attribRows.map((a: any) => ({
       engine: String(a.engine ?? ""),
       sessions: Number(a.sessions ?? 0),
       conv: Number(a.conversions ?? 0),

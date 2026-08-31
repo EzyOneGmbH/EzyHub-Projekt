@@ -93,8 +93,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.8.1",
+    version: "1.8.2",
     changelog: [
+      {
+        version: "1.8.2",
+        date: "2026-09-01",
+        note: "Conversions wieder wie gewohnt: der Tab im Insights-Bereich (Besucher je KI-Engine, aufklappbare Einzel-Conversions, Regionen-Karte) ist zurück — er war verschwunden, weil die Daten am Mess-Report hingen; der separate Bereich im EzyRank-Stil ist wieder entfernt",
+      },
       {
         version: "1.8.1",
         date: "2026-09-01",

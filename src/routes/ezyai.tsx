@@ -66,7 +66,6 @@ import {
   Bell,
   LayoutGrid,
   Home,
-  DollarSign,
 } from "lucide-react";
 
 // Initialen aus einem Namen (Shell-Profilblock, wie in der EzyRank-Shell).
@@ -118,12 +117,11 @@ const APP_NAV: Array<{ group: string; items: NavItem[] }> = [
       { id: "aeo-insights", label: "Insights", icon: LineChart },
       { id: "llm-analytics", label: "LLM Analytics", icon: Zap },
       { id: "traffic", label: "Traffic", icon: Activity },
-      // Conversions (01.09.): KI-Conversions wurden am 31.08. aus EzyRank
-      // separiert («erscheinen im EzyAI-Conversions-Tab») — den Tab gab es
-      // in der eigenständigen /ezyai-Route aber nicht mehr (geo-Scope der
-      // App-Engine fiel mit Phase 2 weg). Rendert ConvDashboard (appScope
-      // "geo": Organische + KI-Conversions) aus dem RankDashboards-Chunk.
-      { id: "conversions", label: "Conversions", icon: DollarSign },
+      // KEIN eigener Conversions-Bereich hier (Volkan 01.09.): EzyAI nutzt
+      // den Conversions-Tab IM Insights-Dashboard (AttributionStrip mit
+      // Besucher je Engine + Regionen-Landkarte) — nicht das EzyRank-
+      // ConvDashboard. Der Tab erscheint via hasConv, sobald Attribution-
+      // Daten da sind (Loader-Fallback in useEzyAIVisibility).
     ],
   },
   { group: "Prompts", items: [{ id: "your-prompts", label: "Your Prompts", icon: MessageSquare }] },
@@ -165,11 +163,6 @@ const NAV_LABEL: Record<string, string> = Object.fromEntries(
 const EzyAiAdsPanel = lazy(() => import("@/ezy/EzyAiAdsPanel"));
 // Kampagnen-Management (ChatGPT-Ads-Modul, 31.08.): eigener Lazy-Chunk.
 const EzyAiCampaignsPanel = lazy(() => import("@/ezy/EzyAiCampaignsPanel"));
-// Conversions (01.09.): bestehendes ConvDashboard aus dem RankDashboards-
-// Chunk — appScope "geo" zeigt Organische + KI-Conversions (Separierung 31.08.).
-const ConvDashboard = lazy(() =>
-  import("@/ezy/RankDashboards").then((m: any) => ({ default: m.ConvDashboard })),
-);
 
 /** Organic/Ads-Schalter (Segmented, Hi-Fi) — sitzt in der AppRail unter der
  *  Trennlinie, damit die Apps-Zone abgegrenzt bleibt (Volkan 26.08.). */
@@ -5540,16 +5533,6 @@ function EzyAiApp() {
                   </Suspense>
                 ) : section === "llm-analytics" ? (
                   <LlmAnalyticsPanel clientId={client.id} S={S} range={range} compare={compare} />
-                ) : section === "conversions" ? (
-                  <Suspense
-                    fallback={
-                      <div style={{ color: S.mut, fontSize: 13, padding: 60, textAlign: "center" }}>
-                        Lade Conversions…
-                      </div>
-                    }
-                  >
-                    <ConvDashboard selectedClient={client} dateRange={range} appScope="geo" />
-                  </Suspense>
                 ) : section === "traffic" ? (
                   <TrafficPanel clientId={client.id} S={S} range={range} compare={compare} />
                 ) : section === "site-health" || section === "issues" ? (
