@@ -5003,19 +5003,23 @@ function EzyAiApp() {
         .filter((c: any) => appEnabledFor(caa.map, c.id, "geo")),
     [ezy.clients, svcMatrix, caa.map],
   );
-  // Inhalts-Gating je Kunde (27.08.): im App-Zugriff abgeschaltete EzyAI-
-  // Bereiche sind fuer Nicht-Admins ausgeblendet (Owner/Admin sehen immer
-  // alles und koennen sich nicht aussperren). Alt-Eintrag "aivis" = alles.
+  // Inhalts-Gating je Kunde (27.08., praezisiert 31.08., Volkan: «MA sehen
+  // wie Admin ALLES — nur Kunden-Logins sind betroffen»): die Funktions-
+  // Schalter im App-Zugriff wirken ausschliesslich auf die Rolle viewer
+  // (Kundenportal). Heute leiten wir viewer ohnehin auf /dashboard um —
+  // das Gating hier ist die Zukunftssicherung, falls das Portal EzyAI
+  // bekommt. Alt-Eintrag "aivis" = alles frei (Legacy-Alias).
   const navOrganic = useMemo(() => {
+    if (role !== "viewer") return APP_NAV;
     return APP_NAV.map((g) => ({
       ...g,
       items: g.items.filter((t) => {
         const f = GEO_SECTION_FEATURE[t.id];
-        if (!f || isOrgAdmin || showAll || !clientId) return true;
+        if (!f || showAll || !clientId) return true;
         return featureEnabledFor(caa.map, clientId, "geo", f);
       }),
     })).filter((g) => g.items.length > 0);
-  }, [isOrgAdmin, showAll, clientId, caa.map]);
+  }, [role, showAll, clientId, caa.map]);
   // Verschwindet der aktive Bereich durch das Gating, auf den ersten
   // sichtbaren zurueckfallen.
   useEffect(() => {
