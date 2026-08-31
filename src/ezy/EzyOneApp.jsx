@@ -7609,7 +7609,11 @@ function App({ appScope = null }) {
                       {tab === "blog" && <RefreshRadar selectedClient={client} />}
                       {/* aivis: seit Phase 2 in der EzyAI-App (/ezyai) */}
                       {tab === "conversions" && (
-                        <ConvDashboard selectedClient={client} dateRange={dateRangeWithCompare} />
+                        <ConvDashboard
+                          selectedClient={client}
+                          dateRange={dateRangeWithCompare}
+                          appScope={appScope}
+                        />
                       )}
                       {tab === "ads" && (
                         <>

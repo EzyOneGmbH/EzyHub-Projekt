@@ -2622,7 +2622,10 @@ export function GeoDashboard({ selectedClient, dateRange }) {
   );
 }
 
-export function ConvDashboard({ selectedClient, dateRange }) {
+export function ConvDashboard({ selectedClient, dateRange, appScope = null }) {
+  // KI-Separierung (Volkan 31.08.): KI-Referral-Conversions erscheinen in der
+  // Detailliste NUR in EzyAI (appScope "geo") — EzyRank zeigt rein Organisch.
+  const includeAiConv = appScope === "geo";
   // Kundenansicht (31.08., Volkan): der Conversion-Scout (Kandidaten prüfen,
   // Website scannen, GA4-Key-Events anlegen) ist Team-Werkzeug — Kunden-
   // Logins sehen ihn nicht.
@@ -2688,24 +2691,29 @@ export function ConvDashboard({ selectedClient, dateRange }) {
     /purchase|checkout|transaction|kauf|buchung|booking/i.test(
       String(r?.eventName || r?.description || ""),
     );
-  // Detailliste NUR ORGANISCH + KI (Volkan 31.08., Erweiterung gleichentags):
-  // Einzel-Conversions zeigen den Kanal «Organic Search» sowie KI-Referrals
-  // (ChatGPT/Perplexity/… — gleiche Quellen-Erkennung wie die EzyAI-
-  // Attribution). Bezahlte KI-Klicks (ChatGPT Ads → Paid-Kanal) bleiben
-  // bewusst draussen. Alte Snapshots ohne channel-Feld bleiben sichtbar
-  // (Fallback-Toleranz — die Live-Abfrage liefert den Kanal mit). Die
+  // Detailliste (Volkan 31.08., KI-Separierung gleichentags): EzyRank zeigt
+  // NUR «Organic Search»; in EzyAI (appScope "geo") kommen zusätzlich
+  // KI-Referrals dazu (ChatGPT/Perplexity/… — gleiche Quellen-Erkennung wie
+  // die EzyAI-Attribution). Bezahlte KI-Klicks (ChatGPT Ads → Paid-Kanal)
+  // bleiben überall draussen. Alte Snapshots ohne channel-Feld bleiben
+  // sichtbar (Fallback-Toleranz, ohne Direct/KI je nach App). Die
   // Event-Übersichtstabelle (convEventsFiltered) bleibt bewusst ungefiltert.
   const convRowsOrganic = useMemo(
     () =>
       (conv?.rows || []).filter((r) => {
-        // Fallback (alte Snapshots ohne channel-Feld): mindestens Direkt-
-        // zugriffe sicher ausschliessen (Volkan 31.08. — «nur organische»).
-        if (r.channel == null) return !/^\(?direct\)?$/i.test(String(r.source || "").trim());
+        if (r.channel == null) {
+          // Fallback (alte Snapshots ohne channel-Feld): Direktzugriffe immer
+          // raus; KI-Quellen nur in EzyAI zeigen.
+          if (/^\(?direct\)?$/i.test(String(r.source || "").trim())) return false;
+          return includeAiConv || !isAiConvSource(r.source);
+        }
         const ch = String(r.channel);
         if (/^organic search$/i.test(ch)) return true;
-        return isAiConvSource(r.source) && !/^paid|display|cross-network/i.test(ch);
+        return (
+          includeAiConv && isAiConvSource(r.source) && !/^paid|display|cross-network/i.test(ch)
+        );
       }),
-    [conv?.rows],
+    [conv?.rows, includeAiConv],
   );
   const convRowsFiltered = useMemo(() => {
     if (convFilter === "purchase") return convRowsOrganic.filter(isPurchaseEvent);
@@ -3348,7 +3356,11 @@ export function ConvDashboard({ selectedClient, dateRange }) {
             }}
           >
             <div style={{ fontSize: 13, fontWeight: 600, color: C.textMuted }}>
-              {conv.rows.length > 0 ? "Organische & KI-Conversions" : "Alle Conversions"}
+              {conv.rows.length > 0
+                ? includeAiConv
+                  ? "Organische & KI-Conversions"
+                  : "Organische Conversions"
+                : "Alle Conversions"}
             </div>
             <div style={{ display: "flex", gap: 6 }}>
               {(() => {
@@ -3411,7 +3423,8 @@ export function ConvDashboard({ selectedClient, dateRange }) {
                     <tr>
                       <td colSpan={7} style={{ padding: "12px 8px", color: C.textDim }}>
                         Keine {convFilter === "purchase" ? "Purchase-Conversions" : "Lead-Anfragen"}{" "}
-                        aus organischer oder KI-Quelle im Zeitraum.
+                        aus {includeAiConv ? "organischer oder KI-Quelle" : "organischer Quelle"} im
+                        Zeitraum.
                       </td>
                     </tr>
                   )}
