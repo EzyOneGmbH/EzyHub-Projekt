@@ -39,6 +39,7 @@ import { Bot, Clock, DollarSign, FileInput, FileText, RefreshCw, Sparkles } from
 import { useCallback } from "react";
 import { useState, useEffect, useMemo, useRef } from "react";
 import ConversionScoutPanel from "@/ezy/ConversionScoutPanel";
+import { isAiConvSource } from "@/ezy/data/aiSources";
 import DataStatus from "@/ezy/DataStatus";
 import { Badge } from "./shared-ui";
 import { C } from "./theme";
@@ -2687,16 +2688,21 @@ export function ConvDashboard({ selectedClient, dateRange }) {
     /purchase|checkout|transaction|kauf|buchung|booking/i.test(
       String(r?.eventName || r?.description || ""),
     );
-  // Detailliste NUR ORGANISCH (Volkan 31.08.): Einzel-Conversions zeigen nur
-  // den Kanal «Organic Search». Alte Snapshots ohne channel-Feld bleiben
-  // sichtbar (Fallback-Toleranz — die Live-Abfrage liefert den Kanal mit).
-  // Die Event-Übersichtstabelle (convEventsFiltered) bleibt bewusst
-  // ungefiltert; EzyAI filtert dieselben Zeilen separat nach KI-Quellen.
+  // Detailliste NUR ORGANISCH + KI (Volkan 31.08., Erweiterung gleichentags):
+  // Einzel-Conversions zeigen den Kanal «Organic Search» sowie KI-Referrals
+  // (ChatGPT/Perplexity/… — gleiche Quellen-Erkennung wie die EzyAI-
+  // Attribution). Bezahlte KI-Klicks (ChatGPT Ads → Paid-Kanal) bleiben
+  // bewusst draussen. Alte Snapshots ohne channel-Feld bleiben sichtbar
+  // (Fallback-Toleranz — die Live-Abfrage liefert den Kanal mit). Die
+  // Event-Übersichtstabelle (convEventsFiltered) bleibt bewusst ungefiltert.
   const convRowsOrganic = useMemo(
     () =>
-      (conv?.rows || []).filter(
-        (r) => r.channel == null || /^organic search$/i.test(String(r.channel)),
-      ),
+      (conv?.rows || []).filter((r) => {
+        if (r.channel == null) return true;
+        const ch = String(r.channel);
+        if (/^organic search$/i.test(ch)) return true;
+        return isAiConvSource(r.source) && !/^paid|display|cross-network/i.test(ch);
+      }),
     [conv?.rows],
   );
   const convRowsFiltered = useMemo(() => {
@@ -3340,7 +3346,7 @@ export function ConvDashboard({ selectedClient, dateRange }) {
             }}
           >
             <div style={{ fontSize: 13, fontWeight: 600, color: C.textMuted }}>
-              {conv.rows.length > 0 ? "Organische Conversions" : "Alle Conversions"}
+              {conv.rows.length > 0 ? "Organische & KI-Conversions" : "Alle Conversions"}
             </div>
             <div style={{ display: "flex", gap: 6 }}>
               {(() => {
@@ -3402,9 +3408,8 @@ export function ConvDashboard({ selectedClient, dateRange }) {
                   {convRowsFiltered.length === 0 && (
                     <tr>
                       <td colSpan={7} style={{ padding: "12px 8px", color: C.textDim }}>
-                        Keine organischen{" "}
-                        {convFilter === "purchase" ? "Purchase-Conversions" : "Lead-Anfragen"} im
-                        Zeitraum.
+                        Keine {convFilter === "purchase" ? "Purchase-Conversions" : "Lead-Anfragen"}{" "}
+                        aus organischer oder KI-Quelle im Zeitraum.
                       </td>
                     </tr>
                   )}

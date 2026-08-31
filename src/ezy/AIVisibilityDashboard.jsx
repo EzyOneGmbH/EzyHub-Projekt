@@ -1,5 +1,8 @@
 import React, { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+// Quelle->Engine-Zuordnung: seit 31.08. geteiltes Modul (auch die
+// Conversions-Tab-Detailliste nutzt dieselbe KI-Quellen-Erkennung).
+import { ATTR_SOURCE_RE } from "@/ezy/data/aiSources";
 // Echte Landkarte (04.08.): react-freie Geo-Bausteine — kein Peer-Dep-Risiko.
 import { geoNaturalEarth1, geoPath, geoCentroid } from "d3-geo";
 import { feature as topoFeature } from "topojson-client";
@@ -789,16 +792,6 @@ function SourcesTable({ rows, ownDomain }) {
   );
 }
 
-// Quelle->Engine-Zuordnung (identisch zur Server-Seite ENGINES in aivis-sync).
-const ATTR_SOURCE_RE = {
-  ChatGPT: /chatgpt|openai/i,
-  Perplexity: /perplexity/i,
-  Gemini: /gemini|bard/i,
-  Claude: /claude|anthropic/i,
-  Copilot: /copilot|bing/i,
-  Grok: /grok|x\.ai/i,
-  DeepSeek: /deepseek/i,
-};
 const fmtGa4Date = (d) =>
   typeof d === "string" && d.length === 8
     ? `${d.slice(6, 8)}.${d.slice(4, 6)}.${d.slice(0, 4)}`
