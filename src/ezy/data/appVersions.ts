@@ -93,8 +93,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.8.0",
+    version: "1.8.1",
     changelog: [
+      {
+        version: "1.8.1",
+        date: "2026-09-01",
+        note: "Bereich «Conversions» in der EzyAI-Navigation: organische und KI-Conversions (ChatGPT/Perplexity/… Referrals) an einem Ort — schliesst die Lücke aus der KI-Separierung vom 31.08.",
+      },
       {
         version: "1.8.0",
         date: "2026-08-31",
