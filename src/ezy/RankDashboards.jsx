@@ -2167,7 +2167,9 @@ export function SeoDashboard({ selectedClient, dateRange }) {
             </LineChart>
           </ResponsiveContainer>
         </div>
-      ) : isOn("seo.trend") ? (
+      ) : isOn("seo.trend") && !istKunde ? (
+        // Interner Platzhalter (31.08.: in der Kundenansicht ausgeblendet —
+        // der Hinweis auf Daten-Läufe/Quellen ist Team-Information).
         <SectionPlaceholder
           title="Entwicklung (Traffic · Visibility · Keywords)"
           hint="Braucht mindestens 2 Daten-Läufe (DataForSEO) im gewählten Zeitraum — Datumsfilter weiter fassen oder auf die nächsten automatischen Läufe warten."
