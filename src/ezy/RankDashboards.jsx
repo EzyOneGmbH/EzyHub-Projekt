@@ -981,7 +981,6 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   // Einheitliches Layout: auch ohne jegliche Daten rendert der Tab dieselben
   // Sektionen (als Platzhalter mit nächstem Schritt) statt eines Leerzustands.
   // 10er-Pagination der GSC-Suchbegriff-Tabellen (User-Wunsch 2026-07-19).
-  const [gscQPage, setGscQPage] = useState(0);
   const [gscFbPage, setGscFbPage] = useState(0);
   const [rankPage, setRankPage] = useState(0);
   // Sortierung der Rankings-Tabelle (User-Wunsch 2026-07-19): Spaltenklick wechselt.
@@ -999,6 +998,8 @@ export function SeoDashboard({ selectedClient, dateRange }) {
     setRankFilter((cur) => (cur === f ? null : f));
     setRankPage(0);
   };
+  // Suchfeld (Volkan 31.08.): Keywords in der Rankings-Tabelle schnell finden.
+  const [rankSearch, setRankSearch] = useState("");
   // Gesamter Keyword-Bestand (2026-08-12): getrackte KW (DataForSEO, präzise
   // Position + Verlauf + Volumen) UNION komplette GSC-Non-Brand-Queries
   // (GSC-Ø-Position + Klicks + Impressions). Dedup nach normalisiertem Keyword —
@@ -1078,6 +1079,9 @@ export function SeoDashboard({ selectedClient, dateRange }) {
       rows = rows.filter(
         (k) => k._src === "dfs" && k.pos != null && k.posPrev7 != null && k.pos > k.posPrev7,
       );
+    // Suchfeld: Teilstring-Match auf dem normalisierten Keyword.
+    const search = normKw(rankSearch);
+    if (search) rows = rows.filter((k) => normKw(k.kw).includes(search));
     if (!rows.length) return [];
     const [col, asc] = rankSort;
     const dir = asc ? 1 : -1;
@@ -1121,7 +1125,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
       return dir * (av - bv);
     });
     return rows;
-  }, [rank, gscQ, gscRes, rankSort, rankFilter, gscQPrevMaps, prevPosComparable]);
+  }, [rank, gscQ, gscRes, rankSort, rankFilter, rankSearch, gscQPrevMaps, prevPosComparable]);
   // Zähler für die Kopfzeile (getrackt vs. aus GSC gemergt).
   const rankCounts = useMemo(() => {
     let dfs = 0,
@@ -1135,13 +1139,10 @@ export function SeoDashboard({ selectedClient, dateRange }) {
     () => (rank?.keywords || []).some((k) => "posIntl" in k || "volumeIntl" in k),
     [rank],
   );
-  // Sortierung der GSC-Suchbegriff-Tabellen (User-Wunsch 2026-07-20): wie Rankings.
+  // Sortierung der GSC-Suchbegriff-Tabelle (User-Wunsch 2026-07-20): wie Rankings.
   // Erstklick: Query/Pos. aufsteigend, Metriken (Klicks/Impr./CTR) absteigend.
-  const [gscQSort, setGscQSort] = useState(["clicks", false]);
-  const toggleGscQSort = (col) => {
-    setGscQSort(([c, asc]) => (c === col ? [col, !asc] : [col, col === "query" || col === "pos"]));
-    setGscQPage(0);
-  };
+  // (Das separate Top-Non-Brand-Widget ist seit 31.08. in der Rankings-Tabelle
+  // aufgegangen — dessen Sort/Pagination-States sind entfernt.)
   const [gscFbSort, setGscFbSort] = useState(["clicks", false]);
   const toggleGscFbSort = (col) => {
     setGscFbSort(([c, asc]) => (c === col ? [col, !asc] : [col, col === "query" || col === "pos"]));
@@ -1162,20 +1163,6 @@ export function SeoDashboard({ selectedClient, dateRange }) {
       return dir * ((a[col] ?? -1) - (b[col] ?? -1));
     });
   };
-  const gscQRows = useMemo(() => {
-    if (!gscQ || !Array.isArray(gscQ.topNonbrandQueries)) return [];
-    // Entwicklung (31.08.): GSC-Ø-Position vs. Lauf von vor 7 Tagen —
-    // _prevPos für die Δ-Zelle, _d7 als sortierbare Zahl.
-    const enriched = gscQ.topNonbrandQueries.map((q) => {
-      const prevPos = gscQPrevMaps.p7.get(normKw(q.query))?.position ?? null;
-      return {
-        ...q,
-        _prevPos: prevPos,
-        _d7: prevPos != null && q.position != null ? prevPos - q.position : null,
-      };
-    });
-    return sortQueries(enriched, gscQSort);
-  }, [gscQ, gscQSort, gscQPrevMaps]);
   const gscFbRows = useMemo(() => {
     if (!gsc || !Array.isArray(gsc.topQueries)) return [];
     // Entwicklung (31.08.): Ø-Position vs. gsc_summary-Lauf von vor 7 Tagen.
@@ -1359,35 +1346,65 @@ export function SeoDashboard({ selectedClient, dateRange }) {
               padding: 16,
             }}
           >
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}>
-              {/* Kundenansicht (31.08.): Quellen-Split + INT-Erklaerung sind
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: 10,
+                marginBottom: 12,
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 600, color: C.textMuted, flex: "1 1 auto" }}>
+                {/* Kundenansicht (31.08.): Quellen-Split + INT-Erklaerung sind
                   interne Angaben — Kunden sehen nur Anzahl + Stand. */}
-              Rankings ({rankCounts.total} Keywords
-              {!istKunde && rankCounts.gsc > 0
-                ? ` · ${rankCounts.dfs} getrackt + ${rankCounts.gsc} aus GSC`
-                : ""}
-              {" · Stand "}
-              {rank?.date || gscQ?.range?.to || "—"})
-              {rankFilter && (
-                <span
-                  onClick={() => toggleRankFilter(rankFilter)}
-                  title="Filter entfernen"
-                  style={{
-                    marginLeft: 8,
-                    padding: "2px 8px",
-                    borderRadius: 999,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    background: (rankFilter === "improved" ? C.green : C.orange) + "22",
-                    color: rankFilter === "improved" ? C.green : C.orange,
-                  }}
-                >
-                  {rankFilter === "improved" ? "nur Verbesserte (7T)" : "nur Verschlechterte (7T)"}{" "}
-                  ✕
-                </span>
-              )}
-              {hasIntl && !istKunde ? " · INT = google.com (USA/en, wöchentliche Messung)" : ""}
+                Rankings ({rankCounts.total} Keywords
+                {!istKunde && rankCounts.gsc > 0
+                  ? ` · ${rankCounts.dfs} getrackt + ${rankCounts.gsc} aus GSC`
+                  : ""}
+                {" · Stand "}
+                {rank?.date || gscQ?.range?.to || "—"})
+                {rankFilter && (
+                  <span
+                    onClick={() => toggleRankFilter(rankFilter)}
+                    title="Filter entfernen"
+                    style={{
+                      marginLeft: 8,
+                      padding: "2px 8px",
+                      borderRadius: 999,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      background: (rankFilter === "improved" ? C.green : C.orange) + "22",
+                      color: rankFilter === "improved" ? C.green : C.orange,
+                    }}
+                  >
+                    {rankFilter === "improved"
+                      ? "nur Verbesserte (7T)"
+                      : "nur Verschlechterte (7T)"}{" "}
+                    ✕
+                  </span>
+                )}
+                {hasIntl && !istKunde ? " · INT = google.com (USA/en, wöchentliche Messung)" : ""}
+              </div>
+              <input
+                type="search"
+                value={rankSearch}
+                onChange={(e) => {
+                  setRankSearch(e.target.value);
+                  setRankPage(0);
+                }}
+                placeholder="Keyword suchen…"
+                style={{
+                  width: 200,
+                  padding: "6px 10px",
+                  fontSize: 13,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 8,
+                  background: C.bg,
+                  color: C.text,
+                }}
+              />
             </div>
             <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
               <table
@@ -1430,6 +1447,13 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                   </tr>
                 </thead>
                 <tbody>
+                  {rankRows.length === 0 && rankSearch.trim() && (
+                    <tr>
+                      <td colSpan={11} style={{ padding: "12px 8px", color: C.textDim }}>
+                        Keine Keywords zu «{rankSearch}» gefunden.
+                      </td>
+                    </tr>
+                  )}
                   {rankRows
                     .slice(
                       Math.min(rankPage, Math.ceil(rankRows.length / 10) - 1) * 10,
@@ -1742,100 +1766,6 @@ export function SeoDashboard({ selectedClient, dateRange }) {
               </div>
             ))}
           </div>
-          {/* B2c: Top-Non-Brand-Queries + Ø-Position als Sekundaer-Metrik */}
-          {Array.isArray(gscQ.topNonbrandQueries) && gscQ.topNonbrandQueries.length > 0 && (
-            <div
-              style={{
-                background: C.card,
-                border: `1px solid ${C.border}`,
-                borderRadius: 14,
-                padding: 16,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "baseline",
-                  marginBottom: 12,
-                }}
-              >
-                <div style={{ fontSize: 13, fontWeight: 600, color: C.textMuted }}>
-                  Top Non-Brand-Suchanfragen
-                </div>
-                {gsc && gsc.position > 0 && (
-                  <div
-                    style={{ fontSize: 11, color: C.textDim, cursor: "help" }}
-                    title="Vorsicht: sinkt oft, wenn neue Keywords erstmals ranken."
-                  >
-                    Ø Position {gsc.position.toFixed(1)} ⓘ
-                  </div>
-                )}
-              </div>
-              <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-                <table
-                  style={{ width: "100%", minWidth: 480, borderCollapse: "collapse", fontSize: 13 }}
-                >
-                  <thead>
-                    <tr style={{ color: C.textDim, textAlign: "left" }}>
-                      {[
-                        ["query", "Query", "left"],
-                        ["clicks", "Klicks", "right"],
-                        ["impressions", "Impr.", "right"],
-                        ["pos", "Pos.", "right"],
-                        ["_d7", "Δ 7 T.", "right"],
-                      ].map(([col, label, align]) => (
-                        <th
-                          key={label}
-                          onClick={() => toggleGscQSort(col)}
-                          title="Klicken zum Sortieren"
-                          style={{
-                            padding: "6px 8px",
-                            textAlign: align,
-                            cursor: "pointer",
-                            userSelect: "none",
-                            whiteSpace: "nowrap",
-                            color: gscQSort[0] === col ? C.accent : undefined,
-                          }}
-                        >
-                          {label}
-                          {gscQSort[0] === col ? (gscQSort[1] ? " ▲" : " ▼") : ""}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {gscQRows
-                      .slice(
-                        Math.min(gscQPage, Math.ceil(gscQRows.length / 10) - 1) * 10,
-                        Math.min(gscQPage, Math.ceil(gscQRows.length / 10) - 1) * 10 + 10,
-                      )
-                      .map((q, i) => (
-                        <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
-                          <td style={{ padding: "6px 8px", color: C.text }}>{q.query}</td>
-                          <td style={{ padding: "6px 8px", textAlign: "right" }}>{q.clicks}</td>
-                          <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                            {q.impressions}
-                          </td>
-                          <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                            {Number(q.position).toFixed(1)}
-                          </td>
-                          <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                            <DeltaCell cur={q.position} prev={q._prevPos} />
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-              <SeoPager
-                page={gscQPage}
-                setPage={setGscQPage}
-                total={gscQ.topNonbrandQueries.length}
-                unit="Suchanfragen"
-              />
-            </div>
-          )}
         </div>
       )}
       {hasGsc && !gscQ && (
@@ -2305,7 +2235,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                   ],
                   ["Switzerland Traffic", "GA4 (Organic Search, nur CH)", trafRun],
                   [
-                    "Brand/Non-Brand-Split · Positions-Buckets · Top-Suchanfragen",
+                    "Brand/Non-Brand-Split · Positions-Buckets (Top-Suchanfragen: in der Rankings-Tabelle)",
                     "Google Search Console",
                     gscQRun || gscRun,
                   ],
