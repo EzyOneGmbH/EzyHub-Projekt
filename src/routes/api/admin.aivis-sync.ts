@@ -412,7 +412,7 @@ function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // Phasen-Zeitstempel werden fortlaufend in die sync_runs-Zeile geschrieben,
 // damit die letzte erreichte Phase den Taeter zeigt. Modul-State = bewusst
 // simpel; bei parallelen Laeufen vermischen sich Marks (fuer Diagnose ok).
-const BUILD_TAG = "2026-08-28-real-seed2"; // Deploy-Verifikation via GET-Antwort
+const BUILD_TAG = "2026-08-28-real-only"; // Deploy-Verifikation via GET-Antwort
 
 // ── Score v2 (2026-07-18): Sättigung statt harter Deckel ─────────────────────
 // Konstanten in src/lib/score-config.json (REFs, Gewichte, Glättung, Judge).
@@ -2324,11 +2324,17 @@ async function autoCuratePrompts(
   skipped?: string;
   archivedIds?: string[];
 }> {
+  // NUR aktive Defs kuratieren (28.08., Volkan «nur echte Fragen»): der
+  // Kurator prüft Branchen-Passung — bewusst STILLGELEGTE Prompts (active=false,
+  // z.B. durch real-seed ersetzte Simulationen) sind thematisch meist passend
+  // und wurden dadurch reihenweise reaktiviert. Deaktivierung ist eine
+  // menschliche/konfigurative Entscheidung, die der Kurator nicht umstösst.
   const { data: pend } = await sbAny
     .from("ai_visibility_prompt_defs")
     .select("id, prompt, prompt_type, active")
     .eq("client_id", c.id)
     .eq("needs_review", true)
+    .eq("active", true)
     .limit(1000);
   const pending: any[] = pend ?? [];
   if (!pending.length) return { pending: 0, approved: 0, archived: 0, unclear: 0 };
