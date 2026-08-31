@@ -48,8 +48,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.7.1",
+    version: "1.8.0",
     changelog: [
+      {
+        version: "1.8.0",
+        date: "2026-08-31",
+        note: "ChatGPT-Ads-Kampagnen-Management: Konto verbinden, Kampagnen pausieren/aktivieren, Tagesbudget ändern, Performance (Spend/Klicks/CTR) — inkl. Demo-Modus bis zur CH-Freischaltung",
+      },
       {
         version: "1.7.1",
         date: "2026-08-28",

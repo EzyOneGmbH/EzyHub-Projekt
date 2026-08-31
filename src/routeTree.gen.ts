@@ -61,6 +61,7 @@ import { Route as ApiAdminAivisCompetitorsRouteImport } from './routes/api/admin
 import { Route as ApiAdminAivisSyncRouteImport } from './routes/api/admin.aivis-sync'
 import { Route as ApiAdminAuditLogRouteImport } from './routes/api/admin.audit-log'
 import { Route as ApiAdminBrandFactsRouteImport } from './routes/api/admin.brand-facts'
+import { Route as ApiAdminChatgptAdsRouteImport } from './routes/api/admin.chatgpt-ads'
 import { Route as ApiAdminClientContextRouteImport } from './routes/api/admin.client-context'
 import { Route as ApiAdminClientDomainsRouteImport } from './routes/api/admin.client-domains'
 import { Route as ApiAdminClientFlagsRouteImport } from './routes/api/admin.client-flags'
@@ -412,6 +413,11 @@ const ApiAdminAuditLogRoute = ApiAdminAuditLogRouteImport.update({
 const ApiAdminBrandFactsRoute = ApiAdminBrandFactsRouteImport.update({
   id: '/api/admin/brand-facts',
   path: '/api/admin/brand-facts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminChatgptAdsRoute = ApiAdminChatgptAdsRouteImport.update({
+  id: '/api/admin/chatgpt-ads',
+  path: '/api/admin/chatgpt-ads',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminClientContextRoute = ApiAdminClientContextRouteImport.update({
@@ -882,6 +888,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/audit-log': typeof ApiAdminAuditLogRoute
   '/api/admin/brand-facts': typeof ApiAdminBrandFactsRoute
+  '/api/admin/chatgpt-ads': typeof ApiAdminChatgptAdsRoute
   '/api/admin/client-context': typeof ApiAdminClientContextRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-flags': typeof ApiAdminClientFlagsRoute
@@ -1017,6 +1024,7 @@ export interface FileRoutesByTo {
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/audit-log': typeof ApiAdminAuditLogRoute
   '/api/admin/brand-facts': typeof ApiAdminBrandFactsRoute
+  '/api/admin/chatgpt-ads': typeof ApiAdminChatgptAdsRoute
   '/api/admin/client-context': typeof ApiAdminClientContextRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-flags': typeof ApiAdminClientFlagsRoute
@@ -1153,6 +1161,7 @@ export interface FileRoutesById {
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/audit-log': typeof ApiAdminAuditLogRoute
   '/api/admin/brand-facts': typeof ApiAdminBrandFactsRoute
+  '/api/admin/chatgpt-ads': typeof ApiAdminChatgptAdsRoute
   '/api/admin/client-context': typeof ApiAdminClientContextRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-flags': typeof ApiAdminClientFlagsRoute
@@ -1290,6 +1299,7 @@ export interface FileRouteTypes {
     | '/api/admin/aivis-sync'
     | '/api/admin/audit-log'
     | '/api/admin/brand-facts'
+    | '/api/admin/chatgpt-ads'
     | '/api/admin/client-context'
     | '/api/admin/client-domains'
     | '/api/admin/client-flags'
@@ -1425,6 +1435,7 @@ export interface FileRouteTypes {
     | '/api/admin/aivis-sync'
     | '/api/admin/audit-log'
     | '/api/admin/brand-facts'
+    | '/api/admin/chatgpt-ads'
     | '/api/admin/client-context'
     | '/api/admin/client-domains'
     | '/api/admin/client-flags'
@@ -1560,6 +1571,7 @@ export interface FileRouteTypes {
     | '/api/admin/aivis-sync'
     | '/api/admin/audit-log'
     | '/api/admin/brand-facts'
+    | '/api/admin/chatgpt-ads'
     | '/api/admin/client-context'
     | '/api/admin/client-domains'
     | '/api/admin/client-flags'
@@ -1691,6 +1703,7 @@ export interface RootRouteChildren {
   ApiAdminAivisSyncRoute: typeof ApiAdminAivisSyncRoute
   ApiAdminAuditLogRoute: typeof ApiAdminAuditLogRoute
   ApiAdminBrandFactsRoute: typeof ApiAdminBrandFactsRoute
+  ApiAdminChatgptAdsRoute: typeof ApiAdminChatgptAdsRoute
   ApiAdminClientContextRoute: typeof ApiAdminClientContextRoute
   ApiAdminClientDomainsRoute: typeof ApiAdminClientDomainsRoute
   ApiAdminClientFlagsRoute: typeof ApiAdminClientFlagsRoute
@@ -2138,6 +2151,13 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/brand-facts'
       fullPath: '/api/admin/brand-facts'
       preLoaderRoute: typeof ApiAdminBrandFactsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/chatgpt-ads': {
+      id: '/api/admin/chatgpt-ads'
+      path: '/api/admin/chatgpt-ads'
+      fullPath: '/api/admin/chatgpt-ads'
+      preLoaderRoute: typeof ApiAdminChatgptAdsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/client-context': {
@@ -2814,6 +2834,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminAivisSyncRoute: ApiAdminAivisSyncRoute,
   ApiAdminAuditLogRoute: ApiAdminAuditLogRoute,
   ApiAdminBrandFactsRoute: ApiAdminBrandFactsRoute,
+  ApiAdminChatgptAdsRoute: ApiAdminChatgptAdsRoute,
   ApiAdminClientContextRoute: ApiAdminClientContextRoute,
   ApiAdminClientDomainsRoute: ApiAdminClientDomainsRoute,
   ApiAdminClientFlagsRoute: ApiAdminClientFlagsRoute,

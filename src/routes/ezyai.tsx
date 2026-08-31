@@ -145,6 +145,7 @@ const ADS_NAV: Array<{ group: string; items: NavItem[] }> = [
     group: "ChatGPT Ads",
     items: [
       { id: "ads-overview", label: "Dashboard", icon: LayoutDashboard },
+      { id: "ads-kampagnen", label: "Kampagnen", icon: Zap },
       { id: "ads-conversions", label: "Conversions", icon: Activity },
       { id: "ads-events", label: "Event-Log", icon: FileText },
     ],
@@ -155,6 +156,8 @@ const NAV_LABEL: Record<string, string> = Object.fromEntries(
 );
 // Ads-Panel lazy (Bundle-Split-Muster wie die Bereichs-Module).
 const EzyAiAdsPanel = lazy(() => import("@/ezy/EzyAiAdsPanel"));
+// Kampagnen-Management (ChatGPT-Ads-Modul, 31.08.): eigener Lazy-Chunk.
+const EzyAiCampaignsPanel = lazy(() => import("@/ezy/EzyAiCampaignsPanel"));
 
 /** Organic/Ads-Schalter (Segmented, Hi-Fi) — sitzt in der AppRail unter der
  *  Trennlinie, damit die Apps-Zone abgegrenzt bleibt (Volkan 26.08.). */
@@ -5500,14 +5503,24 @@ function EzyAiApp() {
                       </div>
                     }
                   >
-                    <EzyAiAdsPanel
-                      clientId={client.id}
-                      clientName={client.name}
-                      section={adsSection}
-                      range={range}
-                      S={S}
-                      isOrgAdmin={!!isOrgAdmin}
-                    />
+                    {adsSection === "ads-kampagnen" ? (
+                      <EzyAiCampaignsPanel
+                        clientId={client.id}
+                        clientName={client.name}
+                        range={range}
+                        S={S}
+                        isOrgAdmin={!!isOrgAdmin}
+                      />
+                    ) : (
+                      <EzyAiAdsPanel
+                        clientId={client.id}
+                        clientName={client.name}
+                        section={adsSection}
+                        range={range}
+                        S={S}
+                        isOrgAdmin={!!isOrgAdmin}
+                      />
+                    )}
                   </Suspense>
                 ) : section === "llm-analytics" ? (
                   <LlmAnalyticsPanel clientId={client.id} S={S} range={range} compare={compare} />
