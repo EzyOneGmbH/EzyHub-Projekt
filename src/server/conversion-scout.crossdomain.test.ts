@@ -59,4 +59,19 @@ describe("Conversion-Scout Cross-Domain-Erkennung", () => {
     expect(name.length).toBeLessThanOrEqual(40);
     expect(/^[a-z]/.test(name)).toBe(true);
   });
+
+  it("Wunschname wird slugifiziert zum GA4-Eventnamen (Umlaute, Laenge, Reserved-Guard)", () => {
+    expect(buildDestinationEvent("mailto", "info@x.ch", "Mitglied werden")).toBe("mitglied_werden");
+    expect(buildDestinationEvent("crossdomain", "donate.raisenow.io", "Spende für Kinder")).toBe(
+      "spende_fuer_kinder",
+    );
+    // Kollision mit GA4-Systemevents wird entschaerft.
+    expect(buildDestinationEvent("crossdomain", "x.ch", "Purchase")).toBe("conv_purchase");
+    // Zahl am Anfang bekommt Buchstaben-Praefix; Laenge bleibt <= 40.
+    const long = buildDestinationEvent("tel", "+41413698181", "1 sehr langer Name ".repeat(5));
+    expect(/^[a-z]/.test(long)).toBe(true);
+    expect(long.length).toBeLessThanOrEqual(40);
+    // Leerer/unbrauchbarer Wunschname faellt auf den Auto-Namen zurueck.
+    expect(buildDestinationEvent("tel", "+41413698181", "  ")).toBe("conv_tel_nr_8181");
+  });
 });

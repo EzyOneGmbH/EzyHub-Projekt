@@ -58,6 +58,9 @@ const PostBody = z.object({
     .string()
     .regex(/^[A-Z]{3}$/)
     .optional(),
+  // Wunschname (31.08.): wird bei approve gespeichert und slugifiziert zum
+  // GA4-Eventnamen — die Conversion erscheint ueberall unter diesem Namen.
+  name: z.string().trim().min(1).max(60).optional(),
 });
 
 export const Route = createFileRoute("/api/admin/conversion-candidates")({
@@ -77,7 +80,7 @@ export const Route = createFileRoute("/api/admin/conversion-candidates")({
         const [{ data: candidates }, { data: lastRun }] = await Promise.all([
           SB.from("conversion_candidates")
             .select(
-              "id, candidate_type, raw_value, label, source_url, first_seen_at, last_seen_at, status, conversion_value, conversion_currency, ga4_destination_event",
+              "id, candidate_type, raw_value, label, display_name, source_url, first_seen_at, last_seen_at, status, conversion_value, conversion_currency, ga4_destination_event",
             )
             .eq("client_id", clientId)
             .order("status", { ascending: false }) // pending > ignored > approved alphab. — UI sortiert selbst
@@ -106,7 +109,7 @@ export const Route = createFileRoute("/api/admin/conversion-candidates")({
         const parsed = PostBody.safeParse(await request.json().catch(() => null));
         if (!parsed.success)
           return Response.json({ ok: false, error: "Ungueltige Eingabe" }, { status: 400 });
-        const { client: clientId, id, action, value, currency } = parsed.data;
+        const { client: clientId, id, action, value, currency, name } = parsed.data;
         const client = await visibleClient(auth.userClient, clientId);
         if (!client)
           return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
@@ -152,6 +155,7 @@ export const Route = createFileRoute("/api/admin/conversion-candidates")({
               ...cand,
               conversion_value: value ?? cand.conversion_value,
               conversion_currency: currency || cand.conversion_currency || "CHF",
+              display_name: name ?? cand.display_name ?? null,
             };
             const refs = await deployToGa4(clientId, client.ga4_property, merged);
             await SB.from("conversion_candidates")
@@ -159,6 +163,7 @@ export const Route = createFileRoute("/api/admin/conversion-candidates")({
                 status: "approved",
                 conversion_value: merged.conversion_value,
                 conversion_currency: merged.conversion_currency,
+                display_name: merged.display_name,
                 ga4_destination_event: refs.destinationEvent,
                 ga4_event_create_rule: refs.ruleName,
                 ga4_key_event: refs.keyEventName,

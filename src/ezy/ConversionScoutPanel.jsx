@@ -41,6 +41,7 @@ export default function ConversionScoutPanel({ selectedClient }) {
   const [busyId, setBusyId] = useState(null);
   const [scanBusy, setScanBusy] = useState(false);
   const [values, setValues] = useState({}); // id -> {value, currency}
+  const [names, setNames] = useState({}); // id -> Wunschname (wird GA4-Eventname)
   const [showIgnored, setShowIgnored] = useState(false);
   const [groundwork, setGroundwork] = useState(null); // Cross-Domain: Schritte für echten Betrag
 
@@ -61,6 +62,7 @@ export default function ConversionScoutPanel({ selectedClient }) {
     setData(null);
     setError(null);
     setValues({});
+    setNames({});
     load();
   }, [load]);
 
@@ -125,6 +127,9 @@ export default function ConversionScoutPanel({ selectedClient }) {
       value: c.conversion_value ?? "",
       currency: c.conversion_currency || "CHF",
     };
+    // Wunschname: vorbefuellt mit dem gefundenen Linktext — wird bei Freigabe
+    // zum GA4-Eventnamen (slugifiziert) und erscheint ueberall so.
+    const nameVal = names[c.id] ?? (c.display_name || c.label || "");
     const busy = busyId === c.id;
     return (
       <div
@@ -159,6 +164,23 @@ export default function ConversionScoutPanel({ selectedClient }) {
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <input
+            type="text"
+            maxLength={60}
+            placeholder="Name (z. B. Mitglied werden)"
+            title="Anzeigename der Conversion — erscheint so in GA4 und im Conversions-Tab"
+            value={nameVal}
+            onChange={(e) => setNames((p) => ({ ...p, [c.id]: e.target.value }))}
+            style={{
+              width: 170,
+              padding: "6px 8px",
+              fontSize: 13,
+              border: `1px solid ${C.border}`,
+              borderRadius: 8,
+              background: C.card,
+              color: C.text,
+            }}
+          />
           <input
             type="number"
             min={0}
@@ -204,6 +226,7 @@ export default function ConversionScoutPanel({ selectedClient }) {
               act(c.id, "approve", {
                 value: v.value === "" ? undefined : Number(v.value),
                 currency: v.currency,
+                name: nameVal.trim() || undefined,
               })
             }
           >
@@ -353,11 +376,11 @@ export default function ConversionScoutPanel({ selectedClient }) {
                   <Icon size={15} color={C.green} />
                   <div style={{ flex: "1 1 220px", minWidth: 0 }}>
                     <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>
-                      {c.raw_value}
+                      {c.display_name || c.raw_value}
                     </span>
                     <span style={{ fontSize: 11.5, color: C.textDim }}>
                       {" "}
-                      → {c.ga4_destination_event}
+                      {c.display_name ? `· ${c.raw_value} ` : ""}→ {c.ga4_destination_event}
                       {c.conversion_value
                         ? ` · ${c.conversion_value} ${c.conversion_currency || "CHF"}`
                         : ""}

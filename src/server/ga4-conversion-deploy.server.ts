@@ -34,6 +34,7 @@ type Candidate = {
   raw_value: string;
   conversion_value: number | null;
   conversion_currency: string | null;
+  display_name?: string | null; // Wunschname → wird zum GA4-Eventnamen
 };
 
 function scopeFriendly(status: number, body: string): string | null {
@@ -63,8 +64,48 @@ async function gaFetch(token: string, url: string, init?: RequestInit): Promise<
   return text ? JSON.parse(text) : {};
 }
 
-/** GA4-Eventname: a-z0-9_, beginnt mit Buchstabe, max. 40 Zeichen. */
-export function buildDestinationEvent(type: string, rawValue: string): string {
+// GA4-Standard-/Systemevents: ein Wunschname darf nicht mit ihnen kollidieren,
+// sonst wuerden sich die Zaehlungen mit echten Auto-Events vermischen.
+const RESERVED_EVENTS = new Set([
+  "purchase",
+  "click",
+  "file_download",
+  "form_submit",
+  "form_start",
+  "page_view",
+  "session_start",
+  "first_visit",
+  "scroll",
+  "user_engagement",
+  "view_search_results",
+  "video_start",
+  "video_progress",
+  "video_complete",
+  "outbound_contact_click",
+]);
+
+/** GA4-Eventname: a-z0-9_, beginnt mit Buchstabe, max. 40 Zeichen.
+ *  customName (Volkan 31.08.): vom Menschen vergebener Anzeigename — wird
+ *  slugifiziert und ERSETZT den Auto-Namen, damit die Conversion in GA4 und
+ *  im Conversions-Tab unter dem Wunschnamen erscheint. */
+export function buildDestinationEvent(type: string, rawValue: string, customName?: string): string {
+  if (customName) {
+    let s = customName
+      .toLowerCase()
+      .replace(/ä/g, "ae")
+      .replace(/ö/g, "oe")
+      .replace(/ü/g, "ue")
+      .replace(/ß/g, "ss")
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 40)
+      .replace(/_+$/g, "");
+    if (s) {
+      if (!/^[a-z]/.test(s)) s = ("c_" + s).slice(0, 40);
+      if (RESERVED_EVENTS.has(s)) s = ("conv_" + s).slice(0, 40);
+      return s;
+    }
+  }
   let slug = "";
   if (type === "mailto") slug = rawValue.split("@")[0];
   else if (type === "tel") slug = "nr_" + rawValue.replace(/\D/g, "").slice(-4);
@@ -129,7 +170,11 @@ export async function deployToGa4(
         "erst ein bestehendes Key Event entfernen, dann erneut freigeben.",
     );
 
-  const destinationEvent = buildDestinationEvent(candidate.candidate_type, candidate.raw_value);
+  const destinationEvent = buildDestinationEvent(
+    candidate.candidate_type,
+    candidate.raw_value,
+    candidate.display_name || undefined,
+  );
   const streamName = await findWebStream(token, propertyId);
 
   // Bedingungen je Typ:
