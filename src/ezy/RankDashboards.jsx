@@ -2617,6 +2617,11 @@ export function GeoDashboard({ selectedClient, dateRange }) {
 }
 
 export function ConvDashboard({ selectedClient, dateRange }) {
+  // Kundenansicht (31.08., Volkan): der Conversion-Scout (Kandidaten prüfen,
+  // Website scannen, GA4-Key-Events anlegen) ist Team-Werkzeug — Kunden-
+  // Logins sehen ihn nicht.
+  const { role: convRole } = useAuth();
+  const istKundeConv = convRole === "viewer";
   const bis = dateRange?.end || null;
   const { run, refresh: refreshGa4 } = useEzyLatestRun(selectedClient?.id, "ga4_summary", bis);
   const { run: convRun, refresh: refreshConv } = useEzyLatestRun(
@@ -2643,6 +2648,32 @@ export function ConvDashboard({ selectedClient, dateRange }) {
   const ga4Raw = sumRes ? ga4KpisFromResult(sumRes) : null;
   const conv = convRes ? ga4ConversionsFromResult(convRes) : null;
   const traf = trafRes ? ga4TrafficFromResult(trafRes) : null;
+  // Wunschnamen aus dem Conversion-Scout (31.08.): GA4-Eventname → vom
+  // Menschen vergebener Anzeigename; ausgelöste Conversions erscheinen in
+  // beiden Tabellen unter diesem Namen. Fehler bleiben still (Overlay leer).
+  const [convNames, setConvNames] = useState({});
+  useEffect(() => {
+    let alive = true;
+    setConvNames({});
+    if (!selectedClient?.id) return undefined;
+    (async () => {
+      try {
+        const r = await ezyFetch(`/api/admin/conversion-candidates?client=${selectedClient.id}`);
+        const j = await r.json();
+        if (!alive || !j.ok) return;
+        const map = {};
+        for (const cand of j.candidates || [])
+          if (cand.ga4_destination_event && cand.display_name)
+            map[cand.ga4_destination_event] = cand.display_name;
+        setConvNames(map);
+      } catch {
+        /* Overlay ist optional */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [selectedClient?.id]);
   // Filter-Tabs der Conversion-Liste (User-Wunsch 2026-07-19): Purchase =
   // Kauf-/Checkout-Events, Lead-Anfragen = alles Übrige (Formulare, Lead-,
   // Telefon-/Mail-/Maps-Events). Klassifiziert am rohen GA4-eventName.
@@ -2821,8 +2852,9 @@ export function ConvDashboard({ selectedClient, dateRange }) {
       {convStatus}
       <CompareBanner dateRange={dateRange} />
       {/* Conversion-Scout (Pilot 26.08.2026): erkannte Kandidaten einzeln
-          freigeben — erst dann entsteht ein GA4 Key Event (nur Organic). */}
-      <ConversionScoutPanel selectedClient={selectedClient} />
+          freigeben — erst dann entsteht ein GA4 Key Event (nur Organic).
+          Nur intern (31.08.). */}
+      {istKundeConv ? null : <ConversionScoutPanel selectedClient={selectedClient} />}
       {isOn("conv.custom") && (
         <div
           style={{
@@ -3358,7 +3390,7 @@ export function ConvDashboard({ selectedClient, dateRange }) {
                   {convRowsFiltered.slice(0, 60).map((r, i) => (
                     <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
                       <td style={{ padding: "6px 8px", color: C.text, fontWeight: 600 }}>
-                        {r.description}
+                        {convNames[r.eventName] || r.description}
                       </td>
                       <td style={{ padding: "6px 8px", color: C.textMuted }}>
                         {typeof r.date === "string" && r.date.length === 8
@@ -3399,7 +3431,9 @@ export function ConvDashboard({ selectedClient, dateRange }) {
                   )}
                   {convEventsFiltered.slice(0, 15).map((e, i) => (
                     <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
-                      <td style={{ padding: "6px 8px", color: C.text }}>{e.eventName}</td>
+                      <td style={{ padding: "6px 8px", color: C.text }}>
+                        {convNames[e.eventName] || e.eventName}
+                      </td>
                       <td style={{ padding: "6px 8px", textAlign: "right" }}>
                         {e.count.toLocaleString("de-CH")}
                       </td>

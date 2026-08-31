@@ -126,7 +126,9 @@ export default function DataStatus({ items = [], actions, action, hint, style })
               <span style={{ color: C.text, fontWeight: 600 }}>{anzeigeName(it.source)}</span>
               {stand ? <span>{stand}</span> : null}
               <span style={{ color: meta.color, fontWeight: 600 }}>{meta.label}</span>
-              {it.detail ? <span style={{ color: C.textDim }}>({it.detail})</span> : null}
+              {it.detail && role !== "viewer" ? (
+                <span style={{ color: C.textDim }}>({it.detail})</span>
+              ) : null}
             </span>
           );
         })}
