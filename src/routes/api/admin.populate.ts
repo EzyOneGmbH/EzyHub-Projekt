@@ -1107,6 +1107,9 @@ async function jobGa4Conversions(c: any, uid: string, days: number) {
           { name: "country" },
           { name: "sessionSource" },
           { name: "deviceCategory" },
+          // Kanal additiv (31.08.): Conversions-Tab-Detailliste filtert auf
+          // Organic; EzyAI braucht dieselben Zeilen ungefiltert (KI-Quellen).
+          { name: "sessionDefaultChannelGroup" },
         ],
         metrics: [{ name: "eventCount" }, { name: "eventValue" }],
         dimensionFilter: {
@@ -1127,6 +1130,7 @@ async function jobGa4Conversions(c: any, uid: string, days: number) {
           country: dv[2]?.value ?? "",
           source: dv[3]?.value ?? "",
           device: dv[4]?.value ?? "",
+          channel: dv[5]?.value ?? "",
           count: Number(mv[0]?.value ?? 0),
           value: Number(mv[1]?.value ?? 0),
         };

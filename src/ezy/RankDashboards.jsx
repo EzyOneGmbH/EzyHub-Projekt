@@ -2687,12 +2687,23 @@ export function ConvDashboard({ selectedClient, dateRange }) {
     /purchase|checkout|transaction|kauf|buchung|booking/i.test(
       String(r?.eventName || r?.description || ""),
     );
+  // Detailliste NUR ORGANISCH (Volkan 31.08.): Einzel-Conversions zeigen nur
+  // den Kanal «Organic Search». Alte Snapshots ohne channel-Feld bleiben
+  // sichtbar (Fallback-Toleranz — die Live-Abfrage liefert den Kanal mit).
+  // Die Event-Übersichtstabelle (convEventsFiltered) bleibt bewusst
+  // ungefiltert; EzyAI filtert dieselben Zeilen separat nach KI-Quellen.
+  const convRowsOrganic = useMemo(
+    () =>
+      (conv?.rows || []).filter(
+        (r) => r.channel == null || /^organic search$/i.test(String(r.channel)),
+      ),
+    [conv?.rows],
+  );
   const convRowsFiltered = useMemo(() => {
-    const rows = conv?.rows || [];
-    if (convFilter === "purchase") return rows.filter(isPurchaseEvent);
-    if (convFilter === "lead") return rows.filter((r) => !isPurchaseEvent(r));
-    return rows;
-  }, [conv?.rows, convFilter]);
+    if (convFilter === "purchase") return convRowsOrganic.filter(isPurchaseEvent);
+    if (convFilter === "lead") return convRowsOrganic.filter((r) => !isPurchaseEvent(r));
+    return convRowsOrganic;
+  }, [convRowsOrganic, convFilter]);
   const convEventsFiltered = useMemo(() => {
     const evs = conv?.events || [];
     if (convFilter === "purchase") return evs.filter(isPurchaseEvent);
@@ -3327,11 +3338,13 @@ export function ConvDashboard({ selectedClient, dateRange }) {
             }}
           >
             <div style={{ fontSize: 13, fontWeight: 600, color: C.textMuted }}>
-              Alle Conversions
+              {conv.rows.length > 0 ? "Organische Conversions" : "Alle Conversions"}
             </div>
             <div style={{ display: "flex", gap: 6 }}>
               {(() => {
-                const base = conv.rows.length > 0 ? conv.rows : conv.events;
+                // Detailansicht zaehlt die organische Basis, damit Chips und
+                // sichtbare Zeilen zusammenpassen; Event-Uebersicht bleibt voll.
+                const base = conv.rows.length > 0 ? convRowsOrganic : conv.events;
                 const sum = (arr) => arr.reduce((a, x) => a + (Number(x.count) || 0), 0);
                 const purch = base.filter(isPurchaseEvent);
                 const leads = base.filter((x) => !isPurchaseEvent(x));
@@ -3387,8 +3400,9 @@ export function ConvDashboard({ selectedClient, dateRange }) {
                   {convRowsFiltered.length === 0 && (
                     <tr>
                       <td colSpan={7} style={{ padding: "12px 8px", color: C.textDim }}>
-                        Keine {convFilter === "purchase" ? "Purchase-Conversions" : "Lead-Anfragen"}{" "}
-                        im Zeitraum.
+                        Keine organischen{" "}
+                        {convFilter === "purchase" ? "Purchase-Conversions" : "Lead-Anfragen"} im
+                        Zeitraum.
                       </td>
                     </tr>
                   )}

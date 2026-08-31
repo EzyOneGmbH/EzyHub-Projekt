@@ -286,6 +286,7 @@ export function ga4ConversionsFromResult(result: any): {
     country: string;
     source: string;
     device: string;
+    channel?: string; // sessionDefaultChannelGroup (seit 31.08.; alte Snapshots ohne)
     count: number;
     value: number;
   }>;

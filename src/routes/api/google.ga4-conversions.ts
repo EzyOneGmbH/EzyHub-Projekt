@@ -180,6 +180,10 @@ export const Route = createFileRoute("/api/google/ga4-conversions")({
                   { name: "country" },
                   { name: "sessionSource" },
                   { name: "deviceCategory" },
+                  // Kanal additiv (31.08.): die Detailliste im Conversions-Tab
+                  // zeigt nur Organic — EzyAI filtert dieselben Zeilen nach
+                  // KI-Quellen, darum WIRD HIER NICHT hart gefiltert.
+                  { name: "sessionDefaultChannelGroup" },
                 ],
                 metrics: [{ name: "eventCount" }, { name: "eventValue" }],
                 dimensionFilter: {
@@ -203,6 +207,7 @@ export const Route = createFileRoute("/api/google/ga4-conversions")({
                   country: dv[2]?.value ?? "",
                   source: dv[3]?.value ?? "",
                   device: dv[4]?.value ?? "",
+                  channel: dv[5]?.value ?? "",
                   count: Number(mv[0]?.value ?? 0),
                   value: Number(mv[1]?.value ?? 0),
                 };
