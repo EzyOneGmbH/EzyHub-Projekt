@@ -2,10 +2,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { Eye, EyeOff } from "lucide-react";
 import { EzyOneMark } from "@/components/ezy-one-mark";
 
 // Passwort setzen — Ziel des Einladungs-/Recovery-Links (RBAC 2026-07-15).
@@ -26,6 +24,30 @@ function SetPasswordPage() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
+  const [zeigen, setZeigen] = useState(false);
+
+  // Dunkle Karte + shadcn-Defaults (helles Theme) = unsichtbare Felder
+  // (Volkan 31.08., Screenshot). Deshalb explizite Dark-Styles wie der Rest
+  // der Seite.
+  const feldStil: React.CSSProperties = {
+    width: "100%",
+    boxSizing: "border-box",
+    padding: "11px 42px 11px 13px",
+    borderRadius: 10,
+    border: "1px solid #43305a",
+    background: "#140a1c",
+    color: "#f2edf7",
+    fontSize: 14,
+    fontFamily: "inherit",
+    outline: "none",
+  };
+  const labelStil: React.CSSProperties = {
+    display: "block",
+    fontSize: 12.5,
+    fontWeight: 600,
+    color: "#c9bfd6",
+    marginBottom: 6,
+  };
 
   useEffect(() => {
     // Nach dem Klick auf den Einladungslink erzeugt supabase-js aus dem
@@ -115,28 +137,72 @@ function SetPasswordPage() {
         ) : (
           <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div>
-              <Label htmlFor="pw">Neues Passwort</Label>
-              <Input
-                id="pw"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Mindestens 8 Zeichen"
-                autoFocus
-              />
+              <label htmlFor="pw" style={labelStil}>
+                Neues Passwort
+              </label>
+              <div style={{ position: "relative" }}>
+                <input
+                  id="pw"
+                  type={zeigen ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Mindestens 8 Zeichen"
+                  autoFocus
+                  autoComplete="new-password"
+                  style={feldStil}
+                />
+                <button
+                  type="button"
+                  onClick={() => setZeigen((v) => !v)}
+                  aria-label={zeigen ? "Passwort verbergen" : "Passwort anzeigen"}
+                  style={{
+                    position: "absolute",
+                    right: 10,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: "none",
+                    color: "#9a8bab",
+                    cursor: "pointer",
+                    display: "flex",
+                    padding: 4,
+                  }}
+                >
+                  {zeigen ? <EyeOff size={17} /> : <Eye size={17} />}
+                </button>
+              </div>
             </div>
             <div>
-              <Label htmlFor="pw2">Passwort bestätigen</Label>
-              <Input
+              <label htmlFor="pw2" style={labelStil}>
+                Passwort bestätigen
+              </label>
+              <input
                 id="pw2"
-                type="password"
+                type={zeigen ? "text" : "password"}
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
+                autoComplete="new-password"
+                style={feldStil}
               />
             </div>
-            <Button type="submit" disabled={busy}>
+            <button
+              type="submit"
+              disabled={busy}
+              style={{
+                marginTop: 4,
+                padding: "12px 16px",
+                borderRadius: 10,
+                border: "none",
+                background: busy ? "#5d2a6e" : "#9c00a8",
+                color: "#fff",
+                fontSize: 14,
+                fontWeight: 700,
+                fontFamily: "inherit",
+                cursor: busy ? "default" : "pointer",
+              }}
+            >
               {busy ? "Wird gespeichert…" : "Passwort setzen & anmelden"}
-            </Button>
+            </button>
           </form>
         )}
       </div>
