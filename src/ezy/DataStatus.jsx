@@ -8,6 +8,7 @@
 // gezeigt, nie ein Platzhalter-Datum. Pure Helfer leben testbar in
 // data/dataStatus.ts und werden hier fuer bestehende Importe re-exportiert.
 import { fmtStand, stateFromDate, runStatusItem } from "@/ezy/data/dataStatus";
+import { useAuth } from "@/hooks/use-auth";
 
 export { fmtStand, stateFromDate, runStatusItem };
 
@@ -77,6 +78,11 @@ function ActionButton({ action }) {
  * hint: Freitext rechts (z. B. wo verbunden wird), wenn keine Aktion moeglich ist.
  */
 export default function DataStatus({ items = [], actions, action, hint, style }) {
+  // Kundenansicht (31.08., Volkan): technische Quellen-Zusätze in Klammern
+  // («(DataForSEO)», «(GSC)», «(PageSpeed)», «(GA4)») sind für Kunden-Logins
+  // Rauschen — sie sehen nur den Klarnamen; intern bleiben die Quellen stehen.
+  const { role } = useAuth();
+  const anzeigeName = (q) => (role === "viewer" ? String(q).replace(/\s*\([^)]*\)\s*$/, "") : q);
   const shown = items.filter((it) => it && it.source);
   const acts = (actions && actions.length ? actions : action ? [action] : []).filter(Boolean);
   if (!shown.length && !hint) return null;
@@ -104,7 +110,7 @@ export default function DataStatus({ items = [], actions, action, hint, style })
           return (
             <span
               key={it.source}
-              title={`${it.source} — ${meta.label}${stand ? ` · letzter erfolgreicher Stand ${stand}` : ""}${it.detail ? ` · ${it.detail}` : ""}`}
+              title={`${anzeigeName(it.source)} — ${meta.label}${stand ? ` · letzter erfolgreicher Stand ${stand}` : ""}${it.detail ? ` · ${it.detail}` : ""}`}
               style={{ display: "inline-flex", alignItems: "center", gap: 5, whiteSpace: "nowrap" }}
             >
               <span
@@ -117,7 +123,7 @@ export default function DataStatus({ items = [], actions, action, hint, style })
                   flexShrink: 0,
                 }}
               />
-              <span style={{ color: C.text, fontWeight: 600 }}>{it.source}</span>
+              <span style={{ color: C.text, fontWeight: 600 }}>{anzeigeName(it.source)}</span>
               {stand ? <span>{stand}</span> : null}
               <span style={{ color: meta.color, fontWeight: 600 }}>{meta.label}</span>
               {it.detail ? <span style={{ color: C.textDim }}>({it.detail})</span> : null}
@@ -132,7 +138,7 @@ export default function DataStatus({ items = [], actions, action, hint, style })
       </div>
       {errors.map((it) => (
         <div key={`${it.source}-err`} style={{ color: C.red, fontSize: 11.5 }}>
-          {it.source}: {it.error}
+          {anzeigeName(it.source)}: {it.error}
         </div>
       ))}
     </div>
