@@ -1288,8 +1288,10 @@ export function SeoDashboard({ selectedClient, dateRange }) {
             }}
           >
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}>
+              {/* Kundenansicht (31.08.): Quellen-Split + INT-Erklaerung sind
+                  interne Angaben — Kunden sehen nur Anzahl + Stand. */}
               Rankings ({rankCounts.total} Keywords
-              {rankCounts.gsc > 0
+              {!istKunde && rankCounts.gsc > 0
                 ? ` · ${rankCounts.dfs} getrackt + ${rankCounts.gsc} aus GSC`
                 : ""}
               {" · Stand "}
@@ -1313,7 +1315,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                   ✕
                 </span>
               )}
-              {hasIntl ? " · INT = google.com (USA/en, wöchentliche Messung)" : ""}
+              {hasIntl && !istKunde ? " · INT = google.com (USA/en, wöchentliche Messung)" : ""}
             </div>
             <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
               <table
@@ -1333,7 +1335,8 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                       [null, "URL", "left"],
                       ["vol", "Volumen", "right"],
                       ...(hasIntl ? [["voli", "Vol. INT", "right"]] : []),
-                      [null, "Quelle", "right"],
+                      // Quelle (Tracking/GSC) ist interne Information (31.08.).
+                      ...(istKunde ? [] : [[null, "Quelle", "right"]]),
                     ].map(([col, label, align]) => (
                       <th
                         key={label}
@@ -1417,26 +1420,28 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                             {k.volumeIntl != null ? k.volumeIntl.toLocaleString("de-CH") : "—"}
                           </td>
                         )}
-                        <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                          <span
-                            style={{
-                              display: "inline-block",
-                              padding: "1px 7px",
-                              borderRadius: 999,
-                              fontSize: 11,
-                              fontWeight: 600,
-                              color: k._src === "gsc" ? C.blue : C.accent,
-                              background: k._src === "gsc" ? `${C.blue}1a` : `${C.accent}1a`,
-                            }}
-                            title={
-                              k._src === "gsc"
-                                ? "Aus Google Search Console (nicht getrackt)"
-                                : "Aktives Rank-Tracking (DataForSEO)"
-                            }
-                          >
-                            {k._src === "gsc" ? "GSC" : "Tracking"}
-                          </span>
-                        </td>
+                        {istKunde ? null : (
+                          <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                            <span
+                              style={{
+                                display: "inline-block",
+                                padding: "1px 7px",
+                                borderRadius: 999,
+                                fontSize: 11,
+                                fontWeight: 600,
+                                color: k._src === "gsc" ? C.blue : C.accent,
+                                background: k._src === "gsc" ? `${C.blue}1a` : `${C.accent}1a`,
+                              }}
+                              title={
+                                k._src === "gsc"
+                                  ? "Aus Google Search Console (nicht getrackt)"
+                                  : "Aktives Rank-Tracking (DataForSEO)"
+                              }
+                            >
+                              {k._src === "gsc" ? "GSC" : "Tracking"}
+                            </span>
+                          </td>
+                        )}
                       </tr>
                     ))}
                 </tbody>
