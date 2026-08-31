@@ -381,7 +381,45 @@ export async function loadAIVisibility(
     })),
   };
 
-  const promptRows = prompts; // fetchAllPromptRows liefert bereits das Array
+  // Takt-Übernahme-Fallback (31.08., «Erwähnungen leer»-Fix): der Tages-
+  // Report ohne Prompt-Lauf übernimmt seit 27.08. nur die pr-KENNZAHLEN in
+  // parts — die Zeilen (prompts/sov/topics) bleiben am Mess-Report hängen.
+  // Fehlen sie hier, werden sie vom Report des echten Messdatums
+  // (parts.pr.gemessenAm) nachgeladen statt leer angezeigt.
+  let promptRows = prompts; // fetchAllPromptRows liefert bereits das Array
+  let topicRows: any[] = topics.data ?? [];
+  let sovRows: any[] = sovRes.data ?? [];
+  const prPart: any = (rep.parts as any)?.pr;
+  if (!promptRows.length && prPart?.gemessenAm) {
+    const { data: srcReps } = await sb
+      .from("ai_visibility_reports")
+      .select("id")
+      .eq("client_id", clientId)
+      .eq("snapshot_date", String(prPart.gemessenAm).slice(0, 10))
+      .limit(1);
+    const srcId = srcReps?.[0]?.id;
+    if (srcId && srcId !== rep.id) {
+      promptRows = await fetchAllPromptRows(srcId);
+      if (!topicRows.length)
+        topicRows =
+          (
+            await sb
+              .from("ai_visibility_topics")
+              .select("*")
+              .eq("report_id", srcId)
+              .order("visibility", { ascending: false })
+          ).data ?? [];
+      if (!sovRows.length)
+        sovRows =
+          (
+            await sb
+              .from("ai_visibility_sov")
+              .select("*")
+              .eq("report_id", srcId)
+              .order("share", { ascending: false })
+          ).data ?? [];
+    }
+  }
   const intentTotals: Record<string, number> = {};
   for (const r of promptRows) {
     if (r.intent) intentTotals[r.intent] = (intentTotals[r.intent] || 0) + 1;
@@ -485,7 +523,7 @@ export async function loadAIVisibility(
       sov: Number(m.sov ?? 0),
       byCountry: byModel[m.id] ?? {},
     })),
-    topics: (topics.data ?? []).map((t: any) => ({
+    topics: topicRows.map((t: any) => ({
       topic: String(t.topic ?? ""),
       vis: Number(t.visibility ?? 0),
       mentions: Number(t.mentions ?? 0),
@@ -631,7 +669,7 @@ export async function loadAIVisibility(
     promptIntent: Object.entries(intentTotals)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value),
-    sov: (sovRes.data ?? [])
+    sov: sovRows
       .map((s: any) => ({
         brand: String(s.brand ?? ""),
         isSelf: !!s.is_self,
