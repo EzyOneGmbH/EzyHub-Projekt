@@ -2814,7 +2814,9 @@ export function ConvDashboard({ selectedClient, dateRange }) {
   // Tabs — Live-Abfrage bevorzugt, sonst Agent-Snapshot; ohne beides ehrlich
   // "nicht verbunden" mit konkretem nächstem Schritt.
   const convConnected = Boolean(liveSum || liveConvRes || liveTrafRes || run || convRun || trafRun);
-  const convStatus = (
+  // Kundenansicht (31.08.): die GA4-Status-Leiste (inkl. «Daten neu laden»)
+  // ist Team-Werkzeug — Kunden sehen direkt die Conversion-Inhalte.
+  const convStatus = istKundeConv ? null : (
     <DataStatus
       items={[
         liveSum || liveConvRes || liveTrafRes
