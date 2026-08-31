@@ -2257,6 +2257,12 @@ export function ClientsPage({
   const toast = useToast();
   const [search, setSearch] = useState("");
   const [sf, setSf] = useState("all");
+  // App-Filter (31.08., Volkan: «Kunden pro WebApp auswählen — ich weiss nie,
+  // welcher Kunde wo freigeschaltet ist»): filtert die Liste auf Kunden mit
+  // aktivierter App (client_app_access; keine Zeile = aktiv).
+  const [af, setAf] = useState("all");
+  const caaList = useClientAppAccess();
+  const FILTER_APPS = EZY_APPS.filter((a) => !a.adminOnly && !a.internalOnly);
   const [detailId, setDetailId] = useState(null);
   // Deep-Link (18.08.): /admin?client=<uuid> oeffnet das Kundendetail direkt in
   // der Bereitschafts-Ansicht — genutzt von der Analyse-Lead-Uebernahme.
@@ -2310,6 +2316,7 @@ export function ClientsPage({
     (c) =>
       (sf === "all" ||
         (READY_FILTER.includes(sf) ? (readyAll?.[c.id]?.status || "") === sf : c.status === sf)) &&
+      (af === "all" || appEnabledFor(caaList.map, c.id, af)) &&
       (c.name.toLowerCase().includes(search.toLowerCase()) || c.domain.includes(search)),
   );
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -2442,6 +2449,29 @@ Tipp: «Deaktivieren» pausiert reversibel und behält alle Daten.`,
           active={sf}
           onChange={setSf}
         />
+        {/* WebApp-Filter: welcher Kunde ist wo freigeschaltet? */}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          <span style={{ fontSize: 12, color: C.textMuted, fontWeight: 600 }}>WebApp:</span>
+          {[{ id: "all", name: "Alle" }, ...FILTER_APPS].map((a) => (
+            <button
+              key={a.id}
+              onClick={() => setAf(a.id)}
+              style={{
+                padding: "5px 12px",
+                borderRadius: 99,
+                border: `1px solid ${af === a.id ? a.color || C.accent : C.border}`,
+                background: af === a.id ? a.tint || C.accentDim : C.card,
+                color: af === a.id ? a.color || C.accent : C.textMuted,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              {a.name}
+            </button>
+          ))}
+        </div>
       </div>
       <div
         className="client-grid"
@@ -2521,6 +2551,24 @@ Tipp: «Deaktivieren» pausiert reversibel und behält alle Daten.`,
                 Wichtigste Lücke: {readyAll[c.id].luecke}
               </div>
             )}
+            {/* Freigeschaltete WebApps auf einen Blick (31.08.). */}
+            <div style={{ display: "flex", gap: 5, marginBottom: 8, flexWrap: "wrap" }}>
+              {FILTER_APPS.filter((a) => appEnabledFor(caaList.map, c.id, a.id)).map((a) => (
+                <span
+                  key={a.id}
+                  style={{
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    padding: "3px 9px",
+                    borderRadius: 99,
+                    color: a.color || C.text,
+                    background: a.tint || C.accentDim,
+                  }}
+                >
+                  {a.name}
+                </span>
+              ))}
+            </div>
             <div style={{ display: "flex", gap: 5, marginBottom: 14, flexWrap: "wrap" }}>
               <Badge color={C.textDim}>{c.industry || "—"}</Badge>
               {c.tags.map((t) => (
