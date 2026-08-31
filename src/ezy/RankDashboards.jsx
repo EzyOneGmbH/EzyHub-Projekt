@@ -732,6 +732,10 @@ export const CLIENT_TYPES = [
 export const PSI_MOBILE_BODY = () => ({ strategy: "mobile" });
 
 export function SeoDashboard({ selectedClient, dateRange }) {
+  // Kundenansicht (31.08., Volkan): Kunden-Logins sehen die technische
+  // «Datenquellen der Widgets»-Tabelle nicht (interne Kanal-Information).
+  const { role } = useAuth();
+  const istKunde = role === "viewer";
   // Zeitraum-Anbindung (22.08.): Snapshots zum ENDE des gewählten Zeitraums
   // aus den gespeicherten Messläufen — Presets (Ende = heute) unverändert.
   const bis = dateRange?.end || null;
@@ -2170,86 +2174,91 @@ export function SeoDashboard({ selectedClient, dateRange }) {
         />
       ) : null}
       {/* Datenquellen-Übersicht (User-Wunsch 2026-07-17): welches Widget bezieht
-          seine Daten aus welchem Kanal — inkl. Stand des letzten Abrufs je Quelle. */}
-      <div
-        style={{
-          background: C.card,
-          border: `1px solid ${C.border}`,
-          borderRadius: 14,
-          padding: 16,
-        }}
-      >
-        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, color: C.textMuted }}>
-          Datenquellen der Widgets
-        </div>
-        <div style={{ fontSize: 11, color: C.textDim, marginBottom: 12 }}>
-          Welcher Block bezieht seine Daten aus welchem Kanal · „Letzter Abruf" = Stand des jüngsten
-          Daten-Laufs für diesen Kunden.
-        </div>
-        <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-          <table style={{ width: "100%", minWidth: 560, borderCollapse: "collapse", fontSize: 13 }}>
-            <thead>
-              <tr style={{ color: C.textDim, textAlign: "left" }}>
-                <th style={{ padding: "6px 8px" }}>Widget</th>
-                <th style={{ padding: "6px 8px" }}>Kanal / Quelle</th>
-                <th style={{ padding: "6px 8px", textAlign: "right" }}>Letzter Abruf</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                ["Rankings (Top 3 · Top 10 · Tabelle)", "DataForSEO Rank-Tracking", rankRun],
-                [
-                  "Organic Traffic",
-                  "GA4 (Organic Search) · Fallback GSC-Klicks",
-                  trafRun || gscRun,
-                ],
-                [
-                  "SEO-KPIs (Visibility, Authority, Keywords, Backlinks)",
-                  "DataForSEO (Backlinks & Labs)",
-                  run,
-                ],
-                ["Switzerland Traffic", "GA4 (Organic Search, nur CH)", trafRun],
-                [
-                  "Brand/Non-Brand-Split · Positions-Buckets · Top-Suchanfragen",
-                  "Google Search Console",
-                  gscQRun || gscRun,
-                ],
-                ["Ranking-Verteilung", "Google Search Console", gscRun],
-                [
-                  "Core Web Vitals (LCP, INP, CLS, Performance)",
-                  "Google PageSpeed (CrUX/Lighthouse)",
-                  psiRun,
-                ],
-                ["Verweisende Domains", "DataForSEO (Backlinks-Historie)", run],
-                ["Meistbesuchte Seiten", "Google Analytics 4", trafRun],
-                ["Entwicklung (Trend)", "DataForSEO (Verlauf der Audit-Läufe)", run],
-              ].map(([widget, source, r]) => (
-                <tr key={widget} style={{ borderTop: `1px solid ${C.border}` }}>
-                  <td style={{ padding: "6px 8px", color: C.text }}>{widget}</td>
-                  <td style={{ padding: "6px 8px", color: C.textMuted }}>{source}</td>
-                  <td
-                    style={{
-                      padding: "6px 8px",
-                      textAlign: "right",
-                      color: r ? C.textMuted : C.orange,
-                    }}
-                  >
-                    {r
-                      ? new Date(r.started_at || r.created_at).toLocaleDateString("de-CH", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      : "keine Daten"}
-                  </td>
+          seine Daten aus welchem Kanal — inkl. Stand des letzten Abrufs je
+          Quelle. Nur intern — Kunden-Logins sehen die Tabelle nicht (31.08.). */}
+      {istKunde ? null : (
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 14,
+            padding: 16,
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, color: C.textMuted }}>
+            Datenquellen der Widgets
+          </div>
+          <div style={{ fontSize: 11, color: C.textDim, marginBottom: 12 }}>
+            Welcher Block bezieht seine Daten aus welchem Kanal · „Letzter Abruf" = Stand des
+            jüngsten Daten-Laufs für diesen Kunden.
+          </div>
+          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <table
+              style={{ width: "100%", minWidth: 560, borderCollapse: "collapse", fontSize: 13 }}
+            >
+              <thead>
+                <tr style={{ color: C.textDim, textAlign: "left" }}>
+                  <th style={{ padding: "6px 8px" }}>Widget</th>
+                  <th style={{ padding: "6px 8px" }}>Kanal / Quelle</th>
+                  <th style={{ padding: "6px 8px", textAlign: "right" }}>Letzter Abruf</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {[
+                  ["Rankings (Top 3 · Top 10 · Tabelle)", "DataForSEO Rank-Tracking", rankRun],
+                  [
+                    "Organic Traffic",
+                    "GA4 (Organic Search) · Fallback GSC-Klicks",
+                    trafRun || gscRun,
+                  ],
+                  [
+                    "SEO-KPIs (Visibility, Authority, Keywords, Backlinks)",
+                    "DataForSEO (Backlinks & Labs)",
+                    run,
+                  ],
+                  ["Switzerland Traffic", "GA4 (Organic Search, nur CH)", trafRun],
+                  [
+                    "Brand/Non-Brand-Split · Positions-Buckets · Top-Suchanfragen",
+                    "Google Search Console",
+                    gscQRun || gscRun,
+                  ],
+                  ["Ranking-Verteilung", "Google Search Console", gscRun],
+                  [
+                    "Core Web Vitals (LCP, INP, CLS, Performance)",
+                    "Google PageSpeed (CrUX/Lighthouse)",
+                    psiRun,
+                  ],
+                  ["Verweisende Domains", "DataForSEO (Backlinks-Historie)", run],
+                  ["Meistbesuchte Seiten", "Google Analytics 4", trafRun],
+                  ["Entwicklung (Trend)", "DataForSEO (Verlauf der Audit-Läufe)", run],
+                ].map(([widget, source, r]) => (
+                  <tr key={widget} style={{ borderTop: `1px solid ${C.border}` }}>
+                    <td style={{ padding: "6px 8px", color: C.text }}>{widget}</td>
+                    <td style={{ padding: "6px 8px", color: C.textMuted }}>{source}</td>
+                    <td
+                      style={{
+                        padding: "6px 8px",
+                        textAlign: "right",
+                        color: r ? C.textMuted : C.orange,
+                      }}
+                    >
+                      {r
+                        ? new Date(r.started_at || r.created_at).toLocaleDateString("de-CH", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "keine Daten"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
