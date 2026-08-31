@@ -60,6 +60,42 @@ describe("Conversion-Scout Cross-Domain-Erkennung", () => {
     expect(/^[a-z]/.test(name)).toBe(true);
   });
 
+  it("erkennt interne CTAs (Aktions-Label oder Button-Klasse) als 'cta'-Kandidaten", () => {
+    const html = `
+      <a href="/kontakt/">Kontakt aufnehmen</a>
+      <a class="elementor-button" href="/zimmer/">Zu den Zimmern</a>
+      <a href="/ueber-uns/">Über uns</a>
+      <a href="/impressum/">Impressum</a>
+      <a href="/">Jetzt buchen</a>
+      <a class="elementor-button" href="/blog/artikel-1/">Weiter lesen</a>
+      <a class="btn" href="/blog/artikel-2/">Continue reading</a>
+    `;
+    const { candidates } = extractFromHtml(html, PAGE, SITE);
+    const ctas = candidates.filter((c) => c.candidate_type === "cta");
+    expect(ctas.map((c) => c.raw_value).sort()).toEqual([
+      "https://faithinhumanity.ch/kontakt/",
+      "https://faithinhumanity.ch/zimmer/",
+    ]);
+    // «Über uns» (kein Aktionswort), Impressum und Startseite bleiben draussen.
+  });
+
+  it("externer CTA-Link zaehlt als crossdomain, Social-Follows nicht", () => {
+    const html = `
+      <a href="https://partnershop.example.com/produkt">Jetzt kaufen</a>
+      <a href="https://www.instagram.com/fih">Jetzt folgen</a>
+    `;
+    const { candidates } = extractFromHtml(html, PAGE, SITE);
+    const cross = candidates.filter((c) => c.candidate_type === "crossdomain");
+    expect(cross.map((c) => c.raw_value)).toEqual(["partnershop.example.com"]);
+  });
+
+  it("bildet conv_page_-Eventnamen fuer cta-Kandidaten", () => {
+    expect(buildDestinationEvent("cta", "https://faithinhumanity.ch/kontakt/")).toBe(
+      "conv_page_kontakt",
+    );
+    expect(buildDestinationEvent("cta", "https://x.ch/")).toBe("conv_page_seite");
+  });
+
   it("Wunschname wird slugifiziert zum GA4-Eventnamen (Umlaute, Laenge, Reserved-Guard)", () => {
     expect(buildDestinationEvent("mailto", "info@x.ch", "Mitglied werden")).toBe("mitglied_werden");
     expect(buildDestinationEvent("crossdomain", "donate.raisenow.io", "Spende für Kinder")).toBe(

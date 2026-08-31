@@ -111,7 +111,15 @@ export function buildDestinationEvent(type: string, rawValue: string, customName
   else if (type === "tel") slug = "nr_" + rawValue.replace(/\D/g, "").slice(-4);
   else if (type === "crossdomain")
     slug = rawValue; // Host, z. B. donate.raisenow.io
-  else {
+  else if (type === "cta") {
+    // Zielseiten-URL → letzter Pfadteil (z. B. /kontakt/ → kontakt).
+    try {
+      const segs = new URL(rawValue).pathname.split("/").filter(Boolean);
+      slug = segs[segs.length - 1] || "seite";
+    } catch {
+      slug = "seite";
+    }
+  } else {
     const file = rawValue.split("/").pop() || "datei";
     slug = file.replace(/\.[a-z0-9]+$/i, "");
   }
@@ -126,7 +134,9 @@ export function buildDestinationEvent(type: string, rawValue: string, customName
         ? "conv_tel_"
         : type === "crossdomain"
           ? "conv_ext_"
-          : "conv_dl_";
+          : type === "cta"
+            ? "conv_page_"
+            : "conv_dl_";
   const name = (prefix + (slug || "x")).slice(0, 40).replace(/_+$/g, "");
   return /^[a-z]/.test(name) ? name : "c_" + name.slice(0, 38);
 }
@@ -180,6 +190,9 @@ export async function deployToGa4(
   // Bedingungen je Typ:
   //  download    → Enhanced-Measurement `file_download` + link_url
   //  crossdomain → Enhanced-Measurement Outbound-Klick `click` + link_domain
+  //  cta         → `page_view` + page_location CONTAINS Zielpfad (Aufruf der
+  //                CTA-Zielseite; KEIN GTM noetig — misst erreichte Ziele,
+  //                nicht den Button-Klick selbst)
   //  mailto/tel  → GTM-Basisevent `outbound_contact_click` + contact_target
   let eventConditions: Array<{ field: string; comparisonType: string; value: string }>;
   if (candidate.candidate_type === "download")
@@ -192,7 +205,18 @@ export async function deployToGa4(
       { field: "event_name", comparisonType: "EQUALS", value: "click" },
       { field: "link_domain", comparisonType: "EQUALS", value: candidate.raw_value },
     ];
-  else
+  else if (candidate.candidate_type === "cta") {
+    let path = candidate.raw_value;
+    try {
+      path = new URL(candidate.raw_value).pathname || "/";
+    } catch {
+      /* raw_value bleibt */
+    }
+    eventConditions = [
+      { field: "event_name", comparisonType: "EQUALS", value: "page_view" },
+      { field: "page_location", comparisonType: "CONTAINS", value: path },
+    ];
+  } else
     eventConditions = [
       { field: "event_name", comparisonType: "EQUALS", value: "outbound_contact_click" },
       { field: "contact_target", comparisonType: "EQUALS", value: candidate.raw_value },

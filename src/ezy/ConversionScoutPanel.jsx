@@ -10,6 +10,7 @@ import {
   ExternalLink,
   FileDown,
   Mail,
+  MousePointerClick,
   Phone,
   RefreshCw,
   Radar,
@@ -23,6 +24,7 @@ const TYPE_META = {
   tel: { icon: Phone, label: "Anruf-Klick" },
   download: { icon: FileDown, label: "Download" },
   crossdomain: { icon: ExternalLink, label: "Cross-Domain-Checkout" },
+  cta: { icon: MousePointerClick, label: "CTA-Zielseite" },
 };
 
 function fmtTs(ts) {
@@ -162,6 +164,11 @@ export default function ConversionScoutPanel({ selectedClient }) {
               wenn der Zielhost unser GA4 mitlädt (RaiseNow-Einstellung) + GTM-Linker gesetzt ist.
             </div>
           )}
+          {c.candidate_type === "cta" && (
+            <div style={{ fontSize: 10.5, color: C.textDim, marginTop: 3, fontStyle: "italic" }}>
+              Misst den Aufruf der CTA-Zielseite (erreichtes Ziel) — nicht den Button-Klick selbst.
+            </div>
+          )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <input
@@ -252,9 +259,9 @@ export default function ConversionScoutPanel({ selectedClient }) {
         </Btn>
       </div>
       <div style={{ fontSize: 11.5, color: C.textDim, marginTop: 6 }}>
-        Automatisch erkannte Kontakt-, Download- und Cross-Domain-Checkout-Ziele — jedes einzeln
-        freigebbar. Erst nach Freigabe wird ein GA4 Key Event angelegt (nur organische Messung,
-        keine Google-Ads-Anbindung).
+        Alle erkannten CTAs der Website — Kontakt, Download, CTA-Buttons/Zielseiten und
+        Cross-Domain-Checkout — jedes einzeln benenn- und freigebbar. Erst nach Freigabe wird ein
+        GA4 Key Event angelegt (nur organische Messung, keine Google-Ads-Anbindung).
         {lastRun && lastRun.finished_at && (
           <>
             {" "}

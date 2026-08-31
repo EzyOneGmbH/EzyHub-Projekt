@@ -38,8 +38,28 @@ const DOWNLOAD_RE = /\.(pdf|docx?|xlsx?|pptx?|zip)(\?[^"']*)?$/i;
 const CHECKOUT_RE =
   /(raisenow|payrexx|datatrans|saferpay|wallee|twint|stripe|paypal|gocardless|mollie|sumup|betterplace|donorbox|eventbrite|ticketino|weeztix|billetweb|petitionslist|mews|secure-hotel-booking|reguest|re-guest|seekda|ibelsa|cultuzz|hotelnetsolutions|straiv|dirs21|simplebooking|siteminder|thebookingbutton|availpro|bookassist|apaleo|hqrevenue|\/donate|\/spende|\/spenden|\/pay(ment)?\b|\/kasse|\/checkout|\/warenkorb|\/give\b|\/buchen|\/buchung|\/reservier|\/reservation|\/booking|\/book\b)/i;
 
+// CTA-Erkennung (Volkan 31.08. — «alle CTAs zeigen, wir entscheiden selber»):
+// ein Link zaehlt als CTA, wenn sein LINKTEXT ein Aktionswort enthaelt ODER
+// das Element eine Button-Klasse traegt (Elementor & Co.). Interne CTAs werden
+// Kandidaten vom Typ 'cta' (Messung: page_view der Zielseite, KEIN GTM);
+// externe CTAs zaehlen als 'crossdomain' (Outbound-Klick) — zusaetzlich zur
+// engen CHECKOUT_RE-Anbieterliste. Social-Follows bleiben bewusst draussen.
+const CTA_LABEL_RE =
+  /(buch(en|ung)|reservier|anfrage(n)?|anfragen|offert|kontakt|termin|anmeld|registrier|mitglied|spende(n)?|kaufen|bestell|abonnier|newsletter|beitreten|teilnehmen|bewerben|book(ing)?|reserve|request|quote|contact|appointment|register|sign\s?up|join|donate|buy|order|subscribe|apply|get\s?started|jetzt\s(buchen|anfragen|spenden|kaufen|bestellen|anmelden|starten))/i;
+const BUTTON_CLASS_RE = /class\s*=\s*["'][^"']*(elementor-button|btn|button|cta)[^"']*["']/i;
+// «Weiter lesen»-Buttons sind Artikel-Navigation, kein CTA (FIH-Befund 31.08.:
+// 13 von 21 Kandidaten waren Blog-Read-More-Links mit Button-Klasse).
+const READMORE_RE =
+  /^(weiter ?lesen|mehr ?lesen|mehr erfahren|read more|continue reading|zum artikel|mehr (zum|über|ueber) .*)$/i;
+const SOCIAL_RE =
+  /(facebook|instagram|linkedin|youtube|tiktok|pinterest|twitter|x\.com|telegram|whatsapp|snapchat|threads\.net|maps\.app|goo\.gl|google\.(com|ch)\/maps)/i;
+// CDN-/Asset-Hosts (Bilder etc.) sind nie ein CTA-Ziel.
+const ASSET_HOST_RE = /(exactdn\.com|cloudfront\.net|cdn\.|gstatic|googleapis)/i;
+// Interne Seiten, die nie eine Conversion sind.
+const CTA_PATH_EXCLUDE_RE = /^\/$|impressum|datenschutz|agb|privacy|cookie/i;
+
 export type CandidateFound = {
-  candidate_type: "mailto" | "tel" | "download" | "crossdomain";
+  candidate_type: "mailto" | "tel" | "download" | "crossdomain" | "cta";
   raw_value: string;
   label: string | null;
   source_url: string;
@@ -94,6 +114,12 @@ export function extractFromHtml(
   while ((m = anchorRe.exec(html))) {
     const href = m[2].trim();
     const label = stripTags(m[3]) || null;
+    // CTA = Aktionswort im Linktext ODER Button-Klasse am Anker-Tag selbst;
+    // «Weiter lesen»-Labels sind ausgenommen (Artikel-Navigation).
+    const anchorTag = m[0].slice(0, m[0].indexOf(">") + 1);
+    const isCta =
+      !(label != null && READMORE_RE.test(label)) &&
+      ((label != null && CTA_LABEL_RE.test(label)) || BUTTON_CLASS_RE.test(anchorTag));
     if (/^mailto:/i.test(href)) {
       const v = normalizeMailto(href);
       if (v)
@@ -122,11 +148,17 @@ export function extractFromHtml(
       });
       continue;
     }
-    // Externer Checkout/Zahlungs-/Spenden-Host → Cross-Domain-Kandidat.
-    // raw_value = Host, damit spaeter GA4 `link_domain` exakt matcht. Ein
-    // Kandidat je Host (Deduplizierung in runConversionScan).
+    // Externer Checkout-/Zahlungs-/Spenden-Host ODER externer CTA-Link →
+    // Cross-Domain-Kandidat. raw_value = Host, damit spaeter GA4 `link_domain`
+    // exakt matcht. Ein Kandidat je Host (Dedup in runConversionScan).
+    // Social-Follows und Asset-CDNs sind keine Conversion-Ziele.
     if (isExternalHost(abs.host, siteHost)) {
-      if (CHECKOUT_RE.test(abs.host + abs.pathname)) {
+      const target = abs.host + abs.pathname;
+      if (
+        !SOCIAL_RE.test(target) &&
+        !ASSET_HOST_RE.test(abs.host) &&
+        (CHECKOUT_RE.test(target) || isCta)
+      ) {
         candidates.push({
           candidate_type: "crossdomain",
           raw_value: abs.host,
@@ -135,6 +167,18 @@ export function extractFromHtml(
         });
       }
       continue; // externe Hosts werden nicht weitergecrawlt
+    }
+    // Interner CTA (Button/Aktions-Link) → Kandidat 'cta': gemessen wird bei
+    // Freigabe der Seitenaufruf der ZIELSEITE (page_view + page_location) —
+    // funktioniert ohne GTM. Startseite/Rechtsseiten sind ausgenommen.
+    if (abs.host === siteHost && isCta && !CTA_PATH_EXCLUDE_RE.test(abs.pathname)) {
+      candidates.push({
+        candidate_type: "cta",
+        raw_value: abs.origin + abs.pathname,
+        label,
+        source_url: pageUrl,
+      });
+      // KEIN continue: das Ziel bleibt zugleich interner Crawl-Link.
     }
     if (abs.host === siteHost) {
       // Query/Fragment weg — WP-Seiten sind pfad-adressiert; verhindert

@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "1.7.0",
+    version: "1.8.0",
     changelog: [
+      {
+        version: "1.8.0",
+        date: "2026-08-31",
+        note: "Conversion-Scout zeigt alle CTAs der Website: interne CTA-Buttons/Zielseiten (Kontakt, Buchen, Offerte …) und externe CTA-Links erscheinen als Kandidaten — ihr entscheidet selbst, welche als Conversion freigegeben werden",
+      },
       {
         version: "1.7.0",
         date: "2026-08-31",
