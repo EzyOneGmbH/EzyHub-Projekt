@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "1.5.4",
+    version: "1.6.0",
     changelog: [
+      {
+        version: "1.6.0",
+        date: "2026-08-31",
+        note: "Non-Brand-Suchanfragen mit Entwicklung: Δ-7-Tage-Spalte im Widget «Top Non-Brand-Suchanfragen» und echte Δ 7T/Δ 28T für GSC-Queries in der Rankings-Tabelle (grün = verbessert, orange = verschlechtert)",
+      },
       {
         version: "1.5.4",
         date: "2026-08-31",

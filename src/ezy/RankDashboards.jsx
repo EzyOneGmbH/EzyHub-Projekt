@@ -812,6 +812,26 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   const { data: seoCmpData } = useGa4Compare(selectedClient?.id, dateRange);
   const { run: gscQRun } = useEzyLatestRun(selectedClient?.id, "gsc_queries", bis);
   const gscQ = gscQRun?.result || null;
+  // Entwicklung der Non-Brand-Suchanfragen (Volkan 31.08.): Vergleich gegen
+  // die gespeicherten gsc_queries-Läufe von vor 7 bzw. 28 Tagen. Die
+  // Ø-Position ist je ein 28-Tage-Fenster — das Delta zeigt die Verschiebung
+  // der Fenster (kein Lauf vorhanden → kein Delta, Anzeige «—»).
+  const gscQPrev7Until = useMemo(() => {
+    const d = bis ? new Date(bis) : new Date();
+    d.setDate(d.getDate() - 7);
+    return d;
+  }, [bis]);
+  const gscQPrev28Until = useMemo(() => {
+    const d = bis ? new Date(bis) : new Date();
+    d.setDate(d.getDate() - 28);
+    return d;
+  }, [bis]);
+  const { run: gscQPrev7Run } = useEzyLatestRun(selectedClient?.id, "gsc_queries", gscQPrev7Until);
+  const { run: gscQPrev28Run } = useEzyLatestRun(
+    selectedClient?.id,
+    "gsc_queries",
+    gscQPrev28Until,
+  );
   // Sichtbarkeits-Historie aus ECHTEN Daten (2026-08-13, User-Wunsch): monatliche
   // GA4-organisch-Besuche + GSC-Klicks/Query-Anzahl (audit_type seo_history,
   // populate-Job, Monats-Guard). Ersetzt die DFS-Labs-Modellkurve. Chart
@@ -983,6 +1003,23 @@ export function SeoDashboard({ selectedClient, dateRange }) {
     String(s || "")
       .trim()
       .toLowerCase();
+  // Query → Vorwochen-/Vormonats-Stand (aus den älteren gsc_queries-Läufen).
+  const gscQPrevMaps = useMemo(() => {
+    const build = (run) => {
+      const m = new Map();
+      for (const q of run?.result?.topNonbrandQueries || []) m.set(normKw(q.query), q);
+      return m;
+    };
+    return { p7: build(gscQPrev7Run), p28: build(gscQPrev28Run) };
+  }, [gscQPrev7Run, gscQPrev28Run]);
+  // Delta nur innerhalb derselben Messfamilie (DFS-Labs-Position vs. GSC-Ø-
+  // Position) — sonst entstehen Schein-Bewegungen aus dem Methodenwechsel.
+  const prevPosComparable = useCallback((q, prevQ) => {
+    if (!prevQ) return null;
+    if (q.dfsPos != null) return prevQ.dfsPos ?? null;
+    if (q.position != null) return prevQ.position ?? null;
+    return null;
+  }, []);
   const rankRows = useMemo(() => {
     const gq = gscQ && Array.isArray(gscQ.topNonbrandQueries) ? gscQ.topNonbrandQueries : [];
     // GSC-Lookup fuer getrackte Keywords (2026-08-13): Klicks/Impressionen auch
@@ -1006,12 +1043,14 @@ export function SeoDashboard({ selectedClient, dateRange }) {
       seen.add(n);
       // DFS-Anreicherung (2026-08-13): Labs-Position/-URL + Suchvolumen kommen
       // woechentlich aus jobGscQueries; GSC-Ø-Position bleibt der Fallback.
+      // Entwicklung (31.08.): posPrev7/28 aus den älteren gsc_queries-Läufen —
+      // damit zeigen Δ 7T/Δ 28T auch für Non-Brand-Queries die Bewegung.
       gscOnly.push({
         kw: q.query,
         pos: q.dfsPos != null ? q.dfsPos : q.position != null ? q.position : null,
         _posSrc: q.dfsPos != null ? "dfs" : "gsc",
-        posPrev7: null,
-        posPrev28: null,
+        posPrev7: prevPosComparable(q, gscQPrevMaps.p7.get(n)),
+        posPrev28: prevPosComparable(q, gscQPrevMaps.p28.get(n)),
         url: q.dfsUrl || null,
         volume: q.volume ?? null,
         clicks: q.clicks ?? null,
@@ -1020,12 +1059,17 @@ export function SeoDashboard({ selectedClient, dateRange }) {
       });
     }
     let rows = [...tracked, ...gscOnly];
-    // Kachel-Filter: nur Keywords mit echtem 7-Tage-Delta (getrackte; GSC-only
-    // hat kein posPrev7 und faellt bei aktivem Filter bewusst raus).
+    // Kachel-Filter: bewusst NUR getrackte Keywords (_src "dfs") — die
+    // Kachel-Zahlen kommen aus rank.aggregate (getrackte Basis) und Filter
+    // muss dazu passen. GSC-Zeilen zeigen ihr Δ trotzdem in der Tabelle.
     if (rankFilter === "improved")
-      rows = rows.filter((k) => k.pos != null && k.posPrev7 != null && k.pos < k.posPrev7);
+      rows = rows.filter(
+        (k) => k._src === "dfs" && k.pos != null && k.posPrev7 != null && k.pos < k.posPrev7,
+      );
     else if (rankFilter === "declined")
-      rows = rows.filter((k) => k.pos != null && k.posPrev7 != null && k.pos > k.posPrev7);
+      rows = rows.filter(
+        (k) => k._src === "dfs" && k.pos != null && k.posPrev7 != null && k.pos > k.posPrev7,
+      );
     if (!rows.length) return [];
     const [col, asc] = rankSort;
     const dir = asc ? 1 : -1;
@@ -1069,7 +1113,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
       return dir * (av - bv);
     });
     return rows;
-  }, [rank, gscQ, gscRes, rankSort, rankFilter]);
+  }, [rank, gscQ, gscRes, rankSort, rankFilter, gscQPrevMaps, prevPosComparable]);
   // Zähler für die Kopfzeile (getrackt vs. aus GSC gemergt).
   const rankCounts = useMemo(() => {
     let dfs = 0,
@@ -1110,13 +1154,20 @@ export function SeoDashboard({ selectedClient, dateRange }) {
       return dir * ((a[col] ?? -1) - (b[col] ?? -1));
     });
   };
-  const gscQRows = useMemo(
-    () =>
-      gscQ && Array.isArray(gscQ.topNonbrandQueries)
-        ? sortQueries(gscQ.topNonbrandQueries, gscQSort)
-        : [],
-    [gscQ, gscQSort],
-  );
+  const gscQRows = useMemo(() => {
+    if (!gscQ || !Array.isArray(gscQ.topNonbrandQueries)) return [];
+    // Entwicklung (31.08.): GSC-Ø-Position vs. Lauf von vor 7 Tagen —
+    // _prevPos für die Δ-Zelle, _d7 als sortierbare Zahl.
+    const enriched = gscQ.topNonbrandQueries.map((q) => {
+      const prevPos = gscQPrevMaps.p7.get(normKw(q.query))?.position ?? null;
+      return {
+        ...q,
+        _prevPos: prevPos,
+        _d7: prevPos != null && q.position != null ? prevPos - q.position : null,
+      };
+    });
+    return sortQueries(enriched, gscQSort);
+  }, [gscQ, gscQSort, gscQPrevMaps]);
   const gscFbRows = useMemo(
     () => (gsc && Array.isArray(gsc.topQueries) ? sortQueries(gsc.topQueries, gscFbSort) : []),
     [gsc, gscFbSort],
@@ -1128,11 +1179,14 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   const DeltaCell = ({ cur, prev }) => {
     const d = fmtDelta(cur, prev);
     if (d == null) return <span style={{ color: C.textDim }}>—</span>;
-    if (d === 0) return <span style={{ color: C.textDim }}>±0</span>;
+    // Float-sicher (31.08.): GSC-Ø-Positionen sind Dezimalzahlen — auf eine
+    // Nachkommastelle runden; |Δ| < 0.05 zaehlt als unveraendert.
+    const rounded = Math.round(Math.abs(d) * 10) / 10;
+    if (rounded === 0) return <span style={{ color: C.textDim }}>±0</span>;
     const up = d > 0;
     return (
       <span style={{ color: up ? C.green : C.orange, fontWeight: 600 }}>
-        {up ? "▲" : "▼"} {Math.abs(d)}
+        {up ? "▲" : "▼"} {Number.isInteger(rounded) ? rounded : rounded.toFixed(1)}
       </span>
     );
   };
@@ -1712,6 +1766,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                         ["clicks", "Klicks", "right"],
                         ["impressions", "Impr.", "right"],
                         ["pos", "Pos.", "right"],
+                        ["_d7", "Δ 7 T.", "right"],
                       ].map(([col, label, align]) => (
                         <th
                           key={label}
@@ -1747,6 +1802,9 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                           </td>
                           <td style={{ padding: "6px 8px", textAlign: "right" }}>
                             {Number(q.position).toFixed(1)}
+                          </td>
+                          <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                            <DeltaCell cur={q.position} prev={q._prevPos} />
                           </td>
                         </tr>
                       ))}
