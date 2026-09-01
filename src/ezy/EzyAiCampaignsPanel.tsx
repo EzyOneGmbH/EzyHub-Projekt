@@ -17,6 +17,12 @@ import {
 
 type Tokens = Record<string, string>;
 
+// Das ezyai-Token-Set kennt weder `accent` noch `ink` (dort heissen sie
+// `app` bzw. `txt`) — mit S["accent"]/S["ink"] direkt war der Verbinden-
+// Button transparent mit weisser Schrift, also unsichtbar (Volkan 01.09.).
+const accentOf = (S: Tokens) => S["accent"] || S.app || "#77008C";
+const inkOf = (S: Tokens) => S["ink"] || S.txt || "#0D0D0D";
+
 type Campaign = {
   openai_campaign_id: string;
   name: string;
@@ -201,16 +207,21 @@ function ConnectCard({
   const [apiKey, setApiKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [msgErr, setMsgErr] = useState(false);
   const connect = async () => {
-    if (!apiKey.trim()) return;
+    if (!apiKey.trim() || busy) return;
     setBusy(true);
     setMsg("");
+    setMsgErr(false);
     const r = await apiPost({ action: "connect", clientId, apiKey: apiKey.trim() });
     setBusy(false);
     if (r.ok) {
       setMsg("Konto verbunden — erster Sync läuft.");
       onConnected();
-    } else setMsg(r.error || "Fehler");
+    } else {
+      setMsgErr(true);
+      setMsg(r.error || "Verbinden fehlgeschlagen — Key prüfen.");
+    }
   };
   return (
     <div style={{ ...card, maxWidth: 640, margin: "24px auto 0" }}>
@@ -248,6 +259,9 @@ function ConnectCard({
             placeholder="API-Key aus ads.openai.com (oder: mock)"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") connect();
+            }}
             style={{
               flex: 1,
               border: `1px solid ${S.line}`,
@@ -255,7 +269,7 @@ function ConnectCard({
               padding: "9px 12px",
               fontSize: 13,
               background: S.bg,
-              color: S.ink,
+              color: inkOf(S),
             }}
           />
           <button
@@ -268,7 +282,7 @@ function ConnectCard({
               fontWeight: 700,
               fontSize: 13,
               cursor: "pointer",
-              background: S.accent,
+              background: accentOf(S),
               color: "#fff",
               opacity: busy || !apiKey.trim() ? 0.6 : 1,
             }}
@@ -281,7 +295,18 @@ function ConnectCard({
           Nur Team-Admins können ein Konto verbinden.
         </div>
       )}
-      {msg && <div style={{ fontSize: 12.5, marginTop: 10, color: S.mut }}>{msg}</div>}
+      {msg && (
+        <div
+          style={{
+            fontSize: 12.5,
+            marginTop: 10,
+            fontWeight: msgErr ? 700 : 400,
+            color: msgErr ? "#b91c1c" : S.mut,
+          }}
+        >
+          {msg}
+        </div>
+      )}
     </div>
   );
 }
@@ -395,7 +420,7 @@ function ManagerView({
               fontWeight: 700,
               cursor: "pointer",
               background: S.bg,
-              color: S.ink,
+              color: inkOf(S),
             }}
           >
             {busy === "sync" ? "Synchronisiere…" : "Jetzt syncen"}
@@ -454,7 +479,7 @@ function ManagerView({
                   flex: 1,
                   minWidth: 3,
                   height: `${Math.max(4, (byDay[k] / maxDay) * 100)}%`,
-                  background: S.accent,
+                  background: accentOf(S),
                   opacity: 0.85,
                   borderRadius: 3,
                 }}
@@ -538,7 +563,7 @@ function ManagerView({
               }}
             >
               <span style={{ minWidth: 92 }}>{fmtTime(cm.created_at)}</span>
-              <span style={{ fontWeight: 700, color: S.ink }}>{cm.action}</span>
+              <span style={{ fontWeight: 700, color: inkOf(S) }}>{cm.action}</span>
               <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>
                 {cm.target_openai_id}
               </span>
@@ -581,7 +606,7 @@ function CampaignRow({
     busy === `pause:${c.openai_campaign_id}` || busy === `activate:${c.openai_campaign_id}`;
   return (
     <tr>
-      <td style={{ ...td, fontWeight: 700, color: S.ink }}>{c.name}</td>
+      <td style={{ ...td, fontWeight: 700, color: inkOf(S) }}>{c.name}</td>
       <td style={td}>
         {canWrite ? (
           <button
@@ -622,7 +647,7 @@ function CampaignRow({
                 padding: "3px 8px",
                 fontSize: 12,
                 background: S.bg,
-                color: S.ink,
+                color: inkOf(S),
               }}
             />
             <button
@@ -638,7 +663,7 @@ function CampaignRow({
                 fontSize: 11.5,
                 fontWeight: 700,
                 cursor: "pointer",
-                background: S.accent,
+                background: accentOf(S),
                 color: "#fff",
               }}
             >

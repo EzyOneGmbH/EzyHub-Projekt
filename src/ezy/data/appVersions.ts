@@ -93,8 +93,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.8.2",
+    version: "1.8.3",
     changelog: [
+      {
+        version: "1.8.3",
+        date: "2026-09-01",
+        note: "Kampagnen: der «Verbinden»-Button war durch einen Farbfehler unsichtbar (weiss auf weiss) — jetzt sichtbar; Enter im Key-Feld verbindet ebenfalls, Fehler beim Verbinden werden deutlich rot angezeigt",
+      },
       {
         version: "1.8.2",
         date: "2026-09-01",
