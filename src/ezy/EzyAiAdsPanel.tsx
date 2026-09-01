@@ -191,7 +191,7 @@ export default function EzyAiAdsPanel({
             <EventsTable S={S} events={events} mode="conversions" />
           )}
         </div>
-        <SnippetCard S={S} card={card} pixelId={data.pixelId || null} />
+        <SnippetCard S={S} card={card} pixelId={data.pixelId || null} clientId={clientId} />
       </div>
     );
 
@@ -412,16 +412,52 @@ function buildPixelSnippet(pixelId: string): string {
 </script>`;
 }
 
+type VerifyChecks = {
+  sdkFound: boolean;
+  pixelIdFound: boolean;
+  pageViewed: boolean;
+  formHook: boolean;
+};
+
 function SnippetCard({
   S,
   card,
   pixelId,
+  clientId,
 }: {
   S: Tokens;
   card: React.CSSProperties;
   pixelId: string | null;
+  clientId: string;
 }) {
   const [copied, setCopied] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [verify, setVerify] = useState<{
+    checks?: VerifyChecks;
+    checkedUrl?: string;
+    passed?: boolean;
+    error?: string;
+  } | null>(null);
+  const runVerify = async () => {
+    setVerifying(true);
+    setVerify(null);
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const r = await fetch("/api/admin/openai-ads", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session?.access_token || ""}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "verify-pixel", clientId }),
+      });
+      const j = await r.json().catch(() => ({}));
+      setVerify(j.ok ? j : { error: j.error || `HTTP ${r.status}` });
+    } catch (e: any) {
+      setVerify({ error: String(e?.message || e) });
+    }
+    setVerifying(false);
+  };
   if (!pixelId)
     return (
       <div style={card}>
@@ -457,22 +493,91 @@ function SnippetCard({
           title="Website-Snippet (Pixel)"
           sub="einmal im <head> der Kunden-Website — misst Seitenaufrufe + Formular-Leads"
         />
-        <button
-          onClick={copy}
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={runVerify}
+            disabled={verifying}
+            style={{
+              border: `1px solid ${S.line}`,
+              borderRadius: 8,
+              padding: "6px 14px",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+              background: "transparent",
+              color: S.txt,
+              opacity: verifying ? 0.6 : 1,
+            }}
+          >
+            {verifying ? "Prüfe…" : "Installation prüfen"}
+          </button>
+          <button
+            onClick={copy}
+            style={{
+              border: `1px solid ${S.line}`,
+              borderRadius: 8,
+              padding: "6px 14px",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+              background: copied ? "#16a34a" : S.app || "#77008C",
+              color: "#fff",
+            }}
+          >
+            {copied ? "Kopiert ✓" : "Snippet kopieren"}
+          </button>
+        </div>
+      </div>
+      {verify && (
+        <div
           style={{
-            border: `1px solid ${S.line}`,
-            borderRadius: 8,
-            padding: "6px 14px",
-            fontSize: 12,
-            fontWeight: 700,
-            cursor: "pointer",
-            background: copied ? "#16a34a" : S.app || "#77008C",
-            color: "#fff",
+            border: `1px solid ${verify.error ? "#dc262655" : verify.passed ? "#16a34a55" : "#d9770655"}`,
+            background: verify.error
+              ? "rgba(220,38,38,.05)"
+              : verify.passed
+                ? "rgba(22,163,74,.06)"
+                : "rgba(217,119,6,.06)",
+            borderRadius: 10,
+            padding: "10px 14px",
+            marginBottom: 12,
+            fontSize: 12.5,
           }}
         >
-          {copied ? "Kopiert ✓" : "Snippet kopieren"}
-        </button>
-      </div>
+          {verify.error ? (
+            <span style={{ color: "#b91c1c", fontWeight: 700 }}>
+              Prüfung fehlgeschlagen: {verify.error}
+            </span>
+          ) : (
+            <>
+              <div style={{ fontWeight: 700, marginBottom: 6, color: S.txt }}>
+                {verify.passed
+                  ? "Pixel korrekt eingebaut ✓"
+                  : "Pixel noch nicht (vollständig) gefunden"}
+                <span style={{ fontWeight: 400, color: S.mut, marginLeft: 8, fontSize: 11 }}>
+                  geprüft: {verify.checkedUrl}
+                </span>
+              </div>
+              {(
+                [
+                  ["SDK eingebunden (oaiq.min.js)", verify.checks?.sdkFound],
+                  ["Pixel-ID korrekt", verify.checks?.pixelIdFound],
+                  ["Seitenaufruf-Messung (page_viewed)", verify.checks?.pageViewed],
+                  ["Formular-Hook (Lead-Tracking)", verify.checks?.formHook],
+                ] as Array<[string, boolean | undefined]>
+              ).map(([label, okv]) => (
+                <div key={label} style={{ color: okv ? "#0f9d6c" : "#b45309", lineHeight: 1.7 }}>
+                  {okv ? "✓" : "✗"} {label}
+                </div>
+              ))}
+              <div style={{ color: S.mut, marginTop: 6, fontSize: 11.5, lineHeight: 1.6 }}>
+                {verify.passed
+                  ? "Sobald echte Besucher die Seite aufrufen, gehen Events bei OpenAI ein — dann lässt sich die Pixel-Verifikation im Ads Manager (ads.openai.com) abhaken."
+                  : "Hinweis: Ist das Snippet über den Google Tag Manager eingebaut, kann dieser Check es nicht sehen (lädt erst zur Laufzeit) — massgeblich ist dann die Verifikation im Ads Manager selbst."}
+              </div>
+            </>
+          )}
+        </div>
+      )}
       <pre
         style={{
           margin: 0,

@@ -93,8 +93,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.8.4",
+    version: "1.8.5",
     changelog: [
+      {
+        version: "1.8.5",
+        date: "2026-09-01",
+        note: "Website-Snippet: Button «Installation prüfen» — EzyHub ruft die Kunden-Website ab und bestätigt SDK, Pixel-ID, Seitenaufruf-Messung und Formular-Hook; damit lässt sich die Pixel-Verifikation im OpenAI Ads Manager abhaken",
+      },
       {
         version: "1.8.4",
         date: "2026-09-01",

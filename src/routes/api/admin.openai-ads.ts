@@ -9,7 +9,9 @@ import { buildOpenAiEvent, sendConversionEvents } from "@/server/openai-ads.serv
 // GET  ?client=<uuid>&start=YYYY-MM-DD&end=YYYY-MM-DD
 //      -> { ok, configured, enabled, pixelId, totals, timeseries, events }
 //      Auth: eingeloggter User (Kunden-Sichtbarkeit via RLS) oder Admin-Secret.
-// POST { action: "config" | "retry" | "test", ... }  — nur owner/admin:
+// POST { action: "config" | "retry" | "test" | "verify-pixel", ... }  — nur owner/admin:
+//      verify-pixel: { clientId } — holt die Kunden-Website und prüft die
+//              Pixel-Installation (SDK, Pixel-ID, page_viewed, Formular-Hook).
 //      config: { clientId, pixelId, apiKey?, enabled } — apiKey leer = behalten;
 //              der Key wird Secretbox-verschluesselt gespeichert, nie zurueckgegeben.
 //      retry:  { clientId, eventId } — fehlgeschlagenes Event erneut senden.
@@ -161,6 +163,84 @@ export const Route = createFileRoute("/api/admin/openai-ads")({
           );
           if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
           return Response.json({ ok: true });
+        }
+
+        // Installations-Check (01.09., Volkan): holt die Kunden-Website und
+        // prüft, ob das Pixel-Snippet korrekt eingebaut ist — Grundlage, damit
+        // die Pixel-Verifikation im OpenAI Ads Manager abgehakt werden kann
+        // (OpenAI verifiziert selbst, sobald live Events eingehen; dieser
+        // Check bestätigt die Installation, die das auslöst). Kein API-Key
+        // nötig. Achtung Einbau via Tag Manager: dort lädt das Snippet erst
+        // zur Laufzeit — im HTML nicht sichtbar (Hinweis im UI).
+        if (action === "verify-pixel") {
+          const { data: vcfg } = await sb
+            .from("openai_ads_config")
+            .select("pixel_id")
+            .eq("client_id", clientId)
+            .maybeSingle();
+          if (!vcfg?.pixel_id)
+            return Response.json(
+              { ok: false, error: "Noch keine Pixel-ID konfiguriert" },
+              { status: 409 },
+            );
+          const { data: cl } = await sb
+            .from("clients")
+            .select("domain")
+            .eq("id", clientId)
+            .maybeSingle();
+          const domain = String(cl?.domain || "")
+            .replace(/^https?:\/\//, "")
+            .replace(/\/.*$/, "")
+            .trim();
+          if (!domain)
+            return Response.json(
+              { ok: false, error: "Kunde hat keine Domain hinterlegt" },
+              { status: 409 },
+            );
+          // Ein Versuch je Variante, nicht hämmern (Hoster-Rate-Limits).
+          const tryUrls = domain.startsWith("www.")
+            ? [`https://${domain}`]
+            : [`https://${domain}`, `https://www.${domain}`];
+          let html = "";
+          let checkedUrl = "";
+          let fetchErr = "";
+          for (const u of tryUrls) {
+            try {
+              const r = await fetch(u, {
+                headers: {
+                  "User-Agent":
+                    "Mozilla/5.0 (compatible; EzyHub-PixelCheck/1.0; +https://ezyhub.ch)",
+                },
+                signal: AbortSignal.timeout(15_000),
+                redirect: "follow",
+              });
+              if (r.ok) {
+                html = await r.text();
+                checkedUrl = r.url || u;
+                break;
+              }
+              fetchErr = `HTTP ${r.status}`;
+            } catch (e: any) {
+              fetchErr = String(e?.message || e);
+            }
+          }
+          if (!html)
+            return Response.json(
+              { ok: false, error: `Website nicht abrufbar (${fetchErr})` },
+              { status: 502 },
+            );
+          const checks = {
+            sdkFound: html.includes("bzrcdn.openai.com/sdk/oaiq.min.js"),
+            pixelIdFound: html.includes(String(vcfg.pixel_id)),
+            pageViewed: /oaiq\(\s*["']measure["']\s*,\s*["']page_viewed["']/.test(html),
+            formHook: html.includes("ezy_event_id"),
+          };
+          return Response.json({
+            ok: true,
+            checkedUrl,
+            checks,
+            passed: checks.sdkFound && checks.pixelIdFound,
+          });
         }
 
         // retry/test brauchen die entschluesselte Config.
