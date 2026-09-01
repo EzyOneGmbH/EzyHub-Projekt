@@ -93,8 +93,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.8.3",
+    version: "1.8.4",
     changelog: [
+      {
+        version: "1.8.4",
+        date: "2026-09-01",
+        note: "Ads-Modus, Conversions: fertiges Website-Snippet (offizielles OpenAI-Pixel) je Kunde zum Kopieren — misst Seitenaufrufe und Formular-Leads, übernimmt die Klick-Attribution (oppref) automatisch und gibt event_id/oppref als Formular-Felder fürs Server-Tracking mit",
+      },
       {
         version: "1.8.3",
         date: "2026-09-01",

@@ -178,17 +178,20 @@ export default function EzyAiAdsPanel({
 
   if (section === "ads-conversions")
     return (
-      <div style={card}>
-        <SectionTitle
-          S={S}
-          title="Conversions"
-          sub="Leads und Käufe, die an OpenAI gemeldet wurden"
-        />
-        {events.length === 0 ? (
-          <Empty S={S} />
-        ) : (
-          <EventsTable S={S} events={events} mode="conversions" />
-        )}
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={card}>
+          <SectionTitle
+            S={S}
+            title="Conversions"
+            sub="Leads und Käufe, die an OpenAI gemeldet wurden"
+          />
+          {events.length === 0 ? (
+            <Empty S={S} />
+          ) : (
+            <EventsTable S={S} events={events} mode="conversions" />
+          )}
+        </div>
+        <SnippetCard S={S} card={card} pixelId={data.pixelId || null} />
       </div>
     );
 
@@ -357,6 +360,143 @@ function Empty({ S }: { S: Tokens }) {
       Ingest-Endpoint (<code>/api/admin/openai-ads-ingest</code>) von der Kunden-Website bzw. dem
       CRM — wichtig: den <code>?oppref=…</code>-Parameter beim Anzeigen-Klick erfassen und bis zur
       Conversion mitführen.
+    </div>
+  );
+}
+
+/* ── Website-Snippet (Pixel) ─────────────────────────────────────────────────
+   Offizielles oaiq-Loader-Snippet (developers.openai.com/ads/measurement-pixel,
+   geprüft 01.09.2026) + unsere Ergänzungen: page_viewed explizit (das SDK
+   sendet KEINEN Auto-PageView) und ein Formular-Hook, der lead_created misst
+   und event_id/__oppref als Hidden-Felder mitgibt — so kann das CRM dieselbe
+   event_id ans serverseitige CAPI (unser Ingest) weiterreichen und OpenAI
+   dedupliziert Pixel- und Server-Event. oppref selbst verwaltet das SDK
+   (fängt den URL-Parameter, First-Party-Cookie __oppref). */
+function buildPixelSnippet(pixelId: string): string {
+  return `<!-- ChatGPT-Ads-Pixel (Ezy One) — einmal im <head> einbauen -->
+<script>
+  (function (w, d, s, u) {
+    if (w.oaiq) return;
+    var q = function () { q.q.push(arguments); };
+    q.q = [];
+    w.oaiq = q;
+    var js = d.createElement(s);
+    js.async = true;
+    js.src = u;
+    var f = d.getElementsByTagName(s)[0];
+    f.parentNode.insertBefore(js, f);
+  })(window, document, "script", "https://bzrcdn.openai.com/sdk/oaiq.min.js");
+
+  oaiq("init", { pixelId: "${pixelId}" });
+  oaiq("measure", "page_viewed");
+
+  // Formular-Absendungen als Lead melden. Bei Bedarf auf bestimmte
+  // Formulare einschraenken, z.B. "form.wpcf7-form, form.elementor-form".
+  var EZY_FORM_SELECTOR = "form";
+  document.addEventListener("submit", function (e) {
+    var f = e.target;
+    if (!f || f.nodeName !== "FORM" || !f.matches(EZY_FORM_SELECTOR)) return;
+    var id = "lead_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+    var opp = (document.cookie.match(/(?:^|; )__oppref=([^;]+)/) || [])[1] || "";
+    function hid(n, v) {
+      var i = document.createElement("input");
+      i.type = "hidden"; i.name = n; i.value = v;
+      f.appendChild(i);
+    }
+    // Fuers Server-Event (Conversions API): dieselbe event_id + oppref
+    // wandern mit der Formular-Einsendung ins CRM/Mail.
+    hid("ezy_event_id", id);
+    if (opp) hid("ezy_oppref", decodeURIComponent(opp));
+    oaiq("measure", "lead_created", {}, { event_id: id });
+  }, true);
+</script>`;
+}
+
+function SnippetCard({
+  S,
+  card,
+  pixelId,
+}: {
+  S: Tokens;
+  card: React.CSSProperties;
+  pixelId: string | null;
+}) {
+  const [copied, setCopied] = useState(false);
+  if (!pixelId)
+    return (
+      <div style={card}>
+        <SectionTitle S={S} title="Website-Snippet (Pixel)" />
+        <div style={{ fontSize: 12.5, color: S.mut }}>
+          Zuerst die Pixel-ID in den Einstellungen (Bereich Dashboard) hinterlegen — danach
+          erscheint hier das fertige Snippet für die Kunden-Website.
+        </div>
+      </div>
+    );
+  const code = buildPixelSnippet(pixelId);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* Clipboard nicht verfügbar — Nutzer markiert den Code manuell */
+    }
+  };
+  return (
+    <div style={card}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 10,
+        }}
+      >
+        <SectionTitle
+          S={S}
+          title="Website-Snippet (Pixel)"
+          sub="einmal im <head> der Kunden-Website — misst Seitenaufrufe + Formular-Leads"
+        />
+        <button
+          onClick={copy}
+          style={{
+            border: `1px solid ${S.line}`,
+            borderRadius: 8,
+            padding: "6px 14px",
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: "pointer",
+            background: copied ? "#16a34a" : S.app || "#77008C",
+            color: "#fff",
+          }}
+        >
+          {copied ? "Kopiert ✓" : "Snippet kopieren"}
+        </button>
+      </div>
+      <pre
+        style={{
+          margin: 0,
+          padding: 12,
+          fontSize: 11,
+          lineHeight: 1.5,
+          background: "rgba(43,0,51,.04)",
+          border: `1px solid ${S.line}`,
+          borderRadius: 10,
+          overflowX: "auto",
+          maxHeight: 320,
+          color: S.txt,
+        }}
+      >
+        {code}
+      </pre>
+      <div style={{ fontSize: 11.5, color: S.mut, marginTop: 10, lineHeight: 1.6 }}>
+        <b>So funktioniert die Attribution:</b> Das SDK erfasst den <code>oppref</code>-Parameter
+        vom Anzeigen-Klick automatisch (First-Party-Cookie <code>__oppref</code>). Der Formular-Hook
+        gibt <code>ezy_event_id</code> und <code>ezy_oppref</code> als Hidden-Felder mit — sendet
+        das CRM diese Werte an unseren Ingest-Endpoint (<code>/api/admin/openai-ads-ingest</code>),
+        dedupliziert OpenAI Pixel- und Server-Event über die identische event_id. Kauf-Events (
+        <code>order_created</code> mit Betrag) bei Bedarf zusätzlich manuell messen.
+      </div>
     </div>
   );
 }
