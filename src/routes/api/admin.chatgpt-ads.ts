@@ -24,13 +24,32 @@ import { encryptSecret, decryptSecret } from "@/server/secretbox.server";
 // (is_mock=true) — UI/Flows sind damit End-to-End testbar; Commands aendern
 // im Mock nur die DB. Nach Freischaltung: echtes Konto verbinden, fertig.
 //
+// AUSBAU 01.09.2026 (API-Neuerungen, Doku developers.openai.com/ads geprüft):
+// - Geo-Targeting: GET /geo_lookup/search?q= liefert Locations (country/
+//   region/dma); Kampagne trägt targeting.locations.include[{id}]. Namen
+//   führen wir in chatgpt_ads_campaigns.targeting_locations mit (API gibt
+//   nur IDs zurück).
+// - Bulk API: POST /bulk_mutation_jobs (bis 1000 Operationen, asynchron,
+//   Polling GET /bulk_mutation_jobs/{id}); Fallback auf Einzel-Calls, falls
+//   der Endpoint für das Konto nicht freigeschaltet ist (404/501).
+// - Custom Audiences: POST /uploads (multipart, purpose=custom_audience) →
+//   file_id → POST /custom_audiences; Zuweisung via targeting.custom_audiences
+//   / excluded_custom_audiences. Identifikatoren werden IM BROWSER SHA-256-
+//   gehasht (identifier_type email_sha256) — der Server sieht nie Klartext.
+//
 // GET  ?client=<uuid>&start=YYYY-MM-DD&end=YYYY-MM-DD
-//      -> { ok, connected, account, campaigns, insights, commands }
-// POST { action: "connect" | "sync" | "sync-all" | "command", ... }
+//      -> { ok, connected, account, campaigns, insights, commands, audiences }
+// POST { action: "connect" | "sync" | "sync-all" | "command" | "bulk" |
+//        "geo-search" | "audience-create" | "audience-sync" | "audience-archive" }
 //      connect (owner/admin): { clientId, apiKey, adAccountId? }
 //      sync    (owner/admin): { clientId }
-//      command (owner/admin): { clientId, cmd: "pause"|"activate"|"set_budget",
-//                               targetType: "campaign", targetId, budgetDailyMicros? }
+//      command (owner/admin): { clientId, cmd: "pause"|"activate"|"set_budget"|
+//                               "set_targeting"|"set_audiences", targetType: "campaign",
+//                               targetId, budgetDailyMicros?, locations?, includeIds?, excludeIds? }
+//      bulk    (owner/admin): { clientId, cmd: "pause"|"activate", targetIds: string[] }
+//      geo-search (owner/admin): { clientId, q } -> { locations }
+//      audience-create (owner/admin): { clientId, name, description?, identifierType, hashes: string[] }
+//      audience-sync / audience-archive (owner/admin): { clientId, audienceId? }
 //      sync-all (nur Admin-Secret): alle aktiven Konten sequenziell.
 
 const ADS_API = "https://api.ads.openai.com/v1";
@@ -89,6 +108,111 @@ async function adsListAll(
   return out;
 }
 
+// Multipart-Upload (Custom-Audience-Datei): kein JSON-Content-Type, der
+// Browser-/undici-FormData setzt die Boundary selbst.
+async function adsUpload(
+  apiKey: string,
+  adAccountId: string,
+  content: string,
+  filename: string,
+  purpose: string,
+): Promise<{ ok: boolean; status: number; json: any }> {
+  const fd = new FormData();
+  fd.append("file", new Blob([content], { type: "text/csv" }), filename);
+  fd.append("purpose", purpose);
+  const r = await fetch(`${ADS_API}/uploads`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "OpenAI-Ad-Account": adAccountId },
+    body: fd,
+    signal: AbortSignal.timeout(120_000),
+  });
+  const json = await r.json().catch(() => null);
+  return { ok: r.ok, status: r.status, json };
+}
+
+type GeoLocation = { id: string; name: string; type?: string; country_code?: string };
+
+// Demo-Locations für den Mock-Modus (IDs frei gewählt, nur DB-relevant).
+const MOCK_GEO: GeoLocation[] = [
+  { id: "geo_ch", name: "Schweiz", type: "country", country_code: "CH" },
+  { id: "geo_de", name: "Deutschland", type: "country", country_code: "DE" },
+  { id: "geo_at", name: "Österreich", type: "country", country_code: "AT" },
+  { id: "geo_li", name: "Liechtenstein", type: "country", country_code: "LI" },
+  { id: "geo_fr", name: "Frankreich", type: "country", country_code: "FR" },
+  { id: "geo_it", name: "Italien", type: "country", country_code: "IT" },
+  { id: "geo_ch_zh", name: "Zürich", type: "region", country_code: "CH" },
+  { id: "geo_ch_be", name: "Bern", type: "region", country_code: "CH" },
+  { id: "geo_ch_bs", name: "Basel-Stadt", type: "region", country_code: "CH" },
+  { id: "geo_ch_ge", name: "Genf", type: "region", country_code: "CH" },
+  { id: "geo_ch_vd", name: "Waadt", type: "region", country_code: "CH" },
+  { id: "geo_ch_ag", name: "Aargau", type: "region", country_code: "CH" },
+  { id: "geo_ch_lu", name: "Luzern", type: "region", country_code: "CH" },
+  { id: "geo_ch_sg", name: "St. Gallen", type: "region", country_code: "CH" },
+  { id: "geo_ch_ti", name: "Tessin", type: "region", country_code: "CH" },
+];
+
+// Locations aus dem API-Kampagnenobjekt (nur IDs) mit den bei uns bekannten
+// Namen anreichern — unbekannte IDs bleiben als ID sichtbar.
+function locationsFromApi(c: any, prev: GeoLocation[] | null): GeoLocation[] {
+  const ids: string[] = (c?.targeting?.locations?.include || []).map((x: any) =>
+    String(x?.id ?? x),
+  );
+  const known = new Map((prev || []).map((p) => [String(p.id), p]));
+  return ids.map((id) => known.get(id) || { id, name: id });
+}
+
+// Kampagne aus API-Objekt in die DB schreiben (Sync + Re-Sync nach Commands).
+async function upsertCampaignFromApi(
+  sb: any,
+  accountId: string,
+  c: any,
+  prevLocations: GeoLocation[] | null,
+) {
+  await sb.from("chatgpt_ads_campaigns").upsert(
+    {
+      account_id: accountId,
+      openai_campaign_id: String(c.id),
+      name: String(c.name || ""),
+      status: String(c.status || ""),
+      bidding_type: c.bidding_type ?? null,
+      objective: c.objective ?? null,
+      budget_daily_micros: micros(c.budget?.daily_spend_limit_micros),
+      budget_lifetime_micros: micros(c.budget?.lifetime_spend_limit_micros),
+      start_time: tsToIso(c.start_time),
+      end_time: tsToIso(c.end_time),
+      targeting_locations: locationsFromApi(c, prevLocations),
+      raw: c,
+      synced_at: new Date().toISOString(),
+    },
+    { onConflict: "account_id,openai_campaign_id" },
+  );
+}
+
+// Custom Audiences des Kontos einsammeln (Status-Refresh). Nicht-fatal: das
+// Feature kann für ein Konto noch nicht freigeschaltet sein.
+async function syncAudiences(sb: any, acc: any, apiKey: string): Promise<number> {
+  const list = await adsListAll(apiKey, acc.openai_ad_account_id, "/custom_audiences").catch(
+    () => [] as any[],
+  );
+  for (const a of list) {
+    await sb.from("chatgpt_ads_audiences").upsert(
+      {
+        account_id: acc.id,
+        openai_audience_id: String(a.id),
+        name: String(a.name || ""),
+        description: a.description ?? null,
+        status: String(a.status || "processing"),
+        matched_user_count_range: a.matched_user_count_range ?? null,
+        membership_revision: a.membership_revision ?? null,
+        raw: a,
+        synced_at: new Date().toISOString(),
+      },
+      { onConflict: "account_id,openai_audience_id" },
+    );
+  }
+  return list.length;
+}
+
 const micros = (v: any): number | null => (v == null ? null : Number(v));
 const tsToIso = (v: any): string | null =>
   v == null ? null : new Date(Number(v) * 1000).toISOString();
@@ -98,25 +222,18 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
   if (acc.is_mock) return mockSync(sb, acc);
   const apiKey = decryptSecret(acc.api_key_enc);
   const campaigns = await adsListAll(apiKey, acc.openai_ad_account_id, "/campaigns");
+  // Bekannte Location-Namen je Kampagne mitführen (API liefert nur IDs).
+  const { data: prevRows } = await sb
+    .from("chatgpt_ads_campaigns")
+    .select("openai_campaign_id, targeting_locations")
+    .eq("account_id", acc.id);
+  const prevLoc = new Map<string, GeoLocation[] | null>(
+    (prevRows || []).map((r: any) => [String(r.openai_campaign_id), r.targeting_locations]),
+  );
   for (const c of campaigns) {
-    await sb.from("chatgpt_ads_campaigns").upsert(
-      {
-        account_id: acc.id,
-        openai_campaign_id: String(c.id),
-        name: String(c.name || ""),
-        status: String(c.status || ""),
-        bidding_type: c.bidding_type ?? null,
-        objective: c.objective ?? null,
-        budget_daily_micros: micros(c.budget?.daily_spend_limit_micros),
-        budget_lifetime_micros: micros(c.budget?.lifetime_spend_limit_micros),
-        start_time: tsToIso(c.start_time),
-        end_time: tsToIso(c.end_time),
-        raw: c,
-        synced_at: new Date().toISOString(),
-      },
-      { onConflict: "account_id,openai_campaign_id" },
-    );
+    await upsertCampaignFromApi(sb, acc.id, c, prevLoc.get(String(c.id)) ?? null);
   }
+  const audiences = await syncAudiences(sb, acc, apiKey);
   // Ad Groups + Ads je Kampagne (Filter-Params gem. OpenAPI-Spec).
   const { data: dbCamps } = await sb
     .from("chatgpt_ads_campaigns")
@@ -204,7 +321,7 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
     .from("chatgpt_ads_accounts")
     .update({ last_synced_at: new Date().toISOString(), last_sync_error: null })
     .eq("id", acc.id);
-  return { campaigns: campaigns.length, adGroups, ads, insightRows };
+  return { campaigns: campaigns.length, adGroups, ads, insightRows, audiences };
 }
 
 // ── Mock-Sync: deterministische Demo-Daten fuer UI/E2E bis zur Freischaltung ─
@@ -224,7 +341,13 @@ async function mockSync(sb: any, acc: any): Promise<any> {
         bidding_type: c.bidding,
         objective: "traffic",
         budget_daily_micros: c.daily,
-        raw: { id: c.id, mock: true },
+        // Demo: Brand-Kampagne auf die Schweiz ausgerichtet, Rest weltweit.
+        targeting_locations: i === 0 ? [MOCK_GEO[0]] : [],
+        raw: {
+          id: c.id,
+          mock: true,
+          targeting: i === 0 ? { locations: { include: [{ id: MOCK_GEO[0].id }] } } : {},
+        },
         synced_at: new Date().toISOString(),
       },
       { onConflict: "account_id,openai_campaign_id", ignoreDuplicates: true },
@@ -294,12 +417,45 @@ async function runCommand(
     return ok ? { ok: true as const } : { ok: false as const, error };
   };
 
+  // Targeting-Payloads normalisieren (Locations mit Namen, Audience-IDs).
+  const locations: GeoLocation[] = Array.isArray(payload?.locations)
+    ? payload.locations
+        .filter((l: any) => l && l.id)
+        .map((l: any) => ({
+          id: String(l.id),
+          name: String(l.name || l.id),
+          type: l.type ? String(l.type) : undefined,
+          country_code: l.country_code ? String(l.country_code) : undefined,
+        }))
+    : [];
+  const idList = (v: any): string[] =>
+    Array.isArray(v) ? v.map((x) => String(x)).filter(Boolean) : [];
+  const includeIds = idList(payload?.includeIds);
+  const excludeIds = idList(payload?.excludeIds).filter((id) => !includeIds.includes(id));
+
   if (acc.is_mock) {
-    // Mock: nur DB-Status/Budget aendern — kein API-Call.
-    const upd: any =
-      cmd === "set_budget"
-        ? { budget_daily_micros: Number(payload?.budgetDailyMicros || 0) || null }
-        : { status: cmd === "pause" ? "paused" : "active" };
+    // Mock: nur DB-Status/Budget/Targeting aendern — kein API-Call.
+    const { data: cur } = await sb
+      .from("chatgpt_ads_campaigns")
+      .select("raw")
+      .eq("account_id", acc.id)
+      .eq("openai_campaign_id", targetId)
+      .maybeSingle();
+    const raw = { ...(cur?.raw || {}) };
+    const targeting = { ...(raw.targeting || {}) };
+    let upd: any;
+    if (cmd === "set_budget") {
+      upd = { budget_daily_micros: Number(payload?.budgetDailyMicros || 0) || null };
+    } else if (cmd === "set_targeting") {
+      targeting.locations = { include: locations.map((l) => ({ id: l.id })) };
+      upd = { targeting_locations: locations, raw: { ...raw, targeting } };
+    } else if (cmd === "set_audiences") {
+      targeting.custom_audiences = { ids: includeIds };
+      targeting.excluded_custom_audiences = { ids: excludeIds };
+      upd = { raw: { ...raw, targeting } };
+    } else {
+      upd = { status: cmd === "pause" ? "paused" : "active" };
+    }
     await sb
       .from("chatgpt_ads_campaigns")
       .update({ ...upd, synced_at: new Date().toISOString() })
@@ -326,6 +482,22 @@ async function runCommand(
       method: "POST",
       body: { budget: { daily_spend_limit_micros: daily } },
     });
+  } else if (cmd === "set_targeting" || cmd === "set_audiences") {
+    // Bestehendes targeting-Objekt holen und nur den betroffenen Teil
+    // ersetzen — sonst würde ein Locations-Update die Audiences löschen.
+    const g0 = await adsFetch(apiKey, acc.openai_ad_account_id, `/campaigns/${targetId}`);
+    if (!g0.ok) return finish(false, `Kampagne nicht lesbar (HTTP ${g0.status})`);
+    const targeting = { ...(g0.json?.targeting || {}) };
+    if (cmd === "set_targeting") {
+      targeting.locations = { include: locations.map((l) => ({ id: l.id })) };
+    } else {
+      targeting.custom_audiences = { ids: includeIds };
+      targeting.excluded_custom_audiences = { ids: excludeIds };
+    }
+    r = await adsFetch(apiKey, acc.openai_ad_account_id, `/campaigns/${targetId}`, {
+      method: "POST",
+      body: { targeting },
+    });
   } else {
     return finish(false, `Unbekanntes Kommando: ${cmd}`);
   }
@@ -333,21 +505,254 @@ async function runCommand(
   // Betroffenes Objekt sofort re-syncen (kein Fire-and-Forget, Spec §4 WF-3).
   const g = await adsFetch(apiKey, acc.openai_ad_account_id, `/campaigns/${targetId}`);
   if (g.ok && g.json?.id) {
-    const c = g.json;
-    await sb
+    // Namen der eben gesetzten Locations behalten (API liefert nur IDs).
+    const { data: prev } = await sb
       .from("chatgpt_ads_campaigns")
-      .update({
-        name: String(c.name || ""),
-        status: String(c.status || ""),
-        budget_daily_micros: micros(c.budget?.daily_spend_limit_micros),
-        budget_lifetime_micros: micros(c.budget?.lifetime_spend_limit_micros),
-        raw: c,
-        synced_at: new Date().toISOString(),
-      })
+      .select("targeting_locations")
       .eq("account_id", acc.id)
-      .eq("openai_campaign_id", targetId);
+      .eq("openai_campaign_id", targetId)
+      .maybeSingle();
+    const prevLoc = cmd === "set_targeting" ? locations : prev?.targeting_locations || null;
+    await upsertCampaignFromApi(sb, acc.id, g.json, prevLoc);
   }
   return finish(true);
+}
+
+// ── Bulk (Bulk API): viele Kampagnen auf einmal pausieren/aktivieren ─────────
+async function runBulk(
+  sb: any,
+  acc: any,
+  cmd: "pause" | "activate",
+  targetIds: string[],
+  actorUserId: string | null,
+): Promise<{ ok: boolean; error?: string; done: number; failed: string[] }> {
+  const status = cmd === "pause" ? "paused" : "active";
+  const { data: row } = await sb
+    .from("chatgpt_ads_commands")
+    .insert({
+      account_id: acc.id,
+      actor_user_id: actorUserId,
+      action: `bulk_${cmd}`,
+      target_type: "campaign",
+      target_openai_id: `${targetIds.length} Kampagnen`,
+      payload: { targetIds },
+    })
+    .select("id")
+    .single();
+  const finish = async (ok: boolean, done: number, failed: string[], error?: string) => {
+    await sb
+      .from("chatgpt_ads_commands")
+      .update({
+        status: ok ? "success" : "failed",
+        error: error ?? (failed.length ? `${failed.length} fehlgeschlagen` : null),
+        payload: { targetIds, done, failed },
+        executed_at: new Date().toISOString(),
+      })
+      .eq("id", row?.id);
+    return { ok, error, done, failed };
+  };
+
+  if (acc.is_mock) {
+    await sb
+      .from("chatgpt_ads_campaigns")
+      .update({ status, synced_at: new Date().toISOString() })
+      .eq("account_id", acc.id)
+      .in("openai_campaign_id", targetIds);
+    return finish(true, targetIds.length, []);
+  }
+
+  let apiKey: string;
+  try {
+    apiKey = decryptSecret(acc.api_key_enc);
+  } catch (e: any) {
+    return finish(false, 0, targetIds, `Key nicht lesbar: ${String(e?.message || e)}`);
+  }
+  const failed: string[] = [];
+  let done = 0;
+  const job = await adsFetch(apiKey, acc.openai_ad_account_id, "/bulk_mutation_jobs", {
+    method: "POST",
+    body: {
+      partial_failure: true,
+      operations: targetIds.map((id, i) => ({
+        operation_id: `op-${i}-${id}`,
+        type: "campaign.update",
+        target_resource_id: id,
+        input: { status },
+      })),
+    },
+  });
+  if (job.ok && job.json?.id) {
+    // Asynchron: Job-Status pollen (max. ~40 s), dann Operationen auswerten.
+    let st = String(job.json.status || "pending");
+    for (let i = 0; i < 20 && (st === "pending" || st === "in_progress"); i++) {
+      await new Promise((res) => setTimeout(res, 2000));
+      const g = await adsFetch(
+        apiKey,
+        acc.openai_ad_account_id,
+        `/bulk_mutation_jobs/${job.json.id}`,
+      );
+      st = String(g.json?.status || st);
+    }
+    const ops = await adsFetch(
+      apiKey,
+      acc.openai_ad_account_id,
+      `/bulk_mutation_jobs/${job.json.id}/operations`,
+      { query: { limit: "1000" } },
+    );
+    for (const op of ops.json?.data || []) {
+      const id = String(op.target_resource_id || op.resource_id || "");
+      if (op.status === "failed") failed.push(id || op.operation_id);
+      else done++;
+    }
+    if (st === "pending" || st === "in_progress")
+      return finish(false, done, failed, "Bulk-Job noch nicht abgeschlossen — später syncen");
+  } else if (job.status === 404 || job.status === 501 || job.status === 403) {
+    // Bulk API für dieses Konto (noch) nicht verfügbar → sequenziell.
+    for (const id of targetIds) {
+      const r = await adsFetch(apiKey, acc.openai_ad_account_id, `/campaigns/${id}/${cmd}`, {
+        method: "POST",
+      });
+      if (r.ok) done++;
+      else failed.push(id);
+    }
+  } else {
+    return finish(
+      false,
+      0,
+      targetIds,
+      `HTTP ${job.status}: ${JSON.stringify(job.json)?.slice(0, 200)}`,
+    );
+  }
+  // Re-Sync der betroffenen Kampagnen.
+  const { data: prevRows } = await sb
+    .from("chatgpt_ads_campaigns")
+    .select("openai_campaign_id, targeting_locations")
+    .eq("account_id", acc.id)
+    .in("openai_campaign_id", targetIds);
+  const prevLoc = new Map<string, GeoLocation[] | null>(
+    (prevRows || []).map((r: any) => [String(r.openai_campaign_id), r.targeting_locations]),
+  );
+  for (const id of targetIds) {
+    const g = await adsFetch(apiKey, acc.openai_ad_account_id, `/campaigns/${id}`);
+    if (g.ok && g.json?.id)
+      await upsertCampaignFromApi(sb, acc.id, g.json, prevLoc.get(id) ?? null);
+  }
+  return finish(failed.length === 0, done, failed);
+}
+
+// ── Custom Audiences ─────────────────────────────────────────────────────────
+const AUDIENCE_ID_TYPES = ["email_sha256", "phone_number_sha256"];
+
+// Grössenklasse wie die API sie liefert — im Mock aus unserer Zählung.
+const mockRange = (n: number) =>
+  n < 25_000 ? "under_25k" : n < 100_000 ? "25k_100k" : n < 500_000 ? "100k_500k" : "500k_1m";
+
+async function createAudience(
+  sb: any,
+  acc: any,
+  input: { name: string; description: string; identifierType: string; hashes: string[] },
+): Promise<{ ok: boolean; error?: string; audience?: any }> {
+  const now = new Date().toISOString();
+  if (acc.is_mock) {
+    const id = `caud_mock_${Date.now().toString(36)}`;
+    const { data } = await sb
+      .from("chatgpt_ads_audiences")
+      .insert({
+        account_id: acc.id,
+        openai_audience_id: id,
+        name: input.name,
+        description: input.description || null,
+        status: "ready",
+        identifier_type: input.identifierType,
+        matched_user_count_range: mockRange(input.hashes.length),
+        membership_revision: 1,
+        identifier_count: input.hashes.length,
+        raw: { id, mock: true },
+        synced_at: now,
+      })
+      .select("*")
+      .single();
+    return { ok: true, audience: data };
+  }
+  let apiKey: string;
+  try {
+    apiKey = decryptSecret(acc.api_key_enc);
+  } catch (e: any) {
+    return { ok: false, error: `Key nicht lesbar: ${String(e?.message || e)}` };
+  }
+  // CSV mit Spaltenkopf = identifier_type (Doku: email_sha256 / phone_number_sha256).
+  const csv = `${input.identifierType}\n${input.hashes.join("\n")}\n`;
+  const filename = `audience-${Date.now()}.csv`;
+  const up = await adsUpload(apiKey, acc.openai_ad_account_id, csv, filename, "custom_audience");
+  const fileId = up.json?.file_id || up.json?.id;
+  if (!up.ok || !fileId) return { ok: false, error: `Upload fehlgeschlagen (HTTP ${up.status})` };
+  const cr = await adsFetch(apiKey, acc.openai_ad_account_id, "/custom_audiences", {
+    method: "POST",
+    body: {
+      name: input.name,
+      description: input.description || undefined,
+      file_id: fileId,
+      identifier_type: input.identifierType,
+      filename,
+      mimetype: "text/csv",
+      file_size: Buffer.byteLength(csv, "utf8"),
+    },
+  });
+  if (!cr.ok || !cr.json?.id)
+    return {
+      ok: false,
+      error: `Audience nicht erstellt (HTTP ${cr.status}): ${JSON.stringify(cr.json)?.slice(0, 160)}`,
+    };
+  const a = cr.json;
+  const { data } = await sb
+    .from("chatgpt_ads_audiences")
+    .upsert(
+      {
+        account_id: acc.id,
+        openai_audience_id: String(a.id),
+        name: String(a.name || input.name),
+        description: a.description ?? input.description ?? null,
+        status: String(a.status || "upload_pending"),
+        identifier_type: input.identifierType,
+        matched_user_count_range: a.matched_user_count_range ?? null,
+        membership_revision: a.membership_revision ?? null,
+        identifier_count: input.hashes.length,
+        raw: a,
+        synced_at: now,
+      },
+      { onConflict: "account_id,openai_audience_id" },
+    )
+    .select("*")
+    .single();
+  return { ok: true, audience: data };
+}
+
+async function archiveAudience(
+  sb: any,
+  acc: any,
+  audienceId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!acc.is_mock) {
+    let apiKey: string;
+    try {
+      apiKey = decryptSecret(acc.api_key_enc);
+    } catch (e: any) {
+      return { ok: false, error: `Key nicht lesbar: ${String(e?.message || e)}` };
+    }
+    const r = await adsFetch(
+      apiKey,
+      acc.openai_ad_account_id,
+      `/custom_audiences/${audienceId}/archive`,
+      { method: "POST" },
+    );
+    if (!r.ok) return { ok: false, error: `HTTP ${r.status}` };
+  }
+  await sb
+    .from("chatgpt_ads_audiences")
+    .update({ status: "archived", synced_at: new Date().toISOString() })
+    .eq("account_id", acc.id)
+    .eq("openai_audience_id", audienceId);
+  return { ok: true };
 }
 
 async function requireUser(request: Request): Promise<{ userClient: any | null } | Response> {
@@ -401,30 +806,40 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
           ? qsStart
           : new Date(Date.now() - 29 * 864e5).toISOString().slice(0, 10);
 
-        const [{ data: campaigns }, { data: insights }, { data: commands }] = await Promise.all([
-          sb
-            .from("chatgpt_ads_campaigns")
-            .select(
-              "openai_campaign_id, name, status, bidding_type, objective, budget_daily_micros, budget_lifetime_micros, synced_at",
-            )
-            .eq("account_id", acc.id)
-            .neq("status", "archived")
-            .order("name"),
-          sb
-            .from("chatgpt_ads_insights_daily")
-            .select("scope_openai_id, date, impressions, clicks, spend, conversions")
-            .eq("account_id", acc.id)
-            .eq("scope", "campaign")
-            .gte("date", start)
-            .lte("date", end)
-            .order("date"),
-          sb
-            .from("chatgpt_ads_commands")
-            .select("action, target_openai_id, status, error, created_at")
-            .eq("account_id", acc.id)
-            .order("created_at", { ascending: false })
-            .limit(20),
-        ]);
+        const [{ data: campaigns }, { data: insights }, { data: commands }, { data: audiences }] =
+          await Promise.all([
+            sb
+              .from("chatgpt_ads_campaigns")
+              // targeting (Audience-IDs) direkt aus raw per JSON-Pfad — spart
+              // das komplette raw-Objekt in der Antwort.
+              .select(
+                "openai_campaign_id, name, status, bidding_type, objective, budget_daily_micros, budget_lifetime_micros, synced_at, targeting_locations, targeting:raw->targeting",
+              )
+              .eq("account_id", acc.id)
+              .neq("status", "archived")
+              .order("name"),
+            sb
+              .from("chatgpt_ads_insights_daily")
+              .select("scope_openai_id, date, impressions, clicks, spend, conversions")
+              .eq("account_id", acc.id)
+              .eq("scope", "campaign")
+              .gte("date", start)
+              .lte("date", end)
+              .order("date"),
+            sb
+              .from("chatgpt_ads_commands")
+              .select("action, target_openai_id, status, error, created_at")
+              .eq("account_id", acc.id)
+              .order("created_at", { ascending: false })
+              .limit(20),
+            sb
+              .from("chatgpt_ads_audiences")
+              .select(
+                "openai_audience_id, name, description, status, identifier_type, matched_user_count_range, identifier_count, created_at, synced_at",
+              )
+              .eq("account_id", acc.id)
+              .order("created_at", { ascending: false }),
+          ]);
         return Response.json({
           ok: true,
           connected: true,
@@ -432,6 +847,7 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
           campaigns: campaigns || [],
           insights: insights || [],
           commands: commands || [],
+          audiences: audiences || [],
         });
       },
 
@@ -565,16 +981,131 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
         if (action === "command") {
           const cmd = String(body?.cmd || "");
           const targetId = String(body?.targetId || "");
-          if (!["pause", "activate", "set_budget"].includes(cmd) || !targetId)
+          if (
+            !["pause", "activate", "set_budget", "set_targeting", "set_audiences"].includes(cmd) ||
+            !targetId
+          )
             return Response.json({ ok: false, error: "cmd/targetId ungültig" }, { status: 400 });
           const res = await runCommand(
             sb,
             acc,
             cmd,
             targetId,
-            { budgetDailyMicros: body?.budgetDailyMicros },
+            {
+              budgetDailyMicros: body?.budgetDailyMicros,
+              locations: body?.locations,
+              includeIds: body?.includeIds,
+              excludeIds: body?.excludeIds,
+            },
             ctx.userId ?? null,
           );
+          return res.ok
+            ? Response.json({ ok: true })
+            : Response.json({ ok: false, error: res.error }, { status: 502 });
+        }
+
+        if (action === "bulk") {
+          const cmd = String(body?.cmd || "");
+          const targetIds: string[] = Array.isArray(body?.targetIds)
+            ? body.targetIds
+                .map((x: any) => String(x))
+                .filter(Boolean)
+                .slice(0, 1000)
+            : [];
+          if ((cmd !== "pause" && cmd !== "activate") || !targetIds.length)
+            return Response.json({ ok: false, error: "cmd/targetIds ungültig" }, { status: 400 });
+          const res = await runBulk(sb, acc, cmd, targetIds, ctx.userId ?? null);
+          return Response.json(
+            { ok: res.ok, done: res.done, failed: res.failed, error: res.error },
+            { status: res.ok ? 200 : 502 },
+          );
+        }
+
+        if (action === "geo-search") {
+          const q = String(body?.q || "").trim();
+          if (q.length < 2) return Response.json({ ok: true, locations: [] });
+          if (acc.is_mock) {
+            const ql = q.toLowerCase();
+            return Response.json({
+              ok: true,
+              locations: MOCK_GEO.filter(
+                (l) =>
+                  l.name.toLowerCase().includes(ql) || (l.country_code || "").toLowerCase() === ql,
+              ).slice(0, 8),
+            });
+          }
+          let apiKey: string;
+          try {
+            apiKey = decryptSecret(acc.api_key_enc);
+          } catch (e: any) {
+            return Response.json({ ok: false, error: String(e?.message || e) }, { status: 500 });
+          }
+          const r = await adsFetch(apiKey, acc.openai_ad_account_id, "/geo_lookup/search", {
+            query: { q, limit: "8" },
+          });
+          if (!r.ok)
+            return Response.json({ ok: false, error: `HTTP ${r.status}` }, { status: 502 });
+          const locations: GeoLocation[] = (r.json?.data || r.json?.results || []).map(
+            (l: any) => ({
+              id: String(l.id),
+              name: String(l.canonical_name || l.name || l.id),
+              type: l.type ? String(l.type) : undefined,
+              country_code: l.country_code ? String(l.country_code) : undefined,
+            }),
+          );
+          return Response.json({ ok: true, locations });
+        }
+
+        if (action === "audience-create") {
+          const name = String(body?.name || "").trim();
+          const description = String(body?.description || "").trim();
+          const identifierType = String(body?.identifierType || "email_sha256");
+          // Nur 64-stellige Hex-Hashes akzeptieren — Klartext kommt hier nie an.
+          const hashes: string[] = Array.from(
+            new Set(
+              (Array.isArray(body?.hashes) ? body.hashes : [])
+                .map((h: any) => String(h).trim().toLowerCase())
+                .filter((h: string) => /^[0-9a-f]{64}$/.test(h)),
+            ),
+          );
+          if (name.length < 3)
+            return Response.json(
+              { ok: false, error: "Name muss mindestens 3 Zeichen haben" },
+              { status: 400 },
+            );
+          if (!AUDIENCE_ID_TYPES.includes(identifierType))
+            return Response.json({ ok: false, error: "identifierType ungültig" }, { status: 400 });
+          if (!hashes.length)
+            return Response.json(
+              { ok: false, error: "Keine gültigen Identifikatoren" },
+              { status: 400 },
+            );
+          if (hashes.length > 200_000)
+            return Response.json(
+              { ok: false, error: "Maximal 200'000 Identifikatoren je Upload" },
+              { status: 400 },
+            );
+          const res = await createAudience(sb, acc, { name, description, identifierType, hashes });
+          return res.ok
+            ? Response.json({ ok: true, audience: res.audience })
+            : Response.json({ ok: false, error: res.error }, { status: 502 });
+        }
+
+        if (action === "audience-sync") {
+          if (acc.is_mock) return Response.json({ ok: true, audiences: 0 });
+          try {
+            const n = await syncAudiences(sb, acc, decryptSecret(acc.api_key_enc));
+            return Response.json({ ok: true, audiences: n });
+          } catch (e: any) {
+            return Response.json({ ok: false, error: String(e?.message || e) }, { status: 502 });
+          }
+        }
+
+        if (action === "audience-archive") {
+          const audienceId = String(body?.audienceId || "");
+          if (!audienceId)
+            return Response.json({ ok: false, error: "audienceId erforderlich" }, { status: 400 });
+          const res = await archiveAudience(sb, acc, audienceId);
           return res.ok
             ? Response.json({ ok: true })
             : Response.json({ ok: false, error: res.error }, { status: 502 });

@@ -66,6 +66,7 @@ import {
   Bell,
   LayoutGrid,
   Home,
+  Users,
 } from "lucide-react";
 
 // Initialen aus einem Namen (Shell-Profilblock, wie in der EzyRank-Shell).
@@ -151,6 +152,9 @@ const ADS_NAV: Array<{ group: string; items: NavItem[] }> = [
     items: [
       { id: "ads-overview", label: "Dashboard", icon: LayoutDashboard },
       { id: "ads-kampagnen", label: "Kampagnen", icon: Zap },
+      // Custom Audiences (Advertiser-API-Ausbau 01.09.): gleicher Lazy-Chunk
+      // wie Kampagnen, da eng verzahnt (Zuweisung je Kampagne).
+      { id: "ads-zielgruppen", label: "Zielgruppen", icon: Users },
       { id: "ads-conversions", label: "Conversions", icon: Activity },
       { id: "ads-events", label: "Event-Log", icon: FileText },
     ],
@@ -5512,13 +5516,14 @@ function EzyAiApp() {
                       </div>
                     }
                   >
-                    {adsSection === "ads-kampagnen" ? (
+                    {adsSection === "ads-kampagnen" || adsSection === "ads-zielgruppen" ? (
                       <EzyAiCampaignsPanel
                         clientId={client.id}
                         clientName={client.name}
                         range={range}
                         S={S}
                         isOrgAdmin={!!isOrgAdmin}
+                        section={adsSection}
                       />
                     ) : (
                       <EzyAiAdsPanel

@@ -93,8 +93,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.8.5",
+    version: "1.9.0",
     changelog: [
+      {
+        version: "1.9.0",
+        date: "2026-09-01",
+        note: "ChatGPT Ads ausgebaut (neue Advertiser-API-Funktionen): Geo-Targeting je Kampagne (Länder/Kantone/Regionen mit Suche), Bulk-Aktionen (mehrere Kampagnen auf einmal pausieren/aktivieren) und neuer Bereich «Zielgruppen» — Kundenlisten datenschutzkonform (im Browser gehasht) hochladen und Kampagnen zuweisen (ein-/ausschliessen)",
+      },
       {
         version: "1.8.5",
         date: "2026-09-01",
