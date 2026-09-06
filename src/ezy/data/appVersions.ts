@@ -93,8 +93,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.9.0",
+    version: "1.9.1",
     changelog: [
+      {
+        version: "1.9.1",
+        date: "2026-09-01",
+        note: "Geo-Targeting: Ländernamen aus dem echten OpenAI-Konto werden direkt übernommen (statt nur der ID)",
+      },
       {
         version: "1.9.0",
         date: "2026-09-01",

@@ -151,14 +151,23 @@ const MOCK_GEO: GeoLocation[] = [
   { id: "geo_ch_ti", name: "Tessin", type: "region", country_code: "CH" },
 ];
 
-// Locations aus dem API-Kampagnenobjekt (nur IDs) mit den bei uns bekannten
-// Namen anreichern — unbekannte IDs bleiben als ID sichtbar.
+// Locations aus dem API-Kampagnenobjekt. Live-Befund (Ezy-One-Konto, 01.09.):
+// die API liefert im include[] VOLLSTÄNDIGE Objekte ({id, name, type,
+// country_code, region_code}) — die nehmen wir direkt; nur bei reinen IDs
+// greifen wir auf die bei uns gespeicherten Namen zurück (Fallback: ID).
 function locationsFromApi(c: any, prev: GeoLocation[] | null): GeoLocation[] {
-  const ids: string[] = (c?.targeting?.locations?.include || []).map((x: any) =>
-    String(x?.id ?? x),
-  );
   const known = new Map((prev || []).map((p) => [String(p.id), p]));
-  return ids.map((id) => known.get(id) || { id, name: id });
+  return (c?.targeting?.locations?.include || []).map((x: any) => {
+    const id = String(x?.id ?? x);
+    if (x && typeof x === "object" && x.name)
+      return {
+        id,
+        name: String(x.name),
+        type: x.type ? String(x.type) : undefined,
+        country_code: x.country_code ? String(x.country_code) : undefined,
+      };
+    return known.get(id) || { id, name: id };
+  });
 }
 
 // Kampagne aus API-Objekt in die DB schreiben (Sync + Re-Sync nach Commands).
