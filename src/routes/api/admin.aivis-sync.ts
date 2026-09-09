@@ -339,6 +339,15 @@ const DFS_LOC_BY_A3: Record<string, { code: number; lang: string; name: string }
     Object.values(DFS_LOCATION).map((l) => [l.a3, { code: l.code, lang: l.lang, name: l.name }]),
   );
 
+// DataForSEO nur noch für EzyRank (09.09.2026, Volkans Entscheid «komplett
+// aus»): EzyAI ruft DataForSEO NICHT mehr auf. Damit entfallen in EzyAI die
+// br-Schicht (Erwähnungs-Korpus), die sa-Schicht (AIO/AI-Mode-Live-SERP), der
+// LLM-Fallback, das AI-Suchvolumen, alle Korpus-/Historie-Backfills und der
+// Echt-Fragen-Seeder. Score = Canonry + eigene Prompts (measurementVersion v5).
+// AIVIS_DFS_ENABLED=1 in der Lovable-Env stellt alles ohne Code-Rollback zurück.
+const AIVIS_DFS = String(process.env.AIVIS_DFS_ENABLED ?? "0") === "1";
+const DFS_AUS = "DataForSEO für EzyAI deaktiviert (AIVIS_DFS_ENABLED=0, nur EzyRank)";
+
 function dfsAuth(): string | null {
   const login = process.env.DATAFORSEO_LOGIN,
     pass = process.env.DATAFORSEO_PASSWORD;
@@ -355,6 +364,7 @@ async function dfsAiCall(
   path: string,
   task: any,
 ): Promise<{ ok: boolean; result?: any; error?: string }> {
+  if (!AIVIS_DFS) return { ok: false, error: DFS_AUS }; // kein Netzaufruf
   const auth = dfsAuth();
   if (!auth) return { ok: false, error: "DATAFORSEO_LOGIN/PASSWORD fehlt" };
   try {
@@ -656,6 +666,7 @@ function dfsCollectDomains(node: any, out: Set<string>) {
 }
 
 async function jobSerpAi(c: any, limitOverride?: number) {
+  if (!AIVIS_DFS) return { skipped: DFS_AUS };
   const auth = dfsAuth();
   if (!auth) return { skipped: "DATAFORSEO_LOGIN/DATAFORSEO_PASSWORD fehlt (Lovable-Env)" };
   // Preflight (kostenlos): Ist DataForSEO von HIER erreichbar? Beobachtet
@@ -1101,6 +1112,7 @@ const mentionTargets = (brand: string): string[] => {
 };
 
 async function jobBrandRadarDfs(c: any, comps: string[] = []) {
+  if (!AIVIS_DFS) return { skipped: DFS_AUS };
   const brand = brandName(c);
   const domain = cleanDomain(c.domain);
   const lang = (c.language || "de").slice(0, 2);
@@ -4099,10 +4111,13 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
           engines: engineFilter,
           realTarget,
         } = parsed.data;
-        const wanted =
+        type AivisJob = "brand_radar" | "attribution" | "prompts" | "canonry" | "serp_ai";
+        const wanted: readonly AivisJob[] =
           jobs && jobs.length
             ? jobs
-            : (["brand_radar", "attribution", "prompts", "canonry", "serp_ai"] as const);
+            : AIVIS_DFS
+              ? ["brand_radar", "attribution", "prompts", "canonry", "serp_ai"]
+              : ["attribution", "prompts", "canonry"]; // DFS-Schichten aus
 
         const query = supabaseAdmin
           .from("clients")
@@ -4497,7 +4512,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 // SERP-Drosselung (2026-07-21): läuft an diesem Tag kein SERP-
                 // Check, übernimmt der Tagesreport den letzten sa-Stand
                 // (Score-Kontinuität); gemessenAm bleibt das echte Messdatum.
-                if (!parts.sa) {
+                if (AIVIS_DFS && !parts.sa) {
                   const { data: prevSaRep } = await sb
                     .from("ai_visibility_reports")
                     .select("snapshot_date, parts")
@@ -5530,7 +5545,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
             // saDue"; weil der Tagesreport den letzten sa-Stand als übernommen
             // hineinkopiert, war parts.sa praktisch immer gefüllt und sa lief
             // faktisch nur alle freshDays (3) Tage mit dem Tageslauf mit.
-            if (saDue) missing.push("sa");
+            if (AIVIS_DFS && saDue) missing.push("sa"); // ohne DFS nie fällig
             // Kosten-Drosselung (2026-07-31): voller Lauf alle
             // AIVIS_FRESHNESS_DAYS (default 3) — seit 17.08. am globalen Takt.
             // Größter LLM-Dauerposten: alle aktiven Prompts × 6 Engines je Lauf.

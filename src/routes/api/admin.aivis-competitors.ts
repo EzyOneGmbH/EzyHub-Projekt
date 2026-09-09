@@ -56,6 +56,10 @@ async function dfsLive(
   path: string,
   task: any,
 ): Promise<{ ok: boolean; result?: any; error?: string; cost?: number }> {
+  // DataForSEO nur noch für EzyRank (09.09.2026): EzyAI-Konkurrenz-Gaps
+  // fragen DFS nicht mehr ab. AIVIS_DFS_ENABLED=1 stellt zurück.
+  if (String(process.env.AIVIS_DFS_ENABLED ?? "0") !== "1")
+    return { ok: false, error: "DataForSEO für EzyAI deaktiviert (AIVIS_DFS_ENABLED=0)" };
   const auth = dfsAuth();
   if (!auth) return { ok: false, error: "DATAFORSEO_LOGIN/PASSWORD fehlt" };
   try {
