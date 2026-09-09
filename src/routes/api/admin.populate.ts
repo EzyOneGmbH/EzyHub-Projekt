@@ -573,28 +573,11 @@ async function jobGscQueries(c: any, uid: string, days: number, forceDfs = false
     const prevAt = prev?.dfsEnrichedAt ? Date.parse(prev.dfsEnrichedAt) : 0;
     const auth = dfsAuth();
     if (auth && (forceDfs || Date.now() - prevAt > 6.5 * 86400000)) {
-      // Frisch anreichern (1x/Woche): Labs-Ranking-Universum + Volumen-Batch.
-      const domain = normalizeDomain(String(c.domain || ""));
-      const labs = new Map<
-        string,
-        { pos: number | null; url: string | null; volume: number | null }
-      >();
-      if (domain) {
-        const rk = await dfsList(
-          "dataforseo_labs/google/ranked_keywords/live",
-          { target: domain, location_code: 2756, language_code: "de", limit: 1000 },
-          auth,
-        );
-        for (const it of (rk?.[0] as any)?.items ?? []) {
-          const kw = String(it?.keyword_data?.keyword ?? "").toLowerCase();
-          if (!kw) continue;
-          labs.set(kw, {
-            pos: it?.ranked_serp_element?.serp_item?.rank_group ?? null,
-            url: it?.ranked_serp_element?.serp_item?.url ?? null,
-            volume: it?.keyword_data?.keyword_info?.search_volume ?? null,
-          });
-        }
-      }
+      // Frisch anreichern (1x/Woche): nur noch der Volumen-Batch. Das Labs-
+      // Ranking-Universum (ranked_keywords) ist seit 09.09.2026 gestrichen
+      // (Volkan): GSC liefert Position + Seite fuer dieselben Queries selbst,
+      // das Dashboard faellt bei dfsPos=null ohnehin auf die GSC-Position
+      // zurueck (_posSrc "gsc"). dfsPos/dfsUrl bleiben als Felder (null).
       // Sanitizing (2026-08-13): google_ads/search_volume verwirft den GANZEN
       // Task, wenn EIN Keyword ungueltig ist. GSC-Queries enthalten auch
       // Unsichtbares (Zero-Width-Space u.ae.) — deshalb: unsichtbare Zeichen
@@ -614,11 +597,7 @@ async function jobGscQueries(c: any, uid: string, days: number, forceDfs = false
         q.split(" ").length <= 10 &&
         /^[\p{L}\p{N} \-.]+$/u.test(q);
       const missing = [
-        ...new Set(
-          shown
-            .map((r) => adsClean(String(r.query)))
-            .filter((q) => adsSafe(q) && labs.get(q)?.volume == null),
-        ),
+        ...new Set(shown.map((r) => adsClean(String(r.query))).filter((q) => adsSafe(q))),
       ];
       const vol = new Map<string, number>();
       for (let i = 0; i < missing.length; i += 500) {
@@ -632,14 +611,7 @@ async function jobGscQueries(c: any, uid: string, days: number, forceDfs = false
           if (kw && typeof it?.search_volume === "number") vol.set(kw, it.search_volume);
         }
       }
-      for (const r of shown) {
-        const n = String(r.query).toLowerCase();
-        const cleaned = adsClean(String(r.query));
-        const l = labs.get(n);
-        r.dfsPos = l?.pos ?? null;
-        r.dfsUrl = l?.url ?? null;
-        r.volume = l?.volume ?? vol.get(cleaned) ?? null;
-      }
+      for (const r of shown) r.volume = vol.get(adsClean(String(r.query))) ?? null;
       dfsEnrichedAt = nowIso();
     } else if (prevAt > 0 && Array.isArray(prev?.topNonbrandQueries)) {
       // Reuse: Anreicherung des Vorlaufs auf die aktuellen Rows uebertragen.
