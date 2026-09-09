@@ -77,6 +77,7 @@ import { Route as ApiAdminEwwwProvisionRouteImport } from './routes/api/admin.ew
 import { Route as ApiAdminGa4ConversionsRouteImport } from './routes/api/admin.ga4-conversions'
 import { Route as ApiAdminGbpRouteImport } from './routes/api/admin.gbp'
 import { Route as ApiAdminGeoGridSnapshotRouteImport } from './routes/api/admin.geo-grid-snapshot'
+import { Route as ApiAdminKeywordMetricsRouteImport } from './routes/api/admin.keyword-metrics'
 import { Route as ApiAdminGtmRouteImport } from './routes/api/admin.gtm'
 import { Route as ApiAdminLabsHistoryRouteImport } from './routes/api/admin.labs-history'
 import { Route as ApiAdminLlmResponsesRouteImport } from './routes/api/admin.llm-responses'
@@ -496,6 +497,11 @@ const ApiAdminGeoGridSnapshotRoute = ApiAdminGeoGridSnapshotRouteImport.update({
   path: '/api/admin/geo-grid-snapshot',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminKeywordMetricsRoute = ApiAdminKeywordMetricsRouteImport.update({
+  id: '/api/admin/keyword-metrics',
+  path: '/api/admin/keyword-metrics',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminGtmRoute = ApiAdminGtmRouteImport.update({
   id: '/api/admin/gtm',
   path: '/api/admin/gtm',
@@ -904,6 +910,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/geo-grid-snapshot': typeof ApiAdminGeoGridSnapshotRoute
+  '/api/admin/keyword-metrics': typeof ApiAdminKeywordMetricsRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/labs-history': typeof ApiAdminLabsHistoryRoute
   '/api/admin/llm-responses': typeof ApiAdminLlmResponsesRoute
@@ -1040,6 +1047,7 @@ export interface FileRoutesByTo {
   '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/geo-grid-snapshot': typeof ApiAdminGeoGridSnapshotRoute
+  '/api/admin/keyword-metrics': typeof ApiAdminKeywordMetricsRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/labs-history': typeof ApiAdminLabsHistoryRoute
   '/api/admin/llm-responses': typeof ApiAdminLlmResponsesRoute
@@ -1177,6 +1185,7 @@ export interface FileRoutesById {
   '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/geo-grid-snapshot': typeof ApiAdminGeoGridSnapshotRoute
+  '/api/admin/keyword-metrics': typeof ApiAdminKeywordMetricsRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/labs-history': typeof ApiAdminLabsHistoryRoute
   '/api/admin/llm-responses': typeof ApiAdminLlmResponsesRoute
@@ -1315,6 +1324,7 @@ export interface FileRouteTypes {
     | '/api/admin/ga4-conversions'
     | '/api/admin/gbp'
     | '/api/admin/geo-grid-snapshot'
+    | '/api/admin/keyword-metrics'
     | '/api/admin/gtm'
     | '/api/admin/labs-history'
     | '/api/admin/llm-responses'
@@ -1451,6 +1461,7 @@ export interface FileRouteTypes {
     | '/api/admin/ga4-conversions'
     | '/api/admin/gbp'
     | '/api/admin/geo-grid-snapshot'
+    | '/api/admin/keyword-metrics'
     | '/api/admin/gtm'
     | '/api/admin/labs-history'
     | '/api/admin/llm-responses'
@@ -1587,6 +1598,7 @@ export interface FileRouteTypes {
     | '/api/admin/ga4-conversions'
     | '/api/admin/gbp'
     | '/api/admin/geo-grid-snapshot'
+    | '/api/admin/keyword-metrics'
     | '/api/admin/gtm'
     | '/api/admin/labs-history'
     | '/api/admin/llm-responses'
@@ -1719,6 +1731,7 @@ export interface RootRouteChildren {
   ApiAdminGa4ConversionsRoute: typeof ApiAdminGa4ConversionsRoute
   ApiAdminGbpRoute: typeof ApiAdminGbpRoute
   ApiAdminGeoGridSnapshotRoute: typeof ApiAdminGeoGridSnapshotRoute
+  ApiAdminKeywordMetricsRoute: typeof ApiAdminKeywordMetricsRoute
   ApiAdminGtmRoute: typeof ApiAdminGtmRoute
   ApiAdminLabsHistoryRoute: typeof ApiAdminLabsHistoryRoute
   ApiAdminLlmResponsesRoute: typeof ApiAdminLlmResponsesRoute
@@ -2263,6 +2276,13 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/geo-grid-snapshot'
       fullPath: '/api/admin/geo-grid-snapshot'
       preLoaderRoute: typeof ApiAdminGeoGridSnapshotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/keyword-metrics': {
+      id: '/api/admin/keyword-metrics'
+      path: '/api/admin/keyword-metrics'
+      fullPath: '/api/admin/keyword-metrics'
+      preLoaderRoute: typeof ApiAdminKeywordMetricsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/gtm': {
@@ -2850,6 +2870,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminGa4ConversionsRoute: ApiAdminGa4ConversionsRoute,
   ApiAdminGbpRoute: ApiAdminGbpRoute,
   ApiAdminGeoGridSnapshotRoute: ApiAdminGeoGridSnapshotRoute,
+  ApiAdminKeywordMetricsRoute: ApiAdminKeywordMetricsRoute,
   ApiAdminGtmRoute: ApiAdminGtmRoute,
   ApiAdminLabsHistoryRoute: ApiAdminLabsHistoryRoute,
   ApiAdminLlmResponsesRoute: ApiAdminLlmResponsesRoute,

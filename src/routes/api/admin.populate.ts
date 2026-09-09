@@ -12,6 +12,7 @@ import {
   fetchBacklinkOverview,
   normalizeDomain,
 } from "@/server/backlink-overview.server";
+import { fetchKeywordMetrics } from "@/server/keyword-metrics.server";
 
 function slugify(s: string): string {
   return String(s || "")
@@ -599,16 +600,25 @@ async function jobGscQueries(c: any, uid: string, days: number, forceDfs = false
       const missing = [
         ...new Set(shown.map((r) => adsClean(String(r.query))).filter((q) => adsSafe(q))),
       ];
+      // Volumen seit 09.09.2026 aus dem Google Ads Keyword Planner (kostenlos,
+      // keyword-metrics.server.ts); DataForSEO nur noch als Fallback, wenn der
+      // Planner nicht antwortet (kein Ads-Konto erreichbar o. ae.).
       const vol = new Map<string, number>();
-      for (let i = 0; i < missing.length; i += 500) {
-        const sv = await dfsList(
-          "keywords_data/google_ads/search_volume/live",
-          { keywords: missing.slice(i, i + 500), location_code: 2756, language_code: "de" },
-          auth,
-        );
-        for (const it of (sv ?? []) as any[]) {
-          const kw = String(it?.keyword ?? "").toLowerCase();
-          if (kw && typeof it?.search_volume === "number") vol.set(kw, it.search_volume);
+      const planner = missing.length ? await fetchKeywordMetrics(missing, 2756, "de") : null;
+      if (planner?.ok) {
+        for (const k of planner.keywords)
+          if (typeof k.search_volume === "number") vol.set(k.kw, k.search_volume);
+      } else {
+        for (let i = 0; i < missing.length; i += 500) {
+          const sv = await dfsList(
+            "keywords_data/google_ads/search_volume/live",
+            { keywords: missing.slice(i, i + 500), location_code: 2756, language_code: "de" },
+            auth,
+          );
+          for (const it of (sv ?? []) as any[]) {
+            const kw = String(it?.keyword ?? "").toLowerCase();
+            if (kw && typeof it?.search_volume === "number") vol.set(kw, it.search_volume);
+          }
         }
       }
       for (const r of shown) r.volume = vol.get(adsClean(String(r.query))) ?? null;
