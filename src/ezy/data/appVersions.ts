@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "1.9.0",
+    version: "2.0.0",
     changelog: [
+      {
+        version: "2.0.0",
+        date: "2026-09-09",
+        note: "Rankings neu als Hybrid: die Position kommt täglich aus der Google Search Console (Ø der letzten 7 Tage, Schweiz, in der Tabelle mit «Ø» markiert), der Crawl misst Money-Keywords alle 5 Tage und alle Keywords einmal im Monat — dadurch alle Keywords mit Sichtbarkeit abgedeckt, nicht nur die getrackten",
+      },
       {
         version: "1.9.0",
         date: "2026-09-09",

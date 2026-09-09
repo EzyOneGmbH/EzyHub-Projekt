@@ -1040,9 +1040,17 @@ export function SeoDashboard({ selectedClient, dateRange }) {
       const n = normKw(q.query);
       if (!gscMap.has(n)) gscMap.set(n, q);
     }
+    // Hybrid (09.09.2026): posSrc aus dem Snapshot — "crawl" (DataForSEO, Money-
+    // Keywords + Monats-Eichung) oder "gsc" (GSC-Ø-Position, taeglich).
     const tracked = (rank?.keywords || []).map((k) => {
       const g = gscMap.get(normKw(k.kw));
-      return { ...k, clicks: g?.clicks ?? null, impressions: g?.impressions ?? null, _src: "dfs" };
+      return {
+        ...k,
+        clicks: g?.clicks ?? null,
+        impressions: g?.impressions ?? null,
+        _src: "dfs",
+        _posSrc: k.posSrc === "gsc" ? "gsc" : "dfs",
+      };
     });
     const seen = new Set(tracked.map((k) => normKw(k.kw)));
     const gscOnly = [];
@@ -1204,7 +1212,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
           starten" = echte externe Laeufe (PageSpeed + DataForSEO-Backlinks). */}
       <DataStatus
         items={[
-          runStatusItem("Rankings (DataForSEO)", rankRun, { staleDays: 3 }),
+          runStatusItem("Rankings (GSC + DataForSEO)", rankRun, { staleDays: 3 }),
           liveGsc
             ? { source: "Suchbegriffe (GSC)", state: "live", detail: "Live-Abfrage" }
             : runStatusItem("Suchbegriffe (GSC)", gscRun, { staleDays: 3 }),
@@ -1469,10 +1477,18 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                               ? k._posSrc === "dfs"
                                 ? "Labs-Position (DataForSEO, google.ch — wöchentlich)"
                                 : "GSC-Ø-Position (Durchschnitt über den Zeitraum)"
-                              : undefined
+                              : k._posSrc === "gsc"
+                                ? "GSC-Ø-Position (letzte 7 Tage, Schweiz) — DataForSEO-Crawl nur für Money-Keywords und monatlich für alle"
+                                : "Crawl-Position (DataForSEO, google.ch, Desktop)"
                           }
                         >
                           {k.pos != null ? k.pos : "> 100"}
+                          {k._src !== "gsc" && k._posSrc === "gsc" && k.pos != null && (
+                            <span style={{ color: C.textMuted, fontWeight: 400, fontSize: 10 }}>
+                              {" "}
+                              Ø
+                            </span>
+                          )}
                         </td>
                         {hasIntl && (
                           <td
@@ -1531,7 +1547,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                               title={
                                 k._src === "gsc"
                                   ? "Aus Google Search Console (nicht getrackt)"
-                                  : "Aktives Rank-Tracking (DataForSEO)"
+                                  : "Getracktes Keyword — Position täglich aus GSC (Ø 7 Tage, CH); DataForSEO crawlt Money-Keywords alle 5 Tage und alle Keywords monatlich"
                               }
                             >
                               {k._src === "gsc" ? "GSC" : "Tracking"}
@@ -2222,7 +2238,11 @@ export function SeoDashboard({ selectedClient, dateRange }) {
               </thead>
               <tbody>
                 {[
-                  ["Rankings (Top 3 · Top 10 · Tabelle)", "DataForSEO Rank-Tracking", rankRun],
+                  [
+                    "Rankings (Top 3 · Top 10 · Tabelle)",
+                    "GSC-Ø-Position täglich + DataForSEO-Crawl (Money-Keywords alle 5 Tage, alle monatlich)",
+                    rankRun,
+                  ],
                   [
                     "Organic Traffic",
                     "GA4 (Organic Search) · Fallback GSC-Klicks",

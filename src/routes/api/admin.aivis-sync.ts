@@ -5562,6 +5562,101 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
           return Response.json({ ok: true, build: BUILD_TAG, pending });
         }
 
+        // ?gscPositions=1&client=<slug>[&days=7&country=che]: GSC-Ø-Position je
+        // Query fuer den Rank-Tracking-Hybrid (09.09.2026, Volkan): der
+        // agent-service schreibt sie taeglich als `g` in den Rank-Store, der
+        // DataForSEO-Crawl bleibt nur noch fuer Money-Keywords + Monats-Eichung.
+        // Puffer heute-3 (GSC-Daten der letzten Tage sind unvollstaendig).
+        if (new URL(request.url).searchParams.get("gscPositions")) {
+          const sp = new URL(request.url).searchParams;
+          const slug = String(sp.get("client") || "")
+            .trim()
+            .toLowerCase();
+          const days = Math.min(28, Math.max(1, Number(sp.get("days") || 7) || 7));
+          const country = String(sp.get("country") || "che")
+            .trim()
+            .toLowerCase();
+          const slugify = (s: string) =>
+            String(s || "")
+              .toLowerCase()
+              .replace(/ä/g, "ae")
+              .replace(/ö/g, "oe")
+              .replace(/ü/g, "ue")
+              .replace(/[^a-z0-9]+/g, "-")
+              .replace(/^-+|-+$/g, "");
+          const { data: cls } = await sb.from("clients").select("id, name, domain, gsc_property");
+          const c = (cls || []).find(
+            (x: any) =>
+              slugify(x.name) === slug ||
+              slugify(
+                String(x.domain || "")
+                  .replace(/^https?:\/\//, "")
+                  .replace(/^www\./, "")
+                  .split(".")[0],
+              ) === slug,
+          );
+          if (!c)
+            return Response.json(
+              { ok: false, error: `Kunde '${slug}' unbekannt` },
+              { status: 404 },
+            );
+          if (!c.gsc_property) return Response.json({ ok: false, reason: "kein gsc_property" });
+          try {
+            const { accessToken } = await getGoogleAccessToken(c.id);
+            const end = new Date(Date.now() - 3 * 864e5);
+            const start = new Date(end.getTime() - days * 864e5);
+            const fmt = (d: Date) => d.toISOString().slice(0, 10);
+            const gr = await fetch(
+              `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(c.gsc_property)}/searchAnalytics/query`,
+              {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  startDate: fmt(start),
+                  endDate: fmt(end),
+                  dimensions: ["query"],
+                  rowLimit: 5000,
+                  ...(country && country !== "all"
+                    ? {
+                        dimensionFilterGroups: [
+                          {
+                            filters: [
+                              { dimension: "country", operator: "equals", expression: country },
+                            ],
+                          },
+                        ],
+                      }
+                    : {}),
+                }),
+                signal: AbortSignal.timeout(30_000),
+              },
+            );
+            if (!gr.ok)
+              return Response.json({ ok: false, error: `GSC HTTP ${gr.status}` }, { status: 502 });
+            const gj: any = await gr.json().catch(() => ({}));
+            const rows = (gj.rows || [])
+              .map((r: any) => ({
+                query: String(r.keys?.[0] || "").trim(),
+                position: Number(r.position) > 0 ? Math.round(Number(r.position) * 10) / 10 : null,
+                clicks: Number(r.clicks || 0),
+                impressions: Number(r.impressions || 0),
+              }))
+              .filter((r: any) => r.query && r.position != null);
+            return Response.json({
+              ok: true,
+              client: c.name,
+              days,
+              country,
+              range: { from: fmt(start), to: fmt(end) },
+              rows,
+            });
+          } catch (e) {
+            return Response.json({ ok: false, error: redactSecrets(e) }, { status: 502 });
+          }
+        }
         // ?rankClients=1: Kunden mit freigeschaltetem SEO-Dashboard + GSC-Seed-
         // Queries — der agent-service-Tick (rank-init) legt daraus automatisch
         // Rank-Tracking-Sets an (User-Vorgabe 2026-07-19, Anlass B5: Rankings

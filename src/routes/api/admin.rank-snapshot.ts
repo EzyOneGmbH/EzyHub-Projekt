@@ -12,6 +12,8 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 const Keyword = z.object({
   kw: z.string().min(1),
   pos: z.number().int().min(1).nullable(),
+  // Hybrid (09.09.2026): "crawl" = DataForSEO-SERP des Tages, "gsc" = GSC-Ø-Position (7 T, CH).
+  posSrc: z.enum(["crawl", "gsc"]).optional(),
   posPrev7: z.number().int().min(1).nullable().optional(),
   posPrev28: z.number().int().min(1).nullable().optional(),
   url: z.string().nullable().optional(),
