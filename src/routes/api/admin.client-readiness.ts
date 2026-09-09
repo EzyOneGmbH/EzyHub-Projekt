@@ -102,14 +102,7 @@ async function buildSnapshot(
   ]);
 
   const appEnabled: Record<string, boolean> = {};
-  let localGridOn = false;
-  for (const r of caa.data ?? []) {
-    appEnabled[r.app] = r.enabled !== false;
-    if (r.app === "seo") {
-      const f = Array.isArray(r.features) ? r.features : null;
-      localGridOn = !f || f.includes("localgrid"); // keine Liste = alle Features
-    }
-  }
+  for (const r of caa.data ?? []) appEnabled[r.app] = r.enabled !== false;
   const services: Record<string, boolean> = {};
   for (const r of integ.data ?? []) services[r.provider] = r.enabled === true;
 
@@ -117,9 +110,6 @@ async function buildSnapshot(
   for (const r of runs.data ?? []) {
     if (!lastRuns[r.audit_type]) lastRuns[r.audit_type] = r.finished_at || r.created_at;
   }
-
-  const meta = client.metadata || {};
-  const standorte = meta.targetLocations || meta.target_locations || meta.locations || [];
 
   const snapshot: ReadinessSnapshot = {
     appEnabled: appEnabled as any,
@@ -138,8 +128,6 @@ async function buildSnapshot(
     },
     lastRuns,
     portalUsers: new Set((viewer.data ?? []).map((v: any) => v.user_id)).size,
-    localGridOn,
-    standortVorhanden: Array.isArray(standorte) && standorte.length > 0,
   };
   return { snapshot, client };
 }
@@ -195,22 +183,13 @@ async function buildAlleReadiness(organizationId: string) {
 
   return (clients.data ?? []).map((client: any) => {
     const appEnabled: Record<string, boolean> = {};
-    let localGridOn = false;
-    for (const r of caaJe.get(client.id) ?? []) {
-      appEnabled[r.app] = r.enabled !== false;
-      if (r.app === "seo") {
-        const f = Array.isArray(r.features) ? r.features : null;
-        localGridOn = !f || f.includes("localgrid");
-      }
-    }
+    for (const r of caaJe.get(client.id) ?? []) appEnabled[r.app] = r.enabled !== false;
     const services: Record<string, boolean> = {};
     for (const r of integJe.get(client.id) ?? []) services[r.provider] = r.enabled === true;
     const lastRuns: Record<string, string | null> = {};
     for (const r of runsJe.get(client.id) ?? []) {
       if (!lastRuns[r.audit_type]) lastRuns[r.audit_type] = r.finished_at || r.created_at;
     }
-    const meta = client.metadata || {};
-    const standorte = meta.targetLocations || meta.target_locations || meta.locations || [];
     const snapshot: ReadinessSnapshot = {
       appEnabled: appEnabled as any,
       services,
@@ -223,8 +202,6 @@ async function buildAlleReadiness(organizationId: string) {
       },
       lastRuns,
       portalUsers: new Set((viewerJe.get(client.id) ?? []).map((v: any) => v.user_id)).size,
-      localGridOn,
-      standortVorhanden: Array.isArray(standorte) && standorte.length > 0,
     };
     const readiness = evaluateReadiness(snapshot);
     const aktive = readiness.filter((r) => r.status !== "deaktiviert");

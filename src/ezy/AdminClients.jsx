@@ -20,7 +20,6 @@ import { APP_FEATURES, EZY_APPS } from "@/ezy/data/appRegistry";
 import {
   STATUS_LABEL as READINESS_STATUS_LABEL,
   warneBeimAppAktivieren,
-  warneBeimLocalGrid,
 } from "@/ezy/data/appRequirements";
 import {
   appEnabledFor,
@@ -37,7 +36,6 @@ import {
   Clock,
   DollarSign,
   Globe,
-  MapPin,
   Megaphone,
   PenTool,
   Plus,
@@ -443,7 +441,6 @@ export const ONBOARD_TABS = [
   // "overview" entfernt (Volkan 10.08.): Übersicht-Tab existiert nicht mehr.
   { id: "seo", label: "SEO", hint: "Rankings, GSC, CWV, Backlinks" },
   { id: "blog", label: "Blog", hint: "Blog-Artikel & Refresh-Radar" },
-  { id: "localgrid", label: "Local Grid", hint: "Maps-Heatmap (nur mit Standort/GBP)" },
   { id: "aivis", label: "KI-Sichtbarkeit", hint: "AI-Citations (Canonry)" },
   { id: "conversions", label: "Conversions", hint: "GA4, Kanäle, Umsatz" },
   { id: "ads", label: "Google Ads", hint: "Kampagnen, Autopilot" },
@@ -1204,7 +1201,6 @@ export function ClientSettingsPanel({ client, onUpsertClient }) {
               // "overview" entfernt (Volkan 10.08.): Übersicht-Tab existiert nicht mehr.
               { id: "seo", label: "SEO", icon: Globe },
               { id: "blog", label: "Blog", icon: PenTool },
-              { id: "localgrid", label: "Local Grid", icon: MapPin },
               { id: "aivis", label: "KI-Sichtbarkeit", icon: Bot },
               { id: "conversions", label: "Conversions", icon: DollarSign },
               { id: "ads", label: "Ads", icon: Megaphone },
@@ -1843,17 +1839,6 @@ export function ClientAppAccessPanel({ client }) {
     const next = current.includes(featureId)
       ? current.filter((f) => f !== featureId)
       : [...current, featureId];
-    // Local Grid braucht einen Standort (GBP) — vor dem Aktivieren pruefen.
-    if (featureId === "localgrid" && next.includes("localgrid") && !current.includes("localgrid")) {
-      try {
-        const j = await fetchReadiness(client.id);
-        const warnungen = j?.ok ? warneBeimLocalGrid(j.snapshot) : [];
-        if (warnungen.length && !window.confirm(`${warnungen[0].text}\n\nTrotzdem aktivieren?`))
-          return;
-      } catch {
-        /* best effort */
-      }
-    }
     const err = await caa.setAccess(client.id, appId, { features: next });
     if (err) toast(err, "error");
   };

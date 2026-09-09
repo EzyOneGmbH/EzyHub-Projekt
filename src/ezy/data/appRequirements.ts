@@ -28,10 +28,6 @@ export type ReadinessSnapshot = {
   lastRuns: Record<string, string | null>;
   /** Anzahl Portal-Nutzer (Rolle viewer mit client_access auf diesen Kunden) */
   portalUsers: number;
-  /** Local-Grid-Feature aktiv (client_app_access seo.features) */
-  localGridOn: boolean;
-  /** Standort hinterlegt (Voraussetzung Local Grid / GBP) */
-  standortVorhanden: boolean;
   /** Referenz-Zeitpunkt (Injektion fuer Tests) */
   now?: number;
 };
@@ -271,18 +267,6 @@ export function warneBeimServiceDeaktivieren(
     }
   }
   return out;
-}
-
-/** Local Grid aktivieren ohne Standort/GBP. */
-export function warneBeimLocalGrid(s: ReadinessSnapshot): ValidierungsWarnung[] {
-  return s.standortVorhanden
-    ? []
-    : [
-        {
-          kritisch: true,
-          text: "Local Grid braucht einen hinterlegten Standort (GBP) — beim Kunden ist keiner erfasst.",
-        },
-      ];
 }
 
 export function appLabel(app: EzyAppId): string {

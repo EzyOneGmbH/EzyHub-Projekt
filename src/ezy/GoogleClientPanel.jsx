@@ -148,7 +148,7 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
     }
     setBusy("all");
     const jobs = [
-      ["Backlinks (DataForSEO)", "/api/ahrefs/overview", { clientId }],
+      ["Backlinks (Ahrefs)", "/api/ahrefs/overview", { clientId }],
       ["Core Web Vitals", "/api/google/pagespeed", { clientId }],
       ["GSC", "/api/google/gsc-import", { clientId, days: 28, rowLimit: 1000 }],
       ["GA4", "/api/google/ga4-summary", { clientId, days: 28 }],

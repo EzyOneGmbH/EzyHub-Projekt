@@ -6,7 +6,12 @@ import { redactSecrets } from "@/server/google-oauth.server";
 import { normalizeCanonryBase } from "@/lib/canonry-url";
 import { fetchAdsSnapshot } from "@/server/google-ads.server";
 import { fetchAworkForClient } from "@/routes/api/awork.tasks";
-import { dfsAuth, fetchBacklinkOverview, normalizeDomain } from "@/server/backlink-overview.server";
+import {
+  backlinkAuth,
+  dfsAuth,
+  fetchBacklinkOverview,
+  normalizeDomain,
+} from "@/server/backlink-overview.server";
 
 function slugify(s: string): string {
   return String(s || "")
@@ -221,15 +226,16 @@ async function jobPagespeed(c: any, uid: string, _days: number) {
 }
 
 async function jobAhrefs(c: any, uid: string) {
-  // 2026-08-07: von der Ahrefs-API auf DataForSEO umgestellt (Ahrefs-Ablösung
-  // 06.08.) — gleiche Abrufe/Result-Form wie /api/ahrefs/overview, geteilt über
-  // backlink-overview.server.ts. audit_type bleibt "ahrefs" (Feld-Kontinuität:
-  // Panel, Freshness-Guard und Dashboard-Filter lesen unverändert weiter).
-  const auth = dfsAuth();
-  if (!auth) return { skipped: "DATAFORSEO_LOGIN/PASSWORD fehlt" };
+  // Gleiche Abrufe/Result-Form wie /api/ahrefs/overview, geteilt über
+  // backlink-overview.server.ts (Provider-Weiche: seit 09.09.2026 Ahrefs,
+  // BACKLINK_PROVIDER=dataforseo als Rückweg). audit_type bleibt "ahrefs"
+  // (Feld-Kontinuität: Panel, Freshness-Guard und Dashboard-Filter).
+  const { provider, auth, missing } = backlinkAuth();
+  if (!auth) return { skipped: `${missing} fehlt` };
   const domain = normalizeDomain(String(c.domain || ""));
   if (!domain) return { skipped: "keine Domain" };
-  const { all_failed: allFailed, ...result } = await fetchBacklinkOverview(domain, auth);
+  const { all_failed: allFailed, ...result } = await fetchBacklinkOverview(domain, auth, provider);
+  const failMsg = `Alle Backlink-Sektionen fehlgeschlagen (${provider})`;
   await insertRun({
     client_id: c.id,
     organization_id: c.organization_id,
@@ -238,11 +244,11 @@ async function jobAhrefs(c: any, uid: string) {
     status: allFailed ? "failed" : "succeeded",
     input: { domain },
     result,
-    error: allFailed ? "Alle DataForSEO-Sektionen fehlgeschlagen" : null,
+    error: allFailed ? failMsg : null,
     started_at: nowIso(),
     finished_at: nowIso(),
   });
-  return allFailed ? { error: "Alle DataForSEO-Sektionen fehlgeschlagen" } : { ok: true };
+  return allFailed ? { error: failMsg } : { ok: true, provider };
 }
 
 async function jobGsc(c: any, uid: string, days: number) {

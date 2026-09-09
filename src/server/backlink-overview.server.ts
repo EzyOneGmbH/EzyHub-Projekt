@@ -1,12 +1,23 @@
-// Backlink-/Autoritäts-Overview via DataForSEO — gemeinsame Logik für
-// /api/ahrefs/overview (on-demand aus dem Panel) und
-// /api/admin/backlink-backfill (Durchlauf über alle Kunden).
-// 2026-08-07 aus ahrefs.overview.ts extrahiert (Ahrefs-Ablösung 06.08.).
-//   - backlinks/summary/live               -> rank (DR-Ersatz) + Backlinks/Refdomains
-//   - backlinks/history/live               -> Referring-Domains-Verlauf (90 Tage)
-//   - dataforseo_labs domain_rank_overview -> organischer Traffic/Keywords (CH)
+// Backlink-/Autoritäts-Overview — gemeinsame Logik für /api/ahrefs/overview
+// (on-demand aus dem Panel) und den 12h-Populate-Job jobAhrefs (alle Kunden).
+//
+// 2026-09-09: zurück auf Ahrefs (Volkan: Abo läuft ohnehin für Brand Radar,
+// DataForSEO kostet pro Call — der 12h-Populate war ~50 USD/Monat nur für
+// dieses Panel). Ahrefs liefert die ROHEN v3-Antworten wie vor der Ablösung
+// vom 06.08. (useEzyLatestRun/RankDashboards lesen beide Formen), plus
+// source:"ahrefs". Die DataForSEO-Variante bleibt als Rückweg erhalten:
+// BACKLINK_PROVIDER=dataforseo in der Lovable-Env schaltet ohne Code zurück.
+//   Ahrefs:      site-explorer/domain-rating | backlinks-stats | refdomains-history | metrics
+//   DataForSEO:  backlinks/summary | backlinks/history | labs domain_rank_overview
 
 const DFS_BASE = "https://api.dataforseo.com/v3";
+const AHREFS_BASE = "https://api.ahrefs.com/v3";
+
+export type BacklinkProvider = "ahrefs" | "dataforseo";
+
+export function backlinkProvider(): BacklinkProvider {
+  return process.env.BACKLINK_PROVIDER === "dataforseo" ? "dataforseo" : "ahrefs";
+}
 
 export function dfsAuth(): string | null {
   const login = process.env.DATAFORSEO_LOGIN,
@@ -15,7 +26,27 @@ export function dfsAuth(): string | null {
   return "Basic " + Buffer.from(`${login}:${pass}`).toString("base64");
 }
 
-type SectionResult<T> = { ok: true; data: T } | { ok: false; error: string };
+export function ahrefsAuth(): string | null {
+  const key = process.env.AHREFS_API_KEY;
+  return key ? `Bearer ${key}` : null;
+}
+
+// Auth passend zum aktiven Provider; `missing` nennt die fehlende Env-Variable
+// für die 503-/skipped-Meldung der Aufrufer.
+export function backlinkAuth(): {
+  provider: BacklinkProvider;
+  auth: string | null;
+  missing: string;
+} {
+  const provider = backlinkProvider();
+  return provider === "dataforseo"
+    ? { provider, auth: dfsAuth(), missing: "DATAFORSEO_LOGIN/PASSWORD" }
+    : { provider, auth: ahrefsAuth(), missing: "AHREFS_API_KEY" };
+}
+
+type SectionResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: string; rate_limited?: boolean };
 
 // Generischer DataForSEO-Live-Call (Basic-Auth, Task-Array-Body). Gibt das erste
 // result-Objekt zurück; Fehler (inkl. task-level status_code) werden gefangen.
@@ -51,6 +82,42 @@ async function dfsCall<T = any>(
   }
 }
 
+// Ahrefs-v3-GET (Bearer). Der Key darf nie in Fehlertexten landen — Antwort-
+// Texte werden gekürzt, ein 429 wird als rate_limited markiert.
+async function ahrefsCall<T = any>(
+  path: string,
+  params: Record<string, string>,
+  auth: string,
+  timeoutMs = 12000,
+): Promise<SectionResult<T>> {
+  const url = new URL(`${AHREFS_BASE}/${path}`);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: auth, Accept: "application/json" },
+      signal: ctrl.signal,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      const rate_limited = res.status === 429;
+      return {
+        ok: false,
+        rate_limited,
+        error: rate_limited
+          ? "Ahrefs rate limit reached (HTTP 429)"
+          : `HTTP ${res.status}: ${text.replace(/Bearer\s+\S+/gi, "Bearer ***").slice(0, 160)}`,
+      };
+    }
+    return { ok: true, data: (await res.json().catch(() => null)) as T };
+  } catch (e) {
+    return { ok: false, error: String((e as Error)?.message || e).slice(0, 120) };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 export function normalizeDomain(raw: string): string {
   return String(raw)
     .replace(/^https?:\/\//, "")
@@ -61,8 +128,8 @@ export function normalizeDomain(raw: string): string {
 export type BacklinkOverview = {
   generated_at: string;
   domain: string;
-  source: "dataforseo";
-  rate_limited: false;
+  source: BacklinkProvider;
+  rate_limited: boolean;
   domain_rating: Record<string, unknown> | null;
   backlinks_stats: Record<string, unknown> | null;
   refdomains_history: Record<string, unknown> | null;
@@ -71,9 +138,62 @@ export type BacklinkOverview = {
   all_failed: boolean;
 };
 
-// Führt die 3 DataForSEO-Abrufe für eine (bereits normalisierte) Domain aus und
-// mappt sie in die bestehenden Panel-Schlüssel (Panel zeigt rohes JSON).
+// Provider-Weiche: Standard Ahrefs, DataForSEO nur per BACKLINK_PROVIDER.
 export async function fetchBacklinkOverview(
+  domain: string,
+  auth: string,
+  provider: BacklinkProvider = backlinkProvider(),
+): Promise<BacklinkOverview> {
+  return provider === "dataforseo"
+    ? fetchBacklinkOverviewDfs(domain, auth)
+    : fetchBacklinkOverviewAhrefs(domain, auth);
+}
+
+// Ahrefs: 4 Abrufe parallel, Rohantworten unverändert durchreichen (Form wie
+// vor dem 06.08.: domain_rating.domain_rating.domain_rating, backlinks_stats.
+// metrics.live_refdomains, refdomains_history.refdomains[], metrics.metrics.org_traffic).
+// Ahrefs kennt kein "heute" (bad date) -> gestern; mode=subdomains, damit eine
+// nackte Domain auch www/Hosts einsammelt.
+export async function fetchBacklinkOverviewAhrefs(
+  domain: string,
+  auth: string,
+): Promise<BacklinkOverview> {
+  const date = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const dateFrom = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+
+  const [dr, bl, rd, mt] = await Promise.all([
+    ahrefsCall("site-explorer/domain-rating", { target: domain, date }, auth),
+    ahrefsCall("site-explorer/backlinks-stats", { target: domain, date, mode: "subdomains" }, auth),
+    ahrefsCall(
+      "site-explorer/refdomains-history",
+      { target: domain, date_from: dateFrom, history_grouping: "weekly", mode: "subdomains" },
+      auth,
+    ),
+    ahrefsCall("site-explorer/metrics", { target: domain, date, mode: "subdomains" }, auth),
+  ]);
+
+  const sections = [dr, bl, rd, mt];
+  return {
+    generated_at: new Date().toISOString(),
+    domain,
+    source: "ahrefs",
+    rate_limited: sections.some((s) => !s.ok && s.rate_limited === true),
+    domain_rating: dr.ok ? dr.data : null,
+    backlinks_stats: bl.ok ? bl.data : null,
+    refdomains_history: rd.ok ? rd.data : null,
+    metrics: mt.ok ? mt.data : null,
+    errors: {
+      domain_rating: dr.ok ? null : dr.error,
+      backlinks_stats: bl.ok ? null : bl.error,
+      refdomains_history: rd.ok ? null : rd.error,
+      metrics: mt.ok ? null : mt.error,
+    },
+    all_failed: sections.every((s) => !s.ok),
+  };
+}
+
+// DataForSEO (Rückweg): 3 Abrufe, in die Panel-Schlüssel gemappt.
+export async function fetchBacklinkOverviewDfs(
   domain: string,
   auth: string,
 ): Promise<BacklinkOverview> {

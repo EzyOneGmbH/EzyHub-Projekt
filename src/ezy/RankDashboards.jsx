@@ -1209,7 +1209,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
             ? { source: "Suchbegriffe (GSC)", state: "live", detail: "Live-Abfrage" }
             : runStatusItem("Suchbegriffe (GSC)", gscRun, { staleDays: 3 }),
           {
-            ...runStatusItem("Backlinks (DataForSEO)", run, { staleDays: 9 }),
+            ...runStatusItem("Backlinks (Ahrefs)", run, { staleDays: 9 }),
             state:
               ahrefsMeas.state.status === "running"
                 ? "running"
@@ -1250,7 +1250,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
             label: "Neue Messung starten",
             kind: "measure",
             title:
-              "Startet echte externe Laeufe: PageSpeed (CWV) + DataForSEO-Backlink-Overview. Rankings/GSC/GA4 misst der naechtliche Sammel-Lauf.",
+              "Startet echte externe Laeufe: PageSpeed (CWV) + Ahrefs-Backlink-Overview. Rankings/GSC/GA4 misst der naechtliche Sammel-Lauf.",
             busy: psiMeas.state.status === "running" || ahrefsMeas.state.status === "running",
             onClick: async () => {
               // Doppelstart-Guard sitzt in useMeasurement (modulweit).
@@ -1977,7 +1977,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
           {isOn("seo.ahrefs") && refdomainsSeries.length < 2 && (
             <SectionPlaceholder
               title="Verweisende Domains"
-              hint="Braucht mindestens 2 DataForSEO-Datenpunkte — füllt sich automatisch mit den nächsten Läufen."
+              hint="Braucht mindestens 2 wöchentliche Ahrefs-Datenpunkte — füllt sich automatisch mit den nächsten Läufen."
             />
           )}
           {isOn("seo.gsc") && rankingDist.length > 0 && (
@@ -2037,7 +2037,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                 Verweisende Domains
               </div>
               <div style={{ fontSize: 11, color: C.textDim, marginBottom: 12 }}>
-                DataForSEO (Backlinks-Historie, letzte 90 Tage)
+                Wöchentlich (Ahrefs, letzte 90 Tage)
               </div>
               <ResponsiveContainer width="100%" height={240}>
                 <AreaChart data={refdomainsSeries}>
@@ -2187,7 +2187,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
         // der Hinweis auf Daten-Läufe/Quellen ist Team-Information).
         <SectionPlaceholder
           title="Entwicklung (Traffic · Visibility · Keywords)"
-          hint="Braucht mindestens 2 Daten-Läufe (DataForSEO) im gewählten Zeitraum — Datumsfilter weiter fassen oder auf die nächsten automatischen Läufe warten."
+          hint="Braucht mindestens 2 Ahrefs-Läufe im gewählten Zeitraum — Datumsfilter weiter fassen oder auf die nächsten automatischen Läufe warten."
         />
       ) : null}
       {/* Datenquellen-Übersicht (User-Wunsch 2026-07-17): welches Widget bezieht
@@ -2228,11 +2228,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                     "GA4 (Organic Search) · Fallback GSC-Klicks",
                     trafRun || gscRun,
                   ],
-                  [
-                    "SEO-KPIs (Visibility, Authority, Keywords, Backlinks)",
-                    "DataForSEO (Backlinks & Labs)",
-                    run,
-                  ],
+                  ["SEO-KPIs (Visibility, Authority, Keywords, Backlinks)", "Ahrefs", run],
                   ["Switzerland Traffic", "GA4 (Organic Search, nur CH)", trafRun],
                   [
                     "Brand/Non-Brand-Split · Positions-Buckets (Top-Suchanfragen: in der Rankings-Tabelle)",
@@ -2245,9 +2241,9 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                     "Google PageSpeed (CrUX/Lighthouse)",
                     psiRun,
                   ],
-                  ["Verweisende Domains", "DataForSEO (Backlinks-Historie)", run],
+                  ["Verweisende Domains", "Ahrefs", run],
                   ["Meistbesuchte Seiten", "Google Analytics 4", trafRun],
-                  ["Entwicklung (Trend)", "DataForSEO (Verlauf der Audit-Läufe)", run],
+                  ["Entwicklung (Trend)", "Ahrefs (Verlauf der Audit-Läufe)", run],
                 ].map(([widget, source, r]) => (
                   <tr key={widget} style={{ borderTop: `1px solid ${C.border}` }}>
                     <td style={{ padding: "6px 8px", color: C.text }}>{widget}</td>
@@ -3582,7 +3578,7 @@ export function OverviewDashboard({ selectedClient, dateRange }) {
     ? (Date.now() - new Date(populateMeta.created_at).getTime()) / 3600_000
     : null;
   const SOURCE_LABELS = {
-    ahrefs: "Backlinks (DFS)",
+    ahrefs: "Backlinks (Ahrefs)",
     gsc: "GSC",
     gsc_queries: "GSC-Queries",
     crux: "CWV",

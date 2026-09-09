@@ -27,7 +27,8 @@ const PROVIDER_LABELS: Record<string, { name: string; hint: string }> = {
   anthropic: { name: "Anthropic Claude", hint: "ANTHROPIC_API_KEY" },
   perplexity: { name: "Perplexity", hint: "PERPLEXITY_API_KEY" },
   canonry: { name: "Canonry", hint: "CANONRY_BASE_URL + CANONRY_API_KEY" },
-  dataforseo: { name: "DataForSEO", hint: "DATAFORSEO_LOGIN + DATAFORSEO_PASSWORD" },
+  dataforseo: { name: "DataForSEO (Rankings)", hint: "DATAFORSEO_LOGIN + DATAFORSEO_PASSWORD" },
+  ahrefs: { name: "Ahrefs (Backlinks, Site-Audit, Brand Radar)", hint: "AHREFS_API_KEY" },
   google_oauth: {
     name: "Google OAuth (GSC/GA4)",
     hint: "GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI",

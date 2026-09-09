@@ -105,8 +105,8 @@ export const APP_SCOPES: Record<
     // Scope-Guard auf das Dashboard zurückgeworfen wird.
     pages: ["dashboard", "copilot", "tools", "content"],
     // Volkan 10.08.: Übersicht-Tab raus — EzyRank startet direkt im SEO-Tab.
-    // Local Grid (17.08.): Maps-Heatmap aus dem Geo-Grid-Scan, opt-in je Kunde.
-    tabs: ["seo", "blog", "localgrid", "conversions"],
+    // Local Grid (17.08.–09.09.) entfernt (Volkan 09.09.): kein Freitags-Scan mehr.
+    tabs: ["seo", "blog", "conversions"],
     primary: "seo", // umgeht die Kunden-Tab-Auswahl (Kern-Tab der App)
     home: "/ezyrank",
     // kein services-Filter: SEO ist das Kernprodukt — alle Kunden sichtbar
@@ -160,7 +160,8 @@ export const APP_FEATURES: Record<EzyAppId, Array<{ id: string; label: string }>
     // EzyRank nicht mehr — TAB_APP_FEATURE behält den Eintrag fürs Gating alter Stände.
     { id: "seo", label: "Rankings & GSC-Suchbegriffe" },
     { id: "blog", label: "Blog / Refresh-Radar" },
-    { id: "localgrid", label: "Local Grid (Maps-Heatmap)" },
+    // "localgrid" entfernt (09.09.); alte Freischaltungen mit dem Eintrag bleiben
+    // harmlos (Gating kennt den Tab nicht mehr).
     { id: "conversions", label: "Conversions" },
     { id: "reports", label: "Reports" },
   ],

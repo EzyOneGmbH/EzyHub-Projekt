@@ -3,7 +3,6 @@ import {
   evaluateReadiness,
   warneBeimAppAktivieren,
   warneBeimServiceDeaktivieren,
-  warneBeimLocalGrid,
   type ReadinessSnapshot,
 } from "./appRequirements";
 
@@ -17,8 +16,6 @@ function snap(over: Partial<ReadinessSnapshot> = {}): ReadinessSnapshot {
     felder: {},
     lastRuns: {},
     portalUsers: 0,
-    localGridOn: false,
-    standortVorhanden: false,
     now: NOW,
     ...over,
   };
@@ -89,11 +86,6 @@ describe("Konfigurationsvalidierung", () => {
     // Zweiter GEO-Service vorhanden -> keine Warnung
     const s2 = snap({ services: { perplexity: true, canonry: true } });
     expect(warneBeimServiceDeaktivieren("perplexity", s2).length).toBe(0);
-  });
-
-  it("warnt bei Local Grid ohne Standort, nicht mit Standort", () => {
-    expect(warneBeimLocalGrid(snap()).length).toBe(1);
-    expect(warneBeimLocalGrid(snap({ standortVorhanden: true })).length).toBe(0);
   });
 
   it("Service-Deaktivierung ohne betroffene App warnt nicht", () => {

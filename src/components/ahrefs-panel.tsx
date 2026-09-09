@@ -31,9 +31,11 @@ export function AhrefsPanel({ clientId, domain }: Props) {
         .order("finished_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      // Nur DataForSEO-Läufe automatisch anzeigen (alte Ahrefs-Ergebnisse haben
-      // eine andere Feldform und wären irreführend).
-      if (!cancelled && row?.result && (row.result as any).source === "dataforseo") {
+      // Nur Läufe mit Quell-Label automatisch anzeigen (Ahrefs seit 09.09.2026,
+      // DataForSEO 06.08.–09.09.); Läufe ohne `source` stammen aus der Zeit vor
+      // dem Panel-Autoload und werden nicht vorgeladen.
+      const src = (row?.result as any)?.source;
+      if (!cancelled && row?.result && (src === "ahrefs" || src === "dataforseo")) {
         setData(row.result);
         setFromStore(true);
       }
@@ -74,7 +76,9 @@ export function AhrefsPanel({ clientId, domain }: Props) {
         <div className="flex items-center gap-2">
           <BarChart3 className="h-5 w-5 text-primary" />
           <h2 className="font-semibold">Backlinks &amp; Autorität</h2>
-          <Badge variant="secondary">DataForSEO</Badge>
+          <Badge variant="secondary">
+            {data?.source === "dataforseo" ? "DataForSEO" : "Ahrefs"}
+          </Badge>
           {domain && <Badge variant="outline">{domain}</Badge>}
         </div>
         <Button onClick={run} disabled={loading || !domain} size="sm">
@@ -96,9 +100,14 @@ export function AhrefsPanel({ clientId, domain }: Props) {
 
       {data && (
         <div className="space-y-3">
+          {data.rate_limited && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-amber-600">
+              Ahrefs Rate-Limit erreicht — bitte später erneut versuchen.
+            </div>
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
             <Section
-              title="Autorität (DFS-Rank)"
+              title={data.source === "dataforseo" ? "Autorität (DFS-Rank)" : "Domain Rating"}
               payload={data.domain_rating}
               error={data.errors?.domain_rating}
             />

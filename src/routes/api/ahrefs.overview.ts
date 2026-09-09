@@ -2,16 +2,18 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { canRunAudits } from "@/server/integrations.server";
-import { dfsAuth, fetchBacklinkOverview, normalizeDomain } from "@/server/backlink-overview.server";
+import {
+  backlinkAuth,
+  fetchBacklinkOverview,
+  normalizeDomain,
+} from "@/server/backlink-overview.server";
 
-// Backlink-/Autoritäts-Übersicht — 2026-08-06 von Ahrefs auf DataForSEO abgelöst.
-// Ahrefs war die letzte Live-Quelle im Overview-Panel (die KI-Sichtbarkeit lief
-// schon seit 19.07. über DataForSEO). Route-Pfad bleibt /api/ahrefs/overview,
-// damit das Panel unverändert fetchen kann. Die DataForSEO-Logik liegt seit
-// 07.08. in src/server/backlink-overview.server.ts (geteilt mit
-// /api/admin/backlink-backfill, das alle Kunden im Durchlauf befüllt).
-// Metrik-Bruch bewusst: DFS-Rank/Link-Index ≠ Ahrefs -> Quelle im Ergebnis
-// gelabelt (source:"dataforseo"), Panel zeigt es an.
+// Backlink-/Autoritäts-Übersicht. 06.08.–09.09.2026 lief sie über DataForSEO,
+// seit 09.09. wieder über Ahrefs (Abo läuft ohnehin, DFS kostete pro Call).
+// Provider-Weiche + beide Implementierungen liegen in
+// src/server/backlink-overview.server.ts (geteilt mit dem 12h-Populate-Job);
+// BACKLINK_PROVIDER=dataforseo schaltet ohne Code zurück. Quelle steht im
+// Ergebnis (source:"ahrefs"|"dataforseo"), das Panel zeigt sie an.
 
 const QuerySchema = z.object({
   clientId: z.string().uuid(),
@@ -21,12 +23,9 @@ export const Route = createFileRoute("/api/ahrefs/overview")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const auth = dfsAuth();
+        const { provider, auth, missing } = backlinkAuth();
         if (!auth) {
-          return Response.json(
-            { error: "DATAFORSEO_LOGIN/PASSWORD not configured" },
-            { status: 503 },
-          );
+          return Response.json({ error: `${missing} not configured` }, { status: 503 });
         }
 
         const supabaseUrl = process.env.SUPABASE_URL;
@@ -84,11 +83,16 @@ export const Route = createFileRoute("/api/ahrefs/overview")({
             { status: 403 },
           );
         }
-        // Kein Ahrefs-Provider-Gate mehr — DataForSEO ist plattformweit (pay-per-call).
+        // Kein Provider-Gate je Kunde — der Schlüssel ist plattformweit.
         const domain = normalizeDomain(client.domain);
         const organizationId = client.organization_id;
 
-        const { all_failed: allFailed, ...result } = await fetchBacklinkOverview(domain, auth);
+        const { all_failed: allFailed, ...result } = await fetchBacklinkOverview(
+          domain,
+          auth,
+          provider,
+        );
+        const failMsg = `Alle Backlink-Sektionen fehlgeschlagen (${provider})`;
 
         if (clientId && organizationId) {
           await admin.from("audit_runs").insert({
@@ -99,7 +103,7 @@ export const Route = createFileRoute("/api/ahrefs/overview")({
             status: allFailed ? "failed" : "succeeded",
             input: { domain },
             result: result as unknown as Record<string, unknown>,
-            error: allFailed ? "Alle DataForSEO-Sektionen fehlgeschlagen" : null,
+            error: allFailed ? failMsg : null,
             started_at: new Date().toISOString(),
             finished_at: new Date().toISOString(),
           });
@@ -110,9 +114,7 @@ export const Route = createFileRoute("/api/ahrefs/overview")({
         // useMeasurement/runTool meldeten dann faelschlich Erfolg. Bestehende
         // Konsumenten (ahrefs-panel, GoogleClientPanel) lesen nur Datenfelder.
         return Response.json(
-          allFailed
-            ? { ok: false, error: "Alle DataForSEO-Sektionen fehlgeschlagen", ...result }
-            : { ok: true, ...result },
+          allFailed ? { ok: false, error: failMsg, ...result } : { ok: true, ...result },
           {
             status: 200,
             headers: { "Cache-Control": "no-store" },

@@ -369,7 +369,8 @@ export function SettingsPage({
     ["OpenAI", live.data?.providers?.openai, C.blue, Bot],
     ["Anthropic", live.data?.providers?.anthropic, C.pink, Bot],
     ["Perplexity", live.data?.providers?.perplexity, C.orange, Sparkles],
-    ["DataForSEO", live.data?.providers?.dataforseo, C.green, Link2],
+    ["DataForSEO (Rankings)", live.data?.providers?.dataforseo, C.green, Link2],
+    ["Ahrefs (Backlinks · Site-Audit)", live.data?.providers?.ahrefs, C.green, Link2],
     ["Moz", null, C.textMuted, Database],
   ];
   const googleRows = [

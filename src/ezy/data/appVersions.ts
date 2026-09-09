@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "1.8.0",
+    version: "1.9.0",
     changelog: [
+      {
+        version: "1.9.0",
+        date: "2026-09-09",
+        note: "Backlinks & Autorität und der Site-Audit kommen wieder aus Ahrefs (Domain Rating, Backlink-Verlauf, Issue-Liste) — der Tab «Local Grid» wurde entfernt",
+      },
       {
         version: "1.8.0",
         date: "2026-08-31",

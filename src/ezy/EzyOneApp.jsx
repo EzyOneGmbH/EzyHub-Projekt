@@ -22,7 +22,6 @@ import {
   LayoutDashboard,
   Sparkles,
   Mail,
-  MapPin,
   DollarSign,
   BarChart3,
   Activity,
@@ -81,7 +80,6 @@ import {
 
 // Local-Grid-Tab (2026-08-17): Maps-Heatmap (Geo-Grid) — eigene Datei, damit
 // der Monolith klein bleibt (parallele Sessions!).
-import LocalGridDashboard from "@/ezy/LocalGridDashboard";
 import DataStatus from "@/ezy/DataStatus";
 // Architektur-Extraktion 2026-08-18: Markdown-Helfer leben jetzt testbar in
 // lib/markdown.ts (XSS-Tests) — Verhalten unveraendert, nur verschoben.
@@ -6484,8 +6482,8 @@ const TABS = [
   // EzyRank (und Portal) starten direkt im SEO-Tab.
   { id: "seo", label: "SEO", icon: Globe },
   { id: "blog", label: "Blog", icon: PenTool },
-  // Local Grid (2026-08-17): Maps-Heatmap aus dem woechentlichen Geo-Grid-Scan.
-  { id: "localgrid", label: "Local Grid", icon: MapPin },
+  // Local Grid (17.08.–09.09.): Tab entfernt (Volkan 09.09.) — Freitags-Scan
+  // und Heatmap abgeschafft; die agent-service-Route /geo-grid liegt brach.
   // aivis: seit Phase 2 eigene EzyAI-App unter /ezyai (Tab entfernt 31.07.)
   { id: "conversions", label: "Conversions", icon: DollarSign },
   { id: "ads", label: "Ads", icon: Megaphone },
@@ -6498,10 +6496,6 @@ const TAB_SERVICE = {
   overview: null,
   seo: null,
   blog: null, // Refresh-Radar: opt-in rein über die Tab-Auswahl je Kunde
-  // Local Grid: opt-in über die Tab-Auswahl — nur Kunden mit physischem
-  // Standort/GBP (z. B. FiH bewusst nicht).
-  localgrid: null,
-
   conversions: ["ga4"],
   ads: ["google-ads"],
   runs: null, // Lauf-Nachweis: immer sichtbar
@@ -7559,15 +7553,13 @@ function App({ appScope = null }) {
                             ? "Übersicht"
                             : tab === "seo"
                               ? "SEO Dashboard"
-                              : tab === "localgrid"
-                                ? "Local Grid"
-                                : tab === "blog"
-                                  ? "Blog"
-                                  : tab === "aivis"
-                                    ? "KI-Sichtbarkeit"
-                                    : tab === "ads"
-                                      ? "Ads Dashboard"
-                                      : "Conversions"}
+                              : tab === "blog"
+                                ? "Blog"
+                                : tab === "aivis"
+                                  ? "KI-Sichtbarkeit"
+                                  : tab === "ads"
+                                    ? "Ads Dashboard"
+                                    : "Conversions"}
                       </h1>
                       {isViewer && <Badge color={C.blue}>Nur-Lese-Ansicht</Badge>}
                     </div>
@@ -7605,7 +7597,6 @@ function App({ appScope = null }) {
                       {tab === "seo" && (
                         <SeoDashboard selectedClient={client} dateRange={dateRangeWithCompare} />
                       )}
-                      {tab === "localgrid" && <LocalGridDashboard selectedClient={client} />}
                       {tab === "blog" && <RefreshRadar selectedClient={client} />}
                       {/* aivis: seit Phase 2 in der EzyAI-App (/ezyai) */}
                       {tab === "conversions" && (
