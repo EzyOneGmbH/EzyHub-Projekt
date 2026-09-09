@@ -5665,9 +5665,23 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
           const { data: cls } = await sb
             .from("clients")
             .select("id, name, domain, gsc_property, brand_terms, metadata");
+          // EzyRank-Freischaltung (client_app_access seo; keine Zeile = frei) —
+          // Volkan 09.09.2026: Ads-only-Kunden (z. B. Morosani-Einzelhaeuser)
+          // bekommen KEIN Rank-Tracking.
+          const seoOff = new Set<string>();
+          try {
+            const { data: caa } = await sb
+              .from("client_app_access")
+              .select("client_id, enabled")
+              .eq("app", "seo");
+            for (const r of (caa || []) as any[]) if (r.enabled === false) seoOff.add(r.client_id);
+          } catch {
+            /* Tabelle optional */
+          }
           const out: any[] = [];
           for (const c of cls || []) {
             if (istKundePausiert(c)) continue; // deaktiviert = kein Rank-Tracking
+            if (seoOff.has(c.id)) continue; // EzyRank fuer diesen Kunden gesperrt
             const tabs = c.metadata?.defaults?.visibleTabs;
             // null/legacy = Org-Default (enthaelt seo); sonst muss "seo" drin sein.
             const seoEnabled = !Array.isArray(tabs) || tabs.includes("seo");

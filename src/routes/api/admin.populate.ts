@@ -1339,6 +1339,46 @@ export const Route = createFileRoute("/api/admin/populate")({
         if (!clients.length)
           return Response.json({ ok: false, error: "Kein Kunde gefunden" }, { status: 404 });
 
+        // App-Freischaltung je Kunde (Volkan 09.09.2026: «nur Kunden updaten,
+        // die im EzyRank auch verfuegbar sind» — z. B. Morosani Posthotel/
+        // Schweizerhof/fiftyone sind reine EzyPerformance-Kunden). Semantik wie
+        // appEnabledFor: keine Zeile = frei, enabled=false = gesperrt. Gilt nur
+        // fuer Sammel-Laeufe (all:true); gezielte Einzelaufrufe bleiben frei.
+        const appOff = new Map<string, Set<string>>();
+        if (all) {
+          try {
+            const { data: caa } = await supabaseAdmin
+              .from("client_app_access")
+              .select("client_id, app, enabled")
+              .in("app", ["seo", "geo"]);
+            for (const r of (caa || []) as any[]) {
+              if (r.enabled === false) {
+                if (!appOff.has(r.client_id)) appOff.set(r.client_id, new Set());
+                appOff.get(r.client_id)!.add(String(r.app));
+              }
+            }
+          } catch {
+            /* Tabelle optional — dann alle Apps frei (Legacy) */
+          }
+        }
+        const SEO_JOBS = new Set([
+          "ahrefs",
+          "pagespeed",
+          "gsc",
+          "gsc_queries",
+          "seo_history",
+          "ga4",
+          "ga4_traffic",
+          "ga4_conversions",
+        ]);
+        const jobGesperrt = (clientId: string, job: string): string | null => {
+          const off = appOff.get(clientId);
+          if (!off) return null;
+          if (off.has("seo") && SEO_JOBS.has(job)) return "nicht in EzyRank (App-Zugriff aus)";
+          if (off.has("geo") && job === "ai_visibility") return "nicht in EzyAI (App-Zugriff aus)";
+          return null;
+        };
+
         // --- Diagnostics: why is a dashboard empty? ---
         if (parsed.data.debug) {
           const cBase = process.env.CANONRY_BASE_URL;
@@ -1399,6 +1439,11 @@ export const Route = createFileRoute("/api/admin/populate")({
           }
           for (const j of wanted) {
             try {
+              const gesperrt = jobGesperrt(c.id, j);
+              if (gesperrt) {
+                jr[j] = { skipped: gesperrt };
+                continue;
+              }
               // Freshness guard: skip data jobs that ran recently (avoids double-spend
               // when more than one 12h trigger fires). geo is guarded by its own sweep.
               const at = JOB_AUDIT_TYPE[j];
