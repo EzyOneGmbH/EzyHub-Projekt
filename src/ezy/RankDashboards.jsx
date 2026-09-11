@@ -893,6 +893,12 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   const visibility = Number(live?.visibility ?? selectedClient?.visibility ?? 0);
   const backlinks = Number(live?.backlinks ?? 0);
   const topPages = traf?.topPages || [];
+  // Haupt-URL des Kunden als Fallback in der URL-Spalte (Volkan 11.09.).
+  const mainUrl = selectedClient?.domain
+    ? `https://${String(selectedClient.domain)
+        .replace(/^https?:\/\//, "")
+        .replace(/\/.*$/, "")}/`
+    : null;
   // Switzerland Traffic NUR organisch (User-Wunsch 2026-08-13): bevorzugt die
   // organische Länder-Aufteilung (countriesOrganic); Fallback alle Kanäle,
   // solange ein alter Snapshot das neue Feld noch nicht hat (Label zeigt es).
@@ -1049,7 +1055,8 @@ export function SeoDashboard({ selectedClient, dateRange }) {
         _posSrc: q.dfsPos != null ? "dfs" : "gsc",
         posPrev7: prevPosComparable(q, gscQPrevMaps.p7.get(n)),
         posPrev28: prevPosComparable(q, gscQPrevMaps.p28.get(n)),
-        url: q.dfsUrl || null,
+        // URL (11.09.): rankende Seite aus GSC (query+page), sonst leer -> Haupt-URL in der Zelle.
+        url: q.dfsUrl || q.pageUrl || null,
         volume: q.volume ?? null,
         clicks: q.clicks ?? null,
         impressions: q.impressions ?? null,
@@ -1467,17 +1474,23 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                                 ? "Labs-Position (DataForSEO, google.ch — wöchentlich)"
                                 : "GSC-Ø-Position (Durchschnitt über den Zeitraum)"
                               : k._posSrc === "gsc"
-                                ? "GSC-Ø-Position (letzte 7 Tage, Schweiz) — DataForSEO-Crawl nur für Money-Keywords und monatlich für alle"
-                                : "Crawl-Position (DataForSEO, google.ch, Desktop)"
+                                ? "GSC-Ø-Position (letzte 7 Tage, Schweiz) — zwischen den Vollcrawls (alle 5 Tage)"
+                                : "Crawl-Position (DataForSEO, Desktop, vom Kundenstandort bzw. Schweiz)"
                           }
                         >
-                          {k.pos != null ? k.pos : "> 100"}
-                          {k._src !== "gsc" && k._posSrc === "gsc" && k.pos != null && (
-                            <span style={{ color: C.textMuted, fontWeight: 400, fontSize: 10 }}>
-                              {" "}
-                              Ø
-                            </span>
-                          )}
+                          {/* Volkan 11.09.: nur die Zahl, dazu in JEDER Zeile dasselbe kleine
+                              Icon — die Quelle steht im Tooltip, kein wechselndes «Ø». */}
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "flex-end",
+                              gap: 5,
+                            }}
+                          >
+                            {k.pos != null ? k.pos : "> 100"}
+                            <Target size={11} style={{ color: C.textDim, flexShrink: 0 }} />
+                          </span>
                         </td>
                         {hasLocal && (
                           <td
@@ -1526,7 +1539,19 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                             whiteSpace: "nowrap",
                           }}
                         >
-                          {k.url || "—"}
+                          {/* Volkan 11.09.: immer eine URL — rankende Seite, sonst Haupt-URL. */}
+                          {k.url ? (
+                            k.url
+                          ) : mainUrl ? (
+                            <span
+                              style={{ color: C.textDim }}
+                              title="Keine Seiten-URL bekannt — Haupt-URL"
+                            >
+                              {mainUrl}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
                         </td>
                         <td style={{ padding: "6px 8px", textAlign: "right" }}>
                           {k.volume != null ? k.volume.toLocaleString("de-CH") : "—"}
@@ -1553,7 +1578,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                               title={
                                 k._src === "gsc"
                                   ? "Aus Google Search Console (nicht getrackt)"
-                                  : "Getracktes Keyword — Position täglich aus GSC (Ø 7 Tage, CH); DataForSEO crawlt Money-Keywords alle 5 Tage und alle Keywords monatlich"
+                                  : "Getracktes Keyword — Vollcrawl alle 5 Tage (DataForSEO, vom Kundenstandort), dazwischen GSC-Ø-Position (7 Tage, CH)"
                               }
                             >
                               {k._src === "gsc" ? "GSC" : "Tracking"}
@@ -2069,7 +2094,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                 {[
                   [
                     "Rankings (Top 3 · Top 10 · Tabelle)",
-                    "GSC-Ø-Position täglich + DataForSEO-Crawl (Money-Keywords alle 5 Tage, alle monatlich)",
+                    "DataForSEO-Vollcrawl alle 5 Tage (vom Kundenstandort, inkl. Maps-Kasten) + GSC-Ø-Position täglich; INT google.com alle 10 Tage",
                     rankRun,
                   ],
                   [

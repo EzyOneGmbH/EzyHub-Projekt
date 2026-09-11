@@ -202,16 +202,33 @@ export async function fetchBacklinkOverviewAhrefs(
   const date = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
   const dateFrom = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
 
-  const [dr, bl, rd, mt] = await Promise.all([
+  // Sequenziell mit Wiederholung bei 429 (11.09.: vier parallele Abrufe liefen
+  // in das Ahrefs-Rate-Limit, obwohl das Kontingent bei 17 % lag) — 2 Retries
+  // mit 4 s/8 s Pause je Sektion, danach bleibt die Sektion leer.
+  const withRetry = async <T>(fn: () => Promise<SectionResult<T>>): Promise<SectionResult<T>> => {
+    let last: SectionResult<T> = await fn();
+    for (let i = 0; i < 2 && !last.ok && last.rate_limited; i++) {
+      await new Promise((r) => setTimeout(r, 4000 * (i + 1)));
+      last = await fn();
+    }
+    return last;
+  };
+  const dr = await withRetry(() =>
     ahrefsCall("site-explorer/domain-rating", { target: domain, date }, auth),
+  );
+  const bl = await withRetry(() =>
     ahrefsCall("site-explorer/backlinks-stats", { target: domain, date, mode: "subdomains" }, auth),
+  );
+  const rd = await withRetry(() =>
     ahrefsCall(
       "site-explorer/refdomains-history",
       { target: domain, date_from: dateFrom, history_grouping: "weekly", mode: "subdomains" },
       auth,
     ),
+  );
+  const mt = await withRetry(() =>
     ahrefsCall("site-explorer/metrics", { target: domain, date, mode: "subdomains" }, auth),
-  ]);
+  );
 
   const sections = [dr, bl, rd, mt];
   return {

@@ -549,6 +549,34 @@ async function jobGscQueries(c: any, uid: string, days: number, forceDfs = false
       });
   }
   nonbrandRows.sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions);
+  // Rankende Seite je Query (11.09.2026, Volkan: URL-Spalte immer fuellen):
+  // zweite GSC-Abfrage mit query+page, nach Impressionen sortiert -> erste
+  // Seite je Query = die meistgezeigte. Best-effort, Fehler lassen pageUrl leer.
+  const pageByQuery = new Map<string, string>();
+  try {
+    const rp = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        startDate: start,
+        endDate: end,
+        dimensions: ["query", "page"],
+        rowLimit: 5000,
+        orderBy: [{ field: "impressions", descending: true }],
+      }),
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (rp.ok) {
+      const pj: any = await rp.json().catch(() => ({}));
+      for (const row of pj.rows ?? []) {
+        const q = String(row.keys?.[0] ?? "");
+        const p = String(row.keys?.[1] ?? "");
+        if (q && p && !pageByQuery.has(q)) pageByQuery.set(q, p);
+      }
+    }
+  } catch {
+    /* pageUrl optional */
+  }
   // ── DFS-Anreicherung (2026-08-13, User-Wunsch): jede angezeigte GSC-Query
   // bekommt via DataForSEO eine Labs-Position/-URL (ranked_keywords, google.ch)
   // und ein Suchvolumen (google_ads search_volume, Batch bis 1000). WOCHEN-GUARD:
@@ -556,9 +584,13 @@ async function jobGscQueries(c: any, uid: string, days: number, forceDfs = false
   // frische Anreicherung (<6.5 Tage) traegt — sonst Werte aus dem Vorlauf
   // uebernehmen, damit der 12h-Cron die Wochen-Kosten (~0.20 USD/Kunde) nicht
   // vervielfacht. Fehler sind immer non-fatal (Felder bleiben null).
-  const shown: Array<Record<string, unknown>> = nonbrandRows
-    .slice(0, 1000)
-    .map((r) => ({ ...r, dfsPos: null, dfsUrl: null, volume: null }));
+  const shown: Array<Record<string, unknown>> = nonbrandRows.slice(0, 1000).map((r) => ({
+    ...r,
+    dfsPos: null,
+    dfsUrl: null,
+    pageUrl: pageByQuery.get(r.query) ?? null,
+    volume: null,
+  }));
   let dfsEnrichedAt: string | null = null;
   try {
     const { data: prevRun } = await supabaseAdmin
