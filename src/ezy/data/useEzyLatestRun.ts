@@ -120,7 +120,9 @@ export function ahrefsKpisFromResult(result: any): {
       0,
     keywords: Number(m.org_keywords ?? m.paid_keywords ?? m.organic_keywords ?? 0) || 0,
     score: Number(dr) || 0,
-    visibility: Number(bl.live_refdomains ?? bl.referring_domains ?? 0) || 0,
+    // Visibility = Sistrix-Sichtbarkeitsindex (seit 11.09.2026, result.sistrix);
+    // aeltere Laeufe ohne Sistrix-Feld liefern 0 -> Kachel zeigt «—».
+    visibility: Number(r.sistrix?.visibility_index ?? 0) || 0,
     backlinks: Number(bl.live ?? bl.all_time ?? bl.backlinks ?? 0) || 0,
   };
 }

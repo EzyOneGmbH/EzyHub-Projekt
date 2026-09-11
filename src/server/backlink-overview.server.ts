@@ -125,11 +125,48 @@ export function normalizeDomain(raw: string): string {
     .replace(/^www\./, "");
 }
 
+// Sistrix-Sichtbarkeitsindex (11.09.2026, Volkan): fuer die KPI-Kachel «Visibility
+// Index». Der Key liegt nur im agent-service (SISTRIX_API_KEY), deshalb ueber
+// dessen Route /sistrix-visibility (AGENT_BASE_URL + AGENT_SHARED_SECRET, 20-h-
+// Cache dort). Fehler sind nie fatal — dann bleibt das Feld null.
+export type SistrixVisibility = {
+  visibility_index: number;
+  date: string | null;
+  country: string;
+  source: "sistrix";
+};
+export async function fetchSistrixVisibility(
+  domain: string,
+  country = "ch",
+): Promise<SistrixVisibility | null> {
+  const base = process.env.AGENT_BASE_URL?.replace(/\/+$/, "");
+  const secret = process.env.AGENT_SHARED_SECRET;
+  if (!base || !secret || !domain) return null;
+  try {
+    const r = await fetch(
+      `${base}/sistrix-visibility?domain=${encodeURIComponent(domain)}&country=${encodeURIComponent(country)}`,
+      { headers: { Authorization: `Bearer ${secret}` }, signal: AbortSignal.timeout(40_000) },
+    );
+    const j: any = await r.json().catch(() => null);
+    if (!r.ok || !j?.ok || typeof j.visibility_index !== "number") return null;
+    return {
+      visibility_index: j.visibility_index,
+      date: j.date ?? null,
+      country,
+      source: "sistrix",
+    };
+  } catch {
+    return null;
+  }
+}
+
 export type BacklinkOverview = {
   generated_at: string;
   domain: string;
   source: BacklinkProvider;
   rate_limited: boolean;
+  /** Sistrix-Sichtbarkeitsindex (CH) — null, wenn nicht abrufbar. */
+  sistrix: SistrixVisibility | null;
   domain_rating: Record<string, unknown> | null;
   backlinks_stats: Record<string, unknown> | null;
   refdomains_history: Record<string, unknown> | null;
@@ -144,9 +181,13 @@ export async function fetchBacklinkOverview(
   auth: string,
   provider: BacklinkProvider = backlinkProvider(),
 ): Promise<BacklinkOverview> {
-  return provider === "dataforseo"
-    ? fetchBacklinkOverviewDfs(domain, auth)
-    : fetchBacklinkOverviewAhrefs(domain, auth);
+  const [overview, sistrix] = await Promise.all([
+    provider === "dataforseo"
+      ? fetchBacklinkOverviewDfs(domain, auth)
+      : fetchBacklinkOverviewAhrefs(domain, auth),
+    fetchSistrixVisibility(domain),
+  ]);
+  return { ...overview, sistrix };
 }
 
 // Ahrefs: 4 Abrufe parallel, Rohantworten unverändert durchreichen (Form wie
@@ -177,6 +218,7 @@ export async function fetchBacklinkOverviewAhrefs(
     generated_at: new Date().toISOString(),
     domain,
     source: "ahrefs",
+    sistrix: null,
     rate_limited: sections.some((s) => !s.ok && s.rate_limited === true),
     domain_rating: dr.ok ? dr.data : null,
     backlinks_stats: bl.ok ? bl.data : null,
@@ -258,6 +300,7 @@ export async function fetchBacklinkOverviewDfs(
     generated_at: new Date().toISOString(),
     domain,
     source: "dataforseo",
+    sistrix: null,
     rate_limited: false,
     domain_rating,
     backlinks_stats,

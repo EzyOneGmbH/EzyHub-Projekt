@@ -14,6 +14,8 @@ const Keyword = z.object({
   pos: z.number().int().min(1).nullable(),
   // Hybrid (09.09.2026): "crawl" = DataForSEO-SERP des Tages, "gsc" = GSC-Ø-Position (7 T, CH).
   posSrc: z.enum(["crawl", "gsc"]).optional(),
+  // Maps-Kasten (11.09.2026): Rang 1-3 im local_pack am letzten Crawl-Tag (standortbezogener Crawl).
+  posLocal: z.number().int().min(1).nullable().optional(),
   posPrev7: z.number().int().min(1).nullable().optional(),
   posPrev28: z.number().int().min(1).nullable().optional(),
   url: z.string().nullable().optional(),
@@ -28,6 +30,7 @@ const Keyword = z.object({
 const Body = z.object({
   client: z.string().min(1), // slug, z.B. "hotel-ava"
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  crawlLocation: z.string().optional(), // z. B. "Lucerne,Lucerne,Switzerland" oder "Switzerland"
   keywords: z.array(Keyword),
   aggregate: z.object({
     tracked: z.number().int(),

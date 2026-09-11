@@ -5756,11 +5756,25 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 impressions: Number(q.impressions || 0),
               }))
               .filter((q: any) => q.query.length > 2);
+            // Standort fuer den standortbezogenen Rank-Crawl (11.09.2026): erster
+            // Eintrag aus targetLocations, der kein Land ist (z. B. ["Schweiz","Luzern"]).
+            const tl = Array.isArray(c.metadata?.targetLocations) ? c.metadata.targetLocations : [];
+            const localCity =
+              tl
+                .map((x: any) => String(x || "").trim())
+                .find(
+                  (x: string) =>
+                    x &&
+                    !/^(schweiz|switzerland|suisse|svizzera|deutschland|germany|österreich|austria)$/i.test(
+                      x,
+                    ),
+                ) || "";
             out.push({
               id: c.id,
               name: c.name,
               domain: c.domain,
               brandTerms: Array.isArray(c.brand_terms) ? c.brand_terms : [],
+              localCity,
               queries,
             });
           }

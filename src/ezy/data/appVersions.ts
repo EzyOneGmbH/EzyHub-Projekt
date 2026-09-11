@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.0.0",
+    version: "2.1.0",
     changelog: [
+      {
+        version: "2.1.0",
+        date: "2026-09-11",
+        note: "Rankings mit Maps-Kasten: Kunden mit hinterlegtem Standort werden aus ihrer Stadt gecrawlt (so wie ihr Google seht) und die Spalte «Maps» zeigt den Platz im Google-Maps-Kasten; Vollcrawl aller Keywords alle 5 Tage, internationale Messung alle 10 Tage. Visibility Index neu echt aus Sistrix, Domain Rating aus Ahrefs; Kacheln Organic Keywords sowie die Widgets Ranking-Verteilung, Verweisende Domains und Entwicklung entfernt",
+      },
       {
         version: "2.0.0",
         date: "2026-09-09",

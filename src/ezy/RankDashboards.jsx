@@ -747,27 +747,12 @@ export function SeoDashboard({ selectedClient, dateRange }) {
     () => dateRange?.start || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
     [dateRange?.start],
   );
-  const trend = useMemo(
-    () =>
-      (runs || [])
-        .filter((r) => {
-          if (r.audit_type !== "ahrefs" || r.status !== "succeeded") return false;
-          const d = new Date(r.started_at || r.created_at);
-          return d >= startDate && (!bis || d <= new Date(bis).setHours(23, 59, 59, 999));
-        })
-        .map((r) => {
-          const k = ahrefsKpisFromResult(r.result);
-          const d = new Date(r.started_at || r.created_at);
-          return {
-            date: `${d.getDate()}.${d.getMonth() + 1}.`,
-            Traffic: k.traffic,
-            Visibility: k.visibility,
-            Keywords: k.keywords,
-          };
-        })
-        .reverse(),
-    [runs, startDate, bis],
-  );
+  // Sistrix-Sichtbarkeitsindex lesbar formatieren (Dezimalwert, z. B. 0.0395).
+  const fmtVi = (v) => {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return "—";
+    return n >= 10 ? n.toFixed(1) : n >= 0.1 ? n.toFixed(2) : n.toFixed(4);
+  };
   const { run: gscRun, refresh: refreshGsc } = useEzyLatestRun(
     selectedClient?.id,
     "gsc_summary",
@@ -904,13 +889,9 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   }, [refreshAhrefs, refreshHistory, refreshGsc, refreshPsi, refreshTraf]);
   const { isOn } = useEzyDashboardConfig();
   const traffic = Number(live?.traffic ?? selectedClient?.traffic ?? 0);
-  const keywords = Number(live?.keywords ?? selectedClient?.keywords ?? 0);
   const score = Number(live?.score ?? selectedClient?.score ?? 0);
   const visibility = Number(live?.visibility ?? selectedClient?.visibility ?? 0);
   const backlinks = Number(live?.backlinks ?? 0);
-  const refdomainsSeries = run ? ahrefsRefdomainsSeriesFromResult(run.result) : [];
-  const rankingDist = gscRes ? gscRankingDistributionFromResult(gscRes) : [];
-  const RANK_COLORS = [C.accent, C.blue, C.green, C.orange, C.textDim];
   const topPages = traf?.topPages || [];
   // Switzerland Traffic NUR organisch (User-Wunsch 2026-08-13): bevorzugt die
   // organische Länder-Aufteilung (countriesOrganic); Fallback alle Kanäle,
@@ -1123,6 +1104,9 @@ export function SeoDashboard({ selectedClient, dateRange }) {
       } else if (col === "posi") {
         av = a.posIntl ?? 999;
         bv = b.posIntl ?? 999;
+      } else if (col === "posl") {
+        av = a.posLocal ?? 999;
+        bv = b.posLocal ?? 999;
       } else if (col === "voli") {
         av = a.volumeIntl ?? -1;
         bv = b.volumeIntl ?? -1;
@@ -1147,6 +1131,9 @@ export function SeoDashboard({ selectedClient, dateRange }) {
     () => (rank?.keywords || []).some((k) => "posIntl" in k || "volumeIntl" in k),
     [rank],
   );
+  // Maps-Kasten (11.09.): Spalte nur, wenn der standortbezogene Crawl mindestens
+  // ein Keyword im Local Pack gefunden hat.
+  const hasLocal = useMemo(() => (rank?.keywords || []).some((k) => k.posLocal != null), [rank]);
   // Sortierung der GSC-Suchbegriff-Tabelle (User-Wunsch 2026-07-20): wie Rankings.
   // Erstklick: Query/Pos. aufsteigend, Metriken (Klicks/Impr./CTR) absteigend.
   // (Das separate Top-Non-Brand-Widget ist seit 31.08. in der Rankings-Tabelle
@@ -1423,7 +1410,9 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                     {[
                       ["kw", "Keyword", "left"],
                       ["pos", "Position", "right"],
-                      // INT-Spalten (google.com USA/en, wöchentliche Messung)
+                      // Maps-Kasten (Local Pack) aus dem standortbezogenen Crawl (11.09.)
+                      ...(hasLocal ? [["posl", "Maps", "right"]] : []),
+                      // INT-Spalten (google.com USA/en, alle 10 Tage)
                       ...(hasIntl ? [["posi", "Pos. INT", "right"]] : []),
                       ["d7", "Δ 7T", "right"],
                       ["d28", "Δ 28T", "right"],
@@ -1490,6 +1479,23 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                             </span>
                           )}
                         </td>
+                        {hasLocal && (
+                          <td
+                            style={{
+                              padding: "6px 8px",
+                              textAlign: "right",
+                              color: C.blue,
+                              fontWeight: 600,
+                            }}
+                            title={
+                              k.posLocal != null
+                                ? `Platz ${k.posLocal} im Google-Maps-Kasten (Local Pack) beim Crawl vom Kundenstandort`
+                                : "Nicht im Maps-Kasten (oder kein Maps-Kasten für dieses Keyword)"
+                            }
+                          >
+                            {k.posLocal != null ? `#${k.posLocal}` : "—"}
+                          </td>
+                        )}
                         {hasIntl && (
                           <td
                             style={{ padding: "6px 8px", textAlign: "right" }}
@@ -1660,33 +1666,30 @@ export function SeoDashboard({ selectedClient, dateRange }) {
             compareValue={trafficCmpWert != null ? trafficCmpWert : undefined}
             compareLabel={FENSTER_LABEL}
           />
+          {/* Visibility Index seit 11.09. echt aus Sistrix (CH); vorher stand hier
+              die Zahl der verweisenden Domains. Sistrix-Werte sind Dezimalzahlen
+              (z. B. 0.0395) — Anzeige je nach Groesse mit 1/2/4 Nachkommastellen. */}
           <KpiCard
             icon={Eye}
-            label="Visibility Index"
-            value={visibility > 0 ? visibility : "—"}
+            label="Visibility Index (Sistrix)"
+            value={visibility > 0 ? fmtVi(visibility) : "—"}
             color={C.blue}
             change={visibility > 0 ? fensterPct(visibility, ahrefsVon?.visibility) : undefined}
-            compareValue={ahrefsVon?.visibility > 0 ? ahrefsVon.visibility : undefined}
+            compareValue={ahrefsVon?.visibility > 0 ? fmtVi(ahrefsVon.visibility) : undefined}
             compareLabel={FENSTER_LABEL}
           />
           <KpiCard
             icon={Award}
-            label="Authority Score"
+            label="Domain Rating (Ahrefs)"
             value={score > 0 ? score : "—"}
             color={C.green}
             change={score > 0 ? fensterPct(score, ahrefsVon?.score) : undefined}
             compareValue={ahrefsVon?.score > 0 ? ahrefsVon.score : undefined}
             compareLabel={FENSTER_LABEL}
           />
-          <KpiCard
-            icon={Target}
-            label="Organic Keywords"
-            value={keywords > 0 ? keywords : "—"}
-            color={C.orange}
-            change={keywords > 0 ? fensterPct(keywords, ahrefsVon?.keywords) : undefined}
-            compareValue={ahrefsVon?.keywords > 0 ? ahrefsVon.keywords : undefined}
-            compareLabel={FENSTER_LABEL}
-          />
+          {/* «Organic Keywords»-Kachel entfernt (Volkan 11.09.): Zahl war eine
+              Index-Schätzung (Ahrefs org_keywords), die Rankings-Tabelle zeigt
+              den echten Bestand. */}
           <KpiCard
             icon={Link2}
             label="Backlinks Total"
@@ -1976,125 +1979,8 @@ export function SeoDashboard({ selectedClient, dateRange }) {
           </div>
         </div>
       )}
-      {(isOn("seo.gsc") || isOn("seo.ahrefs")) && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))",
-            gap: 14,
-          }}
-        >
-          {isOn("seo.gsc") && rankingDist.length === 0 && (
-            <SectionPlaceholder
-              title="Ranking-Verteilung"
-              hint="Erscheint, sobald der GSC-Import Positionsdaten liefert (Google verbinden + Property eintragen)."
-            />
-          )}
-          {isOn("seo.ahrefs") && refdomainsSeries.length < 2 && (
-            <SectionPlaceholder
-              title="Verweisende Domains"
-              hint="Braucht mindestens 2 wöchentliche Ahrefs-Datenpunkte — füllt sich automatisch mit den nächsten Läufen."
-            />
-          )}
-          {isOn("seo.gsc") && rankingDist.length > 0 && (
-            <div
-              style={{
-                background: C.card,
-                border: `1px solid ${C.border}`,
-                borderRadius: 14,
-                padding: 16,
-              }}
-            >
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, color: C.textMuted }}>
-                Ranking-Verteilung
-              </div>
-              <div style={{ fontSize: 11, color: C.textDim, marginBottom: 12 }}>
-                Positionen der importierten GSC Top-Keywords
-              </div>
-              <ResponsiveContainer width="100%" height={240}>
-                <PieChart>
-                  <Pie
-                    data={rankingDist}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={90}
-                    paddingAngle={2}
-                  >
-                    {rankingDist.map((entry, i) => (
-                      <Cell key={entry.name} fill={RANK_COLORS[i % RANK_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      background: C.surface,
-                      border: `1px solid ${C.border}`,
-                      borderRadius: 8,
-                      color: C.textMuted,
-                    }}
-                  />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-          {isOn("seo.ahrefs") && refdomainsSeries.length >= 2 && (
-            <div
-              style={{
-                background: C.card,
-                border: `1px solid ${C.border}`,
-                borderRadius: 14,
-                padding: 16,
-              }}
-            >
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, color: C.textMuted }}>
-                Verweisende Domains
-              </div>
-              <div style={{ fontSize: 11, color: C.textDim, marginBottom: 12 }}>
-                Wöchentlich (Ahrefs, letzte 90 Tage)
-              </div>
-              <ResponsiveContainer width="100%" height={240}>
-                <AreaChart data={refdomainsSeries}>
-                  <defs>
-                    <linearGradient id="seo-refdomains" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={C.cyan} stopOpacity={0.35} />
-                      <stop offset="100%" stopColor={C.cyan} stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-                  <XAxis
-                    dataKey="date"
-                    stroke={C.textDim}
-                    fontSize={11}
-                    tickFormatter={(d) =>
-                      typeof d === "string" && d.length >= 10 ? d.slice(5) : d
-                    }
-                  />
-                  <YAxis stroke={C.textDim} fontSize={11} />
-                  <Tooltip
-                    contentStyle={{
-                      background: C.surface,
-                      border: `1px solid ${C.border}`,
-                      borderRadius: 8,
-                      color: C.textMuted,
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="refdomains"
-                    name="Verweisende Domains"
-                    stroke={C.cyan}
-                    fill="url(#seo-refdomains)"
-                    strokeWidth={2}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Widgets «Ranking-Verteilung» (GSC-Donut) und «Verweisende Domains»
+          (Ahrefs-Verlauf) entfernt (Volkan 11.09.). */}
       {topPages.length === 0 && (
         <SectionPlaceholder
           title="Meistbesuchte Seiten (GA4)"
@@ -2148,64 +2034,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
           </div>
         </div>
       )}
-      {isOn("seo.trend") && trend.length >= 2 ? (
-        <div
-          style={{
-            background: C.card,
-            border: `1px solid ${C.border}`,
-            borderRadius: 14,
-            padding: 16,
-          }}
-        >
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: C.textMuted }}>
-            Entwicklung ({dateRange?.label || "30 Tage"} • {trend.length} Datenpunkte)
-          </div>
-          <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={trend}>
-              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-              <XAxis dataKey="date" stroke={C.textDim} fontSize={11} />
-              <YAxis stroke={C.textDim} fontSize={11} />
-              <Tooltip
-                contentStyle={{
-                  background: C.surface,
-                  border: `1px solid ${C.border}`,
-                  borderRadius: 8,
-                  color: C.textMuted,
-                }}
-              />
-              <Legend />
-              <Line
-                type="monotone"
-                dataKey="Traffic"
-                stroke={C.accent}
-                strokeWidth={2}
-                dot={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="Visibility"
-                stroke={C.blue}
-                strokeWidth={2}
-                dot={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="Keywords"
-                stroke={C.orange}
-                strokeWidth={2}
-                dot={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      ) : isOn("seo.trend") && !istKunde ? (
-        // Interner Platzhalter (31.08.: in der Kundenansicht ausgeblendet —
-        // der Hinweis auf Daten-Läufe/Quellen ist Team-Information).
-        <SectionPlaceholder
-          title="Entwicklung (Traffic · Visibility · Keywords)"
-          hint="Braucht mindestens 2 Ahrefs-Läufe im gewählten Zeitraum — Datumsfilter weiter fassen oder auf die nächsten automatischen Läufe warten."
-        />
-      ) : null}
+      {/* Widget «Entwicklung (Traffic · Visibility · Keywords)» entfernt (Volkan 11.09.). */}
       {/* Datenquellen-Übersicht (User-Wunsch 2026-07-17): welches Widget bezieht
           seine Daten aus welchem Kanal — inkl. Stand des letzten Abrufs je
           Quelle. Nur intern — Kunden-Logins sehen die Tabelle nicht (31.08.). */}
@@ -2248,22 +2077,23 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                     "GA4 (Organic Search) · Fallback GSC-Klicks",
                     trafRun || gscRun,
                   ],
-                  ["SEO-KPIs (Visibility, Authority, Keywords, Backlinks)", "Ahrefs", run],
+                  [
+                    "SEO-KPIs (Visibility Index · Domain Rating · Backlinks)",
+                    "Visibility Index: Sistrix (CH) · Domain Rating + Backlinks: Ahrefs",
+                    run,
+                  ],
                   ["Switzerland Traffic", "GA4 (Organic Search, nur CH)", trafRun],
                   [
                     "Brand/Non-Brand-Split · Positions-Buckets (Top-Suchanfragen: in der Rankings-Tabelle)",
                     "Google Search Console",
                     gscQRun || gscRun,
                   ],
-                  ["Ranking-Verteilung", "Google Search Console", gscRun],
                   [
                     "Core Web Vitals (LCP, INP, CLS, Performance)",
                     "Google PageSpeed (CrUX/Lighthouse)",
                     psiRun,
                   ],
-                  ["Verweisende Domains", "Ahrefs", run],
                   ["Meistbesuchte Seiten", "Google Analytics 4", trafRun],
-                  ["Entwicklung (Trend)", "Ahrefs (Verlauf der Audit-Läufe)", run],
                 ].map(([widget, source, r]) => (
                   <tr key={widget} style={{ borderTop: `1px solid ${C.border}` }}>
                     <td style={{ padding: "6px 8px", color: C.text }}>{widget}</td>
