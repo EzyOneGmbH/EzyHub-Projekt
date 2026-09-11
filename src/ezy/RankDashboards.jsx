@@ -1698,10 +1698,10 @@ export function SeoDashboard({ selectedClient, dateRange }) {
             label="Domain Rating (Ahrefs)"
             value={score > 0 ? score : "—"}
             color={C.green}
-            change={score > 0 ? fensterPct(score, ahrefsVon?.score) : undefined}
-            compareValue={ahrefsVon?.score > 0 ? ahrefsVon.score : undefined}
-            compareLabel={FENSTER_LABEL}
           />
+          {/* Kein «vorher»-Vergleich bei Domain Rating und Backlinks (Volkan 11.09.):
+              die Vorwerte stammen aus der DataForSEO-Zeit (anderer Index) und
+              erzeugten Scheinbewegungen wie −87 % / +322 %. */}
           {/* «Organic Keywords»-Kachel entfernt (Volkan 11.09.): Zahl war eine
               Index-Schätzung (Ahrefs org_keywords), die Rankings-Tabelle zeigt
               den echten Bestand. */}
@@ -1710,11 +1710,6 @@ export function SeoDashboard({ selectedClient, dateRange }) {
             label="Backlinks Total"
             value={backlinks > 0 ? backlinks.toLocaleString("de-CH") : "—"}
             color={C.cyan}
-            change={backlinks > 0 ? fensterPct(backlinks, ahrefsVon?.backlinks) : undefined}
-            compareValue={
-              ahrefsVon?.backlinks > 0 ? ahrefsVon.backlinks.toLocaleString("de-CH") : undefined
-            }
-            compareLabel={FENSTER_LABEL}
           />
           {chSessions != null && chSessions > 0 && (
             <KpiCard
