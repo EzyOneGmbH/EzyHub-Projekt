@@ -1478,19 +1478,9 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                                 : "Crawl-Position (DataForSEO, Desktop, vom Kundenstandort bzw. Schweiz)"
                           }
                         >
-                          {/* Volkan 11.09.: nur die Zahl, dazu in JEDER Zeile dasselbe kleine
-                              Icon — die Quelle steht im Tooltip, kein wechselndes «Ø». */}
-                          <span
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "flex-end",
-                              gap: 5,
-                            }}
-                          >
-                            {k.pos != null ? k.pos : "> 100"}
-                            <Target size={11} style={{ color: C.textDim, flexShrink: 0 }} />
-                          </span>
+                          {/* Volkan 11.09.: nur die Zahl, keine Icons/Marker — die Quelle
+                              (Crawl vs. GSC-Ø) steht ausschliesslich im Tooltip. */}
+                          {k.pos != null ? k.pos : "> 100"}
                         </td>
                         {hasLocal && (
                           <td
