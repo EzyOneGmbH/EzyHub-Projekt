@@ -2,6 +2,12 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "tanstack-start-app",
   "compatibility_date": "2025-09-24",
-  "compatibility_flags": ["nodejs_compat"],
-  "main": "@tanstack/react-start/server-entry",
+  "compatibility_flags": ["nodejs_compat"]
+  // Kein abschliessendes Komma: nitro >= 3.0.260903-beta liest diese Datei
+  // strikt (Kommentare ok, trailing comma = Build-Abbruch).
+  // "main" bewusst NICHT gesetzt (13.09.2026): der Cloudflare-Build laeuft ueber
+  // Nitro, das seinen eigenen Server-Entry erzeugt und die Wrangler-Konfiguration
+  // nach .output/server/wrangler.json schreibt (inkl. main). Ein hier gesetztes
+  // main wurde ignoriert und erzeugte nur die Warnung "Wrangler config main is
+  // overridden and will be ignored".
 }

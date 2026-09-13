@@ -7,6 +7,20 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/tanstack/vite";
 
+// Bekannte Build-Warnung (Dependency-Hygiene 13.09.2026), bewusst NICHT
+// unterdrueckt: «Unknown input options: platform». Ursache: nitro (3.0.2609xx-
+// beta) baut den Server-Bundle mit Rolldown-Optionen (`platform: "node"|
+// "neutral"`, nitro/dist/_build/rolldown.mjs) und erwartet Vite ^8 (Rolldown);
+// unter Vite 7 (Rollup 4) reicht Vite dieselben Optionen an Rollup weiter,
+// das `platform` nicht kennt und die Option ignoriert. Wirkung: keine —
+// Externals/Builtins setzt nitro explizit. Weg ist mit dem Wechsel auf Vite 8,
+// sobald das Lovable-Preset (@lovable.dev/vite-tanstack-config) dafuer
+// freigegeben ist. Derselben Ursache entspringt der nitro-Hinweis «vite@7.x is
+// installed but the vite builder requires ^8» — rein informativ, der Build
+// laeuft unter Vite 7 vollstaendig durch (Client + Server + Cloudflare-Output).
+// Die zweite fruehere Warnung («Wrangler config main is overridden») ist
+// behoben: wrangler.jsonc setzt kein main mehr.
+
 export default defineConfig({
   vite: {
     plugins: [mcpPlugin()],

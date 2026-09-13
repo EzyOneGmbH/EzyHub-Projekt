@@ -27,6 +27,20 @@ jobs:
         # Lovable-Sandbox-Aenderung): lokal `npm install` ausfuehren und das
         # package-lock.json mit-committen.
         run: npm ci --no-audit --no-fund
+      - name: Abhaengigkeitsbaum
+        # Dependency-Hygiene (13.09.2026): npm ls muss mit Exit 0 enden — keine
+        # ungueltigen/fehlenden Aufloesungen (z. B. Miniflare-Range-Konflikt
+        # zwischen Nitro, @cloudflare/vite-plugin und env-runner). Peer-Ranges
+        # von Presets, die neuere Betas ausschliessen, werden bewusst per
+        # package.json-Override (nitro) aufgeloest, nicht per --legacy-peer-deps.
+        run: npm ls --all
+      - name: Sicherheits-Audit (Produktionsabhaengigkeiten)
+        # Schlaegt bei hohen/kritischen Schwachstellen in den Prod-Deps fehl.
+        # Dev-Deps werden separat beobachtet (siehe Schritt darunter), damit
+        # ein reines Tooling-Advisory nicht den Deploy blockiert.
+        run: npm audit --omit=dev --audit-level=high
+      - name: Sicherheits-Audit (alle Abhaengigkeiten, informativ)
+        run: npm audit --audit-level=moderate || echo "::warning::npm audit meldet Befunde in Dev-Abhaengigkeiten — bitte zeitnah heben"
       - name: Tests
         run: npm test
       - name: TypeScript
