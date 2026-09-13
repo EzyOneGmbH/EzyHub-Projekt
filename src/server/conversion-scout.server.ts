@@ -59,11 +59,78 @@ const ASSET_HOST_RE = /(exactdn\.com|cloudfront\.net|cdn\.|gstatic|googleapis)/i
 const CTA_PATH_EXCLUDE_RE = /^\/$|impressum|datenschutz|agb|privacy|cookie/i;
 
 export type CandidateFound = {
-  candidate_type: "mailto" | "tel" | "download" | "crossdomain" | "cta";
+  candidate_type: "mailto" | "tel" | "download" | "crossdomain" | "cta" | "gtm";
   raw_value: string;
   label: string | null;
   source_url: string;
 };
+
+// ── GTM als Kandidaten-Quelle (13.09.2026, Volkan) ─────────────────────────
+// Der agent-service liest read-only die Live-Version des Kunden-Containers
+// (Service-Account) und liefert die aktiven GA4-Event-Tags. Jeder Tag wird ein
+// Kandidat vom Typ `gtm` (raw_value = GTM-Eventname). Freigabe = nur Key Event
+// (kein Basisevent, keine Event Create Rule) — exakter als der HTML-Scan.
+export type GtmEvent = {
+  eventName: string;
+  tagName: string;
+  container: string;
+  triggers: string[];
+  hasValue: boolean;
+};
+export async function fetchGtmEvents(
+  domain: string,
+): Promise<{ events: GtmEvent[]; containers: string[]; reason?: string } | null> {
+  const base = process.env.AGENT_BASE_URL?.replace(/\/+$/, "");
+  const secret = process.env.AGENT_SHARED_SECRET;
+  if (!base || !secret || !domain) return null;
+  try {
+    const r = await fetch(`${base}/gtm-events?domain=${encodeURIComponent(domain)}`, {
+      headers: { Authorization: `Bearer ${secret}` },
+      signal: AbortSignal.timeout(90_000),
+    });
+    const j: any = await r.json().catch(() => null);
+    if (!r.ok || !j) return null;
+    if (!j.ok)
+      return { events: [], containers: [], reason: String(j.reason || "GTM nicht verfuegbar") };
+    return {
+      events: (j.events || []).map((e: any) => ({
+        eventName: String(e.eventName),
+        tagName: String(e.tagName || ""),
+        container: String(e.container || ""),
+        triggers: Array.isArray(e.triggers) ? e.triggers.map(String) : [],
+        hasValue: !!e.hasValue,
+      })),
+      containers: (j.containers || []).map((c: any) => `${c.publicId} v${c.version ?? "?"}`),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** GTM-Kandidat aus einem Event-Tag; source_url traegt Container/Trigger als
+ *  Klartext (das Panel zeigt es als «gefunden auf …»). */
+export function gtmEventToCandidate(e: GtmEvent): CandidateFound {
+  const trig = e.triggers.length ? e.triggers.join(", ") : "–";
+  return {
+    candidate_type: "gtm",
+    raw_value: e.eventName,
+    label: e.tagName || null,
+    source_url: `GTM ${e.container} · Trigger: ${trig}${e.hasValue ? " · mit Wert/Währung" : ""}`,
+  };
+}
+
+/** Passender GTM-Event fuer einen HTML-Kandidaten (mailto/tel) — dann ist das
+ *  Ziel bereits via GTM getrackt und braucht kein outbound_contact_click. */
+export function gtmEquivalentFor(type: string, gtmEventNames: string[]): string | null {
+  const re =
+    type === "mailto"
+      ? /(^|[_-])(mail|email)([_-]|$)|mailto/i
+      : type === "tel"
+        ? /(^|[_-])(tel|phone|call|anruf)([_-]|$)/i
+        : null;
+  if (!re) return null;
+  return gtmEventNames.find((n) => re.test(n)) ?? null;
+}
 
 /** Host gehoert NICHT zur Domain-Familie des Kunden (apex/www/Subdomains)?
  *  Cross-Domain ist nur ueber verschiedene registrierbare Domains relevant —
@@ -229,6 +296,8 @@ export async function runConversionScan(client: {
   pagesCrawled: number;
   found: number;
   newCandidates: number;
+  gtmEvents: number;
+  gtmNote?: string;
 }> {
   const { data: run, error: runErr } = await SB.from("conversion_scan_runs")
     .insert({ organization_id: client.organization_id, client_id: client.id })
@@ -265,6 +334,26 @@ export async function runConversionScan(client: {
         }
       await sleep(DELAY_MS);
     }
+
+    // GTM-Quelle (13.09.2026): aktive GA4-Event-Tags des Kunden-Containers als
+    // Kandidaten Typ gtm dazunehmen. Kein Zugriff (SA nicht eingeladen) ->
+    // Hinweis, HTML-Kandidaten bleiben unberuehrt.
+    let gtmEvents = 0;
+    let gtmNote: string | undefined;
+    const gtm = await fetchGtmEvents(
+      String(client.domain)
+        .replace(/^https?:\/\//, "")
+        .replace(/^www\./, "")
+        .replace(/\/.*$/, ""),
+    );
+    if (gtm && gtm.events.length) {
+      for (const e of gtm.events) {
+        const c = gtmEventToCandidate(e);
+        const k = `${c.candidate_type}|${c.raw_value}`;
+        if (!foundByKey.has(k)) foundByKey.set(k, c);
+      }
+      gtmEvents = gtm.events.length;
+    } else if (gtm?.reason) gtmNote = gtm.reason;
 
     // Upsert: neue Kandidaten als 'pending', bekannte nur last_seen_at
     // auffrischen — Status/Wert/GA4-Felder bleiben unangetastet.
@@ -310,6 +399,8 @@ export async function runConversionScan(client: {
       pagesCrawled,
       found: foundByKey.size,
       newCandidates: newCount,
+      gtmEvents,
+      ...(gtmNote ? { gtmNote } : {}),
     };
   } catch (e) {
     await SB.from("conversion_scan_runs")

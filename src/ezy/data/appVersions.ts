@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.1.0",
+    version: "2.2.0",
     changelog: [
+      {
+        version: "2.2.0",
+        date: "2026-09-13",
+        note: "Conversion-Scout kennt jetzt den Google Tag Manager: bestehende GA4-Event-Tags des Kunden (z. B. purchase, mail_click) erscheinen als Kandidaten «GTM-Event» und werden bei Freigabe direkt als Key Event markiert — ohne zusätzliches Basisevent; Kontakt-Kandidaten zeigen an, wenn sie via GTM schon gemessen werden",
+      },
       {
         version: "2.1.0",
         date: "2026-09-11",

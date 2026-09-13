@@ -3,7 +3,36 @@
 // 'crossdomain' (raw_value = Host) erkannt werden, eigene Domain-Familie und
 // gewoehnliche externe Links aber NICHT.
 import { describe, it, expect } from "vitest";
-import { extractFromHtml } from "./conversion-scout.server";
+import { extractFromHtml, gtmEquivalentFor, gtmEventToCandidate } from "./conversion-scout.server";
+
+// GTM-Quelle (13.09.2026): Abgleich HTML-Kandidat ↔ bestehender GTM-Event und
+// Kandidaten-Form aus einem Event-Tag.
+describe("Conversion-Scout GTM-Quelle", () => {
+  it("findet den passenden GTM-Event fuer mailto/tel, sonst null", () => {
+    const names = ["purchase", "mail_click", "phone_click", "form_submit"];
+    expect(gtmEquivalentFor("mailto", names)).toBe("mail_click");
+    expect(gtmEquivalentFor("tel", names)).toBe("phone_click");
+    expect(gtmEquivalentFor("download", names)).toBeNull();
+    expect(gtmEquivalentFor("mailto", ["purchase"])).toBeNull();
+    // "emailing" o. ae. matcht nicht blind — Wortgrenze per _ /-
+    expect(gtmEquivalentFor("tel", ["hotel_booking"])).toBeNull();
+  });
+  it("formt einen gtm-Kandidaten mit Eventname als raw_value und Trigger im Quelltext", () => {
+    const c = gtmEventToCandidate({
+      eventName: "purchase",
+      tagName: "[Ezy One] - Conversion - Bookings",
+      container: "GTM-MJXSDKCB",
+      triggers: ["Mews Reservation Created"],
+      hasValue: true,
+    });
+    expect(c.candidate_type).toBe("gtm");
+    expect(c.raw_value).toBe("purchase");
+    expect(c.label).toContain("Bookings");
+    expect(c.source_url).toContain("GTM-MJXSDKCB");
+    expect(c.source_url).toContain("Mews Reservation Created");
+    expect(c.source_url).toContain("Wert");
+  });
+});
 import { buildDestinationEvent } from "./ga4-conversion-deploy.server";
 
 const SITE = "faithinhumanity.ch";

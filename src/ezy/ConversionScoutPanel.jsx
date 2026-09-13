@@ -14,6 +14,7 @@ import {
   Phone,
   RefreshCw,
   Radar,
+  Tag,
 } from "lucide-react";
 import { Btn, Badge } from "./shared-ui";
 import { C } from "./theme";
@@ -25,7 +26,23 @@ const TYPE_META = {
   download: { icon: FileDown, label: "Download" },
   crossdomain: { icon: ExternalLink, label: "Cross-Domain-Checkout" },
   cta: { icon: MousePointerClick, label: "CTA-Zielseite" },
+  // GTM-Quelle (13.09.): bestehender GA4-Event-Tag aus dem Kunden-Container —
+  // feuert bereits, Freigabe = nur als Key Event markieren.
+  gtm: { icon: Tag, label: "GTM-Event (bereits getrackt)" },
 };
+
+// Passender GTM-Event für einen HTML-Kandidaten (mailto/tel): dann ist das
+// Ziel schon via GTM gemessen und braucht kein outbound_contact_click.
+function gtmEquivalentFor(type, gtmEventNames) {
+  const re =
+    type === "mailto"
+      ? /(^|[_-])(mail|email)([_-]|$)|mailto/i
+      : type === "tel"
+        ? /(^|[_-])(tel|phone|call|anruf)([_-]|$)/i
+        : null;
+  if (!re) return null;
+  return gtmEventNames.find((n) => re.test(n)) || null;
+}
 
 function fmtTs(ts) {
   try {
@@ -46,6 +63,7 @@ export default function ConversionScoutPanel({ selectedClient }) {
   const [names, setNames] = useState({}); // id -> Wunschname (wird GA4-Eventname)
   const [showIgnored, setShowIgnored] = useState(false);
   const [groundwork, setGroundwork] = useState(null); // Cross-Domain: Schritte für echten Betrag
+  const [note, setNote] = useState(null); // Hinweis nach Freigabe (z. B. GTM-Key-Event mitverwendet)
 
   const load = useCallback(async () => {
     if (!clientId) return;
@@ -72,6 +90,11 @@ export default function ConversionScoutPanel({ selectedClient }) {
   const pending = useMemo(() => candidates.filter((c) => c.status === "pending"), [candidates]);
   const approved = useMemo(() => candidates.filter((c) => c.status === "approved"), [candidates]);
   const ignored = useMemo(() => candidates.filter((c) => c.status === "ignored"), [candidates]);
+  // Alle bekannten GTM-Eventnamen (jeder Status) für den HTML↔GTM-Abgleich.
+  const gtmEventNames = useMemo(
+    () => candidates.filter((c) => c.candidate_type === "gtm").map((c) => c.raw_value),
+    [candidates],
+  );
 
   const act = async (id, action, extra = {}) => {
     setBusyId(id);
@@ -85,6 +108,7 @@ export default function ConversionScoutPanel({ selectedClient }) {
       const j = await r.json();
       if (!j.ok) throw new Error(j.error || `HTTP ${r.status}`);
       if (Array.isArray(j.groundwork) && j.groundwork.length) setGroundwork(j.groundwork);
+      setNote(j.note || null);
       await load();
     } catch (e) {
       setError(String(e?.message || e));
@@ -133,6 +157,8 @@ export default function ConversionScoutPanel({ selectedClient }) {
     // zum GA4-Eventnamen (slugifiziert) und erscheint ueberall so.
     const nameVal = names[c.id] ?? (c.display_name || c.label || "");
     const busy = busyId === c.id;
+    const isGtm = c.candidate_type === "gtm";
+    const gtmTwin = isGtm ? null : gtmEquivalentFor(c.candidate_type, gtmEventNames);
     return (
       <div
         key={c.id}
@@ -155,9 +181,22 @@ export default function ConversionScoutPanel({ selectedClient }) {
           </div>
           <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>
             {meta.label}
-            {c.label ? ` · «${c.label}»` : ""} · gefunden auf{" "}
+            {c.label ? ` · «${c.label}»` : ""}
+            {isGtm ? " · " : " · gefunden auf "}
             {String(c.source_url).replace(/^https?:\/\//, "")}
           </div>
+          {isGtm && (
+            <div style={{ fontSize: 10.5, color: C.textDim, marginTop: 3, fontStyle: "italic" }}>
+              Feuert bereits über den GTM-Container. Freigabe markiert «{c.raw_value}» nur als GA4
+              Key Event — kein Basisevent, keine Regel, Name bleibt der GTM-Eventname.
+            </div>
+          )}
+          {gtmTwin && (
+            <div style={{ fontSize: 10.5, color: C.accent, marginTop: 3, fontStyle: "italic" }}>
+              Bereits via GTM getrackt als «{gtmTwin}» — besser den GTM-Event freigeben (braucht
+              kein GTM-Basisevent).
+            </div>
+          )}
           {c.candidate_type === "crossdomain" && (
             <div style={{ fontSize: 10.5, color: C.textDim, marginTop: 3, fontStyle: "italic" }}>
               Misst den Klick zum Checkout (Kauf-/Spenden-Absicht). Der echte Betrag erscheint erst,
@@ -171,23 +210,43 @@ export default function ConversionScoutPanel({ selectedClient }) {
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <input
-            type="text"
-            maxLength={60}
-            placeholder="Name (z. B. Mitglied werden)"
-            title="Anzeigename der Conversion — erscheint so in GA4 und im Conversions-Tab"
-            value={nameVal}
-            onChange={(e) => setNames((p) => ({ ...p, [c.id]: e.target.value }))}
-            style={{
-              width: 170,
-              padding: "6px 8px",
-              fontSize: 13,
-              border: `1px solid ${C.border}`,
-              borderRadius: 8,
-              background: C.card,
-              color: C.text,
-            }}
-          />
+          {isGtm ? (
+            <span
+              title="GA4-Eventname = GTM-Eventname (nicht umbenennbar)"
+              style={{
+                width: 170,
+                padding: "6px 8px",
+                fontSize: 12.5,
+                border: `1px dashed ${C.border}`,
+                borderRadius: 8,
+                color: C.textMuted,
+                fontFamily: "monospace",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {c.raw_value}
+            </span>
+          ) : (
+            <input
+              type="text"
+              maxLength={60}
+              placeholder="Name (z. B. Mitglied werden)"
+              title="Anzeigename der Conversion — erscheint so in GA4 und im Conversions-Tab"
+              value={nameVal}
+              onChange={(e) => setNames((p) => ({ ...p, [c.id]: e.target.value }))}
+              style={{
+                width: 170,
+                padding: "6px 8px",
+                fontSize: 13,
+                border: `1px solid ${C.border}`,
+                borderRadius: 8,
+                background: C.card,
+                color: C.text,
+              }}
+            />
+          )}
           <input
             type="number"
             min={0}
@@ -233,7 +292,7 @@ export default function ConversionScoutPanel({ selectedClient }) {
               act(c.id, "approve", {
                 value: v.value === "" ? undefined : Number(v.value),
                 currency: v.currency,
-                name: nameVal.trim() || undefined,
+                name: isGtm ? undefined : nameVal.trim() || undefined,
               })
             }
           >
@@ -260,8 +319,9 @@ export default function ConversionScoutPanel({ selectedClient }) {
       </div>
       <div style={{ fontSize: 11.5, color: C.textDim, marginTop: 6 }}>
         Alle erkannten CTAs der Website — Kontakt, Download, CTA-Buttons/Zielseiten und
-        Cross-Domain-Checkout — jedes einzeln benenn- und freigebbar. Erst nach Freigabe wird ein
-        GA4 Key Event angelegt (nur organische Messung, keine Google-Ads-Anbindung).
+        Cross-Domain-Checkout — plus die GA4-Event-Tags aus dem Google Tag Manager des Kunden; jedes
+        einzeln benenn- und freigebbar. Erst nach Freigabe wird ein GA4 Key Event angelegt (nur
+        organische Messung, keine Google-Ads-Anbindung).
         {lastRun && lastRun.finished_at && (
           <>
             {" "}
@@ -284,6 +344,38 @@ export default function ConversionScoutPanel({ selectedClient }) {
           }}
         >
           {error}
+        </div>
+      )}
+
+      {note && (
+        <div
+          style={{
+            marginTop: 10,
+            padding: "8px 12px",
+            background: `${C.green}12`,
+            border: `1px solid ${C.green}44`,
+            borderRadius: 10,
+            fontSize: 12.5,
+            color: C.text,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <CheckCircle2 size={14} color={C.green} />
+          <span style={{ flex: 1 }}>{note}</span>
+          <button
+            onClick={() => setNote(null)}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: C.textDim,
+              fontSize: 12,
+            }}
+          >
+            schliessen
+          </button>
         </div>
       )}
 

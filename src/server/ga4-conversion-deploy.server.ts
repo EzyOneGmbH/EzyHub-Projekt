@@ -164,7 +164,13 @@ export async function deployToGa4(
   clientId: string,
   propertyIdRaw: string,
   candidate: Candidate,
-): Promise<{ destinationEvent: string; ruleName: string; keyEventName: string }> {
+): Promise<{
+  destinationEvent: string;
+  ruleName: string;
+  keyEventName: string;
+  /** gtm: Key Event existierte schon in GA4 -> mitverwendet, beim Entzug nicht geloescht. */
+  reused?: boolean;
+}> {
   const propertyId = String(propertyIdRaw).replace(/^properties\//, "");
   const { accessToken: token } = await getGoogleAccessToken(clientId);
 
@@ -174,6 +180,37 @@ export async function deployToGa4(
     `${ADMIN_BETA}/properties/${propertyId}/keyEvents?pageSize=200`,
   );
   const keyEvents: any[] = existing.keyEvents || [];
+
+  // GTM-Kandidat (13.09.2026): das Event feuert bereits ueber den Kunden-
+  // Container -> KEINE Event Create Rule, nur als Key Event markieren. Der
+  // GA4-Eventname bleibt der GTM-Name (purchase, mail_click, ...). Existiert das
+  // Key Event schon (z. B. purchase), wird es mitverwendet und beim Entzug
+  // NICHT geloescht (ga4_key_event bleibt leer).
+  if (candidate.candidate_type === "gtm") {
+    const eventName = String(candidate.raw_value).trim();
+    if (!/^[a-zA-Z][a-zA-Z0-9_]{0,39}$/.test(eventName))
+      throw new Error(`GTM-Eventname «${eventName}» ist kein gueltiger GA4-Eventname`);
+    const already = keyEvents.find((k) => k.eventName === eventName);
+    if (already)
+      return { destinationEvent: eventName, ruleName: "", keyEventName: "", reused: true };
+    if (keyEvents.length >= MAX_KEY_EVENTS)
+      throw new Error(
+        `GA4-Limit erreicht: ${keyEvents.length}/${MAX_KEY_EVENTS} Key Events — ` +
+          "erst ein bestehendes Key Event entfernen, dann erneut freigeben.",
+      );
+    const body: any = { eventName, countingMethod: "ONCE_PER_EVENT" };
+    if (candidate.conversion_value && candidate.conversion_value > 0)
+      body.defaultValue = {
+        numericValue: candidate.conversion_value,
+        currencyCode: candidate.conversion_currency || "CHF",
+      };
+    const ke = await gaFetch(token, `${ADMIN_BETA}/properties/${propertyId}/keyEvents`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    return { destinationEvent: eventName, ruleName: "", keyEventName: String(ke.name || "") };
+  }
+
   if (keyEvents.length >= MAX_KEY_EVENTS)
     throw new Error(
       `GA4-Limit erreicht: ${keyEvents.length}/${MAX_KEY_EVENTS} Key Events — ` +

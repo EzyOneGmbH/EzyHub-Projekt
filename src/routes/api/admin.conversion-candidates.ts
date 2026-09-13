@@ -128,6 +128,7 @@ export const Route = createFileRoute("/api/admin/conversion-candidates")({
           decided_by: auth.userId,
         };
         let groundwork: string[] | undefined;
+        let note: string | undefined;
 
         try {
           if (action === "value") {
@@ -165,11 +166,15 @@ export const Route = createFileRoute("/api/admin/conversion-candidates")({
                 conversion_currency: merged.conversion_currency,
                 display_name: merged.display_name,
                 ga4_destination_event: refs.destinationEvent,
-                ga4_event_create_rule: refs.ruleName,
-                ga4_key_event: refs.keyEventName,
+                ga4_event_create_rule: refs.ruleName || null,
+                ga4_key_event: refs.keyEventName || null,
                 ...decided,
               })
               .eq("id", id);
+            if (refs.reused)
+              note = `«${refs.destinationEvent}» war in GA4 bereits ein Key Event — wird mitverwendet (beim Entzug nicht gelöscht).`;
+            else if (cand.candidate_type === "gtm")
+              note = `«${refs.destinationEvent}» ist jetzt Key Event — das Event feuert bereits über GTM, keine weitere Einrichtung nötig.`;
             // Cross-Domain: die Klick-Absicht ist jetzt scharf; fuer den echten
             // Purchase mit Betrag braucht es zwei einmalige manuelle Schritte.
             if (cand.candidate_type === "crossdomain")
@@ -195,7 +200,7 @@ export const Route = createFileRoute("/api/admin/conversion-candidates")({
             { status: 502 },
           );
         }
-        return Response.json({ ok: true, groundwork });
+        return Response.json({ ok: true, groundwork, note });
       },
     },
   },
