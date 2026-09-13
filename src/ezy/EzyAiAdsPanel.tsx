@@ -162,17 +162,31 @@ export default function EzyAiAdsPanel({
     );
 
   // Noch nicht konfiguriert: Setup-Karte (Formular nur für Owner/Admin).
+  // Seit 13.09. steht die API-Setup-Karte voran: «Pixel anlegen» erzeugt das
+  // Pixel im OpenAI-Konto und hinterlegt die ID gleich hier — das manuelle
+  // Formular bleibt als Alternative (Pixel aus dem Ads Manager übernehmen).
   if (!data.configured)
     return (
-      <ConfigCard
-        clientId={clientId}
-        clientName={clientName}
-        S={S}
-        isOrgAdmin={isOrgAdmin}
-        initial={null}
-        onSaved={refresh}
-        intro
-      />
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {isOrgAdmin && (
+          <ConversionSetupCard
+            S={S}
+            card={card}
+            clientId={clientId}
+            isOrgAdmin={isOrgAdmin}
+            onChanged={refresh}
+          />
+        )}
+        <ConfigCard
+          clientId={clientId}
+          clientName={clientName}
+          S={S}
+          isOrgAdmin={isOrgAdmin}
+          initial={null}
+          onSaved={refresh}
+          intro
+        />
+      </div>
     );
 
   const t = data.totals!;
@@ -193,6 +207,13 @@ export default function EzyAiAdsPanel({
             <EventsTable S={S} events={events} mode="conversions" />
           )}
         </div>
+        <ConversionSetupCard
+          S={S}
+          card={card}
+          clientId={clientId}
+          isOrgAdmin={isOrgAdmin}
+          onChanged={refresh}
+        />
         <SnippetCard S={S} card={card} pixelId={data.pixelId || null} clientId={clientId} />
       </div>
     );
@@ -440,6 +461,48 @@ function SnippetCard({
     passed?: boolean;
     error?: string;
   } | null>(null);
+  // Live-Check (13.09.): Stichprobe der bei OpenAI eingegangenen Events
+  // (GET /conversions/events) — sieht auch GTM-Einbauten, weil serverseitig.
+  const [sampling, setSampling] = useState(false);
+  const [sample, setSample] = useState<{
+    events?: Array<{
+      event_type: string | null;
+      custom_event_name: string | null;
+      api_channel: string | null;
+      event_timestamp_ms: number | null;
+    }>;
+    mock?: boolean;
+    error?: string;
+  } | null>(null);
+  const runSample = async () => {
+    setSampling(true);
+    setSample(null);
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const r = await authedFetch("/api/admin/chatgpt-ads", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session?.access_token || ""}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "conv-sample", clientId }),
+      });
+      const j = await r.json().catch(() => ({}));
+      setSample(
+        j.ok
+          ? j
+          : {
+              error:
+                r.status === 409 && /Konto/.test(j.error || "")
+                  ? "Kein Advertiser-Konto verbunden — zuerst unter «Kampagnen» verbinden."
+                  : j.error || `HTTP ${r.status}`,
+            },
+      );
+    } catch (e: any) {
+      setSample({ error: String(e?.message || e) });
+    }
+    setSampling(false);
+  };
   const runVerify = async () => {
     setVerifying(true);
     setVerify(null);
@@ -514,6 +577,24 @@ function SnippetCard({
             {verifying ? "Prüfe…" : "Installation prüfen"}
           </button>
           <button
+            onClick={runSample}
+            disabled={sampling}
+            title="Fragt bei OpenAI ab, welche Events in den letzten ~15 Minuten für diese Pixel-ID eingegangen sind"
+            style={{
+              border: `1px solid ${S.line}`,
+              borderRadius: 8,
+              padding: "6px 14px",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+              background: "transparent",
+              color: S.txt,
+              opacity: sampling ? 0.6 : 1,
+            }}
+          >
+            {sampling ? "Frage ab…" : "Live-Events (OpenAI)"}
+          </button>
+          <button
             onClick={copy}
             style={{
               border: `1px solid ${S.line}`,
@@ -580,6 +661,76 @@ function SnippetCard({
           )}
         </div>
       )}
+      {sample && (
+        <div
+          style={{
+            border: `1px solid ${sample.error ? "#dc262655" : (sample.events || []).length ? "#16a34a55" : "#d9770655"}`,
+            background: sample.error
+              ? "rgba(220,38,38,.05)"
+              : (sample.events || []).length
+                ? "rgba(22,163,74,.06)"
+                : "rgba(217,119,6,.06)",
+            borderRadius: 10,
+            padding: "10px 14px",
+            marginBottom: 12,
+            fontSize: 12.5,
+          }}
+        >
+          {sample.error ? (
+            <span style={{ color: "#b91c1c", fontWeight: 700 }}>Live-Abfrage: {sample.error}</span>
+          ) : (sample.events || []).length === 0 ? (
+            <>
+              <div style={{ fontWeight: 700, color: S.txt }}>
+                Bei OpenAI sind in den letzten ~15 Minuten keine Events eingegangen
+              </div>
+              <div style={{ color: S.mut, marginTop: 4, fontSize: 11.5, lineHeight: 1.6 }}>
+                Die Website einmal selbst aufrufen (page_viewed) oder ein Testformular absenden und
+                erneut abfragen. Erst wenn hier Events erscheinen, ist das Pixel bei OpenAI
+                verifizierbar.
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontWeight: 700, marginBottom: 6, color: S.txt }}>
+                Events kommen bei OpenAI an ✓{" "}
+                <span style={{ fontWeight: 400, color: S.mut, fontSize: 11 }}>
+                  {(sample.events || []).length} in den letzten ~15 Min
+                  {sample.mock ? " · Demo (eigene CAPI-Events)" : ""}
+                </span>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {Object.entries(
+                  (sample.events || []).reduce<Record<string, number>>((m, e) => {
+                    const k = `${e.custom_event_name || e.event_type || "?"} · ${
+                      e.api_channel === "pixel_sdk"
+                        ? "Pixel"
+                        : e.api_channel === "server_to_server"
+                          ? "Server (CAPI)"
+                          : e.api_channel || "?"
+                    }`;
+                    m[k] = (m[k] || 0) + 1;
+                    return m;
+                  }, {}),
+                ).map(([k, n]) => (
+                  <span
+                    key={k}
+                    style={{
+                      border: `1px solid ${S.line}`,
+                      borderRadius: 999,
+                      padding: "2px 10px",
+                      fontSize: 11.5,
+                      color: S.txt,
+                      background: S.panel,
+                    }}
+                  >
+                    {k} <b>×{n}</b>
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
       <pre
         style={{
           margin: 0,
@@ -603,6 +754,461 @@ function SnippetCard({
         das CRM diese Werte an unseren Ingest-Endpoint (<code>/api/admin/openai-ads-ingest</code>),
         dedupliziert OpenAI Pixel- und Server-Event über die identische event_id. Kauf-Events (
         <code>order_created</code> mit Betrag) bei Bedarf zusätzlich manuell messen.
+      </div>
+    </div>
+  );
+}
+
+/* ── Conversions-Setup per Advertiser API (13.09.): Pixel, CAPI-Key,
+   Event-Settings + Zuweisung an Kampagnen ─────────────────────────────────── */
+type ConvPixel = { id: string; name: string; pixel_id: string };
+type ConvEventSetting = {
+  id: string;
+  name: string;
+  event_type: string;
+  custom_event_name: string | null;
+  attribution_window_days: number;
+  source_ids: string[];
+  archived: boolean;
+};
+type ConvCampaign = { id: string; name: string; status: string; eventSettingIds: string[] };
+type ConvSetup = {
+  pixels: ConvPixel[];
+  eventSettings: ConvEventSetting[];
+  campaigns: ConvCampaign[];
+  configuredPixelId: string | null;
+  hasCapiKey: boolean;
+  isMock?: boolean;
+};
+const CONV_EVENT_OPTIONS: Array<[string, string]> = [
+  ["lead_created", "Lead (Formular/Anfrage)"],
+  ["appointment_scheduled", "Termin gebucht"],
+  ["order_created", "Kauf / Bestellung"],
+  ["registration_completed", "Registrierung"],
+  ["subscription_created", "Abo abgeschlossen"],
+  ["trial_started", "Test gestartet"],
+  ["checkout_started", "Checkout gestartet"],
+  ["contents_viewed", "Inhalt angesehen"],
+  ["items_added", "In den Warenkorb"],
+  ["custom", "Eigenes Event …"],
+];
+
+function ConversionSetupCard({
+  S,
+  card,
+  clientId,
+  isOrgAdmin,
+  onChanged,
+}: {
+  S: Tokens;
+  card: React.CSSProperties;
+  clientId: string;
+  isOrgAdmin: boolean;
+  onChanged: () => void;
+}) {
+  const [setup, setSetup] = useState<ConvSetup | null | "none">(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [f, setF] = useState({
+    name: "",
+    eventType: "lead_created",
+    customEventName: "",
+    windowDays: "30",
+    sourceIds: [] as string[],
+  });
+  const [assign, setAssign] = useState<string | null>(null); // eventSetting-ID, dessen Kampagnen bearbeitet werden
+
+  const post = async (body: any) => {
+    const session = (await supabase.auth.getSession()).data.session;
+    const r = await authedFetch("/api/admin/chatgpt-ads", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session?.access_token || ""}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ clientId, ...body }),
+    });
+    const j = await r.json().catch(() => ({}));
+    return { status: r.status, ...j };
+  };
+  const load = useCallback(async () => {
+    const j = await post({ action: "conv-setup-get" });
+    if (j.ok) setSetup(j);
+    else if (j.status === 409) setSetup("none");
+    else {
+      setSetup("none");
+      setErr(j.error || `HTTP ${j.status}`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId]);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const run = async (key: string, body: any) => {
+    setBusy(key);
+    setErr("");
+    const j = await post(body);
+    setBusy("");
+    if (!j.ok) {
+      setErr(j.error || `HTTP ${j.status}`);
+      return false;
+    }
+    await load();
+    onChanged();
+    return true;
+  };
+
+  const btn = (primary: boolean, disabled = false): React.CSSProperties => ({
+    border: primary ? "none" : `1px solid ${S.line}`,
+    borderRadius: 8,
+    padding: "6px 14px",
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: disabled ? "default" : "pointer",
+    background: primary ? S.app || "#77008C" : "transparent",
+    color: primary ? "#fff" : S.txt,
+    opacity: disabled ? 0.5 : 1,
+  });
+  const input: React.CSSProperties = {
+    border: `1px solid ${S.line}`,
+    borderRadius: 8,
+    padding: "7px 10px",
+    fontSize: 12.5,
+    background: S.bg,
+    color: S.txt,
+    boxSizing: "border-box",
+    width: "100%",
+  };
+
+  if (setup === null)
+    return (
+      <div style={card}>
+        <SectionTitle S={S} title="Pixel & Conversion-Events (OpenAI-Konto)" />
+        <div style={{ fontSize: 12.5, color: S.mut }}>Lade Setup…</div>
+      </div>
+    );
+  if (setup === "none")
+    return (
+      <div style={card}>
+        <SectionTitle S={S} title="Pixel & Conversion-Events (OpenAI-Konto)" />
+        <div style={{ fontSize: 12.5, color: S.mut, lineHeight: 1.6 }}>
+          {err ||
+            "Kein Advertiser-Konto verbunden. Unter «Kampagnen» den API-Key des OpenAI-Ads-Kontos hinterlegen — danach lassen sich Pixel, Server-Key und Conversion-Events hier direkt anlegen."}
+        </div>
+      </div>
+    );
+
+  const pixelIds = new Set(setup.pixels.map((p) => p.pixel_id));
+  const configuredOk = !!setup.configuredPixelId && pixelIds.has(setup.configuredPixelId);
+  const usable = setup.eventSettings.filter((e) => !e.archived);
+  const typeLabel = (e: ConvEventSetting) =>
+    e.event_type === "custom"
+      ? `custom: ${e.custom_event_name || "?"}`
+      : CONV_EVENT_OPTIONS.find(([k]) => k === e.event_type)?.[1] || e.event_type;
+
+  return (
+    <div style={card}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 10,
+          flexWrap: "wrap",
+        }}
+      >
+        <SectionTitle
+          S={S}
+          title="Pixel & Conversion-Events (OpenAI-Konto)"
+          sub="direkt über die Advertiser API — kein Wechsel in den Ads Manager nötig"
+        />
+        {isOrgAdmin && (
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={() => run("pixel", { action: "conv-pixel-create" })}
+              disabled={busy === "pixel"}
+              style={btn(false, busy === "pixel")}
+            >
+              {busy === "pixel" ? "Lege an…" : "Pixel anlegen"}
+            </button>
+            <button
+              onClick={() => setShowForm((v) => !v)}
+              style={btn(true)}
+              disabled={!setup.pixels.length}
+            >
+              Conversion-Event anlegen
+            </button>
+          </div>
+        )}
+      </div>
+      {err && <div style={{ color: "#b91c1c", fontSize: 12.5, marginBottom: 8 }}>{err}</div>}
+
+      {/* Schritt 1: Pixel */}
+      <div style={{ fontSize: 12.5, marginBottom: 12 }}>
+        <div style={{ fontWeight: 700, color: S.txt, marginBottom: 4 }}>
+          1 · Pixel (Datenquelle)
+        </div>
+        {setup.pixels.length === 0 ? (
+          <div style={{ color: S.mut }}>
+            Noch kein Pixel im Konto — «Pixel anlegen» erzeugt eines und hinterlegt die Pixel-ID
+            gleich hier beim Kunden (Snippet-Karte unten).
+          </div>
+        ) : (
+          setup.pixels.map((p) => {
+            const active = p.pixel_id === setup.configuredPixelId;
+            return (
+              <div
+                key={p.id}
+                style={{ display: "flex", alignItems: "center", gap: 10, padding: "3px 0" }}
+              >
+                <code style={{ fontSize: 11.5, color: S.txt }}>{p.pixel_id}</code>
+                <span style={{ color: S.mut }}>{p.name}</span>
+                {active ? (
+                  <span style={{ color: "#0f9d6c", fontWeight: 700, fontSize: 11.5 }}>
+                    ✓ beim Kunden hinterlegt
+                  </span>
+                ) : (
+                  isOrgAdmin && (
+                    <button
+                      onClick={() =>
+                        run(`adopt:${p.id}`, { action: "conv-pixel-adopt", pixelId: p.pixel_id })
+                      }
+                      style={{ ...btn(false), padding: "2px 8px", fontSize: 11 }}
+                    >
+                      als Kunden-Pixel übernehmen
+                    </button>
+                  )
+                )}
+              </div>
+            );
+          })
+        )}
+        {setup.configuredPixelId && !configuredOk && (
+          <div style={{ color: "#b45309", marginTop: 4 }}>
+            Hinterlegte Pixel-ID {setup.configuredPixelId} gehört nicht zu diesem OpenAI-Konto.
+          </div>
+        )}
+      </div>
+
+      {/* Schritt 2: Server-Key */}
+      <div style={{ fontSize: 12.5, marginBottom: 12 }}>
+        <div style={{ fontWeight: 700, color: S.txt, marginBottom: 4 }}>
+          2 · Server-Key (Conversions API)
+        </div>
+        {setup.hasCapiKey ? (
+          <span style={{ color: "#0f9d6c", fontWeight: 700 }}>
+            ✓ hinterlegt — CRM-/Formular-Events laufen über den Ingest-Endpoint
+          </span>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ color: S.mut }}>
+              Noch kein Server-Key — nötig, damit EzyHub Conversions serverseitig an OpenAI meldet.
+            </span>
+            {isOrgAdmin && (
+              <button
+                onClick={() => run("key", { action: "conv-key-create" })}
+                disabled={busy === "key" || !setup.configuredPixelId}
+                style={btn(false, busy === "key" || !setup.configuredPixelId)}
+                title={!setup.configuredPixelId ? "Zuerst ein Pixel anlegen/übernehmen" : undefined}
+              >
+                {busy === "key" ? "Erzeuge…" : "Key erzeugen & sicher speichern"}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Schritt 3: Events */}
+      <div style={{ fontSize: 12.5 }}>
+        <div style={{ fontWeight: 700, color: S.txt, marginBottom: 4 }}>
+          3 · Conversion-Events ({usable.length})
+          <span style={{ fontWeight: 400, color: S.mut, marginLeft: 8 }}>
+            — was als Conversion zählt; conversions-optimierte Kampagnen brauchen mindestens eines
+          </span>
+        </div>
+        {showForm && isOrgAdmin && (
+          <div
+            style={{
+              border: `1px solid ${S.line}`,
+              borderRadius: 10,
+              padding: 12,
+              marginBottom: 10,
+              display: "grid",
+              gap: 8,
+              gridTemplateColumns: "1fr 1fr",
+            }}
+          >
+            <input
+              value={f.name}
+              onChange={(e) => setF({ ...f, name: e.target.value })}
+              placeholder="Name (z.B. Kontaktanfrage)"
+              style={input}
+            />
+            <select
+              value={f.eventType}
+              onChange={(e) => setF({ ...f, eventType: e.target.value })}
+              style={input}
+            >
+              {CONV_EVENT_OPTIONS.map(([k, l]) => (
+                <option key={k} value={k}>
+                  {l}
+                </option>
+              ))}
+            </select>
+            {f.eventType === "custom" && (
+              <input
+                value={f.customEventName}
+                onChange={(e) => setF({ ...f, customEventName: e.target.value })}
+                placeholder="Eigener Event-Name (wie im Snippet gemessen)"
+                style={input}
+              />
+            )}
+            <label style={{ display: "flex", alignItems: "center", gap: 8, color: S.mut }}>
+              Attributionsfenster
+              <input
+                value={f.windowDays}
+                onChange={(e) => setF({ ...f, windowDays: e.target.value })}
+                style={{ ...input, width: 70 }}
+              />{" "}
+              Tage
+            </label>
+            <div
+              style={{
+                gridColumn: "1 / -1",
+                display: "flex",
+                gap: 14,
+                flexWrap: "wrap",
+                color: S.mut,
+              }}
+            >
+              Datenquelle:
+              {setup.pixels.map((p) => (
+                <label
+                  key={p.id}
+                  style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={f.sourceIds.includes(p.id)}
+                    onChange={(e) =>
+                      setF({
+                        ...f,
+                        sourceIds: e.target.checked
+                          ? [...f.sourceIds, p.id]
+                          : f.sourceIds.filter((x) => x !== p.id),
+                      })
+                    }
+                  />
+                  {p.name || p.pixel_id}
+                </label>
+              ))}
+            </div>
+            <div style={{ gridColumn: "1 / -1", display: "flex", gap: 8 }}>
+              <button
+                onClick={async () => {
+                  const ok = await run("event", {
+                    action: "conv-event-create",
+                    name: f.name,
+                    eventType: f.eventType,
+                    customEventName: f.customEventName,
+                    attributionWindowDays: Number(f.windowDays) || 30,
+                    sourceIds: f.sourceIds.length ? f.sourceIds : setup.pixels.map((p) => p.id),
+                  });
+                  if (ok) {
+                    setShowForm(false);
+                    setF({ ...f, name: "", customEventName: "" });
+                  }
+                }}
+                disabled={busy === "event" || f.name.trim().length < 2}
+                style={btn(true, busy === "event" || f.name.trim().length < 2)}
+              >
+                {busy === "event" ? "Lege an…" : "Event anlegen"}
+              </button>
+              <button onClick={() => setShowForm(false)} style={btn(false)}>
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        )}
+        {usable.length === 0 ? (
+          <div style={{ color: S.mut }}>Noch keine Conversion-Events definiert.</div>
+        ) : (
+          usable.map((e) => {
+            const assigned = setup.campaigns.filter((c) => c.eventSettingIds.includes(e.id));
+            const editing = assign === e.id;
+            return (
+              <div key={e.id} style={{ borderTop: `1px solid ${S.line}22`, padding: "6px 0" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <span style={{ fontWeight: 700, color: S.txt }}>{e.name}</span>
+                  <span style={{ color: S.mut }}>
+                    {typeLabel(e)} · {e.attribution_window_days} Tage
+                  </span>
+                  <span style={{ marginLeft: "auto", color: S.mut, fontSize: 11.5 }}>
+                    {assigned.length === 0
+                      ? "keiner Kampagne zugewiesen"
+                      : `Kampagnen: ${assigned.map((c) => c.name).join(", ")}`}
+                  </span>
+                  {isOrgAdmin && setup.campaigns.length > 0 && (
+                    <button
+                      onClick={() => setAssign(editing ? null : e.id)}
+                      style={{ ...btn(false), padding: "2px 8px", fontSize: 11 }}
+                    >
+                      {editing ? "Schliessen" : "Kampagnen zuweisen"}
+                    </button>
+                  )}
+                </div>
+                {editing && (
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 14,
+                      flexWrap: "wrap",
+                      marginTop: 6,
+                      paddingLeft: 4,
+                    }}
+                  >
+                    {setup.campaigns.map((c) => {
+                      const on = c.eventSettingIds.includes(e.id);
+                      return (
+                        <label
+                          key={c.id}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 5,
+                            cursor: "pointer",
+                            color: S.txt,
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={on}
+                            disabled={busy === `assign:${c.id}`}
+                            onChange={() =>
+                              run(`assign:${c.id}`, {
+                                action: "command",
+                                cmd: "set_conversion_events",
+                                targetType: "campaign",
+                                targetId: c.id,
+                                eventSettingIds: on
+                                  ? c.eventSettingIds.filter((x) => x !== e.id)
+                                  : [...c.eventSettingIds, e.id],
+                              })
+                            }
+                          />
+                          {c.name}
+                          <span style={{ color: S.mut, fontSize: 11 }}>({c.status})</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );

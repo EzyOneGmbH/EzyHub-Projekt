@@ -51,6 +51,22 @@ import { encryptSecret, decryptSecret } from "@/server/secretbox.server";
 //      audience-create (owner/admin): { clientId, name, description?, identifierType, hashes: string[] }
 //      audience-sync / audience-archive (owner/admin): { clientId, audienceId? }
 //      sync-all (nur Admin-Secret): alle aktiven Konten sequenziell.
+//
+// AUSBAU 13.09.2026 (Spec v2.3.0, 78 Endpunkte — Diff gegen unsere 15 Pfade):
+// - Conversions-Setup per API: /conversions/pixels, /conversions/event_settings,
+//   /conversions/api_keys (CAPI-Key → openai_ads_config.api_key_enc) und
+//   GET /conversions/events?pid= (Stichprobe der letzten ~15 Min mit Kanal
+//   pixel_sdk|server_to_server = LIVE-Verifikation des Website-Snippets).
+//   Actions: conv-setup-get, conv-pixel-create, conv-key-create,
+//   conv-event-create, conv-sample. Command set_conversion_events hängt
+//   Event-Settings an eine Kampagne (conversion_event_setting_ids).
+// - Insights mit den neuen Metriken (cpa, post_click_cvr, order_created_roas,
+//   order_created_attributed_sales; attributed_sales_count ist DEPRECATED).
+// - Ad-Vorschau: POST /ads/{id}/preview → iframe-HTML (action ad-preview);
+//   GET liefert die Anzeigen je Kampagne mit Creative + Review-Status.
+// - Bulk API ist laut Doku «limited preview, pro Konto freigeschaltet» und
+//   nicht in der Spec — der 404-Fallback auf Einzel-Calls ist der Normalfall.
+// Mock: Conversions-Setup wird in chatgpt_ads_accounts.mock_state persistiert.
 
 const ADS_API = "https://api.ads.openai.com/v1";
 
@@ -321,6 +337,14 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
           clicks: Number(row.campaign_clicks ?? row.clicks ?? 0),
           spend: Number(row.campaign_spend ?? row.spend ?? 0),
           conversions: row.conversions != null ? Number(row.conversions) : null,
+          // Neue Attributions-Metriken (Spec v2.3.0); attributed_sales_amount
+          // nur als Fallback (deprecated).
+          attributed_sales: numOrNull(
+            row.order_created_attributed_sales ?? row.attributed_sales_amount,
+          ),
+          roas: numOrNull(row.order_created_roas ?? row.roas),
+          cpa: numOrNull(row.cpa),
+          post_click_cvr: numOrNull(row.post_click_cvr),
         },
         { onConflict: "account_id,scope,scope_openai_id,date" },
       );
@@ -362,6 +386,94 @@ async function mockSync(sb: any, acc: any): Promise<any> {
       { onConflict: "account_id,openai_campaign_id", ignoreDuplicates: true },
     );
   }
+  // Demo-Anzeigengruppen + Anzeigen (für Drilldown + Vorschau, 13.09.).
+  const { data: dbCamps } = await sb
+    .from("chatgpt_ads_campaigns")
+    .select("id, openai_campaign_id")
+    .eq("account_id", acc.id);
+  const campDbId = new Map<string, string>(
+    (dbCamps || []).map((r: any) => [String(r.openai_campaign_id), String(r.id)]),
+  );
+  const ADS: Record<string, Array<{ id: string; name: string; title: string; body: string }>> = {
+    cmp_mock_brand: [
+      {
+        id: "ad_mock_brand_1",
+        name: "Brand 1",
+        title: "Die Agentur für KI-Sichtbarkeit",
+        body: "Werde in ChatGPT & Co. gefunden — messbar, Schweiz-fokussiert.",
+      },
+      {
+        id: "ad_mock_brand_2",
+        name: "Brand 2",
+        title: "Sichtbar in der KI-Suche",
+        body: "Erwähnungen und Zitate in ChatGPT statt nur Google-Rankings.",
+      },
+    ],
+    cmp_mock_leads: [
+      {
+        id: "ad_mock_leads_1",
+        name: "Beratung",
+        title: "Kostenlose KI-Sichtbarkeits-Analyse",
+        body: "In 48 h erfährst du, wie ChatGPT über dein Unternehmen spricht.",
+      },
+    ],
+    cmp_mock_promo: [
+      {
+        id: "ad_mock_promo_1",
+        name: "Herbst",
+        title: "Herbst-Aktion: Erstgespräch gratis",
+        body: "Bis Ende Oktober — jetzt Termin sichern.",
+      },
+    ],
+  };
+  let adGroups = 0;
+  let ads = 0;
+  for (const c of CAMPS) {
+    const cid = campDbId.get(c.id);
+    if (!cid) continue;
+    adGroups++;
+    const { data: gRow } = await sb
+      .from("chatgpt_ads_ad_groups")
+      .upsert(
+        {
+          account_id: acc.id,
+          campaign_id: cid,
+          openai_ad_group_id: `adg_${c.id}`,
+          name: `${c.name} – Gruppe A`,
+          status: "active",
+          raw: { id: `adg_${c.id}`, mock: true },
+          synced_at: new Date().toISOString(),
+        },
+        { onConflict: "account_id,openai_ad_group_id" },
+      )
+      .select("id")
+      .single();
+    for (const [j, a] of (ADS[c.id] || []).entries()) {
+      ads++;
+      await sb.from("chatgpt_ads_ads").upsert(
+        {
+          account_id: acc.id,
+          ad_group_id: gRow?.id ?? null,
+          openai_ad_id: a.id,
+          name: a.name,
+          status: j === 1 ? "paused" : "active",
+          review_status: j === 1 ? "in_review" : "approved",
+          raw: {
+            id: a.id,
+            mock: true,
+            creative: {
+              type: "chat_card",
+              title: a.title,
+              body: a.body,
+              target_url: "https://www.ezyone.ch/",
+            },
+          },
+          synced_at: new Date().toISOString(),
+        },
+        { onConflict: "account_id,openai_ad_id" },
+      );
+    }
+  }
   // 30 Tage deterministische Insights je Kampagne (Seed = Tagesindex).
   let insightRows = 0;
   for (let d = 0; d < 30; d++) {
@@ -370,6 +482,15 @@ async function mockSync(sb: any, acc: any): Promise<any> {
       if (i === 2 && d < 5) continue; // pausierte Kampagne: zuletzt ohne Daten
       const base = 400 + ((d * 37 + i * 91) % 350);
       const clicks = Math.round(base * (0.02 + (i % 3) * 0.01));
+      const spend = Math.round(base * 0.9) / 10;
+      const conv =
+        i === 1
+          ? Math.max(0, Math.round(clicks * 0.08))
+          : i === 2
+            ? Math.round(clicks * 0.03)
+            : null;
+      // Promo-Kampagne: Käufe mit Umsatz (ROAS-Demo), Lead-Kampagne: nur Leads.
+      const sales = i === 2 && conv ? Math.round(conv * 89.5 * 100) / 100 : null;
       insightRows++;
       await sb.from("chatgpt_ads_insights_daily").upsert(
         {
@@ -379,8 +500,12 @@ async function mockSync(sb: any, acc: any): Promise<any> {
           date: day,
           impressions: base * 10,
           clicks,
-          spend: Math.round(base * 0.9) / 10,
-          conversions: i === 1 ? Math.max(0, Math.round(clicks * 0.08)) : null,
+          spend,
+          conversions: conv,
+          attributed_sales: sales,
+          roas: sales != null && spend ? Math.round((sales / spend) * 100) / 100 : null,
+          cpa: conv ? Math.round((spend / conv) * 100) / 100 : null,
+          post_click_cvr: conv && clicks ? Math.round((conv / clicks) * 10000) / 10000 : null,
         },
         { onConflict: "account_id,scope,scope_openai_id,date" },
       );
@@ -390,8 +515,11 @@ async function mockSync(sb: any, acc: any): Promise<any> {
     .from("chatgpt_ads_accounts")
     .update({ last_synced_at: new Date().toISOString(), last_sync_error: null })
     .eq("id", acc.id);
-  return { campaigns: CAMPS.length, adGroups: 0, ads: 0, insightRows, mock: true };
+  return { campaigns: CAMPS.length, adGroups, ads, insightRows, mock: true };
 }
+
+const numOrNull = (v: any): number | null =>
+  v == null || v === "" || Number.isNaN(Number(v)) ? null : Number(v);
 
 // ── Command-Ausfuehrung (WF-3): Audit-Zeile + API-Call + Re-Sync ─────────────
 async function runCommand(
@@ -441,6 +569,7 @@ async function runCommand(
     Array.isArray(v) ? v.map((x) => String(x)).filter(Boolean) : [];
   const includeIds = idList(payload?.includeIds);
   const excludeIds = idList(payload?.excludeIds).filter((id) => !includeIds.includes(id));
+  const eventSettingIds = idList(payload?.eventSettingIds);
 
   if (acc.is_mock) {
     // Mock: nur DB-Status/Budget/Targeting aendern — kein API-Call.
@@ -462,6 +591,8 @@ async function runCommand(
       targeting.custom_audiences = { ids: includeIds };
       targeting.excluded_custom_audiences = { ids: excludeIds };
       upd = { raw: { ...raw, targeting } };
+    } else if (cmd === "set_conversion_events") {
+      upd = { raw: { ...raw, conversion_event_setting_ids: eventSettingIds } };
     } else {
       upd = { status: cmd === "pause" ? "paused" : "active" };
     }
@@ -506,6 +637,12 @@ async function runCommand(
     r = await adsFetch(apiKey, acc.openai_ad_account_id, `/campaigns/${targetId}`, {
       method: "POST",
       body: { targeting },
+    });
+  } else if (cmd === "set_conversion_events") {
+    // Event-Settings an die Kampagne hängen (Spec v2.3.0: conversion_event_setting_ids).
+    r = await adsFetch(apiKey, acc.openai_ad_account_id, `/campaigns/${targetId}`, {
+      method: "POST",
+      body: { conversion_event_setting_ids: eventSettingIds },
     });
   } else {
     return finish(false, `Unbekanntes Kommando: ${cmd}`);
@@ -764,6 +901,169 @@ async function archiveAudience(
   return { ok: true };
 }
 
+// ── Conversions-Setup + Ad-Vorschau (Spec v2.3.0, 13.09.) ───────────────────
+type ConvPixel = { id: string; name: string; pixel_id: string; client_type?: string };
+type ConvEventSetting = {
+  id: string;
+  name: string;
+  event_type: string;
+  custom_event_name: string | null;
+  attribution_window_days: number;
+  source_ids: string[];
+  campaigns: Array<{ id: string; name: string }>;
+  archived: boolean;
+};
+type MockState = { pixels: ConvPixel[]; event_settings: ConvEventSetting[] };
+
+// Standard-Events gem. Doku «Supported Events» + custom.
+const CONV_EVENT_TYPES = [
+  "lead_created",
+  "order_created",
+  "registration_completed",
+  "appointment_scheduled",
+  "subscription_created",
+  "trial_started",
+  "checkout_started",
+  "contents_viewed",
+  "items_added",
+  "page_viewed",
+  "custom",
+];
+
+async function mockStateGet(sb: any, acc: any): Promise<MockState> {
+  const { data } = await sb
+    .from("chatgpt_ads_accounts")
+    .select("mock_state")
+    .eq("id", acc.id)
+    .maybeSingle();
+  const st = data?.mock_state || {};
+  return { pixels: st.pixels || [], event_settings: st.event_settings || [] };
+}
+async function mockStateSet(sb: any, acc: any, st: MockState): Promise<void> {
+  await sb.from("chatgpt_ads_accounts").update({ mock_state: st }).eq("id", acc.id);
+}
+
+function normEventSetting(e: any): ConvEventSetting {
+  return {
+    id: String(e.id),
+    name: String(e.name || ""),
+    event_type: String(e.event_type || ""),
+    custom_event_name: e.custom_event_name ?? null,
+    attribution_window_days: Number(e.attribution_window_days || 0),
+    source_ids: Array.isArray(e.source_ids) ? e.source_ids.map(String) : [],
+    campaigns: Array.isArray(e.campaigns)
+      ? e.campaigns.map((c: any) => ({ id: String(c.id), name: String(c.name || c.id) }))
+      : [],
+    archived: !!e.archived,
+  };
+}
+
+// Pixel/Event-Settings des Kontos + hinterlegte Pixel-ID des Kunden.
+async function convSetupGet(
+  sb: any,
+  acc: any,
+  clientId: string,
+): Promise<{
+  ok: boolean;
+  error?: string;
+  pixels?: ConvPixel[];
+  eventSettings?: ConvEventSetting[];
+  configuredPixelId?: string | null;
+  hasCapiKey?: boolean;
+  campaigns?: Array<{ id: string; name: string; status: string; eventSettingIds: string[] }>;
+  isMock?: boolean;
+}> {
+  const { data: cfg } = await sb
+    .from("openai_ads_config")
+    .select("pixel_id, api_key_enc")
+    .eq("client_id", clientId)
+    .maybeSingle();
+  const configuredPixelId = cfg?.pixel_id || null;
+  const hasCapiKey = !!cfg?.api_key_enc;
+  // Kampagnen mit ihren Event-Setting-IDs (aus raw) — für die Zuweisung im UI.
+  const { data: campRows } = await sb
+    .from("chatgpt_ads_campaigns")
+    .select("openai_campaign_id, name, status, ids:raw->conversion_event_setting_ids")
+    .eq("account_id", acc.id)
+    .neq("status", "archived")
+    .order("name");
+  const campaigns = (campRows || []).map((c: any) => ({
+    id: String(c.openai_campaign_id),
+    name: String(c.name || ""),
+    status: String(c.status || ""),
+    eventSettingIds: Array.isArray(c.ids) ? c.ids.map(String) : [],
+  }));
+  if (acc.is_mock) {
+    const st = await mockStateGet(sb, acc);
+    return {
+      ok: true,
+      pixels: st.pixels,
+      eventSettings: st.event_settings,
+      campaigns,
+      configuredPixelId,
+      hasCapiKey,
+      isMock: true,
+    };
+  }
+  const apiKey = decryptSecret(acc.api_key_enc);
+  const [pix, evs] = await Promise.all([
+    adsListAll(apiKey, acc.openai_ad_account_id, "/conversions/pixels"),
+    adsListAll(apiKey, acc.openai_ad_account_id, "/conversions/event_settings"),
+  ]);
+  return {
+    ok: true,
+    pixels: pix.map((p: any) => ({
+      id: String(p.id),
+      name: String(p.name || ""),
+      pixel_id: String(p.pixel_id || ""),
+      client_type: p.client_type,
+    })),
+    eventSettings: evs.map(normEventSetting),
+    campaigns,
+    configuredPixelId,
+    hasCapiKey,
+  };
+}
+
+// Pixel-ID beim Kunden hinterlegen (openai_ads_config) — Snippet-Karte und
+// CAPI-Ingest lesen von dort.
+async function adoptPixel(sb: any, clientId: string, organizationId: string, pixelId: string) {
+  const { data: ex } = await sb
+    .from("openai_ads_config")
+    .select("client_id")
+    .eq("client_id", clientId)
+    .maybeSingle();
+  if (ex)
+    await sb
+      .from("openai_ads_config")
+      .update({ pixel_id: pixelId, updated_at: new Date().toISOString() })
+      .eq("client_id", clientId);
+  else
+    await sb.from("openai_ads_config").insert({
+      client_id: clientId,
+      organization_id: organizationId,
+      pixel_id: pixelId,
+      enabled: true,
+    });
+}
+
+// Demo-Vorschau: Chat-Card-Optik aus dem Creative.
+function mockPreviewHtml(ad: any): string {
+  const cr = ad?.raw?.creative || {};
+  const esc = (s: any) =>
+    String(s ?? "").replace(
+      /[&<>"]/g,
+      (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] || c,
+    );
+  return `<!doctype html><html><body style="margin:0;font-family:system-ui,sans-serif;background:#f7f7f8;padding:16px">
+<div style="max-width:420px;margin:0 auto;background:#fff;border:1px solid #e5e5ea;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.05)">
+<div style="font-size:10.5px;color:#8b8da3;letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Gesponsert · Demo-Vorschau</div>
+<div style="font-size:15px;font-weight:700;color:#111;margin-bottom:4px">${esc(cr.title)}</div>
+<div style="font-size:13px;color:#444;line-height:1.5;margin-bottom:10px">${esc(cr.body)}</div>
+<div style="font-size:12px;color:#77008C;font-weight:600">${esc(cr.target_url || "")} →</div>
+</div></body></html>`;
+}
+
 async function requireUser(request: Request): Promise<{ userClient: any | null } | Response> {
   const admin = process.env.ADMIN_AUTOMATION_SECRET;
   const auth = request.headers.get("authorization") || "";
@@ -822,14 +1122,16 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
               // targeting (Audience-IDs) direkt aus raw per JSON-Pfad — spart
               // das komplette raw-Objekt in der Antwort.
               .select(
-                "openai_campaign_id, name, status, bidding_type, objective, budget_daily_micros, budget_lifetime_micros, synced_at, targeting_locations, targeting:raw->targeting",
+                "openai_campaign_id, name, status, bidding_type, objective, budget_daily_micros, budget_lifetime_micros, synced_at, targeting_locations, targeting:raw->targeting, conversion_event_setting_ids:raw->conversion_event_setting_ids",
               )
               .eq("account_id", acc.id)
               .neq("status", "archived")
               .order("name"),
             sb
               .from("chatgpt_ads_insights_daily")
-              .select("scope_openai_id, date, impressions, clicks, spend, conversions")
+              .select(
+                "scope_openai_id, date, impressions, clicks, spend, conversions, attributed_sales, roas, cpa, post_click_cvr",
+              )
               .eq("account_id", acc.id)
               .eq("scope", "campaign")
               .gte("date", start)
@@ -849,6 +1151,44 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
               .eq("account_id", acc.id)
               .order("created_at", { ascending: false }),
           ]);
+        // Anzeigen je Kampagne (Drilldown + Vorschau, 13.09.): Ad → Gruppe → Kampagne.
+        const [{ data: groups }, { data: adRows }] = await Promise.all([
+          sb
+            .from("chatgpt_ads_ad_groups")
+            .select("id, name, campaign_id, campaigns:chatgpt_ads_campaigns(openai_campaign_id)")
+            .eq("account_id", acc.id),
+          sb
+            .from("chatgpt_ads_ads")
+            .select(
+              "openai_ad_id, ad_group_id, name, status, review_status, creative:raw->creative",
+            )
+            .eq("account_id", acc.id)
+            .neq("status", "archived"),
+        ]);
+        const groupById = new Map<string, { name: string; campaignId: string | null }>(
+          (groups || []).map((g: any) => [
+            String(g.id),
+            { name: String(g.name || ""), campaignId: g.campaigns?.openai_campaign_id ?? null },
+          ]),
+        );
+        const ads = (adRows || []).map((a: any) => {
+          const g = a.ad_group_id ? groupById.get(String(a.ad_group_id)) : undefined;
+          const cr = a.creative || {};
+          return {
+            openai_ad_id: a.openai_ad_id,
+            name: a.name,
+            status: a.status,
+            review_status: a.review_status,
+            ad_group_name: g?.name ?? null,
+            campaign_id: g?.campaignId ?? null,
+            creative: {
+              type: cr.type ?? null,
+              title: cr.title ?? null,
+              body: cr.body ?? null,
+              target_url: cr.target_url ?? cr.url ?? null,
+            },
+          };
+        });
         return Response.json({
           ok: true,
           connected: true,
@@ -857,6 +1197,7 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
           insights: insights || [],
           commands: commands || [],
           audiences: audiences || [],
+          ads,
         });
       },
 
@@ -991,7 +1332,14 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
           const cmd = String(body?.cmd || "");
           const targetId = String(body?.targetId || "");
           if (
-            !["pause", "activate", "set_budget", "set_targeting", "set_audiences"].includes(cmd) ||
+            ![
+              "pause",
+              "activate",
+              "set_budget",
+              "set_targeting",
+              "set_audiences",
+              "set_conversion_events",
+            ].includes(cmd) ||
             !targetId
           )
             return Response.json({ ok: false, error: "cmd/targetId ungültig" }, { status: 400 });
@@ -1005,6 +1353,7 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
               locations: body?.locations,
               includeIds: body?.includeIds,
               excludeIds: body?.excludeIds,
+              eventSettingIds: body?.eventSettingIds,
             },
             ctx.userId ?? null,
           );
@@ -1118,6 +1467,246 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
           return res.ok
             ? Response.json({ ok: true })
             : Response.json({ ok: false, error: res.error }, { status: 502 });
+        }
+
+        // ── Conversions-Setup per API (13.09.) ─────────────────────────────
+        if (action === "conv-setup-get") {
+          try {
+            return Response.json(await convSetupGet(sb, acc, clientId));
+          } catch (e: any) {
+            return Response.json({ ok: false, error: String(e?.message || e) }, { status: 502 });
+          }
+        }
+
+        if (action === "conv-pixel-create") {
+          const name = String(body?.name || "").trim() || `${own.name} Website`;
+          let pixel: ConvPixel;
+          if (acc.is_mock) {
+            const st = await mockStateGet(sb, acc);
+            pixel = {
+              id: `cpx_mock_${Date.now().toString(36)}`,
+              name,
+              pixel_id: `pix_${clientId.slice(0, 8)}_${st.pixels.length + 1}`,
+              client_type: "web",
+            };
+            st.pixels.push(pixel);
+            await mockStateSet(sb, acc, st);
+          } else {
+            const r = await adsFetch(
+              decryptSecret(acc.api_key_enc),
+              acc.openai_ad_account_id,
+              "/conversions/pixels",
+              { method: "POST", body: { name, client_type: "web" } },
+            );
+            if (!r.ok || !r.json?.pixel_id)
+              return Response.json(
+                { ok: false, error: `HTTP ${r.status}: ${JSON.stringify(r.json)?.slice(0, 200)}` },
+                { status: 502 },
+              );
+            pixel = {
+              id: String(r.json.id),
+              name: String(r.json.name || name),
+              pixel_id: String(r.json.pixel_id),
+              client_type: r.json.client_type,
+            };
+          }
+          // Standard: die neue Pixel-ID gleich beim Kunden hinterlegen.
+          if (body?.adopt !== false)
+            await adoptPixel(sb, clientId, own.organization_id, pixel.pixel_id);
+          return Response.json({ ok: true, pixel });
+        }
+
+        if (action === "conv-pixel-adopt") {
+          const pixelId = String(body?.pixelId || "").trim();
+          if (!pixelId)
+            return Response.json({ ok: false, error: "pixelId erforderlich" }, { status: 400 });
+          await adoptPixel(sb, clientId, own.organization_id, pixelId);
+          return Response.json({ ok: true });
+        }
+
+        if (action === "conv-key-create") {
+          // Conversions-API-Key erzeugen und verschlüsselt beim Kunden speichern —
+          // der Klartext wird NICHT zurückgegeben (Secretbox-Muster).
+          if (acc.is_mock) {
+            const { data: ex } = await sb
+              .from("openai_ads_config")
+              .select("client_id")
+              .eq("client_id", clientId)
+              .maybeSingle();
+            if (!ex)
+              return Response.json(
+                { ok: false, error: "Zuerst ein Pixel anlegen (Demo)" },
+                { status: 409 },
+              );
+            await sb
+              .from("openai_ads_config")
+              .update({ api_key_enc: encryptSecret(`mock_capi_${Date.now()}`) })
+              .eq("client_id", clientId);
+            return Response.json({ ok: true });
+          }
+          const r = await adsFetch(
+            decryptSecret(acc.api_key_enc),
+            acc.openai_ad_account_id,
+            "/conversions/api_keys",
+            { method: "POST", body: { name: `EzyHub ${own.name}`.slice(0, 60) } },
+          );
+          if (!r.ok || !r.json?.api_key)
+            return Response.json(
+              { ok: false, error: `HTTP ${r.status}: ${JSON.stringify(r.json)?.slice(0, 200)}` },
+              { status: 502 },
+            );
+          const { data: ex } = await sb
+            .from("openai_ads_config")
+            .select("client_id")
+            .eq("client_id", clientId)
+            .maybeSingle();
+          if (!ex)
+            return Response.json(
+              { ok: false, error: "Zuerst ein Pixel anlegen/übernehmen" },
+              { status: 409 },
+            );
+          await sb
+            .from("openai_ads_config")
+            .update({ api_key_enc: encryptSecret(String(r.json.api_key)) })
+            .eq("client_id", clientId);
+          return Response.json({ ok: true });
+        }
+
+        if (action === "conv-event-create") {
+          const name = String(body?.name || "").trim();
+          const eventType = String(body?.eventType || "");
+          const customEventName = String(body?.customEventName || "").trim();
+          const windowDays = Math.min(90, Math.max(1, Number(body?.attributionWindowDays || 30)));
+          const sourceIds: string[] = Array.isArray(body?.sourceIds)
+            ? body.sourceIds.map((x: any) => String(x)).filter(Boolean)
+            : [];
+          if (name.length < 2 || !CONV_EVENT_TYPES.includes(eventType) || !sourceIds.length)
+            return Response.json(
+              { ok: false, error: "name, eventType und mindestens ein Pixel erforderlich" },
+              { status: 400 },
+            );
+          if (eventType === "custom" && !customEventName)
+            return Response.json(
+              { ok: false, error: "customEventName erforderlich" },
+              { status: 400 },
+            );
+          const payload: any = {
+            name,
+            event_type: eventType,
+            attribution_window_days: windowDays,
+            source_ids: sourceIds,
+          };
+          if (eventType === "custom") payload.custom_event_name = customEventName;
+          if (acc.is_mock) {
+            const st = await mockStateGet(sb, acc);
+            const ev = normEventSetting({
+              id: `ces_mock_${Date.now().toString(36)}`,
+              ...payload,
+              campaigns: [],
+            });
+            st.event_settings.push(ev);
+            await mockStateSet(sb, acc, st);
+            return Response.json({ ok: true, eventSetting: ev });
+          }
+          const r = await adsFetch(
+            decryptSecret(acc.api_key_enc),
+            acc.openai_ad_account_id,
+            "/conversions/event_settings",
+            { method: "POST", body: payload },
+          );
+          if (!r.ok || !r.json?.id)
+            return Response.json(
+              { ok: false, error: `HTTP ${r.status}: ${JSON.stringify(r.json)?.slice(0, 200)}` },
+              { status: 502 },
+            );
+          return Response.json({ ok: true, eventSetting: normEventSetting(r.json) });
+        }
+
+        if (action === "conv-sample") {
+          // Live-Verifikation: Stichprobe der bei OpenAI eingegangenen Events
+          // (letzte ~15 Min) — zeigt, ob Pixel (pixel_sdk) bzw. CAPI
+          // (server_to_server) wirklich ankommen. Nicht cachen.
+          let pixelId = String(body?.pixelId || "").trim();
+          if (!pixelId) {
+            const { data: cfg } = await sb
+              .from("openai_ads_config")
+              .select("pixel_id")
+              .eq("client_id", clientId)
+              .maybeSingle();
+            pixelId = cfg?.pixel_id || "";
+          }
+          if (!pixelId)
+            return Response.json(
+              { ok: false, error: "Keine Pixel-ID hinterlegt" },
+              { status: 409 },
+            );
+          if (acc.is_mock) {
+            // Demo: eigene CAPI-Events des Kunden als «eingegangen» spiegeln.
+            const { data: evs } = await sb
+              .from("openai_ads_events")
+              .select("event_type, created_at, sent_at, action_source")
+              .eq("client_id", clientId)
+              .order("created_at", { ascending: false })
+              .limit(20);
+            const events = (evs || []).map((e: any) => ({
+              event_type: e.event_type,
+              custom_event_name: null,
+              api_channel: "server_to_server",
+              event_timestamp_ms: e.created_at ? new Date(e.created_at).getTime() : null,
+              received_at_ms: e.sent_at ? new Date(e.sent_at).getTime() : null,
+              action_source: e.action_source || "website",
+            }));
+            return Response.json({ ok: true, pixelId, events, mock: true });
+          }
+          const r = await adsFetch(
+            decryptSecret(acc.api_key_enc),
+            acc.openai_ad_account_id,
+            "/conversions/events",
+            { query: { pid: pixelId, limit: "50" } },
+          );
+          if (!r.ok)
+            return Response.json(
+              { ok: false, error: `HTTP ${r.status}: ${JSON.stringify(r.json)?.slice(0, 200)}` },
+              { status: 502 },
+            );
+          const events = (r.json?.data || []).map((e: any) => ({
+            event_type: e.event_type ?? null,
+            custom_event_name: e.custom_event_name ?? null,
+            api_channel: e.api_channel ?? null,
+            event_timestamp_ms: numOrNull(e.event_timestamp_ms),
+            received_at_ms: numOrNull(e.received_at_ms),
+            action_source: e.action_source ?? null,
+          }));
+          return Response.json({ ok: true, pixelId, events });
+        }
+
+        // ── Ad-Vorschau (13.09.) ──────────────────────────────────────────
+        if (action === "ad-preview") {
+          const adId = String(body?.adId || "");
+          if (!adId)
+            return Response.json({ ok: false, error: "adId erforderlich" }, { status: 400 });
+          const { data: ad } = await sb
+            .from("chatgpt_ads_ads")
+            .select("openai_ad_id, raw")
+            .eq("account_id", acc.id)
+            .eq("openai_ad_id", adId)
+            .maybeSingle();
+          if (!ad) return Response.json({ ok: false, error: "Anzeige unbekannt" }, { status: 404 });
+          if (acc.is_mock)
+            return Response.json({ ok: true, html: mockPreviewHtml(ad), mock: true });
+          const r = await adsFetch(
+            decryptSecret(acc.api_key_enc),
+            acc.openai_ad_account_id,
+            `/ads/${encodeURIComponent(adId)}/preview`,
+            { method: "POST", body: {} },
+          );
+          const html = r.json?.data?.[0]?.body;
+          if (!r.ok || !html)
+            return Response.json(
+              { ok: false, error: `HTTP ${r.status}: ${JSON.stringify(r.json)?.slice(0, 200)}` },
+              { status: 502 },
+            );
+          return Response.json({ ok: true, html: String(html) });
         }
 
         return Response.json({ ok: false, error: `Unbekannte action: ${action}` }, { status: 400 });

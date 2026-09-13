@@ -40,6 +40,21 @@ type Campaign = {
     custom_audiences?: { ids?: string[] };
     excluded_custom_audiences?: { ids?: string[] };
   } | null;
+  conversion_event_setting_ids?: string[] | null;
+};
+type Ad = {
+  openai_ad_id: string;
+  name: string | null;
+  status: string;
+  review_status: string | null;
+  ad_group_name: string | null;
+  campaign_id: string | null;
+  creative: {
+    type: string | null;
+    title: string | null;
+    body: string | null;
+    target_url: string | null;
+  };
 };
 type Audience = {
   openai_audience_id: string;
@@ -59,6 +74,10 @@ type InsightRow = {
   clicks: number;
   spend: number;
   conversions: number | null;
+  attributed_sales?: number | null;
+  roas?: number | null;
+  cpa?: number | null;
+  post_click_cvr?: number | null;
 };
 type CmdRow = {
   action: string;
@@ -86,6 +105,14 @@ type ApiData = {
   insights?: InsightRow[];
   commands?: CmdRow[];
   audiences?: Audience[];
+  ads?: Ad[];
+};
+
+const REVIEW_LABEL: Record<string, [string, string]> = {
+  approved: ["freigegeben", "#0f9d6c"],
+  in_review: ["in Prüfung", "#d97706"],
+  pending: ["in Prüfung", "#d97706"],
+  rejected: ["abgelehnt", "#dc2626"],
 };
 
 const AUDIENCE_STATUS: Record<string, [string, string]> = {
@@ -124,6 +151,9 @@ const normPhone = (s: string) => {
   return d ? `+${d}` : "";
 };
 const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+
+type EditorKind = "targeting" | "audiences" | "ads";
+type Agg = { imp: number; clicks: number; spend: number; conv: number; sales: number };
 
 const microsToMoney = (m: number | null | undefined, cur: string) =>
   m == null
@@ -394,6 +424,7 @@ function ManagerView({
   const cur = acc.currency_code || "USD";
   const campaigns = data.campaigns || [];
   const audiences = data.audiences || [];
+  const allAds = useMemo(() => data.ads || [], [data.ads]);
   // Stabile Referenz fuer die useMemo-Abhaengigkeiten (eslint exhaustive-deps).
   const insights = useMemo(() => data.insights || [], [data.insights]);
   const [busy, setBusy] = useState("");
@@ -402,9 +433,7 @@ function ManagerView({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkConfirm, setBulkConfirm] = useState<"pause" | "activate" | null>(null);
   // Aufgeklappter Editor unter einer Kampagnen-Zeile (Targeting / Zielgruppen).
-  const [editor, setEditor] = useState<{ id: string; kind: "targeting" | "audiences" } | null>(
-    null,
-  );
+  const [editor, setEditor] = useState<{ id: string; kind: EditorKind } | null>(null);
 
   const run = async (body: any, key: string) => {
     setBusy(key);
@@ -434,16 +463,22 @@ function ManagerView({
 
   // Aggregation je Kampagne + Tages-Zeitreihe über alle Kampagnen.
   const perCampaign = useMemo(() => {
-    const m: Record<string, { imp: number; clicks: number; spend: number; conv: number }> = {};
+    const m: Record<string, Agg> = {};
     for (const r of insights) {
-      const a = (m[r.scope_openai_id] ??= { imp: 0, clicks: 0, spend: 0, conv: 0 });
+      const a = (m[r.scope_openai_id] ??= { imp: 0, clicks: 0, spend: 0, conv: 0, sales: 0 });
       a.imp += Number(r.impressions || 0);
       a.clicks += Number(r.clicks || 0);
       a.spend += Number(r.spend || 0);
       a.conv += Number(r.conversions || 0);
+      a.sales += Number(r.attributed_sales || 0);
     }
     return m;
   }, [insights]);
+  const adsByCampaign = useMemo(() => {
+    const m: Record<string, Ad[]> = {};
+    for (const a of allAds) if (a.campaign_id) (m[a.campaign_id] ??= []).push(a);
+    return m;
+  }, [allAds]);
   const byDay = useMemo(() => {
     const m: Record<string, number> = {};
     for (const r of insights) m[r.date] = (m[r.date] || 0) + Number(r.spend || 0);
@@ -453,14 +488,16 @@ function ManagerView({
     let imp = 0,
       clicks = 0,
       spend = 0,
-      conv = 0;
+      conv = 0,
+      sales = 0;
     for (const v of Object.values(perCampaign)) {
       imp += v.imp;
       clicks += v.clicks;
       spend += v.spend;
       conv += v.conv;
+      sales += v.sales;
     }
-    return { imp, clicks, spend, conv, ctr: imp ? (clicks / imp) * 100 : 0 };
+    return { imp, clicks, spend, conv, sales, ctr: imp ? (clicks / imp) * 100 : 0 };
   }, [perCampaign]);
   const dayKeys = Object.keys(byDay).sort();
   const maxDay = Math.max(0.01, ...dayKeys.map((k) => byDay[k]));
@@ -576,6 +613,13 @@ function ManagerView({
             ["Klicks", fmtNum(totals.clicks)],
             ["CTR", `${totals.ctr.toFixed(2)} %`],
             ["Conversions", fmtNum(totals.conv)],
+            ["CPA", totals.conv ? fmtMoney(totals.spend / totals.conv, cur) : "–"],
+            [
+              "Umsatz (attribuiert)",
+              totals.sales
+                ? `${fmtMoney(totals.sales, cur)} · ROAS ${(totals.sales / Math.max(0.01, totals.spend)).toFixed(1)}×`
+                : "–",
+            ],
           ] as Array<[string, string]>
         ).map(([label, value]) => (
           <div key={label} style={card}>
@@ -746,6 +790,8 @@ function ManagerView({
                     "Spend",
                     "Klicks",
                     "CTR",
+                    "Conv.",
+                    "CPA · ROAS",
                     "",
                   ].map((h) => (
                     <th
@@ -789,7 +835,8 @@ function ManagerView({
                         setEditor(open === kind ? null : { id: c.openai_campaign_id, kind })
                       }
                       audiences={audiences}
-                      colSpan={isOrgAdmin ? 11 : 10}
+                      ads={adsByCampaign[c.openai_campaign_id] || []}
+                      colSpan={isOrgAdmin ? 13 : 12}
                       onEditorSaved={() => setEditor(null)}
                       clientId={clientId}
                     />
@@ -846,12 +893,13 @@ function CampaignRow({
   openEditor,
   onToggleEditor,
   audiences,
+  ads,
   colSpan,
   onEditorSaved,
   clientId,
 }: {
   c: Campaign;
-  agg?: { imp: number; clicks: number; spend: number; conv: number };
+  agg?: Agg;
   cur: string;
   S: Tokens;
   canWrite: boolean;
@@ -859,9 +907,10 @@ function CampaignRow({
   onCmd: (cmd: string, extra?: any) => Promise<boolean>;
   selected: boolean;
   onSelect: () => void;
-  openEditor: "targeting" | "audiences" | null;
-  onToggleEditor: (kind: "targeting" | "audiences") => void;
+  openEditor: EditorKind | null;
+  onToggleEditor: (kind: EditorKind) => void;
   audiences: Audience[];
+  ads: Ad[];
   colSpan: number;
   onEditorSaved: () => void;
   clientId: string;
@@ -903,7 +952,28 @@ function CampaignRow({
             <input type="checkbox" checked={selected} onChange={onSelect} />
           </td>
         )}
-        <td style={{ ...td, fontWeight: 700, color: inkOf(S) }}>{c.name}</td>
+        <td style={{ ...td, fontWeight: 700, color: inkOf(S) }}>
+          {c.name}
+          <div
+            onClick={() => onToggleEditor("ads")}
+            title="Anzeigen dieser Kampagne mit Vorschau"
+            style={{
+              fontSize: 11,
+              fontWeight: 500,
+              color: openEditor === "ads" ? accentOf(S) : S.mut,
+              marginTop: 2,
+              cursor: "pointer",
+              textDecoration: "underline dotted",
+            }}
+          >
+            {ads.length === 0
+              ? "keine Anzeigen"
+              : `${ads.length} Anzeige${ads.length === 1 ? "" : "n"}`}
+            {ads.some((a) => a.review_status === "rejected") && (
+              <span style={{ color: "#dc2626", marginLeft: 6 }}>· abgelehnt</span>
+            )}
+          </div>
+        </td>
         <td style={td}>
           {canWrite ? (
             <button
@@ -1003,6 +1073,24 @@ function CampaignRow({
         <td style={td}>{agg ? fmtMoney(agg.spend, cur) : "–"}</td>
         <td style={td}>{agg ? fmtNum(agg.clicks) : "–"}</td>
         <td style={td}>{agg && agg.imp ? `${ctr.toFixed(2)} %` : "–"}</td>
+        <td style={td}>{agg && agg.conv ? fmtNum(agg.conv) : "–"}</td>
+        <td style={{ ...td, whiteSpace: "nowrap" }}>
+          {agg && agg.conv ? (
+            <>
+              {fmtMoney(agg.spend / agg.conv, cur)}
+              {agg.sales > 0 && (
+                <span
+                  style={{ color: S.mut, marginLeft: 6 }}
+                  title={`Attribuierter Umsatz ${fmtMoney(agg.sales, cur)}`}
+                >
+                  · {(agg.sales / Math.max(0.01, agg.spend)).toFixed(1)}×
+                </span>
+              )}
+            </>
+          ) : (
+            "–"
+          )}
+        </td>
         <td style={{ ...td, color: S.mut, fontSize: 11 }}>{fmtTime(c.synced_at)}</td>
       </tr>
       {openEditor && (
@@ -1011,7 +1099,9 @@ function CampaignRow({
             colSpan={colSpan}
             style={{ padding: "4px 10px 14px", background: "rgba(119,0,140,.03)" }}
           >
-            {openEditor === "targeting" ? (
+            {openEditor === "ads" ? (
+              <AdsDrilldown clientId={clientId} S={S} ads={ads} />
+            ) : openEditor === "targeting" ? (
               <TargetingEditor
                 clientId={clientId}
                 S={S}
@@ -1039,6 +1129,153 @@ function CampaignRow({
         </tr>
       )}
     </>
+  );
+}
+
+/* ── Anzeigen einer Kampagne: Creative, Status, Review, Vorschau (13.09.) ──── */
+function AdsDrilldown({ clientId, S, ads }: { clientId: string; S: Tokens; ads: Ad[] }) {
+  const [preview, setPreview] = useState<{ id: string; html?: string; error?: string } | null>(
+    null,
+  );
+  const [loading, setLoading] = useState("");
+  const openPreview = async (adId: string) => {
+    if (preview?.id === adId) {
+      setPreview(null);
+      return;
+    }
+    setLoading(adId);
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const r = await authedFetch("/api/admin/chatgpt-ads", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token || ""}`,
+        },
+        body: JSON.stringify({ action: "ad-preview", clientId, adId }),
+      });
+      const j = await r.json().catch(() => ({}));
+      setPreview(
+        j.ok ? { id: adId, html: j.html } : { id: adId, error: j.error || `HTTP ${r.status}` },
+      );
+    } catch (e: any) {
+      setPreview({ id: adId, error: String(e?.message || e) });
+    }
+    setLoading("");
+  };
+  if (ads.length === 0)
+    return (
+      <div style={{ fontSize: 12.5, color: S.mut }}>
+        Noch keine Anzeigen — Anzeigen werden im OpenAI Ads Manager erstellt und erscheinen hier
+        nach dem nächsten Sync.
+      </div>
+    );
+  return (
+    <div style={{ fontSize: 12.5, display: "flex", flexDirection: "column", gap: 8 }}>
+      {ads.map((a) => {
+        const [rl, rc] = REVIEW_LABEL[a.review_status || ""] || [a.review_status || "–", "#8b8da3"];
+        const isOpen = preview?.id === a.openai_ad_id;
+        return (
+          <div
+            key={a.openai_ad_id}
+            style={{
+              border: `1px solid ${S.line}`,
+              borderRadius: 10,
+              padding: "8px 12px",
+              background: S.panel,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <span style={{ fontWeight: 700, color: inkOf(S) }}>
+                  {a.creative.title || a.name || a.openai_ad_id}
+                </span>
+                {a.ad_group_name && (
+                  <span style={{ color: S.mut, marginLeft: 8, fontSize: 11 }}>
+                    {a.ad_group_name}
+                  </span>
+                )}
+                {a.creative.body && (
+                  <div style={{ color: S.mut, marginTop: 2, lineHeight: 1.45 }}>
+                    {a.creative.body}
+                  </div>
+                )}
+                {a.creative.target_url && (
+                  <div style={{ fontSize: 11, color: S.mut, marginTop: 2 }}>
+                    {a.creative.target_url}
+                  </div>
+                )}
+              </div>
+              <span
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  color: a.status === "active" ? "#0f9d6c" : "#92400e",
+                  border: `1px solid ${a.status === "active" ? "#0f9d6c44" : "#92400e44"}`,
+                  borderRadius: 99,
+                  padding: "1px 8px",
+                }}
+              >
+                {a.status === "active" ? "aktiv" : a.status === "paused" ? "pausiert" : a.status}
+              </span>
+              <span
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  color: rc,
+                  border: `1px solid ${rc}44`,
+                  borderRadius: 99,
+                  padding: "1px 8px",
+                }}
+                title="Review-Status bei OpenAI"
+              >
+                {rl}
+              </span>
+              <button
+                onClick={() => openPreview(a.openai_ad_id)}
+                disabled={loading === a.openai_ad_id}
+                style={{
+                  border: `1px solid ${S.line}`,
+                  borderRadius: 8,
+                  padding: "4px 10px",
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  background: isOpen ? accentOf(S) : "transparent",
+                  color: isOpen ? "#fff" : inkOf(S),
+                }}
+              >
+                {loading === a.openai_ad_id ? "Lade…" : isOpen ? "Vorschau schliessen" : "Vorschau"}
+              </button>
+            </div>
+            {isOpen &&
+              (preview?.error ? (
+                <div style={{ color: "#b91c1c", marginTop: 8 }}>
+                  Vorschau nicht ladbar: {preview.error}
+                </div>
+              ) : (
+                <iframe
+                  title={`Vorschau ${a.openai_ad_id}`}
+                  srcDoc={preview?.html || ""}
+                  sandbox="allow-scripts allow-popups"
+                  style={{
+                    width: "100%",
+                    height: 260,
+                    border: `1px solid ${S.line}`,
+                    borderRadius: 10,
+                    marginTop: 10,
+                    background: "#fff",
+                  }}
+                />
+              ))}
+          </div>
+        );
+      })}
+      <div style={{ fontSize: 11, color: S.mut }}>
+        Die Vorschau zeigt das Erscheinungsbild — sie bestätigt nicht, dass die Anzeige ausgeliefert
+        wird (Review, Budget und Status entscheiden).
+      </div>
+    </div>
   );
 }
 

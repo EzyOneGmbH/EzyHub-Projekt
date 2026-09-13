@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.9.1",
+    version: "1.10.0",
     changelog: [
+      {
+        version: "1.10.0",
+        date: "2026-09-13",
+        note: "ChatGPT Ads (Advertiser API v2.3): Conversions-Setup direkt in EzyHub — Pixel anlegen, Server-Key sicher erzeugen, Conversion-Events definieren und Kampagnen zuweisen; «Live-Events (OpenAI)» zeigt, ob Pixel-/Server-Events bei OpenAI wirklich ankommen (auch bei GTM-Einbau); Kampagnen mit Conversions, CPA und ROAS/Umsatz; Anzeigen je Kampagne mit Review-Status und Vorschau",
+      },
       {
         version: "1.9.1",
         date: "2026-09-01",
