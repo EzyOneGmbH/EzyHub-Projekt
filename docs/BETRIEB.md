@@ -192,6 +192,14 @@ unabhängig vom Cloud PC:
   «Näherung», wenn der Lauf vor dem Zeitraum-Anfang liegt (`useEzyLatestRun(...).naeherung`).
 - **Admin-Readiness:** «Google verbunden» gilt nur mit `oauth_connections.client_id ==
   Kunde` (kein Org-weites Durchschlagen mehr).
+- **Ranking-Snapshot-Ingest** (`POST /api/admin/rank-snapshot`) ist mandanteneindeutig:
+  `clientId` + `organizationId` sind Pflicht (Slug nur Anzeige/Legacy; passt er nicht →
+  400, mehrdeutig → 409). Auth entweder kundenspezifisches Credential (Zweck
+  `rank_snapshot`, Admin → Kunde → Ingest-Zugänge) oder intern `ADMIN_AUTOMATION_SECRET`
+  **plus** Header `X-Ezy-Organization` = organizationId (Org-Stempel des agent-service,
+  `EZY_ORGANIZATION_ID`). Der agent-service stempelt `clientId/organizationId` stündlich
+  (`rank-init`) in die Stores `~/agent-service/rank-tracking/<slug>.json`; ohne Stempel
+  wird kein Snapshot gepusht (Log «Push uebersprungen»).
 
 ## 6. Deployment & CI
 

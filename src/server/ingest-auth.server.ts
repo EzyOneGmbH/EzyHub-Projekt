@@ -18,11 +18,17 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { authFailLimiter, clientIp, ingestLimiter, antwort429 } from "./rate-limit.server";
 
-export const INGEST_PURPOSES = ["openai_ads", "ai_crawler"] as const;
+// rank_snapshot (13.09.2026): kundenspezifisches Credential fuer den Ranking-
+// Snapshot-Ingest (Alternative zum internen Admin-Pfad mit Org-Stempel).
+export const INGEST_PURPOSES = ["openai_ads", "ai_crawler", "rank_snapshot"] as const;
 export type IngestPurpose = (typeof INGEST_PURPOSES)[number];
 
-const PURPOSE_KURZ: Record<IngestPurpose, string> = { openai_ads: "oa", ai_crawler: "cr" };
-const TOKEN_RE = /^ezyi_(oa|cr)_[A-Za-z0-9_-]{43}$/;
+const PURPOSE_KURZ: Record<IngestPurpose, string> = {
+  openai_ads: "oa",
+  ai_crawler: "cr",
+  rank_snapshot: "rs",
+};
+const TOKEN_RE = /^ezyi_(oa|cr|rs)_[A-Za-z0-9_-]{43}$/;
 
 export type IngestScope =
   | {

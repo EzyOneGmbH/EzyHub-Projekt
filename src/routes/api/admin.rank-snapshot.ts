@@ -1,21 +1,32 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { authenticateIngest, type IngestScope } from "@/server/ingest-auth.server";
 
 // Rank-Snapshot-Ingest (Dashboard-Ausbau 2026-07-11, WP1/A1.2): der agent-service
 // besitzt den Rank-Store (rank-tracking/<slug>.json, DataForSEO) und PUSHT nach
 // jedem Tages-Crawl einen kompakten Snapshot hierher. Diese Route validiert und
 // schreibt eine audit_runs-Zeile type 'rankings' (Payload 1:1). Idempotenz:
 // existiert fuer client+date bereits eine rankings-Zeile -> Upsert (update),
-// nie duplizieren. Secret-gated wie /api/admin/agent-run (ADMIN_AUTOMATION_SECRET).
+// nie duplizieren.
 //
-// Messkontext (13.09.2026, Volkan): crawlLocation, Messmethode, Land, Sprache,
-// Geraet und Messdatum werden im Snapshot BEWAHRT (crawlLocation wurde frueher
-// validiert, aber verworfen). Methodenwechsel-Guard: ein Delta (posPrev7/28)
-// gilt nur innerhalb derselben Messmethode (DataForSEO-Crawl vs. GSC-Ø) —
-// sonst entstehen Schein-Bewegungen; der agent-service liefert dazu
-// posPrev7Src/posPrev28Src, die Route erzwingt die Regel zusaetzlich und
-// rechnet improved7/declined7 aus den bereinigten Deltas neu.
+// Mandanteneindeutig (13.09.2026, Volkan): clientId UND organizationId sind
+// PFLICHT; der Kunde wird NIE mehr global ueber einen Slug gesucht (zwei
+// Organisationen mit gleichem Kundennamen haetten sich sonst gegenseitig
+// ueberschrieben). Zwei Auth-Pfade:
+//  - kundenspezifisches Credential (purpose rank_snapshot, ingest_credentials):
+//    clientId/organizationId muessen exakt dem Token-Scope entsprechen.
+//  - interner Admin-Pfad (ADMIN_AUTOMATION_SECRET, agent-service): zusaetzlich
+//    Pflicht-Header X-Ezy-Organization = organizationId (Org-Stempel des
+//    Service) — fehlend/abweichend => 403.
+// In beiden Faellen wird clientId gegen organizationId in `clients` geprueft.
+// Der Slug (`client`) ist nur noch Anzeige-/Legacy-Feld; passt er nicht zum
+// Kunden (oder ist er innerhalb der Organisation mehrdeutig), lehnt die Route ab.
+//
+// Messkontext (13.09.2026): crawlLocation, Messmethode, Land, Sprache, Geraet
+// und Messdatum werden im Snapshot BEWAHRT. Methodenwechsel-Guard: ein Delta
+// (posPrev7/28) gilt nur innerhalb derselben Messmethode (DataForSEO-Crawl vs.
+// GSC-Ø); improved7/declined7 werden aus den bereinigten Deltas neu gezaehlt.
 
 const PosSrc = z.enum(["crawl", "gsc"]);
 const Keyword = z.object({
@@ -43,8 +54,13 @@ const Keyword = z.object({
 });
 export type SnapshotKeyword = z.infer<typeof Keyword>;
 
+const UUID = z.string().uuid();
 const Body = z.object({
-  client: z.string().min(1), // slug, z.B. "hotel-ava"
+  // Mandant (13.09.2026): Pflicht.
+  clientId: UUID,
+  organizationId: UUID,
+  // Slug nur noch Anzeige/Legacy (z. B. "hotel-ava") — nie Auswahlkriterium.
+  client: z.string().min(1).max(120).optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   crawlLocation: z.string().optional(), // z. B. "Lucerne,Lucerne,Switzerland" oder "Switzerland"
   // Messkontext (13.09.2026): alles optional, tolerant gegen aeltere Pusher.
@@ -77,7 +93,9 @@ export type SnapshotBody = z.infer<typeof Body>;
  * vor und weicht ab, wird das Delta auf null gesetzt. improved7/declined7
  * werden aus den bereinigten Werten neu gezaehlt.
  */
-export function guardMethodenwechsel(d: SnapshotBody): SnapshotBody {
+export function guardMethodenwechsel<T extends Pick<SnapshotBody, "keywords" | "aggregate">>(
+  d: T,
+): T {
   const keywords = d.keywords.map((k) => {
     const cur = k.posSrc ?? null;
     const guard = (prev: number | null | undefined, prevSrc: string | null | undefined) =>
@@ -101,12 +119,29 @@ export function guardMethodenwechsel(d: SnapshotBody): SnapshotBody {
 }
 
 /** Snapshot-Payload fuer audit_runs.result — bewahrt den Messkontext. */
-export function baueSnapshotResult(d: SnapshotBody): Record<string, unknown> {
+export function baueSnapshotResult(
+  d: Pick<
+    SnapshotBody,
+    | "client"
+    | "date"
+    | "keywords"
+    | "aggregate"
+    | "method"
+    | "crawlLocation"
+    | "country"
+    | "language"
+    | "device"
+    | "measuredAt"
+    | "geoGrid"
+  > & { clientId?: string; organizationId?: string },
+): Record<string, unknown> {
   const srcs = new Set(d.keywords.map((k) => k.posSrc).filter(Boolean));
   const method =
     d.method ?? (srcs.size > 1 ? "hybrid" : srcs.size === 1 ? ([...srcs][0] as string) : undefined);
   const result: Record<string, unknown> = {
-    client: d.client,
+    ...(d.client ? { client: d.client } : {}),
+    ...(d.clientId ? { clientId: d.clientId } : {}),
+    ...(d.organizationId ? { organizationId: d.organizationId } : {}),
     date: d.date,
     keywords: d.keywords,
     aggregate: d.aggregate,
@@ -124,7 +159,7 @@ export function baueSnapshotResult(d: SnapshotBody): Record<string, unknown> {
   return result;
 }
 
-function slugifyName(s: string): string {
+export function slugifyName(s: string): string {
   return String(s || "")
     .toLowerCase()
     .replace(/ä/g, "ae")
@@ -134,68 +169,114 @@ function slugifyName(s: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+/** Slugs, unter denen ein Kunde legitim gepusht werden darf (Name, Domain-Stamm). */
+export function kundenSlugs(c: { name?: string | null; domain?: string | null }): string[] {
+  return [
+    slugifyName(String(c.name || "")),
+    slugifyName(
+      String(c.domain || "")
+        .replace(/^https?:\/\//, "")
+        .replace(/^www\./, "")
+        .split(".")[0],
+    ),
+  ].filter(Boolean);
+}
+
+const nein = (status: number, error: string) => Response.json({ ok: false, error }, { status });
+
+/**
+ * Mandanten-Scope pruefen (pure gegen den Auth-Scope + Request-Header):
+ * Credential-Scope muss exakt passen; Admin-Pfad braucht den Org-Stempel.
+ */
+export function pruefeScope(
+  scope: IngestScope,
+  request: Request,
+  body: { clientId: string; organizationId: string },
+): Response | null {
+  if (!scope.admin) {
+    if (
+      scope.clientId.toLowerCase() !== body.clientId.toLowerCase() ||
+      scope.organizationId.toLowerCase() !== body.organizationId.toLowerCase()
+    )
+      return nein(403, "clientId/organizationId passen nicht zum Token-Scope");
+    return null;
+  }
+  const stempel = (request.headers.get("x-ezy-organization") || "").trim().toLowerCase();
+  if (!stempel) return nein(403, "X-Ezy-Organization (Org-Stempel) erforderlich");
+  if (stempel !== body.organizationId.toLowerCase())
+    return nein(403, "organizationId passt nicht zum Org-Stempel");
+  return null;
+}
+
 export const Route = createFileRoute("/api/admin/rank-snapshot")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const secret = process.env.ADMIN_AUTOMATION_SECRET;
-        if (!secret)
-          return Response.json(
-            { ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" },
-            { status: 503 },
-          );
-        if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
-          return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        // Auth: kundenspezifisches Credential (rank_snapshot) ODER interner
+        // Admin-Pfad (ADMIN_AUTOMATION_SECRET) — beides ueber authenticateIngest
+        // (Hash-Lookup, Widerruf/Ablauf, Rate-Limits, 401-Bremse).
+        const auth = await authenticateIngest(request, "rank_snapshot");
+        if (!auth.ok) return auth.response;
 
-        const parsed = Body.safeParse(await request.json().catch(() => ({})));
+        const raw = await request.json().catch(() => ({}));
+        // Legacy-Pusher (nur Slug) klar benennen, statt generisch «Invalid input».
+        if (raw && typeof raw === "object" && !("clientId" in raw))
+          return nein(
+            400,
+            "clientId (uuid) und organizationId (uuid) sind Pflicht — Slug genuegt nicht",
+          );
+        const parsed = Body.safeParse(raw);
         if (!parsed.success)
           return Response.json(
             { ok: false, error: "Invalid input", details: parsed.error.issues },
             { status: 400 },
           );
+        const scopeFehler = pruefeScope(auth.scope, request, parsed.data);
+        if (scopeFehler) return scopeFehler;
         const d = guardMethodenwechsel(parsed.data);
 
-        // Client per Slug aufloesen (Store-Slug = slugify(clients.name)).
-        const { data: clients } = await supabaseAdmin
+        // Kunde MUSS in genau dieser Organisation existieren (serverseitiger Scope).
+        const { data: target } = await supabaseAdmin
           .from("clients")
-          .select("id, name, domain, organization_id");
-        const target = (clients || []).find(
-          (c: any) =>
-            slugifyName(c.name) === d.client ||
-            slugifyName(
-              String(c.domain || "")
-                .replace(/^https?:\/\//, "")
-                .replace(/^www\./, "")
-                .split(".")[0],
-            ) === d.client,
-        );
-        if (!target)
-          return Response.json(
-            { ok: false, error: `Kunde '${d.client}' nicht gefunden` },
-            { status: 404 },
-          );
+          .select("id, name, domain, organization_id")
+          .eq("id", d.clientId)
+          .eq("organization_id", d.organizationId)
+          .maybeSingle();
+        if (!target) return nein(404, "Kunde nicht in dieser Organisation gefunden");
 
-        // triggered_by: audit_runs verlangt einen Org-User (gleiche Logik wie populate).
+        // Slug ist nur Anzeige/Legacy: muss zum Kunden passen; ist er in der
+        // Organisation mehrdeutig, darf er nie als Auswahl gedient haben.
+        if (d.client) {
+          const slug = slugifyName(d.client);
+          if (!kundenSlugs(target).includes(slug))
+            return nein(400, `client (Slug '${d.client}') passt nicht zum clientId`);
+          const { data: gleiche } = await supabaseAdmin
+            .from("clients")
+            .select("id, name, domain")
+            .eq("organization_id", d.organizationId);
+          const treffer = (gleiche || []).filter((c: any) => kundenSlugs(c).includes(slug));
+          if (treffer.length > 1 && !treffer.some((c: any) => c.id === target.id))
+            return nein(409, `Slug '${d.client}' ist in dieser Organisation mehrdeutig`);
+        }
+
+        // triggered_by: audit_runs verlangt einen Org-User — NUR aus dieser Organisation.
         const { data: users } = await supabaseAdmin
           .from("app_users")
           .select("user_id, role")
-          .eq("organization_id", target.organization_id)
+          .eq("organization_id", d.organizationId)
           .limit(20);
         const owner =
           (users || []).find((u: any) => ["owner", "admin"].includes(u.role)) || (users || [])[0];
-        if (!owner)
-          return Response.json(
-            { ok: false, error: "Kein Org-User fuer triggered_by" },
-            { status: 500 },
-          );
+        if (!owner) return nein(500, "Kein Org-User fuer triggered_by");
 
         const result = baueSnapshotResult(d);
 
-        // Upsert fuer client+date: bestehende rankings-Zeile desselben Tages updaten.
+        // Upsert fuer client+date INNERHALB der Organisation.
         const { data: existing } = await supabaseAdmin
           .from("audit_runs")
           .select("id")
           .eq("client_id", target.id)
+          .eq("organization_id", d.organizationId)
           .eq("audit_type", "rankings")
           .eq("input->>date", d.date)
           .limit(1)
@@ -206,26 +287,27 @@ export const Route = createFileRoute("/api/admin/rank-snapshot")({
           const { error } = await supabaseAdmin
             .from("audit_runs")
             .update({ result, status: "succeeded", finished_at: now } as never)
-            .eq("id", existing.id);
-          if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+            .eq("id", existing.id)
+            .eq("organization_id", d.organizationId);
+          if (error) return nein(500, error.message);
           return Response.json({ ok: true, id: existing.id, upserted: true });
         }
         const { data: created, error } = await supabaseAdmin
           .from("audit_runs")
           .insert({
             client_id: target.id,
-            organization_id: target.organization_id,
+            organization_id: d.organizationId,
             triggered_by: (owner as any).user_id,
             audit_type: "rankings",
             status: "succeeded",
-            input: { date: d.date, client: d.client },
+            input: { date: d.date, clientId: target.id, ...(d.client ? { client: d.client } : {}) },
             result,
             started_at: now,
             finished_at: now,
           } as never)
           .select("id")
           .single();
-        if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+        if (error) return nein(500, error.message);
         return Response.json({ ok: true, id: created?.id, upserted: false });
       },
     },

@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 // ist fuer Server-zu-Server-Aufrufe (CRM, WordPress) gedacht, nie fuer
 // Browser-Code.
 
-type Purpose = "openai_ads" | "ai_crawler";
+type Purpose = "openai_ads" | "ai_crawler" | "rank_snapshot";
 type Cred = {
   id: string;
   purpose: Purpose;
@@ -26,6 +26,7 @@ type Cred = {
 const ENDPOINT: Record<Purpose, string> = {
   openai_ads: "/api/admin/openai-ads-ingest",
   ai_crawler: "/api/admin/ai-crawler-ingest",
+  rank_snapshot: "/api/admin/rank-snapshot",
 };
 
 function status(c: Cred): { label: string; farbe: string } {
