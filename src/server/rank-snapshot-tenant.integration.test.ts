@@ -66,7 +66,11 @@ function builder(table: string) {
   return api;
 }
 vi.mock("@/integrations/supabase/client.server", () => ({
-  supabaseAdmin: { from: (t: string) => builder(t) },
+  supabaseAdmin: {
+    from: (t: string) => builder(t),
+    // Touch-RPC (use_count) — hier nur No-op, die Semantik testet ingest-hardening.
+    rpc: async () => ({ data: null, error: null }),
+  },
 }));
 
 let POST: (a: { request: Request }) => Promise<Response>;

@@ -12,7 +12,8 @@
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "smoke:deploy": "node scripts/smoke-deploy.mjs"
   },
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.54.8",

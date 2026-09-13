@@ -4,6 +4,8 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireTeamRole } from "@/server/team-guard.server";
 import { secretStatus } from "@/server/secretbox.server";
 import { bewerteHeartbeat } from "@/server/worker-scheduler.server";
+import { ladeSchedulerStatus } from "@/server/scheduler-status.server";
+import { gleichZeitkonstant } from "@/server/ingest-auth.server";
 
 // Systemcheck (Admin-Ausbau 21.08.2026): prueft SERVERSEITIG, ob die von der
 // App erwarteten Tabellen/Spalten wirklich existieren (Lovable wendet Repo-
@@ -104,6 +106,26 @@ export const Route = createFileRoute("/api/admin/system-check")({
   server: {
     handlers: {
       GET: async ({ request }) => {
+        // Deployment-Smoke (13.09.2026): ?scheduler=1 mit ADMIN_AUTOMATION_SECRET
+        // liefert NUR die Scheduler-Checks (scripts/smoke-deploy.mjs, ohne Login).
+        const sp = new URL(request.url).searchParams;
+        if (sp.get("scheduler") === "1") {
+          const auth = request.headers.get("authorization") || "";
+          const admin = process.env.ADMIN_AUTOMATION_SECRET;
+          const intern =
+            !!admin &&
+            auth.startsWith("Bearer ") &&
+            gleichZeitkonstant(auth.slice(7).trim(), admin);
+          if (!intern) {
+            const t = await requireTeamRole(request, "admin");
+            if (t instanceof Response) return t;
+          }
+          const scheduler = await ladeSchedulerStatus();
+          return Response.json(
+            { ok: true, stand: new Date().toISOString(), scheduler },
+            { headers: { "Cache-Control": "no-store" } },
+          );
+        }
         const ctx = await requireTeamRole(request, "admin");
         if (ctx instanceof Response) return ctx;
 
@@ -245,12 +267,17 @@ export const Route = createFileRoute("/api/admin/system-check")({
           /* Zaehler bleiben 0 */
         }
 
+        // 5) Verwalteter Scheduler (pg_cron/pg_net/Vault/Heartbeat/Watchdog/
+        //    Sweep) — konkrete Fehlertexte je Komponente.
+        const scheduler = await ladeSchedulerStatus();
+
         return Response.json(
           {
             ok: true,
             stand: new Date().toISOString(),
             checks,
             worker,
+            scheduler,
             secrets: {
               ...secrets,
               strictModus: String(process.env.WP_SECRETS_STRICT || "") === "1",

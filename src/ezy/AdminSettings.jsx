@@ -263,6 +263,67 @@ export function SystemCheckPanel() {
           </span>
         </div>
       </div>
+      {/* Verwalteter Scheduler (13.09.2026): pg_cron/pg_net/Vault/Heartbeat/
+          Watchdog/Sweep mit konkreten Fehlertexten (Quelle: scheduler_status RPC). */}
+      {data.scheduler && (
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 10,
+            padding: "12px 16px",
+            marginBottom: 14,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>Verwalteter Scheduler</div>
+            {pill(
+              data.scheduler.ok ? C.green : C.red,
+              data.scheduler.ok
+                ? "alle Komponenten ok"
+                : `${data.scheduler.checks.filter((c) => c.status !== "ok").length} Befund(e)`,
+            )}
+          </div>
+          {data.scheduler.checks.map((c) => (
+            <div
+              key={c.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "6px 0",
+                borderBottom: `1px solid ${C.hairline}`,
+                fontSize: 12.5,
+              }}
+            >
+              <span style={{ flex: 1, minWidth: 0 }}>{c.name}</span>
+              <span
+                style={{
+                  fontSize: 11.5,
+                  color: c.status === "ok" ? C.textDim : C.red,
+                  maxWidth: 420,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+                title={c.detail}
+              >
+                {c.detail}
+              </span>
+              {pill(
+                c.status === "ok" ? C.green : c.status === "nicht_pruefbar" ? C.orange : C.red,
+                c.status === "ok"
+                  ? "ok"
+                  : c.status === "fehlt"
+                    ? "FEHLT"
+                    : c.status === "fehlerhaft"
+                      ? "FEHLERHAFT"
+                      : "nicht prüfbar",
+              )}
+            </div>
+          ))}
+        </div>
+      )}
       <div
         style={{
           background: C.card,

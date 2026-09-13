@@ -142,8 +142,79 @@ function builder(table: string) {
   };
   return api;
 }
+
+// In-Memory-Spiegel der Lifecycle-RPCs (Migration 20260913210000): gleiche
+// Semantik wie die SQL-Funktionen — P0002 nicht gefunden, P0003 Konflikt,
+// Rotation setzt das alte Ablaufdatum in demselben Schritt, Touch zaehlt hoch.
+async function rpcMock(fn: string, a: any = {}): Promise<{ data: any; error: any }> {
+  const rows = db.ingest_credentials;
+  const P = (code: string, message: string) => ({ data: null, error: { code, message } });
+  if (fn === "ingest_credential_touch") {
+    const r = rows.find((x) => x.id === a._credential_id);
+    if (r) {
+      r.use_count = (r.use_count || 0) + 1;
+      r.last_used_at = new Date().toISOString();
+    }
+    return { data: null, error: null };
+  }
+  if (fn === "ingest_credential_create") {
+    if (!db.clients.some((c) => c.id === a._client_id && c.organization_id === a._organization_id))
+      return P("P0002", "Kunde nicht in dieser Organisation");
+    if (rows.some((x) => x.token_hash === a._token_hash)) return P("23505", "duplicate key");
+    const r = {
+      id: crypto.randomUUID(), // Route validiert credentialId als UUID
+      organization_id: a._organization_id,
+      client_id: a._client_id,
+      purpose: a._purpose,
+      token_hash: a._token_hash,
+      token_prefix: a._token_prefix,
+      label: a._label ?? null,
+      created_by: a._created_by ?? null,
+      created_at: new Date().toISOString(),
+      expires_at: a._expires_at ?? null,
+      revoked_at: null,
+      revoked_reason: null,
+      rotated_from: null,
+      last_used_at: null,
+      use_count: 0,
+    };
+    rows.push(r);
+    return { data: r, error: null };
+  }
+  if (fn === "ingest_credential_rotate") {
+    const alt = rows.find((x) => x.id === a._credential_id && x.client_id === a._client_id);
+    if (!alt) return P("P0002", "Credential nicht gefunden");
+    if (alt.revoked_at) return P("P0003", "Widerrufenes Credential kann nicht rotiert werden");
+    const neu = {
+      ...alt,
+      id: crypto.randomUUID(), // Route validiert credentialId als UUID
+      token_hash: a._token_hash,
+      token_prefix: a._token_prefix,
+      label: a._label ?? null,
+      created_by: a._created_by ?? null,
+      created_at: new Date().toISOString(),
+      expires_at: a._expires_at ?? null,
+      rotated_from: alt.id,
+      last_used_at: null,
+      use_count: 0,
+    };
+    rows.push(neu);
+    const bisher = alt.expires_at ? Date.parse(alt.expires_at) : Infinity;
+    const grace = a._grace_until ? Date.parse(a._grace_until) : Date.now();
+    alt.expires_at = new Date(Math.min(bisher, grace)).toISOString();
+    return { data: neu, error: null };
+  }
+  if (fn === "ingest_credential_revoke") {
+    const r = rows.find((x) => x.id === a._credential_id && x.client_id === a._client_id);
+    if (!r) return P("P0002", "Credential nicht gefunden");
+    r.revoked_at = r.revoked_at || new Date().toISOString();
+    r.revoked_reason = r.revoked_reason ?? a._reason ?? null;
+    return { data: r, error: null };
+  }
+  return P("42883", `unbekannte Funktion ${fn}`);
+}
 vi.mock("@/integrations/supabase/client.server", () => ({
-  supabaseAdmin: { from: (t: string) => builder(t) },
+  supabaseAdmin: { from: (t: string) => builder(t), rpc: rpcMock },
 }));
 vi.mock("@supabase/supabase-js", () => ({
   createClient: (_u: string, _k: string, opts: any) => ({

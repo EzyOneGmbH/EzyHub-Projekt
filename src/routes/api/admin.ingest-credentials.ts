@@ -89,6 +89,22 @@ async function kundeImScope(ctx: Kontext, clientId: string) {
 
 const OEFFENTLICH =
   "id, client_id, purpose, token_prefix, label, created_at, expires_at, revoked_at, revoked_reason, rotated_from, last_used_at, use_count";
+const OEFFENTLICH_FELDER = OEFFENTLICH.split(",").map((c) => c.trim());
+
+/** RPC-Zeilen enthalten token_hash — nach aussen nur die oeffentlichen Felder. */
+function oeffentlich(row: any) {
+  if (!row) return null;
+  const out: Record<string, unknown> = {};
+  for (const k of OEFFENTLICH_FELDER) if (k in row) out[k] = row[k];
+  return out;
+}
+
+/** Fehler der Lifecycle-RPCs (SQLSTATE P0002 = nicht gefunden, P0003 = Konflikt). */
+function rpcFehler(error: any): Response {
+  const code = String(error?.code || "");
+  const status = code === "P0002" ? 404 : code === "P0003" ? 409 : 500;
+  return Response.json({ ok: false, error: String(error?.message || "RPC-Fehler") }, { status });
+}
 
 function ablauf(days: number | undefined, def = 365): string {
   return new Date(Date.now() + (days ?? def) * 864e5).toISOString();
@@ -133,27 +149,24 @@ export const Route = createFileRoute("/api/admin/ingest-credentials")({
         const k = await kundeImScope(ctx, b.clientId);
         if ("error" in k) return k.error;
         const sb = supabaseAdmin as any;
-        const nowIso = new Date().toISOString();
 
+        // Lifecycle (13.09.2026): transaktionale SECURITY-DEFINER-RPCs
+        // (Migration 20260913210000) statt mehrerer REST-Schritte.
         if (b.action === "create") {
           const t = generateIngestToken(b.purpose);
-          const { data, error } = await sb
-            .from("ingest_credentials")
-            .insert({
-              organization_id: k.client.organization_id,
-              client_id: k.client.id,
-              purpose: b.purpose,
-              token_hash: t.tokenHash,
-              token_prefix: t.tokenPrefix,
-              label: b.label ?? null,
-              created_by: ctx.userId,
-              expires_at: ablauf(b.expiresInDays),
-            })
-            .select(OEFFENTLICH)
-            .maybeSingle();
-          if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+          const { data, error } = await sb.rpc("ingest_credential_create", {
+            _organization_id: k.client.organization_id,
+            _client_id: k.client.id,
+            _purpose: b.purpose,
+            _token_hash: t.tokenHash,
+            _token_prefix: t.tokenPrefix,
+            _label: b.label ?? null,
+            _expires_at: ablauf(b.expiresInDays),
+            _created_by: ctx.userId,
+          });
+          if (error) return rpcFehler(error);
           // Klartext GENAU EINMAL — wird nirgends gespeichert oder geloggt.
-          return Response.json({ ok: true, credential: data, token: t.token });
+          return Response.json({ ok: true, credential: oeffentlich(data), token: t.token });
         }
 
         // rotate / revoke: bestehendes Credential muss zu DIESEM Kunden gehoeren.
@@ -166,14 +179,13 @@ export const Route = createFileRoute("/api/admin/ingest-credentials")({
           return Response.json({ ok: false, error: "Credential nicht gefunden" }, { status: 404 });
 
         if (b.action === "revoke") {
-          if (!alt.revoked_at) {
-            const { error } = await sb
-              .from("ingest_credentials")
-              .update({ revoked_at: nowIso, revoked_reason: b.reason ?? null })
-              .eq("id", alt.id);
-            if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
-          }
-          return Response.json({ ok: true, revoked: alt.id });
+          const { data, error } = await sb.rpc("ingest_credential_revoke", {
+            _credential_id: alt.id,
+            _client_id: k.client.id,
+            _reason: b.reason ?? null,
+          });
+          if (error) return rpcFehler(error);
+          return Response.json({ ok: true, revoked: alt.id, credential: oeffentlich(data) });
         }
 
         // rotate
@@ -182,32 +194,26 @@ export const Route = createFileRoute("/api/admin/ingest-credentials")({
             { ok: false, error: "Widerrufenes Credential kann nicht rotiert werden" },
             { status: 409 },
           );
+        // Atomar: neues Credential anlegen UND altes Ablaufdatum setzen (nie
+        // verlaengern) in EINER Transaktion — kein Zwischenzustand mehr.
         const t = generateIngestToken(alt.purpose);
-        const { data: neu, error: e1 } = await sb
-          .from("ingest_credentials")
-          .insert({
-            organization_id: k.client.organization_id,
-            client_id: k.client.id,
-            purpose: alt.purpose,
-            token_hash: t.tokenHash,
-            token_prefix: t.tokenPrefix,
-            label: b.label ?? null,
-            created_by: ctx.userId,
-            expires_at: ablauf(b.expiresInDays),
-            rotated_from: alt.id,
-          })
-          .select(OEFFENTLICH)
-          .maybeSingle();
-        if (e1) return Response.json({ ok: false, error: e1.message }, { status: 500 });
-        // Altes Token laeuft nach der Ueberlappung aus (nie verlaengern).
-        const grace = new Date(Date.now() + (b.graceDays ?? 7) * 864e5).getTime();
-        const bisher = alt.expires_at ? new Date(alt.expires_at).getTime() : Infinity;
-        const { error: e2 } = await sb
-          .from("ingest_credentials")
-          .update({ expires_at: new Date(Math.min(grace, bisher)).toISOString() })
-          .eq("id", alt.id);
-        if (e2) return Response.json({ ok: false, error: e2.message }, { status: 500 });
-        return Response.json({ ok: true, credential: neu, token: t.token, rotatedFrom: alt.id });
+        const { data: neu, error } = await sb.rpc("ingest_credential_rotate", {
+          _credential_id: alt.id,
+          _client_id: k.client.id,
+          _token_hash: t.tokenHash,
+          _token_prefix: t.tokenPrefix,
+          _label: b.label ?? null,
+          _expires_at: ablauf(b.expiresInDays),
+          _grace_until: new Date(Date.now() + (b.graceDays ?? 7) * 864e5).toISOString(),
+          _created_by: ctx.userId,
+        });
+        if (error) return rpcFehler(error);
+        return Response.json({
+          ok: true,
+          credential: oeffentlich(neu),
+          token: t.token,
+          rotatedFrom: alt.id,
+        });
       },
     },
   },

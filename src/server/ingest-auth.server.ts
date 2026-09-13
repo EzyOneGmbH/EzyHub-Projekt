@@ -138,14 +138,16 @@ export async function authenticateIngest(
   const rl = ingestLimiter.hit(`cred:${cred.id}`, now());
   if (!rl.ok) return { ok: false, response: antwort429(rl.retryAfterMs) };
 
-  // Nutzung protokollieren (fire-and-forget; Builder sind lazy -> .then noetig).
-  sb.from("ingest_credentials")
-    .update({ last_used_at: new Date(now()).toISOString() })
-    .eq("id", cred.id)
-    .then(
+  // Nutzung protokollieren (fire-and-forget): atomarer RPC zaehlt use_count
+  // hoch und setzt last_used_at (13.09.2026, vorher nur last_used_at).
+  try {
+    Promise.resolve(sb.rpc("ingest_credential_touch", { _credential_id: cred.id })).then(
       () => {},
       () => {},
     );
+  } catch {
+    /* Diagnosefeld — nie den Ingest scheitern lassen */
+  }
 
   return {
     ok: true,

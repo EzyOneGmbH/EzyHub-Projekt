@@ -167,6 +167,16 @@ unabhängig vom Cloud PC:
   Skript: `scripts/analyse-worker.ps1` (Header = Runbook). Beide Wege dürfen parallel laufen.
 - Migration/Setup: `supabase/migrations/20260913180000_managed_worker_scheduler.sql`
   (manuell via Lovable-SQL; Vault-Secrets werden separat gesetzt, nie im Repo).
+- **Deployment-Smoke-Test:** `npm run smoke:deploy` (Cloud PC oder überall mit
+  `ADMIN_AUTOMATION_SECRET`) prüft pg_cron-Jobs + letzte Läufe, pg_net-Antworten (401 =
+  Vault-Secret weicht ab), Vault-Secret, Heartbeat (Quelle pg_cron), Watchdog-Probe und
+  Wiedervorlage-Sweep; Exit 1 bei jedem Befund. Gleiche Checks mit konkreten Fehlertexten
+  im Admin → Systemcheck («Verwalteter Scheduler», RPC `public.scheduler_status()`).
+- **Ingest-Credentials** (Admin → Kunde → Ingest-Zugänge): Create/Rotate/Revoke laufen als
+  transaktionale RPCs (`ingest_credential_create/rotate/revoke`, Migration
+  `20260913210000`); eine Rotation legt das neue Token an **und** setzt das alte Ablaufdatum
+  in einem Schritt; `use_count`/`last_used_at` zählt `ingest_credential_touch` bei jedem
+  Ingest.
 
 ---
 

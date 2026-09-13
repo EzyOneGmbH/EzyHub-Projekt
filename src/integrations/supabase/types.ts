@@ -1289,28 +1289,43 @@ export type Database = {
       }
       analyse_worker_heartbeat: {
         Row: {
+          consecutive_error_ticks: number
           duration_ms: number
           errors: number
           id: number
           jobs_processed: number
           last_error: string | null
           last_run_at: string
+          last_sweep_at: string | null
+          lease_holder: string | null
+          lease_until: string | null
+          source: string | null
         }
         Insert: {
+          consecutive_error_ticks?: number
           duration_ms?: number
           errors?: number
           id?: number
           jobs_processed?: number
           last_error?: string | null
           last_run_at?: string
+          last_sweep_at?: string | null
+          lease_holder?: string | null
+          lease_until?: string | null
+          source?: string | null
         }
         Update: {
+          consecutive_error_ticks?: number
           duration_ms?: number
           errors?: number
           id?: number
           jobs_processed?: number
           last_error?: string | null
           last_run_at?: string
+          last_sweep_at?: string | null
+          lease_holder?: string | null
+          lease_until?: string | null
+          source?: string | null
         }
         Relationships: []
       }
@@ -1376,6 +1391,7 @@ export type Database = {
           link_section: string | null
           organization_id: string
           read_at: string | null
+          recipient_user_id: string | null
           severity: string
           title: string
         }
@@ -1389,6 +1405,7 @@ export type Database = {
           link_section?: string | null
           organization_id: string
           read_at?: string | null
+          recipient_user_id?: string | null
           severity?: string
           title: string
         }
@@ -1402,6 +1419,7 @@ export type Database = {
           link_section?: string | null
           organization_id?: string
           read_at?: string | null
+          recipient_user_id?: string | null
           severity?: string
           title?: string
         }
@@ -2078,6 +2096,75 @@ export type Database = {
         }
         Relationships: []
       }
+      ingest_credentials: {
+        Row: {
+          client_id: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          label: string | null
+          last_used_at: string | null
+          organization_id: string
+          purpose: string
+          revoked_at: string | null
+          revoked_reason: string | null
+          rotated_from: string | null
+          token_hash: string
+          token_prefix: string
+          use_count: number
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          label?: string | null
+          last_used_at?: string | null
+          organization_id: string
+          purpose: string
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          rotated_from?: string | null
+          token_hash: string
+          token_prefix: string
+          use_count?: number
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          label?: string | null
+          last_used_at?: string | null
+          organization_id?: string
+          purpose?: string
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          rotated_from?: string | null
+          token_hash?: string
+          token_prefix?: string
+          use_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ingest_credentials_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ingest_credentials_rotated_from_fkey"
+            columns: ["rotated_from"]
+            isOneToOne: false
+            referencedRelation: "ingest_credentials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notes: {
         Row: {
           content: string
@@ -2546,6 +2633,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      analyse_worker_watchdog: { Args: { _jetzt?: string }; Returns: Json }
       can_access_client: { Args: { _client_id: string }; Returns: boolean }
       can_edit_client: { Args: { _client_id: string }; Returns: boolean }
       can_run_audits: { Args: { _org: string }; Returns: boolean }
@@ -2610,6 +2698,85 @@ export type Database = {
         }
         Returns: boolean
       }
+      ingest_credential_create: {
+        Args: {
+          _client_id: string
+          _created_by?: string
+          _expires_at?: string
+          _label?: string
+          _organization_id: string
+          _purpose: string
+          _token_hash: string
+          _token_prefix: string
+        }
+        Returns: {
+          client_id: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          label: string | null
+          last_used_at: string | null
+          organization_id: string
+          purpose: string
+          revoked_at: string | null
+          revoked_reason: string | null
+          rotated_from: string | null
+          token_hash: string
+          token_prefix: string
+          use_count: number
+        }
+      }
+      ingest_credential_revoke: {
+        Args: { _client_id: string; _credential_id: string; _reason?: string }
+        Returns: {
+          client_id: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          label: string | null
+          last_used_at: string | null
+          organization_id: string
+          purpose: string
+          revoked_at: string | null
+          revoked_reason: string | null
+          rotated_from: string | null
+          token_hash: string
+          token_prefix: string
+          use_count: number
+        }
+      }
+      ingest_credential_rotate: {
+        Args: {
+          _client_id: string
+          _created_by?: string
+          _credential_id: string
+          _expires_at?: string
+          _grace_until?: string
+          _label?: string
+          _token_hash: string
+          _token_prefix: string
+        }
+        Returns: {
+          client_id: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          label: string | null
+          last_used_at: string | null
+          organization_id: string
+          purpose: string
+          revoked_at: string | null
+          revoked_reason: string | null
+          rotated_from: string | null
+          token_hash: string
+          token_prefix: string
+          use_count: number
+        }
+      }
+      ingest_credential_touch: { Args: { _credential_id: string }; Returns: undefined }
       is_org_admin: { Args: { _org: string }; Returns: boolean }
       is_org_member: { Args: { _org: string }; Returns: boolean }
       org_ai_spend_this_month: { Args: { _org: string }; Returns: number }
@@ -2618,6 +2785,7 @@ export type Database = {
         Returns: Database["public"]["Enums"]["org_role"]
       }
     }
+      scheduler_status: { Args: never; Returns: Json }
     Enums: {
       app_role: "admin" | "member"
       audit_status: "pending" | "running" | "succeeded" | "failed"
