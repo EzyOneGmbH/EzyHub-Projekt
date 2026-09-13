@@ -1,3 +1,4 @@
+import { authedFetch } from "@/lib/authed-fetch";
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -213,7 +214,7 @@ export function useEzyClients() {
         // Auto-provision a Canonry (GEO) project for every new client (best-effort).
         try {
           const session = (await supabase.auth.getSession()).data.session;
-          await fetch("/api/canonry/create-project", {
+          await authedFetch("/api/canonry/create-project", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",

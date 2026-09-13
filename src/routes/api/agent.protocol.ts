@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { mitgliedschaften, waehleMitgliedschaft } from "@/server/team-guard.server";
 import { createClient } from "@supabase/supabase-js";
 
 // Per-client protocol view: returns the client's Obsidian vault page (markdown)
@@ -13,6 +14,22 @@ async function requireUser(request: Request): Promise<Response | null> {
   });
   const { data } = await sb.auth.getUser();
   if (!data.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  // Mehrfach-Organisationen (13.09.2026): eine eindeutige aktive Organisation
+  // ist Pflicht (X-Ezy-Active-Org, gegen die Mitgliedschaften validiert).
+  const wahl = waehleMitgliedschaft(
+    await mitgliedschaften(data.user.id),
+    request.headers.get("x-ezy-active-org"),
+  );
+  if (!wahl.ok)
+    return Response.json(
+      {
+        error:
+          wahl.grund === "mehrdeutig"
+            ? "Mehrere Organisationen: aktive Organisation angeben (Header X-Ezy-Active-Org)."
+            : "Kein Team-Zugriff",
+      },
+      { status: wahl.grund === "mehrdeutig" ? 409 : 403 },
+    );
   return null;
 }
 

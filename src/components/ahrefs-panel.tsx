@@ -1,3 +1,4 @@
+import { authedFetch } from "@/lib/authed-fetch";
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,7 +52,7 @@ export function AhrefsPanel({ clientId, domain }: Props) {
     try {
       const { data: session } = await supabase.auth.getSession();
       const token = session.session?.access_token;
-      const res = await fetch("/api/ahrefs/overview", {
+      const res = await authedFetch("/api/ahrefs/overview", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

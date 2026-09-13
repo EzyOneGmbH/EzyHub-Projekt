@@ -1,6 +1,7 @@
 // Gemeinsames UI-/Daten-Toolkit (aus EzyOneApp.jsx extrahiert, 21.08.2026 —
 // reines Verschieben): Form-/Chart-Primitives, Datums-/Vergleichs-Helfer,
 // GA4-Live-Hooks und die Canonry-Aufbereitung.
+import { authedFetch } from "@/lib/authed-fetch";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -1384,7 +1385,7 @@ export function useLiveGa4(clientId, endpoint, days) {
   const d = days ? Math.min(90, Math.max(1, Math.round(days))) : null;
   return useRangeData(clientId && d ? `ga4:${endpoint}:${clientId}:${d}` : null, async () => {
     const session = (await supabase.auth.getSession()).data.session;
-    const r = await fetch(`/api/google/${endpoint}`, {
+    const r = await authedFetch(`/api/google/${endpoint}`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${session?.access_token || ""}`,
@@ -1420,7 +1421,7 @@ export function useGa4Compare(clientId, dateRange) {
     (async () => {
       try {
         const session = (await supabase.auth.getSession()).data.session;
-        const r = await fetch("/api/google/ga4-compare", {
+        const r = await authedFetch("/api/google/ga4-compare", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${session?.access_token || ""}`,

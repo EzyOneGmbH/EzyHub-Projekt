@@ -1,3 +1,4 @@
+import { authedFetch } from "@/lib/authed-fetch";
 import { lazy, Suspense } from "react";
 import { Inp, Modal } from "./ui-kit";
 import { useState, useEffect, useCallback, useRef, useMemo, Component } from "react";
@@ -1703,7 +1704,7 @@ function TasksDashboard({ selectedClient }) {
     setErr("");
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const r = await fetch("/api/awork/tasks", {
+      const r = await authedFetch("/api/awork/tasks", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${session?.access_token || ""}`,
@@ -1725,7 +1726,7 @@ function TasksDashboard({ selectedClient }) {
   const loadUsers = useCallback(async () => {
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const r = await fetch("/api/awork/users", {
+      const r = await authedFetch("/api/awork/users", {
         headers: { Authorization: `Bearer ${session?.access_token || ""}` },
       });
       const j = await r.json().catch(() => ({}));
@@ -1742,7 +1743,7 @@ function TasksDashboard({ selectedClient }) {
     setTaskLoading(true);
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const r = await fetch(`/api/awork/task?taskId=${encodeURIComponent(taskId)}`, {
+      const r = await authedFetch(`/api/awork/task?taskId=${encodeURIComponent(taskId)}`, {
         headers: { Authorization: `Bearer ${session?.access_token || ""}` },
       });
       const j = await r.json().catch(() => ({}));
@@ -1759,7 +1760,7 @@ function TasksDashboard({ selectedClient }) {
   const updateTask = async (taskId, updates) => {
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const r = await fetch(`/api/awork/task?taskId=${encodeURIComponent(taskId)}`, {
+      const r = await authedFetch(`/api/awork/task?taskId=${encodeURIComponent(taskId)}`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${session?.access_token || ""}`,
@@ -1781,14 +1782,17 @@ function TasksDashboard({ selectedClient }) {
   const addComment = async (taskId, message) => {
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const r = await fetch(`/api/awork/task?taskId=${encodeURIComponent(taskId)}&action=comment`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session?.access_token || ""}`,
-          "Content-Type": "application/json",
+      const r = await authedFetch(
+        `/api/awork/task?taskId=${encodeURIComponent(taskId)}&action=comment`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session?.access_token || ""}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ message }),
         },
-        body: JSON.stringify({ message }),
-      });
+      );
       const j = await r.json().catch(() => ({}));
       if (!j.ok) throw new Error(j.error || "Kommentar fehlgeschlagen");
       toast("Kommentar hinzugefügt", "success");
@@ -1802,14 +1806,17 @@ function TasksDashboard({ selectedClient }) {
   const toggleChecklist = async (taskId, itemId, isDone) => {
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      await fetch(`/api/awork/task?taskId=${encodeURIComponent(taskId)}&action=checklist-toggle`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session?.access_token || ""}`,
-          "Content-Type": "application/json",
+      await authedFetch(
+        `/api/awork/task?taskId=${encodeURIComponent(taskId)}&action=checklist-toggle`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session?.access_token || ""}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ itemId, isDone }),
         },
-        body: JSON.stringify({ itemId, isDone }),
-      });
+      );
       await loadTaskDetail(taskId);
     } catch {}
   };
@@ -1818,7 +1825,7 @@ function TasksDashboard({ selectedClient }) {
   const createTask = async (data) => {
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const r = await fetch("/api/awork/create-task", {
+      const r = await authedFetch("/api/awork/create-task", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${session?.access_token || ""}`,
@@ -4040,7 +4047,7 @@ function TeamPage({ clients }) {
 
   const callTeam = useCallback(async (body) => {
     const token = (await supabase.auth.getSession()).data.session?.access_token;
-    const r = await fetch("/api/admin/team", {
+    const r = await authedFetch("/api/admin/team", {
       method: "POST",
       headers: { Authorization: `Bearer ${token || ""}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -4843,7 +4850,7 @@ function ActivityPage({ selectedClient, clients }) {
     try {
       const session = (await supabase.auth.getSession()).data.session;
       const auth = { Authorization: `Bearer ${session?.access_token || ""}` };
-      const r = await fetch("/api/agent/runs", { headers: auth });
+      const r = await authedFetch("/api/agent/runs", { headers: auth });
       const j = await r.json().catch(() => ({}));
       if (j.ok) {
         setData({
@@ -4855,7 +4862,7 @@ function ActivityPage({ selectedClient, clients }) {
         });
         setErr("");
       } else setErr(friendlyAgentError(j.error || "Laden fehlgeschlagen"));
-      const ar = await fetch("/api/agent/approvals", { headers: auth })
+      const ar = await authedFetch("/api/agent/approvals", { headers: auth })
         .then((x) => x.json())
         .catch(() => ({}));
       if (ar?.ok) {
@@ -4948,7 +4955,7 @@ function ActivityPage({ selectedClient, clients }) {
     );
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      await fetch("/api/agent/approvals", {
+      await authedFetch("/api/agent/approvals", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${session?.access_token || ""}`,
@@ -5042,7 +5049,7 @@ function ActivityPage({ selectedClient, clients }) {
     setApprovals((p) => p.map((a) => (a.id === id ? { ...a, status } : a)));
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      await fetch("/api/agent/approvals", {
+      await authedFetch("/api/agent/approvals", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${session?.access_token || ""}`,

@@ -1,3 +1,4 @@
+import { authedFetch } from "@/lib/authed-fetch";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppRail, SegmentedTabs } from "@/ezy/shell";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -2496,9 +2497,12 @@ function OpportunitiesPanel({
       const authH = { Authorization: `Bearer ${session?.access_token || ""}` };
       // 1) Site-Health-Issues (letzter Audit; ohne Audit einfach leer).
       try {
-        const r = await fetch(`/api/admin/site-health?client=${encodeURIComponent(clientId)}`, {
-          headers: authH,
-        });
+        const r = await authedFetch(
+          `/api/admin/site-health?client=${encodeURIComponent(clientId)}`,
+          {
+            headers: authH,
+          },
+        );
         const j = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(j?.error || `HTTP ${r.status}`);
         for (const i of j?.audit?.issues || []) {
@@ -2625,9 +2629,12 @@ function OpportunitiesPanel({
         fail("Kuration (Prompt-Queue)", e);
       }
       try {
-        const r = await fetch(`/api/admin/brand-facts?client=${encodeURIComponent(clientId)}`, {
-          headers: authH,
-        });
+        const r = await authedFetch(
+          `/api/admin/brand-facts?client=${encodeURIComponent(clientId)}`,
+          {
+            headers: authH,
+          },
+        );
         const j = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(j?.error || `HTTP ${r.status}`);
         if (j?.ok && j.needsReview)
@@ -2744,7 +2751,7 @@ function OpportunitiesPanel({
     setBriefErr("");
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const r = await fetch("/api/admin/content-brief", {
+      const r = await authedFetch("/api/admin/content-brief", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -4079,7 +4086,7 @@ function BrandFactsEditor({ clientId, S }: { clientId: string; S: Record<string,
   const [msg, setMsg] = useState("");
   const load = useCallback(async () => {
     const session = (await supabase.auth.getSession()).data.session;
-    const r = await fetch(`/api/admin/brand-facts?client=${encodeURIComponent(clientId)}`, {
+    const r = await authedFetch(`/api/admin/brand-facts?client=${encodeURIComponent(clientId)}`, {
       headers: { Authorization: `Bearer ${session?.access_token || ""}` },
     });
     const j = await r.json().catch(() => ({}));
@@ -4099,7 +4106,7 @@ function BrandFactsEditor({ clientId, S }: { clientId: string; S: Record<string,
     setBusy(true);
     setMsg("");
     const session = (await supabase.auth.getSession()).data.session;
-    const r = await fetch("/api/admin/brand-facts", {
+    const r = await authedFetch("/api/admin/brand-facts", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -5075,7 +5082,7 @@ function EzyAiApp() {
 
   const shareReport = async () => {
     const token = (await supabase.auth.getSession()).data.session?.access_token;
-    const r = await fetch("/api/public/report", {
+    const r = await authedFetch("/api/public/report", {
       method: "POST",
       headers: { Authorization: `Bearer ${token || ""}`, "Content-Type": "application/json" },
       body: JSON.stringify({ clientId: client!.id, days: 30 }),

@@ -1,3 +1,4 @@
+import { authedFetch } from "@/lib/authed-fetch";
 import IngestCredentialsPanel from "@/ezy/IngestCredentialsPanel";
 // EzyAI — Ads-Modus (ChatGPT Ads, 26.08.2026): Conversion-Tracking über die
 // OpenAI Conversions API. Eigene Datei (Bundle-Split-Muster wie LocalGrid) —
@@ -444,7 +445,7 @@ function SnippetCard({
     setVerify(null);
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const r = await fetch("/api/admin/openai-ads", {
+      const r = await authedFetch("/api/admin/openai-ads", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${session?.access_token || ""}`,
@@ -627,7 +628,7 @@ function EventsTable({
     setBusy(ev.id);
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const r = await fetch("/api/admin/openai-ads", {
+      const r = await authedFetch("/api/admin/openai-ads", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${session?.access_token || ""}`,
@@ -782,7 +783,7 @@ function ConfigCard({
 
   const post = async (body: Record<string, unknown>) => {
     const session = (await supabase.auth.getSession()).data.session;
-    const r = await fetch("/api/admin/openai-ads", {
+    const r = await authedFetch("/api/admin/openai-ads", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${session?.access_token || ""}`,

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
+import { aktiveMitgliedschaft } from "@/server/team-guard.server";
 
 // Plattform Phase 4 (2026-07-31): Proxy zur Reaktivierungsmaschine auf dem
 // Cloud-PC (agent-service /reakt/*). GET (Status/Entwürfe) für eingeloggte
@@ -15,14 +16,11 @@ async function getUserRole(request: Request): Promise<{ userId: string; role: st
   });
   const { data } = await sb.auth.getUser();
   if (!data.user) return null;
-  const { data: m } = await sb
-    .from("app_users")
-    .select("role")
-    .eq("user_id", data.user.id)
-    .order("role", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  return { userId: data.user.id, role: (m?.role as string) || "viewer" };
+  // Mehrfach-Organisationen (13.09.2026): Rolle EXAKT in der aktiven
+  // Organisation (X-Ezy-Active-Org, validiert) — nie order("role").limit(1).
+  const aktiv = await aktiveMitgliedschaft(data.user.id, request.headers.get("x-ezy-active-org"));
+  if (!aktiv) return null;
+  return { userId: data.user.id, role: aktiv.role };
 }
 
 async function forward(pathname: string, method: string, body?: string): Promise<Response> {

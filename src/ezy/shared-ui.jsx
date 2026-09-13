@@ -2,6 +2,7 @@
 // Verschieben): Toast, Btn/Badge-Primitives und der komplette EzyPilot-Block.
 // Zweck: /ezyai und /ezyai-analyse brauchen den 1.2-MB-Monolith-Chunk nicht
 // mehr; der Monolith importiert dieselben Komponenten von hier.
+import { authedFetch } from "@/lib/authed-fetch";
 import {
   createContext,
   useContext,
@@ -292,7 +293,7 @@ export function EzyPilotProvider({ selectedClient, clients, tools, children }) {
       const curConv = (loadPilotState().conversations || []).find((c) => c.id === convId);
       const resumeSessionId =
         curConv?.sessionId || conversations.find((c) => c.id === convId)?.sessionId || null;
-      const startRes = await fetch("/api/agent/copilot", {
+      const startRes = await authedFetch("/api/agent/copilot", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${session?.access_token || ""}`,
@@ -314,9 +315,12 @@ export function EzyPilotProvider({ selectedClient, clients, tools, children }) {
       // 360s — die fertige Antwort ging verloren.
       for (let i = 0; i < 450; i++) {
         await new Promise((r) => setTimeout(r, 2000));
-        const pr = await fetch(`/api/agent/run-agent?jobId=${encodeURIComponent(start.jobId)}`, {
-          headers: { Authorization: `Bearer ${session?.access_token || ""}` },
-        });
+        const pr = await authedFetch(
+          `/api/agent/run-agent?jobId=${encodeURIComponent(start.jobId)}`,
+          {
+            headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+          },
+        );
         const pj = await pr.json().catch(() => ({}));
         if (pj.status === "done") {
           out = pj;
@@ -356,7 +360,7 @@ export function EzyPilotProvider({ selectedClient, clients, tools, children }) {
     try {
       const session = (await supabase.auth.getSession()).data.session;
       const clientId = ctxRef.current.selectedClient?.id || "global";
-      const r = await fetch(`/api/agent/agents?clientId=${encodeURIComponent(clientId)}`, {
+      const r = await authedFetch(`/api/agent/agents?clientId=${encodeURIComponent(clientId)}`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${session?.access_token || ""}`,

@@ -1,3 +1,4 @@
+import { authedFetch } from "@/lib/authed-fetch";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -86,7 +87,7 @@ type AuditRow = {
 
 async function api(method: "GET" | "POST", pathQuery: string, body?: any) {
   const token = (await supabase.auth.getSession()).data.session?.access_token;
-  const r = await fetch(`/api/agent/analyse${pathQuery}`, {
+  const r = await authedFetch(`/api/agent/analyse${pathQuery}`, {
     method,
     headers: { Authorization: `Bearer ${token || ""}`, "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,

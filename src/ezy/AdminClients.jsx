@@ -1,5 +1,6 @@
 // Admin-Kundenverwaltung (aus EzyOneApp.jsx extrahiert, 21.08.2026 — reines
 // Verschieben): Kundenliste/-detail, Onboarding, Readiness, Zugriff, Portal.
+import { authedFetch } from "@/lib/authed-fetch";
 import { ServicesPanel, ServicesPicker } from "@/ezy/components/ServicesPanel.jsx";
 import { Badge, Btn } from "./shared-ui";
 import { Inp, LiveEmptyState, Modal, TabBar } from "./ui-kit";
@@ -72,9 +73,12 @@ export function WordPressClientPanel({ client }) {
     setLoading(true);
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const r = await fetch(`/api/wordpress/connection?clientId=${encodeURIComponent(client.id)}`, {
-        headers: { Authorization: `Bearer ${session?.access_token || ""}` },
-      });
+      const r = await authedFetch(
+        `/api/wordpress/connection?clientId=${encodeURIComponent(client.id)}`,
+        {
+          headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+        },
+      );
       const j = await r.json().catch(() => ({}));
       setStatus(j.connected ? j : null);
     } catch {
@@ -95,7 +99,7 @@ export function WordPressClientPanel({ client }) {
     setBusy(true);
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const r = await fetch("/api/wordpress/connection", {
+      const r = await authedFetch("/api/wordpress/connection", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${session?.access_token || ""}`,
@@ -129,7 +133,7 @@ export function WordPressClientPanel({ client }) {
     setBusy(true);
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      await fetch("/api/wordpress/connection", {
+      await authedFetch("/api/wordpress/connection", {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${session?.access_token || ""}`,
@@ -309,7 +313,7 @@ export function OnboardingCard({ client, onUpdated }) {
     setBusy(true);
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const res = await fetch("/api/canonry/create-project", {
+      const res = await authedFetch("/api/canonry/create-project", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -562,7 +566,7 @@ export function OnboardingWizard({
   const loadGoogleConn = async (clientId) => {
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const r = await fetch("/api/google/connection", {
+      const r = await authedFetch("/api/google/connection", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${session?.access_token || ""}`,
@@ -633,12 +637,12 @@ export function OnboardingWizard({
       const needGa4 = connections.some((c) => c.key === "ga4");
       const [gsc, ga4] = await Promise.all([
         needGsc
-          ? fetch("/api/google/gsc-sites", { method: "POST", headers, body })
+          ? authedFetch("/api/google/gsc-sites", { method: "POST", headers, body })
               .then((r) => r.json())
               .catch(() => null)
           : Promise.resolve(null),
         needGa4
-          ? fetch("/api/google/ga4-properties", { method: "POST", headers, body })
+          ? authedFetch("/api/google/ga4-properties", { method: "POST", headers, body })
               .then((r) => r.json())
               .catch(() => null)
           : Promise.resolve(null),
@@ -1067,7 +1071,7 @@ export function TechStackCard({ domain }) {
     setBusy(true);
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const r = await fetch(`/api/admin/tech-detect?domain=${encodeURIComponent(domain)}`, {
+      const r = await authedFetch(`/api/admin/tech-detect?domain=${encodeURIComponent(domain)}`, {
         headers: { Authorization: `Bearer ${token || ""}` },
       });
       setData(await r.json().catch(() => ({ ok: false, error: "Antwort ungültig" })));
@@ -1283,9 +1287,12 @@ export const READINESS_EVENT = "ezy:readiness-refresh";
 
 export async function fetchReadiness(clientId) {
   const token = (await supabase.auth.getSession()).data.session?.access_token;
-  const r = await fetch(`/api/admin/client-readiness?client=${encodeURIComponent(clientId)}`, {
-    headers: { Authorization: `Bearer ${token || ""}` },
-  });
+  const r = await authedFetch(
+    `/api/admin/client-readiness?client=${encodeURIComponent(clientId)}`,
+    {
+      headers: { Authorization: `Bearer ${token || ""}` },
+    },
+  );
   return r.json().catch(() => ({ ok: false, error: "Antwort ungültig" }));
 }
 
@@ -1309,7 +1316,7 @@ export function PortalEinladungDialog({ client, onClose, onInvited }) {
     setFehler("");
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const r = await fetch("/api/admin/team", {
+      const r = await authedFetch("/api/admin/team", {
         method: "POST",
         headers: { Authorization: `Bearer ${token || ""}`, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1472,9 +1479,12 @@ export function ClientReadinessPanel({ client, onOpenSettings }) {
       try {
         for (;;) {
           const token = (await supabase.auth.getSession()).data.session?.access_token;
-          const r = await fetch(`/api/admin/client-readiness?job=${encodeURIComponent(jobId)}`, {
-            headers: { Authorization: `Bearer ${token || ""}` },
-          });
+          const r = await authedFetch(
+            `/api/admin/client-readiness?job=${encodeURIComponent(jobId)}`,
+            {
+              headers: { Authorization: `Bearer ${token || ""}` },
+            },
+          );
           const j = await r.json().catch(() => ({}));
           if (j?.ok) {
             setLauf({ jobId, status: j.job.status, error: j.job.error });
@@ -1510,9 +1520,12 @@ export function ClientReadinessPanel({ client, onOpenSettings }) {
 
   const connectGoogle = async () => {
     const session = (await supabase.auth.getSession()).data.session;
-    const res = await fetch(`/api/google/oauth/start?client_id=${encodeURIComponent(client.id)}`, {
-      headers: { Authorization: `Bearer ${session?.access_token || ""}` },
-    });
+    const res = await authedFetch(
+      `/api/google/oauth/start?client_id=${encodeURIComponent(client.id)}`,
+      {
+        headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+      },
+    );
     const json = await res.json().catch(() => ({}));
     if (!res.ok || !json.url) throw new Error(json.error || `HTTP ${res.status}`);
     const popup = window.open(json.url, "google-oauth", "width=520,height=640");
@@ -1564,7 +1577,7 @@ export function ClientReadinessPanel({ client, onOpenSettings }) {
           return;
         case "datenlauf_starten": {
           const token = (await supabase.auth.getSession()).data.session?.access_token;
-          const r = await fetch("/api/admin/client-readiness", {
+          const r = await authedFetch("/api/admin/client-readiness", {
             method: "POST",
             headers: { Authorization: `Bearer ${token || ""}`, "Content-Type": "application/json" },
             body: JSON.stringify({ action: "datenlauf", client: client.id }),
@@ -1849,7 +1862,7 @@ export function ClientAppAccessPanel({ client }) {
   const [busy, setBusy] = useState(false);
   const callTeam = useCallback(async (body) => {
     const token = (await supabase.auth.getSession()).data.session?.access_token;
-    const r = await fetch("/api/admin/team", {
+    const r = await authedFetch("/api/admin/team", {
       method: "POST",
       headers: { Authorization: `Bearer ${token || ""}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -2279,7 +2292,7 @@ export function ClientsPage({
     (async () => {
       try {
         const token = (await supabase.auth.getSession()).data.session?.access_token;
-        const r = await fetch("/api/admin/client-readiness?all=1", {
+        const r = await authedFetch("/api/admin/client-readiness?all=1", {
           headers: { Authorization: `Bearer ${token || ""}` },
         });
         const j = await r.json().catch(() => null);
@@ -3085,7 +3098,7 @@ export function ConversionValuesPanel({ client }) {
         value: Number(d.value) || 0,
         currency: /^[A-Z]{3}$/.test(String(d.currency || "")) ? d.currency : "CHF",
       }));
-      const r = await fetch("/api/admin/ga4-conversions", {
+      const r = await authedFetch("/api/admin/ga4-conversions", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${session?.access_token || ""}`,

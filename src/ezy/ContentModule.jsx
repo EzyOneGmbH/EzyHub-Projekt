@@ -1,5 +1,6 @@
 // Content/Editor-Bereich (aus EzyOneApp.jsx extrahiert, 21.08.2026 — reines
 // Verschieben): Refresh-Radar, Content-Editor, Reports und Content-Seite.
+import { authedFetch } from "@/lib/authed-fetch";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import DataStatus from "@/ezy/DataStatus";
 import WordPressPublishModal from "@/ezy/PublishFlow";
@@ -486,7 +487,7 @@ export function RefreshRadar({ selectedClient }) {
       setBriefs((p) => ({ ...p, [row.id]: { loading: true } }));
       try {
         const session = (await supabase.auth.getSession()).data.session;
-        const r = await fetch("/api/content/refresh-brief", {
+        const r = await authedFetch("/api/content/refresh-brief", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${session?.access_token || ""}`,
@@ -513,7 +514,7 @@ export function RefreshRadar({ selectedClient }) {
     (async () => {
       try {
         const session = (await supabase.auth.getSession()).data.session;
-        const r = await fetch("/api/google/connection", {
+        const r = await authedFetch("/api/google/connection", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${session?.access_token || ""}`,

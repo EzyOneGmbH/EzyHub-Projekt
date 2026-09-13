@@ -1,3 +1,4 @@
+import { authedFetch } from "@/lib/authed-fetch";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { APP_GLYPHS } from "@/ezy/shell";
 import { useEffect, useState } from "react";
@@ -33,7 +34,7 @@ function AppsLauncher() {
       const jobs: Array<Promise<void>> = [];
       if (canOpen("reakt"))
         jobs.push(
-          fetch("/api/agent/reakt?what=status", { headers: H })
+          authedFetch("/api/agent/reakt?what=status", { headers: H })
             .then((r) => r.json())
             .then((j) => {
               if (!alive || !j?.ok) return;
@@ -47,7 +48,7 @@ function AppsLauncher() {
         );
       if (canOpen("admin"))
         jobs.push(
-          fetch("/api/agent/approvals", { headers: H })
+          authedFetch("/api/agent/approvals", { headers: H })
             .then((r) => r.json())
             .then((j) => {
               if (!alive) return;

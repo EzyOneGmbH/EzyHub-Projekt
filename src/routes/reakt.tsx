@@ -1,3 +1,4 @@
+import { authedFetch } from "@/lib/authed-fetch";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
@@ -96,7 +97,7 @@ function ReaktApp() {
 
   const call = useCallback(async (qs: string, init?: RequestInit) => {
     const token = (await supabase.auth.getSession()).data.session?.access_token;
-    const r = await fetch(`/api/agent/reakt${qs}`, {
+    const r = await authedFetch(`/api/agent/reakt${qs}`, {
       ...init,
       headers: {
         Authorization: `Bearer ${token || ""}`,

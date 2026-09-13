@@ -1,3 +1,4 @@
+import { authedFetch } from "@/lib/authed-fetch";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -77,7 +78,7 @@ function HealthPage() {
     try {
       const { data: s } = await supabase.auth.getSession();
       const token = s.session?.access_token;
-      const res = await fetch("/api/live/status", {
+      const res = await authedFetch("/api/live/status", {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) {

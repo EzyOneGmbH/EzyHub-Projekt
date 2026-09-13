@@ -1,5 +1,6 @@
 // EzyPerformance / Google-Ads-Dashboard (aus EzyOneApp.jsx extrahiert,
 // 21.08.2026 — reines Verschieben).
+import { authedFetch } from "@/lib/authed-fetch";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Btn } from "./shared-ui";
 import { C } from "./theme";
@@ -99,7 +100,7 @@ export function AdsDashboard({ selectedClient, dateRange }) {
           body.compareStart = isoDate(dateRange.compare.start);
           body.compareEnd = isoDate(dateRange.compare.end);
         }
-        await fetch("/api/google/ads-data", {
+        await authedFetch("/api/google/ads-data", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${session?.access_token || ""}`,

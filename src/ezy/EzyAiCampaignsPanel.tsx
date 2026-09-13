@@ -5,6 +5,7 @@
 // laufen als Command mit Audit-Log und sofortigem Re-Sync.
 // Bis zur CH-Freischaltung des Self-Serve Ads Managers: Demo-Konto via
 // API-Key "mock" — komplette UI End-to-End testbar.
+import { authedFetch } from "@/lib/authed-fetch";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -143,7 +144,7 @@ const fmtTime = (iso: string | null) =>
 
 async function apiPost(body: any): Promise<{ ok: boolean; error?: string }> {
   const session = (await supabase.auth.getSession()).data.session;
-  const r = await fetch("/api/admin/chatgpt-ads", {
+  const r = await authedFetch("/api/admin/chatgpt-ads", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -1071,7 +1072,7 @@ function TargetingEditor({
     const t = setTimeout(async () => {
       setSearching(true);
       const session = (await supabase.auth.getSession()).data.session;
-      const r = await fetch("/api/admin/chatgpt-ads", {
+      const r = await authedFetch("/api/admin/chatgpt-ads", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

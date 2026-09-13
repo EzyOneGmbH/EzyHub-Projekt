@@ -1,5 +1,6 @@
 // Admin-Einstellungen (aus EzyOneApp.jsx extrahiert, 21.08.2026 — reines
 // Verschieben): SettingsPage inkl. Systemcheck/Worker-/Secret-Karten.
+import { authedFetch } from "@/lib/authed-fetch";
 import { ExternalLink, GitBranch } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { Badge, Btn, useToast } from "./shared-ui";
@@ -45,7 +46,7 @@ export function WpSecretStatusCard() {
     (async () => {
       try {
         const token = (await supabase.auth.getSession()).data.session?.access_token;
-        const r = await fetch("/api/admin/secret-status", {
+        const r = await authedFetch("/api/admin/secret-status", {
           headers: { Authorization: `Bearer ${token || ""}` },
         });
         const j = await r.json().catch(() => null);
@@ -106,7 +107,7 @@ export function AnalyseWorkerCard() {
     (async () => {
       try {
         const token = (await supabase.auth.getSession()).data.session?.access_token;
-        const r = await fetch("/api/agent/analyse?worker=1", {
+        const r = await authedFetch("/api/agent/analyse?worker=1", {
           headers: { Authorization: `Bearer ${token || ""}` },
         });
         const j = await r.json().catch(() => null);
@@ -182,7 +183,7 @@ export function SystemCheckPanel() {
     setBusy(true);
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const r = await fetch("/api/admin/system-check", {
+      const r = await authedFetch("/api/admin/system-check", {
         headers: { Authorization: `Bearer ${token || ""}` },
       });
       const j = await r.json().catch(() => null);

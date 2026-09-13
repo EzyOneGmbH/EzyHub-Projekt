@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { requireTeamRole } from "@/server/team-guard.server";
 import { z } from "zod";
-import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { isOrgAdmin, orgRoleOf } from "@/server/integrations.server";
+import { orgRoleOf } from "@/server/integrations.server";
 
 // Team-/Mitarbeiter-Verwaltung (RBAC, 2026-07-15). Nur owner/admin dürfen die
 // Aktionen ausführen; Mitarbeiter werden hier angelegt (KEIN Self-Signup) und
@@ -30,31 +30,14 @@ export const Route = createFileRoute("/api/admin/team")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const supabaseUrl = process.env.SUPABASE_URL;
-        const anonKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
-        if (!supabaseUrl || !anonKey)
-          return Response.json({ error: "Server not configured" }, { status: 503 });
-
-        const userClient = createClient(supabaseUrl, anonKey, {
-          global: { headers: { Authorization: request.headers.get("authorization") ?? "" } },
-        });
-        const {
-          data: { user },
-        } = await userClient.auth.getUser();
-        if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
-
-        // Org des Aufrufers + Admin-Gate.
-        const { data: me } = await supabaseAdmin
-          .from("app_users")
-          .select("organization_id, role")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        const orgId = (me as any)?.organization_id as string | undefined;
-        if (!orgId || !(await isOrgAdmin(user.id, orgId)))
-          return Response.json(
-            { error: "Keine Berechtigung (nur SuperAdmin/Admin)." },
-            { status: 403 },
-          );
+        // Mehrfach-Organisationen (13.09.2026): Organisation + Admin-Rolle EXAKT
+        // aus der aktiven Mitgliedschaft (X-Ezy-Active-Org, validiert) — das
+        // fruehere maybeSingle() ohne organization_id war bei mehreren Orgs
+        // mehrdeutig (null -> 403 fuer legitime Admins).
+        const team = await requireTeamRole(request, "admin");
+        if (team instanceof Response) return team;
+        const user = { id: team.userId };
+        const orgId = team.organizationId;
 
         const parsed = Body.safeParse(await request.json().catch(() => ({})));
         if (!parsed.success)

@@ -4,6 +4,7 @@
 // Schutz: Standard bleibt "Entwurf"; "Sofort veröffentlichen" verlangt einen
 // expliziten Bestätigungshaken. Fehler werden verständlich übersetzt.
 // Kein useToast-Import aus dem Monolithen (zirkulär) — notify kommt als Prop.
+import { authedFetch } from "@/lib/authed-fetch";
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle, Eye, Globe, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -105,7 +106,7 @@ export default function WordPressPublishModal({
     setError(null);
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const r = await fetch("/api/wordpress/publish", {
+      const r = await authedFetch("/api/wordpress/publish", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${session?.access_token || ""}`,

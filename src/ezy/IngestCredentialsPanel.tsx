@@ -1,3 +1,4 @@
+import { authedFetch } from "@/lib/authed-fetch";
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -67,7 +68,7 @@ export default function IngestCredentialsPanel({
 
   const api = useCallback(async (init?: RequestInit, query = "") => {
     const session = (await supabase.auth.getSession()).data.session;
-    const r = await fetch(`/api/admin/ingest-credentials${query}`, {
+    const r = await authedFetch(`/api/admin/ingest-credentials${query}`, {
       ...init,
       headers: {
         Authorization: `Bearer ${session?.access_token || ""}`,

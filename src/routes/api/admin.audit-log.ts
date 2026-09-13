@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createClient } from "@supabase/supabase-js";
+import { requireTeamRole } from "@/server/team-guard.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 // Admin-Aenderungsprotokoll lesen (17.08.2026): admin_audit_log wird von
@@ -10,27 +10,11 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 //
 // GET ?client=<uuid>&limit=50   → { entries: [...] }
 
+// Mehrfach-Organisationen (13.09.2026): Rolle EXAKT in der aktiven Organisation.
 async function requireOwnerAdmin(request: Request): Promise<{ organizationId: string } | Response> {
-  const url = process.env.SUPABASE_URL;
-  const anon = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
-  if (!url || !anon)
-    return Response.json({ ok: false, error: "Server not configured" }, { status: 503 });
-  const sb = createClient(url, anon, {
-    global: { headers: { Authorization: request.headers.get("authorization") ?? "" } },
-  });
-  const { data } = await sb.auth.getUser();
-  if (!data.user) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-  const { data: m } = await (supabaseAdmin as any)
-    .from("app_users")
-    .select("role, organization_id")
-    .eq("user_id", data.user.id)
-    .order("role", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  const role = (m?.role as string) || "viewer";
-  if ((role !== "owner" && role !== "admin") || !m?.organization_id)
-    return Response.json({ ok: false, error: "Nur Owner/Admin" }, { status: 403 });
-  return { organizationId: m.organization_id as string };
+  const t = await requireTeamRole(request, "admin");
+  if (t instanceof Response) return t;
+  return { organizationId: t.organizationId };
 }
 
 const LABELS: Record<string, string> = {

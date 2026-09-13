@@ -1,3 +1,4 @@
+import { authedFetch } from "@/lib/authed-fetch";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -169,7 +170,7 @@ function PilotRoute() {
   useEffect(() => {
     if (!session) return;
     (async () => {
-      const r = await fetch("/api/agent/pilot", {
+      const r = await authedFetch("/api/agent/pilot", {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       const j = await r.json().catch(() => ({}));
@@ -188,7 +189,7 @@ function PilotRoute() {
     setBusy(true);
     try {
       const history = msgs.slice(-12).map((m) => ({ role: m.role, content: m.content }));
-      const r = await fetch("/api/agent/pilot", {
+      const r = await authedFetch("/api/agent/pilot", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -220,7 +221,7 @@ function PilotRoute() {
     setNoteState("saving");
     setNoteError("");
     try {
-      const r = await fetch("/api/agent/pilot", {
+      const r = await authedFetch("/api/agent/pilot", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${session.access_token}`,

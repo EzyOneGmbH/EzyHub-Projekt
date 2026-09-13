@@ -1,3 +1,4 @@
+import { useAuth } from "@/hooks/use-auth";
 // Redesign 1b «Icon-Rail + Glas-Header» (21.08.2026, Design-Handoff):
 // Plattform-Shell-Bausteine — AppRail (76px App-Switcher), SegmentedTabs,
 // Status-/Positions-Pills und Toggle. Reine Praesentationsschicht; Gating
@@ -323,6 +324,8 @@ export function AppRail({
             <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 8 }}>
               {profile?.role || ""}
             </div>
+            {/* Mehrfach-Organisationen (13.09.): Wechsel der aktiven Organisation. */}
+            <OrgSwitcherMenu C={C} />
             <button
               onClick={onLogout}
               style={{
@@ -346,6 +349,70 @@ export function AppRail({
         )}
       </div>
     </aside>
+  );
+}
+
+/**
+ * Organisations-Wechsler im Profilmenue (Mehrfach-Organisationen, 13.09.2026).
+ * Erscheint nur bei mehr als einer Mitgliedschaft; die Wahl wird im
+ * AuthProvider validiert + gespeichert, danach laedt die App neu, damit alle
+ * Kunden-/Rollen-Zustaende sauber aus der neuen Organisation kommen.
+ */
+function OrgSwitcherMenu({ C }) {
+  const { memberships, organizations, organizationId, setActiveOrganization } = useAuth();
+  if (!memberships || memberships.length < 2) return null;
+  const label = (id) => organizations.find((o) => o.id === id)?.name || "Organisation";
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <div
+        style={{
+          fontSize: 9.5,
+          fontWeight: 700,
+          letterSpacing: ".07em",
+          textTransform: "uppercase",
+          color: C.textFaint,
+          padding: "0 2px 4px",
+        }}
+      >
+        Organisation
+      </div>
+      {memberships.map((m) => {
+        const aktiv = m.organization_id === organizationId;
+        return (
+          <button
+            key={m.organization_id}
+            disabled={aktiv}
+            onClick={() => {
+              if (setActiveOrganization(m.organization_id)) window.location.reload();
+            }}
+            title={aktiv ? "Aktive Organisation" : "Zu dieser Organisation wechseln"}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 6,
+              width: "100%",
+              padding: "6px 8px",
+              marginBottom: 3,
+              borderRadius: 8,
+              border: `1px solid ${aktiv ? C.accent : C.border}`,
+              background: aktiv ? C.accentDim : C.bg,
+              color: aktiv ? C.accent : C.textMuted,
+              fontSize: 11.5,
+              fontWeight: aktiv ? 700 : 600,
+              cursor: aktiv ? "default" : "pointer",
+              fontFamily: "inherit",
+              textAlign: "left",
+            }}
+          >
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {label(m.organization_id)}
+            </span>
+            <span style={{ fontSize: 10, opacity: 0.8 }}>{m.role}</span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

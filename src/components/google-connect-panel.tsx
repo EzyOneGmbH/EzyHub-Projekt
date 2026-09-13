@@ -1,3 +1,4 @@
+import { authedFetch } from "@/lib/authed-fetch";
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -26,13 +27,8 @@ type Status = {
   updatedAt: string | null;
 };
 
-async function authedFetch(url: string, init: RequestInit = {}) {
-  const session = (await supabase.auth.getSession()).data.session;
-  const headers = new Headers(init.headers);
-  headers.set("Content-Type", "application/json");
-  if (session?.access_token) headers.set("Authorization", `Bearer ${session.access_token}`);
-  return fetch(url, { ...init, headers });
-}
+// authedFetch (13.09.2026): zentraler Helfer aus @/lib/authed-fetch — Bearer +
+// X-Ezy-Active-Org automatisch; der fruehere lokale Helfer ist entfallen.
 
 export function GoogleConnectPanel({
   clientId,
@@ -78,9 +74,12 @@ export function GoogleConnectPanel({
     setBusy("connect");
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const res = await fetch(`/api/google/oauth/start?client_id=${encodeURIComponent(clientId)}`, {
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      });
+      const res = await authedFetch(
+        `/api/google/oauth/start?client_id=${encodeURIComponent(clientId)}`,
+        {
+          headers: { Authorization: `Bearer ${session?.access_token}` },
+        },
+      );
       const json = await res.json();
       if (!res.ok || !json.url) throw new Error(json.error || `HTTP ${res.status}`);
       const popup = window.open(json.url, "google-oauth", "width=520,height=640");
