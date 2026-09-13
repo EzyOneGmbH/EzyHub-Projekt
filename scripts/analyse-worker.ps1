@@ -1,20 +1,28 @@
-# EzyAI-Analyse-Worker-Tick (Async-Umbau 21.08.2026).
-# Wird vom Windows Task Scheduler MINUETLICH aufgerufen (kein setInterval,
-# kein Browser-Timer) und triggert den geschuetzten Worker-Endpunkt, der alle
-# offenen prospect_audits-Jobs Etappe fuer Etappe abarbeitet.
+# EzyAI-Analyse-Worker-Tick — NOTFALL-FALLBACK (seit 13.09.2026).
 #
-# Registrierung (einmalig, als angemeldeter User — kein Admin noetig):
-#   schtasks /create /tn "EzyOne-Analyse-Worker" /sc minute /mo 1 ^
-#     /tr "powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\VolkanKaragülleEzyOn\EzyHub-chat-aivis\scripts\analyse-worker.ps1" ^
-#     /f
-# Kontrolle:  schtasks /query /tn "EzyOne-Analyse-Worker"
-# Entfernen:  schtasks /delete /tn "EzyOne-Analyse-Worker" /f
+# Primaerer Scheduler ist NICHT mehr dieser Windows-Task, sondern pg_cron +
+# pg_net in der Lovable-Supabase (Migration supabase/migrations/
+# 20260913180000_managed_worker_scheduler.sql): Job «ezy-analyse-worker» ruft
+# minuetlich POST https://ezyhub.ch/api/agent/analyse {action:"worker",
+# source:"pg_cron"} mit dem Vault-Secret admin_automation_secret auf; Job
+# «ezy-analyse-watchdog» (alle 5 min, public.analyse_worker_watchdog) alarmiert
+# die Admins, wenn der Heartbeat > 10 Minuten fehlt.
 #
-# Ueberlappungsschutz: Task Scheduler startet Instanzen unabhaengig; die App
-# lockt jede Analyse via locked_until — doppelte Worker fuehren nie dieselbe
-# Etappe doppelt aus (parallele Instanzen ticken hoechstens VERSCHIEDENE Jobs).
-# Ausfall-Sichtbarkeit: der Endpunkt schreibt analyse_worker_heartbeat; die
-# App zeigt aktiv/verzoegert/ausgefallen (GET /api/agent/analyse?worker=1).
+# Der Windows-Task «EzyOne-Analyse-Worker» bleibt registriert, aber DEAKTIVIERT.
+# Beide Wege duerfen parallel laufen: die App serialisiert Ticks per Lease
+# (analyse_worker_heartbeat.lease_until) und lockt jeden Job (locked_until).
+#
+# Notfall (pg_cron/pg_net ausgefallen — Alarm «Analyse-Worker ausgefallen»):
+#   Enable-ScheduledTask  -TaskName "EzyOne-Analyse-Worker"    # Fallback EIN
+#   Disable-ScheduledTask -TaskName "EzyOne-Analyse-Worker"    # Fallback AUS
+#   Get-ScheduledTask     -TaskName "EzyOne-Analyse-Worker" | Select State
+# Der Task startet minuetlich den unsichtbaren Launcher
+# %USERPROFILE%\ezy-cron\hidden\analyse-worker.vbs → dieses Skript.
+# Log: ~/agent-service/analyse-worker.log
+#
+# Ausfall-Sichtbarkeit: der Endpunkt schreibt analyse_worker_heartbeat (inkl.
+# source = pg_cron | windows-fallback); die App zeigt aktiv/verzoegert/
+# ausgefallen (GET /api/agent/analyse?worker=1, Admin → Systemcheck).
 
 $ErrorActionPreference = "Stop"
 
@@ -31,10 +39,14 @@ try {
   $r = Invoke-RestMethod -Method Post -Uri "$base/api/agent/analyse" `
     -Headers @{ Authorization = "Bearer $secret" } `
     -ContentType "application/json" `
-    -Body '{"action":"worker"}' `
+    -Body '{"action":"worker","source":"windows-fallback"}' `
     -TimeoutSec 290
   $log = Join-Path $env:USERPROFILE "agent-service\analyse-worker.log"
-  Add-Content -Path $log -Encoding utf8 -Value ("[{0}] getickt={1} fertig={2} fehler={3}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $r.getickt, $r.fertig, $r.fehler)
+  if ($r.uebersprungen) {
+    Add-Content -Path $log -Encoding utf8 -Value ("[{0}] uebersprungen={1} (Lease haelt ein anderer Tick)" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $r.uebersprungen)
+  } else {
+    Add-Content -Path $log -Encoding utf8 -Value ("[{0}] getickt={1} fertig={2} fehler={3}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $r.getickt, $r.fertig, $r.fehler)
+  }
 } catch {
   $log = Join-Path $env:USERPROFILE "agent-service\analyse-worker.log"
   Add-Content -Path $log -Encoding utf8 -Value ("[{0}] FEHLER: {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $_.Exception.Message)

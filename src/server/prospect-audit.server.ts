@@ -1187,6 +1187,9 @@ export async function tickAudit(id: string) {
       ...(data.stageFails || {}),
       [row.stage]: (Number(data.stageFails?.[row.stage]) || 0) + 1,
     };
-    return await saveStage({ data, ...fehlerPatch(row, msg, Date.now()) });
+    // Bewusst saveRow statt saveStage: saveStage setzt attempts/next_retry_at/
+    // last_error zurueck und haette den Retry-Plan ueberschrieben (Befund
+    // 13.09.2026: sofortige Endlos-Retries statt 1/2/4 min + Abbruch).
+    return await saveRow(id, { data, ...fehlerPatch(row, msg, Date.now()) });
   }
 }

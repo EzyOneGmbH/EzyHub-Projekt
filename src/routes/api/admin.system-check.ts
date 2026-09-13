@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireTeamRole } from "@/server/team-guard.server";
 import { secretStatus } from "@/server/secretbox.server";
+import { bewerteHeartbeat } from "@/server/worker-scheduler.server";
 
 // Systemcheck (Admin-Ausbau 21.08.2026): prueft SERVERSEITIG, ob die von der
 // App erwarteten Tabellen/Spalten wirklich existieren (Lovable wendet Repo-
@@ -207,17 +208,15 @@ export const Route = createFileRoute("/api/admin/system-check")({
             .select("*")
             .eq("id", 1)
             .maybeSingle();
-          const alterMs = hb?.last_run_at ? Date.now() - new Date(hb.last_run_at).getTime() : null;
           worker = {
-            zustand:
-              alterMs == null || alterMs > 10 * 60_000
-                ? "ausgefallen"
-                : alterMs > 3 * 60_000
-                  ? "verzoegert"
-                  : "aktiv",
+            zustand: bewerteHeartbeat(hb).zustand,
             lastRunAt: hb?.last_run_at ?? null,
             jobsProcessed: hb?.jobs_processed ?? null,
             errors: hb?.errors ?? null,
+            // Verwalteter Scheduler (13.09.): Quelle des letzten Ticks
+            // (pg_cron | windows-fallback) und Fehlerserie.
+            scheduler: hb?.source ?? null,
+            fehlerTicksInFolge: hb?.consecutive_error_ticks ?? 0,
           };
         } catch {
           /* bleibt nicht_pruefbar */

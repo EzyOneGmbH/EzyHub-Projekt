@@ -2,14 +2,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { aktiveMitgliedschaft } from "@/server/team-guard.server";
-import { tickeAdminJobs } from "@/server/admin-jobs.server";
+import { runWorkerTick, ladeHeartbeat, bewerteHeartbeat } from "@/server/worker-scheduler.server";
 import {
   startAudit,
   tickAudit,
   suggestCompetitors,
   retryAudit,
   abbrechenAudit,
-  tickeOffeneAudits,
   leadZuKunde,
   uebernahmeErlaubt,
 } from "@/server/prospect-audit.server";
@@ -24,7 +23,7 @@ import {
 // POST {action:"competitors", domain, firmenname, branche?, ort?}
 // POST {action:"start", domain, firmenname, branche?, ort?, wettbewerber[]}
 // POST {action:"tick", id}   → EINE Etappe ausfuehren (Diagnose/Tests)
-// POST {action:"worker"}     → alle offenen Jobs abarbeiten (Scheduler, Secret)
+// POST {action:"worker", source?} → EIN Worker-Tick (pg_cron-Scheduler, Secret)
 // GET  ?worker=1             → Worker-Heartbeat (aktiv/verzoegert/ausgefallen)
 
 async function requireTeam(
@@ -69,20 +68,18 @@ export const Route = createFileRoute("/api/agent/analyse")({
         // Worker-Heartbeat (21.08.): aktiv/verzoegert/ausgefallen fuer Admin-
         // Anzeige und Warnbanner. Erlaubtes Intervall: 60 s (Task-Scheduler).
         if (sp.get("worker") === "1") {
-          const { data: hb } = await (supabaseAdmin as any)
-            .from("analyse_worker_heartbeat")
-            .select("*")
-            .eq("id", 1)
-            .maybeSingle();
-          const alterMs = hb?.last_run_at ? Date.now() - new Date(hb.last_run_at).getTime() : null;
-          const zustand =
-            alterMs == null || alterMs > 10 * 60_000
-              ? "ausgefallen"
-              : alterMs > 3 * 60_000
-                ? "verzoegert"
-                : "aktiv";
+          const hb = await ladeHeartbeat();
+          const { zustand, alterMs } = bewerteHeartbeat(hb);
           return Response.json(
-            { ok: true, heartbeat: hb ?? null, zustand, intervallSek: 60 },
+            {
+              ok: true,
+              heartbeat: hb ?? null,
+              zustand,
+              alterMs,
+              intervallSek: 60,
+              scheduler: hb?.source ?? null,
+              fehlerTicksInFolge: hb?.consecutive_error_ticks ?? 0,
+            },
             { headers: { "Cache-Control": "no-store" } },
           );
         }
@@ -137,16 +134,19 @@ export const Route = createFileRoute("/api/agent/analyse")({
           if (!admin || (request.headers.get("authorization") || "") !== `Bearer ${admin}`)
             return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
           try {
-            const budget = Number(body.budgetMs) > 0 ? Number(body.budgetMs) : 230_000;
-            const t0 = Date.now();
-            // Analyse-Jobs zuerst (max 150 s), Admin-Jobs (z.B. Datenlaeufe)
-            // bekommen das Restbudget desselben Minuten-Ticks.
-            const r = await tickeOffeneAudits(Math.min(budget, 150_000));
-            const admin = await tickeAdminJobs(
-              budget - (Date.now() - t0),
-              new URL(request.url).origin,
-            );
-            return Response.json({ ok: true, ...r, adminJobs: admin });
+            // Verwalteter Scheduler (13.09.): pg_cron/pg_net ruft minuetlich
+            // (source "pg_cron"); der Windows-Task ist nur Notfall-Fallback
+            // ("windows-fallback"). Lease, Locks, Retry, Sweep und Fehler-
+            // Monitor leben in runWorkerTick.
+            const source = String(body.source || "")
+              .replace(/[^a-z0-9_-]/gi, "")
+              .slice(0, 32);
+            const r = await runWorkerTick({
+              budgetMs: Number(body.budgetMs) > 0 ? Number(body.budgetMs) : undefined,
+              origin: new URL(request.url).origin,
+              source: source || "unbekannt",
+            });
+            return Response.json(r, { status: r.ok ? 200 : 500 });
           } catch (e) {
             return Response.json(
               { ok: false, error: e instanceof Error ? e.message : String(e) },

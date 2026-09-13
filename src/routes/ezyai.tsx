@@ -2715,28 +2715,10 @@ function OpportunitiesPanel({
     })();
   }, [items, states, statesErr, canWrite, clientId, loadStates]);
 
-  // Fällige Wiedervorlagen → einmalige In-App-Benachrichtigung (Glocke).
-  // Dedupe passiert HART in der DB (unique dedupe_key je Kunde+Fingerprint+
-  // Fälligkeitsdatum) — Reloads erzeugen keine Duplikate; das Session-Set
-  // spart nur wiederholte RPC-Calls. Viewer lösen nichts aus (RPC prüft
-  // can_edit_client serverseitig nochmals).
-  const notifiedRef = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    if (!states || statesErr || !canWrite) return;
-    const today = isoDay(new Date());
-    for (const s of Object.values(states) as any[]) {
-      if (!isResurfaceDue(s.status, s.resurface_on, today)) continue;
-      const key = `${clientId}:${s.fingerprint}:${s.resurface_on}`;
-      if (notifiedRef.current.has(key)) continue;
-      notifiedRef.current.add(key);
-      void (supabase as any).rpc("ezyai_notify_resurface", {
-        _client_id: clientId,
-        _fingerprint: s.fingerprint,
-        _title: `Wiedervorlage fällig: ${s.title || "Chance"}`,
-        _due: s.resurface_on,
-      });
-    }
-  }, [states, statesErr, canWrite, clientId]);
+  // Fällige Wiedervorlagen → In-App-Benachrichtigung (Glocke): seit 13.09.
+  // SERVERSEITIG im Worker-Tick (sweepWiedervorlagen, alle 15 min, an
+  // assignee_user_id bzw. Org-Admins, dedupliziert) — kein Browserbesuch
+  // dieses Panels mehr nötig; der frühere RPC-Trigger hier ist entfallen.
 
   const card: any = {
     background: S.panel,

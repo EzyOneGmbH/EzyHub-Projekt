@@ -141,6 +141,33 @@ curl -H "Authorization: Bearer <CANONRY_API_KEY>" https://canonry.ezyhub.ch/api/
 3. `sc query Cloudflared` → läuft der Dienst? sonst `sc start Cloudflared`.
 4. Health-Checks bestätigen.
 
+### Analyse-/Admin-Worker (verwalteter Scheduler, seit 13.09.2026)
+Der Worker (`POST /api/agent/analyse {action:"worker"}` → prospect_audits-Etappen,
+admin_jobs-Datenläufe, Wiedervorlage-Sweep, Fehler-Monitor) läuft **nicht mehr über den
+Cloud PC**, sondern über **pg_cron + pg_net in der Lovable-Supabase** — Always-on,
+unabhängig vom Cloud PC:
+
+| Cron-Job | Takt | Zweck |
+|---|---|---|
+| `ezy-analyse-worker` | jede Minute | pg_net POST an `/api/agent/analyse` (Bearer aus Vault `admin_automation_secret`, Timeout 295 s). Die App serialisiert überlappende Ticks per Lease (`analyse_worker_heartbeat.lease_until`), jede Etappe/jeder Job ist per `locked_until` gelockt, Retry exponentiell (1/2/4 min, max 3) bzw. Cooldown (admin_jobs, max 2). |
+| `ezy-analyse-watchdog` | alle 5 min | `public.analyse_worker_watchdog()`: fehlt der Heartbeat > 10 min → Meldung «Analyse-Worker ausgefallen» an alle owner/admin (Glocke, dedupliziert je Ausfall-Episode) + optional Webhook (Vault `worker_alarm_webhook_url`). |
+
+- **Wiederholte Job-Fehler** meldet der Tick selbst: ≥ 3 Fehler-Ticks in Folge oder ≥ 3
+  endgültig fehlgeschlagene Jobs/Stunde → Meldung «wiederholte Job-Fehler» an alle Admins
+  (ein Alarm je 6 h) + optional Webhook (`WORKER_ALARM_WEBHOOK_URL` in der Lovable-Env).
+- **Wiedervorlagen** (`ai_opportunity_states.resurface_on`): alle 15 min serverseitig,
+  Meldung an `assignee_user_id` bzw. die Org-Admins — kein Browserbesuch nötig.
+- **Status:** `GET /api/agent/analyse?worker=1` bzw. Admin → Systemcheck (`zustand`,
+  `scheduler` = pg_cron | windows-fallback, `fehlerTicksInFolge`). In Supabase:
+  `select jobname, schedule, active from cron.job;` und
+  `select status_code, error_msg, created from net._http_response order by id desc limit 10;`
+- **Notfall-Fallback (nur wenn pg_cron/pg_net ausfällt):** Windows-Task
+  `EzyOne-Analyse-Worker` ist registriert, aber **deaktiviert**:
+  `Enable-ScheduledTask -TaskName EzyOne-Analyse-Worker` (danach wieder `Disable-…`).
+  Skript: `scripts/analyse-worker.ps1` (Header = Runbook). Beide Wege dürfen parallel laufen.
+- Migration/Setup: `supabase/migrations/20260913180000_managed_worker_scheduler.sql`
+  (manuell via Lovable-SQL; Vault-Secrets werden separat gesetzt, nie im Repo).
+
 ---
 
 ## 6. Deployment & CI
