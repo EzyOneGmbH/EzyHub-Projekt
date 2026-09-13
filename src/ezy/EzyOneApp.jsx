@@ -146,7 +146,7 @@ const ContentPage = lazyTeil(() => import("./ContentModule"), "ContentPage");
 const RefreshRadar = lazyTeil(() => import("./ContentModule"), "RefreshRadar");
 const ReportsPage = lazyTeil(() => import("./ContentModule"), "ReportsPage");
 const AgencyOverview = lazyTeil(() => import("./RankDashboards"), "AgencyOverview");
-const ConvDashboard = lazyTeil(() => import("./RankDashboards"), "ConvDashboard");
+const ConvDashboard = lazyTeil(() => import("./ConvDashboard"), "ConvDashboard");
 const OverviewDashboard = lazyTeil(() => import("./RankDashboards"), "OverviewDashboard");
 const SeoDashboard = lazyTeil(() => import("./RankDashboards"), "SeoDashboard");
 import {

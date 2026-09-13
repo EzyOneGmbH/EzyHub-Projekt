@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireTeamRole } from "@/server/team-guard.server";
 import { encryptSecret, decryptSecret } from "@/server/secretbox.server";
 import { buildOpenAiEvent, sendConversionEvents } from "@/server/openai-ads.server";
+import { zeitraumAusParams } from "@/lib/date-range";
 
 // ChatGPT Ads (EzyAI Ads-Modus, 26.08.2026) — Dashboard- und Verwaltungs-Route.
 // GET  ?client=<uuid>&start=YYYY-MM-DD&end=YYYY-MM-DD
@@ -33,8 +34,6 @@ async function requireUser(request: Request): Promise<{ userClient: any | null }
   return { userClient };
 }
 
-const isDayStr = (s: string | null): s is string => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
-
 export const Route = createFileRoute("/api/admin/openai-ads")({
   server: {
     handlers: {
@@ -61,13 +60,18 @@ export const Route = createFileRoute("/api/admin/openai-ads")({
           .eq("client_id", clientId)
           .maybeSingle();
 
-        // Zeitraum (Default 30 Tage) — Events in [start, end].
-        const qsStart = u.searchParams.get("start");
-        const qsEnd = u.searchParams.get("end");
-        const end = isDayStr(qsEnd) ? qsEnd : new Date().toISOString().slice(0, 10);
-        const start = isDayStr(qsStart)
-          ? qsStart
-          : new Date(Date.now() - 29 * 864e5).toISOString().slice(0, 10);
+        // Zeitraum (13.09.2026, Vereinheitlichung): exakt + inklusiv, Default
+        // 30 Tage; ungueltig/verdreht/Zukunft/zu lang → 400 statt Naeherung.
+        let zr;
+        try {
+          zr = zeitraumAusParams(u.searchParams, { defaultDays: 30, maxDays: 366 });
+        } catch (e) {
+          return Response.json(
+            { ok: false, error: e instanceof Error ? e.message : String(e) },
+            { status: 400 },
+          );
+        }
+        const { startDate: start, endDate: end } = zr;
         const since = new Date(`${start}T00:00:00`).toISOString();
         const until = new Date(new Date(`${end}T00:00:00`).getTime() + 864e5).toISOString();
 
@@ -102,6 +106,7 @@ export const Route = createFileRoute("/api/admin/openai-ads")({
 
         return Response.json({
           ok: true,
+          range: { from: zr.startDate, to: zr.endDate, days: zr.days },
           configured: !!cfg,
           enabled: !!cfg?.enabled,
           pixelId: cfg?.pixel_id || null,

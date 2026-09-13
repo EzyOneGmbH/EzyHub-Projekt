@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireTeamRole } from "@/server/team-guard.server";
 import { encryptSecret, decryptSecret } from "@/server/secretbox.server";
+import { zeitraum, zeitraumAusParams } from "@/lib/date-range";
 
 // ChatGPT-Ads-Management (Spec 31.08.2026, «EzyAI ChatGPT Ads Modul») —
 // Kampagnen-Verwaltung via OpenAI Advertiser API (api.ads.openai.com/v1).
@@ -1345,8 +1346,6 @@ async function requireUser(request: Request): Promise<{ userClient: any | null }
   return { userClient };
 }
 
-const isDayStr = (s: string | null): s is string => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
-
 export const Route = createFileRoute("/api/admin/chatgpt-ads")({
   server: {
     handlers: {
@@ -1375,12 +1374,18 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
           .maybeSingle();
         if (!acc) return Response.json({ ok: true, connected: false });
 
-        const qsStart = u.searchParams.get("start");
-        const qsEnd = u.searchParams.get("end");
-        const end = isDayStr(qsEnd) ? qsEnd : new Date().toISOString().slice(0, 10);
-        const start = isDayStr(qsStart)
-          ? qsStart
-          : new Date(Date.now() - 29 * 864e5).toISOString().slice(0, 10);
+        // Zeitraum (13.09.2026, Vereinheitlichung): exakt + inklusiv, Default
+        // 30 Tage; ungueltig/verdreht/Zukunft/zu lang → 400 statt Naeherung.
+        let zr;
+        try {
+          zr = zeitraumAusParams(u.searchParams, { defaultDays: 30, maxDays: 366 });
+        } catch (e) {
+          return Response.json(
+            { ok: false, error: e instanceof Error ? e.message : String(e) },
+            { status: 400 },
+          );
+        }
+        const { startDate: start, endDate: end } = zr;
 
         const [{ data: campaigns }, { data: insights }, { data: commands }, { data: audiences }] =
           await Promise.all([
@@ -1474,6 +1479,7 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
         return Response.json({
           ok: true,
           connected: true,
+          range: { from: zr.startDate, to: zr.endDate, days: zr.days },
           account: acc,
           campaigns: campaigns || [],
           insights: insights || [],
@@ -2564,13 +2570,21 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
           if (!["country", "device", "platform"].includes(segment))
             return Response.json({ ok: false, error: "segment ungültig" }, { status: 400 });
           const campaignId = String(body?.campaignId || "").trim() || null;
-          const start = isDayStr(String(body?.start || "")) ? String(body.start) : null;
-          const end = isDayStr(String(body?.end || "")) ? String(body.end) : null;
-          if (!start || !end)
+          // Zeitraum exakt validiert (Reihenfolge, Zukunft, max. 366 Tage).
+          let zrB;
+          try {
+            zrB = zeitraum({
+              startDate: String(body?.start || ""),
+              endDate: String(body?.end || ""),
+              maxDays: 366,
+            });
+          } catch (e) {
             return Response.json(
-              { ok: false, error: "start/end (YYYY-MM-DD) fehlen" },
+              { ok: false, error: e instanceof Error ? e.message : String(e) },
               { status: 400 },
             );
+          }
+          const { startDate: start, endDate: end } = zrB;
           if (acc.is_mock) {
             let q = sb
               .from("chatgpt_ads_insights_daily")

@@ -48,3 +48,7 @@ wordpress-plugin/_build/
 
 # lokale Editier-Backups nie einchecken
 *.bak-*
+
+# Playwright (QS-Runde 13.09.2026)
+playwright-report/
+test-results/

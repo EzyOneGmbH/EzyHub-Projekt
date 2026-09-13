@@ -217,8 +217,14 @@ unabhängig vom Cloud PC:
   geänderten JS-Bundle-Hash (`/assets/main-*.js`) erkennbar.
 - **Migrationen:** `supabase/migrations/*.sql` werden beim Deploy angewandt. Additive
   Migrationen degradieren sauber, falls noch nicht angewandt (z. B. Budget = aus).
-- **CI:** `.github/workflows/ci.yml` — `npm test` (Vitest) + `npm run build` als harte Gates,
-  `typecheck`/`lint` beratend.
+- **CI:** `.github/workflows/ci.yml` — Job `qualitaet` (Pflichtcheck): `npm ci`, `npm ls`,
+  `npm audit --omit=dev`, Tests (Vitest), TypeScript, Lint (`--max-warnings 0`), Build,
+  **Build-Budgets** (`scripts/check-build-budgets.mjs`: kein Client-Chunk > 500 KB, keine
+  neue Build-Warnung ausser den dort begründeten). Job `e2e`: Playwright-Ablauf
+  `e2e/ezyai-ads.spec.ts` (ChatGPT-Ads: Mock-Konto, Kampagnenaktionen, Geo-Targeting,
+  Zielgruppen, Conversion-Setup) gegen `vite dev` mit komplett gemocktem Netz — lokal
+  `npm run test:e2e`.
+- **Nach dem Deploy:** `npm run smoke:deploy` (Scheduler/Heartbeat/Watchdog/Sweep live).
 - **Routen-Schnelltest** (ohne Login): eine `/api/*`-Route ohne Auth aufrufen →
   `401/400` = deployt & konfiguriert · `503` = Key fehlt · `404` = nicht deployt.
 
