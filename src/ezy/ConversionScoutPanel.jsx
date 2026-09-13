@@ -128,6 +128,14 @@ export default function ConversionScoutPanel({ selectedClient }) {
       });
       const j = await r.json();
       if (!j.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      // GTM-Hinweis (13.09.): kein Container-Zugriff oder falscher Container freigegeben.
+      setNote(
+        j.gtmNote
+          ? `GTM: ${j.gtmNote}`
+          : j.gtmEvents
+            ? `GTM: ${j.gtmEvents} Event-Tag${j.gtmEvents === 1 ? "" : "s"} aus dem Container übernommen.`
+            : null,
+      );
       await load();
     } catch (e) {
       setError(String(e?.message || e));

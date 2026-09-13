@@ -54,6 +54,8 @@ export const Route = createFileRoute("/api/admin/conversion-scan")({
 
         try {
           const result = await runConversionScan(client);
+          // gtmNote (13.09.): Hinweis, wenn der Container nicht lesbar ist — der Scan
+          // selbst ist trotzdem erfolgreich (HTML-Kandidaten).
           return Response.json({ ok: true, ...result });
         } catch (e) {
           return Response.json(

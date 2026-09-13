@@ -79,12 +79,21 @@ export type GtmEvent = {
 };
 export async function fetchGtmEvents(
   domain: string,
-): Promise<{ events: GtmEvent[]; containers: string[]; reason?: string } | null> {
+  opts: { ids?: string[]; name?: string } = {},
+): Promise<{
+  events: GtmEvent[];
+  containers: string[];
+  reason?: string;
+  onSiteNotReadable?: string[];
+} | null> {
   const base = process.env.AGENT_BASE_URL?.replace(/\/+$/, "");
   const secret = process.env.AGENT_SHARED_SECRET;
   if (!base || !secret || !domain) return null;
+  const q = new URLSearchParams({ domain });
+  if (opts.ids?.length) q.set("ids", opts.ids.join(","));
+  if (opts.name) q.set("name", opts.name);
   try {
-    const r = await fetch(`${base}/gtm-events?domain=${encodeURIComponent(domain)}`, {
+    const r = await fetch(`${base}/gtm-events?${q}`, {
       headers: { Authorization: `Bearer ${secret}` },
       signal: AbortSignal.timeout(90_000),
     });
@@ -101,6 +110,9 @@ export async function fetchGtmEvents(
         hasValue: !!e.hasValue,
       })),
       containers: (j.containers || []).map((c: any) => `${c.publicId} v${c.version ?? "?"}`),
+      ...(Array.isArray(j.on_site_not_readable) && j.on_site_not_readable.length
+        ? { onSiteNotReadable: j.on_site_not_readable.map(String) }
+        : {}),
     };
   } catch {
     return null;
@@ -290,6 +302,7 @@ export async function runConversionScan(client: {
   id: string;
   organization_id: string;
   domain: string;
+  name?: string;
 }): Promise<{
   runId: string;
   targetUrl: string;
@@ -314,6 +327,8 @@ export async function runConversionScan(client: {
     const visited = new Set<string>();
     const foundByKey = new Map<string, CandidateFound>();
     let pagesCrawled = 0;
+    // GTM-Container-IDs im HTML (13.09.): sicherster Matcher fuer den Container-Abruf.
+    const gtmIdsOnSite = new Set<string>();
 
     while (queue.length && pagesCrawled < MAX_PAGES) {
       const { url, depth } = queue.shift()!;
@@ -323,6 +338,7 @@ export async function runConversionScan(client: {
       const page = await fetchPage(url);
       if (!page) continue;
       pagesCrawled++;
+      for (const m of page.html.matchAll(/GTM-[A-Z0-9]{5,10}/g)) gtmIdsOnSite.add(m[0]);
       const { candidates, internalLinks } = extractFromHtml(page.html, page.finalUrl, siteHost);
       for (const c of candidates) {
         const k = `${c.candidate_type}|${c.raw_value}`;
@@ -345,6 +361,7 @@ export async function runConversionScan(client: {
         .replace(/^https?:\/\//, "")
         .replace(/^www\./, "")
         .replace(/\/.*$/, ""),
+      { ids: [...gtmIdsOnSite], name: client.name },
     );
     if (gtm && gtm.events.length) {
       for (const e of gtm.events) {
@@ -354,6 +371,8 @@ export async function runConversionScan(client: {
       }
       gtmEvents = gtm.events.length;
     } else if (gtm?.reason) gtmNote = gtm.reason;
+    if (gtm?.onSiteNotReadable?.length)
+      gtmNote = `Auf der Website läuft ${gtm.onSiteNotReadable.join(", ")} — dieser Container ist für den Service-Account nicht lesbar (Freigabe gilt für einen anderen Container).`;
 
     // Upsert: neue Kandidaten als 'pending', bekannte nur last_seen_at
     // auffrischen — Status/Wert/GA4-Felder bleiben unangetastet.
