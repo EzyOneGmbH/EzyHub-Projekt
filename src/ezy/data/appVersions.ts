@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.10.0",
+    version: "1.10.1",
     changelog: [
+      {
+        version: "1.10.1",
+        date: "2026-09-13",
+        note: "Kampagnen: Spend/Klicks/Conversions des echten OpenAI-Kontos werden jetzt geladen — der Insights-Abruf nutzte ein falsches Zeitraum-Format und fragte keine Metriken an (still 0); Sync-Fehler beim Reporting werden neu in der Konto-Karte angezeigt",
+      },
       {
         version: "1.10.0",
         date: "2026-09-13",

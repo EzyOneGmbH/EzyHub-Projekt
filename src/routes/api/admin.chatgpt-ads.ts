@@ -74,9 +74,13 @@ async function adsFetch(
   apiKey: string,
   adAccountId: string | null,
   path: string,
-  opts: { method?: string; body?: any; query?: Record<string, string> } = {},
+  opts: { method?: string; body?: any; query?: Record<string, string | string[]> } = {},
 ): Promise<{ ok: boolean; status: number; json: any }> {
-  const qs = opts.query ? `?${new URLSearchParams(opts.query)}` : "";
+  // Array-Werte als wiederholte Parameter (time_ranges[]=…&fields[]=…).
+  const sp = new URLSearchParams();
+  for (const [k, v] of Object.entries(opts.query || {}))
+    for (const one of Array.isArray(v) ? v : [v]) sp.append(k, one);
+  const qs = opts.query ? `?${sp}` : "";
   // 429 → exponentielles Retry (Spec §2.5: 600/min pro Endpoint — Sync ist
   // seriell, trotzdem defensiv), 3 Versuche.
   for (let attempt = 0; ; attempt++) {
@@ -311,20 +315,59 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
   }
   // Insights (WF-2): letzte 14 Tage taeglich auf Kampagnen-Ebene — deckt den
   // Attribution-Nachlauf grosszuegig ab; unique-Constraint macht es idempotent.
+  // BUGFIX 13.09. (Ezy One zeigte 0 Spend): time_ranges[] ist ein JSON-Objekt
+  // ({type:"date_range",since,until,timezone}), nicht "since..until" — der
+  // alte Aufruf lief auf 400 und wurde still verworfen. Und ohne fields[]
+  // liefert die API NUR impressions; clicks/spend/conversions müssen explizit
+  // angefordert werden. Fehler landen jetzt sichtbar in insightsError.
   const since = new Date(Date.now() - 14 * 864e5);
-  const ins = await adsFetch(apiKey, acc.openai_ad_account_id, "/ad_account/insights", {
-    query: {
-      time_granularity: "daily",
-      aggregation_level: "campaign",
-      limit: "2000",
-      "time_ranges[]": `${since.toISOString().slice(0, 10)}..${new Date().toISOString().slice(0, 10)}`,
-    },
+  const timeRange = JSON.stringify({
+    type: "date_range",
+    since: since.toISOString().slice(0, 10),
+    until: new Date().toISOString().slice(0, 10),
+    timezone: acc.timezone || "UTC",
   });
+  const CORE_FIELDS = [
+    "campaign.id",
+    "campaign.name",
+    "metadata.readable_time",
+    "campaign.impressions",
+    "campaign.clicks",
+    "campaign.spend",
+  ];
+  const EXTRA_FIELDS = [
+    "conversions",
+    "cpa",
+    "post_click_cvr",
+    "order_created_roas",
+    "order_created_attributed_sales",
+  ];
+  const insightsQuery = (fields: string[]) => ({
+    time_granularity: "daily",
+    aggregation_level: "campaign",
+    limit: "2000",
+    "time_ranges[]": [timeRange],
+    "fields[]": fields,
+  });
+  let ins = await adsFetch(apiKey, acc.openai_ad_account_id, "/ad_account/insights", {
+    query: insightsQuery([...CORE_FIELDS, ...EXTRA_FIELDS]),
+  });
+  // Falls ein Attributions-Feld für das Konto unbekannt ist (400): Kern-Felder.
+  if (!ins.ok && ins.status === 400)
+    ins = await adsFetch(apiKey, acc.openai_ad_account_id, "/ad_account/insights", {
+      query: insightsQuery(CORE_FIELDS),
+    });
   let insightRows = 0;
+  let insightsError: string | null = null;
+  if (!ins.ok)
+    insightsError = `Insights HTTP ${ins.status}: ${JSON.stringify(ins.json)?.slice(0, 200)}`;
   if (ins.ok) {
     for (const row of ins.json?.data || []) {
       const day = row.readable_time?.slice(0, 10) || tsToIso(row.start_time)?.slice(0, 10);
-      const campId = row.campaign_id || row.id;
+      // id kodiert Zeitfenster+Entity ("start=…:end=…:entity_id=cmpn_…") —
+      // campaign_id ist das saubere Feld, entity_id der Fallback.
+      const campId =
+        row.campaign_id || String(row.id || "").match(/entity_id=([^:]+)/)?.[1] || null;
       if (!day || !campId) continue;
       insightRows++;
       await sb.from("chatgpt_ads_insights_daily").upsert(
@@ -352,9 +395,9 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
   }
   await sb
     .from("chatgpt_ads_accounts")
-    .update({ last_synced_at: new Date().toISOString(), last_sync_error: null })
+    .update({ last_synced_at: new Date().toISOString(), last_sync_error: insightsError })
     .eq("id", acc.id);
-  return { campaigns: campaigns.length, adGroups, ads, insightRows, audiences };
+  return { campaigns: campaigns.length, adGroups, ads, insightRows, audiences, insightsError };
 }
 
 // ── Mock-Sync: deterministische Demo-Daten fuer UI/E2E bis zur Freischaltung ─
