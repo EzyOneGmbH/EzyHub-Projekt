@@ -74,7 +74,12 @@ async function adsFetch(
   apiKey: string,
   adAccountId: string | null,
   path: string,
-  opts: { method?: string; body?: any; query?: Record<string, string | string[]> } = {},
+  opts: {
+    method?: string;
+    body?: any;
+    query?: Record<string, string | string[]>;
+    headers?: Record<string, string>;
+  } = {},
 ): Promise<{ ok: boolean; status: number; json: any }> {
   // Array-Werte als wiederholte Parameter (time_ranges[]=…&fields[]=…).
   const sp = new URLSearchParams();
@@ -90,6 +95,7 @@ async function adsFetch(
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
         ...(adAccountId ? { "OpenAI-Ad-Account": adAccountId } : {}),
+        ...(opts.headers || {}),
       },
       body: opts.body ? JSON.stringify(opts.body) : undefined,
       signal: AbortSignal.timeout(30_000),
@@ -250,6 +256,8 @@ const tsToIso = (v: any): string | null =>
 async function syncAccount(sb: any, acc: any): Promise<any> {
   if (acc.is_mock) return mockSync(sb, acc);
   const apiKey = decryptSecret(acc.api_key_enc);
+  // Konto-Metadaten (Review-Status, Integrity, URL) für die Konto-Karte (13.09.).
+  const meta = await fetchAccountMeta(apiKey, acc.openai_ad_account_id);
   const campaigns = await adsListAll(apiKey, acc.openai_ad_account_id, "/campaigns");
   // Bekannte Location-Namen je Kampagne mitführen (API liefert nur IDs).
   const { data: prevRows } = await sb
@@ -395,9 +403,35 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
   }
   await sb
     .from("chatgpt_ads_accounts")
-    .update({ last_synced_at: new Date().toISOString(), last_sync_error: insightsError })
+    .update({
+      last_synced_at: new Date().toISOString(),
+      last_sync_error: insightsError,
+      ...(meta ? { meta } : {}),
+    })
     .eq("id", acc.id);
   return { campaigns: campaigns.length, adGroups, ads, insightRows, audiences, insightsError };
+}
+
+type AccountMeta = {
+  status: string | null;
+  url: string | null;
+  review: { status: string; reason: string | null } | null;
+  integrity: { status: string; reason: string | null } | null;
+  fetched_at: string;
+};
+async function fetchAccountMeta(apiKey: string, adAccountId: string): Promise<AccountMeta | null> {
+  const r = await adsFetch(apiKey, adAccountId, "/ad_account");
+  if (!r.ok || !r.json?.id) return null;
+  const j = r.json;
+  const rv = (x: any) =>
+    x && x.status ? { status: String(x.status), reason: x.reason ? String(x.reason) : null } : null;
+  return {
+    status: j.status ? String(j.status) : null,
+    url: j.url ? String(j.url) : null,
+    review: rv(j.review),
+    integrity: rv(j.account_integrity_review?.review),
+    fetched_at: new Date().toISOString(),
+  };
 }
 
 // ── Mock-Sync: deterministische Demo-Daten fuer UI/E2E bis zur Freischaltung ─
@@ -613,6 +647,17 @@ async function runCommand(
   const includeIds = idList(payload?.includeIds);
   const excludeIds = idList(payload?.excludeIds).filter((id) => !includeIds.includes(id));
   const eventSettingIds = idList(payload?.eventSettingIds);
+  // Ausschluss-Regionen (Spec v2.3.0: targeting.excluded_locations.include).
+  const excludedLocations: GeoLocation[] = Array.isArray(payload?.excludedLocations)
+    ? payload.excludedLocations
+        .filter((l: any) => l && l.id && !locations.some((x) => x.id === String(l.id)))
+        .map((l: any) => ({
+          id: String(l.id),
+          name: String(l.name || l.id),
+          type: l.type ? String(l.type) : undefined,
+          country_code: l.country_code ? String(l.country_code) : undefined,
+        }))
+    : [];
 
   if (acc.is_mock) {
     // Mock: nur DB-Status/Budget/Targeting aendern — kein API-Call.
@@ -629,6 +674,8 @@ async function runCommand(
       upd = { budget_daily_micros: Number(payload?.budgetDailyMicros || 0) || null };
     } else if (cmd === "set_targeting") {
       targeting.locations = { include: locations.map((l) => ({ id: l.id })) };
+      // Mock speichert die Ausschlüsse mit Namen (wie die echte API sie liefert).
+      targeting.excluded_locations = { include: excludedLocations };
       upd = { targeting_locations: locations, raw: { ...raw, targeting } };
     } else if (cmd === "set_audiences") {
       targeting.custom_audiences = { ids: includeIds };
@@ -673,6 +720,7 @@ async function runCommand(
     const targeting = { ...(g0.json?.targeting || {}) };
     if (cmd === "set_targeting") {
       targeting.locations = { include: locations.map((l) => ({ id: l.id })) };
+      targeting.excluded_locations = { include: excludedLocations.map((l) => ({ id: l.id })) };
     } else {
       targeting.custom_audiences = { ids: includeIds };
       targeting.excluded_custom_audiences = { ids: excludeIds };
@@ -944,6 +992,182 @@ async function archiveAudience(
   return { ok: true };
 }
 
+// ── Vollsteuerung (13.09., «alles aus EzyHub»): Anlegen/Bearbeiten/Status auf
+//    allen Ebenen, Bild-Upload, Segment-Reporting, Konto-Ebene ──────────────
+type EntityKind = "campaign" | "ad_group" | "ad";
+const ENTITY_PATH: Record<EntityKind, string> = {
+  campaign: "/campaigns",
+  ad_group: "/ad_groups",
+  ad: "/ads",
+};
+const ENTITY_TABLE: Record<EntityKind, string> = {
+  campaign: "chatgpt_ads_campaigns",
+  ad_group: "chatgpt_ads_ad_groups",
+  ad: "chatgpt_ads_ads",
+};
+const ENTITY_ID_COL: Record<EntityKind, string> = {
+  campaign: "openai_campaign_id",
+  ad_group: "openai_ad_group_id",
+  ad: "openai_ad_id",
+};
+
+// Audit-Zeile in chatgpt_ads_commands (wie runCommand), generisch für alle Ebenen.
+async function withAudit<T extends { ok: boolean; error?: string }>(
+  sb: any,
+  acc: any,
+  action: string,
+  targetType: string,
+  targetId: string,
+  payload: any,
+  actorUserId: string | null,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const { data: row } = await sb
+    .from("chatgpt_ads_commands")
+    .insert({
+      account_id: acc.id,
+      actor_user_id: actorUserId,
+      action,
+      target_type: targetType,
+      target_openai_id: targetId,
+      payload: payload ?? null,
+    })
+    .select("id")
+    .single();
+  let res: T;
+  try {
+    res = await fn();
+  } catch (e: any) {
+    res = { ok: false, error: String(e?.message || e).slice(0, 300) } as T;
+  }
+  await sb
+    .from("chatgpt_ads_commands")
+    .update({
+      status: res.ok ? "success" : "failed",
+      error: res.ok ? null : (res.error ?? "Fehler"),
+      executed_at: new Date().toISOString(),
+    })
+    .eq("id", row?.id);
+  return res;
+}
+
+const httpErr = (r: { status: number; json: any }) =>
+  `HTTP ${r.status}: ${JSON.stringify(r.json)?.slice(0, 220)}`;
+
+// Objekt nach Änderung frisch aus der API in die DB schreiben.
+async function resyncEntity(sb: any, acc: any, apiKey: string, kind: EntityKind, id: string) {
+  const g = await adsFetch(apiKey, acc.openai_ad_account_id, `${ENTITY_PATH[kind]}/${id}`);
+  if (!g.ok || !g.json?.id) return;
+  const j = g.json;
+  if (kind === "campaign") {
+    const { data: prev } = await sb
+      .from("chatgpt_ads_campaigns")
+      .select("targeting_locations")
+      .eq("account_id", acc.id)
+      .eq("openai_campaign_id", id)
+      .maybeSingle();
+    await upsertCampaignFromApi(sb, acc.id, j, prev?.targeting_locations || null);
+  } else if (kind === "ad_group") {
+    const { data: camp } = await sb
+      .from("chatgpt_ads_campaigns")
+      .select("id")
+      .eq("account_id", acc.id)
+      .eq("openai_campaign_id", String(j.campaign_id || ""))
+      .maybeSingle();
+    await sb.from("chatgpt_ads_ad_groups").upsert(
+      {
+        account_id: acc.id,
+        campaign_id: camp?.id ?? null,
+        openai_ad_group_id: String(j.id),
+        name: String(j.name || ""),
+        status: String(j.status || ""),
+        raw: j,
+        synced_at: new Date().toISOString(),
+      },
+      { onConflict: "account_id,openai_ad_group_id" },
+    );
+  } else {
+    const { data: grp } = await sb
+      .from("chatgpt_ads_ad_groups")
+      .select("id")
+      .eq("account_id", acc.id)
+      .eq("openai_ad_group_id", String(j.ad_group_id || ""))
+      .maybeSingle();
+    await sb.from("chatgpt_ads_ads").upsert(
+      {
+        account_id: acc.id,
+        ad_group_id: grp?.id ?? null,
+        openai_ad_id: String(j.id),
+        name: j.name ?? null,
+        status: String(j.status || ""),
+        review_status: j.review_status ?? null,
+        raw: j,
+        synced_at: new Date().toISOString(),
+      },
+      { onConflict: "account_id,openai_ad_id" },
+    );
+  }
+}
+
+const unixOrNull = (v: any): number | null => {
+  if (v == null || v === "") return null;
+  const n = typeof v === "number" ? v : Date.parse(String(v)) / 1000;
+  return Number.isFinite(n) ? Math.round(n) : null;
+};
+const locIds = (v: any) =>
+  Array.isArray(v) ? v.filter((l: any) => l && l.id).map((l: any) => ({ id: String(l.id) })) : [];
+const locFull = (v: any): GeoLocation[] =>
+  Array.isArray(v)
+    ? v
+        .filter((l: any) => l && l.id)
+        .map((l: any) => ({
+          id: String(l.id),
+          name: String(l.name || l.id),
+          type: l.type ? String(l.type) : undefined,
+          country_code: l.country_code ? String(l.country_code) : undefined,
+        }))
+    : [];
+
+// Bild für eine Anzeige hochladen (POST /upload, multipart) → file_id.
+async function uploadImage(
+  apiKey: string,
+  adAccountId: string,
+  bytes: Uint8Array,
+  mime: string,
+  filename: string,
+): Promise<{ ok: boolean; status: number; json: any }> {
+  const fd = new FormData();
+  fd.append("file", new Blob([bytes as unknown as BlobPart], { type: mime }), filename);
+  const r = await fetch(`${ADS_API}/upload`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "OpenAI-Ad-Account": adAccountId },
+    body: fd,
+    signal: AbortSignal.timeout(60_000),
+  });
+  const json = await r.json().catch(() => null);
+  return { ok: r.ok, status: r.status, json };
+}
+
+// Demo-Segmentzahlen aus den gespeicherten Tages-Insights ableiten.
+const MOCK_SPLIT: Record<string, Array<[string, number]>> = {
+  country: [
+    ["Switzerland", 0.72],
+    ["Germany", 0.18],
+    ["Austria", 0.07],
+    ["Other", 0.03],
+  ],
+  device: [
+    ["mobile", 0.61],
+    ["desktop", 0.36],
+    ["tablet", 0.03],
+  ],
+  platform: [
+    ["chatgpt_web", 0.55],
+    ["chatgpt_ios", 0.3],
+    ["chatgpt_android", 0.15],
+  ],
+};
+
 // ── Conversions-Setup + Ad-Vorschau (Spec v2.3.0, 13.09.) ───────────────────
 type ConvPixel = { id: string; name: string; pixel_id: string; client_type?: string };
 type ConvEventSetting = {
@@ -1145,7 +1369,7 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
         const { data: acc } = await sb
           .from("chatgpt_ads_accounts")
           .select(
-            "id, openai_ad_account_id, name, currency_code, status, is_mock, last_synced_at, last_sync_error",
+            "id, openai_ad_account_id, name, currency_code, status, is_mock, last_synced_at, last_sync_error, meta",
           )
           .eq("client_id", clientId)
           .maybeSingle();
@@ -1165,7 +1389,7 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
               // targeting (Audience-IDs) direkt aus raw per JSON-Pfad — spart
               // das komplette raw-Objekt in der Antwort.
               .select(
-                "openai_campaign_id, name, status, bidding_type, objective, budget_daily_micros, budget_lifetime_micros, synced_at, targeting_locations, targeting:raw->targeting, conversion_event_setting_ids:raw->conversion_event_setting_ids",
+                "openai_campaign_id, name, status, bidding_type, objective, budget_daily_micros, budget_lifetime_micros, start_time, end_time, synced_at, targeting_locations, targeting:raw->targeting, conversion_event_setting_ids:raw->conversion_event_setting_ids",
               )
               .eq("account_id", acc.id)
               .neq("status", "archived")
@@ -1198,8 +1422,11 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
         const [{ data: groups }, { data: adRows }] = await Promise.all([
           sb
             .from("chatgpt_ads_ad_groups")
-            .select("id, name, campaign_id, campaigns:chatgpt_ads_campaigns(openai_campaign_id)")
-            .eq("account_id", acc.id),
+            .select(
+              "id, openai_ad_group_id, name, status, campaign_id, bidding_config:raw->bidding_config, campaigns:chatgpt_ads_campaigns(openai_campaign_id)",
+            )
+            .eq("account_id", acc.id)
+            .neq("status", "archived"),
           sb
             .from("chatgpt_ads_ads")
             .select(
@@ -1214,6 +1441,16 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
             { name: String(g.name || ""), campaignId: g.campaigns?.openai_campaign_id ?? null },
           ]),
         );
+        const adGroups = (groups || []).map((g: any) => ({
+          openai_ad_group_id: String(g.openai_ad_group_id),
+          name: String(g.name || ""),
+          status: String(g.status || ""),
+          campaign_id: g.campaigns?.openai_campaign_id ?? null,
+          bidding_config: g.bidding_config ?? null,
+        }));
+        const groupOpenaiId = new Map<string, string>(
+          (groups || []).map((g: any) => [String(g.id), String(g.openai_ad_group_id)]),
+        );
         const ads = (adRows || []).map((a: any) => {
           const g = a.ad_group_id ? groupById.get(String(a.ad_group_id)) : undefined;
           const cr = a.creative || {};
@@ -1223,12 +1460,14 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
             status: a.status,
             review_status: a.review_status,
             ad_group_name: g?.name ?? null,
+            ad_group_id: a.ad_group_id ? (groupOpenaiId.get(String(a.ad_group_id)) ?? null) : null,
             campaign_id: g?.campaignId ?? null,
             creative: {
               type: cr.type ?? null,
               title: cr.title ?? null,
               body: cr.body ?? null,
               target_url: cr.target_url ?? cr.url ?? null,
+              file_id: cr.file_id ?? null,
             },
           };
         });
@@ -1241,6 +1480,7 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
           commands: commands || [],
           audiences: audiences || [],
           ads,
+          adGroups,
         });
       },
 
@@ -1311,8 +1551,24 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
             };
           } else {
             // Key gegen die echte API validieren; /ad_account liefert Metadaten.
-            const probe = await adsFetch(apiKey, null, "/ad_account");
-            if (!probe.ok || !probe.json?.id)
+            // Multi-Konto (13.09.): hängen mehrere Konten am Key, Liste zur
+            // Auswahl zurückgeben (chooseAccount) — der Client sendet dann
+            // adAccountId mit und wir wählen per Header OpenAI-Ad-Account.
+            const chosen = String(body?.adAccountId || "").trim() || null;
+            const probe = await adsFetch(apiKey, chosen, "/ad_account");
+            if (!probe.ok || !probe.json?.id) {
+              const list = await adsFetch(apiKey, null, "/ad_accounts", {
+                query: { limit: "100" },
+              });
+              const accounts = (list.json?.data || []).map((a: any) => ({
+                id: String(a.id),
+                name: String(a.name || a.id),
+                currency: String(a.currency_code || ""),
+                status: a.status ? String(a.status) : null,
+                review: a.review?.status ? String(a.review.status) : null,
+              }));
+              if (list.ok && accounts.length > 0)
+                return Response.json({ ok: true, chooseAccount: accounts });
               return Response.json(
                 {
                   ok: false,
@@ -1320,6 +1576,22 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
                 },
                 { status: 400 },
               );
+            }
+            if (!chosen) {
+              // Auch ohne Auswahl prüfen, ob der Key mehrere Konten sieht.
+              const list = await adsFetch(apiKey, null, "/ad_accounts", {
+                query: { limit: "100" },
+              });
+              const accounts = (list.json?.data || []).map((a: any) => ({
+                id: String(a.id),
+                name: String(a.name || a.id),
+                currency: String(a.currency_code || ""),
+                status: a.status ? String(a.status) : null,
+                review: a.review?.status ? String(a.review.status) : null,
+              }));
+              if (list.ok && accounts.length > 1)
+                return Response.json({ ok: true, chooseAccount: accounts });
+            }
             accountMeta = {
               id: String(probe.json.id),
               name: String(probe.json.name || own.name),
@@ -1750,6 +2022,766 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
               { status: 502 },
             );
           return Response.json({ ok: true, html: String(html) });
+        }
+
+        // ── Vollsteuerung (13.09.) ────────────────────────────────────────
+        const actor = ctx.userId ?? null;
+        const keyOf = (): string | Response => {
+          try {
+            return decryptSecret(acc.api_key_enc);
+          } catch (e: any) {
+            return Response.json(
+              { ok: false, error: `Key nicht lesbar: ${String(e?.message || e)}` },
+              { status: 500 },
+            );
+          }
+        };
+
+        if (action === "image-upload") {
+          const b64 = String(body?.dataBase64 || "");
+          const mime = String(body?.mimeType || "image/jpeg");
+          const filename = String(body?.fileName || "ad.jpg").replace(/[^\w.-]/g, "_");
+          if (!/^image\/(jpeg|png|webp)$/.test(mime))
+            return Response.json({ ok: false, error: "Nur JPEG, PNG oder WebP" }, { status: 400 });
+          if (!b64 || b64.length > 8_000_000)
+            return Response.json({ ok: false, error: "Bild fehlt oder > 6 MB" }, { status: 400 });
+          if (acc.is_mock)
+            return Response.json({ ok: true, fileId: `file_mock_${Date.now().toString(36)}` });
+          const key = keyOf();
+          if (key instanceof Response) return key;
+          const bytes = Uint8Array.from(Buffer.from(b64, "base64"));
+          const r = await uploadImage(key, acc.openai_ad_account_id, bytes, mime, filename);
+          if (!r.ok || !r.json?.file_id)
+            return Response.json({ ok: false, error: httpErr(r) }, { status: 502 });
+          return Response.json({ ok: true, fileId: String(r.json.file_id) });
+        }
+
+        if (action === "campaign-create") {
+          const name = String(body?.name || "").trim();
+          const objective = String(body?.objective || "reach");
+          const biddingType = String(body?.biddingType || "impressions");
+          const status = body?.status === "active" ? "active" : "paused";
+          const daily = Number(body?.budgetDailyMicros || 0) || null;
+          const lifetime = Number(body?.budgetLifetimeMicros || 0) || null;
+          if (name.length < 3)
+            return Response.json(
+              { ok: false, error: "Name: mindestens 3 Zeichen" },
+              { status: 400 },
+            );
+          if (!["reach", "clicks", "conversions"].includes(objective))
+            return Response.json({ ok: false, error: "objective ungültig" }, { status: 400 });
+          if (!["impressions", "clicks", "conversions"].includes(biddingType))
+            return Response.json({ ok: false, error: "biddingType ungültig" }, { status: 400 });
+          if (!daily && !lifetime)
+            return Response.json({ ok: false, error: "Budget erforderlich" }, { status: 400 });
+          if ((daily && daily < 1_000_000) || (lifetime && lifetime < 1_000_000))
+            return Response.json({ ok: false, error: "Budget: mindestens 1.00" }, { status: 400 });
+          const eventSettingIds = Array.isArray(body?.eventSettingIds)
+            ? body.eventSettingIds.map(String).filter(Boolean)
+            : [];
+          if (biddingType === "conversions" && !eventSettingIds.length)
+            return Response.json(
+              { ok: false, error: "Conversions-Gebot braucht ein Conversion-Event" },
+              { status: 400 },
+            );
+          const locations = locFull(body?.locations);
+          const excluded = locFull(body?.excludedLocations).filter(
+            (l) => !locations.some((x) => x.id === l.id),
+          );
+          const targeting: any = {};
+          if (locations.length) targeting.locations = { include: locIds(locations) };
+          if (excluded.length) targeting.excluded_locations = { include: locIds(excluded) };
+          const inc = Array.isArray(body?.includeIds) ? body.includeIds.map(String) : [];
+          const exc = Array.isArray(body?.excludeIds)
+            ? body.excludeIds.map(String).filter((x: string) => !inc.includes(x))
+            : [];
+          if (inc.length) targeting.custom_audiences = { ids: inc };
+          if (exc.length) targeting.excluded_custom_audiences = { ids: exc };
+          const payload: any = {
+            name,
+            status,
+            objective,
+            bidding_type: biddingType,
+            budget: {
+              ...(daily ? { daily_spend_limit_micros: daily } : {}),
+              ...(lifetime ? { lifetime_spend_limit_micros: lifetime } : {}),
+            },
+          };
+          const st = unixOrNull(body?.startTime);
+          const et = unixOrNull(body?.endTime);
+          if (st) payload.start_time = st;
+          if (et) payload.end_time = et;
+          if (Object.keys(targeting).length) payload.targeting = targeting;
+          if (eventSettingIds.length) payload.conversion_event_setting_ids = eventSettingIds;
+          if (String(body?.description || "").trim())
+            payload.description = String(body.description).trim();
+          const res = await withAudit(
+            sb,
+            acc,
+            "campaign_create",
+            "campaign",
+            name,
+            payload,
+            actor,
+            async () => {
+              if (acc.is_mock) {
+                const id = `cmp_mock_${Date.now().toString(36)}`;
+                await upsertCampaignFromApi(
+                  sb,
+                  acc.id,
+                  {
+                    ...payload,
+                    id,
+                    mock: true,
+                    targeting: {
+                      ...targeting,
+                      excluded_locations: { include: excluded },
+                    },
+                  },
+                  locations,
+                );
+                return { ok: true, id };
+              }
+              const key = keyOf();
+              if (key instanceof Response) return { ok: false, error: "Key nicht lesbar" };
+              const r = await adsFetch(key, acc.openai_ad_account_id, "/campaigns", {
+                method: "POST",
+                body: payload,
+              });
+              if (!r.ok || !r.json?.id) return { ok: false, error: httpErr(r) };
+              await upsertCampaignFromApi(sb, acc.id, r.json, locations);
+              return { ok: true, id: String(r.json.id) };
+            },
+          );
+          return res.ok
+            ? Response.json({ ok: true, id: (res as any).id })
+            : Response.json({ ok: false, error: res.error }, { status: 502 });
+        }
+
+        if (action === "adgroup-create") {
+          const campaignId = String(body?.campaignId || "");
+          const name = String(body?.name || "").trim();
+          const status = body?.status === "active" ? "active" : "paused";
+          const billing = body?.billingEventType === "click" ? "click" : "impression";
+          const strategy = String(body?.strategy || "");
+          const maxBid = Number(body?.maxBidMicros || 0) || null;
+          if (!campaignId || name.length < 3)
+            return Response.json({ ok: false, error: "campaignId/name ungültig" }, { status: 400 });
+          if (
+            strategy &&
+            !["fixed_bid", "maximize_clicks", "maximize_conversions"].includes(strategy)
+          )
+            return Response.json({ ok: false, error: "strategy ungültig" }, { status: 400 });
+          if (strategy === "fixed_bid" && !maxBid)
+            return Response.json(
+              { ok: false, error: "Festgebot braucht maxBidMicros" },
+              { status: 400 },
+            );
+          const bidding_config: any = { billing_event_type: billing };
+          if (strategy) bidding_config.strategy = strategy;
+          if (maxBid) bidding_config.max_bid_micros = maxBid;
+          const payload: any = { campaign_id: campaignId, name, status, bidding_config };
+          const hints = Array.isArray(body?.contextHints)
+            ? body.contextHints
+                .map((x: any) => String(x).trim())
+                .filter(Boolean)
+                .slice(0, 10)
+            : [];
+          if (hints.length) payload.context_hints = hints;
+          const res = await withAudit(
+            sb,
+            acc,
+            "ad_group_create",
+            "ad_group",
+            name,
+            payload,
+            actor,
+            async () => {
+              const { data: camp } = await sb
+                .from("chatgpt_ads_campaigns")
+                .select("id")
+                .eq("account_id", acc.id)
+                .eq("openai_campaign_id", campaignId)
+                .maybeSingle();
+              if (!camp) return { ok: false, error: "Kampagne unbekannt" };
+              if (acc.is_mock) {
+                const id = `adg_mock_${Date.now().toString(36)}`;
+                await sb.from("chatgpt_ads_ad_groups").insert({
+                  account_id: acc.id,
+                  campaign_id: camp.id,
+                  openai_ad_group_id: id,
+                  name,
+                  status,
+                  raw: { ...payload, id, mock: true },
+                  synced_at: new Date().toISOString(),
+                });
+                return { ok: true, id };
+              }
+              const key = keyOf();
+              if (key instanceof Response) return { ok: false, error: "Key nicht lesbar" };
+              const r = await adsFetch(key, acc.openai_ad_account_id, "/ad_groups", {
+                method: "POST",
+                body: payload,
+              });
+              if (!r.ok || !r.json?.id) return { ok: false, error: httpErr(r) };
+              await resyncEntity(sb, acc, key, "ad_group", String(r.json.id));
+              return { ok: true, id: String(r.json.id) };
+            },
+          );
+          return res.ok
+            ? Response.json({ ok: true, id: (res as any).id })
+            : Response.json({ ok: false, error: res.error }, { status: 502 });
+        }
+
+        if (action === "ad-create" || action === "ad-update") {
+          const isUpdate = action === "ad-update";
+          const adGroupId = String(body?.adGroupId || "");
+          const adId = String(body?.adId || "");
+          const name = String(body?.name || "").trim();
+          const title = String(body?.title || "").trim();
+          const text = String(body?.body || "").trim();
+          const targetUrl = String(body?.targetUrl || "").trim();
+          const fileId = String(body?.fileId || "").trim() || null;
+          const status = body?.status === "active" ? "active" : "paused";
+          if ((isUpdate && !adId) || (!isUpdate && !adGroupId))
+            return Response.json({ ok: false, error: "adGroupId/adId fehlt" }, { status: 400 });
+          if (!isUpdate && name.length < 3)
+            return Response.json(
+              { ok: false, error: "Name: mindestens 3 Zeichen" },
+              { status: 400 },
+            );
+          if (title.length < (isUpdate ? 1 : 3) || title.length > 50)
+            return Response.json({ ok: false, error: "Titel: 3–50 Zeichen" }, { status: 400 });
+          if (text.length > 100)
+            return Response.json(
+              { ok: false, error: "Text: maximal 100 Zeichen" },
+              { status: 400 },
+            );
+          if (targetUrl && !/^https?:\/\/\S+$/i.test(targetUrl))
+            return Response.json({ ok: false, error: "Ziel-URL ungültig" }, { status: 400 });
+          const creative: any = { type: "chat_card", title, body: text };
+          if (targetUrl) creative.target_url = targetUrl;
+          if (fileId) creative.file_id = fileId;
+          const res = await withAudit(
+            sb,
+            acc,
+            isUpdate ? "ad_update" : "ad_create",
+            "ad",
+            isUpdate ? adId : name,
+            { creative, adGroupId, status },
+            actor,
+            async () => {
+              if (acc.is_mock) {
+                if (isUpdate) {
+                  const { data: cur } = await sb
+                    .from("chatgpt_ads_ads")
+                    .select("raw")
+                    .eq("account_id", acc.id)
+                    .eq("openai_ad_id", adId)
+                    .maybeSingle();
+                  if (!cur) return { ok: false, error: "Anzeige unbekannt" };
+                  const prevCr = cur.raw?.creative || {};
+                  await sb
+                    .from("chatgpt_ads_ads")
+                    .update({
+                      ...(name ? { name } : {}),
+                      review_status: "in_review",
+                      raw: {
+                        ...cur.raw,
+                        creative: { ...prevCr, ...creative, file_id: fileId ?? prevCr.file_id },
+                      },
+                      synced_at: new Date().toISOString(),
+                    })
+                    .eq("account_id", acc.id)
+                    .eq("openai_ad_id", adId);
+                  return { ok: true, id: adId };
+                }
+                const { data: grp } = await sb
+                  .from("chatgpt_ads_ad_groups")
+                  .select("id")
+                  .eq("account_id", acc.id)
+                  .eq("openai_ad_group_id", adGroupId)
+                  .maybeSingle();
+                if (!grp) return { ok: false, error: "Anzeigengruppe unbekannt" };
+                const id = `ad_mock_${Date.now().toString(36)}`;
+                await sb.from("chatgpt_ads_ads").insert({
+                  account_id: acc.id,
+                  ad_group_id: grp.id,
+                  openai_ad_id: id,
+                  name,
+                  status,
+                  review_status: "in_review",
+                  raw: { id, mock: true, creative, status },
+                  synced_at: new Date().toISOString(),
+                });
+                return { ok: true, id };
+              }
+              const key = keyOf();
+              if (key instanceof Response) return { ok: false, error: "Key nicht lesbar" };
+              if (isUpdate) {
+                // Creative ist beim Update ein Ganzes (type/title/body Pflicht):
+                // fehlendes Bild aus dem Bestand übernehmen.
+                if (!fileId) {
+                  const g0 = await adsFetch(key, acc.openai_ad_account_id, `/ads/${adId}`);
+                  if (g0.ok && g0.json?.creative?.file_id)
+                    creative.file_id = g0.json.creative.file_id;
+                }
+                const r = await adsFetch(key, acc.openai_ad_account_id, `/ads/${adId}`, {
+                  method: "POST",
+                  body: { ...(name ? { name } : {}), creative },
+                });
+                if (!r.ok) return { ok: false, error: httpErr(r) };
+                await resyncEntity(sb, acc, key, "ad", adId);
+                return { ok: true, id: adId };
+              }
+              const r = await adsFetch(key, acc.openai_ad_account_id, "/ads", {
+                method: "POST",
+                body: { ad_group_id: adGroupId, name, status, creative },
+              });
+              if (!r.ok || !r.json?.id) return { ok: false, error: httpErr(r) };
+              await resyncEntity(sb, acc, key, "ad", String(r.json.id));
+              return { ok: true, id: String(r.json.id) };
+            },
+          );
+          return res.ok
+            ? Response.json({ ok: true, id: (res as any).id })
+            : Response.json({ ok: false, error: res.error }, { status: 502 });
+        }
+
+        if (action === "entity-command") {
+          const kind = String(body?.kind || "") as EntityKind;
+          const id = String(body?.id || "");
+          const cmd = String(body?.cmd || "");
+          if (!ENTITY_PATH[kind] || !id || !["pause", "activate", "archive"].includes(cmd))
+            return Response.json({ ok: false, error: "kind/id/cmd ungültig" }, { status: 400 });
+          const res = await withAudit(
+            sb,
+            acc,
+            `${kind}_${cmd}`,
+            kind,
+            id,
+            null,
+            actor,
+            async () => {
+              const status =
+                cmd === "pause" ? "paused" : cmd === "activate" ? "active" : "archived";
+              if (acc.is_mock) {
+                await sb
+                  .from(ENTITY_TABLE[kind])
+                  .update({ status, synced_at: new Date().toISOString() })
+                  .eq("account_id", acc.id)
+                  .eq(ENTITY_ID_COL[kind], id);
+                return { ok: true };
+              }
+              const key = keyOf();
+              if (key instanceof Response) return { ok: false, error: "Key nicht lesbar" };
+              const r = await adsFetch(
+                key,
+                acc.openai_ad_account_id,
+                `${ENTITY_PATH[kind]}/${id}/${cmd}`,
+                { method: "POST" },
+              );
+              if (!r.ok) return { ok: false, error: httpErr(r) };
+              await resyncEntity(sb, acc, key, kind, id);
+              return { ok: true };
+            },
+          );
+          return res.ok
+            ? Response.json({ ok: true })
+            : Response.json({ ok: false, error: res.error }, { status: 502 });
+        }
+
+        if (action === "campaign-update") {
+          // Name, Laufzeitbudget, Start/Ende, Beschreibung — Tagesbudget bleibt
+          // beim bestehenden Command set_budget.
+          const id = String(body?.campaignId || "");
+          if (!id) return Response.json({ ok: false, error: "campaignId fehlt" }, { status: 400 });
+          const upd: any = {};
+          if (body?.name != null) {
+            const n = String(body.name).trim();
+            if (n.length < 3)
+              return Response.json(
+                { ok: false, error: "Name: mindestens 3 Zeichen" },
+                { status: 400 },
+              );
+            upd.name = n;
+          }
+          if (body?.description != null) upd.description = String(body.description).trim() || null;
+          if (body?.budgetLifetimeMicros !== undefined) {
+            const v = Number(body.budgetLifetimeMicros || 0);
+            if (v && v < 1_000_000)
+              return Response.json(
+                { ok: false, error: "Laufzeitbudget: mindestens 1.00" },
+                { status: 400 },
+              );
+            upd.budget = { ...(v ? { lifetime_spend_limit_micros: v } : {}) };
+            if (body?.budgetDailyMicros)
+              upd.budget.daily_spend_limit_micros = Number(body.budgetDailyMicros);
+          }
+          if (body?.startTime !== undefined) upd.start_time = unixOrNull(body.startTime);
+          if (body?.endTime !== undefined) upd.end_time = unixOrNull(body.endTime);
+          if (!Object.keys(upd).length)
+            return Response.json({ ok: false, error: "Nichts zu ändern" }, { status: 400 });
+          const res = await withAudit(
+            sb,
+            acc,
+            "campaign_update",
+            "campaign",
+            id,
+            upd,
+            actor,
+            async () => {
+              if (acc.is_mock) {
+                const { data: cur } = await sb
+                  .from("chatgpt_ads_campaigns")
+                  .select("raw")
+                  .eq("account_id", acc.id)
+                  .eq("openai_campaign_id", id)
+                  .maybeSingle();
+                if (!cur) return { ok: false, error: "Kampagne unbekannt" };
+                const dbUpd: any = {
+                  raw: { ...cur.raw, ...upd },
+                  synced_at: new Date().toISOString(),
+                };
+                if (upd.name) dbUpd.name = upd.name;
+                if (upd.budget) {
+                  dbUpd.budget_lifetime_micros = upd.budget.lifetime_spend_limit_micros ?? null;
+                  if (upd.budget.daily_spend_limit_micros)
+                    dbUpd.budget_daily_micros = upd.budget.daily_spend_limit_micros;
+                }
+                if ("start_time" in upd) dbUpd.start_time = tsToIso(upd.start_time);
+                if ("end_time" in upd) dbUpd.end_time = tsToIso(upd.end_time);
+                await sb
+                  .from("chatgpt_ads_campaigns")
+                  .update(dbUpd)
+                  .eq("account_id", acc.id)
+                  .eq("openai_campaign_id", id);
+                return { ok: true };
+              }
+              const key = keyOf();
+              if (key instanceof Response) return { ok: false, error: "Key nicht lesbar" };
+              if (upd.budget && !upd.budget.daily_spend_limit_micros) {
+                // Tagesbudget beim Laufzeit-Update mitsenden, sonst würde es gelöscht.
+                const g0 = await adsFetch(key, acc.openai_ad_account_id, `/campaigns/${id}`);
+                const d = g0.json?.budget?.daily_spend_limit_micros;
+                if (d) upd.budget.daily_spend_limit_micros = d;
+              }
+              const r = await adsFetch(key, acc.openai_ad_account_id, `/campaigns/${id}`, {
+                method: "POST",
+                body: upd,
+              });
+              if (!r.ok) return { ok: false, error: httpErr(r) };
+              await resyncEntity(sb, acc, key, "campaign", id);
+              return { ok: true };
+            },
+          );
+          return res.ok
+            ? Response.json({ ok: true })
+            : Response.json({ ok: false, error: res.error }, { status: 502 });
+        }
+
+        if (action === "adgroup-update") {
+          const id = String(body?.adGroupId || "");
+          if (!id) return Response.json({ ok: false, error: "adGroupId fehlt" }, { status: 400 });
+          const upd: any = {};
+          if (body?.name != null) {
+            const n = String(body.name).trim();
+            if (n.length < 3)
+              return Response.json(
+                { ok: false, error: "Name: mindestens 3 Zeichen" },
+                { status: 400 },
+              );
+            upd.name = n;
+          }
+          if (body?.strategy !== undefined || body?.billingEventType !== undefined) {
+            const strategy = String(body?.strategy || "");
+            const billing = body?.billingEventType === "click" ? "click" : "impression";
+            const maxBid = Number(body?.maxBidMicros || 0) || null;
+            if (
+              strategy &&
+              !["fixed_bid", "maximize_clicks", "maximize_conversions"].includes(strategy)
+            )
+              return Response.json({ ok: false, error: "strategy ungültig" }, { status: 400 });
+            if (strategy === "fixed_bid" && !maxBid)
+              return Response.json(
+                { ok: false, error: "Festgebot braucht maxBidMicros" },
+                { status: 400 },
+              );
+            upd.bidding_config = { billing_event_type: billing };
+            if (strategy) upd.bidding_config.strategy = strategy;
+            if (maxBid) upd.bidding_config.max_bid_micros = maxBid;
+          }
+          if (!Object.keys(upd).length)
+            return Response.json({ ok: false, error: "Nichts zu ändern" }, { status: 400 });
+          const res = await withAudit(
+            sb,
+            acc,
+            "ad_group_update",
+            "ad_group",
+            id,
+            upd,
+            actor,
+            async () => {
+              if (acc.is_mock) {
+                const { data: cur } = await sb
+                  .from("chatgpt_ads_ad_groups")
+                  .select("raw")
+                  .eq("account_id", acc.id)
+                  .eq("openai_ad_group_id", id)
+                  .maybeSingle();
+                if (!cur) return { ok: false, error: "Anzeigengruppe unbekannt" };
+                await sb
+                  .from("chatgpt_ads_ad_groups")
+                  .update({
+                    ...(upd.name ? { name: upd.name } : {}),
+                    raw: { ...cur.raw, ...upd },
+                    synced_at: new Date().toISOString(),
+                  })
+                  .eq("account_id", acc.id)
+                  .eq("openai_ad_group_id", id);
+                return { ok: true };
+              }
+              const key = keyOf();
+              if (key instanceof Response) return { ok: false, error: "Key nicht lesbar" };
+              const r = await adsFetch(key, acc.openai_ad_account_id, `/ad_groups/${id}`, {
+                method: "POST",
+                body: upd,
+              });
+              if (!r.ok) return { ok: false, error: httpErr(r) };
+              await resyncEntity(sb, acc, key, "ad_group", id);
+              return { ok: true };
+            },
+          );
+          return res.ok
+            ? Response.json({ ok: true })
+            : Response.json({ ok: false, error: res.error }, { status: 502 });
+        }
+
+        if (action === "insights-breakdown") {
+          // Aufschlüsselung nach Land/Gerät/Plattform — ein Segment je Request
+          // (Doku), live abgefragt, nicht gespeichert.
+          const segment = String(body?.segment || "country");
+          if (!["country", "device", "platform"].includes(segment))
+            return Response.json({ ok: false, error: "segment ungültig" }, { status: 400 });
+          const campaignId = String(body?.campaignId || "").trim() || null;
+          const start = isDayStr(String(body?.start || "")) ? String(body.start) : null;
+          const end = isDayStr(String(body?.end || "")) ? String(body.end) : null;
+          if (!start || !end)
+            return Response.json(
+              { ok: false, error: "start/end (YYYY-MM-DD) fehlen" },
+              { status: 400 },
+            );
+          if (acc.is_mock) {
+            let q = sb
+              .from("chatgpt_ads_insights_daily")
+              .select("impressions, clicks, spend, conversions")
+              .eq("account_id", acc.id)
+              .eq("scope", "campaign")
+              .gte("date", start)
+              .lte("date", end);
+            if (campaignId) q = q.eq("scope_openai_id", campaignId);
+            const { data: rowsDb } = await q;
+            const tot = (rowsDb || []).reduce(
+              (a: any, r: any) => ({
+                imp: a.imp + Number(r.impressions || 0),
+                clk: a.clk + Number(r.clicks || 0),
+                sp: a.sp + Number(r.spend || 0),
+                cv: a.cv + Number(r.conversions || 0),
+              }),
+              { imp: 0, clk: 0, sp: 0, cv: 0 },
+            );
+            const rows = MOCK_SPLIT[segment].map(([label, f]) => ({
+              label,
+              impressions: Math.round(tot.imp * f),
+              clicks: Math.round(tot.clk * f),
+              spend: Math.round(tot.sp * f * 100) / 100,
+              conversions: Math.round(tot.cv * f),
+            }));
+            return Response.json({ ok: true, segment, rows, mock: true });
+          }
+          const key = keyOf();
+          if (key instanceof Response) return key;
+          const labelField =
+            segment === "country"
+              ? "country.name"
+              : segment === "device"
+                ? "device.type"
+                : "platform";
+          const fields = [
+            labelField,
+            `${segment}.impressions`,
+            `${segment}.clicks`,
+            `${segment}.spend`,
+            "conversions",
+          ];
+          const path = campaignId ? `/campaigns/${campaignId}/insights` : "/ad_account/insights";
+          const tr = JSON.stringify({
+            type: "date_range",
+            since: start,
+            until: end,
+            timezone: acc.timezone || "UTC",
+          });
+          let r = await adsFetch(key, acc.openai_ad_account_id, path, {
+            query: {
+              time_granularity: "none",
+              aggregation_level: campaignId ? "campaign" : "ad_account",
+              limit: "500",
+              "time_ranges[]": [tr],
+              "segments[]": [segment],
+              "fields[]": fields,
+            },
+          });
+          if (!r.ok && r.status === 400)
+            r = await adsFetch(key, acc.openai_ad_account_id, path, {
+              query: {
+                time_granularity: "none",
+                aggregation_level: campaignId ? "campaign" : "ad_account",
+                limit: "500",
+                "time_ranges[]": [tr],
+                "segments[]": [segment],
+                "fields[]": fields.slice(0, 4),
+              },
+            });
+          if (!r.ok) return Response.json({ ok: false, error: httpErr(r) }, { status: 502 });
+          const rows = (r.json?.data || []).map((row: any) => ({
+            label: String(row.country_name ?? row.device_type ?? row.platform ?? "?"),
+            impressions: Number(row[`${segment}_impressions`] ?? row.impressions ?? 0),
+            clicks: Number(row[`${segment}_clicks`] ?? row.clicks ?? 0),
+            spend: Number(row[`${segment}_spend`] ?? row.spend ?? 0),
+            conversions: row.conversions != null ? Number(row.conversions) : null,
+          }));
+          return Response.json({ ok: true, segment, rows });
+        }
+
+        if (action === "account-command") {
+          const cmd = String(body?.cmd || "");
+          if (cmd !== "pause" && cmd !== "activate")
+            return Response.json({ ok: false, error: "cmd ungültig" }, { status: 400 });
+          const res = await withAudit(
+            sb,
+            acc,
+            `account_${cmd}`,
+            "ad_account",
+            acc.openai_ad_account_id,
+            null,
+            actor,
+            async () => {
+              if (acc.is_mock) {
+                const meta = { ...(acc.meta || {}), status: cmd === "pause" ? "paused" : "active" };
+                await sb.from("chatgpt_ads_accounts").update({ meta }).eq("id", acc.id);
+                return { ok: true };
+              }
+              const key = keyOf();
+              if (key instanceof Response) return { ok: false, error: "Key nicht lesbar" };
+              const r = await adsFetch(key, acc.openai_ad_account_id, `/ad_account/${cmd}`, {
+                method: "POST",
+              });
+              if (!r.ok) return { ok: false, error: httpErr(r) };
+              const meta = await fetchAccountMeta(key, acc.openai_ad_account_id);
+              if (meta) await sb.from("chatgpt_ads_accounts").update({ meta }).eq("id", acc.id);
+              return { ok: true };
+            },
+          );
+          return res.ok
+            ? Response.json({ ok: true })
+            : Response.json({ ok: false, error: res.error }, { status: 502 });
+        }
+
+        if (action === "audience-modify") {
+          // Liste ergänzen/entfernen (Spec v2.3.0: /add, /remove mit Inline-
+          // Identifiern ≤ 10'000 je Request, Idempotency-Key Pflicht). Hashes
+          // kommen wie beim Upload nur als 64-Hex an.
+          const audienceId = String(body?.audienceId || "");
+          const op = body?.op === "remove" ? "remove" : "add";
+          const identifierType = String(body?.identifierType || "email_sha256");
+          const hashes: string[] = Array.from(
+            new Set(
+              (Array.isArray(body?.hashes) ? body.hashes : [])
+                .map((h: any) => String(h).trim().toLowerCase())
+                .filter((h: string) => /^[0-9a-f]{64}$/.test(h)),
+            ),
+          );
+          if (!audienceId || !AUDIENCE_ID_TYPES.includes(identifierType) || !hashes.length)
+            return Response.json(
+              { ok: false, error: "audienceId, identifierType und Hashes erforderlich" },
+              { status: 400 },
+            );
+          if (hashes.length > 200_000)
+            return Response.json(
+              { ok: false, error: "Maximal 200'000 je Vorgang" },
+              { status: 400 },
+            );
+          const res = await withAudit(
+            sb,
+            acc,
+            `audience_${op}`,
+            "custom_audience",
+            audienceId,
+            { count: hashes.length, identifierType },
+            actor,
+            async () => {
+              if (acc.is_mock) {
+                const { data: cur } = await sb
+                  .from("chatgpt_ads_audiences")
+                  .select("identifier_count")
+                  .eq("account_id", acc.id)
+                  .eq("openai_audience_id", audienceId)
+                  .maybeSingle();
+                if (!cur) return { ok: false, error: "Zielgruppe unbekannt" };
+                const n = Math.max(
+                  0,
+                  Number(cur.identifier_count || 0) +
+                    (op === "add" ? hashes.length : -hashes.length),
+                );
+                await sb
+                  .from("chatgpt_ads_audiences")
+                  .update({
+                    identifier_count: n,
+                    status: "processing",
+                    synced_at: new Date().toISOString(),
+                  })
+                  .eq("account_id", acc.id)
+                  .eq("openai_audience_id", audienceId);
+                return { ok: true, operations: 1 };
+              }
+              const key = keyOf();
+              if (key instanceof Response) return { ok: false, error: "Key nicht lesbar" };
+              let ops = 0;
+              for (let i = 0; i < hashes.length; i += 10_000) {
+                const chunk = hashes.slice(i, i + 10_000);
+                const g0 = await adsFetch(
+                  key,
+                  acc.openai_ad_account_id,
+                  `/custom_audiences/${audienceId}`,
+                );
+                const rev = g0.json?.membership_revision ?? g0.json?.revision;
+                const r = await adsFetch(
+                  key,
+                  acc.openai_ad_account_id,
+                  `/custom_audiences/${audienceId}/${op}`,
+                  {
+                    method: "POST",
+                    headers: { "Idempotency-Key": crypto.randomUUID() },
+                    body: {
+                      identifier_type: identifierType,
+                      identifiers: chunk.map((h) => ({
+                        identifier_type: identifierType,
+                        identifier: h,
+                      })),
+                      ...(rev != null ? { expected_revision: Number(rev) } : {}),
+                    },
+                  },
+                );
+                if (!r.ok) return { ok: false, error: httpErr(r) };
+                ops++;
+              }
+              await syncAudiences(sb, acc, key);
+              return { ok: true, operations: ops };
+            },
+          );
+          return res.ok
+            ? Response.json({ ok: true, operations: (res as any).operations })
+            : Response.json({ ok: false, error: res.error }, { status: 502 });
         }
 
         return Response.json({ ok: false, error: `Unbekannte action: ${action}` }, { status: 400 });

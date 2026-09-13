@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.10.1",
+    version: "1.11.0",
     changelog: [
+      {
+        version: "1.11.0",
+        date: "2026-09-13",
+        note: "ChatGPT Ads komplett aus EzyHub steuerbar: Kampagnen-Wizard (Kampagne, Anzeigengruppe und Anzeige mit Bild in einem Zug, Duplizieren), Anzeigengruppen und Anzeigen anlegen/bearbeiten/pausieren/archivieren, Kampagnen-Details (Laufzeitbudget, Start/Ende), Regionen ausschliessen, Aufschlüsselung nach Land/Gerät/Plattform, Konto-Review-Status und Not-Aus, Konto-Auswahl beim Verbinden, Zielgruppen ergänzen/entfernen — nur Konto/Zahlung, Pixel-Häkchen und Review-Einsprüche bleiben im Ads Manager",
+      },
       {
         version: "1.10.1",
         date: "2026-09-13",

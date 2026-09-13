@@ -6,7 +6,18 @@
 // Bis zur CH-Freischaltung des Self-Serve Ads Managers: Demo-Konto via
 // API-Key "mock" — komplette UI End-to-End testbar.
 import { authedFetch } from "@/lib/authed-fetch";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  AccountChooser,
+  AccountControls,
+  AudienceModifyForm,
+  BreakdownCard,
+  CampaignDrilldown,
+  CampaignWizard,
+  GeoChips,
+  type AccountMeta,
+  type AdGroup,
+} from "@/ezy/EzyAiCampaignWizard";
 import { supabase } from "@/integrations/supabase/client";
 import {
   cacheGet,
@@ -36,9 +47,12 @@ type Campaign = {
   synced_at: string | null;
   targeting_locations?: GeoLocation[] | null;
   // raw->targeting: custom_audiences.ids / excluded_custom_audiences.ids
+  start_time?: string | null;
+  end_time?: string | null;
   targeting?: {
     custom_audiences?: { ids?: string[] };
     excluded_custom_audiences?: { ids?: string[] };
+    excluded_locations?: { include?: GeoLocation[] };
   } | null;
   conversion_event_setting_ids?: string[] | null;
 };
@@ -48,12 +62,14 @@ type Ad = {
   status: string;
   review_status: string | null;
   ad_group_name: string | null;
+  ad_group_id: string | null;
   campaign_id: string | null;
   creative: {
     type: string | null;
     title: string | null;
     body: string | null;
     target_url: string | null;
+    file_id?: string | null;
   };
 };
 type Audience = {
@@ -95,6 +111,7 @@ type Account = {
   is_mock: boolean;
   last_synced_at: string | null;
   last_sync_error: string | null;
+  meta?: AccountMeta;
 };
 type ApiData = {
   ok: boolean;
@@ -106,6 +123,7 @@ type ApiData = {
   commands?: CmdRow[];
   audiences?: Audience[];
   ads?: Ad[];
+  adGroups?: AdGroup[];
 };
 
 const REVIEW_LABEL: Record<string, [string, string]> = {
@@ -275,6 +293,8 @@ export default function EzyAiCampaignsPanel({
       isOrgAdmin={isOrgAdmin}
       onChanged={refresh}
       section={section}
+      start={startKey}
+      end={endKey}
     />
   );
 }
@@ -299,13 +319,24 @@ function ConnectCard({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [msgErr, setMsgErr] = useState(false);
-  const connect = async () => {
+  // Multi-Konto (13.09.): sieht der Key mehrere Werbekonten, Auswahl anzeigen.
+  const [choices, setChoices] = useState<any[] | null>(null);
+  const connect = async (adAccountId?: string) => {
     if (!apiKey.trim() || busy) return;
     setBusy(true);
     setMsg("");
     setMsgErr(false);
-    const r = await apiPost({ action: "connect", clientId, apiKey: apiKey.trim() });
+    const r: any = await apiPost({
+      action: "connect",
+      clientId,
+      apiKey: apiKey.trim(),
+      ...(adAccountId ? { adAccountId } : {}),
+    });
     setBusy(false);
+    if (r.ok && Array.isArray(r.chooseAccount)) {
+      setChoices(r.chooseAccount);
+      return;
+    }
     if (r.ok) {
       setMsg("Konto verbunden — erster Sync läuft.");
       onConnected();
@@ -353,6 +384,7 @@ function ConnectCard({
             onKeyDown={(e) => {
               if (e.key === "Enter") connect();
             }}
+            onInput={() => setChoices(null)}
             style={{
               flex: 1,
               border: `1px solid ${S.line}`,
@@ -364,7 +396,7 @@ function ConnectCard({
             }}
           />
           <button
-            onClick={connect}
+            onClick={() => connect()}
             disabled={busy || !apiKey.trim()}
             style={{
               border: "none",
@@ -385,6 +417,9 @@ function ConnectCard({
         <div style={{ fontSize: 12.5, color: S.mut }}>
           Nur Team-Admins können ein Konto verbinden.
         </div>
+      )}
+      {choices && (
+        <AccountChooser S={S} accounts={choices} busy={busy} onPick={(id) => connect(id)} />
       )}
       {msg && (
         <div
@@ -411,6 +446,8 @@ function ManagerView({
   isOrgAdmin,
   onChanged,
   section,
+  start,
+  end,
 }: {
   clientId: string;
   data: ApiData;
@@ -419,12 +456,17 @@ function ManagerView({
   isOrgAdmin: boolean;
   onChanged: () => void;
   section: string;
+  start: string;
+  end: string;
 }) {
   const acc = data.account!;
   const cur = acc.currency_code || "USD";
   const campaigns = data.campaigns || [];
   const audiences = data.audiences || [];
   const allAds = useMemo(() => data.ads || [], [data.ads]);
+  const adGroups = useMemo(() => data.adGroups || [], [data.adGroups]);
+  // Kampagnen-Wizard (neu / duplizieren), 13.09.
+  const [wizard, setWizard] = useState<null | { prefill: any }>(null);
   // Stabile Referenz fuer die useMemo-Abhaengigkeiten (eslint exhaustive-deps).
   const insights = useMemo(() => data.insights || [], [data.insights]);
   const [busy, setBusy] = useState("");
@@ -479,6 +521,11 @@ function ManagerView({
     for (const a of allAds) if (a.campaign_id) (m[a.campaign_id] ??= []).push(a);
     return m;
   }, [allAds]);
+  const groupsByCampaign = useMemo(() => {
+    const m: Record<string, AdGroup[]> = {};
+    for (const g of adGroups) if (g.campaign_id) (m[g.campaign_id] ??= []).push(g);
+    return m;
+  }, [adGroups]);
   const byDay = useMemo(() => {
     const m: Record<string, number> = {};
     for (const r of insights) m[r.date] = (m[r.date] || 0) + Number(r.spend || 0);
@@ -563,26 +610,70 @@ function ManagerView({
               <span style={{ color: "#dc2626" }}> · Sync-Fehler: {acc.last_sync_error}</span>
             )}
           </div>
+          {!acc.is_mock && (
+            <div style={{ marginTop: 6 }}>
+              <AccountControls
+                clientId={clientId}
+                S={S}
+                meta={acc.meta ?? null}
+                canWrite={isOrgAdmin}
+                onChanged={onChanged}
+              />
+            </div>
+          )}
         </div>
         {isOrgAdmin && (
-          <button
-            onClick={() => run({ action: "sync", clientId }, "sync")}
-            disabled={busy === "sync"}
-            style={{
-              border: `1px solid ${S.line}`,
-              borderRadius: 10,
-              padding: "8px 14px",
-              fontSize: 12.5,
-              fontWeight: 700,
-              cursor: "pointer",
-              background: S.bg,
-              color: inkOf(S),
-            }}
-          >
-            {busy === "sync" ? "Synchronisiere…" : "Jetzt syncen"}
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={() => setWizard(wizard ? null : { prefill: null })}
+              style={{
+                border: "none",
+                borderRadius: 10,
+                padding: "8px 14px",
+                fontSize: 12.5,
+                fontWeight: 700,
+                cursor: "pointer",
+                background: accentOf(S),
+                color: "#fff",
+              }}
+            >
+              {wizard ? "Wizard schliessen" : "+ Neue Kampagne"}
+            </button>
+            <button
+              onClick={() => run({ action: "sync", clientId }, "sync")}
+              disabled={busy === "sync"}
+              style={{
+                border: `1px solid ${S.line}`,
+                borderRadius: 10,
+                padding: "8px 14px",
+                fontSize: 12.5,
+                fontWeight: 700,
+                cursor: "pointer",
+                background: S.bg,
+                color: inkOf(S),
+              }}
+            >
+              {busy === "sync" ? "Synchronisiere…" : "Jetzt syncen"}
+            </button>
+          </div>
         )}
       </div>
+
+      {wizard && (
+        <CampaignWizard
+          clientId={clientId}
+          S={S}
+          card={card}
+          cur={cur}
+          audiences={audiences}
+          prefill={wizard.prefill}
+          onDone={() => {
+            setWizard(null);
+            onChanged();
+          }}
+          onCancel={() => setWizard(null)}
+        />
+      )}
 
       {err && (
         <div
@@ -836,8 +927,18 @@ function ManagerView({
                       }
                       audiences={audiences}
                       ads={adsByCampaign[c.openai_campaign_id] || []}
+                      groups={groupsByCampaign[c.openai_campaign_id] || []}
                       colSpan={isOrgAdmin ? 13 : 12}
                       onEditorSaved={() => setEditor(null)}
+                      onChanged={onChanged}
+                      onDuplicate={() => {
+                        const groups = groupsByCampaign[c.openai_campaign_id] || [];
+                        const ads = adsByCampaign[c.openai_campaign_id] || [];
+                        setWizard({
+                          prefill: { campaign: c, group: groups[0] || null, ad: ads[0] || null },
+                        });
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }}
                       clientId={clientId}
                     />
                   );
@@ -847,6 +948,19 @@ function ManagerView({
           </div>
         )}
       </div>
+
+      {/* Aufschlüsselung Land / Gerät / Plattform (13.09.) */}
+      {campaigns.length > 0 && (
+        <BreakdownCard
+          clientId={clientId}
+          S={S}
+          card={card}
+          cur={cur}
+          campaigns={campaigns}
+          start={start}
+          end={end}
+        />
+      )}
 
       {/* Letzte Kommandos (Audit) */}
       {(data.commands || []).length > 0 && (
@@ -894,8 +1008,11 @@ function CampaignRow({
   onToggleEditor,
   audiences,
   ads,
+  groups,
   colSpan,
   onEditorSaved,
+  onChanged,
+  onDuplicate,
   clientId,
 }: {
   c: Campaign;
@@ -911,8 +1028,11 @@ function CampaignRow({
   onToggleEditor: (kind: EditorKind) => void;
   audiences: Audience[];
   ads: Ad[];
+  groups: AdGroup[];
   colSpan: number;
   onEditorSaved: () => void;
+  onChanged: () => void;
+  onDuplicate: () => void;
   clientId: string;
 }) {
   const [editBudget, setEditBudget] = useState(false);
@@ -1100,15 +1220,27 @@ function CampaignRow({
             style={{ padding: "4px 10px 14px", background: "rgba(119,0,140,.03)" }}
           >
             {openEditor === "ads" ? (
-              <AdsDrilldown clientId={clientId} S={S} ads={ads} />
+              <CampaignDrilldown
+                clientId={clientId}
+                S={S}
+                cur={cur}
+                campaign={c}
+                groups={groups}
+                ads={ads}
+                canWrite={canWrite}
+                onChanged={onChanged}
+                onDuplicate={onDuplicate}
+              />
             ) : openEditor === "targeting" ? (
               <TargetingEditor
                 clientId={clientId}
                 S={S}
                 initial={locs}
+                initialExcluded={c.targeting?.excluded_locations?.include || []}
                 busy={busy === `set_targeting:${c.openai_campaign_id}`}
-                onSave={async (locations) => {
-                  if (await onCmd("set_targeting", { locations })) onEditorSaved();
+                onSave={async (locations, excludedLocations) => {
+                  if (await onCmd("set_targeting", { locations, excludedLocations }))
+                    onEditorSaved();
                 }}
                 onCancel={() => onToggleEditor("targeting")}
               />
@@ -1132,158 +1264,12 @@ function CampaignRow({
   );
 }
 
-/* ── Anzeigen einer Kampagne: Creative, Status, Review, Vorschau (13.09.) ──── */
-function AdsDrilldown({ clientId, S, ads }: { clientId: string; S: Tokens; ads: Ad[] }) {
-  const [preview, setPreview] = useState<{ id: string; html?: string; error?: string } | null>(
-    null,
-  );
-  const [loading, setLoading] = useState("");
-  const openPreview = async (adId: string) => {
-    if (preview?.id === adId) {
-      setPreview(null);
-      return;
-    }
-    setLoading(adId);
-    try {
-      const session = (await supabase.auth.getSession()).data.session;
-      const r = await authedFetch("/api/admin/chatgpt-ads", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session?.access_token || ""}`,
-        },
-        body: JSON.stringify({ action: "ad-preview", clientId, adId }),
-      });
-      const j = await r.json().catch(() => ({}));
-      setPreview(
-        j.ok ? { id: adId, html: j.html } : { id: adId, error: j.error || `HTTP ${r.status}` },
-      );
-    } catch (e: any) {
-      setPreview({ id: adId, error: String(e?.message || e) });
-    }
-    setLoading("");
-  };
-  if (ads.length === 0)
-    return (
-      <div style={{ fontSize: 12.5, color: S.mut }}>
-        Noch keine Anzeigen — Anzeigen werden im OpenAI Ads Manager erstellt und erscheinen hier
-        nach dem nächsten Sync.
-      </div>
-    );
-  return (
-    <div style={{ fontSize: 12.5, display: "flex", flexDirection: "column", gap: 8 }}>
-      {ads.map((a) => {
-        const [rl, rc] = REVIEW_LABEL[a.review_status || ""] || [a.review_status || "–", "#8b8da3"];
-        const isOpen = preview?.id === a.openai_ad_id;
-        return (
-          <div
-            key={a.openai_ad_id}
-            style={{
-              border: `1px solid ${S.line}`,
-              borderRadius: 10,
-              padding: "8px 12px",
-              background: S.panel,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <div style={{ flex: 1, minWidth: 200 }}>
-                <span style={{ fontWeight: 700, color: inkOf(S) }}>
-                  {a.creative.title || a.name || a.openai_ad_id}
-                </span>
-                {a.ad_group_name && (
-                  <span style={{ color: S.mut, marginLeft: 8, fontSize: 11 }}>
-                    {a.ad_group_name}
-                  </span>
-                )}
-                {a.creative.body && (
-                  <div style={{ color: S.mut, marginTop: 2, lineHeight: 1.45 }}>
-                    {a.creative.body}
-                  </div>
-                )}
-                {a.creative.target_url && (
-                  <div style={{ fontSize: 11, color: S.mut, marginTop: 2 }}>
-                    {a.creative.target_url}
-                  </div>
-                )}
-              </div>
-              <span
-                style={{
-                  fontSize: 10.5,
-                  fontWeight: 700,
-                  color: a.status === "active" ? "#0f9d6c" : "#92400e",
-                  border: `1px solid ${a.status === "active" ? "#0f9d6c44" : "#92400e44"}`,
-                  borderRadius: 99,
-                  padding: "1px 8px",
-                }}
-              >
-                {a.status === "active" ? "aktiv" : a.status === "paused" ? "pausiert" : a.status}
-              </span>
-              <span
-                style={{
-                  fontSize: 10.5,
-                  fontWeight: 700,
-                  color: rc,
-                  border: `1px solid ${rc}44`,
-                  borderRadius: 99,
-                  padding: "1px 8px",
-                }}
-                title="Review-Status bei OpenAI"
-              >
-                {rl}
-              </span>
-              <button
-                onClick={() => openPreview(a.openai_ad_id)}
-                disabled={loading === a.openai_ad_id}
-                style={{
-                  border: `1px solid ${S.line}`,
-                  borderRadius: 8,
-                  padding: "4px 10px",
-                  fontSize: 11.5,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  background: isOpen ? accentOf(S) : "transparent",
-                  color: isOpen ? "#fff" : inkOf(S),
-                }}
-              >
-                {loading === a.openai_ad_id ? "Lade…" : isOpen ? "Vorschau schliessen" : "Vorschau"}
-              </button>
-            </div>
-            {isOpen &&
-              (preview?.error ? (
-                <div style={{ color: "#b91c1c", marginTop: 8 }}>
-                  Vorschau nicht ladbar: {preview.error}
-                </div>
-              ) : (
-                <iframe
-                  title={`Vorschau ${a.openai_ad_id}`}
-                  srcDoc={preview?.html || ""}
-                  sandbox="allow-scripts allow-popups"
-                  style={{
-                    width: "100%",
-                    height: 260,
-                    border: `1px solid ${S.line}`,
-                    borderRadius: 10,
-                    marginTop: 10,
-                    background: "#fff",
-                  }}
-                />
-              ))}
-          </div>
-        );
-      })}
-      <div style={{ fontSize: 11, color: S.mut }}>
-        Die Vorschau zeigt das Erscheinungsbild — sie bestätigt nicht, dass die Anzeige ausgeliefert
-        wird (Review, Budget und Status entscheiden).
-      </div>
-    </div>
-  );
-}
-
-/* ── Geo-Targeting-Editor: Suche via geo_lookup, Chips, Speichern ──────────── */
+/* ── Geo-Targeting-Editor: Einschluss + Ausschluss (GeoChips, 13.09.) ─────── */
 function TargetingEditor({
   clientId,
   S,
   initial,
+  initialExcluded,
   busy,
   onSave,
   onCancel,
@@ -1291,48 +1277,13 @@ function TargetingEditor({
   clientId: string;
   S: Tokens;
   initial: GeoLocation[];
+  initialExcluded: GeoLocation[];
   busy: boolean;
-  onSave: (locations: GeoLocation[]) => void;
+  onSave: (locations: GeoLocation[], excludedLocations: GeoLocation[]) => void;
   onCancel: () => void;
 }) {
   const [locs, setLocs] = useState<GeoLocation[]>(initial);
-  const [q, setQ] = useState("");
-  const [results, setResults] = useState<GeoLocation[]>([]);
-  const [searching, setSearching] = useState(false);
-  // Debounced Geo-Suche (geo_lookup/search, im Mock statische Liste).
-  useEffect(() => {
-    if (q.trim().length < 2) {
-      setResults([]);
-      return;
-    }
-    let alive = true;
-    const t = setTimeout(async () => {
-      setSearching(true);
-      const session = (await supabase.auth.getSession()).data.session;
-      const r = await authedFetch("/api/admin/chatgpt-ads", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session?.access_token || ""}`,
-        },
-        body: JSON.stringify({ action: "geo-search", clientId, q: q.trim() }),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (alive) {
-        setResults(j.ok ? j.locations || [] : []);
-        setSearching(false);
-      }
-    }, 300);
-    return () => {
-      alive = false;
-      clearTimeout(t);
-    };
-  }, [q, clientId]);
-  const add = (l: GeoLocation) => {
-    if (!locs.some((x) => x.id === l.id)) setLocs([...locs, l]);
-    setQ("");
-    setResults([]);
-  };
+  const [excl, setExcl] = useState<GeoLocation[]>(initialExcluded);
   const btn = (primary: boolean): React.CSSProperties => ({
     border: primary ? "none" : `1px solid ${S.line}`,
     borderRadius: 8,
@@ -1351,101 +1302,35 @@ function TargetingEditor({
           — leer = weltweit; Länder, Regionen/Kantone oder Metro-Gebiete (DMA)
         </span>
       </div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
-        {locs.length === 0 && <span style={{ color: S.mut }}>Keine Einschränkung (weltweit)</span>}
-        {locs.map((l) => (
-          <span
-            key={l.id}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              border: `1px solid ${S.line}`,
-              borderRadius: 999,
-              padding: "3px 10px",
-              background: S.panel,
-              color: inkOf(S),
-            }}
-          >
-            {l.name}
-            {l.type && l.type !== "country" && (
-              <span style={{ color: S.mut, fontSize: 10.5 }}>{l.type}</span>
-            )}
-            <button
-              onClick={() => setLocs(locs.filter((x) => x.id !== l.id))}
-              title="Entfernen"
-              style={{
-                border: "none",
-                background: "transparent",
-                cursor: "pointer",
-                color: S.mut,
-                fontSize: 13,
-                lineHeight: 1,
-                padding: 0,
-              }}
-            >
-              ×
-            </button>
-          </span>
-        ))}
-      </div>
-      <div style={{ position: "relative", maxWidth: 420, marginBottom: 10 }}>
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Land, Kanton oder Region suchen … (z.B. Schweiz, Zürich)"
-          style={{
-            width: "100%",
-            border: `1px solid ${S.line}`,
-            borderRadius: 8,
-            padding: "7px 10px",
-            fontSize: 12.5,
-            background: S.bg,
-            color: inkOf(S),
-            boxSizing: "border-box",
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ color: S.mut, marginBottom: 4 }}>Einschliessen:</div>
+        <GeoChips
+          clientId={clientId}
+          S={S}
+          value={locs}
+          onChange={(v) => {
+            setLocs(v);
+            setExcl(excl.filter((e) => !v.some((x) => x.id === e.id)));
           }}
+          placeholder="Land, Kanton oder Region suchen … (z.B. Schweiz, Zürich)"
+          emptyLabel="Keine Einschränkung (weltweit)"
         />
-        {(results.length > 0 || searching) && (
-          <div
-            style={{
-              position: "absolute",
-              top: "100%",
-              left: 0,
-              right: 0,
-              zIndex: 5,
-              background: S.panel,
-              border: `1px solid ${S.line}`,
-              borderRadius: 8,
-              boxShadow: "0 6px 20px rgba(0,0,0,.08)",
-              marginTop: 4,
-              maxHeight: 220,
-              overflowY: "auto",
-            }}
-          >
-            {searching && <div style={{ padding: "6px 10px", color: S.mut }}>Suche…</div>}
-            {results.map((l) => (
-              <div
-                key={l.id}
-                onClick={() => add(l)}
-                style={{
-                  padding: "6px 10px",
-                  cursor: "pointer",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  color: inkOf(S),
-                }}
-              >
-                <span>{l.name}</span>
-                <span style={{ color: S.mut, fontSize: 11 }}>
-                  {[l.type, l.country_code].filter(Boolean).join(" · ")}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
+      </div>
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ color: S.mut, marginBottom: 4 }}>
+          Ausschliessen (optional, z.B. Regionen ohne Lieferung):
+        </div>
+        <GeoChips
+          clientId={clientId}
+          S={S}
+          value={excl}
+          onChange={(v) => setExcl(v.filter((e) => !locs.some((x) => x.id === e.id)))}
+          placeholder="Region ausschliessen …"
+          emptyLabel="keine Ausschlüsse"
+        />
       </div>
       <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={() => onSave(locs)} disabled={busy} style={btn(true)}>
+        <button onClick={() => onSave(locs, excl)} disabled={busy} style={btn(true)}>
           {busy ? "Speichere…" : "Targeting speichern"}
         </button>
         <button onClick={onCancel} style={btn(false)}>
@@ -1615,6 +1500,8 @@ function AudiencesView({
   const [hashing, setHashing] = useState(false);
   const [msg, setMsg] = useState("");
   const [confirmArchive, setConfirmArchive] = useState<string | null>(null);
+  // Zielgruppe ergänzen/entfernen (13.09.): ID der Zeile mit offenem Formular.
+  const [modify, setModify] = useState<string | null>(null);
 
   // Eingabe (Textarea oder CSV) → normalisierte, gültige Identifikatoren.
   const parsed = useMemo(() => {
@@ -1894,108 +1781,152 @@ function AudiencesView({
                     borderBottom: `1px solid ${S.line}22`,
                   };
                   return (
-                    <tr key={a.openai_audience_id}>
-                      <td style={{ ...td, fontWeight: 700, color: inkOf(S) }}>
-                        {a.name}
-                        {a.description && (
-                          <div style={{ fontSize: 11, color: S.mut, fontWeight: 400 }}>
-                            {a.description}
-                          </div>
-                        )}
-                      </td>
-                      <td style={td}>
-                        <span
-                          style={{
-                            fontSize: 10.5,
-                            fontWeight: 700,
-                            color,
-                            border: `1px solid ${color}44`,
-                            borderRadius: 99,
-                            padding: "1px 8px",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {label}
-                        </span>
-                      </td>
-                      <td style={td}>{RANGE_LABEL[a.matched_user_count_range || ""] || "–"}</td>
-                      <td style={{ ...td, color: S.mut }}>
-                        {a.identifier_type?.startsWith("phone") ? "Telefon" : "E-Mail"}
-                      </td>
-                      <td style={td}>
-                        {a.identifier_count != null ? fmtNum(a.identifier_count) : "–"}
-                      </td>
-                      <td style={{ ...td, color: S.mut }}>
-                        {u
-                          ? [u.incl ? `${u.incl} ein` : "", u.excl ? `${u.excl} aus` : ""]
-                              .filter(Boolean)
-                              .join(" · ")
-                          : "–"}
-                      </td>
-                      <td style={{ ...td, color: S.mut, fontSize: 11 }}>{fmtTime(a.created_at)}</td>
-                      <td style={{ ...td, textAlign: "right", whiteSpace: "nowrap" }}>
-                        {canWrite &&
-                          (confirmArchive === a.openai_audience_id ? (
-                            <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
-                              <span style={{ color: "#92400e", fontSize: 11.5 }}>Archivieren?</span>
-                              <button
-                                onClick={async () => {
-                                  setConfirmArchive(null);
-                                  await run(
-                                    {
-                                      action: "audience-archive",
-                                      clientId,
-                                      audienceId: a.openai_audience_id,
-                                    },
-                                    `archive:${a.openai_audience_id}`,
-                                  );
-                                }}
-                                style={{
-                                  border: "none",
-                                  borderRadius: 8,
-                                  padding: "3px 10px",
-                                  fontSize: 11.5,
-                                  fontWeight: 700,
-                                  cursor: "pointer",
-                                  background: "#dc2626",
-                                  color: "#fff",
-                                }}
+                    <Fragment key={a.openai_audience_id}>
+                      <tr>
+                        <td style={{ ...td, fontWeight: 700, color: inkOf(S) }}>
+                          {a.name}
+                          {a.description && (
+                            <div style={{ fontSize: 11, color: S.mut, fontWeight: 400 }}>
+                              {a.description}
+                            </div>
+                          )}
+                        </td>
+                        <td style={td}>
+                          <span
+                            style={{
+                              fontSize: 10.5,
+                              fontWeight: 700,
+                              color,
+                              border: `1px solid ${color}44`,
+                              borderRadius: 99,
+                              padding: "1px 8px",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {label}
+                          </span>
+                        </td>
+                        <td style={td}>{RANGE_LABEL[a.matched_user_count_range || ""] || "–"}</td>
+                        <td style={{ ...td, color: S.mut }}>
+                          {a.identifier_type?.startsWith("phone") ? "Telefon" : "E-Mail"}
+                        </td>
+                        <td style={td}>
+                          {a.identifier_count != null ? fmtNum(a.identifier_count) : "–"}
+                        </td>
+                        <td style={{ ...td, color: S.mut }}>
+                          {u
+                            ? [u.incl ? `${u.incl} ein` : "", u.excl ? `${u.excl} aus` : ""]
+                                .filter(Boolean)
+                                .join(" · ")
+                            : "–"}
+                        </td>
+                        <td style={{ ...td, color: S.mut, fontSize: 11 }}>
+                          {fmtTime(a.created_at)}
+                        </td>
+                        <td style={{ ...td, textAlign: "right", whiteSpace: "nowrap" }}>
+                          {canWrite &&
+                            (confirmArchive === a.openai_audience_id ? (
+                              <span
+                                style={{ display: "inline-flex", gap: 6, alignItems: "center" }}
                               >
-                                Ja
-                              </button>
-                              <button
-                                onClick={() => setConfirmArchive(null)}
-                                style={{
-                                  border: `1px solid ${S.line}`,
-                                  borderRadius: 8,
-                                  padding: "3px 8px",
-                                  fontSize: 11.5,
-                                  cursor: "pointer",
-                                  background: "transparent",
-                                  color: S.mut,
-                                }}
-                              >
-                                Nein
-                              </button>
-                            </span>
-                          ) : (
-                            <button
-                              onClick={() => setConfirmArchive(a.openai_audience_id)}
-                              disabled={busy === `archive:${a.openai_audience_id}`}
-                              title="Archivieren (wird aus allen Kampagnen entfernt)"
-                              style={{
-                                border: "none",
-                                background: "transparent",
-                                color: S.mut,
-                                cursor: "pointer",
-                                fontSize: 12,
-                              }}
-                            >
-                              Archivieren
-                            </button>
-                          ))}
-                      </td>
-                    </tr>
+                                <span style={{ color: "#92400e", fontSize: 11.5 }}>
+                                  Archivieren?
+                                </span>
+                                <button
+                                  onClick={async () => {
+                                    setConfirmArchive(null);
+                                    await run(
+                                      {
+                                        action: "audience-archive",
+                                        clientId,
+                                        audienceId: a.openai_audience_id,
+                                      },
+                                      `archive:${a.openai_audience_id}`,
+                                    );
+                                  }}
+                                  style={{
+                                    border: "none",
+                                    borderRadius: 8,
+                                    padding: "3px 10px",
+                                    fontSize: 11.5,
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                    background: "#dc2626",
+                                    color: "#fff",
+                                  }}
+                                >
+                                  Ja
+                                </button>
+                                <button
+                                  onClick={() => setConfirmArchive(null)}
+                                  style={{
+                                    border: `1px solid ${S.line}`,
+                                    borderRadius: 8,
+                                    padding: "3px 8px",
+                                    fontSize: 11.5,
+                                    cursor: "pointer",
+                                    background: "transparent",
+                                    color: S.mut,
+                                  }}
+                                >
+                                  Nein
+                                </button>
+                              </span>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() =>
+                                    setModify(
+                                      modify === a.openai_audience_id ? null : a.openai_audience_id,
+                                    )
+                                  }
+                                  title="Identifikatoren ergänzen oder entfernen"
+                                  style={{
+                                    border: "none",
+                                    background: "transparent",
+                                    color: modify === a.openai_audience_id ? accentOf(S) : S.mut,
+                                    cursor: "pointer",
+                                    fontSize: 12,
+                                    marginRight: 8,
+                                  }}
+                                >
+                                  Ergänzen/Entfernen
+                                </button>
+                                <button
+                                  onClick={() => setConfirmArchive(a.openai_audience_id)}
+                                  disabled={busy === `archive:${a.openai_audience_id}`}
+                                  title="Archivieren (wird aus allen Kampagnen entfernt)"
+                                  style={{
+                                    border: "none",
+                                    background: "transparent",
+                                    color: S.mut,
+                                    cursor: "pointer",
+                                    fontSize: 12,
+                                  }}
+                                >
+                                  Archivieren
+                                </button>
+                              </>
+                            ))}
+                        </td>
+                      </tr>
+                      {modify === a.openai_audience_id && (
+                        <tr>
+                          <td colSpan={8} style={{ padding: "4px 10px 12px" }}>
+                            <AudienceModifyForm
+                              clientId={clientId}
+                              S={S}
+                              audienceId={a.openai_audience_id}
+                              identifierType={a.identifier_type || "email_sha256"}
+                              onDone={() =>
+                                run({ action: "audience-sync", clientId }, "audience-sync")
+                              }
+                              onCancel={() => setModify(null)}
+                            />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   );
                 })}
               </tbody>
