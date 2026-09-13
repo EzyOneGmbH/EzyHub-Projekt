@@ -96,6 +96,11 @@ export function AdsDashboard({ selectedClient, dateRange }) {
       try {
         const session = (await supabase.auth.getSession()).data.session;
         const body = { clientId: selectedClient.id, days: d };
+        // 13.09.2026: exakter, inklusiver Zeitraum (auch historisch) statt days.
+        if (dateRange?.start && dateRange?.end) {
+          body.startDate = isoDate(dateRange.start);
+          body.endDate = isoDate(dateRange.end);
+        }
         if (dateRange?.compare) {
           body.compareStart = isoDate(dateRange.compare.start);
           body.compareEnd = isoDate(dateRange.compare.end);
@@ -115,7 +120,7 @@ export function AdsDashboard({ selectedClient, dateRange }) {
         if (!silent) setPulling(false);
       }
     },
-    [selectedClient?.id, days, refresh, dateRange?.compare],
+    [selectedClient?.id, days, refresh, dateRange?.compare, dateRange?.start, dateRange?.end],
   );
 
   // Auto-refresh when date range changes — silent background fetch, instant local filter via useMemo.

@@ -90,7 +90,9 @@ describe("periodRanges (L90 wird am Wechsel getrennt, pure)", () => {
     expect(r!.before.to).toBe("2026-06-30"); // Tag VOR dem Wechsel
     expect(r!.after.from).toBe("2026-07-01"); // Wechseltag beginnt die neue Periode
     expect(r!.after.to).toBe("2026-07-13");
-    expect(r!.before.days + r!.after.days).toBe(91); // volles Fenster, keine Doppelzaehlung
+    // Zeitraum-Vereinheitlichung (13.09.2026): L90 = genau 90 inklusive
+    // Kalendertage (frueher 91 durch «today - 90»), keine Doppelzaehlung.
+    expect(r!.before.days + r!.after.days).toBe(90);
   });
 
   it("liefert null, wenn der Wechsel ausserhalb des Fensters liegt", () => {

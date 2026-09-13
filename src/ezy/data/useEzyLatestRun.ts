@@ -36,18 +36,53 @@ const untilKeyIso = (endKey: string): string => {
   return new Date(y, m - 1, d, 23, 59, 59, 999).toISOString();
 };
 
+export type Naeherung = {
+  /** true = der Lauf liegt INNERHALB des gewaehlten Zeitraums (bzw. Zeitraum endet heute). */
+  exakt: boolean;
+  /** Messdatum des angezeigten Laufs (YYYY-MM-DD) */
+  standDatum: string | null;
+  /** Abstand des Laufs zum Zeitraum-Ende in Tagen (0 = am Ende gemessen) */
+  abstandTage: number | null;
+};
+
 /**
  * Latest succeeded audit_runs row of a given audit_type for a client.
  * Optionales `until`: letzter Lauf bis zum Ende dieses Tages (Zeitraum-Ende).
+ * Optionales `from` (13.09.2026): Zeitraum-Anfang — liegt der gefundene Lauf
+ * VOR dem Zeitraum, wird er weiterhin geliefert, aber als Naeherung markiert
+ * (naeherung.exakt=false), damit die UI das sichtbar macht statt still einen
+ * ungefaehr passenden Snapshot als Stand des Zeitraums auszugeben.
  */
 export function useEzyLatestRun(
   clientId: string | undefined,
   auditType: string,
   until?: Date | null,
-): { run: LatestRun; loading: boolean; refresh: (force?: boolean) => Promise<void> } {
+  from?: Date | null,
+): {
+  run: LatestRun;
+  loading: boolean;
+  refresh: (force?: boolean) => Promise<void>;
+  naeherung: Naeherung;
+} {
   const [run, setRun] = useState<LatestRun>(null);
   const [loading, setLoading] = useState(false);
   const endKey = untilKey(until);
+  const naeherung: Naeherung = (() => {
+    if (!run) return { exakt: true, standDatum: null, abstandTage: null };
+    const runMs = Date.parse(run.created_at);
+    const standDatum = Number.isFinite(runMs) ? new Date(runMs).toISOString().slice(0, 10) : null;
+    const endeMs = endKey === "latest" ? Date.now() : Date.parse(untilKeyIso(endKey)) || Date.now();
+    const abstandTage = Number.isFinite(runMs)
+      ? Math.max(0, Math.floor((endeMs - runMs) / 864e5))
+      : null;
+    const fromMs =
+      from instanceof Date && !isNaN(from.getTime())
+        ? new Date(from.getFullYear(), from.getMonth(), from.getDate()).getTime()
+        : null;
+    const exakt =
+      endKey === "latest" || fromMs == null || !Number.isFinite(runMs) || runMs >= fromMs;
+    return { exakt, standDatum, abstandTage };
+  })();
 
   // force === true (strikt, damit onClick-Events nicht als force zaehlen)
   // umgeht den Sitzungs-Cache — fuer den "Aktualisieren"-Button der DataStatus-Leiste.
@@ -89,7 +124,7 @@ export function useEzyLatestRun(
     void refresh();
   }, [refresh]);
 
-  return { run, loading, refresh };
+  return { run, loading, refresh, naeherung };
 }
 
 /** Extract SEO KPIs from an Ahrefs overview audit_runs.result. */

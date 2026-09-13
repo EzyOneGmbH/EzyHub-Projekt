@@ -258,7 +258,7 @@ export async function runGuardianForClient(client: {
   await soft("impressions_crash", async () => {
     const r = await q(
       `SELECT campaign.name, segments.date, metrics.impressions
-       FROM campaign WHERE segments.date BETWEEN '${daysAgo(8)}' AND '${daysAgo(1)}' AND campaign.status = 'ENABLED'`,
+       FROM campaign WHERE segments.date BETWEEN '${daysAgo(7)}' AND '${daysAgo(1)}' AND campaign.status = 'ENABLED'`,
     );
     if (!r.ok) throw new Error(r.error ?? r.skipped);
     const yesterday = daysAgo(1);

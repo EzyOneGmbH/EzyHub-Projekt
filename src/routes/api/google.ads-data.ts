@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { redactSecrets } from "@/server/google-oauth.server";
 import { isProviderEnabled, canRunAudits } from "@/server/integrations.server";
 import { fetchAdsSnapshot } from "@/server/google-ads.server";
+import { ZeitraumFehler } from "@/lib/date-range";
 
 // Google Ads performance data: account totals, daily series, campaign breakdown
 // (with revenue + ROAS), conversion-action split and previous-period comparison.
@@ -13,6 +14,15 @@ import { fetchAdsSnapshot } from "@/server/google-ads.server";
 const Body = z.object({
   clientId: z.string().uuid(),
   days: z.number().int().min(1).max(90).default(28),
+  // Exakter Zeitraum (13.09.2026): hat Vorrang vor days.
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  endDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
   compareStart: z.string().optional(),
   compareEnd: z.string().optional(),
 });
@@ -63,12 +73,23 @@ export const Route = createFileRoute("/api/google/ads-data")({
             parsed.data.compareStart && parsed.data.compareEnd
               ? { start: parsed.data.compareStart, end: parsed.data.compareEnd }
               : null;
-          const snap = await fetchAdsSnapshot(
-            client.id,
-            client.google_ads_customer,
-            parsed.data.days,
-            compareRange,
-          );
+          const range =
+            parsed.data.startDate && parsed.data.endDate
+              ? { startDate: parsed.data.startDate, endDate: parsed.data.endDate }
+              : parsed.data.days;
+          let snap;
+          try {
+            snap = await fetchAdsSnapshot(
+              client.id,
+              client.google_ads_customer,
+              range,
+              compareRange,
+            );
+          } catch (e) {
+            if (e instanceof ZeitraumFehler)
+              return Response.json({ ok: false, error: e.message }, { status: 400 });
+            throw e;
+          }
           if (!snap.ok || !snap.result)
             return Response.json({ ok: false, error: snap.skipped || "Ads-Abruf fehlgeschlagen" });
 
@@ -80,7 +101,11 @@ export const Route = createFileRoute("/api/google/ads-data")({
               triggered_by: user.id,
               audit_type: "google_ads",
               status: "succeeded",
-              input: { days: parsed.data.days },
+              input: {
+                days: snap.result.days,
+                range: snap.result.range,
+                prevRange: snap.result.prevRange,
+              },
               result: snap.result as never,
               started_at: nowIso(),
               finished_at: nowIso(),

@@ -333,7 +333,7 @@ export async function fetchAutopilotData(
   if ("skipped" in ctx) return { ok: false, skipped: ctx.skipped };
   const conf = cfg ?? DEFAULT_CONFIG(clientId);
   const lag = Math.max(0, conf.conversion_lag_days ?? 7);
-  const termFrom = daysAgo(30 + lag);
+  const termFrom = daysAgo(29 + lag); // 13.09.: genau 30 inklusive Tage
   const termTo = daysAgo(lag);
 
   const data: AutopilotData = {
@@ -1640,7 +1640,8 @@ export function periodRanges(
   const changeDate = changedAt.slice(0, 10);
   const d = (s: string) => new Date(s + "T00:00:00Z").getTime();
   const day = 86400000;
-  const from = new Date(d(today) - windowDays * day).toISOString().slice(0, 10);
+  // 13.09.2026: windowDays inklusive Kalendertage bis today (frueher windowDays+1).
+  const from = new Date(d(today) - (windowDays - 1) * day).toISOString().slice(0, 10);
   const beforeTo = new Date(d(changeDate) - day).toISOString().slice(0, 10);
   if (d(beforeTo) < d(from) || d(changeDate) > d(today)) return null; // Wechsel liegt ausserhalb des Fensters
   return {

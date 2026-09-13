@@ -6755,7 +6755,8 @@ function App({ appScope = null }) {
     return {
       label,
       days,
-      start: new Date(now.getTime() - days * 24 * 60 * 60 * 1000),
+      // 13.09.2026: genau N Kalendertage inklusive heute (wie rangeStore).
+      start: new Date(now.getTime() - (days - 1) * 24 * 60 * 60 * 1000),
       end: now,
       preset,
     };

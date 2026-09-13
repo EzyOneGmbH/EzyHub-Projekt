@@ -13,6 +13,8 @@ import {
   normalizeDomain,
 } from "@/server/backlink-overview.server";
 import { fetchKeywordMetrics } from "@/server/keyword-metrics.server";
+import { zeitraum, ga4DateRange, type Zeitraum } from "@/lib/date-range";
+import { gscTotals, gscRows, summiereZeilen, GSC_END_LAG_DAYS } from "@/server/gsc.server";
 
 function slugify(s: string): string {
   return String(s || "")
@@ -77,14 +79,11 @@ const JOB_AUDIT_TYPE: Record<string, string> = {
 
 // GSC-Datenpuffer (Dashboard-Ausbau 2026-07-11, WP2): die letzten ~2 Tage sind in
 // GSC unvollstaendig -> endDate = heute minus 3 Tage fuer ALLE GSC-Abrufe im populate.
-const GSC_END_LAG_DAYS = 3;
-function gscRange(days: number): { start: string; end: string } {
-  const end = new Date();
-  end.setDate(end.getDate() - GSC_END_LAG_DAYS);
-  const start = new Date(end);
-  start.setDate(end.getDate() - days);
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
-  return { start: fmt(start), end: fmt(end) };
+// Zeitraum-Vereinheitlichung (13.09.2026): genau N inklusive Kalendertage
+// (frueher «end minus N» = N+1 Tage).
+function gscRange(days: number): Zeitraum & { start: string; end: string } {
+  const zr = zeitraum({ days, endLagDays: GSC_END_LAG_DAYS, maxDays: 90 });
+  return { ...zr, start: zr.startDate, end: zr.endDate };
 }
 
 // Brand-Term-Fallback (WP2): ist clients.brand_terms leer, gilt der Domain-Stamm
@@ -257,46 +256,43 @@ async function jobGsc(c: any, uid: string, days: number) {
   const { accessToken } = await getGoogleAccessToken(c.id);
   // WP2: GSC-Puffer — endDate = heute-3 (letzte ~2 Tage unvollstaendig).
   const { start, end } = gscRange(days);
-  const url = `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(c.gsc_property)}/searchAnalytics/query`;
-  const r = await fetch(url, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      startDate: start,
-      endDate: end,
+  // Zeitraum-/GSC-Vereinheitlichung (13.09.2026): Gesamttotale aus einer
+  // eigenen Abfrage OHNE Dimension (frueher Summe ueber max. 1000 Query-Zeilen
+  // → bei grossen Properties zu wenig Klicks/Impressionen, zu gute Ø-Position);
+  // Query-Zeilen separat fuer die Tabelle, mit Coverage-Kennzeichnung.
+  const basis = { site: String(c.gsc_property), accessToken, startDate: start, endDate: end };
+  let totals;
+  let rowsRes;
+  try {
+    totals = await gscTotals(basis);
+    rowsRes = await gscRows({
+      ...basis,
       dimensions: ["query"],
-      rowLimit: 1000, // vorher 50 -> Summen-Totale untererfassten Klicks/Impressionen
+      rowLimit: 1000,
       orderBy: [{ field: "clicks", descending: true }],
-    }),
-  });
-  if (!r.ok)
-    return { error: redactSecrets(`GSC HTTP ${r.status}: ${await r.text().catch(() => "")}`) };
-  const json: any = await r.json();
-  const keywords = (json.rows ?? []).map((x: any) => ({
+      totals,
+    });
+  } catch (e) {
+    return { error: redactSecrets(e) };
+  }
+  const keywords = rowsRes.rows.map((x: any) => ({
     query: x.keys[0],
     clicks: x.clicks,
     impressions: x.impressions,
     ctr: x.ctr,
     position: x.position,
   }));
-  const t = keywords.reduce(
-    (a: any, k: any) => {
-      a.clicks += k.clicks || 0;
-      a.impressions += k.impressions || 0;
-      a.posSum += (k.position || 0) * (k.impressions || 0);
-      return a;
-    },
-    { clicks: 0, impressions: 0, posSum: 0 },
-  );
   const result = {
     days,
     range: { from: start, to: end },
     metrics: {
-      clicks: t.clicks,
-      impressions: t.impressions,
-      ctr: t.impressions > 0 ? t.clicks / t.impressions : 0,
-      position: t.impressions > 0 ? t.posSum / t.impressions : 0,
+      clicks: totals.clicks,
+      impressions: totals.impressions,
+      ctr: totals.ctr,
+      position: totals.position,
+      quelle: totals.quelle,
     },
+    coverage: rowsRes.coverage,
     // Top 250 (2026-07-19): Dashboard paginiert 10er-weise; mehr Tiefe fuer
     // Suchbegriff-Tabelle + Rank-Seed-Fallback.
     topQueries: keywords.slice(0, 250),
@@ -395,31 +391,34 @@ async function jobSeoHistory(c: any, uid: string, force = false) {
     }
   }
   if (c.gsc_property) {
-    // Distinct-Query-Zaehlung braucht die query-Dimension -> 1 Call je Monat.
+    // Klicks/Impressionen je Monat aus der Aggregat-Abfrage (exakt, inkl.
+    // anonymisierter Queries); die Distinct-Query-Zaehlung braucht die
+    // query-Dimension → paginiert bis 50'000 Zeilen, Kuerzung wird markiert.
     for (let i = 15; i >= 0; i--) {
       const mEnd = new Date(endFull.getFullYear(), endFull.getMonth() - i + 1, 0);
       const mStart = new Date(mEnd.getFullYear(), mEnd.getMonth(), 1);
       try {
-        const r = await fetch(
-          `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(c.gsc_property)}/searchAnalytics/query`,
-          {
-            method: "POST",
-            headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              startDate: ymd(mStart),
-              endDate: ymd(mEnd),
-              dimensions: ["query"],
-              rowLimit: 25000,
-            }),
-          },
-        );
-        if (!r.ok) continue;
-        const j: any = await r.json();
-        const rows = j.rows ?? [];
+        const basis = {
+          site: String(c.gsc_property),
+          accessToken,
+          startDate: ymd(mStart),
+          endDate: ymd(mEnd),
+        };
+        const totals = await gscTotals(basis);
         const e = ensure(ymd(mStart).slice(0, 7));
-        e.gscClicks = rows.reduce((a: number, x: any) => a + (x.clicks || 0), 0);
-        e.gscImpressions = rows.reduce((a: number, x: any) => a + (x.impressions || 0), 0);
-        e.gscQueries = rows.length;
+        e.gscClicks = totals.clicks;
+        e.gscImpressions = totals.impressions;
+        try {
+          const { rows, coverage } = await gscRows({
+            ...basis,
+            dimensions: ["query"],
+            rowLimit: 50_000,
+          });
+          e.gscQueries = rows.length;
+          if (coverage.truncated) e.gscQueriesTruncated = true;
+        } catch {
+          /* Query-Anzahl optional */
+        }
         gscok = true;
       } catch {
         /* Monat fehlt dann */
@@ -479,21 +478,28 @@ async function jobGscQueries(c: any, uid: string, days: number, forceDfs = false
   if (!c.gsc_property) return { skipped: "kein gsc_property" };
   const { accessToken } = await getGoogleAccessToken(c.id);
   const { start, end } = gscRange(days);
-  const url = `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(c.gsc_property)}/searchAnalytics/query`;
-  const r = await fetch(url, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      startDate: start,
-      endDate: end,
+  // 13.09.2026: Gesamttotale aggregiert (ohne Dimension), Query-Zeilen
+  // paginiert (bis 50'000, > 1'000 Queries werden nicht mehr abgeschnitten),
+  // Coverage im Resultat — Brand/Non-Brand-Summen bleiben Zeilen-Summen und
+  // werden gegen die Totale ausgewiesen (Rest = anonymisierte/ungelistete Queries).
+  const basis = { site: String(c.gsc_property), accessToken, startDate: start, endDate: end };
+  let totals;
+  let json: { rows: any[] };
+  let coverage;
+  try {
+    totals = await gscTotals(basis);
+    const rr = await gscRows({
+      ...basis,
       dimensions: ["query"],
-      rowLimit: 25000,
+      rowLimit: 50_000,
       orderBy: [{ field: "clicks", descending: true }],
-    }),
-  });
-  if (!r.ok)
-    return { error: redactSecrets(`GSC HTTP ${r.status}: ${await r.text().catch(() => "")}`) };
-  const json: any = await r.json();
+      totals,
+    });
+    json = { rows: rr.rows };
+    coverage = rr.coverage;
+  } catch (e) {
+    return { error: redactSecrets(e) };
+  }
   const terms = brandTermsOf(c);
   const isBrand = (q: string) => {
     const s = q.toLowerCase();
@@ -554,25 +560,16 @@ async function jobGscQueries(c: any, uid: string, days: number, forceDfs = false
   // Seite je Query = die meistgezeigte. Best-effort, Fehler lassen pageUrl leer.
   const pageByQuery = new Map<string, string>();
   try {
-    const rp = await fetch(url, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        startDate: start,
-        endDate: end,
-        dimensions: ["query", "page"],
-        rowLimit: 5000,
-        orderBy: [{ field: "impressions", descending: true }],
-      }),
-      signal: AbortSignal.timeout(30_000),
+    const { rows: pr } = await gscRows({
+      ...basis,
+      dimensions: ["query", "page"],
+      rowLimit: 5000,
+      orderBy: [{ field: "impressions", descending: true }],
     });
-    if (rp.ok) {
-      const pj: any = await rp.json().catch(() => ({}));
-      for (const row of pj.rows ?? []) {
-        const q = String(row.keys?.[0] ?? "");
-        const p = String(row.keys?.[1] ?? "");
-        if (q && p && !pageByQuery.has(q)) pageByQuery.set(q, p);
-      }
+    for (const row of pr) {
+      const q = String(row.keys?.[0] ?? "");
+      const p = String(row.keys?.[1] ?? "");
+      if (q && p && !pageByQuery.has(q)) pageByQuery.set(q, p);
     }
   } catch {
     /* pageUrl optional */
@@ -674,6 +671,18 @@ async function jobGscQueries(c: any, uid: string, days: number, forceDfs = false
   }
   const result = {
     range: { from: start, to: end },
+    // Gesamttotale (aggregiert) + Coverage der Query-Zeilen (13.09.2026).
+    totals,
+    coverage: {
+      ...coverage,
+      // Klicks/Impressionen, die in keiner gelieferten Query-Zeile stecken
+      // (anonymisierte Queries bzw. Kuerzung) — fuer die Kennzeichnung im UI.
+      ungelistetKlicks: Math.max(0, totals.clicks - brand.clicks - nonbrand.clicks),
+      ungelistetImpressionen: Math.max(
+        0,
+        totals.impressions - brand.impressions - nonbrand.impressions,
+      ),
+    },
     brand,
     nonbrand,
     buckets_nonbrand: buckets,
@@ -702,7 +711,9 @@ async function jobGa4(c: any, uid: string, days: number) {
   const { accessToken } = await getGoogleAccessToken(c.id);
   const propertyId = String(c.ga4_property).replace(/^properties\//, "");
   const base = `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`;
-  const dateRanges = [{ startDate: `${days}daysAgo`, endDate: "today" }];
+  // 13.09.2026: explizite Daten — "NdaysAgo".."today" waren N+1 Tage.
+  const zr = zeitraum({ days, maxDays: 90 });
+  const dateRanges = [ga4DateRange(zr)];
   const call = async (b: unknown) => {
     const r = await fetch(base, {
       method: "POST",
@@ -761,7 +772,7 @@ async function jobGa4(c: any, uid: string, days: number) {
     audit_type: "ga4_summary",
     status: "succeeded",
     input: { days },
-    result: { days, metrics, series },
+    result: { days, range: { from: zr.startDate, to: zr.endDate }, metrics, series },
     started_at: nowIso(),
     finished_at: nowIso(),
   });
@@ -865,7 +876,9 @@ async function jobGa4Traffic(c: any, uid: string, days: number) {
   const { accessToken } = await getGoogleAccessToken(c.id);
   const propertyId = String(c.ga4_property).replace(/^properties\//, "");
   const base = `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`;
-  const dateRanges = [{ startDate: `${days}daysAgo`, endDate: "today" }];
+  // 13.09.2026: explizite Daten — "NdaysAgo".."today" waren N+1 Tage.
+  const zr = zeitraum({ days, maxDays: 90 });
+  const dateRanges = [ga4DateRange(zr)];
   const call = async (b: unknown) => {
     const r = await fetch(base, {
       method: "POST",
@@ -1018,6 +1031,7 @@ async function jobGa4Traffic(c: any, uid: string, days: number) {
   }
   const result = {
     days,
+    range: { from: zr.startDate, to: zr.endDate },
     channels,
     aiReferral: { sessions: aiSessions, users: aiUsers, bySource: aiBySource },
     googleVsAi: {
@@ -1051,7 +1065,9 @@ async function jobGa4Conversions(c: any, uid: string, days: number) {
   const { accessToken } = await getGoogleAccessToken(c.id);
   const propertyId = String(c.ga4_property).replace(/^properties\//, "");
   const base = `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`;
-  const dateRanges = [{ startDate: `${days}daysAgo`, endDate: "today" }];
+  // 13.09.2026: explizite Daten — "NdaysAgo".."today" waren N+1 Tage.
+  const zr = zeitraum({ days, maxDays: 90 });
+  const dateRanges = [ga4DateRange(zr)];
   const call = async (b: unknown) => {
     const r = await fetch(base, {
       method: "POST",
@@ -1179,6 +1195,7 @@ async function jobGa4Conversions(c: any, uid: string, days: number) {
   }
   const result = {
     days,
+    range: { from: zr.startDate, to: zr.endDate },
     breakdown,
     events: events.slice(0, 25),
     rows: rows.slice(0, 200),

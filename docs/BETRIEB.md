@@ -170,6 +170,29 @@ unabhängig vom Cloud PC:
 
 ---
 
+### Zeitraum-Vertrag (EzyRank, EzyPerformance, GSC, GA4, Google Ads — seit 13.09.2026)
+- **Ein Zeitraum ist immer ein exakter, inklusiver Kalendertag-Bereich** `startDate..endDate`
+  (YYYY-MM-DD). «Letzte N Tage» = genau N Tage: `startDate = endDate − (N−1)`. Zentrale
+  Logik: `src/lib/date-range.ts` (`zeitraum`, `vorperiode`, `zeitraumAusParams`); alle
+  Server-Routen und der Frontend-Zeitraumwähler nutzen sie — kein `today − N`
+  (= N+1 Tage) und kein GA4-`NdaysAgo..today` (= N+1 Tage) mehr.
+- **Alle APIs akzeptieren `startDate`/`endDate`** (POST-Body bzw. Query `start`/`end`) mit
+  Vorrang vor `days`; ungültig/verdreht/Zukunft/zu lang → HTTP 400 statt Näherung. Jede
+  Antwort trägt `range: { from, to }` (Ads zusätzlich `prevRange`).
+- **GSC:** `days`-Modus endet bei heute−3 (Datenpuffer), exakte Ranges werden ohne Puffer
+  abgefragt. Gesamttotale kommen aus einer eigenen **Aggregat-Abfrage ohne Dimension**
+  (`metrics.quelle = "aggregate"`), Query-Zeilen separat und paginiert (`startRow`, bis
+  50'000 in Datenläufen); `coverage { rowLimit, rows, truncated, pages, clicksAnteil }` sowie
+  `ungelistetKlicks` kennzeichnen Zeilenlimit und Kürzung. Client: `src/server/gsc.server.ts`.
+- **Rankings-Snapshots** (`audit_runs.rankings`, Push vom agent-service) bewahren
+  `measurement { method crawl|gsc|hybrid, crawlLocation, country, language, device,
+  measuredAt }`; Deltas (`posPrev7/28`) nur innerhalb derselben Messmethode
+  (`posPrev7Src`), sonst `null` — `improved7/declined7` werden daraus neu gezählt.
+  Historische Zeiträume zeigen den Stand zum Zeitraum-Ende und kennzeichnen ihn als
+  «Näherung», wenn der Lauf vor dem Zeitraum-Anfang liegt (`useEzyLatestRun(...).naeherung`).
+- **Admin-Readiness:** «Google verbunden» gilt nur mit `oauth_connections.client_id ==
+  Kunde` (kein Org-weites Durchschlagen mehr).
+
 ## 6. Deployment & CI
 
 - **Deploy:** Push auf `main` → Lovable synct vom Repo → **Redeploy auslösen**. Erfolg am

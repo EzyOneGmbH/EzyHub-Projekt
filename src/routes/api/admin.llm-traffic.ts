@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
+import { zeitraumAusParams } from "@/lib/date-range";
 
 // LLM Analytics (05.08.2026, Searchable-Nachbau "/ai-traffic"):
 // GET ?client=<uuid>&days=<1..365, Default 30> liefert die GA4-Seite des
@@ -54,19 +55,19 @@ export const Route = createFileRoute("/api/admin/llm-traffic")({
         if (auth instanceof Response) return auth;
         const u = new URL(request.url);
         const clientId = u.searchParams.get("client") || "";
-        const days = Math.min(365, Math.max(1, Number(u.searchParams.get("days")) || 30));
-        // Eigene Zeiträume (18.08., Range-Vereinheitlichung): exakte Daten
-        // statt "letzte N Tage" — GA4 nimmt YYYY-MM-DD direkt.
-        const qsStart = u.searchParams.get("start");
-        const qsEnd = u.searchParams.get("end");
-        const isDayStr = (s: string | null): s is string => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
-        const useExact =
-          isDayStr(qsStart) &&
-          isDayStr(qsEnd) &&
-          qsStart <= qsEnd &&
-          (Date.parse(qsEnd) - Date.parse(qsStart)) / 864e5 <= 366;
-        const startDate = useExact ? (qsStart as string) : `${days}daysAgo`;
-        const endDate = useExact ? (qsEnd as string) : "today";
+        // Zeitraum-Vereinheitlichung (13.09.2026): start/end (oder startDate/
+        // endDate) exakt und inklusiv; sonst «letzte N Tage» = genau N Tage
+        // bis heute (frueher "NdaysAgo".."today" = N+1). Ungueltig → 400.
+        let zr;
+        try {
+          zr = zeitraumAusParams(u.searchParams, { defaultDays: 30, maxDays: 366 });
+        } catch (e) {
+          return Response.json(
+            { ok: false, error: e instanceof Error ? e.message : String(e) },
+            { status: 400 },
+          );
+        }
+        const { startDate, endDate, days } = zr;
         if (!/^[0-9a-f-]{36}$/i.test(clientId))
           return Response.json({ ok: false, error: "client (uuid) erforderlich" }, { status: 400 });
         // RLS-gefilterte Sicht: existiert der Kunde für diesen User?
@@ -177,7 +178,15 @@ export const Route = createFileRoute("/api/admin/llm-traffic")({
               .slice(0, 10);
         }
 
-        return Response.json({ ok: true, ga4: true, days, timeseries, totals, pagesByEngine });
+        return Response.json({
+          ok: true,
+          ga4: true,
+          days,
+          range: { from: startDate, to: endDate },
+          timeseries,
+          totals,
+          pagesByEngine,
+        });
       },
     },
   },

@@ -1053,7 +1053,9 @@ export function DateRangePicker({ value, onChange, up = false }) {
                   onClick={() => {
                     setA(p.id);
                     const now = new Date();
-                    const start = new Date(now.getTime() - p.d * 24 * 60 * 60 * 1000);
+                    // Zeitraum-Vereinheitlichung (13.09.2026): genau N Kalendertage
+                    // inklusive heute (frueher N+1, abweichend von rangeStore).
+                    const start = new Date(now.getTime() - (p.d - 1) * 24 * 60 * 60 * 1000);
                     onChange({ label: p.label, days: p.d, start, end: now, preset: p.id });
                     setOpen(false);
                   }}
@@ -1381,9 +1383,15 @@ export function seriesDelta(series, key, range) {
 // cached per (Endpoint, Kunde, Tage) — SWR über rangeStore, Filterwechsel sind
 // nach dem ersten Laden instant. days=null deaktiviert (z. B. Custom-Zeitraum
 // in der Vergangenheit → Snapshot-Fallback bleibt maßgeblich).
-export function useLiveGa4(clientId, endpoint, days) {
-  const d = days ? Math.min(90, Math.max(1, Math.round(days))) : null;
-  return useRangeData(clientId && d ? `ga4:${endpoint}:${clientId}:${d}` : null, async () => {
+// Zeitraum-Vereinheitlichung (13.09.2026): `range` ist entweder eine Tageszahl
+// (letzte N Tage, inklusive) oder ein exakter { startDate, endDate } —
+// historische eigene Zeitraeume werden damit EXAKT live abgefragt statt auf
+// den naechstliegenden Snapshot zurueckzufallen.
+export function useLiveGa4(clientId, endpoint, range) {
+  const exakt = range && typeof range === "object" && range.startDate && range.endDate;
+  const d = !exakt && range ? Math.min(90, Math.max(1, Math.round(range))) : null;
+  const key = exakt ? `${range.startDate}..${range.endDate}` : d;
+  return useRangeData(clientId && key ? `ga4:${endpoint}:${clientId}:${key}` : null, async () => {
     const session = (await supabase.auth.getSession()).data.session;
     const r = await authedFetch(`/api/google/${endpoint}`, {
       method: "POST",
@@ -1391,20 +1399,34 @@ export function useLiveGa4(clientId, endpoint, days) {
         Authorization: `Bearer ${session?.access_token || ""}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ clientId, days: d, persist: false }),
+      body: JSON.stringify(
+        exakt
+          ? { clientId, startDate: range.startDate, endDate: range.endDate, persist: false }
+          : { clientId, days: d, persist: false },
+      ),
     });
     const j = await r.json().catch(() => null);
     return j?.ok ? j : null;
   });
 }
 
-// Live-Zeitraum nur, wenn das Fenster "bis heute" reicht — ein Custom-Zeitraum,
-// der in der Vergangenheit endet, lässt sich über die days-APIs nicht abbilden.
-export const liveDaysFor = (dateRange) => {
-  if (!dateRange?.days) return 30;
-  const end = dateRange.end ? new Date(dateRange.end).getTime() : Date.now();
-  return Date.now() - end < 54e6 /* ~15h Toleranz */ ? dateRange.days : null;
+// Live-Zeitraum (13.09.2026): IMMER der exakte, inklusive Kalendertag-Bereich
+// des gewaehlten Zeitraums (lokale Tage, kein UTC-Kipp) — Presets wie Custom,
+// auch historische. Max. 90 Tage (API-Grenze) → sonst null (Snapshot-Fallback).
+const tagLokal = (d) => {
+  const x = new Date(d);
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
 };
+export const liveRangeFor = (dateRange) => {
+  if (!dateRange?.start || !dateRange?.end) return dateRange?.days || 30;
+  const startDate = tagLokal(dateRange.start);
+  const endDate = tagLokal(dateRange.end);
+  const tage = Math.round((Date.parse(endDate) - Date.parse(startDate)) / 864e5) + 1;
+  if (tage < 1 || tage > 90) return null;
+  return { startDate, endDate };
+};
+/** @deprecated Name beibehalten fuer bestehende Aufrufer — liefert den exakten Range. */
+export const liveDaysFor = liveRangeFor;
 
 export function useGa4Compare(clientId, dateRange) {
   const [data, setData] = useState(null);

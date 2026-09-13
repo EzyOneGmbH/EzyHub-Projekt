@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { zeitraum, ga4DateRange } from "@/lib/date-range";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
@@ -134,7 +135,7 @@ export const Route = createFileRoute("/api/admin/ga4-conversions")({
             {
               method: "POST",
               body: JSON.stringify({
-                dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
+                dateRanges: [ga4DateRange(zeitraum({ days: 30 }))], // 13.09.: genau 30 Tage
                 dimensions: [{ name: "eventName" }],
                 metrics: [{ name: "keyEvents" }, { name: "eventValue" }, { name: "totalRevenue" }],
                 limit: 500,

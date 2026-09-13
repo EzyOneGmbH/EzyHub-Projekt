@@ -34,6 +34,19 @@ async function requireOwnerAdmin(
 const UUID_RE = /^[0-9a-f-]{36}$/i;
 const SB = supabaseAdmin as any;
 
+// Google-Verbindung (13.09.2026, Volkan): zaehlt NUR, wenn sie genau diesem
+// client_id zugeordnet ist. Datenabrufe (getGoogleAccessToken) laden das Token
+// ausschliesslich ueber client_id — eine Verbindung eines anderen Kunden oder
+// eine Zeile ohne client_id liefert diesem Kunden keine Daten und darf ihn
+// deshalb nicht als «verbunden» markieren (frueher: irgendeine Google-Zeile
+// der Organisation genuegte → alle Kunden erschienen verbunden).
+export function googleVerbunden(
+  rows: Array<{ provider?: string | null; client_id?: string | null }> | null | undefined,
+  clientId: string,
+): boolean {
+  return (rows ?? []).some((o) => o.provider === "google" && o.client_id === clientId);
+}
+
 // audit_types, deren letzter succeeded-Lauf fuer die Bewertung relevant ist
 // (Obermenge der in appRequirements verwendeten Typen).
 const RUN_TYPES = [
@@ -71,7 +84,7 @@ async function buildSnapshot(
     SB.from("oauth_connections")
       .select("provider, client_id")
       .eq("organization_id", organizationId)
-      .or(`client_id.eq.${clientId},client_id.is.null`),
+      .eq("client_id", clientId),
     SB.from("client_access")
       .select("user_id, app_users!inner(role)")
       .eq("organization_id", organizationId)
@@ -101,7 +114,7 @@ async function buildSnapshot(
     appEnabled: appEnabled as any,
     services,
     oauth: {
-      google: (oauth.data ?? []).some((o: any) => o.provider === "google"),
+      google: googleVerbunden(oauth.data, clientId),
       wordpress: (oauth.data ?? []).some(
         (o: any) => o.provider === "wordpress" && o.client_id === clientId,
       ),
@@ -162,7 +175,6 @@ async function buildAlleReadiness(organizationId: string) {
   const integJe = je(integ.data, (r) => r.client_id);
   const viewerJe = je(viewer.data, (r) => r.client_id);
   const runsJe = je(runs.data, (r) => r.client_id);
-  const googleOrg = (oauth.data ?? []).some((o: any) => o.provider === "google");
   const wpJe = new Set(
     (oauth.data ?? []).filter((o: any) => o.provider === "wordpress").map((o: any) => o.client_id),
   );
@@ -179,7 +191,7 @@ async function buildAlleReadiness(organizationId: string) {
     const snapshot: ReadinessSnapshot = {
       appEnabled: appEnabled as any,
       services,
-      oauth: { google: googleOrg, wordpress: wpJe.has(client.id) },
+      oauth: { google: googleVerbunden(oauth.data, client.id), wordpress: wpJe.has(client.id) },
       felder: {
         gsc_property: client.gsc_property,
         ga4_property: client.ga4_property,

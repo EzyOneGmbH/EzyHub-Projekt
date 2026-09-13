@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { addDays } from "@/lib/date-range";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
@@ -183,10 +184,9 @@ async function jobMetrics(c: any) {
     // rowLimit = GSC-Maximum: bei grossen Properties (Studioforma) fielen
     // klickarme Blog-Seiten sonst hinter dem 5000er-Cut raus -> kein Keyword.
     try {
-      const start = new Date();
-      start.setDate(start.getDate() - 30);
+      // 13.09.2026: genau 30 inklusive Tage bis zum Referenztag (heute-3).
       const pq = await gApi(gscUrl, {
-        startDate: start.toISOString().slice(0, 10),
+        startDate: addDays(ref, -29),
         endDate: ref,
         dimensions: ["page", "query"],
         rowLimit: 25000,
@@ -312,9 +312,8 @@ async function jobBackfill(c: any, days: number) {
     return { error: "Google-Token: " + redactSecrets(e) };
   }
   const end = refDate(); // letzter vollstaendiger GSC-Tag
-  const startD = new Date();
-  startD.setDate(startD.getDate() - 3 - days);
-  const start = startD.toISOString().slice(0, 10);
+  // 13.09.2026: genau N inklusive Tage bis zum Referenztag (frueher N+1).
+  const start = addDays(end, -(days - 1));
   const gscUrl = `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(
     c.gsc_property,
   )}/searchAnalytics/query`;

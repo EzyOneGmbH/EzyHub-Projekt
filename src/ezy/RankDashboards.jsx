@@ -764,11 +764,14 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   const gscRes = liveGsc || gscRun?.result || null;
   const gsc = gscRes ? gscKpisFromResult(gscRes) : null;
   // Dashboard-Ausbau 2026-07-11: B1 Rankings (agent-service Rank-Store) + B2 GSC-Split.
-  const { run: rankRun, refresh: refreshRank } = useEzyLatestRun(
-    selectedClient?.id,
-    "rankings",
-    bis,
-  );
+  // Zeitraum-Vereinheitlichung (13.09.2026): Rankings sind Punkt-Snapshots —
+  // fuer historische Zeitraeume wird der Stand zum Zeitraum-Ende geliefert und
+  // als Naeherung GEKENNZEICHNET, wenn er vor dem Zeitraum-Anfang liegt.
+  const {
+    run: rankRun,
+    refresh: refreshRank,
+    naeherung: rankNaeherung,
+  } = useEzyLatestRun(selectedClient?.id, "rankings", bis, dateRange?.start || null);
   const rank = rankRun?.result || null;
   // Fenster-Delta (22.08., Volkan): Stand zu Zeitraum-BEGINN als Vergleich —
   // nur wenn ein früherer, ANDERER Lauf existiert (sonst kein Delta).
@@ -1365,7 +1368,24 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                   ? ` · ${rankCounts.dfs} getrackt + ${rankCounts.gsc} aus GSC`
                   : ""}
                 {" · Stand "}
-                {rank?.date || gscQ?.range?.to || "—"})
+                {rank?.date || gscQ?.range?.to || "—"}
+                {/* 13.09.2026: Messkontext + Naeherung/Kuerzung sichtbar machen. */}
+                {!istKunde && rank?.measurement?.method
+                  ? ` · ${
+                      rank.measurement.method === "crawl"
+                        ? "SERP-Crawl"
+                        : rank.measurement.method === "gsc"
+                          ? "GSC-Ø"
+                          : "Crawl+GSC"
+                    }${rank.measurement.crawlLocation ? ` ${rank.measurement.crawlLocation.split(",")[0]}` : ""}`
+                  : ""}
+                {rankNaeherung && !rankNaeherung.exakt
+                  ? ` · Näherung: letzter Messstand vor dem gewählten Zeitraum`
+                  : ""}
+                {gscQ?.coverage?.truncated
+                  ? ` · GSC-Suchanfragen gekürzt (${gscQ.coverage.rows} Zeilen)`
+                  : ""}
+                )
                 {rankFilter && (
                   <span
                     onClick={() => toggleRankFilter(rankFilter)}

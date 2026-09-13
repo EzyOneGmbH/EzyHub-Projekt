@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
+import { zeitraum, ga4DateRange } from "@/lib/date-range";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
@@ -9,6 +10,15 @@ import { isProviderEnabled, canRunAudits } from "@/server/integrations.server";
 const Body = z.object({
   clientId: z.string().uuid(),
   days: z.number().int().min(1).max(90).default(28),
+  // Exakter, inklusiver Zeitraum (13.09.2026): hat Vorrang vor days.
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  endDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
   // Datumsfilter-Abfragen (2026-08-10): persist:false liest nur — kein
   // audit_runs-Insert, damit Filterwechsel die Agent-Snapshots nicht ersetzen.
   persist: z.boolean().default(true),
@@ -62,7 +72,22 @@ export const Route = createFileRoute("/api/google/ga4-summary")({
           const { accessToken } = await getGoogleAccessToken(client.id);
           const propertyId = client.ga4_property.replace(/^properties\//, "");
           const base = `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`;
-          const dateRanges = [{ startDate: `${parsed.data.days}daysAgo`, endDate: "today" }];
+          // 13.09.2026: explizite, inklusive Daten ("NdaysAgo".."today" waren N+1 Tage).
+          let zr;
+          try {
+            zr = zeitraum({
+              days: parsed.data.days,
+              startDate: parsed.data.startDate,
+              endDate: parsed.data.endDate,
+              maxDays: 90,
+            });
+          } catch (e) {
+            return Response.json(
+              { ok: false, error: e instanceof Error ? e.message : String(e) },
+              { status: 400 },
+            );
+          }
+          const dateRanges = [ga4DateRange(zr)];
           const callGa4 = async (reqBody: unknown) => {
             const r = await fetch(base, {
               method: "POST",
@@ -134,7 +159,12 @@ export const Route = createFileRoute("/api/google/ga4-summary")({
             /* trend optional */
           }
 
-          const result = { days: parsed.data.days, metrics, series };
+          const result = {
+            days: zr.days,
+            range: { from: zr.startDate, to: zr.endDate },
+            metrics,
+            series,
+          };
           try {
             if (parsed.data.persist)
               await supabaseAdmin.from("audit_runs").insert({
@@ -143,7 +173,7 @@ export const Route = createFileRoute("/api/google/ga4-summary")({
                 triggered_by: user.id,
                 audit_type: "ga4_summary",
                 status: "succeeded",
-                input: { days: parsed.data.days },
+                input: { days: zr.days, range: { from: zr.startDate, to: zr.endDate } },
                 result: result as any,
                 started_at: new Date().toISOString(),
                 finished_at: new Date().toISOString(),

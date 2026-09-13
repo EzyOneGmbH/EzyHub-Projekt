@@ -5,6 +5,8 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "./google-tokens.server";
 import { redactSecrets } from "./google-oauth.server";
 import { canonryUrl } from "@/lib/canonry-url";
+import { zeitraum, ga4DateRange } from "@/lib/date-range";
+import { gscRows, GSC_END_LAG_DAYS } from "./gsc.server";
 
 async function assertOrgAdmin(userId: string, clientId: string) {
   const { data: client } = await supabaseAdmin
@@ -33,6 +35,14 @@ export const gscKeywordImport = createServerFn({ method: "POST" })
       .object({
         clientId: z.string().uuid(),
         days: z.number().int().min(1).max(90).default(28),
+        startDate: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
+        endDate: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
         rowLimit: z.number().int().min(1).max(25000).default(1000),
       })
       .parse(d),
@@ -52,43 +62,24 @@ export const gscKeywordImport = createServerFn({ method: "POST" })
 
       const { accessToken } = await getGoogleAccessToken(client.id);
 
-      const end = new Date();
-      const start = new Date(end);
-      start.setDate(end.getDate() - data.days);
-      const fmt = (d: Date) => d.toISOString().slice(0, 10);
-
-      const url = `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(
-        client.gsc_property,
-      )}/searchAnalytics/query`;
-
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          startDate: fmt(start),
-          endDate: fmt(end),
-          dimensions: ["query"],
-          rowLimit: data.rowLimit,
-          orderBy: [{ field: "clicks", descending: true }],
-        }),
+      // Zeitraum-Vereinheitlichung (13.09.2026): genau N inklusive Tage bis
+      // heute-3 (GSC-Puffer) bzw. exakter Range; Zeilen paginiert.
+      const zr = zeitraum({
+        days: data.days,
+        startDate: data.startDate,
+        endDate: data.endDate,
+        endLagDays: GSC_END_LAG_DAYS,
+        maxDays: 90,
       });
-      if (!res.ok) {
-        const t = await res.text().catch(() => "");
-        return { ok: false, error: redactSecrets(`GSC HTTP ${res.status}: ${t}`) };
-      }
-      const json = (await res.json()) as {
-        rows?: Array<{
-          keys: string[];
-          clicks: number;
-          impressions: number;
-          ctr: number;
-          position: number;
-        }>;
-      };
-      const rows = json.rows ?? [];
+      const { rows, coverage } = await gscRows({
+        site: client.gsc_property,
+        accessToken,
+        startDate: zr.startDate,
+        endDate: zr.endDate,
+        dimensions: ["query"],
+        rowLimit: data.rowLimit,
+        orderBy: [{ field: "clicks", descending: true }],
+      });
       const keywords = rows.map((r) => ({
         query: r.keys[0],
         clicks: r.clicks,
@@ -143,6 +134,8 @@ export const gscKeywordImport = createServerFn({ method: "POST" })
       return {
         ok: true,
         imported: keywords.length,
+        range: { from: zr.startDate, to: zr.endDate },
+        coverage,
         sample: keywords.slice(0, 10),
         canonry: canonryStatus,
       };
@@ -161,6 +154,14 @@ export const ga4Summary = createServerFn({ method: "POST" })
       .object({
         clientId: z.string().uuid(),
         days: z.number().int().min(1).max(90).default(28),
+        startDate: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
+        endDate: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
       })
       .parse(d),
   )
@@ -193,7 +194,17 @@ export const ga4Summary = createServerFn({ method: "POST" })
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          dateRanges: [{ startDate: `${data.days}daysAgo`, endDate: "today" }],
+          // 13.09.2026: explizite, inklusive Daten ("NdaysAgo".."today" waren N+1 Tage).
+          dateRanges: [
+            ga4DateRange(
+              zeitraum({
+                days: data.days,
+                startDate: data.startDate,
+                endDate: data.endDate,
+                maxDays: 90,
+              }),
+            ),
+          ],
           metrics: [
             { name: "sessions" },
             { name: "totalUsers" },

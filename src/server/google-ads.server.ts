@@ -1,4 +1,5 @@
 import { getGoogleAccessToken } from "./google-tokens.server";
+import { zeitraum, vorperiode, istYmd, gaqlBetween, type Zeitraum } from "@/lib/date-range";
 
 // Shared Google Ads data fetch used by both the live route (/api/google/ads-data)
 // and the batch job (admin.populate jobGoogleAds), so the persisted snapshot
@@ -20,6 +21,9 @@ export type AdsCampaign = {
 
 export type AdsSnapshot = {
   days: number;
+  /** Exakter, inklusiver Zeitraum (13.09.2026) */
+  range: { from: string; to: string };
+  prevRange: { from: string; to: string };
   totals: {
     cost: number;
     clicks: number;
@@ -54,7 +58,28 @@ export type AdsSnapshot = {
   error: string | null;
 };
 
-const fmt = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, "");
+/** Zeitraum-Eingabe: «letzte N Tage» (inklusive, endet heute) oder exakter Range. */
+export type AdsZeitraum = number | { startDate: string; endDate: string };
+
+/**
+ * Aktuelles Fenster + Vergleichsfenster (13.09.2026, pure, vitest-gedeckt):
+ * beide exakt und inklusiv, gleich lang, nahtlos — frueher war das aktuelle
+ * Fenster [heute-N, heute] = N+1 Tage, das Vergleichsfenster N Tage.
+ */
+export function adsFenster(
+  range: AdsZeitraum,
+  compareRange?: { start?: string | null; end?: string | null } | null,
+): { aktuell: Zeitraum; vorher: Zeitraum } {
+  const aktuell =
+    typeof range === "number"
+      ? zeitraum({ days: range, maxDays: 366 })
+      : zeitraum({ startDate: range.startDate, endDate: range.endDate, maxDays: 366 });
+  const vorher =
+    compareRange && istYmd(compareRange.start) && istYmd(compareRange.end)
+      ? zeitraum({ startDate: compareRange.start, endDate: compareRange.end, maxDays: 366 })
+      : vorperiode(aktuell);
+  return { aktuell, vorher };
+}
 
 /**
  * Pull a full Google Ads snapshot for a client.
@@ -63,7 +88,7 @@ const fmt = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, "");
 export async function fetchAdsSnapshot(
   clientId: string,
   googleAdsCustomer: string | null | undefined,
-  days: number,
+  range: AdsZeitraum,
   compareRange?: { start: string; end: string } | null,
 ): Promise<{ ok: boolean; result?: AdsSnapshot; error?: string; skipped?: string }> {
   const devToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
@@ -80,26 +105,14 @@ export async function fetchAdsSnapshot(
     return { ok: false, skipped: "kein Google-Token" };
   }
 
-  // Date windows: current [today-days, today]; previous = explicit compareRange
-  // (Vormonat/Vorjahr) if given, else the equal-length window immediately before.
-  const today = new Date();
-  const startDate = new Date(today);
-  startDate.setDate(startDate.getDate() - days);
-  let prevStart: Date;
-  let prevEnd: Date;
-  if (compareRange?.start && compareRange?.end) {
-    prevStart = new Date(compareRange.start);
-    prevEnd = new Date(compareRange.end);
-  } else {
-    prevEnd = new Date(startDate);
-    prevEnd.setDate(prevEnd.getDate() - 1);
-    prevStart = new Date(prevEnd);
-    prevStart.setDate(prevStart.getDate() - (days - 1));
-  }
-  const dateFrom = fmt(startDate);
-  const dateTo = fmt(today);
-  const prevFrom = fmt(prevStart);
-  const prevTo = fmt(prevEnd);
+  // Zeitfenster (13.09.2026): exakt, inklusiv, gleich lang (siehe adsFenster).
+  const { aktuell, vorher } = adsFenster(range, compareRange);
+  const days = aktuell.days;
+  const dateFrom = aktuell.startDate;
+  const dateTo = aktuell.endDate;
+  const prevFrom = vorher.startDate;
+  const prevTo = vorher.endDate;
+  void gaqlBetween;
 
   let firstError: string | null = null;
   const query = async (gaql: string): Promise<Array<{ results?: Array<any> }>> => {
@@ -236,6 +249,8 @@ export async function fetchAdsSnapshot(
 
   const result: AdsSnapshot = {
     days,
+    range: { from: dateFrom, to: dateTo },
+    prevRange: { from: prevFrom, to: prevTo },
     totals,
     ctr: totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0,
     cpc: totals.clicks > 0 ? totals.cost / totals.clicks : 0,

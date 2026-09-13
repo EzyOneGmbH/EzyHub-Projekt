@@ -6,10 +6,22 @@ import { getGoogleAccessToken } from "@/server/google-tokens.server";
 import { redactSecrets } from "@/server/google-oauth.server";
 import { canonryUrl } from "@/lib/canonry-url";
 import { isProviderEnabled, canRunAudits } from "@/server/integrations.server";
+import { zeitraum } from "@/lib/date-range";
+import { gscTotals, gscRows, GscFehler, GSC_END_LAG_DAYS } from "@/server/gsc.server";
 
 const Body = z.object({
   clientId: z.string().uuid(),
   days: z.number().int().min(1).max(90).default(28),
+  // Exakter, inklusiver Zeitraum (13.09.2026): hat Vorrang vor days. Ohne
+  // Range gilt «letzte N Tage» bis heute-3 (GSC-Datenpuffer, wie populate).
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  endDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
   // Datumsfilter-Abfragen (2026-08-11): persist:false liest nur — kein
   // Canonry-Push, kein audit_runs-Insert (Agent-Snapshots bleiben unberührt).
   persist: z.boolean().default(true),
@@ -108,41 +120,50 @@ export const Route = createFileRoute("/api/google/gsc-import")({
             );
 
           const { accessToken } = await getGoogleAccessToken(client.id);
-          const end = new Date();
-          const start = new Date(end);
-          start.setDate(end.getDate() - parsed.data.days);
-          const fmt = (d: Date) => d.toISOString().slice(0, 10);
-
-          const url = `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(client.gsc_property)}/searchAnalytics/query`;
-          const res = await fetch(url, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              startDate: fmt(start),
-              endDate: fmt(end),
+          // Zeitraum-Vereinheitlichung (13.09.2026): exakt + inklusiv; days-
+          // Modus = genau N Tage bis heute-3 (frueher N+1 Tage bis heute).
+          let zr;
+          try {
+            zr = zeitraum({
+              days: parsed.data.days,
+              startDate: parsed.data.startDate,
+              endDate: parsed.data.endDate,
+              endLagDays: GSC_END_LAG_DAYS,
+              maxDays: 90,
+            });
+          } catch (e) {
+            return Response.json(
+              { ok: false, error: e instanceof Error ? e.message : String(e) },
+              { status: 400 },
+            );
+          }
+          // Gesamttotale aus der Aggregat-Abfrage (ohne Dimension); Query-
+          // Zeilen separat (paginiert) mit Coverage-Kennzeichnung.
+          const basis = {
+            site: client.gsc_property,
+            accessToken,
+            startDate: zr.startDate,
+            endDate: zr.endDate,
+          };
+          let totals;
+          let rowsRes;
+          try {
+            totals = await gscTotals(basis);
+            rowsRes = await gscRows({
+              ...basis,
               dimensions: ["query"],
               rowLimit: parsed.data.rowLimit,
               orderBy: [{ field: "clicks", descending: true }],
-            }),
-          });
-          if (!res.ok) {
-            const t = await res.text().catch(() => "");
+              totals,
+            });
+          } catch (e) {
             const error =
-              res.status === 403
-                ? await diagnoseGsc403(accessToken, client.gsc_property, t)
-                : redactSecrets(`GSC HTTP ${res.status}: ${t}`);
+              e instanceof GscFehler && e.status === 403
+                ? await diagnoseGsc403(accessToken, client.gsc_property, e.body)
+                : redactSecrets(e);
             return Response.json({ ok: false, error });
           }
-          const json = (await res.json()) as {
-            rows?: Array<{
-              keys: string[];
-              clicks: number;
-              impressions: number;
-              ctr: number;
-              position: number;
-            }>;
-          };
-          const keywords = (json.rows ?? []).map((r) => ({
+          const keywords = rowsRes.rows.map((r) => ({
             query: r.keys[0],
             clicks: r.clicks,
             impressions: r.impressions,
@@ -194,23 +215,17 @@ export const Route = createFileRoute("/api/google/gsc-import")({
             }
           }
           // Persist a GSC summary so the SEO dashboard can read totals + top queries.
-          const totals = keywords.reduce(
-            (a, k) => {
-              a.clicks += k.clicks || 0;
-              a.impressions += k.impressions || 0;
-              a.posSum += (k.position || 0) * (k.impressions || 0);
-              return a;
-            },
-            { clicks: 0, impressions: 0, posSum: 0 },
-          );
           const gscSummary = {
-            days: parsed.data.days,
+            days: zr.days,
+            range: { from: zr.startDate, to: zr.endDate },
             metrics: {
               clicks: totals.clicks,
               impressions: totals.impressions,
-              ctr: totals.impressions > 0 ? totals.clicks / totals.impressions : 0,
-              position: totals.impressions > 0 ? totals.posSum / totals.impressions : 0,
+              ctr: totals.ctr,
+              position: totals.position,
+              quelle: totals.quelle,
             },
+            coverage: rowsRes.coverage,
             topQueries: keywords.slice(0, 25),
           };
           try {
@@ -221,7 +236,7 @@ export const Route = createFileRoute("/api/google/gsc-import")({
                 triggered_by: user.id,
                 audit_type: "gsc_summary",
                 status: "succeeded",
-                input: { days: parsed.data.days },
+                input: { days: zr.days, range: gscSummary.range },
                 result: gscSummary as never,
                 started_at: new Date().toISOString(),
                 finished_at: new Date().toISOString(),

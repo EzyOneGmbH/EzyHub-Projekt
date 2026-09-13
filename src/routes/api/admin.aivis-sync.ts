@@ -1,5 +1,6 @@
 // redeploy-marker: aivis v2 (Semrush-Diagnose, isolierter Worktree) — 2026-07-06d
 import { createFileRoute } from "@tanstack/react-router";
+import { zeitraum, ga4DateRange } from "@/lib/date-range";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
@@ -1271,7 +1272,7 @@ async function jobAttribution(c: any) {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
+          dateRanges: [ga4DateRange(zeitraum({ days: 30 }))], // 13.09.: genau 30 Tage
           // country zusätzlich: liefert die Besucher-Herkunft je Engine
           // (Totale werden hier selbst aufsummiert — sessions/keyEvents sind additiv).
           // channelGroup für den Bing-Sonderfall (organische Bing-Suche ≠ Copilot).
@@ -1390,7 +1391,7 @@ async function jobAttribution(c: any) {
             method: "POST",
             headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
             body: JSON.stringify({
-              dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
+              dateRanges: [ga4DateRange(zeitraum({ days: 30 }))], // 13.09.: genau 30 Tage
               dimensions: dims(withCustom),
               metrics: [{ name: "keyEvents" }, { name: "eventValue" }, { name: "totalRevenue" }],
               limit: 5000,
@@ -5603,9 +5604,8 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
           if (!c.gsc_property) return Response.json({ ok: false, reason: "kein gsc_property" });
           try {
             const { accessToken } = await getGoogleAccessToken(c.id);
-            const end = new Date(Date.now() - 3 * 864e5);
-            const start = new Date(end.getTime() - days * 864e5);
-            const fmt = (d: Date) => d.toISOString().slice(0, 10);
+            // 13.09.2026: genau N inklusive Tage bis heute-3 (frueher N+1).
+            const zr = zeitraum({ days, endLagDays: 3, maxDays: 28 });
             const gr = await fetch(
               `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(c.gsc_property)}/searchAnalytics/query`,
               {
@@ -5615,8 +5615,8 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                   "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
-                  startDate: fmt(start),
-                  endDate: fmt(end),
+                  startDate: zr.startDate,
+                  endDate: zr.endDate,
                   dimensions: ["query"],
                   rowLimit: 5000,
                   ...(country && country !== "all"
@@ -5650,7 +5650,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               client: c.name,
               days,
               country,
-              range: { from: fmt(start), to: fmt(end) },
+              range: { from: zr.startDate, to: zr.endDate },
               rows,
             });
           } catch (e) {

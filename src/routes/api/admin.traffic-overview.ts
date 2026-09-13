@@ -2,6 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
+import { zeitraum, zeitraumAusParams } from "@/lib/date-range";
+import { gscTotals, gscRows, GSC_END_LAG_DAYS } from "@/server/gsc.server";
 
 // Traffic (05.08.2026, Searchable-Nachbau "Traffic"): der Gesamt-Traffic-Blick
 // als Ergänzung zu LLM Analytics (das nur die KI-Hälfte zeigt).
@@ -46,19 +48,25 @@ export const Route = createFileRoute("/api/admin/traffic-overview")({
         if (acc instanceof Response) return acc;
         const u = new URL(request.url);
         const clientId = u.searchParams.get("client") || "";
-        const days = Math.min(365, Math.max(1, Number(u.searchParams.get("days")) || 30));
-        // Eigene Zeiträume (18.08., Range-Vereinheitlichung): exakte Daten
-        // statt "letzte N Tage" — GA4 und GSC nehmen YYYY-MM-DD direkt.
-        const qsStart = u.searchParams.get("start");
-        const qsEnd = u.searchParams.get("end");
-        const isDayStr = (s: string | null): s is string => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
-        const useExact =
-          isDayStr(qsStart) &&
-          isDayStr(qsEnd) &&
-          qsStart <= qsEnd &&
-          (Date.parse(qsEnd) - Date.parse(qsStart)) / 864e5 <= 366;
-        const startDate = useExact ? (qsStart as string) : `${days}daysAgo`;
-        const endDate = useExact ? (qsEnd as string) : "today";
+        // Zeitraum-Vereinheitlichung (13.09.2026): start/end (oder startDate/
+        // endDate) exakt und inklusiv; sonst «letzte N Tage» = genau N Tage
+        // bis heute (frueher N+1). GSC im days-Modus mit 3-Tage-Puffer (wie
+        // populate), bei exaktem Range ohne Puffer. Ungueltig → 400.
+        let zr;
+        let zrGsc;
+        try {
+          zr = zeitraumAusParams(u.searchParams, { defaultDays: 30, maxDays: 366 });
+          zrGsc =
+            zr.quelle === "custom"
+              ? zr
+              : zeitraum({ days: zr.days, endLagDays: GSC_END_LAG_DAYS, maxDays: 366 });
+        } catch (e) {
+          return Response.json(
+            { ok: false, error: e instanceof Error ? e.message : String(e) },
+            { status: 400 },
+          );
+        }
+        const { startDate, endDate, days } = zr;
         if (!/^[0-9a-f-]{36}$/i.test(clientId))
           return Response.json({ ok: false, error: "client (uuid) erforderlich" }, { status: 400 });
         const sb = acc.userClient ?? (supabaseAdmin as any);
@@ -84,7 +92,14 @@ export const Route = createFileRoute("/api/admin/traffic-overview")({
           });
         }
 
-        const out: any = { ok: true, ga4: false, gsc: false, days };
+        const out: any = {
+          ok: true,
+          ga4: false,
+          gsc: false,
+          days,
+          range: { from: startDate, to: endDate },
+          gscRange: { from: zrGsc.startDate, to: zrGsc.endDate },
+        };
 
         // ── GA4: Kanäle je Tag + Engagement je Quelle ───────────────────────
         if (client.ga4_property) {
@@ -201,28 +216,27 @@ export const Route = createFileRoute("/api/admin/traffic-overview")({
         // ── GSC: Klicks/Impressionen je Tag + Top-Queries (Quadranten-Matrix) ─
         if (client.gsc_property) {
           try {
-            const site = String(client.gsc_property);
-            const end = useExact ? (qsEnd as string) : new Date().toISOString().slice(0, 10);
-            const start = useExact
-              ? (qsStart as string)
-              : new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
-            const gscQuery = (body: any) =>
-              fetch(
-                `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(site)}/searchAnalytics/query`,
-                {
-                  method: "POST",
-                  headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-                  body: JSON.stringify({ startDate: start, endDate: end, ...body }),
-                  signal: AbortSignal.timeout(25_000),
-                },
-              );
-            const [r, rq] = await Promise.all([
-              gscQuery({ dimensions: ["date"], rowLimit: 500 }),
-              gscQuery({ dimensions: ["query"], rowLimit: 250 }),
+            // 13.09.2026: Totale aus der Aggregat-Abfrage (ohne Dimension),
+            // Tagesreihe und Query-Zeilen separat, Coverage gekennzeichnet.
+            const basis = {
+              site: String(client.gsc_property),
+              accessToken: token,
+              startDate: zrGsc.startDate,
+              endDate: zrGsc.endDate,
+              timeoutMs: 25_000,
+            };
+            const [totals, tage, queries] = await Promise.all([
+              gscTotals(basis),
+              gscRows({ ...basis, dimensions: ["date"], rowLimit: 1000 }),
+              gscRows({
+                ...basis,
+                dimensions: ["query"],
+                rowLimit: 250,
+                orderBy: [{ field: "impressions", descending: true }],
+              }).catch(() => null),
             ]);
-            if (rq.ok) {
-              const jq: any = await rq.json().catch(() => ({}));
-              out.queries = (jq.rows ?? [])
+            if (queries) {
+              out.queries = queries.rows
                 .map((row: any) => ({
                   query: String(row.keys?.[0] ?? ""),
                   clicks: Number(row.clicks ?? 0),
@@ -232,34 +246,38 @@ export const Route = createFileRoute("/api/admin/traffic-overview")({
                 .filter((q: any) => q.query)
                 .sort((a: any, b: any) => b.impressions - a.impressions)
                 .slice(0, 150);
+              out.queriesCoverage = {
+                ...queries.coverage,
+                clicksAnteil:
+                  totals.clicks > 0
+                    ? Math.round(
+                        (queries.rows.reduce((a: number, r: any) => a + Number(r.clicks || 0), 0) /
+                          totals.clicks) *
+                          1000,
+                      ) / 1000
+                    : null,
+              };
             }
-            if (r.ok) {
-              const j: any = await r.json().catch(() => ({}));
-              const rows = (j.rows ?? [])
-                .map((row: any) => ({
-                  date: String(row.keys?.[0] ?? ""),
-                  clicks: Number(row.clicks ?? 0),
-                  impressions: Number(row.impressions ?? 0),
-                  ctr: Math.round(Number(row.ctr ?? 0) * 1000) / 10,
-                  position: Math.round(Number(row.position ?? 0) * 10) / 10,
-                }))
-                .sort((a: any, b: any) => a.date.localeCompare(b.date));
-              if (rows.length) {
-                const clicks = rows.reduce((a: number, x: any) => a + x.clicks, 0);
-                const imps = rows.reduce((a: number, x: any) => a + x.impressions, 0);
-                const posW = rows.reduce((a: number, x: any) => a + x.position * x.impressions, 0);
-                out.gsc = true;
-                out.search = {
-                  timeseries: rows,
-                  totals: {
-                    clicks,
-                    impressions: imps,
-                    ctr: imps ? Math.round((clicks / imps) * 1000) / 10 : 0,
-                    position: imps ? Math.round((posW / imps) * 10) / 10 : 0,
-                  },
-                };
-              }
-            }
+            const rows = tage.rows
+              .map((row: any) => ({
+                date: String(row.keys?.[0] ?? ""),
+                clicks: Number(row.clicks ?? 0),
+                impressions: Number(row.impressions ?? 0),
+                ctr: Math.round(Number(row.ctr ?? 0) * 1000) / 10,
+                position: Math.round(Number(row.position ?? 0) * 10) / 10,
+              }))
+              .sort((a: any, b: any) => a.date.localeCompare(b.date));
+            out.gsc = true;
+            out.search = {
+              timeseries: rows,
+              totals: {
+                clicks: totals.clicks,
+                impressions: totals.impressions,
+                ctr: Math.round(totals.ctr * 1000) / 10,
+                position: Math.round(totals.position * 10) / 10,
+                quelle: totals.quelle,
+              },
+            };
           } catch {
             /* GSC optional */
           }
