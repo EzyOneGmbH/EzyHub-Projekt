@@ -363,3 +363,105 @@ describe("Browser: authedFetch", () => {
     expect(aussen[3].headers["x-ezy-active-org"]).toBeUndefined();
   });
 });
+
+// Multi-Org abschliessen (13.09.2026): Browser-Aufrufstellen Ende-zu-Ende —
+// authedFetch/ezyFetch → ECHTE Route-Handler. Nutzer multi-ab (Admin in A,
+// Member in B) wechselt die aktive Organisation; jeder relevante Admin-Aufruf
+// (Readiness wie im ServicesPanel, Audit-Log, Team) traegt die aktive Org und
+// wird exakt in DIESER Org bewertet.
+describe("Browser → Server: Admin-Aufrufe senden die aktive Organisation (multi-ab)", () => {
+  const dispatch = async (input: any, init: any = {}) => {
+    const url = new URL(String(input), "http://test");
+    // Aufrufe der Handler an Fremdsysteme (agent-service, Live-Checks) laufen
+    // ueber denselben fetch — sie sind keine Browser-Aufrufe und werden nicht
+    // aufgezeichnet, sondern wie bisher mit 200 beantwortet.
+    if (!url.pathname.startsWith("/api/"))
+      return new Response(JSON.stringify({ ok: true, runs: [], status: "ok" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    const request = new Request(url.toString(), init);
+    const h: Record<string, string> = {};
+    request.headers.forEach((v, k) => (h[k] = v));
+    aussen.push({ url: url.pathname, headers: h });
+    const method = (init.method || "GET").toUpperCase();
+    if (url.pathname === "/api/admin/client-readiness") return readiness.GET({ request });
+    if (url.pathname === "/api/admin/audit-log") return audit.GET({ request });
+    if (url.pathname === "/api/admin/team" && method === "POST") return team.POST({ request });
+    if (url.pathname === "/api/agent/runs") return runs.GET({ request });
+    return new Response("not found", { status: 404 });
+  };
+
+  async function browser(org: string | null) {
+    const store = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    });
+    // Session-Token = User-ID (siehe createClient-Double oben).
+    vi.doMock("@/integrations/supabase/client", () => ({
+      supabase: {
+        auth: { getSession: async () => ({ data: { session: { access_token: "multi-ab" } } }) },
+      },
+    }));
+    vi.resetModules();
+    const { speichereAktiveOrg } = await import("../lib/active-org");
+    speichereAktiveOrg(org);
+    const { authedFetch } = await import("../lib/authed-fetch");
+    const { ezyFetch } = await import("../ezy/data/api");
+    vi.stubGlobal("fetch", dispatch);
+    return { authedFetch, ezyFetch };
+  }
+
+  const ADMIN_AUFRUFE = (clientId: string) => [
+    { name: "ServicesPanel Readiness", pfad: `/api/admin/client-readiness?client=${clientId}` },
+    { name: "Kundenliste Readiness", pfad: "/api/admin/client-readiness?all=1" },
+    { name: "Audit-Log", pfad: `/api/admin/audit-log?client=${clientId}&limit=80` },
+  ];
+
+  it("aktive Org A (Admin): jeder Admin-Aufruf traegt X-Ezy-Active-Org=A und ist erlaubt", async () => {
+    const { authedFetch, ezyFetch } = await browser(ORG_A);
+    aussen.length = 0;
+    for (const a of ADMIN_AUFRUFE(KUNDE_A)) {
+      const r = await authedFetch(a.pfad);
+      expect({ name: a.name, status: r.status }).toEqual({ name: a.name, status: 200 });
+    }
+    const t = await ezyFetch("/api/admin/team", {
+      method: "POST",
+      body: JSON.stringify({ action: "list" }),
+    });
+    expect(t.status).toBe(200);
+    for (const call of aussen) {
+      expect(call.headers["x-ezy-active-org"]).toBe(ORG_A);
+      expect(call.headers.authorization).toBe("Bearer multi-ab");
+    }
+    expect(aussen.length).toBe(ADMIN_AUFRUFE(KUNDE_A).length + 1);
+  });
+
+  it("Wechsel auf Org B (Member): dieselben Aufrufe tragen B und werden mit 403 abgewiesen", async () => {
+    const { authedFetch, ezyFetch } = await browser(ORG_B);
+    aussen.length = 0;
+    for (const a of ADMIN_AUFRUFE(KUNDE_B)) {
+      const r = await authedFetch(a.pfad);
+      expect({ name: a.name, status: r.status }).toEqual({ name: a.name, status: 403 });
+    }
+    const t = await ezyFetch("/api/admin/team", {
+      method: "POST",
+      body: JSON.stringify({ action: "list" }),
+    });
+    expect(t.status).toBe(403);
+    // Member-Route bleibt in B erlaubt — die Org kommt an, nur die Rolle greift.
+    const m = await ezyFetch("/api/agent/runs");
+    expect(nichtGesperrt(m.status)).toBe(true);
+    for (const call of aussen) expect(call.headers["x-ezy-active-org"]).toBe(ORG_B);
+  });
+
+  it("ohne gewaehlte Org: 409 (mehrdeutig) statt stillschweigend eine Org", async () => {
+    const { authedFetch } = await browser(null);
+    aussen.length = 0;
+    const r = await authedFetch("/api/admin/client-readiness?all=1");
+    expect(r.status).toBe(409);
+    expect(aussen[0].headers["x-ezy-active-org"]).toBeUndefined();
+  });
+});

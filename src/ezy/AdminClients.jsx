@@ -588,7 +588,7 @@ export function OnboardingWizard({
     setGBusy(true);
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const res = await fetch(
+      const res = await authedFetch(
         `/api/google/oauth/start?client_id=${encodeURIComponent(created.id)}`,
         {
           headers: { Authorization: `Bearer ${session?.access_token || ""}` },
@@ -1743,7 +1743,7 @@ export function ClientAuditLogPanel({ client }) {
     let alive = true;
     (async () => {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const r = await fetch(
+      const r = await authedFetch(
         `/api/admin/audit-log?client=${encodeURIComponent(client.id)}&limit=80`,
         {
           headers: { Authorization: `Bearer ${token || ""}` },
@@ -3059,7 +3059,7 @@ export function ConversionValuesPanel({ client }) {
     setState((s) => ({ ...s, loading: true, error: "" }));
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const r = await fetch(
+      const r = await authedFetch(
         `/api/admin/ga4-conversions?client=${encodeURIComponent(clientIdStabil)}`,
         {
           headers: { Authorization: `Bearer ${session?.access_token || ""}` },

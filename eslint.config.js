@@ -72,5 +72,40 @@ export default tseslint.config(
       "no-empty": ["error", { allowEmptyCatch: true }],
     },
   },
+  // Multi-Org-Vertrag (13.09.2026): Browser-Code ruft eigene /api/*-Routen NUR
+  // ueber authedFetch (Bearer + X-Ezy-Active-Org). Ein direktes
+  // fetch("/api/...") wuerde die aktive Organisation verschweigen -> 409 bzw.
+  // Rolle einer falschen Org. Ausnahmen: der Helfer selbst, Server-Code
+  // (Routen, *.server.ts, MCP-Tools rufen Fremdsysteme) und bewusst
+  // oeffentliche Routen (signierter Report-Link). Ergaenzend prueft der
+  // statische Test src/lib/api-fetch-policy.test.ts auch variable URLs.
+  {
+    files: ["src/**/*.{ts,tsx,js,jsx}"],
+    ignores: [
+      "src/routes/api/**",
+      "src/**/*.server.ts",
+      "src/lib/authed-fetch.ts",
+      "src/lib/mcp/**",
+      "src/routes/r.$token.tsx",
+      "src/**/*.test.{ts,tsx}",
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "CallExpression[callee.name='fetch'][arguments.0.type='Literal'][arguments.0.value=/^\\/api\\//]",
+          message:
+            "Eigene /api-Routen nur ueber authedFetch aufrufen (sendet Bearer + X-Ezy-Active-Org).",
+        },
+        {
+          selector:
+            "CallExpression[callee.name='fetch'][arguments.0.type='TemplateLiteral'][arguments.0.quasis.0.value.raw=/^\\/api\\//]",
+          message:
+            "Eigene /api-Routen nur ueber authedFetch aufrufen (sendet Bearer + X-Ezy-Active-Org).",
+        },
+      ],
+    },
+  },
   eslintPluginPrettier,
 );

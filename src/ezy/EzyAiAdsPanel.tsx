@@ -121,7 +121,7 @@ export default function EzyAiAdsPanel({
     (async () => {
       try {
         const session = (await supabase.auth.getSession()).data.session;
-        const r = await fetch(
+        const r = await authedFetch(
           `/api/admin/openai-ads?client=${encodeURIComponent(clientId)}&start=${startKey}&end=${endKey}`,
           { headers: { Authorization: `Bearer ${session?.access_token || ""}` } },
         );

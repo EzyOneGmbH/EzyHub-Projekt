@@ -77,7 +77,7 @@ export default function WordPressPublishModal({
     (async () => {
       try {
         const session = (await supabase.auth.getSession()).data.session;
-        const r = await fetch(
+        const r = await authedFetch(
           `/api/wordpress/connection?clientId=${encodeURIComponent(clientId)}`,
           {
             headers: { Authorization: `Bearer ${session?.access_token || ""}` },

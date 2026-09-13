@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { authedFetch } from "@/lib/authed-fetch";
 
 const API_BASE_URL = (import.meta.env?.VITE_API_BASE_URL || "").replace(/\/$/, "");
 
@@ -17,9 +18,10 @@ export async function ezyAuthHeaders(): Promise<Record<string, string>> {
   }
 }
 
+// Multi-Org (13.09.2026): ezyFetch ist nur noch ein duenner Wrapper um
+// authedFetch — Bearer UND X-Ezy-Active-Org kommen aus EINER Quelle. Vorher
+// sendete ezyFetch keine aktive Organisation (Agenten, Tools, Ads-Autopilot,
+// Conversion-Scout liefen damit bei Mehrfach-Mitgliedschaft in 409/falsche Org).
 export async function ezyFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  const headers = new Headers(init.headers || {});
-  const auth = await ezyAuthHeaders();
-  for (const [k, v] of Object.entries(auth)) headers.set(k, v);
-  return fetch(ezyApiUrl(path), { ...init, headers });
+  return authedFetch(ezyApiUrl(path), init);
 }

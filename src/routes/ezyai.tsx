@@ -647,7 +647,7 @@ function LlmAnalyticsPanel({
     (async () => {
       try {
         const session = (await supabase.auth.getSession()).data.session;
-        const r = await fetch(
+        const r = await authedFetch(
           `/api/admin/llm-traffic?client=${encodeURIComponent(clientId)}&start=${startKey}&end=${endKey}`,
           {
             headers: { Authorization: `Bearer ${session?.access_token || ""}` },
@@ -695,7 +695,7 @@ function LlmAnalyticsPanel({
         let j: any = cached && Date.now() - cached.at < RANGE_TTL_MS ? cached.data : null;
         if (!j) {
           const session = (await supabase.auth.getSession()).data.session;
-          const r = await fetch(
+          const r = await authedFetch(
             `/api/admin/llm-traffic?client=${encodeURIComponent(clientId)}&start=${cmpStart}&end=${cmpEnd}`,
             {
               headers: { Authorization: `Bearer ${session?.access_token || ""}` },
@@ -1488,7 +1488,7 @@ function TrafficPanel({
     (async () => {
       try {
         const session = (await supabase.auth.getSession()).data.session;
-        const r = await fetch(
+        const r = await authedFetch(
           `/api/admin/traffic-overview?client=${encodeURIComponent(clientId)}&start=${startKey}&end=${endKey}`,
           {
             headers: { Authorization: `Bearer ${session?.access_token || ""}` },
@@ -1526,7 +1526,7 @@ function TrafficPanel({
         let j: any = cached && Date.now() - cached.at < RANGE_TTL_MS ? cached.data : null;
         if (!j) {
           const session = (await supabase.auth.getSession()).data.session;
-          const r = await fetch(
+          const r = await authedFetch(
             `/api/admin/traffic-overview?client=${encodeURIComponent(clientId)}&start=${cmpStart}&end=${cmpEnd}`,
             {
               headers: { Authorization: `Bearer ${session?.access_token || ""}` },
@@ -2523,7 +2523,7 @@ function OpportunitiesPanel({
       // 1b) KI-Zitat-Gaps (12.08., DataForSEO include/exclude): echte Fragen
       // aus dem CH-Korpus, bei denen ein Rival zitiert wird, der Kunde nicht.
       try {
-        const r = await fetch(
+        const r = await authedFetch(
           `/api/admin/aivis-competitors?client=${encodeURIComponent(clientId)}&gaps=1`,
           { headers: authH },
         );
@@ -3587,7 +3587,7 @@ function SiteHealthPanel({
         init.headers = { ...init.headers, "Content-Type": "application/json" };
         init.body = JSON.stringify({ client: clientId, mode: auditMode || "quick" });
       }
-      const r = await fetch(url, init);
+      const r = await authedFetch(url, init);
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
       return j.audit ?? null;
@@ -4261,7 +4261,7 @@ function CorpusQuestionsSection({
     (async () => {
       try {
         const session = (await supabase.auth.getSession()).data.session;
-        const r = await fetch(
+        const r = await authedFetch(
           `/api/admin/aivis-competitors?client=${encodeURIComponent(clientId)}&questions=1`,
           {
             headers: { Authorization: `Bearer ${session?.access_token || ""}` },

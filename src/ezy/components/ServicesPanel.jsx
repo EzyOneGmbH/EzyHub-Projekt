@@ -1,4 +1,5 @@
 import React from "react";
+import { authedFetch } from "@/lib/authed-fetch";
 import { SERVICE_CATALOG } from "@/lib/services";
 import { useEzyServiceSettings } from "@/ezy/data/useEzyServiceSettings";
 import { supabase } from "@/integrations/supabase/client";
@@ -136,7 +137,7 @@ export function ServicesPanel({ C = FALLBACK_C, clientId }) {
     if (!value) {
       try {
         const token = (await supabase.auth.getSession()).data.session?.access_token;
-        const r = await fetch(
+        const r = await authedFetch(
           `/api/admin/client-readiness?client=${encodeURIComponent(clientId)}`,
           {
             headers: { Authorization: `Bearer ${token || ""}` },

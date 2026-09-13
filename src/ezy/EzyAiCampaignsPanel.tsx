@@ -216,7 +216,7 @@ export default function EzyAiCampaignsPanel({
     (async () => {
       try {
         const session = (await supabase.auth.getSession()).data.session;
-        const r = await fetch(
+        const r = await authedFetch(
           `/api/admin/chatgpt-ads?client=${encodeURIComponent(clientId)}&start=${startKey}&end=${endKey}`,
           { headers: { Authorization: `Bearer ${session?.access_token || ""}` } },
         );
