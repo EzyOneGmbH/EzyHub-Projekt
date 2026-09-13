@@ -14,7 +14,13 @@ import {
 } from "@/server/backlink-overview.server";
 import { fetchKeywordMetrics } from "@/server/keyword-metrics.server";
 import { zeitraum, ga4DateRange, type Zeitraum } from "@/lib/date-range";
-import { gscTotals, gscRows, summiereZeilen, GSC_END_LAG_DAYS } from "@/server/gsc.server";
+import {
+  gscTotals,
+  gscRows,
+  summiereZeilen,
+  sortiereNach,
+  GSC_END_LAG_DAYS,
+} from "@/server/gsc.server";
 
 function slugify(s: string): string {
   return String(s || "")
@@ -268,8 +274,7 @@ async function jobGsc(c: any, uid: string, days: number) {
     rowsRes = await gscRows({
       ...basis,
       dimensions: ["query"],
-      rowLimit: 1000,
-      orderBy: [{ field: "clicks", descending: true }],
+      rowLimit: 1000, // nativ nach Klicks sortiert (API-Vertrag, kein orderBy)
       totals,
     });
   } catch (e) {
@@ -491,8 +496,7 @@ async function jobGscQueries(c: any, uid: string, days: number, forceDfs = false
     const rr = await gscRows({
       ...basis,
       dimensions: ["query"],
-      rowLimit: 50_000,
-      orderBy: [{ field: "clicks", descending: true }],
+      rowLimit: 50_000, // nativ nach Klicks sortiert (API-Vertrag, kein orderBy)
       totals,
     });
     json = { rows: rr.rows };
@@ -560,12 +564,14 @@ async function jobGscQueries(c: any, uid: string, days: number, forceDfs = false
   // Seite je Query = die meistgezeigte. Best-effort, Fehler lassen pageUrl leer.
   const pageByQuery = new Map<string, string>();
   try {
-    const { rows: pr } = await gscRows({
+    const { rows: prRoh } = await gscRows({
       ...basis,
       dimensions: ["query", "page"],
       rowLimit: 5000,
-      orderBy: [{ field: "impressions", descending: true }],
     });
+    // Meistgezeigte Seite je Query: lokal nach Impressionen sortiert
+    // (die API kennt kein orderBy, liefert nativ nach Klicks).
+    const pr = sortiereNach(prRoh, "impressions");
     for (const row of pr) {
       const q = String(row.keys?.[0] ?? "");
       const p = String(row.keys?.[1] ?? "");

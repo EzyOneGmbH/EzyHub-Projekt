@@ -77,8 +77,7 @@ export const gscKeywordImport = createServerFn({ method: "POST" })
         startDate: zr.startDate,
         endDate: zr.endDate,
         dimensions: ["query"],
-        rowLimit: data.rowLimit,
-        orderBy: [{ field: "clicks", descending: true }],
+        rowLimit: data.rowLimit, // nativ nach Klicks (API-Vertrag)
       });
       const keywords = rows.map((r) => ({
         query: r.keys[0],

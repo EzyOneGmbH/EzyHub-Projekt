@@ -228,12 +228,8 @@ export const Route = createFileRoute("/api/admin/traffic-overview")({
             const [totals, tage, queries] = await Promise.all([
               gscTotals(basis),
               gscRows({ ...basis, dimensions: ["date"], rowLimit: 1000 }),
-              gscRows({
-                ...basis,
-                dimensions: ["query"],
-                rowLimit: 250,
-                orderBy: [{ field: "impressions", descending: true }],
-              }).catch(() => null),
+              // Sortierung nach Impressionen erfolgt lokal (API kennt kein orderBy).
+              gscRows({ ...basis, dimensions: ["query"], rowLimit: 250 }).catch(() => null),
             ]);
             if (queries) {
               out.queries = queries.rows

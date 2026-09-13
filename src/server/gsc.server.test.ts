@@ -129,3 +129,139 @@ describe("Query-Zeilen: Pagination und Coverage bei > 1'000 Queries", () => {
     await expect(gscTotals(basis(fetchImpl))).rejects.toMatchObject({ status: 403 });
   });
 });
+
+// ── Contract-Test (Release-Blocker 13.09.2026): Request-Body strikt nach
+//    offizieller Search-Analytics-API — ein Fake-Endpunkt lehnt unbekannte
+//    Felder (z. B. orderBy) mit HTTP 400 ab, wie Google es tut.
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { baueGscRequest, sortiereNach, GSC_REQUEST_FELDER } from "./gsc.server";
+
+function strengerGsc(nQueries = 40) {
+  const calls: any[] = [];
+  const erlaubt = new Set<string>(GSC_REQUEST_FELDER);
+  const fetchImpl = (async (_url: any, init: any) => {
+    const body = JSON.parse(String(init.body));
+    calls.push(body);
+    const fremd = Object.keys(body).filter((k) => !erlaubt.has(k));
+    if (fremd.length)
+      return Response.json(
+        {
+          error: {
+            code: 400,
+            message: `Invalid JSON payload received. Unknown name "${fremd[0]}"`,
+          },
+        },
+        { status: 400 },
+      );
+    if (!body.startDate || !body.endDate || !Array.isArray(body.dimensions))
+      return Response.json({ error: { code: 400, message: "missing field" } }, { status: 400 });
+    if (body.dimensions.length === 0)
+      return Response.json({
+        rows: [{ keys: [], clicks: 500, impressions: 9000, ctr: 0.05, position: 9 }],
+      });
+    const start = Number(body.startRow ?? 0);
+    const rows = [];
+    // nativ nach Klicks absteigend; Impressionen bewusst NICHT monoton
+    for (let i = start; i < Math.min(nQueries, start + Number(body.rowLimit)); i++)
+      rows.push({
+        keys: body.dimensions.map((d: string) => `${d} ${i}`),
+        clicks: nQueries - i,
+        impressions: (i * 37) % 101,
+        ctr: 0.1,
+        position: 5,
+      });
+    return Response.json({ rows });
+  }) as unknown as typeof fetch;
+  return { fetchImpl, calls };
+}
+
+describe("Contract: Request-Body = offizielle Search-Analytics-API (kein orderBy)", () => {
+  it("baueGscRequest emittiert ausschliesslich Allowlist-Felder", () => {
+    const req: any = baueGscRequest(
+      {
+        site: "s",
+        accessToken: "t",
+        startDate: "2026-09-01",
+        endDate: "2026-09-10",
+        filter: { dataState: "all" },
+      },
+      { dimensions: ["query"], rowLimit: 10, startRow: 0, orderBy: [{ field: "clicks" }], foo: 1 },
+    );
+    expect(req).toEqual({
+      startDate: "2026-09-01",
+      endDate: "2026-09-10",
+      dimensions: ["query"],
+      rowLimit: 10,
+      startRow: 0,
+      dataState: "all",
+    });
+    expect("orderBy" in req).toBe(false);
+  });
+
+  it("Totale, Query-Zeilen und Query/Page-Zeilen passieren den strengen Endpunkt", async () => {
+    const { fetchImpl, calls } = strengerGsc();
+    const b = {
+      ...basis(fetchImpl),
+      filter: {
+        dimensionFilterGroups: [
+          { filters: [{ dimension: "country" as const, expression: "che" }] },
+        ],
+      },
+    };
+    await expect(gscTotals(b)).resolves.toMatchObject({ clicks: 500, quelle: "aggregate" });
+    const q = await gscRows({ ...b, dimensions: ["query"], rowLimit: 100, pageSize: 25 });
+    expect(q.rows.length).toBe(40);
+    const qp = await gscRows({ ...b, dimensions: ["query", "page"], rowLimit: 5000 });
+    expect(qp.rows[0].keys).toEqual(["query 0", "page 0"]);
+    for (const c of calls) for (const k of Object.keys(c)) expect(GSC_REQUEST_FELDER).toContain(k);
+    expect(calls.some((c) => c.dimensionFilterGroups)).toBe(true);
+  });
+
+  it("ein unbekanntes Feld wuerde mit 400 abgelehnt (Fake-Endpunkt verhaelt sich wie Google)", async () => {
+    const { fetchImpl } = strengerGsc();
+    const res = await fetchImpl("x", {
+      method: "POST",
+      body: JSON.stringify({
+        startDate: "2026-09-01",
+        endDate: "2026-09-10",
+        dimensions: ["query"],
+        rowLimit: 5,
+        orderBy: [],
+      }),
+    } as any);
+    expect(res.status).toBe(400);
+    const txt = await res.text();
+    expect(txt).toContain("Unknown name");
+    expect(txt).toContain("orderBy");
+  });
+
+  it("Klicks kommen nativ sortiert; Impressionen werden lokal sortiert", async () => {
+    const { fetchImpl } = strengerGsc();
+    const { rows } = await gscRows({ ...basis(fetchImpl), dimensions: ["query"], rowLimit: 100 });
+    expect(rows.map((r) => r.clicks)).toEqual([...rows.map((r) => r.clicks)].sort((a, b) => b - a));
+    const nachImpr = sortiereNach(rows, "impressions");
+    expect(nachImpr.map((r) => r.impressions)).toEqual(
+      [...rows.map((r) => r.impressions)].sort((a, b) => b - a),
+    );
+    expect(nachImpr).not.toBe(rows); // Kopie, Original unveraendert
+  });
+
+  it("kein GSC-Aufrufer im Repo sendet mehr orderBy (GSC-Import, Traffic Overview, jobGsc, jobGscQueries, Query/Page)", () => {
+    const dateien = [
+      "src/routes/api/google.gsc-import.ts",
+      "src/routes/api/admin.traffic-overview.ts",
+      "src/routes/api/admin.populate.ts",
+      "src/routes/api/admin.content-sync.ts",
+      "src/routes/api/admin.aivis-sync.ts",
+      "src/server/google.functions.ts",
+      "src/server/gsc.server.ts",
+    ];
+    for (const f of dateien) {
+      const src = readFileSync(resolve(process.cwd(), f), "utf8");
+      // Kommentare duerfen den Begriff erwaehnen; ein Request-Feld `orderBy:` nicht.
+      const treffer = src.split("\n").filter((l) => /^\s*orderBy\s*:/.test(l));
+      expect({ datei: f, treffer }).toEqual({ datei: f, treffer: [] });
+    }
+  });
+});

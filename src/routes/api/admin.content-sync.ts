@@ -189,8 +189,7 @@ async function jobMetrics(c: any) {
         startDate: addDays(ref, -29),
         endDate: ref,
         dimensions: ["page", "query"],
-        rowLimit: 25000,
-        orderBy: [{ field: "clicks", descending: true }],
+        rowLimit: 25000, // nativ nach Klicks (API-Vertrag, kein orderBy)
       });
       for (const row of pq.rows ?? []) {
         const key = normUrl(row.keys?.[0] ?? "");

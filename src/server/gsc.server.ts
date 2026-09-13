@@ -59,9 +59,78 @@ type Basis = {
   endDate: string;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
-  /** Optional: dimensionFilterGroups, type, dataState, aggregationType 1:1 an die API */
-  extra?: Record<string, unknown>;
+  /** Optionale Filter — NUR Felder der offiziellen Search-Analytics-API. */
+  filter?: GscFilter;
 };
+
+/**
+ * Request-Vertrag = offizielle Search-Analytics-API (searchanalytics.query).
+ * Es gibt dort KEIN orderBy: Zeilen kommen nativ nach Klicks absteigend;
+ * andere Sortierungen (z. B. Impressionen) werden lokal gemacht
+ * (sortiereNach). Unbekannte Felder quittiert Google mit HTTP 400 —
+ * deshalb wird der Body ausschliesslich aus dieser Allowlist gebaut.
+ */
+export const GSC_REQUEST_FELDER = [
+  "startDate",
+  "endDate",
+  "dimensions",
+  "type",
+  "dimensionFilterGroups",
+  "aggregationType",
+  "rowLimit",
+  "startRow",
+  "dataState",
+] as const;
+export type GscRequestFeld = (typeof GSC_REQUEST_FELDER)[number];
+
+export type GscFilter = {
+  type?: "web" | "image" | "video" | "news" | "discover" | "googleNews";
+  dimensionFilterGroups?: Array<{
+    groupType?: "and";
+    filters: Array<{
+      dimension: "country" | "device" | "page" | "query" | "searchAppearance";
+      operator?:
+        | "equals"
+        | "notEquals"
+        | "contains"
+        | "notContains"
+        | "includingRegex"
+        | "excludingRegex";
+      expression: string;
+    }>;
+  }>;
+  aggregationType?: "auto" | "byPage" | "byProperty" | "byNewsShowcasePanel";
+  dataState?: "final" | "all";
+};
+
+export type GscRequest = {
+  startDate: string;
+  endDate: string;
+  dimensions: string[];
+  rowLimit: number;
+  startRow?: number;
+} & GscFilter;
+
+/** Baut den Request-Body strikt aus der Allowlist (pure, vitest-gedeckt). */
+export function baueGscRequest(b: Basis, teil: Record<string, unknown>): GscRequest {
+  const roh: Record<string, unknown> = {
+    startDate: b.startDate,
+    endDate: b.endDate,
+    ...(b.filter ?? {}),
+    ...teil,
+  };
+  const out: Record<string, unknown> = {};
+  for (const k of GSC_REQUEST_FELDER) if (roh[k] !== undefined) out[k] = roh[k];
+  return out as GscRequest;
+}
+
+/** Lokale Sortierung (absteigend) — Ersatz fuer das nicht existierende orderBy. */
+export function sortiereNach<T extends { clicks?: number; impressions?: number }>(
+  rows: T[],
+  feld: "clicks" | "impressions",
+): T[] {
+  return [...rows].sort((a, b) => (Number(b[feld]) || 0) - (Number(a[feld]) || 0));
+}
 
 export class GscFehler extends Error {
   constructor(
@@ -73,17 +142,12 @@ export class GscFehler extends Error {
   }
 }
 
-async function gscCall(b: Basis, body: Record<string, unknown>): Promise<{ rows?: GscRow[] }> {
+async function gscCall(b: Basis, teil: Record<string, unknown>): Promise<{ rows?: GscRow[] }> {
   const f = b.fetchImpl ?? globalThis.fetch;
   const res = await f(`${GSC_API}/${encodeURIComponent(b.site)}/searchAnalytics/query`, {
     method: "POST",
     headers: { Authorization: `Bearer ${b.accessToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      startDate: b.startDate,
-      endDate: b.endDate,
-      ...(b.extra ?? {}),
-      ...body,
-    }),
+    body: JSON.stringify(baueGscRequest(b, teil)),
     signal: AbortSignal.timeout(b.timeoutMs ?? 30_000),
   });
   if (!res.ok) {
@@ -110,13 +174,14 @@ export async function gscTotals(b: Basis): Promise<GscTotals> {
  * Zeilen mit Dimensionen, paginiert ueber startRow. rowLimit = Obergrenze
  * ueber alle Seiten (Default 25'000); pageSize wird auf die API-Grenze gekappt.
  * truncated = letzte Seite war voll (es kann weitere Zeilen geben).
+ * Sortierung: nativ nach Klicks absteigend (API-Vertrag); fuer Impressionen
+ * o. ae. die gelieferten Zeilen lokal mit sortiereNach ordnen.
  */
 export async function gscRows(
   b: Basis & {
     dimensions: string[];
     rowLimit?: number;
     pageSize?: number;
-    orderBy?: Array<{ field: string; descending?: boolean }>;
     totals?: Pick<GscTotals, "clicks" | "impressions"> | null;
   },
 ): Promise<{ rows: GscRow[]; coverage: GscCoverage }> {
@@ -131,7 +196,6 @@ export async function gscRows(
       dimensions: b.dimensions,
       rowLimit: n,
       startRow: rows.length,
-      ...(b.orderBy ? { orderBy: b.orderBy } : {}),
     });
     pages++;
     const seite = j.rows ?? [];

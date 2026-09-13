@@ -152,8 +152,7 @@ export const Route = createFileRoute("/api/google/gsc-import")({
             rowsRes = await gscRows({
               ...basis,
               dimensions: ["query"],
-              rowLimit: parsed.data.rowLimit,
-              orderBy: [{ field: "clicks", descending: true }],
+              rowLimit: parsed.data.rowLimit, // nativ nach Klicks (API-Vertrag)
               totals,
             });
           } catch (e) {

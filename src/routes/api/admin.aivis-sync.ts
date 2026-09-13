@@ -5708,8 +5708,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                       startDate: fmt(start),
                       endDate: fmt(end),
                       dimensions: ["query"],
-                      rowLimit: 250,
-                      orderBy: [{ field: "clicks", descending: true }],
+                      rowLimit: 250, // nativ nach Klicks (API-Vertrag, kein orderBy)
                     }),
                     signal: AbortSignal.timeout(30_000),
                   },
