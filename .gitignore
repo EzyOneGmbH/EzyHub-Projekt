@@ -52,3 +52,6 @@ wordpress-plugin/_build/
 # Playwright (QS-Runde 13.09.2026)
 playwright-report/
 test-results/
+
+# Supabase-CLI-Cache (gen types/login-Versuche)
+supabase/.temp/

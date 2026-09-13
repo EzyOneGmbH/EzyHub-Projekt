@@ -21,7 +21,8 @@ const logPfad = process.argv[2] || "";
 //  - "use client"-Direktiven in @tanstack/react-router (Rollup ignoriert sie)
 const ERLAUBT = [
   /Unknown input options: platform/,
-  /vite builder requires \^8/,
+  // CI (Linux) formatiert mit Backticks: «`vite` builder requires `^8`»
+  /vite`? builder requires `?\^8/,
   /Module level directives cause errors when bundled, "use client"/,
 ];
 
