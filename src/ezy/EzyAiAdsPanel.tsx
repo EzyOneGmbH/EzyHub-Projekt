@@ -1,3 +1,4 @@
+import IngestCredentialsPanel from "@/ezy/IngestCredentialsPanel";
 // EzyAI — Ads-Modus (ChatGPT Ads, 26.08.2026): Conversion-Tracking über die
 // OpenAI Conversions API. Eigene Datei (Bundle-Split-Muster wie LocalGrid) —
 // der Organic/Ads-Schalter sitzt in der AppRail (railExtra, unter der
@@ -944,6 +945,17 @@ function ConfigCard({
             </div>
           )}
         </div>
+      )}
+      {/* Kundenspezifischer Ingest-Token (13.09.): ersetzt das globale
+          OPENAI_ADS_INGEST_SECRET — Klartext erscheint genau einmal. */}
+      {initial && (
+        <IngestCredentialsPanel
+          clientId={clientId}
+          purpose="openai_ads"
+          S={S as unknown as Record<string, string>}
+          isOrgAdmin={isOrgAdmin}
+          titel="Ingest-Zugang für CRM/Website (Server-Token)"
+        />
       )}
     </div>
   );

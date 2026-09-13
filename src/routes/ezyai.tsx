@@ -10,6 +10,7 @@ import {
   featureEnabledFor,
 } from "@/ezy/data/useClientAppAccess";
 import { GEO_SECTION_FEATURE } from "@/ezy/data/appRegistry";
+import IngestCredentialsPanel from "@/ezy/IngestCredentialsPanel";
 import { EZY_APPS } from "@/ezy/data/appRegistry";
 import { useEzyClients } from "@/ezy/data/useEzyClients";
 import { useEzyServiceSettings } from "@/ezy/data/useEzyServiceSettings";
@@ -396,7 +397,15 @@ function EzyaiHeuteHome({
 // Zeigt Bot-Besuche der letzten 7 Tage aus ai_crawler_hits (Ingest-Endpoint
 // /api/admin/ai-crawler-ingest). Rollout des Erfassungs-Snippets auf Kunden-
 // Websites läuft über den normalen Freigabe-Workflow — nie autonom.
-function CrawlerCard({ clientId, S }: { clientId: string; S: Record<string, string> }) {
+function CrawlerCard({
+  clientId,
+  S,
+  isOrgAdmin,
+}: {
+  clientId: string;
+  S: Record<string, string>;
+  isOrgAdmin: boolean;
+}) {
   const [rows, setRows] = useState<Array<{ bot: string; url: string; at: string }> | null>(null);
   useEffect(() => {
     let alive = true;
@@ -528,6 +537,15 @@ function CrawlerCard({ clientId, S }: { clientId: string; S: Record<string, stri
           </div>
         </div>
       )}
+      {/* Kundenspezifischer Ingest-Token (13.09.): ersetzt das globale
+          CRAWLER_INGEST_SECRET; Klartext erscheint genau einmal. */}
+      <IngestCredentialsPanel
+        clientId={clientId}
+        purpose="ai_crawler"
+        S={S}
+        isOrgAdmin={isOrgAdmin}
+        titel="Ingest-Zugang für das Erfassungs-Snippet (Server-Token)"
+      />
     </div>
   );
 }
@@ -5617,7 +5635,7 @@ function EzyAiApp() {
                       navStyle="topbar"
                       onReviewPrompts={goPrompts}
                     />
-                    <CrawlerCard clientId={client.id} S={S} />
+                    <CrawlerCard clientId={client.id} S={S} isOrgAdmin={isOrgAdmin} />
                   </>
                 )}
               </main>

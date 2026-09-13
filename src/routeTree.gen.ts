@@ -77,8 +77,9 @@ import { Route as ApiAdminEwwwProvisionRouteImport } from './routes/api/admin.ew
 import { Route as ApiAdminGa4ConversionsRouteImport } from './routes/api/admin.ga4-conversions'
 import { Route as ApiAdminGbpRouteImport } from './routes/api/admin.gbp'
 import { Route as ApiAdminGeoGridSnapshotRouteImport } from './routes/api/admin.geo-grid-snapshot'
-import { Route as ApiAdminKeywordMetricsRouteImport } from './routes/api/admin.keyword-metrics'
 import { Route as ApiAdminGtmRouteImport } from './routes/api/admin.gtm'
+import { Route as ApiAdminIngestCredentialsRouteImport } from './routes/api/admin.ingest-credentials'
+import { Route as ApiAdminKeywordMetricsRouteImport } from './routes/api/admin.keyword-metrics'
 import { Route as ApiAdminLabsHistoryRouteImport } from './routes/api/admin.labs-history'
 import { Route as ApiAdminLlmResponsesRouteImport } from './routes/api/admin.llm-responses'
 import { Route as ApiAdminLlmTrafficRouteImport } from './routes/api/admin.llm-traffic'
@@ -497,14 +498,20 @@ const ApiAdminGeoGridSnapshotRoute = ApiAdminGeoGridSnapshotRouteImport.update({
   path: '/api/admin/geo-grid-snapshot',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAdminKeywordMetricsRoute = ApiAdminKeywordMetricsRouteImport.update({
-  id: '/api/admin/keyword-metrics',
-  path: '/api/admin/keyword-metrics',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiAdminGtmRoute = ApiAdminGtmRouteImport.update({
   id: '/api/admin/gtm',
   path: '/api/admin/gtm',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminIngestCredentialsRoute =
+  ApiAdminIngestCredentialsRouteImport.update({
+    id: '/api/admin/ingest-credentials',
+    path: '/api/admin/ingest-credentials',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAdminKeywordMetricsRoute = ApiAdminKeywordMetricsRouteImport.update({
+  id: '/api/admin/keyword-metrics',
+  path: '/api/admin/keyword-metrics',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminLabsHistoryRoute = ApiAdminLabsHistoryRouteImport.update({
@@ -910,8 +917,9 @@ export interface FileRoutesByFullPath {
   '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/geo-grid-snapshot': typeof ApiAdminGeoGridSnapshotRoute
-  '/api/admin/keyword-metrics': typeof ApiAdminKeywordMetricsRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
+  '/api/admin/ingest-credentials': typeof ApiAdminIngestCredentialsRoute
+  '/api/admin/keyword-metrics': typeof ApiAdminKeywordMetricsRoute
   '/api/admin/labs-history': typeof ApiAdminLabsHistoryRoute
   '/api/admin/llm-responses': typeof ApiAdminLlmResponsesRoute
   '/api/admin/llm-traffic': typeof ApiAdminLlmTrafficRoute
@@ -1047,8 +1055,9 @@ export interface FileRoutesByTo {
   '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/geo-grid-snapshot': typeof ApiAdminGeoGridSnapshotRoute
-  '/api/admin/keyword-metrics': typeof ApiAdminKeywordMetricsRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
+  '/api/admin/ingest-credentials': typeof ApiAdminIngestCredentialsRoute
+  '/api/admin/keyword-metrics': typeof ApiAdminKeywordMetricsRoute
   '/api/admin/labs-history': typeof ApiAdminLabsHistoryRoute
   '/api/admin/llm-responses': typeof ApiAdminLlmResponsesRoute
   '/api/admin/llm-traffic': typeof ApiAdminLlmTrafficRoute
@@ -1185,8 +1194,9 @@ export interface FileRoutesById {
   '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/geo-grid-snapshot': typeof ApiAdminGeoGridSnapshotRoute
-  '/api/admin/keyword-metrics': typeof ApiAdminKeywordMetricsRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
+  '/api/admin/ingest-credentials': typeof ApiAdminIngestCredentialsRoute
+  '/api/admin/keyword-metrics': typeof ApiAdminKeywordMetricsRoute
   '/api/admin/labs-history': typeof ApiAdminLabsHistoryRoute
   '/api/admin/llm-responses': typeof ApiAdminLlmResponsesRoute
   '/api/admin/llm-traffic': typeof ApiAdminLlmTrafficRoute
@@ -1324,8 +1334,9 @@ export interface FileRouteTypes {
     | '/api/admin/ga4-conversions'
     | '/api/admin/gbp'
     | '/api/admin/geo-grid-snapshot'
-    | '/api/admin/keyword-metrics'
     | '/api/admin/gtm'
+    | '/api/admin/ingest-credentials'
+    | '/api/admin/keyword-metrics'
     | '/api/admin/labs-history'
     | '/api/admin/llm-responses'
     | '/api/admin/llm-traffic'
@@ -1461,8 +1472,9 @@ export interface FileRouteTypes {
     | '/api/admin/ga4-conversions'
     | '/api/admin/gbp'
     | '/api/admin/geo-grid-snapshot'
-    | '/api/admin/keyword-metrics'
     | '/api/admin/gtm'
+    | '/api/admin/ingest-credentials'
+    | '/api/admin/keyword-metrics'
     | '/api/admin/labs-history'
     | '/api/admin/llm-responses'
     | '/api/admin/llm-traffic'
@@ -1598,8 +1610,9 @@ export interface FileRouteTypes {
     | '/api/admin/ga4-conversions'
     | '/api/admin/gbp'
     | '/api/admin/geo-grid-snapshot'
-    | '/api/admin/keyword-metrics'
     | '/api/admin/gtm'
+    | '/api/admin/ingest-credentials'
+    | '/api/admin/keyword-metrics'
     | '/api/admin/labs-history'
     | '/api/admin/llm-responses'
     | '/api/admin/llm-traffic'
@@ -1731,8 +1744,9 @@ export interface RootRouteChildren {
   ApiAdminGa4ConversionsRoute: typeof ApiAdminGa4ConversionsRoute
   ApiAdminGbpRoute: typeof ApiAdminGbpRoute
   ApiAdminGeoGridSnapshotRoute: typeof ApiAdminGeoGridSnapshotRoute
-  ApiAdminKeywordMetricsRoute: typeof ApiAdminKeywordMetricsRoute
   ApiAdminGtmRoute: typeof ApiAdminGtmRoute
+  ApiAdminIngestCredentialsRoute: typeof ApiAdminIngestCredentialsRoute
+  ApiAdminKeywordMetricsRoute: typeof ApiAdminKeywordMetricsRoute
   ApiAdminLabsHistoryRoute: typeof ApiAdminLabsHistoryRoute
   ApiAdminLlmResponsesRoute: typeof ApiAdminLlmResponsesRoute
   ApiAdminLlmTrafficRoute: typeof ApiAdminLlmTrafficRoute
@@ -2278,18 +2292,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminGeoGridSnapshotRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/admin/keyword-metrics': {
-      id: '/api/admin/keyword-metrics'
-      path: '/api/admin/keyword-metrics'
-      fullPath: '/api/admin/keyword-metrics'
-      preLoaderRoute: typeof ApiAdminKeywordMetricsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/admin/gtm': {
       id: '/api/admin/gtm'
       path: '/api/admin/gtm'
       fullPath: '/api/admin/gtm'
       preLoaderRoute: typeof ApiAdminGtmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/ingest-credentials': {
+      id: '/api/admin/ingest-credentials'
+      path: '/api/admin/ingest-credentials'
+      fullPath: '/api/admin/ingest-credentials'
+      preLoaderRoute: typeof ApiAdminIngestCredentialsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/keyword-metrics': {
+      id: '/api/admin/keyword-metrics'
+      path: '/api/admin/keyword-metrics'
+      fullPath: '/api/admin/keyword-metrics'
+      preLoaderRoute: typeof ApiAdminKeywordMetricsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/labs-history': {
@@ -2870,8 +2891,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminGa4ConversionsRoute: ApiAdminGa4ConversionsRoute,
   ApiAdminGbpRoute: ApiAdminGbpRoute,
   ApiAdminGeoGridSnapshotRoute: ApiAdminGeoGridSnapshotRoute,
-  ApiAdminKeywordMetricsRoute: ApiAdminKeywordMetricsRoute,
   ApiAdminGtmRoute: ApiAdminGtmRoute,
+  ApiAdminIngestCredentialsRoute: ApiAdminIngestCredentialsRoute,
+  ApiAdminKeywordMetricsRoute: ApiAdminKeywordMetricsRoute,
   ApiAdminLabsHistoryRoute: ApiAdminLabsHistoryRoute,
   ApiAdminLlmResponsesRoute: ApiAdminLlmResponsesRoute,
   ApiAdminLlmTrafficRoute: ApiAdminLlmTrafficRoute,
