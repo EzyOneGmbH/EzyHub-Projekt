@@ -142,7 +142,8 @@ export const APP_SCOPES: Record<
     // Admin-Umbau (Volkan 06.08.): reiner Verwaltungs-Bereich — Dashboard/
     // Copilot/AI-Tools raus. "agents" bleibt im Scope (erreichbar über
     // Einstellungen → Agenten & Automatisierung), aber nicht in der Nav.
-    pages: ["clients", "team", "matrix", "settings", "agents"],
+    // "kunden-zugriff" (14.09.): Kunden-Accounts (Portal) getrennt vom Team.
+    pages: ["clients", "team", "kunden-zugriff", "matrix", "settings", "agents"],
     tabs: [],
     primary: "clients",
     home: "/admin",
@@ -235,6 +236,7 @@ export function currentAppOf(page: string, tab: string): EzyAppId {
   if (
     page === "clients" ||
     page === "team" ||
+    page === "kunden-zugriff" ||
     page === "matrix" ||
     page === "settings" ||
     page === "agents"

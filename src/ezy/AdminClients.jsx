@@ -1413,7 +1413,8 @@ export function PortalEinladungDialog({ client, onClose, onInvited }) {
             {client.name} <span style={{ color: C.textDim }}>({client.domain})</span>
           </div>
           <div style={{ fontSize: 11, color: C.textDim, marginTop: 4 }}>
-            Weitere Kunden lassen sich danach unter App-Zugriff bzw. Team zuweisen.
+            Weitere Kunden lassen sich danach unter «Kunden-Zugriff» (Portal) bzw. «Team»
+            (Mitarbeiter) zuweisen.
           </div>
         </div>
         <div>

@@ -28,6 +28,7 @@ import {
   Activity,
   Zap,
   Users,
+  UserCheck,
   Settings,
   LogOut,
   ChevronRight,
@@ -65,6 +66,7 @@ import { HexGlowLayer } from "@/ezy/HexGlow";
 import { EzyOneMark } from "@/components/ezy-one-mark";
 import { AppVersionBadge } from "@/ezy/AppVersionBadge";
 import { ClientAvatar } from "@/ezy/ClientAvatar";
+import { nurTeam } from "@/ezy/data/kundenZugriff";
 import { useEzyDefaults } from "@/ezy/data/useEzyDefaults";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
 import { useEzyContent } from "@/ezy/data/useEzyContent";
@@ -140,6 +142,8 @@ const lazyTeil = (lade, name) => lazy(() => lade().then((m) => ({ default: m[nam
 const AgentRunsPanel = lazyTeil(() => import("./AdminClients"), "AgentRunsPanel");
 const ClientsPage = lazyTeil(() => import("./AdminClients"), "ClientsPage");
 const MatrixPage = lazyTeil(() => import("./AdminClients"), "MatrixPage");
+// Kunden-Zugriff (14.09.): alle Kunden-Accounts (Portal, Rolle viewer) — nicht mehr im Team.
+const KundenZugriffPage = lazyTeil(() => import("./KundenZugriffPage"), "KundenZugriffPage");
 const SettingsPage = lazyTeil(() => import("./AdminSettings"), "SettingsPage");
 const AdsDashboard = lazyTeil(() => import("./AdsDashboardModule"), "AdsDashboard");
 const ContentPage = lazyTeil(() => import("./ContentModule"), "ContentPage");
@@ -4058,7 +4062,9 @@ function TeamPage({ clients }) {
   const load = useCallback(async () => {
     setLoading(true);
     const j = await callTeam({ action: "list" });
-    if (j.ok) setUsers(j.users || []);
+    // Kunden-Zugriff (14.09.): Kunden-Accounts (viewer) liegen im eigenen Tab,
+    // das Team zeigt nur noch Mitarbeiter/Admins.
+    if (j.ok) setUsers(nurTeam(j.users));
     else toast(j.error || "Laden fehlgeschlagen", "error");
     setLoading(false);
   }, [callTeam, toast]);
@@ -4147,7 +4153,8 @@ function TeamPage({ clients }) {
         <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Team</h2>
         <p style={{ fontSize: 12, color: C.textMuted, margin: "4px 0 0" }}>
           Mitarbeiter anlegen und pro Kunde freischalten. Mitarbeiter sehen nur zugewiesene Kunden
-          und können keine Kunden-Einstellungen ändern.
+          und können keine Kunden-Einstellungen ändern. Kunden-Accounts (Portal-Logins) verwaltest
+          du unter «Kunden-Zugriff».
         </p>
       </div>
 
@@ -4186,7 +4193,6 @@ function TeamPage({ clients }) {
               }}
             >
               <option value="member">Mitarbeiter (Audits + zugewiesene Kunden)</option>
-              <option value="viewer">Kunde / Portal (nur freigeschaltete Funktionen)</option>
               {myRole === "owner" && (
                 <option value="admin">Admin (alle Kunden, volle Rechte)</option>
               )}
@@ -4284,7 +4290,6 @@ function TeamPage({ clients }) {
                         }}
                       >
                         <option value="member">Mitarbeiter</option>
-                        <option value="viewer">Nur-Lesen</option>
                         {myRole === "owner" && <option value="admin">Admin</option>}
                       </select>
                     )}
@@ -6524,6 +6529,8 @@ const NAV = [
   { id: "reports", label: "Reports", icon: TrendingUp },
   { id: "clients", label: "Kunden", icon: Users },
   { id: "team", label: "Team", icon: Users }, // nur owner/admin (RBAC 2026-07-15)
+  // Kunden-Zugriff (14.09.): Kunden-Accounts (Portal) gesammelt, nur owner/admin.
+  { id: "kunden-zugriff", label: "Kunden-Zugriff", icon: UserCheck },
   { id: "matrix", label: "Zugriffs-Matrix", icon: Key }, // nur owner/admin (Admin-Umbau 06.08.)
   { id: "settings", label: "Einstellungen", icon: Settings },
 ];
@@ -6559,7 +6566,11 @@ function App({ appScope = null }) {
         : NAV.filter(
             (n) =>
               n.id !== "reports" &&
-              ((n.id !== "team" && n.id !== "settings" && n.id !== "matrix") || isOrgAdmin) &&
+              ((n.id !== "team" &&
+                n.id !== "kunden-zugriff" &&
+                n.id !== "settings" &&
+                n.id !== "matrix") ||
+                isOrgAdmin) &&
               (!scope || scope.pages.includes(n.id)) && // Phase 3: App-Scope
               // Admin-Umbau 06.08.: Agenten-Verwaltung liegt im Admin unter
               // Einstellungen → Agenten & Automatisierung (Seite bleibt im Scope).
@@ -6679,7 +6690,10 @@ function App({ appScope = null }) {
   // Mitarbeiter (kein Admin) haben keinen Zugriff auf Einstellungen/Team –
   // auch nicht per direkter URL/localStorage-Wiederherstellung.
   useEffect(() => {
-    if (!isOrgAdmin && (page === "settings" || page === "team" || page === "matrix"))
+    if (
+      !isOrgAdmin &&
+      (page === "settings" || page === "team" || page === "kunden-zugriff" || page === "matrix")
+    )
       setPage("dashboard");
   }, [isOrgAdmin, page]);
   // Portal-Gating: Reports-Seite ohne Freischaltung → zurück aufs Dashboard.
@@ -7692,6 +7706,7 @@ function App({ appScope = null }) {
                 />
               )}
               {isOrgAdmin && page === "team" && <TeamPage clients={clients} />}
+              {isOrgAdmin && page === "kunden-zugriff" && <KundenZugriffPage clients={clients} />}
               {isOrgAdmin && page === "matrix" && <MatrixPage clients={clients} />}
               {isOrgAdmin && page === "settings" && (
                 <SettingsPage
