@@ -151,6 +151,11 @@ const APP_NAV: Array<{ group: string; items: NavItem[] }> = [
     ],
   },
 ];
+// Deaktivierte Organic-Bereiche (Volkan 14.09.): ausgeblendet, Code und Daten
+// bleiben — zum Reaktivieren die ID hier entfernen. Aktiv bleiben Insights
+// (nur Conversions-Tab, s. AIVisibilityDashboard DISABLED_TABS), Traffic,
+// Site Health, Issues sowie der komplette Ads-Modus.
+const DISABLED_SECTIONS = new Set(["llm-analytics", "your-prompts", "content", "opportunities"]);
 // Ads-Modus (ChatGPT Ads, 26.08.2026): eigene Bereichs-Nav — der Organic/Ads-
 // Schalter in der AppRail (unter der Trennlinie) wechselt zwischen den Welten.
 const ADS_NAV: Array<{ group: string; items: NavItem[] }> = [
@@ -4339,15 +4344,21 @@ function EzyAiApp() {
   // das Gating hier ist die Zukunftssicherung, falls das Portal EzyAI
   // bekommt. Alt-Eintrag "aivis" = alles frei (Legacy-Alias).
   const navOrganic = useMemo(() => {
-    if (role !== "viewer") return APP_NAV;
-    return APP_NAV.map((g) => ({
+    const base = APP_NAV.map((g) => ({
       ...g,
-      items: g.items.filter((t) => {
-        const f = GEO_SECTION_FEATURE[t.id];
-        if (!f || showAll || !clientId) return true;
-        return featureEnabledFor(caa.map, clientId, "geo", f);
-      }),
+      items: g.items.filter((t) => !DISABLED_SECTIONS.has(t.id)),
     })).filter((g) => g.items.length > 0);
+    if (role !== "viewer") return base;
+    return base
+      .map((g) => ({
+        ...g,
+        items: g.items.filter((t) => {
+          const f = GEO_SECTION_FEATURE[t.id];
+          if (!f || showAll || !clientId) return true;
+          return featureEnabledFor(caa.map, clientId, "geo", f);
+        }),
+      }))
+      .filter((g) => g.items.length > 0);
   }, [role, showAll, clientId, caa.map]);
   // Verschwindet der aktive Bereich durch das Gating, auf den ersten
   // sichtbaren zurueckfallen.

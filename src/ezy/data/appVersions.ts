@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.11.0",
+    version: "1.12.0",
     changelog: [
+      {
+        version: "1.12.0",
+        date: "2026-09-14",
+        note: "EzyAI fokussiert: die Bereiche LLM Analytics, Your Prompts, Content und Chancen sowie die Insights-Tabs Sichtbarkeit, Erwähnungen, Marke, Quellen und Themen sind ausgeblendet — sichtbar bleiben Insights (Conversions), Traffic, Site Health, Issues und der ChatGPT-Ads-Modus",
+      },
       {
         version: "1.11.0",
         date: "2026-09-13",

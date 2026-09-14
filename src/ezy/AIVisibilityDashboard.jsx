@@ -5795,6 +5795,10 @@ function TopicTreemap({ rows }) {
 // Report-Kennzahlen (Score/KPIs/Trend) sind Lauf-Aggregate und bleiben ungefiltert.
 // Gruppierte Sub-Navigation (04.08., Searchable-Look). Ausgelagert, damit die
 // EzyAI-Shell (ezyai.tsx) dieselbe Nav in der linken Seitenleiste rendern kann.
+// Deaktivierte Insights-Tabs (Volkan 14.09.): Sichtbarkeit, Erwähnungen, Marke,
+// Quellen, Themen ausgeblendet — Panels/Daten bleiben, ID hier entfernen =
+// wieder sichtbar. Übrig bleibt der Conversions-Tab (sobald Attribution da ist).
+const DISABLED_TABS = new Set(["uebersicht", "erwaehnungen", "marke", "quellen", "themen"]);
 function buildTabGroups(d) {
   const hasBrand = !!d?.brandCheck;
   const hasConv = Array.isArray(d?.attribution) && d.attribution.length > 0;
@@ -5835,7 +5839,7 @@ function buildTabGroups(d) {
       ],
     },
   ]
-    .map((g) => ({ ...g, items: g.items.filter(Boolean) }))
+    .map((g) => ({ ...g, items: g.items.filter((t) => t && !DISABLED_TABS.has(t.id)) }))
     .filter((g) => g.items.length);
 }
 
@@ -5849,7 +5853,7 @@ export default function AIVisibilityDashboard({
 }) {
   const d = data;
   const isTop = navStyle === "topbar";
-  const [tab, setTab] = useState("uebersicht");
+  const [tabState, setTab] = useState("uebersicht");
   const [modelF, setModelF] = useState("alle");
   const [topicF, setTopicF] = useState("alle"); // Themen-Filter (C) — greift, sobald der Messlauf topic je Prompt schreibt
   const [countryF, setCountryF] = useState("alle"); // Standort-Filter (Searchable „Locations")
@@ -5927,6 +5931,9 @@ export default function AIVisibilityDashboard({
 
   const TAB_GROUPS = buildTabGroups(d);
   const TABS = TAB_GROUPS.flatMap((g) => g.items); // flache Liste für Mobile-Leiste
+  // Gewählter Tab muss sichtbar sein — sonst erster verfügbarer (14.09.:
+  // deaktivierte Tabs dürfen nicht über den Default "uebersicht" rendern).
+  const tab = TABS.some((t) => t.id === tabState) ? tabState : (TABS[0]?.id ?? "");
 
   const activeTab = TABS.find((t) => t.id === tab) || TABS[0];
 
@@ -6213,6 +6220,15 @@ export default function AIVisibilityDashboard({
             )}
           </div>
 
+          {TABS.length === 0 && (
+            <div
+              className="rounded-xl border p-6 text-sm"
+              style={{ borderColor: C.line, color: C.sub }}
+            >
+              Für diesen Kunden sind derzeit keine Insights-Bereiche aktiv. Der Conversions-Tab
+              erscheint, sobald Attributions-Daten (GA4) vorliegen.
+            </div>
+          )}
           {tab === "uebersicht" && (
             <>
               {/* Referenzierte Seiten als Kachel entfernt (Volkan 28.08.);
