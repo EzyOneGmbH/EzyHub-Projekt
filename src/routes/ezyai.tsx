@@ -4319,6 +4319,11 @@ function EzyAiApp() {
       /* egal */
     }
   }, [showAll]);
+  // Kunden-Ansicht (Volkan 14.09.): Kunden-Logins landen direkt im Dashboard
+  // ihres Kunden — keine Agentur-Übersicht/«Alle Kunden»-Vorschau (wie EzyRank).
+  useEffect(() => {
+    if (role === "viewer" && showAll) setShowAll(false);
+  }, [role, showAll]);
   const pickClient = (v: string) => {
     if (v === "__all") {
       setShowAll(true);
@@ -4554,7 +4559,7 @@ function EzyAiApp() {
                       maxWidth: "70%",
                     }}
                   >
-                    <option value="__all">Alle Kunden</option>
+                    {role !== "viewer" && <option value="__all">Alle Kunden</option>}
                     {clients.map((c: any) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
@@ -4658,7 +4663,7 @@ function EzyAiApp() {
                       boxShadow: "0 1px 2px rgba(43,0,51,.04)",
                     }}
                   >
-                    <option value="__all">Alle Kunden</option>
+                    {role !== "viewer" && <option value="__all">Alle Kunden</option>}
                     {clients.map((c: any) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
