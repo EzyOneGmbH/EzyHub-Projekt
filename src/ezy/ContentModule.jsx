@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import DataStatus from "@/ezy/DataStatus";
 import WordPressPublishModal from "@/ezy/PublishFlow";
 import { Badge, Btn, useToast } from "./shared-ui";
+import { useAuth } from "@/hooks/use-auth";
 import { C } from "./theme";
 import { Modal, TabBar, downloadFile } from "./ui-kit";
 import { escapeHtml, markdownToHtml, sanitizeHref } from "@/ezy/lib/markdown";
@@ -474,6 +475,8 @@ export function RefreshDetailChart({ item }) {
 }
 
 export function RefreshRadar({ selectedClient }) {
+  // Kundenansicht (14.09., Volkan): «Daten neu laden» ist Team-Werkzeug.
+  const { role: radarRole } = useAuth();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [onlyAction, setOnlyAction] = useState(false);
@@ -650,15 +653,17 @@ export function RefreshRadar({ selectedClient }) {
             />
             Nur handlungsbedürftig
           </label>
-          <Btn
-            variant="secondary"
-            size="sm"
-            icon={RefreshCw}
-            onClick={reload}
-            title="Liest nur den gespeicherten Datenbankstand neu"
-          >
-            Daten neu laden
-          </Btn>
+          {radarRole !== "viewer" && (
+            <Btn
+              variant="secondary"
+              size="sm"
+              icon={RefreshCw}
+              onClick={reload}
+              title="Liest nur den gespeicherten Datenbankstand neu"
+            >
+              Daten neu laden
+            </Btn>
+          )}
         </div>
       </div>
       <div

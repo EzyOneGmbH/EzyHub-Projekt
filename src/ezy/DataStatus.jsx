@@ -84,7 +84,12 @@ export default function DataStatus({ items = [], actions, action, hint, style })
   const { role } = useAuth();
   const anzeigeName = (q) => (role === "viewer" ? String(q).replace(/\s*\([^)]*\)\s*$/, "") : q);
   const shown = items.filter((it) => it && it.source);
-  const acts = (actions && actions.length ? actions : action ? [action] : []).filter(Boolean);
+  // Kundenansicht (14.09., Volkan): «Daten neu laden» und «Neue Messung starten»
+  // sind Team-Werkzeuge — Kunden-Logins sehen nur den Datenstand.
+  const acts =
+    role === "viewer"
+      ? []
+      : (actions && actions.length ? actions : action ? [action] : []).filter(Boolean);
   if (!shown.length && !hint) return null;
   const errors = shown.filter((it) => it.error);
   return (
