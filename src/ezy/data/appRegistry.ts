@@ -103,7 +103,10 @@ export const APP_SCOPES: Record<
     // ist auskommentiert; "content" bleibt hier im Scope, damit der Deep-Link
     // "Im Editor weiterbearbeiten" (ToolRunner → Entwurf) nicht vom
     // Scope-Guard auf das Dashboard zurückgeworfen wird.
-    pages: ["dashboard", "copilot", "tools", "content"],
+    // "reports" (14.09.): Kunden-Logins starten seit dem Portal-App-Switcher in
+    // /ezyrank — ihre Reports-Seite muss im Scope bleiben (Team sieht sie nie,
+    // die NAV blendet reports für Nicht-viewer aus).
+    pages: ["dashboard", "copilot", "tools", "content", "reports"],
     // Volkan 10.08.: Übersicht-Tab raus — EzyRank startet direkt im SEO-Tab.
     // Local Grid (17.08.–09.09.) entfernt (Volkan 09.09.): kein Freitags-Scan mehr.
     tabs: ["seo", "blog", "conversions"],

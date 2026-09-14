@@ -7,6 +7,7 @@ import {
   kundenfaehigeApps,
   nurKundenAccounts,
   nurTeam,
+  portalAppsFuerKunden,
   sichtbareAppsFuerKunde,
   zugewieseneKunden,
 } from "./data/kundenZugriff";
@@ -34,6 +35,36 @@ describe("Kunden-Zugriff: sichtbare Apps je Kunde", () => {
     expect(c1).toEqual({ seo: true, geo: true, ads: false, reakt: true });
     // Kunde ohne Zeilen und ohne Map: alles aktiv (Legacy-Default)
     expect(sichtbareAppsFuerKunde("c9", apps, null).every((a) => a.enabled)).toBe(true);
+  });
+
+  it("Portal-App-Switcher: Kunden-Login darf Apps öffnen, die für seinen Kunden frei sind", () => {
+    const map = new Map([
+      ["c1", new Map([["ads", { enabled: false }]])], // seo/geo ohne Zeile = aktiv
+      [
+        "c2",
+        new Map([
+          ["seo", { enabled: false }],
+          ["geo", { enabled: false }],
+        ]),
+      ], // ads ohne Zeile = aktiv
+      [
+        "c3",
+        new Map([
+          ["seo", { enabled: false }],
+          ["geo", { enabled: false }],
+          ["ads", { enabled: false }],
+        ]),
+      ],
+    ]);
+    expect(portalAppsFuerKunden(["c1"], map)).toEqual(["seo", "geo"]);
+    expect(portalAppsFuerKunden(["c2"], map)).toEqual(["ads"]);
+    // zwei Kunden: Vereinigung — c2 bringt ads dazu
+    expect(portalAppsFuerKunden(["c1", "c2"], map)).toEqual(["seo", "geo", "ads"]);
+    // alles gesperrt → keine App (Portal-Auffangnetz)
+    expect(portalAppsFuerKunden(["c3"], map)).toEqual([]);
+    // kein Kunde → keine App; ohne Map = Legacy-Default alles aktiv
+    expect(portalAppsFuerKunden([], map)).toEqual([]);
+    expect(portalAppsFuerKunden(["c9"], null)).toEqual(["seo", "geo", "ads"]);
   });
 
   it("Deep-Link öffnet Kunden-Detail im App-Zugriff", () => {

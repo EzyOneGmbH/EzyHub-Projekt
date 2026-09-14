@@ -4241,6 +4241,10 @@ function EzyAiApp() {
       /* egal */
     }
   }, [adsMode]);
+  // Kunden-Logins bleiben immer im Organic-Modus (auch bei geteiltem Browser-Stand).
+  useEffect(() => {
+    if (role === "viewer" && adsMode) setAdsMode(false);
+  }, [role, adsMode]);
   const [adsSection, setAdsSection] = useState("ads-overview");
   // Prompt-Kuration ist seit 18.08. der reguläre Bereich "Your Prompts" —
   // alle früheren "Prompts verwalten"-Einstiege führen hierhin.
@@ -4328,13 +4332,16 @@ function EzyAiApp() {
     if (!authLoading && !session)
       navigate({ to: "/login", search: { next: "/ezyai" }, replace: true });
   }, [authLoading, session, navigate]);
+  // Portal-App-Switcher (14.09.): Kunden-Logins (viewer) werden nicht mehr
+  // pauschal auf /dashboard umgeleitet — ist EzyAI für ihren Kunden
+  // freigeschaltet (client_app_access via useAppAccess), dürfen sie hinein
+  // (read-only, Bereiche nach Funktions-Freischaltung, kein Ads-Modus).
   useEffect(() => {
-    if (!authLoading && role === "viewer") window.location.replace("/dashboard");
-  }, [authLoading, role]);
-  useEffect(() => {
-    // Member ohne EzyAI-Freigabe → zurück zum Launcher (Kachel dort erklärt es)
-    if (!accessLoading && session && !canOpen("geo")) window.location.replace("/apps");
-  }, [accessLoading, session, canOpen]);
+    // Ohne Freigabe: Member zurück zum Launcher (Kachel dort erklärt es),
+    // Kunden-Login ins Portal.
+    if (!accessLoading && session && !canOpen("geo"))
+      window.location.replace(role === "viewer" ? "/dashboard" : "/apps");
+  }, [accessLoading, session, role, canOpen]);
 
   // Nur Kunden mit aktiver KI-Sichtbarkeit (canonry|perplexity) anbieten (01.08.)
   // + Kunde↔App-Freischaltung (client_app_access, Admin-Umbau 06.08.):
@@ -4397,7 +4404,8 @@ function EzyAiApp() {
   const svc = useEzyServiceSettings(client?.id);
   const aivisOn = svc.loading || svc.enabled?.canonry || svc.enabled?.perplexity;
 
-  if (authLoading || !session || role === "viewer") return null;
+  if (authLoading || !session) return null;
+  if (accessLoading || !canOpen("geo")) return null; // Guard-Redirect läuft
 
   const shareReport = async () => {
     const token = (await supabase.auth.getSession()).data.session?.access_token;
@@ -4484,13 +4492,16 @@ function EzyAiApp() {
               initials={initials(profile.name)}
               onLogout={() => supabase.auth.signOut()}
               railExtra={
-                <OrganicAdsSwitch
-                  adsMode={adsMode}
-                  onChange={(ads) => {
-                    setAdsMode(ads);
-                    setView("dashboard");
-                  }}
-                />
+                // Kunden-Logins: kein Ads-Modus (Kampagnensteuerung ist intern).
+                role === "viewer" ? null : (
+                  <OrganicAdsSwitch
+                    adsMode={adsMode}
+                    onChange={(ads) => {
+                      setAdsMode(ads);
+                      setView("dashboard");
+                    }}
+                  />
+                )
               }
               nav={
                 showAll

@@ -7066,7 +7066,9 @@ function App({ appScope = null }) {
           nur noch über den Launcher. Mobile unverändert (Bottom-Bar). */}
         <AppRail
           current={appScope || currentAppOf(page, tab)}
-          canOpen={(id) => !isViewer && appAccess.canOpen(id)}
+          // Portal-App-Switcher (14.09.): Kunden-Logins sehen die für ihren
+          // Kunden freigeschalteten Apps (useAppAccess liest client_app_access).
+          canOpen={(id) => appAccess.canOpen(id)}
           profile={profile}
           initials={initialsFromName(profile.name)}
           onLogout={() => supabase.auth.signOut()}

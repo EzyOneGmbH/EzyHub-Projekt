@@ -41,6 +41,25 @@ export function sichtbareAppsFuerKunde<T extends { id: string }>(
   return apps.map((a) => ({ ...a, enabled: je?.get(a.id)?.enabled ?? true }));
 }
 
+/** Apps, die ein Kunden-Login im Portal-App-Switcher sehen kann (Rail-Apps). */
+export const PORTAL_RAIL_APPS = ["seo", "geo", "ads"] as const;
+export type PortalRailApp = (typeof PORTAL_RAIL_APPS)[number];
+
+/**
+ * App-Switcher für Kunden-Logins (14.09.): welche Apps darf ein viewer öffnen?
+ * Vereinigung über alle seine Kunden (client_app_access, keine Zeile = aktiv),
+ * eingeschränkt auf die Rail-Apps. Kein Kunde → keine App.
+ */
+export function portalAppsFuerKunden(
+  clientIds: string[] | null | undefined,
+  map: Map<string, Map<string, { enabled: boolean }>> | null | undefined,
+): PortalRailApp[] {
+  const ids = clientIds || [];
+  return PORTAL_RAIL_APPS.filter((app) =>
+    ids.some((cid) => map?.get(cid)?.get(app)?.enabled ?? true),
+  );
+}
+
 /** Deep-Link ins Kunden-Detail → App-Zugriff (ClientsPage liest client + tab). */
 export function kundenDetailLink(clientId: string, tab = "access"): string {
   return `/admin?app=admin&client=${encodeURIComponent(clientId)}&tab=${encodeURIComponent(tab)}`;
