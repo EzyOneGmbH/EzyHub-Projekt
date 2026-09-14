@@ -2,8 +2,44 @@
 // Admin-Tab, das Team zeigt nur noch Mitarbeiter/Admins. Die Tests sichern die
 // Trennung (Filter) und die Verdrahtung im Admin-Scope (App-Registry).
 import { describe, expect, it } from "vitest";
-import { nurKundenAccounts, nurTeam, zugewieseneKunden } from "./data/kundenZugriff";
-import { APP_SCOPES, currentAppOf } from "./data/appRegistry";
+import {
+  kundenDetailLink,
+  kundenfaehigeApps,
+  nurKundenAccounts,
+  nurTeam,
+  sichtbareAppsFuerKunde,
+  zugewieseneKunden,
+} from "./data/kundenZugriff";
+import { APP_SCOPES, EZY_APPS, currentAppOf } from "./data/appRegistry";
+
+describe("Kunden-Zugriff: sichtbare Apps je Kunde", () => {
+  it("Portal-Apps sind genau EzyRank/EzyAI/EzyPerformance/Reaktivierung", () => {
+    expect(kundenfaehigeApps(EZY_APPS).map((a) => a.id)).toEqual(["seo", "geo", "ads", "reakt"]);
+  });
+
+  it("keine Zeile = App aktiv, Zeile mit enabled=false = gesperrt", () => {
+    const apps = kundenfaehigeApps(EZY_APPS);
+    const map = new Map([
+      [
+        "c1",
+        new Map([
+          ["ads", { enabled: false }],
+          ["seo", { enabled: true }],
+        ]),
+      ],
+    ]);
+    const c1 = Object.fromEntries(
+      sichtbareAppsFuerKunde("c1", apps, map).map((a) => [a.id, a.enabled]),
+    );
+    expect(c1).toEqual({ seo: true, geo: true, ads: false, reakt: true });
+    // Kunde ohne Zeilen und ohne Map: alles aktiv (Legacy-Default)
+    expect(sichtbareAppsFuerKunde("c9", apps, null).every((a) => a.enabled)).toBe(true);
+  });
+
+  it("Deep-Link öffnet Kunden-Detail im App-Zugriff", () => {
+    expect(kundenDetailLink("c1")).toBe("/admin?app=admin&client=c1&tab=access");
+  });
+});
 
 const users = [
   { userId: "u1", role: "owner", email: "chef@agentur.ch", clientIds: [] },

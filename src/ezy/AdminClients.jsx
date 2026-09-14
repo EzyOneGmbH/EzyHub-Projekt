@@ -2267,10 +2267,12 @@ export function ClientsPage({
   // der Bereitschafts-Ansicht — genutzt von der Analyse-Lead-Uebernahme.
   useEffect(() => {
     try {
-      const cid = new URLSearchParams(window.location.search).get("client");
+      const params = new URLSearchParams(window.location.search);
+      const cid = params.get("client");
       if (cid && /^[0-9a-f-]{36}$/i.test(cid)) {
         setDetailId(cid);
-        setDt("readiness");
+        // Kunden-Zugriff (14.09.): &tab=access springt direkt in den App-Zugriff.
+        setDt(params.get("tab") === "access" ? "access" : "readiness");
         window.history.replaceState(null, "", window.location.pathname);
       }
     } catch {

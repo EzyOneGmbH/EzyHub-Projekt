@@ -10,7 +10,20 @@ import { ClientAvatar } from "@/ezy/ClientAvatar";
 import { Badge, Btn, useToast } from "./shared-ui";
 import { Inp } from "./ui-kit";
 import { C } from "./theme";
-import { nurKundenAccounts, zugewieseneKunden } from "./data/kundenZugriff";
+import { EZY_APPS } from "@/ezy/data/appRegistry";
+import { useClientAppAccess } from "@/ezy/data/useClientAppAccess";
+import { appLabel, warneBeimAppAktivieren } from "@/ezy/data/appRequirements";
+import {
+  kundenDetailLink,
+  kundenfaehigeApps,
+  nurKundenAccounts,
+  sichtbareAppsFuerKunde,
+  zugewieseneKunden,
+} from "./data/kundenZugriff";
+
+// Apps, die ein Kunde im Portal überhaupt bekommen kann (EzyRank, EzyAI,
+// EzyPerformance, Reaktivierung) — Analyse/Admin sind bewusst intern.
+const PORTAL_APPS = kundenfaehigeApps(EZY_APPS);
 
 export function KundenZugriffPage({ clients }) {
   const toast = useToast();
@@ -85,6 +98,72 @@ export function KundenZugriffPage({ clients }) {
     } else toast(j.error || "Fehlgeschlagen", "error");
   };
 
+  // App-Freischaltung je Kunde (client_app_access) — gilt für ALLE Logins des
+  // Kunden, nicht je Login (Portal-Gating hängt am Kunden). Voraussetzungen
+  // (Dienste/Verbindungen) kommen aus der serverseitigen Einsatzbereitschaft.
+  const caa = useClientAppAccess();
+  const [readiness, setReadiness] = useState({}); // clientId -> AppReadiness[] | null
+  const ladeReadiness = useCallback(async (clientId) => {
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const r = await authedFetch(
+        `/api/admin/client-readiness?client=${encodeURIComponent(clientId)}`,
+        { headers: { Authorization: `Bearer ${token || ""}` } },
+      );
+      const j = await r.json().catch(() => ({}));
+      setReadiness((prev) => ({ ...prev, [clientId]: j?.ok ? j : null }));
+      return j?.ok ? j : null;
+    } catch {
+      setReadiness((prev) => ({ ...prev, [clientId]: null }));
+      return null;
+    }
+  }, []);
+  // Readiness nur für Kunden laden, die tatsächlich Portal-Logins haben.
+  const kundenMitLogins = useMemo(
+    () => [...new Set(users.flatMap((u) => u.clientIds || []))],
+    [users],
+  );
+  useEffect(() => {
+    for (const id of kundenMitLogins) if (!(id in readiness)) void ladeReadiness(id);
+    // readiness bewusst nicht als Dependency: nur fehlende Kunden nachladen
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kundenMitLogins, ladeReadiness]);
+  const luecke = (clientId, appId) => {
+    const r = readiness[clientId]?.readiness?.find((x) => x.app === appId);
+    if (!r || r.status === "deaktiviert") return null;
+    const c = r.checks?.find((ch) => ch.id !== "app" && !ch.ok && ch.severity === "kritisch");
+    return c ? `${c.label}: ${c.detail}` : null;
+  };
+  const toggleApp = async (c, app) => {
+    if (caa.legacy) {
+      toast("App-Zugriff-Tabelle fehlt (Migration client_app_portal)", "error");
+      return;
+    }
+    if (!app.enabled) {
+      // Wie im Kunden-Detail: vor dem Freischalten auf fehlende Voraussetzungen hinweisen.
+      const snap = readiness[c.id]?.snapshot || (await ladeReadiness(c.id))?.snapshot;
+      const warnungen = snap ? warneBeimAppAktivieren(app.id, snap) : [];
+      if (
+        warnungen.length &&
+        !window.confirm(
+          `Für ${appLabel(app.id)} fehlen bei ${c.name} Voraussetzungen:\n\n${warnungen
+            .map((w) => `• ${w.text}`)
+            .join("\n")}\n\nDer Kunde sieht den Bereich sonst leer. Trotzdem freischalten?`,
+        )
+      )
+        return;
+    }
+    const err = await caa.setAccess(c.id, app.id, { enabled: !app.enabled });
+    if (err) toast(err, "error");
+    else {
+      toast(
+        `${app.name} für ${c.name} ${app.enabled ? "gesperrt" : "freigeschaltet"} (alle Logins dieses Kunden)`,
+        "success",
+      );
+      void ladeReadiness(c.id);
+    }
+  };
+
   const sichtbar = useMemo(() => {
     const q = suche.trim().toLowerCase();
     return users.filter((u) => {
@@ -119,9 +198,11 @@ export function KundenZugriffPage({ clients }) {
       <div>
         <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Kunden-Zugriff</h2>
         <p style={{ fontSize: 12, color: C.textMuted, margin: "4px 0 0" }}>
-          Alle Kunden-Accounts (Portal-Logins) an einem Ort. Kunden sehen nur die für ihren Kunden
-          freigeschalteten Funktionen — read-only, ohne Agenten, Einstellungen oder interne Notizen.
-          Mitarbeiter und Admins verwaltest du weiterhin unter «Team».
+          Alle Kunden-Accounts (Portal-Logins) an einem Ort. Welche Apps ein Login sieht, hängt am
+          Kunden (gilt für alle seine Logins): Chips anklicken schaltet EzyRank, EzyAI,
+          EzyPerformance und Reaktivierung frei — Analyse und Admin sind intern. ⚠ = freigeschaltet,
+          aber Voraussetzung fehlt (Dienst/Verbindung), der Bereich bliebe leer. Mitarbeiter und
+          Admins verwaltest du weiterhin unter «Team».
         </p>
       </div>
 
@@ -293,6 +374,78 @@ export function KundenZugriffPage({ clients }) {
                       </Btn>
                     </div>
                   </div>
+                  {/* Sichtbare Apps (14.09.): je zugewiesenem Kunden die Portal-Apps —
+                      Klick schaltet die App für den KUNDEN (alle seine Logins). */}
+                  {kunden.length > 0 && (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 4,
+                      }}
+                    >
+                      {kunden.map((c) => (
+                        <div
+                          key={c.id}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <span style={{ fontSize: 11, color: C.textMuted, minWidth: 110 }}>
+                            Apps {kunden.length > 1 ? `für ${c.name}` : "für den Kunden"}:
+                          </span>
+                          {sichtbareAppsFuerKunde(c.id, PORTAL_APPS, caa.map).map((a) => {
+                            const fehlt = a.enabled ? luecke(c.id, a.id) : null;
+                            return (
+                              <button
+                                key={a.id}
+                                type="button"
+                                onClick={() => toggleApp(c, a)}
+                                title={
+                                  fehlt
+                                    ? `${a.name} ist freigeschaltet, erscheint aber leer — ${fehlt}`
+                                    : a.enabled
+                                      ? `${a.name} für ${c.name} sperren (alle Logins)`
+                                      : `${a.name} für ${c.name} freischalten (alle Logins)`
+                                }
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 4,
+                                  padding: "3px 9px",
+                                  borderRadius: 99,
+                                  cursor: "pointer",
+                                  fontSize: 11,
+                                  border: `1px solid ${a.enabled ? (fehlt ? C.orange : a.color) : C.border}`,
+                                  background: a.enabled
+                                    ? fehlt
+                                      ? C.orangeDim
+                                      : a.tint
+                                    : "transparent",
+                                  color: a.enabled ? (fehlt ? C.orange : a.color) : C.textDim,
+                                  textDecoration: a.enabled ? "none" : "line-through",
+                                }}
+                              >
+                                {a.icon} {a.name}
+                                {fehlt ? " ⚠" : ""}
+                              </button>
+                            );
+                          })}
+                          <a
+                            href={kundenDetailLink(c.id)}
+                            style={{ fontSize: 11, color: C.accent, textDecoration: "none" }}
+                            title="Funktionen im Detail freischalten (Kunden-Detail → App-Zugriff)"
+                          >
+                            Funktionen →
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {expanded === u.userId && (
                     <div
                       style={{
