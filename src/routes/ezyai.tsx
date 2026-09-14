@@ -155,7 +155,15 @@ const APP_NAV: Array<{ group: string; items: NavItem[] }> = [
 // bleiben — zum Reaktivieren die ID hier entfernen. Aktiv bleiben Insights
 // (nur Conversions-Tab, s. AIVisibilityDashboard DISABLED_TABS), Traffic,
 // Site Health, Issues sowie der komplette Ads-Modus.
-const DISABLED_SECTIONS = new Set(["llm-analytics", "your-prompts", "content", "opportunities"]);
+// "traffic" (14.09.): kein eigener Bereich mehr — läuft als Tab «Traffic» neben
+// Conversions im Insights-Dashboard (extraTabs an AiVisibilityTab).
+const DISABLED_SECTIONS = new Set([
+  "llm-analytics",
+  "your-prompts",
+  "content",
+  "opportunities",
+  "traffic",
+]);
 // Deaktivierte Einzel-Karten (Volkan 14.09.): «SEO × KI-Sichtbarkeit»-Matrix
 // (Traffic) und «KI-Crawler auf der Website» inkl. Ingest-Token (Insights).
 // Komponenten/Daten bleiben — ID entfernen = wieder sichtbar.
@@ -4952,6 +4960,59 @@ function EzyAiApp() {
                       selectedClient={client}
                       navStyle="topbar"
                       onReviewPrompts={goPrompts}
+                      extraTabs={[
+                        {
+                          id: "traffic",
+                          label: "Traffic",
+                          icon: Activity,
+                          render: () => (
+                            <div>
+                              {/* Vergleichsperiode gehört zum Traffic-Panel (GA4/
+                                  Crawler-Log = Range-Daten), nicht zum Snapshot. */}
+                              <div
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "flex-end",
+                                  marginBottom: 10,
+                                }}
+                              >
+                                <select
+                                  value={compareMode}
+                                  onChange={(e) => setCompareMode(e.target.value as any)}
+                                  title="Vergleichsperiode für die KPI-Karten"
+                                  style={{
+                                    padding: "7px 10px",
+                                    borderRadius: 10,
+                                    background: S.bg,
+                                    color: compareMode === "none" ? S.mut : S.app,
+                                    border: `1px solid ${S.line}`,
+                                    fontSize: 12,
+                                    fontFamily: "inherit",
+                                  }}
+                                >
+                                  <option value="none">Kein Vergleich</option>
+                                  <option value="prevPeriod">vs. Vorperiode</option>
+                                  <option value="prevYear">vs. Vorjahr</option>
+                                </select>
+                              </div>
+                              <Suspense
+                                fallback={
+                                  <div style={{ color: S.mut, fontSize: 13, padding: 30 }}>
+                                    Lade Traffic…
+                                  </div>
+                                }
+                              >
+                                <TrafficPanel
+                                  clientId={client.id}
+                                  S={S}
+                                  range={range}
+                                  compare={compare}
+                                />
+                              </Suspense>
+                            </div>
+                          ),
+                        },
+                      ]}
                     />
                     {!DISABLED_CARDS.has("ki-crawler") && (
                       <CrawlerCard clientId={client.id} S={S} isOrgAdmin={isOrgAdmin} />

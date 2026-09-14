@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.12.1",
+    version: "1.13.0",
     changelog: [
+      {
+        version: "1.13.0",
+        date: "2026-09-14",
+        note: "Traffic ist kein eigener Bereich mehr, sondern ein Tab «Traffic» neben Conversions im Insights-Dashboard (Vergleichsperiode direkt im Tab)",
+      },
       {
         version: "1.12.1",
         date: "2026-09-14",

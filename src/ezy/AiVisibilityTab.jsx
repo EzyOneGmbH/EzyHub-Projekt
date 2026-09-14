@@ -5,7 +5,7 @@ import AIVisibilityReport, { AIVisibilitySkeleton } from "@/ezy/AIVisibilityDash
 import { useEzyAIVisibility } from "@/ezy/data/useEzyAIVisibility";
 import { useEzyLatestRun, ga4ConversionsFromResult } from "@/ezy/data/useEzyLatestRun";
 
-export function AiVisibilityTab({ selectedClient, navStyle, onReviewPrompts }) {
+export function AiVisibilityTab({ selectedClient, navStyle, onReviewPrompts, extraTabs }) {
   const { data, loading, error } = useEzyAIVisibility(
     selectedClient?.id,
     selectedClient?.domain || selectedClient?.name,
@@ -26,6 +26,7 @@ export function AiVisibilityTab({ selectedClient, navStyle, onReviewPrompts }) {
       convRows={convRows}
       navStyle={navStyle}
       onReviewPrompts={onReviewPrompts}
+      extraTabs={extraTabs}
     />
   );
 }

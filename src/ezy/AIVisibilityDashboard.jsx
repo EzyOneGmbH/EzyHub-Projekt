@@ -5799,7 +5799,10 @@ function TopicTreemap({ rows }) {
 // Quellen, Themen ausgeblendet — Panels/Daten bleiben, ID hier entfernen =
 // wieder sichtbar. Übrig bleibt der Conversions-Tab (sobald Attribution da ist).
 const DISABLED_TABS = new Set(["uebersicht", "erwaehnungen", "marke", "quellen", "themen"]);
-function buildTabGroups(d) {
+// extraTabs (14.09.): von der Shell gelieferte Zusatz-Tabs (z.B. Traffic) —
+// {id, label, icon, render()} — erscheinen in der Gruppe «Kontext» neben
+// Conversions und rendern ihren Inhalt selbst.
+function buildTabGroups(d, extraTabs = []) {
   const hasBrand = !!d?.brandCheck;
   const hasConv = Array.isArray(d?.attribution) && d.attribution.length > 0;
   // Prompts-Tab aufgelöst (04.08.): die All-Responses-Tabelle hängt jetzt am
@@ -5836,6 +5839,7 @@ function buildTabGroups(d) {
         //   ? [{ id: "standorte", label: "Standorte", icon: MapPin }]
         //   : []),
         ...(hasConv ? [{ id: "conversions", label: "Conversions", icon: MousePointerClick }] : []),
+        ...extraTabs.map((t) => ({ id: t.id, label: t.label, icon: t.icon })),
       ],
     },
   ]
@@ -5850,6 +5854,7 @@ export default function AIVisibilityDashboard({
   convRows = [],
   navStyle = "sidebar",
   onReviewPrompts,
+  extraTabs = [],
 }) {
   const d = data;
   const isTop = navStyle === "topbar";
@@ -5862,7 +5867,40 @@ export default function AIVisibilityDashboard({
   // Kunden (Volkan). Score/KPIs bleiben Markt-only, damit die Historie
   // vergleichbar bleibt.
   const [brandedF, setBrandedF] = useState("beide");
-  if (!d) return <AIVisibilityEmpty />;
+  if (!d) {
+    // Ohne KI-Messung bleiben die Zusatz-Tabs (Traffic) trotzdem nutzbar.
+    if (!extraTabs.length) return <AIVisibilityEmpty />;
+    const ext = extraTabs.find((t) => t.id === tabState) || extraTabs[0];
+    return (
+      <div className="w-full" style={{ background: C.page, color: C.ink }}>
+        <div className="border-b" style={{ borderColor: C.line }}>
+          <div className="flex items-center gap-1 overflow-x-auto">
+            {extraTabs.map((t) => {
+              const on = ext.id === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className="inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-2.5 text-[13px]"
+                  style={{
+                    color: on ? C.ink : C.sub,
+                    fontWeight: on ? 700 : 500,
+                    background: "none",
+                    border: "none",
+                    borderBottom: on ? `2px solid ${C.ink}` : "2px solid transparent",
+                    cursor: "pointer",
+                  }}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="p-4">{ext.render()}</div>
+      </div>
+    );
+  }
   // Rival-Domains aus dem Judge für exakte Marken-Logos registrieren (04.08.).
   registerBrandDomains(d.prompts);
 
@@ -5929,7 +5967,7 @@ export default function AIVisibilityDashboard({
     ? Math.round((sentRows.filter((p) => p.sentiment === "pos").length / sentRows.length) * 100)
     : null;
 
-  const TAB_GROUPS = buildTabGroups(d);
+  const TAB_GROUPS = buildTabGroups(d, extraTabs);
   const TABS = TAB_GROUPS.flatMap((g) => g.items); // flache Liste für Mobile-Leiste
   // Gewählter Tab muss sichtbar sein — sonst erster verfügbarer (14.09.:
   // deaktivierte Tabs dürfen nicht über den Default "uebersicht" rendern).
@@ -6431,6 +6469,15 @@ export default function AIVisibilityDashboard({
           )}
 
           {tab === "standorte" && <LocationPanel countries={d.countries} models={d.models} />}
+
+          {extraTabs.map(
+            (t) =>
+              tab === t.id && (
+                <div key={t.id} className="mt-4">
+                  {t.render()}
+                </div>
+              ),
+          )}
 
           {tab === "conversions" && (
             <div className="mt-4">
