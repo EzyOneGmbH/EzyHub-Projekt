@@ -380,6 +380,14 @@ test("ChatGPT Ads: Mock-Konto → Kampagnen → Geo-Targeting → Zielgruppen �
   const mock = neuerMock();
   await installiereMocks(page, mock);
   const posts = (action: string) => mock.state.posts.filter((p) => p.action === action);
+  // Requests laufen asynchron nach dem Klick — vor jeder Body-Assertion auf den
+  // Eingang warten (CI-Flake 14.09.: "Cannot read properties of undefined (reading 'body')").
+  const warteAufPost = (action: string, mindestens = 1) =>
+    expect.poll(() => posts(action).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(mindestens);
+  const warteAufCmd = (cmd: string) =>
+    expect
+      .poll(() => posts("command").filter((p) => p.body?.cmd === cmd).length, { timeout: 10_000 })
+      .toBeGreaterThan(0);
 
   await page.goto("/ezyai");
   // Kunde waehlen (Ads-Panels rendern erst mit gewaehltem Kunden).
@@ -390,6 +398,7 @@ test("ChatGPT Ads: Mock-Konto → Kampagnen → Geo-Targeting → Zielgruppen �
   await expect(page.getByText("ChatGPT-Ads-Konto verbinden").first()).toBeVisible();
   await page.getByPlaceholder("API-Key aus ads.openai.com (oder: mock)").fill("mock");
   await page.getByRole("button", { name: "Verbinden" }).click();
+  await warteAufPost("connect");
   expect(posts("connect")[0].body.apiKey).toBe("mock");
   // Multi-Org-Vertrag: jeder Admin-Aufruf traegt Bearer + aktive Org.
   expect(posts("connect")[0].headers["authorization"]).toBe("Bearer e2e-jwt");
@@ -401,6 +410,7 @@ test("ChatGPT Ads: Mock-Konto → Kampagnen → Geo-Targeting → Zielgruppen �
   // ── 2) Kampagnenaktionen: Pausieren, Budget, Bulk ──────────────────────
   const zeileBrand = page.locator("tr", { hasText: "Brand Awareness CH" }).first();
   await zeileBrand.getByTitle("Pausieren").click();
+  await warteAufCmd("pause");
   expect(posts("command").at(-1)?.body).toMatchObject({
     cmd: "pause",
     targetType: "campaign",
@@ -412,6 +422,7 @@ test("ChatGPT Ads: Mock-Konto → Kampagnen → Geo-Targeting → Zielgruppen �
   const budget = zeileBrand.getByRole("textbox"); // Zeile hat auch eine Checkbox
   await budget.fill("75");
   await zeileBrand.getByRole("button", { name: "OK" }).click();
+  await warteAufCmd("set_budget");
   expect(posts("command").at(-1)?.body).toMatchObject({
     cmd: "set_budget",
     targetId: "cmp_mock_brand",
@@ -425,6 +436,7 @@ test("ChatGPT Ads: Mock-Konto → Kampagnen → Geo-Targeting → Zielgruppen �
   await expect(page.getByText("2 ausgewählt").first()).toBeVisible();
   await page.getByRole("button", { name: "Pausieren", exact: true }).click();
   await page.getByRole("button", { name: "Ja, ausführen" }).click();
+  await warteAufPost("bulk");
   expect(posts("bulk")[0].body).toMatchObject({ cmd: "pause" });
   expect(posts("bulk")[0].body.targetIds.sort()).toEqual(["cmp_mock_leads", "cmp_mock_promo"]);
   await expect(zeileLeads.getByText("pausiert")).toBeVisible();
@@ -438,6 +450,7 @@ test("ChatGPT Ads: Mock-Konto → Kampagnen → Geo-Targeting → Zielgruppen �
   await expect.poll(() => posts("geo-search").length).toBeGreaterThan(0);
   await page.getByText("Zürich", { exact: false }).last().click();
   await page.getByRole("button", { name: "Targeting speichern" }).click();
+  await warteAufCmd("set_targeting");
   const targeting = posts("command").findLast((p) => p.body.cmd === "set_targeting");
   expect(targeting?.body.targetId).toBe("cmp_mock_leads");
   expect(JSON.stringify(targeting?.body.locations)).toContain("geo_zh");
@@ -449,6 +462,7 @@ test("ChatGPT Ads: Mock-Konto → Kampagnen → Geo-Targeting → Zielgruppen �
   const editorZeile = page.locator("tr", { hasText: "Bestandskunden 2026" }).last();
   await editorZeile.getByRole("checkbox").first().check();
   await page.getByRole("button", { name: "Zuweisung speichern" }).click();
+  await warteAufCmd("set_audiences");
   const zuweisung = posts("command").findLast((p) => p.body.cmd === "set_audiences");
   expect(zuweisung?.body).toMatchObject({ targetId: "cmp_mock_promo" });
   expect(zuweisung?.body.includeIds).toContain("caud_mock_1");
@@ -485,6 +499,7 @@ test("ChatGPT Ads: Mock-Konto → Kampagnen → Geo-Targeting → Zielgruppen �
   await expect(page.getByText("Conversion-Events (1)")).toBeVisible();
   await page.getByRole("button", { name: "Live-Events (OpenAI)" }).click();
   await expect(page.getByText(/Events kommen bei OpenAI an/).first()).toBeVisible();
+  await warteAufPost("conv-sample");
   expect(posts("conv-sample")).toHaveLength(1);
 
   // Kein Aufruf ohne Org-Stempel, kein Klartext-Secret im Netz.
