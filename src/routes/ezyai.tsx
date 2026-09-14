@@ -156,6 +156,10 @@ const APP_NAV: Array<{ group: string; items: NavItem[] }> = [
 // (nur Conversions-Tab, s. AIVisibilityDashboard DISABLED_TABS), Traffic,
 // Site Health, Issues sowie der komplette Ads-Modus.
 const DISABLED_SECTIONS = new Set(["llm-analytics", "your-prompts", "content", "opportunities"]);
+// Deaktivierte Einzel-Karten (Volkan 14.09.): «SEO × KI-Sichtbarkeit»-Matrix
+// (Traffic) und «KI-Crawler auf der Website» inkl. Ingest-Token (Insights).
+// Komponenten/Daten bleiben — ID entfernen = wieder sichtbar.
+const DISABLED_CARDS = new Set(["seo-ki-matrix", "ki-crawler"]);
 // Ads-Modus (ChatGPT Ads, 26.08.2026): eigene Bereichs-Nav — der Organic/Ads-
 // Schalter in der AppRail (unter der Trennlinie) wechselt zwischen den Welten.
 const ADS_NAV: Array<{ group: string; items: NavItem[] }> = [
@@ -1861,6 +1865,7 @@ function TrafficPanel({
 
           {/* SEO × KI-Sichtbarkeit: Quadranten-Matrix (Searchable GSC-Kombination) */}
           {quad &&
+            !DISABLED_CARDS.has("seo-ki-matrix") &&
             (() => {
               const QH = 300,
                 QP = 14,
@@ -4948,7 +4953,9 @@ function EzyAiApp() {
                       navStyle="topbar"
                       onReviewPrompts={goPrompts}
                     />
-                    <CrawlerCard clientId={client.id} S={S} isOrgAdmin={isOrgAdmin} />
+                    {!DISABLED_CARDS.has("ki-crawler") && (
+                      <CrawlerCard clientId={client.id} S={S} isOrgAdmin={isOrgAdmin} />
+                    )}
                   </>
                 )}
               </main>

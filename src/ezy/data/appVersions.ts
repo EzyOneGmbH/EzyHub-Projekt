@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.12.0",
+    version: "1.12.1",
     changelog: [
+      {
+        version: "1.12.1",
+        date: "2026-09-14",
+        note: "Ausgeblendet: die Matrix «SEO × KI-Sichtbarkeit» im Traffic-Bereich sowie die Karte «KI-Crawler auf der Website» samt Ingest-Token unter Insights",
+      },
       {
         version: "1.12.0",
         date: "2026-09-14",
