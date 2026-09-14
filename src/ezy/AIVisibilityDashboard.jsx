@@ -5799,6 +5799,9 @@ function TopicTreemap({ rows }) {
 // Quellen, Themen ausgeblendet — Panels/Daten bleiben, ID hier entfernen =
 // wieder sichtbar. Übrig bleibt der Conversions-Tab (sobald Attribution da ist).
 const DISABLED_TABS = new Set(["uebersicht", "erwaehnungen", "marke", "quellen", "themen"]);
+// Filterzeile (Stand-Datum, Modell-/Themen-/Standort-/Branded-Filter) gehört zu
+// den ausgeblendeten Analyse-Tabs — ebenfalls aus (Volkan 14.09.); false = zurück.
+const DISABLED_FILTER_BAR = true;
 // extraTabs (14.09.): von der Shell gelieferte Zusatz-Tabs (z.B. Traffic) —
 // {id, label, icon, render()} — erscheinen in der Gruppe «Kontext» neben
 // Conversions und rendern ihren Inhalt selbst.
@@ -6146,117 +6149,119 @@ export default function AIVisibilityDashboard({
           )}
 
           {/* Filterzeile */}
-          <div
-            className="mt-3 flex flex-wrap items-center gap-2 text-[11.5px]"
-            style={{ color: C.sub }}
-          >
-            <span className="rounded-full border px-2.5 py-1" style={{ borderColor: C.line }}>
-              Stand {d.date}
-            </span>
-            {platforms.length > 1 && (
-              <select
-                value={modelF}
-                onChange={(e) => setModelF(e.target.value)}
-                className="rounded-full border px-2.5 py-1 text-[11.5px]"
-                style={{
-                  borderColor: modelF === "alle" ? C.line : C.indigo,
-                  background: C.card,
-                  color: modelF === "alle" ? C.sub : C.indigo,
-                }}
-                title="Wirkt auf Kaufreise, Position, Intent und Prompts"
-              >
-                <option value="alle">Alle Modelle</option>
-                {platforms.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-            )}
-            {topicsAvail.length > 1 && (
-              <select
-                value={topicF}
-                onChange={(e) => setTopicF(e.target.value)}
-                className="rounded-full border px-2.5 py-1 text-[11.5px]"
-                style={{
-                  borderColor: topicF === "alle" ? C.line : C.indigo,
-                  background: C.card,
-                  color: topicF === "alle" ? C.sub : C.indigo,
-                }}
-                title="Wirkt auf Kaufreise, Position, Intent und Prompts"
-              >
-                <option value="alle">Alle Themen</option>
-                {topicsAvail.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            )}
-            {countriesAvail.length > 1 && (
-              <select
-                value={countryF}
-                onChange={(e) => setCountryF(e.target.value)}
-                className="rounded-full border px-2.5 py-1 text-[11.5px]"
-                style={{
-                  borderColor: countryF === "alle" ? C.line : C.indigo,
-                  background: C.card,
-                  color: countryF === "alle" ? C.sub : C.indigo,
-                }}
-                title="Standort-Filter (Herkunft der Anfragen) — wirkt auf Kaufreise, Position, Intent und Prompts"
-              >
-                <option value="alle">Alle Standorte</option>
-                {countriesAvail.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            )}
-            {(d.brandPrompts || []).length > 0 && (
-              <select
-                value={brandedF}
-                onChange={(e) => setBrandedF(e.target.value)}
-                className="rounded-full border px-2.5 py-1 text-[11.5px]"
-                style={{
-                  borderColor: brandedF === "beide" ? C.line : C.indigo,
-                  background: C.card,
-                  color: brandedF === "beide" ? C.sub : C.indigo,
-                }}
-                title="Marken-Prompts (Fragen über die Marke selbst) in Rankings, Kaufreise, Position und Head-to-Head einbeziehen — Standard (Searchable-Sicht). Score und KPIs bleiben Markt-only."
-              >
-                <option value="beide">Branded & Unbranded</option>
-                <option value="markt">Nur Markt-Prompts</option>
-              </select>
-            )}
-            {(modelF !== "alle" ||
-              topicF !== "alle" ||
-              countryF !== "alle" ||
-              (brandedF === "markt" && (d.brandPrompts || []).length > 0)) && (
-              <span className="rounded-full px-2.5 py-1" style={{ background: C.cardAlt }}>
-                Filter aktiv:{" "}
-                {[
-                  modelF !== "alle" ? `nur ${modelF}` : null,
-                  topicF !== "alle" ? `Thema „${topicF}"` : null,
-                  countryF !== "alle" ? `Standort ${countryF}` : null,
-                  brandedF === "markt" && (d.brandPrompts || []).length > 0
-                    ? "ohne Marken-Prompts (nur Markt)"
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}{" "}
-                (Score/KPIs bleiben Gesamtwerte)
+          {!DISABLED_FILTER_BAR && (
+            <div
+              className="mt-3 flex flex-wrap items-center gap-2 text-[11.5px]"
+              style={{ color: C.sub }}
+            >
+              <span className="rounded-full border px-2.5 py-1" style={{ borderColor: C.line }}>
+                Stand {d.date}
               </span>
-            )}
-            {d.versionSwitch && (
-              <span
-                className="rounded-full border px-2 py-0.5"
-                style={{ borderColor: C.amber, color: C.amber }}
-              >
-                Messung umgestellt am {d.versionSwitch}
-              </span>
-            )}
-          </div>
+              {platforms.length > 1 && (
+                <select
+                  value={modelF}
+                  onChange={(e) => setModelF(e.target.value)}
+                  className="rounded-full border px-2.5 py-1 text-[11.5px]"
+                  style={{
+                    borderColor: modelF === "alle" ? C.line : C.indigo,
+                    background: C.card,
+                    color: modelF === "alle" ? C.sub : C.indigo,
+                  }}
+                  title="Wirkt auf Kaufreise, Position, Intent und Prompts"
+                >
+                  <option value="alle">Alle Modelle</option>
+                  {platforms.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {topicsAvail.length > 1 && (
+                <select
+                  value={topicF}
+                  onChange={(e) => setTopicF(e.target.value)}
+                  className="rounded-full border px-2.5 py-1 text-[11.5px]"
+                  style={{
+                    borderColor: topicF === "alle" ? C.line : C.indigo,
+                    background: C.card,
+                    color: topicF === "alle" ? C.sub : C.indigo,
+                  }}
+                  title="Wirkt auf Kaufreise, Position, Intent und Prompts"
+                >
+                  <option value="alle">Alle Themen</option>
+                  {topicsAvail.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {countriesAvail.length > 1 && (
+                <select
+                  value={countryF}
+                  onChange={(e) => setCountryF(e.target.value)}
+                  className="rounded-full border px-2.5 py-1 text-[11.5px]"
+                  style={{
+                    borderColor: countryF === "alle" ? C.line : C.indigo,
+                    background: C.card,
+                    color: countryF === "alle" ? C.sub : C.indigo,
+                  }}
+                  title="Standort-Filter (Herkunft der Anfragen) — wirkt auf Kaufreise, Position, Intent und Prompts"
+                >
+                  <option value="alle">Alle Standorte</option>
+                  {countriesAvail.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {(d.brandPrompts || []).length > 0 && (
+                <select
+                  value={brandedF}
+                  onChange={(e) => setBrandedF(e.target.value)}
+                  className="rounded-full border px-2.5 py-1 text-[11.5px]"
+                  style={{
+                    borderColor: brandedF === "beide" ? C.line : C.indigo,
+                    background: C.card,
+                    color: brandedF === "beide" ? C.sub : C.indigo,
+                  }}
+                  title="Marken-Prompts (Fragen über die Marke selbst) in Rankings, Kaufreise, Position und Head-to-Head einbeziehen — Standard (Searchable-Sicht). Score und KPIs bleiben Markt-only."
+                >
+                  <option value="beide">Branded & Unbranded</option>
+                  <option value="markt">Nur Markt-Prompts</option>
+                </select>
+              )}
+              {(modelF !== "alle" ||
+                topicF !== "alle" ||
+                countryF !== "alle" ||
+                (brandedF === "markt" && (d.brandPrompts || []).length > 0)) && (
+                <span className="rounded-full px-2.5 py-1" style={{ background: C.cardAlt }}>
+                  Filter aktiv:{" "}
+                  {[
+                    modelF !== "alle" ? `nur ${modelF}` : null,
+                    topicF !== "alle" ? `Thema „${topicF}"` : null,
+                    countryF !== "alle" ? `Standort ${countryF}` : null,
+                    brandedF === "markt" && (d.brandPrompts || []).length > 0
+                      ? "ohne Marken-Prompts (nur Markt)"
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}{" "}
+                  (Score/KPIs bleiben Gesamtwerte)
+                </span>
+              )}
+              {d.versionSwitch && (
+                <span
+                  className="rounded-full border px-2 py-0.5"
+                  style={{ borderColor: C.amber, color: C.amber }}
+                >
+                  Messung umgestellt am {d.versionSwitch}
+                </span>
+              )}
+            </div>
+          )}
 
           {TABS.length === 0 && (
             <div

@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.13.0",
+    version: "1.13.1",
     changelog: [
+      {
+        version: "1.13.1",
+        date: "2026-09-14",
+        note: "Insights: Filterleiste (Stand-Datum, Themen- und Branded-Filter) ausgeblendet — sie gehörte zu den nicht mehr sichtbaren Analyse-Tabs",
+      },
       {
         version: "1.13.0",
         date: "2026-09-14",
