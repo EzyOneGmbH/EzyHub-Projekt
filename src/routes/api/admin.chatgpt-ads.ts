@@ -417,12 +417,13 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
       body: {
         aggregation_level: L.level,
         time_granularity: "daily",
+        // /conversions/insights erwartet unix_range (Doku-Beispiel), nicht
+        // date_range wie /ad_account/insights — sonst 400 und CTC bleibt leer.
         time_ranges: [
           {
-            type: "date_range",
-            since: since.toISOString().slice(0, 10),
-            until: new Date().toISOString().slice(0, 10),
-            timezone: acc.timezone || "UTC",
+            type: "unix_range",
+            start: String(Math.floor(since.getTime() / 1000)),
+            end: String(Math.floor(Date.now() / 1000)),
           },
         ],
         group_by_entity: true,
