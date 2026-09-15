@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.15.1",
+    version: "1.15.2",
     changelog: [
+      {
+        version: "1.15.2",
+        date: "2026-09-15",
+        note: "Ads-Modus nutzt die volle Bildschirmbreite — Dashboard und Kampagnen-Tabellen sind nicht mehr auf 1180 Pixel eingeschnuert",
+      },
       {
         version: "1.15.1",
         date: "2026-09-15",

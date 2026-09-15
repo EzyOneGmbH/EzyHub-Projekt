@@ -4749,7 +4749,13 @@ function EzyAiApp() {
 
               <main
                 className="ezyai-main"
-                style={{ maxWidth: 1180, margin: "0 auto", padding: "22px 22px 60px" }}
+                // Ads-Modus: breitere Buehne (15.09.) — die Kampagnen-Tabellen haben
+                // viele Spalten, 1180 px zwang sie in den horizontalen Scroll.
+                style={{
+                  maxWidth: adsMode ? 1720 : 1180,
+                  margin: "0 auto",
+                  padding: adsMode ? "22px 18px 60px" : "22px 22px 60px",
+                }}
               >
                 {/* Bereichs-Titel im Body (Volkan 10.08., Layout wie EzyRank). */}
                 {view !== "agent" && view !== "heute" && (
