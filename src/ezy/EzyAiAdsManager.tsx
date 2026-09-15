@@ -350,10 +350,13 @@ function Menu({
   items,
   onClose,
   S,
+  right,
 }: {
   items: Array<{ label: string; icon: string; onClick: () => void; danger?: boolean }>;
   onClose: () => void;
   S: Tokens;
+  /** rechtsbuendig oeffnen — fuer Menues am rechten Rand (15.09.). */
+  right?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -369,10 +372,11 @@ function Menu({
       style={{
         position: "absolute",
         top: "100%",
-        left: 0,
+        ...(right ? { right: 0 } : { left: 0 }),
         zIndex: 30,
         marginTop: 6,
-        minWidth: 190,
+        minWidth: 200,
+        maxWidth: "min(280px, calc(100vw - 32px))",
         background: "#fff",
         border: `1px solid ${S.line}`,
         borderRadius: 12,
@@ -401,6 +405,7 @@ function Menu({
             color: it.danger ? "#b91c1c" : "#111",
             cursor: "pointer",
             textAlign: "left",
+            whiteSpace: "nowrap",
           }}
           onMouseEnter={(e) =>
             ((e.currentTarget as HTMLButtonElement).style.background = "#f3f3f5")
@@ -1520,6 +1525,7 @@ export default function EzyAiAdsManager({
             {openMenu === "create" && (
               <Menu
                 S={S}
+                right
                 onClose={() => setOpenMenu(null)}
                 items={[
                   {
@@ -1673,6 +1679,7 @@ export default function EzyAiAdsManager({
                 {openMenu === "status" && (
                   <Menu
                     S={S}
+                    right
                     onClose={() => setOpenMenu(null)}
                     items={[
                       { label: "Aktiv", icon: "▶", onClick: () => bulk("activate") },
@@ -1701,6 +1708,7 @@ export default function EzyAiAdsManager({
                 {openMenu === "export" && (
                   <Menu
                     S={S}
+                    right
                     onClose={() => setOpenMenu(null)}
                     items={[{ label: "Als CSV (Auswahl)", icon: "⤓", onClick: exportCsv }]}
                   />
@@ -1808,6 +1816,7 @@ export default function EzyAiAdsManager({
                 {openMenu === "more" && (
                   <Menu
                     S={S}
+                    right
                     onClose={() => setOpenMenu(null)}
                     items={[
                       {

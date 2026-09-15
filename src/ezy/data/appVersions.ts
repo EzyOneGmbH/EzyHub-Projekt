@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.16.0",
+    version: "1.16.1",
     changelog: [
+      {
+        version: "1.16.1",
+        date: "2026-09-15",
+        note: "Kampagnen: die Menüs am rechten Rand (Erstellen, Status, Exportieren, Tabellenaktionen) öffnen jetzt rechtsbündig — vorher liefen die Einträge aus dem Bild",
+      },
       {
         version: "1.16.0",
         date: "2026-09-15",
