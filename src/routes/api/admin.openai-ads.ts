@@ -220,33 +220,54 @@ export const Route = createFileRoute("/api/admin/openai-ads")({
           let httpStatus = 0;
           let headers: Headers | null = null;
           let fetchErr = "";
-          for (const u of tryUrls) {
-            try {
-              const r = await fetch(u, {
-                headers: {
-                  "User-Agent":
-                    "Mozilla/5.0 (compatible; EzyHub-PixelCheck/1.0; +https://ezyhub.ch)",
-                },
-                signal: AbortSignal.timeout(15_000),
-                redirect: "follow",
-              });
-              if (r.ok) {
-                html = await r.text();
-                checkedUrl = r.url || u;
-                httpStatus = r.status;
-                headers = r.headers;
+          // Erst mit ehrlicher Kennung. Viele Hoster weisen Bots mit 403 ab —
+          // dann ein zweiter Versuch mit Browser-Kennung, sonst laesst sich die
+          // Seite des Kunden gar nicht pruefen.
+          const agents = [
+            "Mozilla/5.0 (compatible; EzyHub-PixelCheck/1.0; +https://ezyhub.ch)",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+          ];
+          outer: for (const u of tryUrls) {
+            for (const ua of agents) {
+              try {
+                const r = await fetch(u, {
+                  headers: {
+                    "User-Agent": ua,
+                    Accept: "text/html,application/xhtml+xml",
+                    "Accept-Language": "de-CH,de;q=0.9",
+                  },
+                  signal: AbortSignal.timeout(15_000),
+                  redirect: "follow",
+                });
+                if (r.ok) {
+                  html = await r.text();
+                  checkedUrl = r.url || u;
+                  httpStatus = r.status;
+                  headers = r.headers;
+                  break outer;
+                }
+                fetchErr = `HTTP ${r.status}`;
+                if (r.status < 400 || r.status >= 500) break; // kein Bot-Schutz
+              } catch (e: any) {
+                fetchErr = String(e?.message || e);
                 break;
               }
-              fetchErr = `HTTP ${r.status}`;
-            } catch (e: any) {
-              fetchErr = String(e?.message || e);
             }
           }
-          if (!html)
+          if (!html) {
+            // 403/429/503 kommt fast immer vom Bot-Schutz des Hosters, nicht
+            // von einem echten Ausfall — sonst sucht der Nutzer am falschen Ort.
+            const blocked = /(403|429|503)/.test(fetchErr);
             return Response.json(
-              { ok: false, error: `Website nicht abrufbar (${fetchErr})` },
+              {
+                ok: false,
+                error: blocked
+                  ? `Der Hoster blockiert unseren Abruf (${fetchErr}). Die Website selbst läuft — nur automatisierte Zugriffe werden abgewiesen. Der Live-Check weiter unten funktioniert trotzdem, weil er die Events bei OpenAI abfragt.`
+                  : `Website nicht abrufbar (${fetchErr})`,
+              },
               { status: 502 },
             );
+          }
 
           // --- Auswertung des ausgelieferten HTML -------------------------
           const headEnd = html.search(/<\/head>/i);
