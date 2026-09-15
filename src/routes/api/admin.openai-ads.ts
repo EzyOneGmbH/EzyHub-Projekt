@@ -176,7 +176,6 @@ export const Route = createFileRoute("/api/admin/openai-ads")({
           return Response.json({ ok: true });
         }
 
-        // Installations-Check (01.09., Volkan): holt die Kunden-Website und
         // Technik-Check (15.09.): prueft die Kunden-Website gegen die
         // Anforderungen aus developers.openai.com/ads/measurement-pixel —
         // Erreichbarkeit, SDK, Pixel-ID, page_viewed, Dedup, CSP, Consent.
@@ -247,7 +246,8 @@ export const Route = createFileRoute("/api/admin/openai-ads")({
                   break outer;
                 }
                 fetchErr = `HTTP ${r.status}`;
-                if (r.status < 400 || r.status >= 500) break; // kein Bot-Schutz
+                // Nur bei typischem Bot-Schutz nochmal mit Browser-Kennung.
+                if (![403, 429, 503].includes(r.status)) break;
               } catch (e: any) {
                 fetchErr = String(e?.message || e);
                 break;
