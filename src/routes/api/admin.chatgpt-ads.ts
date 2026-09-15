@@ -331,11 +331,12 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
   // angefordert werden. Fehler landen jetzt sichtbar in insightsError.
   // 31 Tage (15.09.: Dashboard-Trend 30T wie im Ads Manager; ein Call, limit 2000).
   const since = new Date(Date.now() - 31 * 864e5);
+  const tz = acc.timezone || "UTC";
   const timeRange = JSON.stringify({
     type: "date_range",
     since: since.toISOString().slice(0, 10),
     until: new Date().toISOString().slice(0, 10),
-    timezone: acc.timezone || "UTC",
+    timezone: tz,
   });
   // Alle drei Ebenen (15.09., Ads-Manager-Nachbau: Tabs Kampagnen/
   // Anzeigengruppen/Anzeigen brauchen je eigene Zeilen). Ein Call je Ebene.
@@ -425,8 +426,10 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
         time_ranges: [
           JSON.stringify({
             type: "unix_range",
-            start: String(Math.floor(since.getTime() / 3_600_000) * 3600),
-            end: String(Math.floor(Date.now() / 3_600_000) * 3600),
+            start: String(localMidnightUnix(since.toISOString().slice(0, 10), tz)),
+            end: String(
+              localMidnightUnix(new Date(Date.now() + 864e5).toISOString().slice(0, 10), tz),
+            ),
           }),
         ],
         group_by_entity: true,
@@ -698,6 +701,16 @@ async function mockSync(sb: any, acc: any): Promise<any> {
     .update({ last_synced_at: new Date().toISOString(), last_sync_error: null })
     .eq("id", acc.id);
   return { campaigns: CAMPS.length, adGroups, ads, insightRows, mock: true };
+}
+
+// Lokale Mitternacht (Konto-Zeitzone) als Unix-Sekunden — die Conversions-
+// Insights verlangen bei time_granularity "daily" Tagesgrenzen in der
+// Zeitzone des Werbekontos («ad account-local midnight boundaries»).
+function localMidnightUnix(dayIso: string, tz: string): number {
+  const base = Date.parse(dayIso + "T00:00:00Z");
+  const asTz = new Date(new Date(base).toLocaleString("en-US", { timeZone: tz })).getTime();
+  const asUtc = new Date(new Date(base).toLocaleString("en-US", { timeZone: "UTC" })).getTime();
+  return Math.floor((base - (asTz - asUtc)) / 1000);
 }
 
 const numOrNull = (v: any): number | null =>
