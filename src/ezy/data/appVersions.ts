@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.15.0",
+    version: "1.15.1",
     changelog: [
+      {
+        version: "1.15.1",
+        date: "2026-09-15",
+        note: "Kampagnen-Ansicht luftiger: «Trends bei Kennzahlen» rutscht auf schmalen Bildschirmen unter die Tabelle (statt sie zusammenzuquetschen), kompaktere Zeilen und Spalten, kein doppelter Titel mehr — stattdessen steht das Werbekonto oben — und die Konto-Leiste sitzt in der Fusszeile",
+      },
       {
         version: "1.15.0",
         date: "2026-09-15",

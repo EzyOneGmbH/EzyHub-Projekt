@@ -457,8 +457,8 @@ function AdThumb({ ad, S }: { ad: Ad; S: Tokens }) {
       style={{
         display: "inline-flex",
         alignItems: "stretch",
-        width: 140,
-        height: 48,
+        width: 116,
+        height: 42,
         border: `1px solid ${S.line}`,
         borderRadius: 8,
         overflow: "hidden",
@@ -865,6 +865,21 @@ export default function EzyAiAdsManager({
   const [busy, setBusy] = useState("");
   const [confirm, setConfirm] = useState<{ label: string; run: () => Promise<void> } | null>(null);
   const [showTotals, setShowTotals] = useState(true);
+  // Breite der Karte: unter ~1150 px passt das Trends-Panel nicht neben die
+  // Tabelle (sonst sind alle Kennzahlen-Spalten weggescrollt) — dann darunter.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [wrapW, setWrapW] = useState(1200);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect?.width;
+      if (w) setWrapW(Math.round(w));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const trendsBeside = wrapW >= 1150;
   const [hidden, setHidden] = useState<Set<ColKey>>(() => loadHidden("campaign"));
   const [colsDialog, setColsDialog] = useState(false);
   const [sort, setSort] = useState<{ key: ColKey; dir: "asc" | "desc" } | null>(null);
@@ -1182,7 +1197,7 @@ export default function EzyAiAdsManager({
 
   /* ── Rendering ── */
   const th: React.CSSProperties = {
-    padding: "14px 14px",
+    padding: "12px 12px",
     fontSize: 13,
     fontWeight: 500,
     color: "#555",
@@ -1193,8 +1208,8 @@ export default function EzyAiAdsManager({
   };
   const thL: React.CSSProperties = { ...th, textAlign: "left" };
   const td: React.CSSProperties = {
-    padding: "0 14px",
-    height: 64,
+    padding: "0 12px",
+    height: 58,
     fontSize: 13.5,
     color: "#111",
     textAlign: "right",
@@ -1413,6 +1428,7 @@ export default function EzyAiAdsManager({
 
   return (
     <div
+      ref={wrapRef}
       style={{
         display: "flex",
         flexDirection: "column",
@@ -1433,8 +1449,41 @@ export default function EzyAiAdsManager({
           borderBottom: `1px solid ${S.line}`,
         }}
       >
-        <div style={{ fontSize: 17, fontWeight: 600, color: "#111", marginRight: "auto" }}>
-          Kampagnen
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginRight: "auto",
+            fontSize: 14.5,
+            fontWeight: 600,
+            color: "#111",
+          }}
+        >
+          <span
+            style={{
+              width: 16,
+              height: 16,
+              borderRadius: 999,
+              background: "#77008C",
+              display: "inline-block",
+            }}
+          />
+          {data.account.name || clientName}
+          {data.account.is_mock && (
+            <span
+              style={{
+                fontSize: 10.5,
+                fontWeight: 700,
+                color: "#92400e",
+                background: "rgba(217,119,6,.12)",
+                borderRadius: 999,
+                padding: "2px 8px",
+              }}
+            >
+              DEMO
+            </span>
+          )}
         </div>
         {search !== null ? (
           <input
@@ -1823,7 +1872,9 @@ export default function EzyAiAdsManager({
       )}
 
       {/* Tabelle + Trends-Panel */}
-      <div style={{ display: "flex", minHeight: 320 }}>
+      <div
+        style={{ display: "flex", flexDirection: trendsBeside ? "row" : "column", minHeight: 180 }}
+      >
         <div style={{ flex: 1, minWidth: 0, overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
@@ -1838,7 +1889,7 @@ export default function EzyAiAdsManager({
                   />
                 </th>
                 <th style={{ ...thL, width: 54 }}>Aktiv</th>
-                <th style={{ ...thL, ...divider, minWidth: 260 }}>
+                <th style={{ ...thL, ...divider, minWidth: 210 }}>
                   {level === "ad" ? "Anzeige" : "Name"}
                 </th>
                 {visibleCols.map((c) => (
@@ -2029,7 +2080,13 @@ export default function EzyAiAdsManager({
 
         {trends && (
           <div
-            style={{ width: 400, flexShrink: 0, borderLeft: `1px solid ${S.line}`, padding: 18 }}
+            style={{
+              width: trendsBeside ? 360 : "auto",
+              flexShrink: 0,
+              borderLeft: trendsBeside ? `1px solid ${S.line}` : "none",
+              borderTop: trendsBeside ? "none" : `1px solid ${S.line}`,
+              padding: 18,
+            }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
               <div style={{ fontSize: 14.5, fontWeight: 600, color: "#111" }}>
@@ -2171,6 +2228,15 @@ export default function EzyAiAdsManager({
           />
           {data.account.name || clientName}
         </span>
+        {isOrgAdmin && !data.account.is_mock && (
+          <AccountControls
+            clientId={clientId}
+            S={S}
+            meta={data.account.meta ?? null}
+            canWrite={isOrgAdmin}
+            onChanged={refresh}
+          />
+        )}
         <button
           onClick={() => setShowTotals((v) => !v)}
           style={{
@@ -2339,19 +2405,6 @@ export default function EzyAiAdsManager({
           </div>
         </div>
       )}
-      <div style={{ position: "relative" }}>
-        {isOrgAdmin && !data.account.is_mock && (
-          <div style={{ padding: "8px 20px", borderTop: `1px solid ${S.line}` }}>
-            <AccountControls
-              clientId={clientId}
-              S={S}
-              meta={data.account.meta ?? null}
-              canWrite={isOrgAdmin}
-              onChanged={refresh}
-            />
-          </div>
-        )}
-      </div>
     </div>
   );
 }
