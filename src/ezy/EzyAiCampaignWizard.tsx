@@ -23,6 +23,7 @@ export type AdGroup = {
     strategy?: string;
     max_bid_micros?: number;
   } | null;
+  context_hints?: string[];
 };
 export type AdLite = {
   openai_ad_id: string;
@@ -286,7 +287,7 @@ export function GeoChips({
 }
 
 /* ── Bild-Upload (Browser → Base64 → Server → POST /upload) ───────────────── */
-function ImagePicker({
+export function ImagePicker({
   clientId,
   S,
   fileId,
@@ -2024,6 +2025,241 @@ export function AccountChooser({
           </button>
         </div>
       ))}
+    </div>
+  );
+}
+
+/* ── Kampagnen-Editoren (15.09. aus EzyAiCampaignsPanel hierher gezogen, damit
+   der Ads-Manager-Nachbau sie ohne Zirkel-Import nutzen kann) ─────────────── */
+export type AudienceLite = {
+  openai_audience_id: string;
+  name: string;
+  status: string;
+  matched_user_count_range?: string | null;
+};
+// Lokale Kopien der Label-Maps (im Panel gibt es dieselben; bewusst nicht
+// exportiert — react-refresh will in Komponenten-Dateien nur Komponenten).
+const AUDIENCE_STATUS: Record<string, [string, string]> = {
+  ready: ["bereit", "#0f9d6c"],
+  processing: ["wird verarbeitet", "#d97706"],
+  upload_pending: ["Upload läuft", "#d97706"],
+  publishing: ["wird veröffentlicht", "#d97706"],
+  too_small: ["zu klein", "#dc2626"],
+  failed: ["fehlgeschlagen", "#dc2626"],
+  archived: ["archiviert", "#8b8da3"],
+};
+const RANGE_LABEL: Record<string, string> = {
+  under_25k: "< 25'000",
+  "25k_100k": "25'000 – 100'000",
+  "100k_500k": "100'000 – 500'000",
+  "500k_1m": "500'000 – 1 Mio.",
+  "1m_5m": "1 – 5 Mio.",
+  "5m_plus": "> 5 Mio.",
+  none: "keine Treffer",
+};
+
+/* ── Geo-Targeting-Editor: Einschluss + Ausschluss (GeoChips, 13.09.) ─────── */
+export function TargetingEditor({
+  clientId,
+  S,
+  initial,
+  initialExcluded,
+  busy,
+  onSave,
+  onCancel,
+}: {
+  clientId: string;
+  S: Tokens;
+  initial: GeoLocation[];
+  initialExcluded: GeoLocation[];
+  busy: boolean;
+  onSave: (locations: GeoLocation[], excludedLocations: GeoLocation[]) => void;
+  onCancel: () => void;
+}) {
+  const [locs, setLocs] = useState<GeoLocation[]>(initial);
+  const [excl, setExcl] = useState<GeoLocation[]>(initialExcluded);
+  const btn = (primary: boolean): React.CSSProperties => ({
+    border: primary ? "none" : `1px solid ${S.line}`,
+    borderRadius: 8,
+    padding: "6px 14px",
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: "pointer",
+    background: primary ? accentOf(S) : "transparent",
+    color: primary ? "#fff" : S.mut,
+  });
+  return (
+    <div style={{ fontSize: 12.5 }}>
+      <div style={{ fontWeight: 700, marginBottom: 6, color: inkOf(S) }}>
+        Geo-Targeting{" "}
+        <span style={{ fontWeight: 400, color: S.mut }}>
+          — leer = weltweit; Länder, Regionen/Kantone oder Metro-Gebiete (DMA)
+        </span>
+      </div>
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ color: S.mut, marginBottom: 4 }}>Einschliessen:</div>
+        <GeoChips
+          clientId={clientId}
+          S={S}
+          value={locs}
+          onChange={(v) => {
+            setLocs(v);
+            setExcl(excl.filter((e) => !v.some((x) => x.id === e.id)));
+          }}
+          placeholder="Land, Kanton oder Region suchen … (z.B. Schweiz, Zürich)"
+          emptyLabel="Keine Einschränkung (weltweit)"
+        />
+      </div>
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ color: S.mut, marginBottom: 4 }}>
+          Ausschliessen (optional, z.B. Regionen ohne Lieferung):
+        </div>
+        <GeoChips
+          clientId={clientId}
+          S={S}
+          value={excl}
+          onChange={(v) => setExcl(v.filter((e) => !locs.some((x) => x.id === e.id)))}
+          placeholder="Region ausschliessen …"
+          emptyLabel="keine Ausschlüsse"
+        />
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={() => onSave(locs, excl)} disabled={busy} style={btn(true)}>
+          {busy ? "Speichere…" : "Targeting speichern"}
+        </button>
+        <button onClick={onCancel} style={btn(false)}>
+          Abbrechen
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── Zielgruppen-Zuweisung je Kampagne (include / exclude) ─────────────────── */
+export function AudiencesEditor({
+  S,
+  audiences,
+  initialInclude,
+  initialExclude,
+  busy,
+  onSave,
+  onCancel,
+}: {
+  S: Tokens;
+  audiences: AudienceLite[];
+  initialInclude: string[];
+  initialExclude: string[];
+  busy: boolean;
+  onSave: (includeIds: string[], excludeIds: string[]) => void;
+  onCancel: () => void;
+}) {
+  const [incl, setIncl] = useState<Set<string>>(new Set(initialInclude));
+  const [excl, setExcl] = useState<Set<string>>(new Set(initialExclude));
+  const usable = audiences.filter((a) => a.status !== "archived");
+  const toggle = (
+    set: Set<string>,
+    setter: (s: Set<string>) => void,
+    other: Set<string>,
+    otherSetter: (s: Set<string>) => void,
+    id: string,
+  ) => {
+    const n = new Set(set);
+    if (n.has(id)) n.delete(id);
+    else {
+      n.add(id);
+      // Dieselbe Audience nie gleichzeitig ein- und ausschliessen (API-Regel).
+      if (other.has(id)) {
+        const o = new Set(other);
+        o.delete(id);
+        otherSetter(o);
+      }
+    }
+    setter(n);
+  };
+  const btn = (primary: boolean): React.CSSProperties => ({
+    border: primary ? "none" : `1px solid ${S.line}`,
+    borderRadius: 8,
+    padding: "6px 14px",
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: "pointer",
+    background: primary ? accentOf(S) : "transparent",
+    color: primary ? "#fff" : S.mut,
+  });
+  if (usable.length === 0)
+    return (
+      <div style={{ fontSize: 12.5, color: S.mut }}>
+        Noch keine Zielgruppen vorhanden — im Bereich «Zielgruppen» eine Kundenliste hochladen.{" "}
+        <button onClick={onCancel} style={btn(false)}>
+          Schliessen
+        </button>
+      </div>
+    );
+  return (
+    <div style={{ fontSize: 12.5 }}>
+      <div style={{ fontWeight: 700, marginBottom: 6, color: inkOf(S) }}>
+        Zielgruppen{" "}
+        <span style={{ fontWeight: 400, color: S.mut }}>
+          — Einschluss braucht ≥ 25'000 erreichbare Nutzer; Ausschluss (z.B. Bestandskunden) hat
+          kein Minimum und Vorrang
+        </span>
+      </div>
+      <table style={{ borderCollapse: "collapse", marginBottom: 10 }}>
+        <thead>
+          <tr style={{ color: S.mut, textAlign: "left", fontSize: 11.5 }}>
+            <th style={{ padding: "4px 10px 4px 0" }}>Zielgruppe</th>
+            <th style={{ padding: "4px 10px" }}>Grösse</th>
+            <th style={{ padding: "4px 10px", textAlign: "center" }}>Einschliessen</th>
+            <th style={{ padding: "4px 10px", textAlign: "center" }}>Ausschliessen</th>
+          </tr>
+        </thead>
+        <tbody>
+          {usable.map((a) => {
+            const ready = a.status === "ready";
+            return (
+              <tr key={a.openai_audience_id} style={{ opacity: ready ? 1 : 0.6 }}>
+                <td style={{ padding: "4px 10px 4px 0", color: inkOf(S), fontWeight: 600 }}>
+                  {a.name}
+                  {!ready && (
+                    <span style={{ color: S.mut, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>
+                      ({AUDIENCE_STATUS[a.status]?.[0] || a.status})
+                    </span>
+                  )}
+                </td>
+                <td style={{ padding: "4px 10px", color: S.mut }}>
+                  {RANGE_LABEL[a.matched_user_count_range || ""] || "–"}
+                </td>
+                <td style={{ padding: "4px 10px", textAlign: "center" }}>
+                  <input
+                    type="checkbox"
+                    checked={incl.has(a.openai_audience_id)}
+                    onChange={() => toggle(incl, setIncl, excl, setExcl, a.openai_audience_id)}
+                  />
+                </td>
+                <td style={{ padding: "4px 10px", textAlign: "center" }}>
+                  <input
+                    type="checkbox"
+                    checked={excl.has(a.openai_audience_id)}
+                    onChange={() => toggle(excl, setExcl, incl, setIncl, a.openai_audience_id)}
+                  />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          onClick={() => onSave(Array.from(incl), Array.from(excl))}
+          disabled={busy}
+          style={btn(true)}
+        >
+          {busy ? "Speichere…" : "Zuweisung speichern"}
+        </button>
+        <button onClick={onCancel} style={btn(false)}>
+          Abbrechen
+        </button>
+      </div>
     </div>
   );
 }

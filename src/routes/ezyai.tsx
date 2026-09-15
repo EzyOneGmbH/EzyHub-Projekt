@@ -191,6 +191,8 @@ const NAV_LABEL: Record<string, string> = Object.fromEntries(
 const EzyAiAdsPanel = lazy(() => import("@/ezy/EzyAiAdsPanel"));
 // Kampagnen-Management (ChatGPT-Ads-Modul, 31.08.): eigener Lazy-Chunk.
 const EzyAiCampaignsPanel = lazy(() => import("@/ezy/EzyAiCampaignsPanel"));
+// Ads-Manager-Nachbau (15.09.): Bereich «Kampagnen» mit Ebenen-Tabs.
+const EzyAiAdsManager = lazy(() => import("@/ezy/EzyAiAdsManager"));
 
 /** Organic/Ads-Schalter (Segmented, Hi-Fi) — sitzt in der AppRail unter der
  *  Trennlinie, damit die Apps-Zone abgegrenzt bleibt (Volkan 26.08.). */
@@ -4876,7 +4878,15 @@ function EzyAiApp() {
                       </div>
                     }
                   >
-                    {adsSection === "ads-kampagnen" || adsSection === "ads-zielgruppen" ? (
+                    {adsSection === "ads-kampagnen" ? (
+                      <EzyAiAdsManager
+                        clientId={client.id}
+                        clientName={client.name}
+                        range={range}
+                        S={S}
+                        isOrgAdmin={!!isOrgAdmin}
+                      />
+                    ) : adsSection === "ads-zielgruppen" ? (
                       <EzyAiCampaignsPanel
                         clientId={client.id}
                         clientName={client.name}

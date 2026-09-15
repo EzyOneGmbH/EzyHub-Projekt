@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.14.0",
+    version: "1.15.0",
     changelog: [
+      {
+        version: "1.15.0",
+        date: "2026-09-15",
+        note: "Kampagnen-Bereich wie im OpenAI Ads Manager: Ebenen-Tabs Kampagnen/Anzeigengruppen/Anzeigen mit denselben Spalten (inkl. CTC 30 T., Durchschn. CPC/CPM, Budget, Start/Ende, Kontexthinweise, Gebotsstrategie), Aktiv-Schalter, Sortierung, Filter, «Spalten anpassen», Tabellenaktionen, Zeilen-Menü (Insights, Änderungsverlauf, Bearbeiten, Duplizieren, Archivieren), Mehrfachauswahl mit Status/Export, Panel «Trends bei Kennzahlen», Summenzeile und Anzeigen-Dialog mit Vorschau und Landingpage-Parametern",
+      },
       {
         version: "1.14.0",
         date: "2026-09-15",

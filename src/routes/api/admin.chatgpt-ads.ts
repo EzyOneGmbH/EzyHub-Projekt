@@ -337,14 +337,8 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
     until: new Date().toISOString().slice(0, 10),
     timezone: acc.timezone || "UTC",
   });
-  const CORE_FIELDS = [
-    "campaign.id",
-    "campaign.name",
-    "metadata.readable_time",
-    "campaign.impressions",
-    "campaign.clicks",
-    "campaign.spend",
-  ];
+  // Alle drei Ebenen (15.09., Ads-Manager-Nachbau: Tabs Kampagnen/
+  // Anzeigengruppen/Anzeigen brauchen je eigene Zeilen). Ein Call je Ebene.
   const EXTRA_FIELDS = [
     "conversions",
     "cpa",
@@ -352,43 +346,57 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
     "order_created_roas",
     "order_created_attributed_sales",
   ];
-  const insightsQuery = (fields: string[]) => ({
-    time_granularity: "daily",
-    aggregation_level: "campaign",
-    limit: "2000",
-    "time_ranges[]": [timeRange],
-    "fields[]": fields,
-  });
-  let ins = await adsFetch(apiKey, acc.openai_ad_account_id, "/ad_account/insights", {
-    query: insightsQuery([...CORE_FIELDS, ...EXTRA_FIELDS]),
-  });
-  // Falls ein Attributions-Feld für das Konto unbekannt ist (400): Kern-Felder.
-  if (!ins.ok && ins.status === 400)
-    ins = await adsFetch(apiKey, acc.openai_ad_account_id, "/ad_account/insights", {
-      query: insightsQuery(CORE_FIELDS),
-    });
+  const LEVELS: Array<{ level: string; scope: string; idKey: string }> = [
+    { level: "campaign", scope: "campaign", idKey: "campaign_id" },
+    { level: "ad_group", scope: "ad_group", idKey: "ad_group_id" },
+    { level: "ad", scope: "ad", idKey: "ad_id" },
+  ];
   let insightRows = 0;
   let insightsError: string | null = null;
-  if (!ins.ok)
-    insightsError = `Insights HTTP ${ins.status}: ${JSON.stringify(ins.json)?.slice(0, 200)}`;
-  if (ins.ok) {
+  for (const L of LEVELS) {
+    const core = [
+      `${L.level}.id`,
+      `${L.level}.name`,
+      "metadata.readable_time",
+      `${L.level}.impressions`,
+      `${L.level}.clicks`,
+      `${L.level}.spend`,
+    ];
+    const insightsQuery = (fields: string[]) => ({
+      time_granularity: "daily",
+      aggregation_level: L.level,
+      limit: "2000",
+      "time_ranges[]": [timeRange],
+      "fields[]": fields,
+    });
+    let ins = await adsFetch(apiKey, acc.openai_ad_account_id, "/ad_account/insights", {
+      query: insightsQuery([...core, ...EXTRA_FIELDS]),
+    });
+    // Falls ein Attributions-Feld für das Konto unbekannt ist (400): Kern-Felder.
+    if (!ins.ok && ins.status === 400)
+      ins = await adsFetch(apiKey, acc.openai_ad_account_id, "/ad_account/insights", {
+        query: insightsQuery(core),
+      });
+    if (!ins.ok) {
+      insightsError = `Insights (${L.level}) HTTP ${ins.status}: ${JSON.stringify(ins.json)?.slice(0, 200)}`;
+      continue;
+    }
     for (const row of ins.json?.data || []) {
       const day = row.readable_time?.slice(0, 10) || tsToIso(row.start_time)?.slice(0, 10);
       // id kodiert Zeitfenster+Entity ("start=…:end=…:entity_id=cmpn_…") —
-      // campaign_id ist das saubere Feld, entity_id der Fallback.
-      const campId =
-        row.campaign_id || String(row.id || "").match(/entity_id=([^:]+)/)?.[1] || null;
-      if (!day || !campId) continue;
+      // <level>_id ist das saubere Feld, entity_id der Fallback.
+      const entId = row[L.idKey] || String(row.id || "").match(/entity_id=([^:]+)/)?.[1] || null;
+      if (!day || !entId) continue;
       insightRows++;
       await sb.from("chatgpt_ads_insights_daily").upsert(
         {
           account_id: acc.id,
-          scope: "campaign",
-          scope_openai_id: String(campId),
+          scope: L.scope,
+          scope_openai_id: String(entId),
           date: day,
-          impressions: Number(row.campaign_impressions ?? row.impressions ?? 0),
-          clicks: Number(row.campaign_clicks ?? row.clicks ?? 0),
-          spend: Number(row.campaign_spend ?? row.spend ?? 0),
+          impressions: Number(row[`${L.level}_impressions`] ?? row.impressions ?? 0),
+          clicks: Number(row[`${L.level}_clicks`] ?? row.clicks ?? 0),
+          spend: Number(row[`${L.level}_spend`] ?? row.spend ?? 0),
           conversions: row.conversions != null ? Number(row.conversions) : null,
           // Neue Attributions-Metriken (Spec v2.3.0); attributed_sales_amount
           // nur als Fallback (deprecated).
@@ -402,6 +410,37 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
         { onConflict: "account_id,scope,scope_openai_id,date" },
       );
     }
+    // CTC (30 T.) = Click-through-Conversions je Tag/Entity — nicht-fatal
+    // (Endpoint kann für ein Konto fehlen).
+    const cv = await adsFetch(apiKey, acc.openai_ad_account_id, "/conversions/insights", {
+      method: "POST",
+      body: {
+        aggregation_level: L.level,
+        time_granularity: "daily",
+        time_ranges: [
+          {
+            type: "date_range",
+            since: since.toISOString().slice(0, 10),
+            until: new Date().toISOString().slice(0, 10),
+            timezone: acc.timezone || "UTC",
+          },
+        ],
+        group_by_entity: true,
+      },
+    });
+    if (cv.ok)
+      for (const row of cv.json?.data || []) {
+        const day = String(row.date || "").slice(0, 10);
+        const entId = row.entity_id ? String(row.entity_id) : null;
+        if (!day || !entId) continue;
+        await sb
+          .from("chatgpt_ads_insights_daily")
+          .update({ ctc: Number(row.click_through_conversions ?? row.conversions ?? 0) })
+          .eq("account_id", acc.id)
+          .eq("scope", L.scope)
+          .eq("scope_openai_id", entId)
+          .eq("date", day);
+      }
   }
   await sb
     .from("chatgpt_ads_accounts")
@@ -589,6 +628,50 @@ async function mockSync(sb: any, acc: any): Promise<any> {
         { onConflict: "account_id,scope,scope_openai_id,date" },
       );
     }
+  }
+  // Ebenen Anzeigengruppe/Anzeige (15.09.): Kampagnenzeilen auf die Anzeigen
+  // verteilen (Gewichte deterministisch), Gruppe = Summe.
+  const { data: campRows } = await sb
+    .from("chatgpt_ads_insights_daily")
+    .select("scope_openai_id, date, impressions, clicks, spend, conversions")
+    .eq("account_id", acc.id)
+    .eq("scope", "campaign");
+  for (const cr of campRows || []) {
+    const list = ADS[cr.scope_openai_id] || [];
+    if (!list.length) continue;
+    const weights = list.map((_, j) => (j === 0 ? 0.6 : 0.4 / (list.length - 1)));
+    for (const [j, a] of list.entries()) {
+      const w = list.length === 1 ? 1 : weights[j];
+      const conv = cr.conversions != null ? Math.round(Number(cr.conversions) * w) : null;
+      await sb.from("chatgpt_ads_insights_daily").upsert(
+        {
+          account_id: acc.id,
+          scope: "ad",
+          scope_openai_id: a.id,
+          date: cr.date,
+          impressions: Math.round(Number(cr.impressions) * w),
+          clicks: Math.round(Number(cr.clicks) * w),
+          spend: Math.round(Number(cr.spend) * w * 100) / 100,
+          conversions: conv,
+          ctc: conv,
+        },
+        { onConflict: "account_id,scope,scope_openai_id,date" },
+      );
+    }
+    await sb.from("chatgpt_ads_insights_daily").upsert(
+      {
+        account_id: acc.id,
+        scope: "ad_group",
+        scope_openai_id: `adg_${cr.scope_openai_id}`,
+        date: cr.date,
+        impressions: Number(cr.impressions),
+        clicks: Number(cr.clicks),
+        spend: Number(cr.spend),
+        conversions: cr.conversions,
+        ctc: cr.conversions,
+      },
+      { onConflict: "account_id,scope,scope_openai_id,date" },
+    );
   }
   await sb
     .from("chatgpt_ads_accounts")
@@ -1388,6 +1471,9 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
         }
         const { startDate: start, endDate: end } = zr;
 
+        // scopes=all (15.09., Ads-Manager-Tabs): Insights aller Ebenen; Default
+        // bleibt campaign, damit Summen im Dashboard nicht doppelt zählen.
+        const allScopes = u.searchParams.get("scopes") === "all";
         const [{ data: campaigns }, { data: insights }, { data: commands }, { data: audiences }] =
           await Promise.all([
             sb
@@ -1403,19 +1489,19 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
             sb
               .from("chatgpt_ads_insights_daily")
               .select(
-                "scope_openai_id, date, impressions, clicks, spend, conversions, attributed_sales, roas, cpa, post_click_cvr",
+                "scope, scope_openai_id, date, impressions, clicks, spend, conversions, ctc, attributed_sales, roas, cpa, post_click_cvr",
               )
               .eq("account_id", acc.id)
-              .eq("scope", "campaign")
+              .in("scope", allScopes ? ["campaign", "ad_group", "ad"] : ["campaign"])
               .gte("date", start)
               .lte("date", end)
               .order("date"),
             sb
               .from("chatgpt_ads_commands")
-              .select("action, target_openai_id, status, error, created_at")
+              .select("action, target_openai_id, target_type, status, error, created_at, payload")
               .eq("account_id", acc.id)
               .order("created_at", { ascending: false })
-              .limit(20),
+              .limit(allScopes ? 200 : 20),
             sb
               .from("chatgpt_ads_audiences")
               .select(
@@ -1429,14 +1515,14 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
           sb
             .from("chatgpt_ads_ad_groups")
             .select(
-              "id, openai_ad_group_id, name, status, campaign_id, bidding_config:raw->bidding_config, campaigns:chatgpt_ads_campaigns(openai_campaign_id)",
+              "id, openai_ad_group_id, name, status, campaign_id, bidding_config:raw->bidding_config, context_hints:raw->context_hints, campaigns:chatgpt_ads_campaigns(openai_campaign_id)",
             )
             .eq("account_id", acc.id)
             .neq("status", "archived"),
           sb
             .from("chatgpt_ads_ads")
             .select(
-              "openai_ad_id, ad_group_id, name, status, review_status, creative:raw->creative",
+              "openai_ad_id, ad_group_id, name, status, review_status, creative:raw->creative, lpc:raw->landing_page_configuration",
             )
             .eq("account_id", acc.id)
             .neq("status", "archived"),
@@ -1453,6 +1539,7 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
           status: String(g.status || ""),
           campaign_id: g.campaigns?.openai_campaign_id ?? null,
           bidding_config: g.bidding_config ?? null,
+          context_hints: Array.isArray(g.context_hints) ? g.context_hints.map(String) : [],
         }));
         const groupOpenaiId = new Map<string, string>(
           (groups || []).map((g: any) => [String(g.id), String(g.openai_ad_group_id)]),
@@ -1475,6 +1562,7 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
               target_url: cr.target_url ?? cr.url ?? null,
               file_id: cr.file_id ?? null,
             },
+            query_string_template: a.lpc?.query_string_template ?? null,
           };
         });
         return Response.json({
@@ -2250,6 +2338,14 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
           const targetUrl = String(body?.targetUrl || "").trim();
           const fileId = String(body?.fileId || "").trim() || null;
           const status = body?.status === "active" ? "active" : "paused";
+          // Abfrageparameter der Landingpage (Ads Manager «Anzeige bearbeiten»):
+          // Vorlagen {campaign_id} {ad_group_id} {ad_id} {ad_account_id} {oppref}.
+          const qst =
+            body?.queryStringTemplate === undefined
+              ? undefined
+              : String(body.queryStringTemplate || "")
+                  .trim()
+                  .replace(/^\?/, "");
           if ((isUpdate && !adId) || (!isUpdate && !adGroupId))
             return Response.json({ ok: false, error: "adGroupId/adId fehlt" }, { status: 400 });
           if (!isUpdate && name.length < 3)
@@ -2296,6 +2392,13 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
                       raw: {
                         ...cur.raw,
                         creative: { ...prevCr, ...creative, file_id: fileId ?? prevCr.file_id },
+                        ...(qst !== undefined
+                          ? {
+                              landing_page_configuration: qst
+                                ? { query_string_template: qst }
+                                : null,
+                            }
+                          : {}),
                       },
                       synced_at: new Date().toISOString(),
                     })
@@ -2318,7 +2421,13 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
                   name,
                   status,
                   review_status: "in_review",
-                  raw: { id, mock: true, creative, status },
+                  raw: {
+                    id,
+                    mock: true,
+                    creative,
+                    status,
+                    ...(qst ? { landing_page_configuration: { query_string_template: qst } } : {}),
+                  },
                   synced_at: new Date().toISOString(),
                 });
                 return { ok: true, id };
@@ -2335,7 +2444,13 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
                 }
                 const r = await adsFetch(key, acc.openai_ad_account_id, `/ads/${adId}`, {
                   method: "POST",
-                  body: { ...(name ? { name } : {}), creative },
+                  body: {
+                    ...(name ? { name } : {}),
+                    creative,
+                    ...(qst !== undefined
+                      ? { landing_page_configuration: qst ? { query_string_template: qst } : null }
+                      : {}),
+                  },
                 });
                 if (!r.ok) return { ok: false, error: httpErr(r) };
                 await resyncEntity(sb, acc, key, "ad", adId);
@@ -2343,7 +2458,13 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
               }
               const r = await adsFetch(key, acc.openai_ad_account_id, "/ads", {
                 method: "POST",
-                body: { ad_group_id: adGroupId, name, status, creative },
+                body: {
+                  ad_group_id: adGroupId,
+                  name,
+                  status,
+                  creative,
+                  ...(qst ? { landing_page_configuration: { query_string_template: qst } } : {}),
+                },
               });
               if (!r.ok || !r.json?.id) return { ok: false, error: httpErr(r) };
               await resyncEntity(sb, acc, key, "ad", String(r.json.id));
