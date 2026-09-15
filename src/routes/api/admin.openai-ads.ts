@@ -288,6 +288,27 @@ export const Route = createFileRoute("/api/admin/openai-ads")({
             if (!measured.includes(m[1])) measured.push(m[1]);
             if (/event_id/.test(m[2])) hasEventId = true;
           }
+          // Viele Einbauten kapseln das Messen in eine eigene Funktion. Dann
+          // steht der Event-Name nicht im oaiq-Aufruf, sondern als Zeichenkette
+          // daneben — sonst melden wir faelschlich "nicht gemessen".
+          const EVENT_NAMES = [
+            "page_viewed",
+            "contents_viewed",
+            "items_added",
+            "checkout_started",
+            "order_created",
+            "lead_created",
+            "registration_completed",
+            "appointment_scheduled",
+            "subscription_created",
+            "trial_started",
+          ];
+          const wrapped = /oaiq\(\s*["']measure["']\s*,\s*[A-Za-z_$]/.test(html);
+          const indirect = EVENT_NAMES.filter(
+            (n) => !measured.includes(n) && new RegExp("[\"']" + n + "[\"']").test(html),
+          );
+          const allEvents = [...measured, ...indirect];
+          if (indirect.length && /event_id/.test(html)) hasEventId = true;
           const customRe = /custom_event_name\s*:\s*["']([^"']+)["']/g;
           const customEvents: string[] = [];
           for (let m = customRe.exec(html); m; m = customRe.exec(html)) {
@@ -430,20 +451,23 @@ export const Route = createFileRoute("/api/admin/openai-ads")({
               hint: "Mehrere Pixel sind erlaubt, jedes Event geht dann aber an alle. Nur behalten, was gebraucht wird.",
             });
 
-          const pv = measured.includes("page_viewed");
+          const pv = allEvents.includes("page_viewed");
+          const pvDirect = measured.includes("page_viewed");
           push({
             id: "pageViewed",
             label: "Seitenaufruf wird gemessen",
             status: pv ? "ok" : sdkIdx >= 0 ? "fail" : "warn",
             detail: pv
-              ? 'oaiq("measure", "page_viewed") gefunden'
+              ? pvDirect
+                ? 'oaiq("measure", "page_viewed") gefunden'
+                : "page_viewed wird gemessen" + (wrapped ? " — über eine eigene Hilfsfunktion" : "")
               : "Kein page_viewed-Aufruf im HTML",
             hint: pv
               ? undefined
               : "Das SDK sendet keinen automatischen Seitenaufruf — page_viewed muss explizit gemessen werden.",
           });
 
-          const convEvents = measured.filter((e) => e !== "page_viewed");
+          const convEvents = allEvents.filter((e) => e !== "page_viewed");
           push({
             id: "conversions",
             label: "Conversion-Events gemessen",
