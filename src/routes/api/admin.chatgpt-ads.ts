@@ -419,25 +419,26 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
       body: {
         aggregation_level: L.level,
         time_granularity: "daily",
-        // /conversions/insights erwartet unix_range (Doku-Beispiel), nicht
-        // date_range wie /ad_account/insights — sonst 400 und CTC bleibt leer.
+        // time_ranges ist auch hier ein Array von JSON-STRINGS (die API lehnt
+        // Objekte ab: «expected a string, but got an object»), Typ unix_range.
         time_ranges: [
-          {
+          JSON.stringify({
             type: "unix_range",
             start: String(Math.floor(since.getTime() / 1000)),
             end: String(Math.floor(Date.now() / 1000)),
-          },
+          }),
         ],
         group_by_entity: true,
       },
     });
-    ctcDebug.push({
-      level: L.level,
-      status: cv.status,
-      rows: Array.isArray(cv.json?.data) ? cv.json.data.length : null,
-      keys: cv.json?.data?.[0] ? Object.keys(cv.json.data[0]).join(",") : null,
-      body: cv.ok ? null : JSON.stringify(cv.json)?.slice(0, 200),
-    });
+    if (!cv.ok)
+      ctcDebug.push({
+        level: L.level,
+        status: cv.status,
+        rows: Array.isArray(cv.json?.data) ? cv.json.data.length : null,
+        keys: cv.json?.data?.[0] ? Object.keys(cv.json.data[0]).join(",") : null,
+        body: JSON.stringify(cv.json)?.slice(0, 200),
+      });
     if (cv.ok)
       for (const row of cv.json?.data || []) {
         const day = String(row.date || "").slice(0, 10);
