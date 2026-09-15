@@ -329,7 +329,8 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
   // alte Aufruf lief auf 400 und wurde still verworfen. Und ohne fields[]
   // liefert die API NUR impressions; clicks/spend/conversions müssen explizit
   // angefordert werden. Fehler landen jetzt sichtbar in insightsError.
-  const since = new Date(Date.now() - 14 * 864e5);
+  // 31 Tage (15.09.: Dashboard-Trend 30T wie im Ads Manager; ein Call, limit 2000).
+  const since = new Date(Date.now() - 31 * 864e5);
   const timeRange = JSON.stringify({
     type: "date_range",
     since: since.toISOString().slice(0, 10),
@@ -2570,6 +2571,9 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
           if (!["country", "device", "platform"].includes(segment))
             return Response.json({ ok: false, error: "segment ungültig" }, { status: 400 });
           const campaignId = String(body?.campaignId || "").trim() || null;
+          // granularity "daily" (15.09., Dashboard-Trend mit Segmentierung):
+          // Zeilen tragen zusätzlich date.
+          const daily = body?.granularity === "daily";
           // Zeitraum exakt validiert (Reihenfolge, Zukunft, max. 366 Tage).
           let zrB;
           try {
@@ -2588,7 +2592,7 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
           if (acc.is_mock) {
             let q = sb
               .from("chatgpt_ads_insights_daily")
-              .select("impressions, clicks, spend, conversions")
+              .select("date, impressions, clicks, spend, conversions")
               .eq("account_id", acc.id)
               .eq("scope", "campaign")
               .gte("date", start)
@@ -2604,6 +2608,29 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
               }),
               { imp: 0, clk: 0, sp: 0, cv: 0 },
             );
+            if (daily) {
+              const byDay: Record<string, any> = {};
+              for (const r0 of rowsDb || []) {
+                const d = (byDay[r0.date] ??= { imp: 0, clk: 0, sp: 0, cv: 0 });
+                d.imp += Number(r0.impressions || 0);
+                d.clk += Number(r0.clicks || 0);
+                d.sp += Number(r0.spend || 0);
+                d.cv += Number(r0.conversions || 0);
+              }
+              const rows = Object.entries(byDay)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .flatMap(([date, d]: any) =>
+                  MOCK_SPLIT[segment].map(([label, f]) => ({
+                    date,
+                    label,
+                    impressions: Math.round(d.imp * f),
+                    clicks: Math.round(d.clk * f),
+                    spend: Math.round(d.sp * f * 100) / 100,
+                    conversions: Math.round(d.cv * f),
+                  })),
+                );
+              return Response.json({ ok: true, segment, rows, mock: true });
+            }
             const rows = MOCK_SPLIT[segment].map(([label, f]) => ({
               label,
               impressions: Math.round(tot.imp * f),
@@ -2623,6 +2650,7 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
                 : "platform";
           const fields = [
             labelField,
+            ...(daily ? ["metadata.readable_time"] : []),
             `${segment}.impressions`,
             `${segment}.clicks`,
             `${segment}.spend`,
@@ -2637,7 +2665,7 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
           });
           let r = await adsFetch(key, acc.openai_ad_account_id, path, {
             query: {
-              time_granularity: "none",
+              time_granularity: daily ? "daily" : "none",
               aggregation_level: campaignId ? "campaign" : "ad_account",
               limit: "500",
               "time_ranges[]": [tr],
@@ -2648,7 +2676,7 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
           if (!r.ok && r.status === 400)
             r = await adsFetch(key, acc.openai_ad_account_id, path, {
               query: {
-                time_granularity: "none",
+                time_granularity: daily ? "daily" : "none",
                 aggregation_level: campaignId ? "campaign" : "ad_account",
                 limit: "500",
                 "time_ranges[]": [tr],
@@ -2658,6 +2686,9 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
             });
           if (!r.ok) return Response.json({ ok: false, error: httpErr(r) }, { status: 502 });
           const rows = (r.json?.data || []).map((row: any) => ({
+            ...(daily
+              ? { date: row.readable_time?.slice(0, 10) || tsToIso(row.start_time)?.slice(0, 10) }
+              : {}),
             label: String(row.country_name ?? row.device_type ?? row.platform ?? "?"),
             impressions: Number(row[`${segment}_impressions`] ?? row.impressions ?? 0),
             clicks: Number(row[`${segment}_clicks`] ?? row.clicks ?? 0),

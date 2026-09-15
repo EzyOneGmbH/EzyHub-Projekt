@@ -1,12 +1,14 @@
 import { authedFetch } from "@/lib/authed-fetch";
 import IngestCredentialsPanel from "@/ezy/IngestCredentialsPanel";
+import EzyAiAdsOverview from "@/ezy/EzyAiAdsOverview";
 // EzyAI — Ads-Modus (ChatGPT Ads, 26.08.2026): Conversion-Tracking über die
 // OpenAI Conversions API. Eigene Datei (Bundle-Split-Muster wie LocalGrid) —
 // der Organic/Ads-Schalter sitzt in der AppRail (railExtra, unter der
 // Trennlinie), dieser Panel rendert die drei Ads-Bereiche.
-// WICHTIG (Konzept): OpenAI bietet KEINE Reporting-API — Impressions/Clicks/
-// Spend gibt es nur im OpenAI Ads Manager; hier zählen wir die EIGENEN
-// Conversion-Events (Tabelle openai_ads_events).
+// Dashboard (15.09.): «Leistungstrend» wie im OpenAI Ads Manager (Ausgaben/
+// Impressionen/Klicks/CPC, Segmentierung, Kampagnen-Filter, 7T/14T/30T) aus
+// den gesyncten Advertiser-API-Insights — EzyAiAdsOverview.tsx. Die eigenen
+// Conversion-Events (openai_ads_events) leben im Bereich Conversions.
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -161,6 +163,11 @@ export default function EzyAiAdsPanel({
       </div>
     );
 
+  // Dashboard = Leistungstrend aus dem Advertiser-Konto — unabhängig von der
+  // Pixel-Konfiguration (15.09.).
+  if (section === "ads-overview")
+    return <EzyAiAdsOverview clientId={clientId} range={range} S={S} />;
+
   // Noch nicht konfiguriert: Setup-Karte (Formular nur für Owner/Admin).
   // Seit 13.09. steht die API-Setup-Karte voran: «Pixel anlegen» erzeugt das
   // Pixel im OpenAI-Konto und hinterlegt die ID gleich hier — das manuelle
@@ -189,7 +196,6 @@ export default function EzyAiAdsPanel({
       </div>
     );
 
-  const t = data.totals!;
   const events = data.events || [];
 
   if (section === "ads-conversions")
@@ -215,6 +221,15 @@ export default function EzyAiAdsPanel({
           onChanged={refresh}
         />
         <SnippetCard S={S} card={card} pixelId={data.pixelId || null} clientId={clientId} />
+        {/* Pixel-ID / Server-Key manuell (vom Dashboard hierher gezogen, 15.09.) */}
+        <ConfigCard
+          clientId={clientId}
+          clientName={clientName}
+          S={S}
+          isOrgAdmin={isOrgAdmin}
+          initial={{ pixelId: data.pixelId || "", enabled: !!data.enabled }}
+          onSaved={refresh}
+        />
       </div>
     );
 
@@ -241,130 +256,8 @@ export default function EzyAiAdsPanel({
       </div>
     );
 
-  // Übersicht (Default)
-  const dayKeys = Object.keys(data.byDay || {}).sort();
-  const maxDay = Math.max(1, ...dayKeys.map((k) => data.byDay![k]));
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {!data.enabled && (
-        <div
-          style={{
-            ...card,
-            borderColor: "#d9770655",
-            background: "rgba(217,119,6,.06)",
-            fontSize: 12.5,
-            color: "#92400e",
-          }}
-        >
-          ChatGPT Ads ist für diesen Kunden konfiguriert, aber pausiert — neue Conversions werden
-          nicht an OpenAI gesendet.
-        </div>
-      )}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))",
-          gap: 12,
-        }}
-      >
-        {(
-          [
-            ["Conversions", String(t.events), "im gewählten Zeitraum"],
-            ["Leads", String(t.leads), "lead / signup / contact"],
-            [
-              "Käufe",
-              String(t.orders),
-              t.revenueCents > 0 ? fmtMoney(t.revenueCents, t.currency) : "kein Umsatz erfasst",
-            ],
-            [
-              "Ad-Attribution",
-              t.events ? `${Math.round((t.withOppref / t.events) * 100)} %` : "—",
-              "Events mit oppref (Klick auf Anzeige)",
-            ],
-            [
-              "Zustellung",
-              t.events ? `${t.sent}/${t.events}` : "—",
-              t.failed > 0 ? `${t.failed} fehlgeschlagen` : "alle bei OpenAI angekommen",
-            ],
-          ] as Array<[string, string, string]>
-        ).map(([title, val, sub]) => (
-          <div key={title} style={card}>
-            <div
-              style={{
-                fontSize: 11,
-                color: S.mut,
-                textTransform: "uppercase",
-                letterSpacing: ".05em",
-              }}
-            >
-              {title}
-            </div>
-            <div
-              style={{
-                fontSize: 26,
-                fontWeight: 800,
-                color: S.txt,
-                marginTop: 4,
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
-              {val}
-            </div>
-            <div style={{ fontSize: 11, color: S.mut, marginTop: 2 }}>{sub}</div>
-          </div>
-        ))}
-      </div>
-
-      <div style={card}>
-        <SectionTitle S={S} title="Conversions pro Tag" sub={`${startKey} – ${endKey}`} />
-        {dayKeys.length === 0 ? (
-          <Empty S={S} />
-        ) : (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "flex-end",
-              gap: 3,
-              height: 120,
-              overflowX: "auto",
-              paddingTop: 6,
-            }}
-          >
-            {dayKeys.map((k) => (
-              <div
-                key={k}
-                title={`${k}: ${data.byDay![k]} Conversions`}
-                style={{
-                  flex: "1 0 10px",
-                  maxWidth: 34,
-                  height: `${Math.max(6, (data.byDay![k] / maxDay) * 100)}%`,
-                  background: S.app,
-                  borderRadius: "3px 3px 0 0",
-                  opacity: 0.85,
-                }}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div style={{ ...card, fontSize: 12.5, color: S.mut, lineHeight: 1.55 }}>
-        <b style={{ color: S.txt }}>Hinweis zu Kampagnen-Zahlen:</b> OpenAI bietet aktuell keine
-        Reporting-API — Impressions, Klicks, Spend und CPC stehen nur im OpenAI Ads Manager. Hier
-        siehst du die eigenen Conversion-Events (Pixel-ID {data.pixelId}); die Attribution im Ads
-        Manager kann 24–48 Stunden nachlaufen.
-      </div>
-
-      <ConfigCard
-        clientId={clientId}
-        clientName={clientName}
-        S={S}
-        isOrgAdmin={isOrgAdmin}
-        initial={{ pixelId: data.pixelId || "", enabled: !!data.enabled }}
-        onSaved={refresh}
-      />
-    </div>
-  );
+  // Unbekannter Bereich (sollte nicht vorkommen) — Dashboard-Hinweis.
+  return <EzyAiAdsOverview clientId={clientId} range={range} S={S} />;
 }
 
 function SectionTitle({ S, title, sub }: { S: Tokens; title: string; sub?: string }) {

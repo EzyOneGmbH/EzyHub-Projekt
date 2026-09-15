@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.13.1",
+    version: "1.14.0",
     changelog: [
+      {
+        version: "1.14.0",
+        date: "2026-09-15",
+        note: "ChatGPT-Ads-Dashboard wie im OpenAI Ads Manager: Leistungstrend mit Ausgaben, Impressionen, Klicks und CPC (Δ zur Vorperiode), Segmentierung nach Land/Gerät/Plattform, Kampagnen-Filter, Zeitraum 7T/14T/30T/Benutzerdefiniert und überlagertem Linienchart; Sync holt 31 Tage. Pixel-Konfiguration ist in den Bereich Conversions gezogen",
+      },
       {
         version: "1.13.1",
         date: "2026-09-14",
