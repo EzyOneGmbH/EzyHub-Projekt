@@ -353,6 +353,8 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
   ];
   let insightRows = 0;
   let insightsError: string | null = null;
+  // Diagnose fuer die CTC-Abfrage (erscheint im sync-Ergebnis).
+  const ctcDebug: any[] = [];
   for (const L of LEVELS) {
     const core = [
       `${L.level}.id`,
@@ -429,6 +431,13 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
         group_by_entity: true,
       },
     });
+    ctcDebug.push({
+      level: L.level,
+      status: cv.status,
+      rows: Array.isArray(cv.json?.data) ? cv.json.data.length : null,
+      keys: cv.json?.data?.[0] ? Object.keys(cv.json.data[0]).join(",") : null,
+      body: cv.ok ? null : JSON.stringify(cv.json)?.slice(0, 200),
+    });
     if (cv.ok)
       for (const row of cv.json?.data || []) {
         const day = String(row.date || "").slice(0, 10);
@@ -451,7 +460,15 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
       ...(meta ? { meta } : {}),
     })
     .eq("id", acc.id);
-  return { campaigns: campaigns.length, adGroups, ads, insightRows, audiences, insightsError };
+  return {
+    campaigns: campaigns.length,
+    adGroups,
+    ads,
+    insightRows,
+    audiences,
+    insightsError,
+    ctcDebug,
+  };
 }
 
 type AccountMeta = {
