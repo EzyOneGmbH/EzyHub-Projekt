@@ -69,6 +69,7 @@ import {
   LayoutGrid,
   Home,
   Users,
+  Settings,
 } from "lucide-react";
 
 // QS-Runde 13.09.2026: herausgeloeste Teile (kleinere Datei, gleiche Logik).
@@ -181,6 +182,9 @@ const ADS_NAV: Array<{ group: string; items: NavItem[] }> = [
       { id: "ads-zielgruppen", label: "Zielgruppen", icon: Users },
       { id: "ads-conversions", label: "Conversions", icon: Activity },
       { id: "ads-events", label: "Event-Log", icon: FileText },
+      // Einrichtung an einem Ort (15.09.): Werbekonto, Pixel, Server-Key,
+      // Conversion-Events und Ingest-Token — statt verstreut in den Bereichen.
+      { id: "ads-einstellungen", label: "Einstellungen", icon: Settings },
     ],
   },
 ];
@@ -4892,6 +4896,25 @@ function EzyAiApp() {
                         S={S}
                         isOrgAdmin={!!isOrgAdmin}
                       />
+                    ) : adsSection === "ads-einstellungen" ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                        <EzyAiCampaignsPanel
+                          clientId={client.id}
+                          clientName={client.name}
+                          range={range}
+                          S={S}
+                          isOrgAdmin={!!isOrgAdmin}
+                          section={adsSection}
+                        />
+                        <EzyAiAdsPanel
+                          clientId={client.id}
+                          clientName={client.name}
+                          section={adsSection}
+                          range={range}
+                          S={S}
+                          isOrgAdmin={!!isOrgAdmin}
+                        />
+                      </div>
                     ) : adsSection === "ads-zielgruppen" ? (
                       <EzyAiCampaignsPanel
                         clientId={client.id}

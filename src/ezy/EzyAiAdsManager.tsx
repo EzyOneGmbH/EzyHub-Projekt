@@ -1243,8 +1243,8 @@ export default function EzyAiAdsManager({
       >
         {err || (
           <>
-            Kein ChatGPT-Ads-Konto verbunden. Den API-Key des Kontos unter{" "}
-            <b>Zielgruppen → Konto verbinden</b> hinterlegen — oder «mock» für ein Demo-Konto.
+            Kein ChatGPT-Ads-Konto verbunden. Den API-Key des Kontos unter <b>Einstellungen</b>{" "}
+            hinterlegen — oder «mock» für ein Demo-Konto.
           </>
         )}
       </div>

@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.15.2",
+    version: "1.16.0",
     changelog: [
+      {
+        version: "1.16.0",
+        date: "2026-09-15",
+        note: "Neuer Ads-Bereich «Einstellungen»: Werbekonto verbinden und verwalten (Status, Sync, Review, Not-Aus, anderen API-Key hinterlegen), Pixel anlegen, Server-Key erzeugen, Conversion-Events definieren und der Ingest-Token — alles an einem Ort statt verstreut unter Zielgruppen und Conversions",
+      },
       {
         version: "1.15.2",
         date: "2026-09-15",

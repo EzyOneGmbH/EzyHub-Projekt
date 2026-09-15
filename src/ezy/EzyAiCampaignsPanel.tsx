@@ -301,6 +301,205 @@ export default function EzyAiCampaignsPanel({
   );
 }
 
+/* ── Werbekonto verwalten (Bereich «Einstellungen», 15.09.) ───────────────── */
+function AccountSettingsCard({
+  clientId,
+  acc,
+  S,
+  card,
+  canWrite,
+  busy,
+  run,
+  onChanged,
+}: {
+  clientId: string;
+  acc: Account;
+  S: Tokens;
+  card: React.CSSProperties;
+  canWrite: boolean;
+  busy: string;
+  run: (body: any, key: string) => Promise<boolean>;
+  onChanged: () => void;
+}) {
+  const [replace, setReplace] = useState(false);
+  const [apiKey, setApiKey] = useState("");
+  const [connecting, setConnecting] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [msgErr, setMsgErr] = useState(false);
+  const [choices, setChoices] = useState<any[] | null>(null);
+  const connect = async (adAccountId?: string) => {
+    if (!apiKey.trim() || connecting) return;
+    setConnecting(true);
+    setMsg("");
+    setMsgErr(false);
+    const r: any = await apiPost({
+      action: "connect",
+      clientId,
+      apiKey: apiKey.trim(),
+      ...(adAccountId ? { adAccountId } : {}),
+    });
+    setConnecting(false);
+    if (r.ok && Array.isArray(r.chooseAccount)) {
+      setChoices(r.chooseAccount);
+      return;
+    }
+    if (r.ok) {
+      setMsg("Key gespeichert — Konto neu synchronisiert.");
+      setApiKey("");
+      setReplace(false);
+      setChoices(null);
+      onChanged();
+    } else {
+      setMsgErr(true);
+      setMsg(
+        /401/.test(String(r.error))
+          ? "Key ungültig oder gehört zu einem anderen Werbekonto (HTTP 401). Der Key muss im Konto des Kunden unter Einstellungen → API erzeugt werden, während Ezy One dort als Admin hinzugefügt ist."
+          : r.error || "Verbinden fehlgeschlagen",
+      );
+    }
+  };
+  const row = (label: string, value: React.ReactNode) => (
+    <div
+      style={{ display: "flex", gap: 12, padding: "7px 0", borderBottom: `1px solid ${S.line}22` }}
+    >
+      <span style={{ minWidth: 150, color: S.mut }}>{label}</span>
+      <span style={{ color: inkOf(S) }}>{value}</span>
+    </div>
+  );
+  const btn = (primary: boolean): React.CSSProperties => ({
+    border: primary ? "none" : `1px solid ${S.line}`,
+    borderRadius: 10,
+    padding: "8px 14px",
+    fontSize: 12.5,
+    fontWeight: 700,
+    cursor: "pointer",
+    background: primary ? accentOf(S) : S.bg,
+    color: primary ? "#fff" : inkOf(S),
+  });
+  return (
+    <div style={card}>
+      <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>
+        Werbekonto (ChatGPT Ads)
+        {acc.is_mock && (
+          <span
+            style={{
+              fontSize: 10.5,
+              fontWeight: 700,
+              color: "#92400e",
+              background: "rgba(217,119,6,.12)",
+              borderRadius: 999,
+              padding: "2px 8px",
+              marginLeft: 8,
+              verticalAlign: "middle",
+            }}
+          >
+            DEMO
+          </span>
+        )}
+      </div>
+      <div style={{ fontSize: 12, color: S.mut, marginBottom: 12, lineHeight: 1.6 }}>
+        Der API-Key liegt verschlüsselt in EzyHub und wird nie angezeigt. Kampagnen, Anzeigen und
+        Kennzahlen kommen über diesen Zugang.
+      </div>
+      <div style={{ fontSize: 12.5 }}>
+        {row("Konto", acc.name)}
+        {row("Konto-ID", <code style={{ fontSize: 11.5 }}>{acc.openai_ad_account_id}</code>)}
+        {row("Währung", acc.currency_code)}
+        {row(
+          "Letzter Sync",
+          <>
+            {fmtTime(acc.last_synced_at)}
+            {acc.last_sync_error && (
+              <span style={{ color: "#dc2626" }}> · {acc.last_sync_error}</span>
+            )}
+          </>,
+        )}
+        {!acc.is_mock &&
+          row(
+            "Konto-Status",
+            <AccountControls
+              clientId={clientId}
+              S={S}
+              meta={acc.meta ?? null}
+              canWrite={canWrite}
+              onChanged={onChanged}
+            />,
+          )}
+      </div>
+      {canWrite && (
+        <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+          <button
+            onClick={() => run({ action: "sync", clientId }, "sync")}
+            disabled={busy === "sync"}
+            style={btn(false)}
+          >
+            {busy === "sync" ? "Synchronisiere…" : "Jetzt syncen"}
+          </button>
+          <button onClick={() => setReplace((v) => !v)} style={btn(false)}>
+            {replace ? "Abbrechen" : "Anderen API-Key hinterlegen"}
+          </button>
+        </div>
+      )}
+      {replace && canWrite && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ display: "flex", gap: 10 }}>
+            <input
+              type="password"
+              autoFocus
+              placeholder="Neuer API-Key aus ads.openai.com (oder: mock)"
+              value={apiKey}
+              onChange={(e) => {
+                setApiKey(e.target.value);
+                setChoices(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") connect();
+              }}
+              style={{
+                flex: 1,
+                border: `1px solid ${S.line}`,
+                borderRadius: 10,
+                padding: "9px 12px",
+                fontSize: 13,
+                background: S.bg,
+                color: inkOf(S),
+              }}
+            />
+            <button
+              onClick={() => connect()}
+              disabled={connecting || !apiKey.trim()}
+              style={{ ...btn(true), opacity: connecting || !apiKey.trim() ? 0.6 : 1 }}
+            >
+              {connecting ? "Prüfe…" : "Speichern"}
+            </button>
+          </div>
+          {choices && (
+            <AccountChooser
+              S={S}
+              accounts={choices}
+              busy={connecting}
+              onPick={(id) => connect(id)}
+            />
+          )}
+        </div>
+      )}
+      {msg && (
+        <div
+          style={{
+            fontSize: 12.5,
+            marginTop: 10,
+            lineHeight: 1.6,
+            fontWeight: msgErr ? 700 : 400,
+            color: msgErr ? "#b91c1c" : "#0f9d6c",
+          }}
+        >
+          {msg}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Konto verbinden (Spec §6: Kunde erstellt Konto selbst, Ezy One = Admin) ── */
 function ConnectCard({
   clientId,
@@ -550,6 +749,38 @@ function ManagerView({
   }, [perCampaign]);
   const dayKeys = Object.keys(byDay).sort();
   const maxDay = Math.max(0.01, ...dayKeys.map((k) => byDay[k]));
+
+  // Einstellungen (15.09.): Werbekonto verwalten — Status, Sync, Review,
+  // Not-Aus und Key ersetzen. Ist noch nichts verbunden, greift weiter oben
+  // die ConnectCard.
+  if (section === "ads-einstellungen")
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {err && (
+          <div
+            style={{
+              ...card,
+              borderColor: "#dc262655",
+              background: "rgba(220,38,38,.05)",
+              color: "#b91c1c",
+              fontSize: 12.5,
+            }}
+          >
+            {err}
+          </div>
+        )}
+        <AccountSettingsCard
+          clientId={clientId}
+          acc={acc}
+          S={S}
+          card={card}
+          canWrite={isOrgAdmin}
+          busy={busy}
+          run={run}
+          onChanged={onChanged}
+        />
+      </div>
+    );
 
   // Zielgruppen-Bereich (eigener Nav-Punkt) teilt Konto-Karte + Fehlerbox.
   if (section === "ads-zielgruppen")

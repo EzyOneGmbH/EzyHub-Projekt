@@ -168,6 +168,34 @@ export default function EzyAiAdsPanel({
   if (section === "ads-overview")
     return <EzyAiAdsOverview clientId={clientId} range={range} S={S} />;
 
+  // Einstellungen (15.09.): Pixel, Server-Key, Conversion-Events und der
+  // Ingest-Token (steckt in der ConfigCard) an einem Ort.
+  if (section === "ads-einstellungen")
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {isOrgAdmin && (
+          <ConversionSetupCard
+            S={S}
+            card={card}
+            clientId={clientId}
+            isOrgAdmin={isOrgAdmin}
+            onChanged={refresh}
+          />
+        )}
+        <ConfigCard
+          clientId={clientId}
+          clientName={clientName}
+          S={S}
+          isOrgAdmin={isOrgAdmin}
+          initial={
+            data.configured ? { pixelId: data.pixelId || "", enabled: !!data.enabled } : null
+          }
+          onSaved={refresh}
+          intro={!data.configured}
+        />
+      </div>
+    );
+
   // Noch nicht konfiguriert: Setup-Karte (Formular nur für Owner/Admin).
   // Seit 13.09. steht die API-Setup-Karte voran: «Pixel anlegen» erzeugt das
   // Pixel im OpenAI-Konto und hinterlegt die ID gleich hier — das manuelle
@@ -213,23 +241,11 @@ export default function EzyAiAdsPanel({
             <EventsTable S={S} events={events} mode="conversions" />
           )}
         </div>
-        <ConversionSetupCard
-          S={S}
-          card={card}
-          clientId={clientId}
-          isOrgAdmin={isOrgAdmin}
-          onChanged={refresh}
-        />
         <SnippetCard S={S} card={card} pixelId={data.pixelId || null} clientId={clientId} />
-        {/* Pixel-ID / Server-Key manuell (vom Dashboard hierher gezogen, 15.09.) */}
-        <ConfigCard
-          clientId={clientId}
-          clientName={clientName}
-          S={S}
-          isOrgAdmin={isOrgAdmin}
-          initial={{ pixelId: data.pixelId || "", enabled: !!data.enabled }}
-          onSaved={refresh}
-        />
+        <div style={{ ...card, fontSize: 12.5, color: S.mut }}>
+          Pixel, Server-Key, Conversion-Events und der Ingest-Token werden im Bereich{" "}
+          <b style={{ color: S.txt }}>Einstellungen</b> eingerichtet.
+        </div>
       </div>
     );
 
