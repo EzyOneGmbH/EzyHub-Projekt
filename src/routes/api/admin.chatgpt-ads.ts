@@ -420,12 +420,13 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
         aggregation_level: L.level,
         time_granularity: "daily",
         // time_ranges ist auch hier ein Array von JSON-STRINGS (die API lehnt
-        // Objekte ab: «expected a string, but got an object»), Typ unix_range.
+        // Objekte ab: «expected a string, but got an object»), Typ unix_range —
+        // und die Zeitstempel muessen auf volle Stunden fallen (Minute/Sekunde 0).
         time_ranges: [
           JSON.stringify({
             type: "unix_range",
-            start: String(Math.floor(since.getTime() / 1000)),
-            end: String(Math.floor(Date.now() / 1000)),
+            start: String(Math.floor(since.getTime() / 3_600_000) * 3600),
+            end: String(Math.floor(Date.now() / 3_600_000) * 3600),
           }),
         ],
         group_by_entity: true,
