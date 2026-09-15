@@ -193,6 +193,8 @@ export default function EzyAiAdsPanel({
           onSaved={refresh}
           intro={!data.configured}
         />
+        <SnippetCard S={S} card={card} pixelId={data.pixelId || null} clientId={clientId} />
+        <ReadinessCard S={S} card={card} clientId={clientId} clientName={clientName} />
       </div>
     );
 
@@ -292,6 +294,263 @@ function Empty({ S }: { S: Tokens }) {
       Ingest-Endpoint (<code>/api/admin/openai-ads-ingest</code>) von der Kunden-Website bzw. dem
       CRM — wichtig: den <code>?oppref=…</code>-Parameter beim Anzeigen-Klick erfassen und bis zur
       Conversion mitführen.
+    </div>
+  );
+}
+
+/* ── Technik-Check der Kunden-Website ────────────────────────────────────────
+   Prüft die Domain gegen die Anforderungen aus
+   developers.openai.com/ads/measurement-pixel: HTTPS, SDK im <head>, Pixel-ID,
+   page_viewed, Conversion-Events, Deduplizierung, CSP-Freigaben, Consent-Tool.
+   Zweiter Teil: der Live-Check fragt bei OpenAI die zuletzt eingegangenen
+   Events ab — der sieht auch Einbauten über einen Tag-Manager, die im
+   Roh-HTML unsichtbar bleiben. */
+type ReadyItem = {
+  id: string;
+  label: string;
+  status: "ok" | "warn" | "fail" | "info";
+  detail: string;
+  hint?: string;
+};
+
+const READY_STYLE: Record<ReadyItem["status"], { bg: string; fg: string; sign: string }> = {
+  ok: { bg: "rgba(22,163,74,.12)", fg: "#15803d", sign: "✓" },
+  warn: { bg: "rgba(217,119,6,.14)", fg: "#b45309", sign: "!" },
+  fail: { bg: "rgba(220,38,38,.12)", fg: "#b91c1c", sign: "×" },
+  info: { bg: "rgba(100,116,139,.14)", fg: "#475569", sign: "i" },
+};
+
+function ReadinessCard({
+  S,
+  card,
+  clientId,
+  clientName,
+}: {
+  S: Tokens;
+  card: React.CSSProperties;
+  clientId: string;
+  clientName: string;
+}) {
+  const [url, setUrl] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState<{
+    checkedUrl?: string;
+    items?: ReadyItem[];
+    score?: { ok: number; warn: number; fail: number };
+    error?: string;
+  } | null>(null);
+  const [live, setLive] = useState<{
+    events?: Array<{
+      event_type: string | null;
+      custom_event_name: string | null;
+      api_channel: string | null;
+      event_timestamp_ms: number | null;
+    }>;
+    error?: string;
+  } | null>(null);
+  const [liveBusy, setLiveBusy] = useState(false);
+
+  const run = async () => {
+    setBusy(true);
+    setRes(null);
+    setLive(null);
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const r = await authedFetch("/api/admin/openai-ads", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session?.access_token || ""}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "readiness",
+          clientId,
+          ...(url.trim() ? { url: url.trim() } : {}),
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      setRes(j.ok ? j : { error: j.error || `HTTP ${r.status}` });
+    } catch (e: any) {
+      setRes({ error: String(e?.message || e) });
+    }
+    setBusy(false);
+  };
+
+  const runLive = async () => {
+    setLiveBusy(true);
+    setLive(null);
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const r = await authedFetch("/api/admin/chatgpt-ads", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session?.access_token || ""}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "conv-sample", clientId }),
+      });
+      const j = await r.json().catch(() => ({}));
+      setLive(
+        j.ok
+          ? j
+          : {
+              error:
+                r.status === 409 && /Konto/.test(j.error || "")
+                  ? "Kein Advertiser-Konto verbunden — zuerst oben verbinden."
+                  : j.error || `HTTP ${r.status}`,
+            },
+      );
+    } catch (e: any) {
+      setLive({ error: String(e?.message || e) });
+    }
+    setLiveBusy(false);
+  };
+
+  const btn: React.CSSProperties = {
+    border: `1px solid ${S.line}`,
+    background: "#fff",
+    color: S.txt,
+    borderRadius: 8,
+    padding: "7px 12px",
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: "pointer",
+  };
+
+  return (
+    <div style={card}>
+      <SectionTitle
+        S={S}
+        title="Technik-Check der Website"
+        sub="prüft die Domain gegen die Anforderungen von OpenAI für den Measurement-Pixel"
+      />
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <input
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder={`Startseite von ${clientName} — oder eine andere Seite, z.B. https://…/kontakt`}
+          style={{
+            flex: "1 1 320px",
+            minWidth: 220,
+            border: `1px solid ${S.line}`,
+            borderRadius: 8,
+            padding: "7px 10px",
+            fontSize: 12.5,
+            color: S.txt,
+            background: "#fff",
+          }}
+        />
+        <button onClick={run} disabled={busy} style={{ ...btn, opacity: busy ? 0.6 : 1 }}>
+          {busy ? "Prüft …" : "Anforderungen prüfen"}
+        </button>
+      </div>
+
+      {res?.error && (
+        <div style={{ fontSize: 12.5, color: "#b91c1c", marginTop: 10 }}>{res.error}</div>
+      )}
+
+      {res?.items && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 11.5, color: S.mut, marginBottom: 8 }}>
+            Geprüft: <b style={{ color: S.txt }}>{res.checkedUrl}</b> — {res.score?.ok ?? 0} erfüllt
+            {(res.score?.warn ?? 0) > 0 && `, ${res.score?.warn} zu prüfen`}
+            {(res.score?.fail ?? 0) > 0 && `, ${res.score?.fail} offen`}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {res.items.map((it) => {
+              const st = READY_STYLE[it.status];
+              return (
+                <div
+                  key={it.id}
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    alignItems: "flex-start",
+                    border: `1px solid ${S.line}`,
+                    borderRadius: 8,
+                    padding: "9px 11px",
+                  }}
+                >
+                  <span
+                    style={{
+                      flexShrink: 0,
+                      width: 20,
+                      height: 20,
+                      borderRadius: 999,
+                      background: st.bg,
+                      color: st.fg,
+                      fontSize: 12,
+                      fontWeight: 800,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      marginTop: 1,
+                    }}
+                  >
+                    {st.sign}
+                  </span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, color: S.txt }}>{it.label}</div>
+                    <div style={{ fontSize: 11.5, color: S.mut, wordBreak: "break-word" }}>
+                      {it.detail}
+                    </div>
+                    {it.hint && (
+                      <div style={{ fontSize: 11.5, color: st.fg, marginTop: 3 }}>{it.hint}</div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div style={{ borderTop: `1px solid ${S.line}`, marginTop: 14, paddingTop: 12 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: S.txt, marginRight: "auto" }}>
+            Live-Check: kommen Events bei OpenAI an?
+          </div>
+          <button
+            onClick={runLive}
+            disabled={liveBusy}
+            style={{ ...btn, opacity: liveBusy ? 0.6 : 1 }}
+          >
+            {liveBusy ? "Fragt ab …" : "Eingegangene Events abrufen"}
+          </button>
+        </div>
+        <div style={{ fontSize: 11.5, color: S.mut, marginTop: 4 }}>
+          Stichprobe der letzten Minuten aus dem OpenAI-Konto. Das ist der verlässliche Nachweis,
+          wenn der Pixel über einen Tag-Manager ausgeliefert wird und im HTML nicht zu sehen ist.
+        </div>
+        {live?.error && (
+          <div style={{ fontSize: 12.5, color: "#b91c1c", marginTop: 8 }}>{live.error}</div>
+        )}
+        {live?.events && (
+          <div style={{ fontSize: 12, color: S.txt, marginTop: 8 }}>
+            {live.events.length === 0 ? (
+              <span style={{ color: S.mut }}>
+                Keine Events in der Stichprobe. Die Seite einmal im Browser aufrufen und in ein bis
+                zwei Minuten erneut abrufen.
+              </span>
+            ) : (
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                {live.events.slice(0, 10).map((e, i) => (
+                  <li key={i} style={{ marginBottom: 2 }}>
+                    {e.custom_event_name || e.event_type || "Event"}
+                    <span style={{ color: S.mut }}>
+                      {" "}
+                      — {e.api_channel === "server_to_server" ? "Server" : "Pixel"}
+                      {e.event_timestamp_ms
+                        ? `, ${new Date(e.event_timestamp_ms).toLocaleTimeString("de-CH")}`
+                        : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

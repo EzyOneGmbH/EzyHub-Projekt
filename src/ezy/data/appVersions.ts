@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.16.1",
+    version: "1.17.0",
     changelog: [
+      {
+        version: "1.17.0",
+        date: "2026-09-15",
+        note: "Neuer «Technik-Check der Website» unter Ads → Einstellungen: prüft die Kundendomain gegen die OpenAI-Anforderungen für den Measurement-Pixel (HTTPS, SDK im <head>, Pixel-ID Soll/Ist, page_viewed, Conversion-Events, event_id-Deduplizierung, CSP-Freigaben, Cookie-Banner, Tag-Manager, Debug-Flag) — mit Klartext-Hinweis je Punkt und einem Live-Check, der die bei OpenAI eingegangenen Events abruft",
+      },
       {
         version: "1.16.1",
         date: "2026-09-15",
