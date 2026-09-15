@@ -55,3 +55,6 @@ test-results/
 
 # Supabase-CLI-Cache (gen types/login-Versuche)
 supabase/.temp/
+
+# OpenAI-Ads-Manager-Skills (Fremdexport v0.1.20, lokal fuer die EzyAI-Ads-Arbeit)
+.claude/skills/
