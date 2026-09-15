@@ -118,7 +118,7 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
       {
         version: "1.15.1",
         date: "2026-09-15",
-        note: "Kampagnen-Ansicht luftiger: «Trends bei Kennzahlen» rutscht auf schmalen Bildschirmen unter die Tabelle (statt sie zusammenzuquetschen), kompaktere Zeilen und Spalten, kein doppelter Titel mehr — stattdessen steht das Werbekonto oben — und die Konto-Leiste sitzt in der Fusszeile",
+        note: "Kampagnen-Ansicht luftiger (Spalten Aktionen und CPM neu ausgeblendet, im Dialog «Spalten anpassen» zuschaltbar): «Trends bei Kennzahlen» rutscht auf schmalen Bildschirmen unter die Tabelle (statt sie zusammenzuquetschen), kompaktere Zeilen und Spalten, kein doppelter Titel mehr — stattdessen steht das Werbekonto oben — und die Konto-Leiste sitzt in der Fusszeile",
       },
       {
         version: "1.15.0",

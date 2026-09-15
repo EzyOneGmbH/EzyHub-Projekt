@@ -155,12 +155,15 @@ const COLS: Record<Level, Col[]> = {
   ],
 };
 const colsKey = (l: Level) => "ezyai.ads.cols." + l;
+// Voreinstellung: die (leere) Aktionen-Spalte und CPM sind aus, damit Ausgaben,
+// CTR und CPC ohne Scrollen sichtbar sind — beides im Dialog zuschaltbar.
+const DEFAULT_HIDDEN: ColKey[] = ["actions", "cpm"];
 function loadHidden(l: Level): Set<ColKey> {
   try {
     const v = localStorage.getItem(colsKey(l));
-    return new Set(v ? (JSON.parse(v) as ColKey[]) : []);
+    return new Set(v ? (JSON.parse(v) as ColKey[]) : DEFAULT_HIDDEN);
   } catch {
-    return new Set();
+    return new Set(DEFAULT_HIDDEN);
   }
 }
 const MONTHS_SHORT = [
@@ -2216,18 +2219,6 @@ export default function EzyAiAdsManager({
           background: "#fafafa",
         }}
       >
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#111" }}>
-          <span
-            style={{
-              width: 14,
-              height: 14,
-              borderRadius: 999,
-              background: "#77008C",
-              display: "inline-block",
-            }}
-          />
-          {data.account.name || clientName}
-        </span>
         {isOrgAdmin && !data.account.is_mock && (
           <AccountControls
             clientId={clientId}
@@ -2330,7 +2321,7 @@ export default function EzyAiAdsManager({
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
               <button
                 onClick={() => {
-                  setHidden(new Set());
+                  setHidden(new Set(DEFAULT_HIDDEN));
                   try {
                     localStorage.removeItem(colsKey(level));
                   } catch {
