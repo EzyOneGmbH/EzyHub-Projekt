@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.18.0",
+    version: "1.19.0",
     changelog: [
+      {
+        version: "1.19.0",
+        date: "2026-09-15",
+        note: "Fünf Korrekturen nach dem Abgleich mit OpenAIs eigenen Vorgaben: die Herkunfts-Adresse eingelieferter Conversions wird jetzt auf Ursprung und Pfad gekürzt und auf http(s) begrenzt (vorher wanderten Abfrageparameter mit personenbezogenen Daten ungefiltert an OpenAI), eigene Conversion-Events lassen sich nicht mehr als Kampagnenziel setzen, mehr als ein Ziel je Kampagne wird angemerkt, Kampagne/Anzeigengruppe/Anzeige werden mit einem inhaltsabgeleiteten Wiederholungsschlüssel angelegt (schützt vor Doppelanlage nach Zeitüberschreitung), und die Bildprüfung folgt der Vorgabe mit mindestens 256 Pixel und bis 10 MB statt der vorher zu strengen 640 Pixel und 6 MB",
+      },
       {
         version: "1.18.0",
         date: "2026-09-15",

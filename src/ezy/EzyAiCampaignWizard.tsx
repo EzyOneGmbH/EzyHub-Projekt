@@ -312,7 +312,9 @@ export function ImagePicker({
       setErr("Maximal 6 MB");
       return;
     }
-    // Mindestgrösse 640×640 (Doku) lokal prüfen, bevor der Upload läuft.
+    // Harte Untergrenze laut OpenAI: 256×256 (image-asset-contract.md).
+    // 640×640 ist nur die Empfehlung — vorher haben wir gültige Kundenbilder
+    // dazwischen abgewiesen. Ab 1200 px empfiehlt OpenAI, nicht grösser zu gehen.
     const url = URL.createObjectURL(f);
     const dims = await new Promise<{ w: number; h: number }>((res) => {
       const img = new Image();
@@ -320,8 +322,8 @@ export function ImagePicker({
       img.onerror = () => res({ w: 0, h: 0 });
       img.src = url;
     });
-    if (dims.w < 640 || dims.h < 640) {
-      setErr(`Bild zu klein (${dims.w}×${dims.h}) — mindestens 640×640 Pixel`);
+    if (dims.w < 256 || dims.h < 256) {
+      setErr(`Bild zu klein (${dims.w}×${dims.h}) — mindestens 256×256 Pixel`);
       URL.revokeObjectURL(url);
       return;
     }
@@ -377,7 +379,7 @@ export function ImagePicker({
           />
         </label>
         <div style={{ color: err ? "#b91c1c" : S.mut, fontSize: 11, marginTop: 4 }}>
-          {err || "JPEG/PNG/WebP, quadratisch, mind. 640×640 px, max. 6 MB"}
+          {err || "JPEG/PNG/WebP, quadratisch, mind. 256×256 px, empfohlen 640–1200, max. 10 MB"}
         </div>
       </div>
     </div>

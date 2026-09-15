@@ -79,7 +79,34 @@ const EVENT_ID = z
   .min(1)
   .max(120)
   .regex(/^[A-Za-z0-9_.:-]+$/, "event.id: nur A-Z, 0-9, _ . : -");
-const HTTP_URL = z.string().max(500).url();
+// source_url: OpenAI verlangt eine bereinigte HTTP(S)-Adresse aus NUR Ursprung
+// und Pfad (developers.openai.com/ads, Verification-Checklist 15.09.2026).
+// z.string().url() liess bisher alles durch, was formal eine URL ist — auch
+// "javascript:" und Abfrageparameter mit personenbezogenen Daten, die wir
+// ungefiltert an OpenAI weitergereicht haetten.
+const SOURCE_URL = z
+  .string()
+  .max(500)
+  .superRefine((v, ctx) => {
+    let u: URL;
+    try {
+      u = new URL(v);
+    } catch {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "source_url: keine gueltige URL" });
+      return;
+    }
+    if (u.protocol !== "http:" && u.protocol !== "https:")
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "source_url: nur http:// oder https://",
+      });
+  })
+  .transform((v) => {
+    const u = new URL(v);
+    // Abfrageteil und Anker verwerfen — sie transportieren regelmaessig
+    // E-Mail-Adressen, Namen oder Kampagnen-Parameter.
+    return u.origin + u.pathname;
+  });
 
 // ── ChatGPT-Ads-Conversion ─────────────────────────────────────────────────
 export const AdsEventSchema = z
@@ -95,7 +122,7 @@ export const AdsEventSchema = z
       .regex(/^[A-Z]{3}$/, "currency: ISO-4217-Code in Grossbuchstaben")
       .refine((c) => ISO_4217.has(c), "currency: kein gueltiger ISO-4217-Code")
       .optional(),
-    source_url: HTTP_URL.optional(),
+    source_url: SOURCE_URL.optional(),
     action_source: z.enum(ACTION_SOURCES).default("web"),
     user: z
       .object({

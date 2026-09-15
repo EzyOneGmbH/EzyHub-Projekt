@@ -111,6 +111,77 @@ async function adsFetch(
 }
 
 // Paginierte Liste vollstaendig einsammeln (data[] + has_more/last_id).
+/** Deterministische Serialisierung: Schluessel rekursiv sortiert, damit
+ *  dieselbe Nutzlast immer dieselbe Zeichenkette ergibt. Wichtig: der
+ *  Array-Parameter von JSON.stringify ist eine Erlaubnisliste und wirft
+ *  verschachtelte Felder weg — daher von Hand. */
+function stableJson(v: unknown): string {
+  if (v === null || typeof v !== "object") return JSON.stringify(v) ?? "null";
+  if (Array.isArray(v)) return "[" + v.map(stableJson).join(",") + "]";
+  const o = v as Record<string, unknown>;
+  return (
+    "{" +
+    Object.keys(o)
+      .sort()
+      .map((k) => JSON.stringify(k) + ":" + stableJson(o[k]))
+      .join(",") +
+    "}"
+  );
+}
+
+/** Stabiler Idempotency-Key aus dem Inhalt: identischer Versuch = identischer
+ *  Schluessel, geaenderte Nutzlast = neuer Schluessel. Genau die Regel aus
+ *  write-safety.md, ohne dass der Browser etwas mitschicken muss. */
+async function idemKey(action: string, clientId: string, payload: unknown): Promise<string> {
+  const stabil = stableJson(payload);
+  // Web-Crypto statt node:crypto — die Route laeuft auf Cloudflare Workers.
+  const buf = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(`${action}|${clientId}|${stabil}`),
+  );
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+    .slice(0, 48);
+}
+
+type ConvPreflight = { error?: string; warning?: string };
+
+/** Prueft die gewuenschten Conversion-Events gegen den Live-Bestand.
+ *  custom-Events sind fuer Kampagnen-Gebote nie zulaessig; mehr als eines
+ *  widerspricht der Vorgabe, blockiert aber nicht (Bestandskonten). */
+async function preflightConversionEvents(
+  apiKey: string,
+  adAccountId: string,
+  ids: string[],
+): Promise<ConvPreflight> {
+  if (!ids.length) return {};
+  let settings: any[];
+  try {
+    settings = await adsListAll(apiKey, adAccountId, "/conversions/event_settings");
+  } catch {
+    return {}; // Bestand nicht abrufbar -> nicht blockieren, die API entscheidet
+  }
+  const byId = new Map(settings.map((e: any) => [String(e.id), e]));
+  const fehlend = ids.filter((id) => !byId.has(id));
+  if (fehlend.length)
+    return { error: `Conversion-Event nicht im Konto gefunden: ${fehlend.join(", ")}` };
+  const custom = ids.filter((id) => String(byId.get(id)?.event_type || "") === "custom");
+  if (custom.length) {
+    const namen = custom
+      .map((id) => byId.get(id)?.custom_event_name || byId.get(id)?.name || id)
+      .join(", ");
+    return {
+      error: `Eigene Conversion-Events koennen nicht als Kampagnenziel dienen (${namen}). OpenAI laesst dafuer nur Standard-Events zu — bitte eines davon waehlen.`,
+    };
+  }
+  if (ids.length > 1)
+    return {
+      warning: `${ids.length} Conversion-Events zugewiesen. OpenAI empfiehlt genau eines je Kampagne, damit die Gebotssteuerung ein eindeutiges Ziel hat.`,
+    };
+  return {};
+}
+
 async function adsListAll(
   apiKey: string,
   adAccountId: string,
@@ -858,6 +929,10 @@ async function runCommand(
     });
   } else if (cmd === "set_conversion_events") {
     // Event-Settings an die Kampagne hängen (Spec v2.3.0: conversion_event_setting_ids).
+    // Vorher dieselbe Preflight wie beim Anlegen: eigene Events sind als
+    // Kampagnenziel nie zulässig (campaign-create-preflight.md).
+    const pf = await preflightConversionEvents(apiKey, acc.openai_ad_account_id, eventSettingIds);
+    if (pf.error) return { ok: false, error: pf.error };
     r = await adsFetch(apiKey, acc.openai_ad_account_id, `/campaigns/${targetId}`, {
       method: "POST",
       body: { conversion_event_setting_ids: eventSettingIds },
@@ -2180,8 +2255,10 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
           const filename = String(body?.fileName || "ad.jpg").replace(/[^\w.-]/g, "_");
           if (!/^image\/(jpeg|png|webp)$/.test(mime))
             return Response.json({ ok: false, error: "Nur JPEG, PNG oder WebP" }, { status: 400 });
-          if (!b64 || b64.length > 8_000_000)
-            return Response.json({ ok: false, error: "Bild fehlt oder > 6 MB" }, { status: 400 });
+          // OpenAI erlaubt bis 10 MiB (image-asset-contract.md). Base64 traegt
+          // rund ein Drittel Aufschlag, daher die Schwelle auf den kodierten Text.
+          if (!b64 || b64.length > 14_000_000)
+            return Response.json({ ok: false, error: "Bild fehlt oder > 10 MB" }, { status: 400 });
           if (acc.is_mock)
             return Response.json({ ok: true, fileId: `file_mock_${Date.now().toString(36)}` });
           const key = keyOf();
@@ -2221,6 +2298,18 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
               { ok: false, error: "Conversions-Gebot braucht ein Conversion-Event" },
               { status: 400 },
             );
+          let convWarnung: string | undefined;
+          if (eventSettingIds.length && !acc.is_mock) {
+            const k = keyOf();
+            if (k instanceof Response) return k;
+            const pf = await preflightConversionEvents(
+              k,
+              acc.openai_ad_account_id,
+              eventSettingIds,
+            );
+            if (pf.error) return Response.json({ ok: false, error: pf.error }, { status: 400 });
+            convWarnung = pf.warning;
+          }
           const locations = locFull(body?.locations);
           const excluded = locFull(body?.excludedLocations).filter(
             (l) => !locations.some((x) => x.id === l.id),
@@ -2284,6 +2373,7 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
               const r = await adsFetch(key, acc.openai_ad_account_id, "/campaigns", {
                 method: "POST",
                 body: payload,
+                headers: { "Idempotency-Key": await idemKey("campaign-create", clientId, payload) },
               });
               if (!r.ok || !r.json?.id) return { ok: false, error: httpErr(r) };
               await upsertCampaignFromApi(sb, acc.id, r.json, locations);
@@ -2291,7 +2381,7 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
             },
           );
           return res.ok
-            ? Response.json({ ok: true, id: (res as any).id })
+            ? Response.json({ ok: true, id: (res as any).id, warning: convWarnung })
             : Response.json({ ok: false, error: res.error }, { status: 502 });
         }
 
@@ -2359,6 +2449,7 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
               const r = await adsFetch(key, acc.openai_ad_account_id, "/ad_groups", {
                 method: "POST",
                 body: payload,
+                headers: { "Idempotency-Key": await idemKey("adgroup-create", clientId, payload) },
               });
               if (!r.ok || !r.json?.id) return { ok: false, error: httpErr(r) };
               await resyncEntity(sb, acc, key, "ad_group", String(r.json.id));
@@ -2499,6 +2590,15 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
                 return { ok: true, id: adId };
               }
               const r = await adsFetch(key, acc.openai_ad_account_id, "/ads", {
+                headers: {
+                  "Idempotency-Key": await idemKey("ad-create", clientId, {
+                    adGroupId,
+                    name,
+                    status,
+                    creative,
+                    qst,
+                  }),
+                },
                 method: "POST",
                 body: {
                   ad_group_id: adGroupId,
