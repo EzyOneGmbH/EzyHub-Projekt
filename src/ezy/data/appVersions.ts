@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.17.0",
+    version: "1.18.0",
     changelog: [
+      {
+        version: "1.18.0",
+        date: "2026-09-15",
+        note: "Website-Snippet korrigiert und kopierfertig: OpenAI verlangt bei jedem Messaufruf das Pflichtfeld type (Seitenaufruf contents, Lead customer_action) — das fehlte bisher. Der Lead zählt neu erst, wenn das Formular wirklich erfolgreich war (Contact Form 7, WPForms, Elementor, Gravity, Ninja werden automatisch erkannt) statt schon beim Klick auf Senden; Suchformulare bleiben aussen vor, und event_id samt oppref liegen bereits beim Laden im Formular, damit die Entdopplung mit dem Server-Event sicher greift",
+      },
       {
         version: "1.17.0",
         date: "2026-09-15",

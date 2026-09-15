@@ -556,13 +556,24 @@ function ReadinessCard({
 }
 
 /* ── Website-Snippet (Pixel) ─────────────────────────────────────────────────
-   Offizielles oaiq-Loader-Snippet (developers.openai.com/ads/measurement-pixel,
-   geprüft 01.09.2026) + unsere Ergänzungen: page_viewed explizit (das SDK
-   sendet KEINEN Auto-PageView) und ein Formular-Hook, der lead_created misst
-   und event_id/__oppref als Hidden-Felder mitgibt — so kann das CRM dieselbe
-   event_id ans serverseitige CAPI (unser Ingest) weiterreichen und OpenAI
-   dedupliziert Pixel- und Server-Event. oppref selbst verwaltet das SDK
-   (fängt den URL-Parameter, First-Party-Cookie __oppref). */
+   Offizielles oaiq-Loader-Snippet (developers.openai.com/ads/measurement-pixel)
+   plus unsere Ergaenzungen. Drei Dinge, die die Doku verlangt bzw. die Praxis:
+   (1) `type` ist bei JEDEM measure-Aufruf Pflicht — page_viewed/contents_viewed/
+       items_added/checkout_started/order_created = "contents", lead_created/
+       appointment_scheduled/registration_completed = "customer_action",
+       subscription_created/trial_started = "plan_enrollment". Ohne type ist der
+       Aufruf unvollstaendig (Stand 15.09.2026, developers.openai.com/ads/
+       supported-events).
+   (2) page_viewed muss explizit gemessen werden — das SDK sendet KEINEN
+       Auto-PageView.
+   (3) Leads erst bei ERFOLG zaehlen, nicht beim Klick auf Senden: sonst zaehlen
+       Pflichtfeld-Fehler, Spam-Blocks und nicht zugestellte Mails mit, und bei
+       einem klassischen Formular springt die Seite weg, bevor das gebuendelte
+       Ereignis den Browser verlaesst. Deshalb haengen wir uns an die
+       Erfolgsereignisse der gaengigen Formular-Plugins.
+   Die versteckten Felder ezy_event_id/ezy_oppref stehen schon beim Laden im
+   Formular, nicht erst beim Absenden — so bekommt das CRM sie in jedem Fall und
+   OpenAI dedupliziert Browser- und Server-Meldung ueber dieselbe event_id. */
 function buildPixelSnippet(pixelId: string): string {
   return `<!-- ChatGPT-Ads-Pixel (Ezy One) — einmal im <head> einbauen -->
 <script>
@@ -579,27 +590,99 @@ function buildPixelSnippet(pixelId: string): string {
   })(window, document, "script", "https://bzrcdn.openai.com/sdk/oaiq.min.js");
 
   oaiq("init", { pixelId: "${pixelId}" });
-  oaiq("measure", "page_viewed");
+  oaiq("measure", "page_viewed", { type: "contents" });
 
-  // Formular-Absendungen als Lead melden. Bei Bedarf auf bestimmte
-  // Formulare einschraenken, z.B. "form.wpcf7-form, form.elementor-form".
-  var EZY_FORM_SELECTOR = "form";
-  document.addEventListener("submit", function (e) {
-    var f = e.target;
-    if (!f || f.nodeName !== "FORM" || !f.matches(EZY_FORM_SELECTOR)) return;
-    var id = "lead_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
-    var opp = (document.cookie.match(/(?:^|; )__oppref=([^;]+)/) || [])[1] || "";
-    function hid(n, v) {
-      var i = document.createElement("input");
-      i.type = "hidden"; i.name = n; i.value = v;
-      f.appendChild(i);
+  // Nur ausfuellen, wenn ein reines HTML-Formular ohne Plugin im Einsatz ist,
+  // z.B. "form#kontakt, form.anfrage". Contact Form 7, WPForms, Elementor,
+  // Gravity Forms und Ninja Forms werden unten automatisch erkannt.
+  var EZY_LEAD_FORMS = "";
+
+  (function (w, d) {
+    var lastForm = null;
+    var lastSent = 0;
+
+    function hid(form, name, value) {
+      var i = form.querySelector('input[data-ezy="' + name + '"]');
+      if (!i) {
+        i = d.createElement("input");
+        i.type = "hidden";
+        i.name = name;
+        i.setAttribute("data-ezy", name);
+        form.appendChild(i);
+      }
+      i.value = value;
     }
-    // Fuers Server-Event (Conversions API): dieselbe event_id + oppref
-    // wandern mit der Formular-Einsendung ins CRM/Mail.
-    hid("ezy_event_id", id);
-    if (opp) hid("ezy_oppref", decodeURIComponent(opp));
-    oaiq("measure", "lead_created", {}, { event_id: id });
-  }, true);
+
+    function oppref() {
+      var m = d.cookie.match(/(?:^|; )__oppref=([^;]+)/);
+      return m ? decodeURIComponent(m[1]) : "";
+    }
+
+    // Ereignis-Kennung + oppref als versteckte Felder ins Formular legen.
+    // Suchformulare (method="get") bleiben aussen vor.
+    function prepare(form) {
+      if (!form || form.nodeName !== "FORM") return "";
+      if ((form.getAttribute("method") || "post").toLowerCase() === "get") return "";
+      var id = form.getAttribute("data-ezy-event-id");
+      if (!id) {
+        id = "lead_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+        form.setAttribute("data-ezy-event-id", id);
+      }
+      hid(form, "ezy_event_id", id);
+      var o = oppref();
+      if (o) hid(form, "ezy_oppref", o);
+      return id;
+    }
+
+    function prepareAll() {
+      var list = d.querySelectorAll("form");
+      for (var i = 0; i < list.length; i++) prepare(list[i]);
+    }
+
+    // Wird erst bei ERFOLG aufgerufen.
+    function lead(form) {
+      if (!form || form.nodeName !== "FORM") form = lastForm;
+      var now = Date.now();
+      if (now - lastSent < 2000) return; // dasselbe Absenden nicht doppelt zaehlen
+      lastSent = now;
+      var id = (form && prepare(form)) || "lead_" + now;
+      w.oaiq("measure", "lead_created", { type: "customer_action" }, { event_id: id });
+      // Kennung erneuern, damit eine zweite echte Anfrage eigenstaendig zaehlt.
+      if (form) {
+        form.removeAttribute("data-ezy-event-id");
+        prepare(form);
+      }
+    }
+
+    if (d.readyState === "loading") d.addEventListener("DOMContentLoaded", prepareAll);
+    else prepareAll();
+
+    // Beim Absenden den oppref auffrischen (das Cookie kann spaeter gesetzt
+    // worden sein) und merken, welches Formular gerade laeuft.
+    d.addEventListener("submit", function (e) {
+      lastForm = e.target;
+      prepare(e.target);
+    }, true);
+
+    // Contact Form 7 sendet ein echtes DOM-Ereignis.
+    d.addEventListener("wpcf7mailsent", function (e) { lead(e.target); });
+
+    // WPForms, Elementor, Gravity Forms und Ninja Forms laufen ueber jQuery.
+    if (w.jQuery) {
+      w.jQuery(d).on("wpformsAjaxSubmitSuccess", function (e) { lead(e.target); });
+      w.jQuery(d).on("submit_success", function (e) { lead(e.target); });
+      w.jQuery(d).on("gform_confirmation_loaded", function () { lead(null); });
+      w.jQuery(d).on("nfFormSubmitResponse", function () { lead(null); });
+    }
+
+    // Reines HTML-Formular ohne Erfolgsereignis: oben EZY_LEAD_FORMS setzen.
+    if (EZY_LEAD_FORMS) {
+      d.addEventListener("submit", function (e) {
+        var f = e.target;
+        if (f && f.nodeName === "FORM" && f.matches(EZY_LEAD_FORMS)) lead(f);
+      }, true);
+    }
+  })(window, document);
 </script>`;
 }
 
@@ -916,12 +999,25 @@ function SnippetCard({
         {code}
       </pre>
       <div style={{ fontSize: 11.5, color: S.mut, marginTop: 10, lineHeight: 1.6 }}>
-        <b>So funktioniert die Attribution:</b> Das SDK erfasst den <code>oppref</code>-Parameter
-        vom Anzeigen-Klick automatisch (First-Party-Cookie <code>__oppref</code>). Der Formular-Hook
-        gibt <code>ezy_event_id</code> und <code>ezy_oppref</code> als Hidden-Felder mit — sendet
-        das CRM diese Werte an unseren Ingest-Endpoint (<code>/api/admin/openai-ads-ingest</code>),
-        dedupliziert OpenAI Pixel- und Server-Event über die identische event_id. Kauf-Events (
-        <code>order_created</code> mit Betrag) bei Bedarf zusätzlich manuell messen.
+        <b>Einbau:</b> Den Block unverändert einmal in den <code>&lt;head&gt;</code> der Website
+        kopieren, möglichst weit oben. Nichts anpassen nötig, solange die Formulare über Contact
+        Form 7, WPForms, Elementor, Gravity Forms oder Ninja Forms laufen — die erkennt das Snippet
+        selbst. Nur bei einem reinen HTML-Formular oben bei <code>EZY_LEAD_FORMS</code> den Selektor
+        eintragen, z.B. <code>&quot;form#kontakt&quot;</code>.
+        <br />
+        <b>Warum es so aussieht:</b> OpenAI verlangt bei jedem Messaufruf das Feld <code>type</code>{" "}
+        — Seitenaufruf und Kauf brauchen <code>contents</code>, Lead und Termin{" "}
+        <code>customer_action</code>. Der Lead zählt erst, wenn das Formular wirklich erfolgreich
+        war, nicht schon beim Klick auf Senden. So zählen Pflichtfeld-Fehler, Spam-Blocks und nicht
+        zugestellte Mails nicht als Conversion.
+        <br />
+        <b>Attribution:</b> Das SDK erfasst den <code>oppref</code>-Parameter vom Anzeigen-Klick
+        automatisch (First-Party-Cookie <code>__oppref</code>). Die versteckten Felder{" "}
+        <code>ezy_event_id</code> und <code>ezy_oppref</code> liegen schon beim Laden im Formular —
+        sendet das CRM sie an unseren Ingest-Endpoint (<code>/api/admin/openai-ads-ingest</code>),
+        dedupliziert OpenAI Browser- und Server-Meldung über dieselbe event_id. Kauf-Events (
+        <code>order_created</code> mit Betrag und <code>type: &quot;contents&quot;</code>) bei
+        Bedarf zusätzlich manuell messen.
       </div>
     </div>
   );
