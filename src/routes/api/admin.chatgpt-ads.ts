@@ -279,12 +279,17 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
     .eq("account_id", acc.id);
   let adGroups = 0;
   let ads = 0;
+  // IDs je Ebene — die Conversions-Insights verlangen entity_ids (15.09.).
+  const campaignIds = campaigns.map((c: any) => String(c.id));
+  const groupIds: string[] = [];
+  const adIds: string[] = [];
   for (const dc of dbCamps || []) {
     const groups = await adsListAll(apiKey, acc.openai_ad_account_id, "/ad_groups", {
       campaign_id: dc.openai_campaign_id,
     });
     for (const g of groups) {
       adGroups++;
+      groupIds.push(String(g.id));
       const { data: gRow } = await sb
         .from("chatgpt_ads_ad_groups")
         .upsert(
@@ -306,6 +311,7 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
       });
       for (const a of adList) {
         ads++;
+        adIds.push(String(a.id));
         await sb.from("chatgpt_ads_ads").upsert(
           {
             account_id: acc.id,
@@ -415,6 +421,8 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
     }
     // CTC (30 T.) = Click-through-Conversions je Tag/Entity — nicht-fatal
     // (Endpoint kann für ein Konto fehlen).
+    const entIds = L.level === "campaign" ? campaignIds : L.level === "ad_group" ? groupIds : adIds;
+    if (!entIds.length) continue;
     const cv = await adsFetch(apiKey, acc.openai_ad_account_id, "/conversions/insights", {
       method: "POST",
       body: {
@@ -432,6 +440,7 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
             ),
           }),
         ],
+        entity_ids: entIds.slice(0, 500),
         group_by_entity: true,
       },
     });
