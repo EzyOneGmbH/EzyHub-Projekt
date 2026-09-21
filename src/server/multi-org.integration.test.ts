@@ -132,6 +132,7 @@ vi.stubGlobal("fetch", async (input: any, init: any = {}) => {
 
 type H = Record<string, (a: { request: Request }) => Promise<Response>>;
 let readiness: H, audit: H, team: H, live: H, reakt: H, runs: H;
+let firstParty: any;
 
 function req(
   method: string,
@@ -161,6 +162,8 @@ beforeAll(async () => {
   live = (await import("../routes/api/live.status")).Route.options.server!.handlers as any;
   reakt = (await import("../routes/api/agent.reakt")).Route.options.server!.handlers as any;
   runs = (await import("../routes/api/agent.runs")).Route.options.server!.handlers as any;
+  firstParty = (await import("../routes/api/admin.first-party-connection")).Route.options.server!
+    .handlers as any;
 });
 
 const nichtGesperrt = (s: number) => ![401, 403, 409].includes(s);
@@ -468,5 +471,48 @@ describe("Browser → Server: Admin-Aufrufe senden die aktive Organisation (mult
     const r = await authedFetch("/api/admin/client-readiness?all=1");
     expect(r.status).toBe(409);
     expect(aussen[0].headers["x-ezy-active-org"]).toBeUndefined();
+  });
+});
+
+// First-Party-KPIs Phase 2a (22.09.2026): Verbindungs-/Flag-Route ist strikt
+// mandantengebunden — Kunde muss zur AKTIVEN Organisation gehoeren, nur
+// Owner/Admin; Flag-Schreiben merged clients.metadata statt zu ueberschreiben.
+describe("first-party-connection (Owner/Admin, Kunde nur in aktiver Org)", () => {
+  const fp = (user: string, org: string | null, body: any) =>
+    firstParty.POST({
+      request: req("POST", "/api/admin/first-party-connection", { user, org, body }),
+    });
+
+  it("Admin A: status fuer Kunde A ok, Flag Default AUS, kein Service Account → OAuth-Fallback", async () => {
+    const r = await fp("multi-ab", ORG_A, { clientId: KUNDE_A, action: "status" });
+    expect(r.status).toBe(200);
+    const j = await r.json();
+    expect(j.ok).toBe(true);
+    expect(j.flag).toBe(false);
+    expect(j.serviceAccount.konfiguriert).toBe(false);
+    expect(j.client.id).toBe(KUNDE_A);
+  });
+
+  it("Admin A: Kunde B (fremde Org) → 404, nie Daten", async () => {
+    const r = await fp("multi-ab", ORG_A, { clientId: KUNDE_B, action: "status" });
+    expect(r.status).toBe(404);
+  });
+
+  it("Member in B → 403; ohne aktive Org → 409; Owner B fuer Kunde A → 404", async () => {
+    expect((await fp("multi-ab", ORG_B, { clientId: KUNDE_B, action: "status" })).status).toBe(403);
+    expect((await fp("multi-ab", null, { clientId: KUNDE_A, action: "status" })).status).toBe(409);
+    expect((await fp("owner-b", ORG_B, { clientId: KUNDE_A, action: "status" })).status).toBe(404);
+  });
+
+  it("Flag setzen merged metadata (andere Schluessel bleiben) und ist danach im Status sichtbar", async () => {
+    const kunde = db.clients.find((c) => c.id === KUNDE_A)!;
+    kunde.metadata = { status: "active", seo_autonom: true };
+    const r = await fp("multi-ab", ORG_A, { clientId: KUNDE_A, action: "flag", enabled: true });
+    expect(r.status).toBe(200);
+    expect((await r.json()).flag).toBe(true);
+    expect(kunde.metadata).toEqual({ status: "active", seo_autonom: true, first_party_kpi: true });
+    const s = await (await fp("multi-ab", ORG_A, { clientId: KUNDE_A, action: "status" })).json();
+    expect(s.flag).toBe(true);
+    expect((await fp("multi-ab", ORG_A, { clientId: "nope", action: "status" })).status).toBe(400);
   });
 });
