@@ -11,7 +11,7 @@ import {
   SectionErrorBoundary,
   Skeleton,
 } from "./ui-kit";
-import { Fragment } from "react";
+import { Fragment, Suspense, lazy } from "react";
 import {
   AI_COLORS,
   buildCanonryLiveModel,
@@ -734,10 +734,14 @@ export const CLIENT_TYPES = [
 // Stabiler Body-Builder fuer die CWV-Messung (Mobile wie der Sammel-Lauf).
 export const PSI_MOBILE_BODY = () => ({ strategy: "mobile" });
 
+// First-Party-KPIs Phase 3 (22.09.2026): eigener Chunk — laedt nur, wenn ein
+// Owner/Admin einen Kunden mit gesetztem Flag first_party_kpi ansieht.
+const FirstPartyKpis = lazy(() => import("./FirstPartyKpis"));
+
 export function SeoDashboard({ selectedClient, dateRange }) {
   // Kundenansicht (31.08., Volkan): Kunden-Logins sehen die technische
   // «Datenquellen der Widgets»-Tabelle nicht (interne Kanal-Information).
-  const { role } = useAuth();
+  const { role, isOrgAdmin } = useAuth();
   const istKunde = role === "viewer";
   // Zeitraum-Anbindung (22.08.): Snapshots zum ENDE des gewählten Zeitraums
   // aus den gespeicherten Messläufen — Presets (Ende = heute) unverändert.
@@ -2067,6 +2071,16 @@ export function SeoDashboard({ selectedClient, dateRange }) {
         </div>
       )}
       {/* Widget «Entwicklung (Traffic · Visibility · Keywords)» entfernt (Volkan 11.09.). */}
+      {/* First-Party-Daten (Search Console + GA4), Phase 3 (22.09.2026): nur
+          Owner/Admin und nur bei gesetztem Kunden-Flag first_party_kpi — die
+          Route prueft beides serverseitig nochmals. */}
+      {isOrgAdmin && selectedClient?.metadata?.first_party_kpi === true && (
+        <SectionErrorBoundary label="First-Party-Daten">
+          <Suspense fallback={<Skeleton h={120} />}>
+            <FirstPartyKpis client={selectedClient} dateRange={dateRange} />
+          </Suspense>
+        </SectionErrorBoundary>
+      )}
       {/* Datenquellen-Übersicht (User-Wunsch 2026-07-17): welches Widget bezieht
           seine Daten aus welchem Kanal — inkl. Stand des letzten Abrufs je
           Quelle. Nur intern — Kunden-Logins sehen die Tabelle nicht (31.08.). */}

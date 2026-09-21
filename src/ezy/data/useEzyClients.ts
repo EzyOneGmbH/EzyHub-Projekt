@@ -32,6 +32,9 @@ export type EzyClient = {
   // Umsatz-Modus ('revenue' = vollstaendiges Umsatz-Tracking | 'clicks' = nur Buchungsklicks).
   brandTerms: string[];
   revenueMode: "revenue" | "clicks";
+  // First-Party-KPIs Phase 3 (22.09.2026): rohes clients.metadata am Kunden-
+  // objekt, damit das Dashboard Kunden-Flags (z. B. first_party_kpi) lesen kann.
+  metadata?: Record<string, any>;
 };
 
 const DEFAULT_DEFAULTS = { language: "Deutsch", tone: "Professionell", reportTemplate: "Standard" };
@@ -78,6 +81,7 @@ function rowToClient(r: any): EzyClient {
     startDate: String(m.startDate ?? r.created_at ?? "").slice(0, 10),
     brandTerms: Array.isArray(r.brand_terms) ? r.brand_terms.map(String) : [],
     revenueMode: r.revenue_mode === "clicks" ? "clicks" : "revenue",
+    metadata: m,
   };
 }
 

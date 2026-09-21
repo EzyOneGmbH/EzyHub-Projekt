@@ -20,6 +20,11 @@ import { C } from "./theme";
 import { ezyFetch } from "@/ezy/data/api";
 import { DEFAULT_ON_SERVICES } from "@/lib/services";
 
+// Schweizer Zahlenformat (First-Party-KPIs Phase 3, 22.09.2026): ASCII-Apostroph
+// als Tausendertrennzeichen («1'234'567»), Punkt als Dezimaltrennzeichen —
+// Logik liegt testbar in src/lib/format-ch.ts, hier nur re-exportiert.
+export { fmtCH, fmtPct } from "@/lib/format-ch";
+
 export const AI_COLORS = {
   ChatGPT: "#10b981",
   Perplexity: "#3b82f6",
