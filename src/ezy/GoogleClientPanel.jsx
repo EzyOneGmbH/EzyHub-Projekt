@@ -1,6 +1,7 @@
 import { authedFetch } from "@/lib/authed-fetch";
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import FirstPartyKpiCard from "@/ezy/FirstPartyKpiCard";
 
 // authedFetch (13.09.2026): zentraler Helfer aus @/lib/authed-fetch — Bearer +
 // X-Ezy-Active-Org automatisch; der fruehere lokale Helfer ist entfallen.
@@ -501,6 +502,8 @@ export default function GoogleClientPanel({ client, onLog, onSaved }) {
           {msg}
         </div>
       )}
+      {/* First-Party-KPIs (22.09.2026): Service-Account-Verbindung + Test-Flag je Kunde */}
+      {isUuid(clientId) && <FirstPartyKpiCard clientId={clientId} />}
     </div>
   );
 }

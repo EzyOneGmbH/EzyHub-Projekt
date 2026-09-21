@@ -74,6 +74,7 @@ import { Route as ApiAdminContentSyncRouteImport } from './routes/api/admin.cont
 import { Route as ApiAdminConversionCandidatesRouteImport } from './routes/api/admin.conversion-candidates'
 import { Route as ApiAdminConversionScanRouteImport } from './routes/api/admin.conversion-scan'
 import { Route as ApiAdminEwwwProvisionRouteImport } from './routes/api/admin.ewww-provision'
+import { Route as ApiAdminFirstPartyConnectionRouteImport } from './routes/api/admin.first-party-connection'
 import { Route as ApiAdminGa4ConversionsRouteImport } from './routes/api/admin.ga4-conversions'
 import { Route as ApiAdminGbpRouteImport } from './routes/api/admin.gbp'
 import { Route as ApiAdminGeoGridSnapshotRouteImport } from './routes/api/admin.geo-grid-snapshot'
@@ -483,6 +484,12 @@ const ApiAdminEwwwProvisionRoute = ApiAdminEwwwProvisionRouteImport.update({
   path: '/api/admin/ewww-provision',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminFirstPartyConnectionRoute =
+  ApiAdminFirstPartyConnectionRouteImport.update({
+    id: '/api/admin/first-party-connection',
+    path: '/api/admin/first-party-connection',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAdminGa4ConversionsRoute = ApiAdminGa4ConversionsRouteImport.update({
   id: '/api/admin/ga4-conversions',
   path: '/api/admin/ga4-conversions',
@@ -914,6 +921,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/conversion-candidates': typeof ApiAdminConversionCandidatesRoute
   '/api/admin/conversion-scan': typeof ApiAdminConversionScanRoute
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
+  '/api/admin/first-party-connection': typeof ApiAdminFirstPartyConnectionRoute
   '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/geo-grid-snapshot': typeof ApiAdminGeoGridSnapshotRoute
@@ -1052,6 +1060,7 @@ export interface FileRoutesByTo {
   '/api/admin/conversion-candidates': typeof ApiAdminConversionCandidatesRoute
   '/api/admin/conversion-scan': typeof ApiAdminConversionScanRoute
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
+  '/api/admin/first-party-connection': typeof ApiAdminFirstPartyConnectionRoute
   '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/geo-grid-snapshot': typeof ApiAdminGeoGridSnapshotRoute
@@ -1191,6 +1200,7 @@ export interface FileRoutesById {
   '/api/admin/conversion-candidates': typeof ApiAdminConversionCandidatesRoute
   '/api/admin/conversion-scan': typeof ApiAdminConversionScanRoute
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
+  '/api/admin/first-party-connection': typeof ApiAdminFirstPartyConnectionRoute
   '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/geo-grid-snapshot': typeof ApiAdminGeoGridSnapshotRoute
@@ -1331,6 +1341,7 @@ export interface FileRouteTypes {
     | '/api/admin/conversion-candidates'
     | '/api/admin/conversion-scan'
     | '/api/admin/ewww-provision'
+    | '/api/admin/first-party-connection'
     | '/api/admin/ga4-conversions'
     | '/api/admin/gbp'
     | '/api/admin/geo-grid-snapshot'
@@ -1469,6 +1480,7 @@ export interface FileRouteTypes {
     | '/api/admin/conversion-candidates'
     | '/api/admin/conversion-scan'
     | '/api/admin/ewww-provision'
+    | '/api/admin/first-party-connection'
     | '/api/admin/ga4-conversions'
     | '/api/admin/gbp'
     | '/api/admin/geo-grid-snapshot'
@@ -1607,6 +1619,7 @@ export interface FileRouteTypes {
     | '/api/admin/conversion-candidates'
     | '/api/admin/conversion-scan'
     | '/api/admin/ewww-provision'
+    | '/api/admin/first-party-connection'
     | '/api/admin/ga4-conversions'
     | '/api/admin/gbp'
     | '/api/admin/geo-grid-snapshot'
@@ -1741,6 +1754,7 @@ export interface RootRouteChildren {
   ApiAdminConversionCandidatesRoute: typeof ApiAdminConversionCandidatesRoute
   ApiAdminConversionScanRoute: typeof ApiAdminConversionScanRoute
   ApiAdminEwwwProvisionRoute: typeof ApiAdminEwwwProvisionRoute
+  ApiAdminFirstPartyConnectionRoute: typeof ApiAdminFirstPartyConnectionRoute
   ApiAdminGa4ConversionsRoute: typeof ApiAdminGa4ConversionsRoute
   ApiAdminGbpRoute: typeof ApiAdminGbpRoute
   ApiAdminGeoGridSnapshotRoute: typeof ApiAdminGeoGridSnapshotRoute
@@ -2269,6 +2283,13 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/ewww-provision'
       fullPath: '/api/admin/ewww-provision'
       preLoaderRoute: typeof ApiAdminEwwwProvisionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/first-party-connection': {
+      id: '/api/admin/first-party-connection'
+      path: '/api/admin/first-party-connection'
+      fullPath: '/api/admin/first-party-connection'
+      preLoaderRoute: typeof ApiAdminFirstPartyConnectionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/ga4-conversions': {
@@ -2888,6 +2909,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminConversionCandidatesRoute: ApiAdminConversionCandidatesRoute,
   ApiAdminConversionScanRoute: ApiAdminConversionScanRoute,
   ApiAdminEwwwProvisionRoute: ApiAdminEwwwProvisionRoute,
+  ApiAdminFirstPartyConnectionRoute: ApiAdminFirstPartyConnectionRoute,
   ApiAdminGa4ConversionsRoute: ApiAdminGa4ConversionsRoute,
   ApiAdminGbpRoute: ApiAdminGbpRoute,
   ApiAdminGeoGridSnapshotRoute: ApiAdminGeoGridSnapshotRoute,
