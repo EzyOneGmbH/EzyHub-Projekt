@@ -75,6 +75,7 @@ import { Route as ApiAdminConversionCandidatesRouteImport } from './routes/api/a
 import { Route as ApiAdminConversionScanRouteImport } from './routes/api/admin.conversion-scan'
 import { Route as ApiAdminEwwwProvisionRouteImport } from './routes/api/admin.ewww-provision'
 import { Route as ApiAdminFirstPartyConnectionRouteImport } from './routes/api/admin.first-party-connection'
+import { Route as ApiAdminFirstPartySyncRouteImport } from './routes/api/admin.first-party-sync'
 import { Route as ApiAdminGa4ConversionsRouteImport } from './routes/api/admin.ga4-conversions'
 import { Route as ApiAdminGbpRouteImport } from './routes/api/admin.gbp'
 import { Route as ApiAdminGeoGridSnapshotRouteImport } from './routes/api/admin.geo-grid-snapshot'
@@ -137,6 +138,7 @@ import { Route as ApiGoogleGa4TrafficRouteImport } from './routes/api/google.ga4
 import { Route as ApiGoogleGscImportRouteImport } from './routes/api/google.gsc-import'
 import { Route as ApiGoogleGscSitesRouteImport } from './routes/api/google.gsc-sites'
 import { Route as ApiGooglePagespeedRouteImport } from './routes/api/google.pagespeed'
+import { Route as ApiKpiFirstPartyRouteImport } from './routes/api/kpi.first-party'
 import { Route as ApiLiveStatusRouteImport } from './routes/api/live.status'
 import { Route as ApiPerplexitySearchRouteImport } from './routes/api/perplexity.search'
 import { Route as ApiPublicReportRouteImport } from './routes/api/public.report'
@@ -490,6 +492,11 @@ const ApiAdminFirstPartyConnectionRoute =
     path: '/api/admin/first-party-connection',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAdminFirstPartySyncRoute = ApiAdminFirstPartySyncRouteImport.update({
+  id: '/api/admin/first-party-sync',
+  path: '/api/admin/first-party-sync',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminGa4ConversionsRoute = ApiAdminGa4ConversionsRouteImport.update({
   id: '/api/admin/ga4-conversions',
   path: '/api/admin/ga4-conversions',
@@ -808,6 +815,11 @@ const ApiGooglePagespeedRoute = ApiGooglePagespeedRouteImport.update({
   path: '/api/google/pagespeed',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiKpiFirstPartyRoute = ApiKpiFirstPartyRouteImport.update({
+  id: '/api/kpi/first-party',
+  path: '/api/kpi/first-party',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiLiveStatusRoute = ApiLiveStatusRouteImport.update({
   id: '/api/live/status',
   path: '/api/live/status',
@@ -922,6 +934,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/conversion-scan': typeof ApiAdminConversionScanRoute
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
   '/api/admin/first-party-connection': typeof ApiAdminFirstPartyConnectionRoute
+  '/api/admin/first-party-sync': typeof ApiAdminFirstPartySyncRoute
   '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/geo-grid-snapshot': typeof ApiAdminGeoGridSnapshotRoute
@@ -984,6 +997,7 @@ export interface FileRoutesByFullPath {
   '/api/google/gsc-import': typeof ApiGoogleGscImportRoute
   '/api/google/gsc-sites': typeof ApiGoogleGscSitesRoute
   '/api/google/pagespeed': typeof ApiGooglePagespeedRoute
+  '/api/kpi/first-party': typeof ApiKpiFirstPartyRoute
   '/api/live/status': typeof ApiLiveStatusRoute
   '/api/perplexity/search': typeof ApiPerplexitySearchRoute
   '/api/public/report': typeof ApiPublicReportRoute
@@ -1061,6 +1075,7 @@ export interface FileRoutesByTo {
   '/api/admin/conversion-scan': typeof ApiAdminConversionScanRoute
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
   '/api/admin/first-party-connection': typeof ApiAdminFirstPartyConnectionRoute
+  '/api/admin/first-party-sync': typeof ApiAdminFirstPartySyncRoute
   '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/geo-grid-snapshot': typeof ApiAdminGeoGridSnapshotRoute
@@ -1123,6 +1138,7 @@ export interface FileRoutesByTo {
   '/api/google/gsc-import': typeof ApiGoogleGscImportRoute
   '/api/google/gsc-sites': typeof ApiGoogleGscSitesRoute
   '/api/google/pagespeed': typeof ApiGooglePagespeedRoute
+  '/api/kpi/first-party': typeof ApiKpiFirstPartyRoute
   '/api/live/status': typeof ApiLiveStatusRoute
   '/api/perplexity/search': typeof ApiPerplexitySearchRoute
   '/api/public/report': typeof ApiPublicReportRoute
@@ -1201,6 +1217,7 @@ export interface FileRoutesById {
   '/api/admin/conversion-scan': typeof ApiAdminConversionScanRoute
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
   '/api/admin/first-party-connection': typeof ApiAdminFirstPartyConnectionRoute
+  '/api/admin/first-party-sync': typeof ApiAdminFirstPartySyncRoute
   '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/geo-grid-snapshot': typeof ApiAdminGeoGridSnapshotRoute
@@ -1263,6 +1280,7 @@ export interface FileRoutesById {
   '/api/google/gsc-import': typeof ApiGoogleGscImportRoute
   '/api/google/gsc-sites': typeof ApiGoogleGscSitesRoute
   '/api/google/pagespeed': typeof ApiGooglePagespeedRoute
+  '/api/kpi/first-party': typeof ApiKpiFirstPartyRoute
   '/api/live/status': typeof ApiLiveStatusRoute
   '/api/perplexity/search': typeof ApiPerplexitySearchRoute
   '/api/public/report': typeof ApiPublicReportRoute
@@ -1342,6 +1360,7 @@ export interface FileRouteTypes {
     | '/api/admin/conversion-scan'
     | '/api/admin/ewww-provision'
     | '/api/admin/first-party-connection'
+    | '/api/admin/first-party-sync'
     | '/api/admin/ga4-conversions'
     | '/api/admin/gbp'
     | '/api/admin/geo-grid-snapshot'
@@ -1404,6 +1423,7 @@ export interface FileRouteTypes {
     | '/api/google/gsc-import'
     | '/api/google/gsc-sites'
     | '/api/google/pagespeed'
+    | '/api/kpi/first-party'
     | '/api/live/status'
     | '/api/perplexity/search'
     | '/api/public/report'
@@ -1481,6 +1501,7 @@ export interface FileRouteTypes {
     | '/api/admin/conversion-scan'
     | '/api/admin/ewww-provision'
     | '/api/admin/first-party-connection'
+    | '/api/admin/first-party-sync'
     | '/api/admin/ga4-conversions'
     | '/api/admin/gbp'
     | '/api/admin/geo-grid-snapshot'
@@ -1543,6 +1564,7 @@ export interface FileRouteTypes {
     | '/api/google/gsc-import'
     | '/api/google/gsc-sites'
     | '/api/google/pagespeed'
+    | '/api/kpi/first-party'
     | '/api/live/status'
     | '/api/perplexity/search'
     | '/api/public/report'
@@ -1620,6 +1642,7 @@ export interface FileRouteTypes {
     | '/api/admin/conversion-scan'
     | '/api/admin/ewww-provision'
     | '/api/admin/first-party-connection'
+    | '/api/admin/first-party-sync'
     | '/api/admin/ga4-conversions'
     | '/api/admin/gbp'
     | '/api/admin/geo-grid-snapshot'
@@ -1682,6 +1705,7 @@ export interface FileRouteTypes {
     | '/api/google/gsc-import'
     | '/api/google/gsc-sites'
     | '/api/google/pagespeed'
+    | '/api/kpi/first-party'
     | '/api/live/status'
     | '/api/perplexity/search'
     | '/api/public/report'
@@ -1755,6 +1779,7 @@ export interface RootRouteChildren {
   ApiAdminConversionScanRoute: typeof ApiAdminConversionScanRoute
   ApiAdminEwwwProvisionRoute: typeof ApiAdminEwwwProvisionRoute
   ApiAdminFirstPartyConnectionRoute: typeof ApiAdminFirstPartyConnectionRoute
+  ApiAdminFirstPartySyncRoute: typeof ApiAdminFirstPartySyncRoute
   ApiAdminGa4ConversionsRoute: typeof ApiAdminGa4ConversionsRoute
   ApiAdminGbpRoute: typeof ApiAdminGbpRoute
   ApiAdminGeoGridSnapshotRoute: typeof ApiAdminGeoGridSnapshotRoute
@@ -1817,6 +1842,7 @@ export interface RootRouteChildren {
   ApiGoogleGscImportRoute: typeof ApiGoogleGscImportRoute
   ApiGoogleGscSitesRoute: typeof ApiGoogleGscSitesRoute
   ApiGooglePagespeedRoute: typeof ApiGooglePagespeedRoute
+  ApiKpiFirstPartyRoute: typeof ApiKpiFirstPartyRoute
   ApiLiveStatusRoute: typeof ApiLiveStatusRoute
   ApiPerplexitySearchRoute: typeof ApiPerplexitySearchRoute
   ApiPublicReportRoute: typeof ApiPublicReportRoute
@@ -2292,6 +2318,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminFirstPartyConnectionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/first-party-sync': {
+      id: '/api/admin/first-party-sync'
+      path: '/api/admin/first-party-sync'
+      fullPath: '/api/admin/first-party-sync'
+      preLoaderRoute: typeof ApiAdminFirstPartySyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/ga4-conversions': {
       id: '/api/admin/ga4-conversions'
       path: '/api/admin/ga4-conversions'
@@ -2726,6 +2759,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGooglePagespeedRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/kpi/first-party': {
+      id: '/api/kpi/first-party'
+      path: '/api/kpi/first-party'
+      fullPath: '/api/kpi/first-party'
+      preLoaderRoute: typeof ApiKpiFirstPartyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/live/status': {
       id: '/api/live/status'
       path: '/api/live/status'
@@ -2910,6 +2950,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminConversionScanRoute: ApiAdminConversionScanRoute,
   ApiAdminEwwwProvisionRoute: ApiAdminEwwwProvisionRoute,
   ApiAdminFirstPartyConnectionRoute: ApiAdminFirstPartyConnectionRoute,
+  ApiAdminFirstPartySyncRoute: ApiAdminFirstPartySyncRoute,
   ApiAdminGa4ConversionsRoute: ApiAdminGa4ConversionsRoute,
   ApiAdminGbpRoute: ApiAdminGbpRoute,
   ApiAdminGeoGridSnapshotRoute: ApiAdminGeoGridSnapshotRoute,
@@ -2972,6 +3013,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGoogleGscImportRoute: ApiGoogleGscImportRoute,
   ApiGoogleGscSitesRoute: ApiGoogleGscSitesRoute,
   ApiGooglePagespeedRoute: ApiGooglePagespeedRoute,
+  ApiKpiFirstPartyRoute: ApiKpiFirstPartyRoute,
   ApiLiveStatusRoute: ApiLiveStatusRoute,
   ApiPerplexitySearchRoute: ApiPerplexitySearchRoute,
   ApiPublicReportRoute: ApiPublicReportRoute,

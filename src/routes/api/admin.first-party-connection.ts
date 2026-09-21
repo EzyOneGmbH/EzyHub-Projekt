@@ -9,6 +9,7 @@ import {
   type AuthArt,
 } from "@/server/google-auth-provider.server";
 import { GA4_ADMIN_API } from "@/server/ga4.server";
+import { backfillStarten, laufTaeglich } from "@/server/first-party-sync.server";
 
 // First-Party-KPIs, Phase 1 (22.09.2026, Volkan): Admin-Maske «Verbindung
 // testen» + Kunden-Flag. Nur Owner/Admin der aktiven Organisation
@@ -19,14 +20,31 @@ import { GA4_ADMIN_API } from "@/server/ga4.server";
 //           Auth-Weg (service_account | oauth | automatisch); nur Lesezugriffe.
 //  flag   → schreibt clients.metadata.first_party_kpi (Merge, kein Overwrite) —
 //           Default AUS: nur so laesst sich der Test auf einen Kunden begrenzen.
+// Phase 2b (Datenlauf):
+//  status → zusaetzlich sync: first_party_sync_status[] des Kunden
+//  backfill-start → setzt backfill_ziel (16 Monate GSC / 14 GA4), der
+//           15-min-Cron laedt die Monatsbloecke rueckwaerts
+//  sync-jetzt → Tagesfenster fuer DIESEN Kunden sofort (Budget 60 s, fail-soft)
 // Keine Secrets in Antworten: Fehlertexte laufen durch redaktiereAuth().
 
 const Body = z.object({
   clientId: z.string().uuid(),
-  action: z.enum(["status", "test", "flag"]),
+  action: z.enum(["status", "test", "flag", "backfill-start", "sync-jetzt"]),
   auth: z.enum(["service_account", "oauth"]).optional(),
   enabled: z.boolean().optional(),
+  quelle: z.enum(["gsc", "ga4"]).optional(),
 });
+
+/** Sync-Zustand je Quelle (nur lesend; nie Tokens). */
+async function ladeSync(sb: any, clientId: string) {
+  const { data } = await sb
+    .from("first_party_sync_status")
+    .select(
+      "quelle, auth_art, zustand, letzter_erfolg_at, letzter_fehler, letzter_lauf_at, backfill_bis, backfill_ziel, zeilen_gesamt, updated_at",
+    )
+    .eq("client_id", clientId);
+  return Array.isArray(data) ? data : [];
+}
 
 export const FLAG_FELD = "first_party_kpi";
 
@@ -111,7 +129,41 @@ export const Route = createFileRoute("/api/admin/first-party-connection")({
             flag,
             gscProperty: client.gsc_property ?? null,
             ga4Property: client.ga4_property ?? null,
+            sync: await ladeSync(sb, client.id),
           });
+        }
+
+        if (action === "backfill-start") {
+          try {
+            const ziele = await backfillStarten(sb, client.id, parsed.data.quelle);
+            return Response.json({ ok: true, ziele, sync: await ladeSync(sb, client.id) });
+          } catch (e: any) {
+            return Response.json(
+              { ok: false, error: redaktiereAuth(String(e?.message || e), key.key) },
+              { status: 500 },
+            );
+          }
+        }
+
+        if (action === "sync-jetzt") {
+          if (!flag)
+            return Response.json(
+              { ok: false, error: "Kunde ist nicht fuer First-Party-KPIs freigeschaltet" },
+              { status: 409 },
+            );
+          try {
+            const r = await laufTaeglich({ sb, nurClientId: client.id, budgetMs: 60_000 });
+            return Response.json({
+              ok: true,
+              ergebnisse: r.ergebnisse,
+              sync: await ladeSync(sb, client.id),
+            });
+          } catch (e: any) {
+            return Response.json(
+              { ok: false, error: redaktiereAuth(String(e?.message || e), key.key) },
+              { status: 500 },
+            );
+          }
         }
 
         if (action === "flag") {

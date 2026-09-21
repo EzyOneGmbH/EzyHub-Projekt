@@ -157,11 +157,13 @@ admin_jobs-Datenläufe, Wiedervorlage-Sweep, Fehler-Monitor) läuft **nicht mehr
 Cloud PC**, sondern über **pg_cron + pg_net in der Lovable-Supabase** — Always-on,
 unabhängig vom Cloud PC:
 
-| Cron-Job               | Takt                        | Zweck                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| ---------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ezy-analyse-worker`   | jede Minute                 | pg_net POST an `/api/agent/analyse` (Bearer aus Vault `admin_automation_secret`, Timeout 295 s). Die App serialisiert überlappende Ticks per Lease (`analyse_worker_heartbeat.lease_until`), jede Etappe/jeder Job ist per `locked_until` gelockt, Retry exponentiell (1/2/4 min, max 3) bzw. Cooldown (admin_jobs, max 2).                                                                                                                                                          |
-| `ezy-analyse-watchdog` | alle 5 min                  | `public.analyse_worker_watchdog()`: fehlt der Heartbeat > 10 min → Meldung «Analyse-Worker ausgefallen» an alle owner/admin (Glocke, dedupliziert je Ausfall-Episode) + optional Webhook (Vault `worker_alarm_webhook_url`).                                                                                                                                                                                                                                                         |
-| `ezy-chatgpt-ads-sync` | alle 12 h (00:15/12:15 UTC) | `POST /api/admin/chatgpt-ads` `{action:"sync-all", source:"pg_cron", maxAlterStunden:11}` (Bearer aus Vault `admin_automation_secret`): synchronisiert alle aktiven ChatGPT-Ads-Konten (Kampagnen, Gruppen, Anzeigen, Zielgruppen, Insights) auch ohne Nutzung des Ads-Managers; Konten, die die UI in den letzten 11 h selbst synchronisiert hat, werden übersprungen. Aus: `select cron.unschedule('ezy-chatgpt-ads-sync')`. Migration `20260921120000_chatgpt_ads_sync_cron.sql`. |
+| Cron-Job                   | Takt                        | Zweck                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| -------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ezy-analyse-worker`       | jede Minute                 | pg_net POST an `/api/agent/analyse` (Bearer aus Vault `admin_automation_secret`, Timeout 295 s). Die App serialisiert überlappende Ticks per Lease (`analyse_worker_heartbeat.lease_until`), jede Etappe/jeder Job ist per `locked_until` gelockt, Retry exponentiell (1/2/4 min, max 3) bzw. Cooldown (admin_jobs, max 2).                                                                                                                                                          |
+| `ezy-analyse-watchdog`     | alle 5 min                  | `public.analyse_worker_watchdog()`: fehlt der Heartbeat > 10 min → Meldung «Analyse-Worker ausgefallen» an alle owner/admin (Glocke, dedupliziert je Ausfall-Episode) + optional Webhook (Vault `worker_alarm_webhook_url`).                                                                                                                                                                                                                                                         |
+| `ezy-chatgpt-ads-sync`     | alle 12 h (00:15/12:15 UTC) | `POST /api/admin/chatgpt-ads` `{action:"sync-all", source:"pg_cron", maxAlterStunden:11}` (Bearer aus Vault `admin_automation_secret`): synchronisiert alle aktiven ChatGPT-Ads-Konten (Kampagnen, Gruppen, Anzeigen, Zielgruppen, Insights) auch ohne Nutzung des Ads-Managers; Konten, die die UI in den letzten 11 h selbst synchronisiert hat, werden übersprungen. Aus: `select cron.unschedule('ezy-chatgpt-ads-sync')`. Migration `20260921120000_chatgpt_ads_sync_cron.sql`. |
+| `ezy-first-party-sync`     | täglich 04:40 UTC           | `POST /api/admin/first-party-sync` `{action:"daily", source:"pg_cron"}`: GSC-/GA4-Tagesfenster aller Kunden mit `metadata.first_party_kpi` — Details im Abschnitt «First-Party-KPIs (GSC/GA4)». Migration `20260922110000_first_party_cron.sql`.                                                                                                                                                                                                                                     |
+| `ezy-first-party-backfill` | alle 15 min                 | `POST /api/admin/first-party-sync` `{action:"backfill", source:"pg_cron"}`: nächste Monatsblöcke rückwärts für Kunden mit offenem Backfill; ohne offene Backfills sofort fertig.                                                                                                                                                                                                                                                                                                     |
 
 - **Wiederholte Job-Fehler** meldet der Tick selbst: ≥ 3 Fehler-Ticks in Folge oder ≥ 3
   endgültig fehlgeschlagene Jobs/Stunde → Meldung «wiederholte Job-Fehler» an alle Admins
@@ -302,6 +304,57 @@ Allowlist-Felder (`GSC_REQUEST_FELDER`, Contract-Test in `gsc.server.test.ts`).
 Neue Env-Variablen (Lovable): `SUPABASE_SECRET_KEY` (empfohlen), optional
 `AHREFS_SPAM_COUNT_LIMIT`, `AHREFS_TOP_REFDOMAINS_LIMIT`, `AIVIS_BR_PROMPTS`, `AIVIS_AHREFS_BR`,
 Browser-Build `VITE_SUPABASE_PUBLISHABLE_KEY` (neuer Key-Typ).
+
+### First-Party-KPIs (GSC/GA4) — seit 22.09.2026
+
+Zeilenbasierte Rohdaten aus Search Console und GA4 je Kunde (bisher nur JSON-Snapshots in
+`audit_runs.result`) für die Kacheln Chancen-Keywords, Gewinner/Verlierer und organische
+Conversions. Nur lesende Google-Zugriffe; Schreiben ausschliesslich über `service_role`.
+
+**Tabellen** (Migration `20260922100000_first_party_kpi.sql`, RLS: Lesen nur mit Kundenzugriff):
+
+| Tabelle                   | Inhalt                                                                                                                                                                                                                                                        |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gsc_daily`               | Tag × Query × Page (`clicks`, `impressions`, `ctr`, `position`), Search Analytics mit `dataState: final`; PK `(client_id, date, query, page)`                                                                                                                 |
+| `ga4_landing_daily`       | Tag × Landingpage × `sessionDefaultChannelGroup` × `sessionSource` × `sessionMedium` (`sessions`, `engaged_sessions`, `key_events`); PK über alle Dimensionen                                                                                                 |
+| `first_party_sync_status` | je Kunde/Quelle (`gsc`/`ga4`): `auth_art` (service_account/oauth), `zustand` (ok/keine_berechtigung/fehler/ausstehend), `letzter_erfolg_at`, `letzter_fehler` (redaktiert, ≤ 300 Zeichen), `letzter_lauf_at`, `backfill_bis`/`backfill_ziel`, `zeilen_gesamt` |
+
+**Auth:** `GOOGLE_SERVICE_ACCOUNT_JSON` (Lovable-Env, Key-JSON roh oder base64, Scopes
+`webmasters.readonly` + `analytics.readonly`). Ist der Key gesetzt, läuft alles über den Service
+Account — die Service-Account-E-Mail muss in der GSC-Property als **Nutzer** und in GA4 als
+**Betrachter** eingetragen sein (Admin → Kunde → Google-Panel → Karte «First-Party-Daten» zeigt
+die E-Mail und testet die Verbindung). Ohne Key: OAuth-Verbindung des Kunden (`oauth_connections`).
+Logik: `src/server/google-auth-provider.server.ts`.
+
+**Freischaltung je Kunde:** `clients.metadata.first_party_kpi = true` (Karte «Für diesen Kunden
+aktivieren»); pausierte Kunden (`metadata.status = 'paused'`) werden übersprungen. Properties
+aus `clients.gsc_property` (`https://…/` oder `sc-domain:…`) und `clients.ga4_property`
+(numerische ID). Stand 22.09.2026 nur Faith in Humanity.
+
+**Jobs** (Migration `20260922110000_first_party_cron.sql`, pg_cron + pg_net, Bearer aus Vault
+`admin_automation_secret`, Timeout 295 s; Endpunkt `POST /api/admin/first-party-sync`, Logik
+`src/server/first-party-sync.server.ts`):
+
+| Cron-Job                   | Takt              | Zweck                                                                                                                                                                                                                                                                                  |
+| -------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ezy-first-party-sync`     | täglich 04:40 UTC | `{action:"daily"}`: Tagesfenster «letzte 3 Tage» aller freigeschalteten Kunden neu laden — GSC `heute−4 … heute−2` (Nachlauf, `dataState: final`), GA4 `heute−3 … heute−1`. Zeitbudget 240 s, danach Rest im nächsten Lauf. Fehler eines Kunden/einer Quelle stoppt nie den Lauf.      |
+| `ezy-first-party-backfill` | alle 15 min       | `{action:"backfill"}`: für Kunden mit gesetztem `backfill_ziel` den nächsten **Monatsblock rückwärts** laden (`backfill_bis` wird fortgeschrieben, am wenigsten fortgeschrittene Quelle zuerst); so viele Blöcke, wie das Budget (240 s) erlaubt. Ohne offene Backfills sofort fertig. |
+
+Weitere Aktionen: `{action:"backfill-start", clientId, quelle?}` setzt `backfill_ziel` (GSC
+16 Monate, GA4 14 Monate, jeweils Monatsanfang) und `backfill_bis = null`. Dasselbe macht die
+Karte im Kunden-Detail («Backfill starten (16/14 Monate)»); «Jetzt synchronisieren» lädt das
+Tagesfenster dieses Kunden sofort (Budget 60 s) — beides über
+`POST /api/admin/first-party-connection` (Owner/Admin).
+
+Verhalten gegenüber Google: 429/5xx → exponentieller Backoff (1/2/4/8/16 s, max. 5 Versuche,
+`Retry-After` hat Vorrang); 401/403 → `zustand = keine_berechtigung`, kein Retry (Konto in der
+Property eintragen, dann «Jetzt synchronisieren»). Upserts in 1000er-Blöcken auf den PK, ein
+erneuter Lauf desselben Fensters ist idempotent. Antworten und Statuszeilen enthalten nie
+Tokens/Schlüssel.
+
+Kontrolle: Admin → Systemcheck (Cron-Jobs `ezy-first-party-sync` Toleranz 26 h,
+`ezy-first-party-backfill` Toleranz 30 min) und `select * from first_party_sync_status;` bzw.
+`select * from kpi_datenstand('<client_id>');`. Tests: `src/server/first-party-sync.test.ts`.
 
 ---
 

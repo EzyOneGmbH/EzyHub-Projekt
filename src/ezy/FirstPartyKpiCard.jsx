@@ -91,6 +91,30 @@ export default function FirstPartyKpiCard({ clientId }) {
     if (j.ok) setStatus((s) => (s ? { ...s, flag: j.flag } : s));
     else setFehler(j.error || "Flag nicht gespeichert");
   };
+  // Phase 2b: Tagesfenster sofort laden (Budget 60 s) bzw. Backfill-Ziel setzen;
+  // beide Antworten tragen den frischen Sync-Status je Quelle.
+  const syncJetzt = async () => {
+    setBusy("sync");
+    setFehler("");
+    const j = await rufe({ clientId, action: "sync-jetzt" });
+    setBusy("");
+    if (j.ok) setStatus((s) => (s ? { ...s, sync: j.sync } : s));
+    else setFehler(j.error || "Synchronisation fehlgeschlagen");
+  };
+  const backfillStarten = async () => {
+    if (
+      !window.confirm(
+        "Backfill starten? GSC 16 Monate, GA4 14 Monate — läuft alle 15 min in Blöcken.",
+      )
+    )
+      return;
+    setBusy("backfill");
+    setFehler("");
+    const j = await rufe({ clientId, action: "backfill-start" });
+    setBusy("");
+    if (j.ok) setStatus((s) => (s ? { ...s, sync: j.sync } : s));
+    else setFehler(j.error || "Backfill nicht gestartet");
+  };
 
   // Nicht-Admins bekommen 403 → Karte bleibt unsichtbar (kein Rauschen).
   if (!status) return fehler ? <div style={{ ...S.card, color: "#fca5a5" }}>{fehler}</div> : null;
@@ -108,6 +132,54 @@ export default function FirstPartyKpiCard({ clientId }) {
       {p.fehler && <span style={{ color: "#fca5a5" }}>{p.fehler}</span>}
     </div>
   );
+
+  const ZUSTAND = {
+    ok: ["ok", true],
+    keine_berechtigung: ["keine Berechtigung", false],
+    fehler: ["Fehler", false],
+    ausstehend: ["ausstehend", null],
+  };
+  const wann = (iso) => (iso ? new Date(iso).toLocaleString("de-CH") : "—");
+  const zahl = (n) => Number(n || 0).toLocaleString("de-CH");
+  const SyncZeile = ({ quelle }) => {
+    const s = (status.sync || []).find((x) => x.quelle === quelle);
+    if (!s)
+      return (
+        <div style={{ fontSize: 12, display: "flex", gap: 8, alignItems: "center" }}>
+          <span style={{ minWidth: 40, fontWeight: 700 }}>{quelle.toUpperCase()}</span>
+          <span style={S.pill(null)}>noch nie geladen</span>
+        </div>
+      );
+    const [label, ok] = ZUSTAND[s.zustand] || [s.zustand, null];
+    const backfill = s.backfill_ziel
+      ? !s.backfill_bis
+        ? `Backfill geplant bis ${s.backfill_ziel}`
+        : s.backfill_bis <= s.backfill_ziel
+          ? `Backfill fertig (ab ${s.backfill_ziel})`
+          : `Backfill läuft: ${s.backfill_bis} → ${s.backfill_ziel}`
+      : null;
+    return (
+      <div
+        style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 12 }}
+      >
+        <span style={{ minWidth: 40, fontWeight: 700 }}>{quelle.toUpperCase()}</span>
+        <span style={S.pill(ok)}>{label}</span>
+        {s.auth_art && (
+          <span style={{ color: "#94a3b8" }}>
+            via {s.auth_art === "service_account" ? "Service Account" : "OAuth"}
+          </span>
+        )}
+        <span style={{ color: "#94a3b8" }}>letzter Erfolg {wann(s.letzter_erfolg_at)}</span>
+        <span style={{ color: "#94a3b8" }}>{zahl(s.zeilen_gesamt)} Zeilen</span>
+        {backfill && <span style={{ color: "#cbd5e1" }}>{backfill}</span>}
+        {s.letzter_fehler && s.zustand !== "ok" && (
+          <span style={{ color: "#fca5a5" }} title={s.letzter_fehler}>
+            {String(s.letzter_fehler).slice(0, 140)}
+          </span>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div style={S.card}>
@@ -167,6 +239,40 @@ export default function FirstPartyKpiCard({ clientId }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
           <Probe label="GSC" p={test.gsc} />
           <Probe label="GA4" p={test.ga4} />
+        </div>
+      )}
+      {status.flag && (
+        <div
+          style={{
+            marginTop: 12,
+            paddingTop: 10,
+            borderTop: "1px solid rgba(148,163,184,.2)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+          }}
+        >
+          <div style={{ fontSize: 12, fontWeight: 700 }}>Datenlauf (täglich 04:40 UTC)</div>
+          <SyncZeile quelle="gsc" />
+          <SyncZeile quelle="ga4" />
+          <div style={{ display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+            <button
+              onClick={syncJetzt}
+              disabled={!!busy}
+              style={S.btn({}, !!busy)}
+              title="Lädt das Tagesfenster (GSC heute−4…−2, GA4 heute−3…−1) sofort"
+            >
+              {busy === "sync" ? "…" : "Jetzt synchronisieren"}
+            </button>
+            <button
+              onClick={backfillStarten}
+              disabled={!!busy}
+              style={S.btn({}, !!busy)}
+              title="Setzt das Ziel; der 15-min-Job lädt Monatsblöcke rückwärts"
+            >
+              {busy === "backfill" ? "…" : "Backfill starten (16/14 Monate)"}
+            </button>
+          </div>
         </div>
       )}
       {fehler && <div style={{ marginTop: 8, fontSize: 12, color: "#fca5a5" }}>{fehler}</div>}
