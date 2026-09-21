@@ -43,6 +43,7 @@ Cloud PC (Windows 365)  ── trägt die drei Backend-Teile:
 ## 2. Secrets & Keys
 
 ### Lovable-Deployment (Environment Variables / Secrets, **ohne** `VITE_`-Präfix für Server-Routen)
+
 | Name | Zweck |
 |---|---|
 | `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` | Server-seitiger Supabase-Zugriff |
@@ -59,13 +60,16 @@ Cloud PC (Windows 365)  ── trägt die drei Backend-Teile:
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `SESSION_SECRET` | Google-OAuth (GSC/GA4) |
 
 ### Agent-Service (`~/agent-service/.env`, gitignored)
+
 `ANTHROPIC_API_KEY`, `AGENT_SHARED_SECRET`, `PORT=8787`, `AGENT_MODEL`, `AGENT_MAX_TURNS`
 sowie MCP-Integrationen: `AHREFS_API_TOKEN`, `FIRECRAWL_API_KEY`, `GOOGLE_AI_API_KEY` (Gemini-Bild).
 
 ### Canonry (`~/.canonry/config.yaml`)
+
 `apiKey`, LLM-Provider-Keys (claude/openai/gemini/perplexity), Google-OAuth, GA4-Service-Account.
 
 ### Google Cloud (für den `GOOGLE_API_KEY`)
+
 APIs aktivieren: **PageSpeed Insights API**, **Chrome UX Report API** (+ für GSC/GA4 OAuth/Service-Account).
 Key-Restriktion empfohlen: nur diese APIs erlauben.
 
@@ -110,6 +114,7 @@ Speicherung in `organizations.dashboard_config` (JSONB). Nur Admins.
 ## 5. Betrieb auf dem Cloud PC
 
 ### Dienste / Autostart
+
 - **cloudflared**: Windows-Dienst `Cloudflared` (Autostart). Config: `~/.cloudflared/config.yml`.
 - **Canonry**: Autostart-Task `EzyOne-Canonry` (beim Login) → `start-canonry.cmd` (Port 4100).
 - **Agent-Service**: Autostart-Task `EzyOne-AgentService` (beim Login) → `start-agent.cmd` (Port 8787).
@@ -123,25 +128,30 @@ Speicherung in `organizations.dashboard_config` (JSONB). Nur Admins.
   > erst Schleife + Watchdog.
 
 ### Status prüfen / neu starten (PowerShell / Terminal)
+
 ```
 sc query Cloudflared                         # Tunnel-Dienst
 Get-NetTCPConnection -LocalPort 4100,8787 -State Listen   # laufen Canonry/Agent?
 schtasks /Run /TN "EzyOne-Canonry"           # Canonry manuell starten
 schtasks /Run /TN "EzyOne-AgentService"      # Agent manuell starten
 ```
+
 Health-Checks (sollten 200 liefern):
+
 ```
 curl https://agent.ezyhub.ch/health
 curl -H "Authorization: Bearer <CANONRY_API_KEY>" https://canonry.ezyhub.ch/api/v1/projects/<slug>
 ```
 
 ### „Maschine hat geschlafen" / alles down
+
 1. Am Cloud PC einloggen (startet die Autostart-Tasks).
 2. Falls Ports leer: die beiden `schtasks /Run`-Befehle oben ausführen.
 3. `sc query Cloudflared` → läuft der Dienst? sonst `sc start Cloudflared`.
 4. Health-Checks bestätigen.
 
 ### Analyse-/Admin-Worker (verwalteter Scheduler, seit 13.09.2026)
+
 Der Worker (`POST /api/agent/analyse {action:"worker"}` → prospect_audits-Etappen,
 admin_jobs-Datenläufe, Wiedervorlage-Sweep, Fehler-Monitor) läuft **nicht mehr über den
 Cloud PC**, sondern über **pg_cron + pg_net in der Lovable-Supabase** — Always-on,
@@ -181,6 +191,7 @@ unabhängig vom Cloud PC:
 ---
 
 ### Zeitraum-Vertrag (EzyRank, EzyPerformance, GSC, GA4, Google Ads — seit 13.09.2026)
+
 - **Ein Zeitraum ist immer ein exakter, inklusiver Kalendertag-Bereich** `startDate..endDate`
   (YYYY-MM-DD). «Letzte N Tage» = genau N Tage: `startDate = endDate − (N−1)`. Zentrale
   Logik: `src/lib/date-range.ts` (`zeitraum`, `vorperiode`, `zeitraumAusParams`); alle
@@ -210,6 +221,88 @@ unabhängig vom Cloud PC:
   `EZY_ORGANIZATION_ID`). Der agent-service stempelt `clientId/organizationId` stündlich
   (`rank-init`) in die Stores `~/agent-service/rank-tracking/<slug>.json`; ohne Stempel
   wird kein Snapshot gepusht (Log «Push uebersprungen»).
+
+### API-Stand 09/2026 (Google) — seit 21.09.2026
+
+**Google Ads API: v25** (Release 22.07.2026; v24 Sunset ca. Mai 2027, v25 ca. August 2027).
+Die Basis-URL kommt an allen Stellen aus `src/server/google-ads-api.server.ts` (`adsApiBase()`).
+Env-Override ohne Deployment: `GOOGLE_ADS_API_VERSION=v24` (Format `vNN`, sonst Default v25).
+Die v25-Breaking-Changes (`CustomerLifecycleGoal`/`CampaignLifecycleGoal` entfernt, IncentiveService-Enums,
+`search_brand` in Creator-Insights) betreffen keinen Code im Repo (Grep 21.09.2026 leer).
+
+Neue, optionale Datenblöcke (fail-soft: Fehler landen in `extras.errors` bzw. `dataSourceErrors`,
+nie im Snapshot-Fehler; Zeitraum immer `gaqlBetween`, inklusiv):
+
+| Block                                    | Quelle (GAQL)                                                                                                                                                      | Wo                                                                                                                                     |
+|---|---|---|
+| Top-Produkte (Warenkorbdaten)            | `cart_data_sales_view`: `segments.product_item_id/product_title`, `metrics.orders/units_sold/revenue_micros/gross_profit_micros/all_revenue_micros`                | Ads-Snapshot `extras.cartProducts`                                                                                                     |
+| Biddable vs. nur Reporting               | `conversion_action.include_in_conversions_metric` + `metrics.all_conversions(_value)`; «nur Reporting» = all − biddable (v25 kennt **kein** `non_biddable_*`-Feld) | Ads-Snapshot `extras.conversionSplit`                                                                                                  |
+| PMax-Suchbegriffs-Insights               | `campaign_search_term_insight` (Kategorie, Klicks, Impressionen, Conversions je PMax-Kampagne, 30 Tage bis gestern)                                                | Autopilot-Summary `pmaxSearchThemes` + `pmaxSearchThemesHinweis` (nicht über Kampagnen aggregierbar)                                   |
+| Brand Guidelines / NCA-Ziel (nur lesend) | `campaign.brand_guidelines_enabled` (nur PMax), `campaign_goal_config.goal_type`                                                                                   | Ads-Snapshot `extras.campaignFlags` + `campaigns[].brandGuidelinesEnabled/ncaGoalActive`; Autopilot `campaignDetail[]`/`campaignFlags` |
+
+**GA4 Data API (v1beta):** jede `runReport`-Antwort läuft durch `src/server/ga4.server.ts`
+(`ga4Coverage`/`ga4CoverageSammler`). Alle GA4-Routen und -Snapshots (`ga4_summary`, `ga4_traffic`,
+`ga4_conversions`, `seo_history`, traffic-overview, llm-traffic, ga4-compare, admin/ga4-conversions)
+tragen `coverage: { truncated, gruende[], sampling, dataLossFromOtherRow, currencyCode, timeZone }` —
+`gruende` aus `responseMetaData.dataTruncationReasons` (neu 14.09.2026, z. B. `DATA_TRUNCATION_TYPE_DATE_RANGE`).
+**GA4 Admin API:** `/api/google/ga4-properties` liefert je Property `canEdit` (`PropertySummary.can_edit`,
+neu 18.06.2026; `null` = nicht geliefert) — sagt, ob Custom Dimensions/Key Events angelegt werden dürfen.
+
+**Search Console:** URL-Inspection-Quota offiziell 2000/Tag und 600/Min je Property
+(https://developers.google.com/webmaster-tools/limits). `content-sync` `inspectLimit`: Default 100, Max 500
+(vorher 25/200); der Inspect-Job läuft sequenziell (~40/Min). `searchAnalytics/query` sendet weiterhin nur die
+Allowlist-Felder (`GSC_REQUEST_FELDER`, Contract-Test in `gsc.server.test.ts`).
+
+### API-Stand 09/2026 (Ahrefs/OpenAI/Supabase) — seit 21.09.2026
+
+**Ahrefs API v3**
+
+- Backlink-Overview (`/api/ahrefs/overview`, 12h-Populate `jobAhrefs`, Logik in
+  `src/server/backlink-overview.server.ts`): Feld `is_spam` (Changelog 30.09.2026) wird auf
+  `site-explorer/referring-domains` mitselektiert. Ergebnis trägt `spam` (`spamDomains`,
+  `spamAnteil` an `live_refdomains`, `capped`) und `referring_domains` (Top-Liste nach DR, Spam
+  per Where-Filter ausgeschlossen). Body-Parameter `ohneSpam` (Default `true`). Die Spam-Zählung
+  liest nur `is_spam=true`-Zeilen (1 Unit/Zeile) — Deckel `AHREFS_SPAM_COUNT_LIMIT` (Default 1000),
+  Listengrösse `AHREFS_TOP_REFDOMAINS_LIMIT` (Default 25). DataForSEO-Rückweg liefert `spam: null`.
+- Brand Radar Citations (`brand-radar/citations-overview`, `citations-history`, POST/JSON,
+  Marken-Filter = `brands`): in `jobBrandRadar` (`admin.aivis-sync.ts`) eingebunden, 12-h-Cache je
+  Pfad+Body. `AIVIS_BR_PROMPTS=custom` (Default, **unit-frei**) oder `ahrefs` (kostet Units).
+  Die br-Schicht läuft weiterhin über DFS/skipped; `AIVIS_AHREFS_BR=1` schaltet sie auf den
+  Ahrefs Brand Radar (inkl. Citations) um — bewusst opt-in (Mess-Version bleibt).
+- Kontingent: `GET /api/live/status` → `providers.ahrefs.details` (Units-Limit/-Verbrauch/
+  Anteil/Reset-Datum, kostenloser Endpunkt); `GET /api/admin/client-metrics?…&units=1` →
+  `ahrefsUnits`.
+- Site Audit Page-Explorer: nicht eingebunden — EzyHub wertet keine Site-Audit-Daten aus
+  (Site-Audit läuft im agent-service/MCP).
+
+**OpenAI**
+
+- ChatGPT Ads (`admin.chatgpt-ads.ts`): Self-Service seit 02.09.2026 in der Schweiz verfügbar —
+  echtes Konto per `connect` mit API-Key; Mock nur noch Demo/E2E. Personalisierte Anzeigen
+  (Custom Audiences) sind in EWR/CH nicht verfügbar → `command set_audiences` und
+  `audience-create` liefern `warning`/`hinweis`. Plattform-Werte `web | ios_app | android_app`.
+  `Idempotency-Key` bei allen Create-Aufrufen (Kampagne, Ad-Group, Ad, Bulk-Job, Audience, Pixel,
+  Event-Setting, CAPI-Key); 429 → max. 3 Retries mit Backoff, `Retry-After` hat Vorrang.
+- Sichtbarkeitsmessung (`admin.aivis-sync.ts`): ChatGPT-Prompts laufen komplett über
+  `/v1/responses` (`askOpenAIResponses`, Text aus `output_text`), mit und ohne Web-Suche;
+  `chat/completions` nur noch für Grok/DeepSeek. Modell `gpt-5.1` (`OPENAI_MODEL`); kein
+  `gpt-5-2025-08-07`/`o3-*`/`gpt-4o` im Repo (Sunset 11.12.2026 betrifft uns nicht).
+
+**Supabase**
+
+- `@supabase/supabase-js` 2.116.0 (Node ≥ 22; kein OpenTelemetry-Import, keine `lock`-Option).
+- API-Key-Umstellung: serverseitig `SUPABASE_SECRET_KEY` (`sb_secret_…`) mit Fallback
+  `SUPABASE_SERVICE_ROLE_KEY`, zentral `supabaseSecretKey()` in
+  `src/integrations/supabase/client.server.ts`; Browser `VITE_SUPABASE_PUBLISHABLE_KEY`
+  (`sb_publishable_…`) mit Fallback `VITE_SUPABASE_ANON_KEY`. `GET /api/live/status` →
+  `supabase_keys` zeigt, ob `sb_secret`/`legacy_service_role` bzw. `sb_publishable`/`legacy_anon`
+  aktiv ist. Extension-Pinning: Migrationen setzen kein `version` (geprüft, nichts zu tun).
+
+Neue Env-Variablen (Lovable): `SUPABASE_SECRET_KEY` (empfohlen), optional
+`AHREFS_SPAM_COUNT_LIMIT`, `AHREFS_TOP_REFDOMAINS_LIMIT`, `AIVIS_BR_PROMPTS`, `AIVIS_AHREFS_BR`,
+Browser-Build `VITE_SUPABASE_PUBLISHABLE_KEY` (neuer Key-Typ).
+
+---
 
 ## 6. Deployment & CI
 
