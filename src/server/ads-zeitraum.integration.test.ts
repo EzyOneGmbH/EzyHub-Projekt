@@ -208,3 +208,16 @@ describe("Zeitraum filtert die Daten wirklich", () => {
     expect(verdreht.status).not.toBe(200);
   });
 });
+
+describe("ChatGPT-Ads Auto-Sync (pg_cron alle 12 h, bei Nichtverwendung)", () => {
+  it("istFrischSynchronisiert: nur innerhalb des Fensters übersprungen, 0 = nie", async () => {
+    const { istFrischSynchronisiert } = await import("../routes/api/admin.chatgpt-ads");
+    const jetzt = Date.parse("2026-09-21T12:15:00Z");
+    const vor = (h: number) => new Date(jetzt - h * 3_600_000).toISOString();
+    expect(istFrischSynchronisiert(vor(2), 11, jetzt)).toBe(true); // UI hat vor 2 h synchronisiert
+    expect(istFrischSynchronisiert(vor(12), 11, jetzt)).toBe(false); // älter als Fenster → sync
+    expect(istFrischSynchronisiert(vor(2), 0, jetzt)).toBe(false); // ohne Fenster nie überspringen
+    expect(istFrischSynchronisiert(null, 11, jetzt)).toBe(false); // nie synchronisiert → sync
+    expect(istFrischSynchronisiert("kein datum", 11, jetzt)).toBe(false);
+  });
+});

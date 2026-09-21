@@ -83,6 +83,8 @@ export function bewerteScheduler(roh: SchedulerRoh, jetztMs = Date.now()): Sched
   for (const [jobname, schedule, maxAlterMs] of [
     ["ezy-analyse-worker", "* * * * *", 3 * 60_000],
     ["ezy-analyse-watchdog", "*/5 * * * *", 7 * 60_000],
+    // ChatGPT-Ads Auto-Sync (21.09.2026): alle 12 h, Toleranz 13 h.
+    ["ezy-chatgpt-ads-sync", "15 */12 * * *", 13 * 3_600_000],
   ] as const) {
     const id = `cron_${jobname}`;
     if (jobsFehler) {

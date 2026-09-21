@@ -44,20 +44,20 @@ Cloud PC (Windows 365)  ── trägt die drei Backend-Teile:
 
 ### Lovable-Deployment (Environment Variables / Secrets, **ohne** `VITE_`-Präfix für Server-Routen)
 
-| Name | Zweck |
-|---|---|
-| `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` | Server-seitiger Supabase-Zugriff |
-| `SUPABASE_SERVICE_ROLE_KEY` | Persistenz (audit_runs etc.) serverseitig |
-| `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` | Browser-Build (Build-Zeit) — auch als `.env.production` im Repo (public anon key) |
-| `AGENT_BASE_URL` = `https://agent.ezyhub.ch` | Agent-Service-Bridge |
-| `AGENT_SHARED_SECRET` | Bearer-Auth App ↔ Agent-Service (muss = `~/agent-service/.env`) |
-| `CANONRY_BASE_URL` = `https://canonry.ezyhub.ch` | Canonry-Anbindung |
-| `CANONRY_API_KEY` | Canonry-Auth (muss = `~/.canonry/config.yaml apiKey`) |
-| `AHREFS_API_KEY` | Ahrefs-Audits (`/api/ahrefs/overview`) |
-| `PERPLEXITY_API_KEY` | GEO/AEO-Suche |
-| `ANTHROPIC_API_KEY` | `/api/ai/generate` (direkter LLM-Call) |
-| `GOOGLE_API_KEY` | PageSpeed Insights + CrUX (Core Web Vitals) |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `SESSION_SECRET` | Google-OAuth (GSC/GA4) |
+| Name                                                                                | Zweck                                                                             |
+| ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`                                          | Server-seitiger Supabase-Zugriff                                                  |
+| `SUPABASE_SERVICE_ROLE_KEY`                                                         | Persistenz (audit_runs etc.) serverseitig                                         |
+| `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`                                | Browser-Build (Build-Zeit) — auch als `.env.production` im Repo (public anon key) |
+| `AGENT_BASE_URL` = `https://agent.ezyhub.ch`                                        | Agent-Service-Bridge                                                              |
+| `AGENT_SHARED_SECRET`                                                               | Bearer-Auth App ↔ Agent-Service (muss = `~/agent-service/.env`)                   |
+| `CANONRY_BASE_URL` = `https://canonry.ezyhub.ch`                                    | Canonry-Anbindung                                                                 |
+| `CANONRY_API_KEY`                                                                   | Canonry-Auth (muss = `~/.canonry/config.yaml apiKey`)                             |
+| `AHREFS_API_KEY`                                                                    | Ahrefs-Audits (`/api/ahrefs/overview`)                                            |
+| `PERPLEXITY_API_KEY`                                                                | GEO/AEO-Suche                                                                     |
+| `ANTHROPIC_API_KEY`                                                                 | `/api/ai/generate` (direkter LLM-Call)                                            |
+| `GOOGLE_API_KEY`                                                                    | PageSpeed Insights + CrUX (Core Web Vitals)                                       |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `SESSION_SECRET` | Google-OAuth (GSC/GA4)                                                            |
 
 ### Agent-Service (`~/agent-service/.env`, gitignored)
 
@@ -84,7 +84,7 @@ Key-Restriktion empfohlen: nur diese APIs erlauben.
    - **Canonry-Projekt**: Button **„Automatisch anlegen"** → legt das Projekt via API an
      (`/api/canonry/create-project`) und speichert den Slug. Idempotent.
    - **Google (GSC + GA4)**: Property eintragen → **„Verbinden"** (OAuth-Popup) → **Import**.
-     Der Google-Account muss in der Search Console *und* im GA4-Property berechtigt sein.
+     Der Google-Account muss in der Search Console _und_ im GA4-Property berechtigt sein.
    - **Core Web Vitals**: über die Kachel „Core Web Vitals" auslösen (nur `GOOGLE_API_KEY` nötig).
 3. Dashboards (SEO / GEO / Conversion) füllen sich nach den jeweiligen Läufen.
 
@@ -96,11 +96,11 @@ Key-Restriktion empfohlen: nur diese APIs erlauben.
 
 Alle Daten liegen in Supabase `audit_runs` (pro `audit_type`) bzw. kommen live von Providern.
 
-| Dashboard | Quelle (audit_type / live) |
-|---|---|
-| **SEO** | `ahrefs` (Traffic/Visibility/Authority/Keywords), `gsc_summary` (Klicks/Impressionen/CTR/Position + Top-Queries), `pagespeed` (LCP/INP/CLS/Score), Audit-Historie (Trend) |
-| **GEO** | live aus Canonry (AI-Visibility je Provider, Health, Evidence) |
-| **Conversion** | `ga4_summary` (Sessions/Users/New/Engaged/Pageviews/Bounce/Ø-Dauer/Conversions/Revenue + Tages-Trend) |
+| Dashboard      | Quelle (audit_type / live)                                                                                                                                                |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **SEO**        | `ahrefs` (Traffic/Visibility/Authority/Keywords), `gsc_summary` (Klicks/Impressionen/CTR/Position + Top-Queries), `pagespeed` (LCP/INP/CLS/Score), Audit-Historie (Trend) |
+| **GEO**        | live aus Canonry (AI-Visibility je Provider, Health, Evidence)                                                                                                            |
+| **Conversion** | `ga4_summary` (Sessions/Users/New/Engaged/Pageviews/Bounce/Ø-Dauer/Conversions/Revenue + Tages-Trend)                                                                     |
 
 **Metriken abschalten:** Einstellungen → **Dashboard-Metriken** (pro Organisation, Default = alles an).
 Speicherung in `organizations.dashboard_config` (JSONB). Nur Admins.
@@ -157,10 +157,11 @@ admin_jobs-Datenläufe, Wiedervorlage-Sweep, Fehler-Monitor) läuft **nicht mehr
 Cloud PC**, sondern über **pg_cron + pg_net in der Lovable-Supabase** — Always-on,
 unabhängig vom Cloud PC:
 
-| Cron-Job | Takt | Zweck |
-|---|---|---|
-| `ezy-analyse-worker` | jede Minute | pg_net POST an `/api/agent/analyse` (Bearer aus Vault `admin_automation_secret`, Timeout 295 s). Die App serialisiert überlappende Ticks per Lease (`analyse_worker_heartbeat.lease_until`), jede Etappe/jeder Job ist per `locked_until` gelockt, Retry exponentiell (1/2/4 min, max 3) bzw. Cooldown (admin_jobs, max 2). |
-| `ezy-analyse-watchdog` | alle 5 min | `public.analyse_worker_watchdog()`: fehlt der Heartbeat > 10 min → Meldung «Analyse-Worker ausgefallen» an alle owner/admin (Glocke, dedupliziert je Ausfall-Episode) + optional Webhook (Vault `worker_alarm_webhook_url`). |
+| Cron-Job               | Takt                        | Zweck                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ---------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ezy-analyse-worker`   | jede Minute                 | pg_net POST an `/api/agent/analyse` (Bearer aus Vault `admin_automation_secret`, Timeout 295 s). Die App serialisiert überlappende Ticks per Lease (`analyse_worker_heartbeat.lease_until`), jede Etappe/jeder Job ist per `locked_until` gelockt, Retry exponentiell (1/2/4 min, max 3) bzw. Cooldown (admin_jobs, max 2).                                                                                                                                                          |
+| `ezy-analyse-watchdog` | alle 5 min                  | `public.analyse_worker_watchdog()`: fehlt der Heartbeat > 10 min → Meldung «Analyse-Worker ausgefallen» an alle owner/admin (Glocke, dedupliziert je Ausfall-Episode) + optional Webhook (Vault `worker_alarm_webhook_url`).                                                                                                                                                                                                                                                         |
+| `ezy-chatgpt-ads-sync` | alle 12 h (00:15/12:15 UTC) | `POST /api/admin/chatgpt-ads` `{action:"sync-all", source:"pg_cron", maxAlterStunden:11}` (Bearer aus Vault `admin_automation_secret`): synchronisiert alle aktiven ChatGPT-Ads-Konten (Kampagnen, Gruppen, Anzeigen, Zielgruppen, Insights) auch ohne Nutzung des Ads-Managers; Konten, die die UI in den letzten 11 h selbst synchronisiert hat, werden übersprungen. Aus: `select cron.unschedule('ezy-chatgpt-ads-sync')`. Migration `20260921120000_chatgpt_ads_sync_cron.sql`. |
 
 - **Wiederholte Job-Fehler** meldet der Tick selbst: ≥ 3 Fehler-Ticks in Folge oder ≥ 3
   endgültig fehlgeschlagene Jobs/Stunde → Meldung «wiederholte Job-Fehler» an alle Admins
@@ -207,12 +208,12 @@ unabhängig vom Cloud PC:
   `ungelistetKlicks` kennzeichnen Zeilenlimit und Kürzung. Client: `src/server/gsc.server.ts`.
 - **Rankings-Snapshots** (`audit_runs.rankings`, Push vom agent-service) bewahren
   `measurement { method crawl|gsc|hybrid, crawlLocation, country, language, device,
-  measuredAt }`; Deltas (`posPrev7/28`) nur innerhalb derselben Messmethode
+measuredAt }`; Deltas (`posPrev7/28`) nur innerhalb derselben Messmethode
   (`posPrev7Src`), sonst `null` — `improved7/declined7` werden daraus neu gezählt.
   Historische Zeiträume zeigen den Stand zum Zeitraum-Ende und kennzeichnen ihn als
   «Näherung», wenn der Lauf vor dem Zeitraum-Anfang liegt (`useEzyLatestRun(...).naeherung`).
 - **Admin-Readiness:** «Google verbunden» gilt nur mit `oauth_connections.client_id ==
-  Kunde` (kein Org-weites Durchschlagen mehr).
+Kunde` (kein Org-weites Durchschlagen mehr).
 - **Ranking-Snapshot-Ingest** (`POST /api/admin/rank-snapshot`) ist mandanteneindeutig:
   `clientId` + `organizationId` sind Pflicht (Slug nur Anzeige/Legacy; passt er nicht →
   400, mehrdeutig → 409). Auth entweder kundenspezifisches Credential (Zweck
@@ -234,7 +235,7 @@ Neue, optionale Datenblöcke (fail-soft: Fehler landen in `extras.errors` bzw. `
 nie im Snapshot-Fehler; Zeitraum immer `gaqlBetween`, inklusiv):
 
 | Block                                    | Quelle (GAQL)                                                                                                                                                      | Wo                                                                                                                                     |
-|---|---|---|
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
 | Top-Produkte (Warenkorbdaten)            | `cart_data_sales_view`: `segments.product_item_id/product_title`, `metrics.orders/units_sold/revenue_micros/gross_profit_micros/all_revenue_micros`                | Ads-Snapshot `extras.cartProducts`                                                                                                     |
 | Biddable vs. nur Reporting               | `conversion_action.include_in_conversions_metric` + `metrics.all_conversions(_value)`; «nur Reporting» = all − biddable (v25 kennt **kein** `non_biddable_*`-Feld) | Ads-Snapshot `extras.conversionSplit`                                                                                                  |
 | PMax-Suchbegriffs-Insights               | `campaign_search_term_insight` (Kategorie, Klicks, Impressionen, Conversions je PMax-Kampagne, 30 Tage bis gestern)                                                | Autopilot-Summary `pmaxSearchThemes` + `pmaxSearchThemesHinweis` (nicht über Kampagnen aggregierbar)                                   |
@@ -325,14 +326,14 @@ Browser-Build `VITE_SUPABASE_PUBLISHABLE_KEY` (neuer Key-Typ).
 
 ## 7. Troubleshooting
 
-| Symptom | Ursache / Fix |
-|---|---|
+| Symptom                                 | Ursache / Fix                                                                                                                       |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | App zeigt „Backend-Konfiguration fehlt" | `VITE_SUPABASE_*` fehlten im Build → in Lovable setzen + neu **publishen** (Bundle-Hash muss sich ändern). Fallback in `client.ts`. |
-| `/api/...` → `503` | Zugehöriger Key fehlt im Lovable-Deployment. |
-| Skill/GEO-Tool schlägt fehl | Agent-Service oder Canonry down → Cloud PC + Autostart-Tasks prüfen (Abschnitt 5). |
-| GEO „Project not found" | Canonry-Projekt nicht angelegt → Onboarding-Karte „Canonry automatisch anlegen". |
-| Core Web Vitals leer | `GOOGLE_API_KEY` im Deployment fehlt **oder** PageSpeed Insights API in Google Cloud nicht aktiviert. |
-| Langer Skill bricht ab | Async-Pattern greift; sehr lange Orchestratoren (`seo-audit`, `blog`) können dennoch lange dauern. |
+| `/api/...` → `503`                      | Zugehöriger Key fehlt im Lovable-Deployment.                                                                                        |
+| Skill/GEO-Tool schlägt fehl             | Agent-Service oder Canonry down → Cloud PC + Autostart-Tasks prüfen (Abschnitt 5).                                                  |
+| GEO „Project not found"                 | Canonry-Projekt nicht angelegt → Onboarding-Karte „Canonry automatisch anlegen".                                                    |
+| Core Web Vitals leer                    | `GOOGLE_API_KEY` im Deployment fehlt **oder** PageSpeed Insights API in Google Cloud nicht aktiviert.                               |
+| Langer Skill bricht ab                  | Async-Pattern greift; sehr lange Orchestratoren (`seo-audit`, `blog`) können dennoch lange dauern.                                  |
 
 ---
 

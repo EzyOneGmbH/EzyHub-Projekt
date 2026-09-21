@@ -366,6 +366,17 @@ async function upsertCampaignFromApi(
 
 // Custom Audiences des Kontos einsammeln (Status-Refresh). Nicht-fatal: das
 // Feature kann für ein Konto noch nicht freigeschaltet sein.
+/** Auto-Sync: Konto innerhalb der letzten `stunden` synchronisiert? (0 = nie überspringen) */
+export function istFrischSynchronisiert(
+  lastSyncedAt: string | null | undefined,
+  stunden: number,
+  jetztMs = Date.now(),
+): boolean {
+  if (!(stunden > 0) || !lastSyncedAt) return false;
+  const t = Date.parse(lastSyncedAt);
+  return Number.isFinite(t) && jetztMs - t < stunden * 3_600_000;
+}
+
 async function syncAudiences(sb: any, acc: any, apiKey: string): Promise<number> {
   const list = await adsListAll(apiKey, acc.openai_ad_account_id, "/custom_audiences").catch(
     () => [] as any[],
@@ -1788,12 +1799,23 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
         if (action === "sync-all") {
           if (!isAdminSecret)
             return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+          // Auto-Sync (Volkan 21.09.2026): pg_cron ruft alle 12 h mit
+          // maxAlterStunden=11 — Konten, die die UI in der Zwischenzeit selbst
+          // synchronisiert hat («Verwendung»), werden übersprungen; ohne
+          // Parameter (n8n/agent-service) wie bisher alle aktiven Konten.
+          const maxAlterStunden = Number(body?.maxAlterStunden || 0);
           const { data: accounts } = await sb
             .from("chatgpt_ads_accounts")
             .select("*")
             .eq("status", "active");
           const results: any[] = [];
+          let uebersprungen = 0;
           for (const acc of accounts || []) {
+            if (istFrischSynchronisiert(acc.last_synced_at, maxAlterStunden)) {
+              uebersprungen++;
+              results.push({ account: acc.name, skipped: true, lastSyncedAt: acc.last_synced_at });
+              continue;
+            }
             try {
               results.push({ account: acc.name, ...(await syncAccount(sb, acc)) });
             } catch (e: any) {
@@ -1805,7 +1827,14 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
               results.push({ account: acc.name, error: msg });
             }
           }
-          return Response.json({ ok: true, results });
+          return Response.json({
+            ok: true,
+            source: String(body?.source || "manuell"),
+            maxAlterStunden,
+            synchronisiert: results.filter((r) => !r.skipped).length,
+            uebersprungen,
+            results,
+          });
         }
 
         const ctx = await requireTeamRole(request, "admin");

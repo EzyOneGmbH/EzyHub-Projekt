@@ -18,6 +18,7 @@ const gesund = (): SchedulerRoh => ({
   jobs: [
     { jobid: 1, jobname: "ezy-analyse-worker", schedule: "* * * * *", active: true },
     { jobid: 2, jobname: "ezy-analyse-watchdog", schedule: "*/5 * * * *", active: true },
+    { jobid: 3, jobname: "ezy-chatgpt-ads-sync", schedule: "15 */12 * * *", active: true },
   ],
   runs: [
     {
@@ -29,6 +30,13 @@ const gesund = (): SchedulerRoh => ({
     },
     {
       jobname: "ezy-analyse-watchdog",
+      status: "succeeded",
+      message: "1 row",
+      start_time: vor(50),
+      end_time: vor(49),
+    },
+    {
+      jobname: "ezy-chatgpt-ads-sync",
       status: "succeeded",
       message: "1 row",
       start_time: vor(50),
@@ -79,6 +87,7 @@ describe("bewerteScheduler", () => {
       [
         "cron_ezy-analyse-watchdog",
         "cron_ezy-analyse-worker",
+        "cron_ezy-chatgpt-ads-sync",
         "ext_pg_cron",
         "ext_pg_net",
         "ext_supabase_vault",
