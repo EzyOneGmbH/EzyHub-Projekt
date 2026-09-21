@@ -80,7 +80,10 @@ create or replace function public.first_party_zugriff(_client_id uuid)
 returns boolean
 language sql stable security definer set search_path = public
 as $$
-  select exists (
+  -- service_role = Server-Routen (requireTeamRole prueft dort Owner/Admin);
+  -- direkte Aufrufe eingeloggter Nutzer nur als Org-Admin.
+  select coalesce(auth.role() = 'service_role', false)
+      or exists (
     select 1 from public.clients c
     where c.id = _client_id and public.is_org_admin(c.organization_id)
   );
