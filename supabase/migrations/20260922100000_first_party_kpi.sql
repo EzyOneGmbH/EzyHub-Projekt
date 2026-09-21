@@ -118,9 +118,11 @@ begin
          coalesce(e.q, 0),
          coalesce(e.imp, 0),
          coalesce(e.cl, 0),
-         case when coalesce(e.q,0) >= 5 and coalesce(e.imp,0) > 0
+         -- Eigene Kurve nur mit Substanz (>= 5 Queries UND >= 10 Klicks je Bucket) —
+         -- kleine Sites haetten sonst lauter 0-%-Buckets und nie Chancen (Live-Befund FiH 22.09.).
+         case when coalesce(e.q,0) >= 5 and coalesce(e.cl,0) >= 10 and coalesce(e.imp,0) > 0
               then round(e.cl::numeric / e.imp, 6) else ref[p.pos] end,
-         case when coalesce(e.q,0) >= 5 and coalesce(e.imp,0) > 0 then 'eigene' else 'referenz' end
+         case when coalesce(e.q,0) >= 5 and coalesce(e.cl,0) >= 10 and coalesce(e.imp,0) > 0 then 'eigene' else 'referenz' end
   from generate_series(1, 20) as p(pos)
   left join eigen e on e.pos = p.pos
   order by p.pos;
