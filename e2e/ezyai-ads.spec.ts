@@ -1,12 +1,14 @@
-// EzyAI ChatGPT-Ads — E2E-Ablauf (QS-Runde 13.09.2026):
-//   Mock-Konto verbinden → Kampagnenaktionen (Pausieren, Budget, Bulk) →
-//   Geo-Targeting → Zielgruppen (Zuweisung + Upload gehasht) → Conversion-Setup
-//   (Pixel, Server-Key, Event, Live-Event-Check).
+// EzyAI ChatGPT-Ads — E2E-Ablauf (QS-Runde 13.09.2026, an den Umbau vom 15.09. angepasst 21.09.):
+//   Mock-Konto verbinden (Bereich Einstellungen) → Kampagnenaktionen im Ads-Manager
+//   (Status-Toggle = entity-command, Tagesbudget im Zeilen-Editor «Kampagne bearbeiten»,
+//   Bulk = Auswahl + Status-Menü → je Zeile ein entity-command) → Geo-Targeting und
+//   Zielgruppen-Zuweisung im selben Zeilen-Editor → Zielgruppen-Upload gehasht →
+//   Conversion-Setup (Pixel, Server-Key, Event, Live-Event-Check).
 // Das gesamte Netz ist gemockt (Supabase REST + eigene /api-Routen); der Mock
 // ist ZUSTANDSBEHAFTET, weil die UI nach jeder Aktion neu laedt. Assertions
 // pruefen sowohl die UI als auch die tatsaechlich gesendeten Requests
 // (inkl. Bearer + X-Ezy-Active-Org aus authedFetch).
-import { test, expect, type Page, type Route } from "@playwright/test";
+import { test, expect, type Locator, type Page, type Route } from "@playwright/test";
 import { readFileSync, existsSync } from "node:fs";
 
 const ORG = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -171,6 +173,17 @@ function neuerMock() {
             custom_audiences: { ids: body.includeIds || [] },
             excluded_custom_audiences: { ids: body.excludeIds || [] },
           };
+        return { ok: true };
+      }
+      // Seit 15.09.: Status-Toggle und Massenaktionen im Ads-Manager laufen ueber
+      // entity-command (kind campaign|adgroup|ad, cmd pause|activate|archive) —
+      // pro Objekt ein Aufruf, kein bulk mehr (Server: admin.chatgpt-ads.ts).
+      case "entity-command": {
+        const k = body.kind === "campaign" ? c(body.id) : undefined;
+        if (!k || !["pause", "activate", "archive"].includes(body.cmd))
+          return { ok: false, error: "kind/id/cmd ungültig", status: 400 };
+        k.status =
+          body.cmd === "pause" ? "paused" : body.cmd === "activate" ? "active" : "archived";
         return { ok: true };
       }
       case "bulk":
@@ -384,10 +397,24 @@ test("ChatGPT Ads: Mock-Konto → Kampagnen → Geo-Targeting → Zielgruppen �
   // Eingang warten (CI-Flake 14.09.: "Cannot read properties of undefined (reading 'body')").
   const warteAufPost = (action: string, mindestens = 1) =>
     expect.poll(() => posts(action).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(mindestens);
-  const warteAufCmd = (cmd: string) =>
-    expect
-      .poll(() => posts("command").filter((p) => p.body?.cmd === cmd).length, { timeout: 10_000 })
-      .toBeGreaterThan(0);
+  // cmd kann ueber «command» (Budget/Targeting/Zielgruppen) oder «entity-command»
+  // (Status seit 15.09.) laufen — beide zaehlen.
+  const cmds = (cmd: string) =>
+    [...posts("command"), ...posts("entity-command")].filter((p) => p.body?.cmd === cmd);
+  const warteAufCmd = (cmd: string, mindestens = 1) =>
+    expect.poll(() => cmds(cmd).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(mindestens);
+  // Ads-Manager (15.09.): «⋯» (title «Aktionen») → «Kampagne bearbeiten» klappt unter
+  // der Zeile eine Editor-Zeile auf (Budget/Tag, Targeting, Zielgruppen).
+  const editorVon = (zeile: Locator) => zeile.locator("xpath=following-sibling::tr[1]");
+  const oeffneEditor = async (zeile: Locator) => {
+    await zeile.getByTitle("Aktionen").click();
+    await page.getByRole("button", { name: /Kampagne bearbeiten/ }).click();
+    const editor = editorVon(zeile);
+    await expect(editor.getByText("Budget/Tag")).toBeVisible();
+    return editor;
+  };
+  // Auswahl-Checkbox ist ein gestyltes <span> ohne Rolle (erste Zelle der Zeile).
+  const auswahl = (zeile: Locator) => zeile.locator("td").first().locator("span").first();
 
   await page.goto("/ezyai");
   // Kunde waehlen (Ads-Panels rendern erst mit gewaehltem Kunden).
@@ -395,6 +422,10 @@ test("ChatGPT Ads: Mock-Konto → Kampagnen → Geo-Targeting → Zielgruppen �
   await page.getByRole("button", { name: "Kampagnen" }).first().click();
 
   // ── 1) Mock-Konto verbinden ────────────────────────────────────────────
+  // Seit 15.09. (Bereich «Einstellungen» bündelt die Einrichtung) liegt das
+  // Verbinden-Formular nicht mehr unter Kampagnen, sondern unter Einstellungen.
+  await expect(page.getByText("Kein ChatGPT-Ads-Konto verbunden").first()).toBeVisible();
+  await page.getByRole("button", { name: "Einstellungen" }).first().click();
   await expect(page.getByText("ChatGPT-Ads-Konto verbinden").first()).toBeVisible();
   await page.getByPlaceholder("API-Key aus ads.openai.com (oder: mock)").fill("mock");
   await page.getByRole("button", { name: "Verbinden" }).click();
@@ -403,69 +434,97 @@ test("ChatGPT Ads: Mock-Konto → Kampagnen → Geo-Targeting → Zielgruppen �
   // Multi-Org-Vertrag: jeder Admin-Aufruf traegt Bearer + aktive Org.
   expect(posts("connect")[0].headers["authorization"]).toBe("Bearer e2e-jwt");
   expect(posts("connect")[0].headers["x-ezy-active-org"]).toBe(ORG);
+  await page.getByRole("button", { name: "Kampagnen" }).first().click();
   await expect(page.getByText("DEMO").first()).toBeVisible();
   await expect(page.locator("tr", { hasText: "Brand Awareness CH" }).first()).toBeVisible();
-  await expect(page.getByText("Kampagnen (3)")).toBeVisible();
+  // Kampagnen-Ansicht entzerrt (15.09.): Zähler steht in der Summenzeile der Tabelle.
+  await expect(page.getByText("Insgesamt 3 Kampagnen").first()).toBeVisible();
 
   // ── 2) Kampagnenaktionen: Pausieren, Budget, Bulk ──────────────────────
+  // Status-Toggle in der Spalte «Aktiv» (title «Pausieren»/«Aktivieren») sendet seit
+  // 15.09. entity-command statt command; Statuszelle zeigt «Pausiert».
   const zeileBrand = page.locator("tr", { hasText: "Brand Awareness CH" }).first();
   await zeileBrand.getByTitle("Pausieren").click();
   await warteAufCmd("pause");
-  expect(posts("command").at(-1)?.body).toMatchObject({
+  expect(posts("entity-command").at(-1)?.body).toMatchObject({
+    kind: "campaign",
+    id: "cmp_mock_brand",
     cmd: "pause",
-    targetType: "campaign",
-    targetId: "cmp_mock_brand",
   });
-  await expect(zeileBrand.getByText("pausiert")).toBeVisible();
+  await expect(zeileBrand.getByText("Pausiert", { exact: true })).toBeVisible();
 
-  await zeileBrand.getByTitle("Klicken zum Ändern").click();
-  const budget = zeileBrand.getByRole("textbox"); // Zeile hat auch eine Checkbox
-  await budget.fill("75");
-  await zeileBrand.getByRole("button", { name: "OK" }).click();
+  // Tagesbudget: Inline-Feld «Klicken zum Ändern» entfaellt — jetzt Feld «Budget/Tag»
+  // im Zeilen-Editor; Body bleibt command/set_budget.
+  const editorBrand = await oeffneEditor(zeileBrand);
+  await editorBrand.locator("input").first().fill("75");
+  await editorBrand.getByRole("button", { name: "Speichern", exact: true }).first().click();
   await warteAufCmd("set_budget");
   expect(posts("command").at(-1)?.body).toMatchObject({
     cmd: "set_budget",
+    targetType: "campaign",
     targetId: "cmp_mock_brand",
     budgetDailyMicros: 75_000_000,
   });
+  await expect(zeileBrand.getByText("USD75.00/Tag")).toBeVisible();
 
+  // Bulk: Auswahl-Checkboxen → Button «Status ⌄» → Menüpunkt «Pausiert». Kein
+  // Bestaetigungsdialog mehr (nur Archivieren fragt nach); statt EINEM bulk-Aufruf
+  // sendet der Ads-Manager je ausgewaehlter Zeile ein entity-command.
   const zeileLeads = page.locator("tr", { hasText: "Lead-Gen Beratung" }).first();
   const zeilePromo = page.locator("tr", { hasText: "Herbst-Promo" }).first();
-  await zeileLeads.getByRole("checkbox").check();
-  await zeilePromo.getByRole("checkbox").check();
+  await auswahl(zeileLeads).click();
+  await auswahl(zeilePromo).click();
   await expect(page.getByText("2 ausgewählt").first()).toBeVisible();
-  await page.getByRole("button", { name: "Pausieren", exact: true }).click();
-  await page.getByRole("button", { name: "Ja, ausführen" }).click();
-  await warteAufPost("bulk");
-  expect(posts("bulk")[0].body).toMatchObject({ cmd: "pause" });
-  expect(posts("bulk")[0].body.targetIds.sort()).toEqual(["cmp_mock_leads", "cmp_mock_promo"]);
-  await expect(zeileLeads.getByText("pausiert")).toBeVisible();
+  await page.getByRole("button", { name: /^Status/ }).click();
+  await page.getByRole("button", { name: /Pausiert$/ }).click();
+  await warteAufCmd("pause", 3); // 1× Toggle oben + 2× Bulk
+  const bulkIds = cmds("pause")
+    .slice(-2)
+    .map((p) => p.body.id)
+    .sort();
+  expect(bulkIds).toEqual(["cmp_mock_leads", "cmp_mock_promo"]);
+  expect(posts("bulk")).toHaveLength(0); // alter Sammel-Endpoint wird nicht mehr benutzt
+  await expect(zeileLeads.getByText("Pausiert", { exact: true })).toBeVisible();
+  await expect(page.getByText("2 ausgewählt")).toHaveCount(0); // Auswahl nach Bulk geleert
 
   // ── 3) Geo-Targeting ──────────────────────────────────────────────────
-  await zeileLeads.getByTitle("Klicken, um Länder/Regionen festzulegen").click();
-  await expect(page.getByText("Geo-Targeting").first()).toBeVisible();
-  await page
+  // Zellen-Link «Klicken, um Länder/Regionen festzulegen» entfaellt — Editor-Zeile →
+  // Button «Targeting» → TargetingEditor (geo-search → Chip → «Targeting speichern»).
+  const editorLeads = await oeffneEditor(zeileLeads);
+  await editorLeads.getByRole("button", { name: "Targeting", exact: true }).click();
+  await expect(editorLeads.getByText("Geo-Targeting").first()).toBeVisible();
+  await editorLeads
     .getByPlaceholder("Land, Kanton oder Region suchen … (z.B. Schweiz, Zürich)")
     .fill("Zür");
-  await expect.poll(() => posts("geo-search").length).toBeGreaterThan(0);
-  await page.getByText("Zürich", { exact: false }).last().click();
-  await page.getByRole("button", { name: "Targeting speichern" }).click();
+  await warteAufPost("geo-search");
+  expect(posts("geo-search").at(-1)?.body.q).toBe("Zür");
+  await editorLeads.getByText("Zürich", { exact: true }).last().click();
+  await editorLeads.getByRole("button", { name: "Targeting speichern" }).click();
   await warteAufCmd("set_targeting");
-  const targeting = posts("command").findLast((p) => p.body.cmd === "set_targeting");
-  expect(targeting?.body.targetId).toBe("cmp_mock_leads");
+  const targeting = cmds("set_targeting").at(-1);
+  expect(targeting?.body).toMatchObject({ targetType: "campaign", targetId: "cmp_mock_leads" });
   expect(JSON.stringify(targeting?.body.locations)).toContain("geo_zh");
-  await expect(zeileLeads.getByText(/1 Region|Zürich/)).toBeVisible();
+  // Keine Targeting-Spalte mehr in der Tabelle: Editor schliesst nach dem Speichern,
+  // beim erneuten Oeffnen zeigt der Chip den neu geladenen Stand.
+  await expect(editorLeads.getByText("Geo-Targeting")).toHaveCount(0);
+  await editorLeads.getByRole("button", { name: "Targeting", exact: true }).click();
+  // Chip-Text ist «Zürich region ×» (Name + Typ + Entfernen-Knopf) — kein exact-Match.
+  await expect(editorLeads.getByText(/^Zürich/).first()).toBeVisible();
 
   // ── 4) Zielgruppen: Zuweisung an Kampagne + Upload gehasht ─────────────
-  await zeilePromo.getByTitle("Klicken, um Zielgruppen zuzuweisen").click();
-  await expect(page.getByText("Bestandskunden 2026").first()).toBeVisible();
-  const editorZeile = page.locator("tr", { hasText: "Bestandskunden 2026" }).last();
-  await editorZeile.getByRole("checkbox").first().check();
-  await page.getByRole("button", { name: "Zuweisung speichern" }).click();
+  // Zellen-Link «Klicken, um Zielgruppen zuzuweisen» entfaellt — Editor-Zeile →
+  // Button «Zielgruppen» (im Editor, NICHT der gleichnamige Seitenleisten-Button).
+  const editorPromo = await oeffneEditor(zeilePromo);
+  await editorPromo.getByRole("button", { name: "Zielgruppen", exact: true }).click();
+  await expect(editorPromo.getByText("Bestandskunden 2026").first()).toBeVisible();
+  const editorZeile = editorPromo.locator("tr", { hasText: "Bestandskunden 2026" }).first();
+  await editorZeile.getByRole("checkbox").first().check(); // Spalte «Einschliessen»
+  await editorPromo.getByRole("button", { name: "Zuweisung speichern" }).click();
   await warteAufCmd("set_audiences");
-  const zuweisung = posts("command").findLast((p) => p.body.cmd === "set_audiences");
-  expect(zuweisung?.body).toMatchObject({ targetId: "cmp_mock_promo" });
+  const zuweisung = cmds("set_audiences").at(-1);
+  expect(zuweisung?.body).toMatchObject({ targetType: "campaign", targetId: "cmp_mock_promo" });
   expect(zuweisung?.body.includeIds).toContain("caud_mock_1");
+  expect(zuweisung?.body.excludeIds).toEqual([]);
 
   await page.getByRole("button", { name: "Zielgruppen" }).first().click();
   await expect(page.getByText("Neue Zielgruppe").first()).toBeVisible();
@@ -482,8 +541,11 @@ test("ChatGPT Ads: Mock-Konto → Kampagnen → Geo-Targeting → Zielgruppen �
   await expect(page.getByText("E2E Newsletter").first()).toBeVisible();
 
   // ── 5) Conversion-Setup: Pixel → Server-Key → Event → Live-Check ───────
-  await page.getByRole("button", { name: "Conversions" }).first().click();
-  await expect(page.getByText("Pixel & Conversion-Events (OpenAI-Konto)")).toBeVisible();
+  // Seit 15.09. liegt die Setup-Karte (Pixel, Server-Key, Conversion-Events,
+  // Website-Snippet mit Live-Check) im Bereich «Einstellungen»; «Conversions»
+  // zeigt nur noch die gemeldeten Leads/Käufe. Bodies der conv-*-Actions unverändert.
+  await page.getByRole("button", { name: "Einstellungen" }).first().click();
+  await expect(page.getByText("Pixel & Conversion-Events (OpenAI-Konto)").first()).toBeVisible();
   await page.getByRole("button", { name: "Pixel anlegen" }).click();
   await expect.poll(() => posts("conv-pixel-create").length).toBe(1);
   await expect(page.getByText("pix_0f891a24_1").first()).toBeVisible();
