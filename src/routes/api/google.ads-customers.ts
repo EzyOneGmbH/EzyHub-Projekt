@@ -1,3 +1,4 @@
+import { adsApiBase } from "@/server/google-ads-api.server";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
@@ -64,15 +65,12 @@ export const Route = createFileRoute("/api/google/ads-customers")({
           );
 
           // Step 1: List accessible customers (returns customer resource names).
-          const listRes = await fetch(
-            "https://googleads.googleapis.com/v24/customers:listAccessibleCustomers",
-            {
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-                "developer-token": devToken,
-              },
+          const listRes = await fetch(`${adsApiBase()}/customers:listAccessibleCustomers`, {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "developer-token": devToken,
             },
-          );
+          });
           if (!listRes.ok) {
             const t = await listRes.text().catch(() => "");
             if (API_DISABLED.test(t))
@@ -98,7 +96,7 @@ export const Route = createFileRoute("/api/google/ads-customers")({
             const customerId = rn.replace("customers/", "");
             try {
               const searchRes = await fetch(
-                `https://googleads.googleapis.com/v24/customers/${customerId}/googleAds:searchStream`,
+                `${adsApiBase()}/customers/${customerId}/googleAds:searchStream`,
                 {
                   method: "POST",
                   headers: {

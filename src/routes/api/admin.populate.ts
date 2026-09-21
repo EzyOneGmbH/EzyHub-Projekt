@@ -14,6 +14,7 @@ import {
 } from "@/server/backlink-overview.server";
 import { fetchKeywordMetrics } from "@/server/keyword-metrics.server";
 import { zeitraum, ga4DateRange, type Zeitraum } from "@/lib/date-range";
+import { ga4Coverage, ga4CoverageSammler, ga4RunReportUrl } from "@/server/ga4.server";
 import {
   gscTotals,
   gscRows,
@@ -357,31 +358,32 @@ async function jobSeoHistory(c: any, uid: string, force = false) {
   };
   let ga4ok = false,
     gscok = false;
+  // GA4-Coverage (21.09.2026): 36-Monats-Abfrage kann an der Aufbewahrungsfrist
+  // gekuerzt sein (DATA_TRUNCATION_TYPE_PROPERTY/_DATE_RANGE) — wird ausgewiesen.
+  let ga4Cov = null as ReturnType<typeof ga4Coverage> | null;
   if (c.ga4_property) {
     try {
       const propertyId = String(c.ga4_property).replace(/^properties\//, "");
       const start = new Date(endFull.getFullYear(), endFull.getMonth() - 35, 1);
-      const r = await fetch(
-        `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            dateRanges: [{ startDate: ymd(start), endDate: ymd(endFull) }],
-            dimensions: [{ name: "yearMonth" }],
-            metrics: [{ name: "sessions" }],
-            dimensionFilter: {
-              filter: {
-                fieldName: "sessionDefaultChannelGroup",
-                stringFilter: { value: "Organic Search", matchType: "EXACT" },
-              },
+      const r = await fetch(ga4RunReportUrl(propertyId), {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dateRanges: [{ startDate: ymd(start), endDate: ymd(endFull) }],
+          dimensions: [{ name: "yearMonth" }],
+          metrics: [{ name: "sessions" }],
+          dimensionFilter: {
+            filter: {
+              fieldName: "sessionDefaultChannelGroup",
+              stringFilter: { value: "Organic Search", matchType: "EXACT" },
             },
-            limit: 40,
-          }),
-        },
-      );
+          },
+          limit: 40,
+        }),
+      });
       if (r.ok) {
         const j: any = await r.json();
+        ga4Cov = ga4Coverage(j);
         for (const row of j.rows ?? []) {
           const ym = String(row.dimensionValues?.[0]?.value ?? "");
           if (!/^\d{6}$/.test(ym)) continue;
@@ -432,7 +434,12 @@ async function jobSeoHistory(c: any, uid: string, force = false) {
   }
   if (!months.size) return { error: "keine GA4/GSC-Monatsdaten" };
   const list = [...months.values()].sort((a, b) => String(a.month).localeCompare(String(b.month)));
-  const result = { months: list, sources: { ga4: ga4ok, gsc: gscok }, fetchedAt: nowIso() };
+  const result = {
+    months: list,
+    sources: { ga4: ga4ok, gsc: gscok },
+    ga4Coverage: ga4Cov,
+    fetchedAt: nowIso(),
+  };
   await insertRun({
     client_id: c.id,
     organization_id: c.organization_id,
@@ -716,10 +723,12 @@ async function jobGa4(c: any, uid: string, days: number) {
   if (!c.ga4_property) return { skipped: "kein ga4_property" };
   const { accessToken } = await getGoogleAccessToken(c.id);
   const propertyId = String(c.ga4_property).replace(/^properties\//, "");
-  const base = `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`;
+  const base = ga4RunReportUrl(propertyId);
   // 13.09.2026: explizite Daten — "NdaysAgo".."today" waren N+1 Tage.
   const zr = zeitraum({ days, maxDays: 90 });
   const dateRanges = [ga4DateRange(zr)];
+  // GA4-Coverage (21.09.2026): responseMetaData aller Reports → coverage im Snapshot.
+  const cov = ga4CoverageSammler();
   const call = async (b: unknown) => {
     const r = await fetch(base, {
       method: "POST",
@@ -727,7 +736,7 @@ async function jobGa4(c: any, uid: string, days: number) {
       body: JSON.stringify(b),
     });
     if (!r.ok) throw new Error(`GA4 HTTP ${r.status}: ${await r.text().catch(() => "")}`);
-    return (await r.json()) as any;
+    return cov.erfasse((await r.json()) as any);
   };
   const CORE = [
     "sessions",
@@ -778,7 +787,13 @@ async function jobGa4(c: any, uid: string, days: number) {
     audit_type: "ga4_summary",
     status: "succeeded",
     input: { days },
-    result: { days, range: { from: zr.startDate, to: zr.endDate }, metrics, series },
+    result: {
+      days,
+      range: { from: zr.startDate, to: zr.endDate },
+      metrics,
+      series,
+      coverage: cov.coverage(),
+    },
     started_at: nowIso(),
     finished_at: nowIso(),
   });
@@ -881,10 +896,12 @@ async function jobGa4Traffic(c: any, uid: string, days: number) {
   if (!c.ga4_property) return { skipped: "kein ga4_property" };
   const { accessToken } = await getGoogleAccessToken(c.id);
   const propertyId = String(c.ga4_property).replace(/^properties\//, "");
-  const base = `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`;
+  const base = ga4RunReportUrl(propertyId);
   // 13.09.2026: explizite Daten — "NdaysAgo".."today" waren N+1 Tage.
   const zr = zeitraum({ days, maxDays: 90 });
   const dateRanges = [ga4DateRange(zr)];
+  // GA4-Coverage (21.09.2026): responseMetaData aller Reports → coverage im Snapshot.
+  const cov = ga4CoverageSammler();
   const call = async (b: unknown) => {
     const r = await fetch(base, {
       method: "POST",
@@ -892,7 +909,7 @@ async function jobGa4Traffic(c: any, uid: string, days: number) {
       body: JSON.stringify(b),
     });
     if (!r.ok) throw new Error(`GA4 HTTP ${r.status}: ${await r.text().catch(() => "")}`);
-    return (await r.json()) as any;
+    return cov.erfasse((await r.json()) as any);
   };
   let channels: any[] = [];
   try {
@@ -1050,6 +1067,7 @@ async function jobGa4Traffic(c: any, uid: string, days: number) {
     topPages,
     countries,
     countriesOrganic,
+    coverage: cov.coverage(),
   };
   await insertRun({
     client_id: c.id,
@@ -1070,10 +1088,12 @@ async function jobGa4Conversions(c: any, uid: string, days: number) {
   if (!c.ga4_property) return { skipped: "kein ga4_property" };
   const { accessToken } = await getGoogleAccessToken(c.id);
   const propertyId = String(c.ga4_property).replace(/^properties\//, "");
-  const base = `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`;
+  const base = ga4RunReportUrl(propertyId);
   // 13.09.2026: explizite Daten — "NdaysAgo".."today" waren N+1 Tage.
   const zr = zeitraum({ days, maxDays: 90 });
   const dateRanges = [ga4DateRange(zr)];
+  // GA4-Coverage (21.09.2026): responseMetaData aller Reports → coverage im Snapshot.
+  const cov = ga4CoverageSammler();
   const call = async (b: unknown) => {
     const r = await fetch(base, {
       method: "POST",
@@ -1081,7 +1101,7 @@ async function jobGa4Conversions(c: any, uid: string, days: number) {
       body: JSON.stringify(b),
     });
     if (!r.ok) throw new Error(`GA4 HTTP ${r.status}: ${await r.text().catch(() => "")}`);
-    return (await r.json()) as any;
+    return cov.erfasse((await r.json()) as any);
   };
   let events: any[] = [];
   const breakdown = { phone: 0, mail: 0, maps: 0, contact: 0 };
@@ -1209,6 +1229,7 @@ async function jobGa4Conversions(c: any, uid: string, days: number) {
     purchases,
     series,
     ...(channels.length ? { channels } : {}),
+    coverage: cov.coverage(),
   };
   await insertRun({
     client_id: c.id,

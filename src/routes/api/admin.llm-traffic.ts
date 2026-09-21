@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
 import { zeitraumAusParams } from "@/lib/date-range";
+import { ga4CoverageSammler, ga4RunReportUrl } from "@/server/ga4.server";
 
 // LLM Analytics (05.08.2026, Searchable-Nachbau "/ai-traffic"):
 // GET ?client=<uuid>&days=<1..365, Default 30> liefert die GA4-Seite des
@@ -91,17 +92,15 @@ export const Route = createFileRoute("/api/admin/llm-traffic")({
             note: "Google-Token: " + String((e as any)?.message || e).slice(0, 120),
           });
         }
-        const propertyId = String(client.ga4_property).replace(/^properties\//, "");
+        // GA4-Coverage (21.09.2026): Kuerzung/Sampling/(other) beider Reports sammeln.
+        const cov = ga4CoverageSammler();
         const run = (body: any) =>
-          fetch(
-            `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`,
-            {
-              method: "POST",
-              headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ dateRanges: [{ startDate, endDate }], ...body }),
-              signal: AbortSignal.timeout(25_000),
-            },
-          );
+          fetch(ga4RunReportUrl(String(client.ga4_property)), {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ dateRanges: [{ startDate, endDate }], ...body }),
+            signal: AbortSignal.timeout(25_000),
+          });
 
         const [tsRes, pgRes] = await Promise.all([
           run({
@@ -128,7 +127,7 @@ export const Route = createFileRoute("/api/admin/llm-traffic")({
         const byDay = new Map<string, Record<string, { sessions: number; newUsers: number }>>();
         const totals: Record<string, { sessions: number; newUsers: number }> = {};
         if (tsRes.ok) {
-          const j: any = await tsRes.json().catch(() => ({}));
+          const j: any = cov.erfasse(await tsRes.json().catch(() => ({})));
           for (const row of j.rows ?? []) {
             const date = String(row.dimensionValues?.[0]?.value ?? "");
             const src = String(row.dimensionValues?.[1]?.value ?? "");
@@ -156,7 +155,7 @@ export const Route = createFileRoute("/api/admin/llm-traffic")({
         // Top-Landingpages je Engine (Top 10).
         const pagesByEngine: Record<string, Array<{ path: string; sessions: number }>> = {};
         if (pgRes.ok) {
-          const j: any = await pgRes.json().catch(() => ({}));
+          const j: any = cov.erfasse(await pgRes.json().catch(() => ({})));
           const agg = new Map<string, number>(); // engine \\n path -> sessions
           for (const row of j.rows ?? []) {
             const path = String(row.dimensionValues?.[0]?.value ?? "");
@@ -186,6 +185,7 @@ export const Route = createFileRoute("/api/admin/llm-traffic")({
           timeseries,
           totals,
           pagesByEngine,
+          coverage: cov.coverage(),
         });
       },
     },

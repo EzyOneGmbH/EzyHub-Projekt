@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { redactSecrets } from "@/server/google-oauth.server";
 import { isProviderEnabled } from "@/server/integrations.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
+import { ga4CoverageSammler, ga4RunReportUrl } from "@/server/ga4.server";
 
 // Live GA4 comparison: runs a single runReport with two dateRanges (current +
 // comparison) and returns totals for both, so the UI can show real YoY / MoM
@@ -62,8 +63,9 @@ export const Route = createFileRoute("/api/google/ga4-compare")({
             );
 
           const { accessToken } = await getGoogleAccessToken(client.id);
-          const propertyId = client.ga4_property.replace(/^properties\//, "");
-          const url = `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`;
+          const url = ga4RunReportUrl(client.ga4_property);
+          // GA4-Coverage (21.09.2026): Kuerzung/Sampling aller drei Reports sammeln.
+          const cov = ga4CoverageSammler();
 
           const beideZeitraeume = [
             {
@@ -119,7 +121,7 @@ export const Route = createFileRoute("/api/google/ga4-compare")({
             }>;
           } = {};
           if (res.ok) {
-            json = (await res.json()) as typeof json;
+            json = cov.erfasse((await res.json()) as typeof json);
           } else {
             const t = await res.text().catch(() => "");
             totalsFehler = redactSecrets(`GA4 HTTP ${res.status}: ${t}`);
@@ -180,12 +182,14 @@ export const Route = createFileRoute("/api/google/ga4-compare")({
               }),
             });
             if (orgRes.ok) {
-              const oj = (await orgRes.json()) as {
-                rows?: Array<{
-                  dimensionValues: Array<{ value: string }>;
-                  metricValues: Array<{ value: string }>;
-                }>;
-              };
+              const oj = cov.erfasse(
+                (await orgRes.json()) as {
+                  rows?: Array<{
+                    dimensionValues: Array<{ value: string }>;
+                    metricValues: Array<{ value: string }>;
+                  }>;
+                },
+              );
               const or = oj.rows ?? [];
               const oc =
                 or.find((r) => /current|date_range_0/i.test(r.dimensionValues?.[0]?.value ?? "")) ??
@@ -252,12 +256,14 @@ export const Route = createFileRoute("/api/google/ga4-compare")({
               }),
             });
             if (chRes.ok) {
-              const cj = (await chRes.json()) as {
-                rows?: Array<{
-                  dimensionValues: Array<{ value: string }>;
-                  metricValues: Array<{ value: string }>;
-                }>;
-              };
+              const cj = cov.erfasse(
+                (await chRes.json()) as {
+                  rows?: Array<{
+                    dimensionValues: Array<{ value: string }>;
+                    metricValues: Array<{ value: string }>;
+                  }>;
+                },
+              );
               const cr = cj.rows ?? [];
               const cc =
                 cr.find((r) => /current|date_range_0/i.test(r.dimensionValues?.[0]?.value ?? "")) ??
@@ -295,6 +301,7 @@ export const Route = createFileRoute("/api/google/ga4-compare")({
               organicSessions: organicCompare,
               chOrganicSessions: chOrganicCompare,
             },
+            coverage: cov.coverage(),
           });
         } catch (e) {
           return Response.json({ ok: false, error: redactSecrets(e) });

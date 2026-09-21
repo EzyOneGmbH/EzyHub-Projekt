@@ -6,6 +6,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
 import { redactSecrets } from "@/server/google-oauth.server";
 import { isProviderEnabled, canRunAudits } from "@/server/integrations.server";
+import { ga4CoverageSammler, ga4RunReportUrl } from "@/server/ga4.server";
 
 // GA4 traffic intelligence: channel split, AI-referral (ChatGPT/Perplexity/Gemini/…),
 // Google-vs-AI daily series, top pages and country share.
@@ -94,8 +95,9 @@ export const Route = createFileRoute("/api/google/ga4-traffic")({
             );
 
           const { accessToken } = await getGoogleAccessToken(client.id);
-          const propertyId = client.ga4_property.replace(/^properties\//, "");
-          const base = `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`;
+          const base = ga4RunReportUrl(client.ga4_property);
+          // GA4-Coverage (21.09.2026): responseMetaData aller Reports → coverage im Snapshot.
+          const cov = ga4CoverageSammler();
           // 13.09.2026: explizite, inklusive Daten ("NdaysAgo".."today" waren N+1 Tage).
           let zr;
           try {
@@ -122,12 +124,14 @@ export const Route = createFileRoute("/api/google/ga4-traffic")({
               body: JSON.stringify(reqBody),
             });
             if (!r.ok) throw new Error(`GA4 HTTP ${r.status}: ${await r.text().catch(() => "")}`);
-            return (await r.json()) as {
-              rows?: Array<{
-                dimensionValues?: Array<{ value: string }>;
-                metricValues?: Array<{ value: string }>;
-              }>;
-            };
+            return cov.erfasse(
+              (await r.json()) as {
+                rows?: Array<{
+                  dimensionValues?: Array<{ value: string }>;
+                  metricValues?: Array<{ value: string }>;
+                }>;
+              },
+            );
           };
 
           // Channel split (sessions by default channel group).
@@ -286,6 +290,7 @@ export const Route = createFileRoute("/api/google/ga4-traffic")({
             topPages,
             countries,
             countriesOrganic,
+            coverage: cov.coverage(),
           };
 
           try {

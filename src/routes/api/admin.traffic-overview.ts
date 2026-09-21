@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
 import { zeitraum, zeitraumAusParams } from "@/lib/date-range";
 import { gscTotals, gscRows, GSC_END_LAG_DAYS } from "@/server/gsc.server";
+import { ga4CoverageSammler, ga4RunReportUrl } from "@/server/ga4.server";
 
 // Traffic (05.08.2026, Searchable-Nachbau "Traffic"): der Gesamt-Traffic-Blick
 // als Ergänzung zu LLM Analytics (das nur die KI-Hälfte zeigt).
@@ -103,17 +104,16 @@ export const Route = createFileRoute("/api/admin/traffic-overview")({
 
         // ── GA4: Kanäle je Tag + Engagement je Quelle ───────────────────────
         if (client.ga4_property) {
-          const propertyId = String(client.ga4_property).replace(/^properties\//, "");
+          // GA4-Coverage (21.09.2026): responseMetaData jeder Antwort (Kuerzung,
+          // Sampling, (other)-Verlust) wird gesammelt und als ga4Coverage geliefert.
+          const cov = ga4CoverageSammler();
           const run = (body: any) =>
-            fetch(
-              `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`,
-              {
-                method: "POST",
-                headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-                body: JSON.stringify({ dateRanges: [{ startDate, endDate }], ...body }),
-                signal: AbortSignal.timeout(25_000),
-              },
-            );
+            fetch(ga4RunReportUrl(String(client.ga4_property)), {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ dateRanges: [{ startDate, endDate }], ...body }),
+              signal: AbortSignal.timeout(25_000),
+            });
           const [chRes, segRes] = await Promise.all([
             run({
               dimensions: [{ name: "date" }, { name: "sessionDefaultChannelGroup" }],
@@ -133,7 +133,7 @@ export const Route = createFileRoute("/api/admin/traffic-overview")({
             }),
           ]);
           if (chRes.ok) {
-            const j: any = await chRes.json().catch(() => ({}));
+            const j: any = cov.erfasse(await chRes.json().catch(() => ({})));
             const byDay = new Map<string, Record<string, number>>();
             const channelTotals: Record<string, number> = {};
             for (const row of j.rows ?? []) {
@@ -155,7 +155,7 @@ export const Route = createFileRoute("/api/admin/traffic-overview")({
             };
           }
           if (segRes.ok) {
-            const j: any = await segRes.json().catch(() => ({}));
+            const j: any = cov.erfasse(await segRes.json().catch(() => ({})));
             // Segmente: KI (Quelle matcht KI-Regex) > Organisch > Direkt > Übrige.
             // Ø-Metriken werden sessions-gewichtet zusammengeführt.
             type Seg = {
@@ -211,6 +211,7 @@ export const Route = createFileRoute("/api/admin/traffic-overview")({
               }))
               .sort((a, b) => b.sessions - a.sessions);
           }
+          out.ga4Coverage = cov.coverage();
         }
 
         // ── GSC: Klicks/Impressionen je Tag + Top-Queries (Quadranten-Matrix) ─

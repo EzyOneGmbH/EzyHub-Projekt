@@ -7,6 +7,7 @@ import { redactSecrets } from "./google-oauth.server";
 import { canonryUrl } from "@/lib/canonry-url";
 import { zeitraum, ga4DateRange } from "@/lib/date-range";
 import { gscRows, GSC_END_LAG_DAYS } from "./gsc.server";
+import { ga4Coverage, ga4RunReportUrl } from "./ga4.server";
 
 async function assertOrgAdmin(userId: string, clientId: string) {
   const { data: client } = await supabaseAdmin
@@ -183,8 +184,7 @@ export const ga4Summary = createServerFn({ method: "POST" })
 
       const { accessToken } = await getGoogleAccessToken(client.id);
 
-      const propertyId = client.ga4_property.replace(/^properties\//, "");
-      const url = `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`;
+      const url = ga4RunReportUrl(client.ga4_property);
 
       const res = await fetch(url, {
         method: "POST",
@@ -229,6 +229,8 @@ export const ga4Summary = createServerFn({ method: "POST" })
           engagedSessions: Number(row[2]?.value ?? 0),
           screenPageViews: Number(row[3]?.value ?? 0),
         },
+        // GA4-Coverage (21.09.2026): Kuerzung/Sampling laut responseMetaData.
+        coverage: ga4Coverage(json),
       };
     } catch (e) {
       return { ok: false, error: redactSecrets(e) };

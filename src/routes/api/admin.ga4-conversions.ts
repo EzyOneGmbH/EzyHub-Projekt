@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
+import { ga4CoverageSammler, ga4RunReportUrl } from "@/server/ga4.server";
 
 // GA4-Conversions je Kunde für den Admin-Bereich (05.08.2026).
 //
@@ -130,18 +131,15 @@ export const Route = createFileRoute("/api/admin/ga4-conversions")({
           gaFetch(
             `https://analyticsadmin.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}/keyEvents?pageSize=200`,
           ),
-          gaFetch(
-            `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`,
-            {
-              method: "POST",
-              body: JSON.stringify({
-                dateRanges: [ga4DateRange(zeitraum({ days: 30 }))], // 13.09.: genau 30 Tage
-                dimensions: [{ name: "eventName" }],
-                metrics: [{ name: "keyEvents" }, { name: "eventValue" }, { name: "totalRevenue" }],
-                limit: 500,
-              }),
-            },
-          ),
+          gaFetch(ga4RunReportUrl(propertyId), {
+            method: "POST",
+            body: JSON.stringify({
+              dateRanges: [ga4DateRange(zeitraum({ days: 30 }))], // 13.09.: genau 30 Tage
+              dimensions: [{ name: "eventName" }],
+              metrics: [{ name: "keyEvents" }, { name: "eventValue" }, { name: "totalRevenue" }],
+              limit: 500,
+            }),
+          }),
           gaFetch(
             `https://analyticsadmin.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}/customDimensions?pageSize=200`,
           ),
@@ -158,9 +156,11 @@ export const Route = createFileRoute("/api/admin/ga4-conversions")({
               defaultCurrency: String(k?.defaultValue?.currencyCode || ""),
             });
         }
+        // GA4-Coverage (21.09.2026): Kuerzung/Sampling der 30-Tage-Zaehlung mitliefern.
+        const cov = ga4CoverageSammler();
         const counts = new Map<string, { count: number; gaValue: number }>();
         if (repRes.ok) {
-          const j: any = await repRes.json().catch(() => ({}));
+          const j: any = cov.erfasse(await repRes.json().catch(() => ({})));
           for (const row of j.rows ?? []) {
             const name = String(row.dimensionValues?.[0]?.value ?? "");
             const n = Number(row.metricValues?.[0]?.value ?? 0);
@@ -207,6 +207,7 @@ export const Route = createFileRoute("/api/admin/ga4-conversions")({
           client: client.name,
           events,
           setup: { dlValue },
+          coverage: cov.coverage(),
         });
       },
 

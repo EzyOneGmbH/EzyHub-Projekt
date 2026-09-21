@@ -1,3 +1,4 @@
+import { adsApiBase } from "./google-ads-api.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "./google-tokens.server";
 
@@ -14,7 +15,7 @@ import { getGoogleAccessToken } from "./google-tokens.server";
 // KWPLAN_CLIENT_ID (clients.id) legt das Konto fest; ohne Vorgabe wird das
 // erste Konto genommen, dessen Aufruf gelingt, und 6 h gemerkt.
 
-const ADS_API = "https://googleads.googleapis.com/v24";
+// Basis-URL zentral versioniert (21.09.2026): google-ads-api.server.ts (v25; Env-Override GOOGLE_ADS_API_VERSION).
 
 // Google-Sprachkonstanten (languageConstants/<id>).
 const LANGUAGE_IDS: Record<string, number> = {
@@ -120,7 +121,7 @@ async function callPlanner(
   }
   const loginCustomerId = (process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || "").replace(/\D/g, "");
   const res = await fetch(
-    `${ADS_API}/customers/${cand.customer}:generateKeywordHistoricalMetrics`,
+    `${adsApiBase()}/customers/${cand.customer}:generateKeywordHistoricalMetrics`,
     {
       method: "POST",
       headers: {

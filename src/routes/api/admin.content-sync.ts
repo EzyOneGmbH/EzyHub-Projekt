@@ -24,11 +24,15 @@ const Body = z.object({
   jobs: z.array(z.enum(["discover", "metrics", "inspect", "backfill", "sitemaps"])).optional(),
   perPage: z.number().int().min(1).max(100).default(100), // WP-Posts pro Seite
   maxPages: z.number().int().min(1).max(20).default(10), // WP-Pagination-Cap
-  // URL-Inspections je Kunde und Lauf. Default bewusst 25: jede Inspection
-  // kostet ~1,5s, und der Lovable-Gateway kappt bei ~300s — mit 50 lief
-  // Studioforma (95 Artikel) im Test in den Timeout. 25/Lauf rotiert den
-  // Bestand in wenigen Tagen durch und bleibt weit unter der GSC-Quota.
-  inspectLimit: z.number().int().min(1).max(200).default(25),
+  // URL-Inspections je Kunde und Lauf. Offizielle Quota der URL Inspection API
+  // (https://developers.google.com/webmaster-tools/limits, Stand 21.09.2026):
+  // 2000 Abfragen/Tag und 600/Minute je Property. jobInspect laeuft
+  // SEQUENZIELL (~1,5 s je Inspection, also ~40/Min) — die Minuten-Quota ist
+  // damit unerreichbar; 500/Lauf bleibt auch bei mehreren Laeufen/Tag unter
+  // der Tages-Quota. Default 100 (21.09.2026, vorher 25): ~150 s je Kunde —
+  // beim Lovable-Gateway (~300 s Kappung) fuer Einzelkunden-Laeufe im Rahmen;
+  // bei all:true oder ueber den verwalteten Worker ohne Gateway kein Thema.
+  inspectLimit: z.number().int().min(1).max(500).default(100),
   backfillDays: z.number().int().min(28).max(480).default(90), // GSC-Historie (max ~16 Monate)
   // Sitemap-Einreichung (Nutzerentscheid 04.08.):
   //   "auto"  = nur bei Kunden mit autonom geschaltetem SEO-Agenten einreichen,

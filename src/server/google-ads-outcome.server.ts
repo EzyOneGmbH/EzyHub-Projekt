@@ -1,3 +1,4 @@
+import { adsApiBase } from "./google-ads-api.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "./google-tokens.server";
 
@@ -8,7 +9,7 @@ import { getGoogleAccessToken } from "./google-tokens.server";
 // aus der die Freischaltkriterien (limits.md 4.3) gerechnet werden.
 // Claude formuliert nur die Zusammenfassung im Monatsreport.
 
-const ADS_API = "https://googleads.googleapis.com/v24";
+// Basis-URL zentral versioniert (21.09.2026): google-ads-api.server.ts (v25; Env-Override GOOGLE_ADS_API_VERSION).
 const MICROS = 1_000_000;
 // Phase 2: negative_keyword_semantic wird wie die deterministischen Negatives
 // reviewt (vermiedene Verschwendung), erhaelt aber eine EIGENE Scorecard-Zeile
@@ -137,7 +138,7 @@ async function ctxFor(clientId: string, customer: string | null | undefined) {
   }
 }
 async function gaql(ctx: { customerId: string; headers: Record<string, string> }, q: string) {
-  const res = await fetch(`${ADS_API}/customers/${ctx.customerId}/googleAds:searchStream`, {
+  const res = await fetch(`${adsApiBase()}/customers/${ctx.customerId}/googleAds:searchStream`, {
     method: "POST",
     headers: ctx.headers,
     body: JSON.stringify({ query: q }),

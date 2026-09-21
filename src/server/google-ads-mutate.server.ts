@@ -1,3 +1,4 @@
+import { adsApiBase } from "./google-ads-api.server";
 import { getGoogleAccessToken } from "./google-tokens.server";
 
 // Google Ads WRITE operations for the Autopilot: add negative keyword, adjust
@@ -6,7 +7,7 @@ import { getGoogleAccessToken } from "./google-tokens.server";
 // supports dryRun (returns before/after WITHOUT mutating) and a noTouch guard.
 // Requires GOOGLE_ADS_DEVELOPER_TOKEN; optional GOOGLE_ADS_LOGIN_CUSTOMER_ID (MCC).
 
-const ADS_API = "https://googleads.googleapis.com/v24";
+// Basis-URL zentral versioniert (21.09.2026): google-ads-api.server.ts (v25; Env-Override GOOGLE_ADS_API_VERSION).
 const MICROS = 1_000_000;
 export const MAX_BID_PCT = 15;
 
@@ -67,7 +68,7 @@ function headers(ctx: Ctx): Record<string, string> {
 }
 
 async function query(ctx: Ctx, gaql: string): Promise<Array<Record<string, any>>> {
-  const res = await fetch(`${ADS_API}/customers/${ctx.customerId}/googleAds:searchStream`, {
+  const res = await fetch(`${adsApiBase()}/customers/${ctx.customerId}/googleAds:searchStream`, {
     method: "POST",
     headers: headers(ctx),
     body: JSON.stringify({ query: gaql }),
@@ -81,7 +82,7 @@ async function query(ctx: Ctx, gaql: string): Promise<Array<Record<string, any>>
 }
 
 async function mutate(ctx: Ctx, resource: string, operations: unknown[]): Promise<void> {
-  const res = await fetch(`${ADS_API}/customers/${ctx.customerId}/${resource}:mutate`, {
+  const res = await fetch(`${adsApiBase()}/customers/${ctx.customerId}/${resource}:mutate`, {
     method: "POST",
     headers: headers(ctx),
     body: JSON.stringify({ operations }),

@@ -1,3 +1,4 @@
+import { adsApiBase } from "./google-ads-api.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   openRecommendationsBlock,
@@ -10,6 +11,8 @@ import {
 } from "./google-ads-budget.server";
 import { getGoogleAccessToken } from "./google-tokens.server";
 import { addNegativeKeyword, setCampaignBudget } from "./google-ads-mutate.server";
+import { gaqlBetween, zeitraum } from "@/lib/date-range";
+import { parseCampaignFlags, type AdsCampaignFlags } from "./google-ads.server";
 import {
   computeBudgetPacing,
   computeEffectiveDryRun,
@@ -25,7 +28,7 @@ import {
 // added on top by the Claude skill in the agent-service, which calls the same
 // execute/log surface via /api/google/ads-autopilot-*.
 
-const ADS_API = "https://googleads.googleapis.com/v24";
+// Basis-URL zentral versioniert (21.09.2026): google-ads-api.server.ts (v25; Env-Override GOOGLE_ADS_API_VERSION).
 const MICROS = 1_000_000;
 const MAX_NEGATIVES_PER_RUN = 20;
 // Phase 1.4: Spend-Summen zweier unabhaengiger Abfragen duerfen max. 5% abweichen,
@@ -42,6 +45,14 @@ const LEARNING_STATUSES = new Set([
 export function bidWritesEnabled(): boolean {
   return process.env.ADS_BID_WRITES_ENABLED === "true";
 }
+// 21.09.2026: campaign_search_term_insight (v25) liefert Kategorie-Ebene je
+// PMax-Kampagne. Der Hinweis wandert mit dem Block in Summary/Report.
+export const PMAX_INSIGHT_HINWEIS =
+  "PMax-Suchbegriffs-Insights (campaign_search_term_insight, v25): Google gruppiert " +
+  "Suchbegriffe je Kampagne zu Kategorien; die Catch-all-Kategorie hat ein leeres Label. " +
+  "Klicks/Impressionen/Conversions gelten je Kampagne und Kategorie und sind NICHT ueber " +
+  "Kampagnen hinweg oder mit search_term_view/Konto-Totalen aggregierbar (Ueberschneidungen, " +
+  "eingeschraenkte Verfuegbarkeit ab Maerz 2023).";
 
 export type AutopilotConfig = {
   client_id: string;
@@ -198,6 +209,10 @@ export type AutopilotData = {
     impressions: number;
     conversions: number;
   }>;
+  /** Fenster der PMax-Insights (inklusiv, 30 Tage bis gestern) */
+  pmaxSearchThemesWindow?: { from: string; to: string };
+  /** v25 nur lesend: Brand Guidelines (PMax) + NCA-Ziel je Kampagne (fail-soft) */
+  campaignFlags?: AdsCampaignFlags[];
   geoPerformance: Array<{
     location: string;
     costChf: number;
@@ -278,7 +293,7 @@ async function search(
   ctx: { customerId: string; loginCustomerId: string; accessToken: string; devToken: string },
   gaql: string,
 ): Promise<Array<Record<string, any>>> {
-  const res = await fetch(`${ADS_API}/customers/${ctx.customerId}/googleAds:searchStream`, {
+  const res = await fetch(`${adsApiBase()}/customers/${ctx.customerId}/googleAds:searchStream`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${ctx.accessToken}`,
@@ -1170,7 +1185,11 @@ export async function fetchAutopilotData(
     // 9) PMax-Suchthemen-Insights (Kategorie-Ebene). Die API verlangt einen
     //    campaign_id-Filter je Abfrage -> erst PMax-Kampagnen holen, dann je
     //    Kampagne (max. 5, nach Status) die Insight-Kategorien.
+    //    21.09.2026: Zeitraum ueber gaqlBetween (genau 30 inklusive Tage bis
+    //    gestern) statt DURING LAST_30_DAYS; Hinweis zur Aggregierbarkeit s. o.
     await soft("pmax_search_themes", async () => {
+      const fenster = zeitraum({ days: 30, endLagDays: 1 });
+      data.pmaxSearchThemesWindow = { from: fenster.startDate, to: fenster.endDate };
       const pmax = await search(
         ctx,
         `SELECT campaign.id, campaign.name FROM campaign
@@ -1185,7 +1204,7 @@ export async function fetchAutopilotData(
           `SELECT campaign_search_term_insight.category_label,
                   metrics.clicks, metrics.impressions, metrics.conversions
            FROM campaign_search_term_insight
-           WHERE segments.date DURING LAST_30_DAYS
+           WHERE ${gaqlBetween(fenster)}
              AND campaign_search_term_insight.campaign_id = ${Number(campId)}
            ORDER BY metrics.clicks DESC LIMIT 10`,
         );
@@ -1199,6 +1218,28 @@ export async function fetchAutopilotData(
           });
         }
       }
+    });
+
+    // 10) v25 nur lesend (21.09.2026): Brand Guidelines (Campaign.brand_guidelines_enabled,
+    //     nur PMax) + NCA-Ziel ueber campaign_goal_config. Keine Mutationen.
+    await soft("campaign_flags", async () => {
+      const camps = await search(
+        ctx,
+        `SELECT campaign.id, campaign.name, campaign.advertising_channel_type, campaign.brand_guidelines_enabled
+         FROM campaign WHERE campaign.status IN ('ENABLED','PAUSED')`,
+      );
+      let goals: Array<Record<string, any>> = [];
+      try {
+        goals = await search(
+          ctx,
+          `SELECT campaign_goal_config.campaign, campaign_goal_config.goal_type FROM campaign_goal_config`,
+        );
+      } catch (e) {
+        data.dataSourceErrors.push(
+          `campaign_goal_config: ${(e instanceof Error ? e.message : String(e)).slice(0, 600)}`,
+        );
+      }
+      data.campaignFlags = parseCampaignFlags(camps, goals);
     });
 
     return { ok: true, data };
@@ -2030,6 +2071,9 @@ export type AutopilotRunSummary = {
     targetRoas: number | null;
     targetCpaChf: number | null;
     noTouch: boolean;
+    // v25 nur lesend (21.09.2026): null = Flag-Quelle nicht verfuegbar
+    brandGuidelinesEnabled: boolean | null;
+    ncaGoalActive: boolean | null;
   }>;
   // Phase B.2: Asset-Detail (Servings/Pinning/Abdeckung/PMax-Videos, L90)
   assetDetail?: AutopilotData["assetDetail"] | null;
@@ -2050,12 +2094,19 @@ export type AutopilotRunSummary = {
     roas: number | null;
     roasPrev: number | null;
   }>;
+  // «PMax-Suchbegriffs-Insights» (v25): Kategorie, Klicks, Impressionen,
+  // Conversions je PMax-Kampagne; Hinweis zur eingeschraenkten Aggregierbarkeit.
   pmaxSearchThemes?: Array<{
     campaign: string;
     category: string;
     clicks: number;
+    impressions: number;
     conversions: number;
   }>;
+  pmaxSearchThemesHinweis?: string;
+  pmaxSearchThemesWindow?: { from: string; to: string } | null;
+  // v25 nur lesend: Brand-Guidelines-/NCA-Flags je Kampagne (Kampagnen-Report)
+  campaignFlags?: AdsCampaignFlags[] | null;
   // Phase 1.4: Waechter-Kopfzeile "Waechter (letzte 7 Tage): X ok / Y warn / Z critical"
   guardian7d?: { ok: number; warn: number; critical: number };
   // Phase 2: Kandidaten fuer semantische Negatives (Kosten > 0, 0 Conv. im
@@ -2282,6 +2333,7 @@ export async function runAutopilot(
   }));
   // Kampagnen-Drilldown fuer EzyPerformance (eine Zeile je aktive Kampagne).
   const noTouchSet = new Set((cfg.no_touch_campaigns ?? []).map((n) => n.toLowerCase()));
+  const flagsByName = new Map((d3.campaignFlags ?? []).map((f) => [f.name, f]));
   base.campaignDetail = d3.campaigns.map((c) => ({
     name: c.name,
     dailyBudgetChf: Math.round(c.dailyBudgetChf * 100) / 100,
@@ -2297,6 +2349,8 @@ export async function runAutopilot(
     targetRoas: c.targetRoas ?? null,
     targetCpaChf: c.targetCpaChf ?? null,
     noTouch: noTouchSet.has(c.name.toLowerCase()),
+    brandGuidelinesEnabled: flagsByName.get(c.name)?.brandGuidelinesEnabled ?? null,
+    ncaGoalActive: flagsByName.get(c.name)?.ncaGoalActive ?? null,
   }));
   base.changeHistory = d3.changeHistory
     .slice(0, 20)
@@ -2335,8 +2389,12 @@ export async function runAutopilot(
     campaign: t.campaign,
     category: t.category,
     clicks: t.clicks,
+    impressions: t.impressions,
     conversions: t.conversions,
   }));
+  base.pmaxSearchThemesHinweis = PMAX_INSIGHT_HINWEIS;
+  base.pmaxSearchThemesWindow = d3.pmaxSearchThemesWindow ?? null;
+  base.campaignFlags = d3.campaignFlags ?? null;
 
   // Phase 1.4: Waechter-Bilanz der letzten 7 Tage fuer den Report-Kopf.
   try {
