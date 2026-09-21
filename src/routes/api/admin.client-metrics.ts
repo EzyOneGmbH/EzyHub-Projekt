@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { ahrefsAuth, fetchAhrefsLimits } from "@/server/backlink-overview.server";
 
 // Read-only metrics bridge for autonomous agents. Returns the latest stored
 // audit_runs results per type (GSC, GA4, GA4-Traffic, GA4-Conversions, Ahrefs,
@@ -66,8 +67,28 @@ export const Route = createFileRoute("/api/admin/client-metrics")({
           }
         }
 
+        // Ahrefs-Kontingent (21.09.2026): ?units=1 hängt Units-Limit/-Verbrauch/
+        // Reset-Datum an (subscription-info/limits-and-usage, kostenlos) — damit
+        // der Agent vor Backlink-Abrufen weiss, ob noch Kontingent da ist.
+        let ahrefsUnits: Record<string, unknown> | null = null;
+        if (url.searchParams.get("units") === "1") {
+          const auth = ahrefsAuth();
+          if (!auth) ahrefsUnits = { ok: false, error: "AHREFS_API_KEY not configured" };
+          else {
+            const r = await fetchAhrefsLimits(auth);
+            ahrefsUnits = r.ok ? { ok: true, ...r.units } : { ok: false, error: r.error };
+          }
+        }
+
         return Response.json(
-          { ok: true, clientId, generatedAt: new Date().toISOString(), dataDates: dates, metrics },
+          {
+            ok: true,
+            clientId,
+            generatedAt: new Date().toISOString(),
+            dataDates: dates,
+            metrics,
+            ...(ahrefsUnits ? { ahrefsUnits } : {}),
+          },
           { headers: { "Cache-Control": "no-store" } },
         );
       },

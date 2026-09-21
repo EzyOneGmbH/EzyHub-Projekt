@@ -2,17 +2,55 @@
 // Server-side Supabase client with service role key - bypasses RLS.
 // Use this for admin operations in server functions and server routes only.
 // For user-authenticated queries (with RLS), use the auth middleware instead.
+//
+// Bewusste Abweichung (21.09.2026, API-Key-Umstellung Supabase): der Server-
+// Key kommt zentral aus supabaseSecretKey() — neuer `sb_secret_…`-Key
+// (SUPABASE_SECRET_KEY) mit Fallback auf den Legacy-Service-Role-Key
+// (SUPABASE_SERVICE_ROLE_KEY). Bei einer Lovable-Regenerierung dieser Datei
+// die Helfer supabaseSecretKey()/supabaseKeyTyp() wieder ergänzen.
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "./types";
 
+/** Server-Key: sb_secret_… bevorzugt, Legacy-Service-Role als Fallback. */
+export function supabaseSecretKey(): string | undefined {
+  return process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || undefined;
+}
+
+export type SupabaseKeyTyp = {
+  /** Aktiver Server-Key: neu (sb_secret_…), legacy (Service-Role-JWT) oder fehlt. */
+  secret: "sb_secret" | "legacy_service_role" | "fehlt";
+  /** Aktiver Publishable-Key (Server-Env): neu (sb_publishable_…), legacy (anon-JWT) oder fehlt. */
+  publishable: "sb_publishable" | "legacy_anon" | "fehlt";
+};
+
+/** Welcher Key-Typ ist aktiv (für den Admin-Status; gibt nie Key-Werte zurück). */
+export function supabaseKeyTyp(): SupabaseKeyTyp {
+  const secret = supabaseSecretKey();
+  const pub = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || "";
+  return {
+    secret: !secret
+      ? "fehlt"
+      : secret.startsWith("sb_secret_")
+        ? "sb_secret"
+        : "legacy_service_role",
+    publishable: !pub
+      ? "fehlt"
+      : pub.startsWith("sb_publishable_")
+        ? "sb_publishable"
+        : "legacy_anon",
+  };
+}
+
 function createSupabaseAdminClient() {
   const SUPABASE_URL = process.env.SUPABASE_URL;
-  const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const SUPABASE_SERVICE_ROLE_KEY = supabaseSecretKey();
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     const missing = [
       ...(!SUPABASE_URL ? ["SUPABASE_URL"] : []),
-      ...(!SUPABASE_SERVICE_ROLE_KEY ? ["SUPABASE_SERVICE_ROLE_KEY"] : []),
+      ...(!SUPABASE_SERVICE_ROLE_KEY
+        ? ["SUPABASE_SECRET_KEY (oder SUPABASE_SERVICE_ROLE_KEY)"]
+        : []),
     ];
     const message = `Missing Supabase environment variable(s): ${missing.join(", ")}. Connect Supabase in Lovable Cloud.`;
     console.error(`[Supabase] ${message}`);

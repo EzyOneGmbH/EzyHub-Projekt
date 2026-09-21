@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireTeamRole } from "@/server/team-guard.server";
+import { supabaseKeyTyp, type SupabaseKeyTyp } from "@/integrations/supabase/client.server";
+import { fetchAhrefsLimits, type AhrefsUnits } from "@/server/backlink-overview.server";
 
 type ProbeResult = {
   configured: boolean;
@@ -7,6 +9,8 @@ type ProbeResult = {
   status?: number;
   error?: string;
   latency_ms?: number;
+  /** Zusatzinformationen (z. B. Ahrefs-Kontingent) — nie Secrets. */
+  details?: Record<string, unknown>;
 };
 
 type LiveStatus = {
@@ -21,6 +25,8 @@ type LiveStatus = {
     ahrefs: ProbeResult;
     google_oauth: ProbeResult;
   };
+  /** Supabase-API-Key-Umstellung (21.09.2026): welcher Key-Typ serverseitig aktiv ist. */
+  supabase_keys: SupabaseKeyTyp;
 };
 
 /**
@@ -83,6 +89,10 @@ async function probeGemini(key?: string): Promise<ProbeResult> {
   );
 }
 
+// OpenAI: reiner Schlüssel-/Erreichbarkeits-Check über /v1/models (kostenlos).
+// Die Markennennungs-Messung selbst läuft seit 21.09.2026 über /v1/responses
+// (admin.aivis-sync.ts) — chat/completions bleibt unterstützt, Tool-Calling
+// (Web-Suche) gibt es bei neuen Modellen aber nur noch in der Responses-API.
 async function probeOpenAI(key?: string): Promise<ProbeResult> {
   if (!key) return { configured: false, ok: false, error: "OPENAI_API_KEY not configured" };
   return timedFetch(
@@ -155,13 +165,39 @@ async function probeDataForSEO(login?: string, pass?: string): Promise<ProbeResu
 
 // 2026-09-09: Ahrefs wieder aktiv (Backlinks & Autorität, Site-Audit, Brand
 // Radar). limits-and-usage ist der leichtgewichtige Schlüssel-/Kontingent-Check.
+// 21.09.2026: die Antwort wird ausgewertet — details trägt Units-Limit,
+// -Verbrauch, Anteil und Reset-Datum (Endpunkt ist kostenlos, keine Units).
 async function probeAhrefs(key?: string): Promise<ProbeResult> {
   if (!key) return { configured: false, ok: false, error: "AHREFS_API_KEY not configured" };
-  return timedFetch(
-    "https://api.ahrefs.com/v3/subscription-info/limits-and-usage",
-    { method: "GET", headers: { Authorization: `Bearer ${key}`, Accept: "application/json" } },
-    [key],
-  );
+  const start = Date.now();
+  const r = await fetchAhrefsLimits(`Bearer ${key}`, 6000);
+  const latency_ms = Date.now() - start;
+  if (!r.ok) {
+    return {
+      configured: true,
+      ok: false,
+      status: r.status,
+      latency_ms,
+      error: redact(r.error, [key]),
+    };
+  }
+  const u: AhrefsUnits = r.units;
+  return {
+    configured: true,
+    ok: true,
+    status: r.status,
+    latency_ms,
+    details: {
+      subscription: u.subscription,
+      units_limit: u.units_limit_api_key,
+      units_usage: u.units_usage_api_key,
+      units_verbrauch_anteil: u.verbrauchAnteil,
+      units_limit_workspace: u.units_limit_workspace,
+      units_usage_workspace: u.units_usage_workspace,
+      usage_reset_date: u.usage_reset_date,
+      api_key_expiration_date: u.api_key_expiration_date,
+    },
+  };
 }
 
 function reportGoogleOAuth(
@@ -224,6 +260,7 @@ export const Route = createFileRoute("/api/live/status")({
             ahrefs: ah,
             google_oauth: reportGoogleOAuth(gClientId, gClientSecret, gRedirect),
           },
+          supabase_keys: supabaseKeyTyp(),
         };
 
         return new Response(JSON.stringify(result), {

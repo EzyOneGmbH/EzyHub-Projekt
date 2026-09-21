@@ -20,10 +20,18 @@ import { zeitraum, zeitraumAusParams } from "@/lib/date-range";
 //   bzw. /activate, Budget in *_spend_limit_micros, Konto-Wahl via Header
 //   OpenAI-Ad-Account, Insights via /ad_account/insights (aggregation_level).
 //
-// MOCK-MODUS (CH-Freischaltung ausstehend): action "connect" mit apiKey
-// "mock" legt ein Demo-Konto mit deterministischen Kampagnen/Insights an
-// (is_mock=true) — UI/Flows sind damit End-to-End testbar; Commands aendern
-// im Mock nur die DB. Nach Freischaltung: echtes Konto verbinden, fertig.
+// MOCK-MODUS: action "connect" mit apiKey "mock" legt ein Demo-Konto mit
+// deterministischen Kampagnen/Insights an (is_mock=true) — UI/Flows sind
+// damit End-to-End testbar; Commands aendern im Mock nur die DB.
+// API-Stand 09/2026 (21.09.2026): Der Ads-Manager-Self-Service ist seit
+// 02.09.2026 auch in der Schweiz verfuegbar (help.openai.com «Ads Manager
+// availability») — die fruehere Annahme «CH nicht freigeschaltet» gilt nicht
+// mehr, ein echtes Konto laesst sich direkt verbinden; der Mock bleibt nur
+// fuer Demo/E2E. Personalisierte Anzeigen (Custom Audiences) sind in EEA/CH
+// laut developers.openai.com/ads/custom-audiences NICHT verfuegbar — die
+// Audience-Zuweisung liefert dafuer einen Hinweis (personalisierungsHinweis).
+// Plattform-Targeting kennt laut developers.openai.com/ads/campaign-targeting
+// nur `ios_app` | `android_app` | `web` (targeting.platforms.included).
 //
 // AUSBAU 01.09.2026 (API-Neuerungen, Doku developers.openai.com/ads geprüft):
 // - Geo-Targeting: GET /geo_lookup/search?q= liefert Locations (country/
@@ -87,8 +95,12 @@ async function adsFetch(
   for (const [k, v] of Object.entries(opts.query || {}))
     for (const one of Array.isArray(v) ? v : [v]) sp.append(k, one);
   const qs = opts.query ? `?${sp}` : "";
-  // 429 → exponentielles Retry (Spec §2.5: 600/min pro Endpoint — Sync ist
-  // seriell, trotzdem defensiv), 3 Versuche.
+  // 429 → exponentielles Retry (Doku api-overview: 600/min pro Endpoint,
+  // 1'200/min gesamt, je Ad-Account UND IP — Sync ist seriell, trotzdem
+  // defensiv), max. 3 Wiederholungen (1 s / 2 s / 4 s); ein Retry-After-
+  // Header des Servers hat Vorrang (gedeckelt auf 15 s). Der Idempotency-Key
+  // (opts.headers) wird bei Wiederholungen unverändert mitgesendet — genau
+  // die Doku-Regel «reuse that key and the same request when retrying».
   for (let attempt = 0; ; attempt++) {
     const r = await fetch(`${ADS_API}${path}${qs}`, {
       method: opts.method || "GET",
@@ -102,7 +114,9 @@ async function adsFetch(
       signal: AbortSignal.timeout(30_000),
     });
     if (r.status === 429 && attempt < 3) {
-      await new Promise((res) => setTimeout(res, 1000 * 2 ** attempt));
+      const retryAfter = Number(r.headers.get("retry-after") || 0);
+      const waitMs = retryAfter > 0 ? Math.min(15_000, retryAfter * 1000) : 1000 * 2 ** attempt;
+      await new Promise((res) => setTimeout(res, waitMs));
       continue;
     }
     const json = await r.json().catch(() => null);
@@ -143,6 +157,61 @@ async function idemKey(action: string, clientId: string, payload: unknown): Prom
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("")
     .slice(0, 48);
+}
+
+// EWR-Staaten + Schweiz: dort sind personalisierte Anzeigen (Custom Audiences)
+// laut OpenAI-Doku (custom-audiences, Stand 09/2026) nicht verfuegbar.
+const EEA_CH = new Set([
+  "AT",
+  "BE",
+  "BG",
+  "HR",
+  "CY",
+  "CZ",
+  "DK",
+  "EE",
+  "FI",
+  "FR",
+  "DE",
+  "GR",
+  "HU",
+  "IS",
+  "IE",
+  "IT",
+  "LV",
+  "LI",
+  "LT",
+  "LU",
+  "MT",
+  "NL",
+  "NO",
+  "PL",
+  "PT",
+  "RO",
+  "SK",
+  "SI",
+  "ES",
+  "SE",
+  "CH",
+]);
+
+/** Hinweistext fuer die Audience-Zuweisung: Kampagne ohne Geo-Einschraenkung
+ *  (weltweit) oder mit EWR/CH-Standort → personalisierte Auslieferung findet
+ *  dort nicht statt. null = kein Hinweis noetig. */
+function personalisierungsHinweis(locations: GeoLocation[] | null | undefined): string | null {
+  const locs = Array.isArray(locations) ? locations : [];
+  if (!locs.length)
+    return (
+      "Hinweis: Personalisierte Anzeigen (Custom Audiences) sind im EWR und in der Schweiz " +
+      "nicht verfuegbar — die Kampagne ist ohne Geo-Einschraenkung, dort wird die Zielgruppe " +
+      "nicht angewendet."
+    );
+  const betroffen = locs.filter((l) => l.country_code && EEA_CH.has(l.country_code.toUpperCase()));
+  if (!betroffen.length) return null;
+  return (
+    `Hinweis: Personalisierte Anzeigen (Custom Audiences) sind im EWR und in der Schweiz nicht ` +
+    `verfuegbar — fuer ${betroffen.map((l) => l.name).join(", ")} wird die Zielgruppe nicht angewendet.`
+  );
 }
 
 type ConvPreflight = { error?: string; warning?: string };
@@ -578,7 +647,7 @@ async function fetchAccountMeta(apiKey: string, adAccountId: string): Promise<Ac
   };
 }
 
-// ── Mock-Sync: deterministische Demo-Daten fuer UI/E2E bis zur Freischaltung ─
+// ── Mock-Sync: deterministische Demo-Daten fuer UI/E2E (Demo-Konto) ─────────
 async function mockSync(sb: any, acc: any): Promise<any> {
   const CAMPS = [
     { id: "cmp_mock_brand", name: "Brand Awareness CH", bidding: "cpm", daily: 50_000_000 },
@@ -1008,17 +1077,19 @@ async function runBulk(
   }
   const failed: string[] = [];
   let done = 0;
+  const bulkBody = {
+    partial_failure: true,
+    operations: targetIds.map((id, i) => ({
+      operation_id: `op-${i}-${id}`,
+      type: "campaign.update",
+      target_resource_id: id,
+      input: { status },
+    })),
+  };
   const job = await adsFetch(apiKey, acc.openai_ad_account_id, "/bulk_mutation_jobs", {
     method: "POST",
-    body: {
-      partial_failure: true,
-      operations: targetIds.map((id, i) => ({
-        operation_id: `op-${i}-${id}`,
-        type: "campaign.update",
-        target_resource_id: id,
-        input: { status },
-      })),
-    },
+    body: bulkBody,
+    headers: { "Idempotency-Key": await idemKey("bulk-job", acc.id, bulkBody) },
   });
   if (job.ok && job.json?.id) {
     // Asynchron: Job-Status pollen (max. ~40 s), dann Operationen auswerten.
@@ -1125,17 +1196,19 @@ async function createAudience(
   const up = await adsUpload(apiKey, acc.openai_ad_account_id, csv, filename, "custom_audience");
   const fileId = up.json?.file_id || up.json?.id;
   if (!up.ok || !fileId) return { ok: false, error: `Upload fehlgeschlagen (HTTP ${up.status})` };
+  const audBody = {
+    name: input.name,
+    description: input.description || undefined,
+    file_id: fileId,
+    identifier_type: input.identifierType,
+    filename,
+    mimetype: "text/csv",
+    file_size: Buffer.byteLength(csv, "utf8"),
+  };
   const cr = await adsFetch(apiKey, acc.openai_ad_account_id, "/custom_audiences", {
     method: "POST",
-    body: {
-      name: input.name,
-      description: input.description || undefined,
-      file_id: fileId,
-      identifier_type: input.identifierType,
-      filename,
-      mimetype: "text/csv",
-      file_size: Buffer.byteLength(csv, "utf8"),
-    },
+    body: audBody,
+    headers: { "Idempotency-Key": await idemKey("audience-create", acc.id, audBody) },
   });
   if (!cr.ok || !cr.json?.id)
     return {
@@ -1363,10 +1436,12 @@ const MOCK_SPLIT: Record<string, Array<[string, number]>> = {
     ["desktop", 0.36],
     ["tablet", 0.03],
   ],
+  // Plattform-Werte wie die API (campaign-targeting, Stand 09/2026):
+  // web | ios_app | android_app.
   platform: [
-    ["chatgpt_web", 0.55],
-    ["chatgpt_ios", 0.3],
-    ["chatgpt_android", 0.15],
+    ["web", 0.55],
+    ["ios_app", 0.3],
+    ["android_app", 0.15],
   ],
 };
 
@@ -1884,9 +1959,20 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
             },
             ctx.userId ?? null,
           );
-          return res.ok
-            ? Response.json({ ok: true })
-            : Response.json({ ok: false, error: res.error }, { status: 502 });
+          if (!res.ok) return Response.json({ ok: false, error: res.error }, { status: 502 });
+          // Audience-Zuweisung (21.09.2026): personalisierte Anzeigen sind in
+          // EWR/CH nicht verfuegbar — Hinweis aus den Kampagnen-Standorten.
+          let warning: string | null = null;
+          if (cmd === "set_audiences") {
+            const { data: k } = await sb
+              .from("chatgpt_ads_campaigns")
+              .select("targeting_locations")
+              .eq("account_id", acc.id)
+              .eq("openai_campaign_id", targetId)
+              .maybeSingle();
+            warning = personalisierungsHinweis(k?.targeting_locations as GeoLocation[] | null);
+          }
+          return Response.json(warning ? { ok: true, warning } : { ok: true });
         }
 
         if (action === "bulk") {
@@ -1972,7 +2058,12 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
             );
           const res = await createAudience(sb, acc, { name, description, identifierType, hashes });
           return res.ok
-            ? Response.json({ ok: true, audience: res.audience })
+            ? Response.json({
+                ok: true,
+                audience: res.audience,
+                // EWR/CH: Custom Audiences werden dort nicht angewendet (Doku 09/2026).
+                hinweis: personalisierungsHinweis([]),
+              })
             : Response.json({ ok: false, error: res.error }, { status: 502 });
         }
 
@@ -2023,7 +2114,13 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
               decryptSecret(acc.api_key_enc),
               acc.openai_ad_account_id,
               "/conversions/pixels",
-              { method: "POST", body: { name, client_type: "web" } },
+              {
+                method: "POST",
+                body: { name, client_type: "web" },
+                headers: {
+                  "Idempotency-Key": await idemKey("pixel-create", clientId, { name }),
+                },
+              },
             );
             if (!r.ok || !r.json?.pixel_id)
               return Response.json(
@@ -2075,7 +2172,13 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
             decryptSecret(acc.api_key_enc),
             acc.openai_ad_account_id,
             "/conversions/api_keys",
-            { method: "POST", body: { name: `EzyHub ${own.name}`.slice(0, 60) } },
+            {
+              method: "POST",
+              body: { name: `EzyHub ${own.name}`.slice(0, 60) },
+              // Bewusst pro Aufruf neu: ein zweiter Klick soll einen weiteren
+              // Key erzeugen duerfen (Rotation), nur Netz-Retries bleiben idempotent.
+              headers: { "Idempotency-Key": crypto.randomUUID() },
+            },
           );
           if (!r.ok || !r.json?.api_key)
             return Response.json(
@@ -2139,7 +2242,13 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
             decryptSecret(acc.api_key_enc),
             acc.openai_ad_account_id,
             "/conversions/event_settings",
-            { method: "POST", body: payload },
+            {
+              method: "POST",
+              body: payload,
+              headers: {
+                "Idempotency-Key": await idemKey("event-setting-create", clientId, payload),
+              },
+            },
           );
           if (!r.ok || !r.json?.id)
             return Response.json(

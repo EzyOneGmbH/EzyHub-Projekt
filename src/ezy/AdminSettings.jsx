@@ -263,6 +263,43 @@ export function SystemCheckPanel() {
           </span>
         </div>
       </div>
+      {/* Supabase-API-Keys (21.09.2026): anon/service_role laufen Ende 2026 aus —
+          zeigt, ob Server (sb_secret_) und Client (sb_publishable_) schon auf den
+          neuen Key-Typen sind. Nie Key-Werte, nur der Typ. */}
+      {data.supabaseKeys && (
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 10,
+            padding: "12px 16px",
+            marginBottom: 14,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>Supabase-API-Keys</div>
+            {pill(
+              data.supabaseKeys.secret === "sb_secret" ? C.green : C.orange,
+              data.supabaseKeys.secret === "sb_secret"
+                ? "Server: sb_secret (neu)"
+                : data.supabaseKeys.secret === "legacy_service_role"
+                  ? "Server: service_role (legacy, läuft Ende 2026 aus)"
+                  : "Server-Key fehlt",
+            )}
+            {pill(
+              data.supabaseKeys.publishable === "sb_publishable" ? C.green : C.orange,
+              data.supabaseKeys.publishable === "sb_publishable"
+                ? "Client: sb_publishable (neu)"
+                : data.supabaseKeys.publishable === "legacy_anon"
+                  ? "Client: anon (legacy, läuft Ende 2026 aus)"
+                  : "Publishable-Key fehlt",
+            )}
+            <span style={{ fontSize: 11, color: C.textMuted }}>
+              Umstellung: SUPABASE_SECRET_KEY / VITE_SUPABASE_PUBLISHABLE_KEY in der Lovable-Env
+            </span>
+          </div>
+        </div>
+      )}
       {/* Verwalteter Scheduler (13.09.2026): pg_cron/pg_net/Vault/Heartbeat/
           Watchdog/Sweep mit konkreten Fehlertexten (Quelle: scheduler_status RPC). */}
       {data.scheduler && (

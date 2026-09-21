@@ -64,12 +64,40 @@ export function buildOpenAiEvent(row: OpenAiAdsEventRow): Record<string, unknown
 export type SendResult = { ok: boolean; status: number; response: unknown };
 
 /** Sendet Events an die OpenAI Conversions API (validate_only fuer Tests). */
+// Conversions API (Doku 21.09.2026): max. 1000 Events je Request — ein
+// fehlerhaftes Event lässt den ganzen Batch scheitern. Grössere Listen werden
+// deshalb in Blöcke geteilt und sequenziell gesendet; das Ergebnis fasst alle
+// Blöcke zusammen (ok nur, wenn jeder Block ok war).
+export const CONVERSIONS_BATCH_MAX = 1000;
+
+export function teileInBloecke<T>(items: T[], groesse = CONVERSIONS_BATCH_MAX): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += groesse) out.push(items.slice(i, i + groesse));
+  return out;
+}
+
 export async function sendConversionEvents(
   pixelId: string,
   apiKey: string,
   events: Array<Record<string, unknown>>,
   validateOnly = false,
 ): Promise<SendResult> {
+  if (events.length > CONVERSIONS_BATCH_MAX) {
+    const teile: SendResult[] = [];
+    for (const block of teileInBloecke(events)) {
+      teile.push(await sendConversionEvents(pixelId, apiKey, block, validateOnly));
+    }
+    const fehl = teile.find((t) => !t.ok);
+    return {
+      ok: !fehl,
+      status: fehl ? fehl.status : (teile[0]?.status ?? 200),
+      response: {
+        batches: teile.length,
+        events: events.length,
+        results: teile.map((t) => t.response),
+      },
+    };
+  }
   const r = await fetch(`${OPENAI_CONVERSIONS_URL}?pid=${encodeURIComponent(pixelId)}`, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },

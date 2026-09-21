@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { canRunAudits } from "@/server/integrations.server";
+import { supabaseSecretKey } from "@/integrations/supabase/client.server";
 import {
   backlinkAuth,
   fetchBacklinkOverview,
@@ -17,6 +18,9 @@ import {
 
 const QuerySchema = z.object({
   clientId: z.string().uuid(),
+  // 21.09.2026: Spam-Domains (Ahrefs is_spam) aus der Top-Liste ausblenden;
+  // der Spam-Anteil (result.spam) wird unabhängig davon immer ausgewiesen.
+  ohneSpam: z.boolean().optional().default(true),
 });
 
 export const Route = createFileRoute("/api/ahrefs/overview")({
@@ -29,7 +33,9 @@ export const Route = createFileRoute("/api/ahrefs/overview")({
         }
 
         const supabaseUrl = process.env.SUPABASE_URL;
-        const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        // Zentraler Helfer (21.09.2026): sb_secret_… (SUPABASE_SECRET_KEY) mit
+        // Fallback auf den Legacy-Service-Role-Key.
+        const serviceKey = supabaseSecretKey();
         const anonKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
         if (!supabaseUrl || !serviceKey || !anonKey) {
           return Response.json({ error: "Server not configured" }, { status: 503 });
@@ -91,6 +97,7 @@ export const Route = createFileRoute("/api/ahrefs/overview")({
           domain,
           auth,
           provider,
+          { ohneSpam: parsed.data.ohneSpam },
         );
         const failMsg = `Alle Backlink-Sektionen fehlgeschlagen (${provider})`;
 

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { supabaseAdmin, supabaseKeyTyp } from "@/integrations/supabase/client.server";
 import { requireTeamRole } from "@/server/team-guard.server";
 import { secretStatus } from "@/server/secretbox.server";
 import { bewerteHeartbeat } from "@/server/worker-scheduler.server";
@@ -283,6 +283,9 @@ export const Route = createFileRoute("/api/admin/system-check")({
               strictModus: String(process.env.WP_SECRETS_STRICT || "") === "1",
               dedizierterSchluessel: Boolean(process.env.WP_SECRET_KEY_V1),
             },
+            // API-Key-Umstellung Supabase (21.09.2026): anon/service_role laufen Ende
+            // 2026 aus — hier sichtbar, welcher Key-Typ serverseitig/clientseitig aktiv ist.
+            supabaseKeys: supabaseKeyTyp(),
           },
           { headers: { "Cache-Control": "no-store" } },
         );

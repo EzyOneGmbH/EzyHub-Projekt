@@ -8,6 +8,7 @@ import {
   withConnected,
   type ClaudeSessionRow,
 } from "@/server/claude-sessions";
+import { supabaseSecretKey } from "@/integrations/supabase/client.server";
 
 // Heartbeat-Registry fuer Remote-Claude-Code-Sessions (iPhone-Widget).
 // POST: eine Session meldet sich (Hook in der Claude-Code-Umgebung, siehe
@@ -26,7 +27,8 @@ const HeartbeatBody = z.object({
 
 function adminClient() {
   const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  // API-Key-Umstellung (21.09.2026): sb_secret_… bevorzugt, Fallback service_role.
+  const key = supabaseSecretKey();
   if (!url || !key) return null;
   return createClient(url, key, {
     auth: { storage: undefined, persistSession: false, autoRefreshToken: false },

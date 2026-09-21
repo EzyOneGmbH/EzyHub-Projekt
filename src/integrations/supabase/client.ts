@@ -13,9 +13,14 @@ function createSupabaseClient() {
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdscmdjY211anp1d25oeXZ3eHlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwNzE4ODIsImV4cCI6MjA5MzY0Nzg4Mn0.AOITFOXW-8bzgMljEx7dQOd_snxoptGHKGcWLAXZqMA";
   const SUPABASE_URL =
     import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || FALLBACK_URL;
+  // API-Key-Umstellung Supabase (21.09.2026): zuerst der neue Publishable-Key
+  // (sb_publishable_…, VITE_SUPABASE_PUBLISHABLE_KEY), dann Legacy-Anon
+  // (VITE_SUPABASE_ANON_KEY / SUPABASE_ANON_KEY), zuletzt der public Fallback.
   const SUPABASE_PUBLISHABLE_KEY =
     import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    import.meta.env.VITE_SUPABASE_ANON_KEY ||
     process.env.SUPABASE_PUBLISHABLE_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
     FALLBACK_PUBLISHABLE_KEY;
 
   if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {

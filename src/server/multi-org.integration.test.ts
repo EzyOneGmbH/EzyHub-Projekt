@@ -92,7 +92,12 @@ const supabaseAdminStub = {
     },
   },
 };
-vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: supabaseAdminStub }));
+vi.mock("@/integrations/supabase/client.server", () => ({
+  supabaseAdmin: supabaseAdminStub,
+  // API-Key-Umstellung (21.09.): live.status liest den Key-Typ — im Test neutral.
+  supabaseSecretKey: () => "test-secret",
+  supabaseKeyTyp: () => ({ secret: "legacy_service_role", publishable: "legacy_anon" }),
+}));
 vi.mock("@supabase/supabase-js", () => ({
   createClient: (_u: string, _k: string, opts: any) => ({
     auth: {

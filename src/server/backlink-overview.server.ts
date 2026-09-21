@@ -8,7 +8,15 @@
 // source:"ahrefs". Die DataForSEO-Variante bleibt als Rückweg erhalten:
 // BACKLINK_PROVIDER=dataforseo in der Lovable-Env schaltet ohne Code zurück.
 //   Ahrefs:      site-explorer/domain-rating | backlinks-stats | refdomains-history | metrics
+//                + referring-domains (Spam-Anteil via `is_spam`, API-Stand 09/2026)
 //   DataForSEO:  backlinks/summary | backlinks/history | labs domain_rank_overview
+//
+// 2026-09-21 (API-Stand 09/2026): Ahrefs liefert auf den Backlink-Endpunkten
+// das Feld `is_spam` (boolean, «Backlink stammt von einer bekannten Spam-
+// Domain»; in Select UND Where-Filter erlaubt — Schema per offiziellem
+// Referenz-Doc verifiziert). Der Overview weist damit den Spam-Anteil aus
+// (spam.spamDomains / spam.spamAnteil) und blendet Spam-Domains in der
+// Top-Liste per Where-Filter aus (Parameter ohneSpam, Default true).
 
 const DFS_BASE = "https://api.dataforseo.com/v3";
 const AHREFS_BASE = "https://api.ahrefs.com/v3";
@@ -160,6 +168,20 @@ export async function fetchSistrixVisibility(
   }
 }
 
+/** Spam-Kennzahlen aus Ahrefs `is_spam` (nur Provider ahrefs, sonst null). */
+export type BacklinkSpamInfo = {
+  /** Anzahl live verlinkender Domains mit is_spam=true (gedeckelt, s. capped). */
+  spamDomains: number;
+  /** Anteil 0..1 an den live Referring Domains (backlinks_stats.live_refdomains); null ohne Basis. */
+  spamAnteil: number | null;
+  /** Basis der Anteilsrechnung (live_refdomains). */
+  liveRefdomains: number | null;
+  /** true = Zähl-Limit erreicht, spamDomains ist eine Untergrenze. */
+  capped: boolean;
+  /** Ob die Top-Liste (referring_domains) Spam-Domains per Where-Filter ausschliesst. */
+  ohneSpam: boolean;
+};
+
 export type BacklinkOverview = {
   generated_at: string;
   domain: string;
@@ -171,8 +193,17 @@ export type BacklinkOverview = {
   backlinks_stats: Record<string, unknown> | null;
   refdomains_history: Record<string, unknown> | null;
   metrics: Record<string, unknown> | null;
+  /** Top-Referring-Domains (Ahrefs, Rohantwort `refdomains[]` inkl. is_spam); null bei DataForSEO. */
+  referring_domains: Record<string, unknown> | null;
+  /** Spam-Anteil (Ahrefs is_spam); null bei DataForSEO oder Fehler. */
+  spam: BacklinkSpamInfo | null;
   errors: Record<string, string | null>;
   all_failed: boolean;
+};
+
+export type BacklinkOverviewOptions = {
+  /** Spam-Domains (is_spam=true) aus der Top-Liste ausschliessen. Default true. */
+  ohneSpam?: boolean;
 };
 
 // Provider-Weiche: Standard Ahrefs, DataForSEO nur per BACKLINK_PROVIDER.
@@ -180,14 +211,94 @@ export async function fetchBacklinkOverview(
   domain: string,
   auth: string,
   provider: BacklinkProvider = backlinkProvider(),
+  opts: BacklinkOverviewOptions = {},
 ): Promise<BacklinkOverview> {
   const [overview, sistrix] = await Promise.all([
     provider === "dataforseo"
       ? fetchBacklinkOverviewDfs(domain, auth)
-      : fetchBacklinkOverviewAhrefs(domain, auth),
+      : fetchBacklinkOverviewAhrefs(domain, auth, opts),
     fetchSistrixVisibility(domain),
   ]);
   return { ...overview, sistrix };
+}
+
+// Zähl-Deckel für die Spam-Zählung: Ahrefs verrechnet je gelieferter Zeile
+// eine Unit — die Zählung läuft deshalb NUR über is_spam=true-Zeilen (bei
+// seriösen Profilen wenige) und ist auf AHREFS_SPAM_COUNT_LIMIT gedeckelt.
+const SPAM_COUNT_LIMIT = Math.max(50, Number(process.env.AHREFS_SPAM_COUNT_LIMIT ?? 1000) || 1000);
+// Grösse der Top-Referring-Domains-Liste (DR absteigend).
+const TOP_REFDOMAINS_LIMIT = Math.max(
+  5,
+  Number(process.env.AHREFS_TOP_REFDOMAINS_LIMIT ?? 25) || 25,
+);
+
+/** Reine Rechenfunktion (testbar): Spam-Zeilen + live_refdomains -> Kennzahlen. */
+export function berechneSpam(
+  spamRows: number,
+  liveRefdomains: number | null | undefined,
+  ohneSpam: boolean,
+  limit: number = SPAM_COUNT_LIMIT,
+): BacklinkSpamInfo {
+  const basis =
+    typeof liveRefdomains === "number" && Number.isFinite(liveRefdomains) && liveRefdomains > 0
+      ? liveRefdomains
+      : null;
+  const spamDomains = Math.max(0, Math.floor(spamRows));
+  return {
+    spamDomains,
+    spamAnteil: basis ? Math.min(1, Math.round((spamDomains / basis) * 10000) / 10000) : null,
+    liveRefdomains: basis,
+    capped: spamDomains >= limit,
+    ohneSpam,
+  };
+}
+
+/** Kontingent-Auskunft `subscription-info/limits-and-usage` (kostenlos, keine
+ *  Units). Felder gemäss offiziellem Schema (verifiziert 21.09.2026). */
+export type AhrefsUnits = {
+  subscription: string | null;
+  units_limit_api_key: number | null;
+  units_usage_api_key: number | null;
+  units_limit_workspace: number | null;
+  units_usage_workspace: number | null;
+  /** Anteil 0..1 des API-Key-Kontingents (null bei unlimitiert). */
+  verbrauchAnteil: number | null;
+  usage_reset_date: string | null;
+  api_key_expiration_date: string | null;
+};
+
+export function parseAhrefsUnits(raw: unknown): AhrefsUnits | null {
+  const l = (raw as any)?.limits_and_usage;
+  if (!l || typeof l !== "object") return null;
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  const str = (v: unknown) => (typeof v === "string" && v ? v : null);
+  const limit = num(l.units_limit_api_key);
+  const usage = num(l.units_usage_api_key);
+  return {
+    subscription: str(l.subscription),
+    units_limit_api_key: limit,
+    units_usage_api_key: usage,
+    units_limit_workspace: num(l.units_limit_workspace),
+    units_usage_workspace: num(l.units_usage_workspace),
+    verbrauchAnteil:
+      limit && limit > 0 && usage != null ? Math.round((usage / limit) * 10000) / 10000 : null,
+    usage_reset_date: str(l.usage_reset_date),
+    api_key_expiration_date: str(l.api_key_expiration_date),
+  };
+}
+
+export async function fetchAhrefsLimits(
+  auth: string,
+  timeoutMs = 8000,
+): Promise<
+  { ok: true; units: AhrefsUnits; status: number } | { ok: false; error: string; status?: number }
+> {
+  const r = await ahrefsCall("subscription-info/limits-and-usage", {}, auth, timeoutMs);
+  if (!r.ok) return { ok: false, error: r.error, status: r.rate_limited ? 429 : undefined };
+  const units = parseAhrefsUnits(r.data);
+  return units
+    ? { ok: true, units, status: 200 }
+    : { ok: false, error: "limits_and_usage fehlt in der Antwort", status: 200 };
 }
 
 // Ahrefs: 4 Abrufe parallel, Rohantworten unverändert durchreichen (Form wie
@@ -198,7 +309,9 @@ export async function fetchBacklinkOverview(
 export async function fetchBacklinkOverviewAhrefs(
   domain: string,
   auth: string,
+  opts: BacklinkOverviewOptions = {},
 ): Promise<BacklinkOverview> {
+  const ohneSpam = opts.ohneSpam !== false;
   const date = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
   const dateFrom = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
 
@@ -230,22 +343,74 @@ export async function fetchBacklinkOverviewAhrefs(
     ahrefsCall("site-explorer/metrics", { target: domain, date, mode: "subdomains" }, auth),
   );
 
+  // Spam (API-Stand 09/2026, Feld `is_spam`): zwei Abrufe auf referring-domains.
+  //  a) Zählung: NUR is_spam=true-Zeilen (history=live), select=domain — Units
+  //     fallen je gelieferter Zeile an, deshalb gedeckelt (SPAM_COUNT_LIMIT).
+  //  b) Top-Liste nach DR (TOP_REFDOMAINS_LIMIT Zeilen) inkl. is_spam; bei
+  //     ohneSpam werden Spam-Domains per Where-Filter ausgeschlossen.
+  const whereSpam = JSON.stringify({ field: "is_spam", is: ["eq", true] });
+  const whereKeinSpam = JSON.stringify({ field: "is_spam", is: ["eq", false] });
+  const sp = await withRetry(() =>
+    ahrefsCall<{ refdomains?: unknown[] }>(
+      "site-explorer/referring-domains",
+      {
+        target: domain,
+        mode: "subdomains",
+        history: "live",
+        select: "domain",
+        where: whereSpam,
+        limit: String(SPAM_COUNT_LIMIT),
+      },
+      auth,
+    ),
+  );
+  const td = await withRetry(() =>
+    ahrefsCall<{ refdomains?: unknown[] }>(
+      "site-explorer/referring-domains",
+      {
+        target: domain,
+        mode: "subdomains",
+        history: "live",
+        select: "domain,domain_rating,links_to_target,first_seen,is_spam",
+        order_by: "domain_rating:desc",
+        limit: String(TOP_REFDOMAINS_LIMIT),
+        ...(ohneSpam ? { where: whereKeinSpam } : {}),
+      },
+      auth,
+    ),
+  );
+
+  const liveRefdomains = bl.ok ? Number((bl.data as any)?.metrics?.live_refdomains) : NaN;
+  const spam = sp.ok
+    ? berechneSpam(
+        Array.isArray(sp.data?.refdomains) ? sp.data.refdomains.length : 0,
+        Number.isFinite(liveRefdomains) ? liveRefdomains : null,
+        ohneSpam,
+      )
+    : null;
+
+  // all_failed/rate_limited bewerten weiterhin nur die vier Kern-Sektionen —
+  // die Spam-Abrufe sind Zusatzinformation und dürfen den Lauf nicht «failed» machen.
   const sections = [dr, bl, rd, mt];
   return {
     generated_at: new Date().toISOString(),
     domain,
     source: "ahrefs",
     sistrix: null,
-    rate_limited: sections.some((s) => !s.ok && s.rate_limited === true),
+    rate_limited: [...sections, sp, td].some((s) => !s.ok && s.rate_limited === true),
     domain_rating: dr.ok ? dr.data : null,
     backlinks_stats: bl.ok ? bl.data : null,
     refdomains_history: rd.ok ? rd.data : null,
     metrics: mt.ok ? mt.data : null,
+    referring_domains: td.ok ? (td.data as Record<string, unknown>) : null,
+    spam,
     errors: {
       domain_rating: dr.ok ? null : dr.error,
       backlinks_stats: bl.ok ? null : bl.error,
       refdomains_history: rd.ok ? null : rd.error,
       metrics: mt.ok ? null : mt.error,
+      referring_domains: td.ok ? null : td.error,
+      spam: sp.ok ? null : sp.error,
     },
     all_failed: sections.every((s) => !s.ok),
   };
@@ -323,11 +488,16 @@ export async function fetchBacklinkOverviewDfs(
     backlinks_stats,
     refdomains_history,
     metrics,
+    // is_spam ist Ahrefs-spezifisch — im DataForSEO-Rückweg nicht verfügbar.
+    referring_domains: null,
+    spam: null,
     errors: {
       domain_rating: summary.ok ? null : summary.error,
       backlinks_stats: summary.ok ? null : summary.error,
       refdomains_history: history.ok ? null : history.error,
       metrics: labs.ok ? null : labs.error,
+      referring_domains: null,
+      spam: null,
     },
     all_failed: !summary.ok && !history.ok && !labs.ok,
   };

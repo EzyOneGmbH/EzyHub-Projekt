@@ -240,6 +240,48 @@ async function brandRadar(path: string, params: Record<string, unknown>, key: st
   return { ok: true as const, data: (await r.json().catch(() => null)) as any };
 }
 
+// Brand-Radar-POST-Endpunkte (Citations, neu 13.06.2026): citations-overview
+// und citations-history sind laut offizieller Referenz POST mit JSON-Body —
+// `brands: [{ names: [...] }]` (das ist der Marken-Filter dieser Endpunkte;
+// ein Parameter «brand_filter» existiert dort NICHT, nur bei cited-domains),
+// `data_source: [...]`, `country: [...]`, `prompts: "custom"|"ahrefs"`.
+// UNITS: «Requests returning only custom prompt data are free, while requests
+// including Ahrefs prompt data follow standard API unit pricing» — deshalb
+// Default prompts=custom (unit-frei); AIVIS_BR_PROMPTS=ahrefs schaltet auf
+// den (kostenpflichtigen) Ahrefs-Korpus. Antworten werden wie die übrigen
+// Brand-Radar-Aufrufe je Lauf gecacht (BR_CACHE, 12 h, Schlüssel = Pfad+Body).
+const BR_PROMPTS: "custom" | "ahrefs" =
+  process.env.AIVIS_BR_PROMPTS === "ahrefs" ? "ahrefs" : "custom";
+const BR_CACHE_TTL_MS = 12 * 60 * 60_000;
+const BR_CACHE = new Map<string, { bis: number; data: any }>();
+async function brandRadarPost(path: string, body: Record<string, unknown>, key: string) {
+  const cacheKey = `${path}|${JSON.stringify(body)}`;
+  const hit = BR_CACHE.get(cacheKey);
+  if (hit && hit.bis > Date.now()) return { ok: true as const, data: hit.data, cached: true };
+  let r: Response;
+  try {
+    r = await fetch(`https://api.ahrefs.com/v3/brand-radar/${path}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(30_000),
+    });
+  } catch (e) {
+    return { ok: false as const, error: `fetch: ${String((e as any)?.message || e).slice(0, 80)}` };
+  }
+  if (!r.ok) {
+    const text = (await r.text().catch(() => "")).slice(0, 160);
+    return { ok: false as const, error: `HTTP ${r.status}: ${text}` };
+  }
+  const data = (await r.json().catch(() => null)) as any;
+  BR_CACHE.set(cacheKey, { bis: Date.now() + BR_CACHE_TTL_MS, data });
+  return { ok: true as const, data, cached: false };
+}
+
 // REST-Form nimmt den Brand als Plain-Namen (die entities-Struktur ist MCP-only).
 function brandName(c: any) {
   return String(c.name || "").trim() || cleanDomain(c.domain).split(".")[0];
@@ -1087,8 +1129,74 @@ async function jobBrandRadar(c: any, comps: string[] = []) {
     } else errors.push(`cited-pages: ${r.error}`);
   }
 
+  // 4) Citations-Overview + -History (Endpunkte neu 13.06.2026, eingebunden
+  //    21.09.2026): geschätzte Zitierungen der Marken-URLs je Modell und als
+  //    Tagesreihe (90 Tage). Marken-Filter = `brands` (Name + Domain), Länder
+  //    = COUNTRIES. prompts=custom ist unit-frei (s. brandRadarPost); mit
+  //    AIVIS_BR_PROMPTS=ahrefs kosten die Abfragen Units — dann greift der
+  //    Freshness-Guard des Laufs (minIntervalDays) als Kostenbremse.
+  const brands = [
+    {
+      names: [brand],
+      ...(domain ? { url_groups: [{ target: domain, scope: "subdomains" }] } : {}),
+    },
+  ];
+  const citationsOverview: Array<{ name: string; citations: number; onlyTarget: number }> = [];
+  let citationsHistory: Array<{ date: string; citations: number }> = [];
+  {
+    const base = {
+      brands,
+      country: COUNTRIES.map((co) => co.code),
+      prompts: BR_PROMPTS,
+    };
+    for (const s of SOURCES) {
+      const r = await brandRadarPost(
+        "citations-overview",
+        {
+          ...base,
+          select: ["brand", "total", "only_target_brand", "target_and_competitors_brands"],
+          data_source: [s.ds],
+        },
+        key,
+      );
+      if (!r.ok) {
+        errors.push(`citations-overview ${s.name}: ${r.error}`);
+        continue;
+      }
+      const m =
+        (r.data?.metrics ?? []).find((x: any) => String(x?.brand ?? "") === brand) ??
+        r.data?.metrics?.[0];
+      citationsOverview.push({
+        name: s.name,
+        citations: Number(m?.total ?? 0),
+        onlyTarget: Number(m?.only_target_brand ?? 0),
+      });
+    }
+    const dateFrom = new Date(Date.now() - 90 * 86400_000).toISOString().slice(0, 10);
+    const h = await brandRadarPost(
+      "citations-history",
+      { ...base, data_source: SOURCES.map((s) => s.ds), date_from: dateFrom },
+      key,
+    );
+    if (h.ok)
+      citationsHistory = (h.data?.metrics ?? [])
+        .map((x: any) => ({ date: String(x?.date ?? ""), citations: Number(x?.citations ?? 0) }))
+        .filter((x: any) => x.date);
+    else errors.push(`citations-history: ${h.error}`);
+  }
+
   const mentions = models.reduce((a, m) => a + m.mentions, 0);
-  return { models, mentions, citations, citedPagesCount: citedPages.length, citedPages, errors };
+  return {
+    models,
+    mentions,
+    citations,
+    citedPagesCount: citedPages.length,
+    citedPages,
+    citationsOverview,
+    citationsHistory,
+    citationsPrompts: BR_PROMPTS,
+    errors,
+  };
 }
 
 // ── br-Schicht NEU (2026-07-19): DataForSEO LLM Mentions statt Ahrefs BR ────
@@ -1630,7 +1738,12 @@ async function askGemini(
     : null;
 }
 
-// OpenAI-kompatible Chat-APIs (ChatGPT / Grok / DeepSeek) — ein Helfer.
+// OpenAI-kompatible Chat-APIs (Grok / DeepSeek) — ein Helfer. Seit 21.09.2026
+// läuft ChatGPT selbst NICHT mehr hier durch: OpenAI hält chat/completions
+// zwar weiter am Leben, Tool-Calling (Web-Suche) gibt es bei neuen Modellen
+// aber nur noch in /v1/responses — deshalb askOpenAIResponses() für alle
+// OpenAI-Markennennungs-Prompts (mit und ohne Web-Suche). Der Helfer bleibt
+// für Grok/DeepSeek (chat/completions-kompatibel) erhalten.
 async function askOpenAICompat(
   url: string,
   key: string | undefined,
@@ -1682,24 +1795,46 @@ async function askOpenAICompat(
   return text ? { text, sources: urlsIn(text), model: String(j?.model || model) } : null;
 }
 
-// ChatGPT MIT Web-Suche laeuft ueber die Responses-API (chat/completions
-// kennt kein Suchtool). Ohne WEB_SUCHE bleibt askOpenAICompat im Einsatz.
-async function askOpenAISearch(
+// Antworttext einer /v1/responses-Antwort: die SDKs bieten `output_text` als
+// Komfortfeld; die rohe HTTP-Antwort trägt den Text in output[].content[]
+// (type "output_text"). Beide Formen werden gelesen.
+function responsesOutputText(j: any): string {
+  if (typeof j?.output_text === "string" && j.output_text.trim()) return j.output_text.trim();
+  return ((j?.output ?? []) as any[])
+    .filter((o) => o?.type === "message")
+    .flatMap((o) => (o.content ?? []) as any[])
+    .filter((c) => c?.type === "output_text" || typeof c?.text === "string")
+    .map((c) => String(c?.text ?? ""))
+    .join(" ")
+    .trim();
+}
+
+// OpenAI /v1/responses (21.09.2026, API-Stand 09/2026): EIN Helfer für die
+// ChatGPT-Markennennungs-Prompts — mit Web-Suche (tools: web_search) oder
+// ohne (reines Modellwissen). Modell-Id unverändert gpt-5.1 (OPENAI_MODEL);
+// gpt-5-2025-08-07 und o3-* erreichen am 11.12.2026 ihr Sunset und werden
+// hier nicht verwendet. Fehlerform ({ error }) und recordUsage wie bisher,
+// damit withDfsRouting/Kosten-Digest unverändert greifen.
+async function askOpenAIResponses(
   prompt: string,
   maxTokens = 600,
+  opts: { webSearch?: boolean; temperature?: number } = {},
 ): Promise<{ text: string; sources: number; model?: string } | null> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return null;
+  const webSearch = opts.webSearch === true;
   const r = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: process.env.OPENAI_MODEL ?? "gpt-5.1",
       input: prompt,
-      tools: [{ type: "web_search" }],
+      ...(webSearch ? { tools: [{ type: "web_search" }] } : {}),
       max_output_tokens: maxTokens,
+      ...(opts.temperature != null ? { temperature: opts.temperature } : {}),
     }),
-    signal: AbortSignal.timeout(150_000),
+    // Mit Web-Suche bis 150 s (Suchlauf), ohne 120 s wie die übrigen Engines.
+    signal: AbortSignal.timeout(webSearch ? 150_000 : 120_000),
   });
   if (!r.ok)
     return {
@@ -1708,13 +1843,19 @@ async function askOpenAISearch(
       error: `ChatGPT HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 140)}`,
     } as any;
   const j: any = await r.json().catch(() => null);
-  const text = ((j?.output ?? []) as any[])
-    .filter((o) => o?.type === "message")
-    .flatMap((o) => (o.content ?? []).map((c: any) => String(c?.text ?? "")))
-    .join(" ")
-    .trim();
+  const text = responsesOutputText(j);
   recordUsage("ChatGPT", Number(j?.usage?.input_tokens || 0), Number(j?.usage?.output_tokens || 0));
   return text ? { text, sources: urlsIn(text), model: String(j?.model || "") } : null;
+}
+
+// ChatGPT MIT Web-Suche (Responses-API). Ohne WEB_SUCHE läuft seit 21.09.2026
+// ebenfalls /v1/responses (askOpenAIResponses ohne tools), nicht mehr
+// chat/completions.
+async function askOpenAISearch(
+  prompt: string,
+  maxTokens = 600,
+): Promise<{ text: string; sources: number; model?: string } | null> {
+  return askOpenAIResponses(prompt, maxTokens, { webSearch: true });
 }
 
 // Engines aktivieren sich automatisch, sobald der jeweilige Key in der Env liegt.
@@ -1848,16 +1989,10 @@ const PROMPT_ENGINES: Array<{
   { name: "Gemini", ask: withDfsRouting("Gemini", (p) => askGemini(p, ANSWER_MAX_TOKENS)) },
   {
     name: "ChatGPT",
+    // 21.09.2026: beide Wege über /v1/responses (chat/completions nur noch
+    // für Grok/DeepSeek, s. askOpenAICompat).
     ask: withDfsRouting("ChatGPT", (p) =>
-      WEB_SUCHE
-        ? askOpenAISearch(p, ANSWER_MAX_TOKENS)
-        : askOpenAICompat(
-            "https://api.openai.com/v1/chat/completions",
-            process.env.OPENAI_API_KEY,
-            process.env.OPENAI_MODEL ?? "gpt-5.1",
-            p,
-            ANSWER_MAX_TOKENS,
-          ),
+      WEB_SUCHE ? askOpenAISearch(p, ANSWER_MAX_TOKENS) : askOpenAIResponses(p, ANSWER_MAX_TOKENS),
     ),
   },
   {
@@ -1913,15 +2048,7 @@ async function askUtilityMeta(
         temperature,
       ),
     () => askPerplexity(prompt, maxTokens, temperature),
-    () =>
-      askOpenAICompat(
-        "https://api.openai.com/v1/chat/completions",
-        process.env.OPENAI_API_KEY,
-        process.env.OPENAI_MODEL ?? "gpt-5.1",
-        prompt,
-        maxTokens,
-        temperature,
-      ),
+    () => askOpenAIResponses(prompt, maxTokens, { temperature }),
     () => askGemini(prompt, maxTokens, temperature),
   ];
   for (const fn of chain) {
@@ -4301,9 +4428,15 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               ].filter(Boolean);
 
               // Job-Level-Deadlines (wie serp_ai): kein Job darf den Lauf endlos halten.
+              // 21.09.2026: AIVIS_AHREFS_BR=1 schaltet die br-Schicht auf den
+              // Ahrefs Brand Radar (jobBrandRadar inkl. Citations-Endpunkte);
+              // Default bleibt der DFS-Weg (bzw. skipped bei AIVIS_DFS=0), damit
+              // die Mess-Version unverändert bleibt.
               const br: any = wanted.includes("brand_radar")
-                ? await withDeadline(
-                    jobBrandRadarDfs(c, fixedComps),
+                ? await withDeadline<any>(
+                    process.env.AIVIS_AHREFS_BR === "1"
+                      ? jobBrandRadar(c, fixedComps)
+                      : jobBrandRadarDfs(c, fixedComps),
                     6 * 60_000,
                     "brand_radar",
                   ).catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }))
