@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.21.1",
+    version: "1.21.2",
     changelog: [
+      {
+        version: "1.21.2",
+        date: "2026-09-22",
+        note: "EzyAI Kundenansicht: die Kopfzeilen-Aktionen «LLM-Überblick», Benachrichtigungen und der EzyPilot-Knopf sind ausgeblendet; auf der Agentur-Übersicht bleiben sie",
+      },
       {
         version: "1.21.1",
         date: "2026-09-22",

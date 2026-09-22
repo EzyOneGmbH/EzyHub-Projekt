@@ -177,6 +177,10 @@ const DISABLED_CARDS = new Set(["seo-ki-matrix", "ki-crawler"]);
 // EzyAI-Kundenansicht ausgeblendet — Seitenleiste UND mobile Leiste. Der
 // Render-Zweig bleibt; ID entfernen = wieder sichtbar.
 const DISABLED_VIEWS = new Set(["agent"]);
+// Kopfzeilen-Aktionen, die in der KUNDENANSICHT ausgeblendet sind (Volkan
+// 22.09.): «LLM-Überblick», Benachrichtigungen, EzyPilot-Knopf. Auf der
+// Agentur-Übersicht («Alle Kunden») bleiben sie. Eintrag entfernen = sichtbar.
+const HIDDEN_HEADER_ACTIONS_IN_CLIENT_VIEW = new Set(["llm-ueberblick", "bell", "ezypilot"]);
 // Ads-Modus (ChatGPT Ads, 26.08.2026): eigene Bereichs-Nav — der Organic/Ads-
 // Schalter in der AppRail (unter der Trennlinie) wechselt zwischen den Welten.
 const ADS_NAV: Array<{ group: string; items: NavItem[] }> = [
@@ -5055,28 +5059,33 @@ function EzyAiApp() {
                       Report teilen
                     </button>
                   )}
-                  {!adsMode && (
-                    <a
-                      className="ezyai-hm"
-                      href="/llm-ueberblick"
-                      style={{
-                        fontSize: 12,
-                        color: S.mut,
-                        textDecoration: "none",
-                        border: `1px solid ${S.line}`,
-                        borderRadius: 8,
-                        padding: "6px 12px",
-                      }}
-                    >
-                      LLM-Überblick
-                    </a>
+                  {!adsMode &&
+                    (showAll || !HIDDEN_HEADER_ACTIONS_IN_CLIENT_VIEW.has("llm-ueberblick")) && (
+                      <a
+                        className="ezyai-hm"
+                        href="/llm-ueberblick"
+                        style={{
+                          fontSize: 12,
+                          color: S.mut,
+                          textDecoration: "none",
+                          border: `1px solid ${S.line}`,
+                          borderRadius: 8,
+                          padding: "6px 12px",
+                        }}
+                      >
+                        LLM-Überblick
+                      </a>
+                    )}
+                  {(showAll || !HIDDEN_HEADER_ACTIONS_IN_CLIENT_VIEW.has("bell")) && (
+                    <NotificationsBell S={S} />
                   )}
-                  <NotificationsBell S={S} />
                   {/* EzyPilot oben rechts — wie in EzyRank/EzyPerformance (Volkan 13.08.);
                     mobil versteckt (FAB in der Bottom-Bar). */}
-                  <span className="ezyai-hm" style={{ display: "inline-flex" }}>
-                    <EzyPilotButton />
-                  </span>
+                  {(showAll || !HIDDEN_HEADER_ACTIONS_IN_CLIENT_VIEW.has("ezypilot")) && (
+                    <span className="ezyai-hm" style={{ display: "inline-flex" }}>
+                      <EzyPilotButton />
+                    </span>
+                  )}
                 </div>
               </header>
 
