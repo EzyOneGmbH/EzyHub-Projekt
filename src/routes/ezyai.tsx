@@ -4280,8 +4280,7 @@ function AdsAgencyOverview({
       </div>
     );
 
-  const geld = (n: number, w: string) =>
-    `${w} ${n.toLocaleString("de-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const geld = (n: number) => n.toLocaleString("de-CH", { maximumFractionDigits: 0 });
   const zahl = (n: number) => n.toLocaleString("de-CH");
 
   return (
@@ -4420,8 +4419,8 @@ function AdsAgencyOverview({
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
               {[
                 {
-                  label: "Ausgaben",
-                  value: c.totals ? geld(c.totals.spend, c.currency) : null,
+                  label: `Ausgaben (${c.currency})`,
+                  value: c.totals ? geld(c.totals.spend) : null,
                 },
                 { label: "Klicks", value: c.totals ? zahl(c.totals.clicks) : null },
                 {
