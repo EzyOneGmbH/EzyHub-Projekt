@@ -17,7 +17,8 @@ export type ServiceKey =
   | "wordpress"
   | "canonry"
   | "ahrefs"
-  | "perplexity";
+  | "perplexity"
+  | "chatgpt-ads";
 
 export type ServiceDef = {
   key: ServiceKey;
@@ -29,6 +30,10 @@ export type ServiceDef = {
   /** Standardmaessig beim Anlegen vorausgewaehlt. */
   defaultOn: boolean;
   hint: string;
+  /** Opt-out-Dienst (22.09.): OHNE Zeile gilt er als AKTIV, nur eine explizite
+   *  Zeile enabled=false schaltet ihn ab. Fuer Freigaben, die standardmaessig
+   *  gelten sollen (ChatGPT-Ads-Schalter fuer Kundenlogins). */
+  optOut?: boolean;
 };
 
 export const SERVICE_CATALOG: ServiceDef[] = [
@@ -112,7 +117,21 @@ export const SERVICE_CATALOG: ServiceDef[] = [
     defaultOn: true,
     hint: "Globaler Perplexity-Key (AI-Visibility).",
   },
+  {
+    key: "chatgpt-ads",
+    label: "ChatGPT Ads für Kundenlogins",
+    parent: null,
+    connect: "auto",
+    defaultOn: true,
+    optOut: true,
+    hint: "Zeigt Kundenlogins in EzyAI den Organic/Ads-Schalter, sobald ein ChatGPT-Ads-Konto verbunden ist. Abschalten = Kunde sieht nur Organic.",
+  },
 ];
+
+/** Opt-out-Dienste: ohne Zeile aktiv, nur enabled=false schaltet ab. */
+export const OPT_OUT_SERVICES: ServiceKey[] = SERVICE_CATALOG.filter((s) => s.optOut).map(
+  (s) => s.key,
+);
 
 export const SERVICE_KEYS: ServiceKey[] = SERVICE_CATALOG.map((s) => s.key);
 

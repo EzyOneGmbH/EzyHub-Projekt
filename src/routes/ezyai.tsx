@@ -177,6 +177,10 @@ const DISABLED_CARDS = new Set(["seo-ki-matrix", "ki-crawler"]);
 // EzyAI-Kundenansicht ausgeblendet — Seitenleiste UND mobile Leiste. Der
 // Render-Zweig bleibt; ID entfernen = wieder sichtbar.
 const DISABLED_VIEWS = new Set(["agent"]);
+// Ads-Bereiche nur fuer Agentur-Rollen (22.09.): Zielgruppen und Einstellungen
+// schreiben ins Werbekonto — Kundenlogins bekommen Dashboard, Kampagnen,
+// Conversions und Event-Log schreibgeschuetzt.
+const ADS_NAV_INTERN = new Set(["ads-zielgruppen", "ads-einstellungen"]);
 // Kopfzeilen-Aktionen, die in der KUNDENANSICHT ausgeblendet sind (Volkan
 // 22.09.): «LLM-Überblick», Benachrichtigungen, EzyPilot-Knopf. Auf der
 // Agentur-Übersicht («Alle Kunden») bleiben sie. Eintrag entfernen = sichtbar.
@@ -4570,10 +4574,6 @@ function EzyAiApp() {
       /* egal */
     }
   }, [adsMode]);
-  // Kunden-Logins bleiben immer im Organic-Modus (auch bei geteiltem Browser-Stand).
-  useEffect(() => {
-    if (role === "viewer" && adsMode) setAdsMode(false);
-  }, [role, adsMode]);
   const [adsSection, setAdsSection] = useState("ads-overview");
   // Prompt-Kuration ist seit 18.08. der reguläre Bereich "Your Prompts" —
   // alle früheren "Prompts verwalten"-Einstiege führen hierhin.
@@ -4743,6 +4743,50 @@ function EzyAiApp() {
 
   const svc = useEzyServiceSettings(client?.id);
   const aivisOn = svc.loading || svc.enabled?.canonry || svc.enabled?.perplexity;
+  // Kundenlogins + Ads (Volkan 22.09.): der Organic/Ads-Schalter erscheint in der
+  // Kundenansicht, wenn am Kunden ein AKTIVES ChatGPT-Ads-Konto haengt UND der
+  // Dienst «chatgpt-ads» im Admin Center nicht abgeschaltet ist (Opt-out:
+  // ohne Zeile aktiv). Konto-Test ueber ?probe=1 — leicht, RLS-Kundensicht.
+  const [viewerAdsKonto, setViewerAdsKonto] = useState(false);
+  useEffect(() => {
+    if (role !== "viewer" || !client?.id) {
+      setViewerAdsKonto(false);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      try {
+        const session = (await supabase.auth.getSession()).data.session;
+        const r = await authedFetch(`/api/admin/chatgpt-ads?client=${client.id}&probe=1`, {
+          headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+        });
+        const j = await r.json().catch(() => ({}));
+        if (alive) setViewerAdsKonto(!!j?.connected);
+      } catch {
+        if (alive) setViewerAdsKonto(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [role, client?.id]);
+  const adsFuerKunde =
+    role !== "viewer" || (viewerAdsKonto && svc.enabled?.["chatgpt-ads"] !== false);
+  // Ohne Freigabe bleibt ein Kundenlogin im Organic-Modus (auch bei geteiltem
+  // Browser-Stand, der Ads persistiert hat).
+  useEffect(() => {
+    if (role === "viewer" && adsMode && !adsFuerKunde) setAdsMode(false);
+  }, [role, adsMode, adsFuerKunde]);
+  const adsNavFuerRolle = useMemo(
+    () =>
+      role === "viewer"
+        ? ADS_NAV.map((g) => ({
+            ...g,
+            items: g.items.filter((t) => !ADS_NAV_INTERN.has(t.id)),
+          })).filter((g) => g.items.length)
+        : ADS_NAV,
+    [role],
+  );
 
   if (authLoading || !session) return null;
   if (accessLoading || !canOpen("geo")) return null; // Guard-Redirect läuft
@@ -4832,8 +4876,8 @@ function EzyAiApp() {
               initials={initials(profile.name)}
               onLogout={() => supabase.auth.signOut()}
               railExtra={
-                // Kunden-Logins: kein Ads-Modus (Kampagnensteuerung ist intern).
-                role === "viewer" ? null : (
+                // Kunden-Logins: Schalter nur mit Freigabe (aktives Konto + Dienst an).
+                !adsFuerKunde ? null : (
                   <OrganicAdsSwitch
                     adsMode={adsMode}
                     onChange={(ads) => {
@@ -4847,7 +4891,7 @@ function EzyAiApp() {
                 showAll
                   ? null
                   : [
-                      ...(adsMode ? ADS_NAV : navOrganic).flatMap((g) =>
+                      ...(adsMode ? adsNavFuerRolle : navOrganic).flatMap((g) =>
                         g.items.map((t) => ({
                           id: `sec:${t.id}`,
                           label: t.badge && t.badge > 0 ? `${t.label} (${t.badge})` : t.label,
@@ -4909,7 +4953,7 @@ function EzyAiApp() {
                 {/* Bereichs-Chips nur mit gewähltem Kunden — "Alle Kunden" = leer.
                   Ads-Modus (26.08.): eigener Chip-Satz + kompakter Schalter. */}
                 <div style={{ display: "flex", gap: 6, alignItems: "center", overflowX: "auto" }}>
-                  {view !== "heute" && (
+                  {view !== "heute" && adsFuerKunde && (
                     <OrganicAdsSwitch
                       adsMode={adsMode}
                       onChange={(ads) => {
@@ -4921,7 +4965,7 @@ function EzyAiApp() {
                   )}
                   {!showAll &&
                     view !== "heute" &&
-                    (adsMode ? ADS_NAV : navOrganic)
+                    (adsMode ? adsNavFuerRolle : navOrganic)
                       .flatMap((g) => g.items)
                       .map((t) => {
                         const Icon = t.icon;

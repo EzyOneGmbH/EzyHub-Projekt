@@ -1789,6 +1789,15 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
           .eq("client_id", clientId)
           .maybeSingle();
         if (!acc) return Response.json({ ok: true, connected: false });
+        // Leichter Konto-Test (22.09.): nur OB ein aktives Konto haengt — fuer den
+        // Organic/Ads-Schalter in der Kundenansicht, ohne Insights zu laden.
+        // Auth wie GET (RLS-Kundensicht), also auch fuer Kundenlogins.
+        if (u.searchParams.get("probe") === "1")
+          return Response.json({
+            ok: true,
+            connected: String(acc.status) === "active",
+            isMock: !!acc.is_mock,
+          });
 
         // Zeitraum (13.09.2026, Vereinheitlichung): exakt + inklusiv, Default
         // 30 Tage; ungueltig/verdreht/Zukunft/zu lang → 400 statt Naeherung.

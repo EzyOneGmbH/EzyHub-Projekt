@@ -78,10 +78,14 @@ export default function EzyAiAdsOverview({
   clientId,
   range,
   S,
+  readOnly = false,
 }: {
   clientId: string;
   range: ResolvedRange;
   S: Tokens;
+  /** Kundenlogins (22.09.): keine Segmentierung — die laeuft ueber einen
+   *  Admin-POST (insights-breakdown); alles andere ist reines Lesen. */
+  readOnly?: boolean;
 }) {
   const [period, setPeriod] = useState<Period>("14");
   const [segment, setSegment] = useState<Segment>("none");
@@ -295,12 +299,18 @@ export default function EzyAiAdsOverview({
         <div style={{ fontWeight: 800, fontSize: 17, color: S.txt, marginRight: "auto" }}>
           Leistungstrend
         </div>
-        <select value={segment} onChange={(e) => setSegment(e.target.value as Segment)} style={sel}>
-          <option value="none">Keine Segmentierung</option>
-          <option value="country">Nach Land</option>
-          <option value="device">Nach Gerät</option>
-          <option value="platform">Nach Plattform</option>
-        </select>
+        {!readOnly && (
+          <select
+            value={segment}
+            onChange={(e) => setSegment(e.target.value as Segment)}
+            style={sel}
+          >
+            <option value="none">Keine Segmentierung</option>
+            <option value="country">Nach Land</option>
+            <option value="device">Nach Gerät</option>
+            <option value="platform">Nach Plattform</option>
+          </select>
+        )}
         <select
           value={campaignId}
           onChange={(e) => setCampaignId(e.target.value)}

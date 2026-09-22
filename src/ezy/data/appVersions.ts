@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.21.2",
+    version: "1.22.0",
     changelog: [
+      {
+        version: "1.22.0",
+        date: "2026-09-22",
+        note: "Kundenlogins mit ChatGPT-Ads-Konto sehen in EzyAI jetzt den Organic/Ads-Schalter und den Ads-Modus schreibgeschützt (Dashboard, Kampagnen, Conversions, Event-Log). Im Admin Center gibt es dafür den Dienst «ChatGPT Ads für Kundenlogins», standardmässig an, je Kunde abschaltbar",
+      },
       {
         version: "1.21.2",
         date: "2026-09-22",

@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { SERVICE_PARENT, type ServiceKey } from "@/lib/services";
+import { SERVICE_PARENT, type ServiceKey, OPT_OUT_SERVICES } from "@/lib/services";
 
 export function useEzyServiceMatrix() {
   const { organizationId, loading: authLoading } = useAuth();
@@ -40,6 +40,7 @@ export function useEzyServiceMatrix() {
       if (!matrix) return true;
       const raw = matrix[clientId] || {};
       return keys.some((k) => {
+        if (OPT_OUT_SERVICES.includes(k as ServiceKey)) return raw[k] !== false;
         if (Object.prototype.hasOwnProperty.call(raw, k)) return raw[k] === true;
         if (SERVICE_PARENT[k as ServiceKey] === "google") return raw.google === true;
         return false;

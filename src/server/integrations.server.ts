@@ -1,5 +1,11 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { GOOGLE_CHILDREN, SERVICE_PARENT, SERVICE_KEYS, type ServiceKey } from "@/lib/services";
+import {
+  GOOGLE_CHILDREN,
+  SERVICE_PARENT,
+  SERVICE_KEYS,
+  type ServiceKey,
+  OPT_OUT_SERVICES,
+} from "@/lib/services";
 
 /** Liest alle client_integrations-Zeilen eines Kunden als provider->enabled Map. */
 async function loadIntegrationMap(clientId: string): Promise<Record<string, boolean>> {
@@ -40,6 +46,8 @@ function resolveEnabled(map: Record<string, boolean>, provider: string): boolean
     if (Object.prototype.hasOwnProperty.call(map, provider)) return map[provider] === true;
     return map.google === true;
   }
+  // Opt-out-Dienste: ohne Zeile aktiv, nur enabled=false schaltet ab.
+  if (OPT_OUT_SERVICES.includes(provider as ServiceKey)) return map[provider] !== false;
   // Eigenstaendig.
   return map[provider] === true;
 }

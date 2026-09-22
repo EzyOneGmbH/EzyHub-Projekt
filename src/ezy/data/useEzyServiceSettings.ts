@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { SERVICE_KEYS, SERVICE_PARENT, type ServiceKey } from "@/lib/services";
+import { SERVICE_KEYS, SERVICE_PARENT, type ServiceKey, OPT_OUT_SERVICES } from "@/lib/services";
 
 // Granulare Service-Toggles pro Kunde (ga4/gsc/google-ads/gtm/gbp/bing/wordpress/
 // canonry/ahrefs/perplexity), gespeichert in client_integrations(provider,enabled).
@@ -9,6 +9,8 @@ import { SERVICE_KEYS, SERVICE_PARENT, type ServiceKey } from "@/lib/services";
 // gewinnt; feine Google-Kinder fallen sonst auf die grobe "google"-Zeile zurueck.
 
 function resolveClient(map: Record<string, boolean>, key: ServiceKey): boolean {
+  // Opt-out-Dienste: ohne Zeile aktiv, nur enabled=false schaltet ab.
+  if (OPT_OUT_SERVICES.includes(key)) return map[key] !== false;
   if (Object.prototype.hasOwnProperty.call(map, key)) return map[key] === true;
   if (SERVICE_PARENT[key] === "google") return map.google === true;
   return false;

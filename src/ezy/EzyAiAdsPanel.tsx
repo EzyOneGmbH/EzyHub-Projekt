@@ -166,7 +166,7 @@ export default function EzyAiAdsPanel({
   // Dashboard = Leistungstrend aus dem Advertiser-Konto — unabhängig von der
   // Pixel-Konfiguration (15.09.).
   if (section === "ads-overview")
-    return <EzyAiAdsOverview clientId={clientId} range={range} S={S} />;
+    return <EzyAiAdsOverview clientId={clientId} range={range} S={S} readOnly={!isOrgAdmin} />;
 
   // Einstellungen (15.09.): Pixel, Server-Key, Conversion-Events und der
   // Ingest-Token (steckt in der ConfigCard) an einem Ort.
@@ -193,7 +193,11 @@ export default function EzyAiAdsPanel({
           onSaved={refresh}
           intro={!data.configured}
         />
-        <SnippetCard S={S} card={card} pixelId={data.pixelId || null} clientId={clientId} />
+        {/* Einbau-Material nur fuer Admins — Kundenlogins (22.09.) sehen die
+            Conversions, aber nicht Snippet/Pruef-Knoepfe (die POSTen als Admin). */}
+        {isOrgAdmin && (
+          <SnippetCard S={S} card={card} pixelId={data.pixelId || null} clientId={clientId} />
+        )}
         <ReadinessCard S={S} card={card} clientId={clientId} clientName={clientName} />
       </div>
     );
@@ -243,7 +247,11 @@ export default function EzyAiAdsPanel({
             <EventsTable S={S} events={events} mode="conversions" />
           )}
         </div>
-        <SnippetCard S={S} card={card} pixelId={data.pixelId || null} clientId={clientId} />
+        {/* Einbau-Material nur fuer Admins — Kundenlogins (22.09.) sehen die
+            Conversions, aber nicht Snippet/Pruef-Knoepfe (die POSTen als Admin). */}
+        {isOrgAdmin && (
+          <SnippetCard S={S} card={card} pixelId={data.pixelId || null} clientId={clientId} />
+        )}
         <div style={{ ...card, fontSize: 12.5, color: S.mut }}>
           Pixel, Server-Key, Conversion-Events und der Ingest-Token werden im Bereich{" "}
           <b style={{ color: S.txt }}>Einstellungen</b> eingerichtet.
