@@ -4177,6 +4177,270 @@ function AiAgencyOverview({
   );
 }
 
+// ── Agentur-Übersicht Ads (Volkan 22.09., analog der Organic-Übersicht) ──────
+// «Alle Kunden» im Ads-Modus zeigt eine Kachel je AKTIVEM ChatGPT-Ads-Konto
+// mit Ausgaben / Impressionen / Klicks / Conversions der letzten 30 Tage.
+// Die Daten kommen über /api/admin/chatgpt-ads?overview=1 — die
+// chatgpt_ads_*-Tabellen sind service-role-only, der Browser darf sie nicht
+// direkt lesen. Ein Aufruf für alle Kunden, keiner je Kachel.
+type AdsOverviewRow = {
+  clientId: string;
+  clientName: string;
+  domain: string | null;
+  accountName: string;
+  currency: string;
+  isMock: boolean;
+  reviewStatus: string | null;
+  lastSyncedAt: string | null;
+  syncError: string | null;
+  activeCampaigns: number;
+  totals: {
+    impressions: number;
+    clicks: number;
+    spend: number;
+    conversions: number;
+    ctc: number;
+  } | null;
+};
+
+function AdsAgencyOverview({
+  onSelect,
+  S,
+}: {
+  onSelect: (id: string) => void;
+  S: Record<string, string>;
+}) {
+  const [rows, setRows] = useState<AdsOverviewRow[] | null>(null);
+  const [fehler, setFehler] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const session = (await supabase.auth.getSession()).data.session;
+        const r = await authedFetch("/api/admin/chatgpt-ads?overview=1", {
+          headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!alive) return;
+        if (j.ok) setRows(j.clients || []);
+        else setFehler(j.error || `HTTP ${r.status}`);
+      } catch (e: any) {
+        if (alive) setFehler(String(e?.message || e));
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (fehler)
+    return (
+      <div
+        style={{
+          background: S.panel,
+          border: `1px solid ${S.line}`,
+          borderRadius: 14,
+          padding: 30,
+          textAlign: "center",
+          maxWidth: 560,
+          margin: "40px auto 0",
+          fontSize: 13,
+          color: "#b91c1c",
+        }}
+      >
+        {fehler}
+      </div>
+    );
+  if (!rows)
+    return (
+      <div style={{ color: S.mut, fontSize: 13, padding: 60, textAlign: "center" }}>
+        Lade Ads-Konten…
+      </div>
+    );
+  if (!rows.length)
+    return (
+      <div
+        style={{
+          background: S.panel,
+          border: `1px solid ${S.line}`,
+          borderRadius: 14,
+          padding: 40,
+          textAlign: "center",
+          maxWidth: 560,
+          margin: "40px auto 0",
+        }}
+      >
+        <div style={{ fontSize: 30, marginBottom: 12 }}>📣</div>
+        <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>
+          Noch kein Ads-Konto verbunden
+        </div>
+        <div style={{ fontSize: 13, color: S.mut }}>
+          Oben links einen Kunden wählen und unter «Einstellungen» das ChatGPT-Ads-Konto verbinden.
+        </div>
+      </div>
+    );
+
+  const geld = (n: number, w: string) =>
+    `${w} ${n.toLocaleString("de-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const zahl = (n: number) => n.toLocaleString("de-CH");
+
+  return (
+    <>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          margin: "0 2px 12px",
+        }}
+      >
+        <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: S.txt }}>Ads-Kunden</h2>
+        <span style={{ fontSize: 12, color: S.mut }}>{rows.length} aktiv · letzte 30 Tage</span>
+      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+          gap: 14,
+        }}
+      >
+        {rows.map((c) => (
+          <button
+            key={c.clientId}
+            type="button"
+            onClick={() => onSelect(c.clientId)}
+            style={{
+              textAlign: "left",
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+              background: S.panel,
+              border: `1px solid ${S.line}`,
+              borderRadius: 14,
+              padding: 16,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              color: S.txt,
+              transition: "border-color .15s, box-shadow .15s, transform .15s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = S.app;
+              e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,.08)";
+              e.currentTarget.style.transform = "translateY(-2px)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = S.line;
+              e.currentTarget.style.boxShadow = "none";
+              e.currentTarget.style.transform = "none";
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+              <ClientAvatar
+                name={c.clientName}
+                domain={c.domain || undefined}
+                size={38}
+                radius={10}
+                bg={S.appTint}
+                fg={S.app}
+                fontSize={13}
+              />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 700,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {c.clientName || "—"}
+                </div>
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: S.mut,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {c.domain || "keine Domain"}
+                </div>
+              </div>
+              {c.isMock && (
+                <span
+                  title="Demo-Konto mit Beispieldaten"
+                  style={{
+                    flexShrink: 0,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: "#92400e",
+                    background: "rgba(217,119,6,.12)",
+                    borderRadius: 999,
+                    padding: "3px 8px",
+                  }}
+                >
+                  DEMO
+                </span>
+              )}
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 8 }}>
+              {[
+                {
+                  label: "Ausgaben",
+                  value: c.totals ? geld(c.totals.spend, c.currency) : null,
+                },
+                {
+                  label: "Impressionen",
+                  value: c.totals ? zahl(c.totals.impressions) : null,
+                },
+                { label: "Klicks", value: c.totals ? zahl(c.totals.clicks) : null },
+                {
+                  label: "Conversions",
+                  value: c.totals ? zahl(c.totals.ctc || c.totals.conversions) : null,
+                },
+              ].map((m) => (
+                <div key={m.label}>
+                  <div
+                    style={{ fontSize: 15, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}
+                  >
+                    {m.value ?? "—"}
+                  </div>
+                  <div style={{ fontSize: 10, color: S.mut }}>{m.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Fusszeile: sagt, warum eine Kachel leer ist. */}
+            <div
+              style={{
+                fontSize: 10.5,
+                color: c.syncError ? "#b91c1c" : S.mut,
+                borderTop: `1px solid ${S.line}`,
+                paddingTop: 8,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+              title={c.syncError || c.accountName}
+            >
+              {c.syncError
+                ? `Sync-Fehler: ${c.syncError}`
+                : c.activeCampaigns > 0
+                  ? `${c.activeCampaigns} ${c.activeCampaigns === 1 ? "laufende Kampagne" : "laufende Kampagnen"}`
+                  : c.totals
+                    ? "keine laufende Kampagne"
+                    : "verbunden, noch keine Daten"}
+            </div>
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
 export const Route = createFileRoute("/ezyai")({
   component: EzyAiApp,
 });
@@ -4853,26 +5117,7 @@ function EzyAiApp() {
                   </div>
                 ) : showAll ? (
                   adsMode ? (
-                    <div
-                      style={{
-                        background: S.panel,
-                        border: `1px solid ${S.line}`,
-                        borderRadius: 14,
-                        padding: 40,
-                        textAlign: "center",
-                        maxWidth: 560,
-                        margin: "40px auto 0",
-                      }}
-                    >
-                      <div style={{ fontSize: 30, marginBottom: 12 }}>📣</div>
-                      <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>
-                        ChatGPT Ads — Kunde wählen
-                      </div>
-                      <div style={{ fontSize: 13, color: S.mut }}>
-                        Conversion-Tracking und Event-Log gibt es je Kunde — oben links einen Kunden
-                        auswählen.
-                      </div>
-                    </div>
+                    <AdsAgencyOverview S={S} onSelect={pickClient} />
                   ) : (
                     <AiAgencyOverview clients={clients} S={S} onSelect={pickClient} />
                   )

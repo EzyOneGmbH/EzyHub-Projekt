@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.19.0",
+    version: "1.20.0",
     changelog: [
+      {
+        version: "1.20.0",
+        date: "2026-09-22",
+        note: "Agentur-Übersicht jetzt auch im Ads-Modus: «Alle Kunden» zeigt eine Kachel je aktivem ChatGPT-Ads-Konto mit Ausgaben, Impressionen, Klicks und Conversions der letzten 30 Tage, Demo-Kennzeichnung, Anzahl laufender Kampagnen und Sync-Fehler im Klartext — vorher stand dort nur der Hinweis, einen Kunden zu wählen",
+      },
       {
         version: "1.19.0",
         date: "2026-09-15",

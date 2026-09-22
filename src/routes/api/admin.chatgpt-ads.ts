@@ -1640,6 +1640,135 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
         const auth = await requireUser(request);
         if (auth instanceof Response) return auth;
         const u = new URL(request.url);
+
+        // ── Agentur-Uebersicht (22.09.): ?overview=1 ───────────────────────
+        // Eine Kachel je AKTIVEM Ads-Konto, das der angemeldete Nutzer sehen
+        // darf. Sichtbarkeit kommt aus SEINER RLS auf clients; die Ads-Daten
+        // holen wir danach mit der Service-Rolle, aber nur fuer genau diese
+        // Kunden-IDs. Zwei Abfragen fuer alle Kunden, keine je Kachel.
+        if (u.searchParams.get("overview") === "1") {
+          let ozr;
+          try {
+            ozr = zeitraumAusParams(u.searchParams, { defaultDays: 30, maxDays: 366 });
+          } catch (e) {
+            return Response.json(
+              { ok: false, error: e instanceof Error ? e.message : String(e) },
+              { status: 400 },
+            );
+          }
+          const sbo = supabaseAdmin as any;
+          const { data: sichtbar } = await (auth.userClient ?? sbo)
+            .from("clients")
+            .select("id, name, domain");
+          const erlaubt = new Map<string, { name: string; domain: string | null }>(
+            (sichtbar || []).map((c: any) => [
+              String(c.id),
+              { name: String(c.name || ""), domain: c.domain ? String(c.domain) : null },
+            ]),
+          );
+          if (!erlaubt.size)
+            return Response.json({
+              ok: true,
+              range: { from: ozr.startDate, to: ozr.endDate, days: ozr.days },
+              clients: [],
+            });
+          const { data: konten } = await sbo
+            .from("chatgpt_ads_accounts")
+            .select(
+              "id, client_id, name, currency_code, status, is_mock, last_synced_at, last_sync_error, meta",
+            )
+            .eq("status", "active")
+            .in("client_id", [...erlaubt.keys()]);
+          const aktive = (konten || []).filter((a: any) => erlaubt.has(String(a.client_id)));
+          if (!aktive.length)
+            return Response.json({
+              ok: true,
+              range: { from: ozr.startDate, to: ozr.endDate, days: ozr.days },
+              clients: [],
+            });
+
+          // Kennzahlen: nur scope="campaign", sonst zaehlen die Ebenen doppelt.
+          const { data: zeilen } = await sbo
+            .from("chatgpt_ads_insights_daily")
+            .select("account_id, impressions, clicks, spend, conversions, ctc")
+            .in(
+              "account_id",
+              aktive.map((a: any) => a.id),
+            )
+            .eq("scope", "campaign")
+            .gte("date", ozr.startDate)
+            .lte("date", ozr.endDate);
+          const summe = new Map<
+            string,
+            { impressions: number; clicks: number; spend: number; conversions: number; ctc: number }
+          >();
+          for (const z of zeilen || []) {
+            const k = String(z.account_id);
+            const t = summe.get(k) ?? {
+              impressions: 0,
+              clicks: 0,
+              spend: 0,
+              conversions: 0,
+              ctc: 0,
+            };
+            t.impressions += Number(z.impressions || 0);
+            t.clicks += Number(z.clicks || 0);
+            t.spend += Number(z.spend || 0);
+            t.conversions += Number(z.conversions || 0);
+            t.ctc += Number(z.ctc || 0);
+            summe.set(k, t);
+          }
+          // Laufende Kampagnen je Konto — sagt mehr als eine leere Kachel.
+          const { data: kampagnen } = await sbo
+            .from("chatgpt_ads_campaigns")
+            .select("account_id, status")
+            .in(
+              "account_id",
+              aktive.map((a: any) => a.id),
+            );
+          const aktiv = new Map<string, number>();
+          for (const c of kampagnen || []) {
+            if (String(c.status) !== "active") continue;
+            const k = String(c.account_id);
+            aktiv.set(k, (aktiv.get(k) || 0) + 1);
+          }
+          return Response.json({
+            ok: true,
+            range: { from: ozr.startDate, to: ozr.endDate, days: ozr.days },
+            clients: aktive
+              .map((a: any) => {
+                const k = erlaubt.get(String(a.client_id))!;
+                const t = summe.get(String(a.id));
+                return {
+                  clientId: String(a.client_id),
+                  clientName: k.name,
+                  domain: k.domain,
+                  accountName: String(a.name || ""),
+                  currency: String(a.currency_code || "CHF"),
+                  isMock: !!a.is_mock,
+                  reviewStatus: a.meta?.status ? String(a.meta.status) : null,
+                  lastSyncedAt: a.last_synced_at || null,
+                  syncError: a.last_sync_error || null,
+                  activeCampaigns: aktiv.get(String(a.id)) || 0,
+                  totals: t
+                    ? {
+                        impressions: t.impressions,
+                        clicks: t.clicks,
+                        spend: Math.round(t.spend * 100) / 100,
+                        conversions: t.conversions,
+                        ctc: t.ctc,
+                      }
+                    : null,
+                };
+              })
+              .sort((x: any, y: any) =>
+                String(x.clientName).localeCompare(String(y.clientName), "de-CH", {
+                  sensitivity: "base",
+                }),
+              ),
+          });
+        }
+
         const clientId = u.searchParams.get("client") || "";
         if (!/^[0-9a-f-]{36}$/i.test(clientId))
           return Response.json({ ok: false, error: "client (uuid) erforderlich" }, { status: 400 });
