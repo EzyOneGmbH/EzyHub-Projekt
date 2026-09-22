@@ -70,6 +70,7 @@ import {
   Home,
   Users,
   Settings,
+  Database,
 } from "lucide-react";
 
 // QS-Runde 13.09.2026: herausgeloeste Teile (kleinere Datei, gleiche Logik).
@@ -126,6 +127,9 @@ const APP_NAV: Array<{ group: string; items: NavItem[] }> = [
       { id: "aeo-insights", label: "Insights", icon: LineChart },
       { id: "llm-analytics", label: "LLM Analytics", icon: Zap },
       { id: "traffic", label: "Traffic", icon: Activity },
+      // First-Party GEO (22.09.): nur Owner/Admin und nur bei
+      // client.metadata.first_party_kpi === true (Gating in navOrganic).
+      { id: "first-party", label: "First-Party", icon: Database },
       // KEIN eigener Conversions-Bereich hier (Volkan 01.09.): EzyAI nutzt
       // den Conversions-Tab IM Insights-Dashboard (AttributionStrip mit
       // Besucher je Engine + Regionen-Landkarte) — nicht das EzyRank-
@@ -197,6 +201,8 @@ const EzyAiAdsPanel = lazy(() => import("@/ezy/EzyAiAdsPanel"));
 const EzyAiCampaignsPanel = lazy(() => import("@/ezy/EzyAiCampaignsPanel"));
 // Ads-Manager-Nachbau (15.09.): Bereich «Kampagnen» mit Ebenen-Tabs.
 const EzyAiAdsManager = lazy(() => import("@/ezy/EzyAiAdsManager"));
+// First-Party GEO (GSC + GA4, 22.09.): eigener Lazy-Chunk.
+const FirstPartyGeo = lazy(() => import("@/ezy/ezyai/FirstPartyGeo"));
 
 /** Organic/Ads-Schalter (Segmented, Hi-Fi) — sitzt in der AppRail unter der
  *  Trennlinie, damit die Apps-Zone abgegrenzt bleibt (Volkan 26.08.). */
@@ -4013,32 +4019,49 @@ function AiAgencyOverview({
   S: Record<string, string>;
 }) {
   const [stats, setStats] = useState<
-    Record<string, { score: number; mentions: number; citations: number; date: string }>
+    Record<string, { visitors: number; conversions: number; date: string }>
   >({});
   useEffect(() => {
     let alive = true;
     const ids = clients.map((c: any) => c.id).filter((id: string) => /^[0-9a-f-]{36}$/i.test(id));
     if (!ids.length) return;
     (async () => {
-      const { data } = await (supabase as any)
+      // Volkan 22.09.: Besucher + Conversions statt Score/Erwähnungen/Citations.
+      // Definition = Kopfzeile des Traffic-/Conversions-Tabs: Summe der
+      // Attributionszeilen (KI-Verweis-Sessions und -Conversions je Engine) des
+      // neuesten Berichts. Zwei Batch-Queries für alle Kunden, keine je Kachel.
+      const { data: reps } = await (supabase as any)
         .from("ai_visibility_reports")
-        .select("client_id, snapshot_date, score, mentions, citations")
+        .select("id, client_id, snapshot_date")
         .in("client_id", ids)
         .order("snapshot_date", { ascending: false })
         .limit(400);
       if (!alive) return;
-      const next: Record<
-        string,
-        { score: number; mentions: number; citations: number; date: string }
-      > = {};
-      for (const r of data ?? []) {
-        if (next[r.client_id]) continue; // erste Zeile = neuester Snapshot je Kunde
-        next[r.client_id] = {
-          score: Number(r.score ?? 0),
-          mentions: Number(r.mentions ?? 0),
-          citations: Number(r.citations ?? 0),
-          date: String(r.snapshot_date || ""),
-        };
+      const newest = new Map<string, { id: string; date: string }>();
+      for (const r of reps ?? []) {
+        if (newest.has(String(r.client_id))) continue; // erste Zeile = neuester Snapshot
+        newest.set(String(r.client_id), { id: String(r.id), date: String(r.snapshot_date || "") });
+      }
+      const repIds = [...newest.values()].map((n) => n.id);
+      const sums = new Map<string, { visitors: number; conversions: number }>();
+      if (repIds.length) {
+        const { data: attr } = await (supabase as any)
+          .from("ai_visibility_attribution")
+          .select("report_id, sessions, conversions")
+          .in("report_id", repIds);
+        if (!alive) return;
+        for (const a of attr ?? []) {
+          const k = String(a.report_id);
+          const t = sums.get(k) ?? { visitors: 0, conversions: 0 };
+          t.visitors += Number(a.sessions ?? 0);
+          t.conversions += Number(a.conversions ?? 0);
+          sums.set(k, t);
+        }
+      }
+      const next: Record<string, { visitors: number; conversions: number; date: string }> = {};
+      for (const [clientId, n] of newest) {
+        const t = sums.get(n.id) ?? { visitors: 0, conversions: 0 };
+        next[clientId] = { visitors: t.visitors, conversions: t.conversions, date: n.date };
       }
       setStats(next);
     })();
@@ -4153,11 +4176,13 @@ function AiAgencyOverview({
                   </span>
                 )}
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 8 }}>
                 {[
-                  { label: "KI-Sichtbarkeit", value: st ? `${st.score}/100` : null },
-                  { label: "Erwähnungen", value: st ? st.mentions.toLocaleString("de-CH") : null },
-                  { label: "Citations", value: st ? st.citations.toLocaleString("de-CH") : null },
+                  { label: "Besucher", value: st ? st.visitors.toLocaleString("de-CH") : null },
+                  {
+                    label: "Conversions",
+                    value: st ? st.conversions.toLocaleString("de-CH") : null,
+                  },
                 ].map((m) => (
                   <div key={m.label}>
                     <div
@@ -4313,7 +4338,7 @@ function AdsAgencyOverview({
             title={[
               c.accountName,
               c.totals
-                ? `${c.currency} ${geld(c.totals.spend)} Ausgaben · ${zahl(c.totals.impressions)} Impressionen`
+                ? `${zahl(c.totals.ctc || c.totals.conversions)} Conversions`
                 : "noch keine Daten",
               c.activeCampaigns > 0
                 ? `${c.activeCampaigns} ${c.activeCampaigns === 1 ? "laufende Kampagne" : "laufende Kampagnen"}`
@@ -4420,13 +4445,16 @@ function AdsAgencyOverview({
 
             {/* Volkan 22.09.: nur Besucher und Conversions. Ausgaben und
                 Impressionen stehen im Tooltip der Kachel. */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 8 }}>
+            {/* Volkan 22.09.: gleiches Layout wie die EzyPerformance-Übersicht —
+                drei Kennzahlen in einer Reihe, Währung im Label, gerundet. */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
               {[
-                { label: "Besucher", value: c.totals ? zahl(c.totals.clicks) : null },
                 {
-                  label: "Conversions",
-                  value: c.totals ? zahl(c.totals.ctc || c.totals.conversions) : null,
+                  label: `Werbebudget (${c.currency})`,
+                  value: c.totals ? geld(c.totals.spend) : null,
                 },
+                { label: "Impressionen", value: c.totals ? zahl(c.totals.impressions) : null },
+                { label: "Klicks", value: c.totals ? zahl(c.totals.clicks) : null },
               ].map((m) => (
                 <div key={m.label}>
                   <div
@@ -4662,9 +4690,15 @@ function EzyAiApp() {
   // das Gating hier ist die Zukunftssicherung, falls das Portal EzyAI
   // bekommt. Alt-Eintrag "aivis" = alles frei (Legacy-Alias).
   const navOrganic = useMemo(() => {
+    // First-Party (22.09.): nur Owner/Admin und nur, wenn der Kunde den
+    // Schalter first_party_kpi in metadata gesetzt hat (aus useEzyClients).
+    const fpKunde = clients.find((c: any) => c.id === clientId) || clients[0];
+    const fpAktiv = !!isOrgAdmin && fpKunde?.metadata?.first_party_kpi === true;
     const base = APP_NAV.map((g) => ({
       ...g,
-      items: g.items.filter((t) => !DISABLED_SECTIONS.has(t.id)),
+      items: g.items.filter(
+        (t) => !DISABLED_SECTIONS.has(t.id) && (t.id !== "first-party" || fpAktiv),
+      ),
     })).filter((g) => g.items.length > 0);
     if (role !== "viewer") return base;
     return base
@@ -4677,7 +4711,7 @@ function EzyAiApp() {
         }),
       }))
       .filter((g) => g.items.length > 0);
-  }, [role, showAll, clientId, caa.map]);
+  }, [role, showAll, clientId, caa.map, clients, isOrgAdmin]);
   // Verschwindet der aktive Bereich durch das Gating, auf den ersten
   // sichtbaren zurueckfallen.
   useEffect(() => {
@@ -5205,6 +5239,10 @@ function EzyAiApp() {
                   <LlmAnalyticsPanel clientId={client.id} S={S} range={range} compare={compare} />
                 ) : section === "traffic" ? (
                   <TrafficPanel clientId={client.id} S={S} range={range} compare={compare} />
+                ) : section === "first-party" ? (
+                  <Suspense fallback={null}>
+                    <FirstPartyGeo clientId={client.id} client={client} range={range} S={S} />
+                  </Suspense>
                 ) : section === "site-health" || section === "issues" ? (
                   <SiteHealthPanel
                     clientId={client.id}

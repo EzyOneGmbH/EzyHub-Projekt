@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.20.4",
+    version: "1.21.0",
     changelog: [
+      {
+        version: "1.21.0",
+        date: "2026-09-22",
+        note: "Agentur-Übersicht neu verteilt: die Organic-Kacheln zeigen jetzt Besucher und Conversions (KI-Verweise, exakt wie die Kopfzeile des Traffic-Tabs), die Ads-Kacheln zeigen Werbebudget, Impressionen und Klicks im Layout der EzyPerformance-Übersicht",
+      },
       {
         version: "1.20.4",
         date: "2026-09-22",

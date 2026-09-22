@@ -139,6 +139,7 @@ import { Route as ApiGoogleGscImportRouteImport } from './routes/api/google.gsc-
 import { Route as ApiGoogleGscSitesRouteImport } from './routes/api/google.gsc-sites'
 import { Route as ApiGooglePagespeedRouteImport } from './routes/api/google.pagespeed'
 import { Route as ApiKpiFirstPartyRouteImport } from './routes/api/kpi.first-party'
+import { Route as ApiKpiFirstPartyGeoRouteImport } from './routes/api/kpi.first-party-geo'
 import { Route as ApiLiveStatusRouteImport } from './routes/api/live.status'
 import { Route as ApiPerplexitySearchRouteImport } from './routes/api/perplexity.search'
 import { Route as ApiPublicReportRouteImport } from './routes/api/public.report'
@@ -820,6 +821,11 @@ const ApiKpiFirstPartyRoute = ApiKpiFirstPartyRouteImport.update({
   path: '/api/kpi/first-party',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiKpiFirstPartyGeoRoute = ApiKpiFirstPartyGeoRouteImport.update({
+  id: '/api/kpi/first-party-geo',
+  path: '/api/kpi/first-party-geo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiLiveStatusRoute = ApiLiveStatusRouteImport.update({
   id: '/api/live/status',
   path: '/api/live/status',
@@ -998,6 +1004,7 @@ export interface FileRoutesByFullPath {
   '/api/google/gsc-sites': typeof ApiGoogleGscSitesRoute
   '/api/google/pagespeed': typeof ApiGooglePagespeedRoute
   '/api/kpi/first-party': typeof ApiKpiFirstPartyRoute
+  '/api/kpi/first-party-geo': typeof ApiKpiFirstPartyGeoRoute
   '/api/live/status': typeof ApiLiveStatusRoute
   '/api/perplexity/search': typeof ApiPerplexitySearchRoute
   '/api/public/report': typeof ApiPublicReportRoute
@@ -1139,6 +1146,7 @@ export interface FileRoutesByTo {
   '/api/google/gsc-sites': typeof ApiGoogleGscSitesRoute
   '/api/google/pagespeed': typeof ApiGooglePagespeedRoute
   '/api/kpi/first-party': typeof ApiKpiFirstPartyRoute
+  '/api/kpi/first-party-geo': typeof ApiKpiFirstPartyGeoRoute
   '/api/live/status': typeof ApiLiveStatusRoute
   '/api/perplexity/search': typeof ApiPerplexitySearchRoute
   '/api/public/report': typeof ApiPublicReportRoute
@@ -1281,6 +1289,7 @@ export interface FileRoutesById {
   '/api/google/gsc-sites': typeof ApiGoogleGscSitesRoute
   '/api/google/pagespeed': typeof ApiGooglePagespeedRoute
   '/api/kpi/first-party': typeof ApiKpiFirstPartyRoute
+  '/api/kpi/first-party-geo': typeof ApiKpiFirstPartyGeoRoute
   '/api/live/status': typeof ApiLiveStatusRoute
   '/api/perplexity/search': typeof ApiPerplexitySearchRoute
   '/api/public/report': typeof ApiPublicReportRoute
@@ -1424,6 +1433,7 @@ export interface FileRouteTypes {
     | '/api/google/gsc-sites'
     | '/api/google/pagespeed'
     | '/api/kpi/first-party'
+    | '/api/kpi/first-party-geo'
     | '/api/live/status'
     | '/api/perplexity/search'
     | '/api/public/report'
@@ -1565,6 +1575,7 @@ export interface FileRouteTypes {
     | '/api/google/gsc-sites'
     | '/api/google/pagespeed'
     | '/api/kpi/first-party'
+    | '/api/kpi/first-party-geo'
     | '/api/live/status'
     | '/api/perplexity/search'
     | '/api/public/report'
@@ -1706,6 +1717,7 @@ export interface FileRouteTypes {
     | '/api/google/gsc-sites'
     | '/api/google/pagespeed'
     | '/api/kpi/first-party'
+    | '/api/kpi/first-party-geo'
     | '/api/live/status'
     | '/api/perplexity/search'
     | '/api/public/report'
@@ -1843,6 +1855,7 @@ export interface RootRouteChildren {
   ApiGoogleGscSitesRoute: typeof ApiGoogleGscSitesRoute
   ApiGooglePagespeedRoute: typeof ApiGooglePagespeedRoute
   ApiKpiFirstPartyRoute: typeof ApiKpiFirstPartyRoute
+  ApiKpiFirstPartyGeoRoute: typeof ApiKpiFirstPartyGeoRoute
   ApiLiveStatusRoute: typeof ApiLiveStatusRoute
   ApiPerplexitySearchRoute: typeof ApiPerplexitySearchRoute
   ApiPublicReportRoute: typeof ApiPublicReportRoute
@@ -2766,6 +2779,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiKpiFirstPartyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/kpi/first-party-geo': {
+      id: '/api/kpi/first-party-geo'
+      path: '/api/kpi/first-party-geo'
+      fullPath: '/api/kpi/first-party-geo'
+      preLoaderRoute: typeof ApiKpiFirstPartyGeoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/live/status': {
       id: '/api/live/status'
       path: '/api/live/status'
@@ -3014,6 +3034,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGoogleGscSitesRoute: ApiGoogleGscSitesRoute,
   ApiGooglePagespeedRoute: ApiGooglePagespeedRoute,
   ApiKpiFirstPartyRoute: ApiKpiFirstPartyRoute,
+  ApiKpiFirstPartyGeoRoute: ApiKpiFirstPartyGeoRoute,
   ApiLiveStatusRoute: ApiLiveStatusRoute,
   ApiPerplexitySearchRoute: ApiPerplexitySearchRoute,
   ApiPublicReportRoute: ApiPublicReportRoute,
