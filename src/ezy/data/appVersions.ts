@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.20.0",
+    version: "1.20.1",
     changelog: [
+      {
+        version: "1.20.1",
+        date: "2026-09-22",
+        note: "Ads-Agenturübersicht: jede Kachel trägt jetzt wie im Organic-Modus das Datum oben rechts — hier der letzte Sync, damit eine veraltete Kachel als solche erkennbar ist",
+      },
       {
         version: "1.20.0",
         date: "2026-09-22",

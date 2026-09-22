@@ -4384,6 +4384,26 @@ function AdsAgencyOverview({
                   DEMO
                 </span>
               )}
+              {/* Datum wie in der Organic-Übersicht — hier der letzte Sync,
+                  damit eine veraltete Kachel als solche erkennbar ist. */}
+              {c.lastSyncedAt && (
+                <span
+                  title={`Letzter Sync: ${new Date(c.lastSyncedAt).toLocaleString("de-CH")}`}
+                  style={{
+                    flexShrink: 0,
+                    fontSize: 10,
+                    color: S.mut,
+                    border: `1px solid ${S.line}`,
+                    borderRadius: 999,
+                    padding: "3px 8px",
+                  }}
+                >
+                  {new Date(c.lastSyncedAt).toLocaleDateString("de-CH", {
+                    day: "2-digit",
+                    month: "2-digit",
+                  })}
+                </span>
+              )}
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 8 }}>
