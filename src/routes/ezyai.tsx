@@ -4294,13 +4294,13 @@ function AdsAgencyOverview({
           margin: "0 2px 12px",
         }}
       >
-        <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: S.txt }}>Ads-Kunden</h2>
-        <span style={{ fontSize: 12, color: S.mut }}>{rows.length} aktiv · letzte 30 Tage</span>
+        <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: S.txt }}>Kunden</h2>
+        <span style={{ fontSize: 12, color: S.mut }}>{rows.length} aktiv</span>
       </div>
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
           gap: 14,
         }}
       >
@@ -4309,6 +4309,17 @@ function AdsAgencyOverview({
             key={c.clientId}
             type="button"
             onClick={() => onSelect(c.clientId)}
+            // Was nicht auf die Kachel passt, steht hier: Impressionen und
+            // warum eine Kachel leer ist.
+            title={[
+              c.accountName,
+              c.totals ? `${zahl(c.totals.impressions)} Impressionen` : "noch keine Daten",
+              c.activeCampaigns > 0
+                ? `${c.activeCampaigns} ${c.activeCampaigns === 1 ? "laufende Kampagne" : "laufende Kampagnen"}`
+                : "keine laufende Kampagne",
+            ]
+              .filter(Boolean)
+              .join(" · ")}
             style={{
               textAlign: "left",
               display: "flex",
@@ -4406,15 +4417,11 @@ function AdsAgencyOverview({
               )}
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
               {[
                 {
                   label: "Ausgaben",
                   value: c.totals ? geld(c.totals.spend, c.currency) : null,
-                },
-                {
-                  label: "Impressionen",
-                  value: c.totals ? zahl(c.totals.impressions) : null,
                 },
                 { label: "Klicks", value: c.totals ? zahl(c.totals.clicks) : null },
                 {
@@ -4433,27 +4440,24 @@ function AdsAgencyOverview({
               ))}
             </div>
 
-            {/* Fusszeile: sagt, warum eine Kachel leer ist. */}
-            <div
-              style={{
-                fontSize: 10.5,
-                color: c.syncError ? "#b91c1c" : S.mut,
-                borderTop: `1px solid ${S.line}`,
-                paddingTop: 8,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-              title={c.syncError || c.accountName}
-            >
-              {c.syncError
-                ? `Sync-Fehler: ${c.syncError}`
-                : c.activeCampaigns > 0
-                  ? `${c.activeCampaigns} ${c.activeCampaigns === 1 ? "laufende Kampagne" : "laufende Kampagnen"}`
-                  : c.totals
-                    ? "keine laufende Kampagne"
-                    : "verbunden, noch keine Daten"}
-            </div>
+            {/* Nur wenn wirklich etwas schiefliegt — sonst bleibt die Kachel
+                so schlank wie im Organic-Modus. Der Rest steht im Tooltip. */}
+            {c.syncError && (
+              <div
+                style={{
+                  fontSize: 10.5,
+                  color: "#b91c1c",
+                  borderTop: `1px solid ${S.line}`,
+                  paddingTop: 8,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+                title={c.syncError}
+              >
+                Sync-Fehler: {c.syncError}
+              </div>
+            )}
           </button>
         ))}
       </div>
@@ -5040,9 +5044,9 @@ function EzyAiApp() {
                 // Ads-Modus: breitere Buehne (15.09.) — die Kampagnen-Tabellen haben
                 // viele Spalten, 1180 px zwang sie in den horizontalen Scroll.
                 style={{
-                  maxWidth: adsMode ? 1720 : 1180,
+                  maxWidth: adsMode && !showAll ? 1720 : 1180,
                   margin: "0 auto",
-                  padding: adsMode ? "22px 18px 60px" : "22px 22px 60px",
+                  padding: adsMode && !showAll ? "22px 18px 60px" : "22px 22px 60px",
                 }}
               >
                 {/* Bereichs-Titel im Body (Volkan 10.08., Layout wie EzyRank). */}
@@ -5050,9 +5054,7 @@ function EzyAiApp() {
                   <div style={{ marginBottom: 20 }}>
                     <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
                       {showAll
-                        ? adsMode
-                          ? "ChatGPT Ads"
-                          : "Agentur-Übersicht"
+                        ? "Agentur-Übersicht"
                         : adsMode
                           ? adsSection === "ads-overview"
                             ? "ChatGPT Ads"

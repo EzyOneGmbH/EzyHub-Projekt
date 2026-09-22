@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.20.1",
+    version: "1.20.2",
     changelog: [
+      {
+        version: "1.20.2",
+        date: "2026-09-22",
+        note: "Ads-Agenturübersicht sieht jetzt genau wie die Organic-Übersicht aus: gleicher Titel «Agentur-Übersicht», gleiche Bühnenbreite (die breite Ansicht gilt nur noch für die Kampagnen-Tabellen eines Kunden), gleiche Kachelbreite und drei Kennzahlen in einer Reihe (Ausgaben, Klicks, Conversions). Impressionen und der Kampagnenstand stehen im Tooltip der Kachel, die Fusszeile erscheint nur noch bei einem Sync-Fehler",
+      },
       {
         version: "1.20.1",
         date: "2026-09-22",
