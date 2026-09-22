@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.21.0",
+    version: "1.21.1",
     changelog: [
+      {
+        version: "1.21.1",
+        date: "2026-09-22",
+        note: "EzyAI: der Bereich «Ezy Tools» ist in der Kundenansicht deaktiviert — Eintrag in der Seitenleiste und in der mobilen Leiste ausgeblendet; eine gespeicherte Tools-Ansicht fällt auf das Dashboard zurück",
+      },
       {
         version: "1.21.0",
         date: "2026-09-22",

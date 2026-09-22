@@ -173,6 +173,10 @@ const DISABLED_SECTIONS = new Set([
 // (Traffic) und «KI-Crawler auf der Website» inkl. Ingest-Token (Insights).
 // Komponenten/Daten bleiben — ID entfernen = wieder sichtbar.
 const DISABLED_CARDS = new Set(["seo-ki-matrix", "ki-crawler"]);
+// Deaktivierte Ansichten (Volkan 22.09.): «Ezy Tools» (view "agent") ist in der
+// EzyAI-Kundenansicht ausgeblendet — Seitenleiste UND mobile Leiste. Der
+// Render-Zweig bleibt; ID entfernen = wieder sichtbar.
+const DISABLED_VIEWS = new Set(["agent"]);
 // Ads-Modus (ChatGPT Ads, 26.08.2026): eigene Bereichs-Nav — der Organic/Ads-
 // Schalter in der AppRail (unter der Trennlinie) wechselt zwischen den Welten.
 const ADS_NAV: Array<{ group: string; items: NavItem[] }> = [
@@ -4852,15 +4856,19 @@ function EzyAiApp() {
                           },
                         })),
                       ),
-                      {
-                        // Einheitlich mit EzyRank/EzyPerformance (Volkan 24.08.)
-                        id: "view:agent",
-                        label: "Ezy Tools",
-                        icon: Zap,
-                        group: "Werkzeuge",
-                        active: view === "agent",
-                        onClick: () => setView("agent"),
-                      },
+                      ...(DISABLED_VIEWS.has("agent")
+                        ? []
+                        : [
+                            {
+                              // Einheitlich mit EzyRank/EzyPerformance (Volkan 24.08.)
+                              id: "view:agent",
+                              label: "Ezy Tools",
+                              icon: Zap,
+                              group: "Werkzeuge",
+                              active: view === "agent",
+                              onClick: () => setView("agent"),
+                            },
+                          ]),
                     ]
               }
             />
@@ -5396,14 +5404,16 @@ function EzyAiApp() {
               <LayoutDashboard size={21} />
               <span style={{ fontSize: 9.5, fontWeight: 700 }}>Insights</span>
             </button>
-            <button
-              onClick={() => setView("agent")}
-              style={tabBtn(view === "agent")}
-              title="Ezy Tools"
-            >
-              <Zap size={21} />
-              <span style={{ fontSize: 9.5, fontWeight: 700 }}>Ezy Tools</span>
-            </button>
+            {!DISABLED_VIEWS.has("agent") && (
+              <button
+                onClick={() => setView("agent")}
+                style={tabBtn(view === "agent")}
+                title="Ezy Tools"
+              >
+                <Zap size={21} />
+                <span style={{ fontSize: 9.5, fontWeight: 700 }}>Ezy Tools</span>
+              </button>
+            )}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
               <EzyPilotFab size={44} elevated />
             </div>
