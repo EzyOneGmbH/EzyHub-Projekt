@@ -7632,8 +7632,14 @@ function App({ appScope = null }) {
                       )}
                       {tab === "ads" && (
                         <>
-                          <AdsDashboard selectedClient={client} dateRange={dateRangeWithCompare} />
-                          <AdsAutopilotPanel selectedClient={client} />
+                          <AdsDashboard
+                            selectedClient={client}
+                            dateRange={dateRangeWithCompare}
+                            kundenansicht={isViewer}
+                          />
+                          {/* Kundenansicht (22.09.): Autopilot ist Agentur-intern —
+                              Kunden-Logins sehen nur das Dashboard. */}
+                          {!isViewer && <AdsAutopilotPanel selectedClient={client} />}
                         </>
                       )}
                       {tab === "runs" && <AgentRunsPanel selectedClient={client} />}

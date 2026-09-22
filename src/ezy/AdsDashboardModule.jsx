@@ -13,7 +13,8 @@ import { Activity, CheckCircle, DollarSign, TrendingUp } from "lucide-react";
 // ═══════════════════════════════════════════════════════════════════════════
 // ADS DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════
-export function AdsDashboard({ selectedClient, dateRange }) {
+// kundenansicht: Kunden-Login (viewer) — Spezialisten-Hinweise werden ausgeblendet.
+export function AdsDashboard({ selectedClient, dateRange, kundenansicht = false }) {
   const { isOn } = useEzyDashboardConfig();
   // Zeitraum-Anbindung (22.08.): Ads-Snapshot zum Ende des gewählten Zeitraums.
   const { run, loading, refresh } = useEzyLatestRun(
@@ -660,26 +661,28 @@ export function AdsDashboard({ selectedClient, dateRange }) {
                 </div>
               ))}
             </div>
-            <div
-              style={{
-                marginTop: 14,
-                fontSize: 12.5,
-                color: C.textMuted,
-                lineHeight: 1.55,
-                background: C.card,
-                border: `1px solid ${C.border}`,
-                borderLeft: `3px solid ${C.orange}`,
-                borderRadius: 8,
-                padding: "13px 16px",
-              }}
-            >
-              <strong style={{ color: C.text, fontWeight: 600 }}>
-                Lesart für den Spezialisten:
-              </strong>{" "}
-              Vergleich gegen die unmittelbar vorangehende Periode gleicher Länge. ROAS und Umsatz
-              basieren auf den in Google Ads getrackten Conversion-Werten. Vollständige Kampagnen-
-              und Keyword-Tabellen folgen auf den Detailseiten.
-            </div>
+            {!kundenansicht && (
+              <div
+                style={{
+                  marginTop: 14,
+                  fontSize: 12.5,
+                  color: C.textMuted,
+                  lineHeight: 1.55,
+                  background: C.card,
+                  border: `1px solid ${C.border}`,
+                  borderLeft: `3px solid ${C.orange}`,
+                  borderRadius: 8,
+                  padding: "13px 16px",
+                }}
+              >
+                <strong style={{ color: C.text, fontWeight: 600 }}>
+                  Lesart für den Spezialisten:
+                </strong>{" "}
+                Vergleich gegen die unmittelbar vorangehende Periode gleicher Länge. ROAS und Umsatz
+                basieren auf den in Google Ads getrackten Conversion-Werten. Vollständige Kampagnen-
+                und Keyword-Tabellen folgen auf den Detailseiten.
+              </div>
+            )}
           </div>
         )}
       </div>
