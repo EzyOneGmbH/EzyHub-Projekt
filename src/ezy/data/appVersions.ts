@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.20.3",
+    version: "1.20.4",
     changelog: [
+      {
+        version: "1.20.4",
+        date: "2026-09-22",
+        note: "Ads-Agenturübersicht: je Kachel nur noch Besucher und Conversions — Ausgaben und Impressionen stehen im Tooltip",
+      },
       {
         version: "1.20.3",
         date: "2026-09-22",

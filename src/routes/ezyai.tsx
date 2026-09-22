@@ -4312,7 +4312,9 @@ function AdsAgencyOverview({
             // warum eine Kachel leer ist.
             title={[
               c.accountName,
-              c.totals ? `${zahl(c.totals.impressions)} Impressionen` : "noch keine Daten",
+              c.totals
+                ? `${c.currency} ${geld(c.totals.spend)} Ausgaben · ${zahl(c.totals.impressions)} Impressionen`
+                : "noch keine Daten",
               c.activeCampaigns > 0
                 ? `${c.activeCampaigns} ${c.activeCampaigns === 1 ? "laufende Kampagne" : "laufende Kampagnen"}`
                 : "keine laufende Kampagne",
@@ -4416,13 +4418,11 @@ function AdsAgencyOverview({
               )}
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+            {/* Volkan 22.09.: nur Besucher und Conversions. Ausgaben und
+                Impressionen stehen im Tooltip der Kachel. */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 8 }}>
               {[
-                {
-                  label: `Ausgaben (${c.currency})`,
-                  value: c.totals ? geld(c.totals.spend) : null,
-                },
-                { label: "Klicks", value: c.totals ? zahl(c.totals.clicks) : null },
+                { label: "Besucher", value: c.totals ? zahl(c.totals.clicks) : null },
                 {
                   label: "Conversions",
                   value: c.totals ? zahl(c.totals.ctc || c.totals.conversions) : null,
