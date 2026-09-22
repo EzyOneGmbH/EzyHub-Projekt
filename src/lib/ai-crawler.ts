@@ -255,17 +255,11 @@ function gruppeFuer(gruppen: RobotsGruppe[], agent: string): RobotsGruppe | null
 const regelText = (r: RobotsRegel) => `${r.typ === "allow" ? "Allow" : "Disallow"}: ${r.pfad}`;
 
 /** Ist die Wurzel «/» in dieser Gruppe gesperrt? (Allow: / schlaegt Disallow: /) */
-function wurzelGesperrt(g: RobotsGruppe): { gesperrt: boolean; regel: RobotsRegel | null } {
-  const disRoot = g.regeln.find((r) => r.typ === "disallow" && r.pfad === "/");
-  if (!disRoot) return { gesperrt: false, regel: null };
-  const allowRoot = g.regeln.find((r) => r.typ === "allow" && r.pfad === "/");
-  return allowRoot ? { gesperrt: false, regel: allowRoot } : { gesperrt: true, regel: disRoot };
-}
-
 function bewerteGruppe(g: RobotsGruppe): { status: RobotsStatus; regel: string | null } {
-  const w = wurzelGesperrt(g);
-  if (w.gesperrt) return { status: "gesperrt", regel: regelText(w.regel!) };
-  if (w.regel) return { status: "erlaubt", regel: regelText(w.regel) };
+  const disRoot = g.regeln.find((r) => r.typ === "disallow" && r.pfad === "/");
+  const allowRoot = g.regeln.find((r) => r.typ === "allow" && r.pfad === "/");
+  if (disRoot && !allowRoot) return { status: "gesperrt", regel: regelText(disRoot) };
+  if (allowRoot) return { status: "erlaubt", regel: regelText(allowRoot) };
   // Wurzel frei: spezifische Disallows (Teilbereiche) als Text mitgeben.
   const teil = g.regeln.filter((r) => r.typ === "disallow" && r.pfad !== "" && r.pfad !== "/");
   if (teil.length) {

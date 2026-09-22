@@ -112,10 +112,10 @@ const DID_ANTWORT = {
     behandelt: { seiten: 1, praeClicks: 400, postClicks: 520 },
     kontrolle: { seiten: 12, quelle: "gsc-pages", ratioMittel: 1.02, ratioSe: 0.05 },
     counterfactual: 408,
-    lift: 27.4,
-    liftLo: 14.1,
-    liftHi: 40.2,
-    verdikt: "positiv",
+    lift: 112,
+    liftLo: 60,
+    liftHi: 164,
+    verdikt: "likely_positive",
     fenster: {
       prae: { from: "2026-06-23", to: "2026-08-17" },
       post: { from: "2026-08-25", to: "2026-09-21" },
@@ -161,7 +161,7 @@ afterEach(() => cleanup());
 describe("FirstPartyGeo (Render-Smoke, gemocktes Netz)", () => {
   it("rendert alle fuenf Karten mit Daten und ruft die API mit Zeitraum auf", async () => {
     await mount();
-    expect(await screen.findByText("ChatGPT")).toBeTruthy();
+    expect(await screen.findAllByText("ChatGPT")).toBeTruthy();
     const url = String(fetchMock.mock.calls[0][0]);
     expect(url).toContain("/api/kpi/first-party-geo?client=" + CLIENT_ID);
     expect(url).toContain("startDate=2026-08-25");
@@ -175,8 +175,8 @@ describe("FirstPartyGeo (Render-Smoke, gemocktes Netz)", () => {
 
     // Schweizer Zahlenformat und Prozent.
     expect(screen.getByText("1'234")).toBeTruthy();
-    expect(screen.getByText("61.7 %")).toBeTruthy();
-    expect(screen.getByText("+12.5 %")).toBeTruthy();
+    expect(screen.getByText("61.7 %")).toBeTruthy();
+    expect(screen.getByText("+12.5 %")).toBeTruthy();
     // Chips, Crawler-Status, Hinweis.
     expect(screen.getByText("smoke ag")).toBeTruthy();
     expect(screen.getByText("gesperrt")).toBeTruthy();
@@ -186,15 +186,15 @@ describe("FirstPartyGeo (Render-Smoke, gemocktes Netz)", () => {
 
   it("DiD-Formular: Seite waehlen, berechnen, Verdikt und Lift anzeigen", async () => {
     await mount();
-    await screen.findByText("ChatGPT");
+    await screen.findAllByText("ChatGPT");
     const btn = screen.getByRole("button", { name: "Wirkung berechnen" }) as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
     fireEvent.click(screen.getAllByRole("checkbox")[0]);
     expect(btn.disabled).toBe(false);
     fireEvent.click(btn);
-    expect(await screen.findByText("positiv")).toBeTruthy();
-    expect(screen.getByText("+27.4 %")).toBeTruthy();
-    expect(screen.getByText("+14.1 % bis +40.2 %")).toBeTruthy();
+    expect(await screen.findByText("wahrscheinlich positiv")).toBeTruthy();
+    expect(screen.getByText("+112 (+27.5 %)")).toBeTruthy();
+    expect(screen.getByText("+60 bis +164 Klicks")).toBeTruthy();
     expect(screen.getByText("12 Seiten")).toBeTruthy();
 
     const post = fetchMock.mock.calls.find((c) => (c[1] as RequestInit)?.method === "POST");
@@ -226,14 +226,14 @@ describe("FirstPartyGeo (Render-Smoke, gemocktes Netz)", () => {
       fehler: { brand: "GSC-Quota erschöpft" },
     };
     await mount();
-    await screen.findByText("ChatGPT");
+    await screen.findAllByText("ChatGPT");
     expect(screen.getByText(/GSC-Quota erschöpft/)).toBeTruthy();
     expect(screen.getByText("KI-Crawler")).toBeTruthy();
   });
 
   it("ohne Range: eigener Umschalter 28/90/365 mit Default 28 Tage bis gestern", async () => {
     await mount({ range: undefined });
-    await screen.findByText("ChatGPT");
+    await screen.findAllByText("ChatGPT");
     expect(screen.getByRole("button", { name: "90 Tage" })).toBeTruthy();
     const url = String(fetchMock.mock.calls[0][0]);
     const m = /startDate=(\d{4}-\d{2}-\d{2})&endDate=(\d{4}-\d{2}-\d{2})/.exec(url)!;

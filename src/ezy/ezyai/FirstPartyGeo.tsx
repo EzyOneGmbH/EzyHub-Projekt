@@ -74,11 +74,18 @@ type Antwort = {
 type DidErgebnis = {
   behandelt: { seiten: number; praeClicks: number; postClicks: number };
   kontrolle: { seiten: number; quelle: string; ratioMittel: number; ratioSe: number };
-  counterfactual: number;
-  lift: number;
-  liftLo: number;
-  liftHi: number;
-  verdikt: string;
+  counterfactual: number | null;
+  /** Absolute Klicks (post - counterfactual); null bei zu wenig Daten. */
+  lift: number | null;
+  liftLo: number | null;
+  liftHi: number | null;
+  verdikt:
+    | "likely_positive"
+    | "likely_negative"
+    | "inconclusive"
+    | "insufficient_data"
+    | "insufficient_control"
+    | string;
   fenster: { prae: { from: string; to: string }; post: { from: string; to: string } };
 };
 
@@ -936,14 +943,20 @@ function DidKarte({
             }}
           >
             <span style={{ fontSize: 11.5, color: S.mut }}>Verdikt</span>
-            <Pille stil={verdiktStil(ergebnis.verdikt)}>{ergebnis.verdikt || "unklar"}</Pille>
+            <Pille stil={verdiktPille(ergebnis.verdikt).stil}>
+              {verdiktPille(ergebnis.verdikt).text}
+            </Pille>
           </div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <Kennzahl
               S={S}
-              label="Lift (95 %-Konfidenzintervall)"
-              wert={fmtSigned(ergebnis.lift)}
-              hinweis={`${fmtSigned(ergebnis.liftLo)} bis ${fmtSigned(ergebnis.liftHi)}`}
+              label="Lift in Klicks (95 %-Konfidenzintervall)"
+              wert={`${fmtSignedZahl(ergebnis.lift)}${
+                relativ(ergebnis.lift, ergebnis.counterfactual) == null
+                  ? ""
+                  : ` (${fmtSigned(relativ(ergebnis.lift, ergebnis.counterfactual))})`
+              }`}
+              hinweis={`${fmtSignedZahl(ergebnis.liftLo)} bis ${fmtSignedZahl(ergebnis.liftHi)} Klicks`}
             />
             <Kennzahl
               S={S}

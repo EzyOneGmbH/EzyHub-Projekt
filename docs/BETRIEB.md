@@ -356,6 +356,51 @@ Kontrolle: Admin → Systemcheck (Cron-Jobs `ezy-first-party-sync` Toleranz 26 h
 `ezy-first-party-backfill` Toleranz 30 min) und `select * from first_party_sync_status;` bzw.
 `select * from kpi_datenstand('<client_id>');`. Tests: `src/server/first-party-sync.test.ts`.
 
+#### GEO-Kacheln (EzyAI-Tab) — seit 22.09.2026
+
+Auswertungen für KI-Sichtbarkeit aus denselben Tabellen, ohne neue Tabellen. Migration
+`20260922120000_first_party_geo.sql` (manuell per SQL ausführen; alle Funktionen
+`SECURITY DEFINER` mit `first_party_zugriff`-Check):
+
+| Funktion                                           | Liefert                                                                                                                                              |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kpi_ki_referrals(_client_id,_von,_bis)`           | GA4-Zeilen (Tag × Quelle × Medium × Landingpage), deren Quelle/Medium eine KI-Engine sein **könnte** (grober ILIKE-Vorfilter; feine Zuordnung in TS) |
+| `kpi_seiten_tage(_client_id,_von,_bis)`            | Seite × Tag (Klicks/Impressionen) für Difference-in-Differences                                                                                      |
+| `kpi_seiten_zeitraum(_client_id,_von,_bis)`        | Seite über den Zeitraum (Impressionen, Klicks, gewichtete Position `pos`)                                                                            |
+| `kpi_brand_wochen(_client_id,_von,_bis,_begriffe)` | Brand-/Nonbrand-Impressionen und -Klicks je ISO-Woche (Montag); Brand = Query enthält einen der Begriffe (`clients.brand_terms`, sonst Domain-Stamm) |
+
+Route `GET /api/kpi/first-party-geo?client=<uuid>&startDate&endDate|days&block=referrals|zitate|brand|crawler`
+(Owner/Admin der aktiven Organisation, Kunden-Flag `first_party_kpi`, sonst `{aktiv:false}`; ohne
+`block` alle vier Blöcke, parallel und fail-soft — Fehler redaktiert in `fehler[block]`):
+
+- **referrals**: KI-Referrals je Engine/Tag/Landingpage (`src/lib/ai-referrer.ts`,
+  `klassifiziereKiQuelle`: ChatGPT, Perplexity, Gemini, Copilot, Claude, You.com, Poe, Meta AI,
+  DeepSeek, Grok, Phind; Medium `ai-assistant|ai_assistant|ai-chat` → «KI-Assistent (Kanal)»).
+  Untergrenze: ~70 % der KI-Referrals kommen als Direct an, AI-Overview-Klicks zählen als Organic.
+- **zitate**: zitierte eigene URLs aus dem jüngsten `ai_visibility_reports`-Eintrag mit
+  `parts.br.urls`/`parts.sa.urls` (Brand Radar bzw. AIO/AI-Mode, dedupliziert) gekreuzt mit den
+  GSC-Seiten: zitiert (mit Organik-Zahlen), organisch stark aber nicht zitiert (Top 15),
+  zitiert ohne Sichtbarkeit (< 50 Impressionen).
+- **brand**: Wochenreihe Brand vs. Nonbrand + `trendProzent` (letzte 4 vs. vorherige 4
+  **vollständige** Wochen, Brand-Impressionen; null unter 8 Wochen — dafür `days>=63`).
+- **crawler**: `https://<clients.domain>/robots.txt` (Timeout 10 s, fail-soft → `geladen:false`)
+  gegen die KI-Crawler-Referenz `src/lib/ai-crawler.ts` (`KI_CRAWLER`, `bewerteRobots` nach
+  RFC 9309: eigene User-agent-Gruppe, sonst `*`; Status erlaubt/gesperrt/unbestimmt, Regeltext,
+  Empfehlung). Nuancen: Google-Extended ist nur Training-Opt-out (keine Suchsperre), Bytespider
+  ignoriert robots.txt. `admin.site-health.ts` hat eine ältere Kurzliste und kann später auf
+  diese Referenz umgestellt werden.
+
+`POST /api/kpi/first-party-geo` `{client, action:"did", pages[], changeDate, praeTage?=56,
+washoutTage?=7, postTage?=28}`: Difference-in-Differences (`src/lib/did.ts`, seo-monster-Ansatz)
+— Prä `[change−praeTage, change−1]`, Post ab `change+washoutTage` (auf heute gekappt; liegt der
+Post-Beginn in der Zukunft → 400). Kontrollgruppe = Seiten mit gleichem erstem Pfadsegment
+(`quelle:"sektion"`), sonst sitewide (`"site"`); nur Kontrollseiten mit ≥ 5 Prä-Klicks, mindestens 3.
+Verdikt `likely_positive`/`likely_negative` (95-%-Intervall des Lifts ganz über/unter 0),
+`inconclusive`, `insufficient_data` (keine Prä-Klicks), `insufficient_control`.
+
+Tests: `src/lib/ai-referrer.test.ts`, `src/lib/ai-crawler.test.ts`, `src/lib/did.test.ts`,
+`src/server/first-party-geo.server.test.ts`, `src/server/first-party-geo.test.ts`.
+
 ---
 
 ## 6. Deployment & CI

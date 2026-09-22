@@ -2980,6 +2980,36 @@ export type Database = {
         sessions: number;
       }[];
     };
+    kpi_brand_wochen: {
+      Args: { _begriffe?: string[]; _bis: string; _client_id: string; _von: string };
+      Returns: {
+        brand_clicks: number;
+        brand_impressions: number;
+        nonbrand_clicks: number;
+        nonbrand_impressions: number;
+        woche_ab: string;
+      }[];
+    };
+    kpi_ki_referrals: {
+      Args: { _bis: string; _client_id: string; _von: string };
+      Returns: {
+        date: string;
+        engaged_sessions: number;
+        key_events: number;
+        landing_page: string;
+        session_medium: string;
+        session_source: string;
+        sessions: number;
+      }[];
+    };
+    kpi_seiten_tage: {
+      Args: { _bis: string; _client_id: string; _von: string };
+      Returns: { clicks: number; date: string; impressions: number; page: string }[];
+    };
+    kpi_seiten_zeitraum: {
+      Args: { _bis: string; _client_id: string; _von: string };
+      Returns: { clicks: number; impressions: number; page: string; pos: number }[];
+    };
     scheduler_status: { Args: never; Returns: Json };
     Enums: {
       app_role: "admin" | "member";
