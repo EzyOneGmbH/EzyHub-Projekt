@@ -90,7 +90,7 @@ export const Route = createFileRoute("/api/admin/ga4-conversions")({
         const clientId = new URL(request.url).searchParams.get("client") || "";
         if (!/^[0-9a-f-]{36}$/i.test(clientId))
           return Response.json({ ok: false, error: "client (uuid) erforderlich" }, { status: 400 });
-        const client = await visibleClient(auth.userClient, clientId);
+        const client = await visibleClient(auth.userClient ?? (supabaseAdmin as any), clientId);
         if (!client)
           return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
 
