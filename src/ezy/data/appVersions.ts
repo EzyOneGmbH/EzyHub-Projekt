@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.25.1",
+    version: "1.25.2",
     changelog: [
+      {
+        version: "1.25.2",
+        date: "2026-09-23",
+        note: "Conversions-Karte: Anzeigenamen und Arten erscheinen sofort, auch wenn das Gerät noch einen älteren Zwischenstand gespeichert hatte",
+      },
       {
         version: "1.25.1",
         date: "2026-09-23",

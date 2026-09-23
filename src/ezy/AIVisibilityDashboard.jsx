@@ -5929,7 +5929,8 @@ export default function AIVisibilityDashboard({
   // jede Filteraenderung neu laedt und der Range-Store zwischenspeichert.
   const attrKey =
     clientId && range
-      ? `aivis-attribution:${clientId}:${isoDay(range.start)}:${isoDay(range.end)}`
+      ? // v2 (23.09.): Schema mit label/conversionTypes — alte Cache-Eintraege ignorieren
+        `aivis-attribution:v2:${clientId}:${isoDay(range.start)}:${isoDay(range.end)}`
       : null;
   const liveAttr = useRangeData(attrKey, async () => {
     const session = (await supabase.auth.getSession()).data.session;
