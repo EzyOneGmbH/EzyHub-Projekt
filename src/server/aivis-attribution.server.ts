@@ -220,8 +220,12 @@ export async function fetchAttribution(
         : "transactionId";
       // GA4 erlaubt max. 9 Dimensionen: Betrags-Dimensionen haben Vorrang,
       // Stadt/Seite fallen bei vollem Buchungs-Setup zuerst weg (get() liefert "").
-      // rich = minutengenau + Stadt + Seite (Einzelzeilen); sonst Tagesgruppen.
-      const dims = (withCustom: boolean, rich: boolean) =>
+      // rich 2 = minutengenau + Stadt + Seite, 1 = minutengenau + Seite,
+      // 0 = Tagesgruppen (bisheriges Verhalten). GA4 unterdrueckt bei
+      // Thresholding (Google Signals) feine Zeilen stillschweigend -> dann
+      // kommt eine leere, aber gueltige Antwort; darum geht die Leiter auch
+      // bei leerem Ergebnis weiter.
+      const dims = (withCustom: boolean, rich: 0 | 1 | 2) =>
         [
           { name: "sessionSource" },
           { name: "eventName" },
@@ -236,9 +240,10 @@ export async function fetchAttribution(
                 ...(hasDlCurrency ? [{ name: "customEvent:dl_currency" }] : []),
               ]
             : []),
-          ...(rich ? [{ name: "city" }, { name: "pagePath" }] : []),
+          ...(rich === 2 ? [{ name: "city" }] : []),
+          ...(rich ? [{ name: "pagePath" }] : []),
         ].slice(0, 9);
-      const runDetail = (withCustom: boolean, rich: boolean) =>
+      const runDetail = (withCustom: boolean, rich: 0 | 1 | 2) =>
         fetch(`${GA4}/properties/${encodeURIComponent(propertyId)}:runReport`, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -257,19 +262,27 @@ export async function fetchAttribution(
         });
       // Rueckfall-Leiter: reich mit/ohne Custom-Dimensionen, dann Tagesgruppen.
       // Der erste GA4-Fehlertext bleibt fuer die Diagnose erhalten (detailError).
-      let r2: Response | null = null;
+      let j2: any = null;
       for (const [wc, rich] of [
-        [true, true],
-        [false, true],
-        [true, false],
-        [false, false],
-      ] as Array<[boolean, boolean]>) {
-        r2 = await runDetail(wc, rich);
-        if (r2.ok) break;
-        detailError ??= `GA4 ${r2.status} (custom=${wc}, rich=${rich}): ${(await r2.text().catch(() => "")).slice(0, 300)}`;
+        [true, 2],
+        [true, 1],
+        [false, 1],
+        [true, 0],
+        [false, 0],
+      ] as Array<[boolean, 0 | 1 | 2]>) {
+        const r2 = await runDetail(wc, rich);
+        if (!r2.ok) {
+          detailError ??= `GA4 ${r2.status} (custom=${wc}, rich=${rich}): ${(await r2.text().catch(() => "")).slice(0, 300)}`;
+          continue;
+        }
+        const jj: any = await r2.json().catch(() => ({}));
+        if ((jj.rows ?? []).length) {
+          j2 = jj;
+          break;
+        }
+        detailError ??= `leer (custom=${wc}, rich=${rich}, thresholding=${String(jj?.metadata?.subjectToThresholding ?? "?")})`;
       }
-      if (r2?.ok) {
-        const j2: any = await r2.json().catch(() => ({}));
+      if (j2) {
         const dh: string[] = (j2.dimensionHeaders ?? []).map((h: any) => String(h?.name ?? ""));
         for (const row of j2.rows ?? []) {
           const get = (nm: string) => {
