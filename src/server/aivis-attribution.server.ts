@@ -60,6 +60,7 @@ export type AttributionEvent = {
   time?: string; // HH:MM (Zeitzone der GA4-Property)
   city?: string;
   page?: string; // pagePath, auf der die Conversion ausgeloest wurde
+  label?: string; // Anzeigename aus client_event_labels (z. B. «Suchformular»)
   txn?: string;
   currency?: string;
 };
@@ -94,6 +95,23 @@ export async function countedConversionEvents(clientId: string): Promise<Set<str
 }
 const GA4_ADMIN = "https://analyticsadmin.googleapis.com/v1beta";
 
+// Anzeigenamen je Ereignis (Admin Center -> Conversions -> «Anzeigename»).
+export async function eventLabels(clientId: string): Promise<Map<string, string>> {
+  try {
+    const { data } = await (supabaseAdmin as any)
+      .from("client_event_labels")
+      .select("event_name, label")
+      .eq("client_id", clientId);
+    return new Map<string, string>(
+      (data ?? [])
+        .filter((x: any) => String(x.label ?? "").trim())
+        .map((x: any) => [String(x.event_name), String(x.label).trim()]),
+    );
+  } catch {
+    return new Map<string, string>();
+  }
+}
+
 export async function fetchAttribution(
   c: { id: string; ga4_property?: string | null },
   zr: Pick<Zeitraum, "startDate" | "endDate">,
@@ -108,6 +126,7 @@ export async function fetchAttribution(
   const propertyId = String(c.ga4_property).replace(/^properties\//, "");
   const dateRanges = [ga4DateRange(zr)];
   const counted = await countedConversionEvents(c.id);
+  const labels = await eventLabels(c.id);
   let r: Response;
   try {
     r = await fetch(`${GA4}/properties/${encodeURIComponent(propertyId)}:runReport`, {
