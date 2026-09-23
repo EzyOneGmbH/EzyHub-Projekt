@@ -7,6 +7,13 @@
 // Ergebnis je Engine: sessions (KI-Verweis-Sessions), conversions (keyEvents),
 // events[] (einzelne Conversions mit Name/Land/Geraet/Datum/Wert, gedeckelt)
 // und visitors[] (Top-Laender der Besucher).
+//
+// «Zaehlt als Conversion» (23.09.2026, Tabelle client_conversion_events): fuer
+// dort hinterlegte Ereignisse zaehlt eventCount statt keyEvents — GA4 zaehlt
+// Key Events erst ab der Markierung, das Rohereignis aber seit jeher. Damit
+// sind z. B. form_submit-Sendungen aus KI-Quellen RUECKWIRKEND sichtbar. Der
+// keyEvents-Anteil dieser Ereignisse wird ersetzt, nicht addiert (keine
+// Doppelzaehlung ab der Markierung).
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
 import { redactSecrets } from "@/server/google-oauth.server";
@@ -51,6 +58,18 @@ export type AttributionResult =
   | { error: string };
 
 const GA4 = "https://analyticsdata.googleapis.com/v1beta";
+
+export async function countedConversionEvents(clientId: string): Promise<Set<string>> {
+  try {
+    const { data } = await (supabaseAdmin as any)
+      .from("client_conversion_events")
+      .select("event_name")
+      .eq("client_id", clientId);
+    return new Set<string>((data ?? []).map((x: any) => String(x.event_name)));
+  } catch {
+    return new Set<string>();
+  }
+}
 const GA4_ADMIN = "https://analyticsadmin.googleapis.com/v1beta";
 
 export async function fetchAttribution(
@@ -66,6 +85,7 @@ export async function fetchAttribution(
   }
   const propertyId = String(c.ga4_property).replace(/^properties\//, "");
   const dateRanges = [ga4DateRange(zr)];
+  const counted = await countedConversionEvents(c.id);
   let r: Response;
   try {
     r = await fetch(`${GA4}/properties/${encodeURIComponent(propertyId)}:runReport`, {
@@ -106,6 +126,45 @@ export async function fetchAttribution(
     if (sess > 0) {
       visitors[eng.name] ??= {};
       visitors[eng.name][country] = (visitors[eng.name][country] ?? 0) + sess;
+    }
+  }
+
+  // Gezaehlte Ereignisse: eventCount ersetzt deren keyEvents-Anteil.
+  if (counted.size) {
+    try {
+      const r3 = await fetch(`${GA4}/properties/${encodeURIComponent(propertyId)}:runReport`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dateRanges,
+          dimensions: [
+            { name: "sessionSource" },
+            { name: "sessionDefaultChannelGroup" },
+            { name: "eventName" },
+          ],
+          metrics: [{ name: "keyEvents" }, { name: "eventCount" }],
+          dimensionFilter: {
+            filter: { fieldName: "eventName", inListFilter: { values: [...counted] } },
+          },
+          limit: 10000,
+        }),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (r3.ok) {
+        const j3: any = await r3.json().catch(() => ({}));
+        for (const row of j3.rows ?? []) {
+          const src = String(row.dimensionValues?.[0]?.value ?? "");
+          const eng = ENGINES.find((e) => e.re.test(src));
+          if (!eng) continue;
+          if (isOrganicBing(src, String(row.dimensionValues?.[1]?.value ?? ""))) continue;
+          const ke = Number(row.metricValues?.[0]?.value ?? 0);
+          const ec = Number(row.metricValues?.[1]?.value ?? 0);
+          agg[eng.name] ??= { sessions: 0, conversions: 0 };
+          agg[eng.name].conversions += ec - ke;
+        }
+      }
+    } catch {
+      /* optional — keyEvents-Totale bleiben gueltig */
     }
   }
 
@@ -172,7 +231,12 @@ export async function fetchAttribution(
           body: JSON.stringify({
             dateRanges,
             dimensions: dims(withCustom),
-            metrics: [{ name: "keyEvents" }, { name: "eventValue" }, { name: "totalRevenue" }],
+            metrics: [
+              { name: "keyEvents" },
+              { name: "eventValue" },
+              { name: "totalRevenue" },
+              { name: "eventCount" },
+            ],
             limit: 5000,
           }),
           signal: AbortSignal.timeout(30_000),
@@ -190,13 +254,14 @@ export async function fetchAttribution(
           };
           const src = get("sessionSource");
           const eng = ENGINES.find((e) => e.re.test(src));
-          const n = Number(row.metricValues?.[0]?.value ?? 0);
+          const evName = get("eventName");
+          // gezaehlte Ereignisse: Rohanzahl statt Key-Event-Anzahl (rueckwirkend)
+          const n = Number(row.metricValues?.[counted.has(evName) ? 3 : 0]?.value ?? 0);
           if (!eng || n <= 0 || isOrganicBing(src, get("sessionDefaultChannelGroup"))) continue;
           const idRaw = get(idDim);
           const txn = idRaw && idRaw !== "(not set)" ? idRaw : undefined;
           const cur = get("customEvent:dl_currency");
           const dlVal = Number(get("customEvent:dl_value")) || 0;
-          const evName = get("eventName");
           const man = manual.get(evName);
           // Betrags-Kaskade: dl_value > totalRevenue > eventValue > manueller Wert (x Anzahl).
           const gaVal =

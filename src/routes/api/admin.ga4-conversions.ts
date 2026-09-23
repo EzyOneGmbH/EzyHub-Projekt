@@ -14,6 +14,11 @@ import { ga4CoverageSammler, ga4RunReportUrl } from "@/server/ga4.server";
 //                        + Setup-Erkennung (dl_value-Custom-Dimension vorhanden?)
 // POST {client, values:[{event, value, currency}]} → Werte hinterlegen;
 //                        value <= 0 löscht den Eintrag wieder.
+// POST {client, conversionEvents:[{event, on}]} → «Zaehlt als Conversion»
+//                        (client_conversion_events): Ereignis zaehlt in der
+//                        KI-Attribution mit eventCount statt keyEvents — auch
+//                        RUECKWIRKEND (23.09.2026). GET liefert dafuer auch
+//                        Roh-Ereignisse (eventCount, ohne Grundrauschen) mit.
 // POST {client, keyEvent:{event, countingMethod?}} → Event in GA4 als Key Event
 //                        markieren (Admin API keyEvents.create; 23.09.2026).
 //                        Braucht analytics.edit — siehe getGoogleAccessTokenForScope.
@@ -55,6 +60,22 @@ async function visibleClient(userClient: any, clientId: string) {
   return data ?? null;
 }
 
+// GA4-Grundrauschen, das nie eine Conversion ist — bleibt aus der Auswahl.
+const NOISE_EVENTS = new Set([
+  "page_view",
+  "scroll",
+  "session_start",
+  "first_visit",
+  "user_engagement",
+  "view_search_results",
+  "video_start",
+  "video_progress",
+  "video_complete",
+  "form_start",
+  "click",
+  "(not set)",
+]);
+
 const KeyEventBody = z.object({
   client: z.string().uuid(),
   keyEvent: z.object({
@@ -78,7 +99,12 @@ const PostBody = z.object({
           .default("CHF"),
       }),
     )
-    .max(100),
+    .max(100)
+    .default([]),
+  conversionEvents: z
+    .array(z.object({ event: z.string().min(1).max(200), on: z.boolean() }))
+    .max(100)
+    .default([]),
 });
 
 export const Route = createFileRoute("/api/admin/ga4-conversions")({
@@ -106,17 +132,24 @@ export const Route = createFileRoute("/api/admin/ga4-conversions")({
           ]),
         );
 
+        const { data: countedRows } = await (supabaseAdmin as any)
+          .from("client_conversion_events")
+          .select("event_name")
+          .eq("client_id", clientId);
+        const counted = new Set<string>((countedRows ?? []).map((x: any) => String(x.event_name)));
+
         if (!client.ga4_property)
           return Response.json({
             ok: true,
             ga4: false,
-            events: [...manual.entries()].map(([name, m]) => ({
+            events: [...new Set([...manual.keys(), ...counted])].map((name) => ({
               name,
               isKeyEvent: false,
+              countsAsConversion: counted.has(name),
               count30d: 0,
               ga4Value: 0,
-              manualValue: m.value,
-              currency: m.currency,
+              manualValue: manual.get(name)?.value ?? 0,
+              currency: manual.get(name)?.currency || "CHF",
             })),
             setup: { dlValue: false },
           });
@@ -145,7 +178,8 @@ export const Route = createFileRoute("/api/admin/ga4-conversions")({
         // 1) Key-Events (die in GA4 als Conversion markierten Events) inkl.
         //    dort hinterlegtem Standardwert. 2) 30-Tage-Report je Event.
         //    3) Custom-Dimension-Erkennung (Buchungs-Setup dl_value).
-        const [keyRes, repRes, dimRes] = await Promise.all([
+        //    4) Roh-Ereignisse (eventCount) — Auswahl fuer «Zaehlt als Conversion».
+        const [keyRes, repRes, dimRes, cntRes] = await Promise.all([
           gaFetch(
             `https://analyticsadmin.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}/keyEvents?pageSize=200`,
           ),
@@ -161,7 +195,26 @@ export const Route = createFileRoute("/api/admin/ga4-conversions")({
           gaFetch(
             `https://analyticsadmin.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}/customDimensions?pageSize=200`,
           ),
+          gaFetch(ga4RunReportUrl(propertyId), {
+            method: "POST",
+            body: JSON.stringify({
+              dateRanges: [ga4DateRange(zeitraum({ days: 30 }))],
+              dimensions: [{ name: "eventName" }],
+              metrics: [{ name: "eventCount" }],
+              orderBys: [{ metric: { metricName: "eventCount" }, desc: true }],
+              limit: 200,
+            }),
+          }),
         ]);
+        const rawCounts = new Map<string, number>();
+        if (cntRes.ok) {
+          const j: any = await cntRes.json().catch(() => ({}));
+          for (const row of j.rows ?? []) {
+            const name = String(row.dimensionValues?.[0]?.value ?? "");
+            const n = Number(row.metricValues?.[0]?.value ?? 0);
+            if (name && n > 0) rawCounts.set(name, n);
+          }
+        }
 
         const keyEvents: Array<{ name: string; defaultValue: number; defaultCurrency: string }> =
           [];
@@ -199,11 +252,14 @@ export const Route = createFileRoute("/api/admin/ga4-conversions")({
           );
         }
 
-        // Vereinigung: Admin-API-Liste + Report-Namen + bereits hinterlegte.
+        // Vereinigung: Admin-API-Liste + Report-Namen + bereits hinterlegte
+        // + gezaehlte + Roh-Ereignisse ohne Grundrauschen.
         const names = new Set<string>([
           ...keyEvents.map((k) => k.name),
           ...counts.keys(),
           ...manual.keys(),
+          ...counted,
+          ...[...rawCounts.keys()].filter((n) => !NOISE_EVENTS.has(n)),
         ]);
         const keyByName = new Map(keyEvents.map((k) => [k.name, k]));
         const events = [...names]
@@ -211,13 +267,25 @@ export const Route = createFileRoute("/api/admin/ga4-conversions")({
           .map((name) => ({
             name,
             isKeyEvent: keyByName.has(name),
-            count30d: counts.get(name)?.count ?? 0,
+            countsAsConversion: counted.has(name),
+            // Gezaehlte und Nicht-Key-Events zeigen die Rohanzahl (so zaehlt
+            // sie auch die Attribution), Key-Events die Key-Event-Anzahl.
+            count30d:
+              (counted.has(name) || !keyByName.has(name) ? rawCounts.get(name) : undefined) ??
+              counts.get(name)?.count ??
+              0,
             // Wert, den GA4 selbst schon liefert (Umsatz/value/Key-Event-Standardwert)
             ga4Value: counts.get(name)?.gaValue || keyByName.get(name)?.defaultValue || 0,
             manualValue: manual.get(name)?.value ?? 0,
             currency: manual.get(name)?.currency || keyByName.get(name)?.defaultCurrency || "CHF",
           }))
-          .sort((a, b) => b.count30d - a.count30d || a.name.localeCompare(b.name));
+          .sort(
+            (a, b) =>
+              Number(b.isKeyEvent || b.countsAsConversion) -
+                Number(a.isKeyEvent || a.countsAsConversion) ||
+              b.count30d - a.count30d ||
+              a.name.localeCompare(b.name),
+          );
 
         return Response.json({
           ok: true,
@@ -295,10 +363,29 @@ export const Route = createFileRoute("/api/admin/ga4-conversions")({
         const parsed = PostBody.safeParse(body);
         if (!parsed.success)
           return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
-        const { client: clientId, values } = parsed.data;
+        const { client: clientId, values, conversionEvents } = parsed.data;
         const client = await visibleClient(lookup, clientId);
         if (!client)
           return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
+
+        let counted = 0;
+        for (const ce of conversionEvents) {
+          if (ce.on) {
+            const { error } = await (supabaseAdmin as any)
+              .from("client_conversion_events")
+              .upsert(
+                { client_id: clientId, event_name: ce.event },
+                { onConflict: "client_id,event_name", ignoreDuplicates: true },
+              );
+            if (!error) counted++;
+          } else {
+            await (supabaseAdmin as any)
+              .from("client_conversion_events")
+              .delete()
+              .eq("client_id", clientId)
+              .eq("event_name", ce.event);
+          }
+        }
 
         let saved = 0,
           removed = 0;
@@ -324,7 +411,7 @@ export const Route = createFileRoute("/api/admin/ga4-conversions")({
             if (!error) removed++;
           }
         }
-        return Response.json({ ok: true, saved, removed });
+        return Response.json({ ok: true, saved, removed, counted });
       },
     },
   },

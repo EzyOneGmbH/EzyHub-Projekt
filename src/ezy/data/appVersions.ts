@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.23.0",
+    version: "1.24.0",
     changelog: [
+      {
+        version: "1.24.0",
+        date: "2026-09-23",
+        note: "Conversions rückwirkend: Im Admin Center (Kunde → Conversions) lässt sich je GA4-Ereignis «Zählt als Conversion» setzen. EzyAI zählt dieses Ereignis dann mit seiner Ereignis-Anzahl statt als Key-Event — dadurch erscheinen z. B. Formular-Sendungen aus KI-Quellen auch für Zeiträume vor der Key-Event-Markierung in GA4. Dazu neu: GA4-Key-Events lassen sich direkt aus dem Hub markieren",
+      },
       {
         version: "1.23.0",
         date: "2026-09-23",

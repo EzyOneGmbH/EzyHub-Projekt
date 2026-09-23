@@ -3054,6 +3054,7 @@ export function ConversionValuesPanel({ client }) {
     setup: null,
   });
   const [drafts, setDrafts] = useState({}); // event -> { value, currency }
+  const [toggles, setToggles] = useState({}); // event -> bool («Zählt als Conversion»)
   const [saving, setSaving] = useState(false);
 
   const clientIdStabil = client?.id;
@@ -3078,6 +3079,7 @@ export function ConversionValuesPanel({ client }) {
         setup: j.setup || null,
       });
       setDrafts({});
+      setToggles({});
     } catch (e) {
       setState((s) => ({ ...s, loading: false, error: String(e?.message || e) }));
     }
@@ -3090,7 +3092,7 @@ export function ConversionValuesPanel({ client }) {
     drafts[ev.name] ?? { value: ev.manualValue || "", currency: ev.currency || "CHF" };
   const setDraft = (name, patch) =>
     setDrafts((d) => ({ ...d, [name]: { ...(d[name] ?? {}), ...patch } }));
-  const dirty = Object.keys(drafts).length > 0;
+  const dirty = Object.keys(drafts).length > 0 || Object.keys(toggles).length > 0;
 
   const save = async () => {
     setSaving(true);
@@ -3107,11 +3109,15 @@ export function ConversionValuesPanel({ client }) {
           Authorization: `Bearer ${session?.access_token || ""}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ client: client.id, values }),
+        body: JSON.stringify({
+          client: client.id,
+          values,
+          conversionEvents: Object.entries(toggles).map(([event, on]) => ({ event, on })),
+        }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
-      toast("Conversion-Werte gespeichert — wirken ab dem nächsten Daten-Lauf", "success");
+      toast("Conversions gespeichert — wirken ab dem nächsten Daten-Lauf", "success");
       await load();
     } catch (e) {
       toast("Speichern fehlgeschlagen: " + String(e?.message || e), "error");
@@ -3137,9 +3143,11 @@ export function ConversionValuesPanel({ client }) {
         Conversions{client?.name ? ` — ${client.name}` : ""}
       </h2>
       <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 16 }}>
-        Alle Conversions (Key-Events), die GA4 für diesen Kunden erkennt. Liefert GA4 selbst keinen
-        Betrag, kannst du hier pro Conversion einen Wert hinterlegen — er wird ab dem nächsten
-        Daten-Lauf automatisch angewendet.
+        Alle Conversions (Key-Events), die GA4 für diesen Kunden erkennt, plus die häufigsten
+        Roh-Ereignisse. Liefert GA4 selbst keinen Betrag, kannst du hier pro Conversion einen Wert
+        hinterlegen — er wird ab dem nächsten Daten-Lauf automatisch angewendet. «Zählt als
+        Conversion» nimmt ein Ereignis mit seiner Ereignis-Anzahl in die KI-Attribution auf — auch
+        rückwirkend, denn GA4 zählt Key-Events erst ab der Markierung.
       </div>
       <div
         style={{
@@ -3179,6 +3187,9 @@ export function ConversionValuesPanel({ client }) {
                     }}
                   >
                     <th style={{ padding: "6px 8px" }}>Conversion</th>
+                    <th style={{ padding: "6px 8px", textAlign: "center" }}>
+                      Zählt als Conversion
+                    </th>
                     <th style={{ padding: "6px 8px", textAlign: "right" }}>30 Tage</th>
                     <th style={{ padding: "6px 8px", textAlign: "right" }}>Wert aus GA4</th>
                     <th style={{ padding: "6px 8px", textAlign: "right" }}>Manueller Wert</th>
@@ -3188,11 +3199,12 @@ export function ConversionValuesPanel({ client }) {
                 <tbody>
                   {state.events.map((ev) => {
                     const d = draftOf(ev);
+                    const zaehlt = toggles[ev.name] ?? !!ev.countsAsConversion;
                     return (
                       <tr key={ev.name} style={{ borderTop: `1px solid ${C.border}` }}>
                         <td style={{ padding: "8px", color: C.text, fontWeight: 600 }}>
                           {ev.name}
-                          {!ev.isKeyEvent && (
+                          {(!ev.isKeyEvent || zaehlt) && (
                             <span
                               style={{
                                 marginLeft: 8,
@@ -3201,9 +3213,22 @@ export function ConversionValuesPanel({ client }) {
                                 fontWeight: 400,
                               }}
                             >
-                              nicht als Key-Event markiert
+                              {zaehlt
+                                ? "zählt rückwirkend mit Ereignis-Anzahl"
+                                : "nicht als Key-Event markiert"}
                             </span>
                           )}
+                        </td>
+                        <td style={{ padding: "8px", textAlign: "center" }}>
+                          <input
+                            type="checkbox"
+                            checked={zaehlt}
+                            onChange={(e) =>
+                              setToggles((t) => ({ ...t, [ev.name]: e.target.checked }))
+                            }
+                            title="Ereignis-Anzahl statt Key-Event-Anzahl in der KI-Attribution (auch rückwirkend)"
+                            style={{ width: 16, height: 16, cursor: "pointer" }}
+                          />
                         </td>
                         <td
                           style={{
@@ -3261,10 +3286,11 @@ export function ConversionValuesPanel({ client }) {
             </div>
             <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 12 }}>
               <Btn icon={Save} onClick={save} disabled={!dirty || saving}>
-                {saving ? "Speichert…" : "Werte speichern"}
+                {saving ? "Speichert…" : "Speichern"}
               </Btn>
               <span style={{ fontSize: 11.5, color: C.textMuted }}>
-                Wert 0 entfernt einen hinterlegten Betrag wieder.
+                Wert 0 entfernt einen hinterlegten Betrag wieder. Häkchen weg = Ereignis zählt
+                wieder nur als Key-Event.
               </span>
             </div>
           </>
