@@ -30,6 +30,20 @@ export const ENGINES: Array<{ name: string; re: RegExp }> = [
 ];
 // Bing-Sonderfall (06.08.): plain "bing" aus der ORGANISCHEN Bing-Suche ist
 // klassisches SEO, kein KI-Traffic — sonst zaehlt Bing-SEO als Copilot.
+// Detailreport nur fuer KI-Quellen: haelt die Kardinalitaet klein — sonst
+// aggregiert GA4 minutengenaue Zeilen (x Seite) ueber lange Zeitraeume zu
+// "(other)", und "(other)" matcht keine Engine (23.09.2026).
+const AI_SOURCE_FILTER = {
+  filter: {
+    fieldName: "sessionSource",
+    stringFilter: {
+      matchType: "PARTIAL_REGEXP",
+      value: ENGINES.map((e) => e.re.source).join("|"),
+      caseSensitive: false,
+    },
+  },
+};
+
 export const isOrganicBing = (src: string, channel: string) =>
   /(^|\.)bing\b/i.test(src) && !/copilot|chat|edgeservices/i.test(src) && /organic/i.test(channel);
 
@@ -61,7 +75,7 @@ export type AttributionEngine = {
 };
 
 export type AttributionResult =
-  | { engines: AttributionEngine[]; detailError?: string }
+  | { engines: AttributionEngine[]; detailError?: string; detailDebug?: string }
   | { skipped: string }
   | { error: string };
 
@@ -182,6 +196,7 @@ export async function fetchAttribution(
   // transactionId vereinzelt die Conversions.
   const events: Record<string, AttributionEvent[]> = {};
   let detailError: string | undefined;
+  let detailDebug: string | undefined;
   if (Object.values(agg).some((v) => v.conversions > 0)) {
     try {
       const custom = new Set<string>();
@@ -250,6 +265,7 @@ export async function fetchAttribution(
           body: JSON.stringify({
             dateRanges,
             dimensions: dims(withCustom, rich),
+            dimensionFilter: AI_SOURCE_FILTER,
             metrics: [
               { name: "keyEvents" },
               { name: "eventValue" },
@@ -284,6 +300,7 @@ export async function fetchAttribution(
       }
       if (j2) {
         const dh: string[] = (j2.dimensionHeaders ?? []).map((h: any) => String(h?.name ?? ""));
+        detailDebug = `rows=${(j2.rows ?? []).length} dims=${dh.join(",")} first=${JSON.stringify(j2.rows?.[0] ?? null).slice(0, 400)}`;
         for (const row of j2.rows ?? []) {
           const get = (nm: string) => {
             const i = dh.indexOf(nm);
@@ -344,6 +361,7 @@ export async function fetchAttribution(
   }
   return {
     ...(detailError ? { detailError } : {}),
+    ...(detailDebug ? { detailDebug } : {}),
     engines: Object.entries(agg).map(([engine, v]) => ({
       engine,
       ...v,
