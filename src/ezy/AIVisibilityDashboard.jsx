@@ -814,8 +814,11 @@ function AttributionStrip({ rows, convRows = [], label = "letzte 30 Tage" }) {
       ? richEvents.map((e) => ({
           description: e.name,
           date: e.date,
+          time: e.time,
           value: e.value,
           country: e.country,
+          city: e.city,
+          page: e.page,
           device: e.device,
           count: e.count,
           txn: e.txn,
@@ -884,20 +887,21 @@ function AttributionStrip({ rows, convRows = [], label = "letzte 30 Tage" }) {
             Ausgelöste Conversions über {openRow.engine}
           </div>
           {detailRows.length > 0 ? (
-            // Einzel-Conversions wie im Conversions-Tab: Titel, Datum, Wert, Land, Gerät.
+            // Einzel-Conversions (23.09.: eine Zeile je Conversion): Titel, Zeitpunkt,
+            // Wert, Ort, Gerät, Seite. Ältere Schnappschüsse (Tagesgruppen) zeigen «×n».
             <div className="mt-2 overflow-x-auto">
-              <table className="w-full text-[13px]" style={{ minWidth: 520 }}>
+              <table className="w-full text-[13px]" style={{ minWidth: 640 }}>
                 <thead>
                   <tr
                     className="text-left text-[11px] uppercase tracking-wide"
                     style={{ color: C.sub }}
                   >
                     <th className="px-2 py-1.5 font-medium">Titel</th>
-                    <th className="px-2 py-1.5 font-medium">Datum</th>
+                    <th className="px-2 py-1.5 font-medium">Zeitpunkt</th>
                     <th className="px-2 py-1.5 text-right font-medium">Wert</th>
-                    <th className="px-2 py-1.5 font-medium">Land</th>
+                    <th className="px-2 py-1.5 font-medium">Ort</th>
                     <th className="px-2 py-1.5 font-medium">Gerät</th>
-                    <th className="px-2 py-1.5 text-right font-medium">Anzahl</th>
+                    <th className="px-2 py-1.5 font-medium">Seite</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -905,14 +909,23 @@ function AttributionStrip({ rows, convRows = [], label = "letzte 30 Tage" }) {
                     <tr key={i} className="border-t" style={{ borderColor: C.line }}>
                       <td className="px-2 py-1.5 font-semibold" style={{ color: C.ink }}>
                         {r.description || r.eventName || "—"}
+                        {Number(r.count) > 1 && (
+                          <span className="ml-1.5 font-normal text-[11px]" style={{ color: C.sub }}>
+                            ×{Number(r.count).toLocaleString("de-CH")}
+                          </span>
+                        )}
                         {r.txn && (
                           <span className="ml-1.5 font-normal text-[11px]" style={{ color: C.sub }}>
                             #{r.txn}
                           </span>
                         )}
                       </td>
-                      <td className="px-2 py-1.5" style={{ color: C.sub }}>
+                      <td
+                        className="px-2 py-1.5 whitespace-nowrap tabular-nums"
+                        style={{ color: C.sub }}
+                      >
                         {fmtGa4Date(r.date)}
+                        {r.time ? ` ${r.time}` : ""}
                       </td>
                       <td
                         className="px-2 py-1.5 text-right tabular-nums"
@@ -922,14 +935,20 @@ function AttributionStrip({ rows, convRows = [], label = "letzte 30 Tage" }) {
                           ? `${Math.round(r.value).toLocaleString("de-CH")} ${r.currency || "CHF"}`
                           : "—"}
                       </td>
-                      <td className="px-2 py-1.5" style={{ color: C.sub }}>
-                        {r.country || "—"}
+                      <td className="px-2 py-1.5 whitespace-nowrap" style={{ color: C.sub }}>
+                        {r.city
+                          ? `${r.city}, ${r.country || ""}`.replace(/, $/, "")
+                          : r.country || "—"}
                       </td>
                       <td className="px-2 py-1.5" style={{ color: C.sub }}>
                         {r.device || "—"}
                       </td>
-                      <td className="px-2 py-1.5 text-right tabular-nums" style={{ color: C.ink }}>
-                        {Number(r.count || 0).toLocaleString("de-CH")}
+                      <td
+                        className="px-2 py-1.5 max-w-[220px] truncate"
+                        style={{ color: C.sub }}
+                        title={r.page || ""}
+                      >
+                        {r.page || "—"}
                       </td>
                     </tr>
                   ))}

@@ -33,16 +33,24 @@ export const ENGINES: Array<{ name: string; re: RegExp }> = [
 export const isOrganicBing = (src: string, channel: string) =>
   /(^|\.)bing\b/i.test(src) && !/copilot|chat|edgeservices/i.test(src) && /organic/i.test(channel);
 
+// Seit 23.09.2026 je EINZELNE Conversion eine Zeile (count = 1): GA4 liefert
+// Gruppen, wir fragen minutengenau (dateHourMinute) plus Stadt und Seite ab
+// und loesen Rest-Gruppen (gleiche Minute) in Einzelzeilen auf.
 export type AttributionEvent = {
   name: string;
   count: number;
   value: number;
   country: string;
   device: string;
-  date: string;
+  date: string; // YYYYMMDD
+  time?: string; // HH:MM (Zeitzone der GA4-Property)
+  city?: string;
+  page?: string; // pagePath, auf der die Conversion ausgeloest wurde
   txn?: string;
   currency?: string;
 };
+
+const MAX_EVENT_ROWS = 200; // je Engine, nach Datum absteigend
 
 export type AttributionEngine = {
   engine: string;
@@ -209,21 +217,26 @@ export async function fetchAttribution(
       const idDim = custom.has("dl_reservationid")
         ? "customEvent:dl_reservationid"
         : "transactionId";
-      const dims = (withCustom: boolean) => [
-        { name: "sessionSource" },
-        { name: "eventName" },
-        { name: "country" },
-        { name: "deviceCategory" },
-        { name: "date" },
-        { name: "sessionDefaultChannelGroup" },
-        ...(withCustom
-          ? [
-              { name: idDim },
-              ...(hasDlValue ? [{ name: "customEvent:dl_value" }] : []),
-              ...(hasDlCurrency ? [{ name: "customEvent:dl_currency" }] : []),
-            ]
-          : []),
-      ];
+      // GA4 erlaubt max. 9 Dimensionen: Betrags-Dimensionen haben Vorrang,
+      // Stadt/Seite fallen bei vollem Buchungs-Setup zuerst weg (get() liefert "").
+      const dims = (withCustom: boolean) =>
+        [
+          { name: "sessionSource" },
+          { name: "eventName" },
+          { name: "country" },
+          { name: "deviceCategory" },
+          { name: "dateHourMinute" },
+          { name: "sessionDefaultChannelGroup" },
+          ...(withCustom
+            ? [
+                { name: idDim },
+                ...(hasDlValue ? [{ name: "customEvent:dl_value" }] : []),
+                ...(hasDlCurrency ? [{ name: "customEvent:dl_currency" }] : []),
+              ]
+            : []),
+          { name: "city" },
+          { name: "pagePath" },
+        ].slice(0, 9);
       const runDetail = (withCustom: boolean) =>
         fetch(`${GA4}/properties/${encodeURIComponent(propertyId)}:runReport`, {
           method: "POST",
@@ -271,21 +284,34 @@ export async function fetchAttribution(
           const val = gaVal || (man ? man.value * n : 0);
           const curFinal =
             (cur && cur !== "(not set)" ? cur : "") || (!gaVal && man ? man.currency : "");
-          (events[eng.name] ??= []).push({
+          const dhm = get("dateHourMinute"); // YYYYMMDDHHMM
+          const city = get("city");
+          const page = get("pagePath");
+          const basis = {
             name: evName,
-            count: n,
-            value: val,
+            count: 1,
+            value: val / n,
             country: get("country"),
             device: get("deviceCategory"),
-            date: get("date"),
+            date: dhm.slice(0, 8),
+            ...(dhm.length >= 12 ? { time: `${dhm.slice(8, 10)}:${dhm.slice(10, 12)}` } : {}),
+            ...(city && city !== "(not set)" ? { city } : {}),
+            ...(page && page !== "(not set)" ? { page } : {}),
             ...(txn ? { txn } : {}),
             ...(curFinal ? { currency: curFinal } : {}),
-          });
+          };
+          // Rest-Gruppe (mehrere in derselben Minute) -> Einzelzeilen.
+          const list = (events[eng.name] ??= []);
+          for (let i = 0; i < n && list.length < MAX_EVENT_ROWS * 2; i++) list.push({ ...basis });
         }
         for (const k of Object.keys(events))
           events[k] = events[k]
-            .sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.count - a.count)
-            .slice(0, 100);
+            .sort(
+              (a, b) =>
+                String(b.date).localeCompare(String(a.date)) ||
+                String(b.time ?? "").localeCompare(String(a.time ?? "")),
+            )
+            .slice(0, MAX_EVENT_ROWS);
       }
     } catch {
       /* Detail optional — Totale bleiben gueltig */
