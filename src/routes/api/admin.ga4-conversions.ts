@@ -3,7 +3,7 @@ import { zeitraum, ga4DateRange } from "@/lib/date-range";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { getGoogleAccessToken } from "@/server/google-tokens.server";
+import { getGoogleAccessToken, getGoogleAccessTokenForScope } from "@/server/google-tokens.server";
 import { ga4CoverageSammler, ga4RunReportUrl } from "@/server/ga4.server";
 
 // GA4-Conversions je Kunde für den Admin-Bereich (05.08.2026).
@@ -14,6 +14,10 @@ import { ga4CoverageSammler, ga4RunReportUrl } from "@/server/ga4.server";
 //                        + Setup-Erkennung (dl_value-Custom-Dimension vorhanden?)
 // POST {client, values:[{event, value, currency}]} → Werte hinterlegen;
 //                        value <= 0 löscht den Eintrag wieder.
+// POST {client, keyEvent:{event, countingMethod?}} → Event in GA4 als Key Event
+//                        markieren (Admin API keyEvents.create; 23.09.2026).
+//                        Braucht analytics.edit — siehe getGoogleAccessTokenForScope.
+//                        Zusaetzlich mit Bearer ADMIN_AUTOMATION_SECRET nutzbar.
 //
 // Die manuellen Werte wirken in der Attribution als letzte Stufe der
 // Betrags-Kaskade (dl_value > totalRevenue > eventValue > manuell) — damit
@@ -25,6 +29,10 @@ import { ga4CoverageSammler, ga4RunReportUrl } from "@/server/ga4.server";
 // über supabaseAdmin (Tabelle hat RLS ohne Policies = nur service_role).
 
 async function requireUser(request: Request): Promise<{ userClient: any } | Response> {
+  const admin = process.env.ADMIN_AUTOMATION_SECRET;
+  const auth = request.headers.get("authorization") || "";
+  // Automations-Secret → Kundensuche ueber supabaseAdmin (userClient = null).
+  if (admin && auth === `Bearer ${admin}`) return { userClient: null };
   const url = process.env.SUPABASE_URL;
   const anon = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
   if (!url || !anon)
@@ -46,6 +54,16 @@ async function visibleClient(userClient: any, clientId: string) {
     .maybeSingle();
   return data ?? null;
 }
+
+const KeyEventBody = z.object({
+  client: z.string().uuid(),
+  keyEvent: z.object({
+    event: z
+      .string()
+      .regex(/^[A-Za-z][A-Za-z0-9_]{0,39}$/, "GA4-Eventname: Buchstaben/Ziffern/_ , max. 40"),
+    countingMethod: z.enum(["ONCE_PER_EVENT", "ONCE_PER_SESSION"]).default("ONCE_PER_EVENT"),
+  }),
+});
 
 const PostBody = z.object({
   client: z.string().uuid(),
@@ -214,11 +232,71 @@ export const Route = createFileRoute("/api/admin/ga4-conversions")({
       POST: async ({ request }) => {
         const auth = await requireUser(request);
         if (auth instanceof Response) return auth;
-        const parsed = PostBody.safeParse(await request.json().catch(() => ({})));
+        const body = await request.json().catch(() => ({}));
+        const lookup = auth.userClient ?? (supabaseAdmin as any);
+
+        const ke = KeyEventBody.safeParse(body);
+        if (ke.success) {
+          const { client: clientId, keyEvent } = ke.data;
+          const client = await visibleClient(lookup, clientId);
+          if (!client)
+            return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
+          if (!client.ga4_property)
+            return Response.json(
+              { ok: false, error: "Kein GA4-Property hinterlegt" },
+              { status: 400 },
+            );
+          const propertyId = String(client.ga4_property).replace(/^properties\//, "");
+          let tok;
+          try {
+            tok = await getGoogleAccessTokenForScope(
+              clientId,
+              "https://www.googleapis.com/auth/analytics.edit",
+            );
+          } catch (e) {
+            return Response.json(
+              { ok: false, error: e instanceof Error ? e.message : String(e) },
+              { status: 502 },
+            );
+          }
+          const r = await fetch(
+            `https://analyticsadmin.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}/keyEvents`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${tok.accessToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                eventName: keyEvent.event,
+                countingMethod: keyEvent.countingMethod,
+              }),
+              signal: AbortSignal.timeout(15_000),
+            },
+          );
+          const text = await r.text();
+          if (r.status === 409 || /ALREADY_EXISTS/.test(text))
+            return Response.json({ ok: true, already: true, event: keyEvent.event });
+          if (!r.ok)
+            return Response.json(
+              { ok: false, error: `GA4 ${r.status}: ${text.slice(0, 300)}` },
+              { status: 502 },
+            );
+          const j = text ? JSON.parse(text) : {};
+          return Response.json({
+            ok: true,
+            created: true,
+            event: keyEvent.event,
+            name: j.name ?? null,
+            viaClientId: tok.viaClientId === clientId ? null : tok.viaClientId,
+          });
+        }
+
+        const parsed = PostBody.safeParse(body);
         if (!parsed.success)
           return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
         const { client: clientId, values } = parsed.data;
-        const client = await visibleClient(auth.userClient, clientId);
+        const client = await visibleClient(lookup, clientId);
         if (!client)
           return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
 
