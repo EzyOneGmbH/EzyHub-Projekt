@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.24.2",
+    version: "1.25.0",
     changelog: [
+      {
+        version: "1.25.0",
+        date: "2026-09-23",
+        note: "Anzeigename je Conversion: Im Admin Center (Kunde → Conversions) lässt sich jedes GA4-Ereignis benennen (z. B. «Suchformular» statt form_submit); EzyAI zeigt diesen Namen im Conversion-Detail, der GA4-Name bleibt als Tooltip",
+      },
       {
         version: "1.24.2",
         date: "2026-09-23",

@@ -349,6 +349,7 @@ export async function fetchAttribution(
           const page = get("pagePath");
           const basis = {
             name: evName,
+            ...(labels.get(evName) ? { label: labels.get(evName) } : {}),
             count: 1,
             value: val / n,
             country: get("country"),

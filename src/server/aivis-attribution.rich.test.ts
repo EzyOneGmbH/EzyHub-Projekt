@@ -12,7 +12,9 @@ vi.mock("@/integrations/supabase/client.server", () => ({
           data:
             table === "client_conversion_events"
               ? counted.map((event_name) => ({ event_name }))
-              : [],
+              : table === "client_event_labels"
+                ? [{ event_name: "form_submit", label: "Suchformular" }]
+                : [],
         }),
       }),
     }),
@@ -116,6 +118,7 @@ describe("fetchAttribution — Einzelzeilen", () => {
       time: "14:35",
       city: "Luzern",
       page: "/kontakt",
+      label: "Suchformular",
     });
     expect(gpt.events[2]).toMatchObject({ date: "20260901", time: "10:12", page: "/shop" });
     expect(gpt.events[2].city).toBeUndefined();

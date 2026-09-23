@@ -3055,6 +3055,7 @@ export function ConversionValuesPanel({ client }) {
   });
   const [drafts, setDrafts] = useState({}); // event -> { value, currency }
   const [toggles, setToggles] = useState({}); // event -> bool («Zählt als Conversion»)
+  const [labelDrafts, setLabelDrafts] = useState({}); // event -> Anzeigename
   const [saving, setSaving] = useState(false);
 
   const clientIdStabil = client?.id;
@@ -3080,6 +3081,7 @@ export function ConversionValuesPanel({ client }) {
       });
       setDrafts({});
       setToggles({});
+      setLabelDrafts({});
     } catch (e) {
       setState((s) => ({ ...s, loading: false, error: String(e?.message || e) }));
     }
@@ -3092,7 +3094,10 @@ export function ConversionValuesPanel({ client }) {
     drafts[ev.name] ?? { value: ev.manualValue || "", currency: ev.currency || "CHF" };
   const setDraft = (name, patch) =>
     setDrafts((d) => ({ ...d, [name]: { ...(d[name] ?? {}), ...patch } }));
-  const dirty = Object.keys(drafts).length > 0 || Object.keys(toggles).length > 0;
+  const dirty =
+    Object.keys(drafts).length > 0 ||
+    Object.keys(toggles).length > 0 ||
+    Object.keys(labelDrafts).length > 0;
 
   const save = async () => {
     setSaving(true);
@@ -3113,6 +3118,7 @@ export function ConversionValuesPanel({ client }) {
           client: client.id,
           values,
           conversionEvents: Object.entries(toggles).map(([event, on]) => ({ event, on })),
+          labels: Object.entries(labelDrafts).map(([event, label]) => ({ event, label })),
         }),
       });
       const j = await r.json().catch(() => ({}));
@@ -3144,10 +3150,11 @@ export function ConversionValuesPanel({ client }) {
       </h2>
       <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 16 }}>
         Alle Conversions (Key-Events), die GA4 für diesen Kunden erkennt, plus die häufigsten
-        Roh-Ereignisse. Liefert GA4 selbst keinen Betrag, kannst du hier pro Conversion einen Wert
-        hinterlegen — er wird ab dem nächsten Daten-Lauf automatisch angewendet. «Zählt als
-        Conversion» nimmt ein Ereignis mit seiner Ereignis-Anzahl in die KI-Attribution auf — auch
-        rückwirkend, denn GA4 zählt Key-Events erst ab der Markierung.
+        Roh-Ereignisse. «Anzeigename» ist der Name, unter dem die Conversion in EzyHub erscheint (z.
+        B. «Suchformular» statt form_submit). Liefert GA4 selbst keinen Betrag, kannst du hier pro
+        Conversion einen Wert hinterlegen — er wird ab dem nächsten Daten-Lauf automatisch
+        angewendet. «Zählt als Conversion» nimmt ein Ereignis mit seiner Ereignis-Anzahl in die
+        KI-Attribution auf — auch rückwirkend, denn GA4 zählt Key-Events erst ab der Markierung.
       </div>
       <div
         style={{
@@ -3187,6 +3194,7 @@ export function ConversionValuesPanel({ client }) {
                     }}
                   >
                     <th style={{ padding: "6px 8px" }}>Conversion</th>
+                    <th style={{ padding: "6px 8px" }}>Anzeigename</th>
                     <th style={{ padding: "6px 8px", textAlign: "center" }}>
                       Zählt als Conversion
                     </th>
@@ -3218,6 +3226,20 @@ export function ConversionValuesPanel({ client }) {
                                 : "nicht als Key-Event markiert"}
                             </span>
                           )}
+                        </td>
+                        <td style={{ padding: "8px" }}>
+                          <input
+                            type="text"
+                            value={labelDrafts[ev.name] ?? ev.label ?? ""}
+                            onChange={(e) =>
+                              setLabelDrafts((l) => ({ ...l, [ev.name]: e.target.value }))
+                            }
+                            placeholder={ev.name}
+                            maxLength={80}
+                            title="So heisst die Conversion in EzyHub (Admin Center und EzyAI-Conversion-Detail). Leer = GA4-Name."
+                            spellCheck={false}
+                            style={{ ...inpStyle, width: 150, textAlign: "left" }}
+                          />
                         </td>
                         <td style={{ padding: "8px", textAlign: "center" }}>
                           <input

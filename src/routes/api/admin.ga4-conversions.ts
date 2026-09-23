@@ -19,6 +19,9 @@ import { ga4CoverageSammler, ga4RunReportUrl } from "@/server/ga4.server";
 //                        KI-Attribution mit eventCount statt keyEvents — auch
 //                        RUECKWIRKEND (23.09.2026). GET liefert dafuer auch
 //                        Roh-Ereignisse (eventCount, ohne Grundrauschen) mit.
+// POST {client, labels:[{event, label}]} → Anzeigename je Ereignis
+//                        (client_event_labels; leer = entfernen). Erscheint im
+//                        Admin Center und im EzyAI-Conversion-Detail (23.09.2026).
 // POST {client, keyEvent:{event, countingMethod?}} → Event in GA4 als Key Event
 //                        markieren (Admin API keyEvents.create; 23.09.2026).
 //                        Braucht analytics.edit — siehe getGoogleAccessTokenForScope.
@@ -105,6 +108,10 @@ const PostBody = z.object({
     .array(z.object({ event: z.string().min(1).max(200), on: z.boolean() }))
     .max(100)
     .default([]),
+  labels: z
+    .array(z.object({ event: z.string().min(1).max(200), label: z.string().max(80) }))
+    .max(100)
+    .default([]),
 });
 
 export const Route = createFileRoute("/api/admin/ga4-conversions")({
@@ -137,6 +144,13 @@ export const Route = createFileRoute("/api/admin/ga4-conversions")({
           .select("event_name")
           .eq("client_id", clientId);
         const counted = new Set<string>((countedRows ?? []).map((x: any) => String(x.event_name)));
+        const { data: labelRows } = await (supabaseAdmin as any)
+          .from("client_event_labels")
+          .select("event_name, label")
+          .eq("client_id", clientId);
+        const labels = new Map<string, string>(
+          (labelRows ?? []).map((x: any) => [String(x.event_name), String(x.label ?? "")]),
+        );
 
         if (!client.ga4_property)
           return Response.json({
@@ -146,6 +160,7 @@ export const Route = createFileRoute("/api/admin/ga4-conversions")({
               name,
               isKeyEvent: false,
               countsAsConversion: counted.has(name),
+              label: labels.get(name) || "",
               count30d: 0,
               ga4Value: 0,
               manualValue: manual.get(name)?.value ?? 0,
@@ -268,6 +283,7 @@ export const Route = createFileRoute("/api/admin/ga4-conversions")({
             name,
             isKeyEvent: keyByName.has(name),
             countsAsConversion: counted.has(name),
+            label: labels.get(name) || "",
             // Gezaehlte und Nicht-Key-Events zeigen die Rohanzahl (so zaehlt
             // sie auch die Attribution), Key-Events die Key-Event-Anzahl.
             count30d:
@@ -363,10 +379,31 @@ export const Route = createFileRoute("/api/admin/ga4-conversions")({
         const parsed = PostBody.safeParse(body);
         if (!parsed.success)
           return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
-        const { client: clientId, values, conversionEvents } = parsed.data;
+        const { client: clientId, values, conversionEvents, labels } = parsed.data;
         const client = await visibleClient(lookup, clientId);
         if (!client)
           return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
+
+        for (const l of labels) {
+          const label = l.label.trim();
+          if (label) {
+            await (supabaseAdmin as any).from("client_event_labels").upsert(
+              {
+                client_id: clientId,
+                event_name: l.event,
+                label,
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: "client_id,event_name" },
+            );
+          } else {
+            await (supabaseAdmin as any)
+              .from("client_event_labels")
+              .delete()
+              .eq("client_id", clientId)
+              .eq("event_name", l.event);
+          }
+        }
 
         let counted = 0;
         for (const ce of conversionEvents) {

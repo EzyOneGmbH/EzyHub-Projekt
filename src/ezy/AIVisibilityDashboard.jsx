@@ -812,7 +812,8 @@ function AttributionStrip({ rows, convRows = [], label = "letzte 30 Tage" }) {
   const detailRows = openRow
     ? richEvents.length
       ? richEvents.map((e) => ({
-          description: e.name,
+          description: e.label || e.name,
+          raw: e.name,
           date: e.date,
           time: e.time,
           value: e.value,
@@ -907,7 +908,11 @@ function AttributionStrip({ rows, convRows = [], label = "letzte 30 Tage" }) {
                 <tbody>
                   {detailRows.slice(0, 30).map((r, i) => (
                     <tr key={i} className="border-t" style={{ borderColor: C.line }}>
-                      <td className="px-2 py-1.5 font-semibold" style={{ color: C.ink }}>
+                      <td
+                        className="px-2 py-1.5 font-semibold"
+                        style={{ color: C.ink }}
+                        title={r.raw && r.raw !== r.description ? r.raw : undefined}
+                      >
                         {r.description || r.eventName || "—"}
                         {Number(r.count) > 1 && (
                           <span className="ml-1.5 font-normal text-[11px]" style={{ color: C.sub }}>
@@ -965,7 +970,9 @@ function AttributionStrip({ rows, convRows = [], label = "letzte 30 Tage" }) {
             <div className="mt-2 flex flex-col gap-1.5">
               {openRow.events.map((e) => (
                 <div key={e.name} className="flex items-center justify-between gap-3 text-[13px]">
-                  <span style={{ color: C.ink }}>{e.name}</span>
+                  <span style={{ color: C.ink }} title={e.label ? e.name : undefined}>
+                    {e.label || e.name}
+                  </span>
                   <span className="tabular-nums font-semibold" style={{ color: C.up }}>
                     {e.count}×
                   </span>
