@@ -1437,20 +1437,20 @@ export const Route = createFileRoute("/api/admin/populate")({
             /* Tabelle optional — dann alle Apps frei (Legacy) */
           }
         }
-        const SEO_JOBS = new Set([
-          "ahrefs",
-          "pagespeed",
-          "gsc",
-          "gsc_queries",
-          "seo_history",
-          "ga4",
-          "ga4_traffic",
-          "ga4_conversions",
-        ]);
+        const SEO_JOBS = new Set(["ahrefs", "pagespeed", "gsc", "gsc_queries", "seo_history"]);
+        // GA4-Schnappschuesse (23.09.2026): braucht EzyRank UND EzyAI — der
+        // Conversions-Tab, der Traffic-Tab und die Agentur-Kacheln von EzyAI
+        // lesen ga4_traffic/ga4_conversions. Seit 09.09. hingen sie am
+        // EzyRank-Gate; EzyAI-only-Kunden (Gasser, Bomatec, Visionary, …)
+        // bekamen zwei Wochen keine GA4-Daten mehr. Jetzt: nur gesperrt, wenn
+        // BEIDE Apps aus sind.
+        const GA4_JOBS = new Set(["ga4", "ga4_traffic", "ga4_conversions"]);
         const jobGesperrt = (clientId: string, job: string): string | null => {
           const off = appOff.get(clientId);
           if (!off) return null;
           if (off.has("seo") && SEO_JOBS.has(job)) return "nicht in EzyRank (App-Zugriff aus)";
+          if (off.has("seo") && off.has("geo") && GA4_JOBS.has(job))
+            return "weder in EzyRank noch in EzyAI (App-Zugriff aus)";
           if (off.has("geo") && job === "ai_visibility") return "nicht in EzyAI (App-Zugriff aus)";
           return null;
         };
