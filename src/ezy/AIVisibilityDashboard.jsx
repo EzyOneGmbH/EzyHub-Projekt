@@ -920,9 +920,9 @@ function AttributionStrip({ rows, convRows = [], label = "letzte 30 Tage", types
           </div>
           {detailRows.length > 0 ? (
             // Einzel-Conversions (23.09.: eine Zeile je Conversion): Titel, Zeitpunkt,
-            // Wert, Ort, Gerät, Seite. Ältere Schnappschüsse (Tagesgruppen) zeigen «×n».
+            // Wert, Land, Gerät. Ältere Schnappschüsse (Tagesgruppen) zeigen «×n».
             <div className="mt-2 overflow-x-auto">
-              <table className="w-full text-[13px]" style={{ minWidth: 640 }}>
+              <table className="w-full text-[13px]" style={{ minWidth: 520 }}>
                 <thead>
                   <tr
                     className="text-left text-[11px] uppercase tracking-wide"
@@ -931,9 +931,8 @@ function AttributionStrip({ rows, convRows = [], label = "letzte 30 Tage", types
                     <th className="px-2 py-1.5 font-medium">Titel</th>
                     <th className="px-2 py-1.5 font-medium">Zeitpunkt</th>
                     <th className="px-2 py-1.5 text-right font-medium">Wert</th>
-                    <th className="px-2 py-1.5 font-medium">Ort</th>
+                    <th className="px-2 py-1.5 font-medium">Land</th>
                     <th className="px-2 py-1.5 font-medium">Gerät</th>
-                    <th className="px-2 py-1.5 font-medium">Seite</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -971,20 +970,13 @@ function AttributionStrip({ rows, convRows = [], label = "letzte 30 Tage", types
                           ? `${Math.round(r.value).toLocaleString("de-CH")} ${r.currency || "CHF"}`
                           : "—"}
                       </td>
+                      {/* Nur Land (Volkan 23.09.): Stadt und Seite bleiben in den Daten,
+                          werden aber nicht mehr angezeigt. */}
                       <td className="px-2 py-1.5 whitespace-nowrap" style={{ color: C.sub }}>
-                        {r.city
-                          ? `${r.city}, ${r.country || ""}`.replace(/, $/, "")
-                          : r.country || "—"}
+                        {r.country || "—"}
                       </td>
                       <td className="px-2 py-1.5" style={{ color: C.sub }}>
                         {r.device || "—"}
-                      </td>
-                      <td
-                        className="px-2 py-1.5 max-w-[220px] truncate"
-                        style={{ color: C.sub }}
-                        title={r.page || ""}
-                      >
-                        {r.page || "—"}
                       </td>
                     </tr>
                   ))}
