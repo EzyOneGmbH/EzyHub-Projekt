@@ -800,10 +800,20 @@ const fmtGa4Date = (d) =>
     ? `${d.slice(6, 8)}.${d.slice(4, 6)}.${d.slice(0, 4)}`
     : d || "—";
 
-function AttributionStrip({ rows, convRows = [], label = "letzte 30 Tage" }) {
+function AttributionStrip({ rows, convRows = [], label = "letzte 30 Tage", types = [] }) {
   const [open, setOpen] = useState(null); // engine-Name der aufgeklappten Kachel
   const totalS = rows.reduce((a, b) => a + b.sessions, 0);
   const totalC = rows.reduce((a, b) => a + b.conv, 0);
+  // Conversions nach Art (23.09.): eingerichtete Arten zuerst (auch mit 0),
+  // dann alles, was in den Einzelzeilen sonst noch vorkommt (Key-Events).
+  const nachArt = new Map();
+  for (const t of types) nachArt.set(t.label || t.event, 0);
+  for (const r of rows)
+    for (const e of r.events || []) {
+      const k = e.label || e.name;
+      if (!k) continue;
+      nachArt.set(k, (nachArt.get(k) || 0) + Number(e.count || 1));
+    }
   const openRow = rows.find((r) => r.engine === open);
   // Einzel-Conversions der aufgeklappten Engine — bevorzugt die reichen
   // events aus der Attribution (Name+Land+Gerät+Datum+Wert, session-scoped),
@@ -839,6 +849,27 @@ function AttributionStrip({ rows, convRows = [], label = "letzte 30 Tage" }) {
         {label} · {nf(totalS)} Besucher · {totalC} Conversions
         {totalC > 0 && <span> · Kachel anklicken für das Conversion-Detail</span>}
       </p>
+      {nachArt.size > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px]" style={{ color: C.sub }}>
+            Nach Art:
+          </span>
+          {[...nachArt.entries()].map(([k, n]) => (
+            <span
+              key={k}
+              className="rounded-full border px-2 py-0.5 text-[11px] tabular-nums"
+              style={{ borderColor: C.line, background: C.cardAlt, color: n > 0 ? C.ink : C.sub }}
+              title={
+                n > 0
+                  ? `${n} Conversions vom Typ «${k}» im gewählten Zeitraum`
+                  : `Noch keine Conversion vom Typ «${k}» im gewählten Zeitraum`
+              }
+            >
+              {k} <b style={{ color: n > 0 ? C.up : C.sub }}>{n}</b>
+            </span>
+          ))}
+        </div>
+      )}
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
         {rows.map((r) => {
           const clickable = r.conv > 0;
@@ -6541,7 +6572,12 @@ export default function AIVisibilityDashboard({
 
           {tab === "conversions" && (
             <div className="mt-4">
-              <AttributionStrip rows={attrRows} convRows={convRows} label={attrLabel} />
+              <AttributionStrip
+                rows={attrRows}
+                convRows={convRows}
+                label={attrLabel}
+                types={liveAttr.data?.conversionTypes ?? []}
+              />
               <ConversionRegions attribution={attrRows} />
             </div>
           )}

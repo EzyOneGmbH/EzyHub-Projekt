@@ -2,7 +2,23 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { zeitraumAusParams } from "@/lib/date-range";
-import { fetchAttribution } from "@/server/aivis-attribution.server";
+import {
+  fetchAttribution,
+  countedConversionEvents,
+  eventLabels,
+} from "@/server/aivis-attribution.server";
+
+// Eingerichtete Conversion-Arten («Zaehlt als Conversion» + Anzeigename) —
+// damit die Karte auch Arten mit 0 zeigt (z. B. «Download 0»). 23.09.2026
+async function conversionTypesFor(
+  clientId: string,
+): Promise<Array<{ event: string; label: string }>> {
+  const [counted, labels] = await Promise.all([
+    countedConversionEvents(clientId),
+    eventLabels(clientId),
+  ]);
+  return Array.from(counted.keys()).map((event) => ({ event, label: labels.get(event) || event }));
+}
 
 // KI-Attribution live fuer einen Zeitraum (23.09.2026): macht den Datumsfilter
 // im Conversions-Tab von EzyAI wirksam. Bisher zeigte der Tab den naechtlichen
@@ -56,13 +72,17 @@ export const Route = createFileRoute("/api/admin/aivis-attribution")({
           .maybeSingle();
         if (!client)
           return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
-        const res = await fetchAttribution(client, zr);
+        const [res, conversionTypes] = await Promise.all([
+          fetchAttribution(client, zr),
+          conversionTypesFor(clientId),
+        ]);
         if ("error" in res) return Response.json({ ok: false, error: res.error }, { status: 502 });
         if ("skipped" in res)
           return Response.json({
             ok: true,
             ga4: false,
             range: { from: zr.startDate, to: zr.endDate, days: zr.days },
+            conversionTypes,
             attribution: [],
           });
         return Response.json(
@@ -70,6 +90,7 @@ export const Route = createFileRoute("/api/admin/aivis-attribution")({
             ok: true,
             ga4: true,
             range: { from: zr.startDate, to: zr.endDate, days: zr.days },
+            conversionTypes,
             // ?debug=1: GA4-Fehlertext des Detailreports (nur Diagnose)
             ...(u.searchParams.get("debug")
               ? {

@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.25.0",
+    version: "1.25.1",
     changelog: [
+      {
+        version: "1.25.1",
+        date: "2026-09-23",
+        note: "Conversions-Karte zeigt die Conversions nach Art (alle eingerichteten Arten, auch mit 0 — z. B. «Suchformular 8 · Download 0»)",
+      },
       {
         version: "1.25.0",
         date: "2026-09-23",
