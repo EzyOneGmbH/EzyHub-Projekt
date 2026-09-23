@@ -70,6 +70,10 @@ export const Route = createFileRoute("/api/admin/aivis-attribution")({
             ok: true,
             ga4: true,
             range: { from: zr.startDate, to: zr.endDate, days: zr.days },
+            // ?debug=1: GA4-Fehlertext des Detailreports (nur Diagnose)
+            ...(u.searchParams.get("debug") && res.detailError
+              ? { detailError: res.detailError }
+              : {}),
             attribution: res.engines
               .map((e) => ({
                 engine: e.engine,

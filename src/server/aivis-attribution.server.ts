@@ -61,7 +61,7 @@ export type AttributionEngine = {
 };
 
 export type AttributionResult =
-  | { engines: AttributionEngine[] }
+  | { engines: AttributionEngine[]; detailError?: string }
   | { skipped: string }
   | { error: string };
 
@@ -181,6 +181,7 @@ export async function fetchAttribution(
   // senden den Betrag als Custom Dimension dl_value, dl_reservationid/
   // transactionId vereinzelt die Conversions.
   const events: Record<string, AttributionEvent[]> = {};
+  let detailError: string | undefined;
   if (Object.values(agg).some((v) => v.conversions > 0)) {
     try {
       const custom = new Set<string>();
@@ -219,13 +220,14 @@ export async function fetchAttribution(
         : "transactionId";
       // GA4 erlaubt max. 9 Dimensionen: Betrags-Dimensionen haben Vorrang,
       // Stadt/Seite fallen bei vollem Buchungs-Setup zuerst weg (get() liefert "").
-      const dims = (withCustom: boolean) =>
+      // rich = minutengenau + Stadt + Seite (Einzelzeilen); sonst Tagesgruppen.
+      const dims = (withCustom: boolean, rich: boolean) =>
         [
           { name: "sessionSource" },
           { name: "eventName" },
           { name: "country" },
           { name: "deviceCategory" },
-          { name: "dateHourMinute" },
+          { name: rich ? "dateHourMinute" : "date" },
           { name: "sessionDefaultChannelGroup" },
           ...(withCustom
             ? [
@@ -234,16 +236,15 @@ export async function fetchAttribution(
                 ...(hasDlCurrency ? [{ name: "customEvent:dl_currency" }] : []),
               ]
             : []),
-          { name: "city" },
-          { name: "pagePath" },
+          ...(rich ? [{ name: "city" }, { name: "pagePath" }] : []),
         ].slice(0, 9);
-      const runDetail = (withCustom: boolean) =>
+      const runDetail = (withCustom: boolean, rich: boolean) =>
         fetch(`${GA4}/properties/${encodeURIComponent(propertyId)}:runReport`, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
           body: JSON.stringify({
             dateRanges,
-            dimensions: dims(withCustom),
+            dimensions: dims(withCustom, rich),
             metrics: [
               { name: "keyEvents" },
               { name: "eventValue" },
@@ -254,10 +255,20 @@ export async function fetchAttribution(
           }),
           signal: AbortSignal.timeout(30_000),
         });
-      let r2 = await runDetail(true);
-      // Unbekannte Custom-Dimension o. Ae. -> einmal ohne Zusatz-Dimensionen.
-      if (!r2.ok) r2 = await runDetail(false);
-      if (r2.ok) {
+      // Rueckfall-Leiter: reich mit/ohne Custom-Dimensionen, dann Tagesgruppen.
+      // Der erste GA4-Fehlertext bleibt fuer die Diagnose erhalten (detailError).
+      let r2: Response | null = null;
+      for (const [wc, rich] of [
+        [true, true],
+        [false, true],
+        [true, false],
+        [false, false],
+      ] as Array<[boolean, boolean]>) {
+        r2 = await runDetail(wc, rich);
+        if (r2.ok) break;
+        detailError ??= `GA4 ${r2.status} (custom=${wc}, rich=${rich}): ${(await r2.text().catch(() => "")).slice(0, 300)}`;
+      }
+      if (r2?.ok) {
         const j2: any = await r2.json().catch(() => ({}));
         const dh: string[] = (j2.dimensionHeaders ?? []).map((h: any) => String(h?.name ?? ""));
         for (const row of j2.rows ?? []) {
@@ -313,11 +324,13 @@ export async function fetchAttribution(
             )
             .slice(0, MAX_EVENT_ROWS);
       }
-    } catch {
+    } catch (e) {
       /* Detail optional — Totale bleiben gueltig */
+      detailError ??= "Detail: " + redactSecrets(e);
     }
   }
   return {
+    ...(detailError ? { detailError } : {}),
     engines: Object.entries(agg).map(([engine, v]) => ({
       engine,
       ...v,
