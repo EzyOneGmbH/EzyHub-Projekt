@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.22.0",
+    version: "1.23.0",
     changelog: [
+      {
+        version: "1.23.0",
+        date: "2026-09-23",
+        note: "Datumsfilter wirkt jetzt im Conversions-Tab der Insights: Besucher und Conversions je KI-Engine werden für den gewählten Zeitraum live aus GA4 geladen (vorher immer der nächtliche 30-Tage-Schnappschuss); der Zeitraum steht in der Kopfzeile der Karte, der Schnappschuss bleibt Rückfall",
+      },
       {
         version: "1.22.0",
         date: "2026-09-22",

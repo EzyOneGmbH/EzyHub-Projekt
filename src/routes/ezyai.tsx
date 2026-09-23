@@ -5378,6 +5378,7 @@ function EzyAiApp() {
                   <>
                     <AiVisibilityTab
                       selectedClient={client}
+                      range={range}
                       navStyle="topbar"
                       onReviewPrompts={goPrompts}
                       extraTabs={[

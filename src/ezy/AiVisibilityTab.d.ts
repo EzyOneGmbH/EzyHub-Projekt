@@ -6,6 +6,8 @@ export declare function AiVisibilityTab(props: {
   /** Navigations-Variante des Reports (z. B. "topbar"). */
   navStyle?: string;
   onReviewPrompts?: () => void;
+  /** Datumsfilter des Hubs (23.09.): Conversions-Tab laedt Besucher/Conversions live fuer diesen Zeitraum. */
+  range?: { days: number; start: Date; end: Date; preset: string; label: string };
   /** Zusatz-Tabs neben Conversions (14.09.): z. B. Traffic — rendern ihren Inhalt selbst. */
   extraTabs?: Array<{
     id: string;

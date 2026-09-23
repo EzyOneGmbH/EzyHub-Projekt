@@ -3,6 +3,9 @@ import { createPortal } from "react-dom";
 // Quelle->Engine-Zuordnung: seit 31.08. geteiltes Modul (auch die
 // Conversions-Tab-Detailliste nutzt dieselbe KI-Quellen-Erkennung).
 import { ATTR_SOURCE_RE } from "@/ezy/data/aiSources";
+import { useRangeData, isoDay } from "@/ezy/data/rangeStore";
+import { authedFetch } from "@/lib/authed-fetch";
+import { supabase } from "@/integrations/supabase/client";
 // Echte Landkarte (04.08.): react-freie Geo-Bausteine — kein Peer-Dep-Risiko.
 import { geoNaturalEarth1, geoPath, geoCentroid } from "d3-geo";
 import { feature as topoFeature } from "topojson-client";
@@ -797,7 +800,7 @@ const fmtGa4Date = (d) =>
     ? `${d.slice(6, 8)}.${d.slice(4, 6)}.${d.slice(0, 4)}`
     : d || "—";
 
-function AttributionStrip({ rows, convRows = [] }) {
+function AttributionStrip({ rows, convRows = [], label = "letzte 30 Tage" }) {
   const [open, setOpen] = useState(null); // engine-Name der aufgeklappten Kachel
   const totalS = rows.reduce((a, b) => a + b.sessions, 0);
   const totalC = rows.reduce((a, b) => a + b.conv, 0);
@@ -829,7 +832,7 @@ function AttributionStrip({ rows, convRows = [] }) {
         </h3>
       </div>
       <p className="mt-0.5 text-xs" style={{ color: C.sub }}>
-        letzte 30 Tage · {nf(totalS)} Besucher · {totalC} Conversions
+        {label} · {nf(totalS)} Besucher · {totalC} Conversions
         {totalC > 0 && <span> · Kachel anklicken für das Conversion-Detail</span>}
       </p>
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -5858,8 +5861,34 @@ export default function AIVisibilityDashboard({
   navStyle = "sidebar",
   onReviewPrompts,
   extraTabs = [],
+  clientId = null,
+  range = null,
 }) {
   const d = data;
+  // Datumsfilter (23.09.): Besucher/Conversions je Engine live fuer den
+  // gewaehlten Zeitraum (GA4 ueber /api/admin/aivis-attribution). Der
+  // naechtliche 30-Tage-Snapshot (d.attribution) bleibt Rueckfall und
+  // Platzhalter, bis die Live-Zahlen da sind. Key = Kunde + Zeitraum, damit
+  // jede Filteraenderung neu laedt und der Range-Store zwischenspeichert.
+  const attrKey =
+    clientId && range
+      ? `aivis-attribution:${clientId}:${isoDay(range.start)}:${isoDay(range.end)}`
+      : null;
+  const liveAttr = useRangeData(attrKey, async () => {
+    const session = (await supabase.auth.getSession()).data.session;
+    const r = await authedFetch(
+      `/api/admin/aivis-attribution?client=${clientId}&start=${isoDay(range.start)}&end=${isoDay(range.end)}`,
+      { headers: { Authorization: `Bearer ${session?.access_token || ""}` } },
+    );
+    const j = await r.json().catch(() => ({}));
+    return j?.ok ? j : null;
+  });
+  const attrRows = liveAttr.data?.attribution ?? d?.attribution ?? [];
+  const attrLabel = liveAttr.data
+    ? `${range.label} · live aus GA4`
+    : liveAttr.loading && range
+      ? `${range.label} · wird geladen…`
+      : "letzte 30 Tage · Schnappschuss";
   const isTop = navStyle === "topbar";
   const [tabState, setTab] = useState("uebersicht");
   const [modelF, setModelF] = useState("alle");
@@ -6486,8 +6515,8 @@ export default function AIVisibilityDashboard({
 
           {tab === "conversions" && (
             <div className="mt-4">
-              <AttributionStrip rows={d.attribution} convRows={convRows} />
-              <ConversionRegions attribution={d.attribution} />
+              <AttributionStrip rows={attrRows} convRows={convRows} label={attrLabel} />
+              <ConversionRegions attribution={attrRows} />
             </div>
           )}
 

@@ -57,6 +57,7 @@ import { Route as ApiAdminAdsSemanticNegativesRouteImport } from './routes/api/a
 import { Route as ApiAdminAgentRunRouteImport } from './routes/api/admin.agent-run'
 import { Route as ApiAdminAiCitationsRouteImport } from './routes/api/admin.ai-citations'
 import { Route as ApiAdminAiCrawlerIngestRouteImport } from './routes/api/admin.ai-crawler-ingest'
+import { Route as ApiAdminAivisAttributionRouteImport } from './routes/api/admin.aivis-attribution'
 import { Route as ApiAdminAivisCompetitorsRouteImport } from './routes/api/admin.aivis-competitors'
 import { Route as ApiAdminAivisSyncRouteImport } from './routes/api/admin.aivis-sync'
 import { Route as ApiAdminAuditLogRouteImport } from './routes/api/admin.audit-log'
@@ -400,6 +401,12 @@ const ApiAdminAiCrawlerIngestRoute = ApiAdminAiCrawlerIngestRouteImport.update({
   path: '/api/admin/ai-crawler-ingest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminAivisAttributionRoute =
+  ApiAdminAivisAttributionRouteImport.update({
+    id: '/api/admin/aivis-attribution',
+    path: '/api/admin/aivis-attribution',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAdminAivisCompetitorsRoute =
   ApiAdminAivisCompetitorsRouteImport.update({
     id: '/api/admin/aivis-competitors',
@@ -922,6 +929,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
   '/api/admin/ai-citations': typeof ApiAdminAiCitationsRoute
   '/api/admin/ai-crawler-ingest': typeof ApiAdminAiCrawlerIngestRoute
+  '/api/admin/aivis-attribution': typeof ApiAdminAivisAttributionRoute
   '/api/admin/aivis-competitors': typeof ApiAdminAivisCompetitorsRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/audit-log': typeof ApiAdminAuditLogRoute
@@ -1064,6 +1072,7 @@ export interface FileRoutesByTo {
   '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
   '/api/admin/ai-citations': typeof ApiAdminAiCitationsRoute
   '/api/admin/ai-crawler-ingest': typeof ApiAdminAiCrawlerIngestRoute
+  '/api/admin/aivis-attribution': typeof ApiAdminAivisAttributionRoute
   '/api/admin/aivis-competitors': typeof ApiAdminAivisCompetitorsRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/audit-log': typeof ApiAdminAuditLogRoute
@@ -1207,6 +1216,7 @@ export interface FileRoutesById {
   '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
   '/api/admin/ai-citations': typeof ApiAdminAiCitationsRoute
   '/api/admin/ai-crawler-ingest': typeof ApiAdminAiCrawlerIngestRoute
+  '/api/admin/aivis-attribution': typeof ApiAdminAivisAttributionRoute
   '/api/admin/aivis-competitors': typeof ApiAdminAivisCompetitorsRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/audit-log': typeof ApiAdminAuditLogRoute
@@ -1351,6 +1361,7 @@ export interface FileRouteTypes {
     | '/api/admin/agent-run'
     | '/api/admin/ai-citations'
     | '/api/admin/ai-crawler-ingest'
+    | '/api/admin/aivis-attribution'
     | '/api/admin/aivis-competitors'
     | '/api/admin/aivis-sync'
     | '/api/admin/audit-log'
@@ -1493,6 +1504,7 @@ export interface FileRouteTypes {
     | '/api/admin/agent-run'
     | '/api/admin/ai-citations'
     | '/api/admin/ai-crawler-ingest'
+    | '/api/admin/aivis-attribution'
     | '/api/admin/aivis-competitors'
     | '/api/admin/aivis-sync'
     | '/api/admin/audit-log'
@@ -1635,6 +1647,7 @@ export interface FileRouteTypes {
     | '/api/admin/agent-run'
     | '/api/admin/ai-citations'
     | '/api/admin/ai-crawler-ingest'
+    | '/api/admin/aivis-attribution'
     | '/api/admin/aivis-competitors'
     | '/api/admin/aivis-sync'
     | '/api/admin/audit-log'
@@ -1773,6 +1786,7 @@ export interface RootRouteChildren {
   ApiAdminAgentRunRoute: typeof ApiAdminAgentRunRoute
   ApiAdminAiCitationsRoute: typeof ApiAdminAiCitationsRoute
   ApiAdminAiCrawlerIngestRoute: typeof ApiAdminAiCrawlerIngestRoute
+  ApiAdminAivisAttributionRoute: typeof ApiAdminAivisAttributionRoute
   ApiAdminAivisCompetitorsRoute: typeof ApiAdminAivisCompetitorsRoute
   ApiAdminAivisSyncRoute: typeof ApiAdminAivisSyncRoute
   ApiAdminAuditLogRoute: typeof ApiAdminAuditLogRoute
@@ -2203,6 +2217,13 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/ai-crawler-ingest'
       fullPath: '/api/admin/ai-crawler-ingest'
       preLoaderRoute: typeof ApiAdminAiCrawlerIngestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/aivis-attribution': {
+      id: '/api/admin/aivis-attribution'
+      path: '/api/admin/aivis-attribution'
+      fullPath: '/api/admin/aivis-attribution'
+      preLoaderRoute: typeof ApiAdminAivisAttributionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/aivis-competitors': {
@@ -2952,6 +2973,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminAgentRunRoute: ApiAdminAgentRunRoute,
   ApiAdminAiCitationsRoute: ApiAdminAiCitationsRoute,
   ApiAdminAiCrawlerIngestRoute: ApiAdminAiCrawlerIngestRoute,
+  ApiAdminAivisAttributionRoute: ApiAdminAivisAttributionRoute,
   ApiAdminAivisCompetitorsRoute: ApiAdminAivisCompetitorsRoute,
   ApiAdminAivisSyncRoute: ApiAdminAivisSyncRoute,
   ApiAdminAuditLogRoute: ApiAdminAuditLogRoute,
