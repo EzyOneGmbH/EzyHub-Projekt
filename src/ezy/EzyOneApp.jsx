@@ -7778,6 +7778,7 @@ function App({ appScope = null }) {
                         clients={clients}
                         appScope={appScope}
                         dateRange={dateRangeWithCompare}
+                        onCompareMode={setCompareMode}
                         onSelect={(id) => {
                           setClientId(id);
                           setShowAll(false);

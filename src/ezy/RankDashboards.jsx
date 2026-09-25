@@ -110,7 +110,13 @@ const AdsAgencyTable = lazy(() =>
 );
 const ANSICHT_LS = "ezy.agency.adsView";
 
-export function AgencyOverview({ clients, onSelect, appScope = null, dateRange = null }) {
+export function AgencyOverview({
+  clients,
+  onSelect,
+  appScope = null,
+  dateRange = null,
+  onCompareMode = null,
+}) {
   // Kachel-Kennzahlen (Volkan 10.08.): Top-3/Top-10 aus dem letzten
   // rankings-Lauf (result.aggregate); organischer Traffic seit 13.08. aus dem
   // letzten ga4_traffic-Snapshot (Kanal "Organic Search", echte Besuche),
@@ -303,7 +309,12 @@ export function AgencyOverview({ clients, onSelect, appScope = null, dateRange =
       </div>
       {zeigeTabelle && (
         <Suspense fallback={<Skeleton h={320} />}>
-          <AdsAgencyTable clients={tiles} dateRange={dateRange} onSelect={onSelect} />
+          <AdsAgencyTable
+            clients={tiles}
+            dateRange={dateRange}
+            onSelect={onSelect}
+            onCompareMode={onCompareMode}
+          />
         </Suspense>
       )}
       <div

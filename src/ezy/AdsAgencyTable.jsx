@@ -146,7 +146,7 @@ function RoasPill({ v }) {
   );
 }
 
-export function AdsAgencyTable({ clients, dateRange, onSelect }) {
+export function AdsAgencyTable({ clients, dateRange, onSelect, onCompareMode = null }) {
   const [data, setData] = useState({ loading: true, rows: {}, range: null, prevRange: null });
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
@@ -311,6 +311,7 @@ export function AdsAgencyTable({ clients, dateRange, onSelect }) {
     verticalAlign: "top",
   };
   const convBg = "rgba(119,0,140,.035)";
+  const gruppe = { cursor: "default", padding: "6px 12px 4px" };
   const stickyName = { position: "sticky", left: 0, zIndex: 1 };
 
   const SortKopf = ({ col }) => (
@@ -326,9 +327,15 @@ export function AdsAgencyTable({ clients, dateRange, onSelect }) {
       {col.label}
       {sort.key === col.key &&
         (sort.dir === -1 ? (
-          <ArrowDown size={11} style={{ marginLeft: 3, verticalAlign: -1 }} />
+          <ArrowDown
+            size={11}
+            style={{ display: "inline-block", marginLeft: 3, verticalAlign: -1 }}
+          />
         ) : (
-          <ArrowUp size={11} style={{ marginLeft: 3, verticalAlign: -1 }} />
+          <ArrowUp
+            size={11}
+            style={{ display: "inline-block", marginLeft: 3, verticalAlign: -1 }}
+          />
         ))}
     </th>
   );
@@ -371,18 +378,19 @@ export function AdsAgencyTable({ clients, dateRange, onSelect }) {
         overflow: "hidden",
       }}
     >
-      {/* Werkzeugleiste: Zeitraum-Info, Suche, Filter, Export */}
+      {/* Werkzeugleiste: Zeitraum-Info links, Suche/Filter/Export rechts */}
       <div
         style={{
           display: "flex",
           flexWrap: "wrap",
-          alignItems: "flex-end",
+          alignItems: "center",
+          justifyContent: "space-between",
           gap: 12,
-          padding: "16px 18px",
+          padding: "14px 18px",
           borderBottom: `1px solid ${C.border}`,
         }}
       >
-        <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+        <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>
             Konten ({gefiltert.length} von {clients.length})
           </div>
@@ -397,11 +405,32 @@ export function AdsAgencyTable({ clients, dateRange, onSelect }) {
                 {dmy(data.prevRange.to)})
               </span>
             )}
+            {!mitVergleich && onCompareMode && (
+              <>
+                {" · "}
+                <button
+                  type="button"
+                  onClick={() => onCompareMode("prevPeriod")}
+                  style={{
+                    border: "none",
+                    background: "none",
+                    padding: 0,
+                    color: C.accent,
+                    fontWeight: 600,
+                    fontSize: 12,
+                    fontFamily: "inherit",
+                    cursor: "pointer",
+                    textDecoration: "underline",
+                  }}
+                >
+                  Veränderung zur Vorperiode anzeigen
+                </button>
+              </>
+            )}
           </div>
         </div>
-        <label style={{ display: "flex", flexDirection: "column", gap: 4, flex: "0 1 260px" }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: C.textMuted }}>Konto suchen</span>
-          <span style={{ position: "relative", display: "block" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+          <span style={{ position: "relative", display: "block", flex: "1 1 220px" }}>
             <Search
               size={14}
               color={C.textDim}
@@ -410,9 +439,11 @@ export function AdsAgencyTable({ clients, dateRange, onSelect }) {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Name, Domain oder Konto-ID …"
+              placeholder="Konto suchen …"
+              aria-label="Konto suchen"
               style={{
                 width: "100%",
+                minWidth: 200,
                 boxSizing: "border-box",
                 padding: "8px 10px 8px 30px",
                 border: `1px solid ${C.inputBorder}`,
@@ -423,12 +454,10 @@ export function AdsAgencyTable({ clients, dateRange, onSelect }) {
               }}
             />
           </span>
-        </label>
-        <label style={{ display: "flex", flexDirection: "column", gap: 4, flex: "0 1 180px" }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: C.textMuted }}>Filter</span>
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
+            aria-label="Filter"
             style={{
               padding: "8px 10px",
               border: `1px solid ${C.inputBorder}`,
@@ -436,6 +465,7 @@ export function AdsAgencyTable({ clients, dateRange, onSelect }) {
               fontSize: 12.5,
               fontFamily: "inherit",
               background: "#fff",
+              color: C.text,
             }}
           >
             {FILTER.map((f) => (
@@ -444,30 +474,30 @@ export function AdsAgencyTable({ clients, dateRange, onSelect }) {
               </option>
             ))}
           </select>
-        </label>
-        <button
-          type="button"
-          onClick={exportCsv}
-          disabled={data.loading || !gefiltert.length}
-          title="Aktuelle Ansicht als CSV (Excel) herunterladen"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "8px 12px",
-            border: `1px solid ${C.inputBorder}`,
-            borderRadius: 9,
-            background: "#fff",
-            color: C.text,
-            fontSize: 12.5,
-            fontWeight: 600,
-            fontFamily: "inherit",
-            cursor: data.loading ? "default" : "pointer",
-            opacity: data.loading ? 0.5 : 1,
-          }}
-        >
-          <Download size={14} /> CSV
-        </button>
+          <button
+            type="button"
+            onClick={exportCsv}
+            disabled={data.loading || !gefiltert.length}
+            title="Aktuelle Ansicht als CSV (Excel) herunterladen"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "8px 12px",
+              border: `1px solid ${C.inputBorder}`,
+              borderRadius: 9,
+              background: "#fff",
+              color: C.text,
+              fontSize: 12.5,
+              fontWeight: 600,
+              fontFamily: "inherit",
+              cursor: data.loading ? "default" : "pointer",
+              opacity: data.loading ? 0.5 : 1,
+            }}
+          >
+            <Download size={14} /> CSV
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -514,17 +544,23 @@ export function AdsAgencyTable({ clients, dateRange, onSelect }) {
                 Konto
                 {sort.key === "name" &&
                   (sort.dir === 1 ? (
-                    <ArrowDown size={11} style={{ marginLeft: 3, verticalAlign: -1 }} />
+                    <ArrowDown
+                      size={11}
+                      style={{ display: "inline-block", marginLeft: 3, verticalAlign: -1 }}
+                    />
                   ) : (
-                    <ArrowUp size={11} style={{ marginLeft: 3, verticalAlign: -1 }} />
+                    <ArrowUp
+                      size={11}
+                      style={{ display: "inline-block", marginLeft: 3, verticalAlign: -1 }}
+                    />
                   ))}
               </th>
-              <th colSpan={5} style={{ ...th, cursor: "default", borderBottom: "none" }} />
+              <th colSpan={5} style={{ ...th, ...gruppe, borderBottom: "none" }} />
               <th
                 colSpan={3}
                 style={{
                   ...th,
-                  cursor: "default",
+                  ...gruppe,
                   textAlign: "center",
                   background: "#f5eef7",
                   color: C.accent,
@@ -536,7 +572,7 @@ export function AdsAgencyTable({ clients, dateRange, onSelect }) {
               >
                 Conversions
               </th>
-              <th colSpan={2} style={{ ...th, cursor: "default", borderBottom: "none" }} />
+              <th colSpan={2} style={{ ...th, ...gruppe, borderBottom: "none" }} />
             </tr>
             <tr>
               {SPALTEN.map((col) => (
