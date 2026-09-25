@@ -35,7 +35,16 @@ import {
   useEzyHealthComponents,
 } from "@/ezy/data/useEzyLatestRun";
 import { useAuth } from "@/hooks/use-auth";
-import { Bot, Clock, DollarSign, FileInput, FileText, RefreshCw, Sparkles } from "lucide-react";
+import {
+  Bot,
+  Clock,
+  DollarSign,
+  FileInput,
+  FileText,
+  RefreshCw,
+  Sparkles,
+  Table2,
+} from "lucide-react";
 import { useCallback } from "react";
 import { useState, useEffect, useMemo, useRef } from "react";
 import ConversionScoutPanel from "@/ezy/ConversionScoutPanel";
@@ -43,7 +52,7 @@ import { isAiConvSource } from "@/ezy/data/aiSources";
 import DataStatus from "@/ezy/DataStatus";
 import { Badge } from "./shared-ui";
 import { C } from "./theme";
-import { KpiCard, SectionPlaceholder, SeoPager, liveDaysFor, useLiveGa4 } from "./ui-kit";
+import { KpiCard, SectionPlaceholder, SeoPager, TabBar, liveDaysFor, useLiveGa4 } from "./ui-kit";
 import { ClientAvatar } from "@/ezy/ClientAvatar";
 import { runStatusItem } from "@/ezy/DataStatus";
 import { useEzyAuditHistory } from "@/ezy/data/useEzyAuditHistory";
@@ -96,7 +105,12 @@ export { ConvDashboard } from "./ConvDashboard";
 // ═══════════════════════════════════════════════════════════════════════════
 // DASHBOARDS (preserved)
 // ═══════════════════════════════════════════════════════════════════════════
-export function AgencyOverview({ clients, onSelect, appScope = null }) {
+const AdsAgencyTable = lazy(() =>
+  import("./AdsAgencyTable").then((m) => ({ default: m.AdsAgencyTable })),
+);
+const ANSICHT_LS = "ezy.agency.adsView";
+
+export function AgencyOverview({ clients, onSelect, appScope = null, dateRange = null }) {
   // Kachel-Kennzahlen (Volkan 10.08.): Top-3/Top-10 aus dem letzten
   // rankings-Lauf (result.aggregate); organischer Traffic seit 13.08. aus dem
   // letzten ga4_traffic-Snapshot (Kanal "Organic Search", echte Besuche),
@@ -105,6 +119,23 @@ export function AgencyOverview({ clients, onSelect, appScope = null }) {
   // EzyPerformance (Volkan 10.08.): im Ads-Scope stattdessen Werbebudget /
   // ROAS / Umsatz aus dem letzten google_ads-Snapshot — gleiches Batch-Muster.
   const isAds = appScope === "ads";
+  // EzyPerformance (25.09.): Kacheln oder Performance-Tabelle (wie Looker Studio).
+  const [ansicht, setAnsicht] = useState(() => {
+    try {
+      return localStorage.getItem(ANSICHT_LS) === "tabelle" ? "tabelle" : "kacheln";
+    } catch {
+      return "kacheln";
+    }
+  });
+  const waehleAnsicht = (v) => {
+    setAnsicht(v);
+    try {
+      localStorage.setItem(ANSICHT_LS, v);
+    } catch {
+      /* privater Modus */
+    }
+  };
+  const zeigeTabelle = isAds && ansicht === "tabelle";
   const [stats, setStats] = useState({});
   useEffect(() => {
     let alive = true;
@@ -250,16 +281,35 @@ export function AgencyOverview({ clients, onSelect, appScope = null }) {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 10,
           margin: "4px 2px 12px",
         }}
       >
         <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: C.text }}>Kunden</h2>
-        <span style={{ fontSize: 12, color: C.textMuted }}>{clients.length} berechtigt</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: C.textMuted }}>{clients.length} berechtigt</span>
+          {isAds && (
+            <TabBar
+              tabs={[
+                { id: "kacheln", label: "Kacheln", icon: LayoutGrid },
+                { id: "tabelle", label: "Performance-Tabelle", icon: Table2 },
+              ]}
+              active={ansicht}
+              onChange={waehleAnsicht}
+            />
+          )}
+        </div>
       </div>
+      {zeigeTabelle && (
+        <Suspense fallback={<Skeleton h={320} />}>
+          <AdsAgencyTable clients={tiles} dateRange={dateRange} onSelect={onSelect} />
+        </Suspense>
+      )}
       <div
         className="agency-client-grid"
         style={{
-          display: "grid",
+          display: zeigeTabelle ? "none" : "grid",
           gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
           gap: 14,
         }}

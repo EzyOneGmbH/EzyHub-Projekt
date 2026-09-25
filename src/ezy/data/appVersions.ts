@@ -399,8 +399,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyPerformance (Ads)
   ads: {
-    version: "1.2.0",
+    version: "1.3.0",
     changelog: [
+      {
+        version: "1.3.0",
+        date: "2026-09-25",
+        note: "Agentur-Übersicht mit Umschalter «Kacheln / Performance-Tabelle»: alle Konten in einer sortierbaren Tabelle (Kosten, Impressionen, Klicks, CTR, Ø CPC, Umsatz, ROAS) mit Veränderung zum Vergleichszeitraum, Conversions getrennt in Buchungen und Allgemein plus Kosten je Buchung, Suche, Filter, Summenzeile und CSV-Export; Zeitraum und Vergleich kommen aus der Kopfzeile",
+      },
       { version: "1.2.0", date: "2026-08-13", note: "Kundenreihenfolge alphabetisch" },
       { version: "1.1.0", date: "2026-08-11", note: "Datumsfilter + Widget-Deckkraft korrigiert" },
       {

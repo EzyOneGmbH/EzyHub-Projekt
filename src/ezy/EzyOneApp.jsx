@@ -7777,6 +7777,7 @@ function App({ appScope = null }) {
                       <AgencyOverview
                         clients={clients}
                         appScope={appScope}
+                        dateRange={dateRangeWithCompare}
                         onSelect={(id) => {
                           setClientId(id);
                           setShowAll(false);

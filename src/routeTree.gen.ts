@@ -130,6 +130,7 @@ import { Route as ApiGoogleAdsAutopilotDecideRouteImport } from './routes/api/go
 import { Route as ApiGoogleAdsAutopilotRunRouteImport } from './routes/api/google.ads-autopilot-run'
 import { Route as ApiGoogleAdsCustomersRouteImport } from './routes/api/google.ads-customers'
 import { Route as ApiGoogleAdsDataRouteImport } from './routes/api/google.ads-data'
+import { Route as ApiGoogleAdsOverviewRouteImport } from './routes/api/google.ads-overview'
 import { Route as ApiGoogleAdsRecommendationStatusRouteImport } from './routes/api/google.ads-recommendation-status'
 import { Route as ApiGoogleCallbackRouteImport } from './routes/api/google.callback'
 import { Route as ApiGoogleConnectionRouteImport } from './routes/api/google.connection'
@@ -781,6 +782,11 @@ const ApiGoogleAdsDataRoute = ApiGoogleAdsDataRouteImport.update({
   path: '/api/google/ads-data',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGoogleAdsOverviewRoute = ApiGoogleAdsOverviewRouteImport.update({
+  id: '/api/google/ads-overview',
+  path: '/api/google/ads-overview',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiGoogleAdsRecommendationStatusRoute =
   ApiGoogleAdsRecommendationStatusRouteImport.update({
     id: '/api/google/ads-recommendation-status',
@@ -1016,6 +1022,7 @@ export interface FileRoutesByFullPath {
   '/api/google/ads-autopilot-run': typeof ApiGoogleAdsAutopilotRunRoute
   '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
   '/api/google/ads-data': typeof ApiGoogleAdsDataRoute
+  '/api/google/ads-overview': typeof ApiGoogleAdsOverviewRoute
   '/api/google/ads-recommendation-status': typeof ApiGoogleAdsRecommendationStatusRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
@@ -1161,6 +1168,7 @@ export interface FileRoutesByTo {
   '/api/google/ads-autopilot-run': typeof ApiGoogleAdsAutopilotRunRoute
   '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
   '/api/google/ads-data': typeof ApiGoogleAdsDataRoute
+  '/api/google/ads-overview': typeof ApiGoogleAdsOverviewRoute
   '/api/google/ads-recommendation-status': typeof ApiGoogleAdsRecommendationStatusRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
@@ -1307,6 +1315,7 @@ export interface FileRoutesById {
   '/api/google/ads-autopilot-run': typeof ApiGoogleAdsAutopilotRunRoute
   '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
   '/api/google/ads-data': typeof ApiGoogleAdsDataRoute
+  '/api/google/ads-overview': typeof ApiGoogleAdsOverviewRoute
   '/api/google/ads-recommendation-status': typeof ApiGoogleAdsRecommendationStatusRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
@@ -1454,6 +1463,7 @@ export interface FileRouteTypes {
     | '/api/google/ads-autopilot-run'
     | '/api/google/ads-customers'
     | '/api/google/ads-data'
+    | '/api/google/ads-overview'
     | '/api/google/ads-recommendation-status'
     | '/api/google/callback'
     | '/api/google/connection'
@@ -1599,6 +1609,7 @@ export interface FileRouteTypes {
     | '/api/google/ads-autopilot-run'
     | '/api/google/ads-customers'
     | '/api/google/ads-data'
+    | '/api/google/ads-overview'
     | '/api/google/ads-recommendation-status'
     | '/api/google/callback'
     | '/api/google/connection'
@@ -1744,6 +1755,7 @@ export interface FileRouteTypes {
     | '/api/google/ads-autopilot-run'
     | '/api/google/ads-customers'
     | '/api/google/ads-data'
+    | '/api/google/ads-overview'
     | '/api/google/ads-recommendation-status'
     | '/api/google/callback'
     | '/api/google/connection'
@@ -1885,6 +1897,7 @@ export interface RootRouteChildren {
   ApiGoogleAdsAutopilotRunRoute: typeof ApiGoogleAdsAutopilotRunRoute
   ApiGoogleAdsCustomersRoute: typeof ApiGoogleAdsCustomersRoute
   ApiGoogleAdsDataRoute: typeof ApiGoogleAdsDataRoute
+  ApiGoogleAdsOverviewRoute: typeof ApiGoogleAdsOverviewRoute
   ApiGoogleAdsRecommendationStatusRoute: typeof ApiGoogleAdsRecommendationStatusRoute
   ApiGoogleCallbackRoute: typeof ApiGoogleCallbackRoute
   ApiGoogleConnectionRoute: typeof ApiGoogleConnectionRoute
@@ -2758,6 +2771,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGoogleAdsDataRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/google/ads-overview': {
+      id: '/api/google/ads-overview'
+      path: '/api/google/ads-overview'
+      fullPath: '/api/google/ads-overview'
+      preLoaderRoute: typeof ApiGoogleAdsOverviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/google/ads-recommendation-status': {
       id: '/api/google/ads-recommendation-status'
       path: '/api/google/ads-recommendation-status'
@@ -3088,6 +3108,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGoogleAdsAutopilotRunRoute: ApiGoogleAdsAutopilotRunRoute,
   ApiGoogleAdsCustomersRoute: ApiGoogleAdsCustomersRoute,
   ApiGoogleAdsDataRoute: ApiGoogleAdsDataRoute,
+  ApiGoogleAdsOverviewRoute: ApiGoogleAdsOverviewRoute,
   ApiGoogleAdsRecommendationStatusRoute: ApiGoogleAdsRecommendationStatusRoute,
   ApiGoogleCallbackRoute: ApiGoogleCallbackRoute,
   ApiGoogleConnectionRoute: ApiGoogleConnectionRoute,
