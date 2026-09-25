@@ -1902,6 +1902,8 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
               body: cr.body ?? null,
               target_url: cr.target_url ?? cr.url ?? null,
               file_id: cr.file_id ?? null,
+              // Zuschnitt (Anteile 0..1) fuer die Bild-Vorschau im Hub (25.09.)
+              image_crop: cr.image_crop ?? null,
             },
             query_string_template: a.lpc?.query_string_template ?? null,
           };
@@ -2688,7 +2690,7 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
             ? body.contextHints
                 .map((x: any) => String(x).trim())
                 .filter(Boolean)
-                .slice(0, 10)
+                .slice(0, 50) // OpenAI akzeptiert mehr als 10 (Ezy One: 18)
             : [];
           if (hints.length) payload.context_hints = hints;
           const res = await withAudit(
@@ -3056,6 +3058,14 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
             upd.bidding_config = { billing_event_type: billing };
             if (strategy) upd.bidding_config.strategy = strategy;
             if (maxBid) upd.bidding_config.max_bid_micros = maxBid;
+          }
+          // Kontexthinweise ersetzen (25.09.): ganze Liste, getrimmt, ohne Duplikate.
+          if (Array.isArray(body?.contextHints)) {
+            const seen = new Set<string>();
+            upd.context_hints = body.contextHints
+              .map((x: any) => String(x).trim())
+              .filter((x: string) => x && !seen.has(x.toLowerCase()) && seen.add(x.toLowerCase()))
+              .slice(0, 50);
           }
           if (!Object.keys(upd).length)
             return Response.json({ ok: false, error: "Nichts zu ändern" }, { status: 400 });

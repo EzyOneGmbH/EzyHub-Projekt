@@ -39,6 +39,7 @@ export type AdLite = {
     body: string | null;
     target_url: string | null;
     file_id?: string | null;
+    image_crop?: { x: number; y: number; width: number; height: number } | null;
   };
 };
 export type CampaignLite = {
