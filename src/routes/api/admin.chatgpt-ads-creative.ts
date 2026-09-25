@@ -3,20 +3,23 @@ import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { decryptSecret } from "@/server/secretbox.server";
 
-// Anzeigen-Bild + Vorschau (Volkan 25.09.2026: «Kampagnen-Bilder werden nicht
+// Anzeigen-Vorschau (Volkan 25.09.2026: «Kampagnen-Bilder werden nicht
 // korrekt an unseren Hub übermittelt» + «Anzeige-Vorschau als Pop-up»).
 //
-// Die Advertiser-API liefert je Anzeige nur ein opakes creative.file_id —
-// es gibt keinen Download-Endpunkt. Das echte Bild steckt in der offiziellen
-// Vorschau (POST /ads/{id}/preview → HTML). Diese Route holt die Vorschau,
-// zieht das Bild heraus und liefert es aus (24 h Cache).
+// Befund: Die Advertiser-API liefert je Anzeige nur ein opakes
+// creative.file_id — ohne Download-Endpunkt. Das Bild gibt es nur in der
+// offiziellen Vorschau: POST /ads/{id}/preview liefert ein <iframe> auf
+// ads.openai.com/previews/<id>?token=… . Diese Seite steht hinter einer
+// Cloudflare-Browserpruefung — serverseitig nicht abrufbar (und wird bewusst
+// nicht umgangen); im Browser des Nutzers laedt sie normal. Darum liefert
+// diese Route die iframe-Adresse, die der Hub einbettet (Thumbnail + Pop-up).
 //
-// GET ?client=<uuid>&ad=<openai_ad_id>                → Bild-Bytes
-// GET ?client=<uuid>&ad=<openai_ad_id>&format=html    → { ok, html }
-// GET … &debug=1                                      → { ok, html(gekürzt), gefunden }
+// GET ?client=<uuid>&ad=<openai_ad_id>[&fresh=1] → { ok, src, width, height, cached }
+// Cache: chatgpt_ads_ads.preview_src/preview_at, 6 Stunden.
 // Auth: eingeloggter User (Kundensicht via RLS) ODER Bearer ADMIN_AUTOMATION_SECRET.
 
 const ADS_API = "https://api.ads.openai.com/v1";
+const CACHE_MS = 6 * 60 * 60 * 1000;
 
 async function requireAccess(request: Request): Promise<{ userClient: any | null } | Response> {
   const admin = process.env.ADMIN_AUTOMATION_SECRET;
@@ -26,13 +29,7 @@ async function requireAccess(request: Request): Promise<{ userClient: any | null
   const anon = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
   if (!url || !anon)
     return Response.json({ ok: false, error: "Server not configured" }, { status: 503 });
-  // <img src> kann keinen Authorization-Header setzen -> Token auch als ?t=
-  const tok =
-    auth ||
-    (new URL(request.url).searchParams.get("t")
-      ? `Bearer ${new URL(request.url).searchParams.get("t")}`
-      : "");
-  const userClient = createClient(url, anon, { global: { headers: { Authorization: tok } } });
+  const userClient = createClient(url, anon, { global: { headers: { Authorization: auth } } });
   const { data } = await userClient.auth.getUser();
   if (!data.user) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   return { userClient };
@@ -46,20 +43,22 @@ const decodeEntities = (s: string) =>
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">");
 
-// Erstes plausibles Bild aus dem Vorschau-HTML: <img src>, srcset oder CSS url().
-export function bildAusVorschau(html: string): string | null {
-  const kandidaten: string[] = [];
-  for (const m of html.matchAll(/<img\b[^>]*?\ssrc\s*=\s*["']([^"']+)["']/gi))
-    kandidaten.push(m[1]);
-  for (const m of html.matchAll(/\ssrcset\s*=\s*["']([^"'\s,]+)/gi)) kandidaten.push(m[1]);
-  for (const m of html.matchAll(/url\(\s*["']?([^"')]+)["']?\s*\)/gi)) kandidaten.push(m[1]);
-  const gut = kandidaten
-    .map((k) => decodeEntities(k.trim()))
-    .filter((k) => /^(https?:|data:image\/)/i.test(k))
-    // Favicons/Logos/Tracking-Pixel meiden: groesste Chance hat das erste Nicht-Icon
-    .filter((k) => !/favicon|\.ico(\?|$)|logo|pixel|1x1/i.test(k));
-  return gut[0] ?? null;
+// iframe-src aus dem Vorschau-HTML; nur Adressen auf ads.openai.com zulassen.
+export function vorschauSrc(html: string): string | null {
+  const m = html.match(/<iframe\b[^>]*?\ssrc\s*=\s*["']([^"']+)["']/i);
+  if (!m) return null;
+  const src = decodeEntities(m[1].trim());
+  try {
+    const u = new URL(src);
+    return u.protocol === "https:" && /(^|\.)openai\.com$/i.test(u.hostname) ? src : null;
+  } catch {
+    return null;
+  }
 }
+
+const dim = (html: string, attr: string, fallback: number) =>
+  Number(html.match(new RegExp(`\\s${attr}\\s*=\\s*["']?(\\d+)`, "i"))?.[1] ?? fallback) ||
+  fallback;
 
 export const Route = createFileRoute("/api/admin/chatgpt-ads-creative")({
   server: {
@@ -90,7 +89,7 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads-creative")({
         for (const a of accs || []) {
           const { data } = await sb
             .from("chatgpt_ads_ads")
-            .select("openai_ad_id, raw")
+            .select("id, openai_ad_id, preview_src, preview_at")
             .eq("account_id", a.id)
             .eq("openai_ad_id", adId)
             .maybeSingle();
@@ -103,12 +102,23 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads-creative")({
         if (!acc || !ad)
           return Response.json({ ok: false, error: "Anzeige unbekannt" }, { status: 404 });
         if (acc.is_mock)
-          return Response.json({ ok: false, error: "Demo-Konto ohne Bild" }, { status: 404 });
+          return Response.json({ ok: false, error: "Demo-Konto ohne Vorschau" }, { status: 404 });
+
+        const frisch =
+          !u.searchParams.get("fresh") &&
+          ad.preview_src &&
+          ad.preview_at &&
+          Date.now() - new Date(ad.preview_at).getTime() < CACHE_MS;
+        if (frisch)
+          return Response.json(
+            { ok: true, src: ad.preview_src, width: 390, height: 220, cached: true },
+            { headers: { "Cache-Control": "private, max-age=600" } },
+          );
 
         let key: string;
         try {
           key = decryptSecret(acc.api_key_enc);
-        } catch (e: any) {
+        } catch {
           return Response.json({ ok: false, error: "Key nicht lesbar" }, { status: 500 });
         }
         const r = await fetch(`${ADS_API}/ads/${encodeURIComponent(adId)}/preview`, {
@@ -123,40 +133,29 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads-creative")({
         });
         const j: any = await r.json().catch(() => null);
         const html = String(j?.data?.[0]?.body ?? "");
-        if (!r.ok || !html)
+        const src = html ? vorschauSrc(html) : null;
+        if (!r.ok || !src)
           return Response.json(
-            { ok: false, error: `Vorschau HTTP ${r.status}: ${JSON.stringify(j)?.slice(0, 200)}` },
+            {
+              ok: false,
+              error: `Vorschau HTTP ${r.status}: ${JSON.stringify(j)?.slice(0, 200)}`,
+            },
             { status: 502 },
           );
-        const bild = bildAusVorschau(html);
-        if (u.searchParams.get("debug"))
-          return Response.json({
+        await sb
+          .from("chatgpt_ads_ads")
+          .update({ preview_src: src, preview_at: new Date().toISOString() })
+          .eq("id", ad.id);
+        return Response.json(
+          {
             ok: true,
-            gefunden: bild?.slice(0, 200) ?? null,
-            html: html.slice(0, 4000),
-          });
-        if (u.searchParams.get("format") === "html")
-          return Response.json(
-            { ok: true, html },
-            { headers: { "Cache-Control": "private, max-age=600" } },
-          );
-
-        if (!bild)
-          return Response.json({ ok: false, error: "Kein Bild in der Vorschau" }, { status: 404 });
-        const cache = { "Cache-Control": "private, max-age=86400" };
-        if (bild.startsWith("data:")) {
-          const m = bild.match(/^data:(image\/[a-z0-9.+-]+);base64,(.*)$/i);
-          if (!m)
-            return Response.json({ ok: false, error: "Bildformat unbekannt" }, { status: 415 });
-          const bin = Uint8Array.from(atob(m[2]), (c) => c.charCodeAt(0));
-          return new Response(bin, { headers: { "Content-Type": m[1], ...cache } });
-        }
-        const img = await fetch(bild, { signal: AbortSignal.timeout(30_000) });
-        if (!img.ok)
-          return Response.json({ ok: false, error: `Bild HTTP ${img.status}` }, { status: 502 });
-        return new Response(img.body, {
-          headers: { "Content-Type": img.headers.get("content-type") || "image/jpeg", ...cache },
-        });
+            src,
+            width: dim(html, "width", 390),
+            height: dim(html, "height", 220),
+            cached: false,
+          },
+          { headers: { "Cache-Control": "private, max-age=600" } },
+        );
       },
     },
   },

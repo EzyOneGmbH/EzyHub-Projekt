@@ -48,6 +48,9 @@ export type CampaignRow = {
   ads: AdsMetrics | null;
   ga4: Ga4Metrics | null;
   regions: RegionRow[];
+  // Kontexthinweise je Anzeigengruppe (Konfiguration; Leistung je Hinweis
+  // liefert die API nicht).
+  adGroups: Array<{ name: string; status: string | null; contextHints: string[] }>;
 };
 export type AdsReport = {
   ok: true;
@@ -309,8 +312,9 @@ export async function buildAdsReport(
   // ── OpenAI Ads: Kampagnen + Summen aus dem Sync ──
   const campaignsAds: Array<{ id: string; name: string; status: string | null; m: AdsMetrics }> =
     [];
+  const gruppenJeKampagne = new Map<string, CampaignRow["adGroups"]>();
   if (acc) {
-    const [{ data: kamp }, { data: ins }] = await Promise.all([
+    const [{ data: kamp }, { data: ins }, { data: gruppen }] = await Promise.all([
       sb
         .from("chatgpt_ads_campaigns")
         .select("openai_campaign_id, name, status")
@@ -322,7 +326,19 @@ export async function buildAdsReport(
         .eq("scope", "campaign")
         .gte("date", zr.startDate)
         .lte("date", zr.endDate),
+      sb
+        .from("chatgpt_ads_ad_groups")
+        .select("name, status, raw, campaign:chatgpt_ads_campaigns(openai_campaign_id)")
+        .eq("account_id", acc.id),
     ]);
+    for (const gr of gruppen || []) {
+      const cid = String(gr.campaign?.openai_campaign_id || "");
+      if (!cid) continue;
+      const hints = Array.isArray(gr.raw?.context_hints) ? gr.raw.context_hints.map(String) : [];
+      const liste = gruppenJeKampagne.get(cid) ?? [];
+      liste.push({ name: String(gr.name || ""), status: gr.status ?? null, contextHints: hints });
+      gruppenJeKampagne.set(cid, liste);
+    }
     const sum = new Map<string, AdsMetrics>();
     for (const r of ins || []) {
       const k = String(r.scope_openai_id);
@@ -403,6 +419,7 @@ export async function buildAdsReport(
       ads: c.m,
       ga4: null,
       regions: [],
+      adGroups: gruppenJeKampagne.get(c.id) ?? [],
     });
   const ga4ByCampaignCountry = new Map<string, Map<string, Ga4Metrics>>();
   // Schluessel "<kampagne>\0<land>" -> Region -> GA4
@@ -420,6 +437,7 @@ export async function buildAdsReport(
         ads: null,
         ga4: null,
         regions: [],
+        adGroups: [],
       });
     const row = rows.get(key)!;
     row.ga4Campaign ??= r.campaign || null;

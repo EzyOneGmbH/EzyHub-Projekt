@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.26.1",
+    version: "1.27.0",
     changelog: [
+      {
+        version: "1.27.0",
+        date: "2026-09-25",
+        note: "ChatGPT Ads: Anzeigen zeigen jetzt ihr echtes Bild (offizielle OpenAI-Vorschau statt Platzhalter); Klick öffnet die Anzeigen-Vorschau als Pop-up. Report-Tab: Kontexthinweise je Kampagne und Anzeigengruppe",
+      },
       {
         version: "1.26.1",
         date: "2026-09-25",

@@ -25,6 +25,7 @@ import {
   type CampaignLite,
   type GeoLocation,
 } from "@/ezy/EzyAiCampaignWizard";
+import { AdPreviewThumb } from "@/ezy/EzyAiAdPreview";
 
 type Tokens = Record<string, string>;
 
@@ -1983,7 +1984,14 @@ export default function EzyAiAdsManager({
                             maxWidth: "100%",
                           }}
                         >
-                          {r.ad && <AdThumb ad={r.ad} S={S} />}
+                          {r.ad && (
+                            <AdPreviewThumb
+                              clientId={clientId}
+                              ad={r.ad}
+                              S={S}
+                              fallback={<AdThumb ad={r.ad} S={S} />}
+                            />
+                          )}
                           <span
                             style={{
                               overflow: "hidden",

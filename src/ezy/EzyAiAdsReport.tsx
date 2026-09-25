@@ -20,6 +20,7 @@ type Campaign = {
   ads: AdsM | null;
   ga4: Ga4M | null;
   regions: Region[];
+  adGroups?: Array<{ name: string; status: string | null; contextHints: string[] }>;
 };
 type Report = {
   ok: true;
@@ -109,7 +110,7 @@ export default function EzyAiAdsReport({
 }) {
   const [err, setErr] = useState<string | null>(null);
   const [open, setOpen] = useState<Set<string>>(new Set());
-  const key = `ads-report:v2:${clientId}:${isoDay(range.start)}:${isoDay(range.end)}`;
+  const key = `ads-report:v3:${clientId}:${isoDay(range.start)}:${isoDay(range.end)}`;
   const rep = useRangeData<Report>(key, async () => {
     const session = (await supabase.auth.getSession()).data.session;
     const r = await authedFetch(
@@ -242,8 +243,8 @@ export default function EzyAiAdsReport({
           Kampagnen
         </h3>
         <div style={{ fontSize: 12, color: S.mut, marginBottom: 10 }}>
-          Zeile anklicken für Länder und Regionen (Kantone aus GA4). Violett hinterlegt = GA4.
-          Kampagnen werden über den UTM-Kampagnennamen verbunden.
+          Zeile anklicken für Kontexthinweise, Länder und Regionen (Kantone aus GA4). Violett
+          hinterlegt = GA4. Kampagnen werden über den UTM-Kampagnennamen verbunden.
         </div>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 980 }}>
@@ -261,10 +262,10 @@ export default function EzyAiAdsReport({
                 return (
                   <Fragment key={c.key}>
                     <tr
-                      onClick={() => c.regions.length && toggle(c.key)}
+                      onClick={() => (c.regions.length || c.adGroups?.length) && toggle(c.key)}
                       style={{
                         borderTop: `1px solid ${S.line}`,
-                        cursor: c.regions.length ? "pointer" : "default",
+                        cursor: c.regions.length || c.adGroups?.length ? "pointer" : "default",
                       }}
                     >
                       <td
@@ -280,7 +281,7 @@ export default function EzyAiAdsReport({
                             size={13}
                             style={{
                               color: S.mut,
-                              opacity: c.regions.length ? 1 : 0,
+                              opacity: c.regions.length || c.adGroups?.length ? 1 : 0,
                               transform: isOpen ? "rotate(90deg)" : "none",
                               transition: "transform .15s",
                             }}
@@ -300,6 +301,55 @@ export default function EzyAiAdsReport({
                       </td>
                       <Cells ads={c.ads} ga4={c.ga4} cur={cur} S={S} />
                     </tr>
+                    {isOpen && (c.adGroups ?? []).some((g) => g.contextHints.length > 0) && (
+                      <tr>
+                        <td colSpan={11} style={{ padding: "8px 10px 10px 34px" }}>
+                          <div
+                            style={{ fontSize: 11, fontWeight: 600, color: S.mut, marginBottom: 6 }}
+                          >
+                            KONTEXTHINWEISE
+                          </div>
+                          {(c.adGroups ?? [])
+                            .filter((g) => g.contextHints.length > 0)
+                            .map((g) => (
+                              <div key={g.name} style={{ marginBottom: 8 }}>
+                                <div
+                                  style={{
+                                    fontSize: 12,
+                                    color: S.txt,
+                                    fontWeight: 600,
+                                    marginBottom: 4,
+                                  }}
+                                >
+                                  {g.name}
+                                  <span style={{ fontWeight: 400, color: S.mut }}>
+                                    {" "}
+                                    · {g.contextHints.length} Hinweise
+                                    {g.status ? ` · ${g.status}` : ""}
+                                  </span>
+                                </div>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                                  {g.contextHints.map((h, i) => (
+                                    <span
+                                      key={i}
+                                      style={{
+                                        fontSize: 11.5,
+                                        padding: "2px 8px",
+                                        borderRadius: 999,
+                                        border: `1px solid ${S.line}`,
+                                        background: S.bg,
+                                        color: S.txt,
+                                      }}
+                                    >
+                                      {h}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                        </td>
+                      </tr>
+                    )}
                     {isOpen &&
                       c.regions.map((r) => (
                         <Fragment key={c.key + r.country}>
