@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.25.4",
+    version: "1.26.0",
     changelog: [
+      {
+        version: "1.26.0",
+        date: "2026-09-25",
+        note: "Neuer Tab «Report» im Ads-Modus: ChatGPT Ads (Impressionen, Klicks, CTR, Ø CPC, Ø CPM, Spend, Conversions) und GA4 (Sessions, Nutzer, Conversions aus Quelle ChatGPT / CPC) kombiniert je Kampagne — aufklappbar nach Region — plus Regionen gesamt",
+      },
       {
         version: "1.25.4",
         date: "2026-09-25",

@@ -197,6 +197,8 @@ const ADS_NAV: Array<{ group: string; items: NavItem[] }> = [
       // wie Kampagnen, da eng verzahnt (Zuweisung je Kampagne).
       { id: "ads-zielgruppen", label: "Zielgruppen", icon: Users },
       { id: "ads-conversions", label: "Conversions", icon: Activity },
+      // Report (25.09.): GA4 (ChatGPT / CPC) + OpenAI Ads kombiniert je Kampagne/Region.
+      { id: "ads-report", label: "Report", icon: LineChart },
       { id: "ads-events", label: "Event-Log", icon: FileText },
       // Einrichtung an einem Ort (15.09.): Werbekonto, Pixel, Server-Key,
       // Conversion-Events und Ingest-Token — statt verstreut in den Bereichen.
@@ -213,6 +215,7 @@ const EzyAiAdsPanel = lazy(() => import("@/ezy/EzyAiAdsPanel"));
 const EzyAiCampaignsPanel = lazy(() => import("@/ezy/EzyAiCampaignsPanel"));
 // Ads-Manager-Nachbau (15.09.): Bereich «Kampagnen» mit Ebenen-Tabs.
 const EzyAiAdsManager = lazy(() => import("@/ezy/EzyAiAdsManager"));
+const EzyAiAdsReport = lazy(() => import("@/ezy/EzyAiAdsReport"));
 // First-Party GEO (GSC + GA4, 22.09.): eigener Lazy-Chunk.
 const FirstPartyGeo = lazy(() => import("@/ezy/ezyai/FirstPartyGeo"));
 
@@ -5272,7 +5275,9 @@ function EzyAiApp() {
                       </div>
                     }
                   >
-                    {adsSection === "ads-kampagnen" ? (
+                    {adsSection === "ads-report" ? (
+                      <EzyAiAdsReport clientId={client.id} range={range} S={S} />
+                    ) : adsSection === "ads-kampagnen" ? (
                       <EzyAiAdsManager
                         clientId={client.id}
                         clientName={client.name}
