@@ -109,6 +109,19 @@ import AdsAutopilotPanel from "@/ezy/AdsAutopilotPanel.jsx";
 
 import { supabase } from "@/integrations/supabase/client";
 import { SKILL_CATALOG } from "@/ezy/data/skillCatalog";
+import {
+  DEFAULT_AGENT_MODEL,
+  FALLBACK_PROVIDERS,
+  LEGACY_MODELS,
+  PROVIDER_HINWEIS,
+  badgeFuer,
+  codexSperre,
+  defaultModelFuer,
+  labelFuer,
+  modelleFuer,
+  normalisiereModelle,
+  providerVon,
+} from "@/ezy/data/agentModels";
 const toolHasLiveProvider = (id) => toolProvider(id) !== null;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -4625,12 +4638,7 @@ async function exportCSV(toast, client) {
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════════════════
-const AGENT_MODELS = [
-  { id: "claude-opus-4-8", label: "Opus 4.8 (stärkstes)" },
-  { id: "claude-fable-5", label: "Fable 5 (neuestes)" },
-  { id: "claude-sonnet-4-6", label: "Sonnet 4.6 (schnell)" },
-  { id: "claude-haiku-4-5-20251001", label: "Haiku 4.5 (günstig)" },
-];
+// Modell-Katalog: zentral in @/ezy/data/agentModels (Claude-Abo + ChatGPT-Abo/Codex).
 
 const JSON_HEAD = { "Content-Type": "application/json" };
 
@@ -5518,6 +5526,8 @@ function ActivityPage({ selectedClient, clients }) {
                   <div style={{ fontSize: 11.5, color: C.textMuted }}>
                     {freqLabel(s)}
                     {s.enabled ? "" : " · pausiert"}
+                    {/* Optionaler Anbieter-/Modell-Override je Zeitplan (agent-service). */}
+                    {s.provider || s.model ? ` · ${badgeFuer(s)}` : ""}
                   </div>
                 </div>
                 <div style={{ fontSize: 11, color: C.textDim, textAlign: "right" }}>
@@ -5725,6 +5735,23 @@ function AgentsPage({ selectedClient, appScope = null }) {
   const [showMemory, setShowMemory] = useState(null);
   const [templates, setTemplates] = useState([]);
   const [showTemplates, setShowTemplates] = useState(false);
+  // Modell-Katalog aus dem agent-service (GET /models + /health.codex) —
+  // bis zur Antwort bzw. bei Ausfall gilt der Fallback-Katalog.
+  const [katalog, setKatalog] = useState(() => normalisiereModelle(null));
+  const [aufgabeId, setAufgabeId] = useState("");
+  useEffect(() => {
+    let aktiv = true;
+    ezyFetch("/api/agent/runs?view=models")
+      .then((r) => r.json())
+      .then((j) => {
+        if (aktiv && j?.ok) setKatalog(normalisiereModelle(j));
+      })
+      .catch(() => {});
+    return () => {
+      aktiv = false;
+    };
+  }, []);
+  const codexGesperrt = codexSperre(katalog.codex, katalog.providers);
 
   const loadTemplates = useCallback(async () => {
     try {
@@ -5820,9 +5847,12 @@ function AgentsPage({ selectedClient, appScope = null }) {
     setBusy(true);
     setMsg("");
     try {
+      const provider = providerVon(editing, katalog.providers);
       const payload = {
         ...editing,
         clientId,
+        provider,
+        model: editing.model || defaultModelFuer(provider, katalog.providers),
         skills: Array.isArray(editing.skills) ? editing.skills : [],
       };
       const r = await ezyFetch(`/api/agent/agents?clientId=${encodeURIComponent(clientId)}`, {
@@ -5833,6 +5863,7 @@ function AgentsPage({ selectedClient, appScope = null }) {
       const j = await r.json();
       if (!j.ok) throw new Error(j.error || "Fehler beim Speichern");
       setEditing(null);
+      setAufgabeId("");
       await load();
       setMsg("Agent gespeichert");
     } catch (e) {
@@ -5991,7 +6022,8 @@ function AgentsPage({ selectedClient, appScope = null }) {
                   name: "",
                   description: "",
                   instructions: "",
-                  model: "claude-sonnet-4-6",
+                  provider: DEFAULT_AGENT_MODEL.provider,
+                  model: DEFAULT_AGENT_MODEL.model,
                   skills: [],
                 })
               }
@@ -6098,20 +6130,159 @@ function AgentsPage({ selectedClient, appScope = null }) {
               />
             </div>
             <div>
-              <div style={lbl}>Modell</div>
+              <div style={lbl}>Anbieter</div>
               <select
                 style={inputStyle}
-                value={editing.model}
-                onChange={(e) => setEditing((p) => ({ ...p, model: e.target.value }))}
+                value={providerVon(editing, katalog.providers)}
+                onChange={(e) => {
+                  const provider = e.target.value;
+                  setEditing((p) => ({
+                    ...p,
+                    provider,
+                    model:
+                      providerVon(p.model, katalog.providers) === provider
+                        ? p.model
+                        : defaultModelFuer(provider, katalog.providers),
+                  }));
+                }}
               >
-                {AGENT_MODELS.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
+                {katalog.providers.map((p) => (
+                  <option key={p.id} value={p.id} disabled={p.id === "codex" && !!codexGesperrt}>
+                    {p.id === "codex" ? "ChatGPT-Abo (Codex)" : "Claude-Abo"}
+                    {p.id === "codex" && codexGesperrt ? " — nicht verfügbar" : ""}
                   </option>
                 ))}
               </select>
             </div>
           </div>
+          {(() => {
+            const provider = providerVon(editing, katalog.providers);
+            const modelle = modelleFuer(provider, katalog.providers);
+            // Bestehende Agenten mit alter Id (z. B. claude-sonnet-4-6) behalten
+            // ihr Modell sichtbar, bis bewusst umgestellt wird.
+            const legacy =
+              editing.model && !modelle.some((m) => m.id === editing.model)
+                ? LEGACY_MODELS.find((m) => m.id === editing.model) || {
+                    id: editing.model,
+                    label: `${labelFuer(editing.model, katalog.providers)} (bisherig)`,
+                  }
+                : null;
+            const aktivesModell = modelle.find((m) => m.id === editing.model);
+            const aufgabe = katalog.aufgaben.find((a) => a.id === aufgabeId);
+            const empfGesperrt = aufgabe?.empfehlung.provider === "codex" && !!codexGesperrt;
+            const providerInfo =
+              katalog.providers.find((p) => p.id === provider) ||
+              FALLBACK_PROVIDERS.find((p) => p.id === provider);
+            return (
+              <>
+                <div
+                  className="ezy-form-grid"
+                  style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
+                >
+                  <div>
+                    <div style={lbl}>Modell</div>
+                    <select
+                      style={inputStyle}
+                      value={editing.model || defaultModelFuer(provider, katalog.providers)}
+                      onChange={(e) => setEditing((p) => ({ ...p, model: e.target.value }))}
+                    >
+                      {legacy && (
+                        <option key={legacy.id} value={legacy.id}>
+                          {legacy.label}
+                        </option>
+                      )}
+                      {modelle.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <div style={lbl}>Wofür ist der Agent?</div>
+                    <select
+                      style={inputStyle}
+                      value={aufgabeId}
+                      onChange={(e) => setAufgabeId(e.target.value)}
+                      disabled={katalog.aufgaben.length === 0}
+                    >
+                      <option value="">
+                        {katalog.aufgaben.length === 0
+                          ? "Empfehlungen nicht verfügbar"
+                          : "— Aufgabentyp wählen —"}
+                      </option>
+                      {katalog.aufgaben.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div style={{ fontSize: 11, color: C.textMuted, marginTop: -4, lineHeight: 1.5 }}>
+                  {providerInfo?.abrechnung ? `Abrechnung: ${providerInfo.abrechnung} — ` : ""}
+                  {PROVIDER_HINWEIS[provider]}
+                  {aktivesModell?.hinweis ? ` ${aktivesModell.hinweis}` : ""}
+                  {codexGesperrt && (
+                    <div style={{ color: C.orange || "#f59e0b", marginTop: 2 }}>
+                      {codexGesperrt}
+                    </div>
+                  )}
+                </div>
+                {aufgabe && (
+                  <div
+                    style={{
+                      background: C.bg,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 10,
+                      padding: "10px 12px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 220 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 700, color: C.text }}>
+                        Empfehlung: {badgeFuer(aufgabe.empfehlung, katalog.providers)}
+                      </div>
+                      {aufgabe.begruendung && (
+                        <div
+                          style={{
+                            fontSize: 11.5,
+                            color: C.textMuted,
+                            marginTop: 2,
+                            lineHeight: 1.45,
+                          }}
+                        >
+                          {aufgabe.begruendung}
+                        </div>
+                      )}
+                      {empfGesperrt && (
+                        <div style={{ fontSize: 11, color: C.orange || "#f59e0b", marginTop: 2 }}>
+                          {codexGesperrt}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      disabled={empfGesperrt}
+                      onClick={() =>
+                        setEditing((p) => ({
+                          ...p,
+                          provider: aufgabe.empfehlung.provider,
+                          model: aufgabe.empfehlung.model,
+                        }))
+                      }
+                      style={{ ...btn(), opacity: empfGesperrt ? 0.5 : 1 }}
+                    >
+                      Empfehlung übernehmen
+                    </button>
+                  </div>
+                )}
+              </>
+            );
+          })()}
           <div>
             <div style={lbl}>Arbeitsmodus</div>
             <div
@@ -6197,7 +6368,14 @@ function AgentsPage({ selectedClient, appScope = null }) {
             <button onClick={save} disabled={busy} style={btn(C.accent)}>
               {busy ? "…" : "Speichern"}
             </button>
-            <button onClick={() => setEditing(null)} disabled={busy} style={btn()}>
+            <button
+              onClick={() => {
+                setEditing(null);
+                setAufgabeId("");
+              }}
+              disabled={busy}
+              style={btn()}
+            >
               Abbrechen
             </button>
           </div>
@@ -6266,12 +6444,8 @@ function AgentsPage({ selectedClient, appScope = null }) {
                       alignItems: "flex-end",
                     }}
                   >
-                    <Badge color={C.blue}>
-                      {
-                        (AGENT_MODELS.find((m) => m.id === a.model)?.label || a.model || "").split(
-                          " ",
-                        )[0]
-                      }
+                    <Badge color={providerVon(a, katalog.providers) === "codex" ? C.green : C.blue}>
+                      {badgeFuer(a, katalog.providers)}
                     </Badge>
                     <button
                       onClick={() => toggleAutonomy(a)}

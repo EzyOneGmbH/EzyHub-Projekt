@@ -2,6 +2,7 @@ import { defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { pilotScope, svc } from "@/server/pilot.server";
 import { SKILL_CATALOG } from "@/ezy/data/skillCatalog";
+import { DEFAULT_AGENT_MODEL, defaultModelFuer, providerVon } from "@/ezy/data/agentModels";
 
 // Agenten-Verwaltung aus der Claude App/Desktop (Volkan-Wunsch 2026-07-20):
 // bestehende Agenten einsehen und ihre Skills/Instruktionen erweitern bzw.
@@ -27,7 +28,7 @@ export const agentListTool = defineTool({
   name: "agent_list",
   title: "Agenten auflisten",
   description:
-    "Liste der eingerichteten EzyOne-Agenten eines Kunden (client_id, Default 'global'): Name, Modell, Skills, Beschreibung. Nur owner/admin.",
+    "Liste der eingerichteten EzyOne-Agenten eines Kunden (client_id, Default 'global'): Name, Anbieter (claude = Claude-Abo, codex = ChatGPT-Abo), Modell, Skills, Beschreibung. Nur owner/admin.",
   inputSchema: {
     client_id: z.string().max(80).optional().describe("Kunden-ID oder 'global' (Default)."),
   },
@@ -50,6 +51,7 @@ export const agentListTool = defineTool({
     const agents = (j.agents || []).map((a: any) => ({
       id: a.id,
       name: a.name,
+      provider: providerVon(a),
       model: a.model,
       skills: a.skills,
       description: a.description,
@@ -74,7 +76,17 @@ export const agentUpsertTool = defineTool({
     client_id: z.string().max(80).optional().describe("Kunden-ID oder 'global' (Default)."),
     name: z.string().min(2).max(80).describe("Name des Agenten."),
     description: z.string().max(300).optional(),
-    model: z.string().max(60).optional().describe("Default: claude-sonnet-4-6."),
+    provider: z
+      .enum(["claude", "codex"])
+      .optional()
+      .describe(
+        "Runner: 'claude' (Claude-Abo, Default) oder 'codex' (OpenAI Codex ueber das ChatGPT-Abo; bei Limit Rueckfall auf Claude).",
+      ),
+    model: z
+      .string()
+      .max(60)
+      .optional()
+      .describe(`Default: ${DEFAULT_AGENT_MODEL.model} (claude) bzw. 'standard' (codex).`),
     skills: z
       .array(z.string())
       .max(24)
@@ -86,7 +98,10 @@ export const agentUpsertTool = defineTool({
       .describe("Vollstaendiger System-Prompt auf Deutsch."),
   },
   annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false },
-  handler: async ({ id, client_id, name, description, model, skills, instructions }, ctx) => {
+  handler: async (
+    { id, client_id, name, description, provider, model, skills, instructions },
+    ctx,
+  ) => {
     const gate = await requireAdmin(ctx);
     if ("err" in gate && gate.err)
       return { content: [{ type: "text", text: gate.err }], isError: true };
@@ -106,6 +121,8 @@ export const agentUpsertTool = defineTool({
     if (!s)
       return { content: [{ type: "text", text: "Agent service not configured" }], isError: true };
     const clientId = client_id || "global";
+    // Anbieter: explizit > aus Modell-Id abgeleitet > claude.
+    const prov = provider ?? (model ? providerVon(model) : DEFAULT_AGENT_MODEL.provider);
     const orgId = gate.scope!.organizationId;
     const r = await fetch(
       `${s.base}/agents?clientId=${encodeURIComponent(clientId)}&org=${encodeURIComponent(orgId)}`,
@@ -117,7 +134,8 @@ export const agentUpsertTool = defineTool({
           clientId,
           name,
           description: description || "",
-          model: model || "claude-sonnet-4-6",
+          provider: prov,
+          model: model || defaultModelFuer(prov),
           skills,
           instructions,
         }),
@@ -138,7 +156,14 @@ export const agentUpsertTool = defineTool({
           text: `Agent "${j.agent.name}" gespeichert (id ${j.agent.id}, ${skills.length} Skills).`,
         },
       ],
-      structuredContent: { agent: { id: j.agent.id, name: j.agent.name, skills: j.agent.skills } },
+      structuredContent: {
+        agent: {
+          id: j.agent.id,
+          name: j.agent.name,
+          provider: providerVon(j.agent.provider ? j.agent : { provider: prov }),
+          skills: j.agent.skills,
+        },
+      },
     };
   },
 });

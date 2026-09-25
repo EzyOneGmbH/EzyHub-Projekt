@@ -48,6 +48,38 @@ export const Route = createFileRoute("/api/agent/runs")({
         if (unauth) return unauth;
         const b = base.replace(/\/+$/, "");
         const headers = { Authorization: `Bearer ${secret}` };
+        // Modell-Katalog (25.09.2026): ?view=models reicht GET /models (Anbieter
+        // Claude-Abo/ChatGPT-Abo, Modelle, Aufgaben-Empfehlungen) und den
+        // Codex-Status aus GET /health durch — lesend, member+ wie oben.
+        // Bewusst keine eigene Route (routeTree bleibt unveraendert).
+        if (new URL(request.url).searchParams.get("view") === "models") {
+          const [modelsRes, healthRes] = await Promise.all([
+            fetch(`${b}/models`, { headers, signal: AbortSignal.timeout(15_000) }).catch(
+              () => null,
+            ),
+            fetch(`${b}/health`, { headers, signal: AbortSignal.timeout(15_000) }).catch(
+              () => null,
+            ),
+          ]);
+          const mj: any = modelsRes?.ok ? await modelsRes.json().catch(() => ({})) : {};
+          const hj: any = healthRes?.ok ? await healthRes.json().catch(() => ({})) : {};
+          const flag = (v: unknown) => (typeof v === "boolean" ? v : undefined);
+          return Response.json(
+            {
+              ok: true,
+              providers: Array.isArray(mj?.providers) ? mj.providers : null,
+              aufgaben: Array.isArray(mj?.aufgaben) ? mj.aufgaben : null,
+              codex:
+                hj?.codex && typeof hj.codex === "object"
+                  ? {
+                      installiert: flag(hj.codex.installiert),
+                      angemeldet: flag(hj.codex.angemeldet),
+                    }
+                  : null,
+            },
+            { headers: { "Cache-Control": "no-store" } },
+          );
+        }
         try {
           // 24.08.: 10s -> 20s je Teil-Abfrage — der agent-service braucht
           // unter Last laenger; die Ansicht laedt ohnehin alle 8s nach.

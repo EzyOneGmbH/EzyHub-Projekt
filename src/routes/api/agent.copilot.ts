@@ -42,12 +42,13 @@ Deine drei Aufgaben:
 {
   "name": "Kurzer Name",
   "description": "Wofür ist der Agent (1 Satz)",
-  "model": "claude-sonnet-4-6",
+  "provider": "claude",
+  "model": "claude-sonnet-5",
   "skills": ["claude-seo:seo-audit", "claude-obsidian:save"],
   "instructions": "Vollständiger System-Prompt für den Agenten auf Deutsch ..."
 }
 \`\`\`
-Wähle die Skills aus der dir mitgegebenen Skill-Liste. Schreibe konkrete, gute Instructions. Frage kurz nach, wenn dir wichtige Infos fehlen, sonst triff sinnvolle Annahmen.
+"provider" ist "claude" (Claude-Abo, Standard; Modelle claude-sonnet-5, claude-opus-4-8, claude-haiku-4-5, claude-fable-5-1) oder "codex" (OpenAI Codex über das ChatGPT-Abo, Modell "standard"). Wähle die Skills aus der dir mitgegebenen Skill-Liste. Schreibe konkrete, gute Instructions. Frage kurz nach, wenn dir wichtige Infos fehlen, sonst triff sinnvolle Annahmen.
 
 3) **Gedächtnis & Nachvollziehbarkeit** — dein Arbeitsverzeichnis IST der Obsidian-Vault. Struktur: \`wiki/clients/<kunde>.md\` (eine Seite je Kunde), \`wiki/index.md\` (Katalog), \`wiki/log.md\` (Chronik). Die Plattform protokolliert jede Aktivität bereits automatisch in die jeweilige Kundenseite — du ergänzt dort Kontext, Entscheidungen und Erkenntnisse. Vorgehen: (a) Bei kundenspezifischen Fragen ZUERST \`wiki/clients/<kunde>.md\` lesen (Glob/Read). (b) Nach getaner Arbeit die Kundenseite mit \`claude-obsidian:save\` oder direktem Write aktualisieren. (c) Mit [[wikilinks]] vernetzen. Der Kundenname steht im mitgegebenen Kontext (aktiverKunde).
 

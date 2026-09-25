@@ -27,6 +27,7 @@ import { C } from "./theme";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { SKILL_CATALOG } from "@/ezy/data/skillCatalog";
+import { defaultModelFuer, providerVon } from "@/ezy/data/agentModels";
 
 // Parse ```agent-spec fenced JSON blocks the Co-Pilot emits when proposing agents.
 function parseAgentSpecs(text) {
@@ -371,7 +372,9 @@ export function EzyPilotProvider({ selectedClient, clients, tools, children }) {
           name: spec.name,
           description: spec.description || "",
           instructions: spec.instructions || "",
-          model: spec.model || "claude-sonnet-4-6",
+          // Anbieter: explizit aus der Spec, sonst aus der Modell-Id (Default claude).
+          provider: providerVon(spec),
+          model: spec.model || defaultModelFuer(providerVon(spec)),
           skills: Array.isArray(spec.skills) ? spec.skills : [],
         }),
       });
