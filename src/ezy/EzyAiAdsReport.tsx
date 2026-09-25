@@ -10,7 +10,8 @@ import { isoDay, useRangeData, type ResolvedRange } from "@/ezy/data/rangeStore"
 type Tokens = Record<string, string>;
 type AdsM = { impressions: number; clicks: number; spend: number; conversions: number | null };
 type Ga4M = { sessions: number; users: number; conversions: number };
-type Region = { country: string; ads: AdsM | null; ga4: Ga4M | null };
+type SubRegion = { region: string; ga4: Ga4M };
+type Region = { country: string; ads: AdsM | null; ga4: Ga4M | null; subregions?: SubRegion[] };
 type Campaign = {
   key: string;
   name: string;
@@ -108,7 +109,7 @@ export default function EzyAiAdsReport({
 }) {
   const [err, setErr] = useState<string | null>(null);
   const [open, setOpen] = useState<Set<string>>(new Set());
-  const key = `ads-report:v1:${clientId}:${isoDay(range.start)}:${isoDay(range.end)}`;
+  const key = `ads-report:v2:${clientId}:${isoDay(range.start)}:${isoDay(range.end)}`;
   const rep = useRangeData<Report>(key, async () => {
     const session = (await supabase.auth.getSession()).data.session;
     const r = await authedFetch(
@@ -241,8 +242,8 @@ export default function EzyAiAdsReport({
           Kampagnen
         </h3>
         <div style={{ fontSize: 12, color: S.mut, marginBottom: 10 }}>
-          Zeile anklicken für die Regionen. Violett hinterlegt = GA4. Kampagnen werden über den
-          UTM-Kampagnennamen verbunden.
+          Zeile anklicken für Länder und Regionen (Kantone aus GA4). Violett hinterlegt = GA4.
+          Kampagnen werden über den UTM-Kampagnennamen verbunden.
         </div>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 980 }}>
@@ -301,12 +302,25 @@ export default function EzyAiAdsReport({
                     </tr>
                     {isOpen &&
                       c.regions.map((r) => (
-                        <tr key={c.key + r.country} style={{ borderTop: `1px dashed ${S.line}` }}>
-                          <td style={{ padding: "6px 10px 6px 34px", color: S.mut }}>
-                            {r.country}
-                          </td>
-                          <Cells ads={r.ads} ga4={r.ga4} cur={cur} S={S} />
-                        </tr>
+                        <Fragment key={c.key + r.country}>
+                          <tr style={{ borderTop: `1px dashed ${S.line}` }}>
+                            <td style={{ padding: "6px 10px 6px 34px", color: S.txt }}>
+                              {r.country}
+                            </td>
+                            <Cells ads={r.ads} ga4={r.ga4} cur={cur} S={S} />
+                          </tr>
+                          {/* GA4-Regionen (Kantone) unter dem Land — nur GA4-Werte */}
+                          {(r.subregions ?? []).map((sr) => (
+                            <tr key={c.key + r.country + sr.region}>
+                              <td
+                                style={{ padding: "4px 10px 4px 52px", color: S.mut, fontSize: 12 }}
+                              >
+                                {sr.region}
+                              </td>
+                              <Cells ads={null} ga4={sr.ga4} cur={cur} S={S} />
+                            </tr>
+                          ))}
+                        </Fragment>
                       ))}
                   </Fragment>
                 );
@@ -319,7 +333,8 @@ export default function EzyAiAdsReport({
       <div style={card}>
         <h3 style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: S.txt }}>Regionen</h3>
         <div style={{ fontSize: 12, color: S.mut, marginBottom: 10 }}>
-          Alle Kampagnen zusammen, je Land. Conversions je Land liefert nur GA4.
+          Alle Kampagnen zusammen, je Land — Land anklicken für die Regionen (Kantone/Bundesländer)
+          aus GA4. ChatGPT Ads liefert nur Länder; Conversions je Land und Region stammen aus GA4.
         </div>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 980 }}>
@@ -332,14 +347,55 @@ export default function EzyAiAdsReport({
                   </td>
                 </tr>
               )}
-              {d.regions.map((r) => (
-                <tr key={r.country} style={{ borderTop: `1px solid ${S.line}` }}>
-                  <td style={{ padding: "8px 10px", color: S.txt, fontWeight: 600 }}>
-                    {r.country}
-                  </td>
-                  <Cells ads={r.ads} ga4={r.ga4} cur={cur} S={S} />
-                </tr>
-              ))}
+              {d.regions.map((r) => {
+                const k = `land:${r.country}`;
+                const subs = r.subregions ?? [];
+                const auf = open.has(k);
+                return (
+                  <Fragment key={r.country}>
+                    <tr
+                      onClick={() => subs.length && toggle(k)}
+                      style={{
+                        borderTop: `1px solid ${S.line}`,
+                        cursor: subs.length ? "pointer" : "default",
+                      }}
+                    >
+                      <td style={{ padding: "8px 10px", color: S.txt, fontWeight: 600 }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                          <ChevronRight
+                            size={13}
+                            style={{
+                              color: S.mut,
+                              opacity: subs.length ? 1 : 0,
+                              transform: auf ? "rotate(90deg)" : "none",
+                              transition: "transform .15s",
+                            }}
+                          />
+                          {r.country}
+                          {subs.length > 0 && (
+                            <span style={{ fontSize: 11, fontWeight: 400, color: S.mut }}>
+                              {subs.length} {subs.length === 1 ? "Region" : "Regionen"}
+                            </span>
+                          )}
+                        </span>
+                      </td>
+                      <Cells ads={r.ads} ga4={r.ga4} cur={cur} S={S} />
+                    </tr>
+                    {auf &&
+                      subs.map((sr) => (
+                        <tr
+                          key={r.country + sr.region}
+                          style={{ borderTop: `1px dashed ${S.line}` }}
+                        >
+                          <td style={{ padding: "6px 10px 6px 34px", color: S.mut }}>
+                            {sr.region}
+                          </td>
+                          <Cells ads={null} ga4={sr.ga4} cur={cur} S={S} />
+                        </tr>
+                      ))}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>

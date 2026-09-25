@@ -30,7 +30,15 @@ export type AdsMetrics = {
   conversions: number | null; // null = von der API nicht geliefert (z. B. je Land)
 };
 export type Ga4Metrics = { sessions: number; users: number; conversions: number };
-export type RegionRow = { country: string; ads: AdsMetrics | null; ga4: Ga4Metrics | null };
+// subregions: GA4-Region (Kanton/Bundesland) unter dem Land — nur GA4-Werte,
+// die Ads-API kennt keine Regionen unterhalb des Landes.
+export type SubRegion = { region: string; ga4: Ga4Metrics };
+export type RegionRow = {
+  country: string;
+  ads: AdsMetrics | null;
+  ga4: Ga4Metrics | null;
+  subregions: SubRegion[];
+};
 export type CampaignRow = {
   key: string;
   name: string;
@@ -169,7 +177,13 @@ async function adsCountries(
   return out;
 }
 
-type Ga4Row = { source: string; medium: string; campaign: string; country: string } & Ga4Metrics;
+type Ga4Row = {
+  source: string;
+  medium: string;
+  campaign: string;
+  country: string;
+  region: string;
+} & Ga4Metrics;
 
 async function ga4Rows(
   client: { id: string; ga4_property?: string | null },
@@ -200,6 +214,7 @@ async function ga4Rows(
           { name: "sessionMedium" },
           { name: "sessionCampaignName" },
           { name: "country" },
+          { name: "region" },
         ],
         metrics: [{ name: "sessions" }, { name: "totalUsers" }, { name: "keyEvents" }],
         dimensionFilter: withMedium
@@ -254,6 +269,7 @@ async function ga4Rows(
       medium: d(1),
       campaign: d(2),
       country: d(3) || "(not set)",
+      region: d(4) && d(4) !== "(not set)" ? d(4) : "Unbekannt",
       sessions: m(0),
       users: m(1),
       conversions: m(2),
@@ -389,6 +405,8 @@ export async function buildAdsReport(
       regions: [],
     });
   const ga4ByCampaignCountry = new Map<string, Map<string, Ga4Metrics>>();
+  // Schluessel "<kampagne>\0<land>" -> Region -> GA4
+  const ga4Sub = new Map<string, Map<string, Ga4Metrics>>();
   for (const r of g.rows) {
     const treffer = byNorm.get(norm(r.campaign));
     const key = treffer ? treffer.id : `ga4:${r.campaign || "(not set)"}`;
@@ -410,7 +428,15 @@ export async function buildAdsReport(
     const cc = ga4ByCampaignCountry.get(key) ?? new Map<string, Ga4Metrics>();
     cc.set(r.country, cc.has(r.country) ? addGa4(cc.get(r.country)!, m) : m);
     ga4ByCampaignCountry.set(key, cc);
+    const rk = `${key}\u0000${r.country}`;
+    const rr = ga4Sub.get(rk) ?? new Map<string, Ga4Metrics>();
+    rr.set(r.region, rr.has(r.region) ? addGa4(rr.get(r.region)!, m) : m);
+    ga4Sub.set(rk, rr);
   }
+  const subOf = (m?: Map<string, Ga4Metrics>): SubRegion[] =>
+    [...(m ?? new Map<string, Ga4Metrics>()).entries()]
+      .map(([region, ga4]) => ({ region, ga4 }))
+      .sort((a, b) => b.ga4.sessions - a.ga4.sessions || a.region.localeCompare(b.region));
 
   const regionsTotal = new Map<string, RegionRow>();
   for (const row of rows.values()) {
@@ -418,7 +444,12 @@ export async function buildAdsReport(
     const ga4 = ga4ByCampaignCountry.get(row.key) ?? new Map<string, Ga4Metrics>();
     const laender = new Set([...ads.keys(), ...ga4.keys()]);
     row.regions = [...laender]
-      .map((country) => ({ country, ads: ads.get(country) ?? null, ga4: ga4.get(country) ?? null }))
+      .map((country) => ({
+        country,
+        ads: ads.get(country) ?? null,
+        ga4: ga4.get(country) ?? null,
+        subregions: subOf(ga4Sub.get(`${row.key}\u0000${country}`)),
+      }))
       .sort(
         (a, b) =>
           (b.ads?.clicks ?? 0) +
@@ -426,9 +457,19 @@ export async function buildAdsReport(
           ((a.ads?.clicks ?? 0) + (a.ga4?.sessions ?? 0)),
       );
     for (const rg of row.regions) {
-      const t = regionsTotal.get(rg.country) ?? { country: rg.country, ads: null, ga4: null };
+      const t: RegionRow = regionsTotal.get(rg.country) ?? {
+        country: rg.country,
+        ads: null,
+        ga4: null,
+        subregions: [],
+      };
       if (rg.ads) t.ads = t.ads ? addAds(t.ads, rg.ads) : { ...rg.ads };
       if (rg.ga4) t.ga4 = t.ga4 ? addGa4(t.ga4, rg.ga4) : { ...rg.ga4 };
+      // Regionen ueber Kampagnen summieren
+      const sm = new Map(t.subregions.map((x) => [x.region, x.ga4] as const));
+      for (const sr of rg.subregions)
+        sm.set(sr.region, sm.has(sr.region) ? addGa4(sm.get(sr.region)!, sr.ga4) : { ...sr.ga4 });
+      t.subregions = subOf(new Map(sm));
       regionsTotal.set(rg.country, t);
     }
   }

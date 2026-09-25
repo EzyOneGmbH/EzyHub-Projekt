@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.26.0",
+    version: "1.26.1",
     changelog: [
+      {
+        version: "1.26.1",
+        date: "2026-09-25",
+        note: "Ads-Report: unter jedem Land zusätzlich die Regionen aus GA4 (Kantone/Bundesländer) mit Sessions, Nutzern und Conversions — je Kampagne und in «Regionen gesamt»",
+      },
       {
         version: "1.26.0",
         date: "2026-09-25",
