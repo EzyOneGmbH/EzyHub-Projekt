@@ -4731,6 +4731,29 @@ function EzyAiApp() {
     () => clients.find((c: any) => c.id === clientId) || clients[0] || null,
     [clients, clientId],
   );
+  // Kunden-Standardzeitraum (Volkan 25.09.: Gasser «default immer 90 Tage»):
+  // clients.metadata.ezyai_default_days setzt beim Öffnen des Kunden den
+  // Zeitraum — nur in EzyAI, der app-übergreifende Store bleibt unberührt.
+  // Eine Auswahl im Header gilt wie gewohnt; beim nächsten Öffnen des Kunden
+  // greift wieder der Standard. Kunde ohne Standard / Agentur-Übersicht ->
+  // zurück zum geteilten Zeitraum.
+  const kundenStandardTage = Math.round(Number((client as any)?.metadata?.ezyai_default_days) || 0);
+  const kundenStandardAktiv = useRef(false);
+  useEffect(() => {
+    if (!showAll && kundenStandardTage >= 1 && kundenStandardTage <= 366) {
+      setRange(
+        resolveRange({
+          days: kundenStandardTage,
+          preset: `${kundenStandardTage}d`,
+          label: `${kundenStandardTage} Tage`,
+        }),
+      );
+      kundenStandardAktiv.current = true;
+    } else if (kundenStandardAktiv.current) {
+      setRange(resolveRange(loadSharedRange()));
+      kundenStandardAktiv.current = false;
+    }
+  }, [client?.id, kundenStandardTage, showAll]);
   useEffect(() => {
     if (client?.id) {
       try {

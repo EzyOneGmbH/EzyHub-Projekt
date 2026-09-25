@@ -113,8 +113,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.25.3",
+    version: "1.25.4",
     changelog: [
+      {
+        version: "1.25.4",
+        date: "2026-09-25",
+        note: "Standardzeitraum je Kunde: EzyAI öffnet einen Kunden mit hinterlegtem Standard (z. B. Gasser AG: 90 Tage) immer in diesem Zeitraum; eine andere Auswahl im Kopf gilt bis zum nächsten Öffnen",
+      },
       {
         version: "1.25.3",
         date: "2026-09-23",
