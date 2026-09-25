@@ -430,7 +430,7 @@ export function AdsAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
           </div>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-          <span style={{ position: "relative", display: "block", flex: "1 1 220px" }}>
+          <span style={{ position: "relative", display: "block", width: 220, maxWidth: "100%" }}>
             <Search
               size={14}
               color={C.textDim}
@@ -443,7 +443,6 @@ export function AdsAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
               aria-label="Konto suchen"
               style={{
                 width: "100%",
-                minWidth: 200,
                 boxSizing: "border-box",
                 padding: "8px 10px 8px 30px",
                 border: `1px solid ${C.inputBorder}`,
