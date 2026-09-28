@@ -63,7 +63,17 @@ export function AdsPaketTag({ client, editable = false, size = "sm" }) {
 
   useEffect(() => setPaket(adsPaketVon(client?.metadata)), [client?.metadata]);
   // Menue per Portal mit fester Position: in Tabellen (sticky Zelle, overflow)
-  // wuerde ein absolut positioniertes Menue abgeschnitten.
+  // wuerde ein absolut positioniertes Menue abgeschnitten. Beim Scrollen wird
+  // es mitgefuehrt statt geschlossen (ein Scroll direkt nach dem Klick hat es
+  // sonst sofort wieder zugemacht).
+  const platziere = () => {
+    const r = ref.current?.getBoundingClientRect();
+    if (!r) return;
+    const breite = 180;
+    const hoehe = 190;
+    const top = r.bottom + 6 + hoehe > window.innerHeight ? r.top - 6 - hoehe : r.bottom + 6;
+    setPos({ top, left: Math.max(8, Math.min(r.left, window.innerWidth - breite - 8)) });
+  };
   useEffect(() => {
     if (!offen) return;
     const zu = (e) => {
@@ -71,26 +81,19 @@ export function AdsPaketTag({ client, editable = false, size = "sm" }) {
       setOffen(false);
     };
     const esc = (e) => e.key === "Escape" && setOffen(false);
-    const weg = () => setOffen(false);
     document.addEventListener("mousedown", zu);
     document.addEventListener("keydown", esc);
-    window.addEventListener("scroll", weg, true);
-    window.addEventListener("resize", weg);
+    window.addEventListener("scroll", platziere, true);
+    window.addEventListener("resize", platziere);
     return () => {
       document.removeEventListener("mousedown", zu);
       document.removeEventListener("keydown", esc);
-      window.removeEventListener("scroll", weg, true);
-      window.removeEventListener("resize", weg);
+      window.removeEventListener("scroll", platziere, true);
+      window.removeEventListener("resize", platziere);
     };
   }, [offen]);
   const oeffne = () => {
-    const r = ref.current?.getBoundingClientRect();
-    if (r) {
-      const breite = 180;
-      const hoehe = 190;
-      const top = r.bottom + 6 + hoehe > window.innerHeight ? r.top - 6 - hoehe : r.bottom + 6;
-      setPos({ top, left: Math.max(8, Math.min(r.left, window.innerWidth - breite - 8)) });
-    }
+    platziere();
     setOffen((v) => !v);
   };
 
