@@ -2379,7 +2379,7 @@ export function ClientsPage({
       "success",
     );
   };
-  const removeClient = () => {
+  const removeClient = async () => {
     if (!detail) return;
     if (clients.length <= 1) {
       toast("Mindestens ein Kunde muss bestehen bleiben", "error");
@@ -2393,9 +2393,9 @@ Tipp: «Deaktivieren» pausiert reversibel und behält alle Daten.`,
       )
     )
       return;
-    onDeleteClient(detail.id);
-    setDetailId(null);
-    toast("Kunde entfernt", "success");
+    // Erfolg/Fehler meldet onDeleteClient selbst — hier nur bei Erfolg schliessen.
+    const ok = await onDeleteClient(detail.id);
+    if (ok !== false) setDetailId(null);
   };
   const detailDefaults = defaultsFromStored(detail?.defaults ?? effectiveDefaults);
   return (

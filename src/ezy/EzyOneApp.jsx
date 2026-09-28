@@ -107,6 +107,7 @@ import { useEzyLatestRun, aworkTasksFromResult } from "@/ezy/data/useEzyLatestRu
 import GoogleClientPanel from "@/ezy/GoogleClientPanel.jsx";
 import AdsAutopilotPanel from "@/ezy/AdsAutopilotPanel.jsx";
 import { AdsPaketTag, CLIENTS_CHANGED_EVENT } from "@/ezy/AdsPaketTag";
+import { loeschFehlerText } from "@/ezy/data/kundeLoeschen";
 
 import { supabase } from "@/integrations/supabase/client";
 import { SKILL_CATALOG } from "@/ezy/data/skillCatalog";
@@ -7043,8 +7044,10 @@ function App({ appScope = null }) {
         await ezy.remove(id);
         setShowAll(false);
         toast?.("Kunde gelöscht", "success");
+        return true;
       } catch (e) {
-        toast?.(e?.message || "Löschen fehlgeschlagen", "error");
+        toast?.(loeschFehlerText(e), "error");
+        return false;
       }
     },
     [ezy, toast],
