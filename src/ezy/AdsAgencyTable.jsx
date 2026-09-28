@@ -527,7 +527,7 @@ export function AdsAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
         </div>
       </div>
 
-      {/* Paket-Filter (28.09.): Starter / Medium / Performance mit Anzahl */}
+      {/* Paket-Filter (28.09.): Starter / Medium / Premium mit Anzahl */}
       <div
         style={{
           display: "flex",

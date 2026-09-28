@@ -3,12 +3,12 @@
 
 export const ADS_PAKET_FELD = "ads_package";
 
-export type AdsPaketId = "starter" | "medium" | "performance";
+export type AdsPaketId = "starter" | "medium" | "premium";
 
 export const ADS_PAKETE: ReadonlyArray<{ id: AdsPaketId; label: string }> = [
   { id: "starter", label: "Starter" },
   { id: "medium", label: "Medium" },
-  { id: "performance", label: "Performance" },
+  { id: "premium", label: "Premium" },
 ];
 
 export function istAdsPaket(v: unknown): v is AdsPaketId {
@@ -21,6 +21,8 @@ export function adsPaketVon(metadata: unknown): AdsPaketId | null {
   const v = String((metadata as Record<string, unknown>)[ADS_PAKET_FELD] ?? "")
     .trim()
     .toLowerCase();
+  // «performance» hiess bis 29.09.2026 die oberste Stufe (umbenannt in Premium).
+  if (v === "performance") return "premium";
   return istAdsPaket(v) ? v : null;
 }
 

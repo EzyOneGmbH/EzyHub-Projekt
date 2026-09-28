@@ -399,8 +399,9 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyPerformance (Ads)
   ads: {
-    version: "1.4.0",
+    version: "1.4.1",
     changelog: [
+      { version: "1.4.1", date: "2026-09-29", note: "Paket «Performance» heisst jetzt «Premium»" },
       {
         version: "1.4.0",
         date: "2026-09-28",

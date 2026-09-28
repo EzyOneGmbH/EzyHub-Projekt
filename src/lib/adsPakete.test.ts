@@ -4,7 +4,8 @@ import { adsPaketLabel, adsPaketVon, istAdsPaket, mitAdsPaket } from "./adsPaket
 describe("adsPakete", () => {
   it("liest das Paket aus metadata, unbekannte Werte = kein Paket", () => {
     expect(adsPaketVon({ ads_package: "medium" })).toBe("medium");
-    expect(adsPaketVon({ ads_package: "Performance" })).toBe("performance");
+    expect(adsPaketVon({ ads_package: "Premium" })).toBe("premium");
+    expect(adsPaketVon({ ads_package: "performance" })).toBe("premium");
     expect(adsPaketVon({ ads_package: "gold" })).toBeNull();
     expect(adsPaketVon(null)).toBeNull();
     expect(adsPaketVon({})).toBeNull();
@@ -17,7 +18,7 @@ describe("adsPakete", () => {
     expect(mitAdsPaket(gesetzt, null)).toEqual({ first_party_kpi: true, tags: ["a"] });
   });
   it("Labels und Validierung", () => {
-    expect(adsPaketLabel("performance")).toBe("Performance");
+    expect(adsPaketLabel("premium")).toBe("Premium");
     expect(adsPaketLabel(null)).toBe("Kein Paket");
     expect(istAdsPaket("medium")).toBe(true);
     expect(istAdsPaket("")).toBe(false);

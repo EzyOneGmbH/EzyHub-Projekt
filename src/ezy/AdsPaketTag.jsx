@@ -1,4 +1,4 @@
-// EzyPerformance-Paket als Tag (28.09.2026): Starter / Medium / Performance.
+// EzyPerformance-Paket als Tag (28.09.2026): Starter / Medium / Premium.
 // Anzeige ueberall; Owner/Admin koennen per Klick waehlen (editable).
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -12,7 +12,7 @@ export const CLIENTS_CHANGED_EVENT = "ezy:clients-changed";
 const FARBE = {
   starter: { fg: C.cyan, bg: C.cyanDim },
   medium: { fg: C.blue, bg: C.blueDim },
-  performance: { fg: C.accent, bg: C.accentDim },
+  premium: { fg: C.accent, bg: C.accentDim },
 };
 
 export function AdsPaketChip({ paket, size = "sm", interaktiv = false, offen = false }) {
