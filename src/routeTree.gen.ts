@@ -35,6 +35,7 @@ import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
+import { Route as ApiAdsPackageRouteImport } from './routes/api/ads-package'
 import { Route as ApiClaudeSessionsRouteImport } from './routes/api/claude-sessions'
 import { Route as ContentIdRouteImport } from './routes/content.$id'
 import { Route as CustomersIdRouteImport } from './routes/customers.$id'
@@ -294,6 +295,11 @@ const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
   getParentRoute: () => AdminRoute,
+} as any)
+const ApiAdsPackageRoute = ApiAdsPackageRouteImport.update({
+  id: '/api/ads-package',
+  path: '/api/ads-package',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiClaudeSessionsRoute = ApiClaudeSessionsRouteImport.update({
   id: '/api/claude-sessions',
@@ -986,6 +992,7 @@ export interface FileRoutesByFullPath {
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/users': typeof AdminUsersRoute
+  '/api/ads-package': typeof ApiAdsPackageRoute
   '/api/claude-sessions': typeof ApiClaudeSessionsRoute
   '/content/$id': typeof ContentIdRoute
   '/customers/$id': typeof CustomersIdRoute
@@ -1141,6 +1148,7 @@ export interface FileRoutesByTo {
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/users': typeof AdminUsersRoute
+  '/api/ads-package': typeof ApiAdsPackageRoute
   '/api/claude-sessions': typeof ApiClaudeSessionsRoute
   '/content/$id': typeof ContentIdRoute
   '/customers/$id': typeof CustomersIdRoute
@@ -1297,6 +1305,7 @@ export interface FileRoutesById {
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/users': typeof AdminUsersRoute
+  '/api/ads-package': typeof ApiAdsPackageRoute
   '/api/claude-sessions': typeof ApiClaudeSessionsRoute
   '/content/$id': typeof ContentIdRoute
   '/customers/$id': typeof CustomersIdRoute
@@ -1454,6 +1463,7 @@ export interface FileRouteTypes {
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/admin/users'
+    | '/api/ads-package'
     | '/api/claude-sessions'
     | '/content/$id'
     | '/customers/$id'
@@ -1609,6 +1619,7 @@ export interface FileRouteTypes {
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/admin/users'
+    | '/api/ads-package'
     | '/api/claude-sessions'
     | '/content/$id'
     | '/customers/$id'
@@ -1764,6 +1775,7 @@ export interface FileRouteTypes {
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/admin/users'
+    | '/api/ads-package'
     | '/api/claude-sessions'
     | '/content/$id'
     | '/customers/$id'
@@ -1919,6 +1931,7 @@ export interface RootRouteChildren {
   TasksRoute: typeof TasksRouteWithChildren
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  ApiAdsPackageRoute: typeof ApiAdsPackageRoute
   ApiClaudeSessionsRoute: typeof ApiClaudeSessionsRoute
   RTokenRoute: typeof RTokenRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
@@ -2222,6 +2235,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/users'
       preLoaderRoute: typeof AdminUsersRouteImport
       parentRoute: typeof AdminRoute
+    }
+    '/api/ads-package': {
+      id: '/api/ads-package'
+      path: '/api/ads-package'
+      fullPath: '/api/ads-package'
+      preLoaderRoute: typeof ApiAdsPackageRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/claude-sessions': {
       id: '/api/claude-sessions'
@@ -3219,6 +3239,7 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
+  ApiAdsPackageRoute: ApiAdsPackageRoute,
   ApiClaudeSessionsRoute: ApiClaudeSessionsRoute,
   RTokenRoute: RTokenRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,

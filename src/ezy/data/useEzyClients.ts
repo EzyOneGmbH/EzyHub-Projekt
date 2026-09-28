@@ -86,7 +86,10 @@ function rowToClient(r: any): EzyClient {
 }
 
 function clientToRow(c: Partial<EzyClient>, organizationId: string, createdBy: string) {
+  // Bestehende metadata-Felder (z. B. ads_package, first_party_kpi) behalten —
+  // das Formular kennt nur die folgenden Felder und darf den Rest nicht nullen.
   const metadata = {
+    ...(c.metadata && typeof c.metadata === "object" ? c.metadata : {}),
     status: c.status ?? "active",
     contactEmail: c.contactEmail ?? "",
     contactPhone: c.contactPhone ?? "",

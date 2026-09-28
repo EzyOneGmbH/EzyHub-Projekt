@@ -399,8 +399,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyPerformance (Ads)
   ads: {
-    version: "1.3.0",
+    version: "1.4.0",
     changelog: [
+      {
+        version: "1.4.0",
+        date: "2026-09-28",
+        note: "Paket-Tags je Kunde (Starter, Medium, Performance): Owner/Admin wählen das Paket per Klick in der Performance-Tabelle oder im Ads-Dashboard des Kunden; das Tag erscheint auf den Kacheln, in der Tabelle (mit Paket-Filter samt Anzahl) und im CSV-Export",
+      },
       {
         version: "1.3.0",
         date: "2026-09-25",

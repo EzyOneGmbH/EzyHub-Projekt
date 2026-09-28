@@ -5,6 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, Download, Search } from "lucide-react";
 import { ezyFetch } from "@/ezy/data/api";
 import { ClientAvatar } from "@/ezy/ClientAvatar";
+import { useAuth } from "@/hooks/use-auth";
+import { ADS_PAKETE, adsPaketLabel, adsPaketVon } from "@/lib/adsPakete";
+import { AdsPaketChip, AdsPaketTag } from "./AdsPaketTag";
 import { C } from "./theme";
 import { compareName, downloadFile, pctDelta } from "./ui-kit";
 
@@ -151,6 +154,8 @@ export function AdsAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("alle");
+  const [paketFilter, setPaketFilter] = useState("alle");
+  const { isOrgAdmin } = useAuth();
   const [sort, setSort] = useState({ key: "clicks", dir: -1 });
   const [page, setPage] = useState(0);
   const mitVergleich = !!dateRange?.compare;
@@ -204,7 +209,7 @@ export function AdsAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
     };
   }, [ids, startDate, endDate, compareStart, compareEnd]);
 
-  useEffect(() => setPage(0), [query, filter, sort, ids]);
+  useEffect(() => setPage(0), [query, filter, paketFilter, sort, ids]);
 
   const zeilen = useMemo(
     () =>
@@ -230,6 +235,10 @@ export function AdsAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
           .includes(q)
       )
         return false;
+      if (paketFilter !== "alle") {
+        const p = adsPaketVon(z.client.metadata);
+        if (paketFilter === "ohne" ? p !== null : p !== paketFilter) return false;
+      }
       switch (filter) {
         case "buchungen":
           return (z.cur?.bookings || 0) > 0;
@@ -255,7 +264,17 @@ export function AdsAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
       if (vb == null) return -1;
       return va < vb ? -sort.dir : va > vb ? sort.dir : 0;
     });
-  }, [zeilen, query, filter, sort]);
+  }, [zeilen, query, filter, paketFilter, sort]);
+
+  const paketZahlen = useMemo(() => {
+    const n = { alle: clients.length, ohne: 0 };
+    for (const p of ADS_PAKETE) n[p.id] = 0;
+    for (const c of clients) {
+      const p = adsPaketVon(c.metadata);
+      n[p ?? "ohne"] += 1;
+    }
+    return n;
+  }, [clients]);
 
   const gesamt = useMemo(
     () => ({
@@ -269,19 +288,28 @@ export function AdsAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
   const sichtbar = gefiltert.slice(page * PAGE, page * PAGE + PAGE);
 
   const exportCsv = () => {
-    const kopf = ["Konto", "Domain", ...SPALTEN.map((s) => s.label)];
+    const kopf = ["Konto", "Domain", "Paket", ...SPALTEN.map((s) => s.label)];
     if (mitVergleich) kopf.push(...SPALTEN.map((s) => `${s.label} (Vergleich)`));
     const zahl = (v) => (v == null ? "" : String(Math.round(v * 100) / 100).replace(".", ","));
-    const zeileCsv = (name, domain, cur, prev) => [
+    const zeileCsv = (name, domain, paket, cur, prev) => [
       name,
       domain,
+      paket,
       ...SPALTEN.map((s) => zahl(cur?.[s.key])),
       ...(mitVergleich ? SPALTEN.map((s) => zahl(prev?.[s.key])) : []),
     ];
     const lines = [
       kopf,
-      ...gefiltert.map((z) => zeileCsv(z.client.name, z.client.domain || "", z.cur, z.prev)),
-      zeileCsv("Gesamt", "", gesamt.cur, gesamt.prev),
+      ...gefiltert.map((z) =>
+        zeileCsv(
+          z.client.name,
+          z.client.domain || "",
+          adsPaketVon(z.client.metadata) ? adsPaketLabel(adsPaketVon(z.client.metadata)) : "",
+          z.cur,
+          z.prev,
+        ),
+      ),
+      zeileCsv("Gesamt", "", "", gesamt.cur, gesamt.prev),
     ].map((l) => l.map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`).join(";"));
     downloadFile(
       "﻿" + lines.join("\n"),
@@ -499,6 +527,61 @@ export function AdsAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
         </div>
       </div>
 
+      {/* Paket-Filter (28.09.): Starter / Medium / Performance mit Anzahl */}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          gap: 6,
+          padding: "10px 18px",
+          borderBottom: `1px solid ${C.border}`,
+          background: "#fdfbfd",
+        }}
+      >
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: C.textMuted, marginRight: 4 }}>
+          Paket
+        </span>
+        {[
+          { id: "alle", label: "Alle" },
+          ...ADS_PAKETE.map((p) => ({ id: p.id, label: p.label })),
+          { id: "ohne", label: "Ohne Paket" },
+        ].map((f) => {
+          const aktiv = paketFilter === f.id;
+          const n = paketZahlen[f.id] ?? 0;
+          if (f.id === "ohne" && n === 0 && !aktiv) return null;
+          return (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setPaketFilter(f.id)}
+              aria-pressed={aktiv}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                border: `1px solid ${aktiv ? C.accent : C.border}`,
+                background: aktiv ? "#fff" : "transparent",
+                boxShadow: aktiv ? C.segShadow : "none",
+                borderRadius: 999,
+                padding: "3px 10px 3px 4px",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                fontSize: 12,
+                color: C.text,
+              }}
+            >
+              {ADS_PAKETE.some((p) => p.id === f.id) ? (
+                <AdsPaketChip paket={f.id} />
+              ) : (
+                <span style={{ paddingLeft: 6, fontWeight: 600 }}>{f.label}</span>
+              )}
+              <span style={{ color: C.textMuted, fontVariantNumeric: "tabular-nums" }}>{n}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {error && (
         <div
           style={{
@@ -631,7 +714,7 @@ export function AdsAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
                         fg={C.accentLight}
                         fontSize={10}
                       />
-                      <div style={{ minWidth: 0, maxWidth: 190 }}>
+                      <div style={{ minWidth: 0, maxWidth: 200 }}>
                         <div
                           style={{
                             fontWeight: 650,
@@ -651,6 +734,9 @@ export function AdsAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
                           }}
                         >
                           {z.client.domain || ""}
+                        </div>
+                        <div style={{ marginTop: 4 }}>
+                          <AdsPaketTag client={z.client} editable={isOrgAdmin} />
                         </div>
                       </div>
                       {z.error && (

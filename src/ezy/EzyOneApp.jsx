@@ -106,6 +106,7 @@ import { useEzyAuditHistory } from "@/ezy/data/useEzyAuditHistory";
 import { useEzyLatestRun, aworkTasksFromResult } from "@/ezy/data/useEzyLatestRun";
 import GoogleClientPanel from "@/ezy/GoogleClientPanel.jsx";
 import AdsAutopilotPanel from "@/ezy/AdsAutopilotPanel.jsx";
+import { AdsPaketTag, CLIENTS_CHANGED_EVENT } from "@/ezy/AdsPaketTag";
 
 import { supabase } from "@/integrations/supabase/client";
 import { SKILL_CATALOG } from "@/ezy/data/skillCatalog";
@@ -6755,6 +6756,14 @@ function App({ appScope = null }) {
     [isViewer, isOrgAdmin, scope, appScope],
   );
   const ezy = useEzyClients();
+  // Paket-Tag (28.09.): nach einer Paket-Aenderung die Kundenliste neu laden,
+  // damit Kacheln, Tabelle und Dashboard denselben Stand zeigen.
+  const ezyReload = ezy.reload;
+  useEffect(() => {
+    const h = () => ezyReload?.();
+    window.addEventListener(CLIENTS_CHANGED_EVENT, h);
+    return () => window.removeEventListener(CLIENTS_CHANGED_EVENT, h);
+  }, [ezyReload]);
   // Service-Filter je App (01.08.): EzyPerformance zeigt nur Kunden mit
   // aktiviertem google-ads-Service (scope.services); ohne Filter alle Kunden.
   const svcMatrix = useEzyServiceMatrix();
@@ -7760,6 +7769,9 @@ function App({ appScope = null }) {
                                     : "Conversions"}
                       </h1>
                       {isViewer && <Badge color={C.blue}>Nur-Lese-Ansicht</Badge>}
+                      {!showAll && tab === "ads" && !isViewer && (
+                        <AdsPaketTag client={client} editable={isOrgAdmin} size="md" />
+                      )}
                     </div>
                     <p style={{ color: C.textMuted, fontSize: 13, margin: "4px 0 0" }}>
                       {showAll ? "Alle Kunden" : `${client.name} — ${client.domain}`}

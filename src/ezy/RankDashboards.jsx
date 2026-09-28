@@ -54,6 +54,8 @@ import { Badge } from "./shared-ui";
 import { C } from "./theme";
 import { KpiCard, SectionPlaceholder, SeoPager, TabBar, liveDaysFor, useLiveGa4 } from "./ui-kit";
 import { ClientAvatar } from "@/ezy/ClientAvatar";
+import { AdsPaketChip } from "@/ezy/AdsPaketTag";
+import { adsPaketVon } from "@/lib/adsPakete";
 import { runStatusItem } from "@/ezy/DataStatus";
 import { useEzyAuditHistory } from "@/ezy/data/useEzyAuditHistory";
 import { useEzyDashboardConfig } from "@/ezy/data/useEzyDashboardConfig";
@@ -391,6 +393,11 @@ export function AgencyOverview({
                   >
                     {c.domain || "keine Domain"}
                   </div>
+                  {isAds && adsPaketVon(c.metadata) && (
+                    <div style={{ marginTop: 5 }}>
+                      <AdsPaketChip paket={adsPaketVon(c.metadata)} />
+                    </div>
+                  )}
                 </div>
                 {/* Datum-Chip wie in der EzyAI-Übersicht (10.08.): letzter Messlauf. */}
                 {st?.date && (
