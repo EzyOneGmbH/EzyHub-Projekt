@@ -66,6 +66,12 @@ export const ingestLimiter = new SlidingWindowLimiter(
   60_000,
 );
 
+/** Read-API (ChatGPT, 28.09.2026): Limit je org-weitem Credential (Default 120/Minute). */
+export const readApiLimiter = new SlidingWindowLimiter(
+  num(process.env.READ_API_RATE_PER_MIN, 120),
+  60_000,
+);
+
 /** Fehlversuchs-Limit je Client-IP (Default 20 abgelehnte Tokens/Minute). */
 export const authFailLimiter = new SlidingWindowLimiter(
   num(process.env.INGEST_AUTH_FAIL_LIMIT_PER_MIN, 20),

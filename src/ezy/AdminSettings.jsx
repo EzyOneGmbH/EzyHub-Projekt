@@ -14,6 +14,7 @@ import {
   useLiveIntegrations,
 } from "./ui-kit";
 import { useEzyDashboardConfig } from "@/ezy/data/useEzyDashboardConfig";
+import IngestCredentialsPanel from "@/ezy/IngestCredentialsPanel";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Activity,
@@ -93,6 +94,32 @@ export function WpSecretStatusCard() {
           {!data.dedizierterSchluessel ? " · Hinweis: WP_SECRET_KEY_V1 noch nicht gesetzt" : ""}
         </span>
       </div>
+    </div>
+  );
+}
+
+// Read-API (28.09.2026): org-weite Tokens fuer die read-only REST-API /api/v1
+// (ChatGPT, kundenuebergreifende SEO-Auswertungen). Verwaltung nur fuer
+// Owner/Admin — die Route /api/admin/ingest-credentials prueft das serverseitig
+// (Nicht-Admins sehen die Fehlermeldung, keine Knoepfe).
+export function ReadApiCard() {
+  return (
+    <div
+      style={{
+        background: C.card,
+        border: `1px solid ${C.border}`,
+        borderRadius: 10,
+        padding: "12px 16px",
+        marginBottom: 16,
+      }}
+    >
+      <div style={{ fontSize: 13, fontWeight: 700 }}>API-Zugriff (ChatGPT / Read-API)</div>
+      <IngestCredentialsPanel
+        purpose="read_api"
+        S={{ mut: C.textMuted, line: C.border, app: C.accent }}
+        isOrgAdmin
+        titel="Org-weite API-Tokens"
+      />
     </div>
   );
 }
@@ -601,6 +628,7 @@ export function SettingsPage({
               </span>
             </div>
             <WpSecretStatusCard />
+            <ReadApiCard />
             <AnalyseWorkerCard />
             {live.loading && (
               <div

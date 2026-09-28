@@ -8,8 +8,12 @@ import { supabase } from "@/integrations/supabase/client";
 // nach dem Erzeugen/Rotieren — er wird nirgends im Browser gespeichert und
 // ist fuer Server-zu-Server-Aufrufe (CRM, WordPress) gedacht, nie fuer
 // Browser-Code.
+//
+// Org-weite Variante (28.09.2026): purpose="read_api" OHNE clientId — Tokens
+// fuer die read-only REST-API /api/v1 (ChatGPT). Zeigt zusaetzlich Erstellt/
+// Nutzung, einen Link auf die API-Doku und die letzten 20 API-Aufrufe.
 
-type Purpose = "openai_ads" | "ai_crawler" | "rank_snapshot";
+type Purpose = "openai_ads" | "ai_crawler" | "rank_snapshot" | "read_api";
 type Cred = {
   id: string;
   purpose: Purpose;
@@ -22,11 +26,21 @@ type Cred = {
   last_used_at: string | null;
   use_count: number;
 };
+type LogZeile = {
+  id: number;
+  method: string | null;
+  path: string | null;
+  status: number | null;
+  dauer_ms: number | null;
+  zeilen: number | null;
+  created_at: string;
+};
 
 const ENDPOINT: Record<Purpose, string> = {
   openai_ads: "/api/admin/openai-ads-ingest",
   ai_crawler: "/api/admin/ai-crawler-ingest",
   rank_snapshot: "/api/admin/rank-snapshot",
+  read_api: "/api/v1",
 };
 
 function status(c: Cred): { label: string; farbe: string } {
@@ -45,6 +59,16 @@ const fmt = (iso: string | null) =>
       })
     : "—";
 
+const fmtZeit = (iso: string | null) =>
+  iso
+    ? new Date(iso).toLocaleString("de-CH", {
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "—";
+
 export default function IngestCredentialsPanel({
   clientId,
   purpose,
@@ -53,7 +77,8 @@ export default function IngestCredentialsPanel({
   titel,
   hinweis,
 }: {
-  clientId: string;
+  /** Pflicht fuer Kunden-Zwecke; bei purpose="read_api" weglassen (org-weit). */
+  clientId?: string;
   purpose: Purpose;
   S: Record<string, string>;
   isOrgAdmin: boolean;
@@ -66,6 +91,10 @@ export default function IngestCredentialsPanel({
   const [label, setLabel] = useState("");
   const [neuerToken, setNeuerToken] = useState<string | null>(null);
   const [bestaetigen, setBestaetigen] = useState<string | null>(null); // Widerruf 2-Schritt
+  const [log, setLog] = useState<LogZeile[]>([]);
+  const [ladeFehler, setLadeFehler] = useState("");
+  const orgWeit = purpose === "read_api";
+  const darfVerwalten = isOrgAdmin && !ladeFehler;
 
   const api = useCallback(async (init?: RequestInit, query = "") => {
     const session = (await supabase.auth.getSession()).data.session;
@@ -81,9 +110,14 @@ export default function IngestCredentialsPanel({
   }, []);
 
   const laden = useCallback(async () => {
-    const j = await api(undefined, `?clientId=${clientId}&purpose=${purpose}`);
+    const j = await api(
+      undefined,
+      orgWeit ? "?purpose=read_api" : `?clientId=${clientId}&purpose=${purpose}`,
+    );
     setCreds(j?.ok ? j.credentials : []);
-  }, [api, clientId, purpose]);
+    setLog(j?.ok && Array.isArray(j.log) ? j.log : []);
+    setLadeFehler(j?.ok ? "" : String(j?.error || "Laden fehlgeschlagen"));
+  }, [api, clientId, purpose, orgWeit]);
 
   useEffect(() => {
     void laden();
@@ -92,7 +126,10 @@ export default function IngestCredentialsPanel({
   const aktion = async (body: Record<string, unknown>) => {
     setBusy(true);
     setMsg("");
-    const j = await api({ method: "POST", body: JSON.stringify({ clientId, ...body }) });
+    const j = await api({
+      method: "POST",
+      body: JSON.stringify(orgWeit ? body : { clientId, ...body }),
+    });
     setBusy(false);
     if (!j?.ok) {
       setMsg(j?.error || "Fehlgeschlagen");
@@ -122,8 +159,21 @@ export default function IngestCredentialsPanel({
       <div style={{ fontWeight: 700, fontSize: 13 }}>{titel || "Ingest-Zugang (Server-Token)"}</div>
       <div style={{ fontSize: 11.5, color: mut, marginTop: 4, lineHeight: 1.5 }}>
         {hinweis ||
-          `Kundenspezifischer Token für ${ENDPOINT[purpose]} — nur für Server-zu-Server-Aufrufe (CRM, WordPress), nie in Browser-Code einbauen. Der Token gilt ausschliesslich für diesen Kunden.`}
+          (orgWeit
+            ? "Org-weiter Lese-Token für die REST-API /api/v1 (z. B. ChatGPT-Aktion). Er sieht die Daten ALLER Kunden dieser Organisation — nur lesend, nie in Browser-Code einbauen."
+            : `Kundenspezifischer Token für ${ENDPOINT[purpose]} — nur für Server-zu-Server-Aufrufe (CRM, WordPress), nie in Browser-Code einbauen. Der Token gilt ausschliesslich für diesen Kunden.`)}
+        {orgWeit && (
+          <>
+            {" "}
+            <a href="/api/v1/docs" target="_blank" rel="noreferrer" style={{ color: app }}>
+              API-Dokumentation (/api/v1/docs)
+            </a>
+          </>
+        )}
       </div>
+      {ladeFehler && (
+        <div style={{ fontSize: 12, color: "#dc2626", marginTop: 8 }}>{ladeFehler}</div>
+      )}
 
       {neuerToken && (
         <div
@@ -172,13 +222,23 @@ export default function IngestCredentialsPanel({
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
               <tr style={{ color: mut, textAlign: "left" }}>
-                {["Token", "Bezeichnung", "Status", "Gültig bis", "Zuletzt genutzt", ""].map(
-                  (h) => (
-                    <th key={h} style={{ padding: "4px 6px", fontWeight: 600 }}>
-                      {h}
-                    </th>
-                  ),
-                )}
+                {(orgWeit
+                  ? [
+                      "Token",
+                      "Bezeichnung",
+                      "Status",
+                      "Erstellt",
+                      "Gültig bis",
+                      "Zuletzt genutzt",
+                      "Nutzung",
+                      "",
+                    ]
+                  : ["Token", "Bezeichnung", "Status", "Gültig bis", "Zuletzt genutzt", ""]
+                ).map((h) => (
+                  <th key={h} style={{ padding: "4px 6px", fontWeight: 600 }}>
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -194,10 +254,16 @@ export default function IngestCredentialsPanel({
                     <td style={{ padding: "5px 6px", color: st.farbe, fontWeight: 700 }}>
                       {st.label}
                     </td>
+                    {orgWeit && <td style={{ padding: "5px 6px" }}>{fmt(c.created_at)}</td>}
                     <td style={{ padding: "5px 6px" }}>{fmt(c.expires_at)}</td>
                     <td style={{ padding: "5px 6px" }}>{fmt(c.last_used_at)}</td>
+                    {orgWeit && (
+                      <td style={{ padding: "5px 6px" }}>
+                        {Number(c.use_count || 0).toLocaleString("de-CH")}
+                      </td>
+                    )}
                     <td style={{ padding: "5px 6px", whiteSpace: "nowrap" }}>
-                      {isOrgAdmin && aktiv && (
+                      {darfVerwalten && aktiv && (
                         <>
                           <button
                             disabled={busy}
@@ -235,14 +301,18 @@ export default function IngestCredentialsPanel({
         </div>
       )}
 
-      {isOrgAdmin && (
+      {darfVerwalten && (
         <div
           style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10, flexWrap: "wrap" }}
         >
           <input
             value={label}
             onChange={(e) => setLabel(e.target.value)}
-            placeholder="Bezeichnung (z. B. HubSpot, WordPress)"
+            placeholder={
+              orgWeit
+                ? "Bezeichnung (z. B. ChatGPT-Aktion)"
+                : "Bezeichnung (z. B. HubSpot, WordPress)"
+            }
             maxLength={80}
             style={{
               padding: "7px 10px",
@@ -258,8 +328,55 @@ export default function IngestCredentialsPanel({
             onClick={() => aktion({ action: "create", purpose, label: label || undefined })}
             style={btn(app)}
           >
-            {busy ? "…" : "Neues Token erzeugen"}
+            {busy ? "…" : orgWeit ? "Token erstellen" : "Neues Token erzeugen"}
           </button>
+        </div>
+      )}
+      {orgWeit && !ladeFehler && (
+        <div style={{ marginTop: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 12.5 }}>Letzte API-Aufrufe</div>
+          {log.length === 0 ? (
+            <div style={{ fontSize: 12, color: mut, marginTop: 6 }}>Noch keine Aufrufe.</div>
+          ) : (
+            <div style={{ overflowX: "auto", marginTop: 6 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5 }}>
+                <thead>
+                  <tr style={{ color: mut, textAlign: "left" }}>
+                    {["Zeit", "Aufruf", "Status", "Zeilen", "Dauer"].map((h) => (
+                      <th key={h} style={{ padding: "3px 6px", fontWeight: 600 }}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {log.map((l) => (
+                    <tr key={l.id} style={{ borderTop: `1px solid ${line}` }}>
+                      <td style={{ padding: "4px 6px", whiteSpace: "nowrap" }}>
+                        {fmtZeit(l.created_at)}
+                      </td>
+                      <td style={{ padding: "4px 6px", fontFamily: "monospace" }}>
+                        {l.method || "GET"} {l.path || ""}
+                      </td>
+                      <td
+                        style={{
+                          padding: "4px 6px",
+                          fontWeight: 700,
+                          color: (l.status ?? 0) >= 400 ? "#dc2626" : "#0f9d6c",
+                        }}
+                      >
+                        {l.status ?? "—"}
+                      </td>
+                      <td style={{ padding: "4px 6px" }}>{l.zeilen ?? "—"}</td>
+                      <td style={{ padding: "4px 6px" }}>
+                        {l.dauer_ms != null ? `${l.dauer_ms} ms` : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
       {msg && (

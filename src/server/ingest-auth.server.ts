@@ -16,26 +16,39 @@
 // (agent-service/Betrieb) — nie an Kunden geben.
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { authFailLimiter, clientIp, ingestLimiter, antwort429 } from "./rate-limit.server";
+import {
+  authFailLimiter,
+  clientIp,
+  ingestLimiter,
+  readApiLimiter,
+  antwort429,
+} from "./rate-limit.server";
 
 // rank_snapshot (13.09.2026): kundenspezifisches Credential fuer den Ranking-
 // Snapshot-Ingest (Alternative zum internen Admin-Pfad mit Org-Stempel).
-export const INGEST_PURPOSES = ["openai_ads", "ai_crawler", "rank_snapshot"] as const;
+// read_api (28.09.2026): ORG-WEITES Token (client_id null) fuer die read-only
+// REST-API /api/v1 (ChatGPT, kundenuebergreifende Auswertungen).
+export const INGEST_PURPOSES = ["openai_ads", "ai_crawler", "rank_snapshot", "read_api"] as const;
 export type IngestPurpose = (typeof INGEST_PURPOSES)[number];
+/** Kundengebundene Zwecke (client_id Pflicht) — alles ausser read_api. */
+export const KUNDEN_PURPOSES = ["openai_ads", "ai_crawler", "rank_snapshot"] as const;
+export type KundenPurpose = (typeof KUNDEN_PURPOSES)[number];
 
 const PURPOSE_KURZ: Record<IngestPurpose, string> = {
   openai_ads: "oa",
   ai_crawler: "cr",
   rank_snapshot: "rs",
+  read_api: "ra",
 };
-const TOKEN_RE = /^ezyi_(oa|cr|rs)_[A-Za-z0-9_-]{43}$/;
+const TOKEN_RE = /^ezyi_(oa|cr|rs|ra)_[A-Za-z0-9_-]{43}$/;
 
 export type IngestScope =
   | {
       admin: false;
       credentialId: string;
       organizationId: string;
-      clientId: string;
+      /** null NUR bei org-weiten Tokens (read_api) — Kunden-Routen lehnen das mit 403 ab. */
+      clientId: string | null;
       purpose: IngestPurpose;
     }
   | { admin: true };
@@ -117,8 +130,10 @@ export async function authenticateIngest(
   if (!token) return abgelehnt("Unauthorized");
 
   // Interner Administrationspfad (Betrieb/agent-service) — nie an Kunden geben.
+  // Fuer die Read-API bewusst NICHT zugelassen (nur org-weite ezyi_ra_-Tokens).
   const admin = process.env.ADMIN_AUTOMATION_SECRET;
-  if (admin && gleichZeitkonstant(token, admin)) return { ok: true, scope: { admin: true } };
+  if (purpose !== "read_api" && admin && gleichZeitkonstant(token, admin))
+    return { ok: true, scope: { admin: true } };
 
   if (!istIngestTokenFormat(token)) return abgelehnt("Unauthorized");
   if (token.slice(5, 7) !== PURPOSE_KURZ[purpose]) return abgelehnt("Unauthorized");
@@ -135,7 +150,13 @@ export async function authenticateIngest(
   if (cred.expires_at && new Date(cred.expires_at).getTime() <= now())
     return abgelehnt("Token abgelaufen");
 
-  const rl = ingestLimiter.hit(`cred:${cred.id}`, now());
+  // Scope-Form fail-closed pruefen (DB-CHECK garantiert das auch): read_api
+  // ist immer org-weit, alle anderen Zwecke immer kundengebunden.
+  if ((purpose === "read_api") !== (cred.client_id == null))
+    return fehl(403, "Token-Scope ungueltig");
+
+  const limiter = purpose === "read_api" ? readApiLimiter : ingestLimiter;
+  const rl = limiter.hit(`cred:${cred.id}`, now());
   if (!rl.ok) return { ok: false, response: antwort429(rl.retryAfterMs) };
 
   // Nutzung protokollieren (fire-and-forget): atomarer RPC zaehlt use_count
@@ -155,7 +176,7 @@ export async function authenticateIngest(
       admin: false,
       credentialId: String(cred.id),
       organizationId: String(cred.organization_id),
-      clientId: String(cred.client_id),
+      clientId: cred.client_id == null ? null : String(cred.client_id),
       purpose,
     },
   };
@@ -183,6 +204,8 @@ export async function ladeScopedClient(
   });
 
   if (!scope.admin) {
+    // Org-weite Tokens (read_api) haben keinen Kunden — Kunden-Routen nie.
+    if (!scope.clientId) return nein(403, "Token ist nicht kundengebunden");
     const { data: c } = await sb
       .from("clients")
       .select("id, organization_id, domain")
@@ -247,4 +270,102 @@ export async function ladeScopedClient(
       : nein(404, "Kunde nicht gefunden");
   }
   return nein(400, "clientId oder domain erforderlich");
+}
+
+// ── Read-API (ChatGPT, 28.09.2026) ─────────────────────────────────────────
+export type ReadApiAuth = { ok: true; organizationId: string; credentialId: string };
+
+/**
+ * Authentifiziert einen Read-API-Request (/api/v1/…): NUR org-weite Tokens
+ * (purpose read_api, Praefix ezyi_ra_). Der Admin-Secret-Pfad ist hier
+ * gesperrt. Gueltige KUNDEN-Tokens (oa/cr/rs) erhalten 403 statt 401 (klarer
+ * Hinweis, kein Brute-Force-Vorteil: nur nach erfolgreichem Hash-Lookup).
+ * Rate-Limit je Credential: READ_API_RATE_PER_MIN (Default 120) → 429 mit
+ * Retry-After.
+ */
+export async function authenticateReadApi(
+  request: Request,
+  deps: { now?: () => number } = {},
+): Promise<ReadApiAuth | Response> {
+  const now = deps.now ?? Date.now;
+  const token = bearer(request);
+  const kurz = token.slice(5, 7);
+  if (istIngestTokenFormat(token) && kurz !== PURPOSE_KURZ.read_api) {
+    const ip = clientIp(request);
+    const fails = authFailLimiter.peek(`ip:${ip}`, now());
+    if (!fails.ok) return antwort429(fails.retryAfterMs);
+    const { data: cred } = await (supabaseAdmin as any)
+      .from("ingest_credentials")
+      .select("id, expires_at, revoked_at")
+      .eq("token_hash", ingestTokenHash(token))
+      .maybeSingle();
+    const gueltig =
+      !!cred &&
+      !cred.revoked_at &&
+      !(cred.expires_at && new Date(cred.expires_at).getTime() <= now());
+    if (gueltig)
+      return Response.json(
+        {
+          ok: false,
+          error:
+            "Kunden-Token nicht zugelassen — die Read-API braucht ein org-weites Token (ezyi_ra_…).",
+        },
+        { status: 403 },
+      );
+    authFailLimiter.hit(`ip:${ip}`, now());
+    return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+  const auth = await authenticateIngest(request, "read_api", deps);
+  if (!auth.ok) return auth.response;
+  // admin kann hier nicht vorkommen (Pfad gesperrt) — trotzdem fail-closed.
+  if (auth.scope.admin || auth.scope.clientId !== null)
+    return Response.json({ ok: false, error: "Token-Scope ungueltig" }, { status: 403 });
+  return {
+    ok: true,
+    organizationId: auth.scope.organizationId,
+    credentialId: auth.scope.credentialId,
+  };
+}
+
+/** IP nie im Klartext speichern: sha256 (mit optionalem Salz), auf 16 Hex gekuerzt. */
+export function ipHash(ip: string | null | undefined): string | null {
+  if (!ip || ip === "unknown") return null;
+  const salz = process.env.READ_API_LOG_SALT || "";
+  return createHash("sha256").update(`${salz}${ip}`, "utf8").digest("hex").slice(0, 16);
+}
+
+export type ReadApiLogEintrag = {
+  credentialId: string | null;
+  organizationId: string;
+  method: string;
+  path: string;
+  query?: Record<string, unknown> | null;
+  status: number;
+  dauerMs: number;
+  zeilen?: number | null;
+  ip?: string | null;
+};
+
+/**
+ * Protokolliert einen Read-API-Aufruf in read_api_log (fail-soft: Fehler
+ * werden geloggt, nie geworfen — die API-Antwort haengt nie am Protokoll).
+ * Aufbewahrung 90 Tage (siehe Migration 20260928100000).
+ */
+export async function logReadApi(e: ReadApiLogEintrag): Promise<void> {
+  try {
+    const { error } = await (supabaseAdmin as any).from("read_api_log").insert({
+      credential_id: e.credentialId,
+      organization_id: e.organizationId,
+      method: String(e.method || "").slice(0, 10),
+      path: String(e.path || "").slice(0, 300),
+      query: e.query ?? null,
+      status: Math.round(e.status),
+      dauer_ms: Math.max(0, Math.round(e.dauerMs)),
+      zeilen: e.zeilen == null ? null : Math.round(e.zeilen),
+      ip_hash: ipHash(e.ip),
+    });
+    if (error) console.error("[read-api-log] Insert fehlgeschlagen:", error.message);
+  } catch (err) {
+    console.error("[read-api-log] Insert fehlgeschlagen:", err);
+  }
 }

@@ -182,6 +182,101 @@ export function kundenSlugs(c: { name?: string | null; domain?: string | null })
   ].filter(Boolean);
 }
 
+// ── rank_daily (Read-API, 28.09.2026) ───────────────────────────────────────
+// Zusaetzlich zur audit_runs-Zeile wird jeder Snapshot flach in rank_daily
+// geschrieben (eine Zeile je Kunde/Tag/Keyword) — Basis fuer rank_changes()
+// und visibility_daily() (Migration 20260928100000).
+export type RankDailyZeile = {
+  client_id: string;
+  organization_id: string;
+  date: string;
+  keyword: string;
+  position: number | null;
+  pos_src: "crawl" | "gsc" | null;
+  local_pos: number | null;
+  url: string | null;
+  search_volume: number | null;
+  is_money: boolean;
+  device: string;
+  country: string;
+  language: string | null;
+  method: string | null;
+  measured_at: string | null;
+};
+
+const zahl = (v: unknown): number | null =>
+  typeof v === "number" && Number.isFinite(v) ? v : null;
+const text = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
+
+/**
+ * Reiner Mapper (vitest-gedeckt): Snapshot-Result (baueSnapshotResult) →
+ * rank_daily-Zeilen. Keyword getrimmt, Duplikate je Keyword entfernt (erstes
+ * gewinnt — ON CONFLICT DO UPDATE darf eine Zeile nicht zweimal treffen);
+ * Positionen < 1 oder >= 1000 gelten als ungueltig (null).
+ */
+export function rankDailyZeilen(
+  result: { keywords?: unknown; measurement?: unknown } | Record<string, unknown>,
+  ctx: { clientId: string; organizationId: string; date: string },
+): RankDailyZeile[] {
+  const r = result as { keywords?: unknown; measurement?: unknown };
+  const m = (r.measurement && typeof r.measurement === "object" ? r.measurement : {}) as Record<
+    string,
+    unknown
+  >;
+  const gemessen = text(m.measuredAt);
+  const measuredAt = gemessen && !Number.isNaN(Date.parse(gemessen)) ? gemessen : null;
+  const gesehen = new Set<string>();
+  const out: RankDailyZeile[] = [];
+  for (const k of Array.isArray(r.keywords) ? r.keywords : []) {
+    if (!k || typeof k !== "object") continue;
+    const kw = k as Record<string, unknown>;
+    const keyword = text(kw.kw);
+    if (!keyword || gesehen.has(keyword)) continue;
+    gesehen.add(keyword);
+    const pos = zahl(kw.pos);
+    const vol = zahl(kw.volume);
+    out.push({
+      client_id: ctx.clientId,
+      organization_id: ctx.organizationId,
+      date: ctx.date,
+      keyword,
+      position: pos != null && pos >= 1 && pos < 1000 ? Math.round(pos * 100) / 100 : null,
+      pos_src: kw.posSrc === "crawl" || kw.posSrc === "gsc" ? kw.posSrc : null,
+      local_pos: zahl(kw.posLocal),
+      url: text(kw.url),
+      search_volume: vol != null && vol >= 0 ? Math.round(vol) : null,
+      is_money: kw.isMoney === true,
+      device: text(m.device) ?? "desktop",
+      country: text(m.country) ?? "CH",
+      language: text(m.language),
+      method: text(m.method),
+      measured_at: measuredAt,
+    });
+  }
+  return out;
+}
+
+/** Upsert in 1000er-Bloecken — fail-soft: Fehler loggen, Ingest nie scheitern lassen. */
+async function schreibeRankDaily(
+  result: Record<string, unknown>,
+  ctx: { clientId: string; organizationId: string; date: string },
+): Promise<void> {
+  try {
+    const zeilen = rankDailyZeilen(result, ctx);
+    for (let i = 0; i < zeilen.length; i += 1000) {
+      const { error } = await (supabaseAdmin as any)
+        .from("rank_daily")
+        .upsert(zeilen.slice(i, i + 1000), { onConflict: "client_id,date,keyword" });
+      if (error) {
+        console.error("[rank-snapshot] rank_daily-Upsert fehlgeschlagen:", error.message);
+        return;
+      }
+    }
+  } catch (err) {
+    console.error("[rank-snapshot] rank_daily-Upsert fehlgeschlagen:", err);
+  }
+}
+
 const nein = (status: number, error: string) => Response.json({ ok: false, error }, { status });
 
 /**
@@ -194,6 +289,8 @@ export function pruefeScope(
   body: { clientId: string; organizationId: string },
 ): Response | null {
   if (!scope.admin) {
+    // Org-weite Tokens (read_api) haben keinen Kunden — hier nie zulaessig.
+    if (!scope.clientId) return nein(403, "Token ist nicht kundengebunden");
     if (
       scope.clientId.toLowerCase() !== body.clientId.toLowerCase() ||
       scope.organizationId.toLowerCase() !== body.organizationId.toLowerCase()
@@ -270,6 +367,7 @@ export const Route = createFileRoute("/api/admin/rank-snapshot")({
         if (!owner) return nein(500, "Kein Org-User fuer triggered_by");
 
         const result = baueSnapshotResult(d);
+        const rdCtx = { clientId: target.id, organizationId: d.organizationId, date: d.date };
 
         // Upsert fuer client+date INNERHALB der Organisation.
         const { data: existing } = await supabaseAdmin
@@ -290,6 +388,7 @@ export const Route = createFileRoute("/api/admin/rank-snapshot")({
             .eq("id", existing.id)
             .eq("organization_id", d.organizationId);
           if (error) return nein(500, error.message);
+          await schreibeRankDaily(result, rdCtx);
           return Response.json({ ok: true, id: existing.id, upserted: true });
         }
         const { data: created, error } = await supabaseAdmin
@@ -308,6 +407,7 @@ export const Route = createFileRoute("/api/admin/rank-snapshot")({
           .select("id")
           .single();
         if (error) return nein(500, error.message);
+        await schreibeRankDaily(result, rdCtx);
         return Response.json({ ok: true, id: created?.id, upserted: false });
       },
     },

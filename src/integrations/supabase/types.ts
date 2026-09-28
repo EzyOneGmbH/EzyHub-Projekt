@@ -2227,7 +2227,7 @@ export type Database = {
       };
       ingest_credentials: {
         Row: {
-          client_id: string;
+          client_id: string | null;
           created_at: string;
           created_by: string | null;
           expires_at: string | null;
@@ -2244,7 +2244,7 @@ export type Database = {
           use_count: number;
         };
         Insert: {
-          client_id: string;
+          client_id?: string | null;
           created_at?: string;
           created_by?: string | null;
           expires_at?: string | null;
@@ -2261,7 +2261,7 @@ export type Database = {
           use_count?: number;
         };
         Update: {
-          client_id?: string;
+          client_id?: string | null;
           created_at?: string;
           created_by?: string | null;
           expires_at?: string | null;
@@ -2573,6 +2573,118 @@ export type Database = {
         };
         Relationships: [];
       };
+      rank_daily: {
+        Row: {
+          client_id: string;
+          country: string;
+          date: string;
+          device: string;
+          is_money: boolean;
+          keyword: string;
+          language: string | null;
+          local_pos: number | null;
+          measured_at: string | null;
+          method: string | null;
+          organization_id: string;
+          pos_src: string | null;
+          position: number | null;
+          search_volume: number | null;
+          url: string | null;
+        };
+        Insert: {
+          client_id: string;
+          country?: string;
+          date: string;
+          device?: string;
+          is_money?: boolean;
+          keyword: string;
+          language?: string | null;
+          local_pos?: number | null;
+          measured_at?: string | null;
+          method?: string | null;
+          organization_id: string;
+          pos_src?: string | null;
+          position?: number | null;
+          search_volume?: number | null;
+          url?: string | null;
+        };
+        Update: {
+          client_id?: string;
+          country?: string;
+          date?: string;
+          device?: string;
+          is_money?: boolean;
+          keyword?: string;
+          language?: string | null;
+          local_pos?: number | null;
+          measured_at?: string | null;
+          method?: string | null;
+          organization_id?: string;
+          pos_src?: string | null;
+          position?: number | null;
+          search_volume?: number | null;
+          url?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "rank_daily_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      read_api_log: {
+        Row: {
+          created_at: string;
+          credential_id: string | null;
+          dauer_ms: number | null;
+          id: number;
+          ip_hash: string | null;
+          method: string | null;
+          organization_id: string;
+          path: string | null;
+          query: Json | null;
+          status: number | null;
+          zeilen: number | null;
+        };
+        Insert: {
+          created_at?: string;
+          credential_id?: string | null;
+          dauer_ms?: number | null;
+          id?: number;
+          ip_hash?: string | null;
+          method?: string | null;
+          organization_id: string;
+          path?: string | null;
+          query?: Json | null;
+          status?: number | null;
+          zeilen?: number | null;
+        };
+        Update: {
+          created_at?: string;
+          credential_id?: string | null;
+          dauer_ms?: number | null;
+          id?: number;
+          ip_hash?: string | null;
+          method?: string | null;
+          organization_id?: string;
+          path?: string | null;
+          query?: Json | null;
+          status?: number | null;
+          zeilen?: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "read_api_log_credential_id_fkey";
+            columns: ["credential_id"];
+            isOneToOne: false;
+            referencedRelation: "ingest_credentials";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       site_health_audits: {
         Row: {
           at: string;
@@ -2829,7 +2941,7 @@ export type Database = {
       };
       ingest_credential_create: {
         Args: {
-          _client_id: string;
+          _client_id: string | null;
           _created_by?: string;
           _expires_at?: string;
           _label?: string;
@@ -2839,7 +2951,7 @@ export type Database = {
           _token_prefix: string;
         };
         Returns: {
-          client_id: string;
+          client_id: string | null;
           created_at: string;
           created_by: string | null;
           expires_at: string | null;
@@ -2857,9 +2969,14 @@ export type Database = {
         };
       };
       ingest_credential_revoke: {
-        Args: { _client_id: string; _credential_id: string; _reason?: string };
+        Args: {
+          _client_id: string | null;
+          _credential_id: string;
+          _organization_id?: string;
+          _reason?: string;
+        };
         Returns: {
-          client_id: string;
+          client_id: string | null;
           created_at: string;
           created_by: string | null;
           expires_at: string | null;
@@ -2878,17 +2995,18 @@ export type Database = {
       };
       ingest_credential_rotate: {
         Args: {
-          _client_id: string;
+          _client_id: string | null;
           _created_by?: string;
           _credential_id: string;
           _expires_at?: string;
           _grace_until?: string;
           _label?: string;
+          _organization_id?: string;
           _token_hash: string;
           _token_prefix: string;
         };
         Returns: {
-          client_id: string;
+          client_id: string | null;
           created_at: string;
           created_by: string | null;
           expires_at: string | null;
@@ -2909,9 +3027,52 @@ export type Database = {
       is_org_admin: { Args: { _org: string }; Returns: boolean };
       is_org_member: { Args: { _org: string }; Returns: boolean };
       org_ai_spend_this_month: { Args: { _org: string }; Returns: number };
+      rank_changes: {
+        Args: {
+          _client?: string;
+          _country?: string;
+          _device?: string;
+          _from?: string;
+          _limit?: number;
+          _min_loss?: number;
+          _offset?: number;
+          _org: string;
+          _richtung?: string;
+          _to?: string;
+        };
+        Returns: {
+          client_id: string;
+          country: string;
+          date_after: string;
+          date_before: string;
+          device: string;
+          dropped_out: boolean;
+          keyword: string;
+          pos_src: string;
+          position_after: number | null;
+          position_before: number | null;
+          position_change: number;
+          search_volume: number | null;
+          total_count: number;
+          url: string | null;
+        }[];
+      };
       org_role_of: {
         Args: { _org: string };
         Returns: Database["public"]["Enums"]["org_role"];
+      };
+      visibility_daily: {
+        Args: { _client: string; _from: string; _org: string; _to: string };
+        Returns: {
+          avg_position: number | null;
+          date: string;
+          keywords_ranking: number;
+          pos_src: string | null;
+          top10: number;
+          top3: number;
+          top30: number;
+          tracked: number;
+        }[];
       };
     };
     first_party_zugriff: { Args: { _client_id: string }; Returns: boolean };
