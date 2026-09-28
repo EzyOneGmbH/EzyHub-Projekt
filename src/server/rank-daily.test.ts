@@ -125,3 +125,18 @@ describe("rankDailyZeilen", () => {
     expect(rankDailyZeilen({ keywords: "nein" }, CTX)).toEqual([]);
   });
 });
+
+describe("rankDailyZeilen: Platzhalter", () => {
+  it("ueberspringt Test-Platzhalter wie __format_test_kw__", () => {
+    const z = rankDailyZeilen(
+      {
+        keywords: [
+          { kw: "__format_test_kw__", pos: null },
+          { kw: "echtes keyword", pos: 4 },
+        ],
+      } as any,
+      { clientId: "c1", organizationId: "o1", date: "2026-09-28" },
+    );
+    expect(z.map((r) => r.keyword)).toEqual(["echtes keyword"]);
+  });
+});

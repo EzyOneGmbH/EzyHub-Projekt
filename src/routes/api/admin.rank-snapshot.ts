@@ -231,7 +231,8 @@ export function rankDailyZeilen(
     if (!k || typeof k !== "object") continue;
     const kw = k as Record<string, unknown>;
     const keyword = text(kw.kw);
-    if (!keyword || gesehen.has(keyword)) continue;
+    // Platzhalter aus Format-Tests (z. B. «__format_test_kw__») nie als echtes Keyword speichern.
+    if (!keyword || gesehen.has(keyword) || /^__.*__$/.test(keyword)) continue;
     gesehen.add(keyword);
     const pos = zahl(kw.pos);
     const vol = zahl(kw.volume);
