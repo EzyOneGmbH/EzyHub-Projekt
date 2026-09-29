@@ -346,6 +346,7 @@ export function EzyAiAgencyTable({
             currency: r?.currency || null,
             stand: r?.stand || null,
             keinKonto: !!r?.keinKonto,
+            demo: !!r?.demo,
             hinweise: r?.hinweise || [],
             error: r?.error || null,
           };
@@ -390,13 +391,22 @@ export function EzyAiAgencyTable({
 
   const gesamt = useMemo(
     () => ({
-      cur: summe(gefiltert.map((z) => z.cur)),
-      prev: mitVergleich ? summe(gefiltert.map((z) => z.prev)) : null,
+      // Demo-Konten (Testdaten) zaehlen nicht in die Summe.
+      cur: summe(gefiltert.filter((z) => !z.demo).map((z) => z.cur)),
+      prev: mitVergleich ? summe(gefiltert.filter((z) => !z.demo).map((z) => z.prev)) : null,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [gefiltert, mitVergleich, mode],
   );
-  const waehrungen = [...new Set(gefiltert.map((z) => z.currency).filter(Boolean))];
+  const waehrungen = [
+    ...new Set(
+      gefiltert
+        .filter((z) => !z.demo)
+        .map((z) => z.currency)
+        .filter(Boolean),
+    ),
+  ];
+  const anzahlDemo = gefiltert.filter((z) => z.demo).length;
 
   const seiten = Math.max(1, Math.ceil(gefiltert.length / PAGE));
   const sichtbar = gefiltert.slice(page * PAGE, page * PAGE + PAGE);
@@ -857,7 +867,12 @@ export function EzyAiAgencyTable({
                     verticalAlign: "middle",
                   }}
                 >
-                  Gesamt · {gefiltert.length} {mode === "ads" ? "Konten" : "Kunden"}
+                  Gesamt · {gefiltert.length - anzahlDemo} {mode === "ads" ? "Konten" : "Kunden"}
+                  {anzahlDemo > 0 && (
+                    <div style={{ fontSize: 10.5, fontWeight: 400, color: C.textMuted }}>
+                      ohne {anzahlDemo} Demo-Konto{anzahlDemo > 1 ? "en" : ""}
+                    </div>
+                  )}
                   {mode === "ads" && waehrungen.length > 1 && (
                     <div style={{ fontSize: 10.5, fontWeight: 400, color: C.orange }}>
                       gemischte Währungen ({waehrungen.join("/")})

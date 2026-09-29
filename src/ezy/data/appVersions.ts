@@ -128,8 +128,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.28.0",
+    version: "1.28.1",
     changelog: [
+      {
+        version: "1.28.1",
+        date: "2026-09-29",
+        note: "Ads-Performance-Tabelle: Demo-Konten (Testdaten) zählen nicht mehr in die Summenzeile",
+      },
       {
         version: "1.28.0",
         date: "2026-09-29",
