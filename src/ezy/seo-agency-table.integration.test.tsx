@@ -36,6 +36,7 @@ const antwort = {
       cur: { traffic: 1200, trafficCh: 900, top3: 12, top10: 40, visibility: 0.0395 },
       prev: { traffic: 1000, trafficCh: 800, top3: 10, top10: 44, visibility: 0.035 },
       trafficQuelle: "ga4",
+      rankVergleich: "ok",
       stand: stand("2026-09-28", "2026-09-27"),
       hinweise: [],
       error: null,
@@ -45,6 +46,7 @@ const antwort = {
       cur: { traffic: 300, trafficCh: 150, top3: 2, top10: 9, visibility: null },
       prev: { traffic: 300, trafficCh: 150, top3: 2, top10: 9, visibility: null },
       trafficQuelle: "gsc",
+      rankVergleich: "ok",
       stand: stand("2026-09-28", null),
       hinweise: ["Kein Sistrix-Wert bis Zeitraum-Ende"],
       error: null,
@@ -105,6 +107,44 @@ describe("SeoAgencyTable", () => {
     const zeileA = screen.getByText("Hotel Alpha").closest("tr")!;
     expect(within(zeileA).getByText(/−?-4$|↘ -4/)).toBeTruthy(); // Top 10: 40 vs 44
     expect(within(zeileA).getByText(/\+20,0 %/)).toBeTruthy(); // Traffic 1200 vs 1000
+  });
+
+  it("Methodenwechsel: kein Top-3/10-Delta, Hinweis statt Schein-Verlust, auch nicht in der Summe", async () => {
+    const mw = {
+      ...antwort,
+      rows: antwort.rows.map((r, i) =>
+        i === 0
+          ? {
+              ...r,
+              prev: { ...r.prev, top3: null, top10: null },
+              rankVergleich: "methodenwechsel",
+            }
+          : r,
+      ),
+    };
+    vi.mocked(ezyFetch).mockResolvedValue(resp(mw));
+    render(
+      <SeoAgencyTable
+        clients={clients}
+        dateRange={{
+          start: new Date(2026, 8, 1),
+          end: new Date(2026, 8, 28),
+          compare: { start: new Date(2026, 7, 4), end: new Date(2026, 7, 31) },
+          compareMode: "prevPeriod",
+        }}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText("Hotel Alpha")).toBeTruthy());
+    const zeileA = screen.getByText("Hotel Alpha").closest("tr")!;
+    expect(within(zeileA).getAllByText("Methode geändert")).toHaveLength(2);
+    expect(within(zeileA).queryByText(/↘ -4/)).toBeNull();
+    expect(within(zeileA).getByText(/\+20,0 %/)).toBeTruthy(); // Traffic-Vergleich bleibt
+    const fuss = screen.getByText(/Gesamt · 2 Kunden/).closest("tr")!;
+    // Zellen: 0 Name, 1 Traffic, 2 CH, 3 Anteil, 4 Top 3, 5 Top 10, 6 Visibility
+    const zellen = fuss.querySelectorAll("td");
+    expect(zellen[5].textContent).toBe("49—"); // Summe Top 10, KEIN Delta
+    expect(zellen[4].textContent).toBe("14—"); // Summe Top 3, KEIN Delta
+    expect(screen.getByText(/Methode geändert» = Vergleichslauf anders gezählt/)).toBeTruthy();
   });
 
   it("zeigt Fehler verständlich statt leerer Tabelle", async () => {

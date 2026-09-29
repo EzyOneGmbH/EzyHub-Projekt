@@ -208,6 +208,7 @@ export function SeoAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
           cur: ableiten(r?.cur),
           prev: mitVergleich ? ableiten(r?.prev) : null,
           quelle: r?.trafficQuelle ?? null,
+          rankVergleich: r?.rankVergleich ?? null,
           stand: r?.stand ?? null,
           hinweise: r?.hinweise || [],
           error: r?.error || null,
@@ -252,13 +253,18 @@ export function SeoAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
     });
   }, [zeilen, query, filter, sort]);
 
-  const gesamt = useMemo(
-    () => ({
-      cur: summe(gefiltert.map((z) => z.cur)),
-      prev: mitVergleich ? summe(gefiltert.map((z) => z.prev)) : null,
-    }),
-    [gefiltert, mitVergleich],
-  );
+  const gesamt = useMemo(() => {
+    const cur = summe(gefiltert.map((z) => z.cur));
+    let prev = mitVergleich ? summe(gefiltert.map((z) => z.prev)) : null;
+    // Keyword-Summen nur vergleichen, wenn JEDER Kunde mit Rankings einen
+    // vergleichbaren Vorwert hat — sonst mischt die Summe Messmethoden.
+    if (prev) {
+      const mitRank = gefiltert.filter((z) => z.cur?.top10 != null);
+      if (mitRank.some((z) => z.prev?.top10 == null)) prev = { ...prev, top3: null, top10: null };
+    }
+    return { cur, prev };
+  }, [gefiltert, mitVergleich]);
+  const methodenwechsel = zeilen.some((z) => z.rankVergleich === "methodenwechsel");
 
   const seiten = Math.max(1, Math.ceil(gefiltert.length / PAGE));
   const sichtbar = gefiltert.slice(page * PAGE, page * PAGE + PAGE);
@@ -359,7 +365,12 @@ export function SeoAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
     return undefined;
   };
 
-  const zelle = (col, cur, prev, { fett = false, quelle = null, stand = null } = {}) => (
+  const zelle = (
+    col,
+    cur,
+    prev,
+    { fett = false, quelle = null, stand = null, rankVergleich = null } = {},
+  ) => (
     <td
       key={col.key}
       title={standTitel(col, stand)}
@@ -397,7 +408,16 @@ export function SeoAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
       </div>
       {mitVergleich && col.delta && (
         <div style={{ marginTop: 3 }}>
-          <Delta cur={cur?.[col.key] ?? null} prev={prev?.[col.key] ?? null} mode={col.delta} />
+          {rankVergleich === "methodenwechsel" && (col.key === "top3" || col.key === "top10") ? (
+            <span
+              title="Kein Vergleich: Der Vergleichslauf wurde nach einer anderen Methode gezählt (vor dem 14.09.2026 Hybrid-Zählung bzw. anderer Crawl-Standort). Ein Delta wäre ein Methodeneffekt, kein Ranking-Verlust."
+              style={{ fontSize: 10, color: C.textMuted, whiteSpace: "nowrap" }}
+            >
+              Methode geändert
+            </span>
+          ) : (
+            <Delta cur={cur?.[col.key] ?? null} prev={prev?.[col.key] ?? null} mode={col.delta} />
+          )}
         </div>
       )}
     </td>
@@ -714,7 +734,11 @@ export function SeoAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
                       </div>
                     </td>
                     {SPALTEN.map((col) =>
-                      zelle(col, z.cur, z.prev, { quelle: z.quelle, stand: z.stand }),
+                      zelle(col, z.cur, z.prev, {
+                        quelle: z.quelle,
+                        stand: z.stand,
+                        rankVergleich: z.rankVergleich,
+                      }),
                     )}
                   </tr>
                 );
@@ -770,6 +794,9 @@ export function SeoAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
           {hatGsc ? " (GSC = Google-Klicks, wo kein GA4 verbunden ist)" : ""} · Top 3/10 =
           Rankings-Crawl zum Zeitraum-Ende · Visibility Index = Sistrix Schweiz, in der Summe nicht
           addiert
+          {mitVergleich && methodenwechsel
+            ? " · «Methode geändert» = Vergleichslauf anders gezählt (vor 14.09.2026), daher kein Top-3/10-Vergleich"
+            : ""}
         </span>
         {seiten > 1 && (
           <span style={{ display: "inline-flex", gap: 4 }}>

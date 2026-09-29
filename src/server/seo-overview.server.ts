@@ -37,6 +37,11 @@ export type SeoOverviewZeile = {
   /** Herkunft der Traffic-Werte */
   trafficQuelle: "ga4" | "gsc" | null;
   stand: { cur: SeoStand; prev: SeoStand };
+  /**
+   * Top-3/Top-10-Vergleich: "ok" = gleiche Messmethode, "methodenwechsel" =
+   * Vergleichslauf anders gezaehlt (kein Delta), null = kein frueherer Lauf.
+   */
+  rankVergleich?: "ok" | "methodenwechsel" | null;
   /** Hinweise zu fehlenden Teilen (nicht fatal) */
   hinweise: string[];
   error: string | null;
@@ -103,17 +108,35 @@ export function stichtagIso(ymd: string, jetztMs: number = Date.now()): string |
   return new Date(utcMs).toISOString();
 }
 
-type Lauf = { id: string; created_at: string; wert: any };
+type Lauf = { id: string; created_at: string; wert: any; ort?: string | null };
+
+/**
+ * Methodenwechsel-Guard fuer Top 3 / Top 10 (analog guardMethodenwechsel der
+ * Rank-Snapshot-Route): Anzahlen sind nur vergleichbar, wenn beide Laeufe auf
+ * derselben Zaehlbasis (aggregate.basis, seit 14.09.2026 «crawl») UND am selben
+ * Crawl-Standort gemessen wurden. Aeltere Laeufe ohne basis zaehlten aus
+ * Hybrid-Positionen → kein Vergleich (sonst Schein-Verluste).
+ */
+export function rankVergleichbar(
+  cur: { wert?: any; ort?: string | null } | null,
+  prev: { wert?: any; ort?: string | null } | null,
+): boolean {
+  const a = cur?.wert?.basis;
+  const b = prev?.wert?.basis;
+  if (!a || !b || a !== b) return false;
+  return String(cur?.ort ?? "") === String(prev?.ort ?? "");
+}
 
 async function letzterLauf(
   clientId: string,
   auditType: "rankings" | "ahrefs",
   feld: string,
   bisIso: string | null,
+  extra = "",
 ): Promise<Lauf | null> {
   let q = (supabaseAdmin as any)
     .from("audit_runs")
-    .select(`id, created_at, wert:${feld}`)
+    .select(`id, created_at, wert:${feld}${extra}`)
     .eq("client_id", clientId)
     .eq("audit_type", auditType)
     .eq("status", "succeeded");
@@ -151,8 +174,8 @@ export async function fetchSeoOverviewZeile(
   const bisCur = stichtagIso(aktuell.endDate);
   const bisPrev = stichtagIso(vorher.endDate);
   const [rCur, rPrev, vCur, vPrev] = await Promise.all([
-    letzterLauf(kunde.id, "rankings", "result->aggregate", bisCur),
-    letzterLauf(kunde.id, "rankings", "result->aggregate", bisPrev),
+    letzterLauf(kunde.id, "rankings", "result->aggregate", bisCur, ", ort:result->>crawlLocation"),
+    letzterLauf(kunde.id, "rankings", "result->aggregate", bisPrev, ", ort:result->>crawlLocation"),
     letzterLauf(kunde.id, "ahrefs", "result->sistrix", bisCur),
     letzterLauf(kunde.id, "ahrefs", "result->sistrix", bisPrev),
   ]);
@@ -160,10 +183,17 @@ export async function fetchSeoOverviewZeile(
     cur.top3 = zahlOderNull(rCur.wert?.top3);
     cur.top10 = zahlOderNull(rCur.wert?.top10);
   } else hinweise.push("Kein Rankings-Lauf bis Zeitraum-Ende");
-  // Vergleich nur, wenn ein ANDERER (frueherer) Lauf existiert — wie im Dashboard.
+  // Vergleich nur, wenn ein ANDERER (frueherer) Lauf existiert — wie im Dashboard —
+  // und beide nach derselben Methode gezaehlt wurden (Methodenwechsel-Guard).
+  let rankVergleich: SeoOverviewZeile["rankVergleich"] = null;
   if (rPrev && rCur && rPrev.id !== rCur.id) {
-    prev.top3 = zahlOderNull(rPrev.wert?.top3);
-    prev.top10 = zahlOderNull(rPrev.wert?.top10);
+    if (rankVergleichbar(rCur, rPrev)) {
+      prev.top3 = zahlOderNull(rPrev.wert?.top3);
+      prev.top10 = zahlOderNull(rPrev.wert?.top10);
+      rankVergleich = "ok";
+    } else {
+      rankVergleich = "methodenwechsel";
+    }
   }
   const vi = (l: Lauf | null) => {
     const n = zahlOderNull(l?.wert?.visibility_index);
@@ -257,13 +287,14 @@ export async function fetchSeoOverviewZeile(
     cur,
     prev,
     trafficQuelle,
+    rankVergleich,
     stand: {
       cur: {
         rank: rCur ? String(rCur.created_at).slice(0, 10) : null,
         visibility: vCur ? String(vCur.created_at).slice(0, 10) : null,
       },
       prev: {
-        rank: rPrev && rCur && rPrev.id !== rCur.id ? String(rPrev.created_at).slice(0, 10) : null,
+        rank: rankVergleich === "ok" && rPrev ? String(rPrev.created_at).slice(0, 10) : null,
         visibility:
           vPrev && vCur && vPrev.id !== vCur.id ? String(vPrev.created_at).slice(0, 10) : null,
       },

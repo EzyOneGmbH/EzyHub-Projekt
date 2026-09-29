@@ -2,7 +2,27 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: {} }));
 
-import { parseGa4Organisch, stichtagIso } from "./seo-overview.server";
+import { parseGa4Organisch, rankVergleichbar, stichtagIso } from "./seo-overview.server";
+
+describe("rankVergleichbar (Methodenwechsel-Guard)", () => {
+  const lauf = (basis: string | undefined, ort: string | null = "Zurich,Zurich,Switzerland") => ({
+    wert: basis ? { top3: 1, top10: 2, basis } : { top3: 1, top10: 2 },
+    ort,
+  });
+  it("gleiche Zaehlbasis und gleicher Standort → vergleichbar", () => {
+    expect(rankVergleichbar(lauf("crawl"), lauf("crawl"))).toBe(true);
+  });
+  it("alter Lauf ohne basis (Hybrid-Zaehlung vor 14.09.) → nicht vergleichbar", () => {
+    expect(rankVergleichbar(lauf("crawl"), lauf(undefined))).toBe(false);
+  });
+  it("anderer Crawl-Standort oder andere Basis → nicht vergleichbar", () => {
+    expect(rankVergleichbar(lauf("crawl"), lauf("crawl", "Switzerland"))).toBe(false);
+    expect(rankVergleichbar(lauf("crawl"), lauf("gsc"))).toBe(false);
+  });
+  it("fehlende Laeufe → nicht vergleichbar", () => {
+    expect(rankVergleichbar(null, lauf("crawl"))).toBe(false);
+  });
+});
 
 const zeile = (land: string, range: string | null, n: number) => ({
   dimensionValues: range ? [{ value: land }, { value: range }] : [{ value: land }],
