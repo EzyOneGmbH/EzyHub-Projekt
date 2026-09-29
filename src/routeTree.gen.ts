@@ -60,6 +60,7 @@ import { Route as ApiAdminAiCitationsRouteImport } from './routes/api/admin.ai-c
 import { Route as ApiAdminAiCrawlerIngestRouteImport } from './routes/api/admin.ai-crawler-ingest'
 import { Route as ApiAdminAivisAttributionRouteImport } from './routes/api/admin.aivis-attribution'
 import { Route as ApiAdminAivisCompetitorsRouteImport } from './routes/api/admin.aivis-competitors'
+import { Route as ApiAdminAivisOverviewRouteImport } from './routes/api/admin.aivis-overview'
 import { Route as ApiAdminAivisSyncRouteImport } from './routes/api/admin.aivis-sync'
 import { Route as ApiAdminAuditLogRouteImport } from './routes/api/admin.audit-log'
 import { Route as ApiAdminBrandFactsRouteImport } from './routes/api/admin.brand-facts'
@@ -132,7 +133,6 @@ import { Route as ApiGoogleAdsAutopilotRunRouteImport } from './routes/api/googl
 import { Route as ApiGoogleAdsCustomersRouteImport } from './routes/api/google.ads-customers'
 import { Route as ApiGoogleAdsDataRouteImport } from './routes/api/google.ads-data'
 import { Route as ApiGoogleAdsOverviewRouteImport } from './routes/api/google.ads-overview'
-import { Route as ApiGoogleSeoOverviewRouteImport } from './routes/api/google.seo-overview'
 import { Route as ApiGoogleAdsRecommendationStatusRouteImport } from './routes/api/google.ads-recommendation-status'
 import { Route as ApiGoogleCallbackRouteImport } from './routes/api/google.callback'
 import { Route as ApiGoogleConnectionRouteImport } from './routes/api/google.connection'
@@ -144,6 +144,7 @@ import { Route as ApiGoogleGa4TrafficRouteImport } from './routes/api/google.ga4
 import { Route as ApiGoogleGscImportRouteImport } from './routes/api/google.gsc-import'
 import { Route as ApiGoogleGscSitesRouteImport } from './routes/api/google.gsc-sites'
 import { Route as ApiGooglePagespeedRouteImport } from './routes/api/google.pagespeed'
+import { Route as ApiGoogleSeoOverviewRouteImport } from './routes/api/google.seo-overview'
 import { Route as ApiKpiFirstPartyRouteImport } from './routes/api/kpi.first-party'
 import { Route as ApiKpiFirstPartyGeoRouteImport } from './routes/api/kpi.first-party-geo'
 import { Route as ApiLiveStatusRouteImport } from './routes/api/live.status'
@@ -432,6 +433,11 @@ const ApiAdminAivisCompetitorsRoute =
     path: '/api/admin/aivis-competitors',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAdminAivisOverviewRoute = ApiAdminAivisOverviewRouteImport.update({
+  id: '/api/admin/aivis-overview',
+  path: '/api/admin/aivis-overview',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminAivisSyncRoute = ApiAdminAivisSyncRouteImport.update({
   id: '/api/admin/aivis-sync',
   path: '/api/admin/aivis-sync',
@@ -803,11 +809,6 @@ const ApiGoogleAdsOverviewRoute = ApiGoogleAdsOverviewRouteImport.update({
   path: '/api/google/ads-overview',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiGoogleSeoOverviewRoute = ApiGoogleSeoOverviewRouteImport.update({
-  id: '/api/google/seo-overview',
-  path: '/api/google/seo-overview',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiGoogleAdsRecommendationStatusRoute =
   ApiGoogleAdsRecommendationStatusRouteImport.update({
     id: '/api/google/ads-recommendation-status',
@@ -862,6 +863,11 @@ const ApiGoogleGscSitesRoute = ApiGoogleGscSitesRouteImport.update({
 const ApiGooglePagespeedRoute = ApiGooglePagespeedRouteImport.update({
   id: '/api/google/pagespeed',
   path: '/api/google/pagespeed',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiGoogleSeoOverviewRoute = ApiGoogleSeoOverviewRouteImport.update({
+  id: '/api/google/seo-overview',
+  path: '/api/google/seo-overview',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiKpiFirstPartyRoute = ApiKpiFirstPartyRouteImport.update({
@@ -1023,6 +1029,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/ai-crawler-ingest': typeof ApiAdminAiCrawlerIngestRoute
   '/api/admin/aivis-attribution': typeof ApiAdminAivisAttributionRoute
   '/api/admin/aivis-competitors': typeof ApiAdminAivisCompetitorsRoute
+  '/api/admin/aivis-overview': typeof ApiAdminAivisOverviewRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/audit-log': typeof ApiAdminAuditLogRoute
   '/api/admin/brand-facts': typeof ApiAdminBrandFactsRoute
@@ -1095,7 +1102,6 @@ export interface FileRoutesByFullPath {
   '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
   '/api/google/ads-data': typeof ApiGoogleAdsDataRoute
   '/api/google/ads-overview': typeof ApiGoogleAdsOverviewRoute
-  '/api/google/seo-overview': typeof ApiGoogleSeoOverviewRoute
   '/api/google/ads-recommendation-status': typeof ApiGoogleAdsRecommendationStatusRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
@@ -1107,6 +1113,7 @@ export interface FileRoutesByFullPath {
   '/api/google/gsc-import': typeof ApiGoogleGscImportRoute
   '/api/google/gsc-sites': typeof ApiGoogleGscSitesRoute
   '/api/google/pagespeed': typeof ApiGooglePagespeedRoute
+  '/api/google/seo-overview': typeof ApiGoogleSeoOverviewRoute
   '/api/kpi/first-party': typeof ApiKpiFirstPartyRoute
   '/api/kpi/first-party-geo': typeof ApiKpiFirstPartyGeoRoute
   '/api/live/status': typeof ApiLiveStatusRoute
@@ -1180,6 +1187,7 @@ export interface FileRoutesByTo {
   '/api/admin/ai-crawler-ingest': typeof ApiAdminAiCrawlerIngestRoute
   '/api/admin/aivis-attribution': typeof ApiAdminAivisAttributionRoute
   '/api/admin/aivis-competitors': typeof ApiAdminAivisCompetitorsRoute
+  '/api/admin/aivis-overview': typeof ApiAdminAivisOverviewRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/audit-log': typeof ApiAdminAuditLogRoute
   '/api/admin/brand-facts': typeof ApiAdminBrandFactsRoute
@@ -1252,7 +1260,6 @@ export interface FileRoutesByTo {
   '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
   '/api/google/ads-data': typeof ApiGoogleAdsDataRoute
   '/api/google/ads-overview': typeof ApiGoogleAdsOverviewRoute
-  '/api/google/seo-overview': typeof ApiGoogleSeoOverviewRoute
   '/api/google/ads-recommendation-status': typeof ApiGoogleAdsRecommendationStatusRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
@@ -1264,6 +1271,7 @@ export interface FileRoutesByTo {
   '/api/google/gsc-import': typeof ApiGoogleGscImportRoute
   '/api/google/gsc-sites': typeof ApiGoogleGscSitesRoute
   '/api/google/pagespeed': typeof ApiGooglePagespeedRoute
+  '/api/google/seo-overview': typeof ApiGoogleSeoOverviewRoute
   '/api/kpi/first-party': typeof ApiKpiFirstPartyRoute
   '/api/kpi/first-party-geo': typeof ApiKpiFirstPartyGeoRoute
   '/api/live/status': typeof ApiLiveStatusRoute
@@ -1338,6 +1346,7 @@ export interface FileRoutesById {
   '/api/admin/ai-crawler-ingest': typeof ApiAdminAiCrawlerIngestRoute
   '/api/admin/aivis-attribution': typeof ApiAdminAivisAttributionRoute
   '/api/admin/aivis-competitors': typeof ApiAdminAivisCompetitorsRoute
+  '/api/admin/aivis-overview': typeof ApiAdminAivisOverviewRoute
   '/api/admin/aivis-sync': typeof ApiAdminAivisSyncRoute
   '/api/admin/audit-log': typeof ApiAdminAuditLogRoute
   '/api/admin/brand-facts': typeof ApiAdminBrandFactsRoute
@@ -1410,7 +1419,6 @@ export interface FileRoutesById {
   '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
   '/api/google/ads-data': typeof ApiGoogleAdsDataRoute
   '/api/google/ads-overview': typeof ApiGoogleAdsOverviewRoute
-  '/api/google/seo-overview': typeof ApiGoogleSeoOverviewRoute
   '/api/google/ads-recommendation-status': typeof ApiGoogleAdsRecommendationStatusRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
@@ -1422,6 +1430,7 @@ export interface FileRoutesById {
   '/api/google/gsc-import': typeof ApiGoogleGscImportRoute
   '/api/google/gsc-sites': typeof ApiGoogleGscSitesRoute
   '/api/google/pagespeed': typeof ApiGooglePagespeedRoute
+  '/api/google/seo-overview': typeof ApiGoogleSeoOverviewRoute
   '/api/kpi/first-party': typeof ApiKpiFirstPartyRoute
   '/api/kpi/first-party-geo': typeof ApiKpiFirstPartyGeoRoute
   '/api/live/status': typeof ApiLiveStatusRoute
@@ -1497,6 +1506,7 @@ export interface FileRouteTypes {
     | '/api/admin/ai-crawler-ingest'
     | '/api/admin/aivis-attribution'
     | '/api/admin/aivis-competitors'
+    | '/api/admin/aivis-overview'
     | '/api/admin/aivis-sync'
     | '/api/admin/audit-log'
     | '/api/admin/brand-facts'
@@ -1569,7 +1579,6 @@ export interface FileRouteTypes {
     | '/api/google/ads-customers'
     | '/api/google/ads-data'
     | '/api/google/ads-overview'
-    | '/api/google/seo-overview'
     | '/api/google/ads-recommendation-status'
     | '/api/google/callback'
     | '/api/google/connection'
@@ -1581,6 +1590,7 @@ export interface FileRouteTypes {
     | '/api/google/gsc-import'
     | '/api/google/gsc-sites'
     | '/api/google/pagespeed'
+    | '/api/google/seo-overview'
     | '/api/kpi/first-party'
     | '/api/kpi/first-party-geo'
     | '/api/live/status'
@@ -1654,6 +1664,7 @@ export interface FileRouteTypes {
     | '/api/admin/ai-crawler-ingest'
     | '/api/admin/aivis-attribution'
     | '/api/admin/aivis-competitors'
+    | '/api/admin/aivis-overview'
     | '/api/admin/aivis-sync'
     | '/api/admin/audit-log'
     | '/api/admin/brand-facts'
@@ -1726,7 +1737,6 @@ export interface FileRouteTypes {
     | '/api/google/ads-customers'
     | '/api/google/ads-data'
     | '/api/google/ads-overview'
-    | '/api/google/seo-overview'
     | '/api/google/ads-recommendation-status'
     | '/api/google/callback'
     | '/api/google/connection'
@@ -1738,6 +1748,7 @@ export interface FileRouteTypes {
     | '/api/google/gsc-import'
     | '/api/google/gsc-sites'
     | '/api/google/pagespeed'
+    | '/api/google/seo-overview'
     | '/api/kpi/first-party'
     | '/api/kpi/first-party-geo'
     | '/api/live/status'
@@ -1811,6 +1822,7 @@ export interface FileRouteTypes {
     | '/api/admin/ai-crawler-ingest'
     | '/api/admin/aivis-attribution'
     | '/api/admin/aivis-competitors'
+    | '/api/admin/aivis-overview'
     | '/api/admin/aivis-sync'
     | '/api/admin/audit-log'
     | '/api/admin/brand-facts'
@@ -1883,7 +1895,6 @@ export interface FileRouteTypes {
     | '/api/google/ads-customers'
     | '/api/google/ads-data'
     | '/api/google/ads-overview'
-    | '/api/google/seo-overview'
     | '/api/google/ads-recommendation-status'
     | '/api/google/callback'
     | '/api/google/connection'
@@ -1895,6 +1906,7 @@ export interface FileRouteTypes {
     | '/api/google/gsc-import'
     | '/api/google/gsc-sites'
     | '/api/google/pagespeed'
+    | '/api/google/seo-overview'
     | '/api/kpi/first-party'
     | '/api/kpi/first-party-geo'
     | '/api/live/status'
@@ -1964,6 +1976,7 @@ export interface RootRouteChildren {
   ApiAdminAiCrawlerIngestRoute: typeof ApiAdminAiCrawlerIngestRoute
   ApiAdminAivisAttributionRoute: typeof ApiAdminAivisAttributionRoute
   ApiAdminAivisCompetitorsRoute: typeof ApiAdminAivisCompetitorsRoute
+  ApiAdminAivisOverviewRoute: typeof ApiAdminAivisOverviewRoute
   ApiAdminAivisSyncRoute: typeof ApiAdminAivisSyncRoute
   ApiAdminAuditLogRoute: typeof ApiAdminAuditLogRoute
   ApiAdminBrandFactsRoute: typeof ApiAdminBrandFactsRoute
@@ -2036,7 +2049,6 @@ export interface RootRouteChildren {
   ApiGoogleAdsCustomersRoute: typeof ApiGoogleAdsCustomersRoute
   ApiGoogleAdsDataRoute: typeof ApiGoogleAdsDataRoute
   ApiGoogleAdsOverviewRoute: typeof ApiGoogleAdsOverviewRoute
-  ApiGoogleSeoOverviewRoute: typeof ApiGoogleSeoOverviewRoute
   ApiGoogleAdsRecommendationStatusRoute: typeof ApiGoogleAdsRecommendationStatusRoute
   ApiGoogleCallbackRoute: typeof ApiGoogleCallbackRoute
   ApiGoogleConnectionRoute: typeof ApiGoogleConnectionRoute
@@ -2048,6 +2060,7 @@ export interface RootRouteChildren {
   ApiGoogleGscImportRoute: typeof ApiGoogleGscImportRoute
   ApiGoogleGscSitesRoute: typeof ApiGoogleGscSitesRoute
   ApiGooglePagespeedRoute: typeof ApiGooglePagespeedRoute
+  ApiGoogleSeoOverviewRoute: typeof ApiGoogleSeoOverviewRoute
   ApiKpiFirstPartyRoute: typeof ApiKpiFirstPartyRoute
   ApiKpiFirstPartyGeoRoute: typeof ApiKpiFirstPartyGeoRoute
   ApiLiveStatusRoute: typeof ApiLiveStatusRoute
@@ -2422,6 +2435,13 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/aivis-competitors'
       fullPath: '/api/admin/aivis-competitors'
       preLoaderRoute: typeof ApiAdminAivisCompetitorsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/aivis-overview': {
+      id: '/api/admin/aivis-overview'
+      path: '/api/admin/aivis-overview'
+      fullPath: '/api/admin/aivis-overview'
+      preLoaderRoute: typeof ApiAdminAivisOverviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/aivis-sync': {
@@ -2928,13 +2948,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGoogleAdsOverviewRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/google/seo-overview': {
-      id: '/api/google/seo-overview'
-      path: '/api/google/seo-overview'
-      fullPath: '/api/google/seo-overview'
-      preLoaderRoute: typeof ApiGoogleSeoOverviewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/google/ads-recommendation-status': {
       id: '/api/google/ads-recommendation-status'
       path: '/api/google/ads-recommendation-status'
@@ -3010,6 +3023,13 @@ declare module '@tanstack/react-router' {
       path: '/api/google/pagespeed'
       fullPath: '/api/google/pagespeed'
       preLoaderRoute: typeof ApiGooglePagespeedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/google/seo-overview': {
+      id: '/api/google/seo-overview'
+      path: '/api/google/seo-overview'
+      fullPath: '/api/google/seo-overview'
+      preLoaderRoute: typeof ApiGoogleSeoOverviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/kpi/first-party': {
@@ -3280,6 +3300,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminAiCrawlerIngestRoute: ApiAdminAiCrawlerIngestRoute,
   ApiAdminAivisAttributionRoute: ApiAdminAivisAttributionRoute,
   ApiAdminAivisCompetitorsRoute: ApiAdminAivisCompetitorsRoute,
+  ApiAdminAivisOverviewRoute: ApiAdminAivisOverviewRoute,
   ApiAdminAivisSyncRoute: ApiAdminAivisSyncRoute,
   ApiAdminAuditLogRoute: ApiAdminAuditLogRoute,
   ApiAdminBrandFactsRoute: ApiAdminBrandFactsRoute,
@@ -3352,7 +3373,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGoogleAdsCustomersRoute: ApiGoogleAdsCustomersRoute,
   ApiGoogleAdsDataRoute: ApiGoogleAdsDataRoute,
   ApiGoogleAdsOverviewRoute: ApiGoogleAdsOverviewRoute,
-  ApiGoogleSeoOverviewRoute: ApiGoogleSeoOverviewRoute,
   ApiGoogleAdsRecommendationStatusRoute: ApiGoogleAdsRecommendationStatusRoute,
   ApiGoogleCallbackRoute: ApiGoogleCallbackRoute,
   ApiGoogleConnectionRoute: ApiGoogleConnectionRoute,
@@ -3364,6 +3384,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGoogleGscImportRoute: ApiGoogleGscImportRoute,
   ApiGoogleGscSitesRoute: ApiGoogleGscSitesRoute,
   ApiGooglePagespeedRoute: ApiGooglePagespeedRoute,
+  ApiGoogleSeoOverviewRoute: ApiGoogleSeoOverviewRoute,
   ApiKpiFirstPartyRoute: ApiKpiFirstPartyRoute,
   ApiKpiFirstPartyGeoRoute: ApiKpiFirstPartyGeoRoute,
   ApiLiveStatusRoute: ApiLiveStatusRoute,

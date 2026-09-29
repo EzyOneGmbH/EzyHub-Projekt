@@ -128,8 +128,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.27.0",
+    version: "1.28.0",
     changelog: [
+      {
+        version: "1.28.0",
+        date: "2026-09-29",
+        note: "Agentur-Übersicht: Performance-Tabelle wie in EzyRank/EzyPerformance — Organic (KI-Besucher, KI-Conversions, Conv.-Rate, Score, Erwähnungen, Zitate) und Ads (Kosten, Impressionen, Klicks, CTR, Ø CPC, Ø CPM, Conversions, Kosten/Conv., GA4-Sessions/-Conversions) je Kunde mit Vergleichszeitraum, Suche, Filtern, Summenzeile und CSV-Export; Umschalter Kacheln/Tabelle",
+      },
       {
         version: "1.27.0",
         date: "2026-09-25",

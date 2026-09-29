@@ -67,6 +67,7 @@ import {
   Sparkles,
   Bell,
   LayoutGrid,
+  Table2,
   Home,
   Users,
   Settings,
@@ -216,6 +217,10 @@ const EzyAiCampaignsPanel = lazy(() => import("@/ezy/EzyAiCampaignsPanel"));
 // Ads-Manager-Nachbau (15.09.): Bereich «Kampagnen» mit Ebenen-Tabs.
 const EzyAiAdsManager = lazy(() => import("@/ezy/EzyAiAdsManager"));
 const EzyAiAdsReport = lazy(() => import("@/ezy/EzyAiAdsReport"));
+// Agentur-Performance-Tabelle (29.09., analog EzyRank/EzyPerformance).
+const EzyAiAgencyTable = lazy(() =>
+  import("@/ezy/EzyAiAgencyTable").then((m) => ({ default: m.EzyAiAgencyTable })),
+);
 // First-Party GEO (GSC + GA4, 22.09.): eigener Lazy-Chunk.
 const FirstPartyGeo = lazy(() => import("@/ezy/ezyai/FirstPartyGeo"));
 
@@ -4612,6 +4617,25 @@ function EzyAiApp() {
       /* egal */
     }
   }, [compareMode]);
+  // Uebersicht: Kacheln oder Performance-Tabelle (29.09., wie EzyRank) — je
+  // Modus (Organic/Ads) gemerkt.
+  const [uebersichtAnsicht, setUebersichtAnsicht] = useState<Record<string, string>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("ezyai.uebersicht.v1") || "{}") || {};
+    } catch {
+      return {};
+    }
+  });
+  const waehleUebersicht = (modus: string, ansicht: string) =>
+    setUebersichtAnsicht((a) => {
+      const n = { ...a, [modus]: ansicht };
+      try {
+        localStorage.setItem("ezyai.uebersicht.v1", JSON.stringify(n));
+      } catch {
+        /* egal */
+      }
+      return n;
+    });
   const compare = useMemo(() => {
     if (compareMode === "prevPeriod") return { ...previousPeriod(range), name: "Vorperiode" };
     if (compareMode === "prevYear") {
@@ -5164,7 +5188,11 @@ function EzyAiApp() {
                 // Ads-Modus: breitere Buehne (15.09.) — die Kampagnen-Tabellen haben
                 // viele Spalten, 1180 px zwang sie in den horizontalen Scroll.
                 style={{
-                  maxWidth: adsMode && !showAll ? 1720 : 1180,
+                  maxWidth:
+                    (adsMode && !showAll) ||
+                    (showAll && uebersichtAnsicht[adsMode ? "ads" : "organic"] === "tabelle")
+                      ? 1720
+                      : 1180,
                   margin: "0 auto",
                   padding: adsMode && !showAll ? "22px 18px 60px" : "22px 22px 60px",
                 }}
@@ -5258,11 +5286,77 @@ function EzyAiApp() {
                     Lade Kunden…
                   </div>
                 ) : showAll ? (
-                  adsMode ? (
-                    <AdsAgencyOverview S={S} onSelect={pickClient} />
-                  ) : (
-                    <AiAgencyOverview clients={clients} S={S} onSelect={pickClient} />
-                  )
+                  <>
+                    {/* Kacheln / Performance-Tabelle (29.09., wie EzyRank) */}
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "flex-end",
+                        gap: 4,
+                        marginBottom: 12,
+                      }}
+                    >
+                      {[
+                        { id: "kacheln", label: "Kacheln", icon: LayoutGrid },
+                        { id: "tabelle", label: "Performance-Tabelle", icon: Table2 },
+                      ].map((t) => {
+                        const modus = adsMode ? "ads" : "organic";
+                        const aktiv = (uebersichtAnsicht[modus] || "kacheln") === t.id;
+                        const Icon = t.icon;
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => waehleUebersicht(modus, t.id)}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 6,
+                              padding: "7px 12px",
+                              borderRadius: 9,
+                              border: `1px solid ${aktiv ? S.app : S.line}`,
+                              background: aktiv ? S.appTint : S.panel,
+                              color: aktiv ? S.app : S.mut,
+                              fontSize: 12.5,
+                              fontWeight: 600,
+                              fontFamily: "inherit",
+                              cursor: "pointer",
+                            }}
+                          >
+                            <Icon size={14} /> {t.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {uebersichtAnsicht[adsMode ? "ads" : "organic"] === "tabelle" ? (
+                      <Suspense
+                        fallback={
+                          <div
+                            style={{ color: S.mut, fontSize: 13, padding: 40, textAlign: "center" }}
+                          >
+                            Lade Performance-Tabelle…
+                          </div>
+                        }
+                      >
+                        <EzyAiAgencyTable
+                          mode={adsMode ? "ads" : "organic"}
+                          clients={clients}
+                          dateRange={{
+                            start: range.start,
+                            end: range.end,
+                            compare: compare ? { start: compare.start, end: compare.end } : null,
+                            compareMode,
+                          }}
+                          onSelect={pickClient}
+                          onCompareMode={setCompareMode}
+                        />
+                      </Suspense>
+                    ) : adsMode ? (
+                      <AdsAgencyOverview S={S} onSelect={pickClient} />
+                    ) : (
+                      <AiAgencyOverview clients={clients} S={S} onSelect={pickClient} />
+                    )}
+                  </>
                 ) : !client ? (
                   <div style={{ color: S.mut, fontSize: 13, padding: 60, textAlign: "center" }}>
                     Keine Kunden zugewiesen.
