@@ -2,7 +2,36 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: {} }));
 
-import { parseGa4Organisch, rankVergleichbar, stichtagIso } from "./seo-overview.server";
+import {
+  parseGa4Organisch,
+  rankVergleichbar,
+  rankVergleichGrund,
+  stichtagIso,
+} from "./seo-overview.server";
+
+describe("rankVergleichGrund", () => {
+  const l = (datum: string, ort: string | null) => ({
+    created_at: `${datum}T05:00:00+00:00`,
+    wert: { top3: 1, top10: 2 },
+    ort,
+  });
+  it("fehlender Standort auf einer Seite blockiert nicht (kein Wissen = kein Eingriff)", () => {
+    expect(
+      rankVergleichGrund(l("2026-09-29", "Lucerne,Lucerne,Switzerland"), l("2026-09-22", null)),
+    ).toBeNull();
+  });
+  it("nennt den Grund lesbar", () => {
+    expect(rankVergleichGrund(l("2026-09-29", null), l("2026-08-30", null))).toBe(
+      "Zählmethode geändert (Hybrid-Zählung → Crawl)",
+    );
+    expect(
+      rankVergleichGrund(
+        l("2026-09-29", "Zurich,Zurich,Switzerland"),
+        l("2026-09-22", "Switzerland"),
+      ),
+    ).toBe("Crawl-Standort geändert (Switzerland → Zurich,Zurich,Switzerland)");
+  });
+});
 
 describe("rankVergleichbar (Methodenwechsel-Guard)", () => {
   // Wie in der DB: aggregate OHNE basis (Snapshot-Schema strippt das Feld).

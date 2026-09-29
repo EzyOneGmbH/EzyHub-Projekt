@@ -42,6 +42,8 @@ export type SeoOverviewZeile = {
    * Vergleichslauf anders gezaehlt (kein Delta), null = kein frueherer Lauf.
    */
   rankVergleich?: "ok" | "methodenwechsel" | null;
+  /** Lesbarer Grund bei "methodenwechsel" (z. B. «Crawl-Standort geändert (…)») */
+  rankVergleichGrund?: string | null;
   /** Hinweise zu fehlenden Teilen (nicht fatal) */
   hinweise: string[];
   error: string | null;
@@ -130,13 +132,27 @@ export function rankZaehlmethode(l: { wert?: any; created_at?: string | null } |
   return String(l?.created_at ?? "").slice(0, 10) >= RANK_CRAWLBASIS_AB ? "crawl" : "hybrid";
 }
 
-export function rankVergleichbar(
-  cur: { wert?: any; ort?: string | null; created_at?: string | null } | null,
-  prev: { wert?: any; ort?: string | null; created_at?: string | null } | null,
-): boolean {
-  if (!cur || !prev) return false;
-  if (rankZaehlmethode(cur) !== rankZaehlmethode(prev)) return false;
-  return String(cur.ort ?? "") === String(prev.ort ?? "");
+type RankLaufInfo = { wert?: any; ort?: string | null; created_at?: string | null } | null;
+
+/**
+ * Grund, warum zwei Laeufe NICHT vergleichbar sind — null = vergleichbar.
+ * Standort: wie guardMethodenwechsel «kein Wissen = kein Eingriff» — nur wenn
+ * BEIDE Laeufe einen crawlLocation tragen und dieser abweicht, wird blockiert.
+ */
+export function rankVergleichGrund(cur: RankLaufInfo, prev: RankLaufInfo): string | null {
+  if (!cur || !prev) return "Kein Vergleichslauf";
+  const mCur = rankZaehlmethode(cur);
+  const mPrev = rankZaehlmethode(prev);
+  const name = (m: string) => (m === "hybrid" ? "Hybrid-Zählung" : m === "crawl" ? "Crawl" : m);
+  if (mCur !== mPrev) return `Zählmethode geändert (${name(mPrev)} → ${name(mCur)})`;
+  const oCur = String(cur.ort ?? "").trim();
+  const oPrev = String(prev.ort ?? "").trim();
+  if (oCur && oPrev && oCur !== oPrev) return `Crawl-Standort geändert (${oPrev} → ${oCur})`;
+  return null;
+}
+
+export function rankVergleichbar(cur: RankLaufInfo, prev: RankLaufInfo): boolean {
+  return rankVergleichGrund(cur, prev) === null;
 }
 
 async function letzterLauf(
@@ -198,8 +214,10 @@ export async function fetchSeoOverviewZeile(
   // Vergleich nur, wenn ein ANDERER (frueherer) Lauf existiert — wie im Dashboard —
   // und beide nach derselben Methode gezaehlt wurden (Methodenwechsel-Guard).
   let rankVergleich: SeoOverviewZeile["rankVergleich"] = null;
+  let rankVergleichGrundText: string | null = null;
   if (rPrev && rCur && rPrev.id !== rCur.id) {
-    if (rankVergleichbar(rCur, rPrev)) {
+    rankVergleichGrundText = rankVergleichGrund(rCur, rPrev);
+    if (rankVergleichGrundText === null) {
       prev.top3 = zahlOderNull(rPrev.wert?.top3);
       prev.top10 = zahlOderNull(rPrev.wert?.top10);
       rankVergleich = "ok";
@@ -300,6 +318,7 @@ export async function fetchSeoOverviewZeile(
     prev,
     trafficQuelle,
     rankVergleich,
+    rankVergleichGrund: rankVergleichGrundText,
     stand: {
       cur: {
         rank: rCur ? String(rCur.created_at).slice(0, 10) : null,

@@ -209,6 +209,7 @@ export function SeoAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
           prev: mitVergleich ? ableiten(r?.prev) : null,
           quelle: r?.trafficQuelle ?? null,
           rankVergleich: r?.rankVergleich ?? null,
+          rankVergleichGrund: r?.rankVergleichGrund ?? null,
           stand: r?.stand ?? null,
           hinweise: r?.hinweise || [],
           error: r?.error || null,
@@ -369,7 +370,13 @@ export function SeoAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
     col,
     cur,
     prev,
-    { fett = false, quelle = null, stand = null, rankVergleich = null } = {},
+    {
+      fett = false,
+      quelle = null,
+      stand = null,
+      rankVergleich = null,
+      rankVergleichGrund = null,
+    } = {},
   ) => (
     <td
       key={col.key}
@@ -410,7 +417,7 @@ export function SeoAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
         <div style={{ marginTop: 3 }}>
           {rankVergleich === "methodenwechsel" && (col.key === "top3" || col.key === "top10") ? (
             <span
-              title="Kein Vergleich: Der Vergleichslauf wurde nach einer anderen Methode gezählt (vor dem 14.09.2026 Hybrid-Zählung bzw. anderer Crawl-Standort). Ein Delta wäre ein Methodeneffekt, kein Ranking-Verlust."
+              title={`Kein Vergleich: ${rankVergleichGrund || "Vergleichslauf nach einer anderen Methode gezählt"}. Ein Delta wäre ein Methodeneffekt, kein Ranking-Verlust.`}
               style={{ fontSize: 10, color: C.textMuted, whiteSpace: "nowrap" }}
             >
               Methode geändert
@@ -738,6 +745,7 @@ export function SeoAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
                         quelle: z.quelle,
                         stand: z.stand,
                         rankVergleich: z.rankVergleich,
+                        rankVergleichGrund: z.rankVergleichGrund,
                       }),
                     )}
                   </tr>
@@ -795,7 +803,7 @@ export function SeoAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
           Rankings-Crawl zum Zeitraum-Ende · Visibility Index = Sistrix Schweiz, in der Summe nicht
           addiert
           {mitVergleich && methodenwechsel
-            ? " · «Methode geändert» = Vergleichslauf anders gezählt (vor 14.09.2026), daher kein Top-3/10-Vergleich"
+            ? " · «Methode geändert» = Vergleichslauf anders gezählt (vor 14.09.2026) oder an anderem Crawl-Standort gemessen, daher kein Top-3/10-Vergleich (Grund im Tooltip)"
             : ""}
         </span>
         {seiten > 1 && (
