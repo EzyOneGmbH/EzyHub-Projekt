@@ -5,22 +5,40 @@ vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: {} }));
 import { parseGa4Organisch, rankVergleichbar, stichtagIso } from "./seo-overview.server";
 
 describe("rankVergleichbar (Methodenwechsel-Guard)", () => {
-  const lauf = (basis: string | undefined, ort: string | null = "Zurich,Zurich,Switzerland") => ({
+  // Wie in der DB: aggregate OHNE basis (Snapshot-Schema strippt das Feld).
+  const lauf = (
+    datum: string,
+    ort: string | null = "Zurich,Zurich,Switzerland",
+    basis?: string,
+  ) => ({
+    created_at: `${datum}T05:00:00+00:00`,
     wert: basis ? { top3: 1, top10: 2, basis } : { top3: 1, top10: 2 },
     ort,
   });
-  it("gleiche Zaehlbasis und gleicher Standort → vergleichbar", () => {
-    expect(rankVergleichbar(lauf("crawl"), lauf("crawl"))).toBe(true);
+  it("beide Laeufe ab 14.09. am selben Standort → vergleichbar", () => {
+    expect(rankVergleichbar(lauf("2026-09-29"), lauf("2026-09-22"))).toBe(true);
+    expect(rankVergleichbar(lauf("2026-09-29"), lauf("2026-09-14"))).toBe(true);
   });
-  it("alter Lauf ohne basis (Hybrid-Zaehlung vor 14.09.) → nicht vergleichbar", () => {
-    expect(rankVergleichbar(lauf("crawl"), lauf(undefined))).toBe(false);
+  it("Vergleichslauf vor 14.09. (Hybrid-Zaehlung) → nicht vergleichbar", () => {
+    expect(rankVergleichbar(lauf("2026-09-29"), lauf("2026-08-30"))).toBe(false);
+    expect(rankVergleichbar(lauf("2026-09-29"), lauf("2026-09-13"))).toBe(false);
   });
-  it("anderer Crawl-Standort oder andere Basis → nicht vergleichbar", () => {
-    expect(rankVergleichbar(lauf("crawl"), lauf("crawl", "Switzerland"))).toBe(false);
-    expect(rankVergleichbar(lauf("crawl"), lauf("gsc"))).toBe(false);
+  it("beide Laeufe vor 14.09. am selben Standort → vergleichbar", () => {
+    expect(rankVergleichbar(lauf("2026-09-12"), lauf("2026-09-05"))).toBe(true);
+  });
+  it("anderer Crawl-Standort → nicht vergleichbar", () => {
+    expect(rankVergleichbar(lauf("2026-09-29"), lauf("2026-09-22", "Switzerland"))).toBe(false);
+  });
+  it("gespeichertes basis-Feld hat Vorrang vor dem Datum", () => {
+    expect(
+      rankVergleichbar(
+        lauf("2026-09-29", undefined, "crawl"),
+        lauf("2026-09-22", undefined, "gsc"),
+      ),
+    ).toBe(false);
   });
   it("fehlende Laeufe → nicht vergleichbar", () => {
-    expect(rankVergleichbar(null, lauf("crawl"))).toBe(false);
+    expect(rankVergleichbar(null, lauf("2026-09-22"))).toBe(false);
   });
 });
 

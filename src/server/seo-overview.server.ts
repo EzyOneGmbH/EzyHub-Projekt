@@ -112,19 +112,31 @@ type Lauf = { id: string; created_at: string; wert: any; ort?: string | null };
 
 /**
  * Methodenwechsel-Guard fuer Top 3 / Top 10 (analog guardMethodenwechsel der
- * Rank-Snapshot-Route): Anzahlen sind nur vergleichbar, wenn beide Laeufe auf
- * derselben Zaehlbasis (aggregate.basis, seit 14.09.2026 «crawl») UND am selben
- * Crawl-Standort gemessen wurden. Aeltere Laeufe ohne basis zaehlten aus
- * Hybrid-Positionen → kein Vergleich (sonst Schein-Verluste).
+ * Rank-Snapshot-Route): Anzahlen sind nur vergleichbar, wenn beide Laeufe nach
+ * derselben Methode gezaehlt (seit 14.09.2026 Crawl-Basis, vorher Hybrid) UND
+ * am selben Crawl-Standort gemessen wurden — sonst Schein-Verluste.
  */
+/** Seit diesem Tag zaehlt der agent-service Top 3/10 nur aus Crawl-Positionen. */
+export const RANK_CRAWLBASIS_AB = "2026-09-14";
+
+/**
+ * Zaehlmethode eines Laufs: aggregate.basis, falls vorhanden — die Snapshot-
+ * Route speichert das Feld derzeit NICHT (Zod-Schema ohne basis), daher
+ * Fallback ueber das Laufdatum (vor 14.09.2026 Hybrid-Zaehlung).
+ */
+export function rankZaehlmethode(l: { wert?: any; created_at?: string | null } | null): string {
+  const basis = l?.wert?.basis;
+  if (basis) return String(basis);
+  return String(l?.created_at ?? "").slice(0, 10) >= RANK_CRAWLBASIS_AB ? "crawl" : "hybrid";
+}
+
 export function rankVergleichbar(
-  cur: { wert?: any; ort?: string | null } | null,
-  prev: { wert?: any; ort?: string | null } | null,
+  cur: { wert?: any; ort?: string | null; created_at?: string | null } | null,
+  prev: { wert?: any; ort?: string | null; created_at?: string | null } | null,
 ): boolean {
-  const a = cur?.wert?.basis;
-  const b = prev?.wert?.basis;
-  if (!a || !b || a !== b) return false;
-  return String(cur?.ort ?? "") === String(prev?.ort ?? "");
+  if (!cur || !prev) return false;
+  if (rankZaehlmethode(cur) !== rankZaehlmethode(prev)) return false;
+  return String(cur.ort ?? "") === String(prev.ort ?? "");
 }
 
 async function letzterLauf(
