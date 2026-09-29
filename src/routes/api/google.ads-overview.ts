@@ -7,6 +7,7 @@ import { isProviderEnabled } from "@/server/integrations.server";
 import { adsFenster } from "@/server/google-ads.server";
 import { fetchAdsOverviewZeile, type OverviewZeile } from "@/server/google-ads-overview.server";
 import { ZeitraumFehler } from "@/lib/date-range";
+import { requireTeamRole } from "@/server/team-guard.server";
 
 // Agentur-Performance-Tabelle (EzyPerformance, 25.09.2026): Kontokennzahlen
 // mehrerer Kunden fuer Zeitraum + Vergleich. Nur lesend, keine Persistenz.
@@ -36,6 +37,9 @@ export const Route = createFileRoute("/api/google/ads-overview")({
             data: { user },
           } = await sb.auth.getUser();
           if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+          // Nur Mitarbeiter (owner/admin/member) — Kundenportal (viewer) 403 (29.09.).
+          const team = await requireTeamRole(request, "member");
+          if (team instanceof Response) return team;
 
           const parsed = Body.safeParse(await request.json().catch(() => ({})));
           if (!parsed.success) return Response.json({ error: "Invalid input" }, { status: 400 });

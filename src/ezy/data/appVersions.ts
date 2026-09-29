@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.3.1",
+    version: "2.3.2",
     changelog: [
+      {
+        version: "2.3.2",
+        date: "2026-09-29",
+        note: "Die Performance-Tabelle der Agentur-Übersicht ist nur noch für Mitarbeiter sichtbar — Kunden im Kundenportal sehen weiterhin die Kacheln",
+      },
       {
         version: "2.3.1",
         date: "2026-09-29",
@@ -409,8 +414,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyPerformance (Ads)
   ads: {
-    version: "1.4.1",
+    version: "1.4.2",
     changelog: [
+      {
+        version: "1.4.2",
+        date: "2026-09-29",
+        note: "Die Performance-Tabelle der Agentur-Übersicht ist nur noch für Mitarbeiter sichtbar — Kunden im Kundenportal sehen weiterhin die Kacheln",
+      },
       { version: "1.4.1", date: "2026-09-29", note: "Paket «Performance» heisst jetzt «Premium»" },
       {
         version: "1.4.0",

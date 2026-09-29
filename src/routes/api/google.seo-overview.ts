@@ -7,6 +7,7 @@ import { isProviderEnabled } from "@/server/integrations.server";
 import { adsFenster } from "@/server/google-ads.server";
 import { fetchSeoOverviewZeile, type SeoOverviewZeile } from "@/server/seo-overview.server";
 import { ZeitraumFehler } from "@/lib/date-range";
+import { requireTeamRole } from "@/server/team-guard.server";
 
 // Agentur-Performance-Tabelle EzyRank (29.09.2026, analog /api/google/ads-overview):
 // Traffic, Traffic CH, Top 3, Top 10 und Visibility Index mehrerer Kunden fuer
@@ -37,6 +38,9 @@ export const Route = createFileRoute("/api/google/seo-overview")({
             data: { user },
           } = await sb.auth.getUser();
           if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+          // Nur Mitarbeiter (owner/admin/member) — Kundenportal (viewer) 403.
+          const team = await requireTeamRole(request, "member");
+          if (team instanceof Response) return team;
 
           const parsed = Body.safeParse(await request.json().catch(() => ({})));
           if (!parsed.success) return Response.json({ error: "Invalid input" }, { status: 400 });

@@ -134,7 +134,12 @@ export function AgencyOverview({
   const isAds = appScope === "ads";
   // EzyPerformance (25.09.): Kacheln oder Performance-Tabelle (wie Looker Studio).
   // EzyRank (29.09.): dieselbe Umschaltung mit SEO-Kennzahlen.
-  const hatTabelle = isAds || appScope === "seo";
+  // Nur fuer Mitarbeiter (Volkan 29.09.): Kundenportal-Rolle viewer sieht nur
+  // die Kacheln; solange die Rolle laedt, bleibt die Tabelle verborgen
+  // (fail-closed). Serverseitig zusaetzlich requireTeamRole("member").
+  const { role } = useAuth();
+  const istMitarbeiter = role === "owner" || role === "admin" || role === "member";
+  const hatTabelle = istMitarbeiter && (isAds || appScope === "seo");
   const leseAnsicht = (scope) => {
     try {
       return localStorage.getItem(ansichtLs(scope)) === "tabelle" ? "tabelle" : "kacheln";
