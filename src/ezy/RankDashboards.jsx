@@ -110,7 +110,12 @@ export { ConvDashboard } from "./ConvDashboard";
 const AdsAgencyTable = lazy(() =>
   import("./AdsAgencyTable").then((m) => ({ default: m.AdsAgencyTable })),
 );
-const ANSICHT_LS = "ezy.agency.adsView";
+// EzyRank (29.09.2026): gleiche Performance-Tabelle mit SEO-Kennzahlen.
+const SeoAgencyTable = lazy(() =>
+  import("./SeoAgencyTable").then((m) => ({ default: m.SeoAgencyTable })),
+);
+// Ansicht je App getrennt merken (Ads und SEO unabhaengig).
+const ansichtLs = (scope) => (scope === "ads" ? "ezy.agency.adsView" : "ezy.agency.seoView");
 
 export function AgencyOverview({
   clients,
@@ -128,22 +133,29 @@ export function AgencyOverview({
   // ROAS / Umsatz aus dem letzten google_ads-Snapshot — gleiches Batch-Muster.
   const isAds = appScope === "ads";
   // EzyPerformance (25.09.): Kacheln oder Performance-Tabelle (wie Looker Studio).
-  const [ansicht, setAnsicht] = useState(() => {
+  // EzyRank (29.09.): dieselbe Umschaltung mit SEO-Kennzahlen.
+  const hatTabelle = isAds || appScope === "seo";
+  const leseAnsicht = (scope) => {
     try {
-      return localStorage.getItem(ANSICHT_LS) === "tabelle" ? "tabelle" : "kacheln";
+      return localStorage.getItem(ansichtLs(scope)) === "tabelle" ? "tabelle" : "kacheln";
     } catch {
       return "kacheln";
     }
-  });
+  };
+  const [ansicht, setAnsicht] = useState(() => leseAnsicht(appScope));
+  // App-Wechsel ohne Remount: gemerkte Ansicht der neuen App uebernehmen.
+  useEffect(() => {
+    setAnsicht(leseAnsicht(appScope));
+  }, [appScope]);
   const waehleAnsicht = (v) => {
     setAnsicht(v);
     try {
-      localStorage.setItem(ANSICHT_LS, v);
+      localStorage.setItem(ansichtLs(appScope), v);
     } catch {
       /* privater Modus */
     }
   };
-  const zeigeTabelle = isAds && ansicht === "tabelle";
+  const zeigeTabelle = hatTabelle && ansicht === "tabelle";
   const [stats, setStats] = useState({});
   useEffect(() => {
     let alive = true;
@@ -297,7 +309,7 @@ export function AgencyOverview({
         <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: C.text }}>Kunden</h2>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <span style={{ fontSize: 12, color: C.textMuted }}>{clients.length} berechtigt</span>
-          {isAds && (
+          {hatTabelle && (
             <TabBar
               tabs={[
                 { id: "kacheln", label: "Kacheln", icon: LayoutGrid },
@@ -311,12 +323,21 @@ export function AgencyOverview({
       </div>
       {zeigeTabelle && (
         <Suspense fallback={<Skeleton h={320} />}>
-          <AdsAgencyTable
-            clients={tiles}
-            dateRange={dateRange}
-            onSelect={onSelect}
-            onCompareMode={onCompareMode}
-          />
+          {isAds ? (
+            <AdsAgencyTable
+              clients={tiles}
+              dateRange={dateRange}
+              onSelect={onSelect}
+              onCompareMode={onCompareMode}
+            />
+          ) : (
+            <SeoAgencyTable
+              clients={tiles}
+              dateRange={dateRange}
+              onSelect={onSelect}
+              onCompareMode={onCompareMode}
+            />
+          )}
         </Suspense>
       )}
       <div

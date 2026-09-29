@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.2.0",
+    version: "2.3.0",
     changelog: [
+      {
+        version: "2.3.0",
+        date: "2026-09-29",
+        note: "Agentur-Übersicht mit Performance-Tabelle wie in EzyPerformance: alle Kunden auf einen Blick mit organischem Traffic, Traffic aus der Schweiz samt Anteil, Top-3- und Top-10-Keywords sowie Sistrix-Visibility-Index — Zeitraum und Vergleich aus der Kopfzeile, sortier- und filterbar, mit Summenzeile und CSV-Export",
+      },
       {
         version: "2.2.0",
         date: "2026-09-13",
