@@ -21,17 +21,21 @@ export const Route = createFileRoute("/api/admin/onboarding-pending")({
           );
         if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
           return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        // Performance (30.09.2026): nur offene Scans filtern und nur die
+        // benoetigten JSON-Teile laden (vorher: alle Scans mit komplettem result,
+        // ~1.2 s je Aufruf bei minuetlichem Polling durch den agent-service).
         const { data } = await supabaseAdmin
           .from("audit_runs")
-          .select("id, client_id, result")
-          .eq("audit_type", "onboarding_scan");
+          .select("id, client_id, applied:result->applied, kunde:result->client")
+          .eq("audit_type", "onboarding_scan")
+          .eq("result->applied->>processed", "false");
         const pending = (data || [])
-          .filter((r: any) => r.result?.applied && r.result.applied.processed === false)
+          .filter((r: any) => r.applied && r.applied.processed === false)
           .map((r: any) => ({
             id: r.id,
-            client: r.result?.client,
-            keywords: r.result.applied.keywords || [],
-            at: r.result.applied.at,
+            client: r.kunde,
+            keywords: r.applied.keywords || [],
+            at: r.applied.at,
           }))
           .filter((p: any) => p.client && (p.keywords || []).length);
         return Response.json({ ok: true, pending });

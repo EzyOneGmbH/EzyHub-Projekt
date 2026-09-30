@@ -117,6 +117,26 @@ const SeoAgencyTable = lazy(() =>
 // Ansicht je App getrennt merken (Ads und SEO unabhaengig).
 const ansichtLs = (scope) => (scope === "ads" ? "ezy.agency.adsView" : "ezy.agency.seoView");
 
+// Performance (30.09.2026): je Kunde NUR der neueste Lauf, JSON-Felder serverseitig
+// ausgeschnitten (RPC neueste_laeufe, Index client_id+audit_type+status+created_at).
+// Vorher: 200 Läufe je Abfrage, jedes grosse result entpackt — 4 s statt 0.1 s.
+// Rückgabe im alten Zeilenformat, damit die Auswertung unverändert bleibt.
+async function neuesteLaeufe(ids, auditType, felder, alias) {
+  const { data, error } = await supabase.rpc("neueste_laeufe", {
+    _client_ids: ids,
+    _audit_type: auditType,
+    _felder: felder,
+  });
+  if (error) throw error;
+  return {
+    data: (data || []).map((r) => {
+      const zeile = { client_id: r.client_id, created_at: r.created_at };
+      felder.forEach((f, i) => (zeile[alias[i]] = r.felder?.[f] ?? null));
+      return zeile;
+    }),
+  };
+}
+
 export function AgencyOverview({
   clients,
   onSelect,
@@ -162,21 +182,26 @@ export function AgencyOverview({
   };
   const zeigeTabelle = hatTabelle && ansicht === "tabelle";
   const [stats, setStats] = useState({});
+  // Stabiler Auslöser: nur neu laden, wenn sich die Kunden-IDs wirklich ändern
+  // (nicht bei jedem Neuzeichnen mit neuem Array-Objekt).
+  const idsKey = clients
+    .map((c) => c.id)
+    .filter((id) => /^[0-9a-f-]{36}$/i.test(id))
+    .sort()
+    .join(",");
   useEffect(() => {
     let alive = true;
-    const ids = clients.map((c) => c.id).filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+    const ids = idsKey ? idsKey.split(",") : [];
     if (!ids.length) return;
     (async () => {
       try {
         if (isAds) {
-          const { data } = await supabase
-            .from("audit_runs")
-            .select("client_id, created_at, t:result->totals, roas:result->roas")
-            .in("client_id", ids)
-            .eq("audit_type", "google_ads")
-            .eq("status", "succeeded")
-            .order("created_at", { ascending: false })
-            .limit(200);
+          const { data } = await neuesteLaeufe(
+            ids,
+            "google_ads",
+            ["totals", "roas"],
+            ["t", "roas"],
+          );
           if (!alive) return;
           const next = {};
           for (const row of data || []) {
@@ -193,33 +218,12 @@ export function AgencyOverview({
           return;
         }
         const [rankRes, ga4Res, seoRes] = await Promise.all([
-          supabase
-            .from("audit_runs")
-            .select("client_id, created_at, agg:result->aggregate")
-            .in("client_id", ids)
-            .eq("audit_type", "rankings")
-            .eq("status", "succeeded")
-            .order("created_at", { ascending: false })
-            .limit(200),
+          neuesteLaeufe(ids, "rankings", ["aggregate"], ["agg"]),
           // Echter organischer Traffic (2026-08-13, User-Wunsch): GA4-Kanal
           // "Organic Search" aus dem letzten ga4_traffic-Snapshot — wie die
           // "Organic Traffic"-Kachel im SEO-Tab. DFS-ETV nur noch Fallback.
-          supabase
-            .from("audit_runs")
-            .select("client_id, created_at, ch:result->channels")
-            .in("client_id", ids)
-            .eq("audit_type", "ga4_traffic")
-            .eq("status", "succeeded")
-            .order("created_at", { ascending: false })
-            .limit(200),
-          supabase
-            .from("audit_runs")
-            .select("client_id, created_at, m:result->metrics")
-            .in("client_id", ids)
-            .eq("audit_type", "ahrefs")
-            .eq("status", "succeeded")
-            .order("created_at", { ascending: false })
-            .limit(200),
+          neuesteLaeufe(ids, "ga4_traffic", ["channels"], ["ch"]),
+          neuesteLaeufe(ids, "ahrefs", ["metrics"], ["m"]),
         ]);
         if (!alive) return;
         const next = {};
@@ -265,7 +269,7 @@ export function AgencyOverview({
     return () => {
       alive = false;
     };
-  }, [clients, isAds]);
+  }, [idsKey, isAds]);
   // Kacheln alphabetisch — Kundenreihenfolge ist überall gleich (Volkan 13.08.).
   const tiles = [...clients].sort((a, b) =>
     String(a.name).localeCompare(String(b.name), "de-CH", { sensitivity: "base" }),
