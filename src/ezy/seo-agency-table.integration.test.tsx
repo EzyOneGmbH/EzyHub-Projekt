@@ -76,15 +76,16 @@ describe("SeoAgencyTable", () => {
     expect(body).toMatchObject({ startDate: "2026-09-01", endDate: "2026-09-28" });
     expect(body.compareStart).toBeUndefined();
 
+    // Tausender-Trennzeichen je nach ICU-Version der Node-Laufzeit ' oder ’
     const zeileA = screen.getByText("Hotel Alpha").closest("tr")!;
-    expect(within(zeileA).getByText("1’200")).toBeTruthy();
+    expect(within(zeileA).getByText(/^1['’]200$/)).toBeTruthy();
     expect(within(zeileA).getByText("75,0 %")).toBeTruthy(); // CH-Anteil 900/1200
     expect(within(zeileA).getByText("0,0395")).toBeTruthy();
     const zeileB = screen.getByText("Beta AG").closest("tr")!;
     expect(within(zeileB).getByText("GSC")).toBeTruthy();
 
     const fuss = screen.getByText(/Gesamt · 2 Kunden/).closest("tr")!;
-    expect(within(fuss).getByText("1’500")).toBeTruthy(); // Traffic-Summe
+    expect(within(fuss).getByText(/^1['’]500$/)).toBeTruthy(); // Traffic-Summe
     expect(within(fuss).getByText("49")).toBeTruthy(); // Top-10-Summe
   });
 
