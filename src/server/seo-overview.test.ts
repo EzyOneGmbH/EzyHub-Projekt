@@ -6,8 +6,17 @@ import {
   parseGa4Organisch,
   rankVergleichbar,
   rankVergleichGrund,
+  sistrixLandDesLaufs,
   stichtagIso,
 } from "./seo-overview.server";
+
+describe("sistrixLandDesLaufs", () => {
+  it("liest das gespeicherte Land, Altlaeufe ohne Angabe gelten als CH", () => {
+    expect(sistrixLandDesLaufs({ wert: { visibility_index: 0.05, country: "fr" } })).toBe("fr");
+    expect(sistrixLandDesLaufs({ wert: { visibility_index: 1.2 } })).toBe("ch");
+    expect(sistrixLandDesLaufs(null)).toBe("ch");
+  });
+});
 
 describe("rankVergleichGrund", () => {
   const l = (datum: string, ort: string | null) => ({

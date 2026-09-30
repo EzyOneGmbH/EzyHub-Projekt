@@ -92,7 +92,7 @@ const SPALTEN = [
     fmt: vi,
     delta: "pct",
     group: "rank",
-    hint: "Sistrix-Sichtbarkeitsindex Schweiz (Stand zum Zeitraum-Ende)",
+    hint: "Sistrix-Sichtbarkeitsindex (Stand zum Zeitraum-Ende) — Schweiz, sofern beim Kunden kein anderes Sistrix-Land gewählt ist (Marke z. B. «FR»)",
   },
 ];
 
@@ -210,6 +210,7 @@ export function SeoAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
           quelle: r?.trafficQuelle ?? null,
           rankVergleich: r?.rankVergleich ?? null,
           rankVergleichGrund: r?.rankVergleichGrund ?? null,
+          visibilityLand: r?.visibilityLand ?? null,
           stand: r?.stand ?? null,
           hinweise: r?.hinweise || [],
           error: r?.error || null,
@@ -376,6 +377,7 @@ export function SeoAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
       stand = null,
       rankVergleich = null,
       rankVergleichGrund = null,
+      visibilityLand = null,
     } = {},
   ) => (
     <td
@@ -408,6 +410,23 @@ export function SeoAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
                 }}
               >
                 GSC
+              </span>
+            )}
+            {col.key === "visibility" && visibilityLand && visibilityLand !== "ch" && (
+              <span
+                title={`Sistrix-Index ${visibilityLand.toUpperCase()} statt Schweiz (Einstellung je Kunde)`}
+                style={{
+                  marginLeft: 6,
+                  fontSize: 9.5,
+                  fontWeight: 700,
+                  color: C.accent,
+                  background: C.accentDim,
+                  borderRadius: 5,
+                  padding: "1px 5px",
+                  verticalAlign: 1,
+                }}
+              >
+                {visibilityLand.toUpperCase()}
               </span>
             )}
           </>
@@ -746,6 +765,7 @@ export function SeoAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
                         stand: z.stand,
                         rankVergleich: z.rankVergleich,
                         rankVergleichGrund: z.rankVergleichGrund,
+                        visibilityLand: z.visibilityLand,
                       }),
                     )}
                   </tr>
@@ -800,8 +820,8 @@ export function SeoAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
         <span>
           Org. Traffic = GA4-Sitzungen «Organic Search»
           {hatGsc ? " (GSC = Google-Klicks, wo kein GA4 verbunden ist)" : ""} · Top 3/10 =
-          Rankings-Crawl zum Zeitraum-Ende · Visibility Index = Sistrix Schweiz, in der Summe nicht
-          addiert
+          Rankings-Crawl zum Zeitraum-Ende · Visibility Index = Sistrix Schweiz (Marke «FR» usw. =
+          anderes Sistrix-Land je Kunde), in der Summe nicht addiert
           {mitVergleich && methodenwechsel
             ? " · «Methode geändert» = Vergleichslauf anders gezählt (vor 14.09.2026) oder an anderem Crawl-Standort gemessen, daher kein Top-3/10-Vergleich (Grund im Tooltip)"
             : ""}

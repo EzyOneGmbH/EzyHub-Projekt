@@ -37,6 +37,7 @@ import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } fr
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as ApiAdsPackageRouteImport } from './routes/api/ads-package'
 import { Route as ApiClaudeSessionsRouteImport } from './routes/api/claude-sessions'
+import { Route as ApiSistrixLandRouteImport } from './routes/api/sistrix-land'
 import { Route as ContentIdRouteImport } from './routes/content.$id'
 import { Route as CustomersIdRouteImport } from './routes/customers.$id'
 import { Route as RTokenRouteImport } from './routes/r.$token'
@@ -306,6 +307,11 @@ const ApiAdsPackageRoute = ApiAdsPackageRouteImport.update({
 const ApiClaudeSessionsRoute = ApiClaudeSessionsRouteImport.update({
   id: '/api/claude-sessions',
   path: '/api/claude-sessions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSistrixLandRoute = ApiSistrixLandRouteImport.update({
+  id: '/api/sistrix-land',
+  path: '/api/sistrix-land',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ContentIdRoute = ContentIdRouteImport.update({
@@ -1006,6 +1012,7 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof AdminUsersRoute
   '/api/ads-package': typeof ApiAdsPackageRoute
   '/api/claude-sessions': typeof ApiClaudeSessionsRoute
+  '/api/sistrix-land': typeof ApiSistrixLandRoute
   '/content/$id': typeof ContentIdRoute
   '/customers/$id': typeof CustomersIdRoute
   '/r/$token': typeof RTokenRoute
@@ -1164,6 +1171,7 @@ export interface FileRoutesByTo {
   '/admin/users': typeof AdminUsersRoute
   '/api/ads-package': typeof ApiAdsPackageRoute
   '/api/claude-sessions': typeof ApiClaudeSessionsRoute
+  '/api/sistrix-land': typeof ApiSistrixLandRoute
   '/content/$id': typeof ContentIdRoute
   '/customers/$id': typeof CustomersIdRoute
   '/r/$token': typeof RTokenRoute
@@ -1323,6 +1331,7 @@ export interface FileRoutesById {
   '/admin/users': typeof AdminUsersRoute
   '/api/ads-package': typeof ApiAdsPackageRoute
   '/api/claude-sessions': typeof ApiClaudeSessionsRoute
+  '/api/sistrix-land': typeof ApiSistrixLandRoute
   '/content/$id': typeof ContentIdRoute
   '/customers/$id': typeof CustomersIdRoute
   '/r/$token': typeof RTokenRoute
@@ -1483,6 +1492,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/api/ads-package'
     | '/api/claude-sessions'
+    | '/api/sistrix-land'
     | '/content/$id'
     | '/customers/$id'
     | '/r/$token'
@@ -1641,6 +1651,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/api/ads-package'
     | '/api/claude-sessions'
+    | '/api/sistrix-land'
     | '/content/$id'
     | '/customers/$id'
     | '/r/$token'
@@ -1799,6 +1810,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/api/ads-package'
     | '/api/claude-sessions'
+    | '/api/sistrix-land'
     | '/content/$id'
     | '/customers/$id'
     | '/r/$token'
@@ -1957,6 +1969,7 @@ export interface RootRouteChildren {
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   ApiAdsPackageRoute: typeof ApiAdsPackageRoute
   ApiClaudeSessionsRoute: typeof ApiClaudeSessionsRoute
+  ApiSistrixLandRoute: typeof ApiSistrixLandRoute
   RTokenRoute: typeof RTokenRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
@@ -2274,6 +2287,13 @@ declare module '@tanstack/react-router' {
       path: '/api/claude-sessions'
       fullPath: '/api/claude-sessions'
       preLoaderRoute: typeof ApiClaudeSessionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/sistrix-land': {
+      id: '/api/sistrix-land'
+      path: '/api/sistrix-land'
+      fullPath: '/api/sistrix-land'
+      preLoaderRoute: typeof ApiSistrixLandRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/content/$id': {
@@ -3281,6 +3301,7 @@ const rootRouteChildren: RootRouteChildren = {
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   ApiAdsPackageRoute: ApiAdsPackageRoute,
   ApiClaudeSessionsRoute: ApiClaudeSessionsRoute,
+  ApiSistrixLandRoute: ApiSistrixLandRoute,
   RTokenRoute: RTokenRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,

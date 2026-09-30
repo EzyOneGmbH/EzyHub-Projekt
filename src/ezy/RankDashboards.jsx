@@ -55,6 +55,7 @@ import { C } from "./theme";
 import { KpiCard, SectionPlaceholder, SeoPager, TabBar, liveDaysFor, useLiveGa4 } from "./ui-kit";
 import { ClientAvatar } from "@/ezy/ClientAvatar";
 import { AdsPaketChip } from "@/ezy/AdsPaketTag";
+import { SistrixLandWahl } from "@/ezy/SistrixLandWahl";
 import { adsPaketVon } from "@/lib/adsPakete";
 import { runStatusItem } from "@/ezy/DataStatus";
 import { useEzyAuditHistory } from "@/ezy/data/useEzyAuditHistory";
@@ -998,6 +999,9 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   const traffic = Number(live?.traffic ?? selectedClient?.traffic ?? 0);
   const score = Number(live?.score ?? selectedClient?.score ?? 0);
   const visibility = Number(live?.visibility ?? selectedClient?.visibility ?? 0);
+  const viLand = live?.visibilityLand || "ch";
+  const viVon =
+    ahrefsVon && (ahrefsVon.visibilityLand || "ch") === viLand ? ahrefsVon.visibility : undefined;
   const backlinks = Number(live?.backlinks ?? 0);
   const topPages = traf?.topPages || [];
   // Haupt-URL des Kunden als Fallback in der URL-Spalte (Volkan 11.09.).
@@ -1780,6 +1784,9 @@ export function SeoDashboard({ selectedClient, dateRange }) {
           </ResponsiveContainer>
         </div>
       )}
+      {isOn("seo.ahrefs") && isOrgAdmin && selectedClient?.id && (
+        <SistrixLandWahl client={selectedClient} />
+      )}
       {isOn("seo.ahrefs") && (
         <div
           style={{
@@ -1808,13 +1815,15 @@ export function SeoDashboard({ selectedClient, dateRange }) {
           {/* Visibility Index seit 11.09. echt aus Sistrix (CH); vorher stand hier
               die Zahl der verweisenden Domains. Sistrix-Werte sind Dezimalzahlen
               (z. B. 0.0395) — Anzeige je nach Groesse mit 1/2/4 Nachkommastellen. */}
+          {/* Sistrix-Land (30.09.): Label nennt das Land; Vergleich nur mit einem
+              Vorwert aus DEMSELBEN Laender-Index (Wechsel CH → FR sonst Scheinsprung). */}
           <KpiCard
             icon={Eye}
-            label="Visibility Index (Sistrix)"
+            label={`Visibility Index (Sistrix ${viLand.toUpperCase()})`}
             value={visibility > 0 ? fmtVi(visibility) : "—"}
             color={C.blue}
-            change={visibility > 0 ? fensterPct(visibility, ahrefsVon?.visibility) : undefined}
-            compareValue={ahrefsVon?.visibility > 0 ? fmtVi(ahrefsVon.visibility) : undefined}
+            change={visibility > 0 ? fensterPct(visibility, viVon) : undefined}
+            compareValue={viVon > 0 ? fmtVi(viVon) : undefined}
             compareLabel={FENSTER_LABEL}
           />
           <KpiCard

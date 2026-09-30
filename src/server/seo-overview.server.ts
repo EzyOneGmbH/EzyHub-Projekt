@@ -44,6 +44,8 @@ export type SeoOverviewZeile = {
   rankVergleich?: "ok" | "methodenwechsel" | null;
   /** Lesbarer Grund bei "methodenwechsel" (z. B. «Crawl-Standort geändert (…)») */
   rankVergleichGrund?: string | null;
+  /** Land des Sistrix-Index des aktuellen Werts («ch», «fr» …); Altlaeufe ohne Angabe = «ch». */
+  visibilityLand?: string | null;
   /** Hinweise zu fehlenden Teilen (nicht fatal) */
   hinweise: string[];
   error: string | null;
@@ -173,6 +175,11 @@ async function letzterLauf(
   return (data as Lauf | null) ?? null;
 }
 
+/** Land des gespeicherten Sistrix-Werts (result.sistrix.country); fehlt es, galt «ch». */
+export function sistrixLandDesLaufs(l: { wert?: any } | null): string {
+  return String(l?.wert?.country || "ch").toLowerCase();
+}
+
 const zahlOderNull = (v: unknown): number | null => {
   const n = Number(v);
   return v == null || !Number.isFinite(n) ? null : n;
@@ -230,7 +237,11 @@ export async function fetchSeoOverviewZeile(
     return n != null && n > 0 ? n : null; // 0 = aeltere Laeufe ohne Sistrix
   };
   cur.visibility = vi(vCur);
-  if (vPrev && vCur && vPrev.id !== vCur.id) prev.visibility = vi(vPrev);
+  // Sistrix-Land (30.09.2026): Werte verschiedener Laender-Indizes sind nicht
+  // vergleichbar (z. B. Wechsel CH → FR) — dann kein Vorwert.
+  const visibilityLand = sistrixLandDesLaufs(vCur);
+  if (vPrev && vCur && vPrev.id !== vCur.id && sistrixLandDesLaufs(vPrev) === visibilityLand)
+    prev.visibility = vi(vPrev);
   if (cur.visibility == null) hinweise.push("Kein Sistrix-Wert bis Zeitraum-Ende");
 
   // ── Traffic: GA4 (Organic Search), Fallback GSC ────────────────────────────
@@ -319,6 +330,7 @@ export async function fetchSeoOverviewZeile(
     trafficQuelle,
     rankVergleich,
     rankVergleichGrund: rankVergleichGrundText,
+    visibilityLand: vCur ? visibilityLand : null,
     stand: {
       cur: {
         rank: rCur ? String(rCur.created_at).slice(0, 10) : null,

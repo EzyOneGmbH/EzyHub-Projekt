@@ -204,6 +204,8 @@ export type BacklinkOverview = {
 export type BacklinkOverviewOptions = {
   /** Spam-Domains (is_spam=true) aus der Top-Liste ausschliessen. Default true. */
   ohneSpam?: boolean;
+  /** Sistrix-Index-Land (30.09.2026, clients.metadata.sistrix_country). Default «ch». */
+  sistrixLand?: string;
 };
 
 // Provider-Weiche: Standard Ahrefs, DataForSEO nur per BACKLINK_PROVIDER.
@@ -217,7 +219,7 @@ export async function fetchBacklinkOverview(
     provider === "dataforseo"
       ? fetchBacklinkOverviewDfs(domain, auth)
       : fetchBacklinkOverviewAhrefs(domain, auth, opts),
-    fetchSistrixVisibility(domain),
+    fetchSistrixVisibility(domain, opts.sistrixLand || "ch"),
   ]);
   return { ...overview, sistrix };
 }

@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.3.2",
+    version: "2.4.0",
     changelog: [
+      {
+        version: "2.4.0",
+        date: "2026-09-30",
+        note: "Visibility Index je Kunde im passenden Sistrix-Länderindex: für Websites aus der Romandie lässt sich z. B. der französische Index wählen (Einstellung im SEO-Dashboard, nur Admins) — Kachel und Performance-Tabelle zeigen das Land an und vergleichen nur Werte desselben Landes",
+      },
       {
         version: "2.3.2",
         date: "2026-09-29",

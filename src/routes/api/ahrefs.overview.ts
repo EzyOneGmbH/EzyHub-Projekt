@@ -8,6 +8,7 @@ import {
   fetchBacklinkOverview,
   normalizeDomain,
 } from "@/server/backlink-overview.server";
+import { sistrixLandVon } from "@/lib/sistrixLand";
 
 // Backlink-/Autoritäts-Übersicht. 06.08.–09.09.2026 lief sie über DataForSEO,
 // seit 09.09. wieder über Ahrefs (Abo läuft ohnehin, DFS kostete pro Call).
@@ -71,7 +72,7 @@ export const Route = createFileRoute("/api/ahrefs/overview")({
         const clientId = parsed.data.clientId;
         const { data: client, error: clientErr } = await userClient
           .from("clients")
-          .select("id, domain, organization_id")
+          .select("id, domain, organization_id, metadata")
           .eq("id", clientId)
           .maybeSingle();
         if (clientErr || !client) {
@@ -97,7 +98,7 @@ export const Route = createFileRoute("/api/ahrefs/overview")({
           domain,
           auth,
           provider,
-          { ohneSpam: parsed.data.ohneSpam },
+          { ohneSpam: parsed.data.ohneSpam, sistrixLand: sistrixLandVon(client.metadata) },
         );
         const failMsg = `Alle Backlink-Sektionen fehlgeschlagen (${provider})`;
 

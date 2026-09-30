@@ -133,6 +133,8 @@ export function ahrefsKpisFromResult(result: any): {
   keywords: number;
   score: number;
   visibility: number;
+  /** Land des Sistrix-Index (30.09.2026, «ch» wenn nicht gespeichert). */
+  visibilityLand: string;
   backlinks: number;
 } {
   const r = result || {};
@@ -158,6 +160,7 @@ export function ahrefsKpisFromResult(result: any): {
     // Visibility = Sistrix-Sichtbarkeitsindex (seit 11.09.2026, result.sistrix);
     // aeltere Laeufe ohne Sistrix-Feld liefern 0 -> Kachel zeigt «—».
     visibility: Number(r.sistrix?.visibility_index ?? 0) || 0,
+    visibilityLand: String(r.sistrix?.country || "ch").toLowerCase(),
     backlinks: Number(bl.live ?? bl.all_time ?? bl.backlinks ?? 0) || 0,
   };
 }

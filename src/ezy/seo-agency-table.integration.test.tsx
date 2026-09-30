@@ -147,6 +147,28 @@ describe("SeoAgencyTable", () => {
     expect(screen.getByText(/Methode geändert» = Vergleichslauf anders gezählt/)).toBeTruthy();
   });
 
+  it("Sistrix-Land FR: Marke «FR» am Visibility Index, CH ohne Marke", async () => {
+    const fr = {
+      ...antwort,
+      rows: [
+        { ...antwort.rows[0], visibilityLand: "fr" },
+        { ...antwort.rows[1], visibilityLand: "ch" },
+      ],
+    };
+    vi.mocked(ezyFetch).mockResolvedValue(resp(fr));
+    render(
+      <SeoAgencyTable
+        clients={clients}
+        dateRange={{ start: new Date(2026, 8, 1), end: new Date(2026, 8, 28) }}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText("Hotel Alpha")).toBeTruthy());
+    const zeileA = screen.getByText("Hotel Alpha").closest("tr")!;
+    expect(within(zeileA).getByText("FR")).toBeTruthy();
+    const zeileB = screen.getByText("Beta AG").closest("tr")!;
+    expect(within(zeileB).queryByText("CH")).toBeNull();
+  });
+
   it("zeigt Fehler verständlich statt leerer Tabelle", async () => {
     vi.mocked(ezyFetch).mockResolvedValue(resp({ ok: false, error: "GA4 down" }));
     render(

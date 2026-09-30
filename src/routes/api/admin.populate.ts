@@ -14,6 +14,7 @@ import {
 } from "@/server/backlink-overview.server";
 import { fetchKeywordMetrics } from "@/server/keyword-metrics.server";
 import { zeitraum, ga4DateRange, type Zeitraum } from "@/lib/date-range";
+import { sistrixLandVon } from "@/lib/sistrixLand";
 import { ga4Coverage, ga4CoverageSammler, ga4RunReportUrl } from "@/server/ga4.server";
 import {
   gscTotals,
@@ -241,7 +242,9 @@ async function jobAhrefs(c: any, uid: string) {
   if (!auth) return { skipped: `${missing} fehlt` };
   const domain = normalizeDomain(String(c.domain || ""));
   if (!domain) return { skipped: "keine Domain" };
-  const { all_failed: allFailed, ...result } = await fetchBacklinkOverview(domain, auth, provider);
+  const { all_failed: allFailed, ...result } = await fetchBacklinkOverview(domain, auth, provider, {
+    sistrixLand: sistrixLandVon(c.metadata),
+  });
   const failMsg = `Alle Backlink-Sektionen fehlgeschlagen (${provider})`;
   await insertRun({
     client_id: c.id,
