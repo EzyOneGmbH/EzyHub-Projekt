@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.4.0",
+    version: "2.4.1",
     changelog: [
+      {
+        version: "2.4.1",
+        date: "2026-10-01",
+        note: "Conversions: Funnel-Schritte wie «begin_checkout» oder «add_to_cart» zählen nicht mehr als Kauf und erscheinen nicht mehr in der Conversion-Liste; die Kachel «Generated» zeigt den organischen Umsatz statt des Umsatzes aller Kanäle",
+      },
       {
         version: "2.4.0",
         date: "2026-09-30",
@@ -133,8 +138,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.28.1",
+    version: "1.28.2",
     changelog: [
+      {
+        version: "1.28.2",
+        date: "2026-10-01",
+        note: "Conversions: Funnel-Schritte wie «begin_checkout» zählen nicht mehr als Kauf; die Kachel «Generated» zeigt den Umsatz aus Organic Search und KI-Assistenten statt aller Kanäle",
+      },
       {
         version: "1.28.1",
         date: "2026-09-29",

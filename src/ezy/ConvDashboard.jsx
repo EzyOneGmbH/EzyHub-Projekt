@@ -10,6 +10,7 @@ import { Clock, DollarSign, FileInput, FileText } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import ConversionScoutPanel from "@/ezy/ConversionScoutPanel";
 import { isAiConvSource } from "@/ezy/data/aiSources";
+import { generatedUmsatz, isFunnelEvent } from "@/lib/convEvents";
 import DataStatus from "@/ezy/DataStatus";
 import { C } from "./theme";
 import { KpiCard, liveDaysFor, useLiveGa4 } from "./ui-kit";
@@ -96,7 +97,10 @@ export function ConvDashboard({ selectedClient, dateRange, appScope = null }) {
   // Kauf-/Checkout-Events, Lead-Anfragen = alles Übrige (Formulare, Lead-,
   // Telefon-/Mail-/Maps-Events). Klassifiziert am rohen GA4-eventName.
   const [convFilter, setConvFilter] = useState("alle");
+  // Funnel-Schritte (begin_checkout, add_to_cart …) sind keine Käufe
+  // (01.10.2026, Morosani: begin_checkout zählte als Purchase).
   const isPurchaseEvent = (r) =>
+    !isFunnelEvent(r?.eventName) &&
     /purchase|checkout|transaction|kauf|buchung|booking/i.test(
       String(r?.eventName || r?.description || ""),
     );
@@ -110,6 +114,8 @@ export function ConvDashboard({ selectedClient, dateRange, appScope = null }) {
   const convRowsOrganic = useMemo(
     () =>
       (conv?.rows || []).filter((r) => {
+        // Funnel-Schritte nie in der Conversion-Liste (auch alte Snapshots).
+        if (isFunnelEvent(r.eventName)) return false;
         if (r.channel == null) {
           // Fallback (alte Snapshots ohne channel-Feld): Direktzugriffe immer
           // raus; KI-Quellen nur in EzyAI zeigen.
@@ -177,6 +183,20 @@ export function ConvDashboard({ selectedClient, dateRange, appScope = null }) {
       ? Math.round((organicChannel.sessions / channelTotalSessions) * 100)
       : null;
   const clicksMode = selectedClient?.revenueMode === "clicks"; // B5b: nur Anzeige-Steuerung
+  // «Generated» (01.10.2026, Morosani-Befund): zeigte den Umsatz ALLER Kanäle
+  // (inkl. Paid) im organischen Tab. Jetzt wie die Detailliste: EzyRank =
+  // Organic Search, EzyAI = Organic Search + AI Assistant. Ohne Kanal-Split
+  // bleibt der Gesamtumsatz, dann ehrlich als «alle Kanäle» beschriftet.
+  const { umsatz: generatedRevenue, organisch: generatedOrganisch } = generatedUmsatz(
+    channels,
+    includeAiConv,
+    revenue,
+  );
+  const generatedLabel = generatedOrganisch
+    ? includeAiConv
+      ? "Generated (organisch & KI)"
+      : "Generated (organisch)"
+    : "Generated (alle Kanäle)";
   const sessions = Number(ga4?.sessions || 0);
   const totalUsers = Number(ga4?.totalUsers || 0);
   const engagedSessions = Number(ga4?.engagedSessions || 0);
@@ -333,11 +353,17 @@ export function ConvDashboard({ selectedClient, dateRange, appScope = null }) {
           {!clicksMode && (
             <KpiCard
               icon={DollarSign}
-              label="Generated"
-              value={revenue > 0 ? `${Math.round(revenue).toLocaleString("de-CH")} CHF` : "—"}
-              change={dRevenue}
+              label={generatedLabel}
+              value={
+                generatedRevenue > 0
+                  ? `${Math.round(generatedRevenue).toLocaleString("de-CH")} CHF`
+                  : "—"
+              }
+              // Vergleich gibt es nur als Gesamtumsatz — beim organischen
+              // Wert kein Delta statt eines Vergleichs mit falscher Basis.
+              change={generatedOrganisch ? undefined : dRevenue}
               compareValue={
-                cmp("totalRevenue") !== undefined
+                !generatedOrganisch && cmp("totalRevenue") !== undefined
                   ? `${Math.round(cmp("totalRevenue")).toLocaleString("de-CH")} CHF`
                   : undefined
               }

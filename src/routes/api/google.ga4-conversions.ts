@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { zeitraum, ga4DateRange } from "@/lib/date-range";
+import { isFunnelEvent } from "@/lib/convEvents";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
@@ -197,7 +198,7 @@ export const Route = createFileRoute("/api/google/ga4-conversions")({
           // above) so high-volume events (page_view, …) don't crowd out the rows.
           const convNames = events
             .map((e) => e.eventName)
-            .filter((n) => bucketOf(n) || PURCHASE_RE.test(n));
+            .filter((n) => !isFunnelEvent(n) && (bucketOf(n) || PURCHASE_RE.test(n)));
           let rows: Array<Record<string, unknown>> = [];
           if (convNames.length > 0) {
             try {

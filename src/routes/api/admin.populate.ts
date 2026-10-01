@@ -15,6 +15,7 @@ import {
 import { fetchKeywordMetrics } from "@/server/keyword-metrics.server";
 import { zeitraum, ga4DateRange, type Zeitraum } from "@/lib/date-range";
 import { sistrixLandVon } from "@/lib/sistrixLand";
+import { isFunnelEvent } from "@/lib/convEvents";
 import { ga4Coverage, ga4CoverageSammler, ga4RunReportUrl } from "@/server/ga4.server";
 import {
   gscTotals,
@@ -1160,7 +1161,7 @@ async function jobGa4Conversions(c: any, uid: string, days: number) {
   // NAMES so high-volume events (page_view, …) don't crowd out the rows.
   const convNames = events
     .map((e: any) => e.eventName)
-    .filter((n: string) => convBucketOf(n) || CONV_PURCHASE_RE.test(n));
+    .filter((n: string) => !isFunnelEvent(n) && (convBucketOf(n) || CONV_PURCHASE_RE.test(n)));
   let rows: any[] = [];
   if (convNames.length > 0) {
     try {
