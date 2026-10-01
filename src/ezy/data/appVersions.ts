@@ -143,8 +143,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.29.0",
+    version: "1.29.1",
     changelog: [
+      {
+        version: "1.29.1",
+        date: "2026-10-01",
+        note: "Kampagne duplizieren: Ziel, Gebotstyp, Budget, Standorte und Zeitplan werden auch übernommen, wenn sie nur in den Hub-Spalten stehen (Demo-Konten, ältere Syncs)",
+      },
       {
         version: "1.29.0",
         date: "2026-10-01",

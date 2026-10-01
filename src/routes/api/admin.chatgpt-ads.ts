@@ -2953,13 +2953,50 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
           const mitInhalten = body?.mitInhalten !== false;
           const { data: src } = await sb
             .from("chatgpt_ads_campaigns")
-            .select("id, name, raw, targeting_locations")
+            .select(
+              "id, name, raw, targeting_locations, objective, bidding_type, budget_daily_micros, budget_lifetime_micros, start_time, end_time",
+            )
             .eq("account_id", acc.id)
             .eq("openai_campaign_id", srcId)
             .maybeSingle();
           if (!src)
             return Response.json({ ok: false, error: "Kampagne unbekannt" }, { status: 404 });
-          const cr = src.raw || {};
+          // Roh-Datensatz der API; fehlende Kernwerte aus den Spalten (Demo-
+          // Konten und aeltere Syncs fuehren sie nur dort).
+          const cr: any = { ...(src.raw || {}) };
+          cr.objective ??= src.objective;
+          cr.bidding_type ??= src.bidding_type;
+          if (!cr.budget?.daily_spend_limit_micros && !cr.budget?.lifetime_spend_limit_micros)
+            cr.budget = {
+              ...(src.budget_daily_micros
+                ? { daily_spend_limit_micros: Number(src.budget_daily_micros) }
+                : {}),
+              ...(src.budget_lifetime_micros
+                ? { lifetime_spend_limit_micros: Number(src.budget_lifetime_micros) }
+                : {}),
+            };
+          if (
+            !cr.targeting?.locations &&
+            Array.isArray(src.targeting_locations) &&
+            src.targeting_locations.length
+          )
+            cr.targeting = {
+              ...(cr.targeting || {}),
+              locations: { include: src.targeting_locations },
+            };
+          if (cr.start_time == null && src.start_time)
+            cr.start_time = Math.floor(Date.parse(src.start_time) / 1000);
+          if (cr.end_time == null && src.end_time)
+            cr.end_time = Math.floor(Date.parse(src.end_time) / 1000);
+          if (!cr.objective || !cr.bidding_type)
+            return Response.json(
+              {
+                ok: false,
+                error:
+                  "Kampagne unvollständig synchronisiert (Ziel/Gebotstyp fehlt) — bitte zuerst synchronisieren",
+              },
+              { status: 409 },
+            );
           const neuerName =
             String(body?.name || "").trim() || `${src.name || cr.name || srcId} (Kopie)`;
           if (neuerName.length < 3)
