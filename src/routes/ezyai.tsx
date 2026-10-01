@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useAppAccess } from "@/ezy/data/useAppAccess";
 import {
   useClientAppAccess,
-  appEnabledFor,
+  appSichtbarFuerRolle,
   featureEnabledFor,
 } from "@/ezy/data/useClientAppAccess";
 import { GEO_SECTION_FEATURE } from "@/ezy/data/appRegistry";
@@ -4715,8 +4715,9 @@ function EzyAiApp() {
         // Pausierte (= reversibel deaktivierte) Kunden nur im Admin sichtbar.
         .filter((c: any) => c.status !== "paused")
         .filter((c: any) => svcMatrix.hasService(c.id, ["canonry", "perplexity"]))
-        .filter((c: any) => appEnabledFor(caa.map, c.id, "geo")),
-    [ezy.clients, svcMatrix, caa.map],
+        // Portal-Sichtbarkeit (01.10.): viewer nur bei portal_visible.
+        .filter((c: any) => appSichtbarFuerRolle(caa.map, c.id, "geo", role)),
+    [ezy.clients, svcMatrix, caa.map, role],
   );
   // Inhalts-Gating je Kunde (27.08., praezisiert 31.08., Volkan: «MA sehen
   // wie Admin ALLES — nur Kunden-Logins sind betroffen»): die Funktions-

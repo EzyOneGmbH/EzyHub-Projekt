@@ -28,17 +28,25 @@ export function kundenfaehigeApps<T extends { adminOnly?: boolean; internalOnly?
   return apps.filter((a) => !a.adminOnly && !a.internalOnly);
 }
 
+type AppFlags = { enabled: boolean; portal?: boolean };
+
 /**
  * Welche Apps ein Kunde (und damit alle seine Portal-Logins) effektiv sieht —
  * client_app_access-Semantik: keine Zeile = App aktiv (Legacy-Default).
+ * enabled = intern aktiv (Team + Datenläufe), portal = im Kundenportal
+ * sichtbar (01.10.2026; nur wirksam, wenn enabled).
  */
 export function sichtbareAppsFuerKunde<T extends { id: string }>(
   clientId: string,
   apps: T[],
-  map: Map<string, Map<string, { enabled: boolean }>> | null | undefined,
-): Array<T & { enabled: boolean }> {
+  map: Map<string, Map<string, AppFlags>> | null | undefined,
+): Array<T & { enabled: boolean; portal: boolean }> {
   const je = map?.get(clientId);
-  return apps.map((a) => ({ ...a, enabled: je?.get(a.id)?.enabled ?? true }));
+  return apps.map((a) => {
+    const e = je?.get(a.id);
+    const enabled = e?.enabled ?? true;
+    return { ...a, enabled, portal: enabled && e?.portal !== false };
+  });
 }
 
 /** Apps, die ein Kunden-Login im Portal-App-Switcher sehen kann (Rail-Apps). */
@@ -47,16 +55,20 @@ export type PortalRailApp = (typeof PORTAL_RAIL_APPS)[number];
 
 /**
  * App-Switcher für Kunden-Logins (14.09.): welche Apps darf ein viewer öffnen?
- * Vereinigung über alle seine Kunden (client_app_access, keine Zeile = aktiv),
+ * Vereinigung über alle seine Kunden (client_app_access, keine Zeile = aktiv;
+ * seit 01.10. zusätzlich portal_visible),
  * eingeschränkt auf die Rail-Apps. Kein Kunde → keine App.
  */
 export function portalAppsFuerKunden(
   clientIds: string[] | null | undefined,
-  map: Map<string, Map<string, { enabled: boolean }>> | null | undefined,
+  map: Map<string, Map<string, AppFlags>> | null | undefined,
 ): PortalRailApp[] {
   const ids = clientIds || [];
   return PORTAL_RAIL_APPS.filter((app) =>
-    ids.some((cid) => map?.get(cid)?.get(app)?.enabled ?? true),
+    ids.some((cid) => {
+      const e = map?.get(cid)?.get(app);
+      return e ? e.enabled && e.portal !== false : true;
+    }),
   );
 }
 

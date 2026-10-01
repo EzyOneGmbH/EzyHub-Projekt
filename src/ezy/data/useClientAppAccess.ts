@@ -13,14 +13,40 @@ export type ClientAppRow = {
   app: EzyAppId;
   enabled: boolean;
   features: string[];
+  /** Nur Kundenportal (viewer): App im Portal sichtbar (01.10.2026). */
+  portal_visible: boolean;
 };
 
-export type ClientAppMap = Map<string, Map<string, { enabled: boolean; features: string[] }>>;
+export type ClientAppEntry = { enabled: boolean; features: string[]; portal?: boolean };
+export type ClientAppMap = Map<string, Map<string, ClientAppEntry>>;
 
 /** Keine Zeile = App aktiv (Legacy-Default, kein Seeding nötig). */
 export function appEnabledFor(map: ClientAppMap | null, clientId: string, app: string): boolean {
   const e = map?.get(clientId)?.get(app);
   return e ? e.enabled : true;
+}
+
+/**
+ * Portal-Sichtbarkeit (Volkan 01.10.2026): sieht ein Kunden-Login (viewer) die
+ * App? Nur wenn sie intern aktiv ist UND im Portal sichtbar. Wirkt
+ * ausschliesslich auf viewer — Team-Sicht und Datenläufe hängen nur an enabled.
+ * Keine Zeile = sichtbar (Legacy-Default).
+ */
+export function portalVisibleFor(map: ClientAppMap | null, clientId: string, app: string): boolean {
+  const e = map?.get(clientId)?.get(app);
+  return e ? e.enabled && e.portal !== false : true;
+}
+
+/** App-Freigabe aus Sicht der Rolle: viewer = Portal-Sichtbarkeit, sonst enabled. */
+export function appSichtbarFuerRolle(
+  map: ClientAppMap | null,
+  clientId: string,
+  app: string,
+  role: string | null | undefined,
+): boolean {
+  return role === "viewer"
+    ? portalVisibleFor(map, clientId, app)
+    : appEnabledFor(map, clientId, app);
 }
 
 /** enabled + leere features-Liste = ALLE Funktionen frei (Legacy-Default). */
@@ -54,9 +80,7 @@ export function useClientAppAccess() {
       return;
     }
     // Supabase-Types kennen die neue Tabelle noch nicht — as any wie app_access.
-    const { data, error } = await (supabase as any)
-      .from("client_app_access")
-      .select("client_id, app, enabled, features");
+    const { data, error } = await (supabase as any).from("client_app_access").select("*");
     if (error) {
       // 42P01 = Tabelle fehlt (Migration noch nicht angewendet) → Legacy-Modus.
       setLegacy(true);
@@ -69,6 +93,7 @@ export function useClientAppAccess() {
           app: r.app,
           enabled: r.enabled !== false,
           features: Array.isArray(r.features) ? r.features : [],
+          portal_visible: r.portal_visible !== false,
         })),
       );
     }
@@ -83,14 +108,22 @@ export function useClientAppAccess() {
     const m: ClientAppMap = new Map();
     for (const r of rows) {
       if (!m.has(r.client_id)) m.set(r.client_id, new Map());
-      m.get(r.client_id)!.set(r.app, { enabled: r.enabled, features: r.features });
+      m.get(r.client_id)!.set(r.app, {
+        enabled: r.enabled,
+        features: r.features,
+        portal: r.portal_visible,
+      });
     }
     return m;
   }, [rows]);
 
   /** Upsert (nur Admin — RLS enforced). features unverändert lassen: undefined. */
   const setAccess = useCallback(
-    async (clientId: string, app: string, patch: { enabled?: boolean; features?: string[] }) => {
+    async (
+      clientId: string,
+      app: string,
+      patch: { enabled?: boolean; features?: string[]; portal_visible?: boolean },
+    ) => {
       const existing = map.get(clientId)?.get(app);
       const next = {
         organization_id: organizationId,
@@ -98,6 +131,7 @@ export function useClientAppAccess() {
         app,
         enabled: patch.enabled ?? existing?.enabled ?? true,
         features: patch.features ?? existing?.features ?? [],
+        portal_visible: patch.portal_visible ?? existing?.portal !== false,
         updated_at: new Date().toISOString(),
       };
       const { error } = await (supabase as any)

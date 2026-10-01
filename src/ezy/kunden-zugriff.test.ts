@@ -12,6 +12,7 @@ import {
   zugewieseneKunden,
 } from "./data/kundenZugriff";
 import { APP_SCOPES, EZY_APPS, currentAppOf } from "./data/appRegistry";
+import { appEnabledFor, appSichtbarFuerRolle, portalVisibleFor } from "./data/useClientAppAccess";
 
 describe("Kunden-Zugriff: sichtbare Apps je Kunde", () => {
   it("Portal-Apps sind genau EzyRank/EzyAI/EzyPerformance/Reaktivierung", () => {
@@ -116,5 +117,50 @@ describe("Kunden-Zugriff: Admin-Scope", () => {
       if (id === "admin") continue;
       expect(scope.pages).not.toContain("kunden-zugriff");
     }
+  });
+});
+
+// Portal-Sichtbarkeit (Volkan 01.10.2026): «steuern, was der Kunde sieht,
+// ohne dass es uns selbst betrifft» — portal_visible wirkt nur auf viewer.
+describe("Kunden-Zugriff: Portal-Sichtbarkeit getrennt von der Team-Sicht", () => {
+  const map = new Map([
+    [
+      "c1",
+      new Map([
+        ["seo", { enabled: true, features: [], portal: false }],
+        ["geo", { enabled: true, features: [], portal: true }],
+        ["ads", { enabled: false, features: [], portal: true }],
+      ]),
+    ],
+  ]);
+
+  it("ausgeblendete App fehlt im Portal, bleibt aber für das Team aktiv", () => {
+    expect(appEnabledFor(map, "c1", "seo")).toBe(true);
+    expect(portalVisibleFor(map, "c1", "seo")).toBe(false);
+    expect(appSichtbarFuerRolle(map, "c1", "seo", "owner")).toBe(true);
+    expect(appSichtbarFuerRolle(map, "c1", "seo", "member")).toBe(true);
+    expect(appSichtbarFuerRolle(map, "c1", "seo", "viewer")).toBe(false);
+  });
+
+  it("intern inaktive App ist auch im Portal unsichtbar", () => {
+    expect(portalVisibleFor(map, "c1", "ads")).toBe(false);
+    expect(appSichtbarFuerRolle(map, "c1", "ads", "viewer")).toBe(false);
+    expect(appSichtbarFuerRolle(map, "c1", "ads", "admin")).toBe(false);
+  });
+
+  it("keine Zeile = sichtbar (Legacy-Default)", () => {
+    expect(portalVisibleFor(map, "c9", "seo")).toBe(true);
+    expect(portalVisibleFor(null, "c1", "reakt")).toBe(true);
+  });
+
+  it("App-Switcher und Chips folgen der Portal-Sichtbarkeit", () => {
+    expect(portalAppsFuerKunden(["c1"], map)).toEqual(["geo"]);
+    const chips = sichtbareAppsFuerKunde("c1", kundenfaehigeApps(EZY_APPS), map);
+    expect(chips.map((a) => [a.id, a.enabled, a.portal])).toEqual([
+      ["seo", true, false],
+      ["geo", true, true],
+      ["ads", false, false],
+      ["reakt", true, true],
+    ]);
   });
 });

@@ -19,12 +19,14 @@ async function ladePortalApps(): Promise<Set<EzyAppId>> {
   if (!ids.length) return new Set();
   const { data: rows } = await (supabase as any)
     .from("client_app_access")
-    .select("client_id, app, enabled")
+    .select("*")
     .in("client_id", ids);
-  const map = new Map<string, Map<string, { enabled: boolean }>>();
+  const map = new Map<string, Map<string, { enabled: boolean; portal: boolean }>>();
   for (const r of rows ?? []) {
     if (!map.has(r.client_id)) map.set(r.client_id, new Map());
-    map.get(r.client_id)!.set(r.app, { enabled: r.enabled !== false });
+    map
+      .get(r.client_id)!
+      .set(r.app, { enabled: r.enabled !== false, portal: r.portal_visible !== false });
   }
   return new Set(portalAppsFuerKunden(ids, map) as EzyAppId[]);
 }

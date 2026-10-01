@@ -153,11 +153,21 @@ export function KundenZugriffPage({ clients }) {
       )
         return;
     }
-    const err = await caa.setAccess(c.id, app.id, { enabled: !app.enabled });
+    // Portal-Sichtbarkeit (Volkan 01.10.2026): der Chip steuert NUR, was die
+    // Kunden-Logins sehen. Team-Sicht und Datenläufe bleiben unberührt.
+    // Ist die App intern inaktiv, wird sie beim Einblenden mit aktiviert.
+    const patch = app.portal
+      ? { portal_visible: false }
+      : app.enabled
+        ? { portal_visible: true }
+        : { enabled: true, portal_visible: true };
+    const err = await caa.setAccess(c.id, app.id, patch);
     if (err) toast(err, "error");
     else {
       toast(
-        `${app.name} für ${c.name} ${app.enabled ? "gesperrt" : "freigeschaltet"} (alle Logins dieses Kunden)`,
+        app.portal
+          ? `${app.name} im Portal von ${c.name} ausgeblendet. Für das Team bleibt die App sichtbar.`
+          : `${app.name} im Portal von ${c.name} eingeblendet (alle Logins dieses Kunden)`,
         "success",
       );
       void ladeReadiness(c.id);
@@ -396,10 +406,10 @@ export function KundenZugriffPage({ clients }) {
                           }}
                         >
                           <span style={{ fontSize: 11, color: C.textMuted, minWidth: 110 }}>
-                            Apps {kunden.length > 1 ? `für ${c.name}` : "für den Kunden"}:
+                            Im Portal {kunden.length > 1 ? `von ${c.name}` : "sichtbar"}:
                           </span>
                           {sichtbareAppsFuerKunde(c.id, PORTAL_APPS, caa.map).map((a) => {
-                            const fehlt = a.enabled ? luecke(c.id, a.id) : null;
+                            const fehlt = a.portal ? luecke(c.id, a.id) : null;
                             return (
                               <button
                                 key={a.id}
@@ -408,9 +418,11 @@ export function KundenZugriffPage({ clients }) {
                                 title={
                                   fehlt
                                     ? `${a.name} ist freigeschaltet, erscheint aber leer — ${fehlt}`
-                                    : a.enabled
-                                      ? `${a.name} für ${c.name} sperren (alle Logins)`
-                                      : `${a.name} für ${c.name} freischalten (alle Logins)`
+                                    : a.portal
+                                      ? `${a.name} im Portal von ${c.name} ausblenden (nur Kunden-Logins, das Team sieht die App weiter)`
+                                      : a.enabled
+                                        ? `${a.name} im Portal von ${c.name} einblenden`
+                                        : `${a.name} ist für ${c.name} auch intern inaktiv. Klick aktiviert die App und blendet sie im Portal ein.`
                                 }
                                 style={{
                                   display: "inline-flex",
@@ -420,14 +432,14 @@ export function KundenZugriffPage({ clients }) {
                                   borderRadius: 99,
                                   cursor: "pointer",
                                   fontSize: 11,
-                                  border: `1px solid ${a.enabled ? (fehlt ? C.orange : a.color) : C.border}`,
-                                  background: a.enabled
+                                  border: `1px solid ${a.portal ? (fehlt ? C.orange : a.color) : C.border}`,
+                                  background: a.portal
                                     ? fehlt
                                       ? C.orangeDim
                                       : a.tint
                                     : "transparent",
-                                  color: a.enabled ? (fehlt ? C.orange : a.color) : C.textDim,
-                                  textDecoration: a.enabled ? "none" : "line-through",
+                                  color: a.portal ? (fehlt ? C.orange : a.color) : C.textDim,
+                                  textDecoration: a.portal ? "none" : "line-through",
                                 }}
                               >
                                 {a.icon} {a.name}

@@ -25,6 +25,7 @@ import {
 import {
   appEnabledFor,
   featureEnabledFor,
+  portalVisibleFor,
   useClientAppAccess,
 } from "@/ezy/data/useClientAppAccess";
 import { useEzyAgentRuns } from "@/ezy/data/useEzyAgentRuns";
@@ -1845,6 +1846,20 @@ export function ClientAppAccessPanel({ client }) {
     const err = await caa.setAccess(client.id, appId, { enabled: !enabled });
     if (err) toast(err, "error");
   };
+  // Portal-Sichtbarkeit (Volkan 01.10.2026): nur Kunden-Logins, Team-Sicht
+  // und Datenläufe bleiben unberührt.
+  const togglePortal = async (appId) => {
+    const sichtbar = portalVisibleFor(caa.map, client.id, appId);
+    const err = await caa.setAccess(client.id, appId, { portal_visible: !sichtbar });
+    if (err) toast(err, "error");
+    else
+      toast(
+        sichtbar
+          ? "Im Kundenportal ausgeblendet. Für das Team bleibt die App sichtbar."
+          : "Im Kundenportal eingeblendet",
+        "success",
+      );
+  };
   const toggleFeature = async (appId, featureId) => {
     const cat = catalogOf(appId).map((f) => f.id);
     const e = entryOf(appId);
@@ -1937,17 +1952,49 @@ export function ClientAppAccessPanel({ client }) {
               <span style={{ fontSize: 15 }}>{a.icon}</span>
               <span style={{ fontSize: 13.5, fontWeight: 700, color: C.text }}>{a.name}</span>
               {!cat.length && <Badge color={C.textDim}>nur intern</Badge>}
+              {enabled && cat.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => togglePortal(a.id)}
+                  disabled={caa.legacy}
+                  title={
+                    portalVisibleFor(caa.map, client.id, a.id)
+                      ? "Im Kundenportal ausblenden. Betrifft nur Kunden-Logins, nicht das Team."
+                      : "Im Kundenportal einblenden"
+                  }
+                  style={{
+                    marginLeft: "auto",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "4px 12px",
+                    borderRadius: 99,
+                    cursor: caa.legacy ? "default" : "pointer",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    border: `1px solid ${portalVisibleFor(caa.map, client.id, a.id) ? C.accent : C.border}`,
+                    background: portalVisibleFor(caa.map, client.id, a.id)
+                      ? C.accentDim
+                      : "transparent",
+                    color: portalVisibleFor(caa.map, client.id, a.id) ? C.accentLight : C.textDim,
+                  }}
+                >
+                  {portalVisibleFor(caa.map, client.id, a.id)
+                    ? "Portal: sichtbar"
+                    : "Portal: ausgeblendet"}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => toggleApp(a.id)}
                 disabled={caa.legacy}
                 title={
                   enabled
-                    ? "App für diesen Kunden deaktivieren"
-                    : "App für diesen Kunden aktivieren"
+                    ? "App für diesen Kunden komplett deaktivieren: auch für das Team, Datenläufe stoppen"
+                    : "App für diesen Kunden aktivieren (Team-Sicht und Datenläufe)"
                 }
                 style={{
-                  marginLeft: "auto",
+                  marginLeft: enabled && cat.length > 0 ? 0 : "auto",
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 6,
@@ -1961,7 +2008,7 @@ export function ClientAppAccessPanel({ client }) {
                   color: enabled ? a.color : C.textDim,
                 }}
               >
-                {enabled ? "aktiv" : "inaktiv"}
+                {enabled ? "aktiv (intern)" : "inaktiv"}
               </button>
             </div>
             {enabled && cat.length > 0 && (
@@ -2073,8 +2120,9 @@ export function MatrixPage({ clients }) {
       <div>
         <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Zugriffs-Matrix</h2>
         <p style={{ fontSize: 12, color: C.textMuted, margin: "4px 0 0" }}>
-          Welcher Kunde erscheint in welcher App — Änderungen gelten sofort. Kunde aufklappen für
-          Funktions-Freischaltung und Portal-Zugänge.
+          Welcher Kunde erscheint in welcher App, für das Team und für die Datenläufe. Änderungen
+          gelten sofort. Was der Kunde selbst im Portal sieht, steuerst du separat: Kunde aufklappen
+          oder im Tab «Kunden-Zugriff».
         </p>
       </div>
       {caa.legacy && (

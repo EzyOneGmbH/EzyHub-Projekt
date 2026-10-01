@@ -1597,6 +1597,7 @@ export type Database = {
           features: Json;
           id: string;
           organization_id: string;
+          portal_visible: boolean;
           updated_at: string;
         };
         Insert: {
@@ -1606,6 +1607,7 @@ export type Database = {
           features?: Json;
           id?: string;
           organization_id: string;
+          portal_visible?: boolean;
           updated_at?: string;
         };
         Update: {
@@ -1615,6 +1617,7 @@ export type Database = {
           features?: Json;
           id?: string;
           organization_id?: string;
+          portal_visible?: boolean;
           updated_at?: string;
         };
         Relationships: [

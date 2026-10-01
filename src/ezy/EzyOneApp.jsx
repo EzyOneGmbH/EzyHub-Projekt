@@ -95,7 +95,7 @@ import ToolActions from "@/ezy/ToolActions";
 import WordPressPublishModal from "@/ezy/PublishFlow";
 import {
   useClientAppAccess,
-  appEnabledFor,
+  appSichtbarFuerRolle,
   featureEnabledFor,
 } from "@/ezy/data/useClientAppAccess";
 import { useAppAccess } from "@/ezy/data/useAppAccess";
@@ -6782,8 +6782,10 @@ function App({ appScope = null }) {
     if (appScope === "admin") return svc;
     const aktiv = svc.filter((c) => c.status !== "paused");
     if (!appScope) return aktiv;
-    return aktiv.filter((c) => appEnabledFor(caa.map, c.id, appScope));
-  }, [ezy.clients, scope, svcMatrix, appScope, caa.map]);
+    // Portal-Sichtbarkeit (01.10.): Kunden-Logins sehen nur Apps, die im
+    // Portal sichtbar sind — Team-Sicht hängt weiter nur an enabled.
+    return aktiv.filter((c) => appSichtbarFuerRolle(caa.map, c.id, appScope, role));
+  }, [ezy.clients, scope, svcMatrix, appScope, caa.map, role]);
   const ui0 = useMemo(() => loadUiState(), []); // letzter UI-Stand aus localStorage
   const [clientId, setClientId] = useState(ui0.clientId || "");
   // App-Einstieg (Volkan 11.08., präzisiert): "Alle Kunden" nur beim FRISCHEN
