@@ -873,6 +873,16 @@ export default function EzyAiAdsManager({
   const [wizard, setWizard] = useState<null | { prefill: any }>(null);
   const [busy, setBusy] = useState("");
   const [confirm, setConfirm] = useState<{ label: string; run: () => Promise<void> } | null>(null);
+  // Kampagne duplizieren (01.10., wie OpenAI Ads Manager): Dialog + Ergebnis.
+  const [dup, setDup] = useState<{
+    id: string;
+    quelle: string;
+    name: string;
+    mitInhalten: boolean;
+    gruppen: number;
+    anzeigen: number;
+  } | null>(null);
+  const [notice, setNotice] = useState("");
   const [showTotals, setShowTotals] = useState(true);
   // Breite der Karte: unter ~1150 px passt das Trends-Panel nicht neben die
   // Tabelle (sonst sind alle Kennzahlen-Spalten weggescrollt) — dann darunter.
@@ -1132,12 +1142,15 @@ export default function EzyAiAdsManager({
   };
   const duplicate = async (r: RowT) => {
     if (level === "campaign" && r.campaign) {
-      const groups = (data as Data).adGroups.filter((g) => g.campaign_id === r.id);
-      const ads = (data as Data).ads.filter((a) => a.campaign_id === r.id);
-      setWizard({
-        prefill: { campaign: r.campaign, group: groups[0] || null, ad: ads[0] || null },
+      // Echte 1:1-Kopie (Kampagne + alle Gruppen + Anzeigen, pausiert).
+      setDup({
+        id: r.id,
+        quelle: r.name,
+        name: `${r.name} (Kopie)`,
+        mitInhalten: true,
+        gruppen: (data as Data).adGroups.filter((g) => g.campaign_id === r.id).length,
+        anzeigen: (data as Data).ads.filter((a) => a.campaign_id === r.id).length,
       });
-      window.scrollTo({ top: 0, behavior: "smooth" });
     } else if (level === "ad_group" && r.group) {
       const bc = r.group.bidding_config || {};
       await run(`dup:${r.id}`, {
@@ -1161,6 +1174,36 @@ export default function EzyAiAdsManager({
         queryStringTemplate: r.ad.query_string_template || "",
       });
     }
+  };
+  const runDup = async () => {
+    if (!dup) return;
+    const d = dup;
+    setDup(null);
+    setBusy(`dup:${d.id}`);
+    setErr("");
+    setNotice("");
+    const j = await post({
+      clientId,
+      action: "campaign-duplicate",
+      campaignId: d.id,
+      name: d.name,
+      mitInhalten: d.mitInhalten,
+      requestId: `${d.id}:${Date.now()}`,
+    });
+    setBusy("");
+    if (!j.ok) {
+      setErr(`Duplizieren fehlgeschlagen: ${j.error || "Fehler"}`);
+      return;
+    }
+    const teile = [`Kampagne «${j.name}» angelegt (pausiert)`];
+    if (d.mitInhalten)
+      teile.push(
+        `${j.gruppen?.kopiert ?? 0}/${j.gruppen?.quelle ?? 0} Anzeigengruppen, ${j.anzeigen?.kopiert ?? 0}/${j.anzeigen?.quelle ?? 0} Anzeigen kopiert`,
+      );
+    if (j.hinweise?.length) teile.push(j.hinweise.join(" · "));
+    setNotice(teile.join(" · "));
+    if (j.fehler?.length) setErr(`Nicht alles kopiert: ${j.fehler.join(" · ")}`);
+    refresh();
   };
   const exportCsv = () => {
     setOpenMenu(null);
@@ -1857,6 +1900,42 @@ export default function EzyAiAdsManager({
         </div>
       </div>
 
+      {notice && (
+        <div
+          style={{
+            padding: "8px 20px",
+            fontSize: 12.5,
+            color: "#166534",
+            background: "rgba(22,163,74,.06)",
+            borderBottom: `1px solid ${S.line}`,
+            display: "flex",
+            gap: 10,
+            alignItems: "center",
+          }}
+        >
+          <span style={{ flex: 1 }}>✓ {notice}</span>
+          <button
+            onClick={() => setNotice("")}
+            aria-label="Meldung schliessen"
+            style={{ border: "none", background: "none", cursor: "pointer", color: "#166534" }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+      {busy.startsWith("dup:") && (
+        <div
+          style={{
+            padding: "8px 20px",
+            fontSize: 12.5,
+            color: S.mut,
+            borderBottom: `1px solid ${S.line}`,
+          }}
+        >
+          Kampagne wird dupliziert … (Kampagne, Anzeigengruppen und Anzeigen werden einzeln bei
+          OpenAI angelegt)
+        </div>
+      )}
       {err && (
         <div
           style={{
@@ -2408,6 +2487,97 @@ export default function EzyAiAdsManager({
                 style={{ ...pill(S, false, true), background: "#dc2626" }}
               >
                 Archivieren
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {dup && (
+        <div
+          onClick={() => setDup(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,.35)",
+            zIndex: 100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Kampagne duplizieren"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff",
+              borderRadius: 16,
+              padding: 22,
+              width: 440,
+              maxWidth: "100%",
+              boxShadow: "0 20px 60px rgba(0,0,0,.2)",
+            }}
+          >
+            <div style={{ fontSize: 15, fontWeight: 600, color: "#111", marginBottom: 4 }}>
+              Kampagne duplizieren
+            </div>
+            <div style={{ fontSize: 12.5, color: "#555", marginBottom: 14 }}>
+              Kopie von «{dup.quelle}» mit denselben Einstellungen (Ziel, Budget, Gebot, Standorte,
+              Zielgruppen, Conversion-Events). Die Kopie wird <b>pausiert</b> angelegt — erst nach
+              deiner Prüfung aktivieren.
+            </div>
+            <label style={{ display: "block", fontSize: 12, color: "#555", marginBottom: 4 }}>
+              Name der Kopie
+            </label>
+            <input
+              value={dup.name}
+              onChange={(e) => setDup({ ...dup, name: e.target.value })}
+              autoFocus
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                padding: "8px 10px",
+                border: `1px solid ${S.line}`,
+                borderRadius: 9,
+                fontSize: 13,
+                fontFamily: "inherit",
+                marginBottom: 12,
+              }}
+            />
+            <label
+              style={{
+                display: "flex",
+                gap: 8,
+                alignItems: "flex-start",
+                fontSize: 12.5,
+                color: "#333",
+                marginBottom: 18,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={dup.mitInhalten}
+                onChange={(e) => setDup({ ...dup, mitInhalten: e.target.checked })}
+                style={{ marginTop: 2 }}
+              />
+              <span>
+                Anzeigengruppen und Anzeigen mitkopieren ({dup.gruppen}{" "}
+                {dup.gruppen === 1 ? "Gruppe" : "Gruppen"}, {dup.anzeigen}{" "}
+                {dup.anzeigen === 1 ? "Anzeige" : "Anzeigen"} inkl. Kontexthinweisen und Bildern)
+              </span>
+            </label>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button onClick={() => setDup(null)} style={pill(S)}>
+                Abbrechen
+              </button>
+              <button
+                onClick={runDup}
+                disabled={dup.name.trim().length < 3}
+                style={{ ...pill(S, false, true), opacity: dup.name.trim().length < 3 ? 0.5 : 1 }}
+              >
+                Duplizieren
               </button>
             </div>
           </div>

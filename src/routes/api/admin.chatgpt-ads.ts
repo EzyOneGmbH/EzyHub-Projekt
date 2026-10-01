@@ -2939,6 +2939,318 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
             : Response.json({ ok: false, error: res.error }, { status: 502 });
         }
 
+        // ── Kampagne duplizieren (01.10.2026, wie im OpenAI Ads Manager) ──────
+        // Die Advertiser-API hat keinen Copy-Endpunkt: Kampagne, Anzeigen-
+        // gruppen und Anzeigen werden aus dem Sync-Bestand gelesen und neu
+        // angelegt — ALLES PAUSIERT, damit nichts ungeprueft live geht.
+        // Body: { clientId, campaignId, name?, mitInhalten?=true, requestId? }
+        // Teilfehler werden gemeldet (kein Rollback): die angelegte Kopie
+        // bleibt pausiert und laesst sich im Hub/Ads Manager pruefen.
+        if (action === "campaign-duplicate") {
+          const srcId = String(body?.campaignId || "");
+          if (!srcId)
+            return Response.json({ ok: false, error: "campaignId fehlt" }, { status: 400 });
+          const mitInhalten = body?.mitInhalten !== false;
+          const { data: src } = await sb
+            .from("chatgpt_ads_campaigns")
+            .select("id, name, raw, targeting_locations")
+            .eq("account_id", acc.id)
+            .eq("openai_campaign_id", srcId)
+            .maybeSingle();
+          if (!src)
+            return Response.json({ ok: false, error: "Kampagne unbekannt" }, { status: 404 });
+          const cr = src.raw || {};
+          const neuerName =
+            String(body?.name || "").trim() || `${src.name || cr.name || srcId} (Kopie)`;
+          if (neuerName.length < 3)
+            return Response.json(
+              { ok: false, error: "Name: mindestens 3 Zeichen" },
+              { status: 400 },
+            );
+          const hinweise: string[] = [];
+          const jetzt = Math.floor(Date.now() / 1000);
+
+          // Kampagnen-Payload: Kernfelder wie campaign-create + uebernommene Extras.
+          const t = cr.targeting || {};
+          const targeting: any = {};
+          const inc = locIds(t.locations?.include);
+          const exc = locIds(t.excluded_locations?.include);
+          if (inc.length) targeting.locations = { include: inc };
+          if (exc.length) targeting.excluded_locations = { include: exc };
+          if (Array.isArray(t.custom_audiences?.ids) && t.custom_audiences.ids.length)
+            targeting.custom_audiences = { ids: t.custom_audiences.ids.map(String) };
+          if (
+            Array.isArray(t.excluded_custom_audiences?.ids) &&
+            t.excluded_custom_audiences.ids.length
+          )
+            targeting.excluded_custom_audiences = {
+              ids: t.excluded_custom_audiences.ids.map(String),
+            };
+          for (const k of Object.keys(t))
+            if (
+              !(k in targeting) &&
+              ![
+                "locations",
+                "excluded_locations",
+                "custom_audiences",
+                "excluded_custom_audiences",
+              ].includes(k) &&
+              t[k] != null
+            )
+              targeting[k] = t[k]; // weitere Targeting-Felder (Plattform, Alter …) 1:1
+          const kern: any = {
+            name: neuerName,
+            status: "paused",
+            objective: cr.objective,
+            bidding_type: cr.bidding_type,
+            budget: {
+              ...(cr.budget?.daily_spend_limit_micros
+                ? { daily_spend_limit_micros: cr.budget.daily_spend_limit_micros }
+                : {}),
+              ...(cr.budget?.lifetime_spend_limit_micros
+                ? { lifetime_spend_limit_micros: cr.budget.lifetime_spend_limit_micros }
+                : {}),
+            },
+          };
+          if (Object.keys(targeting).length) kern.targeting = targeting;
+          if (
+            Array.isArray(cr.conversion_event_setting_ids) &&
+            cr.conversion_event_setting_ids.length
+          )
+            kern.conversion_event_setting_ids = cr.conversion_event_setting_ids.map(String);
+          if (cr.description) kern.description = cr.description;
+          // Zeitplan: vergangener Start entfaellt (startet bei Aktivierung),
+          // vergangenes Ende wuerde die Kopie sofort beenden -> weglassen.
+          if (cr.start_time && Number(cr.start_time) > jetzt)
+            kern.start_time = Number(cr.start_time);
+          if (cr.end_time) {
+            if (Number(cr.end_time) > jetzt) kern.end_time = Number(cr.end_time);
+            else hinweise.push("Enddatum lag in der Vergangenheit und wurde nicht übernommen");
+          }
+          const extras: any = {};
+          for (const k of [
+            "billing_event_type",
+            "enable_dynamic_creative",
+            "landing_page_configuration",
+            "mode",
+            "product_feed_id",
+          ])
+            if (cr[k] != null) extras[k] = cr[k];
+
+          // Bestand: Gruppen + Anzeigen der Quelle
+          const { data: gruppen } = mitInhalten
+            ? await sb
+                .from("chatgpt_ads_ad_groups")
+                .select("id, name, raw")
+                .eq("account_id", acc.id)
+                .eq("campaign_id", src.id)
+            : { data: [] as any[] };
+          const gruppenIds = (gruppen || []).map((g: any) => g.id);
+          const { data: anzeigen } = gruppenIds.length
+            ? await sb
+                .from("chatgpt_ads_ads")
+                .select("ad_group_id, name, raw")
+                .eq("account_id", acc.id)
+                .in("ad_group_id", gruppenIds)
+            : { data: [] as any[] };
+          const gruppenPayload = (g: any, campaignId: string) => {
+            const gr = g.raw || {};
+            const p: any = {
+              campaign_id: campaignId,
+              name: String(g.name || gr.name || "Anzeigengruppe"),
+              status: "paused",
+              bidding_config: gr.bidding_config || { billing_event_type: "impression" },
+            };
+            if (Array.isArray(gr.context_hints) && gr.context_hints.length)
+              p.context_hints = gr.context_hints.map(String);
+            if (gr.description) p.description = gr.description;
+            if (gr.landing_page_configuration)
+              p.landing_page_configuration = gr.landing_page_configuration;
+            if (gr.product_set) p.product_set = gr.product_set;
+            return p;
+          };
+          const anzeigenPayload = (a: any, adGroupId: string) => {
+            const ar = a.raw || {};
+            const c0 = ar.creative || {};
+            const creative: any = { type: c0.type || "chat_card" };
+            for (const k of ["title", "body", "target_url", "file_id", "image_crop"])
+              if (c0[k] != null) creative[k] = c0[k];
+            for (const k of Object.keys(c0))
+              if (!(k in creative) && c0[k] != null) creative[k] = c0[k];
+            const p: any = {
+              ad_group_id: adGroupId,
+              name: String(a.name || ar.name || "Anzeige"),
+              status: "paused",
+              creative,
+            };
+            if (ar.landing_page_configuration)
+              p.landing_page_configuration = ar.landing_page_configuration;
+            return p;
+          };
+          // Eindeutig je Klick (mehrfaches Duplizieren erlaubt), stabil bei Retries.
+          const lauf = String(body?.requestId || Date.now());
+
+          const res = await withAudit(
+            sb,
+            acc,
+            "campaign_duplicate",
+            "campaign",
+            srcId,
+            {
+              neuerName,
+              mitInhalten,
+              gruppen: (gruppen || []).length,
+              anzeigen: (anzeigen || []).length,
+            },
+            actor,
+            async () => {
+              let gruppenOk = 0;
+              let anzeigenOk = 0;
+              const fehler: string[] = [];
+              if (acc.is_mock) {
+                const id = `cmp_mock_${Date.now().toString(36)}`;
+                await upsertCampaignFromApi(
+                  sb,
+                  acc.id,
+                  { ...kern, ...extras, id, mock: true, targeting: cr.targeting || {} },
+                  src.targeting_locations || null,
+                );
+                const { data: neu } = await sb
+                  .from("chatgpt_ads_campaigns")
+                  .select("id")
+                  .eq("account_id", acc.id)
+                  .eq("openai_campaign_id", id)
+                  .maybeSingle();
+                for (const g of gruppen || []) {
+                  const gid = `adg_mock_${Date.now().toString(36)}${gruppenOk}`;
+                  const gp = gruppenPayload(g, id);
+                  await sb.from("chatgpt_ads_ad_groups").insert({
+                    account_id: acc.id,
+                    campaign_id: neu?.id,
+                    openai_ad_group_id: gid,
+                    name: gp.name,
+                    status: "paused",
+                    raw: { ...gp, id: gid, mock: true },
+                    synced_at: new Date().toISOString(),
+                  });
+                  const { data: gNeu } = await sb
+                    .from("chatgpt_ads_ad_groups")
+                    .select("id")
+                    .eq("account_id", acc.id)
+                    .eq("openai_ad_group_id", gid)
+                    .maybeSingle();
+                  gruppenOk++;
+                  for (const a of (anzeigen || []).filter((x: any) => x.ad_group_id === g.id)) {
+                    const aid = `ad_mock_${Date.now().toString(36)}${anzeigenOk}`;
+                    const ap = anzeigenPayload(a, gid);
+                    await sb.from("chatgpt_ads_ads").insert({
+                      account_id: acc.id,
+                      ad_group_id: gNeu?.id,
+                      openai_ad_id: aid,
+                      name: ap.name,
+                      status: "paused",
+                      review_status: "in_review",
+                      raw: { ...ap, id: aid, mock: true },
+                      synced_at: new Date().toISOString(),
+                    });
+                    anzeigenOk++;
+                  }
+                }
+                return { ok: true, id, gruppenOk, anzeigenOk, fehler };
+              }
+              const key = keyOf();
+              if (key instanceof Response) return { ok: false, error: "Key nicht lesbar" };
+              // 1) Kampagne (mit Extras; bei 400 nur Kernfelder)
+              let rc = await adsFetch(key, acc.openai_ad_account_id, "/campaigns", {
+                method: "POST",
+                body: { ...kern, ...extras },
+                headers: {
+                  "Idempotency-Key": await idemKey("campaign-duplicate", clientId, {
+                    srcId,
+                    lauf,
+                    kern,
+                    extras,
+                  }),
+                },
+              });
+              if (!rc.ok && rc.status === 400 && Object.keys(extras).length) {
+                rc = await adsFetch(key, acc.openai_ad_account_id, "/campaigns", {
+                  method: "POST",
+                  body: kern,
+                  headers: {
+                    "Idempotency-Key": await idemKey("campaign-duplicate-kern", clientId, {
+                      srcId,
+                      lauf,
+                      kern,
+                    }),
+                  },
+                });
+                if (rc.ok)
+                  hinweise.push(
+                    "Zusatzeinstellungen der Kampagne nicht übernehmbar — Kernfelder kopiert",
+                  );
+              }
+              if (!rc.ok || !rc.json?.id) return { ok: false, error: httpErr(rc) };
+              const neueId = String(rc.json.id);
+              await upsertCampaignFromApi(sb, acc.id, rc.json, src.targeting_locations || null);
+              // 2) Anzeigengruppen + 3) Anzeigen
+              for (const g of gruppen || []) {
+                const gp = gruppenPayload(g, neueId);
+                const rg = await adsFetch(key, acc.openai_ad_account_id, "/ad_groups", {
+                  method: "POST",
+                  body: gp,
+                  headers: {
+                    "Idempotency-Key": await idemKey("adgroup-duplicate", clientId, {
+                      lauf,
+                      src: g.id,
+                      gp,
+                    }),
+                  },
+                });
+                if (!rg.ok || !rg.json?.id) {
+                  fehler.push(`Gruppe «${gp.name}»: ${httpErr(rg)}`);
+                  continue;
+                }
+                const neueGruppe = String(rg.json.id);
+                gruppenOk++;
+                await resyncEntity(sb, acc, key, "ad_group", neueGruppe);
+                for (const a of (anzeigen || []).filter((x: any) => x.ad_group_id === g.id)) {
+                  const ap = anzeigenPayload(a, neueGruppe);
+                  const ra = await adsFetch(key, acc.openai_ad_account_id, "/ads", {
+                    method: "POST",
+                    body: ap,
+                    headers: {
+                      "Idempotency-Key": await idemKey("ad-duplicate", clientId, {
+                        lauf,
+                        src: a.raw?.id || a.name,
+                        ap,
+                      }),
+                    },
+                  });
+                  if (!ra.ok || !ra.json?.id) {
+                    fehler.push(`Anzeige «${ap.name}»: ${httpErr(ra)}`);
+                    continue;
+                  }
+                  anzeigenOk++;
+                  await resyncEntity(sb, acc, key, "ad", String(ra.json.id));
+                }
+              }
+              return { ok: true, id: neueId, gruppenOk, anzeigenOk, fehler };
+            },
+          );
+          if (!res.ok) return Response.json({ ok: false, error: res.error }, { status: 502 });
+          const rr: any = res;
+          return Response.json({
+            ok: true,
+            id: rr.id,
+            name: neuerName,
+            gruppen: { kopiert: rr.gruppenOk, quelle: (gruppen || []).length },
+            anzeigen: { kopiert: rr.anzeigenOk, quelle: (anzeigen || []).length },
+            fehler: rr.fehler,
+            hinweise,
+          });
+        }
+
         if (action === "campaign-update") {
           // Name, Laufzeitbudget, Start/Ende, Beschreibung — Tagesbudget bleibt
           // beim bestehenden Command set_budget.

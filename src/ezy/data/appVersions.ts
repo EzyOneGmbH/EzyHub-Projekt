@@ -143,8 +143,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.28.3",
+    version: "1.29.0",
     changelog: [
+      {
+        version: "1.29.0",
+        date: "2026-10-01",
+        note: "ChatGPT Ads: Kampagnen 1:1 duplizieren wie im OpenAI Ads Manager — Kampagne mit allen Einstellungen, auf Wunsch inkl. aller Anzeigengruppen (mit Kontexthinweisen) und Anzeigen (mit Bildern); die Kopie wird pausiert angelegt",
+      },
       {
         version: "1.28.3",
         date: "2026-10-01",
