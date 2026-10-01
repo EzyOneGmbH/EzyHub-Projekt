@@ -23,14 +23,57 @@ export function generatedUmsatz(
   mitKi: boolean,
   gesamt: number,
 ): { umsatz: number; organisch: boolean } {
-  const passend = (channels ?? []).filter(
-    (ch) =>
-      /^organic search$/i.test(String(ch.channel ?? "")) ||
-      (mitKi && /^ai assistant$/i.test(String(ch.channel ?? ""))),
-  );
+  const passend = (channels ?? []).filter((ch) => istOrganischerKanal(ch.channel, mitKi));
   if (!passend.some((ch) => ch.revenue != null)) return { umsatz: gesamt, organisch: false };
   return {
     umsatz: passend.reduce((a, ch) => a + (Number(ch.revenue) || 0), 0),
     organisch: true,
   };
+}
+
+export type ConvBreakdown = { phone: number; mail: number; maps: number; contact: number };
+export type ConvBucket = keyof ConvBreakdown;
+
+/** Kanäle, die als «organisch» zählen: Organic Search, in EzyAI plus AI Assistant. */
+export function istOrganischerKanal(channel: unknown, mitKi: boolean): boolean {
+  const ch = String(channel ?? "");
+  return /^organic search$/i.test(ch) || (mitKi && /^ai assistant$/i.test(ch));
+}
+
+/**
+ * Lead-Breakdown je GA4-Kanal (01.10.2026): Zeilen eventName × Kanal →
+ * { Kanal: {phone, mail, maps, contact} }. Funnel-Schritte zählen nie.
+ */
+export function breakdownJeKanal(
+  rows: Array<{ eventName: string; channel: string; count: number }>,
+  bucketOf: (eventName: string) => ConvBucket | null,
+): Record<string, ConvBreakdown> {
+  const out: Record<string, ConvBreakdown> = {};
+  for (const r of rows) {
+    if (isFunnelEvent(r.eventName)) continue;
+    const b = bucketOf(r.eventName);
+    if (!b) continue;
+    const ch = r.channel || "(other)";
+    out[ch] ??= { phone: 0, mail: 0, maps: 0, contact: 0 };
+    out[ch][b] += Number(r.count) || 0;
+  }
+  return out;
+}
+
+/**
+ * Organischer Lead-Breakdown für die Kacheln Phone/Mail/Maps/Contact.
+ * null = Snapshot ohne Kanal-Aufteilung (ältere Läufe) → Aufrufer zeigt den
+ * Gesamtwert und beschriftet ihn als «alle Kanäle».
+ */
+export function organischerBreakdown(
+  jeKanal: Record<string, Partial<ConvBreakdown>> | null | undefined,
+  mitKi: boolean,
+): ConvBreakdown | null {
+  if (!jeKanal || typeof jeKanal !== "object") return null;
+  const sum: ConvBreakdown = { phone: 0, mail: 0, maps: 0, contact: 0 };
+  for (const [ch, b] of Object.entries(jeKanal)) {
+    if (!istOrganischerKanal(ch, mitKi) || !b) continue;
+    for (const k of Object.keys(sum) as ConvBucket[]) sum[k] += Number(b[k]) || 0;
+  }
+  return sum;
 }

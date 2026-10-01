@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { zeitraum, ga4DateRange } from "@/lib/date-range";
-import { isFunnelEvent } from "@/lib/convEvents";
+import { breakdownJeKanal, isFunnelEvent, type ConvBreakdown } from "@/lib/convEvents";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
@@ -159,6 +159,36 @@ export const Route = createFileRoute("/api/google/ga4-conversions")({
             /* optional */
           }
 
+          // Lead-Breakdown je Kanal (01.10.2026): Kacheln Phone/Mail/Maps/Contact
+          // organisch. null = Abfrage fehlgeschlagen → UI zeigt Gesamtwert.
+          let breakdownByChannel: Record<string, ConvBreakdown> | null = null;
+          const leadNames = events
+            .map((e) => e.eventName)
+            .filter((n) => !isFunnelEvent(n) && bucketOf(n));
+          if (leadNames.length === 0) breakdownByChannel = {};
+          else
+            try {
+              const bc = await callGa4({
+                dateRanges,
+                dimensions: [{ name: "eventName" }, { name: "sessionDefaultChannelGroup" }],
+                metrics: [{ name: "eventCount" }],
+                dimensionFilter: {
+                  filter: { fieldName: "eventName", inListFilter: { values: leadNames } },
+                },
+                limit: 1000,
+              });
+              breakdownByChannel = breakdownJeKanal(
+                (bc.rows ?? []).map((r) => ({
+                  eventName: r.dimensionValues?.[0]?.value ?? "",
+                  channel: r.dimensionValues?.[1]?.value ?? "",
+                  count: Number(r.metricValues?.[0]?.value ?? 0),
+                })),
+                bucketOf,
+              );
+            } catch {
+              /* optional */
+            }
+
           // Purchase revenue (CHF) + purchase count.
           let revenue = 0;
           let purchases = 0;
@@ -287,6 +317,7 @@ export const Route = createFileRoute("/api/google/ga4-conversions")({
             days: zr.days,
             range: { from: zr.startDate, to: zr.endDate },
             breakdown,
+            ...(breakdownByChannel ? { breakdownByChannel } : {}),
             events: events.slice(0, 25),
             rows: rows.slice(0, 200),
             revenue,

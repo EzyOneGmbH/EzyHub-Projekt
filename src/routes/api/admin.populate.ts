@@ -15,7 +15,12 @@ import {
 import { fetchKeywordMetrics } from "@/server/keyword-metrics.server";
 import { zeitraum, ga4DateRange, type Zeitraum } from "@/lib/date-range";
 import { sistrixLandVon } from "@/lib/sistrixLand";
-import { isFunnelEvent } from "@/lib/convEvents";
+import {
+  breakdownJeKanal,
+  isFunnelEvent,
+  type ConvBreakdown,
+  type ConvBucket,
+} from "@/lib/convEvents";
 import { ga4Coverage, ga4CoverageSammler, ga4RunReportUrl } from "@/server/ga4.server";
 import {
   gscTotals,
@@ -1128,6 +1133,36 @@ async function jobGa4Conversions(c: any, uid: string, days: number) {
   } catch {
     /* optional */
   }
+  // Lead-Breakdown je Kanal (01.10.2026): die Kacheln Phone/Mail/Maps/Contact
+  // zeigen organisch statt alle Kanäle. null = Abfrage fehlgeschlagen →
+  // UI fällt auf den Gesamtwert zurück.
+  let breakdownByChannel: Record<string, ConvBreakdown> | null = null;
+  const leadNames = events
+    .map((e: any) => e.eventName as string)
+    .filter((n: string) => !isFunnelEvent(n) && convBucketOf(n));
+  if (leadNames.length === 0) breakdownByChannel = {};
+  else
+    try {
+      const bc = await call({
+        dateRanges,
+        dimensions: [{ name: "eventName" }, { name: "sessionDefaultChannelGroup" }],
+        metrics: [{ name: "eventCount" }],
+        dimensionFilter: {
+          filter: { fieldName: "eventName", inListFilter: { values: leadNames } },
+        },
+        limit: 1000,
+      });
+      breakdownByChannel = breakdownJeKanal(
+        (bc.rows ?? []).map((r: any) => ({
+          eventName: r.dimensionValues?.[0]?.value ?? "",
+          channel: r.dimensionValues?.[1]?.value ?? "",
+          count: Number(r.metricValues?.[0]?.value ?? 0),
+        })),
+        (n) => convBucketOf(n) as ConvBucket | null,
+      );
+    } catch {
+      /* optional */
+    }
   let revenue = 0,
     purchases = 0;
   try {
@@ -1227,6 +1262,7 @@ async function jobGa4Conversions(c: any, uid: string, days: number) {
     days,
     range: { from: zr.startDate, to: zr.endDate },
     breakdown,
+    ...(breakdownByChannel ? { breakdownByChannel } : {}),
     events: events.slice(0, 25),
     rows: rows.slice(0, 200),
     revenue,

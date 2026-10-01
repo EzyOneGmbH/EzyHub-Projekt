@@ -10,7 +10,7 @@ import { Clock, DollarSign, FileInput, FileText } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import ConversionScoutPanel from "@/ezy/ConversionScoutPanel";
 import { isAiConvSource } from "@/ezy/data/aiSources";
-import { generatedUmsatz, isFunnelEvent } from "@/lib/convEvents";
+import { generatedUmsatz, isFunnelEvent, organischerBreakdown } from "@/lib/convEvents";
 import DataStatus from "@/ezy/DataStatus";
 import { C } from "./theme";
 import { KpiCard, liveDaysFor, useLiveGa4 } from "./ui-kit";
@@ -155,10 +155,18 @@ export function ConvDashboard({ selectedClient, dateRange, appScope = null }) {
   }, [refreshGa4, refreshConv, refreshTraf]);
   // Prefer live GA4 event-level breakdown; fall back to client placeholders.
   const revenue = Number(conv?.revenue || selectedClient?.revenue || 0);
-  const phoneCalls = Number(conv?.breakdown.phone || selectedClient?.phoneCalls || 0);
-  const mailClicks = Number(conv?.breakdown.mail || selectedClient?.mailClicks || 0);
-  const mapsClicks = Number(conv?.breakdown.maps || selectedClient?.mapsClicks || 0);
-  const formSubmits = Number(conv?.breakdown.contact || selectedClient?.formSubmits || 0);
+  // Lead-Kacheln organisch (01.10.2026) wie «Generated»: EzyRank = Organic
+  // Search, EzyAI + AI Assistant. Ältere Snapshots ohne Kanal-Aufteilung
+  // zeigen den Gesamtwert, beschriftet mit «alle Kanäle».
+  const leadOrganisch = organischerBreakdown(conv?.breakdownByChannel, includeAiConv);
+  const leadBasis = leadOrganisch || conv?.breakdown;
+  const leadSuffix = !conv ? "" : leadOrganisch ? " (organisch)" : " (alle Kanäle)";
+  const leadWert = (k, fallback) =>
+    Number(conv ? leadBasis?.[k] || 0 : selectedClient?.[fallback] || 0);
+  const phoneCalls = leadWert("phone", "phoneCalls");
+  const mailClicks = leadWert("mail", "mailClicks");
+  const mapsClicks = leadWert("maps", "mapsClicks");
+  const formSubmits = leadWert("contact", "formSubmits");
   const convSeries = useMemo(() => (conv?.series || []).slice(-days), [conv?.series, days]);
   const googleVsAi = traf?.googleVsAi || null;
   // Dashboard-Ausbau 2026-07-11: B3 Kanal-Split (neues channels-Feld) + B5b Umsatz-Modus.
@@ -328,25 +336,25 @@ export function ConvDashboard({ selectedClient, dateRange, appScope = null }) {
         >
           <KpiCard
             icon={Phone}
-            label="Phone Clicks"
+            label={`Phone Clicks${leadSuffix}`}
             value={phoneCalls > 0 ? phoneCalls : "—"}
             color={C.accent}
           />
           <KpiCard
             icon={Mail}
-            label="Mail Clicks"
+            label={`Mail Clicks${leadSuffix}`}
             value={mailClicks > 0 ? mailClicks : "—"}
             color={C.blue}
           />
           <KpiCard
             icon={MapPin}
-            label="Maps Clicks"
+            label={`Maps Clicks${leadSuffix}`}
             value={mapsClicks > 0 ? mapsClicks : "—"}
             color={C.green}
           />
           <KpiCard
             icon={FileInput}
-            label="Contact Form Submit"
+            label={`Contact Form Submit${leadSuffix}`}
             value={formSubmits > 0 ? formSubmits : "—"}
             color={C.orange}
           />

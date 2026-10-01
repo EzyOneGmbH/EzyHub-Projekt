@@ -318,6 +318,11 @@ export function ga4TrafficFromResult(result: any): {
 /** Extract GA4 conversion detail from a ga4_conversions audit_runs.result. */
 export function ga4ConversionsFromResult(result: any): {
   breakdown: { phone: number; mail: number; maps: number; contact: number };
+  /** Lead-Breakdown je GA4-Kanal (seit 01.10.2026; ältere Snapshots: null). */
+  breakdownByChannel: Record<
+    string,
+    { phone?: number; mail?: number; maps?: number; contact?: number }
+  > | null;
   events: Array<{ eventName: string; count: number }>;
   rows: Array<{
     date: string;
@@ -343,6 +348,10 @@ export function ga4ConversionsFromResult(result: any): {
       maps: Number(b.maps ?? 0) || 0,
       contact: Number(b.contact ?? 0) || 0,
     },
+    breakdownByChannel:
+      r.breakdownByChannel && typeof r.breakdownByChannel === "object"
+        ? r.breakdownByChannel
+        : null,
     events: Array.isArray(r.events) ? r.events : [],
     rows: Array.isArray(r.rows) ? r.rows : [],
     revenue: Number(r.revenue ?? 0) || 0,

@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.4.1",
+    version: "2.4.2",
     changelog: [
+      {
+        version: "2.4.2",
+        date: "2026-10-01",
+        note: "Conversions: die Kacheln Phone, Mail, Maps und Contact sowie «Lead Visits» in der Übersicht zählen jetzt nur organische Kontakte (Organic Search) statt aller Kanäle",
+      },
       {
         version: "2.4.1",
         date: "2026-10-01",
@@ -138,8 +143,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.28.2",
+    version: "1.28.3",
     changelog: [
+      {
+        version: "1.28.3",
+        date: "2026-10-01",
+        note: "Conversions: die Kacheln Phone, Mail, Maps und Contact zählen jetzt nur Kontakte aus Organic Search und KI-Assistenten statt aller Kanäle",
+      },
       {
         version: "1.28.2",
         date: "2026-10-01",

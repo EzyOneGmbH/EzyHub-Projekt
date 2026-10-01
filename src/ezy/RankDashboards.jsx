@@ -1,6 +1,7 @@
 // EzyRank-Dashboards (aus EzyOneApp.jsx extrahiert, 21.08.2026 — reines
 // Verschieben): Agentur-Uebersicht, SEO/GEO/Conversions/Overview-Dashboards,
 // KI-Sichtbarkeit (Makro) und Onboarding-Scan-Panel.
+import { organischerBreakdown } from "@/lib/convEvents";
 import { Btn } from "./shared-ui";
 import {
   CTooltip,
@@ -2675,8 +2676,12 @@ export function OverviewDashboard({ selectedClient, dateRange }) {
   const days = dateRange?.days || 30;
   const organicTraffic = Number(ahrefs?.traffic || ga4?.sessions || 0);
   const aiReference = Number(traf?.aiReferral.sessions || 0);
-  const leadVisits = conv
-    ? conv.breakdown.phone + conv.breakdown.mail + conv.breakdown.maps + conv.breakdown.contact
+  // Lead Visits organisch (01.10.2026), ältere Snapshots: alle Kanäle.
+  const leadBasis = conv
+    ? organischerBreakdown(conv.breakdownByChannel, false) || conv.breakdown
+    : null;
+  const leadVisits = leadBasis
+    ? leadBasis.phone + leadBasis.mail + leadBasis.maps + leadBasis.contact
     : 0;
   const visibility = Number(ahrefs?.visibility || 0);
   const countries = traf?.countries || [];
