@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.4.4",
+    version: "2.4.5",
     changelog: [
+      {
+        version: "2.4.5",
+        date: "2026-10-02",
+        note: "Conversions: rekonstruierte organische Buchungen stehen jetzt direkt in der Kanal-Tabelle (Zeile Organic Search, mit ≈ und Fussnote, anteilig auf den Zeitraum) statt in einer eigenen Karte",
+      },
       {
         version: "2.4.4",
         date: "2026-10-02",
@@ -153,8 +158,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.30.3",
+    version: "1.30.4",
     changelog: [
+      {
+        version: "1.30.4",
+        date: "2026-10-02",
+        note: "Conversions: rekonstruierte organische Buchungen in der Kanal-Tabelle (Organic Search, mit ≈ und Fussnote) statt eigener Karte",
+      },
       {
         version: "1.30.3",
         date: "2026-10-02",

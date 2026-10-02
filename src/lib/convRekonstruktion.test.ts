@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { monatLabel, rekonstruktionVon } from "./convRekonstruktion";
+import { monatLabel, rekonstruktionImZeitraum, rekonstruktionVon } from "./convRekonstruktion";
 
 describe("rekonstruktionVon", () => {
   it("ohne Eintrag oder mit kaputten Daten: nichts anzeigen", () => {
@@ -35,5 +35,29 @@ describe("monatLabel", () => {
   it("schreibt den Monat aus", () => {
     expect(monatLabel("2026-09")).toBe("September 2026");
     expect(monatLabel("kaputt")).toBe("kaputt");
+  });
+});
+
+describe("rekonstruktionImZeitraum", () => {
+  const r = rekonstruktionVon({
+    conv_rekonstruktion: { zeilen: [{ monat: "2026-09", buchungen: 60, umsatz: 30000 }] },
+  });
+  it("ganzer Monat im Zeitraum: volle Werte", () => {
+    expect(rekonstruktionImZeitraum(r, "2026-08-15", "2026-10-02")).toEqual({
+      buchungen: 60,
+      umsatz: 30000,
+      anteilig: false,
+      monate: ["2026-09"],
+    });
+  });
+  it("teilweise Überschneidung: anteilig nach Tagen", () => {
+    const x = rekonstruktionImZeitraum(r, "2026-09-03", "2026-10-02");
+    expect(x?.anteilig).toBe(true);
+    expect(x?.buchungen).toBeCloseTo(56); // 28 von 30 Tagen
+    expect(x?.umsatz).toBeCloseTo(28000);
+  });
+  it("keine Überschneidung oder keine Daten: null", () => {
+    expect(rekonstruktionImZeitraum(r, "2026-10-03", "2026-10-31")).toBeNull();
+    expect(rekonstruktionImZeitraum(null, "2026-09-01", "2026-09-30")).toBeNull();
   });
 });

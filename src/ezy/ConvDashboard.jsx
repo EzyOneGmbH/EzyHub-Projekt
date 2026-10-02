@@ -9,7 +9,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Clock, DollarSign, FileInput, FileText } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import ConversionScoutPanel from "@/ezy/ConversionScoutPanel";
-import { ConvRekonstruktion } from "@/ezy/ConvRekonstruktion";
+import { monatLabel, rekonstruktionImZeitraum, rekonstruktionVon } from "@/lib/convRekonstruktion";
 import { isAiConvSource } from "@/ezy/data/aiSources";
 import { generatedUmsatz, isFunnelEvent, organischerBreakdown } from "@/lib/convEvents";
 import DataStatus from "@/ezy/DataStatus";
@@ -192,6 +192,23 @@ export function ConvDashboard({ selectedClient, dateRange, appScope = null }) {
       ? Math.round((organicChannel.sessions / channelTotalSessions) * 100)
       : null;
   const clicksMode = selectedClient?.revenueMode === "clicks"; // B5b: nur Anzeige-Steuerung
+  // Rekonstruierte organische Buchungen vor einem Tracking-Fix (02.10.2026,
+  // Volkan: «in Kanäle eintragen»): aus clients.metadata.conv_rekonstruktion,
+  // anteilig auf den gewählten Zeitraum, NUR in der Organic-Zeile der
+  // Kanal-Tabelle und als «≈» markiert — nicht in Kacheln oder Vergleich.
+  const rekonstruktion = rekonstruktionVon(selectedClient?.metadata);
+  const isoTag = (d) => {
+    try {
+      return d ? new Date(d).toISOString().slice(0, 10) : null;
+    } catch {
+      return null;
+    }
+  };
+  const rekonstruiert = rekonstruktionImZeitraum(
+    rekonstruktion,
+    convRes?.range?.from || isoTag(dateRange?.start),
+    convRes?.range?.to || isoTag(dateRange?.end),
+  );
   // «Generated» (01.10.2026, Morosani-Befund): zeigte den Umsatz ALLER Kanäle
   // (inkl. Paid) im organischen Tab. Jetzt wie die Detailliste: EzyRank =
   // Organic Search, EzyAI = Organic Search + AI Assistant. Ohne Kanal-Split
@@ -395,9 +412,6 @@ export function ConvDashboard({ selectedClient, dateRange, appScope = null }) {
           )}
         </div>
       )}
-      {/* Rekonstruierte organische Buchungen vor einem Tracking-Fix (02.10.2026) —
-          nur wenn clients.metadata.conv_rekonstruktion gesetzt ist. */}
-      <ConvRekonstruktion client={selectedClient} />
       {/* B3: Kanal-Split (GA4 sessionDefaultChannelGroup) — nur wenn channels vorhanden */}
       {channels && channels.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -449,6 +463,16 @@ export function ConvDashboard({ selectedClient, dateRange, appScope = null }) {
                 <tbody>
                   {channels.map((ch, i) => {
                     const isOrganic = /^organic search$/i.test(ch.channel);
+                    const plus = isOrganic ? rekonstruiert : null;
+                    const convWert =
+                      ch.conversions != null || plus
+                        ? (Number(ch.conversions) || 0) + (plus?.buchungen || 0)
+                        : null;
+                    const umsatzWert =
+                      ch.revenue != null || plus
+                        ? (Number(ch.revenue) || 0) + (plus?.umsatz || 0)
+                        : null;
+                    const ca = plus ? "≈ " : "";
                     return (
                       <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
                         <td
@@ -482,15 +506,15 @@ export function ConvDashboard({ selectedClient, dateRange, appScope = null }) {
                           {(ch.sessions ?? 0).toLocaleString("de-CH")}
                         </td>
                         <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                          {ch.conversions != null
-                            ? Math.round(ch.conversions).toLocaleString("de-CH")
+                          {convWert != null
+                            ? `${ca}${Math.round(convWert).toLocaleString("de-CH")}${plus ? " *" : ""}`
                             : "—"}
                         </td>
                         <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                          {ch.revenue != null && !clicksMode
-                            ? `${Math.round(ch.revenue).toLocaleString("de-CH")} CHF`
-                            : ch.revenue != null
-                              ? Math.round(ch.revenue).toLocaleString("de-CH")
+                          {umsatzWert != null && !clicksMode
+                            ? `${ca}${Math.round(umsatzWert).toLocaleString("de-CH")} CHF${plus ? " *" : ""}`
+                            : umsatzWert != null
+                              ? Math.round(umsatzWert).toLocaleString("de-CH")
                               : "—"}
                         </td>
                       </tr>
@@ -499,6 +523,16 @@ export function ConvDashboard({ selectedClient, dateRange, appScope = null }) {
                 </tbody>
               </table>
             </div>
+            {rekonstruiert && (
+              <div style={{ fontSize: 11, color: C.textDim, marginTop: 8 }}>
+                * inkl. nachträglich rekonstruierter organischer Buchungen vor dem Tracking-Fix (
+                {rekonstruiert.monate.map(monatLabel).join(", ")}
+                {rekonstruiert.anteilig ? ", anteilig auf den Zeitraum" : ""}: ≈{" "}
+                {Math.round(rekonstruiert.buchungen).toLocaleString("de-CH")} Buchungen, ≈{" "}
+                {Math.round(rekonstruiert.umsatz).toLocaleString("de-CH")} CHF) — Schätzung.
+                {rekonstruktion?.methode ? ` ${rekonstruktion.methode}` : ""}
+              </div>
+            )}
           </div>
         </div>
       )}

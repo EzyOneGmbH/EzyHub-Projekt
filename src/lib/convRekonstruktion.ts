@@ -75,3 +75,38 @@ export function monatLabel(monat: string): string {
   ];
   return namen[m - 1] ? `${namen[m - 1]} ${y}` : monat;
 }
+
+const tagIso = (d: Date) => d.toISOString().slice(0, 10);
+const tageZwischen = (a: string, b: string) =>
+  Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000) + 1;
+
+/**
+ * Anteil der rekonstruierten Monatswerte, der in den Zeitraum [von, bis] fällt
+ * (inklusive, "YYYY-MM-DD"). Teilweise überlappende Monate zählen anteilig nach
+ * Tagen. null = keine Überschneidung. Nur für die Organic-Zeile der Kanal-Tabelle.
+ */
+export function rekonstruktionImZeitraum(
+  r: Rekonstruktion | null,
+  von: string | null | undefined,
+  bis: string | null | undefined,
+): { buchungen: number; umsatz: number; anteilig: boolean; monate: string[] } | null {
+  if (!r || !von || !bis) return null;
+  let buchungen = 0;
+  let umsatz = 0;
+  let anteilig = false;
+  const monate: string[] = [];
+  for (const z of r.zeilen) {
+    const [y, m] = z.monat.split("-").map(Number);
+    const mStart = `${z.monat}-01`;
+    const mEnde = tagIso(new Date(Date.UTC(y, m, 0)));
+    const s = von > mStart ? von : mStart;
+    const e = bis < mEnde ? bis : mEnde;
+    if (s > e) continue;
+    const f = tageZwischen(s, e) / tageZwischen(mStart, mEnde);
+    if (f < 1) anteilig = true;
+    buchungen += (z.buchungen ?? 0) * f;
+    umsatz += (z.umsatz ?? 0) * f;
+    monate.push(z.monat);
+  }
+  return monate.length ? { buchungen, umsatz, anteilig, monate } : null;
+}
