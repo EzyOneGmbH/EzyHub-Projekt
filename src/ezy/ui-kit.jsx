@@ -1310,6 +1310,7 @@ export function CompareBanner({ dateRange }) {
     new Date(d).toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric" });
   return (
     <div
+      className="compare-banner"
       style={{
         display: "flex",
         alignItems: "center",
@@ -1352,6 +1353,7 @@ export function CompareBanner({ dateRange }) {
         </span>
       </div>
       <div
+        className="compare-legend"
         style={{
           marginLeft: "auto",
           display: "flex",

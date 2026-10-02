@@ -2568,7 +2568,9 @@ Tipp: «Deaktivieren» pausiert reversibel und behält alle Daten.`,
                 </div>
               </div>
               <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                {c.id === selectedClientId && <Badge color={C.accent}>Aktiv</Badge>}
+                {/* «Ausgewählt» statt «Aktiv» (02.10.): zwei «Aktiv»-Badges nebeneinander
+                    waren verwirrend — der zweite meint den Kundenstatus. */}
+                {c.id === selectedClientId && <Badge color={C.accent}>Ausgewählt</Badge>}
                 <Badge color={c.status === "active" ? C.green : C.textMuted}>
                   {c.status === "active" ? "Aktiv" : "Pausiert"}
                 </Badge>
@@ -2618,14 +2620,17 @@ Tipp: «Deaktivieren» pausiert reversibel und behält alle Daten.`,
                 </span>
               ))}
             </div>
-            <div style={{ display: "flex", gap: 5, marginBottom: 14, flexWrap: "wrap" }}>
-              <Badge color={C.textDim}>{c.industry || "—"}</Badge>
-              {c.tags.map((t) => (
-                <Badge key={t} color={C.blue}>
-                  {t}
-                </Badge>
-              ))}
-            </div>
+            {/* Branche/Tags nur, wenn gepflegt — kein leerer «—»-Chip (02.10.). */}
+            {(c.industry || c.tags.length > 0) && (
+              <div style={{ display: "flex", gap: 5, marginBottom: 14, flexWrap: "wrap" }}>
+                {c.industry && <Badge color={C.textDim}>{c.industry}</Badge>}
+                {c.tags.map((t) => (
+                  <Badge key={t} color={C.blue}>
+                    {t}
+                  </Badge>
+                ))}
+              </div>
+            )}
             {/* Score/Keywords/Budget-Kacheln entfernt (2026-07-14): waren statische
                 metadata-Platzhalter (ueberall 0) — die echten Zahlen zeigt das
                 Dashboard aus audit_runs. Budget bleibt im Detail/Editor pflegbar. */}

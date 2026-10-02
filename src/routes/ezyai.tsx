@@ -4919,8 +4919,11 @@ function EzyAiApp() {
              mit, sonst fressen zwei fixierte Leisten ~110px Viewport-Höhe. */
           .ezyai-chead{flex-wrap:wrap!important;gap:8px!important;padding:10px!important;position:static!important}
           .ezyai-chead-nav{display:none!important}
+          /* Mobile (02.10.): Kopfzeile ohne Filter (Heute/Agent/Alle Kunden) trug nur
+             noch die Glocke — die sitzt jetzt oben in der Leiste. */
+          .ezyai-chead-leer{display:none!important}
           .ezyai-hm{display:none!important}
-          .ezyai-main{padding:14px 10px 48px!important}
+          .ezyai-main{padding:14px 10px calc(env(safe-area-inset-bottom, 0px) + 84px)!important}
         }
       `}</style>
 
@@ -4988,19 +4991,31 @@ function EzyAiApp() {
                 Dashboard/Agent + Apps + EzyPilot leben in der Bottom-Tab-Bar. */}
               <div className="ezyai-mnav">
                 <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 8 }}>
+                  {/* Mobile (02.10.): gleiche Kunden-Pille wie auf dem Desktop
+                    (eigener Pfeil statt nativer Systemoptik). */}
                   <select
+                    aria-label="Kunde auswählen"
                     value={showAll ? "__all" : client?.id || ""}
                     onChange={(e) => pickClient(e.target.value)}
                     style={{
-                      padding: "8px 10px",
-                      borderRadius: 999,
-                      background: "#fff",
+                      appearance: "none",
+                      WebkitAppearance: "none",
+                      padding: "8px 28px 8px 12px",
+                      minHeight: 38,
+                      borderRadius: 10,
+                      background:
+                        "#fff url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%238b8092%22 stroke-width=%222.5%22><path d=%22m6 9 6 6 6-6%22/></svg>') no-repeat right 10px center",
                       color: S.txt,
-                      border: `1px solid ${S.line}`,
-                      fontSize: 12.5,
+                      border: `1px solid rgba(43,0,51,.09)`,
+                      boxShadow: "0 1px 2px rgba(43,0,51,.04)",
+                      fontSize: 13,
                       fontWeight: 700,
                       fontFamily: "inherit",
-                      maxWidth: "70%",
+                      outline: "none",
+                      flex: "0 1 auto",
+                      minWidth: 0,
+                      maxWidth: "calc(100% - 52px)",
+                      textOverflow: "ellipsis",
                     }}
                   >
                     {role !== "viewer" && <option value="__all">Alle Kunden</option>}
@@ -5010,6 +5025,11 @@ function EzyAiApp() {
                       </option>
                     ))}
                   </select>
+                  {(showAll || !HIDDEN_HEADER_ACTIONS_IN_CLIENT_VIEW.has("bell")) && (
+                    <span style={{ marginLeft: "auto", display: "inline-flex" }}>
+                      <NotificationsBell S={S} />
+                    </span>
+                  )}
                 </div>
                 {/* Bereichs-Chips nur mit gewähltem Kunden — "Alle Kunden" = leer.
                   Ads-Modus (26.08.): eigener Chip-Satz + kompakter Schalter. */}
@@ -5064,7 +5084,7 @@ function EzyAiApp() {
 
               {/* Kontext-Kopfzeile: Bereichs-Titel + Aktionen (Kunde ist jetzt in der Sidebar) */}
               <header
-                className="ezyai-chead"
+                className={`ezyai-chead${view === "agent" || view === "heute" || showAll ? " ezyai-chead-leer" : ""}`}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -5181,8 +5201,11 @@ function EzyAiApp() {
                         LLM-Überblick
                       </a>
                     )}
+                  {/* Glocke mobil in der Leiste oben (.ezyai-mnav) — hier nur Desktop. */}
                   {(showAll || !HIDDEN_HEADER_ACTIONS_IN_CLIENT_VIEW.has("bell")) && (
-                    <NotificationsBell S={S} />
+                    <span className="ezyai-hm" style={{ display: "inline-flex" }}>
+                      <NotificationsBell S={S} />
+                    </span>
                   )}
                   {/* EzyPilot oben rechts — wie in EzyRank/EzyPerformance (Volkan 13.08.);
                     mobil versteckt (FAB in der Bottom-Bar). */}

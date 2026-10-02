@@ -8,7 +8,42 @@
 // gezeigt, nie ein Platzhalter-Datum. Pure Helfer leben testbar in
 // data/dataStatus.ts und werden hier fuer bestehende Importe re-exportiert.
 import { fmtStand, stateFromDate, runStatusItem } from "@/ezy/data/dataStatus";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
+
+// Mobile (02.10.2026): unter 760 px ist die Leiste eingeklappt — eine Zeile
+// mit Gesamtstatus statt fünf Quellen-Zeilen, die den ersten Bildschirm füllten.
+const MOBILE_MQ = "(max-width: 760px)";
+function useIstMobil() {
+  const [m, setM] = useState(
+    () => typeof window !== "undefined" && !!window.matchMedia?.(MOBILE_MQ).matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia?.(MOBILE_MQ);
+    if (!mq) return;
+    const h = () => setM(mq.matches);
+    mq.addEventListener?.("change", h);
+    return () => mq.removeEventListener?.("change", h);
+  }, []);
+  return m;
+}
+
+const RANG = { error: 4, stale: 3, running: 2, none: 1, disconnected: 1 };
+
+/** Zusammenfassung für die eingeklappte Mobil-Zeile (rein, testbar). */
+export function statusZusammenfassung(states) {
+  const n = states.length;
+  const zaehl = (k) => states.filter((s) => s === k).length;
+  const schlimmst = states.reduce((a, s) => ((RANG[s] || 0) > (RANG[a] || 0) ? s : a), "ok");
+  const teile = [];
+  if (zaehl("error")) teile.push(`${zaehl("error")} mit Fehler`);
+  if (zaehl("stale")) teile.push(`${zaehl("stale")} veraltet`);
+  if (zaehl("running")) teile.push("Messung läuft");
+  const leer = zaehl("none") + zaehl("disconnected");
+  if (leer) teile.push(`${leer} ohne Daten`);
+  const text = `${n} ${n === 1 ? "Datenquelle" : "Datenquellen"} · ${teile.length ? teile.join(", ") : "alle aktuell"}`;
+  return { text, schlimmst };
+}
 
 export { fmtStand, stateFromDate, runStatusItem };
 
@@ -90,8 +125,63 @@ export default function DataStatus({ items = [], actions, action, hint, style })
     role === "viewer"
       ? []
       : (actions && actions.length ? actions : action ? [action] : []).filter(Boolean);
+  const mobil = useIstMobil();
+  const [offen, setOffen] = useState(false);
   if (!shown.length && !hint) return null;
   const errors = shown.filter((it) => it.error);
+  const states = shown.map((it) => it.state || stateFromDate(it.lastAt, it.staleDays));
+  if (mobil && !offen && shown.length > 1) {
+    const { text, schlimmst } = statusZusammenfassung(states);
+    const farbe = (STATES[schlimmst] || STATES.ok).color;
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 6,
+          padding: "4px 4px 4px 12px",
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: 10,
+          fontSize: 12,
+          color: C.textMuted,
+          ...style,
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setOffen(true)}
+          aria-expanded={false}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            minHeight: 36,
+            width: "100%",
+            background: "none",
+            border: "none",
+            padding: "0 8px 0 0",
+            cursor: "pointer",
+            fontFamily: "inherit",
+            fontSize: 12,
+            color: C.text,
+            textAlign: "left",
+          }}
+        >
+          <span
+            style={{ width: 8, height: 8, borderRadius: "50%", background: farbe, flexShrink: 0 }}
+          />
+          <span style={{ flex: 1, fontWeight: 600 }}>{text}</span>
+          <span style={{ color: C.accent, fontWeight: 600 }}>Details ▾</span>
+        </button>
+        {errors.map((it) => (
+          <div key={`${it.source}-err`} style={{ color: C.red, fontSize: 11.5, paddingRight: 8 }}>
+            {anzeigeName(it.source)}: {it.error}
+          </div>
+        ))}
+      </div>
+    );
+  }
   return (
     <div
       style={{
@@ -139,6 +229,25 @@ export default function DataStatus({ items = [], actions, action, hint, style })
         })}
         <span style={{ flex: 1 }} />
         {hint ? <span style={{ color: C.textDim }}>{hint}</span> : null}
+        {mobil && offen ? (
+          <button
+            type="button"
+            onClick={() => setOffen(false)}
+            aria-expanded
+            style={{
+              background: "none",
+              border: "none",
+              color: C.accent,
+              fontWeight: 600,
+              fontSize: 12,
+              fontFamily: "inherit",
+              cursor: "pointer",
+              minHeight: 32,
+            }}
+          >
+            Weniger ▴
+          </button>
+        ) : null}
         {acts.map((a) => (
           <ActionButton key={a.label} action={a} />
         ))}

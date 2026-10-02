@@ -142,3 +142,49 @@
     letter-spacing: -0.01em;
   }
 }
+
+/* ── Mobile-Optimierung (02.10.2026) ─────────────────────────────────────── */
+/* iOS zoomt beim Fokus in Felder unter 16 px ungefragt hinein — auf
+   Touch-Geräten alle Eingabefelder auf 16 px. */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+  /* Umschalt-Leisten (Segmented) mit Daumen sicher treffbar. */
+  .tabbar button {
+    min-height: 36px;
+  }
+}
+@media (max-width: 760px) {
+  /* Fester Waben-Hintergrund erzwingt auf Handys ein Neuzeichnen bei jedem
+     Scroll-Schritt (iOS ignoriert ihn ohnehin). */
+  body {
+    background-attachment: scroll;
+  }
+  /* Breite Tabellen scrollen seitlich: erste Spalte (Kunde, Keyword, Seite)
+     bleibt stehen, damit die Zeile lesbar bleibt. Zellen mit eigener
+     Hintergrundfarbe behalten sie (Inline-Stil gewinnt). */
+  table tr > th:first-child:not([colspan]),
+  table tr > td:first-child:not([colspan]) {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background-color: #fff;
+    box-shadow: 1px 0 0 rgba(43, 0, 51, 0.08);
+  }
+  /* Vergleichsbanner kompakt: Legende (Anstieg/Rückgang) weg, weniger Rand. */
+  .compare-banner {
+    padding: 9px 12px !important;
+    gap: 6px !important;
+  }
+  .compare-banner .compare-legend {
+    display: none !important;
+  }
+  /* Momentum-Scroll in horizontal scrollenden Bereichen (ältere iOS). */
+  [style*="overflow-x: auto"],
+  [style*="overflow-x:auto"] {
+    -webkit-overflow-scrolling: touch;
+  }
+}

@@ -181,7 +181,7 @@ import {
 
 const HEX_BG = `url("data:image/svg+xml,%3Csvg width='28' height='49' viewBox='0 0 28 49' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M13.99 9.25l13 7.5v15l-13 7.5L1 31.75v-15l12.99-7.5zM3 17.9v12.7l10.99 6.34 11-6.35V17.9l-11-6.34L3 17.9zM0 15l12.98-7.5V0h-2v6.35L0 12.69v2.3zm0 18.5L12.98 41v8h-2v-6.85L0 35.81v-2.3zM15 0v7.5L27.99 15H28v-2.31h-.01L17 6.35V0h-2zm0 49v-8l12.99-7.5H28v2.31h-.01L17 42.15V49h-2z' fill='%2377008C' fill-opacity='0.04' fill-rule='evenodd'/%3E%3C/svg%3E")`;
 
-const CSS = `html,body,#root{min-height:100%;margin:0;overflow-x:hidden}*{box-sizing:border-box}@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}@keyframes slideUp{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}@keyframes fadeScale{from{transform:scale(.96);opacity:0}to{transform:scale(1);opacity:1}}@keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}::selection{background:rgba(119,0,140,.18);color:#161217}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:${C.bg}}::-webkit-scrollbar-thumb{background:${C.border};border-radius:3px}@media(max-width:760px){.app-sidebar{display:none!important}.app-main{margin-left:0!important;min-width:0!important;width:100%!important}.app-header{align-items:flex-start!important;gap:10px!important}.header-left,.header-actions{width:100%;flex-wrap:wrap}.app-content{padding:16px 12px calc(env(safe-area-inset-bottom, 0px) + 84px)!important}.settings-shell{flex-direction:column!important;gap:16px!important}.settings-nav{width:100%!important;display:flex!important;overflow-x:auto;padding-bottom:4px}.settings-nav button{width:auto!important;white-space:nowrap;flex-shrink:0}.settings-panel{max-width:none!important}.client-toolbar{flex-direction:column!important;align-items:stretch!important}.client-toolbar>div{width:100%!important}.client-grid{grid-template-columns:minmax(0,1fr)!important}.ezy-form-grid{grid-template-columns:1fr!important}.kpi-grid{grid-template-columns:1fr!important}.kpi-grid>div{grid-column:auto!important}.client-drawer,.quick-audit-panel{width:100vw!important;max-width:100vw!important;top:auto!important;height:88vh!important;border-radius:20px 20px 0 0!important;border-left:none!important;border-top:1px solid rgba(43,0,51,.08)!important;animation:sheetUp .25s ease!important;box-shadow:0 -24px 60px -36px rgba(43,0,51,.35)!important}.quick-audit-panel{padding:18px 14px!important}.cmd-palette{width:min(calc(100vw - 24px),520px)!important}.mobile-wrap{flex-wrap:wrap!important}.dash-kpis{grid-template-columns:1fr 1fr!important}.split-pane{grid-template-columns:1fr!important}.tabbar{flex-wrap:nowrap!important;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;max-width:100%}.tabbar::-webkit-scrollbar{display:none}.tabbar button{flex-shrink:0;white-space:nowrap}.tools-shell{flex-direction:column!important;gap:12px!important}.tools-cats{display:flex!important;flex-direction:row!important;width:100%!important;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:6px;padding-bottom:6px;scrollbar-width:none}.tools-cats::-webkit-scrollbar{display:none}.tools-cats>div:first-child{display:none}.tools-cats button{width:auto!important;flex-shrink:0;white-space:nowrap;margin-bottom:0!important}.google-props-grid{grid-template-columns:1fr!important}.ads-hero-head{flex-wrap:nowrap!important;align-items:flex-start!important}.ads-hero-head>button{flex:none!important}.ads-flow{display:grid!important;grid-template-columns:1fr 1fr!important;gap:14px 16px!important;align-items:start!important}.ads-arrow{display:none!important}.ads-roas{order:-1!important;grid-column:1/-1!important;flex-direction:row!important;align-items:baseline!important;justify-content:flex-start!important;gap:9px!important;padding:0!important}.ads-roas>div:last-child{margin-top:0!important}.ads-stat-right{text-align:left!important}.ads-flow .ads-val{font-size:24px!important}.app-content [style*="minmax(200px"],.app-content [style*="minmax(220px"],.app-content [style*="minmax(240px"]{grid-template-columns:1fr 1fr!important;gap:10px!important}.app-content [style*="minmax(320px"]{grid-template-columns:1fr!important}}@media(max-width:480px){.app-header{padding:8px 10px!important}.app-content{padding:12px 10px!important}.app-content [style*="minmax(200px"],.app-content [style*="minmax(220px"],.app-content [style*="minmax(240px"]{grid-template-columns:1fr!important}}
+const CSS = `html,body,#root{min-height:100%;margin:0;overflow-x:hidden}*{box-sizing:border-box}@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}@keyframes slideUp{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}@keyframes fadeScale{from{transform:scale(.96);opacity:0}to{transform:scale(1);opacity:1}}@keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}::selection{background:rgba(119,0,140,.18);color:#161217}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:${C.bg}}::-webkit-scrollbar-thumb{background:${C.border};border-radius:3px}@media(max-width:760px){.app-sidebar{display:none!important}.app-main{margin-left:0!important;min-width:0!important;width:100%!important}.app-header{align-items:center!important;gap:8px!important}.header-left{min-width:0}.header-mtabs{width:100%;min-width:0}.app-content{padding:16px 12px calc(env(safe-area-inset-bottom, 0px) + 84px)!important}.settings-shell{flex-direction:column!important;gap:16px!important}.settings-nav{width:100%!important;display:flex!important;overflow-x:auto;padding-bottom:4px}.settings-nav button{width:auto!important;white-space:nowrap;flex-shrink:0}.settings-panel{max-width:none!important}.client-toolbar{flex-direction:column!important;align-items:stretch!important}.client-toolbar>div{width:100%!important}.client-grid{grid-template-columns:minmax(0,1fr)!important}.ezy-form-grid{grid-template-columns:1fr!important}.kpi-grid{grid-template-columns:1fr!important}.kpi-grid>div{grid-column:auto!important}.client-drawer,.quick-audit-panel{width:100vw!important;max-width:100vw!important;top:auto!important;height:88vh!important;border-radius:20px 20px 0 0!important;border-left:none!important;border-top:1px solid rgba(43,0,51,.08)!important;animation:sheetUp .25s ease!important;box-shadow:0 -24px 60px -36px rgba(43,0,51,.35)!important}.quick-audit-panel{padding:18px 14px!important}.cmd-palette{width:min(calc(100vw - 24px),520px)!important}.mobile-wrap{flex-wrap:wrap!important}.dash-kpis{grid-template-columns:1fr 1fr!important}.split-pane{grid-template-columns:1fr!important}.tabbar{flex-wrap:nowrap!important;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;max-width:100%}.tabbar::-webkit-scrollbar{display:none}.tabbar button{flex-shrink:0;white-space:nowrap}.tools-shell{flex-direction:column!important;gap:12px!important}.tools-cats{display:flex!important;flex-direction:row!important;width:100%!important;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:6px;padding-bottom:6px;scrollbar-width:none}.tools-cats::-webkit-scrollbar{display:none}.tools-cats>div:first-child{display:none}.tools-cats button{width:auto!important;flex-shrink:0;white-space:nowrap;margin-bottom:0!important}.google-props-grid{grid-template-columns:1fr!important}.ads-hero-head{flex-wrap:nowrap!important;align-items:flex-start!important}.ads-hero-head>button{flex:none!important}.ads-flow{display:grid!important;grid-template-columns:1fr 1fr!important;gap:14px 16px!important;align-items:start!important}.ads-arrow{display:none!important}.ads-roas{order:-1!important;grid-column:1/-1!important;flex-direction:row!important;align-items:baseline!important;justify-content:flex-start!important;gap:9px!important;padding:0!important}.ads-roas>div:last-child{margin-top:0!important}.ads-stat-right{text-align:left!important}.ads-flow .ads-val{font-size:24px!important}.app-content [style*="minmax(200px"],.app-content [style*="minmax(220px"],.app-content [style*="minmax(240px"]{grid-template-columns:1fr 1fr!important;gap:10px!important}.app-content [style*="minmax(320px"]{grid-template-columns:1fr!important}}@media(max-width:480px){.app-header{padding:8px 10px!important}.app-content{padding:12px 10px calc(env(safe-area-inset-bottom, 0px) + 84px)!important}.app-content [style*="minmax(200px"],.app-content [style*="minmax(220px"],.app-content [style*="minmax(240px"]{grid-template-columns:1fr!important}}
 .ezy-md{font-size:13.5px;line-height:1.65;color:${C.text};overflow-wrap:break-word}.ezy-md h1{font-size:19px;margin:18px 0 8px;color:${C.text}}.ezy-md h2{font-size:16px;margin:16px 0 6px;color:${C.text}}.ezy-md h3{font-size:14px;margin:14px 0 4px;color:${C.text}}.ezy-md p{margin:7px 0}.ezy-md ul,.ezy-md ol{margin:7px 0;padding-left:22px}.ezy-md li{margin:3px 0}.ezy-md code{background:${C.bg};border:1px solid ${C.border};border-radius:4px;padding:1px 5px;font-size:12px}.ezy-md a{color:${C.accent}}.ezy-md h1:first-child,.ezy-md h2:first-child,.ezy-md h3:first-child{margin-top:0}`;
 
 const CONTENT_ITEMS = [
@@ -6923,6 +6923,7 @@ function App({ appScope = null }) {
     else if (!isViewer && page === "reports") setPage("dashboard");
   }, [page, isViewer]);
   const [cdd, setCdd] = useState(false);
+  const [cddSuche, setCddSuche] = useState(""); // Kunden-Suche im Dropdown (Mobile 02.10.)
   // Redesign 1b (Screen 2j): Bottom-Sheet ersetzt <760px die Header-Selects
   // (App-Wechsler, Kunden-Switcher, Zeitraum/Vergleich).
   const [mobileSheet, setMobileSheet] = useState(false);
@@ -7335,6 +7336,8 @@ function App({ appScope = null }) {
                 style={{
                   position: "relative",
                   display: appScope !== "admin" || page === "agents" ? "block" : "none",
+                  minWidth: 0,
+                  maxWidth: "100%",
                 }}
               >
                 <button
@@ -7353,7 +7356,9 @@ function App({ appScope = null }) {
                     fontWeight: 600,
                     fontFamily: "inherit",
                     whiteSpace: "nowrap",
-                    flexShrink: 0,
+                    flexShrink: isMobile ? 1 : 0,
+                    maxWidth: isMobile ? "100%" : undefined,
+                    minWidth: 0,
                   }}
                 >
                   {showAll ? (
@@ -7384,8 +7389,10 @@ function App({ appScope = null }) {
                       fontSize={10}
                     />
                   )}
-                  {showAll ? "Alle Kunden" : client.name}
-                  <ChevronDown size={14} color={C.textMuted} />
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
+                    {showAll ? "Alle Kunden" : client.name}
+                  </span>
+                  <ChevronDown size={14} color={C.textMuted} style={{ flexShrink: 0 }} />
                 </button>
                 {cdd && (
                   <div
@@ -7398,11 +7405,48 @@ function App({ appScope = null }) {
                       border: `1px solid ${C.border}`,
                       borderRadius: 10,
                       minWidth: 240,
+                      maxWidth: "calc(100vw - 24px)",
+                      // Mobile (02.10.): Liste scrollt in sich — der Header ist
+                      // sticky, eine überlange Liste war unten nicht erreichbar.
+                      maxHeight: "min(70vh, 520px)",
+                      overflowY: "auto",
+                      overscrollBehavior: "contain",
                       zIndex: 60,
                       boxShadow: "0 8px 32px rgba(0,0,0,.4)",
                     }}
                   >
-                    {!isViewer && (
+                    {clients.length > 8 && (
+                      <div
+                        style={{
+                          position: "sticky",
+                          top: 0,
+                          background: C.card,
+                          padding: 8,
+                          borderBottom: `1px solid ${C.border}`,
+                          zIndex: 1,
+                        }}
+                      >
+                        <input
+                          autoFocus={!isMobile}
+                          value={cddSuche}
+                          onChange={(e) => setCddSuche(e.target.value)}
+                          placeholder="Kunde suchen …"
+                          aria-label="Kunde suchen"
+                          style={{
+                            width: "100%",
+                            padding: "8px 10px",
+                            borderRadius: 8,
+                            border: `1px solid ${C.border}`,
+                            fontSize: 13,
+                            fontFamily: "inherit",
+                            outline: "none",
+                            background: C.bg,
+                            color: C.text,
+                          }}
+                        />
+                      </div>
+                    )}
+                    {!isViewer && !cddSuche.trim() && (
                       <button
                         onClick={() => {
                           setShowAll(true);
@@ -7425,66 +7469,80 @@ function App({ appScope = null }) {
                         <span style={{ fontWeight: 600, fontSize: 13 }}>Alle Kunden</span>
                       </button>
                     )}
-                    {clients.map((entry) => (
-                      <button
-                        key={entry.id}
-                        onClick={() => {
-                          setClientId(entry.id);
-                          setShowAll(false);
-                          setCdd(false);
-                        }}
-                        style={{
-                          display: "flex",
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 10,
-                          width: "100%",
-                          padding: "8px 14px",
-                          border: "none",
-                          cursor: "pointer",
-                          background:
-                            !showAll && entry.id === client.id ? C.accentDim : "transparent",
-                          color: C.text,
-                          textAlign: "left",
-                          borderRadius: 8,
-                          fontFamily: "inherit",
-                        }}
-                      >
-                        <ClientAvatar
-                          name={entry.name}
-                          domain={entry.domain}
-                          size={26}
-                          radius={7}
-                          bg={C.accentDim}
-                          fg={C.accentLight}
-                          fontSize={10}
-                        />
-                        <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-                          <span
-                            style={{
-                              fontWeight: 600,
-                              fontSize: 13,
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                            }}
-                          >
-                            {entry.name}
+                    {clients
+                      .filter((entry) => {
+                        const q = cddSuche.trim().toLowerCase();
+                        return (
+                          !q ||
+                          String(entry.name || "")
+                            .toLowerCase()
+                            .includes(q) ||
+                          String(entry.domain || "")
+                            .toLowerCase()
+                            .includes(q)
+                        );
+                      })
+                      .map((entry) => (
+                        <button
+                          key={entry.id}
+                          onClick={() => {
+                            setClientId(entry.id);
+                            setShowAll(false);
+                            setCdd(false);
+                            setCddSuche("");
+                          }}
+                          style={{
+                            display: "flex",
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 10,
+                            width: "100%",
+                            padding: "8px 14px",
+                            border: "none",
+                            cursor: "pointer",
+                            background:
+                              !showAll && entry.id === client.id ? C.accentDim : "transparent",
+                            color: C.text,
+                            textAlign: "left",
+                            borderRadius: 8,
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          <ClientAvatar
+                            name={entry.name}
+                            domain={entry.domain}
+                            size={26}
+                            radius={7}
+                            bg={C.accentDim}
+                            fg={C.accentLight}
+                            fontSize={10}
+                          />
+                          <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                            <span
+                              style={{
+                                fontWeight: 600,
+                                fontSize: 13,
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                            >
+                              {entry.name}
+                            </span>
+                            <span
+                              style={{
+                                color: C.textMuted,
+                                fontSize: 11,
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                            >
+                              {entry.domain}
+                            </span>
                           </span>
-                          <span
-                            style={{
-                              color: C.textMuted,
-                              fontSize: 11,
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                            }}
-                          >
-                            {entry.domain}
-                          </span>
-                        </span>
-                      </button>
-                    ))}
+                        </button>
+                      ))}
                   </div>
                 )}
               </div>
@@ -7492,11 +7550,10 @@ function App({ appScope = null }) {
                 EzyPerformance/Reaktivierung zeigen den Inhalt direkt. */}
               {/* EzyRank: Tabs leben in der linken Nav (06.08.) — Leiste bleibt in
                 anderen Scopes/Legacy UND mobil (dort gibt es keine Sidebar). */}
-              {page === "dashboard" &&
+              {!isMobile &&
+                page === "dashboard" &&
                 visibleTabs.length > 1 &&
-                (appScope !== "seo" || isMobile) && (
-                  <TabBar tabs={visibleTabs} active={tab} onChange={setTab} />
-                )}
+                appScope !== "seo" && <TabBar tabs={visibleTabs} active={tab} onChange={setTab} />}
               {/* Breadcrumb «Dashboard › Seite» entfernt (Volkan 24.08.) — die
                 aktive Seite ist bereits in Nav/Segmented markiert. */}
               {/* Desktop-Nav-Umbau (Volkan 22.08.): das Seiten+Tabs-Segmented
@@ -7608,6 +7665,13 @@ function App({ appScope = null }) {
                 </>
               )}
             </div>
+            {/* Mobile (02.10.): Tabs in eigener Zeile unter Kunde/Zeitraum —
+              vorher drei Zeilen Kopf (~156 px), jetzt zwei. */}
+            {isMobile && page === "dashboard" && visibleTabs.length > 1 && (
+              <div className="header-mtabs">
+                <TabBar tabs={visibleTabs} active={tab} onChange={setTab} />
+              </div>
+            )}
           </header>
           {/* Native-Mobile (2h): Filter-Sheet — nur Zeitraum/Vergleich/Aktionen.
             Kunde lebt in der Top-Pill, Apps/Seiten in der Bottom-Tab-Bar. */}
