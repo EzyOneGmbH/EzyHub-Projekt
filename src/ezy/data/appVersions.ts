@@ -143,8 +143,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.30.0",
+    version: "1.30.1",
     changelog: [
+      {
+        version: "1.30.1",
+        date: "2026-10-02",
+        note: "Zwischenspeicher der Zeitraum-Daten einmalig erneuert, damit nirgends mehr alte Organic-Zahlen inkl. ChatGPT-Ads-Klicks angezeigt werden",
+      },
       {
         version: "1.30.0",
         date: "2026-10-02",

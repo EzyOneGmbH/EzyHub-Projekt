@@ -108,7 +108,10 @@ export function isReloadNavigation(): boolean {
 }
 
 // ── SWR-Cache ────────────────────────────────────────────────────────────────
-const CACHE_PREFIX = "ezy.rangecache.v1:";
+// v2 (02.10.2026): Organic zaehlt bezahlte KI-Klicks nicht mehr — alte
+// Zwischenstaende (inkl. ChatGPT-Ads-Sessions) einmalig verwerfen.
+const CACHE_PREFIX = "ezy.rangecache.v2:";
+const ALTE_PREFIXE = ["ezy.rangecache.v1:"];
 const DEFAULT_TTL_MS = 30 * 60 * 1000; // frisch genug für Dashboard-Zwecke
 const PRUNE_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_ENTRIES = 80;
@@ -158,7 +161,13 @@ function pruneCache(aggressive: boolean): void {
     const keys: Array<{ k: string; at: number }> = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (!k || !k.startsWith(CACHE_PREFIX)) continue;
+      if (!k) continue;
+      // Eintraege frueherer Cache-Versionen sind immer veraltet.
+      if (ALTE_PREFIXE.some((p) => k.startsWith(p))) {
+        keys.push({ k, at: 0 });
+        continue;
+      }
+      if (!k.startsWith(CACHE_PREFIX)) continue;
       let at = 0;
       try {
         at = (JSON.parse(localStorage.getItem(k) || "{}") as CacheEntry).at || 0;
