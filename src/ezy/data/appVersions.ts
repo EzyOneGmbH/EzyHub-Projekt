@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.4.3",
+    version: "2.4.4",
     changelog: [
+      {
+        version: "2.4.4",
+        date: "2026-10-02",
+        note: "Conversions: neue Karte «Organische Buchungen vor dem Tracking-Fix (Schätzung)» zeigt nachträglich rekonstruierte organische Buchungen und Umsätze je Monat, getrennt von den Live-Kacheln (zuerst für Hotel des Horlogers)",
+      },
       {
         version: "2.4.3",
         date: "2026-10-02",
@@ -148,8 +153,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.30.2",
+    version: "1.30.3",
     changelog: [
+      {
+        version: "1.30.3",
+        date: "2026-10-02",
+        note: "Conversions: Karte mit nachträglich rekonstruierten organischen Buchungen je Monat (Schätzung, getrennt von den Live-Kacheln)",
+      },
       {
         version: "1.30.2",
         date: "2026-10-02",

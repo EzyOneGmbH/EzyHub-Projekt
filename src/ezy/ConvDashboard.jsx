@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Clock, DollarSign, FileInput, FileText } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import ConversionScoutPanel from "@/ezy/ConversionScoutPanel";
+import { ConvRekonstruktion } from "@/ezy/ConvRekonstruktion";
 import { isAiConvSource } from "@/ezy/data/aiSources";
 import { generatedUmsatz, isFunnelEvent, organischerBreakdown } from "@/lib/convEvents";
 import DataStatus from "@/ezy/DataStatus";
@@ -394,6 +395,9 @@ export function ConvDashboard({ selectedClient, dateRange, appScope = null }) {
           )}
         </div>
       )}
+      {/* Rekonstruierte organische Buchungen vor einem Tracking-Fix (02.10.2026) —
+          nur wenn clients.metadata.conv_rekonstruktion gesetzt ist. */}
+      <ConvRekonstruktion client={selectedClient} />
       {/* B3: Kanal-Split (GA4 sessionDefaultChannelGroup) — nur wenn channels vorhanden */}
       {channels && channels.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
