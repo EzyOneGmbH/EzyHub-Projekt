@@ -148,7 +148,14 @@ export function SeoAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
   const [page, setPage] = useState(0);
   const mitVergleich = !!dateRange?.compare;
 
-  const ids = useMemo(() => clients.map((c) => c.id).filter(Boolean), [clients]);
+  // Stabil über den Inhalt (02.10.): die Kundenliste kommt bei jedem Neuzeichnen
+  // als neues Array — sonst lud die Tabelle z. B. schon beim Öffnen des
+  // Kunden-Menüs komplett neu (Live-Abfrage, ~10 s).
+  const idsKey = clients
+    .map((c) => c.id)
+    .filter(Boolean)
+    .join(",");
+  const ids = useMemo(() => (idsKey ? idsKey.split(",") : []), [idsKey]);
   const startDate = dateRange?.start ? ymd(dateRange.start) : null;
   const endDate = dateRange?.end ? ymd(dateRange.end) : null;
   const compareStart = dateRange?.compare?.start ? ymd(dateRange.compare.start) : null;
