@@ -1145,9 +1145,9 @@ function HeuteHome({ client, hasClients, profileName, nav, onOpen, onDashboard }
           {gruss}
           {vorname ? `, ${vorname}` : ""}
         </div>
-        {hasClients && (
+        {hasClients && client?.id && (
           <div style={{ fontSize: 13, opacity: 0.9, marginTop: 4 }}>
-            {client?.name}
+            {client.name}
             {client?.domain ? ` · ${client.domain}` : ""}
           </div>
         )}
@@ -7802,7 +7802,9 @@ function App({ appScope = null }) {
               )}
               {page === "heute" && (
                 <HeuteHome
-                  client={client}
+                  // Volkan 02.10.: Kunde und Kunden-KPIs nur, wenn ein Kunde
+                  // gewählt ist — bei «Alle Kunden» nur Begrüssung + Schnellzugriff.
+                  client={showAll ? null : client}
                   hasClients={hasClients}
                   profileName={profile.name}
                   nav={nav.filter((n) => n.id !== "dashboard")}
