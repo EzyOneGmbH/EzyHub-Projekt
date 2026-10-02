@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  kaufZaehler,
+  kanaeleKaeufeBereinigt,
   breakdownJeKanal,
   generatedUmsatz,
   isFunnelEvent,
@@ -85,5 +87,28 @@ describe("Lead-Breakdown je Kanal", () => {
   it("ohne Kanal-Aufteilung (alte Snapshots) null, leere Aufteilung = 0", () => {
     expect(organischerBreakdown(null, false)).toBeNull();
     expect(organischerBreakdown({}, false)).toEqual({ phone: 0, mail: 0, maps: 0, contact: 0 });
+  });
+});
+
+describe("Käufe als Transaktionen", () => {
+  it("purchase zählt Transaktionen, andere Events die Event-Zahl", () => {
+    expect(kaufZaehler("purchase", 5, 2)).toBe(2);
+    expect(kaufZaehler("purchase", 5, 0)).toBe(5); // ohne Buchungsnummer: Events behalten
+    expect(kaufZaehler("purchase", 5, null)).toBe(5);
+    expect(kaufZaehler("phone_click", 5, 0)).toBe(5);
+    expect(kaufZaehler("order", 3, 1)).toBe(3);
+  });
+  it("Kanal-Conversions: doppelte Kauf-Events durch Transaktionen ersetzen", () => {
+    const ch = [
+      { channel: "Organic Search", conversions: 40, sessions: 1 },
+      { channel: "Direct", conversions: 15, sessions: 1 },
+      { channel: "Referral", conversions: 3, sessions: 1 },
+    ];
+    const r = kanaeleKaeufeBereinigt(ch, {
+      "Organic Search": { keyEvents: 37, transactions: 11 },
+      Direct: { keyEvents: 0, transactions: 4 }, // purchase kein Key Event -> unverändert
+    });
+    expect(r.map((c) => c.conversions)).toEqual([14, 15, 3]);
+    expect(kanaeleKaeufeBereinigt(ch, null)).toBe(ch);
   });
 });

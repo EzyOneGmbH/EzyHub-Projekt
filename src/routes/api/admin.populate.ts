@@ -18,6 +18,9 @@ import { sistrixLandVon } from "@/lib/sistrixLand";
 import {
   breakdownJeKanal,
   isFunnelEvent,
+  kanaeleKaeufeBereinigt,
+  kaufZaehler,
+  ladeKaufJeKanal,
   type ConvBreakdown,
   type ConvBucket,
 } from "@/lib/convEvents";
@@ -1200,7 +1203,7 @@ async function jobGa4Conversions(c: any, uid: string, days: number) {
   let rows: any[] = [];
   if (convNames.length > 0) {
     try {
-      const dr = await call({
+      const rowsBody = (mitTx: boolean) => ({
         dateRanges,
         dimensions: [
           { name: "date" },
@@ -1212,13 +1215,19 @@ async function jobGa4Conversions(c: any, uid: string, days: number) {
           // Organic; EzyAI braucht dieselben Zeilen ungefiltert (KI-Quellen).
           { name: "sessionDefaultChannelGroup" },
         ],
-        metrics: [{ name: "eventCount" }, { name: "eventValue" }],
+        // transactions (02.10.2026): Käufe als Buchungen statt Events zählen.
+        metrics: [
+          { name: "eventCount" },
+          { name: "eventValue" },
+          ...(mitTx ? [{ name: "transactions" }] : []),
+        ],
         dimensionFilter: {
           filter: { fieldName: "eventName", inListFilter: { values: convNames } },
         },
         orderBys: [{ dimension: { dimensionName: "date" }, desc: true }],
         limit: 250,
       });
+      const dr = await call(rowsBody(true)).catch(() => call(rowsBody(false)));
       rows = (dr.rows ?? []).map((r: any) => {
         const dv = r.dimensionValues ?? [];
         const mv = r.metricValues ?? [];
@@ -1232,7 +1241,11 @@ async function jobGa4Conversions(c: any, uid: string, days: number) {
           source: dv[3]?.value ?? "",
           device: dv[4]?.value ?? "",
           channel: dv[5]?.value ?? "",
-          count: Number(mv[0]?.value ?? 0),
+          count: kaufZaehler(
+            eventName,
+            Number(mv[0]?.value ?? 0),
+            mv[2] ? Number(mv[2].value ?? 0) : null,
+          ),
           value: Number(mv[1]?.value ?? 0),
         };
       });
@@ -1255,6 +1268,8 @@ async function jobGa4Conversions(c: any, uid: string, days: number) {
       conversions: Number(r.metricValues?.[1]?.value ?? 0),
       revenue: Number(r.metricValues?.[2]?.value ?? 0),
     }));
+    // Doppelte purchase-Events in den Kanal-Conversions durch Transaktionen ersetzen.
+    channels = kanaeleKaeufeBereinigt(channels, await ladeKaufJeKanal(call, dateRanges));
   } catch {
     /* optional — Feld fehlt dann, UI blendet den Block aus */
   }

@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.4.5",
+    version: "2.4.6",
     changelog: [
+      {
+        version: "2.4.6",
+        date: "2026-10-02",
+        note: "Conversions: Käufe zählen als Buchungen (eindeutige Buchungsnummern) statt als Events — doppelt feuernde Kauf-Tags blähen die Zahl nicht mehr auf, auch rückwirkend; ohne Buchungsnummer bleibt die Event-Zahl",
+      },
       {
         version: "2.4.5",
         date: "2026-10-02",
@@ -158,8 +163,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.30.4",
+    version: "1.30.5",
     changelog: [
+      {
+        version: "1.30.5",
+        date: "2026-10-02",
+        note: "Conversions: Käufe zählen als Buchungen (Buchungsnummern) statt als Events, auch in der Kanal-Tabelle",
+      },
       {
         version: "1.30.4",
         date: "2026-10-02",

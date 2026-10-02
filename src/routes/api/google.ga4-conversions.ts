@@ -1,7 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { zeitraum, ga4DateRange } from "@/lib/date-range";
-import { breakdownJeKanal, isFunnelEvent, type ConvBreakdown } from "@/lib/convEvents";
+import {
+  breakdownJeKanal,
+  isFunnelEvent,
+  kanaeleKaeufeBereinigt,
+  kaufZaehler,
+  ladeKaufJeKanal,
+  type ConvBreakdown,
+} from "@/lib/convEvents";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
@@ -232,7 +239,7 @@ export const Route = createFileRoute("/api/google/ga4-conversions")({
           let rows: Array<Record<string, unknown>> = [];
           if (convNames.length > 0) {
             try {
-              const dr = await callGa4({
+              const rowsBody = (mitTx: boolean) => ({
                 dateRanges,
                 dimensions: [
                   { name: "date" },
@@ -245,7 +252,12 @@ export const Route = createFileRoute("/api/google/ga4-conversions")({
                   // KI-Quellen, darum WIRD HIER NICHT hart gefiltert.
                   { name: "sessionDefaultChannelGroup" },
                 ],
-                metrics: [{ name: "eventCount" }, { name: "eventValue" }],
+                // transactions (02.10.2026): Käufe als Buchungen statt Events zählen.
+                metrics: [
+                  { name: "eventCount" },
+                  { name: "eventValue" },
+                  ...(mitTx ? [{ name: "transactions" }] : []),
+                ],
                 dimensionFilter: {
                   filter: {
                     fieldName: "eventName",
@@ -255,6 +267,7 @@ export const Route = createFileRoute("/api/google/ga4-conversions")({
                 orderBys: [{ dimension: { dimensionName: "date" }, desc: true }],
                 limit: 250,
               });
+              const dr = await callGa4(rowsBody(true)).catch(() => callGa4(rowsBody(false)));
               rows = (dr.rows ?? []).map((r) => {
                 const dv = r.dimensionValues ?? [];
                 const mv = r.metricValues ?? [];
@@ -268,7 +281,11 @@ export const Route = createFileRoute("/api/google/ga4-conversions")({
                   source: dv[3]?.value ?? "",
                   device: dv[4]?.value ?? "",
                   channel: dv[5]?.value ?? "",
-                  count: Number(mv[0]?.value ?? 0),
+                  count: kaufZaehler(
+                    eventName,
+                    Number(mv[0]?.value ?? 0),
+                    mv[2] ? Number(mv[2].value ?? 0) : null,
+                  ),
                   value: Number(mv[1]?.value ?? 0),
                 };
               });
@@ -295,6 +312,8 @@ export const Route = createFileRoute("/api/google/ga4-conversions")({
               conversions: Number(r.metricValues?.[1]?.value ?? 0),
               revenue: Number(r.metricValues?.[2]?.value ?? 0),
             }));
+            // Doppelte purchase-Events in den Kanal-Conversions durch Transaktionen ersetzen.
+            channels = kanaeleKaeufeBereinigt(channels, await ladeKaufJeKanal(callGa4, dateRanges));
           } catch {
             // Fallback ohne conversions/revenue (ältere Properties): nur sessions.
             try {

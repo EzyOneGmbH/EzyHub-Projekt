@@ -77,3 +77,74 @@ export function organischerBreakdown(
   }
   return sum;
 }
+
+/**
+ * Käufe als Transaktionen zählen (02.10.2026, Morosani: doppelt feuernde
+ * Kauf-Tags blähten die Event-Zahl ~3,5-fach auf). Für `purchase` gilt die Zahl
+ * eindeutiger Buchungsnummern (GA4 `transactions`), sofern vorhanden; sonst und
+ * für alle anderen Events die Event-Zahl.
+ */
+export function kaufZaehler(
+  eventName: unknown,
+  eventCount: number,
+  transactions: number | null,
+): number {
+  if (String(eventName ?? "") === "purchase" && transactions != null && transactions > 0) {
+    return transactions;
+  }
+  return eventCount;
+}
+
+export type KaufJeKanal = Record<string, { keyEvents: number; transactions: number }>;
+
+/**
+ * Kanal-Conversions (Key Events) um doppelte `purchase`-Events bereinigen:
+ * Conversions − purchase-Key-Events + Transaktionen. Nur wenn `purchase` in dem
+ * Kanal als Key Event zählt und Transaktionen hat; sonst unverändert.
+ */
+export function kanaeleKaeufeBereinigt<T extends { channel?: string; conversions?: number | null }>(
+  channels: T[],
+  kauf: KaufJeKanal | null | undefined,
+): T[] {
+  if (!kauf) return channels;
+  return channels.map((ch) => {
+    const k = kauf[String(ch.channel ?? "")];
+    if (!k || ch.conversions == null || !(k.keyEvents > 0) || !(k.transactions > 0)) return ch;
+    return {
+      ...ch,
+      conversions: Math.max(0, Number(ch.conversions) - k.keyEvents + k.transactions),
+    };
+  });
+}
+
+type Ga4Call = (body: unknown) => Promise<{
+  rows?: Array<{
+    dimensionValues?: Array<{ value?: string }>;
+    metricValues?: Array<{ value?: string }>;
+  }>;
+}>;
+
+/** purchase je Kanal: Key Events + Transaktionen. null = Abfrage nicht möglich. */
+export async function ladeKaufJeKanal(
+  call: Ga4Call,
+  dateRanges: unknown,
+): Promise<KaufJeKanal | null> {
+  try {
+    const r = await call({
+      dateRanges,
+      dimensions: [{ name: "sessionDefaultChannelGroup" }],
+      metrics: [{ name: "keyEvents" }, { name: "transactions" }],
+      dimensionFilter: { filter: { fieldName: "eventName", stringFilter: { value: "purchase" } } },
+    });
+    const out: KaufJeKanal = {};
+    for (const row of r.rows ?? []) {
+      out[row.dimensionValues?.[0]?.value ?? "(other)"] = {
+        keyEvents: Number(row.metricValues?.[0]?.value ?? 0) || 0,
+        transactions: Number(row.metricValues?.[1]?.value ?? 0) || 0,
+      };
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
