@@ -148,3 +148,43 @@ export async function ladeKaufJeKanal(
     return null;
   }
 }
+
+// ── Zählregeln (02.10.2026, GTM-Conversion-Audit) ─────────────────────────────
+// Vorher zu grob: «form» zählte form_start/form_aborted, «submit» Suche und
+// Newsletter, «tel» ohne Wortgrenze traf «Bestellen»/«Hotels», «kauf» Ticket-
+// Klicks; Müll-Events (gtm.dom, Mews distributor*/ga4_*, Eventname = Mess-ID)
+// wurden mitgezählt; Anfragen wie booking_request/seminar_request fehlten.
+
+const MUELL_RE = /^(gtm\.|ga4_|distributor)|^G-[A-Z0-9]{6,}$|^google_analytics$/i;
+const KEIN_LEAD_RE =
+  /^form_(start|aborted?|abandon\w*|submit|interaction)$|search|newsletter|signup|sign_up|login/i;
+
+/** Technische oder fehlkonfigurierte Events, die nie als Conversion zählen. */
+export function isMuellEvent(eventName: unknown): boolean {
+  return MUELL_RE.test(String(eventName ?? "").trim());
+}
+
+const BUCKET_RE: Array<{ key: ConvBucket; re: RegExp }> = [
+  // «tel» nur am Wortanfang (nicht «Bes-tel-len», «Ho-tel-s»); phone/call/anruf überall
+  { key: "phone", re: /phone|call|anruf|(^|[^a-z])tel/i },
+  { key: "mail", re: /mail/i },
+  { key: "maps", re: /(^|[^a-z])map|route|direction|wegbeschreibung|standort/i },
+  {
+    key: "contact",
+    re: /contact|kontakt|lead|anfrage|offerte|offer|quote|request|formular|form_submitted|form_success|reserv/i,
+  },
+];
+
+/** Lead-Kategorie eines GA4-Events (Phone/Mail/Maps/Contact) oder null. */
+export function convBucketVon(eventName: unknown): ConvBucket | null {
+  const n = String(eventName ?? "").trim();
+  if (!n || isMuellEvent(n) || isFunnelEvent(n) || KEIN_LEAD_RE.test(n)) return null;
+  return BUCKET_RE.find((b) => b.re.test(n))?.key ?? null;
+}
+
+/** Abschluss-Event (Kauf/Buchung), keine Funnel-Schritte, kein Ticket-«Kaufen»-Klick. */
+export function isKaufEvent(eventName: unknown): boolean {
+  const n = String(eventName ?? "").trim();
+  if (!n || isMuellEvent(n) || isFunnelEvent(n)) return false;
+  return /purchase|transaction|^order$|_order$|^order_/i.test(n);
+}

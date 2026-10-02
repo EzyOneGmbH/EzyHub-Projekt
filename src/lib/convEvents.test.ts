@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  convBucketVon,
+  isKaufEvent,
+  isMuellEvent,
   kaufZaehler,
   kanaeleKaeufeBereinigt,
   breakdownJeKanal,
@@ -110,5 +113,75 @@ describe("Käufe als Transaktionen", () => {
     });
     expect(r.map((c) => c.conversions)).toEqual([14, 15, 3]);
     expect(kanaeleKaeufeBereinigt(ch, null)).toBe(ch);
+  });
+});
+
+describe("Zählregeln (Audit 02.10.2026)", () => {
+  const b = convBucketVon;
+  it("Telefon: echte Klicks ja, «Bestellen»/«Hotels» nein", () => {
+    for (const n of [
+      "phone_click",
+      "contact_phone_click",
+      "telefonnummer_klick",
+      "ClickToCall",
+      "pro_phone_click",
+      "Kontakt_Telefon",
+    ])
+      expect(b(n)).toBe("phone");
+    expect(b("Click_Gutschein_Bestellen")).toBeNull();
+    expect(b("distributorStepHotels")).toBeNull();
+    expect(b("hotel_select")).toBeNull();
+  });
+  it("Mail und Maps", () => {
+    expect(b("mail_click")).toBe("mail");
+    expect(b("Kontakt_Email")).toBe("mail");
+    expect(b("mailto")).toBe("mail");
+    expect(b("maps_click")).toBe("maps");
+    expect(b("sitemap_view")).toBeNull();
+  });
+  it("Kontakt: echte Anfragen ja, Formular-Rauschen nein", () => {
+    for (const n of [
+      "contact_form",
+      "generate_lead",
+      "anfrage_kontaktformular",
+      "offerte_anfrage",
+      "booking_request_de",
+      "seminar_request",
+      "contact_request",
+      "form_submitted",
+      "Kontakt_Form_Submit",
+    ])
+      expect(b(n)).toBe("contact");
+    for (const n of [
+      "form_start",
+      "form_aborted",
+      "form_submit",
+      "Engagement_Search_Query_Submit",
+      "Kontakt_Newsletter_Signup",
+      "newsletter_signup",
+      "signup_click",
+      "view_search_results",
+    ])
+      expect(b(n)).toBeNull();
+  });
+  it("Müll-Events zählen nie", () => {
+    for (const n of [
+      "gtm.dom",
+      "G-14HEGP45HE",
+      "Google_Analytics",
+      "distributorStepRooms",
+      "ga4_CalendarLoaded",
+    ]) {
+      expect(isMuellEvent(n)).toBe(true);
+      expect(b(n)).toBeNull();
+    }
+    expect(isMuellEvent("purchase")).toBe(false);
+  });
+  it("Kauf: purchase/order ja, Ticket-«Kaufen»-Klick und Funnel nein", () => {
+    expect(isKaufEvent("purchase")).toBe(true);
+    expect(isKaufEvent("order")).toBe(true);
+    expect(isKaufEvent("Click_Ski_und_Bergbahntickets_Kaufen")).toBe(false);
+    expect(isKaufEvent("begin_checkout")).toBe(false);
+    expect(isKaufEvent("G-14HEGP45HE")).toBe(false);
   });
 });

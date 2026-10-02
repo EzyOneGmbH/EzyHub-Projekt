@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.4.6",
+    version: "2.4.7",
     changelog: [
+      {
+        version: "2.4.7",
+        date: "2026-10-02",
+        note: "Conversions: Zählregeln bereinigt — form_start/form_aborted, Suche, Newsletter und Login zählen nicht mehr als Kontakt; «tel» nur als eigenes Wort (nicht «Hotels», «Bestellen»); technische Events (gtm.*, Mews distributor*/ga4_*, Mess-ID als Name) ausgefiltert; Anfragen wie booking_request, seminar_request und Offerten neu sichtbar; Ticket-«Kaufen»-Klicks keine Käufe mehr",
+      },
       {
         version: "2.4.6",
         date: "2026-10-02",
@@ -163,8 +168,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.30.5",
+    version: "1.30.6",
     changelog: [
+      {
+        version: "1.30.6",
+        date: "2026-10-02",
+        note: "Conversions: Zählregeln bereinigt (Formular-Rauschen, Suche, Newsletter, technische Events raus; Anfragen wie booking_request sichtbar)",
+      },
       {
         version: "1.30.5",
         date: "2026-10-02",

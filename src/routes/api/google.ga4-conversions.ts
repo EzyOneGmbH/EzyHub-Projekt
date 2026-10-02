@@ -3,7 +3,9 @@ import { z } from "zod";
 import { zeitraum, ga4DateRange } from "@/lib/date-range";
 import {
   breakdownJeKanal,
+  convBucketVon,
   isFunnelEvent,
+  isKaufEvent,
   kanaeleKaeufeBereinigt,
   kaufZaehler,
   ladeKaufJeKanal,
@@ -37,19 +39,8 @@ const Body = z.object({
   persist: z.boolean().default(true),
 });
 
-// Bucket GA4 eventName values into the EzyRank conversion categories.
-// Order matters: first match wins.
-const BUCKETS: Array<{ key: "phone" | "mail" | "maps" | "contact"; re: RegExp }> = [
-  { key: "phone", re: /phone|call|tel|anruf/i },
-  { key: "mail", re: /mail|email/i },
-  { key: "maps", re: /map|route|direction|wegbeschreibung|standort/i },
-  { key: "contact", re: /contact|kontakt|form|lead|submit|anfrage|offerte/i },
-];
-
-function bucketOf(eventName: string): "phone" | "mail" | "maps" | "contact" | null {
-  for (const b of BUCKETS) if (b.re.test(eventName)) return b.key;
-  return null;
-}
+// Zählregeln zentral in lib/convEvents (02.10.2026, GTM-Conversion-Audit).
+const bucketOf = (eventName: string) => convBucketVon(eventName);
 
 const BUCKET_LABEL: Record<string, string> = {
   phone: "Phone Click",
@@ -57,7 +48,6 @@ const BUCKET_LABEL: Record<string, string> = {
   maps: "Maps Click",
   contact: "Contact Form",
 };
-const PURCHASE_RE = /purchase|order|checkout|kauf|transaction/i;
 
 export const Route = createFileRoute("/api/google/ga4-conversions")({
   server: {
@@ -235,7 +225,7 @@ export const Route = createFileRoute("/api/google/ga4-conversions")({
           // above) so high-volume events (page_view, …) don't crowd out the rows.
           const convNames = events
             .map((e) => e.eventName)
-            .filter((n) => !isFunnelEvent(n) && (bucketOf(n) || PURCHASE_RE.test(n)));
+            .filter((n) => !isFunnelEvent(n) && (bucketOf(n) || isKaufEvent(n)));
           let rows: Array<Record<string, unknown>> = [];
           if (convNames.length > 0) {
             try {

@@ -17,7 +17,9 @@ import { zeitraum, ga4DateRange, type Zeitraum } from "@/lib/date-range";
 import { sistrixLandVon } from "@/lib/sistrixLand";
 import {
   breakdownJeKanal,
+  convBucketVon,
   isFunnelEvent,
+  isKaufEvent,
   kanaeleKaeufeBereinigt,
   kaufZaehler,
   ladeKaufJeKanal,
@@ -134,21 +136,14 @@ const AI_SOURCE_PATTERNS = [
   "poe.com",
 ];
 const isAiSource = (s: string) => AI_SOURCE_PATTERNS.some((p) => s.toLowerCase().includes(p));
-// GA4 conversion-event buckets (first match wins).
-const CONV_BUCKETS: Array<{ key: "phone" | "mail" | "maps" | "contact"; re: RegExp }> = [
-  { key: "phone", re: /phone|call|tel|anruf/i },
-  { key: "mail", re: /mail|email/i },
-  { key: "maps", re: /map|route|direction|wegbeschreibung|standort/i },
-  { key: "contact", re: /contact|kontakt|form|lead|submit|anfrage|offerte/i },
-];
+// GA4 conversion-event buckets: Zählregeln zentral in lib/convEvents (02.10.2026).
 const CONV_BUCKET_LABEL: Record<string, string> = {
   phone: "Phone Click",
   mail: "Mail Click",
   maps: "Maps Click",
   contact: "Contact Form",
 };
-const CONV_PURCHASE_RE = /purchase|order|checkout|kauf|transaction/i;
-const convBucketOf = (n: string) => CONV_BUCKETS.find((b) => b.re.test(n))?.key ?? null;
+const convBucketOf = (n: string) => convBucketVon(n);
 
 async function ranWithin(clientId: string, auditType: string, hours: number): Promise<boolean> {
   if (!hours || hours <= 0) return false;
@@ -1130,8 +1125,8 @@ async function jobGa4Conversions(c: any, uid: string, days: number) {
       count: Number(r.metricValues?.[0]?.value ?? 0),
     }));
     for (const e of events) {
-      const b = CONV_BUCKETS.find((x) => x.re.test(e.eventName));
-      if (b) breakdown[b.key] += e.count;
+      const b = convBucketOf(e.eventName);
+      if (b) breakdown[b] += e.count;
     }
   } catch {
     /* optional */
@@ -1199,7 +1194,7 @@ async function jobGa4Conversions(c: any, uid: string, days: number) {
   // NAMES so high-volume events (page_view, …) don't crowd out the rows.
   const convNames = events
     .map((e: any) => e.eventName)
-    .filter((n: string) => !isFunnelEvent(n) && (convBucketOf(n) || CONV_PURCHASE_RE.test(n)));
+    .filter((n: string) => !isFunnelEvent(n) && (convBucketOf(n) || isKaufEvent(n)));
   let rows: any[] = [];
   if (convNames.length > 0) {
     try {

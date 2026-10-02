@@ -11,7 +11,13 @@ import { useState, useEffect, useMemo } from "react";
 import ConversionScoutPanel from "@/ezy/ConversionScoutPanel";
 import { monatLabel, rekonstruktionImZeitraum, rekonstruktionVon } from "@/lib/convRekonstruktion";
 import { isAiConvSource } from "@/ezy/data/aiSources";
-import { generatedUmsatz, isFunnelEvent, organischerBreakdown } from "@/lib/convEvents";
+import {
+  convBucketVon,
+  generatedUmsatz,
+  isFunnelEvent,
+  isKaufEvent,
+  organischerBreakdown,
+} from "@/lib/convEvents";
 import DataStatus from "@/ezy/DataStatus";
 import { C } from "./theme";
 import { KpiCard, liveDaysFor, useLiveGa4 } from "./ui-kit";
@@ -100,11 +106,9 @@ export function ConvDashboard({ selectedClient, dateRange, appScope = null }) {
   const [convFilter, setConvFilter] = useState("alle");
   // Funnel-Schritte (begin_checkout, add_to_cart …) sind keine Käufe
   // (01.10.2026, Morosani: begin_checkout zählte als Purchase).
-  const isPurchaseEvent = (r) =>
-    !isFunnelEvent(r?.eventName) &&
-    /purchase|checkout|transaction|kauf|buchung|booking/i.test(
-      String(r?.eventName || r?.description || ""),
-    );
+  // Zählregeln zentral (02.10.2026): Ticket-«Kaufen»-Klicks, booking_request
+  // u. ä. sind keine Käufe; Anfragen laufen über die Kontakt-Kategorie.
+  const isPurchaseEvent = (r) => isKaufEvent(r?.eventName);
   // Detailliste (Volkan 31.08., KI-Separierung gleichentags): EzyRank zeigt
   // NUR «Organic Search»; in EzyAI (appScope "geo") kommen zusätzlich
   // KI-Referrals dazu (ChatGPT/Perplexity/… — gleiche Quellen-Erkennung wie
@@ -117,6 +121,8 @@ export function ConvDashboard({ selectedClient, dateRange, appScope = null }) {
       (conv?.rows || []).filter((r) => {
         // Funnel-Schritte nie in der Conversion-Liste (auch alte Snapshots).
         if (isFunnelEvent(r.eventName)) return false;
+        // Zählregeln (02.10.2026) auch auf ältere Snapshots anwenden.
+        if (!convBucketVon(r.eventName) && !isKaufEvent(r.eventName)) return false;
         if (r.channel == null) {
           // Fallback (alte Snapshots ohne channel-Feld): Direktzugriffe immer
           // raus; KI-Quellen nur in EzyAI zeigen.
