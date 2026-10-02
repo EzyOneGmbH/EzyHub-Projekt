@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.4.2",
+    version: "2.4.3",
     changelog: [
+      {
+        version: "2.4.3",
+        date: "2026-10-02",
+        note: "Conversions: das Panel «Conversion-Kandidaten» ist eingeklappt und zeigt die Kandidaten erst nach Klick auf die Kopfzeile (Zähler offen/freigegeben bleiben sichtbar, Zustand wird gemerkt)",
+      },
       {
         version: "2.4.2",
         date: "2026-10-01",
