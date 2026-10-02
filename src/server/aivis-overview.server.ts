@@ -13,7 +13,12 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
 import { ga4DateRange, type Zeitraum } from "@/lib/date-range";
-import { ENGINES, isOrganicBing, countedConversionEvents } from "@/server/aivis-attribution.server";
+import {
+  ENGINES,
+  isOrganicBing,
+  istBezahlt,
+  countedConversionEvents,
+} from "@/server/aivis-attribution.server";
 import { GA4_MEDIUM_RE, GA4_SOURCE_RE } from "@/server/chatgpt-ads-report.server";
 
 const GA4 = "https://analyticsdata.googleapis.com/v1beta";
@@ -81,6 +86,7 @@ async function kiTraffic(
     const src = String(row.dimensionValues?.[0]?.value ?? "");
     if (!ENGINES.some((e) => e.re.test(src))) continue;
     if (isOrganicBing(src, String(row.dimensionValues?.[1]?.value ?? ""))) continue;
+    if (istBezahlt(String(row.dimensionValues?.[1]?.value ?? ""))) continue;
     sessions += Number(row.metricValues?.[0]?.value ?? 0);
     conversions += Number(row.metricValues?.[1]?.value ?? 0);
   }
@@ -103,6 +109,8 @@ async function kiTraffic(
       const src = String(row.dimensionValues?.[0]?.value ?? "");
       if (!ENGINES.some((e) => e.re.test(src))) continue;
       if (isOrganicBing(src, String(row.dimensionValues?.[1]?.value ?? ""))) continue;
+      if (istBezahlt(String(row.dimensionValues?.[1]?.value ?? ""))) continue;
+      if (istBezahlt(String(row.dimensionValues?.[1]?.value ?? ""))) continue;
       conversions +=
         Number(row.metricValues?.[1]?.value ?? 0) - Number(row.metricValues?.[0]?.value ?? 0);
     }

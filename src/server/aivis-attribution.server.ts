@@ -44,6 +44,14 @@ const AI_SOURCE_FILTER = {
   },
 };
 
+// Bezahlter KI-Traffic (02.10.2026, Volkan): ChatGPT Ads kommen in GA4 als
+// chatgpt / cpc an und landen im Standard-Kanal «Paid Search» bzw. «Paid
+// Other» — sie gehoeren in den Ads-Report, nicht in die Organic-Zahlen.
+// Erkennung ueber den Kanal (in allen Reports vorhanden), optional Medium.
+export const istBezahlt = (channel: string, medium = "") =>
+  /^(paid|cross-network)/i.test(String(channel || "").trim()) ||
+  /^(cpc|ppc|cpm|cpv|paid.*|display|retargeting)$/i.test(String(medium || "").trim());
+
 export const isOrganicBing = (src: string, channel: string) =>
   /(^|\.)bing\b/i.test(src) && !/copilot|chat|edgeservices/i.test(src) && /organic/i.test(channel);
 
@@ -159,6 +167,7 @@ export async function fetchAttribution(
     const eng = ENGINES.find((e) => e.re.test(src));
     if (!eng) continue;
     if (isOrganicBing(src, String(row.dimensionValues?.[2]?.value ?? ""))) continue;
+    if (istBezahlt(String(row.dimensionValues?.[2]?.value ?? ""))) continue;
     const country = String(row.dimensionValues?.[1]?.value ?? "");
     const sess = Number(row.metricValues?.[0]?.value ?? 0);
     agg[eng.name] ??= { sessions: 0, conversions: 0 };
@@ -198,6 +207,7 @@ export async function fetchAttribution(
           const eng = ENGINES.find((e) => e.re.test(src));
           if (!eng) continue;
           if (isOrganicBing(src, String(row.dimensionValues?.[1]?.value ?? ""))) continue;
+          if (istBezahlt(String(row.dimensionValues?.[1]?.value ?? ""))) continue;
           const ke = Number(row.metricValues?.[0]?.value ?? 0);
           const ec = Number(row.metricValues?.[1]?.value ?? 0);
           agg[eng.name] ??= { sessions: 0, conversions: 0 };
@@ -330,7 +340,13 @@ export async function fetchAttribution(
           const evName = get("eventName");
           // gezaehlte Ereignisse: Rohanzahl statt Key-Event-Anzahl (rueckwirkend)
           const n = Number(row.metricValues?.[counted.has(evName) ? 3 : 0]?.value ?? 0);
-          if (!eng || n <= 0 || isOrganicBing(src, get("sessionDefaultChannelGroup"))) continue;
+          if (
+            !eng ||
+            n <= 0 ||
+            isOrganicBing(src, get("sessionDefaultChannelGroup")) ||
+            istBezahlt(get("sessionDefaultChannelGroup"))
+          )
+            continue;
           const idRaw = get(idDim);
           const txn = idRaw && idRaw !== "(not set)" ? idRaw : undefined;
           const cur = get("customEvent:dl_currency");

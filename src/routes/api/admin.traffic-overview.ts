@@ -22,10 +22,13 @@ const AI_SOURCE_RE =
 // Bing-Sonderfall (06.08., Volkan): plain "bing" als Quelle ist nur dann
 // KI-Traffic (Copilot-Verweis), wenn er NICHT aus der organischen Bing-Suche
 // kommt — sonst würde klassisches Bing-SEO als KI gezählt.
+// Bezahlter Traffic (02.10.): ChatGPT Ads (chatgpt / cpc) und Microsoft-Ads-
+// Klicks («bing», Kanal Paid Search) zählen nicht als KI-Traffic.
 const isAiTraffic = (src: string, channel: string) =>
-  AI_SOURCE_RE.test(src) ||
-  /ai assistant/i.test(channel) ||
-  (/(^|\.)bing\b/i.test(src) && !/organic/i.test(channel));
+  !/^(paid|cross-network)/i.test(String(channel || "").trim()) &&
+  (AI_SOURCE_RE.test(src) ||
+    /ai assistant/i.test(channel) ||
+    (/(^|\.)bing\b/i.test(src) && !/organic/i.test(channel)));
 
 async function requireAccess(request: Request): Promise<{ userClient: any | null } | Response> {
   const admin = process.env.ADMIN_AUTOMATION_SECRET;

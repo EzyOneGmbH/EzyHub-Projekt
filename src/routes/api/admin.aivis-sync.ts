@@ -5,7 +5,12 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
 import { redactSecrets } from "@/server/google-oauth.server";
-import { ENGINES, isOrganicBing, fetchAttribution } from "@/server/aivis-attribution.server";
+import {
+  ENGINES,
+  isOrganicBing,
+  istBezahlt,
+  fetchAttribution,
+} from "@/server/aivis-attribution.server";
 import { getEnabledServices } from "@/server/integrations.server";
 import { generateViaSubscription } from "@/server/claude-generate.server";
 import { istKundePausiert, ohnePausierte } from "@/server/client-status.server";
@@ -3956,9 +3961,10 @@ async function jobBackfill(c: any, sb: any, months: number) {
             headers: { Authorization: `Bearer ${ga4Token}`, "Content-Type": "application/json" },
             body: JSON.stringify({
               dateRanges: [{ startDate: `${mo.key}-01`, endDate: end }],
-              dimensions: [{ name: "sessionSource" }],
+              // Kanal fuer Bing-Sonderfall + bezahlten KI-Traffic (02.10.)
+              dimensions: [{ name: "sessionSource" }, { name: "sessionDefaultChannelGroup" }],
               metrics: [{ name: "sessions" }, { name: "keyEvents" }],
-              limit: 250,
+              limit: 1000,
             }),
             signal: AbortSignal.timeout(30_000),
           },
@@ -3968,8 +3974,9 @@ async function jobBackfill(c: any, sb: any, months: number) {
           const agg: Record<string, { sessions: number; conversions: number }> = {};
           for (const row of jr.rows ?? []) {
             const src = String(row.dimensionValues?.[0]?.value ?? "");
+            const kanal = String(row.dimensionValues?.[1]?.value ?? "");
             const eng = ENGINES.find((e) => e.re.test(src));
-            if (!eng) continue;
+            if (!eng || isOrganicBing(src, kanal) || istBezahlt(kanal)) continue;
             agg[eng.name] ??= { sessions: 0, conversions: 0 };
             agg[eng.name].sessions += Number(row.metricValues?.[0]?.value ?? 0);
             agg[eng.name].conversions += Number(row.metricValues?.[1]?.value ?? 0);

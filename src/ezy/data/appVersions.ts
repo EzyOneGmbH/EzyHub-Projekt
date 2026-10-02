@@ -143,8 +143,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.29.2",
+    version: "1.30.0",
     changelog: [
+      {
+        version: "1.30.0",
+        date: "2026-10-02",
+        note: "Organic zählt bezahlte KI-Klicks nicht mehr mit: Besucher aus ChatGPT Ads (GA4 chatgpt / cpc, Kanal «Paid …») fallen aus KI-Besuchern, Conversions, Conversion-Detail, Performance-Tabelle, LLM-Analytics und Traffic-KI-Anteil heraus — sie erscheinen im Ads-Report",
+      },
       {
         version: "1.29.2",
         date: "2026-10-02",
