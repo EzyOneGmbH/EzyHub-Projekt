@@ -209,7 +209,7 @@ describe("Zeitraum filtert die Daten wirklich", () => {
   });
 });
 
-describe("ChatGPT-Ads Auto-Sync (pg_cron alle 12 h, bei Nichtverwendung)", () => {
+describe("ChatGPT-Ads Auto-Sync (pg_cron stuendlich, bei Nichtverwendung)", () => {
   it("istFrischSynchronisiert: nur innerhalb des Fensters übersprungen, 0 = nie", async () => {
     const { istFrischSynchronisiert } = await import("../routes/api/admin.chatgpt-ads");
     const jetzt = Date.parse("2026-09-21T12:15:00Z");

@@ -18,7 +18,7 @@ const gesund = (): SchedulerRoh => ({
   jobs: [
     { jobid: 1, jobname: "ezy-analyse-worker", schedule: "* * * * *", active: true },
     { jobid: 2, jobname: "ezy-analyse-watchdog", schedule: "*/5 * * * *", active: true },
-    { jobid: 3, jobname: "ezy-chatgpt-ads-sync", schedule: "15 */12 * * *", active: true },
+    { jobid: 3, jobname: "ezy-chatgpt-ads-sync", schedule: "15 * * * *", active: true },
     { jobid: 4, jobname: "ezy-first-party-sync", schedule: "40 4 * * *", active: true },
     { jobid: 5, jobname: "ezy-first-party-backfill", schedule: "*/15 * * * *", active: true },
   ],

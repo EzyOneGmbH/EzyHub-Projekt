@@ -1939,8 +1939,9 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
         if (action === "sync-all") {
           if (!isAdminSecret)
             return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-          // Auto-Sync (Volkan 21.09.2026): pg_cron ruft alle 12 h mit
-          // maxAlterStunden=11 — Konten, die die UI in der Zwischenzeit selbst
+          // Auto-Sync (Volkan 21.09.2026, seit 02.10. stuendlich): pg_cron ruft
+          // jede Stunde mit maxAlterStunden=0.75 — Konten, die die UI in den
+          // letzten 45 Minuten selbst
           // synchronisiert hat («Verwendung»), werden übersprungen; ohne
           // Parameter (n8n/agent-service) wie bisher alle aktiven Konten.
           const maxAlterStunden = Number(body?.maxAlterStunden || 0);

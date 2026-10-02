@@ -143,8 +143,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.30.1",
+    version: "1.30.2",
     changelog: [
+      {
+        version: "1.30.2",
+        date: "2026-10-02",
+        note: "ChatGPT Ads werden jetzt stündlich automatisch mit dem OpenAI Ads Manager abgeglichen (vorher alle 12 Stunden)",
+      },
       {
         version: "1.30.1",
         date: "2026-10-02",

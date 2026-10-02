@@ -83,8 +83,9 @@ export function bewerteScheduler(roh: SchedulerRoh, jetztMs = Date.now()): Sched
   for (const [jobname, schedule, maxAlterMs] of [
     ["ezy-analyse-worker", "* * * * *", 3 * 60_000],
     ["ezy-analyse-watchdog", "*/5 * * * *", 7 * 60_000],
-    // ChatGPT-Ads Auto-Sync (21.09.2026): alle 12 h, Toleranz 13 h.
-    ["ezy-chatgpt-ads-sync", "15 */12 * * *", 13 * 3_600_000],
+    // ChatGPT-Ads Auto-Sync: seit 02.10.2026 stuendlich (vorher 12 h),
+    // Toleranz 2 h = ein ausgefallener Lauf + Puffer.
+    ["ezy-chatgpt-ads-sync", "15 * * * *", 2 * 3_600_000],
     // First-Party-KPIs (22.09.2026): Tageslauf 04:40 UTC (Toleranz 26 h),
     // Backfill alle 15 min (Toleranz 30 min). Migration 20260922110000.
     ["ezy-first-party-sync", "40 4 * * *", 26 * 3_600_000],
