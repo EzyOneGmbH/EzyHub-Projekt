@@ -143,8 +143,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.29.1",
+    version: "1.29.2",
     changelog: [
+      {
+        version: "1.29.2",
+        date: "2026-10-02",
+        note: "ChatGPT Ads in der Kundenansicht (Kundenlogins): Bereiche «Conversions» und «Event-Log» ausgeblendet — Kunden sehen Dashboard, Kampagnen und Report",
+      },
       {
         version: "1.29.1",
         date: "2026-10-01",

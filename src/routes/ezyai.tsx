@@ -179,9 +179,14 @@ const DISABLED_CARDS = new Set(["seo-ki-matrix", "ki-crawler"]);
 // Render-Zweig bleibt; ID entfernen = wieder sichtbar.
 const DISABLED_VIEWS = new Set(["agent"]);
 // Ads-Bereiche nur fuer Agentur-Rollen (22.09.): Zielgruppen und Einstellungen
-// schreiben ins Werbekonto — Kundenlogins bekommen Dashboard, Kampagnen,
-// Conversions und Event-Log schreibgeschuetzt.
-const ADS_NAV_INTERN = new Set(["ads-zielgruppen", "ads-einstellungen"]);
+// schreiben ins Werbekonto. Seit 02.10. (Volkan) auch Conversions und Event-Log
+// nur intern — Kundenlogins sehen Dashboard, Kampagnen und Report.
+const ADS_NAV_INTERN = new Set([
+  "ads-zielgruppen",
+  "ads-einstellungen",
+  "ads-conversions",
+  "ads-events",
+]);
 // Kopfzeilen-Aktionen, die in der KUNDENANSICHT ausgeblendet sind (Volkan
 // 22.09.): «LLM-Überblick», Benachrichtigungen, EzyPilot-Knopf. Auf der
 // Agentur-Übersicht («Alle Kunden») bleiben sie. Eintrag entfernen = sichtbar.
@@ -4583,6 +4588,11 @@ function EzyAiApp() {
     }
   }, [adsMode]);
   const [adsSection, setAdsSection] = useState("ads-overview");
+  // Kundenlogins: interne Ads-Bereiche (auch per Link aus dem Dashboard) nie
+  // anzeigen — zurueck aufs Dashboard.
+  useEffect(() => {
+    if (role === "viewer" && ADS_NAV_INTERN.has(adsSection)) setAdsSection("ads-overview");
+  }, [role, adsSection]);
   // Prompt-Kuration ist seit 18.08. der reguläre Bereich "Your Prompts" —
   // alle früheren "Prompts verwalten"-Einstiege führen hierhin.
   const goPrompts = useCallback(() => {
