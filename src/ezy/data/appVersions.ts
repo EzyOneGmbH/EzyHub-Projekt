@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.4.12",
+    version: "2.4.13",
     changelog: [
+      {
+        version: "2.4.13",
+        date: "2026-10-05",
+        note: "Zeitraum-Vergleich (vorher-Werte) wieder aktiv: GA4 lehnt «dateRange» als Dimension neu ab (HTTP 400) — Vergleichsabfrage angepasst, betraf Organic/Switzerland Traffic und die Vergleiche in Übersicht und Conversions bei allen Kunden",
+      },
       {
         version: "2.4.12",
         date: "2026-10-05",

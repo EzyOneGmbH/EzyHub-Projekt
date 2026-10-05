@@ -22,6 +22,13 @@ const Body = z.object({
 
 const isoDay = (s: string) => String(s).slice(0, 10);
 
+// GA4 (seit ~10.2026): «dateRange» darf bei mehreren Zeitraeumen NICHT mehr als
+// Dimension angegeben werden (HTTP 400 «Field dateRange is not a dimension»);
+// GA4 haengt den Zeitraum-Namen selbst als LETZTE Dimension an. Darum Zeilen
+// ueber irgendeinen Dimensionswert zuordnen statt nur ueber den ersten.
+const istZeitraum = (r: { dimensionValues?: Array<{ value: string }> }, re: RegExp) =>
+  (r.dimensionValues ?? []).some((d) => re.test(d?.value ?? ""));
+
 export const Route = createFileRoute("/api/google/ga4-compare")({
   server: {
     handlers: {
@@ -101,12 +108,10 @@ export const Route = createFileRoute("/api/google/ga4-compare")({
             { name: "totalRevenue" },
           ];
           let res = await runReport({
-            dimensions: [{ name: "dateRange" }],
             metrics: totalsMetrics("conversions"),
           });
           if (!res.ok) {
             res = await runReport({
-              dimensions: [{ name: "dateRange" }],
               metrics: totalsMetrics("keyEvents"),
             });
           }
@@ -137,12 +142,8 @@ export const Route = createFileRoute("/api/google/ga4-compare")({
 
           // Match rows by the dateRange dimension value ("current"/"compare" or date_range_0/1).
           const rows = json.rows ?? [];
-          const currentRow =
-            rows.find((r) => /current|date_range_0/i.test(r.dimensionValues?.[0]?.value ?? "")) ??
-            rows[0];
-          const compareRow =
-            rows.find((r) => /compare|date_range_1/i.test(r.dimensionValues?.[0]?.value ?? "")) ??
-            rows[1];
+          const currentRow = rows.find((r) => istZeitraum(r, /^(current|date_range_0)$/i));
+          const compareRow = rows.find((r) => istZeitraum(r, /^(compare|date_range_1)$/i));
 
           // Organische Sessions je Zeitraum (22.08., Volkan): die SEO-Kachel
           // "Organic Traffic (GA4)" braucht den Kanal "Organic Search" — die
@@ -171,7 +172,7 @@ export const Route = createFileRoute("/api/google/ga4-compare")({
                 ],
                 // WICHTIG: die gefilterte Dimension muss im Request stehen —
                 // sonst lehnt die GA4 Data API den Filter mit 400 ab.
-                dimensions: [{ name: "dateRange" }, { name: "sessionDefaultChannelGroup" }],
+                dimensions: [{ name: "sessionDefaultChannelGroup" }],
                 metrics: [{ name: "sessions" }],
                 dimensionFilter: {
                   filter: {
@@ -191,12 +192,8 @@ export const Route = createFileRoute("/api/google/ga4-compare")({
                 },
               );
               const or = oj.rows ?? [];
-              const oc =
-                or.find((r) => /current|date_range_0/i.test(r.dimensionValues?.[0]?.value ?? "")) ??
-                or[0];
-              const op =
-                or.find((r) => /compare|date_range_1/i.test(r.dimensionValues?.[0]?.value ?? "")) ??
-                or[1];
+              const oc = or.find((r) => istZeitraum(r, /^(current|date_range_0)$/i));
+              const op = or.find((r) => istZeitraum(r, /^(compare|date_range_1)$/i));
               organicCurrent = oc ? Number(oc.metricValues?.[0]?.value ?? 0) : null;
               organicCompare = op ? Number(op.metricValues?.[0]?.value ?? 0) : null;
             }
@@ -229,11 +226,7 @@ export const Route = createFileRoute("/api/google/ga4-compare")({
                     name: "compare",
                   },
                 ],
-                dimensions: [
-                  { name: "dateRange" },
-                  { name: "sessionDefaultChannelGroup" },
-                  { name: "countryId" },
-                ],
+                dimensions: [{ name: "sessionDefaultChannelGroup" }, { name: "countryId" }],
                 metrics: [{ name: "sessions" }],
                 dimensionFilter: {
                   andGroup: {
@@ -265,12 +258,8 @@ export const Route = createFileRoute("/api/google/ga4-compare")({
                 },
               );
               const cr = cj.rows ?? [];
-              const cc =
-                cr.find((r) => /current|date_range_0/i.test(r.dimensionValues?.[0]?.value ?? "")) ??
-                cr[0];
-              const cp =
-                cr.find((r) => /compare|date_range_1/i.test(r.dimensionValues?.[0]?.value ?? "")) ??
-                cr[1];
+              const cc = cr.find((r) => istZeitraum(r, /^(current|date_range_0)$/i));
+              const cp = cr.find((r) => istZeitraum(r, /^(compare|date_range_1)$/i));
               chOrganicCurrent = cc ? Number(cc.metricValues?.[0]?.value ?? 0) : null;
               chOrganicCompare = cp ? Number(cp.metricValues?.[0]?.value ?? 0) : null;
             }
