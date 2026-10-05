@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.4.7",
+    version: "2.4.8",
     changelog: [
+      {
+        version: "2.4.8",
+        date: "2026-10-05",
+        note: "Sichtbarkeit (organisch): Monatsverlauf wird jeden Monat ab dem 3. aktualisiert — vorher konnte der 27-Tage-Abstand den letzten vollen Monat (z.B. September) bis zu 4 Wochen zurückhalten",
+      },
       {
         version: "2.4.7",
         date: "2026-10-02",

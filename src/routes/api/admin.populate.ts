@@ -26,6 +26,7 @@ import {
   type ConvBreakdown,
   type ConvBucket,
 } from "@/lib/convEvents";
+import { seoHistoryGuardAb } from "@/lib/seoHistoryGuard";
 import { ga4Coverage, ga4CoverageSammler, ga4RunReportUrl } from "@/server/ga4.server";
 import {
   gscTotals,
@@ -329,7 +330,9 @@ async function jobGsc(c: any, uid: string, days: number) {
 // je Monat (GSC-API-Limit ~16 Monate) -> type 'seo_history'. Speist das
 // Dashboard-Widget "Sichtbarkeit (organisch)" (ersetzt die DFS-Labs-Kurve).
 // Nur VOLLE Monate (der laufende wuerde als Einbruch wirken). Monats-Guard:
-// max. 1x pro 27 Tage frisch, force uebergeht ihn.
+// 1x pro Kalendermonat ab dem 3. (GA4/GSC haben den Vormonat dann fertig
+// verarbeitet), force uebergeht ihn. Vorher 27-Tage-Abstand (05.10.2026):
+// ein Lauf am 10.09. sperrte bis 07.10. → Widget hing beim August.
 async function jobSeoHistory(c: any, uid: string, force = false) {
   if (!c.gsc_property && !c.ga4_property) return { skipped: "kein gsc/ga4 property" };
   try {
@@ -345,7 +348,7 @@ async function jobSeoHistory(c: any, uid: string, force = false) {
     if (
       !force &&
       (prev as any)?.created_at &&
-      Date.now() - Date.parse((prev as any).created_at) < 27 * 86400000
+      Date.parse((prev as any).created_at) >= seoHistoryGuardAb(new Date()).getTime()
     )
       return { skipped: "fresh (Monats-Guard)" };
   } catch {
