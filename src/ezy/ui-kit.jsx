@@ -1437,8 +1437,10 @@ export const liveDaysFor = liveRangeFor;
 
 export function useGa4Compare(clientId, dateRange) {
   const [data, setData] = useState(null);
+  // Lokale Kalendertage (05.10.2026): toISOString kippte in der Schweiz (UTC+1/+2)
+  // jeden Tag auf den Vortag → Vergleich lief ueber ein um 1 Tag verschobenes Fenster.
   const compareKey = dateRange?.compare
-    ? `${dateRange.compareMode}:${new Date(dateRange.start).toISOString().slice(0, 10)}:${new Date(dateRange.compare.start).toISOString().slice(0, 10)}`
+    ? `${dateRange.compareMode}:${tagLokal(dateRange.start)}:${tagLokal(dateRange.end)}:${tagLokal(dateRange.compare.start)}:${tagLokal(dateRange.compare.end)}`
     : null;
   useEffect(() => {
     let cancelled = false;
@@ -1446,7 +1448,7 @@ export function useGa4Compare(clientId, dateRange) {
       setData(null);
       return;
     }
-    const iso = (d) => new Date(d).toISOString().slice(0, 10);
+    const iso = tagLokal;
     (async () => {
       try {
         const session = (await supabase.auth.getSession()).data.session;

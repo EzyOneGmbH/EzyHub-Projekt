@@ -2,6 +2,7 @@
 // Verschieben): Agentur-Uebersicht, SEO/GEO/Conversions/Overview-Dashboards,
 // KI-Sichtbarkeit (Makro) und Onboarding-Scan-Panel.
 import { organischerBreakdown } from "@/lib/convEvents";
+import { vorperiode } from "@/lib/date-range";
 import { besucheLand, landName, laenderImZeitraum, laenderMitTraffic } from "@/lib/seoHistLaender";
 import { Btn } from "./shared-ui";
 import {
@@ -904,7 +905,31 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   // Organic-Traffic-Vergleich (22.08., Volkan): GA4-Quelle → organische
   // Sessions des Vergleichszeitraums (Live-Endpoint); DFS-Quelle → gespeicherter
   // Ahrefs-Stand. GSC-Klicks haben keine Vergleichsquelle → keine Zeile.
-  const { data: seoCmpData } = useGa4Compare(selectedClient?.id, dateRange);
+  // «vorher» passend zum Zeitraum (05.10.2026, Volkan): ohne aktiven Vergleich
+  // automatisch die gleich lange Vorperiode live abfragen — nie mehr der
+  // gespeicherte 28-Tage-Snapshot gegen einen kuerzeren Zeitraum.
+  const seoLiveRange = liveDaysFor(dateRange);
+  const seoCmpRange = useMemo(() => {
+    if (cmpAktiv || !seoLiveRange || typeof seoLiveRange !== "object") return dateRange;
+    const vp = vorperiode({
+      startDate: seoLiveRange.startDate,
+      days:
+        Math.round(
+          (Date.parse(seoLiveRange.endDate) - Date.parse(seoLiveRange.startDate)) / 864e5,
+        ) + 1,
+    });
+    const lokal = (ymd) => new Date(`${ymd}T00:00:00`);
+    return {
+      ...dateRange,
+      compareMode: "prevPeriod",
+      compare: { start: lokal(vp.startDate), end: lokal(vp.endDate) },
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cmpAktiv, dateRange, seoLiveRange?.startDate, seoLiveRange?.endDate]);
+  const { data: seoCmpData } = useGa4Compare(selectedClient?.id, seoCmpRange);
+  // Traffic-Kacheln vergleichen Zeitraeume (Fluss), nicht Staende: Label
+  // «Vorperiode», wenn der Vergleich automatisch gebildet wurde.
+  const TRAFFIC_CMP_LABEL = cmpAktiv ? FENSTER_LABEL : "Vorperiode";
   const { run: gscQRun } = useEzyLatestRun(selectedClient?.id, "gsc_queries", bis);
   const gscQ = gscQRun?.result || null;
   // Entwicklung der Non-Brand-Suchanfragen (Volkan 31.08.): Vergleich gegen
@@ -1047,9 +1072,12 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   const chVonWert = (() => {
     // Organik-Karte: GA4-Live-Vergleich zuerst (Snapshots führen
     // countriesOrganic erst seit 13.08. — ältere Fenster wären sonst leer).
-    if (chSessionsOrganic && cmpAktiv && Number(seoCmpData?.compare?.chOrganicSessions) > 0)
-      return Math.round(Number(seoCmpData.compare.chOrganicSessions));
-    if (!trafVonResult) return null;
+    if (chSessionsOrganic && seoCmpData?.compare?.chOrganicSessions != null)
+      return Number(seoCmpData.compare.chOrganicSessions) > 0
+        ? Math.round(Number(seoCmpData.compare.chOrganicSessions))
+        : null;
+    // Snapshot (28-Tage-Fenster) nur, wenn es keinen Live-Zeitraum gibt (> 90 Tage).
+    if (seoLiveRange || !trafVonResult) return null;
     const liste = chSessionsOrganic ? trafVonResult.countriesOrganic : trafVonResult.countries;
     const v = (liste || []).find((c) => /switzerland|schweiz|^ch$/i.test(c.country))?.sessions;
     return Number(v) > 0 ? Math.round(Number(v)) : null;
@@ -1085,9 +1113,9 @@ export function SeoDashboard({ selectedClient, dateRange }) {
     : null;
   const trafficCmpWert =
     organicTrafficSource === "GA4"
-      ? cmpAktiv && Number(seoCmpData?.compare?.organicSessions) > 0
+      ? Number(seoCmpData?.compare?.organicSessions) > 0
         ? Math.round(Number(seoCmpData.compare.organicSessions))
-        : Number(trafVonOrganic) > 0
+        : !seoLiveRange && Number(trafVonOrganic) > 0
           ? Math.round(Number(trafVonOrganic))
           : null
       : organicTrafficSource === "DFS-Schätzung" && ahrefsVon?.traffic > 0
@@ -1867,7 +1895,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                 : undefined
             }
             compareValue={trafficCmpWert != null ? trafficCmpWert : undefined}
-            compareLabel={FENSTER_LABEL}
+            compareLabel={TRAFFIC_CMP_LABEL}
           />
           {/* Visibility Index seit 11.09. echt aus Sistrix (CH); vorher stand hier
               die Zahl der verweisenden Domains. Sistrix-Werte sind Dezimalzahlen
@@ -1913,7 +1941,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
               color={C.pink}
               change={chVonWert != null ? fensterPct(chSessions, chVonWert) : undefined}
               compareValue={chVonWert != null ? chVonWert.toLocaleString("de-CH") : undefined}
-              compareLabel={FENSTER_LABEL}
+              compareLabel={TRAFFIC_CMP_LABEL}
             />
           )}
         </div>

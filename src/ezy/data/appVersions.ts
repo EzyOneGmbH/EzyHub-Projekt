@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.4.11",
+    version: "2.4.12",
     changelog: [
+      {
+        version: "2.4.12",
+        date: "2026-10-05",
+        note: "Organic Traffic / Switzerland Traffic: «vorher» passt jetzt immer zum gewählten Zeitraum (gleich lange Vorperiode bzw. gewählter Vergleich, live aus GA4) — vorher konnte ein 28-Tage-Snapshot einspringen (z.B. 1'503 statt 5 Tage) und Vergleichsdaten waren um einen Tag verschoben",
+      },
       {
         version: "2.4.11",
         date: "2026-10-05",
