@@ -402,7 +402,13 @@ async function jobSeoHistory(c: any, uid: string, force = false) {
           const n = Number(row.metricValues?.[0]?.value ?? 0);
           e.ga4Organic = Number(e.ga4Organic ?? 0) + n;
           e.ga4OrganicCH = Number(e.ga4OrganicCH ?? 0);
-          if (row.dimensionValues?.[1]?.value === "CH") e.ga4OrganicCH = Number(e.ga4OrganicCH) + n;
+          const land = String(row.dimensionValues?.[1]?.value ?? "");
+          if (land === "CH") e.ga4OrganicCH = Number(e.ga4OrganicCH) + n;
+          // Je Land (05.10.2026): Laenderauswahl im Widget.
+          if (/^[A-Z]{2}$/.test(land) && n > 0) {
+            const je = (e.ga4ByCountry ??= {}) as Record<string, number>;
+            je[land] = (je[land] ?? 0) + n;
+          }
         }
         ga4ok = true;
       }

@@ -2,6 +2,7 @@
 // Verschieben): Agentur-Uebersicht, SEO/GEO/Conversions/Overview-Dashboards,
 // KI-Sichtbarkeit (Makro) und Onboarding-Scan-Panel.
 import { organischerBreakdown } from "@/lib/convEvents";
+import { besucheLand, landName, laenderMitTraffic } from "@/lib/seoHistLaender";
 import { Btn } from "./shared-ui";
 import {
   CTooltip,
@@ -936,24 +937,35 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   // beginnt beim ERSTEN Messpunkt (keine leere Null-Vorlaufzeit).
   const { run: seoHistRun } = useEzyLatestRun(selectedClient?.id, "seo_history");
   const seoHist = seoHistRun?.result || null;
+  // Laenderauswahl (05.10.2026): nur Laender mit organischem Traffic, nach
+  // Traffic sortiert; Standard Schweiz, sonst das staerkste Land.
+  const seoHistLaender = useMemo(
+    () => laenderMitTraffic(Array.isArray(seoHist?.months) ? seoHist.months : []),
+    [seoHist],
+  );
+  const [seoHistLandWahl, setSeoHistLandWahl] = useState("CH");
+  const seoHistLand = seoHistLaender.some((l) => l.code === seoHistLandWahl)
+    ? seoHistLandWahl
+    : seoHistLaender[0]?.code || "CH";
+  const seoHistLandKey = `davon ${landName(seoHistLand)}`;
   const seoHistSeries = useMemo(() => {
     const rows = Array.isArray(seoHist?.months) ? seoHist.months : [];
     const mapped = rows.map((m) => ({
       month: m.month,
       "Besuche (GA4)": m.ga4Organic ?? null,
-      // Keywords-Linie entfernt, dafür organisch aus der Schweiz (05.10.2026).
-      "davon Schweiz": m.ga4OrganicCH ?? null,
+      // Keywords-Linie entfernt (05.10.2026), dafür das gewaehlte Land.
+      [seoHistLandKey]: besucheLand(m, seoHistLand),
     }));
     const first = mapped.findIndex((m) => (m["Besuche (GA4)"] || 0) > 0);
     return first >= 0 ? mapped.slice(first) : [];
-  }, [seoHist]);
+  }, [seoHist, seoHistLand, seoHistLandKey]);
   const seoHistHasGa4 = useMemo(
     () => seoHistSeries.some((m) => (m["Besuche (GA4)"] || 0) > 0),
     [seoHistSeries],
   );
   const seoHistHasCH = useMemo(
-    () => seoHistSeries.some((m) => m["davon Schweiz"] != null),
-    [seoHistSeries],
+    () => seoHistSeries.some((m) => m[seoHistLandKey] != null),
+    [seoHistSeries, seoHistLandKey],
   );
   const { run: psiRun, refresh: refreshPsi } = useEzyLatestRun(
     selectedClient?.id,
@@ -1737,21 +1749,54 @@ export function SeoDashboard({ selectedClient, dateRange }) {
             padding: 16,
           }}
         >
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, color: C.textMuted }}>
-            Sichtbarkeit (organisch)
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 12,
+              flexWrap: "wrap",
+              marginBottom: 4,
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.textMuted }}>
+              Sichtbarkeit (organisch)
+            </div>
+            {seoHistLaender.length > 1 && (
+              <select
+                aria-label="Land"
+                value={seoHistLand}
+                onChange={(e) => setSeoHistLandWahl(e.target.value)}
+                style={{
+                  fontSize: 12,
+                  padding: "4px 8px",
+                  borderRadius: 8,
+                  border: `1px solid ${C.border}`,
+                  background: C.surface,
+                  color: C.textMuted,
+                  maxWidth: 220,
+                }}
+              >
+                {seoHistLaender.map((l) => (
+                  <option key={l.code} value={l.code}>
+                    {landName(l.code)} ({Math.round(l.total).toLocaleString("de-CH")})
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
           <div style={{ fontSize: 11, color: C.textDim, marginBottom: 12 }}>
             {seoHistHasCH
-              ? "GA4 organische Besuche (alle Länder + davon Schweiz)"
+              ? `GA4 organische Besuche (alle Länder + davon ${landName(seoHistLand)})`
               : "GA4 organische Besuche"}
             {" · monatlich · nur volle Monate"}
             {(() => {
               const last = seoHistSeries[seoHistSeries.length - 1];
               const v = last?.["Besuche (GA4)"];
-              const ch = last?.["davon Schweiz"];
+              const ch = last?.[seoHistLandKey];
               if (v == null) return "";
               const f = (x) => Math.round(x).toLocaleString("de-CH");
-              return ` · zuletzt ${f(v)} organische Besuche/Mon.${ch != null ? ` (davon ${f(ch)} aus der Schweiz)` : ""}`;
+              return ` · zuletzt ${f(v)} organische Besuche/Mon.${ch != null ? ` (davon ${f(ch)} aus ${landName(seoHistLand)})` : ""}`;
             })()}
           </div>
           <ResponsiveContainer width="100%" height={240}>
@@ -1778,7 +1823,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
               {seoHistHasCH && (
                 <Line
                   type="monotone"
-                  dataKey="davon Schweiz"
+                  dataKey={seoHistLandKey}
                   stroke={C.blue}
                   strokeWidth={2}
                   dot={false}
