@@ -941,13 +941,18 @@ export function SeoDashboard({ selectedClient, dateRange }) {
     const mapped = rows.map((m) => ({
       month: m.month,
       "Besuche (GA4)": m.ga4Organic ?? null,
-      Keywords: m.gscQueries ?? null,
+      // Keywords-Linie entfernt, dafür organisch aus der Schweiz (05.10.2026).
+      "davon Schweiz": m.ga4OrganicCH ?? null,
     }));
-    const first = mapped.findIndex((m) => (m["Besuche (GA4)"] || 0) > 0 || (m.Keywords || 0) > 0);
+    const first = mapped.findIndex((m) => (m["Besuche (GA4)"] || 0) > 0);
     return first >= 0 ? mapped.slice(first) : [];
   }, [seoHist]);
   const seoHistHasGa4 = useMemo(
     () => seoHistSeries.some((m) => (m["Besuche (GA4)"] || 0) > 0),
+    [seoHistSeries],
+  );
+  const seoHistHasCH = useMemo(
+    () => seoHistSeries.some((m) => m["davon Schweiz"] != null),
     [seoHistSeries],
   );
   const { run: psiRun, refresh: refreshPsi } = useEzyLatestRun(
@@ -1723,7 +1728,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
           hint="Für diesen Kunden ist noch kein Rank-Tracking eingerichtet — Keyword-Set im Rank-Tracking hinterlegen, dann erscheinen hier Top-3/Top-10, Veränderungen und die Rankings-Tabelle."
         />
       )}
-      {seoHistSeries.length >= 2 && (
+      {seoHistHasGa4 && seoHistSeries.length >= 2 && (
         <div
           style={{
             background: C.card,
@@ -1736,24 +1741,24 @@ export function SeoDashboard({ selectedClient, dateRange }) {
             Sichtbarkeit (organisch)
           </div>
           <div style={{ fontSize: 11, color: C.textDim, marginBottom: 12 }}>
-            {seoHistHasGa4
-              ? "GA4 (organische Besuche) + Google Search Console (Keywords)"
-              : "Google Search Console (Keywords)"}
+            {seoHistHasCH
+              ? "GA4 organische Besuche (alle Länder + davon Schweiz)"
+              : "GA4 organische Besuche"}
             {" · monatlich · nur volle Monate"}
             {(() => {
               const last = seoHistSeries[seoHistSeries.length - 1];
-              const v = seoHistHasGa4 ? last?.["Besuche (GA4)"] : null;
-              return v != null
-                ? ` · zuletzt ${Math.round(v).toLocaleString("de-CH")} organische Besuche/Mon.`
-                : "";
+              const v = last?.["Besuche (GA4)"];
+              const ch = last?.["davon Schweiz"];
+              if (v == null) return "";
+              const f = (x) => Math.round(x).toLocaleString("de-CH");
+              return ` · zuletzt ${f(v)} organische Besuche/Mon.${ch != null ? ` (davon ${f(ch)} aus der Schweiz)` : ""}`;
             })()}
           </div>
           <ResponsiveContainer width="100%" height={240}>
             <LineChart data={seoHistSeries}>
               <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
               <XAxis dataKey="month" stroke={C.textDim} fontSize={11} />
-              <YAxis yAxisId="left" stroke={C.textDim} fontSize={11} />
-              <YAxis yAxisId="right" orientation="right" stroke={C.textDim} fontSize={11} />
+              <YAxis stroke={C.textDim} fontSize={11} />
               <Tooltip
                 contentStyle={{
                   background: C.surface,
@@ -1763,24 +1768,22 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                 }}
               />
               <Legend />
-              {seoHistHasGa4 && (
+              <Line
+                type="monotone"
+                dataKey="Besuche (GA4)"
+                stroke={C.accent}
+                strokeWidth={2}
+                dot={false}
+              />
+              {seoHistHasCH && (
                 <Line
-                  yAxisId="left"
                   type="monotone"
-                  dataKey="Besuche (GA4)"
-                  stroke={C.accent}
+                  dataKey="davon Schweiz"
+                  stroke={C.blue}
                   strokeWidth={2}
                   dot={false}
                 />
               )}
-              <Line
-                yAxisId="right"
-                type="monotone"
-                dataKey="Keywords"
-                stroke={C.blue}
-                strokeWidth={2}
-                dot={false}
-              />
             </LineChart>
           </ResponsiveContainer>
         </div>

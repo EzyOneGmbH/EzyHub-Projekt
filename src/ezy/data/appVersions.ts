@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.4.8",
+    version: "2.4.9",
     changelog: [
+      {
+        version: "2.4.9",
+        date: "2026-10-05",
+        note: "Sichtbarkeit (organisch): Keywords-Linie entfernt, neu zusätzlich die organischen Besuche aus der Schweiz (GA4) als zweite Linie",
+      },
       {
         version: "2.4.8",
         date: "2026-10-05",

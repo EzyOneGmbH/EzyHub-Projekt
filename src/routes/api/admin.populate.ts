@@ -380,7 +380,8 @@ async function jobSeoHistory(c: any, uid: string, force = false) {
         headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           dateRanges: [{ startDate: ymd(start), endDate: ymd(endFull) }],
-          dimensions: [{ name: "yearMonth" }],
+          // countryId (05.10.2026): Widget zeigt zusaetzlich «davon Schweiz».
+          dimensions: [{ name: "yearMonth" }, { name: "countryId" }],
           metrics: [{ name: "sessions" }],
           dimensionFilter: {
             filter: {
@@ -388,7 +389,7 @@ async function jobSeoHistory(c: any, uid: string, force = false) {
               stringFilter: { value: "Organic Search", matchType: "EXACT" },
             },
           },
-          limit: 40,
+          limit: 10000,
         }),
       });
       if (r.ok) {
@@ -397,9 +398,11 @@ async function jobSeoHistory(c: any, uid: string, force = false) {
         for (const row of j.rows ?? []) {
           const ym = String(row.dimensionValues?.[0]?.value ?? "");
           if (!/^\d{6}$/.test(ym)) continue;
-          ensure(`${ym.slice(0, 4)}-${ym.slice(4)}`).ga4Organic = Number(
-            row.metricValues?.[0]?.value ?? 0,
-          );
+          const e = ensure(`${ym.slice(0, 4)}-${ym.slice(4)}`);
+          const n = Number(row.metricValues?.[0]?.value ?? 0);
+          e.ga4Organic = Number(e.ga4Organic ?? 0) + n;
+          e.ga4OrganicCH = Number(e.ga4OrganicCH ?? 0);
+          if (row.dimensionValues?.[1]?.value === "CH") e.ga4OrganicCH = Number(e.ga4OrganicCH) + n;
         }
         ga4ok = true;
       }
