@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { seoHistoryGuardAb } from "./seoHistoryGuard";
 
-const lauf = (letzter: Date, jetzt: Date) => letzter.getTime() >= seoHistoryGuardAb(jetzt).getTime();
+const lauf = (letzter: Date, jetzt: Date) =>
+  letzter.getTime() >= seoHistoryGuardAb(jetzt).getTime();
 
 describe("seoHistoryGuardAb", () => {
   it("Lauf vom 10.09. ist am 05.10. nicht mehr frisch (September fehlt sonst)", () => {

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { besucheLand, landName, laenderImZeitraum, laenderMitTraffic, type SeoHistMonat } from "./seoHistLaender";
+import {
+  besucheLand,
+  landName,
+  laenderImZeitraum,
+  laenderMitTraffic,
+  type SeoHistMonat,
+} from "./seoHistLaender";
 
 const months: SeoHistMonat[] = [
   { month: "2026-08", ga4Organic: 100, ga4OrganicCH: 60, ga4ByCountry: { CH: 60, DE: 30, FR: 10 } },

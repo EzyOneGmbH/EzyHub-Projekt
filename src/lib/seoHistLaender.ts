@@ -28,7 +28,9 @@ export function laenderMitTraffic(months: SeoHistMonat[]): { code: string; total
 
 /** Besuche eines Landes im Monat; null wenn der Lauf keine Laenderdaten hat. */
 export function besucheLand(m: SeoHistMonat, code: string): number | null {
-  const hatDaten = (m.ga4ByCountry && typeof m.ga4ByCountry === "object") || (code === "CH" && m.ga4OrganicCH != null);
+  const hatDaten =
+    (m.ga4ByCountry && typeof m.ga4ByCountry === "object") ||
+    (code === "CH" && m.ga4OrganicCH != null);
   if (!hatDaten) return null;
   return Number(jeLand(m)[code] ?? 0);
 }
