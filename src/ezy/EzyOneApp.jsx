@@ -1,4 +1,5 @@
 import { authedFetch } from "@/lib/authed-fetch";
+import { SprachSwitch } from "@/i18n/SprachSwitch";
 import { lazy, Suspense } from "react";
 import { Inp, Modal } from "./ui-kit";
 import { useState, useEffect, useCallback, useRef, useMemo, Component } from "react";
@@ -7746,6 +7747,18 @@ function App({ appScope = null }) {
                   <Btn variant="secondary" size="md" icon={RefreshCw} onClick={refreshAll}>
                     Aktualisieren
                   </Btn>
+                </div>
+                {/* Sprach-Umschaltung (05.10.2026) — mobil gibt es kein Profilmenü. */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginTop: 16,
+                  }}
+                >
+                  <span style={{ fontSize: 12, fontWeight: 700, color: C.textDim }}>Sprache</span>
+                  <SprachSwitch />
                 </div>
                 <Btn
                   variant="secondary"

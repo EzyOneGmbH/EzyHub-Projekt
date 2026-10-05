@@ -4,6 +4,7 @@ import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { EzyHexMark } from "@/ezy/shell";
+import { SprachSwitch } from "@/i18n/SprachSwitch";
 
 export const Route = createFileRoute("/login")({
   // Typecheck-Fix (2026-08-18): next als OPTIONALER Key — sonst verlangt der
@@ -107,8 +108,16 @@ function LoginPage() {
           boxShadow: "0 1px 2px rgba(43,0,51,.04), 0 24px 60px -36px rgba(43,0,51,.35)",
         }}
       >
-        <div style={{ marginBottom: 20 }}>
+        <div
+          style={{
+            marginBottom: 20,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
           <EzyHexMark size={40} />
+          <SprachSwitch kompakt />
         </div>
         <h1
           style={{

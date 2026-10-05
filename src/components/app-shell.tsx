@@ -1,4 +1,5 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { SprachSwitch } from "@/i18n/SprachSwitch";
 import { type ReactNode, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -98,6 +99,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div className="mt-4 border-t border-sidebar-border pt-4">
         <div className="mb-2 truncate px-3 text-xs text-muted-foreground">{user?.email}</div>
+        <div className="mb-2 px-3">
+          <SprachSwitch kompakt />
+        </div>
         <Button
           variant="ghost"
           size="sm"

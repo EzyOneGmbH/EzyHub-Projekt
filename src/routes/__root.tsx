@@ -3,6 +3,8 @@ import { AuthProvider } from "@/hooks/use-auth";
 import { Toaster } from "@/components/ui/sonner";
 import { SupabaseConfigError } from "@/components/supabase-config-error";
 import { getMissingSupabaseEnv } from "@/components/supabase-env";
+import { SprachInit } from "@/i18n/SprachSwitch";
+import { SPRACH_BOOT_SKRIPT } from "@/i18n/sprache";
 
 import appCss from "../styles.css?url";
 
@@ -89,9 +91,11 @@ export const Route = createRootRoute({
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="de">
+    <html lang="de" suppressHydrationWarning>
       <head>
         <HeadContent />
+        {/* Sprach-Umschaltung (05.10.2026): lang sofort setzen, Aufblitzen verhindern. */}
+        <script dangerouslySetInnerHTML={{ __html: SPRACH_BOOT_SKRIPT }} />
       </head>
       <body>
         {children}
@@ -108,6 +112,7 @@ function RootComponent() {
       <>
         <SupabaseConfigError missing={missing} />
         <Toaster />
+        <SprachInit />
       </>
     );
   }
@@ -115,6 +120,7 @@ function RootComponent() {
     <AuthProvider>
       <Outlet />
       <Toaster />
+      <SprachInit />
     </AuthProvider>
   );
 }

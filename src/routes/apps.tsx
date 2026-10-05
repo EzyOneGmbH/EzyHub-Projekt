@@ -1,4 +1,5 @@
 import { authedFetch } from "@/lib/authed-fetch";
+import { SprachSwitch } from "@/i18n/SprachSwitch";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { APP_GLYPHS } from "@/ezy/shell";
 import { useEffect, useState } from "react";
@@ -247,11 +248,15 @@ function AppsLauncher() {
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
+            gap: 10,
+            flexWrap: "wrap",
             fontSize: 12,
             color: S.mut,
           }}
         >
           <span>Angemeldet als {user?.email}</span>
+          <span style={{ flex: 1 }} />
+          <SprachSwitch kompakt />
           <button
             onClick={async () => {
               await signOut();

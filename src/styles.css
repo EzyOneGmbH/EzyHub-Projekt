@@ -188,3 +188,9 @@
     -webkit-overflow-scrolling: touch;
   }
 }
+
+/* Sprach-Umschaltung (05.10.2026): bis zur ersten Übersetzung ausblenden
+   (max. 1.5 s, siehe SPRACH_BOOT_SKRIPT) — kein deutscher Text blitzt auf. */
+html[data-i18n-warten] body {
+  visibility: hidden;
+}
