@@ -252,11 +252,13 @@ export const Route = createFileRoute("/api/google/ga4-traffic")({
 
           // Country share, nur organische Suche (2026-08-13, User-Wunsch):
           // speist "Switzerland Traffic (organisch)" — gleiche Form wie countries.
-          let countriesOrganic: Array<{ country: string; sessions: number }> = [];
+          let countriesOrganic: Array<{ country: string; countryId?: string; sessions: number }> =
+            [];
           try {
             const co = await callGa4({
               dateRanges,
-              dimensions: [{ name: "country" }],
+              // countryId (05.10.2026): Laenderauswahl im Sichtbarkeits-Widget.
+              dimensions: [{ name: "country" }, { name: "countryId" }],
               metrics: [{ name: "sessions" }],
               dimensionFilter: {
                 filter: {
@@ -265,10 +267,11 @@ export const Route = createFileRoute("/api/google/ga4-traffic")({
                 },
               },
               orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
-              limit: 10,
+              limit: 250,
             });
             countriesOrganic = (co.rows ?? []).map((r) => ({
               country: r.dimensionValues?.[0]?.value ?? "(unknown)",
+              countryId: r.dimensionValues?.[1]?.value ?? "",
               sessions: Number(r.metricValues?.[0]?.value ?? 0),
             }));
           } catch {

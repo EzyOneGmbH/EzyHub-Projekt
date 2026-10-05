@@ -1053,7 +1053,8 @@ async function jobGa4Traffic(c: any, uid: string, days: number) {
   try {
     const co = await call({
       dateRanges,
-      dimensions: [{ name: "country" }],
+      // countryId (05.10.2026): Laenderauswahl im Sichtbarkeits-Widget.
+      dimensions: [{ name: "country" }, { name: "countryId" }],
       metrics: [{ name: "sessions" }],
       dimensionFilter: {
         filter: {
@@ -1062,10 +1063,11 @@ async function jobGa4Traffic(c: any, uid: string, days: number) {
         },
       },
       orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
-      limit: 10,
+      limit: 250,
     });
     countriesOrganic = (co.rows ?? []).map((r: any) => ({
       country: r.dimensionValues?.[0]?.value ?? "(unknown)",
+      countryId: r.dimensionValues?.[1]?.value ?? "",
       sessions: Number(r.metricValues?.[0]?.value ?? 0),
     }));
   } catch {

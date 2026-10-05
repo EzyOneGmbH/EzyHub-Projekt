@@ -292,7 +292,7 @@ export function ga4TrafficFromResult(result: any): {
   aiSeries: Array<{ date: string; aiSessions: number }>;
   topPages: Array<{ path: string; views: number }>;
   countries: Array<{ country: string; sessions: number }>;
-  countriesOrganic: Array<{ country: string; sessions: number }>;
+  countriesOrganic: Array<{ country: string; countryId?: string; sessions: number }>;
 } {
   const r = result || {};
   return {

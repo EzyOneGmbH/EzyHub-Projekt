@@ -40,3 +40,20 @@ export function landName(code: string): string {
     return code;
   }
 }
+
+/**
+ * Auswahlliste mit den organischen Besuchen im GEWAEHLTEN Zeitraum (05.10.2026):
+ * countriesOrganic aus ga4-traffic (mit countryId), nur Laender mit Verlauf,
+ * absteigend. Ohne countryId-Daten (alter Snapshot) → Verlaufssummen.
+ */
+export function laenderImZeitraum(
+  countriesOrganic: { countryId?: string; sessions: number }[] | null | undefined,
+  verlauf: { code: string; total: number }[],
+): { code: string; total: number; zeitraum: boolean }[] {
+  const imVerlauf = new Set(verlauf.map((l) => l.code));
+  const zr = (countriesOrganic || [])
+    .filter((c) => c.countryId && imVerlauf.has(c.countryId) && Number(c.sessions) > 0)
+    .map((c) => ({ code: String(c.countryId), total: Number(c.sessions), zeitraum: true }))
+    .sort((a, b) => b.total - a.total || a.code.localeCompare(b.code));
+  return zr.length ? zr : verlauf.map((l) => ({ ...l, zeitraum: false }));
+}

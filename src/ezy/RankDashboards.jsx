@@ -2,7 +2,7 @@
 // Verschieben): Agentur-Uebersicht, SEO/GEO/Conversions/Overview-Dashboards,
 // KI-Sichtbarkeit (Makro) und Onboarding-Scan-Panel.
 import { organischerBreakdown } from "@/lib/convEvents";
-import { besucheLand, landName, laenderMitTraffic } from "@/lib/seoHistLaender";
+import { besucheLand, landName, laenderImZeitraum, laenderMitTraffic } from "@/lib/seoHistLaender";
 import { Btn } from "./shared-ui";
 import {
   CTooltip,
@@ -1031,6 +1031,9 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   // Switzerland Traffic NUR organisch (User-Wunsch 2026-08-13): bevorzugt die
   // organische Länder-Aufteilung (countriesOrganic); Fallback alle Kanäle,
   // solange ein alter Snapshot das neue Feld noch nicht hat (Label zeigt es).
+  // Laenderauswahl im Sichtbarkeits-Widget: Zahlen = organische Besuche im
+  // gewaehlten Zeitraum (05.10.2026), sonst Verlaufssummen.
+  const seoHistLandOptionen = laenderImZeitraum(traf?.countriesOrganic, seoHistLaender);
   const chOrganicSessions = (traf?.countriesOrganic || []).find((c) =>
     /switzerland|schweiz|^ch$/i.test(c.country),
   )?.sessions;
@@ -1762,9 +1765,14 @@ export function SeoDashboard({ selectedClient, dateRange }) {
             <div style={{ fontSize: 13, fontWeight: 600, color: C.textMuted }}>
               Sichtbarkeit (organisch)
             </div>
-            {seoHistLaender.length > 1 && (
+            {seoHistLandOptionen.length > 1 && (
               <select
                 aria-label="Land"
+                title={
+                  seoHistLandOptionen[0]?.zeitraum
+                    ? "Organische Besuche im gewählten Zeitraum"
+                    : "Organische Besuche über den ganzen Verlauf"
+                }
                 value={seoHistLand}
                 onChange={(e) => setSeoHistLandWahl(e.target.value)}
                 style={{
@@ -1777,7 +1785,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                   maxWidth: 220,
                 }}
               >
-                {seoHistLaender.map((l) => (
+                {seoHistLandOptionen.map((l) => (
                   <option key={l.code} value={l.code}>
                     {landName(l.code)} ({Math.round(l.total).toLocaleString("de-CH")})
                   </option>
