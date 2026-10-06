@@ -56,6 +56,7 @@ import { Route as ApiAdminAdsRecommendationStatusRouteImport } from './routes/ap
 import { Route as ApiAdminAdsRecommendationsRouteImport } from './routes/api/admin.ads-recommendations'
 import { Route as ApiAdminAdsScorecardRouteImport } from './routes/api/admin.ads-scorecard'
 import { Route as ApiAdminAdsSemanticNegativesRouteImport } from './routes/api/admin.ads-semantic-negatives'
+import { Route as ApiAdminAdsSyncRouteImport } from './routes/api/admin.ads-sync'
 import { Route as ApiAdminAgentRunRouteImport } from './routes/api/admin.agent-run'
 import { Route as ApiAdminAiCitationsRouteImport } from './routes/api/admin.ai-citations'
 import { Route as ApiAdminAiCrawlerIngestRouteImport } from './routes/api/admin.ai-crawler-ingest'
@@ -412,6 +413,11 @@ const ApiAdminAdsSemanticNegativesRoute =
     path: '/api/admin/ads-semantic-negatives',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAdminAdsSyncRoute = ApiAdminAdsSyncRouteImport.update({
+  id: '/api/admin/ads-sync',
+  path: '/api/admin/ads-sync',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminAgentRunRoute = ApiAdminAgentRunRouteImport.update({
   id: '/api/admin/agent-run',
   path: '/api/admin/agent-run',
@@ -1031,6 +1037,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/ads-recommendations': typeof ApiAdminAdsRecommendationsRoute
   '/api/admin/ads-scorecard': typeof ApiAdminAdsScorecardRoute
   '/api/admin/ads-semantic-negatives': typeof ApiAdminAdsSemanticNegativesRoute
+  '/api/admin/ads-sync': typeof ApiAdminAdsSyncRoute
   '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
   '/api/admin/ai-citations': typeof ApiAdminAiCitationsRoute
   '/api/admin/ai-crawler-ingest': typeof ApiAdminAiCrawlerIngestRoute
@@ -1190,6 +1197,7 @@ export interface FileRoutesByTo {
   '/api/admin/ads-recommendations': typeof ApiAdminAdsRecommendationsRoute
   '/api/admin/ads-scorecard': typeof ApiAdminAdsScorecardRoute
   '/api/admin/ads-semantic-negatives': typeof ApiAdminAdsSemanticNegativesRoute
+  '/api/admin/ads-sync': typeof ApiAdminAdsSyncRoute
   '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
   '/api/admin/ai-citations': typeof ApiAdminAiCitationsRoute
   '/api/admin/ai-crawler-ingest': typeof ApiAdminAiCrawlerIngestRoute
@@ -1350,6 +1358,7 @@ export interface FileRoutesById {
   '/api/admin/ads-recommendations': typeof ApiAdminAdsRecommendationsRoute
   '/api/admin/ads-scorecard': typeof ApiAdminAdsScorecardRoute
   '/api/admin/ads-semantic-negatives': typeof ApiAdminAdsSemanticNegativesRoute
+  '/api/admin/ads-sync': typeof ApiAdminAdsSyncRoute
   '/api/admin/agent-run': typeof ApiAdminAgentRunRoute
   '/api/admin/ai-citations': typeof ApiAdminAiCitationsRoute
   '/api/admin/ai-crawler-ingest': typeof ApiAdminAiCrawlerIngestRoute
@@ -1511,6 +1520,7 @@ export interface FileRouteTypes {
     | '/api/admin/ads-recommendations'
     | '/api/admin/ads-scorecard'
     | '/api/admin/ads-semantic-negatives'
+    | '/api/admin/ads-sync'
     | '/api/admin/agent-run'
     | '/api/admin/ai-citations'
     | '/api/admin/ai-crawler-ingest'
@@ -1670,6 +1680,7 @@ export interface FileRouteTypes {
     | '/api/admin/ads-recommendations'
     | '/api/admin/ads-scorecard'
     | '/api/admin/ads-semantic-negatives'
+    | '/api/admin/ads-sync'
     | '/api/admin/agent-run'
     | '/api/admin/ai-citations'
     | '/api/admin/ai-crawler-ingest'
@@ -1829,6 +1840,7 @@ export interface FileRouteTypes {
     | '/api/admin/ads-recommendations'
     | '/api/admin/ads-scorecard'
     | '/api/admin/ads-semantic-negatives'
+    | '/api/admin/ads-sync'
     | '/api/admin/agent-run'
     | '/api/admin/ai-citations'
     | '/api/admin/ai-crawler-ingest'
@@ -1984,6 +1996,7 @@ export interface RootRouteChildren {
   ApiAdminAdsRecommendationsRoute: typeof ApiAdminAdsRecommendationsRoute
   ApiAdminAdsScorecardRoute: typeof ApiAdminAdsScorecardRoute
   ApiAdminAdsSemanticNegativesRoute: typeof ApiAdminAdsSemanticNegativesRoute
+  ApiAdminAdsSyncRoute: typeof ApiAdminAdsSyncRoute
   ApiAdminAgentRunRoute: typeof ApiAdminAgentRunRoute
   ApiAdminAiCitationsRoute: typeof ApiAdminAiCitationsRoute
   ApiAdminAiCrawlerIngestRoute: typeof ApiAdminAiCrawlerIngestRoute
@@ -2420,6 +2433,13 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/ads-semantic-negatives'
       fullPath: '/api/admin/ads-semantic-negatives'
       preLoaderRoute: typeof ApiAdminAdsSemanticNegativesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/ads-sync': {
+      id: '/api/admin/ads-sync'
+      path: '/api/admin/ads-sync'
+      fullPath: '/api/admin/ads-sync'
+      preLoaderRoute: typeof ApiAdminAdsSyncRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/agent-run': {
@@ -3316,6 +3336,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminAdsRecommendationsRoute: ApiAdminAdsRecommendationsRoute,
   ApiAdminAdsScorecardRoute: ApiAdminAdsScorecardRoute,
   ApiAdminAdsSemanticNegativesRoute: ApiAdminAdsSemanticNegativesRoute,
+  ApiAdminAdsSyncRoute: ApiAdminAdsSyncRoute,
   ApiAdminAgentRunRoute: ApiAdminAgentRunRoute,
   ApiAdminAiCitationsRoute: ApiAdminAiCitationsRoute,
   ApiAdminAiCrawlerIngestRoute: ApiAdminAiCrawlerIngestRoute,
