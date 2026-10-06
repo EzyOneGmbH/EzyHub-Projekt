@@ -168,7 +168,7 @@ export function conversionZeilen(s: Snapshot) {
     neu: num(a.prevCount) === 0 && num(a.count) > 0,
     anteil: convArt(a) === "profil" ? null : alle > 0 ? (num(a.count) / alle) * 100 : 0,
     wert: num(a.value),
-    kostenJe: num(a.count) > 0 ? s.totals.cost / num(a.count) : null,
+    kostenJe: convArt(a) !== "profil" && num(a.count) > 0 ? s.totals.cost / num(a.count) : null,
   }));
 }
 

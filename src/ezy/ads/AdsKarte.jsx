@@ -68,6 +68,7 @@ export default function AdsKarte({ herkunft }) {
   const [zoom, setZoom] = useState({ k: 1, x: 0, y: 0 });
   const [hover, setHover] = useState(null);
   const svgRef = useRef(null);
+  const rahmenRef = useRef(null);
   const zieh = useRef(null);
 
   // Feinere Konturen fuer Europa/Schweiz erst bei Bedarf nachladen: europa-50m.json
@@ -194,6 +195,19 @@ export default function AdsKarte({ herkunft }) {
       return k === 1 ? { k: 1, x: 0, y: 0 } : { k, x: cx - (cx - z.x) * f, y: cy - (cy - z.y) * f };
     });
 
+  // Tooltip an der echten Bildschirmposition der Blase (Karte ist zentriert skaliert).
+  const zeigeTooltip = (b) => {
+    const svg = svgRef.current;
+    const rahmen = rahmenRef.current?.getBoundingClientRect();
+    const ctm = svg?.getScreenCTM?.();
+    if (!svg || !rahmen || !ctm) return setHover({ ...b, px: 0, py: 0, breite: 400 });
+    const pt = svg.createSVGPoint();
+    pt.x = b.x * zoom.k + zoom.x;
+    pt.y = b.y * zoom.k + zoom.y;
+    const s = pt.matrixTransform(ctm);
+    setHover({ ...b, px: s.x - rahmen.left, py: s.y - rahmen.top, breite: rahmen.width });
+  };
+
   const ansichten = [
     ["welt", "Welt"],
     ["europa", "Europa"],
@@ -203,6 +217,7 @@ export default function AdsKarte({ herkunft }) {
 
   return (
     <div
+      ref={rahmenRef}
       style={{
         position: "relative",
         background: "#f7f1f8",
@@ -292,7 +307,9 @@ export default function AdsKarte({ herkunft }) {
         style={{
           display: "block",
           width: "100%",
-          height: "auto",
+          // Kompakte, feste Hoehe wie im Mockup; der Ausschnitt wird zentriert
+          // (preserveAspectRatio meet) statt mit der Breite mitzuwachsen.
+          height: "clamp(300px, 32vw, 440px)",
           touchAction: "pan-y",
           cursor: "grab",
         }}
@@ -342,9 +359,9 @@ export default function AdsKarte({ herkunft }) {
                 <g
                   key={b.key}
                   transform={`translate(${b.x},${b.y})`}
-                  onPointerEnter={() => setHover(b)}
+                  onPointerEnter={() => zeigeTooltip(b)}
                   onPointerLeave={() => setHover(null)}
-                  onClick={() => setHover(b)}
+                  onClick={() => zeigeTooltip(b)}
                   style={{ cursor: "pointer" }}
                 >
                   <circle
@@ -377,8 +394,8 @@ export default function AdsKarte({ herkunft }) {
         <div
           style={{
             position: "absolute",
-            left: `min(calc(${((hover.x * zoom.k + zoom.x) / W) * 100}% + 22px), calc(100% - 230px))`,
-            top: `calc(${((hover.y * zoom.k + zoom.y) / H) * 100}% - 34px)`,
+            left: Math.max(8, Math.min(hover.px + 24, hover.breite - 222)),
+            top: Math.max(8, hover.py - 36),
             background: "#fff",
             border: `1px solid ${C.border}`,
             borderRadius: 12,
