@@ -50,7 +50,7 @@ function Hero({ snap, k, top, tageLabel, aktion }) {
         }}
       >
         <div>
-          <span style={{ fontSize: 18, fontWeight: 800, color: C.darkPurple }}>
+          <span style={{ fontSize: 16, fontWeight: 800, color: C.darkPurple }}>
             Was hat Google Ads gebracht?
           </span>
           <span style={{ fontSize: 12.5, color: C.textMuted, marginLeft: 10 }}>{tageLabel}</span>
@@ -78,7 +78,7 @@ function Hero({ snap, k, top, tageLabel, aktion }) {
           <div
             style={{
               ...heroZahl,
-              fontSize: "clamp(34px, 4.6vw, 60px)",
+              fontSize: "clamp(28px, 3.3vw, 44px)",
               background: C.grad,
               WebkitBackgroundClip: "text",
               backgroundClip: "text",
@@ -96,12 +96,12 @@ function Hero({ snap, k, top, tageLabel, aktion }) {
       </div>
       <div
         style={{
-          marginTop: 20,
+          marginTop: 14,
           border: `1px solid ${C.border}`,
           borderRadius: 12,
           background: "#fff",
-          padding: "13px 18px",
-          fontSize: 14.5,
+          padding: "10px 14px",
+          fontSize: 13,
           lineHeight: 1.55,
           color: C.textMuted,
         }}
@@ -116,7 +116,7 @@ function Hero({ snap, k, top, tageLabel, aktion }) {
   );
 }
 const heroZahl = {
-  fontSize: "clamp(24px, 3.3vw, 46px)",
+  fontSize: "clamp(22px, 2.5vw, 34px)",
   whiteSpace: "nowrap",
   fontWeight: 800,
   color: C.text,
@@ -131,7 +131,7 @@ function Wichtigste({ liste }) {
   if (!liste.length) return null;
   const stil = {
     gut: { bg: "rgba(15,157,108,.07)", fg: C.green, icon: <Check size={15} /> },
-    warnung: { bg: "rgba(220,38,38,.06)", fg: C.red, icon: <b style={{ fontSize: 15 }}>!</b> },
+    warnung: { bg: "rgba(220,38,38,.06)", fg: C.red, icon: <b style={{ fontSize: 13 }}>!</b> },
     info: { bg: "rgba(119,0,140,.06)", fg: C.accent, icon: <Info size={15} /> },
   };
   return (
@@ -141,7 +141,7 @@ function Wichtigste({ liste }) {
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-          gap: 14,
+          gap: 10,
         }}
       >
         {liste.map((e, i) => {
@@ -154,14 +154,14 @@ function Wichtigste({ liste }) {
                 gap: 12,
                 background: s.bg,
                 borderRadius: 14,
-                padding: "16px 18px",
+                padding: "12px 14px",
               }}
             >
               <span
                 style={{
                   flex: "none",
-                  width: 28,
-                  height: 28,
+                  width: 24,
+                  height: 24,
                   borderRadius: "50%",
                   background: "#fff",
                   color: s.fg,
@@ -172,7 +172,7 @@ function Wichtigste({ liste }) {
               >
                 {s.icon}
               </span>
-              <div style={{ fontSize: 14, lineHeight: 1.55, color: C.textMuted }}>
+              <div style={{ fontSize: 12.5, lineHeight: 1.55, color: C.textMuted }}>
                 <b style={{ color: C.text }}>{e.titel}</b> {e.text}
               </div>
             </div>
@@ -186,7 +186,7 @@ function Wichtigste({ liste }) {
 // ── Kennzahlen ──────────────────────────────────────────────────────────────
 function Kennzahl({ titel, wert, sub, d, richtung }) {
   return (
-    <Karte style={{ padding: "18px 20px" }}>
+    <Karte style={{ padding: "14px 16px" }}>
       <div
         style={{
           display: "flex",
@@ -196,15 +196,15 @@ function Kennzahl({ titel, wert, sub, d, richtung }) {
           flexWrap: "wrap",
         }}
       >
-        <span style={{ fontSize: 15, fontWeight: 700, color: C.darkPurple }}>{titel}</span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: C.darkPurple }}>{titel}</span>
         <DeltaChip d={d} richtung={richtung} />
       </div>
       <div
         style={{
-          fontSize: "clamp(24px, 2.6vw, 30px)",
+          fontSize: "clamp(20px, 1.9vw, 24px)",
           fontWeight: 800,
           color: C.text,
-          margin: "12px 0 8px",
+          margin: "8px 0 4px",
           fontVariantNumeric: "tabular-nums",
         }}
       >
@@ -258,8 +258,8 @@ function Kennzahlen({ snap, k, vergleichLabel }) {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-          gap: 14,
+          gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))",
+          gap: 10,
         }}
       >
         {karten.map(([titel, wert, sub, d, r]) => (
@@ -282,7 +282,7 @@ function TopKampagnen({ top }) {
       <div style={{ fontSize: 13, color: C.textMuted, margin: "-8px 0 18px" }}>
         Balken = generierter Umsatz · Kästchen = ROAS (grün ab 5×)
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {liste.map((c, i) => {
           const gruen = c.roas >= 5;
           const rot = c.roas > 0 && c.roas < 1;
@@ -292,8 +292,8 @@ function TopKampagnen({ top }) {
                 <span
                   style={{
                     flex: "none",
-                    width: 28,
-                    height: 28,
+                    width: 24,
+                    height: 24,
                     borderRadius: "50%",
                     background: C.accentDim,
                     color: C.accent,
@@ -309,7 +309,7 @@ function TopKampagnen({ top }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
                     style={{
-                      fontSize: 15,
+                      fontSize: 13,
                       fontWeight: 600,
                       color: C.text,
                       overflow: "hidden",
@@ -324,7 +324,7 @@ function TopKampagnen({ top }) {
                   </div>
                 </div>
                 <span
-                  style={{ fontSize: 16, fontWeight: 800, color: C.text, whiteSpace: "nowrap" }}
+                  style={{ fontSize: 14, fontWeight: 800, color: C.text, whiteSpace: "nowrap" }}
                 >
                   {chf(c.conversionValue)}
                 </span>
@@ -336,7 +336,7 @@ function TopKampagnen({ top }) {
                 </Pille>
               </div>
               <div
-                style={{ height: 9, background: "#f3e9f5", borderRadius: 99, overflow: "hidden" }}
+                style={{ height: 7, background: "#f3e9f5", borderRadius: 99, overflow: "hidden" }}
               >
                 <div
                   style={{
@@ -383,14 +383,14 @@ function ConversionsNachArt({ snap, k }) {
       style={{
         background: haupt ? C.accentDim : C.segBg,
         borderRadius: 14,
-        padding: "10px 16px",
+        padding: "8px 14px",
         minWidth: 96,
       }}
     >
       <div style={{ fontSize: 12, color: C.textMuted }}>{label}</div>
       <div
         style={{
-          fontSize: 24,
+          fontSize: 21,
           fontWeight: 800,
           color: haupt ? C.accent : C.text,
           fontVariantNumeric: "tabular-nums",
@@ -406,7 +406,7 @@ function ConversionsNachArt({ snap, k }) {
         style={{
           display: "flex",
           justifyContent: "space-between",
-          gap: 14,
+          gap: 10,
           flexWrap: "wrap",
           alignItems: "flex-start",
         }}
@@ -472,7 +472,7 @@ function ConversionsNachArt({ snap, k }) {
                   <Pille>Soft Conversion</Pille>
                 )}
               </td>
-              <td style={td(true, { fontWeight: 800, fontSize: 15 })}>{zahl(z.anzahl)}</td>
+              <td style={td(true, { fontWeight: 800, fontSize: 13 })}>{zahl(z.anzahl)}</td>
               <td style={td()}>
                 <DeltaChip d={z.delta} neu={z.neu} klein />
               </td>
@@ -539,7 +539,7 @@ function Herkunft({ h }) {
         style={{
           display: "grid",
           gridTemplateColumns: "minmax(0, 2fr) minmax(280px, 1fr)",
-          gap: 16,
+          gap: 12,
           alignItems: "stretch",
         }}
       >
@@ -549,7 +549,7 @@ function Herkunft({ h }) {
               style={{
                 background: "#f7f1f8",
                 borderRadius: 18,
-                minHeight: 320,
+                minHeight: 280,
                 border: `1px solid ${C.border}`,
               }}
             />
@@ -558,7 +558,7 @@ function Herkunft({ h }) {
           <AdsKarte herkunft={h} />
         </Suspense>
         <Karte style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ fontSize: 17, fontWeight: 800, color: C.darkPurple, marginBottom: 14 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: C.darkPurple, marginBottom: 14 }}>
             Top 3 Städte
           </div>
           {top3.length === 0 ? (
@@ -597,7 +597,7 @@ function Herkunft({ h }) {
                         />
                       </div>
                     </td>
-                    <td style={{ textAlign: "right", fontWeight: 800, fontSize: 15 }}>
+                    <td style={{ textAlign: "right", fontWeight: 800, fontSize: 13 }}>
                       {zahl(s.conversions)}
                     </td>
                     <td
@@ -671,7 +671,13 @@ function Balkenliste({ titel, daten, farben }) {
       {daten.gruppen.map((g, i) => (
         <div
           key={g.key}
-          style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, padding: "5px 0" }}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            fontSize: 12.5,
+            padding: "5px 0",
+          }}
         >
           <span
             style={{
@@ -689,7 +695,7 @@ function Balkenliste({ titel, daten, farben }) {
     </Karte>
   );
 }
-const kartenTitel = { fontSize: 17, fontWeight: 800, color: C.darkPurple, marginBottom: 12 };
+const kartenTitel = { fontSize: 15, fontWeight: 800, color: C.darkPurple, marginBottom: 12 };
 function Basis({ daten }) {
   const teile = [];
   if (daten.basis === "clicks") teile.push("Basis: Klicks (zu wenige Buchungen mit Angabe)");
@@ -715,7 +721,7 @@ function Alter({ daten }) {
           gridTemplateColumns: `repeat(${daten.gruppen.length}, 1fr)`,
           gap: 10,
           alignItems: "end",
-          height: 170,
+          height: 132,
         }}
       >
         {daten.gruppen.map((g) => (
@@ -735,7 +741,7 @@ function Alter({ daten }) {
               style={{
                 width: "100%",
                 maxWidth: 64,
-                height: `${Math.max(4, (g.anteil / max) * 120)}px`,
+                height: `${Math.max(4, (g.anteil / max) * 92)}px`,
                 borderRadius: 10,
                 background: top.includes(g.key) ? C.grad : "#dba9e0",
               }}
@@ -771,7 +777,7 @@ function WerBucht({ z }) {
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-          gap: 16,
+          gap: 12,
         }}
       >
         <div style={{ gridColumn: "span 1" }}>
@@ -835,7 +841,7 @@ function Suchbegriffe({ terms, client }) {
         style={{
           display: "flex",
           justifyContent: "space-between",
-          gap: 14,
+          gap: 10,
           flexWrap: "wrap",
           alignItems: "flex-end",
           marginBottom: 16,
@@ -977,10 +983,10 @@ function Glossar() {
         background: C.card,
         border: `1px solid ${C.border}`,
         borderRadius: 18,
-        padding: "14px 22px",
+        padding: "12px 18px",
       }}
     >
-      <summary style={{ cursor: "pointer", fontWeight: 700, color: C.darkPurple, fontSize: 15 }}>
+      <summary style={{ cursor: "pointer", fontWeight: 700, color: C.darkPurple, fontSize: 13 }}>
         Begriffe erklärt (Glossar)
       </summary>
       <dl
@@ -1010,7 +1016,7 @@ export default function AdsUebersicht({ snap, client, tageLabel, vergleichLabel,
   const h = baueHerkunft(snap);
   const z = baueZielgruppe(snap);
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <Hero snap={snap} k={k} top={top} tageLabel={tageLabel} aktion={aktion} />
       <Wichtigste liste={wichtigste(snap)} />
       <Kennzahlen snap={snap} k={k} vergleichLabel={vergleichLabel} />

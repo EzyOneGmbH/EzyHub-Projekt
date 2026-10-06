@@ -178,7 +178,7 @@ export default function AdsKarte({ herkunft }) {
       .filter(Boolean);
   }, [ansicht, regionen, laender, projektion, featureNachId]);
   const max = Math.max(1, ...blasen.map((b) => b.wert));
-  const radius = (v) => 13 + 25 * Math.sqrt(v / max);
+  const radius = (v) => 11 + 21 * Math.sqrt(v / max);
 
   // Zoom/Verschieben (Ziehen, Doppelklick, +/−) — Konturen bleiben fein.
   const punkt = (e) => {
@@ -222,7 +222,7 @@ export default function AdsKarte({ herkunft }) {
         position: "relative",
         background: "#f7f1f8",
         border: `1px solid ${C.border}`,
-        borderRadius: 18,
+        borderRadius: 14,
         overflow: "hidden",
         minWidth: 0,
       }}
@@ -291,7 +291,7 @@ export default function AdsKarte({ herkunft }) {
               borderTop: z === "−" ? `1px solid ${C.border}` : "none",
               background: "#fff",
               cursor: "pointer",
-              fontSize: 18,
+              fontSize: 16,
               color: C.text,
               fontFamily: "inherit",
             }}
@@ -309,7 +309,7 @@ export default function AdsKarte({ herkunft }) {
           width: "100%",
           // Kompakte, feste Hoehe wie im Mockup; der Ausschnitt wird zentriert
           // (preserveAspectRatio meet) statt mit der Breite mitzuwachsen.
-          height: "clamp(300px, 32vw, 440px)",
+          height: "clamp(260px, 25vw, 360px)",
           touchAction: "pan-y",
           cursor: "grab",
         }}
@@ -376,7 +376,7 @@ export default function AdsKarte({ herkunft }) {
                     <text
                       textAnchor="middle"
                       dy="0.35em"
-                      fontSize={(gross ? 22 : 17) / zoom.k}
+                      fontSize={(gross ? 19 : 15) / zoom.k}
                       fontWeight={800}
                       fill="#fff"
                       style={{ pointerEvents: "none" }}

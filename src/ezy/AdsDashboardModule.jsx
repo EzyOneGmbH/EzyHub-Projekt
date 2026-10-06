@@ -65,7 +65,7 @@ function Tabs({ tabs, aktiv, onChange, rechts }) {
         gap: 12,
         flexWrap: "wrap",
         borderBottom: `1px solid ${C.border}`,
-        marginBottom: 22,
+        marginBottom: 16,
       }}
     >
       <div
@@ -96,10 +96,10 @@ function Tabs({ tabs, aktiv, onChange, rechts }) {
                 background: "none",
                 cursor: "pointer",
                 fontFamily: "inherit",
-                fontSize: 15,
+                fontSize: 13.5,
                 fontWeight: an ? 700 : 500,
                 color: an ? C.accent : C.textMuted,
-                padding: "12px 16px 13px",
+                padding: "10px 13px 11px",
                 borderBottom: `2.5px solid ${an ? C.accent : "transparent"}`,
                 marginBottom: -1,
                 whiteSpace: "nowrap",

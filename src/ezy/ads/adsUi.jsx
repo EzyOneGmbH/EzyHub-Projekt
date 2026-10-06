@@ -26,9 +26,9 @@ export function Karte({ children, style, ...rest }) {
       style={{
         background: C.card,
         border: `1px solid ${C.border}`,
-        borderRadius: 18,
+        borderRadius: 14,
         boxShadow: C.cardShadow,
-        padding: "clamp(16px, 2.6vw, 26px)",
+        padding: "clamp(14px, 1.8vw, 20px)",
         minWidth: 0,
         ...style,
       }}
@@ -55,7 +55,7 @@ export function Abschnitt({ titel, hinweis, rechts, gross = false, style }) {
         <h2
           style={{
             margin: 0,
-            fontSize: gross ? 22 : 18,
+            fontSize: gross ? 19 : 16,
             fontWeight: 800,
             color: C.darkPurple,
             letterSpacing: "-.01em",
@@ -164,7 +164,7 @@ export function Segmente({ werte, aktiv, onChange, dunkel = false }) {
               fontFamily: "inherit",
               fontSize: 13,
               fontWeight: an ? 700 : 500,
-              padding: "7px 16px",
+              padding: "6px 13px",
               borderRadius: 999,
               color: an ? (dunkel ? "#fff" : C.accent) : C.textMuted,
               background: an ? (dunkel ? C.accent : "#fff") : "transparent",
@@ -182,7 +182,7 @@ export function Segmente({ werte, aktiv, onChange, dunkel = false }) {
 /** Scrollbarer Tabellen-Rahmen (mobil horizontal scrollbar). */
 export function TabellenRahmen({ children, minWidth = 640 }) {
   return (
-    <div style={{ overflowX: "auto", margin: "0 calc(-1 * clamp(16px, 2.6vw, 26px))" }}>
+    <div style={{ overflowX: "auto", margin: "0 calc(-1 * clamp(14px, 1.8vw, 20px))" }}>
       <table
         style={{
           width: "100%",
@@ -199,7 +199,7 @@ export function TabellenRahmen({ children, minWidth = 640 }) {
 }
 
 export const th = (rechts = true, extra = {}) => ({
-  padding: "12px clamp(12px, 2vw, 22px)",
+  padding: "9px clamp(10px, 1.4vw, 16px)",
   textAlign: rechts ? "right" : "left",
   fontSize: 12.5,
   fontWeight: 600,
@@ -211,7 +211,7 @@ export const th = (rechts = true, extra = {}) => ({
   ...extra,
 });
 export const td = (rechts = true, extra = {}) => ({
-  padding: "13px clamp(12px, 2vw, 22px)",
+  padding: "9px clamp(10px, 1.4vw, 16px)",
   textAlign: rechts ? "right" : "left",
   whiteSpace: rechts ? "nowrap" : undefined,
   borderBottom: `1px solid ${C.hairline}`,

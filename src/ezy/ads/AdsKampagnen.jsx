@@ -242,23 +242,23 @@ function Sichtbarkeit({ snap }) {
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-        gap: 14,
+        gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))",
+        gap: 10,
       }}
     >
       {karten.map(([titel, wert, sub, d, r]) => (
-        <Karte key={titel} style={{ padding: "18px 20px" }}>
+        <Karte key={titel} style={{ padding: "14px 16px" }}>
           <div
             style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}
           >
-            <span style={{ fontSize: 15, fontWeight: 700, color: C.darkPurple }}>{titel}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: C.darkPurple }}>{titel}</span>
             <DeltaChip d={d} richtung={r} />
           </div>
           <div
             style={{
-              fontSize: 28,
+              fontSize: 22,
               fontWeight: 800,
-              margin: "12px 0 8px",
+              margin: "8px 0 4px",
               fontVariantNumeric: "tabular-nums",
             }}
           >
@@ -284,7 +284,7 @@ function Tagesverlauf({ series }) {
         titel="Tägliche Entwicklung"
         hinweis="Impressionen (Balken) und Klicks (Linie) je Tag"
       />
-      <div style={{ width: "100%", height: 280 }}>
+      <div style={{ width: "100%", height: 230 }}>
         <ResponsiveContainer>
           <ComposedChart data={daten} margin={{ top: 6, right: 6, bottom: 0, left: -8 }}>
             <CartesianGrid stroke={C.hairline} vertical={false} />
@@ -326,7 +326,7 @@ function Tagesverlauf({ series }) {
 export default function AdsKampagnen({ snap }) {
   const ag = snap.report?.assetGroups;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <Sichtbarkeit snap={snap} />
       <Karte style={{ paddingBottom: 10 }}>
         <Abschnitt titel="Kampagnen" hinweis="Spaltentitel anklicken zum Sortieren" />
