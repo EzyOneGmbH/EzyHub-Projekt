@@ -13,7 +13,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { ArrowUpToLine, Coins, Crown, TrendingUp } from "lucide-react";
 import { C } from "../theme";
+import { KpiCard } from "../ui-kit";
 import { pctDelta } from "./adsReportModel";
 import {
   Abschnitt,
@@ -208,64 +210,62 @@ function Sichtbarkeit({ snap }) {
   const cpaPrev = p.conversions > 0 ? p.cost / p.conversions : null;
   const roas = t.cost > 0 ? t.conversionValue / t.cost : null;
   const roasPrev = p.cost > 0 ? p.conversionValue / p.cost : null;
+  const runde = (d) => (d == null ? undefined : Math.round(d * 10) / 10);
   const karten = [
     [
-      "Impressionen oben",
+      ArrowUpToLine,
+      "Impressionen oben (über den Suchergebnissen)",
       prozent(is?.top, 0),
-      "Anzeige über den Suchergebnissen",
       pctDelta(is?.top, is?.prevTop),
-      "up",
+      is?.prevTop != null ? prozent(is.prevTop, 0) : null,
+      C.accent,
     ],
     [
-      "Ganz oben",
+      Crown,
+      "Impressionen ganz oben (1. Position)",
       prozent(is?.absTop, 0),
-      "Anzeige an allererster Stelle",
       pctDelta(is?.absTop, is?.prevAbsTop),
-      "up",
+      is?.prevAbsTop != null ? prozent(is.prevAbsTop, 0) : null,
+      C.blue,
     ],
     [
+      Coins,
       "Kosten/Conversion",
       cpa == null ? "–" : chf(cpa, 2),
-      "Werbekosten je Conversion",
       pctDelta(cpa, cpaPrev),
-      "down",
+      cpaPrev != null ? chf(cpaPrev, 2) : null,
+      C.orange,
+      true,
     ],
     [
-      "Conv.-Wert/Kosten",
+      TrendingUp,
+      "Conv.-Wert/Kosten (ROAS)",
       roas == null ? "–" : faktor(roas, 1),
-      "Umsatz je Werbefranken (ROAS)",
       pctDelta(roas, roasPrev),
-      "up",
+      roasPrev != null ? faktor(roasPrev, 1) : null,
+      C.green,
     ],
   ];
   return (
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))",
-        gap: 10,
+        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+        gap: 14,
       }}
     >
-      {karten.map(([titel, wert, sub, d, r]) => (
-        <Karte key={titel} style={{ padding: "14px 16px" }}>
-          <div
-            style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}
-          >
-            <span style={{ fontSize: 13, fontWeight: 700, color: C.darkPurple }}>{titel}</span>
-            <DeltaChip d={d} richtung={r} />
-          </div>
-          <div
-            style={{
-              fontSize: 22,
-              fontWeight: 800,
-              margin: "8px 0 4px",
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            {wert}
-          </div>
-          <div style={{ fontSize: 12.5, color: C.textMuted }}>{sub}</div>
-        </Karte>
+      {karten.map(([icon, label, wert, d, vorher, farbe, invert]) => (
+        <KpiCard
+          key={label}
+          icon={icon}
+          label={label}
+          value={wert}
+          color={farbe}
+          change={runde(d)}
+          invert={!!invert}
+          compareValue={vorher ?? undefined}
+          compareLabel="Vorperiode"
+        />
       ))}
     </div>
   );
@@ -326,7 +326,7 @@ function Tagesverlauf({ series }) {
 export default function AdsKampagnen({ snap }) {
   const ag = snap.report?.assetGroups;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <Sichtbarkeit snap={snap} />
       <Karte style={{ paddingBottom: 10 }}>
         <Abschnitt titel="Kampagnen" hinweis="Spaltentitel anklicken zum Sortieren" />

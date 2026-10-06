@@ -1593,9 +1593,12 @@ export function KpiCard({
   color = C.accent,
   compareValue,
   compareLabel,
+  invert = false,
 }) {
   const u = change > 0,
     n = change === 0;
+  // invert: sinkender Wert ist gut (z. B. Kosten je Klick) — Pfeil bleibt nach Vorzeichen.
+  const gut = invert ? !u : u;
   const hasCompare = change !== undefined;
   const fmtV = (v) =>
     typeof v === "number" ? `${prefix}${v.toLocaleString("de-CH")}${suffix}` : v;
@@ -1643,8 +1646,8 @@ export function KpiCard({
               gap: 3,
               fontSize: 13,
               fontWeight: 700,
-              color: n ? C.textMuted : u ? C.green : C.red,
-              background: n ? C.segBg : u ? C.greenDim : C.redDim,
+              color: n ? C.textMuted : gut ? C.green : C.red,
+              background: n ? C.segBg : gut ? C.greenDim : C.redDim,
               padding: "3px 9px",
               borderRadius: C.rPill,
             }}

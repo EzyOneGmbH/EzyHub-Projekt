@@ -1,7 +1,20 @@
 // EzyPerformance — Tab «Übersicht» (06.10.2026, Ablösung Data-Studio-Dashboard
 // nach Mockup «Google Ads Report · Erweiterung»).
 import { Suspense, lazy, useMemo, useState } from "react";
-import { Check, Info, Search } from "lucide-react";
+import {
+  CheckCircle,
+  Check,
+  Coins,
+  Eye,
+  Info,
+  MousePointerClick,
+  Percent,
+  Search,
+  Tag,
+  Target,
+  Wallet,
+} from "lucide-react";
+import { KpiCard } from "../ui-kit";
 import { C } from "../theme";
 import {
   conversionZeilen,
@@ -46,14 +59,14 @@ function Hero({ snap, k, top, tageLabel, aktion }) {
           justifyContent: "space-between",
           gap: 10,
           flexWrap: "wrap",
-          marginBottom: 18,
+          marginBottom: 16,
         }}
       >
         <div>
-          <span style={{ fontSize: 16, fontWeight: 800, color: C.darkPurple }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>
             Was hat Google Ads gebracht?
           </span>
-          <span style={{ fontSize: 12.5, color: C.textMuted, marginLeft: 10 }}>{tageLabel}</span>
+          <span style={{ fontSize: 11.5, color: C.textMuted, marginLeft: 8 }}>{tageLabel}</span>
         </div>
         {aktion}
       </div>
@@ -78,7 +91,7 @@ function Hero({ snap, k, top, tageLabel, aktion }) {
           <div
             style={{
               ...heroZahl,
-              fontSize: "clamp(28px, 3.3vw, 44px)",
+              fontSize: 32,
               background: C.grad,
               WebkitBackgroundClip: "text",
               backgroundClip: "text",
@@ -98,10 +111,10 @@ function Hero({ snap, k, top, tageLabel, aktion }) {
         style={{
           marginTop: 14,
           border: `1px solid ${C.border}`,
-          borderRadius: 12,
+          borderRadius: C.rCtl,
           background: "#fff",
           padding: "10px 14px",
-          fontSize: 13,
+          fontSize: 12.5,
           lineHeight: 1.55,
           color: C.textMuted,
         }}
@@ -116,15 +129,15 @@ function Hero({ snap, k, top, tageLabel, aktion }) {
   );
 }
 const heroZahl = {
-  fontSize: "clamp(22px, 2.5vw, 34px)",
+  fontSize: 26,
   whiteSpace: "nowrap",
-  fontWeight: 800,
+  fontWeight: 700,
   color: C.text,
-  lineHeight: 1.05,
-  letterSpacing: "-.02em",
+  lineHeight: 1.1,
+  letterSpacing: "-.5px",
   fontVariantNumeric: "tabular-nums",
 };
-const heroText = { fontSize: 13.5, color: C.textMuted, marginTop: 8 };
+const heroText = { fontSize: 12, color: C.textMuted, marginTop: 4 };
 
 // ── Das Wichtigste auf einen Blick ──────────────────────────────────────────
 function Wichtigste({ liste }) {
@@ -153,7 +166,7 @@ function Wichtigste({ liste }) {
                 display: "flex",
                 gap: 12,
                 background: s.bg,
-                borderRadius: 14,
+                borderRadius: C.rCtl,
                 padding: "12px 14px",
               }}
             >
@@ -172,8 +185,8 @@ function Wichtigste({ liste }) {
               >
                 {s.icon}
               </span>
-              <div style={{ fontSize: 12.5, lineHeight: 1.55, color: C.textMuted }}>
-                <b style={{ color: C.text }}>{e.titel}</b> {e.text}
+              <div style={{ fontSize: 12.5, lineHeight: 1.5, color: C.textMuted }}>
+                <b style={{ color: C.text, fontWeight: 600 }}>{e.titel}</b> {e.text}
               </div>
             </div>
           );
@@ -183,71 +196,42 @@ function Wichtigste({ liste }) {
   );
 }
 
-// ── Kennzahlen ──────────────────────────────────────────────────────────────
-function Kennzahl({ titel, wert, sub, d, richtung }) {
-  return (
-    <Karte style={{ padding: "14px 16px" }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 8,
-          flexWrap: "wrap",
-        }}
-      >
-        <span style={{ fontSize: 13, fontWeight: 700, color: C.darkPurple }}>{titel}</span>
-        <DeltaChip d={d} richtung={richtung} />
-      </div>
-      <div
-        style={{
-          fontSize: "clamp(20px, 1.9vw, 24px)",
-          fontWeight: 800,
-          color: C.text,
-          margin: "8px 0 4px",
-          fontVariantNumeric: "tabular-nums",
-        }}
-      >
-        {wert}
-      </div>
-      <div style={{ fontSize: 12.5, color: C.textMuted }}>{sub}</div>
-    </Karte>
-  );
-}
+// ── Kennzahlen (EzyRank-KpiCards) ──────────────────────────────────────────
+const runde = (d) => (d == null ? undefined : Math.round(d * 10) / 10);
 
 function Kennzahlen({ snap, k, vergleichLabel }) {
   const t = snap.totals;
+  const p = snap.prev;
   const karten = [
-    ["Buchungen", zahl(k.buchungen), "über Google Ads", k.d.buchungen, "up"],
     [
-      "Buchungswert",
-      chf(k.wert),
-      `Umsatz aus allen ${zahl(k.buchungen)} Buchungen`,
-      k.d.wert,
-      "up",
+      CheckCircle,
+      "Buchungen über Google Ads",
+      zahl(k.buchungen),
+      k.d.buchungen,
+      zahl(k.buchungenPrev),
+      C.accent,
     ],
-    ["Ø Buchungswert", k.buchungen > 0 ? chf(k.avg) : "–", "Umsatz pro Buchung", k.d.avg, "up"],
+    [Wallet, "Buchungswert", chf(k.wert), k.d.wert, chf(k.wertPrev), C.green],
     [
-      "Alle Conversions",
+      Tag,
+      "Ø Buchungswert",
+      k.buchungen > 0 ? chf(k.avg) : "–",
+      k.d.avg,
+      k.avgPrev > 0 ? chf(k.avgPrev) : null,
+      C.pink,
+    ],
+    [
+      Target,
+      `Alle Conversions (${zahl(k.buchungen)} Buchungen + ${zahl(k.soft)} Soft)`,
       zahl(k.alle),
-      `${zahl(k.buchungen)} Buchungen + ${zahl(k.soft)} Soft Conversions`,
       k.d.alle,
-      "up",
+      zahl(k.allePrev),
+      C.blue,
     ],
-    ["Impressionen", zahl(t.impressions), "Anzeigen eingeblendet", k.d.impressions, "up"],
-    ["Klicks", zahl(t.clicks), "Besuche aus Anzeigen", k.d.clicks, "up"],
-    ["Klickrate (CTR)", prozent(k.ctr, 2), "Klicks je Impression", k.d.ctr, "up"],
-    [
-      "Ø CPC",
-      chf(k.cpc, 2),
-      k.d.cpc == null
-        ? "Kosten je Klick"
-        : k.d.cpc > 0
-          ? `teurer als in der ${vergleichLabel}`
-          : `günstiger als in der ${vergleichLabel}`,
-      k.d.cpc,
-      "down",
-    ],
+    [Eye, "Impressionen", zahl(t.impressions), k.d.impressions, zahl(p.impressions), C.cyan],
+    [MousePointerClick, "Klicks", zahl(t.clicks), k.d.clicks, zahl(p.clicks), C.accent],
+    [Percent, "Klickrate (CTR)", prozent(k.ctr, 2), k.d.ctr, prozent(k.ctrPrev, 2), C.orange],
+    [Coins, "Ø CPC", chf(k.cpc, 2), k.d.cpc, chf(k.cpcPrev, 2), C.blue, true],
   ];
   return (
     <div>
@@ -258,12 +242,22 @@ function Kennzahlen({ snap, k, vergleichLabel }) {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))",
-          gap: 10,
+          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+          gap: 14,
         }}
       >
-        {karten.map(([titel, wert, sub, d, r]) => (
-          <Kennzahl key={titel} titel={titel} wert={wert} sub={sub} d={d} richtung={r} />
+        {karten.map(([icon, label, wert, d, vorher, farbe, invert]) => (
+          <KpiCard
+            key={label}
+            icon={icon}
+            label={label}
+            value={wert}
+            color={farbe}
+            change={runde(d)}
+            invert={!!invert}
+            compareValue={vorher ?? undefined}
+            compareLabel={vergleichLabel}
+          />
         ))}
       </div>
     </div>
@@ -695,7 +689,7 @@ function Balkenliste({ titel, daten, farben }) {
     </Karte>
   );
 }
-const kartenTitel = { fontSize: 15, fontWeight: 800, color: C.darkPurple, marginBottom: 12 };
+const kartenTitel = { fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 14 };
 function Basis({ daten }) {
   const teile = [];
   if (daten.basis === "clicks") teile.push("Basis: Klicks (zu wenige Buchungen mit Angabe)");
@@ -1016,7 +1010,7 @@ export default function AdsUebersicht({ snap, client, tageLabel, vergleichLabel,
   const h = baueHerkunft(snap);
   const z = baueZielgruppe(snap);
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <Hero snap={snap} k={k} top={top} tageLabel={tageLabel} aktion={aktion} />
       <Wichtigste liste={wichtigste(snap)} />
       <Kennzahlen snap={snap} k={k} vergleichLabel={vergleichLabel} />

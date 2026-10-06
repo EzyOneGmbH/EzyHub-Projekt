@@ -26,9 +26,9 @@ export function Karte({ children, style, ...rest }) {
       style={{
         background: C.card,
         border: `1px solid ${C.border}`,
-        borderRadius: 14,
+        borderRadius: C.rCard,
         boxShadow: C.cardShadow,
-        padding: "clamp(14px, 1.8vw, 20px)",
+        padding: "18px 20px",
         minWidth: 0,
         ...style,
       }}
@@ -55,17 +55,16 @@ export function Abschnitt({ titel, hinweis, rechts, gross = false, style }) {
         <h2
           style={{
             margin: 0,
-            fontSize: gross ? 19 : 16,
-            fontWeight: 800,
-            color: C.darkPurple,
-            letterSpacing: "-.01em",
+            fontSize: gross ? 14 : 13,
+            fontWeight: 600,
+            color: C.text,
             display: "inline",
           }}
         >
           {titel}
         </h2>
         {hinweis && (
-          <span style={{ fontSize: 12.5, color: C.textMuted, marginLeft: 10 }}>{hinweis}</span>
+          <span style={{ fontSize: 11.5, color: C.textMuted, marginLeft: 8 }}>{hinweis}</span>
         )}
       </div>
       {rechts}
@@ -119,7 +118,7 @@ export function Pille({ children, farbe = C.textMuted, hinter = C.segBg, title }
       title={title}
       style={{
         display: "inline-block",
-        fontSize: 12,
+        fontSize: 11.5,
         fontWeight: 700,
         color: farbe,
         background: hinter,
@@ -162,9 +161,9 @@ export function Segmente({ werte, aktiv, onChange, dunkel = false }) {
               border: "none",
               cursor: "pointer",
               fontFamily: "inherit",
-              fontSize: 13,
-              fontWeight: an ? 700 : 500,
-              padding: "6px 13px",
+              fontSize: 12.5,
+              fontWeight: an ? 700 : 600,
+              padding: "6px 14px",
               borderRadius: 999,
               color: an ? (dunkel ? "#fff" : C.accent) : C.textMuted,
               background: an ? (dunkel ? C.accent : "#fff") : "transparent",
@@ -182,13 +181,13 @@ export function Segmente({ werte, aktiv, onChange, dunkel = false }) {
 /** Scrollbarer Tabellen-Rahmen (mobil horizontal scrollbar). */
 export function TabellenRahmen({ children, minWidth = 640 }) {
   return (
-    <div style={{ overflowX: "auto", margin: "0 calc(-1 * clamp(14px, 1.8vw, 20px))" }}>
+    <div style={{ overflowX: "auto", margin: "0 -20px" }}>
       <table
         style={{
           width: "100%",
           minWidth,
           borderCollapse: "collapse",
-          fontSize: 13.5,
+          fontSize: 13,
           fontVariantNumeric: "tabular-nums",
         }}
       >
@@ -199,19 +198,19 @@ export function TabellenRahmen({ children, minWidth = 640 }) {
 }
 
 export const th = (rechts = true, extra = {}) => ({
-  padding: "9px clamp(10px, 1.4vw, 16px)",
+  padding: "10px 12px",
   textAlign: rechts ? "right" : "left",
-  fontSize: 12.5,
+  fontSize: 11,
   fontWeight: 600,
-  color: C.textMuted,
-  background: "#faf7fb",
-  borderTop: `1px solid ${C.border}`,
+  color: C.textDim,
+  textTransform: "uppercase",
+  letterSpacing: ".06em",
   borderBottom: `1px solid ${C.border}`,
   whiteSpace: "nowrap",
   ...extra,
 });
 export const td = (rechts = true, extra = {}) => ({
-  padding: "9px clamp(10px, 1.4vw, 16px)",
+  padding: "11px 12px",
   textAlign: rechts ? "right" : "left",
   whiteSpace: rechts ? "nowrap" : undefined,
   borderBottom: `1px solid ${C.hairline}`,

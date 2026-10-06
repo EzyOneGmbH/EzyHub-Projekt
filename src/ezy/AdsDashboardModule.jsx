@@ -96,7 +96,7 @@ function Tabs({ tabs, aktiv, onChange, rechts }) {
                 background: "none",
                 cursor: "pointer",
                 fontFamily: "inherit",
-                fontSize: 13.5,
+                fontSize: 13,
                 fontWeight: an ? 700 : 500,
                 color: an ? C.accent : C.textMuted,
                 padding: "10px 13px 11px",
