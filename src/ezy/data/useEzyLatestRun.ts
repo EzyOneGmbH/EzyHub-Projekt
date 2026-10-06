@@ -1,5 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { cacheGet, cachePut } from "./rangeStore";
+
+// Browser-Zwischenspeicher (06.10.2026, Volkan: «lokal zwischenspeichern, damit
+// alles schneller lädt»): der letzte Stand je Kunde/Messart wird sofort gezeigt,
+// die Datenbank-Abfrage läuft still dahinter. Sehr grosse Läufe bleiben draussen,
+// damit der Speicher (~5 MB) nicht überläuft.
+const LS_MAX_ZEICHEN = 250_000;
+function speichereLauf(key: string, run: LatestRun) {
+  try {
+    if (JSON.stringify(run).length <= LS_MAX_ZEICHEN) cachePut(key, run);
+  } catch {
+    /* best effort */
+  }
+}
 
 const isUuid = (id: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ""));
@@ -98,7 +112,10 @@ export function useEzyLatestRun(
         setRun(hit.run);
         return;
       }
-      setLoading(true);
+      const lsKey = `run:${cacheId}`;
+      const gespeichert = force === true ? null : cacheGet(lsKey);
+      if (gespeichert) setRun(gespeichert.data as LatestRun);
+      setLoading(!gespeichert); // mit gespeichertem Stand kein Ladebalken
       try {
         let q = supabase
           .from("audit_runs")
@@ -110,9 +127,10 @@ export function useEzyLatestRun(
         const { data } = await q.order("created_at", { ascending: false }).limit(1).maybeSingle();
         const row = (data as LatestRun) || null;
         RUN_CACHE.set(cacheId, { at: Date.now(), run: row });
+        speichereLauf(lsKey, row);
         setRun(row);
       } catch {
-        setRun(null);
+        if (!gespeichert) setRun(null);
       } finally {
         setLoading(false);
       }

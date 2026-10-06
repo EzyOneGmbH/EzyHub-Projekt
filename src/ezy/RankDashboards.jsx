@@ -1,6 +1,7 @@
 // EzyRank-Dashboards (aus EzyOneApp.jsx extrahiert, 21.08.2026 — reines
 // Verschieben): Agentur-Uebersicht, SEO/GEO/Conversions/Overview-Dashboards,
 // KI-Sichtbarkeit (Makro) und Onboarding-Scan-Panel.
+import { cacheGet, cachePut } from "./data/rangeStore";
 import { organischerBreakdown } from "@/lib/convEvents";
 import { vorperiode } from "@/lib/date-range";
 import { besucheLand, landName, laenderImZeitraum, laenderMitTraffic } from "@/lib/seoHistLaender";
@@ -197,6 +198,10 @@ export function AgencyOverview({
     let alive = true;
     const ids = idsKey ? idsKey.split(",") : [];
     if (!ids.length) return;
+    // Browser-Zwischenspeicher (06.10.2026): Kacheln sofort mit letztem Stand.
+    const cacheKey = `kacheln:${isAds ? "ads" : "seo"}:${idsKey}`;
+    const gespeichert = cacheGet(cacheKey);
+    if (gespeichert) setStats(gespeichert.data);
     (async () => {
       try {
         if (isAds) {
@@ -218,6 +223,7 @@ export function AgencyOverview({
               date: String(row.created_at || "").slice(0, 10),
             };
           }
+          cachePut(cacheKey, next);
           setStats(next);
           return;
         }
@@ -265,9 +271,10 @@ export function AgencyOverview({
             date: next[row.client_id]?.date || String(row.created_at || "").slice(0, 10),
           };
         }
+        cachePut(cacheKey, next);
         setStats(next);
       } catch {
-        /* Kacheln zeigen dann — */
+        /* Kacheln zeigen dann — (oder den gespeicherten Stand) */
       }
     })();
     return () => {

@@ -3,6 +3,7 @@
 // Tabelle mit Zeitraum/Vergleich aus der Kopfzeile — je eine Konfiguration
 // fuer Organic (KI-Besucher, KI-Conversions, KI-Sichtbarkeit) und Ads
 // (ChatGPT Ads + GA4 chatgpt / cpc). Daten: /api/admin/aivis-overview.
+import { cacheGet, cachePut } from "./data/rangeStore";
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, Download, Search } from "lucide-react";
 import { ezyFetch } from "@/ezy/data/api";
@@ -299,7 +300,11 @@ export function EzyAiAgencyTable({
   useEffect(() => {
     if (!ids.length || !startDate || !endDate) return;
     let alive = true;
-    setData((d) => ({ ...d, loading: true }));
+    // Browser-Zwischenspeicher (06.10.2026): letzter Stand sofort, frisch dahinter.
+    const cacheKey = `aiTabelle:${mode}:${idsKey}|${startDate}|${endDate}|${compareStart}|${compareEnd}`;
+    const gespeichert = cacheGet(cacheKey);
+    if (gespeichert) setData({ loading: false, ...gespeichert.data });
+    else setData((d) => ({ ...d, loading: true }));
     setError("");
     (async () => {
       try {
@@ -322,22 +327,23 @@ export function EzyAiAgencyTable({
         if (!alive) return;
         const rows = {};
         for (const a of antworten) for (const r of a.rows || []) rows[r.clientId] = r;
-        setData({
-          loading: false,
+        const frisch = {
           rows,
           range: antworten[0]?.range ?? null,
           prevRange: antworten[0]?.prevRange ?? null,
-        });
+        };
+        cachePut(cacheKey, frisch);
+        setData({ loading: false, ...frisch });
       } catch (e) {
         if (!alive) return;
-        setError(e?.message || String(e));
+        if (!gespeichert) setError(e?.message || String(e));
         setData((d) => ({ ...d, loading: false }));
       }
     })();
     return () => {
       alive = false;
     };
-  }, [ids, mode, startDate, endDate, compareStart, compareEnd]);
+  }, [ids, idsKey, mode, startDate, endDate, compareStart, compareEnd]);
 
   useEffect(() => setPage(0), [query, filter, sort, ids, mode]);
 

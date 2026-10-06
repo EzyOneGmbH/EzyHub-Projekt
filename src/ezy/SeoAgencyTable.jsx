@@ -2,6 +2,7 @@
 // AdsAgencyTable): alle SEO-Kunden in einer Tabelle mit Zeitraum/Vergleich aus
 // der Kopfzeile. Traffic = GA4 «Organic Search» (Fallback Search Console),
 // Top 3 / Top 10 aus dem Rankings-Lauf, Visibility Index aus Sistrix (CH).
+import { cacheGet, cachePut } from "./data/rangeStore";
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, Download, Search } from "lucide-react";
 import { ezyFetch } from "@/ezy/data/api";
@@ -164,7 +165,11 @@ export function SeoAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
   useEffect(() => {
     if (!ids.length || !startDate || !endDate) return;
     let alive = true;
-    setData((d) => ({ ...d, loading: true }));
+    // Browser-Zwischenspeicher (06.10.2026): letzter Stand sofort, frisch dahinter.
+    const cacheKey = `seoTabelle:${idsKey}|${startDate}|${endDate}|${compareStart}|${compareEnd}`;
+    const gespeichert = cacheGet(cacheKey);
+    if (gespeichert) setData({ loading: false, ...gespeichert.data });
+    else setData((d) => ({ ...d, loading: true }));
     setError("");
     (async () => {
       try {
@@ -187,22 +192,24 @@ export function SeoAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
         if (!alive) return;
         const rows = {};
         for (const a of antworten) for (const r of a.rows || []) rows[r.clientId] = r;
-        setData({
-          loading: false,
+        const frisch = {
           rows,
           range: antworten[0]?.range ?? null,
           prevRange: antworten[0]?.prevRange ?? null,
-        });
+        };
+        cachePut(cacheKey, frisch);
+        setData({ loading: false, ...frisch });
       } catch (e) {
         if (!alive) return;
-        setError(e?.message || String(e));
+        // Mit gespeichertem Stand im Bild keinen Fehler einblenden.
+        if (!gespeichert) setError(e?.message || String(e));
         setData((d) => ({ ...d, loading: false }));
       }
     })();
     return () => {
       alive = false;
     };
-  }, [ids, startDate, endDate, compareStart, compareEnd]);
+  }, [ids, idsKey, startDate, endDate, compareStart, compareEnd]);
 
   useEffect(() => setPage(0), [query, filter, sort, ids]);
 

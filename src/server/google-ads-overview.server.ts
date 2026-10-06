@@ -29,6 +29,7 @@ export type OverviewZeile = {
 
 export { istBuchung } from "./ads-buchung";
 import { istBuchung } from "./ads-buchung";
+import { cacheLesen, cacheSchreiben } from "./uebersicht-cache.server";
 
 /** customer-Zeile (metrics) → Grundkennzahlen. */
 export function parseKontoTotals(
@@ -72,10 +73,8 @@ export function kombiniere(
   };
 }
 
-// Kurzzeit-Cache: Tab-Wechsel und Re-Renders sollen die Ads-API nicht erneut
-// fuer jeden Kunden treffen.
-const CACHE_MS = 5 * 60 * 1000;
-const cache = new Map<string, { at: number; zeile: OverviewZeile }>();
+// Zwischenspeicher (06.10.2026): 60 min, Arbeitsspeicher + Tabelle
+// uebersicht_cache — gilt für alle Instanzen und Nutzer. Fehlerzeilen nie.
 
 export async function fetchAdsOverviewZeile(
   clientId: string,
@@ -85,8 +84,8 @@ export async function fetchAdsOverviewZeile(
 ): Promise<OverviewZeile> {
   const { aktuell, vorher } = adsFenster(range, compareRange);
   const key = `${clientId}|${aktuell.startDate}|${aktuell.endDate}|${vorher.startDate}|${vorher.endDate}`;
-  const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < CACHE_MS) return hit.zeile;
+  const hit = await cacheLesen<OverviewZeile>("ads", `${key}|${googleAdsCustomer ?? ""}`);
+  if (hit) return hit;
 
   const fehler = (error: string): OverviewZeile => ({ clientId, cur: null, prev: null, error });
   const devToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
@@ -130,7 +129,7 @@ export async function fetchAdsOverviewZeile(
   try {
     const [cur, prev] = await Promise.all([periode(aktuell), periode(vorher)]);
     const zeile: OverviewZeile = { clientId, cur, prev, error: null };
-    cache.set(key, { at: Date.now(), zeile });
+    await cacheSchreiben("ads", `${key}|${googleAdsCustomer ?? ""}`, clientId, zeile);
     return zeile;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

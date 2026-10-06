@@ -3,6 +3,7 @@ import { getGoogleAccessToken } from "./google-tokens.server";
 import { ga4RunReportUrl } from "./ga4.server";
 import { gscTotals, type GscFilter } from "./gsc.server";
 import { heuteYmd, type Zeitraum } from "@/lib/date-range";
+import { cacheLesen, cacheSchreiben } from "./uebersicht-cache.server";
 
 // Agentur-Performance-Tabelle EzyRank (29.09.2026, analog EzyPerformance):
 // SEO-Kennzahlen mehrerer Kunden fuer Zeitraum + Vergleich. Nur lesend, nichts
@@ -185,10 +186,13 @@ const zahlOderNull = (v: unknown): number | null => {
   return v == null || !Number.isFinite(n) ? null : n;
 };
 
-// Kurzzeit-Cache wie EzyPerformance: Tab-Wechsel/Re-Renders treffen GA4/GSC
-// nicht erneut fuer jeden Kunden.
-const CACHE_MS = 5 * 60 * 1000;
-const cache = new Map<string, { at: number; zeile: SeoOverviewZeile }>();
+// Zwischenspeicher (06.10.2026): 60 min, Arbeitsspeicher + Tabelle
+// uebersicht_cache — gilt für alle Instanzen und Nutzer (uebersicht-cache.server).
+/** Nur vollständige Zeilen speichern — Google-Fehler nicht eine Stunde festhalten. */
+export function seoZeileSpeicherbar(z: Pick<SeoOverviewZeile, "hinweise" | "error">): boolean {
+  if (z.error) return false;
+  return !(z.hinweise || []).some((h) => /^(GA4:|Search Console:|Google nicht verbunden)/.test(h));
+}
 
 export async function fetchSeoOverviewZeile(
   kunde: SeoOverviewKunde,
@@ -197,8 +201,8 @@ export async function fetchSeoOverviewZeile(
 ): Promise<SeoOverviewZeile> {
   const { aktuell, vorher } = fenster;
   const key = `${kunde.id}|${aktuell.startDate}|${aktuell.endDate}|${vorher.startDate}|${vorher.endDate}`;
-  const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < CACHE_MS) return hit.zeile;
+  const hit = await cacheLesen<SeoOverviewZeile>("seo", `${key}|${googleErlaubt ? 1 : 0}`);
+  if (hit) return hit;
 
   const cur: SeoKennzahlen = { ...LEER };
   const prev: SeoKennzahlen = { ...LEER };
@@ -345,6 +349,7 @@ export async function fetchSeoOverviewZeile(
     hinweise,
     error: null,
   };
-  cache.set(key, { at: Date.now(), zeile });
+  if (seoZeileSpeicherbar(zeile))
+    await cacheSchreiben("seo", `${key}|${googleErlaubt ? 1 : 0}`, kunde.id, zeile);
   return zeile;
 }

@@ -118,6 +118,35 @@ const MAX_ENTRIES = 80;
 
 type CacheEntry = { at: number; data: unknown };
 
+// Besitzer (06.10.2026): der Zwischenspeicher gehört genau einem Login. Wechselt
+// der Benutzer oder meldet er sich ab, wird alles geleert — an geteilten
+// Geräten sieht niemand die Kundendaten eines anderen Logins.
+const BESITZER_KEY = "ezy.rangecache.owner";
+export function leereZwischenspeicher(): void {
+  try {
+    const weg: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith(CACHE_PREFIX) || ALTE_PREFIXE.some((p) => k.startsWith(p))))
+        weg.push(k);
+    }
+    for (const k of weg) localStorage.removeItem(k);
+  } catch {
+    /* localStorage nicht verfügbar */
+  }
+}
+export function setzeCacheBesitzer(userId: string | null): void {
+  try {
+    const alt = localStorage.getItem(BESITZER_KEY);
+    if (alt === (userId ?? null)) return;
+    leereZwischenspeicher();
+    if (userId) localStorage.setItem(BESITZER_KEY, userId);
+    else localStorage.removeItem(BESITZER_KEY);
+  } catch {
+    /* localStorage nicht verfügbar */
+  }
+}
+
 // Direkter Zugriff für Komponenten mit eigener Fetch-/Fehlerlogik (EzyAI-Panels):
 // cacheGet liefert {at,data} (auch abgelaufen — Anzeige sofort, still neu laden),
 // cachePut schreibt nur ERFOLGREICHE Antworten. TTL für "frisch genug"-Checks.

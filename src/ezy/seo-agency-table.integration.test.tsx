@@ -56,6 +56,7 @@ const antwort = {
 const resp = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response;
 
 afterEach(() => {
+  localStorage.clear(); // Zwischenspeicher (06.10.) je Test leeren
   cleanup();
   vi.mocked(ezyFetch).mockReset();
 });

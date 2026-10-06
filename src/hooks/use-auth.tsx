@@ -1,4 +1,5 @@
 /* eslint-disable react-refresh/only-export-components -- shadcn/template files intentionally export non-component helpers (variants/contexts/hooks) alongside components. */
+import { setzeCacheBesitzer } from "@/ezy/data/rangeStore";
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -197,6 +198,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (s?.user) {
         setTimeout(() => loadProfile(s.user.id), 0);
       } else {
+        setzeCacheBesitzer(null); // abgemeldet/abgelaufen → Zwischenspeicher leeren
         setMemberships([]);
         setOrganizations([]);
         setActiveId(null);
@@ -226,6 +228,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [memberships],
   );
 
+  // Zwischenspeicher an den Login binden (06.10.2026) — bewusst im Render, damit
+  // er geleert ist, BEVOR Kind-Komponenten daraus lesen (Effekte laufen später).
+  const besitzer = session?.user?.id ?? null;
+  if (besitzer && typeof window !== "undefined") setzeCacheBesitzer(besitzer);
+
   const membership = memberships.find((m) => m.organization_id === activeId) ?? null;
   const role = membership?.role ?? null;
   const isOrgAdmin = role === "owner" || role === "admin";
@@ -248,6 +255,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     signOut: async () => {
       speichereAktiveOrg(null);
+      setzeCacheBesitzer(null);
       await supabase.auth.signOut();
     },
     refresh: async () => {
