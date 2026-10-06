@@ -1,4 +1,5 @@
 import { authedFetch } from "@/lib/authed-fetch";
+import { SprachSwitch } from "@/i18n/SprachSwitch";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
@@ -216,10 +217,12 @@ function ReaktApp() {
             </div>
           </div>
         </div>
+        <span style={{ marginLeft: "auto" }}>
+          <SprachSwitch kompakt variante="auto" />
+        </span>
         <button
           onClick={() => void load()}
           style={{
-            marginLeft: "auto",
             background: "none",
             border: `1px solid ${S.line}`,
             color: S.mut,

@@ -3,7 +3,6 @@ import { useAuth } from "@/hooks/use-auth";
 // Plattform-Shell-Bausteine — AppRail (76px App-Switcher), SegmentedTabs,
 // Status-/Positions-Pills und Toggle. Reine Praesentationsschicht; Gating
 // (useAppAccess.canOpen) und Navigation kommen vom Aufrufer.
-import { SprachSwitch } from "@/i18n/SprachSwitch";
 import { useState } from "react";
 import { Bot, LayoutGrid, LogOut, Mail, Megaphone, Radar, Search, Settings } from "lucide-react";
 import { C } from "./theme";
@@ -327,10 +326,6 @@ export function AppRail({
             </div>
             {/* Mehrfach-Organisationen (13.09.): Wechsel der aktiven Organisation. */}
             <OrgSwitcherMenu C={C} />
-            {/* Sprach-Umschaltung (05.10.2026) */}
-            <div style={{ marginBottom: 8 }}>
-              <SprachSwitch kompakt />
-            </div>
             <button
               onClick={onLogout}
               style={{

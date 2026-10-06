@@ -1,4 +1,5 @@
 import { authedFetch } from "@/lib/authed-fetch";
+import { SprachSwitch } from "@/i18n/SprachSwitch";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -336,7 +337,8 @@ function EzyAiAnalyseApp() {
               .app-sidebar { display: none !important; }
               .anl-body { margin-left: 0; }
               /* Mobile-QA 22.08.: Header doppelt die Bottom-Bar -> weg */
-              .anl-head { display: none !important; }
+              .anl-head { position: static !important; padding: 8px 12px !important; }
+              .anl-hm { display: none !important; }
               .anl-main { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 84px) !important; }
               .anl-tabbar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 90; justify-content: space-around; align-items: stretch; padding: 8px 6px calc(env(safe-area-inset-bottom, 0px) + 8px); background: rgba(252,252,252,.9); backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); border-top: 1px solid ${S.line}; }
             }
@@ -413,11 +415,19 @@ function EzyAiAnalyseApp() {
             >
               {/* Desktop-Nav-Umbau (22.08.): Analyse/Verlauf in der Sidebar */}
               {detail && (
-                <span style={{ fontSize: 12.5, color: S.mut, fontWeight: 600 }}>› Ergebnis</span>
+                <span className="anl-hm" style={{ fontSize: 12.5, color: S.mut, fontWeight: 600 }}>
+                  › Ergebnis
+                </span>
               )}
               <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
-                <AppVersionBadge appId="analyse" />
-                <EzyPilotButton />
+                <SprachSwitch kompakt variante="auto" />
+                <span
+                  className="anl-hm"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 10 }}
+                >
+                  <AppVersionBadge appId="analyse" />
+                  <EzyPilotButton />
+                </span>
               </div>
             </header>
 

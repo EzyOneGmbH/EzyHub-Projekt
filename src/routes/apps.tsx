@@ -197,6 +197,10 @@ function AppsLauncher() {
       />
       <HexGlowLayer />
       <div style={{ width: "100%", maxWidth: 880 }}>
+        {/* Sprachschalter oben rechts (Volkan 06.10.: «im Header, überall») */}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+          <SprachSwitch kompakt variante="auto" />
+        </div>
         <div style={{ textAlign: "center", marginBottom: 34 }}>
           {/* CD-Symbol: neues Marken-Icon (E + Power-O im Hexagon) + Wortmarke "Ezy One" (Sentence case). */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
@@ -255,8 +259,6 @@ function AppsLauncher() {
           }}
         >
           <span>Angemeldet als {user?.email}</span>
-          <span style={{ flex: 1 }} />
-          <SprachSwitch kompakt />
           <button
             onClick={async () => {
               await signOut();

@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { SprachSwitch } from "@/i18n/SprachSwitch";
 import { useEffect, useState, type FormEvent } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
@@ -119,6 +120,9 @@ function SetPasswordPage() {
           {/* CD-Symbol: neues Marken-Icon (E + Power-O im Hexagon) + Wortmarke "Ezy One". */}
           <EzyOneMark width={26} />
           <span style={{ fontSize: 18, fontWeight: 700, color: "#ece6f0" }}>Ezy One</span>
+          <span style={{ marginLeft: "auto" }}>
+            <SprachSwitch kompakt hell />
+          </span>
         </div>
         <h1 style={{ fontSize: 20, fontWeight: 700, color: "#e2e4f0", margin: "8px 0 4px" }}>
           Passwort festlegen

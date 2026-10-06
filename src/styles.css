@@ -194,3 +194,19 @@
 html[data-i18n-warten] body {
   visibility: hidden;
 }
+
+/* Sprachschalter (06.10.2026): Desktop Segment, Handy kompakte Pille mit Menü. */
+.sprach-seg {
+  display: inline-flex;
+}
+.sprach-menu {
+  display: none;
+}
+@media (max-width: 760px) {
+  .sprach-seg {
+    display: none !important;
+  }
+  .sprach-menu {
+    display: inline-flex;
+  }
+}

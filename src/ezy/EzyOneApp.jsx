@@ -7641,10 +7641,13 @@ function App({ appScope = null }) {
                   )}
                   {/* Audit-Kreis entfernt (Volkan 24.08.) — Audit-Skills leben
                     unter Ezy-Tools → Audit Skills (Bottom-Tab-Bar). */}
+                  {/* Sprachschalter im Header (Volkan 06.10.) — mobil als Pille mit Menü. */}
+                  <SprachSwitch variante="menu" />
                   {!isViewer && <EzyPilotFab size={34} />}
                 </>
               ) : (
                 <>
+                  <SprachSwitch kompakt />
                   {!isViewer && <EzyPilotButton />}
                   {/* Audit-Button entfernt (Volkan 24.08.) — Audit-Skills leben
                     unter Ezy-Tools → Audit Skills. */}
@@ -7747,18 +7750,6 @@ function App({ appScope = null }) {
                   <Btn variant="secondary" size="md" icon={RefreshCw} onClick={refreshAll}>
                     Aktualisieren
                   </Btn>
-                </div>
-                {/* Sprach-Umschaltung (05.10.2026) — mobil gibt es kein Profilmenü. */}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    marginTop: 16,
-                  }}
-                >
-                  <span style={{ fontSize: 12, fontWeight: 700, color: C.textDim }}>Sprache</span>
-                  <SprachSwitch />
                 </div>
                 <Btn
                   variant="secondary"

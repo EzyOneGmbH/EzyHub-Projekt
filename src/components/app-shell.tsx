@@ -136,7 +136,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <main className="flex-1 overflow-y-auto">
         {/* Mobile top bar */}
-        <header className="flex items-center justify-between border-b border-border px-4 py-3 md:hidden">
+        <header className="flex items-center justify-between gap-2 border-b border-border px-4 py-3 md:hidden">
           <button
             onClick={() => setMobileOpen((v) => !v)}
             className="rounded-md p-2 text-foreground hover:bg-muted"
@@ -147,7 +147,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="flex items-center gap-2 text-sm font-bold">
             <Sparkles className="h-4 w-4 text-primary" /> EZY ONE
           </div>
-          <div className="w-9" />
+          <SprachSwitch variante="menu" />
         </header>
 
         <div className="mx-auto max-w-7xl p-4 md:p-8">{children}</div>

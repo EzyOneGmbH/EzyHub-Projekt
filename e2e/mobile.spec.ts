@@ -123,6 +123,10 @@ for (const [role, name, url, tabbar] of ZIELE) {
       return { vw: window.innerWidth, scrollW: doc.scrollWidth, barH, pb, hatInhalt: !!inhalt };
     }, tabbar);
     expect(m.scrollW, "Seite scrollt seitlich").toBeLessThanOrEqual(m.vw + 1);
+    // Sprachschalter im Header auf jeder Seite (Volkan 06.10.2026)
+    await expect(
+      page.locator('[aria-label="Sprache / Language / Langue"]:visible').first(),
+    ).toBeVisible();
     if (tabbar && m.hatInhalt)
       expect(m.pb, "Inhalt endet hinter der Tab-Leiste").toBeGreaterThanOrEqual(m.barH);
   });

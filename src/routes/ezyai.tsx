@@ -1,4 +1,5 @@
 import { authedFetch } from "@/lib/authed-fetch";
+import { SprachSwitch } from "@/i18n/SprachSwitch";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppRail, SegmentedTabs } from "@/ezy/shell";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -5014,7 +5015,7 @@ function EzyAiApp() {
                       outline: "none",
                       flex: "0 1 auto",
                       minWidth: 0,
-                      maxWidth: "calc(100% - 52px)",
+                      maxWidth: "calc(100% - 110px)",
                       textOverflow: "ellipsis",
                     }}
                   >
@@ -5025,11 +5026,19 @@ function EzyAiApp() {
                       </option>
                     ))}
                   </select>
-                  {(showAll || !HIDDEN_HEADER_ACTIONS_IN_CLIENT_VIEW.has("bell")) && (
-                    <span style={{ marginLeft: "auto", display: "inline-flex" }}>
+                  <span
+                    style={{
+                      marginLeft: "auto",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <SprachSwitch variante="menu" />
+                    {(showAll || !HIDDEN_HEADER_ACTIONS_IN_CLIENT_VIEW.has("bell")) && (
                       <NotificationsBell S={S} />
-                    </span>
-                  )}
+                    )}
+                  </span>
                 </div>
                 {/* Bereichs-Chips nur mit gewähltem Kunden — "Alle Kunden" = leer.
                   Ads-Modus (26.08.): eigener Chip-Satz + kompakter Schalter. */}
@@ -5201,6 +5210,10 @@ function EzyAiApp() {
                         LLM-Überblick
                       </a>
                     )}
+                  {/* Sprachschalter im Header (06.10.) — mobil in der Leiste oben. */}
+                  <span className="ezyai-hm" style={{ display: "inline-flex" }}>
+                    <SprachSwitch kompakt />
+                  </span>
                   {/* Glocke mobil in der Leiste oben (.ezyai-mnav) — hier nur Desktop. */}
                   {(showAll || !HIDDEN_HEADER_ACTIONS_IN_CLIENT_VIEW.has("bell")) && (
                     <span className="ezyai-hm" style={{ display: "inline-flex" }}>
