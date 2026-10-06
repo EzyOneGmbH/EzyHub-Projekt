@@ -28,6 +28,12 @@ const standText = (iso) => {
 // Handy-Layout (Karte unter Städteliste, Hero linksbündig, kompakte Tabs).
 const MOBIL_CSS = `
         .ads-report .ads-tabs::-webkit-scrollbar { display: none; }
+        @media (max-width: 1000px) {
+          .ads-report .ads-kpi-raster { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+        }
+        @media (max-width: 480px) {
+          .ads-report .ads-kpi-raster { grid-template-columns: 1fr !important; }
+        }
         @media (max-width: 860px) {
           .ads-report .ads-herkunft { grid-template-columns: 1fr !important; }
         }

@@ -1,20 +1,7 @@
 // EzyPerformance — Tab «Übersicht» (06.10.2026, Ablösung Data-Studio-Dashboard
 // nach Mockup «Google Ads Report · Erweiterung»).
 import { Suspense, lazy, useMemo, useState } from "react";
-import {
-  CheckCircle,
-  Check,
-  Coins,
-  Eye,
-  Info,
-  MousePointerClick,
-  Percent,
-  Search,
-  Tag,
-  Target,
-  Wallet,
-} from "lucide-react";
-import { KpiCard } from "../ui-kit";
+import { Check, Info, Search } from "lucide-react";
 import { C } from "../theme";
 import {
   conversionZeilen,
@@ -30,6 +17,8 @@ import {
   Abschnitt,
   DeltaChip,
   Karte,
+  KennzahlKarte,
+  KennzahlRaster,
   Pille,
   Segmente,
   TabellenRahmen,
@@ -196,42 +185,65 @@ function Wichtigste({ liste }) {
   );
 }
 
-// ── Kennzahlen (EzyRank-KpiCards) ──────────────────────────────────────────
-const runde = (d) => (d == null ? undefined : Math.round(d * 10) / 10);
-
+// ── Kennzahlen (wie im Mockup, 4 pro Zeile) ────────────────────────────────
 function Kennzahlen({ snap, k, vergleichLabel }) {
   const t = snap.totals;
   const p = snap.prev;
   const karten = [
+    ["Buchungen", zahl(k.buchungen), "über Google Ads", k.d.buchungen, "up", zahl(k.buchungenPrev)],
     [
-      CheckCircle,
-      "Buchungen über Google Ads",
-      zahl(k.buchungen),
-      k.d.buchungen,
-      zahl(k.buchungenPrev),
-      C.accent,
+      "Buchungswert",
+      chf(k.wert),
+      `Umsatz aus allen ${zahl(k.buchungen)} Buchungen`,
+      k.d.wert,
+      "up",
+      chf(k.wertPrev),
     ],
-    [Wallet, "Buchungswert", chf(k.wert), k.d.wert, chf(k.wertPrev), C.green],
     [
-      Tag,
       "Ø Buchungswert",
       k.buchungen > 0 ? chf(k.avg) : "–",
+      "Umsatz pro Buchung",
       k.d.avg,
+      "up",
       k.avgPrev > 0 ? chf(k.avgPrev) : null,
-      C.pink,
     ],
     [
-      Target,
-      `Alle Conversions (${zahl(k.buchungen)} Buchungen + ${zahl(k.soft)} Soft)`,
+      "Alle Conversions",
       zahl(k.alle),
+      `${zahl(k.buchungen)} Buchungen + ${zahl(k.soft)} Soft Conversions`,
       k.d.alle,
+      "up",
       zahl(k.allePrev),
-      C.blue,
     ],
-    [Eye, "Impressionen", zahl(t.impressions), k.d.impressions, zahl(p.impressions), C.cyan],
-    [MousePointerClick, "Klicks", zahl(t.clicks), k.d.clicks, zahl(p.clicks), C.accent],
-    [Percent, "Klickrate (CTR)", prozent(k.ctr, 2), k.d.ctr, prozent(k.ctrPrev, 2), C.orange],
-    [Coins, "Ø CPC", chf(k.cpc, 2), k.d.cpc, chf(k.cpcPrev, 2), C.blue, true],
+    [
+      "Impressionen",
+      zahl(t.impressions),
+      "Anzeigen eingeblendet",
+      k.d.impressions,
+      "up",
+      zahl(p.impressions),
+    ],
+    ["Klicks", zahl(t.clicks), "Besuche aus Anzeigen", k.d.clicks, "up", zahl(p.clicks)],
+    [
+      "Klickrate (CTR)",
+      prozent(k.ctr, 2),
+      "Klicks je Impression",
+      k.d.ctr,
+      "up",
+      prozent(k.ctrPrev, 2),
+    ],
+    [
+      "Ø CPC",
+      chf(k.cpc, 2),
+      k.d.cpc == null
+        ? "Kosten je Klick"
+        : k.d.cpc > 0
+          ? `teurer als in der ${vergleichLabel}`
+          : `günstiger als in der ${vergleichLabel}`,
+      k.d.cpc,
+      "down",
+      chf(k.cpcPrev, 2),
+    ],
   ];
   return (
     <div>
@@ -239,27 +251,19 @@ function Kennzahlen({ snap, k, vergleichLabel }) {
         titel="Kennzahlen"
         hinweis={`Veränderung zur ${vergleichLabel} · grün = besser, rot = schlechter`}
       />
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-          gap: 14,
-        }}
-      >
-        {karten.map(([icon, label, wert, d, vorher, farbe, invert]) => (
-          <KpiCard
-            key={label}
-            icon={icon}
-            label={label}
-            value={wert}
-            color={farbe}
-            change={runde(d)}
-            invert={!!invert}
-            compareValue={vorher ?? undefined}
-            compareLabel={vergleichLabel}
+      <KennzahlRaster>
+        {karten.map(([titel, wert, sub, d, richtung, vorher]) => (
+          <KennzahlKarte
+            key={titel}
+            titel={titel}
+            wert={wert}
+            sub={sub}
+            d={d}
+            richtung={richtung}
+            vorher={vorher}
           />
         ))}
-      </div>
+      </KennzahlRaster>
     </div>
   );
 }

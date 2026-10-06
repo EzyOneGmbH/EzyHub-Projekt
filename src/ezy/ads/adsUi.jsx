@@ -218,3 +218,53 @@ export const td = (rechts = true, extra = {}) => ({
   verticalAlign: "middle",
   ...extra,
 });
+
+/** Kennzahl-Kachel wie im Mockup (ohne Icon): Titel + Veraenderung, Wert, Erklaerung.
+ *  vorher: Vorperiodenwert als Tooltip. */
+export function KennzahlKarte({ titel, wert, sub, d, richtung = "up", vorher }) {
+  return (
+    <Karte
+      title={vorher ? `vorher: ${vorher}` : undefined}
+      style={{ display: "flex", flexDirection: "column" }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          flexWrap: "wrap",
+        }}
+      >
+        <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{titel}</span>
+        <DeltaChip d={d} richtung={richtung} />
+      </div>
+      <div
+        style={{
+          fontSize: 26,
+          fontWeight: 700,
+          color: C.text,
+          letterSpacing: "-.5px",
+          margin: "12px 0 4px",
+          whiteSpace: "nowrap",
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {wert}
+      </div>
+      <div style={{ fontSize: 12, color: C.textMuted }}>{sub}</div>
+    </Karte>
+  );
+}
+
+/** Raster mit 4 Kacheln pro Zeile (Tablet 2, Handy 1 — Breakpoints im Dashboard-CSS). */
+export function KennzahlRaster({ children }) {
+  return (
+    <div
+      className="ads-kpi-raster"
+      style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 14 }}
+    >
+      {children}
+    </div>
+  );
+}

@@ -13,14 +13,14 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ArrowUpToLine, Coins, Crown, TrendingUp } from "lucide-react";
 import { C } from "../theme";
-import { KpiCard } from "../ui-kit";
 import { pctDelta } from "./adsReportModel";
 import {
   Abschnitt,
   DeltaChip,
   Karte,
+  KennzahlKarte,
+  KennzahlRaster,
   Pille,
   TabellenRahmen,
   chf,
@@ -210,64 +210,54 @@ function Sichtbarkeit({ snap }) {
   const cpaPrev = p.conversions > 0 ? p.cost / p.conversions : null;
   const roas = t.cost > 0 ? t.conversionValue / t.cost : null;
   const roasPrev = p.cost > 0 ? p.conversionValue / p.cost : null;
-  const runde = (d) => (d == null ? undefined : Math.round(d * 10) / 10);
   const karten = [
     [
-      ArrowUpToLine,
-      "Impressionen oben (über den Suchergebnissen)",
+      "Impressionen oben",
       prozent(is?.top, 0),
+      "Anzeige über den Suchergebnissen",
       pctDelta(is?.top, is?.prevTop),
+      "up",
       is?.prevTop != null ? prozent(is.prevTop, 0) : null,
-      C.accent,
     ],
     [
-      Crown,
-      "Impressionen ganz oben (1. Position)",
+      "Ganz oben",
       prozent(is?.absTop, 0),
+      "Anzeige an allererster Stelle",
       pctDelta(is?.absTop, is?.prevAbsTop),
+      "up",
       is?.prevAbsTop != null ? prozent(is.prevAbsTop, 0) : null,
-      C.blue,
     ],
     [
-      Coins,
       "Kosten/Conversion",
       cpa == null ? "–" : chf(cpa, 2),
+      "Werbekosten je Conversion",
       pctDelta(cpa, cpaPrev),
+      "down",
       cpaPrev != null ? chf(cpaPrev, 2) : null,
-      C.orange,
-      true,
     ],
     [
-      TrendingUp,
-      "Conv.-Wert/Kosten (ROAS)",
+      "Conv.-Wert/Kosten",
       roas == null ? "–" : faktor(roas, 1),
+      "Umsatz je Werbefranken (ROAS)",
       pctDelta(roas, roasPrev),
+      "up",
       roasPrev != null ? faktor(roasPrev, 1) : null,
-      C.green,
     ],
   ];
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-        gap: 14,
-      }}
-    >
-      {karten.map(([icon, label, wert, d, vorher, farbe, invert]) => (
-        <KpiCard
-          key={label}
-          icon={icon}
-          label={label}
-          value={wert}
-          color={farbe}
-          change={runde(d)}
-          invert={!!invert}
-          compareValue={vorher ?? undefined}
-          compareLabel="Vorperiode"
+    <KennzahlRaster>
+      {karten.map(([titel, wert, sub, d, richtung, vorher]) => (
+        <KennzahlKarte
+          key={titel}
+          titel={titel}
+          wert={wert}
+          sub={sub}
+          d={d}
+          richtung={richtung}
+          vorher={vorher}
         />
       ))}
-    </div>
+    </KennzahlRaster>
   );
 }
 
