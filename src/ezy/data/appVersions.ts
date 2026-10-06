@@ -554,8 +554,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyPerformance (Ads)
   ads: {
-    version: "1.4.2",
+    version: "1.5.0",
     changelog: [
+      {
+        version: "1.5.0",
+        date: "2026-10-06",
+        note: "Neues Ads-Dashboard (löst das Data-Studio-Dashboard ab): Tabs Übersicht, Massnahmen, Kampagnen, Autopilot und Freigaben; Übersicht mit Umsatz/ROAS/Budget, «Das Wichtigste auf einen Blick», 8 Kennzahlen mit Veränderung, Top-Kampagnen, Conversions nach Art (Hauptziel/Soft), Karte «Woher kommen die Buchungen?» (Welt/Europa/Schweiz mit Kantonen) und Top-Städte, «Wer bucht?» (Alter, Geschlecht, Gerät), Suchbegriffe mit Marken-Kennzeichnung und Glossar; Kampagnen-Tab mit Impressionsanteil oben/ganz oben, Kampagnen- und PMax-Asset-Gruppen-Tabelle sowie Tagesverlauf. «Aktualisieren» funktioniert wieder (lud bisher nie neu), Daten passen sich automatisch dem gewählten Zeitraum an",
+      },
       {
         version: "1.4.2",
         date: "2026-09-29",

@@ -1651,8 +1651,13 @@ function DetailAnalysis({ autopilotRun, adsSnapshot }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Haupt-Panel
 // ─────────────────────────────────────────────────────────────────────────────
-export default function AdsAutopilotPanel({ selectedClient }) {
+// section (06.10.2026): «autopilot» | «massnahmen» | «freigaben» zeigt nur diesen
+// Bereich (Tabs im Ads-Dashboard); ohne section alles wie bisher. data: bereits
+// geladener useEzyAdsAutopilot-Stand des Tab-Containers (keine Doppelabfrage).
+export default function AdsAutopilotPanel({ selectedClient, section = null, data = null }) {
   const clientId = selectedClient?.id;
+  const eigen = useEzyAdsAutopilot(data ? undefined : clientId, 80);
+  const zeige = (s) => !section || section === s;
   const {
     config,
     approvals,
@@ -1668,7 +1673,7 @@ export default function AdsAutopilotPanel({ selectedClient }) {
     runDryRun,
     markRecommendation,
     saveConfig,
-  } = useEzyAdsAutopilot(clientId, 80);
+  } = data || eigen;
   const { role } = useAuth();
   const canConfigure = canConfigureAutopilot(role);
   const canDecide = role !== "viewer";
@@ -1747,174 +1752,298 @@ export default function AdsAutopilotPanel({ selectedClient }) {
   ];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 20 }}>
-      {/* Kopf */}
-      <Card>
-        <div
-          className="mobile-wrap"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: 12,
-          }}
-        >
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>Google Ads Autopilot</div>
-            <div style={{ fontSize: 13, color: C.textMuted, marginTop: 2 }}>
-              Teilautonom: Nur die freigegebene Klasse wird ausgeführt — alles Übrige wartet auf
-              Freigabe.
-            </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            {observeOnly && <Badge color={C.blue}>Beobachtungsmodus</Badge>}
-            <Badge color={C.textMuted}>Autonomie {config?.autonomy_level ?? 0}</Badge>
-            {config?.kill_switch && <Badge color={C.red}>Kill-Switch aktiv</Badge>}
-            <Btn variant="secondary" onClick={() => runDryRun()} disabled={loading}>
-              {loading ? "Läuft…" : "Dry-Run jetzt"}
-            </Btn>
-            <Btn variant="secondary" onClick={() => refresh()} disabled={loading}>
-              Aktualisieren
-            </Btn>
-            {canConfigure && <Btn onClick={() => setShowConfig(true)}>Konfigurieren</Btn>}
-          </div>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
-          {config?.kill_switch && (
-            <Banner color={C.red} colorDim={C.redDim}>
-              Kill-Switch ist aktiv — der Autopilot führt für diesen Kunden keine Änderungen aus und
-              überspringt Läufe komplett. Auch bereits erteilte Freigaben werden nicht ausgeführt.
-            </Banner>
-          )}
-          {observeOnly && (
-            <Banner color={C.blue} colorDim={C.blueDim}>
-              Beobachtungsmodus: Der Autopilot dokumentiert nur Massnahmen und Empfehlungen — es
-              werden unter keinen Umständen Änderungen an Google Ads vorgenommen (unabhängig vom
-              Autonomie-Level). Freigaben sind gesperrt, bis der Beobachtungsmodus nach
-              Qualitätsprüfung deaktiviert wird.
-            </Banner>
-          )}
-          {error && (
-            <Banner color={C.red} colorDim={C.redDim}>
-              Fehler: {error}
-            </Banner>
-          )}
-          {!config && !loading && (
-            <Banner color={C.orange} colorDim={C.orangeDim}>
-              Für diesen Kunden ist noch keine Autopilot-Konfiguration hinterlegt — es gelten die
-              sicheren Standardwerte (Beobachtungsmodus an, Autonomie 0: nichts wird geändert).{" "}
-              {canConfigure
-                ? "Mit «Konfigurieren» legst du sie an."
-                : "Ein Owner/Admin kann sie über «Konfigurieren» anlegen."}
-            </Banner>
-          )}
-        </div>
-      </Card>
-
-      {/* Konfiguration */}
-      <Card>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: 12,
-            flexWrap: "wrap",
-          }}
-        >
-          <SectionTitle
-            title="Konfiguration"
-            hint="Pro Kunde. Änderungen nur durch Owner/Admin, mit Zusammenfassung und Bestätigung."
-          />
-          {canConfigure && (
-            <Btn variant="secondary" size="sm" onClick={() => setShowConfig(true)}>
-              Bearbeiten
-            </Btn>
-          )}
-        </div>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-            gap: 10,
-          }}
-        >
-          {configItems.map((it) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: section ? 0 : 20 }}>
+      {zeige("autopilot") && (
+        <>
+          {/* Kopf */}
+          <Card>
             <div
-              key={it.l}
+              className="mobile-wrap"
               style={{
-                background: C.surface,
-                border: `1px solid ${C.border}`,
-                borderRadius: 10,
-                padding: "10px 12px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: 12,
               }}
             >
-              <div style={{ fontSize: 11.5, color: C.textMuted, marginBottom: 4 }}>{it.l}</div>
-              <div
-                style={{
-                  fontSize: 13.5,
-                  fontWeight: 600,
-                  color: it.color || C.text,
-                  overflowWrap: "anywhere",
-                }}
-              >
-                {it.v}
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>
+                  Google Ads Autopilot
+                </div>
+                <div style={{ fontSize: 13, color: C.textMuted, marginTop: 2 }}>
+                  Teilautonom: Nur die freigegebene Klasse wird ausgeführt — alles Übrige wartet auf
+                  Freigabe.
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                {observeOnly && <Badge color={C.blue}>Beobachtungsmodus</Badge>}
+                <Badge color={C.textMuted}>Autonomie {config?.autonomy_level ?? 0}</Badge>
+                {config?.kill_switch && <Badge color={C.red}>Kill-Switch aktiv</Badge>}
+                <Btn variant="secondary" onClick={() => runDryRun()} disabled={loading}>
+                  {loading ? "Läuft…" : "Dry-Run jetzt"}
+                </Btn>
+                <Btn variant="secondary" onClick={() => refresh()} disabled={loading}>
+                  Aktualisieren
+                </Btn>
+                {canConfigure && <Btn onClick={() => setShowConfig(true)}>Konfigurieren</Btn>}
               </div>
             </div>
-          ))}
-        </div>
-        <div style={{ fontSize: 12, color: C.textDim, marginTop: 10, lineHeight: 1.5 }}>
-          {lastConfigChange ? (
-            <>
-              Zuletzt geändert am {dateCH(lastConfigChange.created_at)} von{" "}
-              <b style={{ color: C.textMuted }}>{lastConfigChange.approved_by || "unbekannt"}</b>
-              {lastConfigChange.rationale ? <> — {lastConfigChange.rationale}</> : null}
-            </>
-          ) : config?.updated_at ? (
-            <>
-              Zuletzt geändert am {dateCH(config.updated_at)} (vor Einführung des
-              Änderungsprotokolls).
-            </>
-          ) : (
-            <>Noch nie geändert — es gelten die sicheren Standardwerte.</>
-          )}
-        </div>
-        {configHistory.length > 1 && (
-          <details style={{ marginTop: 8 }}>
-            <summary style={{ fontSize: 12, color: C.accent, cursor: "pointer" }}>
-              Frühere Konfigurations-Änderungen ({configHistory.length - 1})
-            </summary>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
-              {configHistory.slice(1).map((h) => (
-                <div key={h.id} style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.5 }}>
-                  {dateCH(h.created_at)} — {h.approved_by || "unbekannt"}: {h.rationale || "—"}
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
+              {config?.kill_switch && (
+                <Banner color={C.red} colorDim={C.redDim}>
+                  Kill-Switch ist aktiv — der Autopilot führt für diesen Kunden keine Änderungen aus
+                  und überspringt Läufe komplett. Auch bereits erteilte Freigaben werden nicht
+                  ausgeführt.
+                </Banner>
+              )}
+              {observeOnly && (
+                <Banner color={C.blue} colorDim={C.blueDim}>
+                  Beobachtungsmodus: Der Autopilot dokumentiert nur Massnahmen und Empfehlungen — es
+                  werden unter keinen Umständen Änderungen an Google Ads vorgenommen (unabhängig vom
+                  Autonomie-Level). Freigaben sind gesperrt, bis der Beobachtungsmodus nach
+                  Qualitätsprüfung deaktiviert wird.
+                </Banner>
+              )}
+              {error && (
+                <Banner color={C.red} colorDim={C.redDim}>
+                  Fehler: {error}
+                </Banner>
+              )}
+              {!config && !loading && (
+                <Banner color={C.orange} colorDim={C.orangeDim}>
+                  Für diesen Kunden ist noch keine Autopilot-Konfiguration hinterlegt — es gelten
+                  die sicheren Standardwerte (Beobachtungsmodus an, Autonomie 0: nichts wird
+                  geändert).{" "}
+                  {canConfigure
+                    ? "Mit «Konfigurieren» legst du sie an."
+                    : "Ein Owner/Admin kann sie über «Konfigurieren» anlegen."}
+                </Banner>
+              )}
+            </div>
+          </Card>
+
+          {/* Konfiguration */}
+          <Card>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                gap: 12,
+                flexWrap: "wrap",
+              }}
+            >
+              <SectionTitle
+                title="Konfiguration"
+                hint="Pro Kunde. Änderungen nur durch Owner/Admin, mit Zusammenfassung und Bestätigung."
+              />
+              {canConfigure && (
+                <Btn variant="secondary" size="sm" onClick={() => setShowConfig(true)}>
+                  Bearbeiten
+                </Btn>
+              )}
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                gap: 10,
+              }}
+            >
+              {configItems.map((it) => (
+                <div
+                  key={it.l}
+                  style={{
+                    background: C.surface,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 10,
+                    padding: "10px 12px",
+                  }}
+                >
+                  <div style={{ fontSize: 11.5, color: C.textMuted, marginBottom: 4 }}>{it.l}</div>
+                  <div
+                    style={{
+                      fontSize: 13.5,
+                      fontWeight: 600,
+                      color: it.color || C.text,
+                      overflowWrap: "anywhere",
+                    }}
+                  >
+                    {it.v}
+                  </div>
                 </div>
               ))}
             </div>
-          </details>
-        )}
-      </Card>
+            <div style={{ fontSize: 12, color: C.textDim, marginTop: 10, lineHeight: 1.5 }}>
+              {lastConfigChange ? (
+                <>
+                  Zuletzt geändert am {dateCH(lastConfigChange.created_at)} von{" "}
+                  <b style={{ color: C.textMuted }}>
+                    {lastConfigChange.approved_by || "unbekannt"}
+                  </b>
+                  {lastConfigChange.rationale ? <> — {lastConfigChange.rationale}</> : null}
+                </>
+              ) : config?.updated_at ? (
+                <>
+                  Zuletzt geändert am {dateCH(config.updated_at)} (vor Einführung des
+                  Änderungsprotokolls).
+                </>
+              ) : (
+                <>Noch nie geändert — es gelten die sicheren Standardwerte.</>
+              )}
+            </div>
+            {configHistory.length > 1 && (
+              <details style={{ marginTop: 8 }}>
+                <summary style={{ fontSize: 12, color: C.accent, cursor: "pointer" }}>
+                  Frühere Konfigurations-Änderungen ({configHistory.length - 1})
+                </summary>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+                  {configHistory.slice(1).map((h) => (
+                    <div key={h.id} style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.5 }}>
+                      {dateCH(h.created_at)} — {h.approved_by || "unbekannt"}: {h.rationale || "—"}
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+          </Card>
+        </>
+      )}
 
       {/* Freigaben */}
-      <Card>
-        <SectionTitle
-          title={observeOnly ? "Empfehlungen (Dokumentation)" : "Wartet auf Freigabe"}
-          count={activeApprovals.length}
-          hint="Vor jeder Freigabe sichtbar: aktueller Wert, vorgeschlagener Wert, Begründung, erwartete Wirkung und Ablaufdatum."
-        />
-        {activeApprovals.length === 0 && (
-          <div style={{ fontSize: 13, color: C.textDim }}>Keine offenen Freigaben.</div>
-        )}
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {activeApprovals.map((a) => {
-            const rest = daysUntil(a.expires_at);
-            return (
+      {zeige("freigaben") && (
+        <Card>
+          <SectionTitle
+            title={observeOnly ? "Empfehlungen (Dokumentation)" : "Wartet auf Freigabe"}
+            count={activeApprovals.length}
+            hint="Vor jeder Freigabe sichtbar: aktueller Wert, vorgeschlagener Wert, Begründung, erwartete Wirkung und Ablaufdatum."
+          />
+          {activeApprovals.length === 0 && (
+            <div style={{ fontSize: 13, color: C.textDim }}>Keine offenen Freigaben.</div>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {activeApprovals.map((a) => {
+              const rest = daysUntil(a.expires_at);
+              return (
+                <div
+                  key={a.id}
+                  onClick={() => setDetail(a)}
+                  title="Klicken für Erklärung und Details"
+                  style={{
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 10,
+                    padding: 12,
+                    cursor: "pointer",
+                    background: C.surface,
+                  }}
+                >
+                  <div
+                    className="mobile-wrap"
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div style={{ minWidth: 0, flex: "1 1 320px" }}>
+                      <div
+                        style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}
+                      >
+                        <Badge>{typeLabel(a.type)}</Badge>
+                        <span style={{ color: C.text, fontWeight: 600, fontSize: 14 }}>
+                          {a.entity || "—"}
+                        </span>
+                      </div>
+                      {(a.current_value || a.proposed_value) && (
+                        <div style={{ fontSize: 13, color: C.textMuted, marginTop: 6 }}>
+                          {a.current_value || "—"} <span style={{ color: C.textDim }}>→</span>{" "}
+                          <b style={{ color: C.text }}>{a.proposed_value || "—"}</b>
+                        </div>
+                      )}
+                      {a.rationale && (
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: C.textMuted,
+                            marginTop: 4,
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          {a.rationale}
+                        </div>
+                      )}
+                      {a.estimated_impact && (
+                        <div style={{ fontSize: 12, color: C.accent, marginTop: 4 }}>
+                          Erwartet: {a.estimated_impact}
+                        </div>
+                      )}
+                      <div
+                        style={{
+                          fontSize: 11.5,
+                          color: rest !== null && rest <= 2 ? C.orange : C.textDim,
+                          marginTop: 6,
+                        }}
+                      >
+                        {a.expires_at
+                          ? `Läuft ab am ${dateCH(a.expires_at)}${rest !== null ? ` (noch ${Math.max(rest, 0)} Tag${rest === 1 ? "" : "e"})` : ""}`
+                          : "Kein Ablaufdatum"}{" "}
+                        · Klicken für Details
+                      </div>
+                    </div>
+                    {canDecide && (
+                      <div
+                        style={{ display: "flex", gap: 8, alignItems: "flex-start" }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Btn
+                          variant="success"
+                          size="sm"
+                          disabled={busyId === a.id || observeOnly}
+                          title={
+                            observeOnly ? "Beobachtungsmodus aktiv — Freigaben gesperrt" : undefined
+                          }
+                          onClick={() => decide(a.id, "approve")}
+                        >
+                          {busyId === a.id ? "…" : observeOnly ? "Gesperrt" : "Freigeben"}
+                        </Btn>
+                        <Btn
+                          variant="danger"
+                          size="sm"
+                          disabled={busyId === a.id}
+                          onClick={() => decide(a.id, "reject")}
+                        >
+                          Ablehnen
+                        </Btn>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+      {/* Offene Massnahmen */}
+      {zeige("massnahmen") && (
+        <Card>
+          <SectionTitle
+            title="Offene Massnahmen"
+            count={recommendations.length}
+            hint="Empfehlungen der Analyse-Module. Umsetzung erfolgt manuell — hier nur den Status pflegen (nichts wird an Google Ads geschrieben)."
+          />
+          {recommendations.length === 0 && (
+            <div style={{ fontSize: 13, color: C.textDim }}>Keine offenen Massnahmen.</div>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {recommendations.map((r) => (
               <div
-                key={a.id}
-                onClick={() => setDetail(a)}
-                title="Klicken für Erklärung und Details"
+                key={r.id}
+                onClick={() => setRecoDetail(r)}
+                title="Klicken für Erklärung: Problem & was zu tun ist"
                 style={{
                   border: `1px solid ${C.border}`,
                   borderRadius: 10,
@@ -1936,40 +2065,19 @@ export default function AdsAutopilotPanel({ selectedClient }) {
                     <div
                       style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}
                     >
-                      <Badge>{typeLabel(a.type)}</Badge>
+                      <Badge color={C.green}>{recoLabel(r.recommendation_type)}</Badge>
                       <span style={{ color: C.text, fontWeight: 600, fontSize: 14 }}>
-                        {a.entity || "—"}
+                        {r.title}
                       </span>
                     </div>
-                    {(a.current_value || a.proposed_value) && (
-                      <div style={{ fontSize: 13, color: C.textMuted, marginTop: 6 }}>
-                        {a.current_value || "—"} <span style={{ color: C.textDim }}>→</span>{" "}
-                        <b style={{ color: C.text }}>{a.proposed_value || "—"}</b>
-                      </div>
-                    )}
-                    {a.rationale && (
-                      <div
-                        style={{ fontSize: 12, color: C.textMuted, marginTop: 4, lineHeight: 1.5 }}
-                      >
-                        {a.rationale}
-                      </div>
-                    )}
-                    {a.estimated_impact && (
+                    <div style={{ fontSize: 12, color: C.textMuted, marginTop: 4 }}>{r.entity}</div>
+                    {r.expected_impact && (
                       <div style={{ fontSize: 12, color: C.accent, marginTop: 4 }}>
-                        Erwartet: {a.estimated_impact}
+                        Erwartet: {r.expected_impact}
                       </div>
                     )}
-                    <div
-                      style={{
-                        fontSize: 11.5,
-                        color: rest !== null && rest <= 2 ? C.orange : C.textDim,
-                        marginTop: 6,
-                      }}
-                    >
-                      {a.expires_at
-                        ? `Läuft ab am ${dateCH(a.expires_at)}${rest !== null ? ` (noch ${Math.max(rest, 0)} Tag${rest === 1 ? "" : "e"})` : ""}`
-                        : "Kein Ablaufdatum"}{" "}
-                      · Klicken für Details
+                    <div style={{ fontSize: 11.5, color: C.textDim, marginTop: 6 }}>
+                      Klicken für Erklärung &amp; Details
                     </div>
                   </div>
                   {canDecide && (
@@ -1980,230 +2088,156 @@ export default function AdsAutopilotPanel({ selectedClient }) {
                       <Btn
                         variant="success"
                         size="sm"
-                        disabled={busyId === a.id || observeOnly}
-                        title={
-                          observeOnly ? "Beobachtungsmodus aktiv — Freigaben gesperrt" : undefined
-                        }
-                        onClick={() => decide(a.id, "approve")}
+                        disabled={busyId === r.id}
+                        onClick={() => {
+                          const note = window.prompt("Umgesetzt — optionale Notiz (was/wann):", "");
+                          if (note === null) return;
+                          void markRecommendation(r.id, "implemented", note || undefined);
+                        }}
                       >
-                        {busyId === a.id ? "…" : observeOnly ? "Gesperrt" : "Freigeben"}
+                        {busyId === r.id ? "…" : "Umgesetzt"}
                       </Btn>
                       <Btn
                         variant="danger"
                         size="sm"
-                        disabled={busyId === a.id}
-                        onClick={() => decide(a.id, "reject")}
+                        disabled={busyId === r.id}
+                        onClick={() => {
+                          const note = window.prompt(
+                            "Verworfen — warum? (Pflicht für den Verlauf):",
+                            "",
+                          );
+                          if (note === null) return;
+                          void markRecommendation(r.id, "dismissed", note || undefined);
+                        }}
                       >
-                        Ablehnen
+                        Verworfen
                       </Btn>
                     </div>
                   )}
                 </div>
               </div>
-            );
-          })}
-        </div>
-      </Card>
-
-      {/* Offene Massnahmen */}
-      <Card>
-        <SectionTitle
-          title="Offene Massnahmen"
-          count={recommendations.length}
-          hint="Empfehlungen der Analyse-Module. Umsetzung erfolgt manuell — hier nur den Status pflegen (nichts wird an Google Ads geschrieben)."
-        />
-        {recommendations.length === 0 && (
-          <div style={{ fontSize: 13, color: C.textDim }}>Keine offenen Massnahmen.</div>
-        )}
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {recommendations.map((r) => (
-            <div
-              key={r.id}
-              onClick={() => setRecoDetail(r)}
-              title="Klicken für Erklärung: Problem & was zu tun ist"
-              style={{
-                border: `1px solid ${C.border}`,
-                borderRadius: 10,
-                padding: 12,
-                cursor: "pointer",
-                background: C.surface,
-              }}
-            >
-              <div
-                className="mobile-wrap"
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  flexWrap: "wrap",
-                }}
-              >
-                <div style={{ minWidth: 0, flex: "1 1 320px" }}>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                    <Badge color={C.green}>{recoLabel(r.recommendation_type)}</Badge>
-                    <span style={{ color: C.text, fontWeight: 600, fontSize: 14 }}>{r.title}</span>
-                  </div>
-                  <div style={{ fontSize: 12, color: C.textMuted, marginTop: 4 }}>{r.entity}</div>
-                  {r.expected_impact && (
-                    <div style={{ fontSize: 12, color: C.accent, marginTop: 4 }}>
-                      Erwartet: {r.expected_impact}
-                    </div>
-                  )}
-                  <div style={{ fontSize: 11.5, color: C.textDim, marginTop: 6 }}>
-                    Klicken für Erklärung &amp; Details
-                  </div>
-                </div>
-                {canDecide && (
-                  <div
-                    style={{ display: "flex", gap: 8, alignItems: "flex-start" }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Btn
-                      variant="success"
-                      size="sm"
-                      disabled={busyId === r.id}
-                      onClick={() => {
-                        const note = window.prompt("Umgesetzt — optionale Notiz (was/wann):", "");
-                        if (note === null) return;
-                        void markRecommendation(r.id, "implemented", note || undefined);
-                      }}
-                    >
-                      {busyId === r.id ? "…" : "Umgesetzt"}
-                    </Btn>
-                    <Btn
-                      variant="danger"
-                      size="sm"
-                      disabled={busyId === r.id}
-                      onClick={() => {
-                        const note = window.prompt(
-                          "Verworfen — warum? (Pflicht für den Verlauf):",
-                          "",
-                        );
-                        if (note === null) return;
-                        void markRecommendation(r.id, "dismissed", note || undefined);
-                      }}
-                    >
-                      Verworfen
-                    </Btn>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      {/* Detailanalyse-Drilldowns */}
-      <DetailAnalysis autopilotRun={autopilotRun} adsSnapshot={adsSnapshot} />
-
-      {/* Befunde des letzten Laufs */}
-      <Card>
-        <SectionTitle
-          title="Befunde des letzten Laufs"
-          count={findings.length}
-          hint={`Beobachtungen aus ${latestFindingRun || "—"} — der Autopilot ändert hier nichts automatisch; Details per Klick.`}
-        />
-        {findings.length === 0 && (
-          <div style={{ fontSize: 13, color: C.textDim }}>
-            Noch keine Befunde gespeichert — sie erscheinen ab dem nächsten Lauf.
+            ))}
           </div>
-        )}
-        {Object.entries(findingGroups).map(([gruppe, rows]) => (
-          <div key={gruppe} style={{ marginBottom: 10 }}>
-            <div
-              style={{
-                fontSize: 11.5,
-                fontWeight: 700,
-                color: C.textMuted,
-                textTransform: "uppercase",
-                letterSpacing: 0.5,
-                margin: "8px 0 6px",
-              }}
-            >
-              {gruppe} ({rows.length})
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {rows.map((f) => (
+        </Card>
+      )}
+
+      {zeige("autopilot") && (
+        <>
+          {/* Detailanalyse-Drilldowns */}
+          <DetailAnalysis autopilotRun={autopilotRun} adsSnapshot={adsSnapshot} />
+
+          {/* Befunde des letzten Laufs */}
+          <Card>
+            <SectionTitle
+              title="Befunde des letzten Laufs"
+              count={findings.length}
+              hint={`Beobachtungen aus ${latestFindingRun || "—"} — der Autopilot ändert hier nichts automatisch; Details per Klick.`}
+            />
+            {findings.length === 0 && (
+              <div style={{ fontSize: 13, color: C.textDim }}>
+                Noch keine Befunde gespeichert — sie erscheinen ab dem nächsten Lauf.
+              </div>
+            )}
+            {Object.entries(findingGroups).map(([gruppe, rows]) => (
+              <div key={gruppe} style={{ marginBottom: 10 }}>
                 <div
-                  key={f.id}
-                  onClick={() => setFindingDetail(f)}
-                  title="Klicken für Erklärung"
                   style={{
-                    border: `1px solid ${C.border}`,
-                    borderRadius: 8,
-                    padding: "8px 12px",
-                    cursor: "pointer",
-                    display: "flex",
-                    gap: 10,
-                    alignItems: "baseline",
-                    flexWrap: "wrap",
-                    background: C.surface,
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    color: C.textMuted,
+                    textTransform: "uppercase",
+                    letterSpacing: 0.5,
+                    margin: "8px 0 6px",
                   }}
                 >
-                  <Badge color={C.blue}>{typeLabel(f.action_type)}</Badge>
-                  <span style={{ color: C.text, fontSize: 13, fontWeight: 600 }}>
-                    {f.entity || "—"}
-                  </span>
-                  <span
-                    style={{
-                      color: C.textMuted,
-                      fontSize: 12,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      maxWidth: 480,
-                    }}
-                  >
-                    {f.rationale || ""}
-                  </span>
-                  {f.recommendation && (
-                    <span
+                  {gruppe} ({rows.length})
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {rows.map((f) => (
+                    <div
+                      key={f.id}
+                      onClick={() => setFindingDetail(f)}
+                      title="Klicken für Erklärung"
                       style={{
-                        flexBasis: "100%",
-                        color: C.green,
-                        fontSize: 12,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 8,
+                        padding: "8px 12px",
+                        cursor: "pointer",
+                        display: "flex",
+                        gap: 10,
+                        alignItems: "baseline",
+                        flexWrap: "wrap",
+                        background: C.surface,
                       }}
                     >
-                      → {f.recommendation}
-                    </span>
-                  )}
+                      <Badge color={C.blue}>{typeLabel(f.action_type)}</Badge>
+                      <span style={{ color: C.text, fontSize: 13, fontWeight: 600 }}>
+                        {f.entity || "—"}
+                      </span>
+                      <span
+                        style={{
+                          color: C.textMuted,
+                          fontSize: 12,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          maxWidth: 480,
+                        }}
+                      >
+                        {f.rationale || ""}
+                      </span>
+                      {f.recommendation && (
+                        <span
+                          style={{
+                            flexBasis: "100%",
+                            color: C.green,
+                            fontSize: 12,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          → {f.recommendation}
+                        </span>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </Card>
-
-      {/* Aenderungs-Log */}
-      <Card>
-        <SectionTitle
-          title="Änderungs-Log"
-          hint="Jeder Eingriff und jede Queue-Entscheidung des Autopiloten — Konfigurations-Änderungen stehen oben in der Konfigurations-Karte."
-        />
-        {changeRows.length === 0 && (
-          <div style={{ fontSize: 13, color: C.textDim }}>Noch keine Einträge.</div>
-        )}
-        {changeRows.length > 0 && (
-          <ScrollTable
-            minWidth={640}
-            head={["Datum", "Aktion", "Entity", "Status", "Begründung"]}
-            rows={changeRows.map((c) => (
-              <tr key={c.id} style={{ borderTop: `1px solid ${C.border}`, color: C.textMuted }}>
-                <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{dateCH(c.created_at)}</td>
-                <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{c.action_type}</td>
-                <td style={{ padding: "6px 8px", color: C.text }}>{c.entity || "—"}</td>
-                <td style={{ padding: "6px 8px" }}>
-                  <StatusBadge status={c.status} />
-                </td>
-                <td style={{ padding: "6px 8px", maxWidth: 360 }}>{c.rationale || "—"}</td>
-              </tr>
+              </div>
             ))}
-          />
-        )}
-      </Card>
+          </Card>
+
+          {/* Aenderungs-Log */}
+          <Card>
+            <SectionTitle
+              title="Änderungs-Log"
+              hint="Jeder Eingriff und jede Queue-Entscheidung des Autopiloten — Konfigurations-Änderungen stehen oben in der Konfigurations-Karte."
+            />
+            {changeRows.length === 0 && (
+              <div style={{ fontSize: 13, color: C.textDim }}>Noch keine Einträge.</div>
+            )}
+            {changeRows.length > 0 && (
+              <ScrollTable
+                minWidth={640}
+                head={["Datum", "Aktion", "Entity", "Status", "Begründung"]}
+                rows={changeRows.map((c) => (
+                  <tr key={c.id} style={{ borderTop: `1px solid ${C.border}`, color: C.textMuted }}>
+                    <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>
+                      {dateCH(c.created_at)}
+                    </td>
+                    <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{c.action_type}</td>
+                    <td style={{ padding: "6px 8px", color: C.text }}>{c.entity || "—"}</td>
+                    <td style={{ padding: "6px 8px" }}>
+                      <StatusBadge status={c.status} />
+                    </td>
+                    <td style={{ padding: "6px 8px", maxWidth: 360 }}>{c.rationale || "—"}</td>
+                  </tr>
+                ))}
+              />
+            )}
+          </Card>
+        </>
+      )}
 
       {/* Modals */}
       {showConfig && (

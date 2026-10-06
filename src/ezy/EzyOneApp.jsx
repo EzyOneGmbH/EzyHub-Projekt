@@ -106,7 +106,6 @@ import { useEzyAuditHistory } from "@/ezy/data/useEzyAuditHistory";
 
 import { useEzyLatestRun, aworkTasksFromResult } from "@/ezy/data/useEzyLatestRun";
 import GoogleClientPanel from "@/ezy/GoogleClientPanel.jsx";
-import AdsAutopilotPanel from "@/ezy/AdsAutopilotPanel.jsx";
 import { AdsPaketTag, CLIENTS_CHANGED_EVENT } from "@/ezy/AdsPaketTag";
 import { loeschFehlerText } from "@/ezy/data/kundeLoeschen";
 
@@ -7900,9 +7899,8 @@ function App({ appScope = null }) {
                             dateRange={dateRangeWithCompare}
                             kundenansicht={isViewer}
                           />
-                          {/* Kundenansicht (22.09.): Autopilot ist Agentur-intern —
-                              Kunden-Logins sehen nur das Dashboard. */}
-                          {!isViewer && <AdsAutopilotPanel selectedClient={client} />}
+                          {/* Autopilot (Massnahmen/Autopilot/Freigaben) lebt seit 06.10.
+                              als Tabs im AdsDashboard — Kunden-Logins ohne diese Tabs. */}
                         </>
                       )}
                       {tab === "runs" && <AgentRunsPanel selectedClient={client} />}
