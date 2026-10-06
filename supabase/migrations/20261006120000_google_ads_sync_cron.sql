@@ -1,6 +1,6 @@
 -- Google-Ads Auto-Sync (Volkan 06.10.2026): alle 4 Stunden speichert
 -- /api/admin/ads-sync fuer jeden Kunden mit verknuepftem Google-Ads-Konto einen
--- Snapshot (30, 7, 14 und 90 Tage, jeweils mit Vorperiode) — auch wenn niemand
+-- Snapshot (30 + 7 Tage, abwechselnd 14 bzw. 90 Tage, jeweils mit Vorperiode) — auch wenn niemand
 -- das Dashboard oeffnet. Kunden sehen so hoechstens 4 h alte Zahlen.
 -- Zeitplan 01/05/09/13/17/21 UTC: nie zwischen 00 und 02 Uhr Schweizer Zeit,
 -- wo der Schweizer Tag dem UTC-Tag voraus ist.

@@ -172,6 +172,33 @@ describe("kennzahlen", () => {
     const k = kennzahlen(basis(null));
     expect(k.buchungen).toBe(23);
     expect(k.alle).toBe(23);
+    expect(k.ohneBuchung).toBe(false);
+  });
+  it("Konto ohne Buchungsaktion: ohneBuchung + passende Erkenntnis", () => {
+    const ohne = {
+      conversionActions: [
+        {
+          name: "WS - Kontaktformular",
+          category: "CONTACT",
+          booking: false,
+          count: 33,
+          prevCount: 30,
+        },
+        {
+          name: "Calls from ads",
+          category: "PHONE_CALL_LEAD",
+          booking: false,
+          count: 16,
+          prevCount: 12,
+        },
+      ],
+    };
+    const k = kennzahlen(basis(ohne));
+    expect(k.ohneBuchung).toBe(true);
+    expect(k.buchungen).toBe(0);
+    expect(k.alle).toBe(49);
+    expect(wichtigste(basis(ohne))[0].titel).toBe("Buchungen werden in Google Ads nicht gemessen.");
+    expect(kennzahlen(basis(report)).ohneBuchung).toBe(false);
   });
 });
 

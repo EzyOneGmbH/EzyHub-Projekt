@@ -47,6 +47,26 @@ describe("parseConvActions", () => {
     );
     expect(b).toMatchObject({ count: 4, value: 800 });
   });
+  it("sekundaere Buchungsaktion neben primaerer faellt weg (keine Doppelzaehlung)", () => {
+    const a = parseConvActions(
+      [
+        conv("Buchung", "PURCHASE", {
+          conversions: 46.5,
+          conversionsValue: 29350,
+          allConversions: 46.5,
+        }),
+        conv("Engstligenalp - Buchung", "PURCHASE", {
+          conversions: 0,
+          allConversions: 20.1,
+          allConversionsValue: 10841,
+        }),
+        conv("YouTube follow-on views", "YOUTUBE_FOLLOW_ON_VIEWS", { allConversions: 25 }),
+      ],
+      [conv("Engstligenalp - Buchung", "PURCHASE", { conversions: 0, allConversions: 18 })],
+    );
+    expect(a.map((x) => x.name)).toEqual(["Buchung", "YouTube follow-on views"]);
+    expect(a[0]).toMatchObject({ booking: true, count: 46.5, value: 29350 });
+  });
 });
 
 describe("parseImpressionShare", () => {

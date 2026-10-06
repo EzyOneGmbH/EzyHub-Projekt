@@ -4,7 +4,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: {} }));
 vi.mock("@/server/integrations.server", () => ({ isProviderEnabled: vi.fn() }));
 vi.mock("@/server/google-ads.server", () => ({ fetchAdsSnapshot: vi.fn() }));
 
-import { syncFenster, syncPresets, zuercherHeute } from "./google-ads-sync.server";
+import { standardPresets, syncFenster, syncPresets, zuercherHeute } from "./google-ads-sync.server";
 
 const ms = (iso: string) => Date.parse(iso);
 
@@ -49,9 +49,14 @@ describe("syncFenster", () => {
 });
 
 describe("syncPresets", () => {
-  it("Standard: 30, 7, 14, 90", () => {
-    expect(syncPresets(undefined)).toEqual([30, 7, 14, 90]);
-    expect(syncPresets([])).toEqual([30, 7, 14, 90]);
+  it("Standard: 30 + 7 immer, dazu abwechselnd 14 bzw. 90 Tage", () => {
+    const a = standardPresets(ms("2026-10-06T17:20:00Z"));
+    const b = standardPresets(ms("2026-10-06T21:20:00Z"));
+    expect(a.slice(0, 2)).toEqual([30, 7]);
+    expect(b.slice(0, 2)).toEqual([30, 7]);
+    expect([a[2], b[2]].sort((x, y) => x - y)).toEqual([14, 90]);
+    expect(syncPresets(undefined, ms("2026-10-06T17:20:00Z"))).toEqual(a);
+    expect(syncPresets([], ms("2026-10-06T21:20:00Z"))).toEqual(b);
   });
   it("filtert Duplikate und Unsinn", () => {
     expect(syncPresets([30, "30", 7, -1, "x", 1000, 90])).toEqual([30, 7, 90]);

@@ -86,6 +86,8 @@ export function kennzahlen(s: Snapshot) {
   const roas = t.cost > 0 ? t.conversionValue / t.cost : 0;
   const roasPrev = p.cost > 0 ? p.conversionValue / p.cost : 0;
   return {
+    // Konto misst keine Buchungen (nur Anrufe/Anfragen/Profil-Aktionen).
+    ohneBuchung: hat && !acts.some((a) => a.booking),
     buchungen,
     buchungenPrev,
     wert,
@@ -355,6 +357,12 @@ export function wichtigste(s: Snapshot): Erkenntnis[] {
       ton: d == null || d >= 0 ? "gut" : "warnung",
       titel: `${ganz(k.buchungen)} ${k.buchungen === 1 ? "Buchung" : "Buchungen"}${mehr ? ": " + mehr : "."}`,
       text: `Kosten pro Buchung ${chf0(k.kostenProBuchung)} bei einem Buchungswert von Ø ${chf0(k.avg)}.`,
+    });
+  } else if (k.ohneBuchung) {
+    out.push({
+      ton: "info",
+      titel: "Buchungen werden in Google Ads nicht gemessen.",
+      text: `Gemessen werden ${ganz(k.alle)} Conversions wie Anrufe und Anfragen bei ${ganz(s.totals.clicks)} Klicks für ${chf0(s.totals.cost)}.`,
     });
   } else {
     out.push({

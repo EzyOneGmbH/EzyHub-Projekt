@@ -71,7 +71,12 @@ export type AdsReport = {
  *  Conversions (auch sekundaere Aktionen); bei Buchungen zaehlen primaere
  *  Conversions, sofern vorhanden (so wie in Google Ads «Conversions»). */
 export function parseConvActions(cur: Array<any>, prev: Array<any>): ReportConvAction[] {
-  const map = new Map<string, ReportConvAction>();
+  type Summe = { p: number; pv: number; a: number; av: number };
+  const leer = (): Summe => ({ p: 0, pv: 0, a: 0, av: 0 });
+  const map = new Map<
+    string,
+    { name: string; category: string; booking: boolean; cur: Summe; prev: Summe }
+  >();
   const add = (rows: Array<any>, periode: "cur" | "prev") => {
     for (const row of rows) {
       const s = row?.segments ?? {};
@@ -82,32 +87,48 @@ export function parseConvActions(cur: Array<any>, prev: Array<any>): ReportConvA
         name,
         category,
         booking: istBuchung(category, name),
-        count: 0,
-        value: 0,
-        prevCount: 0,
-        prevValue: 0,
+        cur: leer(),
+        prev: leer(),
       };
       const m = row?.metrics ?? {};
-      const primaer = n(m.conversions);
-      const alle = n(m.allConversions);
-      const count = e.booking && primaer > 0 ? primaer : Math.max(alle, primaer);
-      const value =
-        e.booking && primaer > 0
-          ? n(m.conversionsValue)
-          : Math.max(n(m.allConversionsValue), n(m.conversionsValue));
-      if (periode === "cur") {
-        e.count += count;
-        e.value += value;
-      } else {
-        e.prevCount += count;
-        e.prevValue += value;
-      }
+      const z = e[periode];
+      z.p += n(m.conversions);
+      z.pv += n(m.conversionsValue);
+      z.a += n(m.allConversions);
+      z.av += n(m.allConversionsValue);
       map.set(name, e);
     }
   };
   add(cur, "cur");
   add(prev, "prev");
-  return [...map.values()]
+
+  // Sekundaere Buchungsaktionen (Engstligenalp 06.10.: «Buchung» primaer +
+  // «Engstligenalp - Buchung» sekundaer) messen dieselben Buchungen doppelt.
+  // Gibt es eine primaere Buchungsaktion, zaehlen nur primaere als Buchung;
+  // die sekundaeren fallen ganz weg (auch nicht als Soft Conversion).
+  const primaer = (e: { cur: Summe; prev: Summe }) => e.cur.p > 0 || e.prev.p > 0;
+  const hatPrimaereBuchung = [...map.values()].some((e) => e.booking && primaer(e));
+  const werte = (booking: boolean, z: Summe) =>
+    booking && z.p > 0
+      ? { count: z.p, value: z.pv }
+      : { count: Math.max(z.a, z.p), value: Math.max(z.av, z.pv) };
+
+  const out: ReportConvAction[] = [];
+  for (const e of map.values()) {
+    if (e.booking && hatPrimaereBuchung && !primaer(e)) continue;
+    const c = werte(e.booking, e.cur);
+    const v = werte(e.booking, e.prev);
+    out.push({
+      name: e.name,
+      category: e.category,
+      booking: e.booking,
+      count: c.count,
+      value: c.value,
+      prevCount: v.count,
+      prevValue: v.value,
+    });
+  }
+  return out
     .filter((a) => a.count > 0 || a.prevCount > 0)
     .sort((a, b) => Number(b.booking) - Number(a.booking) || b.count - a.count);
 }

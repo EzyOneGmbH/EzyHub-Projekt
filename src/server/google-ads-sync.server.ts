@@ -11,7 +11,6 @@ import { fetchAdsSnapshot } from "@/server/google-ads.server";
 import { addDays, heuteYmd } from "@/lib/date-range";
 
 export const SYNC_ZEITZONE = "Europe/Zurich";
-export const SYNC_PRESETS = [30, 7, 14, 90] as const;
 
 /** Kalenderdatum (YYYY-MM-DD) in Schweizer Zeit — wie isoDay() im Browser. */
 export function zuercherHeute(jetztMs: number = Date.now()): string {
@@ -47,9 +46,19 @@ export function syncFenster(days: number, jetztMs: number = Date.now()): SyncFen
   return { days, startDate, endDate, compareStart, compareEnd };
 }
 
+/**
+ * Standard je Lauf (erster Cron-Lauf 06.10.: 4 Presets x 31 Kunden passen nicht
+ * ins 4-Minuten-Budget): 30 + 7 Tage immer, dazu abwechselnd 14 bzw. 90 Tage —
+ * so ist jeder Zeitraum hoechstens 8 h alt.
+ */
+export function standardPresets(jetztMs: number = Date.now()): number[] {
+  const lauf = Math.floor(jetztMs / (4 * 3_600_000));
+  return [30, 7, lauf % 2 === 0 ? 14 : 90];
+}
+
 /** Erlaubte Preset-Liste aus dem Request (Duplikate/Unsinn raus, Reihenfolge bleibt). */
-export function syncPresets(roh: unknown): number[] {
-  const liste = Array.isArray(roh) && roh.length ? roh : [...SYNC_PRESETS];
+export function syncPresets(roh: unknown, jetztMs: number = Date.now()): number[] {
+  const liste = Array.isArray(roh) && roh.length ? roh : standardPresets(jetztMs);
   const out: number[] = [];
   for (const v of liste) {
     const n = Number(v);
@@ -84,7 +93,7 @@ export async function synchronisiereAlleAdsKunden(opts: {
   jetztMs?: number;
 }) {
   const start = Date.now();
-  const parallel = Math.max(1, Math.min(8, opts.parallel ?? 4));
+  const parallel = Math.max(1, Math.min(8, opts.parallel ?? 6));
   const { data } = await supabaseAdmin
     .from("clients")
     .select("id, name, organization_id, google_ads_customer")

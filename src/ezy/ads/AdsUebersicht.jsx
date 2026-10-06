@@ -185,20 +185,34 @@ function Wichtigste({ liste }) {
   );
 }
 
+const KEINE_BUCHUNGSMESSUNG = "keine Buchungsmessung in Google Ads";
+
 // ── Kennzahlen (wie im Mockup, 4 pro Zeile) ────────────────────────────────
 function Kennzahlen({ snap, k, vergleichLabel }) {
   const t = snap.totals;
   const p = snap.prev;
+  const ohne = k.ohneBuchung;
   const karten = [
-    ["Buchungen", zahl(k.buchungen), "über Google Ads", k.d.buchungen, "up", zahl(k.buchungenPrev)],
-    [
-      "Buchungswert",
-      chf(k.wert),
-      `Umsatz aus allen ${zahl(k.buchungen)} Buchungen`,
-      k.d.wert,
-      "up",
-      chf(k.wertPrev),
-    ],
+    ohne
+      ? ["Buchungen", "–", KEINE_BUCHUNGSMESSUNG, null, "up", null]
+      : [
+          "Buchungen",
+          zahl(k.buchungen),
+          "über Google Ads",
+          k.d.buchungen,
+          "up",
+          zahl(k.buchungenPrev),
+        ],
+    ohne
+      ? ["Buchungswert", "–", KEINE_BUCHUNGSMESSUNG, null, "up", null]
+      : [
+          "Buchungswert",
+          chf(k.wert),
+          `Umsatz aus allen ${zahl(k.buchungen)} Buchungen`,
+          k.d.wert,
+          "up",
+          chf(k.wertPrev),
+        ],
     [
       "Ø Buchungswert",
       k.buchungen > 0 ? chf(k.avg) : "–",
@@ -210,7 +224,9 @@ function Kennzahlen({ snap, k, vergleichLabel }) {
     [
       "Alle Conversions",
       zahl(k.alle),
-      `${zahl(k.buchungen)} Buchungen + ${zahl(k.soft)} Soft Conversions`,
+      ohne
+        ? `${zahl(k.soft)} Soft Conversions`
+        : `${zahl(k.buchungen)} Buchungen + ${zahl(k.soft)} Soft Conversions`,
       k.d.alle,
       "up",
       zahl(k.allePrev),
