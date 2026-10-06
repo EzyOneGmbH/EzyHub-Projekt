@@ -41,6 +41,22 @@ export function heuteYmd(jetztMs: number = Date.now()): string {
   return ymdUtc(new Date(jetztMs));
 }
 
+/** Heutiges Datum in Schweizer Zeit (Europe/Zurich). Zwischen 00:00 und
+ *  01:00/02:00 Uhr CH ist es in UTC noch der Vortag — der Browser schickt dann
+ *  bereits das CH-Datum (07.10.2026: «endDate liegt in der Zukunft»). */
+export function heuteYmdZuerich(jetztMs: number = Date.now()): string {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Zurich",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date(jetztMs));
+  } catch {
+    return heuteYmd(jetztMs);
+  }
+}
+
 /** Kalendertage addieren (negativ = subtrahieren), UTC, ohne DST-Effekte. */
 export function addDays(ymd: string, n: number): string {
   const ms = Date.parse(`${ymd}T00:00:00Z`);
@@ -87,7 +103,9 @@ export function zeitraum(opts: ZeitraumOptionen = {}): Zeitraum {
     const startDate = opts.startDate;
     const endDate = opts.endDate;
     if (startDate > endDate) throw new ZeitraumFehler("startDate liegt nach endDate");
-    if (endDate > heute) throw new ZeitraumFehler("endDate liegt in der Zukunft");
+    // Zukunft erst, wenn das Enddatum auch nach Schweizer Datum nach heute liegt.
+    const heuteMax = [heute, heuteYmdZuerich(opts.jetztMs)].sort()[1];
+    if (endDate > heuteMax) throw new ZeitraumFehler("endDate liegt in der Zukunft");
     const days = tageInklusiv(startDate, endDate);
     if (days > maxDays) throw new ZeitraumFehler(`Zeitraum zu lang (max. ${maxDays} Tage)`);
     return { startDate, endDate, days, quelle: "custom" };

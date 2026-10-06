@@ -2,6 +2,8 @@
 // Off-by-one, Monats-/Jahresgrenzen, Schaltjahre, exakte Custom-Ranges.
 import { describe, it, expect } from "vitest";
 import {
+  heuteYmd,
+  heuteYmdZuerich,
   zeitraum,
   zeitraumAusParams,
   vorperiode,
@@ -171,5 +173,23 @@ describe("Vorperiode und API-Formate", () => {
     const z = zeitraum({ startDate: "2025-01-01", endDate: "2025-01-31" });
     expect(ga4DateRange(z)).toEqual({ startDate: "2025-01-01", endDate: "2025-01-31" });
     expect(gaqlBetween(z)).toBe("segments.date BETWEEN '2025-01-01' AND '2025-01-31'");
+  });
+});
+
+describe("Zukunfts-Pruefung nach Schweizer Datum (07.10.2026)", () => {
+  // 07.10.2026 00:15 CEST = 06.10.2026 22:15 UTC
+  const jetztMs = Date.parse("2026-10-06T22:15:00Z");
+  it("CH-heute als Enddatum ist kurz nach Mitternacht CH erlaubt", () => {
+    const z = zeitraum({ startDate: "2026-09-08", endDate: "2026-10-07", jetztMs });
+    expect(z.endDate).toBe("2026-10-07");
+  });
+  it("Tag nach CH-heute bleibt Zukunft", () => {
+    expect(() => zeitraum({ startDate: "2026-09-08", endDate: "2026-10-08", jetztMs })).toThrow(
+      /Zukunft/,
+    );
+  });
+  it("heuteYmdZuerich liefert das CH-Datum", () => {
+    expect(heuteYmdZuerich(jetztMs)).toBe("2026-10-07");
+    expect(heuteYmd(jetztMs)).toBe("2026-10-06");
   });
 });
