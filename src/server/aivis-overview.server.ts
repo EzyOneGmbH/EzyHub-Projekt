@@ -18,6 +18,7 @@ import {
   isOrganicBing,
   istBezahlt,
   countedConversionEvents,
+  ignoredConversionEvents,
 } from "@/server/aivis-attribution.server";
 import { GA4_MEDIUM_RE, GA4_SOURCE_RE } from "@/server/chatgpt-ads-report.server";
 
@@ -73,6 +74,7 @@ async function kiTraffic(
   g: { token: string; propertyId: string },
   zr: Pick<Zeitraum, "startDate" | "endDate">,
   counted: Set<string>,
+  ignored: Set<string> = new Set(),
 ): Promise<{ sessions: number; conversions: number }> {
   const j = await runReport(g.token, g.propertyId, {
     dateRanges: [ga4DateRange(zr)],
@@ -90,8 +92,9 @@ async function kiTraffic(
     sessions += Number(row.metricValues?.[0]?.value ?? 0);
     conversions += Number(row.metricValues?.[1]?.value ?? 0);
   }
-  if (counted.size) {
-    // «Zaehlt als Conversion»: eventCount ersetzt den keyEvents-Anteil.
+  if (counted.size || ignored.size) {
+    // «Zaehlt als Conversion»: eventCount ersetzt den keyEvents-Anteil;
+    // «Zaehlt nicht»: keyEvents des Ereignisses werden abgezogen.
     const j2 = await runReport(g.token, g.propertyId, {
       dateRanges: [ga4DateRange(zr)],
       dimensions: [
@@ -101,7 +104,7 @@ async function kiTraffic(
       ],
       metrics: [{ name: "keyEvents" }, { name: "eventCount" }],
       dimensionFilter: {
-        filter: { fieldName: "eventName", inListFilter: { values: [...counted] } },
+        filter: { fieldName: "eventName", inListFilter: { values: [...counted, ...ignored] } },
       },
       limit: 10000,
     });
@@ -110,9 +113,9 @@ async function kiTraffic(
       if (!ENGINES.some((e) => e.re.test(src))) continue;
       if (isOrganicBing(src, String(row.dimensionValues?.[1]?.value ?? ""))) continue;
       if (istBezahlt(String(row.dimensionValues?.[1]?.value ?? ""))) continue;
-      if (istBezahlt(String(row.dimensionValues?.[1]?.value ?? ""))) continue;
-      conversions +=
-        Number(row.metricValues?.[1]?.value ?? 0) - Number(row.metricValues?.[0]?.value ?? 0);
+      const ke = Number(row.metricValues?.[0]?.value ?? 0);
+      if (ignored.has(String(row.dimensionValues?.[2]?.value ?? ""))) conversions -= ke;
+      else conversions += Number(row.metricValues?.[1]?.value ?? 0) - ke;
     }
   }
   return { sessions, conversions };
@@ -142,10 +145,13 @@ export async function fetchAiOrganicZeile(
     const g = await ga4Zugang(c);
     if (!g) hinweise.push("Kein GA4 verbunden");
     else {
-      const counted = await countedConversionEvents(c.id);
+      const [counted, ignored] = await Promise.all([
+        countedConversionEvents(c.id),
+        ignoredConversionEvents(c.id),
+      ]);
       [tCur, tPrev] = await Promise.all([
-        kiTraffic(g, f.aktuell, counted),
-        kiTraffic(g, f.vorher, counted),
+        kiTraffic(g, f.aktuell, counted, ignored),
+        kiTraffic(g, f.vorher, counted, ignored),
       ]);
     }
   } catch (e) {

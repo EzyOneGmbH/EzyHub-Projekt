@@ -104,8 +104,15 @@ const PostBody = z.object({
     )
     .max(100)
     .default([]),
+  // modus (06.10.): "zaehlt" (Default) oder "ignoriert" (Key Event zaehlt nicht).
   conversionEvents: z
-    .array(z.object({ event: z.string().min(1).max(200), on: z.boolean() }))
+    .array(
+      z.object({
+        event: z.string().min(1).max(200),
+        on: z.boolean(),
+        modus: z.enum(["zaehlt", "ignoriert"]).optional(),
+      }),
+    )
     .max(100)
     .default([]),
   labels: z
@@ -141,9 +148,18 @@ export const Route = createFileRoute("/api/admin/ga4-conversions")({
 
         const { data: countedRows } = await (supabaseAdmin as any)
           .from("client_conversion_events")
-          .select("event_name")
+          .select("event_name, modus")
           .eq("client_id", clientId);
-        const counted = new Set<string>((countedRows ?? []).map((x: any) => String(x.event_name)));
+        const counted = new Set<string>(
+          (countedRows ?? [])
+            .filter((x: any) => (x.modus || "zaehlt") === "zaehlt")
+            .map((x: any) => String(x.event_name)),
+        );
+        const ignoriert = new Set<string>(
+          (countedRows ?? [])
+            .filter((x: any) => x.modus === "ignoriert")
+            .map((x: any) => String(x.event_name)),
+        );
         const { data: labelRows } = await (supabaseAdmin as any)
           .from("client_event_labels")
           .select("event_name, label")
@@ -160,6 +176,7 @@ export const Route = createFileRoute("/api/admin/ga4-conversions")({
               name,
               isKeyEvent: false,
               countsAsConversion: counted.has(name),
+              ignoriert: ignoriert.has(name),
               label: labels.get(name) || "",
               count30d: 0,
               ga4Value: 0,
@@ -283,6 +300,7 @@ export const Route = createFileRoute("/api/admin/ga4-conversions")({
             name,
             isKeyEvent: keyByName.has(name),
             countsAsConversion: counted.has(name),
+            ignoriert: ignoriert.has(name),
             label: labels.get(name) || "",
             // Gezaehlte und Nicht-Key-Events zeigen die Rohanzahl (so zaehlt
             // sie auch die Attribution), Key-Events die Key-Event-Anzahl.
@@ -411,8 +429,8 @@ export const Route = createFileRoute("/api/admin/ga4-conversions")({
             const { error } = await (supabaseAdmin as any)
               .from("client_conversion_events")
               .upsert(
-                { client_id: clientId, event_name: ce.event },
-                { onConflict: "client_id,event_name", ignoreDuplicates: true },
+                { client_id: clientId, event_name: ce.event, modus: ce.modus || "zaehlt" },
+                { onConflict: "client_id,event_name" },
               );
             if (!error) counted++;
           } else {

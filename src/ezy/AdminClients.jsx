@@ -3170,7 +3170,18 @@ export function ConversionValuesPanel({ client }) {
         body: JSON.stringify({
           client: client.id,
           values,
-          conversionEvents: Object.entries(toggles).map(([event, on]) => ({ event, on })),
+          // Effektiv «zaehlt»: Key Events standardmaessig ja (Haken weg =
+          // im Hub ignorieren), Roh-Ereignisse nur mit Haken (06.10.).
+          conversionEvents: Object.entries(toggles).flatMap(([event, soll]) => {
+            const ev = state.events.find((x) => x.name === event) || {};
+            if (ev.isKeyEvent)
+              return soll
+                ? ev.ignoriert
+                  ? [{ event, on: false }]
+                  : []
+                : [{ event, on: true, modus: "ignoriert" }];
+            return [soll ? { event, on: true, modus: "zaehlt" } : { event, on: false }];
+          }),
           labels: Object.entries(labelDrafts).map(([event, label]) => ({ event, label })),
         }),
       });
@@ -3206,8 +3217,10 @@ export function ConversionValuesPanel({ client }) {
         Roh-Ereignisse. «Anzeigename» ist der Name, unter dem die Conversion in EzyHub erscheint (z.
         B. «Suchformular» statt form_submit). Liefert GA4 selbst keinen Betrag, kannst du hier pro
         Conversion einen Wert hinterlegen — er wird ab dem nächsten Daten-Lauf automatisch
-        angewendet. «Zählt als Conversion» nimmt ein Ereignis mit seiner Ereignis-Anzahl in die
-        KI-Attribution auf — auch rückwirkend, denn GA4 zählt Key-Events erst ab der Markierung.
+        angewendet. Key-Events zählen standardmässig — Häkchen entfernen, um z. B. alte
+        Engagement-Ziele auszuschliessen. «Zählt als Conversion» nimmt ein Ereignis mit seiner
+        Ereignis-Anzahl in die KI-Attribution auf — auch rückwirkend, denn GA4 zählt Key-Events erst
+        ab der Markierung.
       </div>
       <div
         style={{
@@ -3260,12 +3273,13 @@ export function ConversionValuesPanel({ client }) {
                 <tbody>
                   {state.events.map((ev) => {
                     const d = draftOf(ev);
-                    const zaehlt = toggles[ev.name] ?? !!ev.countsAsConversion;
+                    const zaehlt =
+                      toggles[ev.name] ?? (ev.isKeyEvent ? !ev.ignoriert : !!ev.countsAsConversion);
                     return (
                       <tr key={ev.name} style={{ borderTop: `1px solid ${C.border}` }}>
                         <td style={{ padding: "8px", color: C.text, fontWeight: 600 }}>
                           {ev.name}
-                          {(!ev.isKeyEvent || zaehlt) && (
+                          {(!ev.isKeyEvent || ev.countsAsConversion || !zaehlt) && (
                             <span
                               style={{
                                 marginLeft: 8,
@@ -3274,9 +3288,11 @@ export function ConversionValuesPanel({ client }) {
                                 fontWeight: 400,
                               }}
                             >
-                              {zaehlt
-                                ? "zählt rückwirkend mit Ereignis-Anzahl"
-                                : "nicht als Key-Event markiert"}
+                              {ev.isKeyEvent && !zaehlt
+                                ? "Key-Event — zählt im Hub nicht"
+                                : zaehlt
+                                  ? "zählt rückwirkend mit Ereignis-Anzahl"
+                                  : "nicht als Key-Event markiert"}
                             </span>
                           )}
                         </td>

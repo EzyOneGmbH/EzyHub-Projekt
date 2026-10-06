@@ -198,8 +198,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.30.6",
+    version: "1.31.0",
     changelog: [
+      {
+        version: "1.31.0",
+        date: "2026-10-06",
+        note: "Conversions: GA4-Key-Events lassen sich im Hub ausschliessen (Admin Center → Kunde → Conversions, Häkchen «Zählt als Conversion» entfernen) — z. B. aus Universal Analytics übernommene Engagement-Ziele wie «4 Seiten besucht», die KI-Conversions künstlich erhöhen",
+      },
       {
         version: "1.30.6",
         date: "2026-10-02",

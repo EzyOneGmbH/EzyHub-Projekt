@@ -90,17 +90,26 @@ export type AttributionResult =
 
 const GA4 = "https://analyticsdata.googleapis.com/v1beta";
 
-export async function countedConversionEvents(clientId: string): Promise<Set<string>> {
+async function conversionModus(
+  clientId: string,
+  modus: "zaehlt" | "ignoriert",
+): Promise<Set<string>> {
   try {
     const { data } = await (supabaseAdmin as any)
       .from("client_conversion_events")
       .select("event_name")
-      .eq("client_id", clientId);
+      .eq("client_id", clientId)
+      .eq("modus", modus);
     return new Set<string>((data ?? []).map((x: any) => String(x.event_name)));
   } catch {
     return new Set<string>();
   }
 }
+// «Zaehlt als Conversion»: Ereignis zaehlt mit eventCount (auch rueckwirkend).
+export const countedConversionEvents = (clientId: string) => conversionModus(clientId, "zaehlt");
+// «Zaehlt nicht» (06.10.2026): GA4-Key-Event wird im Hub ignoriert, z. B. aus
+// Universal Analytics uebernommene Engagement-Ziele (excent: ua__4_seiten).
+export const ignoredConversionEvents = (clientId: string) => conversionModus(clientId, "ignoriert");
 const GA4_ADMIN = "https://analyticsadmin.googleapis.com/v1beta";
 
 // Anzeigenamen je Ereignis (Admin Center -> Conversions -> «Anzeigename»).
@@ -134,6 +143,7 @@ export async function fetchAttribution(
   const propertyId = String(c.ga4_property).replace(/^properties\//, "");
   const dateRanges = [ga4DateRange(zr)];
   const counted = await countedConversionEvents(c.id);
+  const ignored = await ignoredConversionEvents(c.id);
   const labels = await eventLabels(c.id);
   let r: Response;
   try {
@@ -180,7 +190,7 @@ export async function fetchAttribution(
   }
 
   // Gezaehlte Ereignisse: eventCount ersetzt deren keyEvents-Anteil.
-  if (counted.size) {
+  if (counted.size || ignored.size) {
     try {
       const r3 = await fetch(`${GA4}/properties/${encodeURIComponent(propertyId)}:runReport`, {
         method: "POST",
@@ -194,7 +204,10 @@ export async function fetchAttribution(
           ],
           metrics: [{ name: "keyEvents" }, { name: "eventCount" }],
           dimensionFilter: {
-            filter: { fieldName: "eventName", inListFilter: { values: [...counted] } },
+            filter: {
+              fieldName: "eventName",
+              inListFilter: { values: [...counted, ...ignored] },
+            },
           },
           limit: 10000,
         }),
@@ -210,8 +223,11 @@ export async function fetchAttribution(
           if (istBezahlt(String(row.dimensionValues?.[1]?.value ?? ""))) continue;
           const ke = Number(row.metricValues?.[0]?.value ?? 0);
           const ec = Number(row.metricValues?.[1]?.value ?? 0);
+          const ev = String(row.dimensionValues?.[2]?.value ?? "");
           agg[eng.name] ??= { sessions: 0, conversions: 0 };
-          agg[eng.name].conversions += ec - ke;
+          // gezaehlt: eventCount ersetzt keyEvents; ignoriert: keyEvents raus.
+          if (ignored.has(ev)) agg[eng.name].conversions -= ke;
+          else agg[eng.name].conversions += ec - ke;
         }
       }
     } catch {
@@ -339,6 +355,7 @@ export async function fetchAttribution(
           const eng = ENGINES.find((e) => e.re.test(src));
           const evName = get("eventName");
           // gezaehlte Ereignisse: Rohanzahl statt Key-Event-Anzahl (rueckwirkend)
+          if (ignored.has(evName)) continue; // im Hub ignoriertes Key Event
           const n = Number(row.metricValues?.[counted.has(evName) ? 3 : 0]?.value ?? 0);
           if (
             !eng ||

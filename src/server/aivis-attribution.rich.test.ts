@@ -4,21 +4,26 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const counted: string[] = [];
+const ignored: string[] = []; // modus "ignoriert" (06.10.)
+// Verkettbares .eq(): Abfrage ist zugleich awaitbar (thenable) und filterbar.
+function abfrage(table: string, filter: Record<string, string> = {}): any {
+  const daten = () => {
+    if (table === "client_event_labels")
+      return [{ event_name: "form_submit", label: "Suchformular" }];
+    if (table !== "client_conversion_events") return [];
+    const alle = [
+      ...counted.map((event_name) => ({ event_name, modus: "zaehlt" })),
+      ...ignored.map((event_name) => ({ event_name, modus: "ignoriert" })),
+    ];
+    return filter.modus ? alle.filter((x) => x.modus === filter.modus) : alle;
+  };
+  return {
+    eq: (k: string, v: string) => abfrage(table, { ...filter, [k]: v }),
+    then: (ok: (x: unknown) => unknown) => Promise.resolve({ data: daten() }).then(ok),
+  };
+}
 vi.mock("@/integrations/supabase/client.server", () => ({
-  supabaseAdmin: {
-    from: (table: string) => ({
-      select: () => ({
-        eq: async () => ({
-          data:
-            table === "client_conversion_events"
-              ? counted.map((event_name) => ({ event_name }))
-              : table === "client_event_labels"
-                ? [{ event_name: "form_submit", label: "Suchformular" }]
-                : [],
-        }),
-      }),
-    }),
-  },
+  supabaseAdmin: { from: (table: string) => ({ select: () => abfrage(table) }) },
 }));
 vi.mock("@/server/google-tokens.server", () => ({
   getGoogleAccessToken: async () => ({ accessToken: "t", connectionId: "c", email: null }),
@@ -41,6 +46,71 @@ function ga4Rows(dims: string[], rows: Array<{ d: string[]; m: (number | string)
 describe("fetchAttribution — Einzelzeilen", () => {
   beforeEach(() => {
     counted.length = 0;
+    ignored.length = 0;
+  });
+
+  it("ignoriertes Key Event zaehlt nicht (Totale und Einzelzeilen)", async () => {
+    ignored.push("ua__4_seiten");
+    vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(String(init.body)) : {};
+      if (url.includes("customDimensions")) return res({ customDimensions: [] });
+      const dims: string[] = (body.dimensions ?? []).map((d: any) => d.name);
+      // Totale: 12 Sessions, 41 keyEvents (40 ua__4_seiten + 1 kontaktformular)
+      if (dims.join() === "sessionSource,country,sessionDefaultChannelGroup")
+        return res(ga4Rows(dims, [{ d: ["chatgpt.com", "Switzerland", "Referral"], m: [12, 41] }]));
+      // Ignoriert-Report: ua__4_seiten mit 40 keyEvents
+      if (dims.includes("eventName") && !dims.includes("deviceCategory")) {
+        expect(body.dimensionFilter.filter.inListFilter.values).toContain("ua__4_seiten");
+        return res(
+          ga4Rows(dims, [{ d: ["chatgpt.com", "Referral", "ua__4_seiten"], m: [40, 40] }]),
+        );
+      }
+      if (dims.includes("dateHourMinute"))
+        return res(
+          ga4Rows(dims, [
+            {
+              d: dims.map(
+                (n) =>
+                  ({
+                    sessionSource: "chatgpt.com",
+                    eventName: "ua__4_seiten",
+                    country: "Switzerland",
+                    deviceCategory: "desktop",
+                    dateHourMinute: "202610061259",
+                    sessionDefaultChannelGroup: "Referral",
+                  })[n] ?? "(not set)",
+              ),
+              m: [24, 0, 0, 24],
+            },
+            {
+              d: dims.map(
+                (n) =>
+                  ({
+                    sessionSource: "chatgpt.com",
+                    eventName: "kontaktformular",
+                    country: "Switzerland",
+                    deviceCategory: "desktop",
+                    dateHourMinute: "202610061300",
+                    sessionDefaultChannelGroup: "Referral",
+                  })[n] ?? "(not set)",
+              ),
+              m: [1, 0, 0, 1],
+            },
+          ]),
+        );
+      return res({ rows: [] });
+    });
+    const { fetchAttribution } = await import("./aivis-attribution.server");
+    const out = await fetchAttribution(
+      { id: "c1", ga4_property: "123" },
+      { startDate: "2026-09-06", endDate: "2026-10-06" },
+    );
+    if (!("engines" in out)) throw new Error("engines fehlen");
+    const gpt = out.engines.find((e) => e.engine === "ChatGPT")!;
+    expect(gpt.sessions).toBe(12);
+    expect(gpt.conversions).toBe(1); // 41 - 40 ignorierte
+    expect(gpt.events.map((e) => e.name)).toEqual(["kontaktformular"]);
+    vi.unstubAllGlobals();
   });
 
   it("liefert je Conversion eine Zeile mit Zeit, Stadt und Seite", async () => {
