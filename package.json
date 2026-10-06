@@ -108,6 +108,7 @@
     "undici": "^7.30.0",
     "seroval": ">=1.6.2",
     "seroval-plugins": ">=1.6.2",
+    "sharp": ">=0.35.5",
     "@lovable.dev/vite-tanstack-config": {
       "nitro": "$nitro"
     },
@@ -119,6 +120,7 @@
     "postcss": ">=8.5.10",
     "seroval": ">=1.6.2",
     "seroval-plugins": ">=1.6.2",
+    "sharp": ">=0.35.5",
     "@lovable.dev/vite-tanstack-config": {
       "nitro": "3.0.260903-beta"
     },
