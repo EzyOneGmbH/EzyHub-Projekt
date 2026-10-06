@@ -78,7 +78,7 @@ function Hero({ snap, k, top, tageLabel, aktion }) {
           <div
             style={{
               ...heroZahl,
-              fontSize: "clamp(40px, 6vw, 60px)",
+              fontSize: "clamp(34px, 4.6vw, 60px)",
               background: C.grad,
               WebkitBackgroundClip: "text",
               backgroundClip: "text",
@@ -116,7 +116,8 @@ function Hero({ snap, k, top, tageLabel, aktion }) {
   );
 }
 const heroZahl = {
-  fontSize: "clamp(30px, 4.6vw, 46px)",
+  fontSize: "clamp(24px, 3.3vw, 46px)",
+  whiteSpace: "nowrap",
   fontWeight: 800,
   color: C.text,
   lineHeight: 1.05,
