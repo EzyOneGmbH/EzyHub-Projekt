@@ -199,7 +199,7 @@
       {
         "name": "agent_list",
         "title": "Agenten auflisten",
-        "description": "Liste der eingerichteten EzyOne-Agenten eines Kunden (client_id, Default 'global'): Name, Modell, Skills, Beschreibung. Nur owner/admin.",
+        "description": "Liste der eingerichteten EzyOne-Agenten eines Kunden (client_id, Default 'global'): Name, Anbieter (claude = Claude-Abo, codex = ChatGPT-Abo), Modell, Skills, Beschreibung. Nur owner/admin.",
         "annotations": {
           "readOnlyHint": true,
           "idempotentHint": true,
@@ -251,8 +251,16 @@
               "type": "string",
               "maxLength": 300
             },
+            "provider": {
+              "description": "Runner: 'claude' (Claude-Abo, Default) oder 'codex' (OpenAI Codex ueber das ChatGPT-Abo; bei Limit Rueckfall auf Claude).",
+              "type": "string",
+              "enum": [
+                "claude",
+                "codex"
+              ]
+            },
             "model": {
-              "description": "Default: claude-sonnet-4-6.",
+              "description": "Default: claude-sonnet-5 (claude) bzw. 'standard' (codex).",
               "type": "string",
               "maxLength": 60
             },
