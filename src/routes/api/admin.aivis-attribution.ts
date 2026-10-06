@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { zeitraumAusParams } from "@/lib/date-range";
 import {
   fetchAttribution,
+  fetchErstkontakt,
   countedConversionEvents,
   eventLabels,
 } from "@/server/aivis-attribution.server";
@@ -72,6 +73,21 @@ export const Route = createFileRoute("/api/admin/aivis-attribution")({
           .maybeSingle();
         if (!client)
           return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
+        // scope=user (06.10.): Erstkontakt-Attribution statt Sitzung.
+        if (u.searchParams.get("scope") === "user") {
+          const ek = await fetchErstkontakt(client, zr);
+          if ("error" in ek) return Response.json({ ok: false, error: ek.error }, { status: 502 });
+          return Response.json(
+            {
+              ok: true,
+              scope: "user",
+              ga4: !("skipped" in ek),
+              range: { from: zr.startDate, to: zr.endDate, days: zr.days },
+              engines: "engines" in ek ? ek.engines : [],
+            },
+            { headers: { "Cache-Control": "no-store" } },
+          );
+        }
         const [res, conversionTypes] = await Promise.all([
           fetchAttribution(client, zr),
           conversionTypesFor(clientId),

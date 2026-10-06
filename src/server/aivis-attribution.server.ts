@@ -129,6 +129,119 @@ export async function eventLabels(clientId: string): Promise<Map<string, string>
   }
 }
 
+// ── Erstkontakt-Attribution (06.10.2026) ──────────────────────────────────
+// Sitzungs-Attribution (fetchAttribution) zaehlt nur Conversions im SELBEN
+// Besuch. Hier: Nutzer, deren ERSTER Besuch aus einer KI kam (firstUserSource),
+// und deren Conversions ueber alle spaeteren Besuche, egal welcher Kanal —
+// z. B. ChatGPT-Fund, Anfrage Tage spaeter direkt. Gleiche Regeln: bezahlte
+// Erstkontakte (Ads) und organisches Bing zaehlen nicht; «zaehlt»/«ignoriert»
+// wie in der Sitzungs-Attribution. Nur lesend.
+export type ErstkontaktEngine = {
+  engine: string;
+  users: number;
+  conversions: number;
+  nachEreignis: Array<{ name: string; count: number; users: number }>;
+};
+export async function fetchErstkontakt(
+  c: { id: string; ga4_property?: string | null },
+  zr: Pick<Zeitraum, "startDate" | "endDate">,
+): Promise<{ engines: ErstkontaktEngine[] } | { skipped: string } | { error: string }> {
+  if (!c.ga4_property) return { skipped: "kein ga4_property" };
+  let token: string;
+  try {
+    token = (await getGoogleAccessToken(c.id)).accessToken;
+  } catch (e) {
+    return { error: "Google-Token: " + redactSecrets(e) };
+  }
+  const propertyId = String(c.ga4_property).replace(/^properties\//, "");
+  const [counted, ignored] = await Promise.all([
+    countedConversionEvents(c.id),
+    ignoredConversionEvents(c.id),
+  ]);
+  const run = async (body: unknown) => {
+    const r = await fetch(`${GA4}/properties/${encodeURIComponent(propertyId)}:runReport`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!r.ok)
+      throw new Error(`GA4 HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 200)}`);
+    return r.json().catch(() => ({}));
+  };
+  const quelleFilter = {
+    filter: {
+      fieldName: "firstUserSource",
+      stringFilter: {
+        matchType: "PARTIAL_REGEXP",
+        value: ENGINES.map((e) => e.re.source).join("|"),
+        caseSensitive: false,
+      },
+    },
+  };
+  try {
+    const dateRanges = [ga4DateRange(zr)];
+    const [ju, je] = await Promise.all([
+      run({
+        dateRanges,
+        dimensions: [{ name: "firstUserSource" }, { name: "firstUserDefaultChannelGroup" }],
+        metrics: [{ name: "totalUsers" }],
+        dimensionFilter: quelleFilter,
+        limit: 1000,
+      }),
+      run({
+        dateRanges,
+        dimensions: [
+          { name: "firstUserSource" },
+          { name: "firstUserDefaultChannelGroup" },
+          { name: "eventName" },
+        ],
+        metrics: [{ name: "keyEvents" }, { name: "eventCount" }, { name: "totalUsers" }],
+        dimensionFilter: quelleFilter,
+        limit: 10000,
+      }),
+    ]);
+    const out = new Map<string, ErstkontaktEngine>();
+    const engineVon = (src: string, kanal: string) => {
+      const eng = ENGINES.find((e) => e.re.test(src));
+      if (!eng || isOrganicBing(src, kanal) || istBezahlt(kanal)) return null;
+      if (!out.has(eng.name))
+        out.set(eng.name, { engine: eng.name, users: 0, conversions: 0, nachEreignis: [] });
+      return out.get(eng.name)!;
+    };
+    for (const row of ju.rows ?? []) {
+      const e = engineVon(
+        String(row.dimensionValues?.[0]?.value ?? ""),
+        String(row.dimensionValues?.[1]?.value ?? ""),
+      );
+      if (e) e.users += Number(row.metricValues?.[0]?.value ?? 0);
+    }
+    for (const row of je.rows ?? []) {
+      const e = engineVon(
+        String(row.dimensionValues?.[0]?.value ?? ""),
+        String(row.dimensionValues?.[1]?.value ?? ""),
+      );
+      if (!e) continue;
+      const ev = String(row.dimensionValues?.[2]?.value ?? "");
+      if (ignored.has(ev)) continue;
+      const ke = Number(row.metricValues?.[0]?.value ?? 0);
+      const ec = Number(row.metricValues?.[1]?.value ?? 0);
+      const n = counted.has(ev) ? ec : ke;
+      if (n <= 0) continue;
+      e.conversions += n;
+      const vorh = e.nachEreignis.find((x) => x.name === ev);
+      const users = Number(row.metricValues?.[2]?.value ?? 0);
+      if (vorh) {
+        vorh.count += n;
+        vorh.users += users;
+      } else e.nachEreignis.push({ name: ev, count: n, users });
+    }
+    return { engines: [...out.values()].sort((a, b) => b.users - a.users) };
+  } catch (e) {
+    return { error: redactSecrets(e) };
+  }
+}
+
 export async function fetchAttribution(
   c: { id: string; ga4_property?: string | null },
   zr: Pick<Zeitraum, "startDate" | "endDate">,
