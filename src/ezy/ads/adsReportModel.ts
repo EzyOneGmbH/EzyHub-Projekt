@@ -43,6 +43,24 @@ export type Snapshot = {
   report: any | null;
 };
 
+/** Art einer Conversion-Aktion: Hauptziel (Buchung), Soft Conversion (Anfrage,
+ *  Kontakt, Buchung gestartet …) oder Google-Unternehmensprofil (lokale Aktionen,
+ *  modellierte Ladenbesuche, Wegbeschreibungen — keine Anfragen, zaehlen nicht
+ *  zu «Alle Conversions», sonst dominieren sie die Soft Conversions). */
+export type ConvArt = "haupt" | "soft" | "profil";
+const PROFIL_KATEGORIEN = new Set(["STORE_VISIT", "GET_DIRECTIONS"]);
+const PROFIL_NAME =
+  /^(local actions|lokale aktionen)|ladenbesuch|store visit|wegbeschreibung|directions/i;
+export function convArt(a: { booking?: boolean; category?: string; name?: string }): ConvArt {
+  if (a.booking) return "haupt";
+  if (
+    PROFIL_KATEGORIEN.has(String(a.category || "").toUpperCase()) ||
+    PROFIL_NAME.test(String(a.name || ""))
+  )
+    return "profil";
+  return "soft";
+}
+
 /** Kennzahlen der Uebersicht (Buchungen = Hauptziel-Aktionen; Fallback Gesamt-Conversions). */
 export function kennzahlen(s: Snapshot) {
   const acts: any[] = s.report?.conversionActions ?? [];
@@ -53,8 +71,10 @@ export function kennzahlen(s: Snapshot) {
   const buchungenPrev = hat ? sum((a) => a.booking, "prevCount") : s.prev.conversions;
   const wert = hat ? sum((a) => a.booking, "value") : s.totals.conversionValue;
   const wertPrev = hat ? sum((a) => a.booking, "prevValue") : s.prev.conversionValue;
-  const alle = hat ? sum(() => true, "count") : s.totals.conversions;
-  const allePrev = hat ? sum(() => true, "prevCount") : s.prev.conversions;
+  const keinProfil = (a: any) => convArt(a) !== "profil";
+  const alle = hat ? sum(keinProfil, "count") : s.totals.conversions;
+  const allePrev = hat ? sum(keinProfil, "prevCount") : s.prev.conversions;
+  const profil = hat ? sum((a) => convArt(a) === "profil", "count") : 0;
   const t = s.totals;
   const p = s.prev;
   const ctr = t.impressions > 0 ? (t.clicks / t.impressions) * 100 : 0;
@@ -75,6 +95,7 @@ export function kennzahlen(s: Snapshot) {
     alle,
     allePrev,
     soft: Math.max(0, alle - buchungen),
+    profil,
     ctr,
     ctrPrev,
     cpc,
@@ -135,15 +156,17 @@ export const kategorieLabel = (k: string) => KATEGORIE[String(k || "").toUpperCa
 
 export function conversionZeilen(s: Snapshot) {
   const acts: any[] = s.report?.conversionActions ?? [];
-  const alle = acts.reduce((x, a) => x + num(a.count), 0);
+  // Anteil ohne Unternehmensprofil-Aktionen (sonst verschwinden die Buchungen).
+  const alle = acts.filter((a) => convArt(a) !== "profil").reduce((x, a) => x + num(a.count), 0);
   return acts.map((a) => ({
     name: String(a.name),
     kategorie: kategorieLabel(a.category),
+    art: convArt(a),
     hauptziel: !!a.booking,
     anzahl: num(a.count),
     delta: pctDelta(num(a.count), num(a.prevCount)),
     neu: num(a.prevCount) === 0 && num(a.count) > 0,
-    anteil: alle > 0 ? (num(a.count) / alle) * 100 : 0,
+    anteil: convArt(a) === "profil" ? null : alle > 0 ? (num(a.count) / alle) * 100 : 0,
     wert: num(a.value),
     kostenJe: num(a.count) > 0 ? s.totals.cost / num(a.count) : null,
   }));
@@ -310,7 +333,7 @@ export const istMarke = (term: string, marken: string[]) => {
 // ── Das Wichtigste auf einen Blick ──────────────────────────────────────────
 
 const chf0 = (v: number) => `CHF ${Math.round(v).toLocaleString("de-CH")}`;
-const chf2 = (v: number) => `CHF ${v.toFixed(2).replace(".", ",")}`;
+const chf2 = (v: number) => `CHF ${v.toFixed(2)}`;
 const p1 = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(Math.round(v))} %`;
 const ganz = (v: number) => Math.round(v).toLocaleString("de-CH");
 
@@ -355,13 +378,13 @@ export function wichtigste(s: Snapshot): Erkenntnis[] {
     out.push({
       ton: "warnung",
       titel: `Der ROAS ist um ${Math.abs(Math.round(roas))} % gesunken.`,
-      text: `Jeder Franken bringt aktuell CHF ${k.roas.toFixed(2).replace(".", ",")} statt CHF ${k.roasPrev.toFixed(2).replace(".", ",")} zurück.`,
+      text: `Jeder Franken bringt aktuell CHF ${k.roas.toFixed(2)} statt CHF ${k.roasPrev.toFixed(2)} zurück.`,
     });
   } else if (roas != null && roas > 15) {
     out.push({
       ton: "gut",
       titel: `Der ROAS ist um ${Math.round(roas)} % gestiegen.`,
-      text: `Jeder Franken bringt jetzt CHF ${k.roas.toFixed(2).replace(".", ",")} zurück (Vorperiode CHF ${k.roasPrev.toFixed(2).replace(".", ",")}).`,
+      text: `Jeder Franken bringt jetzt CHF ${k.roas.toFixed(2)} zurück (Vorperiode CHF ${k.roasPrev.toFixed(2)}).`,
     });
   } else if (cpc != null && cpc < -15) {
     out.push({

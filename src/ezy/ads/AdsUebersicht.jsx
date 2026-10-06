@@ -58,9 +58,10 @@ function Hero({ snap, k, top, tageLabel, aktion }) {
         {aktion}
       </div>
       <div
+        className="ads-hero-grid"
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
           gap: "18px 24px",
           alignItems: "end",
         }}
@@ -73,7 +74,7 @@ function Hero({ snap, k, top, tageLabel, aktion }) {
             Umsatz generiert aus {zahl(snap.totals.conversions)} Conversions
           </div>
         </div>
-        <div style={{ textAlign: "center" }}>
+        <div className="ads-hero-mitte" style={{ textAlign: "center" }}>
           <div
             style={{
               ...heroZahl,
@@ -106,7 +107,7 @@ function Hero({ snap, k, top, tageLabel, aktion }) {
         }}
       >
         <b style={{ color: C.text }}>
-          Jeder investierte Franken bringt CHF {k.roas.toFixed(2).replace(".", ",")} zurück.
+          Jeder investierte Franken bringt CHF {k.roas.toFixed(2)} zurück.
         </b>{" "}
         {best &&
           `${best.name} liefert mit ${faktor(best.roas, 1)} ROAS ${Math.round(best.anteil)} % des Umsatzes.`}
@@ -374,9 +375,8 @@ function ConversionsNachArt({ snap, k }) {
   const [filter, setFilter] = useState("alle");
   const zeilen = conversionZeilen(snap);
   if (!zeilen.length) return null;
-  const sichtbar = zeilen.filter(
-    (z) => filter === "alle" || (filter === "haupt" ? z.hauptziel : !z.hauptziel),
-  );
+  const sichtbar = zeilen.filter((z) => filter === "alle" || z.art === filter);
+  const mitProfil = zeilen.some((z) => z.art === "profil");
   const zaehler = (label, wert, haupt) => (
     <div
       style={{
@@ -417,9 +417,10 @@ function ConversionsNachArt({ snap, k }) {
             Umsatz
           </div>
         </div>
-        <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           {zaehler("Hauptziele", k.buchungen, true)}
           {zaehler("Soft Conversions", k.soft, false)}
+          {mitProfil && zaehler("Unternehmensprofil", k.profil, false)}
         </div>
       </div>
       <div style={{ margin: "18px 0 14px" }}>
@@ -428,6 +429,7 @@ function ConversionsNachArt({ snap, k }) {
             ["alle", "Alle"],
             ["haupt", "Hauptziele"],
             ["soft", "Soft Conversions"],
+            ...(mitProfil ? [["profil", "Unternehmensprofil"]] : []),
           ]}
           aktiv={filter}
           onChange={setFilter}
@@ -453,9 +455,17 @@ function ConversionsNachArt({ snap, k }) {
                 <div style={{ fontSize: 12, color: C.textMuted }}>{z.kategorie}</div>
               </td>
               <td style={td(false)}>
-                {z.hauptziel ? (
+                {z.art === "haupt" ? (
                   <Pille farbe={C.accent} hinter={C.accentDim}>
                     Hauptziel
+                  </Pille>
+                ) : z.art === "profil" ? (
+                  <Pille
+                    farbe={C.blue}
+                    hinter={C.blueDim}
+                    title="Aktion im Google-Unternehmensprofil (Maps/Suche) — zählt nicht zu «Alle Conversions»"
+                  >
+                    Unternehmensprofil
                   </Pille>
                 ) : (
                   <Pille>Soft Conversion</Pille>
@@ -466,31 +476,35 @@ function ConversionsNachArt({ snap, k }) {
                 <DeltaChip d={z.delta} neu={z.neu} klein />
               </td>
               <td style={td(false, { minWidth: 170 })}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div
-                    style={{
-                      flex: 1,
-                      height: 8,
-                      background: "#f1e8f3",
-                      borderRadius: 99,
-                      overflow: "hidden",
-                    }}
-                  >
+                {z.anteil == null ? (
+                  <span style={{ color: C.textFaint }}>–</span>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <div
                       style={{
-                        width: `${Math.max(1.5, z.anteil)}%`,
-                        height: "100%",
-                        background: z.hauptziel ? C.accent : "#d6a6dc",
+                        flex: 1,
+                        height: 8,
+                        background: "#f1e8f3",
                         borderRadius: 99,
+                        overflow: "hidden",
                       }}
-                    />
+                    >
+                      <div
+                        style={{
+                          width: `${Math.max(1.5, z.anteil)}%`,
+                          height: "100%",
+                          background: z.hauptziel ? C.accent : "#d6a6dc",
+                          borderRadius: 99,
+                        }}
+                      />
+                    </div>
+                    <span
+                      style={{ fontSize: 12.5, color: C.textMuted, width: 38, textAlign: "right" }}
+                    >
+                      {Math.round(z.anteil)} %
+                    </span>
                   </div>
-                  <span
-                    style={{ fontSize: 12.5, color: C.textMuted, width: 38, textAlign: "right" }}
-                  >
-                    {Math.round(z.anteil)} %
-                  </span>
-                </div>
+                )}
               </td>
               <td style={td()}>{z.hauptziel && z.wert > 0 ? chf(z.wert) : "–"}</td>
               <td style={td()}>{z.kostenJe != null ? chf(z.kostenJe, 2) : "–"}</td>
@@ -500,7 +514,7 @@ function ConversionsNachArt({ snap, k }) {
       </TabellenRahmen>
       <div style={{ fontSize: 12, color: C.textMuted, marginTop: 12 }}>
         Anzahl = alle Conversions der Aktion in Google Ads. Kosten je Conv. = gesamte Werbekosten
-        geteilt durch die Anzahl dieser Aktion.
+        geteilt durch die Anzahl dieser Aktion. Anteil ohne Unternehmensprofil-Aktionen.
         {zeilen.every((z) => z.hauptziel) &&
           " Für diesen Kunden sind keine Soft Conversions eingerichtet — der Bereich zeigt nur die Hauptziele."}
       </div>
@@ -523,7 +537,7 @@ function Herkunft({ h }) {
         className="ads-herkunft"
         style={{
           display: "grid",
-          gridTemplateColumns: "minmax(0, 2.4fr) minmax(240px, 1fr)",
+          gridTemplateColumns: "minmax(0, 2fr) minmax(280px, 1fr)",
           gap: 16,
           alignItems: "stretch",
         }}
@@ -585,7 +599,14 @@ function Herkunft({ h }) {
                     <td style={{ textAlign: "right", fontWeight: 800, fontSize: 15 }}>
                       {zahl(s.conversions)}
                     </td>
-                    <td style={{ textAlign: "right", color: C.textMuted }}>
+                    <td
+                      style={{
+                        textAlign: "right",
+                        color: C.textMuted,
+                        whiteSpace: "nowrap",
+                        paddingLeft: 8,
+                      }}
+                    >
                       {s.value > 0 ? chf(s.value) : "–"}
                     </td>
                   </tr>
@@ -607,7 +628,7 @@ function Herkunft({ h }) {
             <span style={{ color: C.textMuted }}>
               Total aus {h.anzahlLaender} {h.anzahlLaender === 1 ? "Land" : "Ländern"}
             </span>
-            <b>
+            <b style={{ whiteSpace: "nowrap" }}>
               {zahl(h.total)} · {chf(h.wert)}
             </b>
           </div>

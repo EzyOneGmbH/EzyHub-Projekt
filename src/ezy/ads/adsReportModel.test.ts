@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ausLand,
   conversionZeilen,
+  convArt,
   deltaTon,
   herkunft,
   istMarke,
@@ -194,7 +195,7 @@ describe("topKampagnen / conversionZeilen", () => {
   it("Conversion-Zeilen mit Anteil, Kosten je Conversion und Kategorie", () => {
     const z = conversionZeilen(basis(report));
     expect(z[0]).toMatchObject({ hauptziel: true, anzahl: 23, delta: 15, kategorie: "Kauf" });
-    expect(Math.round(z[1].anteil)).toBe(50);
+    expect(Math.round(z[1].anteil ?? 0)).toBe(50);
     expect(z[1].kostenJe).toBeCloseTo(16.64, 1);
     expect(z[1].kategorie).toBe("Buchung gestartet");
   });
@@ -262,5 +263,52 @@ describe("wichtigste", () => {
       }),
     );
     expect(w[0].titel).toBe("Noch keine Buchungen im Zeitraum.");
+  });
+});
+
+describe("Unternehmensprofil-Aktionen", () => {
+  const mitProfil = {
+    ...report,
+    conversionActions: [
+      ...report.conversionActions,
+      {
+        name: "Local actions - Other engagements",
+        category: "ENGAGEMENT",
+        booking: false,
+        count: 1549,
+        value: 1549,
+        prevCount: 1222,
+        prevValue: 1222,
+      },
+      {
+        name: "Ladenbesuche",
+        category: "STORE_VISIT",
+        booking: false,
+        count: 611.7,
+        value: 612,
+        prevCount: 259.5,
+        prevValue: 260,
+      },
+    ],
+  };
+  it("klassifiziert Hauptziel, Soft und Unternehmensprofil", () => {
+    expect(convArt({ booking: true, category: "PURCHASE", name: "Buchungen" })).toBe("haupt");
+    expect(convArt({ category: "PHONE_CALL_LEAD", name: "Anruf" })).toBe("soft");
+    expect(convArt({ category: "STORE_VISIT", name: "Ladenbesuche" })).toBe("profil");
+    expect(convArt({ category: "ENGAGEMENT", name: "Local actions - Other engagements" })).toBe(
+      "profil",
+    );
+    expect(convArt({ category: "GET_DIRECTIONS", name: "Lokale Aktionen – Wegbeschreibung" })).toBe(
+      "profil",
+    );
+  });
+  it("zaehlt Unternehmensprofil nicht zu «Alle Conversions» und nicht in den Anteil", () => {
+    const k = kennzahlen(basis(mitProfil));
+    expect(k.alle).toBe(128);
+    expect(k.soft).toBe(105);
+    expect(Math.round(k.profil)).toBe(2161);
+    const z = conversionZeilen(basis(mitProfil));
+    expect(Math.round(z[0].anteil ?? 0)).toBe(18);
+    expect(z.find((x) => x.name === "Ladenbesuche")).toMatchObject({ art: "profil", anteil: null });
   });
 });

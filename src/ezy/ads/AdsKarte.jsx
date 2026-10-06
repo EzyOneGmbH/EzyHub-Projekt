@@ -177,7 +177,7 @@ export default function AdsKarte({ herkunft }) {
       .filter(Boolean);
   }, [ansicht, regionen, laender, projektion, featureNachId]);
   const max = Math.max(1, ...blasen.map((b) => b.wert));
-  const radius = (v) => 7 + 19 * Math.sqrt(v / max);
+  const radius = (v) => 13 + 25 * Math.sqrt(v / max);
 
   // Zoom/Verschieben (Ziehen, Doppelklick, +/−) — Konturen bleiben fein.
   const punkt = (e) => {
@@ -355,11 +355,11 @@ export default function AdsKarte({ herkunft }) {
                     strokeWidth={2.5}
                     vectorEffect="non-scaling-stroke"
                   />
-                  {r * zoom.k >= 10 && (
+                  {r * zoom.k >= 12 && (
                     <text
                       textAnchor="middle"
                       dy="0.35em"
-                      fontSize={(gross ? 15 : 12) / zoom.k}
+                      fontSize={(gross ? 22 : 17) / zoom.k}
                       fontWeight={800}
                       fill="#fff"
                       style={{ pointerEvents: "none" }}

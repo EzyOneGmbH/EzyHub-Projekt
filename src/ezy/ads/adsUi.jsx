@@ -213,6 +213,7 @@ export const th = (rechts = true, extra = {}) => ({
 export const td = (rechts = true, extra = {}) => ({
   padding: "13px clamp(12px, 2vw, 22px)",
   textAlign: rechts ? "right" : "left",
+  whiteSpace: rechts ? "nowrap" : undefined,
   borderBottom: `1px solid ${C.hairline}`,
   color: C.text,
   verticalAlign: "middle",

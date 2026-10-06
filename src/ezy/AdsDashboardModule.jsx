@@ -27,11 +27,13 @@ const standText = (iso) => {
 };
 // Handy-Layout (Karte unter Städteliste, Hero linksbündig, kompakte Tabs).
 const MOBIL_CSS = `
+        .ads-report .ads-tabs::-webkit-scrollbar { display: none; }
         @media (max-width: 860px) {
           .ads-report .ads-herkunft { grid-template-columns: 1fr !important; }
         }
         @media (max-width: 560px) {
-          .ads-report .ads-hero-rechts { text-align: left !important; }
+          .ads-report .ads-hero-grid { grid-template-columns: 1fr !important; }
+          .ads-report .ads-hero-rechts, .ads-report .ads-hero-mitte { text-align: left !important; }
           .ads-report .ads-tabs button { padding: 10px 11px 11px !important; font-size: 14px !important; }
         }
       `;
@@ -69,7 +71,13 @@ function Tabs({ tabs, aktiv, onChange, rechts }) {
       <div
         role="tablist"
         className="ads-tabs"
-        style={{ display: "flex", gap: 4, overflowX: "auto", maxWidth: "100%" }}
+        style={{
+          display: "flex",
+          gap: 4,
+          overflowX: "auto",
+          maxWidth: "100%",
+          scrollbarWidth: "none",
+        }}
       >
         {tabs.map((t) => {
           const an = t.id === aktiv;
@@ -121,19 +129,58 @@ function Tabs({ tabs, aktiv, onChange, rechts }) {
   );
 }
 
+/** Gespeicherter google_ads-Stand, dessen Zeitraum (und ggf. Vergleich) exakt
+ *  zur Auswahl passt — sonst null. Verhindert, dass die Anzeige je nach zuletzt
+ *  abgerufenem Zeitraum hin- und herspringt. */
+function useExakterAdsStand(clientId, start, ende, cStart, cEnde) {
+  const key = `${clientId}|${start}|${ende}|${cStart}|${cEnde}`;
+  const [stand, setStand] = useState({ key: null, run: null });
+  const aktuell = useRef(key);
+  aktuell.current = key;
+  const laden = useCallback(async () => {
+    if (!clientId || !start || !ende) {
+      setStand({ key, run: null });
+      return;
+    }
+    try {
+      let q = supabase
+        .from("audit_runs")
+        .select("id, result, created_at")
+        .eq("client_id", clientId)
+        .eq("audit_type", "google_ads")
+        .eq("status", "succeeded")
+        .eq("result->range->>from", start)
+        .eq("result->range->>to", ende);
+      if (cStart && cEnde)
+        q = q.eq("result->prevRange->>from", cStart).eq("result->prevRange->>to", cEnde);
+      const { data } = await q.order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (aktuell.current === key) setStand({ key, run: data || null });
+    } catch {
+      if (aktuell.current === key) setStand({ key, run: null });
+    }
+  }, [key, clientId, start, ende, cStart, cEnde]);
+  useEffect(() => {
+    void laden();
+  }, [laden]);
+  return { run: stand.key === key ? stand.run : null, geprueft: stand.key === key, laden };
+}
+
 // kundenansicht: Kunden-Login (viewer) — nur Übersicht + Kampagnen, kein Abruf.
 export function AdsDashboard({ selectedClient, dateRange, kundenansicht = false }) {
   const clientId = selectedClient?.id;
-  const { run, loading, refresh } = useEzyLatestRun(clientId, "google_ads", dateRange?.end || null);
-  const ap = useEzyAdsAutopilot(kundenansicht ? undefined : clientId, 80);
-  const [tab, setTab] = useState("uebersicht");
-  const [pulling, setPulling] = useState(false);
-  const [pullFehler, setPullFehler] = useState("");
-
   const start = dateRange?.start ? ymd(dateRange.start) : null;
   const ende = dateRange?.end ? ymd(dateRange.end) : null;
   const cStart = dateRange?.compare?.start ? ymd(dateRange.compare.start) : null;
   const cEnde = dateRange?.compare?.end ? ymd(dateRange.compare.end) : null;
+  const exakt = useExakterAdsStand(clientId, start, ende, cStart, cEnde);
+  // Fallback, solange kein exakt passender Stand existiert: neuester bis Zeitraum-Ende.
+  const neuester = useEzyLatestRun(clientId, "google_ads", dateRange?.end || null);
+  const run = exakt.run || neuester.run;
+  const loading = !exakt.geprueft || (neuester.loading && !run);
+  const ap = useEzyAdsAutopilot(kundenansicht ? undefined : clientId, 80);
+  const [tab, setTab] = useState("uebersicht");
+  const [pulling, setPulling] = useState(false);
+  const [pullFehler, setPullFehler] = useState("");
 
   const pull = useCallback(async () => {
     if (!clientId || kundenansicht) return;
@@ -154,34 +201,30 @@ export function AdsDashboard({ selectedClient, dateRange, kundenansicht = false 
       });
       const json = await res.json().catch(() => ({}));
       if (!json?.ok) setPullFehler(json?.error || `Abruf fehlgeschlagen (HTTP ${res.status})`);
-      await refresh();
+      // Sitzungs-Cache des Fallbacks umgehen (sonst bleibt der alte Stand stehen).
+      await Promise.all([exakt.laden(), neuester.refresh(true)]);
     } catch (e) {
       setPullFehler(e?.message || String(e));
     } finally {
       setPulling(false);
     }
-  }, [clientId, kundenansicht, dateRange?.days, start, ende, cStart, cEnde, refresh]);
+  }, [clientId, kundenansicht, dateRange?.days, start, ende, cStart, cEnde, exakt, neuester]);
 
   // Gespeicherter Stand passt nicht zum gewaehlten Zeitraum (oder hat noch keinen
   // Report-Block) -> einmal je Zeitraum still neu abrufen (nur Team).
   const result = run?.result;
   const zeitraumKey = `${clientId}|${start}|${ende}|${cStart}|${cEnde}`;
   const abgerufen = useRef(new Set());
-  const passt =
-    !!result &&
-    !!result.extras?.report &&
-    result.range?.from === start &&
-    result.range?.to === ende &&
-    (!cStart || (result.prevRange?.from === cStart && result.prevRange?.to === cEnde));
+  const passt = !!exakt.run && !!exakt.run.result?.extras?.report;
   useEffect(() => {
-    if (kundenansicht || loading || pulling || !clientId || !start || passt) return;
+    if (kundenansicht || !exakt.geprueft || pulling || !clientId || !start || passt) return;
     if (!selectedClient?.googleAdsCustomer) return;
     if (abgerufen.current.has(zeitraumKey)) return;
     abgerufen.current.add(zeitraumKey);
     void pull();
   }, [
     kundenansicht,
-    loading,
+    exakt.geprueft,
     pulling,
     clientId,
     start,
