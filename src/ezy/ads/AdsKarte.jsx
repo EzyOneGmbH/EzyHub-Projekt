@@ -70,13 +70,15 @@ export default function AdsKarte({ herkunft }) {
   const svgRef = useRef(null);
   const zieh = useRef(null);
 
-  // Feinere Konturen (50m) fuer Europa/Schweiz erst bei Bedarf nachladen.
+  // Feinere Konturen fuer Europa/Schweiz erst bei Bedarf nachladen: europa-50m.json
+  // (aus world-atlas 50m, nur Europa, gerundet — die volle 50m-Karte sprengt das
+  // 500-KB-Chunk-Budget). Uebrige Laender bleiben aus der 110m-Karte.
   useEffect(() => {
     if (ansicht === "welt" || features !== FEATURES_110) return;
     let aktiv = true;
-    import("world-atlas/countries-50m.json").then((m) => {
-      const topo = m.default || m;
-      if (aktiv) setFeatures(topoFeature(topo, topo.objects.countries).features);
+    import("./europa-50m.json").then((m) => {
+      const fein = new Map(((m.default || m).features || []).map((f) => [String(f.id), f]));
+      if (aktiv) setFeatures(FEATURES_110.map((f) => fein.get(String(f.id)) || f));
     });
     return () => {
       aktiv = false;
