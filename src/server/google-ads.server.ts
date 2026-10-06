@@ -1,6 +1,7 @@
 import { adsApiBase } from "./google-ads-api.server";
 import { getGoogleAccessToken } from "./google-tokens.server";
 import { zeitraum, vorperiode, istYmd, gaqlBetween, type Zeitraum } from "@/lib/date-range";
+import { ladeAdsReport, type AdsReport } from "./google-ads-report.server";
 
 // Shared Google Ads data fetch used by both the live route (/api/google/ads-data)
 // and the batch job (admin.populate jobGoogleAds), so the persisted snapshot
@@ -63,6 +64,8 @@ export type AdsExtras = {
   cartProducts: AdsCartProduct[] | null;
   conversionSplit: AdsConversionSplit | null;
   campaignFlags: AdsCampaignFlags[] | null;
+  /** 06.10.2026: Report-Block der EzyPerformance-Uebersicht (Data-Studio-Abloesung) */
+  report?: AdsReport | null;
   errors: string[];
 };
 
@@ -88,6 +91,7 @@ export type AdsSnapshot = {
     clicks: number;
     impressions: number;
     conversions: number;
+    conversionValue?: number;
   }>;
   campaigns: AdsCampaign[];
   conversionActions: Array<{ name: string; count: number; value: number }>;
@@ -296,7 +300,7 @@ export async function fetchAdsSnapshot(
   const series = await safe(
     async () => {
       const r = await query(
-        `SELECT segments.date, metrics.cost_micros, metrics.clicks, metrics.impressions, metrics.conversions FROM customer WHERE segments.date BETWEEN '${dateFrom}' AND '${dateTo}' ORDER BY segments.date`,
+        `SELECT segments.date, metrics.cost_micros, metrics.clicks, metrics.impressions, metrics.conversions, metrics.conversions_value FROM customer WHERE segments.date BETWEEN '${dateFrom}' AND '${dateTo}' ORDER BY segments.date`,
       );
       return (r?.[0]?.results ?? []).map((row: any) => ({
         date: String(row.segments?.date ?? ""),
@@ -304,6 +308,7 @@ export async function fetchAdsSnapshot(
         clicks: Number(row.metrics?.clicks ?? 0),
         impressions: Number(row.metrics?.impressions ?? 0),
         conversions: Number(row.metrics?.conversions ?? 0),
+        conversionValue: Number(row.metrics?.conversionsValue ?? 0),
       }));
     },
     [] as AdsSnapshot["series"],
@@ -312,7 +317,7 @@ export async function fetchAdsSnapshot(
   // 3) Campaigns (with revenue + ROAS)
   const campaigns = await safe(async () => {
     const r = await query(
-      `SELECT campaign.name, campaign.status, metrics.cost_micros, metrics.clicks, metrics.impressions, metrics.conversions, metrics.conversions_value FROM campaign WHERE segments.date BETWEEN '${dateFrom}' AND '${dateTo}' ORDER BY metrics.conversions_value DESC LIMIT 25`,
+      `SELECT campaign.name, campaign.status, metrics.cost_micros, metrics.clicks, metrics.impressions, metrics.conversions, metrics.conversions_value FROM campaign WHERE segments.date BETWEEN '${dateFrom}' AND '${dateTo}' ORDER BY metrics.conversions_value DESC LIMIT 50`,
     );
     return (r?.[0]?.results ?? []).map((row: any): AdsCampaign => {
       const cost = Number(row.metrics?.costMicros ?? 0) / 1_000_000;
@@ -389,6 +394,7 @@ export async function fetchAdsSnapshot(
     cartProducts: null,
     conversionSplit: null,
     campaignFlags: null,
+    report: null,
     errors: [],
   };
   const zusatz = async (label: string, fn: () => Promise<void>) => {
@@ -446,6 +452,11 @@ export async function fetchAdsSnapshot(
       c.brandGuidelinesEnabled = f.brandGuidelinesEnabled;
       c.ncaGoalActive = f.ncaGoalActive;
     }
+  });
+
+  // e) Report-Block (06.10.2026) — eigene Teil-Fehler in report.errors.
+  await zusatz("report", async () => {
+    extras.report = await ladeAdsReport(query, aktuell, vorher);
   });
 
   const result: AdsSnapshot = {
