@@ -18,6 +18,8 @@ export default tseslint.config(
       // routeTree eine generierte Datei; Prettier-Zwang erzeugt sonst eine
       // endlose Format-Ping-Pong-Schleife mit dem Codegen (Befund 21.08.).
       "src/integrations/supabase/types.ts",
+      // Ebenfalls von Lovable generiert (Preview-Auth-Storage, 06.10.2026).
+      "src/integrations/supabase/previewAuthStorage.ts",
       // Scriptable-iOS-Widget: laeuft in der Scriptable-App mit eigenen
       // Globals (ListWidget, Color, Font, ...), nicht im Browser.
       "scripts/iphone-widget/**",
