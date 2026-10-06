@@ -22,6 +22,8 @@ import { ga4CoverageSammler, ga4RunReportUrl } from "@/server/ga4.server";
 // POST {client, labels:[{event, label}]} → Anzeigename je Ereignis
 //                        (client_event_labels; leer = entfernen). Erscheint im
 //                        Admin Center und im EzyAI-Conversion-Detail (23.09.2026).
+// POST {client, enhancedMeasurement:{fileDownloads, dryRun?}} → Erweiterte Messung
+//                        «Datei-Downloads» im Web-Stream schalten (06.10.2026).
 // POST {client, keyEvent:{event, countingMethod?}} → Event in GA4 als Key Event
 //                        markieren (Admin API keyEvents.create; 23.09.2026).
 //                        Braucht analytics.edit — siehe getGoogleAccessTokenForScope.
@@ -78,6 +80,19 @@ const NOISE_EVENTS = new Set([
   "click",
   "(not set)",
 ]);
+
+// Erweiterte Messung (06.10.2026): Datei-Downloads im Web-Datenstream ein-/
+// ausschalten — misst PDF/Excel/Word-Klicks ohne Eingriff auf der Website.
+// Nur fileDownloadsEnabled wird geaendert (updateMask), alles andere bleibt.
+// dryRun: nur lesen (aktuelle Einstellungen je Web-Stream).
+const EnhancedBody = z.object({
+  client: z.string().uuid(),
+  enhancedMeasurement: z.object({
+    fileDownloads: z.boolean(),
+    dryRun: z.boolean().default(false),
+  }),
+});
+const ADMIN_ALPHA = "https://analyticsadmin.googleapis.com/v1alpha";
 
 const KeyEventBody = z.object({
   client: z.string().uuid(),
@@ -336,6 +351,99 @@ export const Route = createFileRoute("/api/admin/ga4-conversions")({
         if (auth instanceof Response) return auth;
         const body = await request.json().catch(() => ({}));
         const lookup = auth.userClient ?? (supabaseAdmin as any);
+
+        const em = EnhancedBody.safeParse(body);
+        if (em.success) {
+          const { client: clientId, enhancedMeasurement } = em.data;
+          const client = await visibleClient(lookup, clientId);
+          if (!client)
+            return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
+          if (!client.ga4_property)
+            return Response.json(
+              { ok: false, error: "Kein GA4-Property hinterlegt" },
+              { status: 400 },
+            );
+          const propertyId = String(client.ga4_property).replace(/^properties\//, "");
+          let tok;
+          try {
+            tok = await getGoogleAccessTokenForScope(
+              clientId,
+              "https://www.googleapis.com/auth/analytics.edit",
+            );
+          } catch (e) {
+            return Response.json(
+              { ok: false, error: e instanceof Error ? e.message : String(e) },
+              { status: 502 },
+            );
+          }
+          const hdr = {
+            Authorization: `Bearer ${tok.accessToken}`,
+            "Content-Type": "application/json",
+          };
+          const ls = await fetch(
+            `${ADMIN_ALPHA}/properties/${encodeURIComponent(propertyId)}/dataStreams?pageSize=50`,
+            { headers: hdr, signal: AbortSignal.timeout(15_000) },
+          );
+          const lj: any = await ls.json().catch(() => ({}));
+          if (!ls.ok)
+            return Response.json(
+              {
+                ok: false,
+                error: `GA4 dataStreams ${ls.status}: ${JSON.stringify(lj).slice(0, 200)}`,
+              },
+              { status: 502 },
+            );
+          const web = (lj.dataStreams || []).filter((d: any) => d.type === "WEB_DATA_STREAM");
+          if (!web.length)
+            return Response.json(
+              { ok: false, error: "Kein Web-Datenstream gefunden" },
+              { status: 404 },
+            );
+          const streams: any[] = [];
+          for (const d of web) {
+            const pfad = `${ADMIN_ALPHA}/${d.name}/enhancedMeasurementSettings`;
+            const g = await fetch(pfad, { headers: hdr, signal: AbortSignal.timeout(15_000) });
+            const vorher: any = await g.json().catch(() => ({}));
+            const eintrag: any = {
+              stream: d.displayName || d.name,
+              measurementId: d.webStreamData?.measurementId || null,
+              url: d.webStreamData?.defaultUri || null,
+              erweiterteMessungAktiv: vorher.streamEnabled ?? null,
+              fileDownloadsVorher: vorher.fileDownloadsEnabled ?? null,
+            };
+            if (!g.ok) eintrag.fehler = `GET ${g.status}`;
+            else if (
+              !enhancedMeasurement.dryRun &&
+              vorher.fileDownloadsEnabled !== enhancedMeasurement.fileDownloads
+            ) {
+              const mask = ["fileDownloadsEnabled"];
+              const patch: any = { fileDownloadsEnabled: enhancedMeasurement.fileDownloads };
+              // Ohne aktive Erweiterte Messung greift der Download-Schalter nicht.
+              if (enhancedMeasurement.fileDownloads && vorher.streamEnabled === false) {
+                mask.push("streamEnabled");
+                patch.streamEnabled = true;
+              }
+              const p = await fetch(`${pfad}?updateMask=${mask.join(",")}`, {
+                method: "PATCH",
+                headers: hdr,
+                body: JSON.stringify(patch),
+                signal: AbortSignal.timeout(15_000),
+              });
+              const pj: any = await p.json().catch(() => ({}));
+              if (!p.ok) eintrag.fehler = `PATCH ${p.status}: ${JSON.stringify(pj).slice(0, 200)}`;
+              else {
+                eintrag.fileDownloadsNachher = pj.fileDownloadsEnabled ?? null;
+                eintrag.erweiterteMessungNachher = pj.streamEnabled ?? null;
+              }
+            }
+            streams.push(eintrag);
+          }
+          return Response.json({
+            ok: !streams.some((s) => s.fehler),
+            dryRun: enhancedMeasurement.dryRun,
+            streams,
+          });
+        }
 
         const ke = KeyEventBody.safeParse(body);
         if (ke.success) {
