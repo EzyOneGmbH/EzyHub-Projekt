@@ -563,7 +563,8 @@ export async function fetchAttribution(
             value: val / n,
             country: get("country"),
             device: get("deviceCategory"),
-            date: dhm.slice(0, 8),
+            // Tages-Stufe (rich 0) liefert «date» statt «dateHourMinute» (07.10.).
+            date: dhm ? dhm.slice(0, 8) : get("date"),
             ...(dhm.length >= 12 ? { time: `${dhm.slice(8, 10)}:${dhm.slice(10, 12)}` } : {}),
             ...(city && city !== "(not set)" ? { city } : {}),
             ...(page && page !== "(not set)" ? { page } : {}),
