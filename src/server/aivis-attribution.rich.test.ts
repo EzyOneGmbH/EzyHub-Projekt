@@ -196,8 +196,17 @@ describe("fetchAttribution — Einzelzeilen", () => {
     const detail = calls.find((c) =>
       c.body?.dimensions?.some((d: any) => d.name === "dateHourMinute"),
     );
-    expect(detail.body.dimensionFilter.filter.fieldName).toBe("sessionSource");
-    expect(detail.body.dimensionFilter.filter.stringFilter.value).toMatch(/chatgpt/);
+    const teile = detail.body.dimensionFilter.andGroup.expressions;
+    expect(teile[0].filter.fieldName).toBe("sessionSource");
+    expect(teile[0].filter.stringFilter.value).toMatch(/chatgpt/);
+    // 07.10.: organische Bing-Suche und bezahlte Kanaele schon in der Abfrage raus,
+    // damit Bing-SEO-Zeilen nicht das Zeilenlimit fuellen (La Campagnola).
+    const nicht = JSON.stringify(teile.slice(1));
+    expect(nicht).toMatch(/notExpression/);
+    expect(nicht).toMatch(/bing/);
+    expect(nicht).toMatch(/organic/);
+    expect(nicht).toMatch(/paid\|cross-network/);
+    expect(detail.body.limit).toBeGreaterThanOrEqual(25000);
     vi.unstubAllGlobals();
   });
 });

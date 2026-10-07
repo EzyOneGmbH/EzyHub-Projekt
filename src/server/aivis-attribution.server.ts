@@ -44,6 +44,58 @@ const AI_SOURCE_FILTER = {
   },
 };
 
+// Detailbericht (07.10.2026, La Campagnola): organische Bing-Suche und bezahlte
+// Kanaele schon in der ABFRAGE ausschliessen — sonst fuellen Bing-SEO-Zeilen
+// das Zeilenlimit, bevor die KI-Conversions kommen (Totale stimmten, Einzel-
+// zeilen fehlten). Die Nachfilterung im Code bleibt als zweite Sicherung.
+const DETAIL_FILTER = {
+  andGroup: {
+    expressions: [
+      AI_SOURCE_FILTER,
+      {
+        notExpression: {
+          andGroup: {
+            expressions: [
+              {
+                filter: {
+                  fieldName: "sessionSource",
+                  stringFilter: {
+                    matchType: "PARTIAL_REGEXP",
+                    value: "(^|\\.)bing",
+                    caseSensitive: false,
+                  },
+                },
+              },
+              {
+                filter: {
+                  fieldName: "sessionDefaultChannelGroup",
+                  stringFilter: {
+                    matchType: "PARTIAL_REGEXP",
+                    value: "organic",
+                    caseSensitive: false,
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+      {
+        notExpression: {
+          filter: {
+            fieldName: "sessionDefaultChannelGroup",
+            stringFilter: {
+              matchType: "PARTIAL_REGEXP",
+              value: "^(paid|cross-network)",
+              caseSensitive: false,
+            },
+          },
+        },
+      },
+    ],
+  },
+};
+
 // Bezahlter KI-Traffic (02.10.2026, Volkan): ChatGPT Ads kommen in GA4 als
 // chatgpt / cpc an und landen im Standard-Kanal «Paid Search» bzw. «Paid
 // Other» — sie gehoeren in den Ads-Report, nicht in die Organic-Zahlen.
@@ -423,14 +475,25 @@ export async function fetchAttribution(
           body: JSON.stringify({
             dateRanges,
             dimensions: dims(withCustom, rich),
-            dimensionFilter: AI_SOURCE_FILTER,
+            dimensionFilter: DETAIL_FILTER,
+            // Ohne «zaehlt»-Rohereignisse genuegen Zeilen mit Key Events.
+            ...(counted.size
+              ? {}
+              : {
+                  metricFilter: {
+                    filter: {
+                      fieldName: "keyEvents",
+                      numericFilter: { operation: "GREATER_THAN", value: { int64Value: "0" } },
+                    },
+                  },
+                }),
             metrics: [
               { name: "keyEvents" },
               { name: "eventValue" },
               { name: "totalRevenue" },
               { name: "eventCount" },
             ],
-            limit: 5000,
+            limit: 25000,
           }),
           signal: AbortSignal.timeout(30_000),
         });
