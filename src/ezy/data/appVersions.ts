@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.4.13",
+    version: "2.4.14",
     changelog: [
+      {
+        version: "2.4.14",
+        date: "2026-10-07",
+        note: "Conversions › Kanäle: bei EzyPerformance-Kunden kommen Conversions und Conversion-Wert für «Paid Search» und «Cross-network» aus Google Ads (wie EzyPerformance) statt aus GA4 — markiert mit «Google Ads» und †",
+      },
       {
         version: "2.4.13",
         date: "2026-10-05",

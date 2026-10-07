@@ -215,6 +215,66 @@ export function ConvDashboard({ selectedClient, dateRange, appScope = null }) {
     convRes?.range?.from || isoTag(dateRange?.start),
     convRes?.range?.to || isoTag(dateRange?.end),
   );
+  // Google Ads statt GA4 fuer «Paid Search» + «Cross-network» (07.10.2026,
+  // Volkan): bei EzyPerformance-Kunden kommen Conversions + Wert aus Google Ads
+  // (gleiche Quelle wie EzyPerformance). Server entscheidet (aktiv:false →
+  // GA4 bleibt). Lokale Kalendertage, kein UTC-Kipp.
+  const lokalTag = (d) => {
+    if (!d) return null;
+    const x = new Date(d);
+    if (Number.isNaN(x.getTime())) return null;
+    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+  };
+  const adsVon = convRes?.range?.from || lokalTag(dateRange?.start);
+  const adsBis = convRes?.range?.to || lokalTag(dateRange?.end);
+  const [adsKanaele, setAdsKanaele] = useState(null);
+  useEffect(() => {
+    let abgebrochen = false;
+    if (!selectedClient?.id || !selectedClient?.googleAdsCustomer || !adsVon || !adsBis) {
+      setAdsKanaele(null);
+      return;
+    }
+    ezyFetch("/api/google/ads-kanaele", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientId: selectedClient.id, startDate: adsVon, endDate: adsBis }),
+    })
+      .then((r) => r.json())
+      .then((j) => {
+        if (!abgebrochen) setAdsKanaele(j?.ok && j.aktiv ? j : null);
+      })
+      .catch(() => {
+        if (!abgebrochen) setAdsKanaele(null);
+      });
+    return () => {
+      abgebrochen = true;
+    };
+  }, [selectedClient?.id, selectedClient?.googleAdsCustomer, adsVon, adsBis]);
+  const adsFuerKanal = (name) =>
+    !adsKanaele
+      ? null
+      : /^paid search$/i.test(name)
+        ? adsKanaele.paidSearch
+        : /^cross-network$/i.test(name)
+          ? adsKanaele.crossNetwork
+          : null;
+  const tabellenKanaele = useMemo(() => {
+    if (!channels) return channels;
+    const liste = [...channels];
+    if (adsKanaele) {
+      for (const [name, w] of [
+        ["Paid Search", adsKanaele.paidSearch],
+        ["Cross-network", adsKanaele.crossNetwork],
+      ]) {
+        const da = liste.some((ch) => String(ch.channel).toLowerCase() === name.toLowerCase());
+        if (!da && w && (w.conversions > 0 || w.conversionValue > 0))
+          liste.push({ channel: name, sessions: null });
+      }
+    }
+    return liste;
+  }, [channels, adsKanaele]);
+  const fmtConv = (x) =>
+    (Math.round(Number(x) * 10) / 10).toLocaleString("de-CH", { maximumFractionDigits: 1 });
   // «Generated» (01.10.2026, Morosani-Befund): zeigte den Umsatz ALLER Kanäle
   // (inkl. Paid) im organischen Tab. Jetzt wie die Detailliste: EzyRank =
   // Organic Search, EzyAI = Organic Search + AI Assistant. Ohne Kanal-Split
@@ -467,18 +527,22 @@ export function ConvDashboard({ selectedClient, dateRange, appScope = null }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {channels.map((ch, i) => {
+                  {tabellenKanaele.map((ch, i) => {
                     const isOrganic = /^organic search$/i.test(ch.channel);
                     const plus = isOrganic ? rekonstruiert : null;
-                    const convWert =
-                      ch.conversions != null || plus
+                    const ads = adsFuerKanal(ch.channel);
+                    const convWert = ads
+                      ? ads.conversions
+                      : ch.conversions != null || plus
                         ? (Number(ch.conversions) || 0) + (plus?.buchungen || 0)
                         : null;
-                    const umsatzWert =
-                      ch.revenue != null || plus
+                    const umsatzWert = ads
+                      ? ads.conversionValue
+                      : ch.revenue != null || plus
                         ? (Number(ch.revenue) || 0) + (plus?.umsatz || 0)
                         : null;
                     const ca = plus ? "≈ " : "";
+                    const adsMark = ads ? " †" : "";
                     return (
                       <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
                         <td
@@ -501,6 +565,11 @@ export function ConvDashboard({ selectedClient, dateRange, appScope = null }) {
                             />
                           )}
                           {ch.channel}
+                          {ads && (
+                            <span style={{ fontSize: 10, color: C.textDim, marginLeft: 6 }}>
+                              Google Ads
+                            </span>
+                          )}
                         </td>
                         <td
                           style={{
@@ -509,16 +578,18 @@ export function ConvDashboard({ selectedClient, dateRange, appScope = null }) {
                             fontWeight: isOrganic ? 700 : 400,
                           }}
                         >
-                          {(ch.sessions ?? 0).toLocaleString("de-CH")}
+                          {ch.sessions != null ? ch.sessions.toLocaleString("de-CH") : "—"}
                         </td>
                         <td style={{ padding: "6px 8px", textAlign: "right" }}>
                           {convWert != null
-                            ? `${ca}${Math.round(convWert).toLocaleString("de-CH")}${plus ? " *" : ""}`
+                            ? ads
+                              ? `${fmtConv(convWert)}${adsMark}`
+                              : `${ca}${Math.round(convWert).toLocaleString("de-CH")}${plus ? " *" : ""}`
                             : "—"}
                         </td>
                         <td style={{ padding: "6px 8px", textAlign: "right" }}>
                           {umsatzWert != null && !clicksMode
-                            ? `${ca}${Math.round(umsatzWert).toLocaleString("de-CH")} CHF${plus ? " *" : ""}`
+                            ? `${ca}${Math.round(umsatzWert).toLocaleString("de-CH")} CHF${plus ? " *" : ""}${adsMark}`
                             : umsatzWert != null
                               ? Math.round(umsatzWert).toLocaleString("de-CH")
                               : "—"}
@@ -529,6 +600,13 @@ export function ConvDashboard({ selectedClient, dateRange, appScope = null }) {
                 </tbody>
               </table>
             </div>
+            {adsKanaele && (
+              <div style={{ fontSize: 11, color: C.textDim, marginTop: 8 }}>
+                † Paid Search und Cross-network: Conversions und Conversion-Wert aus Google Ads (wie
+                EzyPerformance, Attribution von Google Ads nach Klickdatum; Search-Kampagnen = Paid
+                Search, PMax/Demand Gen/übrige = Cross-network). Sessions aus GA4.
+              </div>
+            )}
             {rekonstruiert && (
               <div style={{ fontSize: 11, color: C.textDim, marginTop: 8 }}>
                 * inkl. nachträglich rekonstruierter organischer Buchungen vor dem Tracking-Fix (
