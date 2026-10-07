@@ -236,6 +236,42 @@ describe("herkunft / ausLand", () => {
     expect(Math.round(h.laender[0].anteil)).toBe(70);
     expect(h.laender[0].anzeige).toBe("Schweiz");
     expect(h.staedte[0].name).toBe("Munich");
+    expect(h.einheit).toBe("conversions");
+  });
+  it("mit Buchungen je Ort: nur Buchungen zaehlen, Kantone wie auf der Karte", () => {
+    const ort = (id: string, name: string, conv: number, b: number, w: number) => ({
+      id,
+      name,
+      countryCode: "CH",
+      clicks: 1,
+      impressions: 1,
+      conversions: conv,
+      value: conv,
+      buchungen: b,
+      buchungswert: w,
+    });
+    const r = {
+      conversionActions: [{ name: "Buchung", category: "PURCHASE", booking: true, count: 39 }],
+      geo: {
+        buchungenGemessen: true,
+        countries: [{ ...ort("2756", "Switzerland", 80, 36, 17000) }],
+        regions: [
+          ort("r1", "Ticino", 31, 0, 0),
+          ort("r2", "Zurich", 17, 13, 9900),
+          ort("r3", "Canton of Bern", 11, 8, 3355),
+        ],
+        cities: [ort("c1", "San Nazzaro", 14, 0, 0), ort("c2", "Zurich", 14, 10, 7704)],
+      },
+    };
+    const h = herkunft(basis(r))!;
+    expect(h.einheit).toBe("buchungen");
+    expect(h.total).toBe(36);
+    expect(h.kantone.map((k: any) => [k.name, k.conversions])).toEqual([
+      ["Zurich", 13],
+      ["Canton of Bern", 8],
+    ]);
+    expect(h.staedte.map((c: any) => c.name)).toEqual(["Zurich"]);
+    expect(wichtigste(basis(r)).some((e) => e.titel.includes("der Buchungen kommen"))).toBe(true);
   });
   it("Artikel bei Laendern", () => {
     expect(ausLand("CH", "Schweiz")).toBe("aus der Schweiz");
@@ -280,7 +316,7 @@ describe("wichtigste", () => {
     expect(w[0].titel).toBe("23 Buchungen: 15 % mehr als in der Vorperiode.");
     expect(w[1].ton).toBe("warnung");
     expect(w[1].titel).toMatch(/Klicks sind deutlich teurer geworden/);
-    expect(w[2].titel).toBe("70 % der Buchungen kommen aus der Schweiz, vor allem aus Zurich.");
+    expect(w[2].titel).toBe("70 % der Conversions kommen aus der Schweiz, vor allem aus Zurich."); // ohne Buchungen je Ort (alter Snapshot)
     expect(w[2].text).toBe("Dahinter folgen Deutschland und Italien.");
   });
   it("ohne Buchungen und ohne Geo: Hinweis statt leerer Karte", () => {

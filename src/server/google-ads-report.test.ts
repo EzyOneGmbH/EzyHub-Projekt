@@ -3,7 +3,9 @@ import {
   aggregiereAnteile,
   aggregiereGeo,
   benenneGeo,
+  buchungenJeGeo,
   ladeAdsReport,
+  mitBuchungen,
   parseAssetGroups,
   parseConvActions,
   parseImpressionShare,
@@ -216,5 +218,59 @@ describe("ladeAdsReport", () => {
     expect(r.errors.some((e) => e.startsWith("search_terms"))).toBe(true);
     expect(r.assetGroups).toHaveLength(1);
     expect(r.geo).not.toBeNull();
+  });
+});
+
+describe("Buchungen je Ort", () => {
+  const z = (stadt: string, name: string, cat: string, conv: number, wert: number) => ({
+    segments: {
+      geoTargetCity: `geoTargetConstants/${stadt}`,
+      conversionActionName: name,
+      conversionActionCategory: cat,
+    },
+    metrics: { conversions: conv, conversionsValue: wert },
+  });
+  it("zaehlt nur Buchungs-Aktionen und ergaenzt Orte nur mit Buchungen", () => {
+    const b = buchungenJeGeo(
+      [
+        z("1", "Buchung", "PURCHASE", 10, 7704),
+        z("1", "WS - Click to Mail", "CONTACT", 4, 4),
+        z("2", "Local actions - Orders", "DEFAULT", 14, 14),
+        z("3", "Buchung", "PURCHASE", 2, 900),
+      ],
+      (r) => r.segments.geoTargetCity,
+    );
+    expect([...b.entries()]).toEqual([
+      ["1", { buchungen: 10, wert: 7704 }],
+      ["3", { buchungen: 2, wert: 900 }],
+    ]);
+    const geo = mitBuchungen(
+      [
+        {
+          id: "1",
+          name: "",
+          countryCode: "",
+          clicks: 5,
+          impressions: 9,
+          conversions: 14,
+          value: 7708,
+        },
+        {
+          id: "2",
+          name: "",
+          countryCode: "",
+          clicks: 2,
+          impressions: 3,
+          conversions: 14,
+          value: 14,
+        },
+      ],
+      b,
+    );
+    expect(geo.map((g) => [g.id, g.conversions, g.buchungen, g.buchungswert])).toEqual([
+      ["1", 14, 10, 7704],
+      ["2", 14, 0, 0],
+      ["3", 0, 2, 900],
+    ]);
   });
 });

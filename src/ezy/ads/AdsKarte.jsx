@@ -7,63 +7,22 @@ import { feature as topoFeature } from "topojson-client";
 import worldTopo110 from "world-atlas/countries-110m.json";
 import { C } from "../theme";
 import { chf, zahl } from "./adsUi";
+import { kantonFuer } from "./kantone";
 
 const W = 960;
 const H = 560;
 const FEATURES_110 = topoFeature(worldTopo110, worldTopo110.objects.countries).features;
-
-// Kantonsmittelpunkte [Laenge, Breite]; Schluessel = normalisierter Google-Name
-// (englisch, teils «Canton of …») und deutsche/franzoesische Varianten.
-const KANTONE = [
-  [["zurich", "zuerich"], "Zürich", 8.65, 47.42],
-  [["bern", "berne"], "Bern", 7.62, 46.82],
-  [["lucerne", "luzern"], "Luzern", 8.11, 47.07],
-  [["uri"], "Uri", 8.63, 46.77],
-  [["schwyz"], "Schwyz", 8.75, 47.06],
-  [["obwalden"], "Obwalden", 8.25, 46.85],
-  [["nidwalden"], "Nidwalden", 8.4, 46.93],
-  [["glarus"], "Glarus", 9.06, 46.98],
-  [["zug"], "Zug", 8.54, 47.16],
-  [["fribourg", "freiburg"], "Freiburg", 7.08, 46.7],
-  [["solothurn"], "Solothurn", 7.64, 47.3],
-  [["baselcity", "baselstadt"], "Basel-Stadt", 7.59, 47.56],
-  [["basellandschaft", "baselcountry", "basellandschaft"], "Basel-Landschaft", 7.7, 47.45],
-  [["schaffhausen"], "Schaffhausen", 8.6, 47.71],
-  [["appenzellausserrhoden"], "Appenzell A.Rh.", 9.3, 47.37],
-  [["appenzellinnerrhoden"], "Appenzell I.Rh.", 9.42, 47.32],
-  [["stgallen", "sanktgallen"], "St. Gallen", 9.25, 47.23],
-  [["grisons", "graubuenden", "graubunden"], "Graubünden", 9.63, 46.65],
-  [["aargau"], "Aargau", 8.15, 47.4],
-  [["thurgau"], "Thurgau", 9.1, 47.57],
-  [["ticino", "tessin"], "Tessin", 8.8, 46.3],
-  [["vaud", "waadt"], "Waadt", 6.55, 46.57],
-  [["valais", "wallis"], "Wallis", 7.6, 46.21],
-  [["neuchatel", "neuenburg"], "Neuenburg", 6.78, 47.0],
-  [["geneva", "geneve", "genf"], "Genf", 6.15, 46.2],
-  [["jura"], "Jura", 7.15, 47.35],
-];
-const normKanton = (s) =>
-  String(s || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/canton of |kanton |canton de /g, "")
-    .replace(/[^a-z]/g, "");
-const kantonFuer = (name) => {
-  const k = normKanton(name);
-  return KANTONE.find(([keys]) => keys.includes(k)) || null;
-};
 
 const isoVonKriterium = (id) => {
   const n = Number(id) - 2000;
   return n > 0 && n < 1000 ? String(n).padStart(3, "0") : null;
 };
 
-export default function AdsKarte({ herkunft }) {
+// ansicht/onAnsicht: von der Herkunft-Sektion gesteuert (Top-Liste wechselt mit).
+export default function AdsKarte({ herkunft, ansicht, onAnsicht }) {
+  const buch = herkunft?.einheit === "buchungen";
   const laender = useMemo(() => herkunft?.laender ?? [], [herkunft]);
   const regionen = useMemo(() => herkunft?.regionen ?? [], [herkunft]);
-  const chAnteil = laender.find((l) => l.countryCode === "CH")?.anteil ?? 0;
-  const [ansicht, setAnsicht] = useState(chAnteil >= 90 ? "schweiz" : "europa");
   const [features, setFeatures] = useState(FEATURES_110);
   const [zoom, setZoom] = useState({ k: 1, x: 0, y: 0 });
   const [hover, setHover] = useState(null);
@@ -242,7 +201,7 @@ export default function AdsKarte({ herkunft }) {
             <button
               key={id}
               type="button"
-              onClick={() => setAnsicht(id)}
+              onClick={() => onAnsicht(id)}
               style={{
                 border: "none",
                 cursor: "pointer",
@@ -410,8 +369,15 @@ export default function AdsKarte({ herkunft }) {
         >
           <div style={{ fontWeight: 700, marginBottom: 3 }}>{hover.name}</div>
           <div style={{ color: C.textMuted }}>
-            {zahl(hover.wert)} {hover.wert === 1 ? "Buchung" : "Buchungen"} ·{" "}
-            {Math.round(hover.anteil)} %
+            {zahl(hover.wert)}{" "}
+            {hover.wert === 1
+              ? buch
+                ? "Buchung"
+                : "Conversion"
+              : buch
+                ? "Buchungen"
+                : "Conversions"}{" "}
+            · {Math.round(hover.anteil)} %
           </div>
           {hover.value > 0 && (
             <div style={{ color: C.textMuted }}>
@@ -443,8 +409,12 @@ export default function AdsKarte({ herkunft }) {
             }}
           >
             {ansicht === "schweiz"
-              ? "Keine Buchungen mit Kantonsangabe im Zeitraum."
-              : "Keine Buchungen mit Länderangabe im Zeitraum."}
+              ? herkunft?.einheit === "buchungen"
+                ? "Keine Buchungen mit Kantonsangabe im Zeitraum."
+                : "Keine Conversions mit Kantonsangabe im Zeitraum."
+              : herkunft?.einheit === "buchungen"
+                ? "Keine Buchungen mit Länderangabe im Zeitraum."
+                : "Keine Conversions mit Länderangabe im Zeitraum."}
           </span>
         </div>
       ) : (
@@ -465,9 +435,10 @@ export default function AdsKarte({ herkunft }) {
           }}
         >
           <span style={{ width: 10, height: 10, borderRadius: "50%", background: C.accent }} />
-          1 Buchung
+          {buch ? "1 Buchung" : "1 Conversion"}
           <span style={{ width: 20, height: 20, borderRadius: "50%", background: C.accent }} />
-          {zahl(max)} {max === 1 ? "Buchung" : "Buchungen"}
+          {zahl(max)}{" "}
+          {max === 1 ? (buch ? "Buchung" : "Conversion") : buch ? "Buchungen" : "Conversions"}
         </div>
       )}
     </div>

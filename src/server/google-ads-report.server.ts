@@ -29,6 +29,9 @@ export type ReportGeoRow = {
   impressions: number;
   conversions: number;
   value: number;
+  /** Nur Buchungs-Aktionen (primaer), falls je Conversion-Aktion abgefragt. */
+  buchungen?: number;
+  buchungswert?: number;
 };
 export type ReportShare = { key: string; conversions: number; clicks: number };
 export type ReportSearchTerm = {
@@ -58,7 +61,13 @@ export type AdsReport = {
     prevTop: number | null;
     prevAbsTop: number | null;
   } | null;
-  geo: { countries: ReportGeoRow[]; regions: ReportGeoRow[]; cities: ReportGeoRow[] } | null;
+  geo: {
+    countries: ReportGeoRow[];
+    regions: ReportGeoRow[];
+    cities: ReportGeoRow[];
+    /** true = buchungen/buchungswert je Ort sind gesetzt */
+    buchungenGemessen?: boolean;
+  } | null;
   audience: { age: ReportShare[]; gender: ReportShare[]; device: ReportShare[] } | null;
   searchTerms: ReportSearchTerm[] | null;
   assetGroups: ReportAssetGroup[] | null;
@@ -172,6 +181,53 @@ export function aggregiereGeo(rows: Array<any>, schluessel: (row: any) => unknow
     map.set(id, e);
   }
   return [...map.values()];
+}
+
+/** Buchungen je Ort aus geographic_view-Zeilen mit Conversion-Aktions-Segment
+ *  (metrics.conversions = nur primaere Aktionen, also keine Doppelzaehlung). */
+export function buchungenJeGeo(
+  rows: Array<any>,
+  schluessel: (row: any) => unknown,
+): Map<string, { buchungen: number; wert: number }> {
+  const map = new Map<string, { buchungen: number; wert: number }>();
+  for (const row of rows) {
+    const id = geoId(schluessel(row));
+    const s = row?.segments ?? {};
+    if (!id || !istBuchung(s.conversionActionCategory, s.conversionActionName)) continue;
+    const e = map.get(id) ?? { buchungen: 0, wert: 0 };
+    e.buchungen += n(row?.metrics?.conversions);
+    e.wert += n(row?.metrics?.conversionsValue);
+    map.set(id, e);
+  }
+  return map;
+}
+
+/** Buchungen an Geo-Zeilen haengen; Orte nur mit Buchungen werden ergaenzt. */
+export function mitBuchungen(
+  geo: ReportGeoRow[],
+  buchungen: Map<string, { buchungen: number; wert: number }>,
+): ReportGeoRow[] {
+  const out = geo.map((g) => ({
+    ...g,
+    buchungen: buchungen.get(g.id)?.buchungen ?? 0,
+    buchungswert: buchungen.get(g.id)?.wert ?? 0,
+  }));
+  const vorhanden = new Set(geo.map((g) => g.id));
+  for (const [id, b] of buchungen) {
+    if (vorhanden.has(id)) continue;
+    out.push({
+      id,
+      name: "",
+      countryCode: "",
+      clicks: 0,
+      impressions: 0,
+      conversions: 0,
+      value: 0,
+      buchungen: b.buchungen,
+      buchungswert: b.wert,
+    });
+  }
+  return out;
 }
 
 /** Namen aus geo_target_constant-Zeilen einsetzen; unbekannte IDs fallen weg. */
@@ -318,21 +374,50 @@ export async function ladeAdsReport(
     teil("geo", async () => {
       const m =
         "metrics.clicks, metrics.impressions, metrics.conversions, metrics.conversions_value";
-      const [land, region, stadt] = await Promise.all([
+      // Buchungen je Ort (07.10.2026, Karte zaehlte alle Conversions als
+      // «Buchungen»): zusaetzlich je Conversion-Aktion — fail-soft (null).
+      const ca =
+        "segments.conversion_action_name, segments.conversion_action_category, metrics.conversions, metrics.conversions_value";
+      const buchungsRows = (sel: string) =>
+        rows(
+          `SELECT ${sel}, ${ca} FROM geographic_view WHERE ${cur} AND metrics.conversions > 0`,
+        ).catch(() => null);
+      const [land, region, stadt, bLand, bRegion, bStadt] = await Promise.all([
         rows(`SELECT geographic_view.country_criterion_id, ${m} FROM geographic_view WHERE ${cur}`),
         rows(`SELECT segments.geo_target_region, ${m} FROM geographic_view WHERE ${cur}`),
         rows(
           `SELECT segments.geo_target_city, ${m} FROM geographic_view WHERE ${cur} AND metrics.conversions > 0`,
         ),
+        buchungsRows("geographic_view.country_criterion_id"),
+        buchungsRows("segments.geo_target_region"),
+        buchungsRows("segments.geo_target_city"),
       ]);
-      const countries = aggregiereGeo(land, (r) => r?.geographicView?.countryCriterionId);
-      const regions = aggregiereGeo(region, (r) => r?.segments?.geoTargetRegion)
-        .filter((r) => r.clicks > 0 || r.conversions > 0)
-        .sort((a, b) => b.clicks - a.clicks)
-        .slice(0, 150);
-      const cities = aggregiereGeo(stadt, (r) => r?.segments?.geoTargetCity)
-        .sort((a, b) => b.conversions - a.conversions)
-        .slice(0, 60);
+      const buchungenGemessen = !!(bLand && bRegion && bStadt);
+      const anhaengen = (
+        geo: ReportGeoRow[],
+        b: Array<any> | null,
+        k: (r: any) => unknown,
+      ): ReportGeoRow[] => (buchungenGemessen && b ? mitBuchungen(geo, buchungenJeGeo(b, k)) : geo);
+      const countries = anhaengen(
+        aggregiereGeo(land, (r) => r?.geographicView?.countryCriterionId),
+        bLand,
+        (r) => r?.geographicView?.countryCriterionId,
+      );
+      const regions = anhaengen(
+        aggregiereGeo(region, (r) => r?.segments?.geoTargetRegion)
+          .filter((r) => r.clicks > 0 || r.conversions > 0)
+          .sort((a, b) => b.clicks - a.clicks)
+          .slice(0, 150),
+        bRegion,
+        (r) => r?.segments?.geoTargetRegion,
+      );
+      const cities = anhaengen(
+        aggregiereGeo(stadt, (r) => r?.segments?.geoTargetCity)
+          .sort((a, b) => b.conversions - a.conversions)
+          .slice(0, 60),
+        bStadt,
+        (r) => r?.segments?.geoTargetCity,
+      );
       const ids = [...new Set([...countries, ...regions, ...cities].map((r) => r.id))];
       const konstanten: Array<any> = [];
       for (let i = 0; i < ids.length; i += 100) {
@@ -352,6 +437,7 @@ export async function ladeAdsReport(
         ),
         regions: benenneGeo(regions, konstanten),
         cities: benenneGeo(cities, konstanten),
+        buchungenGemessen,
       };
     }),
     teil("audience", async () => {

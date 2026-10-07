@@ -198,26 +198,47 @@ export function ausLand(code: string, name: string) {
   return `aus ${name}`;
 }
 
+/**
+ * Herkunft der Buchungen (07.10.2026): zaehlt nur Buchungs-Aktionen, sobald der
+ * Snapshot sie je Ort enthaelt (geo.buchungenGemessen) und das Konto Buchungen
+ * misst. Sonst — alte Snapshots, Konten ohne Buchungsmessung — alle Conversions,
+ * dann aber auch so beschriftet (einheit).
+ */
 export function herkunft(s: Snapshot) {
   const geo = s.report?.geo;
   if (!geo) return null;
-  const laender = (geo.countries ?? []).map((l: any) => ({
-    ...l,
-    anzeige: landName(l.countryCode, l.name),
-  }));
+  const hatBuchung = (s.report?.conversionActions ?? []).some((a: any) => a.booking);
+  const einheit: "buchungen" | "conversions" =
+    geo.buchungenGemessen && hatBuchung ? "buchungen" : "conversions";
+  const zaehl = (r: any) =>
+    einheit === "buchungen"
+      ? { ...r, conversions: num(r.buchungen), value: num(r.buchungswert) }
+      : r;
+  const absteigend = (a: any, b: any) => b.conversions - a.conversions || b.value - a.value;
+  const laender = (geo.countries ?? [])
+    .map(zaehl)
+    .sort(absteigend)
+    .map((l: any) => ({ ...l, anzeige: landName(l.countryCode, l.name) }));
   const total = laender.reduce((x: number, l: any) => x + num(l.conversions), 0);
   const wert = laender.reduce((x: number, l: any) => x + num(l.value), 0);
   const mitBuchung = laender.filter((l: any) => num(l.conversions) > 0);
+  const regionen = (geo.regions ?? []).map(zaehl);
+  const kantone = regionen
+    .filter((r: any) => r.countryCode === "CH" && num(r.conversions) > 0)
+    .sort(absteigend);
   const staedte = (geo.cities ?? [])
+    .map(zaehl)
     .filter((c: any) => num(c.conversions) > 0)
-    .sort((a: any, b: any) => b.conversions - a.conversions || b.value - a.value)
+    .sort(absteigend)
     .map((c: any) => ({ ...c, land: landName(c.countryCode, c.countryCode) }));
   return {
+    einheit,
     laender: laender.map((l: any) => ({
       ...l,
       anteil: total > 0 ? (l.conversions / total) * 100 : 0,
     })),
-    regionen: geo.regions ?? [],
+    regionen,
+    kantone,
     staedte,
     total,
     wert,
@@ -416,7 +437,10 @@ export function wichtigste(s: Snapshot): Erkenntnis[] {
     const danach = [zweit, dritt].filter(Boolean).map((l: any) => l.anzeige);
     out.push({
       ton: "info",
-      titel: `${Math.round(erst.anteil)} % der Buchungen kommen ${ausLand(erst.countryCode, erst.anzeige)}${stadt ? `, vor allem aus ${stadt.name}` : ""}.`,
+      titel:
+        h.einheit === "buchungen"
+          ? `${Math.round(erst.anteil)} % der Buchungen kommen ${ausLand(erst.countryCode, erst.anzeige)}${stadt ? `, vor allem aus ${stadt.name}` : ""}.`
+          : `${Math.round(erst.anteil)} % der Conversions kommen ${ausLand(erst.countryCode, erst.anzeige)}${stadt ? `, vor allem aus ${stadt.name}` : ""}.`,
       text: danach.length
         ? `Dahinter folgen ${danach.join(" und ")}.`
         : "Andere Länder spielen noch keine Rolle.",

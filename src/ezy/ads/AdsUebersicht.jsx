@@ -3,6 +3,7 @@
 import { Suspense, lazy, useMemo, useState } from "react";
 import { Check, Info, Search } from "lucide-react";
 import { C } from "../theme";
+import { kantonFuer } from "./kantone";
 import {
   conversionZeilen,
   herkunft as baueHerkunft,
@@ -538,15 +539,44 @@ function ConversionsNachArt({ snap, k }) {
 }
 
 // ── Woher kommen die Buchungen? ─────────────────────────────────────────────
+// Liste folgt der Kartenansicht (07.10.2026): Schweiz = Kantone wie die Kreise,
+// Welt/Europa = Laender — vorher Staedte neben Kantons-Kreisen (passte nie).
 function Herkunft({ h }) {
+  const chAnteil = h?.laender?.find((l) => l.countryCode === "CH")?.anteil ?? 0;
+  const [ansicht, setAnsicht] = useState(chAnteil >= 90 ? "schweiz" : "europa");
   if (!h) return null;
-  const top3 = h.staedte.slice(0, 3);
-  const max = top3[0]?.conversions || 1;
+  const buchungen = h.einheit === "buchungen";
+  const schweiz = ansicht === "schweiz";
+  const zeilen = (
+    schweiz
+      ? h.kantone.map((k) => ({
+          id: k.id,
+          name: kantonFuer(k.name)?.[1] || k.name,
+          zusatz: "",
+          conversions: k.conversions,
+          value: k.value,
+        }))
+      : h.laender
+          .filter((l) => l.conversions > 0)
+          .map((l) => ({
+            id: l.id,
+            name: l.anzeige,
+            zusatz: "",
+            conversions: l.conversions,
+            value: l.value,
+          }))
+  ).slice(0, 3);
+  const max = zeilen[0]?.conversions || 1;
+  const orte = h.staedte.slice(0, 3);
   return (
     <div>
       <Abschnitt
-        titel="Woher kommen die Buchungen?"
-        hinweis="Kreisgrösse = Anzahl Buchungen · Karte ziehen zum Verschieben, Doppelklick zum Hineinzoomen"
+        titel={buchungen ? "Woher kommen die Buchungen?" : "Woher kommen die Conversions?"}
+        hinweis={
+          buchungen
+            ? "Kreisgrösse = Anzahl Buchungen · Karte ziehen zum Verschieben, Doppelklick zum Hineinzoomen"
+            : "Kreisgrösse = Anzahl Conversions · Karte ziehen zum Verschieben, Doppelklick zum Hineinzoomen"
+        }
       />
       <div
         className="ads-herkunft"
@@ -569,29 +599,34 @@ function Herkunft({ h }) {
             />
           }
         >
-          <AdsKarte herkunft={h} />
+          <AdsKarte herkunft={h} ansicht={ansicht} onAnsicht={setAnsicht} />
         </Suspense>
         <Karte style={{ display: "flex", flexDirection: "column" }}>
           <div style={{ fontSize: 15, fontWeight: 800, color: C.darkPurple, marginBottom: 14 }}>
-            Top 3 Städte
+            {schweiz ? "Top 3 Kantone" : "Top 3 Länder"}
           </div>
-          {top3.length === 0 ? (
-            <div style={{ fontSize: 13, color: C.textMuted }}>Keine Buchungen mit Ortsangabe.</div>
+          {zeilen.length === 0 ? (
+            <div style={{ fontSize: 13, color: C.textMuted }}>
+              {buchungen ? "Keine Buchungen mit Ortsangabe." : "Keine Conversions mit Ortsangabe."}
+            </div>
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
               <thead>
                 <tr style={{ color: C.textMuted, fontSize: 12.5 }}>
-                  <th style={{ textAlign: "left", fontWeight: 600, paddingBottom: 8 }}>Stadt</th>
-                  <th style={{ textAlign: "right", fontWeight: 600, paddingBottom: 8 }}>Buch.</th>
+                  <th style={{ textAlign: "left", fontWeight: 600, paddingBottom: 8 }}>
+                    {schweiz ? "Kanton" : "Land"}
+                  </th>
+                  <th style={{ textAlign: "right", fontWeight: 600, paddingBottom: 8 }}>
+                    {buchungen ? "Buch." : "Conv."}
+                  </th>
                   <th style={{ textAlign: "right", fontWeight: 600, paddingBottom: 8 }}>Wert</th>
                 </tr>
               </thead>
               <tbody>
-                {top3.map((s) => (
+                {zeilen.map((s) => (
                   <tr key={s.id}>
                     <td style={{ padding: "10px 0" }}>
-                      <b>{s.name}</b>{" "}
-                      <span style={{ color: C.textMuted, fontSize: 12.5 }}>{s.land}</span>
+                      <b>{s.name}</b>
                       <div
                         style={{
                           height: 5,
@@ -628,6 +663,17 @@ function Herkunft({ h }) {
                 ))}
               </tbody>
             </table>
+          )}
+          {orte.length > 0 && (
+            <div style={{ fontSize: 12.5, color: C.textMuted, marginTop: 10, lineHeight: 1.5 }}>
+              Top-Orte:{" "}
+              {orte.map((o, i) => (
+                <span key={o.id}>
+                  {i > 0 && " · "}
+                  <b style={{ color: C.text, fontWeight: 600 }}>{o.name}</b> {zahl(o.conversions)}
+                </span>
+              ))}
+            </div>
           )}
           <div
             style={{
