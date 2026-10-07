@@ -800,7 +800,13 @@ const fmtGa4Date = (d) =>
     ? `${d.slice(6, 8)}.${d.slice(4, 6)}.${d.slice(0, 4)}`
     : d || "—";
 
-function AttributionStrip({ rows, convRows = [], label = "letzte 30 Tage", types = [] }) {
+function AttributionStrip({
+  rows,
+  convRows = [],
+  label = "letzte 30 Tage",
+  types = [],
+  letzte = null,
+}) {
   const [open, setOpen] = useState(null); // engine-Name der aufgeklappten Kachel
   const totalS = rows.reduce((a, b) => a + b.sessions, 0);
   const totalC = rows.reduce((a, b) => a + b.conv, 0);
@@ -849,6 +855,24 @@ function AttributionStrip({ rows, convRows = [], label = "letzte 30 Tage", types
         {label} · {nf(totalS)} Besucher · {totalC} Conversions
         {totalC > 0 && <span> · Kachel anklicken für das Conversion-Detail</span>}
       </p>
+      {/* 07.10.2026: Zeitraum ohne KI-Conversion — zeigen, wann die letzte war. */}
+      {totalC === 0 && letzte && (
+        <p className="mt-1 text-xs" style={{ color: C.sub }}>
+          {letzte.datum ? (
+            <>
+              Letzte KI-Conversion:{" "}
+              <b style={{ color: C.ink }}>
+                {fmtGa4Date(letzte.datum)}
+                {letzte.zeit ? ` ${letzte.zeit}` : ""}
+              </b>{" "}
+              · {letzte.art} ({letzte.engine}) — {letzte.total} in den letzten 12 Monaten. Für die
+              Details den Zeitraum oben erweitern.
+            </>
+          ) : (
+            <>{letzte.total} KI-Conversions in den letzten 12 Monaten — Zeitraum oben erweitern.</>
+          )}
+        </p>
+      )}
       {nachArt.size > 0 && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           <span className="text-[11px]" style={{ color: C.sub }}>
@@ -5934,6 +5958,38 @@ export default function AIVisibilityDashboard({
     return j?.ok ? j : null;
   });
   const attrRows = liveAttr.data?.attribution ?? d?.attribution ?? [];
+  // Letzte KI-Conversion (07.10.): nur laden, wenn der gewaehlte Zeitraum
+  // KEINE hat — dann 12 Monate zurueck und die juengste Einzelzeile nehmen.
+  const ohneConv = !!liveAttr.data && (liveAttr.data.attribution || []).every((a) => !a.conv);
+  const letzteKey =
+    clientId && ohneConv ? `aivis-letzte-conv:v1:${clientId}:${isoDay(new Date())}` : null;
+  const letzteConv = useRangeData(letzteKey, async () => {
+    const session = (await supabase.auth.getSession()).data.session;
+    const r = await authedFetch(`/api/admin/aivis-attribution?client=${clientId}&days=365`, {
+      headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!j?.ok) return null;
+    const total = (j.attribution || []).reduce((s, a) => s + (a.conv || 0), 0);
+    if (!total) return { total: 0 };
+    const alle = (j.attribution || []).flatMap((a) =>
+      (a.events || []).map((e) => ({ ...e, engine: a.engine })),
+    );
+    alle.sort(
+      (x, y) =>
+        String(y.date).localeCompare(String(x.date)) ||
+        String(y.time || "").localeCompare(String(x.time || "")),
+    );
+    const e = alle[0];
+    return {
+      total,
+      datum: e?.date || null,
+      zeit: e?.time || null,
+      art: e ? e.label || e.name : null,
+      engine: e?.engine || null,
+    };
+  });
+  const letzte = letzteConv.data?.total ? letzteConv.data : null;
   const attrLabel = liveAttr.data
     ? `${range.label} · live aus GA4`
     : liveAttr.loading && range
@@ -6570,6 +6626,7 @@ export default function AIVisibilityDashboard({
                 convRows={convRows}
                 label={attrLabel}
                 types={liveAttr.data?.conversionTypes ?? []}
+                letzte={letzte}
               />
               <ConversionRegions attribution={attrRows} />
             </div>

@@ -198,8 +198,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.31.0",
+    version: "1.31.1",
     changelog: [
+      {
+        version: "1.31.1",
+        date: "2026-10-07",
+        note: "Conversions-Karte: Hat der gewählte Zeitraum keine KI-Conversion, steht dort, wann die letzte war («Letzte KI-Conversion: 22.08.2026 · Kontaktformular (ChatGPT)») und wie viele es in 12 Monaten gab",
+      },
       {
         version: "1.31.0",
         date: "2026-10-06",
