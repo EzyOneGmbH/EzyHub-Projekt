@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.4.14",
+    version: "2.4.15",
     changelog: [
+      {
+        version: "2.4.15",
+        date: "2026-10-08",
+        note: "Rankings: Kacheln Top 3 / Top 10 / Verbessert / Verschlechtert zählen jetzt genau die Zeilen und die Positionsspalte der Tabelle (vorher nur exakte Crawl-Treffer — deshalb z. B. 28 statt 46)",
+      },
       {
         version: "2.4.14",
         date: "2026-10-07",

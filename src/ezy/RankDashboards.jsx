@@ -1183,7 +1183,11 @@ export function SeoDashboard({ selectedClient, dateRange }) {
     if (q.position != null) return prevQ.position ?? null;
     return null;
   }, []);
-  const rankRows = useMemo(() => {
+  // Gemeinsame Basis fuer Tabelle UND Kacheln (08.10.2026, Volkan: «Top 3 im
+  // Widget 28, in der Tabelle 46»): die Kacheln zaehlen jetzt exakt die Zeilen
+  // und die Positionsspalte der Tabelle — vorher kamen sie aus rank.aggregate
+  // (nur exakte Crawl-Treffer), die Tabelle zeigt Crawl, sonst GSC-Ø.
+  const rankBasis = useMemo(() => {
     const gq = gscQ && Array.isArray(gscQ.topNonbrandQueries) ? gscQ.topNonbrandQueries : [];
     // GSC-Lookup fuer getrackte Keywords (2026-08-13): Klicks/Impressionen auch
     // fuer Tracking-Zeilen befuellen. Non-Brand aus gsc_queries, Brand-Terms
@@ -1230,18 +1234,31 @@ export function SeoDashboard({ selectedClient, dateRange }) {
         _src: "gsc",
       });
     }
-    let rows = [...tracked, ...gscOnly];
-    // Kachel-Filter: bewusst NUR getrackte Keywords (_src "dfs") — die
-    // Kachel-Zahlen kommen aus rank.aggregate (getrackte Basis) und Filter
-    // muss dazu passen. GSC-Zeilen zeigen ihr Δ trotzdem in der Tabelle.
-    if (rankFilter === "improved")
-      rows = rows.filter(
-        (k) => k._src === "dfs" && k.pos != null && k.posPrev7 != null && k.pos < k.posPrev7,
-      );
-    else if (rankFilter === "declined")
-      rows = rows.filter(
-        (k) => k._src === "dfs" && k.pos != null && k.posPrev7 != null && k.pos > k.posPrev7,
-      );
+    return [...tracked, ...gscOnly];
+  }, [rank, gscQ, gscRes, gscQPrevMaps, prevPosComparable]);
+  const istVerbessert = (k) =>
+    k._src === "dfs" && k.pos != null && k.posPrev7 != null && k.pos < k.posPrev7;
+  const istVerschlechtert = (k) =>
+    k._src === "dfs" && k.pos != null && k.posPrev7 != null && k.pos > k.posPrev7;
+  const rankKacheln = useMemo(() => {
+    const zaehle = (liste, max) =>
+      liste.filter((k) => k.pos != null && Number(k.pos) > 0 && Number(k.pos) <= max).length;
+    const vonListe = Array.isArray(rankVon?.keywords) ? rankVon.keywords : null;
+    return {
+      top3: rankBasis.length ? zaehle(rankBasis, 3) : null,
+      top10: rankBasis.length ? zaehle(rankBasis, 10) : null,
+      improved7: rankBasis.filter(istVerbessert).length,
+      declined7: rankBasis.filter(istVerschlechtert).length,
+      top3Von: vonListe ? zaehle(vonListe, 3) : null,
+      top10Von: vonListe ? zaehle(vonListe, 10) : null,
+    };
+  }, [rankBasis, rankVon]);
+  const rankRows = useMemo(() => {
+    let rows = [...rankBasis];
+    // Kachel-Filter: gleiche Definition wie die Kacheln Verbessert/Verschlechtert
+    // (rankKacheln) — Klick auf die Kachel zeigt genau die gezaehlten Zeilen.
+    if (rankFilter === "improved") rows = rows.filter(istVerbessert);
+    else if (rankFilter === "declined") rows = rows.filter(istVerschlechtert);
     // Suchfeld: Teilstring-Match auf dem normalisierten Keyword.
     const search = normKw(rankSearch);
     if (search) rows = rows.filter((k) => normKw(k.kw).includes(search));
@@ -1291,7 +1308,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
       return dir * (av - bv);
     });
     return rows;
-  }, [rank, gscQ, gscRes, rankSort, rankFilter, rankSearch, gscQPrevMaps, prevPosComparable]);
+  }, [rankBasis, rankSort, rankFilter, rankSearch]);
   // Zähler für die Kopfzeile (getrackt vs. aus GSC gemergt).
   const rankCounts = useMemo(() => {
     let dfs = 0,
@@ -1448,27 +1465,27 @@ export function SeoDashboard({ selectedClient, dateRange }) {
               <KpiCard
                 icon={Award}
                 label="In Top 3"
-                value={rank.aggregate?.top3 ?? "—"}
+                value={rankKacheln.top3 ?? "—"}
                 color={C.green}
                 change={
-                  rank.aggregate?.top3 != null
-                    ? fensterPct(rank.aggregate.top3, rankVon?.aggregate?.top3)
+                  rankKacheln.top3 != null
+                    ? fensterPct(rankKacheln.top3, rankKacheln.top3Von)
                     : undefined
                 }
-                compareValue={rankVon?.aggregate?.top3 ?? undefined}
+                compareValue={rankKacheln.top3Von ?? undefined}
                 compareLabel={FENSTER_LABEL}
               />
               <KpiCard
                 icon={Target}
                 label="In Top 10"
-                value={rank.aggregate?.top10 ?? "—"}
+                value={rankKacheln.top10 ?? "—"}
                 color={C.accent}
                 change={
-                  rank.aggregate?.top10 != null
-                    ? fensterPct(rank.aggregate.top10, rankVon?.aggregate?.top10)
+                  rankKacheln.top10 != null
+                    ? fensterPct(rankKacheln.top10, rankKacheln.top10Von)
                     : undefined
                 }
-                compareValue={rankVon?.aggregate?.top10 ?? undefined}
+                compareValue={rankKacheln.top10Von ?? undefined}
                 compareLabel={FENSTER_LABEL}
               />
               {/* Klickbare Filter-Kacheln (2026-08-13): filtern die Rankings-
@@ -1485,7 +1502,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                 <KpiCard
                   icon={TrendingUp}
                   label="Verbessert (7 Tage)"
-                  value={rank.aggregate?.improved7 ?? "—"}
+                  value={rankKacheln.improved7}
                   color={C.green}
                 />
               </div>
@@ -1501,7 +1518,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                 <KpiCard
                   icon={Activity}
                   label="Verschlechtert (7 Tage)"
-                  value={rank.aggregate?.declined7 ?? "—"}
+                  value={rankKacheln.declined7}
                   color={C.orange}
                 />
               </div>
