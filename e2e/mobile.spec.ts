@@ -131,3 +131,21 @@ for (const [role, name, url, tabbar] of ZIELE) {
       expect(m.pb, "Inhalt endet hinter der Tab-Leiste").toBeGreaterThanOrEqual(m.barH);
   });
 }
+
+// Kunden-Login am Handy (Volkan 09.10.2026): «Apps» führt zum Launcher mit
+// genau den freigeschalteten Portal-Apps — vorher Rücksprung aufs Dashboard.
+test("Mobile 390 px: Kunden-Login wechselt über «Apps» die App", async ({ page }) => {
+  await mocks(page, "viewer");
+  await session(page);
+  await page.goto("/ezyrank");
+  const leiste = page.locator(".mobile-tabbar");
+  await expect(leiste).toBeVisible();
+  await leiste.getByRole("button", { name: "Apps" }).click();
+  await expect(page).toHaveURL(/\/apps$/);
+  for (const app of ["EzyRank", "EzyAI", "EzyPerformance"])
+    await expect(page.getByRole("link", { name: new RegExp(app) }).first()).toBeVisible();
+  for (const intern of ["Admin", "Reaktivierung", "Analyse"])
+    await expect(page.getByRole("link", { name: new RegExp(`^${intern}`) })).toHaveCount(0);
+  await page.getByRole("link", { name: /EzyAI/ }).first().click();
+  await expect(page).toHaveURL(/\/ezyai/);
+});

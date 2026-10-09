@@ -9,6 +9,7 @@ import { EZY_APPS, type EzyAppDef, type EzyAppId } from "@/ezy/data/appRegistry"
 import { HexGlowLayer } from "@/ezy/HexGlow";
 import { EzyOneMark } from "@/components/ezy-one-mark";
 import { supabase } from "@/integrations/supabase/client";
+import { PORTAL_RAIL_APPS } from "@/ezy/data/kundenZugriff";
 
 export const Route = createFileRoute("/apps")({
   component: AppsLauncher,
@@ -71,11 +72,22 @@ function AppsLauncher() {
     if (!loading && !session)
       navigate({ to: "/login", search: { next: undefined }, replace: true });
   }, [loading, session, navigate]);
+  // Kunden-Logins (Volkan 09.10.2026): am Handy führt «Apps» hierher — statt
+  // zurück aufs Dashboard zu leiten, zeigt der Launcher nur ihre freigeschalteten
+  // Portal-Apps. Ohne jede App bleibt es beim Portal-Auffangnetz (/dashboard).
+  const istKunde = role === "viewer";
+  const kundenApps = istKunde
+    ? EZY_APPS.filter(
+        (a) => (PORTAL_RAIL_APPS as readonly string[]).includes(a.id) && canOpen(a.id),
+      )
+    : [];
   useEffect(() => {
-    if (!loading && role === "viewer") window.location.replace("/dashboard");
-  }, [loading, role]);
+    if (!loading && istKunde && !accessLoading && kundenApps.length === 0)
+      window.location.replace("/dashboard");
+  }, [loading, istKunde, accessLoading, kundenApps.length]);
 
-  if (loading || !session || role === "viewer") return null;
+  if (loading || !session) return null;
+  if (istKunde && (accessLoading || kundenApps.length === 0)) return null;
 
   // Ezy One CD (2026-08-10): Pale Gray mit Purple-Bias, Purple #77008C Akzent.
   const S = {
@@ -240,7 +252,7 @@ function AppsLauncher() {
               Lade Apps…
             </div>
           ) : (
-            EZY_APPS.map(tile)
+            (istKunde ? kundenApps : EZY_APPS).map(tile)
           )}
         </div>
 

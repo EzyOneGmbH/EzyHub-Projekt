@@ -1,4 +1,5 @@
 import { authedFetch } from "@/lib/authed-fetch";
+import { PORTAL_RAIL_APPS } from "@/ezy/data/kundenZugriff";
 import { SprachSwitch } from "@/i18n/SprachSwitch";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppRail, SegmentedTabs } from "@/ezy/shell";
@@ -5640,10 +5641,17 @@ function EzyAiApp() {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
               <EzyPilotFab size={44} elevated />
             </div>
-            <a href="/apps" style={{ ...tabBtn(false), textDecoration: "none" }} title="Alle Apps">
-              <LayoutGrid size={21} />
-              <span style={{ fontSize: 9.5, fontWeight: 700 }}>Apps</span>
-            </a>
+            {/* Kunden-Logins (09.10.): «Apps» nur bei mehr als einer freien App. */}
+            {(role !== "viewer" || PORTAL_RAIL_APPS.filter((id) => canOpen(id)).length > 1) && (
+              <a
+                href="/apps"
+                style={{ ...tabBtn(false), textDecoration: "none" }}
+                title="Alle Apps"
+              >
+                <LayoutGrid size={21} />
+                <span style={{ fontSize: 9.5, fontWeight: 700 }}>Apps</span>
+              </a>
+            )}
           </nav>
           {/* EzyPilot-Popup (identisch zu den anderen Apps, Volkan 13.08.). */}
           <EzyPilotPopup />

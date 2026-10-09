@@ -67,7 +67,7 @@ import { HexGlowLayer } from "@/ezy/HexGlow";
 import { EzyOneMark } from "@/components/ezy-one-mark";
 import { AppVersionBadge } from "@/ezy/AppVersionBadge";
 import { ClientAvatar } from "@/ezy/ClientAvatar";
-import { nurTeam } from "@/ezy/data/kundenZugriff";
+import { nurTeam, PORTAL_RAIL_APPS } from "@/ezy/data/kundenZugriff";
 import { useEzyDefaults } from "@/ezy/data/useEzyDefaults";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
 import { useEzyContent } from "@/ezy/data/useEzyContent";
@@ -8072,15 +8072,20 @@ function App({ appScope = null }) {
                 on: () => setPage(n.id),
                 active: page === n.id,
               })),
-              {
-                id: "__apps",
-                label: "Apps",
-                Icon: LayoutGrid,
-                on: () => {
-                  window.location.href = "/apps";
-                },
-                active: false,
-              },
+              // Kunden-Logins (09.10.): «Apps» nur, wenn mehr als eine App frei ist.
+              ...(!isViewer || PORTAL_RAIL_APPS.filter((id) => appAccess.canOpen(id)).length > 1
+                ? [
+                    {
+                      id: "__apps",
+                      label: "Apps",
+                      Icon: LayoutGrid,
+                      on: () => {
+                        window.location.href = "/apps";
+                      },
+                      active: false,
+                    },
+                  ]
+                : []),
             ].map((t) => (
               <button
                 key={t.id}
