@@ -4,7 +4,9 @@
 // verhindern — dann wird einfach live gerechnet.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
-export const UEBERSICHT_CACHE_MS = 60 * 60 * 1000;
+// 70 min: der stündliche Vorwärm-Job (pg_cron ezy-uebersicht-warm) erneuert
+// die Einträge, bevor sie ablaufen — die Übersicht trifft nie auf eine Lücke.
+export const UEBERSICHT_CACHE_MS = 70 * 60 * 1000;
 const AUFRAEUMEN_MS = 2 * 24 * 60 * 60 * 1000;
 const SPEICHER_MS = 5 * 60 * 1000;
 

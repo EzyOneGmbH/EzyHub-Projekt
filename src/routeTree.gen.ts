@@ -107,6 +107,7 @@ import { Route as ApiAdminSystemCheckRouteImport } from './routes/api/admin.syst
 import { Route as ApiAdminTeamRouteImport } from './routes/api/admin.team'
 import { Route as ApiAdminTechDetectRouteImport } from './routes/api/admin.tech-detect'
 import { Route as ApiAdminTrafficOverviewRouteImport } from './routes/api/admin.traffic-overview'
+import { Route as ApiAdminUebersichtWarmRouteImport } from './routes/api/admin.uebersicht-warm'
 import { Route as ApiAdminWpDeployRouteImport } from './routes/api/admin.wp-deploy'
 import { Route as ApiAdminWpPublishRouteImport } from './routes/api/admin.wp-publish'
 import { Route as ApiAgentAgentsRouteImport } from './routes/api/agent.agents'
@@ -135,8 +136,8 @@ import { Route as ApiGoogleAdsAutopilotDecideRouteImport } from './routes/api/go
 import { Route as ApiGoogleAdsAutopilotRunRouteImport } from './routes/api/google.ads-autopilot-run'
 import { Route as ApiGoogleAdsCustomersRouteImport } from './routes/api/google.ads-customers'
 import { Route as ApiGoogleAdsDataRouteImport } from './routes/api/google.ads-data'
-import { Route as ApiGoogleAdsOverviewRouteImport } from './routes/api/google.ads-overview'
 import { Route as ApiGoogleAdsKanaeleRouteImport } from './routes/api/google.ads-kanaele'
+import { Route as ApiGoogleAdsOverviewRouteImport } from './routes/api/google.ads-overview'
 import { Route as ApiGoogleAdsRecommendationStatusRouteImport } from './routes/api/google.ads-recommendation-status'
 import { Route as ApiGoogleCallbackRouteImport } from './routes/api/google.callback'
 import { Route as ApiGoogleConnectionRouteImport } from './routes/api/google.connection'
@@ -680,6 +681,11 @@ const ApiAdminTrafficOverviewRoute = ApiAdminTrafficOverviewRouteImport.update({
   path: '/api/admin/traffic-overview',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminUebersichtWarmRoute = ApiAdminUebersichtWarmRouteImport.update({
+  id: '/api/admin/uebersicht-warm',
+  path: '/api/admin/uebersicht-warm',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminWpDeployRoute = ApiAdminWpDeployRouteImport.update({
   id: '/api/admin/wp-deploy',
   path: '/api/admin/wp-deploy',
@@ -823,14 +829,14 @@ const ApiGoogleAdsDataRoute = ApiGoogleAdsDataRouteImport.update({
   path: '/api/google/ads-data',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiGoogleAdsOverviewRoute = ApiGoogleAdsOverviewRouteImport.update({
-  id: '/api/google/ads-overview',
-  path: '/api/google/ads-overview',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiGoogleAdsKanaeleRoute = ApiGoogleAdsKanaeleRouteImport.update({
   id: '/api/google/ads-kanaele',
   path: '/api/google/ads-kanaele',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiGoogleAdsOverviewRoute = ApiGoogleAdsOverviewRouteImport.update({
+  id: '/api/google/ads-overview',
+  path: '/api/google/ads-overview',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiGoogleAdsRecommendationStatusRoute =
@@ -1100,6 +1106,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/team': typeof ApiAdminTeamRoute
   '/api/admin/tech-detect': typeof ApiAdminTechDetectRoute
   '/api/admin/traffic-overview': typeof ApiAdminTrafficOverviewRoute
+  '/api/admin/uebersicht-warm': typeof ApiAdminUebersichtWarmRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
@@ -1128,8 +1135,8 @@ export interface FileRoutesByFullPath {
   '/api/google/ads-autopilot-run': typeof ApiGoogleAdsAutopilotRunRoute
   '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
   '/api/google/ads-data': typeof ApiGoogleAdsDataRoute
-  '/api/google/ads-overview': typeof ApiGoogleAdsOverviewRoute
   '/api/google/ads-kanaele': typeof ApiGoogleAdsKanaeleRoute
+  '/api/google/ads-overview': typeof ApiGoogleAdsOverviewRoute
   '/api/google/ads-recommendation-status': typeof ApiGoogleAdsRecommendationStatusRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
@@ -1262,6 +1269,7 @@ export interface FileRoutesByTo {
   '/api/admin/team': typeof ApiAdminTeamRoute
   '/api/admin/tech-detect': typeof ApiAdminTechDetectRoute
   '/api/admin/traffic-overview': typeof ApiAdminTrafficOverviewRoute
+  '/api/admin/uebersicht-warm': typeof ApiAdminUebersichtWarmRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
@@ -1290,8 +1298,8 @@ export interface FileRoutesByTo {
   '/api/google/ads-autopilot-run': typeof ApiGoogleAdsAutopilotRunRoute
   '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
   '/api/google/ads-data': typeof ApiGoogleAdsDataRoute
-  '/api/google/ads-overview': typeof ApiGoogleAdsOverviewRoute
   '/api/google/ads-kanaele': typeof ApiGoogleAdsKanaeleRoute
+  '/api/google/ads-overview': typeof ApiGoogleAdsOverviewRoute
   '/api/google/ads-recommendation-status': typeof ApiGoogleAdsRecommendationStatusRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
@@ -1425,6 +1433,7 @@ export interface FileRoutesById {
   '/api/admin/team': typeof ApiAdminTeamRoute
   '/api/admin/tech-detect': typeof ApiAdminTechDetectRoute
   '/api/admin/traffic-overview': typeof ApiAdminTrafficOverviewRoute
+  '/api/admin/uebersicht-warm': typeof ApiAdminUebersichtWarmRoute
   '/api/admin/wp-deploy': typeof ApiAdminWpDeployRoute
   '/api/admin/wp-publish': typeof ApiAdminWpPublishRoute
   '/api/agent/agents': typeof ApiAgentAgentsRoute
@@ -1453,8 +1462,8 @@ export interface FileRoutesById {
   '/api/google/ads-autopilot-run': typeof ApiGoogleAdsAutopilotRunRoute
   '/api/google/ads-customers': typeof ApiGoogleAdsCustomersRoute
   '/api/google/ads-data': typeof ApiGoogleAdsDataRoute
-  '/api/google/ads-overview': typeof ApiGoogleAdsOverviewRoute
   '/api/google/ads-kanaele': typeof ApiGoogleAdsKanaeleRoute
+  '/api/google/ads-overview': typeof ApiGoogleAdsOverviewRoute
   '/api/google/ads-recommendation-status': typeof ApiGoogleAdsRecommendationStatusRoute
   '/api/google/callback': typeof ApiGoogleCallbackRoute
   '/api/google/connection': typeof ApiGoogleConnectionRoute
@@ -1589,6 +1598,7 @@ export interface FileRouteTypes {
     | '/api/admin/team'
     | '/api/admin/tech-detect'
     | '/api/admin/traffic-overview'
+    | '/api/admin/uebersicht-warm'
     | '/api/admin/wp-deploy'
     | '/api/admin/wp-publish'
     | '/api/agent/agents'
@@ -1617,8 +1627,8 @@ export interface FileRouteTypes {
     | '/api/google/ads-autopilot-run'
     | '/api/google/ads-customers'
     | '/api/google/ads-data'
-    | '/api/google/ads-overview'
     | '/api/google/ads-kanaele'
+    | '/api/google/ads-overview'
     | '/api/google/ads-recommendation-status'
     | '/api/google/callback'
     | '/api/google/connection'
@@ -1751,6 +1761,7 @@ export interface FileRouteTypes {
     | '/api/admin/team'
     | '/api/admin/tech-detect'
     | '/api/admin/traffic-overview'
+    | '/api/admin/uebersicht-warm'
     | '/api/admin/wp-deploy'
     | '/api/admin/wp-publish'
     | '/api/agent/agents'
@@ -1779,8 +1790,8 @@ export interface FileRouteTypes {
     | '/api/google/ads-autopilot-run'
     | '/api/google/ads-customers'
     | '/api/google/ads-data'
-    | '/api/google/ads-overview'
     | '/api/google/ads-kanaele'
+    | '/api/google/ads-overview'
     | '/api/google/ads-recommendation-status'
     | '/api/google/callback'
     | '/api/google/connection'
@@ -1913,6 +1924,7 @@ export interface FileRouteTypes {
     | '/api/admin/team'
     | '/api/admin/tech-detect'
     | '/api/admin/traffic-overview'
+    | '/api/admin/uebersicht-warm'
     | '/api/admin/wp-deploy'
     | '/api/admin/wp-publish'
     | '/api/agent/agents'
@@ -1941,8 +1953,8 @@ export interface FileRouteTypes {
     | '/api/google/ads-autopilot-run'
     | '/api/google/ads-customers'
     | '/api/google/ads-data'
-    | '/api/google/ads-overview'
     | '/api/google/ads-kanaele'
+    | '/api/google/ads-overview'
     | '/api/google/ads-recommendation-status'
     | '/api/google/callback'
     | '/api/google/connection'
@@ -2071,6 +2083,7 @@ export interface RootRouteChildren {
   ApiAdminTeamRoute: typeof ApiAdminTeamRoute
   ApiAdminTechDetectRoute: typeof ApiAdminTechDetectRoute
   ApiAdminTrafficOverviewRoute: typeof ApiAdminTrafficOverviewRoute
+  ApiAdminUebersichtWarmRoute: typeof ApiAdminUebersichtWarmRoute
   ApiAdminWpDeployRoute: typeof ApiAdminWpDeployRoute
   ApiAdminWpPublishRoute: typeof ApiAdminWpPublishRoute
   ApiAgentAgentsRoute: typeof ApiAgentAgentsRoute
@@ -2099,8 +2112,8 @@ export interface RootRouteChildren {
   ApiGoogleAdsAutopilotRunRoute: typeof ApiGoogleAdsAutopilotRunRoute
   ApiGoogleAdsCustomersRoute: typeof ApiGoogleAdsCustomersRoute
   ApiGoogleAdsDataRoute: typeof ApiGoogleAdsDataRoute
-  ApiGoogleAdsOverviewRoute: typeof ApiGoogleAdsOverviewRoute
   ApiGoogleAdsKanaeleRoute: typeof ApiGoogleAdsKanaeleRoute
+  ApiGoogleAdsOverviewRoute: typeof ApiGoogleAdsOverviewRoute
   ApiGoogleAdsRecommendationStatusRoute: typeof ApiGoogleAdsRecommendationStatusRoute
   ApiGoogleCallbackRoute: typeof ApiGoogleCallbackRoute
   ApiGoogleConnectionRoute: typeof ApiGoogleConnectionRoute
@@ -2818,6 +2831,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminTrafficOverviewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/uebersicht-warm': {
+      id: '/api/admin/uebersicht-warm'
+      path: '/api/admin/uebersicht-warm'
+      fullPath: '/api/admin/uebersicht-warm'
+      preLoaderRoute: typeof ApiAdminUebersichtWarmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/wp-deploy': {
       id: '/api/admin/wp-deploy'
       path: '/api/admin/wp-deploy'
@@ -3014,18 +3034,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGoogleAdsDataRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/google/ads-overview': {
-      id: '/api/google/ads-overview'
-      path: '/api/google/ads-overview'
-      fullPath: '/api/google/ads-overview'
-      preLoaderRoute: typeof ApiGoogleAdsOverviewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/google/ads-kanaele': {
       id: '/api/google/ads-kanaele'
       path: '/api/google/ads-kanaele'
       fullPath: '/api/google/ads-kanaele'
       preLoaderRoute: typeof ApiGoogleAdsKanaeleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/google/ads-overview': {
+      id: '/api/google/ads-overview'
+      path: '/api/google/ads-overview'
+      fullPath: '/api/google/ads-overview'
+      preLoaderRoute: typeof ApiGoogleAdsOverviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/google/ads-recommendation-status': {
@@ -3427,6 +3447,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminTeamRoute: ApiAdminTeamRoute,
   ApiAdminTechDetectRoute: ApiAdminTechDetectRoute,
   ApiAdminTrafficOverviewRoute: ApiAdminTrafficOverviewRoute,
+  ApiAdminUebersichtWarmRoute: ApiAdminUebersichtWarmRoute,
   ApiAdminWpDeployRoute: ApiAdminWpDeployRoute,
   ApiAdminWpPublishRoute: ApiAdminWpPublishRoute,
   ApiAgentAgentsRoute: ApiAgentAgentsRoute,
@@ -3455,8 +3476,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGoogleAdsAutopilotRunRoute: ApiGoogleAdsAutopilotRunRoute,
   ApiGoogleAdsCustomersRoute: ApiGoogleAdsCustomersRoute,
   ApiGoogleAdsDataRoute: ApiGoogleAdsDataRoute,
-  ApiGoogleAdsOverviewRoute: ApiGoogleAdsOverviewRoute,
   ApiGoogleAdsKanaeleRoute: ApiGoogleAdsKanaeleRoute,
+  ApiGoogleAdsOverviewRoute: ApiGoogleAdsOverviewRoute,
   ApiGoogleAdsRecommendationStatusRoute: ApiGoogleAdsRecommendationStatusRoute,
   ApiGoogleCallbackRoute: ApiGoogleCallbackRoute,
   ApiGoogleConnectionRoute: ApiGoogleConnectionRoute,

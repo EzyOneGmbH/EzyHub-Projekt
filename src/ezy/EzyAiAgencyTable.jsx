@@ -3,7 +3,7 @@
 // Tabelle mit Zeitraum/Vergleich aus der Kopfzeile — je eine Konfiguration
 // fuer Organic (KI-Besucher, KI-Conversions, KI-Sichtbarkeit) und Ads
 // (ChatGPT Ads + GA4 chatgpt / cpc). Daten: /api/admin/aivis-overview.
-import { cacheGet, cachePut } from "./data/rangeStore";
+import { cacheGet, cachePut, useStuendlich } from "./data/rangeStore";
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, Download, Search } from "lucide-react";
 import { ezyFetch } from "@/ezy/data/api";
@@ -287,6 +287,7 @@ export function EzyAiAgencyTable({
     .filter(Boolean)
     .join(",");
   const ids = useMemo(() => (idsKey ? idsKey.split(",") : []), [idsKey]);
+  const stunde = useStuendlich(); // stündlich still neu laden (11.10.)
   const startDate = dateRange?.start ? ymd(dateRange.start) : null;
   const endDate = dateRange?.end ? ymd(dateRange.end) : null;
   const compareStart = dateRange?.compare?.start ? ymd(dateRange.compare.start) : null;
@@ -343,7 +344,7 @@ export function EzyAiAgencyTable({
     return () => {
       alive = false;
     };
-  }, [ids, idsKey, mode, startDate, endDate, compareStart, compareEnd]);
+  }, [ids, idsKey, mode, startDate, endDate, compareStart, compareEnd, stunde]);
 
   useEffect(() => setPage(0), [query, filter, sort, ids, mode]);
 

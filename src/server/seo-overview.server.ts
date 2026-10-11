@@ -198,10 +198,14 @@ export async function fetchSeoOverviewZeile(
   kunde: SeoOverviewKunde,
   fenster: { aktuell: Zeitraum; vorher: Zeitraum },
   googleErlaubt: boolean,
+  opts: { frisch?: boolean } = {},
 ): Promise<SeoOverviewZeile> {
   const { aktuell, vorher } = fenster;
   const key = `${kunde.id}|${aktuell.startDate}|${aktuell.endDate}|${vorher.startDate}|${vorher.endDate}`;
-  const hit = await cacheLesen<SeoOverviewZeile>("seo", `${key}|${googleErlaubt ? 1 : 0}`);
+  // frisch: stündliches Vorwärmen rechnet immer neu und überschreibt den Speicher.
+  const hit = opts.frisch
+    ? null
+    : await cacheLesen<SeoOverviewZeile>("seo", `${key}|${googleErlaubt ? 1 : 0}`);
   if (hit) return hit;
 
   const cur: SeoKennzahlen = { ...LEER };

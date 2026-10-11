@@ -2,7 +2,7 @@
 // AdsAgencyTable): alle SEO-Kunden in einer Tabelle mit Zeitraum/Vergleich aus
 // der Kopfzeile. Traffic = GA4 «Organic Search» (Fallback Search Console),
 // Top 3 / Top 10 aus dem Rankings-Lauf, Visibility Index aus Sistrix (CH).
-import { cacheGet, cachePut } from "./data/rangeStore";
+import { cacheGet, cachePut, useStuendlich } from "./data/rangeStore";
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, Download, Search } from "lucide-react";
 import { ezyFetch } from "@/ezy/data/api";
@@ -157,6 +157,7 @@ export function SeoAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
     .filter(Boolean)
     .join(",");
   const ids = useMemo(() => (idsKey ? idsKey.split(",") : []), [idsKey]);
+  const stunde = useStuendlich(); // stündlich still neu laden (11.10.)
   const startDate = dateRange?.start ? ymd(dateRange.start) : null;
   const endDate = dateRange?.end ? ymd(dateRange.end) : null;
   const compareStart = dateRange?.compare?.start ? ymd(dateRange.compare.start) : null;
@@ -209,7 +210,7 @@ export function SeoAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
     return () => {
       alive = false;
     };
-  }, [ids, idsKey, startDate, endDate, compareStart, compareEnd]);
+  }, [ids, idsKey, startDate, endDate, compareStart, compareEnd, stunde]);
 
   useEffect(() => setPage(0), [query, filter, sort, ids]);
 

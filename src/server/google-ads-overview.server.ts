@@ -81,10 +81,13 @@ export async function fetchAdsOverviewZeile(
   googleAdsCustomer: string | null | undefined,
   range: AdsZeitraum,
   compareRange?: { start: string; end: string } | null,
+  opts: { frisch?: boolean } = {},
 ): Promise<OverviewZeile> {
   const { aktuell, vorher } = adsFenster(range, compareRange);
   const key = `${clientId}|${aktuell.startDate}|${aktuell.endDate}|${vorher.startDate}|${vorher.endDate}`;
-  const hit = await cacheLesen<OverviewZeile>("ads", `${key}|${googleAdsCustomer ?? ""}`);
+  const hit = opts.frisch
+    ? null
+    : await cacheLesen<OverviewZeile>("ads", `${key}|${googleAdsCustomer ?? ""}`);
   if (hit) return hit;
 
   const fehler = (error: string): OverviewZeile => ({ clientId, cur: null, prev: null, error });

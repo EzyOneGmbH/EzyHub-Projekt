@@ -273,3 +273,31 @@ export function useRangeData<T>(
 
   return { data, loading, refresh: () => setTick((t) => t + 1) };
 }
+
+/**
+ * Stündlicher Takt (11.10.2026, Volkan: «Übersicht alle Stunde aktualisieren»):
+ * zählt jede Stunde hoch — und sofort, wenn ein im Hintergrund liegender Tab
+ * nach über einer Stunde wieder sichtbar wird. Als Effekt-Abhängigkeit genutzt,
+ * lädt eine offene Übersicht still neu (der gespeicherte Stand bleibt im Bild).
+ */
+export const STUNDE_MS = 60 * 60 * 1000;
+export function useStuendlich(): number {
+  const [takt, setTakt] = useState(0);
+  useEffect(() => {
+    let zuletzt = Date.now();
+    const weiter = () => {
+      zuletzt = Date.now();
+      setTakt((t) => t + 1);
+    };
+    const id = setInterval(weiter, STUNDE_MS);
+    const sichtbar = () => {
+      if (document.visibilityState === "visible" && Date.now() - zuletzt >= STUNDE_MS) weiter();
+    };
+    document.addEventListener("visibilitychange", sichtbar);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", sichtbar);
+    };
+  }, []);
+  return takt;
+}

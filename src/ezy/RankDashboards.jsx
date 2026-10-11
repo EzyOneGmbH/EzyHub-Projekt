@@ -1,7 +1,7 @@
 // EzyRank-Dashboards (aus EzyOneApp.jsx extrahiert, 21.08.2026 — reines
 // Verschieben): Agentur-Uebersicht, SEO/GEO/Conversions/Overview-Dashboards,
 // KI-Sichtbarkeit (Makro) und Onboarding-Scan-Panel.
-import { cacheGet, cachePut } from "./data/rangeStore";
+import { cacheGet, cachePut, useStuendlich } from "./data/rangeStore";
 import { organischerBreakdown } from "@/lib/convEvents";
 import { vorperiode } from "@/lib/date-range";
 import { besucheLand, landName, laenderImZeitraum, laenderMitTraffic } from "@/lib/seoHistLaender";
@@ -194,6 +194,7 @@ export function AgencyOverview({
     .filter((id) => /^[0-9a-f-]{36}$/i.test(id))
     .sort()
     .join(",");
+  const stunde = useStuendlich(); // Kacheln stündlich still neu laden (11.10.)
   useEffect(() => {
     let alive = true;
     const ids = idsKey ? idsKey.split(",") : [];
@@ -280,7 +281,7 @@ export function AgencyOverview({
     return () => {
       alive = false;
     };
-  }, [idsKey, isAds]);
+  }, [idsKey, isAds, stunde]);
   // Kacheln alphabetisch — Kundenreihenfolge ist überall gleich (Volkan 13.08.).
   const tiles = [...clients].sort((a, b) =>
     String(a.name).localeCompare(String(b.name), "de-CH", { sensitivity: "base" }),

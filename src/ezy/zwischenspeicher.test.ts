@@ -47,3 +47,18 @@ describe("Server-Zwischenspeicher: nur vollständige Zeilen", () => {
     expect(seoZeileSpeicherbar({ hinweise: [], error: "x" })).toBe(false);
   });
 });
+
+describe("Stündliches Vorwärmen: Zeitfenster wie im Browser", () => {
+  it("letzte N Tage inklusive heute, auch über Monatsgrenzen", async () => {
+    const { fensterLetzteTage } = await import("@/server/uebersicht-vorwaermen.server");
+    expect(fensterLetzteTage(30, "2026-10-11")).toEqual({
+      startDate: "2026-09-12",
+      endDate: "2026-10-11",
+    });
+    expect(fensterLetzteTage(7, "2026-03-03")).toEqual({
+      startDate: "2026-02-25",
+      endDate: "2026-03-03",
+    });
+    expect(fensterLetzteTage(1, "2026-10-11").startDate).toBe("2026-10-11");
+  });
+});
