@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
@@ -13,7 +14,7 @@ import {
   normalizeDomain,
 } from "@/server/backlink-overview.server";
 import { fetchKeywordMetrics } from "@/server/keyword-metrics.server";
-import { zeitraum, ga4DateRange, type Zeitraum } from "@/lib/date-range";
+import { zeitraum, ga4DateRange, type Zeitraum, heuteYmdZuerich } from "@/lib/date-range";
 import { sistrixLandVon } from "@/lib/sistrixLand";
 import {
   breakdownJeKanal,
@@ -80,6 +81,10 @@ const Body = z.object({
   minIntervalHours: z.number().min(0).max(168).default(0),
   force: z.boolean().optional(), // ignore the freshness guard
   debug: z.boolean().optional(), // return diagnostics instead of running jobs
+  // Stündlicher Gratis-Takt (11.10.2026): heutigen Lauf je Kunde/Messart
+  // AKTUALISIEREN statt eine neue Zeile anzulegen (1 Zeile pro Tag), kein
+  // n8n-Heartbeat (Execution-Limit).
+  ersetzeHeute: z.boolean().optional(),
 });
 
 // audit_type written by each job (for the freshness guard).
@@ -175,7 +180,47 @@ async function ownerOf(orgId: string): Promise<string | null> {
   const o = (data || []).find((r: any) => ["owner", "admin"].includes(r.role)) || (data || [])[0];
   return (o as any)?.user_id || null;
 }
+// Schreibmodus je Anfrage (stündlicher Gratis-Takt): AsyncLocalStorage statt
+// Modul-Variable, weil eine Worker-Instanz mehrere Anfragen parallel bedient.
+const schreibModus = new AsyncLocalStorage<{ ersetzeHeute: boolean }>();
+
+/** Beginn des heutigen Tages in Schweizer Zeit als ISO-Zeitpunkt (UTC). */
+export function zuerichTagesbeginnIso(jetzt: Date = new Date()): string {
+  const [y, m, d] = heuteYmdZuerich(jetzt.getTime()).split("-").map(Number);
+  const utcMitternacht = Date.UTC(y, m - 1, d);
+  const ref = new Date(utcMitternacht);
+  const zh = new Date(ref.toLocaleString("en-US", { timeZone: "Europe/Zurich" }));
+  const utc = new Date(ref.toLocaleString("en-US", { timeZone: "UTC" }));
+  return new Date(utcMitternacht - (zh.getTime() - utc.getTime())).toISOString();
+}
+
 async function insertRun(row: Record<string, unknown>) {
+  if (schreibModus.getStore()?.ersetzeHeute && row.status === "succeeded") {
+    const { data: heute } = await supabaseAdmin
+      .from("audit_runs")
+      .select("id")
+      .eq("client_id", row.client_id as string)
+      .eq("audit_type", row.audit_type as string)
+      .eq("status", "succeeded")
+      .gte("created_at", zuerichTagesbeginnIso())
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if ((heute as { id?: string } | null)?.id) {
+      const jetzt = nowIso();
+      await supabaseAdmin
+        .from("audit_runs")
+        .update({
+          result: row.result,
+          input: row.input,
+          started_at: (row.started_at as string) ?? jetzt,
+          finished_at: (row.finished_at as string) ?? jetzt,
+          created_at: jetzt,
+        } as never)
+        .eq("id", (heute as { id: string }).id);
+      return;
+    }
+  }
   await supabaseAdmin.from("audit_runs").insert(row as never);
 }
 
@@ -1422,272 +1467,269 @@ export const Route = createFileRoute("/api/admin/populate")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const secret = process.env.ADMIN_AUTOMATION_SECRET;
-        if (!secret)
-          return Response.json(
-            { ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" },
-            { status: 503 },
-          );
-        if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
-          return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-
-        const parsed = Body.safeParse(await request.json().catch(() => ({})));
-        if (!parsed.success)
-          return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
-        const {
-          client: sel,
-          all,
-          jobs,
-          days,
-          runGeo,
-          geoSlug,
-          minIntervalHours,
-          force,
-        } = parsed.data;
-        const wanted =
-          jobs && jobs.length
-            ? jobs
-            : ([
-                "ahrefs",
-                "pagespeed",
-                "gsc",
-                "gsc_queries",
-                "seo_history",
-                "ga4",
-                "ga4_traffic",
-                "ga4_conversions",
-                "ai_visibility",
-              ] as const);
-
-        // select("*"): tolerant gegenueber noch nicht applizierter Migration
-        // (brand_terms/revenue_mode) — Deploy-Reihenfolge darf den 12h-Cron nie brechen.
-        const query = supabaseAdmin.from("clients").select("*");
-        let clients: any[] = [];
-        // Pausierte Kunden (Admin-Status "paused") nehmen an Sammel-Läufen
-        // nicht teil (Volkan 27.08.: deaktivieren statt löschen).
-        if (all)
-          clients = ((await query).data || []).filter(
-            (c: any) => (c?.metadata ?? {})?.status !== "paused",
-          );
-        else if (sel && isUuid(sel)) clients = (await query.eq("id", sel)).data || [];
-        else if (sel) clients = (await query.ilike("name", `%${sel}%`)).data || [];
-        else
-          return Response.json(
-            { ok: false, error: "client oder all erforderlich" },
-            { status: 400 },
-          );
-        if (!clients.length)
-          return Response.json({ ok: false, error: "Kein Kunde gefunden" }, { status: 404 });
-
-        // App-Freischaltung je Kunde (Volkan 09.09.2026: «nur Kunden updaten,
-        // die im EzyRank auch verfuegbar sind» — z. B. Morosani Posthotel/
-        // Schweizerhof/fiftyone sind reine EzyPerformance-Kunden). Semantik wie
-        // appEnabledFor: keine Zeile = frei, enabled=false = gesperrt. Gilt nur
-        // fuer Sammel-Laeufe (all:true); gezielte Einzelaufrufe bleiben frei.
-        const appOff = new Map<string, Set<string>>();
-        if (all) {
-          try {
-            const { data: caa } = await supabaseAdmin
-              .from("client_app_access")
-              .select("client_id, app, enabled")
-              .in("app", ["seo", "geo"]);
-            for (const r of (caa || []) as any[]) {
-              if (r.enabled === false) {
-                if (!appOff.has(r.client_id)) appOff.set(r.client_id, new Set());
-                appOff.get(r.client_id)!.add(String(r.app));
-              }
-            }
-          } catch {
-            /* Tabelle optional — dann alle Apps frei (Legacy) */
-          }
-        }
-        const SEO_JOBS = new Set(["ahrefs", "pagespeed", "gsc", "gsc_queries", "seo_history"]);
-        // GA4-Schnappschuesse (23.09.2026): braucht EzyRank UND EzyAI — der
-        // Conversions-Tab, der Traffic-Tab und die Agentur-Kacheln von EzyAI
-        // lesen ga4_traffic/ga4_conversions. Seit 09.09. hingen sie am
-        // EzyRank-Gate; EzyAI-only-Kunden (Gasser, Bomatec, Visionary, …)
-        // bekamen zwei Wochen keine GA4-Daten mehr. Jetzt: nur gesperrt, wenn
-        // BEIDE Apps aus sind.
-        const GA4_JOBS = new Set(["ga4", "ga4_traffic", "ga4_conversions"]);
-        const jobGesperrt = (clientId: string, job: string): string | null => {
-          const off = appOff.get(clientId);
-          if (!off) return null;
-          if (off.has("seo") && SEO_JOBS.has(job)) return "nicht in EzyRank (App-Zugriff aus)";
-          if (off.has("seo") && off.has("geo") && GA4_JOBS.has(job))
-            return "weder in EzyRank noch in EzyAI (App-Zugriff aus)";
-          if (off.has("geo") && job === "ai_visibility") return "nicht in EzyAI (App-Zugriff aus)";
-          return null;
-        };
-
-        // --- Diagnostics: why is a dashboard empty? ---
-        if (parsed.data.debug) {
-          const cBase = process.env.CANONRY_BASE_URL;
-          const cKey = process.env.CANONRY_API_KEY;
-          const dbg: any[] = [];
-          for (const c of clients) {
-            const d: any = {
-              client: c.name,
-              domain: c.domain,
-              canonry_project: c.canonry_project ?? null,
-              gsc_property: c.gsc_property ?? null,
-              ga4_property: c.ga4_property ?? null,
-              google_ads_customer: c.google_ads_customer ?? null,
-              canonryEnv: { baseSet: !!cBase, keySet: !!cKey },
-            };
-            if (cBase && cKey && c.canonry_project) {
-              try {
-                const root = normalizeCanonryBase(cBase);
-                const r = await fetch(`${root}/projects/${encodeURIComponent(c.canonry_project)}`, {
-                  headers: { Authorization: `Bearer ${cKey}`, Accept: "application/json" },
-                  signal: AbortSignal.timeout(10_000),
-                });
-                d.canonryProjectFetch = { status: r.status, ok: r.ok };
-                if (!r.ok)
-                  d.canonryProjectFetch.body = redactSecrets(
-                    (await r.text().catch(() => "")).slice(0, 150),
-                  );
-              } catch (e) {
-                d.canonryProjectFetch = { error: redactSecrets(e) };
-              }
-            }
-            try {
-              const { data: ar } = await supabaseAdmin
-                .from("audit_runs")
-                .select("audit_type, created_at")
-                .eq("client_id", c.id)
-                .order("created_at", { ascending: false })
-                .limit(8);
-              d.recentAuditRuns = (ar || []).map((x: any) => x.audit_type);
-            } catch (e) {
-              d.recentAuditRuns = redactSecrets(e);
-            }
-            dbg.push(d);
-          }
-          return Response.json({ ok: true, debug: dbg });
-        }
-
-        const results: any[] = [];
-        let metaOk = 0;
-        let metaFail = 0;
-        for (const c of clients) {
-          const clientStartedAt = nowIso();
-          const uid = await ownerOf(c.organization_id);
-          const jr: Record<string, unknown> = {};
-          if (!uid) {
-            results.push({ client: c.name, error: "Kein Org-User für triggered_by" });
-            continue;
-          }
-          for (const j of wanted) {
-            try {
-              const gesperrt = jobGesperrt(c.id, j);
-              if (gesperrt) {
-                jr[j] = { skipped: gesperrt };
-                continue;
-              }
-              // Freshness guard: skip data jobs that ran recently (avoids double-spend
-              // when more than one 12h trigger fires). geo is guarded by its own sweep.
-              const at = JOB_AUDIT_TYPE[j];
-              if (at && !force && (await ranWithin(c.id, at, minIntervalHours))) {
-                jr[j] = { skipped: "fresh" };
-                continue;
-              }
-              if (j === "ahrefs") jr.ahrefs = await jobAhrefs(c, uid);
-              else if (j === "pagespeed") jr.pagespeed = await jobPagespeed(c, uid, days);
-              else if (j === "gsc") jr.gsc = await jobGsc(c, uid, days);
-              else if (j === "gsc_queries")
-                jr.gsc_queries = await jobGscQueries(c, uid, days, force);
-              else if (j === "seo_history") jr.seo_history = await jobSeoHistory(c, uid, force);
-              else if (j === "ga4") jr.ga4 = await jobGa4(c, uid, days);
-              else if (j === "ga4_traffic") jr.ga4_traffic = await jobGa4Traffic(c, uid, days);
-              else if (j === "ga4_conversions")
-                jr.ga4_conversions = await jobGa4Conversions(c, uid, days);
-              else if (j === "ai_visibility") jr.ai_visibility = await jobAiVisibility(c, uid);
-              else if (j === "google_ads") jr.google_ads = await jobGoogleAds(c, uid, days);
-              else if (j === "awork_tasks") jr.awork_tasks = await jobAworkTasks(c, uid);
-              else if (j === "geo") jr.geo = await jobGeo(c, { runGeo, geoSlug });
-            } catch (e) {
-              jr[j] = { error: redactSecrets(e) };
-            }
-          }
-          // WP4/A4.1 (Dashboard-Ausbau): Frische-Metadaten je Lauf — auch bei
-          // Teilfehlern. Quelle -> ok | fail | skipped (+ ts, kurzer Fehler).
-          try {
-            const srcOf = (v: any, extra?: Record<string, unknown>) => {
-              if (!v) return { status: "skipped" as const, ts: nowIso() };
-              if (v.error)
-                return {
-                  status: "fail" as const,
-                  error: String(v.error).slice(0, 160),
-                  ts: nowIso(),
-                };
-              if (v.skipped)
-                return {
-                  status: "skipped" as const,
-                  note: String(v.skipped).slice(0, 80),
-                  ts: nowIso(),
-                };
-              return { status: "ok" as const, ts: nowIso(), ...(extra || {}) };
-            };
-            const cruxOrigin = (jr.pagespeed as any)?.dataOrigin;
-            const sources: Record<string, unknown> = {
-              ahrefs: srcOf(jr.ahrefs),
-              gsc: srcOf(jr.gsc),
-              gsc_queries: srcOf(jr.gsc_queries),
-              crux: srcOf(jr.pagespeed, cruxOrigin ? { dataOrigin: cruxOrigin } : undefined),
-              ga4: srcOf(jr.ga4),
-              ga4_traffic: srcOf(jr.ga4_traffic),
-              ga4_conversions: srcOf(jr.ga4_conversions),
-              canonry: srcOf(jr.ai_visibility),
-            };
-            for (const s of Object.values(sources) as any[]) {
-              if (s.status === "ok") metaOk++;
-              else if (s.status === "fail") metaFail++;
-            }
-            await insertRun({
-              client_id: c.id,
-              organization_id: c.organization_id,
-              triggered_by: uid,
-              audit_type: "populate_meta",
-              status: "succeeded",
-              input: { jobs: wanted },
-              result: { startedAt: clientStartedAt, finishedAt: nowIso(), sources },
-              started_at: clientStartedAt,
-              finished_at: nowIso(),
-            });
-          } catch {
-            /* Meta-Zeile darf den Lauf nie scheitern lassen */
-          }
-          results.push({ client: c.name, domain: c.domain, jobs: jr });
-        }
-        // WP4/A4.2: Heartbeat an den n8n-Watchdog (5s-Timeout, darf den Lauf nie
-        // scheitern lassen). Secret aus Env; Ergebnis wird zur Diagnose in der
-        // Antwort mitgegeben (sent | no-secret | error:<kurz>).
-        let heartbeat = "no-secret";
-        try {
-          const hbSecret = process.env.N8N_AGENT_WEBHOOK_SECRET;
-          if (hbSecret) {
-            try {
-              const hr = await fetch("https://ezyone.app.n8n.cloud/webhook/agent-heartbeat", {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "X-Ezy-Auth": hbSecret },
-                body: JSON.stringify({
-                  client: "ezyhub",
-                  agent: "populate-job",
-                  status: metaFail > 0 ? "fehler" : "ok",
-                  note: `${metaOk} Quellen ok, ${metaFail} fail`,
-                }),
-                signal: AbortSignal.timeout(5000),
-              });
-              heartbeat = hr.ok ? "sent" : `error:HTTP ${hr.status}`;
-            } catch (e) {
-              heartbeat = `error:${String((e as Error)?.message || e).slice(0, 60)}`;
-            }
-          }
-        } catch {
-          /* nie den Lauf scheitern lassen */
-        }
-        return Response.json({ ok: true, count: clients.length, heartbeat, results });
+        const roh = await request
+          .clone()
+          .json()
+          .catch(() => ({}));
+        return schreibModus.run({ ersetzeHeute: roh?.ersetzeHeute === true }, () =>
+          populateAusfuehren(request),
+        );
       },
     },
   },
 });
+
+async function populateAusfuehren(request: Request): Promise<Response> {
+  const secret = process.env.ADMIN_AUTOMATION_SECRET;
+  if (!secret)
+    return Response.json(
+      { ok: false, error: "ADMIN_AUTOMATION_SECRET not configured" },
+      { status: 503 },
+    );
+  if ((request.headers.get("authorization") || "") !== `Bearer ${secret}`)
+    return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+
+  const parsed = Body.safeParse(await request.json().catch(() => ({})));
+  if (!parsed.success) return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
+  const { client: sel, all, jobs, days, runGeo, geoSlug, minIntervalHours, force } = parsed.data;
+  const wanted =
+    jobs && jobs.length
+      ? jobs
+      : ([
+          "ahrefs",
+          "pagespeed",
+          "gsc",
+          "gsc_queries",
+          "seo_history",
+          "ga4",
+          "ga4_traffic",
+          "ga4_conversions",
+          "ai_visibility",
+        ] as const);
+
+  // select("*"): tolerant gegenueber noch nicht applizierter Migration
+  // (brand_terms/revenue_mode) — Deploy-Reihenfolge darf den 12h-Cron nie brechen.
+  const query = supabaseAdmin.from("clients").select("*");
+  let clients: any[] = [];
+  // Pausierte Kunden (Admin-Status "paused") nehmen an Sammel-Läufen
+  // nicht teil (Volkan 27.08.: deaktivieren statt löschen).
+  if (all)
+    clients = ((await query).data || []).filter(
+      (c: any) => (c?.metadata ?? {})?.status !== "paused",
+    );
+  else if (sel && isUuid(sel)) clients = (await query.eq("id", sel)).data || [];
+  else if (sel) clients = (await query.ilike("name", `%${sel}%`)).data || [];
+  else return Response.json({ ok: false, error: "client oder all erforderlich" }, { status: 400 });
+  if (!clients.length)
+    return Response.json({ ok: false, error: "Kein Kunde gefunden" }, { status: 404 });
+
+  // App-Freischaltung je Kunde (Volkan 09.09.2026: «nur Kunden updaten,
+  // die im EzyRank auch verfuegbar sind» — z. B. Morosani Posthotel/
+  // Schweizerhof/fiftyone sind reine EzyPerformance-Kunden). Semantik wie
+  // appEnabledFor: keine Zeile = frei, enabled=false = gesperrt. Gilt nur
+  // fuer Sammel-Laeufe (all:true); gezielte Einzelaufrufe bleiben frei.
+  const appOff = new Map<string, Set<string>>();
+  if (all) {
+    try {
+      const { data: caa } = await supabaseAdmin
+        .from("client_app_access")
+        .select("client_id, app, enabled")
+        .in("app", ["seo", "geo"]);
+      for (const r of (caa || []) as any[]) {
+        if (r.enabled === false) {
+          if (!appOff.has(r.client_id)) appOff.set(r.client_id, new Set());
+          appOff.get(r.client_id)!.add(String(r.app));
+        }
+      }
+    } catch {
+      /* Tabelle optional — dann alle Apps frei (Legacy) */
+    }
+  }
+  const SEO_JOBS = new Set(["ahrefs", "pagespeed", "gsc", "gsc_queries", "seo_history"]);
+  // GA4-Schnappschuesse (23.09.2026): braucht EzyRank UND EzyAI — der
+  // Conversions-Tab, der Traffic-Tab und die Agentur-Kacheln von EzyAI
+  // lesen ga4_traffic/ga4_conversions. Seit 09.09. hingen sie am
+  // EzyRank-Gate; EzyAI-only-Kunden (Gasser, Bomatec, Visionary, …)
+  // bekamen zwei Wochen keine GA4-Daten mehr. Jetzt: nur gesperrt, wenn
+  // BEIDE Apps aus sind.
+  const GA4_JOBS = new Set(["ga4", "ga4_traffic", "ga4_conversions"]);
+  const jobGesperrt = (clientId: string, job: string): string | null => {
+    const off = appOff.get(clientId);
+    if (!off) return null;
+    if (off.has("seo") && SEO_JOBS.has(job)) return "nicht in EzyRank (App-Zugriff aus)";
+    if (off.has("seo") && off.has("geo") && GA4_JOBS.has(job))
+      return "weder in EzyRank noch in EzyAI (App-Zugriff aus)";
+    if (off.has("geo") && job === "ai_visibility") return "nicht in EzyAI (App-Zugriff aus)";
+    return null;
+  };
+
+  // --- Diagnostics: why is a dashboard empty? ---
+  if (parsed.data.debug) {
+    const cBase = process.env.CANONRY_BASE_URL;
+    const cKey = process.env.CANONRY_API_KEY;
+    const dbg: any[] = [];
+    for (const c of clients) {
+      const d: any = {
+        client: c.name,
+        domain: c.domain,
+        canonry_project: c.canonry_project ?? null,
+        gsc_property: c.gsc_property ?? null,
+        ga4_property: c.ga4_property ?? null,
+        google_ads_customer: c.google_ads_customer ?? null,
+        canonryEnv: { baseSet: !!cBase, keySet: !!cKey },
+      };
+      if (cBase && cKey && c.canonry_project) {
+        try {
+          const root = normalizeCanonryBase(cBase);
+          const r = await fetch(`${root}/projects/${encodeURIComponent(c.canonry_project)}`, {
+            headers: { Authorization: `Bearer ${cKey}`, Accept: "application/json" },
+            signal: AbortSignal.timeout(10_000),
+          });
+          d.canonryProjectFetch = { status: r.status, ok: r.ok };
+          if (!r.ok)
+            d.canonryProjectFetch.body = redactSecrets(
+              (await r.text().catch(() => "")).slice(0, 150),
+            );
+        } catch (e) {
+          d.canonryProjectFetch = { error: redactSecrets(e) };
+        }
+      }
+      try {
+        const { data: ar } = await supabaseAdmin
+          .from("audit_runs")
+          .select("audit_type, created_at")
+          .eq("client_id", c.id)
+          .order("created_at", { ascending: false })
+          .limit(8);
+        d.recentAuditRuns = (ar || []).map((x: any) => x.audit_type);
+      } catch (e) {
+        d.recentAuditRuns = redactSecrets(e);
+      }
+      dbg.push(d);
+    }
+    return Response.json({ ok: true, debug: dbg });
+  }
+
+  const results: any[] = [];
+  let metaOk = 0;
+  let metaFail = 0;
+  for (const c of clients) {
+    const clientStartedAt = nowIso();
+    const uid = await ownerOf(c.organization_id);
+    const jr: Record<string, unknown> = {};
+    if (!uid) {
+      results.push({ client: c.name, error: "Kein Org-User für triggered_by" });
+      continue;
+    }
+    for (const j of wanted) {
+      try {
+        const gesperrt = jobGesperrt(c.id, j);
+        if (gesperrt) {
+          jr[j] = { skipped: gesperrt };
+          continue;
+        }
+        // Freshness guard: skip data jobs that ran recently (avoids double-spend
+        // when more than one 12h trigger fires). geo is guarded by its own sweep.
+        const at = JOB_AUDIT_TYPE[j];
+        if (at && !force && (await ranWithin(c.id, at, minIntervalHours))) {
+          jr[j] = { skipped: "fresh" };
+          continue;
+        }
+        if (j === "ahrefs") jr.ahrefs = await jobAhrefs(c, uid);
+        else if (j === "pagespeed") jr.pagespeed = await jobPagespeed(c, uid, days);
+        else if (j === "gsc") jr.gsc = await jobGsc(c, uid, days);
+        else if (j === "gsc_queries") jr.gsc_queries = await jobGscQueries(c, uid, days, force);
+        else if (j === "seo_history") jr.seo_history = await jobSeoHistory(c, uid, force);
+        else if (j === "ga4") jr.ga4 = await jobGa4(c, uid, days);
+        else if (j === "ga4_traffic") jr.ga4_traffic = await jobGa4Traffic(c, uid, days);
+        else if (j === "ga4_conversions")
+          jr.ga4_conversions = await jobGa4Conversions(c, uid, days);
+        else if (j === "ai_visibility") jr.ai_visibility = await jobAiVisibility(c, uid);
+        else if (j === "google_ads") jr.google_ads = await jobGoogleAds(c, uid, days);
+        else if (j === "awork_tasks") jr.awork_tasks = await jobAworkTasks(c, uid);
+        else if (j === "geo") jr.geo = await jobGeo(c, { runGeo, geoSlug });
+      } catch (e) {
+        jr[j] = { error: redactSecrets(e) };
+      }
+    }
+    // WP4/A4.1 (Dashboard-Ausbau): Frische-Metadaten je Lauf — auch bei
+    // Teilfehlern. Quelle -> ok | fail | skipped (+ ts, kurzer Fehler).
+    try {
+      const srcOf = (v: any, extra?: Record<string, unknown>) => {
+        if (!v) return { status: "skipped" as const, ts: nowIso() };
+        if (v.error)
+          return {
+            status: "fail" as const,
+            error: String(v.error).slice(0, 160),
+            ts: nowIso(),
+          };
+        if (v.skipped)
+          return {
+            status: "skipped" as const,
+            note: String(v.skipped).slice(0, 80),
+            ts: nowIso(),
+          };
+        return { status: "ok" as const, ts: nowIso(), ...(extra || {}) };
+      };
+      const cruxOrigin = (jr.pagespeed as any)?.dataOrigin;
+      const sources: Record<string, unknown> = {
+        ahrefs: srcOf(jr.ahrefs),
+        gsc: srcOf(jr.gsc),
+        gsc_queries: srcOf(jr.gsc_queries),
+        crux: srcOf(jr.pagespeed, cruxOrigin ? { dataOrigin: cruxOrigin } : undefined),
+        ga4: srcOf(jr.ga4),
+        ga4_traffic: srcOf(jr.ga4_traffic),
+        ga4_conversions: srcOf(jr.ga4_conversions),
+        canonry: srcOf(jr.ai_visibility),
+      };
+      for (const s of Object.values(sources) as any[]) {
+        if (s.status === "ok") metaOk++;
+        else if (s.status === "fail") metaFail++;
+      }
+      await insertRun({
+        client_id: c.id,
+        organization_id: c.organization_id,
+        triggered_by: uid,
+        audit_type: "populate_meta",
+        status: "succeeded",
+        input: { jobs: wanted },
+        result: { startedAt: clientStartedAt, finishedAt: nowIso(), sources },
+        started_at: clientStartedAt,
+        finished_at: nowIso(),
+      });
+    } catch {
+      /* Meta-Zeile darf den Lauf nie scheitern lassen */
+    }
+    results.push({ client: c.name, domain: c.domain, jobs: jr });
+  }
+  // WP4/A4.2: Heartbeat an den n8n-Watchdog (5s-Timeout, darf den Lauf nie
+  // scheitern lassen). Secret aus Env; Ergebnis wird zur Diagnose in der
+  // Antwort mitgegeben (sent | no-secret | error:<kurz>).
+  let heartbeat = "no-secret";
+  try {
+    const hbSecret = process.env.N8N_AGENT_WEBHOOK_SECRET;
+    // Stündlicher Gratis-Takt: kein Heartbeat (n8n-Execution-Limit, Juli 2026).
+    if (schreibModus.getStore()?.ersetzeHeute) heartbeat = "skip:stuendlich";
+    else if (hbSecret) {
+      try {
+        const hr = await fetch("https://ezyone.app.n8n.cloud/webhook/agent-heartbeat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Ezy-Auth": hbSecret },
+          body: JSON.stringify({
+            client: "ezyhub",
+            agent: "populate-job",
+            status: metaFail > 0 ? "fehler" : "ok",
+            note: `${metaOk} Quellen ok, ${metaFail} fail`,
+          }),
+          signal: AbortSignal.timeout(5000),
+        });
+        heartbeat = hr.ok ? "sent" : `error:HTTP ${hr.status}`;
+      } catch (e) {
+        heartbeat = `error:${String((e as Error)?.message || e).slice(0, 60)}`;
+      }
+    }
+  } catch {
+    /* nie den Lauf scheitern lassen */
+  }
+  return Response.json({ ok: true, count: clients.length, heartbeat, results });
+}

@@ -86,6 +86,7 @@ import { Route as ApiAdminFirstPartySyncRouteImport } from './routes/api/admin.f
 import { Route as ApiAdminGa4ConversionsRouteImport } from './routes/api/admin.ga4-conversions'
 import { Route as ApiAdminGbpRouteImport } from './routes/api/admin.gbp'
 import { Route as ApiAdminGeoGridSnapshotRouteImport } from './routes/api/admin.geo-grid-snapshot'
+import { Route as ApiAdminGratisTaktRouteImport } from './routes/api/admin.gratis-takt'
 import { Route as ApiAdminGscDateienRouteImport } from './routes/api/admin.gsc-dateien'
 import { Route as ApiAdminGtmRouteImport } from './routes/api/admin.gtm'
 import { Route as ApiAdminIngestCredentialsRouteImport } from './routes/api/admin.ingest-credentials'
@@ -570,6 +571,11 @@ const ApiAdminGbpRoute = ApiAdminGbpRouteImport.update({
 const ApiAdminGeoGridSnapshotRoute = ApiAdminGeoGridSnapshotRouteImport.update({
   id: '/api/admin/geo-grid-snapshot',
   path: '/api/admin/geo-grid-snapshot',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminGratisTaktRoute = ApiAdminGratisTaktRouteImport.update({
+  id: '/api/admin/gratis-takt',
+  path: '/api/admin/gratis-takt',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminGscDateienRoute = ApiAdminGscDateienRouteImport.update({
@@ -1085,6 +1091,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/geo-grid-snapshot': typeof ApiAdminGeoGridSnapshotRoute
+  '/api/admin/gratis-takt': typeof ApiAdminGratisTaktRoute
   '/api/admin/gsc-dateien': typeof ApiAdminGscDateienRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/ingest-credentials': typeof ApiAdminIngestCredentialsRoute
@@ -1248,6 +1255,7 @@ export interface FileRoutesByTo {
   '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/geo-grid-snapshot': typeof ApiAdminGeoGridSnapshotRoute
+  '/api/admin/gratis-takt': typeof ApiAdminGratisTaktRoute
   '/api/admin/gsc-dateien': typeof ApiAdminGscDateienRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/ingest-credentials': typeof ApiAdminIngestCredentialsRoute
@@ -1412,6 +1420,7 @@ export interface FileRoutesById {
   '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
   '/api/admin/gbp': typeof ApiAdminGbpRoute
   '/api/admin/geo-grid-snapshot': typeof ApiAdminGeoGridSnapshotRoute
+  '/api/admin/gratis-takt': typeof ApiAdminGratisTaktRoute
   '/api/admin/gsc-dateien': typeof ApiAdminGscDateienRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/ingest-credentials': typeof ApiAdminIngestCredentialsRoute
@@ -1577,6 +1586,7 @@ export interface FileRouteTypes {
     | '/api/admin/ga4-conversions'
     | '/api/admin/gbp'
     | '/api/admin/geo-grid-snapshot'
+    | '/api/admin/gratis-takt'
     | '/api/admin/gsc-dateien'
     | '/api/admin/gtm'
     | '/api/admin/ingest-credentials'
@@ -1740,6 +1750,7 @@ export interface FileRouteTypes {
     | '/api/admin/ga4-conversions'
     | '/api/admin/gbp'
     | '/api/admin/geo-grid-snapshot'
+    | '/api/admin/gratis-takt'
     | '/api/admin/gsc-dateien'
     | '/api/admin/gtm'
     | '/api/admin/ingest-credentials'
@@ -1903,6 +1914,7 @@ export interface FileRouteTypes {
     | '/api/admin/ga4-conversions'
     | '/api/admin/gbp'
     | '/api/admin/geo-grid-snapshot'
+    | '/api/admin/gratis-takt'
     | '/api/admin/gsc-dateien'
     | '/api/admin/gtm'
     | '/api/admin/ingest-credentials'
@@ -2062,6 +2074,7 @@ export interface RootRouteChildren {
   ApiAdminGa4ConversionsRoute: typeof ApiAdminGa4ConversionsRoute
   ApiAdminGbpRoute: typeof ApiAdminGbpRoute
   ApiAdminGeoGridSnapshotRoute: typeof ApiAdminGeoGridSnapshotRoute
+  ApiAdminGratisTaktRoute: typeof ApiAdminGratisTaktRoute
   ApiAdminGscDateienRoute: typeof ApiAdminGscDateienRoute
   ApiAdminGtmRoute: typeof ApiAdminGtmRoute
   ApiAdminIngestCredentialsRoute: typeof ApiAdminIngestCredentialsRoute
@@ -2682,6 +2695,13 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/geo-grid-snapshot'
       fullPath: '/api/admin/geo-grid-snapshot'
       preLoaderRoute: typeof ApiAdminGeoGridSnapshotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/gratis-takt': {
+      id: '/api/admin/gratis-takt'
+      path: '/api/admin/gratis-takt'
+      fullPath: '/api/admin/gratis-takt'
+      preLoaderRoute: typeof ApiAdminGratisTaktRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/gsc-dateien': {
@@ -3426,6 +3446,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminGa4ConversionsRoute: ApiAdminGa4ConversionsRoute,
   ApiAdminGbpRoute: ApiAdminGbpRoute,
   ApiAdminGeoGridSnapshotRoute: ApiAdminGeoGridSnapshotRoute,
+  ApiAdminGratisTaktRoute: ApiAdminGratisTaktRoute,
   ApiAdminGscDateienRoute: ApiAdminGscDateienRoute,
   ApiAdminGtmRoute: ApiAdminGtmRoute,
   ApiAdminIngestCredentialsRoute: ApiAdminIngestCredentialsRoute,
