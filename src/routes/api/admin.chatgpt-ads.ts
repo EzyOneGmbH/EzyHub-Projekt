@@ -1464,7 +1464,9 @@ type ConvEventSetting = {
   event_type: string;
   custom_event_name: string | null;
   attribution_window_days: number;
+  view_through_days?: number;
   source_ids: string[];
+  sources?: Array<{ id: string; name: string }>;
   campaigns: Array<{ id: string; name: string }>;
   archived: boolean;
 };
@@ -1505,7 +1507,11 @@ function normEventSetting(e: any): ConvEventSetting {
     event_type: String(e.event_type || ""),
     custom_event_name: e.custom_event_name ?? null,
     attribution_window_days: Number(e.attribution_window_days || 0),
+    view_through_days: Number(e.view_through_attribution_window_days || 0),
     source_ids: Array.isArray(e.source_ids) ? e.source_ids.map(String) : [],
+    sources: Array.isArray(e.sources)
+      ? e.sources.map((x: any) => ({ id: String(x.id), name: String(x.name || x.id) }))
+      : [],
     campaigns: Array.isArray(e.campaigns)
       ? e.campaigns.map((c: any) => ({ id: String(c.id), name: String(c.name || c.id) }))
       : [],
@@ -1525,7 +1531,14 @@ async function convSetupGet(
   eventSettings?: ConvEventSetting[];
   configuredPixelId?: string | null;
   hasCapiKey?: boolean;
-  campaigns?: Array<{ id: string; name: string; status: string; eventSettingIds: string[] }>;
+  campaigns?: Array<{
+    id: string;
+    name: string;
+    status: string;
+    objective: string | null;
+    eventSettingIds: string[];
+  }>;
+  adAccountId?: string | null;
   isMock?: boolean;
 }> {
   const { data: cfg } = await sb
@@ -1538,7 +1551,7 @@ async function convSetupGet(
   // Kampagnen mit ihren Event-Setting-IDs (aus raw) — für die Zuweisung im UI.
   const { data: campRows } = await sb
     .from("chatgpt_ads_campaigns")
-    .select("openai_campaign_id, name, status, ids:raw->conversion_event_setting_ids")
+    .select("openai_campaign_id, name, status, objective, ids:raw->conversion_event_setting_ids")
     .eq("account_id", acc.id)
     .neq("status", "archived")
     .order("name");
@@ -1546,6 +1559,7 @@ async function convSetupGet(
     id: String(c.openai_campaign_id),
     name: String(c.name || ""),
     status: String(c.status || ""),
+    objective: c.objective ? String(c.objective) : null,
     eventSettingIds: Array.isArray(c.ids) ? c.ids.map(String) : [],
   }));
   if (acc.is_mock) {
@@ -1577,6 +1591,8 @@ async function convSetupGet(
     campaigns,
     configuredPixelId,
     hasCapiKey,
+    // Fuer den Link «Im Ads Manager öffnen» (Conversions-Ansicht, 12.10.)
+    adAccountId: acc.openai_ad_account_id || null,
   };
 }
 
@@ -1976,51 +1992,6 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
             uebersprungen,
             results,
           });
-        }
-
-        // Diagnose (12.10.): liefern die UI-Statistik-Endpunkte des Ads Managers
-        // (Ereignisse je Conversion-Event, Warnungen) auch mit dem API-Key?
-        // Nur Admin-Secret, nur lesend (GET), Antworten gekuerzt.
-        if (action === "conv-ui-probe") {
-          if (!isAdminSecret)
-            return Response.json({ ok: false, error: "Nur Admin-Secret" }, { status: 403 });
-          const { data: acc } = await sb
-            .from("chatgpt_ads_accounts")
-            .select("*")
-            .eq("client_id", String(body?.clientId || ""))
-            .eq("status", "active")
-            .maybeSingle();
-          if (!acc || acc.is_mock)
-            return Response.json({ ok: false, error: "kein aktives Konto" }, { status: 404 });
-          const apiKey = decryptSecret(acc.api_key_enc);
-          const pfade = [
-            "/ui/insights/client_data_source_events",
-            "/ui/insights/client_data_source_warnings",
-            "/ui/conversions/setup_status",
-            "/ui/campaigns/conversion_adoption",
-            "/ui/client_data_sources",
-            "/conversions/event_settings",
-          ];
-          const out: any[] = [];
-          // Eigene Aufrufe (nur Insights-Pfade, die lesen): [{method, path, body}]
-          const eigene = Array.isArray(body?.calls) ? body.calls.slice(0, 8) : [];
-          for (const c of eigene) {
-            const pfad = String(c?.path || "");
-            if (!/^\/(conversions\/insights|ad_account\/insights|conversions\/events)/.test(pfad))
-              continue;
-            const r = await adsFetch(apiKey, acc.openai_ad_account_id, pfad, {
-              method: c?.method === "POST" ? "POST" : "GET",
-              body: c?.body,
-              query: c?.query,
-            });
-            out.push({ pfad, status: r.status, json: JSON.stringify(r.json)?.slice(0, 2500) });
-          }
-          if (eigene.length) return Response.json({ ok: true, out });
-          for (const pfad of pfade) {
-            const r = await adsFetch(apiKey, acc.openai_ad_account_id, pfad);
-            out.push({ pfad, status: r.status, json: JSON.stringify(r.json)?.slice(0, 1500) });
-          }
-          return Response.json({ ok: true, out });
         }
 
         const ctx = await requireTeamRole(request, "admin");

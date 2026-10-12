@@ -208,8 +208,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.32.0",
+    version: "1.33.0",
     changelog: [
+      {
+        version: "1.33.0",
+        date: "2026-10-12",
+        note: "Ads › Conversions im Aufbau des OpenAI Ads Managers: Kennzahlen (Ereignisse, Nutzung des Conversion-Ziels, Warnungen) und Tabs Datenquelle, Conversion-Ereignisse (Basisereignis, Pixel, verwendet von, Attribution), Ereignisstream (live von OpenAI) und Diagnose",
+      },
       {
         version: "1.32.0",
         date: "2026-10-12",

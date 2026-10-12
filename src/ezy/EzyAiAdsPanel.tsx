@@ -1,6 +1,7 @@
 import { authedFetch } from "@/lib/authed-fetch";
 import IngestCredentialsPanel from "@/ezy/IngestCredentialsPanel";
 import EzyAiAdsOverview from "@/ezy/EzyAiAdsOverview";
+import EzyAiAdsConversions from "@/ezy/EzyAiAdsConversions";
 // EzyAI — Ads-Modus (ChatGPT Ads, 26.08.2026): Conversion-Tracking über die
 // OpenAI Conversions API. Eigene Datei (Bundle-Split-Muster wie LocalGrid) —
 // der Organic/Ads-Schalter sitzt in der AppRail (railExtra, unter der
@@ -232,31 +233,30 @@ export default function EzyAiAdsPanel({
 
   const events = data.events || [];
 
+  // Conversions (12.10.2026): Aufbau wie im OpenAI Ads Manager — Kennzahlen,
+  // Tabs Datenquelle / Conversion-Ereignisse / Ereignisstream / Diagnose.
   if (section === "ads-conversions")
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <div style={card}>
-          <SectionTitle
-            S={S}
-            title="Conversions"
-            sub="Leads und Käufe, die an OpenAI gemeldet wurden"
-          />
-          {events.length === 0 ? (
+      <EzyAiAdsConversions
+        clientId={clientId}
+        S={S}
+        hubEvents={events}
+        pixelIdHub={data.pixelId || null}
+        rangeLabel={range.label || `${startKey} – ${endKey}`}
+        snippet={
+          isOrgAdmin ? (
+            <SnippetCard S={S} card={card} pixelId={data.pixelId || null} clientId={clientId} />
+          ) : undefined
+        }
+        readiness={<ReadinessCard S={S} card={card} clientId={clientId} clientName={clientName} />}
+        hubLog={
+          events.length === 0 ? (
             <Empty S={S} />
           ) : (
             <EventsTable S={S} events={events} mode="conversions" />
-          )}
-        </div>
-        {/* Einbau-Material nur fuer Admins — Kundenlogins (22.09.) sehen die
-            Conversions, aber nicht Snippet/Pruef-Knoepfe (die POSTen als Admin). */}
-        {isOrgAdmin && (
-          <SnippetCard S={S} card={card} pixelId={data.pixelId || null} clientId={clientId} />
-        )}
-        <div style={{ ...card, fontSize: 12.5, color: S.mut }}>
-          Pixel, Server-Key, Conversion-Events und der Ingest-Token werden im Bereich{" "}
-          <b style={{ color: S.txt }}>Einstellungen</b> eingerichtet.
-        </div>
-      </div>
+          )
+        }
+      />
     );
 
   if (section === "ads-events")
