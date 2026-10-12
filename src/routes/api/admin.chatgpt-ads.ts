@@ -1978,6 +1978,37 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
           });
         }
 
+        // Diagnose (12.10.): liefern die UI-Statistik-Endpunkte des Ads Managers
+        // (Ereignisse je Conversion-Event, Warnungen) auch mit dem API-Key?
+        // Nur Admin-Secret, nur lesend (GET), Antworten gekuerzt.
+        if (action === "conv-ui-probe") {
+          if (!isAdminSecret)
+            return Response.json({ ok: false, error: "Nur Admin-Secret" }, { status: 403 });
+          const { data: acc } = await sb
+            .from("chatgpt_ads_accounts")
+            .select("*")
+            .eq("client_id", String(body?.clientId || ""))
+            .eq("status", "active")
+            .maybeSingle();
+          if (!acc || acc.is_mock)
+            return Response.json({ ok: false, error: "kein aktives Konto" }, { status: 404 });
+          const apiKey = decryptSecret(acc.api_key_enc);
+          const pfade = [
+            "/ui/insights/client_data_source_events",
+            "/ui/insights/client_data_source_warnings",
+            "/ui/conversions/setup_status",
+            "/ui/campaigns/conversion_adoption",
+            "/ui/client_data_sources",
+            "/conversions/event_settings",
+          ];
+          const out: any[] = [];
+          for (const pfad of pfade) {
+            const r = await adsFetch(apiKey, acc.openai_ad_account_id, pfad);
+            out.push({ pfad, status: r.status, json: JSON.stringify(r.json)?.slice(0, 1500) });
+          }
+          return Response.json({ ok: true, out });
+        }
+
         const ctx = await requireTeamRole(request, "admin");
         if (ctx instanceof Response) return ctx;
         const clientId = String(body?.clientId || "");
