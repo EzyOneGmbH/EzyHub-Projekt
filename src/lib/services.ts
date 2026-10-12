@@ -18,7 +18,8 @@ export type ServiceKey =
   | "canonry"
   | "ahrefs"
   | "perplexity"
-  | "chatgpt-ads";
+  | "chatgpt-ads"
+  | "ezyai-organic";
 
 export type ServiceDef = {
   key: ServiceKey;
@@ -125,6 +126,16 @@ export const SERVICE_CATALOG: ServiceDef[] = [
     defaultOn: true,
     optOut: true,
     hint: "Zeigt Kundenlogins in EzyAI den Organic/Ads-Schalter, sobald ein ChatGPT-Ads-Konto verbunden ist. Abschalten = Kunde sieht nur Organic.",
+  },
+  {
+    // 12.10.2026: Gegenstueck zu chatgpt-ads — Abschalten = Kunde sieht nur Ads.
+    key: "ezyai-organic",
+    label: "EzyAI Organic für Kundenlogins",
+    parent: null,
+    connect: "auto",
+    defaultOn: true,
+    optOut: true,
+    hint: "Zeigt Kundenlogins in EzyAI die Organic-Ansicht. Abschalten = Kunde sieht nur ChatGPT Ads (wirkt nur mit verbundenem Ads-Konto, sonst bleibt Organic).",
   },
 ];
 

@@ -4811,7 +4811,9 @@ function EzyAiApp() {
   // Dienst «chatgpt-ads» im Admin Center nicht abgeschaltet ist (Opt-out:
   // ohne Zeile aktiv). Konto-Test ueber ?probe=1 — leicht, RLS-Kundensicht.
   const [viewerAdsKonto, setViewerAdsKonto] = useState(false);
+  const [viewerAdsGeprueft, setViewerAdsGeprueft] = useState(false);
   useEffect(() => {
+    setViewerAdsGeprueft(false);
     if (role !== "viewer" || !client?.id) {
       setViewerAdsKonto(false);
       return;
@@ -4827,6 +4829,8 @@ function EzyAiApp() {
         if (alive) setViewerAdsKonto(!!j?.connected);
       } catch {
         if (alive) setViewerAdsKonto(false);
+      } finally {
+        if (alive) setViewerAdsGeprueft(true);
       }
     })();
     return () => {
@@ -4840,6 +4844,18 @@ function EzyAiApp() {
   useEffect(() => {
     if (role === "viewer" && adsMode && !adsFuerKunde) setAdsMode(false);
   }, [role, adsMode, adsFuerKunde]);
+  // EzyAI-Ansicht je Kunde (Volkan 12.10.): Dienst «ezyai-organic» aus = der
+  // Kundenlogin sieht NUR Ads (kein Schalter, kein Organic-«Heute»). Ohne
+  // verbundenes Ads-Konto bleibt Organic, damit die Seite nie leer ist.
+  // Waehrend Dienste/Konto laden, rendert nichts — kein Organic-Aufblitzen.
+  const organicAus = role === "viewer" && svc.enabled?.["ezyai-organic"] === false;
+  const nurAds = organicAus && (adsFuerKunde || !viewerAdsGeprueft);
+  const ansichtLaedt = role === "viewer" && (svc.loading || (organicAus && !viewerAdsGeprueft));
+  useEffect(() => {
+    if (!nurAds || ansichtLaedt) return;
+    if (!adsMode) setAdsMode(true);
+    if (view === "heute") setView("dashboard");
+  }, [nurAds, ansichtLaedt, adsMode, view]);
   const adsNavFuerRolle = useMemo(
     () =>
       role === "viewer"
@@ -4853,6 +4869,7 @@ function EzyAiApp() {
 
   if (authLoading || !session) return null;
   if (accessLoading || !canOpen("geo")) return null; // Guard-Redirect läuft
+  if (ansichtLaedt || (nurAds && (!adsMode || view === "heute"))) return null; // Ansicht je Kunde
 
   const shareReport = async () => {
     const token = (await supabase.auth.getSession()).data.session?.access_token;
@@ -4943,7 +4960,7 @@ function EzyAiApp() {
               onLogout={() => supabase.auth.signOut()}
               railExtra={
                 // Kunden-Logins: Schalter nur mit Freigabe (aktives Konto + Dienst an).
-                !adsFuerKunde ? null : (
+                !adsFuerKunde || nurAds ? null : (
                   <OrganicAdsSwitch
                     adsMode={adsMode}
                     onChange={(ads) => {
@@ -5044,7 +5061,7 @@ function EzyAiApp() {
                 {/* Bereichs-Chips nur mit gewähltem Kunden — "Alle Kunden" = leer.
                   Ads-Modus (26.08.): eigener Chip-Satz + kompakter Schalter. */}
                 <div style={{ display: "flex", gap: 6, alignItems: "center", overflowX: "auto" }}>
-                  {view !== "heute" && adsFuerKunde && (
+                  {view !== "heute" && adsFuerKunde && !nurAds && (
                     <OrganicAdsSwitch
                       adsMode={adsMode}
                       onChange={(ads) => {
@@ -5616,10 +5633,16 @@ function EzyAiApp() {
           {/* Redesign 1b (Screen 2h): native Bottom-Tab-Bar (nur <900px) —
             Dashboard/Agent + EzyPilot + Apps; ersetzt die Rail auf dem Handy. */}
           <nav className="ezyai-tabbar">
-            <button onClick={() => setView("heute")} style={tabBtn(view === "heute")} title="Heute">
-              <Home size={21} />
-              <span style={{ fontSize: 9.5, fontWeight: 700 }}>Heute</span>
-            </button>
+            {!nurAds && (
+              <button
+                onClick={() => setView("heute")}
+                style={tabBtn(view === "heute")}
+                title="Heute"
+              >
+                <Home size={21} />
+                <span style={{ fontSize: 9.5, fontWeight: 700 }}>Heute</span>
+              </button>
+            )}
             <button
               onClick={() => setView("dashboard")}
               style={tabBtn(view === "dashboard")}

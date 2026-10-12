@@ -208,8 +208,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.31.1",
+    version: "1.32.0",
     changelog: [
+      {
+        version: "1.32.0",
+        date: "2026-10-12",
+        note: "EzyAI-Ansicht je Kunde: neuer Dienst «EzyAI Organic für Kundenlogins» im Admin Center. Zusammen mit «ChatGPT Ads für Kundenlogins» lässt sich pro Kunde festlegen, ob der Kunde nur Organic, nur Ads oder beides sieht",
+      },
       {
         version: "1.31.1",
         date: "2026-10-07",
