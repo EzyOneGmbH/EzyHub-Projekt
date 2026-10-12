@@ -2002,6 +2002,20 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
             "/conversions/event_settings",
           ];
           const out: any[] = [];
+          // Eigene Aufrufe (nur Insights-Pfade, die lesen): [{method, path, body}]
+          const eigene = Array.isArray(body?.calls) ? body.calls.slice(0, 8) : [];
+          for (const c of eigene) {
+            const pfad = String(c?.path || "");
+            if (!/^\/(conversions\/insights|ad_account\/insights|conversions\/events)/.test(pfad))
+              continue;
+            const r = await adsFetch(apiKey, acc.openai_ad_account_id, pfad, {
+              method: c?.method === "POST" ? "POST" : "GET",
+              body: c?.body,
+              query: c?.query,
+            });
+            out.push({ pfad, status: r.status, json: JSON.stringify(r.json)?.slice(0, 2500) });
+          }
+          if (eigene.length) return Response.json({ ok: true, out });
           for (const pfad of pfade) {
             const r = await adsFetch(apiKey, acc.openai_ad_account_id, pfad);
             out.push({ pfad, status: r.status, json: JSON.stringify(r.json)?.slice(0, 1500) });
