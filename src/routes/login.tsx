@@ -3,7 +3,7 @@ import { useState, type FormEvent } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { EzyHexMark } from "@/ezy/shell";
+import { EzyOneLogo } from "@/components/ezy-one-mark";
 import { SprachSwitch } from "@/i18n/SprachSwitch";
 
 export const Route = createFileRoute("/login")({
@@ -116,7 +116,8 @@ function LoginPage() {
             justifyContent: "space-between",
           }}
         >
-          <EzyHexMark size={40} />
+          {/* Offizielles Logo von ezyone.ch (14.10.2026). */}
+          <EzyOneLogo height={36} />
           <SprachSwitch kompakt />
         </div>
         <h1

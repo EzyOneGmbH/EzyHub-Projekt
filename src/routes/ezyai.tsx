@@ -29,7 +29,6 @@ import {
   EzyPilotPopup,
 } from "@/ezy/shared-ui";
 import { useEzyProfile } from "@/ezy/data/useEzyProfile";
-import { EzyOneMark } from "@/components/ezy-one-mark";
 import {
   loadSharedRange,
   saveSharedRange,

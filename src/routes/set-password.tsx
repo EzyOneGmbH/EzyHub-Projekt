@@ -5,7 +5,7 @@ import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Eye, EyeOff } from "lucide-react";
-import { EzyOneMark } from "@/components/ezy-one-mark";
+import { EzyOneLogo } from "@/components/ezy-one-mark";
 
 // Passwort setzen — Ziel des Einladungs-/Recovery-Links (RBAC 2026-07-15).
 // supabase-js (detectSessionInUrl) tauscht den Token aus dem URL-Hash automatisch
@@ -118,8 +118,8 @@ function SetPasswordPage() {
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
           {/* CD-Symbol: neues Marken-Icon (E + Power-O im Hexagon) + Wortmarke "Ezy One". */}
-          <EzyOneMark width={26} />
-          <span style={{ fontSize: 18, fontWeight: 700, color: "#ece6f0" }}>Ezy One</span>
+          {/* Offizielles Logo von ezyone.ch, heller Schriftzug auf dunkler Karte. */}
+          <EzyOneLogo height={30} hell />
           <span style={{ marginLeft: "auto" }}>
             <SprachSwitch kompakt hell />
           </span>

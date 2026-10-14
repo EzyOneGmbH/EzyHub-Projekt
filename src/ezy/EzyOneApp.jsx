@@ -69,7 +69,6 @@ import {
   letzteTage,
 } from "@/ezy/data/rangeStore";
 import { HexGlowLayer } from "@/ezy/HexGlow";
-import { EzyOneMark } from "@/components/ezy-one-mark";
 import { AppVersionBadge } from "@/ezy/AppVersionBadge";
 import { ClientAvatar } from "@/ezy/ClientAvatar";
 import { nurTeam, PORTAL_RAIL_APPS } from "@/ezy/data/kundenZugriff";

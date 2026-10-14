@@ -3,6 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 // Plattform-Shell-Bausteine — AppRail (76px App-Switcher), SegmentedTabs,
 // Status-/Positions-Pills und Toggle. Reine Praesentationsschicht; Gating
 // (useAppAccess.canOpen) und Navigation kommen vom Aufrufer.
+import { EzyOneLogo, EzyOneMark } from "@/components/ezy-one-mark";
 import { useState } from "react";
 import { Bot, LayoutGrid, LogOut, Mail, Megaphone, Radar, Search, Settings } from "lucide-react";
 import { C } from "./theme";
@@ -18,46 +19,9 @@ export const APP_GLYPHS = {
   admin: Settings,
 };
 
-/** Marken-Hexagon (E + Power-O) — SVG nach Hi-Fi, klickbar zum Launcher. */
+/** Marken-Symbol — seit 14.10.2026 die exakten Formen von ezyone.ch (EzyOneMark). */
 export function EzyHexMark({ size = 30 }) {
-  return (
-    <svg
-      width={size}
-      height={(size * 38) / 34}
-      viewBox="0 0 34 38"
-      aria-hidden="true"
-      style={{ display: "block" }}
-    >
-      <defs>
-        <linearGradient id="ezyhex" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#71008B" />
-          <stop offset="1" stopColor="#B9009C" />
-        </linearGradient>
-      </defs>
-      <polygon points="17,0 34,9.5 34,28.5 17,38 0,28.5 0,9.5" fill="url(#ezyhex)" />
-      <text
-        x="11"
-        y="23.6"
-        textAnchor="middle"
-        fontSize="13"
-        fontWeight="800"
-        fill="#fff"
-        fontFamily="Poppins,sans-serif"
-      >
-        E
-      </text>
-      <g
-        transform="translate(22.3,18.9) scale(0.5) translate(-12,-12.5)"
-        stroke="#fff"
-        strokeWidth="4"
-        fill="none"
-        strokeLinecap="round"
-      >
-        <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
-        <line x1="12" y1="2" x2="12" y2="12" />
-      </g>
-    </svg>
-  );
+  return <EzyOneMark width={size} />;
 }
 
 // Desktop-Nav-Umbau (Volkan 22.08.): links nur noch die Haupt-WebApps —
@@ -115,17 +79,8 @@ export function AppRail({
           padding: "0 6px",
         }}
       >
-        <EzyHexMark size={26} />
-        <span
-          style={{
-            fontFamily: "'Kamerik 105',Poppins,sans-serif",
-            fontWeight: 800,
-            fontSize: 14.5,
-            color: C.text,
-          }}
-        >
-          Ezy One
-        </span>
+        {/* Offizielles Logo von ezyone.ch (Symbol + Schriftzug, 14.10.2026). */}
+        <EzyOneLogo height={28} />
       </a>
       <div
         style={{

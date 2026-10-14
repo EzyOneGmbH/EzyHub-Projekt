@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useAppAccess } from "@/ezy/data/useAppAccess";
 import { EZY_APPS, type EzyAppDef, type EzyAppId } from "@/ezy/data/appRegistry";
 import { HexGlowLayer } from "@/ezy/HexGlow";
-import { EzyOneMark } from "@/components/ezy-one-mark";
+import { EzyOneLogo } from "@/components/ezy-one-mark";
 import { supabase } from "@/integrations/supabase/client";
 import { PORTAL_RAIL_APPS } from "@/ezy/data/kundenZugriff";
 
@@ -216,16 +216,8 @@ function AppsLauncher() {
         <div style={{ textAlign: "center", marginBottom: 34 }}>
           {/* CD-Symbol: neues Marken-Icon (E + Power-O im Hexagon) + Wortmarke "Ezy One" (Sentence case). */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
-            <EzyOneMark width={34} />
-            <div
-              style={{
-                fontWeight: 700,
-                fontSize: 21,
-                fontFamily: "'Kamerik 105',Poppins,sans-serif",
-              }}
-            >
-              Ezy <span style={{ color: S.acc }}>One</span>
-            </div>
+            {/* Offizielles Logo von ezyone.ch (14.10.2026). */}
+            <EzyOneLogo height={44} />
           </div>
           <div style={{ color: S.mut, fontSize: 14, marginTop: 8 }}>
             Womit möchtest du arbeiten?
