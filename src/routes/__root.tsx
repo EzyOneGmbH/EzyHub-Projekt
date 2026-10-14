@@ -35,6 +35,10 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
+      // Name unter dem Icon auf dem iPhone-Home-Bildschirm + Akzentfarbe (14.10.2026).
+      { name: "apple-mobile-web-app-title", content: "EzyHub" },
+      { name: "application-name", content: "EzyHub" },
+      { name: "theme-color", content: "#77008C" },
       // CD 2025: Wortmarke "Ezy One" in Sentence case — nie ALL CAPS.
       { title: "Ezy One — SEO & GEO Plattform" },
       {
@@ -80,6 +84,8 @@ export const Route = createRootRoute({
       { rel: "icon", href: "/favicon-192x192.png", sizes: "192x192", type: "image/png" },
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png", sizes: "180x180" },
       { rel: "shortcut icon", href: "/favicon.ico" },
+      // Home-Bildschirm (14.10.2026): Android liest Name + Icons aus dem Manifest.
+      { rel: "manifest", href: "/site.webmanifest" },
       // CD-Typografie: Poppins ≈ Kamerik 105 (Titel), Nunito Sans ≈ Aceh Soft
       // (Fließtext) — freie Ersatzschnitte, bis die Originale lizenziert vorliegen.
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
