@@ -98,7 +98,9 @@ export const Route = createRootRoute({
       { rel: "shortcut icon", href: "/favicon.ico" },
       // Home-Bildschirm (14.10.2026): Android liest Name + Icons aus dem Manifest.
       // Neuer Name (14.10.): iOS merkt sich den früheren 404 von /site.webmanifest.
-      { rel: "manifest", href: "/ezyhub.webmanifest?v=4" },
+      // Manifest-Verweis vorerst entfernt (14.10.2026): iOS nimmt bei vorhandenem
+      // Manifest dessen Icons und fällt bei fehlgeschlagenem Abruf (Cloudflare)
+      // auf den Buchstaben statt auf apple-touch-icon zurück. Datei bleibt liegen.
       // CD-Typografie: Poppins ≈ Kamerik 105 (Titel), Nunito Sans ≈ Aceh Soft
       // (Fließtext) — freie Ersatzschnitte, bis die Originale lizenziert vorliegen.
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
