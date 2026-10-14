@@ -82,7 +82,9 @@ export const Route = createRootRoute({
       { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
       { rel: "icon", href: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
       { rel: "icon", href: "/favicon-192x192.png", sizes: "192x192", type: "image/png" },
-      { rel: "apple-touch-icon", href: "/apple-touch-icon.png", sizes: "180x180" },
+      // iOS (14.10.2026): neuer Dateiname, weil Safari ein früher fehlendes
+      // Icon unter der alten Adresse zwischenspeichert und nicht neu lädt.
+      { rel: "apple-touch-icon", href: "/app-icon-180.png", sizes: "180x180" },
       { rel: "shortcut icon", href: "/favicon.ico" },
       // Home-Bildschirm (14.10.2026): Android liest Name + Icons aus dem Manifest.
       { rel: "manifest", href: "/site.webmanifest" },
