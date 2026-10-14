@@ -86,13 +86,19 @@ export const Route = createRootRoute({
       { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
       { rel: "icon", href: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
       { rel: "icon", href: "/favicon-192x192.png", sizes: "192x192", type: "image/png" },
-      // iOS (14.10.2026): neuer Dateiname, weil Safari ein früher fehlendes
-      // Icon unter der alten Adresse zwischenspeichert und nicht neu lädt.
-      { rel: "apple-touch-icon", href: "/app-icon-180.png?v=3", sizes: "180x180" },
+      // iOS-Home-Bildschirm (14.10.2026): Icon direkt von ezyone.ch (eigener
+      // Server ohne Cloudflare-Bot-Schutz). ezyhub.ch liegt bei Lovable hinter
+      // Cloudflare Bot Management (__cf_bm) — iOS bekam das Icon von dort nicht
+      // und zeigte trotz korrekter Dateien nur einen Buchstaben.
+      {
+        rel: "apple-touch-icon",
+        href: "https://ezyone.ch/wp-content/uploads/2026/06/cropped-Untitled-1-180x180.png",
+        sizes: "180x180",
+      },
       { rel: "shortcut icon", href: "/favicon.ico" },
       // Home-Bildschirm (14.10.2026): Android liest Name + Icons aus dem Manifest.
       // Neuer Name (14.10.): iOS merkt sich den früheren 404 von /site.webmanifest.
-      { rel: "manifest", href: "/ezyhub.webmanifest?v=3" },
+      { rel: "manifest", href: "/ezyhub.webmanifest?v=4" },
       // CD-Typografie: Poppins ≈ Kamerik 105 (Titel), Nunito Sans ≈ Aceh Soft
       // (Fließtext) — freie Ersatzschnitte, bis die Originale lizenziert vorliegen.
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
