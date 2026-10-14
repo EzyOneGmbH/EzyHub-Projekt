@@ -62,7 +62,12 @@ import {
 import { ezyFetch } from "@/ezy/data/api";
 import { useAuth } from "@/hooks/use-auth";
 import { useEzyClients } from "@/ezy/data/useEzyClients";
-import { loadSharedRange, saveSharedRange, isReloadNavigation } from "@/ezy/data/rangeStore";
+import {
+  loadSharedRange,
+  saveSharedRange,
+  isReloadNavigation,
+  letzteTage,
+} from "@/ezy/data/rangeStore";
 import { HexGlowLayer } from "@/ezy/HexGlow";
 import { EzyOneMark } from "@/components/ezy-one-mark";
 import { AppVersionBadge } from "@/ezy/AppVersionBadge";
@@ -6949,18 +6954,12 @@ function App({ appScope = null }) {
         preset: "custom",
       };
     }
-    const now = new Date();
     const days = shared?.days || ui0.dateRange?.days || 30;
     const label = shared?.label || ui0.dateRange?.label || "30 Tage";
     const preset = shared?.preset || `${days}d`;
-    return {
-      label,
-      days,
-      // 13.09.2026: genau N Kalendertage inklusive heute (wie rangeStore).
-      start: new Date(now.getTime() - (days - 1) * 24 * 60 * 60 * 1000),
-      end: now,
-      preset,
-    };
+    // 14.10.2026: genau N Kalendertage bis einschliesslich gestern (rangeStore).
+    const { start, end } = letzteTage(days);
+    return { label, days, start, end, preset };
   });
   const [compareMode, setCompareMode] = useState(ui0.compareMode || "none");
   // Enrich the dateRange with a computed comparison period so dashboards can use it.

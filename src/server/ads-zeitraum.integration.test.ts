@@ -2,6 +2,7 @@
 // Zeitraum-Vertrag (zeitraumAusParams) — echte Handler gegen eine In-Memory-
 // Supabase: gueltige Daten, Reihenfolge, Zukunft, Maximaldauer → 400;
 // jede 200-Antwort traegt `range` (from/to/days); Default = genau 30 Tage.
+import { gesternYmdZuerich } from "../lib/date-range";
 import { describe, it, expect, beforeAll, vi } from "vitest";
 
 const KUNDE = "11111111-1111-4111-8111-111111111111";
@@ -141,6 +142,7 @@ const get = (h: any, qs: string) =>
   });
 
 const HEUTE = new Date().toISOString().slice(0, 10);
+const GESTERN = gesternYmdZuerich(); // 14.10.2026: «letzte N Tage» enden gestern
 
 describe.each([
   ["OpenAI Ads", () => openai],
@@ -153,10 +155,10 @@ describe.each([
     expect(j.range).toEqual({ from: "2026-08-01", to: "2026-08-31", days: 31 });
   });
 
-  it("ohne Angabe → genau 30 Tage bis heute", async () => {
+  it("ohne Angabe → genau 30 Tage bis gestern", async () => {
     const j = await (await get(h(), "")).json();
     expect(j.range.days).toBe(30);
-    expect(j.range.to).toBe(HEUTE);
+    expect(j.range.to).toBe(GESTERN);
   });
 
   it("days=7 → genau 7 Tage; startDate/endDate-Schreibweise wird akzeptiert", async () => {

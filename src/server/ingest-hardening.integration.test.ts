@@ -710,9 +710,17 @@ describe("Replay, Validierung, Payload-Limits", () => {
 
 // ── Crawler-Ingest ──────────────────────────────────────────────────────────
 describe("KI-Crawler-Ingest", () => {
+  // Relative Zeitstempel (14.10.2026): feste Daten fielen nach 30 Tagen aus dem
+  // Annahme-Fenster des Ingests — der Test wurde zur Zeitbombe.
+  const vorEinerStunde = Date.now() - 3_600_000;
   const hits = [
-    { bot: "GPTBot", url: "https://a.ch/", status: 200, at: "2026-09-13T08:00:00Z" },
-    { bot: "ClaudeBot", url: "/blog/x", at: "2026-09-13T08:00:01Z" },
+    {
+      bot: "GPTBot",
+      url: "https://a.ch/",
+      status: 200,
+      at: new Date(vorEinerStunde).toISOString(),
+    },
+    { bot: "ClaudeBot", url: "/blog/x", at: new Date(vorEinerStunde + 1000).toISOString() },
   ];
 
   it("Token A schreibt Hits fuer Kunde A; Wiederholung ist idempotent", async () => {

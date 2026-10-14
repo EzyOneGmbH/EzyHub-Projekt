@@ -8,7 +8,7 @@
 //    rpc-Args, gewinner/verlierer werden aus EINEM Aufruf getrennt
 //  - leer true/false, fail-soft je Block mit redaktiertem Fehler, no-store
 import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
-import { addDays, heuteYmd } from "../lib/date-range";
+import { addDays, heuteYmd, gesternYmdZuerich } from "../lib/date-range";
 
 const ORG_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const ORG_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -113,6 +113,7 @@ beforeEach(() => {
 });
 
 const heute = heuteYmd();
+const gestern = gesternYmdZuerich(); // 14.10.2026: «letzte N Tage» enden gestern
 const DATENSTAND_OK = [
   { quelle: "gsc", von: addDays(heute, -120), bis: addDays(heute, -2), zeilen: 4200 },
   { quelle: "ga4", von: addDays(heute, -120), bis: addDays(heute, -1), zeilen: 900 },
@@ -179,7 +180,7 @@ describe("/api/kpi/first-party — Zeitraum und Schwellen", () => {
     expect(rpcAufrufe).toHaveLength(0);
   });
 
-  it("Default 28 Tage: range {from,to,days} exakt, endDate = heute (UTC)", async () => {
+  it("Default 28 Tage: range {from,to,days} exakt, endDate = gestern (CH)", async () => {
     rpcAntworten.kpi_datenstand = { data: DATENSTAND_OK, error: null };
     const r = await get(`/api/kpi/first-party?client=${KUNDE_A}`, { user: "admin-a" });
     expect(r.status).toBe(200);
@@ -187,7 +188,7 @@ describe("/api/kpi/first-party — Zeitraum und Schwellen", () => {
     const j = await r.json();
     expect(j.ok).toBe(true);
     expect(j.aktiv).toBe(true);
-    expect(j.range).toEqual({ from: addDays(heute, -27), to: heute, days: 28 });
+    expect(j.range).toEqual({ from: addDays(gestern, -27), to: gestern, days: 28 });
     expect(j.konfig).toEqual({
       minImpressions: 100,
       posVon: 8,

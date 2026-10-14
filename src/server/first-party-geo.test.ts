@@ -7,7 +7,7 @@
 //  - block=… laedt nur diesen Block; fail-soft je Block mit redaktiertem Fehler
 //  - POST did: Validierung, Fenster, rpc-Args, Ergebnisform, 502 bei DB-Fehler
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from "vitest";
-import { addDays, heuteYmd } from "../lib/date-range";
+import { addDays, heuteYmd, gesternYmdZuerich } from "../lib/date-range";
 
 const ORG_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const ORG_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -182,6 +182,7 @@ beforeEach(() => {
 });
 
 const heute = heuteYmd();
+const gestern = gesternYmdZuerich(); // 14.10.2026: «letzte N Tage» enden gestern
 const URL_A = `/api/kpi/first-party-geo?client=${KUNDE_A}`;
 
 describe("/api/kpi/first-party-geo — Zugriff", () => {
@@ -390,7 +391,7 @@ describe("/api/kpi/first-party-geo — GET", () => {
     expect(j.zitate).toBeUndefined();
     expect(j.brand).toBeUndefined();
     expect(j.crawler).toBeUndefined();
-    expect(j.range).toEqual({ from: addDays(heute, -6), to: heute, days: 7 });
+    expect(j.range).toEqual({ from: addDays(gestern, -6), to: gestern, days: 7 });
   });
 
   it("Brand-Fallback ohne brand_terms: Domain-Stamm; ohne Domain Crawler-Block mit fehler", async () => {

@@ -7,6 +7,10 @@
 // «heute minus N» lieferte N+1 Tage (Off-by-one) — ebenso GA4s
 // "NdaysAgo".."today" (= N+1 Tage) und GAQL "today-N".."today".
 //
+// 14.10.2026 (Volkan): «Letzte N Tage» enden GESTERN (Schweizer Datum) — der
+// heutige Tag ist in GA4/GSC/Ads noch unvollständig und verzerrte Vergleiche.
+// 7 Tage = die 7 Tage bis einschliesslich gestern, verglichen mit den 7 davor.
+//
 // Benutzerdefinierte Zeitraeume werden exakt uebernommen (nie auf "days"
 // abgerundet), validiert und begrenzt; Fehler landen als ZeitraumFehler beim
 // Aufrufer (HTTP 400), statt stillschweigend einen Naeherungswert zu liefern.
@@ -57,6 +61,20 @@ export function heuteYmdZuerich(jetztMs: number = Date.now()): string {
   }
 }
 
+/** Gestern in Schweizer Zeit — Ende aller «letzte N Tage»-Zeiträume. */
+export function gesternYmdZuerich(jetztMs: number = Date.now()): string {
+  return addDays(heuteYmdZuerich(jetztMs), -1);
+}
+
+/** «Letzte N Tage» bis einschliesslich gestern (Schweizer Datum). */
+export function letzteTageBisGestern(
+  tage: number,
+  jetztMs: number = Date.now(),
+): { startDate: string; endDate: string } {
+  const endDate = gesternYmdZuerich(jetztMs);
+  return { startDate: addDays(endDate, -(tage - 1)), endDate };
+}
+
 /** Kalendertage addieren (negativ = subtrahieren), UTC, ohne DST-Effekte. */
 export function addDays(ymd: string, n: number): string {
   const ms = Date.parse(`${ymd}T00:00:00Z`);
@@ -79,7 +97,8 @@ export type ZeitraumOptionen = {
   defaultDays?: number;
   /** Obergrenze fuer Kalendertage (Custom UND days). */
   maxDays?: number;
-  /** Datenpuffer: endDate = heute - endLagDays (z. B. GSC 3 Tage). */
+  /** Datenpuffer: endDate = heute - endLagDays (z. B. GSC 3 Tage). Default 1 =
+   *  bis gestern (14.10.2026: heute ist in GA4/GSC/Ads noch unvollständig). */
   endLagDays?: number;
   /** Testbarkeit: «jetzt» in ms. */
   jetztMs?: number;
@@ -93,7 +112,7 @@ export type ZeitraumOptionen = {
  */
 export function zeitraum(opts: ZeitraumOptionen = {}): Zeitraum {
   const maxDays = opts.maxDays ?? 366;
-  const lag = Math.max(0, Math.floor(opts.endLagDays ?? 0));
+  const lag = Math.max(0, Math.floor(opts.endLagDays ?? 1));
   const heute = heuteYmd(opts.jetztMs);
   const hatStart = opts.startDate != null && opts.startDate !== "";
   const hatEnd = opts.endDate != null && opts.endDate !== "";
@@ -113,7 +132,9 @@ export function zeitraum(opts: ZeitraumOptionen = {}): Zeitraum {
   const roh = opts.days == null || opts.days === "" ? (opts.defaultDays ?? 28) : Number(opts.days);
   if (!Number.isInteger(roh) || roh < 1 || roh > maxDays)
     throw new ZeitraumFehler(`days muss eine ganze Zahl zwischen 1 und ${maxDays} sein`);
-  const endDate = lag ? addDays(heute, -lag) : heute;
+  // Mit Datenpuffer vom Schweizer Datum aus rechnen (00–02 Uhr CH ist UTC noch
+  // der Vortag) — «gestern» meint immer den Schweizer Kalendertag.
+  const endDate = lag ? addDays(heuteYmdZuerich(opts.jetztMs), -lag) : heute;
   const startDate = addDays(endDate, -(roh - 1));
   return { startDate, endDate, days: roh, quelle: "days" };
 }

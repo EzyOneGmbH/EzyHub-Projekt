@@ -49,16 +49,17 @@ describe("Server-Zwischenspeicher: nur vollständige Zeilen", () => {
 });
 
 describe("Stündliches Vorwärmen: Zeitfenster wie im Browser", () => {
-  it("letzte N Tage inklusive heute, auch über Monatsgrenzen", async () => {
+  const mittag = (ymd: string) => Date.parse(`${ymd}T12:00:00Z`);
+  it("letzte N Tage bis gestern (14.10.2026), auch über Monatsgrenzen", async () => {
     const { fensterLetzteTage } = await import("@/server/uebersicht-vorwaermen.server");
-    expect(fensterLetzteTage(30, "2026-10-11")).toEqual({
+    expect(fensterLetzteTage(30, mittag("2026-10-12"))).toEqual({
       startDate: "2026-09-12",
       endDate: "2026-10-11",
     });
-    expect(fensterLetzteTage(7, "2026-03-03")).toEqual({
+    expect(fensterLetzteTage(7, mittag("2026-03-04"))).toEqual({
       startDate: "2026-02-25",
       endDate: "2026-03-03",
     });
-    expect(fensterLetzteTage(1, "2026-10-11").startDate).toBe("2026-10-11");
+    expect(fensterLetzteTage(1, mittag("2026-10-12")).startDate).toBe("2026-10-11");
   });
 });

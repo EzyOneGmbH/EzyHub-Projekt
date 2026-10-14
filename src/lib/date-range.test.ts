@@ -1,3 +1,5 @@
+// 14.10.2026: «letzte N Tage» enden gestern — Bezugstag (jetzt) liegt deshalb
+// einen Tag nach dem erwarteten Enddatum.
 // Zeitraum-Vereinheitlichung (13.09.2026): inklusive Kalendertage, kein
 // Off-by-one, Monats-/Jahresgrenzen, Schaltjahre, exakte Custom-Ranges.
 import { describe, it, expect } from "vitest";
@@ -13,6 +15,8 @@ import {
   gaqlBetween,
   ga4DateRange,
   ZeitraumFehler,
+  gesternYmdZuerich,
+  letzteTageBisGestern,
 } from "./date-range";
 
 const T = (ymd: string) => Date.parse(`${ymd}T12:00:00Z`);
@@ -24,44 +28,44 @@ describe("«letzte N Tage» = genau N Kalendertage (inklusiv)", () => {
     [28, "2026-08-17", "2026-09-13"],
     [30, "2026-08-15", "2026-09-13"],
   ])("days=%i → %s..%s", (days, start, end) => {
-    const z = zeitraum({ days, jetztMs: T("2026-09-13") });
+    const z = zeitraum({ days, jetztMs: T("2026-09-14") });
     expect(z).toEqual({ startDate: start, endDate: end, days, quelle: "days" });
     expect(tageInklusiv(z.startDate, z.endDate)).toBe(days);
   });
 
   it("frueheres «heute minus N» haette N+1 Tage geliefert — jetzt nicht mehr", () => {
-    const z = zeitraum({ days: 28, jetztMs: T("2026-09-13") });
+    const z = zeitraum({ days: 28, jetztMs: T("2026-09-14") });
     // 2026-08-16 waere der 29. Tag (alte Berechnung); er ist NICHT enthalten.
     expect(z.startDate > "2026-08-16").toBe(true);
     expect(tageInklusiv("2026-08-16", "2026-09-13")).toBe(29);
   });
 
   it("Monatsgrenze: 1. des Monats", () => {
-    expect(zeitraum({ days: 1, jetztMs: T("2026-03-01") })).toMatchObject({
+    expect(zeitraum({ days: 1, jetztMs: T("2026-03-02") })).toMatchObject({
       startDate: "2026-03-01",
       endDate: "2026-03-01",
     });
-    expect(zeitraum({ days: 2, jetztMs: T("2026-03-01") })).toMatchObject({
+    expect(zeitraum({ days: 2, jetztMs: T("2026-03-02") })).toMatchObject({
       startDate: "2026-02-28",
       endDate: "2026-03-01",
     });
-    expect(zeitraum({ days: 31, jetztMs: T("2026-05-31") }).startDate).toBe("2026-05-01");
-    expect(zeitraum({ days: 30, jetztMs: T("2026-04-30") }).startDate).toBe("2026-04-01");
+    expect(zeitraum({ days: 31, jetztMs: T("2026-06-01") }).startDate).toBe("2026-05-01");
+    expect(zeitraum({ days: 30, jetztMs: T("2026-05-01") }).startDate).toBe("2026-04-01");
   });
 
   it("Jahresgrenze", () => {
-    expect(zeitraum({ days: 7, jetztMs: T("2027-01-03") })).toMatchObject({
+    expect(zeitraum({ days: 7, jetztMs: T("2027-01-04") })).toMatchObject({
       startDate: "2026-12-28",
       endDate: "2027-01-03",
     });
   });
 
   it("Schaltjahr: 29. Februar wird korrekt gezaehlt", () => {
-    expect(zeitraum({ days: 2, jetztMs: T("2024-03-01") })).toMatchObject({
+    expect(zeitraum({ days: 2, jetztMs: T("2024-03-02") })).toMatchObject({
       startDate: "2024-02-29",
       endDate: "2024-03-01",
     });
-    expect(zeitraum({ days: 2, jetztMs: T("2023-03-01") })).toMatchObject({
+    expect(zeitraum({ days: 2, jetztMs: T("2023-03-02") })).toMatchObject({
       startDate: "2023-02-28",
       endDate: "2023-03-01",
     });
@@ -82,8 +86,8 @@ describe("«letzte N Tage» = genau N Kalendertage (inklusiv)", () => {
   });
 
   it("Default und Grenzen", () => {
-    expect(zeitraum({ jetztMs: T("2026-09-13") }).days).toBe(28);
-    expect(zeitraum({ defaultDays: 30, jetztMs: T("2026-09-13") }).days).toBe(30);
+    expect(zeitraum({ jetztMs: T("2026-09-14") }).days).toBe(28);
+    expect(zeitraum({ defaultDays: 30, jetztMs: T("2026-09-14") }).days).toBe(30);
     expect(() => zeitraum({ days: 0 })).toThrow(ZeitraumFehler);
     expect(() => zeitraum({ days: 400 })).toThrow(ZeitraumFehler);
     expect(() => zeitraum({ days: 91, maxDays: 90 })).toThrow(/zwischen 1 und 90/);
@@ -149,23 +153,23 @@ describe("historische Custom-Ranges werden EXAKT uebernommen", () => {
     });
     expect(zeitraumAusParams(new URLSearchParams("from=2025-03-01&to=2025-03-02")).days).toBe(2);
     expect(
-      zeitraumAusParams(new URLSearchParams("days=7"), { jetztMs: T("2026-09-13") }),
+      zeitraumAusParams(new URLSearchParams("days=7"), { jetztMs: T("2026-09-14") }),
     ).toMatchObject({
       startDate: "2026-09-07",
       endDate: "2026-09-13",
     });
-    expect(zeitraumAusParams({ days: 30 }, { jetztMs: T("2026-09-13") }).days).toBe(30);
+    expect(zeitraumAusParams({ days: 30 }, { jetztMs: T("2026-09-14") }).days).toBe(30);
   });
 });
 
 describe("Vorperiode und API-Formate", () => {
   it("Vorperiode ist gleich lang und schliesst nahtlos an", () => {
-    const z = zeitraum({ days: 7, jetztMs: T("2026-09-13") });
+    const z = zeitraum({ days: 7, jetztMs: T("2026-09-14") });
     const v = vorperiode(z);
     expect(v).toMatchObject({ startDate: "2026-08-31", endDate: "2026-09-06", days: 7 });
     expect(addDays(v.endDate, 1)).toBe(z.startDate);
     // 28 Tage ueber die Monatsgrenze
-    const v28 = vorperiode(zeitraum({ days: 28, jetztMs: T("2026-09-13") }));
+    const v28 = vorperiode(zeitraum({ days: 28, jetztMs: T("2026-09-14") }));
     expect(v28).toMatchObject({ startDate: "2026-07-20", endDate: "2026-08-16", days: 28 });
   });
 
@@ -191,5 +195,27 @@ describe("Zukunfts-Pruefung nach Schweizer Datum (07.10.2026)", () => {
   it("heuteYmdZuerich liefert das CH-Datum", () => {
     expect(heuteYmdZuerich(jetztMs)).toBe("2026-10-07");
     expect(heuteYmd(jetztMs)).toBe("2026-10-06");
+  });
+});
+
+describe("14.10.2026: «letzte N Tage» schliessen heute aus", () => {
+  it("7 Tage = die 7 Tage bis gestern, Vergleich = die 7 davor", () => {
+    const z = zeitraum({ days: 7, jetztMs: T("2026-10-14") });
+    expect(z).toMatchObject({ startDate: "2026-10-07", endDate: "2026-10-13", days: 7 });
+    expect(vorperiode(z)).toMatchObject({ startDate: "2026-09-30", endDate: "2026-10-06" });
+  });
+  it("Schweizer Datum zählt: kurz nach Mitternacht CH (UTC noch Vortag)", () => {
+    // 14.10. 00:30 CH = 13.10. 22:30 UTC → gestern ist der 13.10.
+    const jetzt = Date.parse("2026-10-13T22:30:00Z");
+    expect(gesternYmdZuerich(jetzt)).toBe("2026-10-13");
+    expect(letzteTageBisGestern(7, jetzt)).toEqual({
+      startDate: "2026-10-07",
+      endDate: "2026-10-13",
+    });
+  });
+  it("explizites endLagDays: 0 erlaubt weiterhin «bis heute»", () => {
+    expect(zeitraum({ days: 1, endLagDays: 0, jetztMs: T("2026-10-14") }).endDate).toBe(
+      "2026-10-14",
+    );
   });
 });

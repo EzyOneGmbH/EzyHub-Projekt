@@ -127,11 +127,11 @@ describe("OPP_STATUS", () => {
 describe("resolveRange", () => {
   const now = new Date(2026, 7, 18, 12, 0, 0); // 18.08.2026 lokal
 
-  it("Preset: letzte N Tage bis heute", () => {
+  it("Preset: letzte N Tage bis gestern (14.10.2026: heute ist unvollständig)", () => {
     const r = resolveRange({ label: "7 Tage", days: 7, preset: "7d" }, now);
     expect(r.days).toBe(7);
-    expect(isoDay(r.end)).toBe("2026-08-18");
-    expect(isoDay(r.start)).toBe("2026-08-12");
+    expect(isoDay(r.end)).toBe("2026-08-17");
+    expect(isoDay(r.start)).toBe("2026-08-11");
   });
 
   it("Custom: exakte Daten bleiben erhalten (kein Runden auf 7/30/90)", () => {
@@ -154,7 +154,7 @@ describe("resolveRange", () => {
   it("kaputter Custom faellt auf 30 Tage zurueck", () => {
     const r = resolveRange({ label: "x", days: NaN as any, preset: "custom" }, now);
     expect(r.days).toBe(30);
-    expect(isoDay(r.end)).toBe("2026-08-18");
+    expect(isoDay(r.end)).toBe("2026-08-17");
   });
 
   it("null (kein Store-Eintrag) = 30 Tage", () => {
@@ -166,7 +166,7 @@ describe("previousPeriod", () => {
   it("liegt direkt vor der aktuellen Periode und ist gleich lang", () => {
     const cur = resolveRange({ label: "7 Tage", days: 7, preset: "7d" }, new Date(2026, 7, 18));
     const prev = previousPeriod(cur);
-    expect(isoDay(prev.end)).toBe("2026-08-11");
-    expect(isoDay(prev.start)).toBe("2026-08-05");
+    expect(isoDay(prev.end)).toBe("2026-08-10");
+    expect(isoDay(prev.start)).toBe("2026-08-04");
   });
 });

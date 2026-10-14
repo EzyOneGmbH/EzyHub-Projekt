@@ -10,18 +10,16 @@ import { isProviderEnabled } from "./integrations.server";
 import { adsFenster } from "./google-ads.server";
 import { fetchSeoOverviewZeile } from "./seo-overview.server";
 import { fetchAdsOverviewZeile } from "./google-ads-overview.server";
-import { heuteYmdZuerich } from "@/lib/date-range";
+import { letzteTageBisGestern } from "@/lib/date-range";
 
 /** Zeiträume der Kopfzeile, die vorgewärmt werden (30 Tage = Standard zuerst). */
 export const VORWAERM_TAGE = [30, 7, 90] as const;
 const PARALLEL = 4;
 const ZEITBUDGET_MS = 240_000;
 
-/** «Letzte N Tage inklusive heute» wie im Browser (Schweizer Datum). */
-export function fensterLetzteTage(tage: number, heute = heuteYmdZuerich()) {
-  const [y, m, d] = heute.split("-").map(Number);
-  const start = new Date(Date.UTC(y, m - 1, d - (tage - 1)));
-  return { startDate: start.toISOString().slice(0, 10), endDate: heute };
+/** «Letzte N Tage bis gestern» wie im Browser (Schweizer Datum, 14.10.2026). */
+export function fensterLetzteTage(tage: number, jetztMs: number = Date.now()) {
+  return letzteTageBisGestern(tage, jetztMs);
 }
 
 type Ergebnis = { seo: number; ads: number; fehler: number; abgebrochen: boolean; ms: number };

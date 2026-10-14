@@ -12,7 +12,7 @@ import {
   GitBranch,
   Minus,
 } from "lucide-react";
-import { useRangeData } from "@/ezy/data/rangeStore";
+import { useRangeData, letzteTage } from "@/ezy/data/rangeStore";
 import { supabase } from "@/integrations/supabase/client";
 import { Component, useMemo, useRef } from "react";
 import { useState, useEffect, useCallback } from "react";
@@ -1052,16 +1052,19 @@ export function DateRangePicker({ value, onChange, up = false }) {
         >
           {!showCalendar ? (
             <>
+              {/* 14.10.2026: Hinweis — heute ist in GA4/GSC/Ads noch unvollständig. */}
+              <div style={{ fontSize: 11, color: C.textDim, padding: "4px 12px 6px" }}>
+                Bis einschliesslich gestern
+              </div>
               {DRP.map((p) => (
                 <button
                   key={p.id}
                   onClick={() => {
                     setA(p.id);
-                    const now = new Date();
-                    // Zeitraum-Vereinheitlichung (13.09.2026): genau N Kalendertage
-                    // inklusive heute (frueher N+1, abweichend von rangeStore).
-                    const start = new Date(now.getTime() - (p.d - 1) * 24 * 60 * 60 * 1000);
-                    onChange({ label: p.label, days: p.d, start, end: now, preset: p.id });
+                    // 14.10.2026: genau N Kalendertage bis einschliesslich gestern —
+                    // heute ist in GA4/GSC/Ads noch unvollständig.
+                    const { start, end } = letzteTage(p.d);
+                    onChange({ label: p.label, days: p.d, start, end, preset: p.id });
                     setOpen(false);
                   }}
                   style={{

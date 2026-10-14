@@ -56,6 +56,16 @@ export type ResolvedRange = {
   label: string;
 };
 
+/**
+ * «Letzte N Tage» bis einschliesslich GESTERN (Volkan 14.10.2026): der heutige
+ * Tag ist in GA4/GSC/Ads noch unvollständig und verzerrte Vergleiche. 7 Tage =
+ * die 7 Tage bis gestern; die Vorperiode sind die 7 Tage davor.
+ */
+export function letzteTage(days: number, now: Date = new Date()): { start: Date; end: Date } {
+  const end = new Date(now.getTime() - 864e5);
+  return { start: new Date(end.getTime() - (days - 1) * 864e5), end };
+}
+
 export function resolveRange(r: SharedRange | null, now: Date = new Date()): ResolvedRange {
   if (r?.preset === "custom" && r.start && r.end) {
     const start = new Date(r.start);
@@ -66,10 +76,11 @@ export function resolveRange(r: SharedRange | null, now: Date = new Date()): Res
     }
   }
   const days = r && Number.isFinite(r.days) && r.days >= 1 ? Math.min(365, Math.round(r.days)) : 30;
+  const { start, end } = letzteTage(days, now);
   return {
     days,
-    start: new Date(now.getTime() - (days - 1) * 864e5),
-    end: now,
+    start,
+    end,
     preset: r?.preset && r.preset !== "custom" ? r.preset : `${days}d`,
     label: r?.label || `${days} Tage`,
   };

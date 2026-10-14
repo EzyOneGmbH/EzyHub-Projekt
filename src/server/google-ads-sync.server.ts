@@ -31,14 +31,13 @@ export type SyncFenster = {
 };
 
 /**
- * Zeitraum wie resolveRange()/previousPeriod() im Dashboard: N Tage bis heute
- * (inklusive), Vorperiode direkt davor. Liegt der Schweizer Tag vor dem UTC-Tag
- * (00–02 Uhr Ortszeit), wuerde der Server «endDate in der Zukunft» melden —
- * dann null (der Cron laeuft bewusst nicht in diesem Fenster).
+ * Zeitraum wie resolveRange()/previousPeriod() im Dashboard: N Tage bis
+ * einschliesslich GESTERN (14.10.2026, Volkan: heute ist in Ads/GA4 noch
+ * unvollständig), Vorperiode direkt davor. Schweizer Kalendertag.
  */
 export function syncFenster(days: number, jetztMs: number = Date.now()): SyncFenster | null {
   if (!Number.isInteger(days) || days < 1 || days > 366) return null;
-  const endDate = zuercherHeute(jetztMs);
+  const endDate = addDays(zuercherHeute(jetztMs), -1);
   if (endDate > heuteYmd(jetztMs)) return null;
   const startDate = addDays(endDate, -(days - 1));
   const compareEnd = addDays(startDate, -1);
