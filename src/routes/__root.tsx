@@ -37,6 +37,10 @@ export const Route = createRootRoute({
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       // Name unter dem Icon auf dem iPhone-Home-Bildschirm + Akzentfarbe (14.10.2026).
       { name: "apple-mobile-web-app-title", content: "EzyHub" },
+      // Als Web-App vom Home-Bildschirm (14.10.2026): eigenes Fenster ohne Safari-Leiste.
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "default" },
       { name: "application-name", content: "EzyHub" },
       { name: "theme-color", content: "#77008C" },
       // CD 2025: Wortmarke "Ezy One" in Sentence case — nie ALL CAPS.
@@ -84,10 +88,11 @@ export const Route = createRootRoute({
       { rel: "icon", href: "/favicon-192x192.png", sizes: "192x192", type: "image/png" },
       // iOS (14.10.2026): neuer Dateiname, weil Safari ein früher fehlendes
       // Icon unter der alten Adresse zwischenspeichert und nicht neu lädt.
-      { rel: "apple-touch-icon", href: "/app-icon-180.png", sizes: "180x180" },
+      { rel: "apple-touch-icon", href: "/app-icon-180.png?v=3", sizes: "180x180" },
       { rel: "shortcut icon", href: "/favicon.ico" },
       // Home-Bildschirm (14.10.2026): Android liest Name + Icons aus dem Manifest.
-      { rel: "manifest", href: "/site.webmanifest" },
+      // Neuer Name (14.10.): iOS merkt sich den früheren 404 von /site.webmanifest.
+      { rel: "manifest", href: "/ezyhub.webmanifest?v=3" },
       // CD-Typografie: Poppins ≈ Kamerik 105 (Titel), Nunito Sans ≈ Aceh Soft
       // (Fließtext) — freie Ersatzschnitte, bis die Originale lizenziert vorliegen.
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
