@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import type { EzyAppId } from "./appRegistry";
+import { appDeaktiviert, type EzyAppId } from "./appRegistry";
 import { portalAppsFuerKunden } from "./kundenZugriff";
 
 const ALL: EzyAppId[] = ["seo", "geo", "analyse", "ads", "reakt"];
@@ -77,8 +77,13 @@ export function useAppAccess() {
     };
   }, [userId, role, isOrgAdmin, authLoading]);
 
+  // Vorübergehend abgeschaltete Apps (appRegistry deaktiviert) sind für niemanden offen.
   const canOpen = (id: EzyAppId) =>
-    id === "admin" ? isOrgAdmin : isOrgAdmin || (apps?.has(id) ?? false);
+    appDeaktiviert(id)
+      ? false
+      : id === "admin"
+        ? isOrgAdmin
+        : isOrgAdmin || (apps?.has(id) ?? false);
 
   const loading = authLoading || (!!user && role === null) || apps === null;
   return { apps, canOpen, isOrgAdmin, organizationId, loading };

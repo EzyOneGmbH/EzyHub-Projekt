@@ -16,11 +16,13 @@ export type EzyAppDef = {
   adminOnly?: boolean;
   /** Rein internes Team-Tool: taucht NIE in Kunden-App-Matrizen/Portal auf */
   internalOnly?: boolean;
+  /** Vorübergehend abgeschaltet: fehlt in allen Listen, Route leitet weiter. */
+  deaktiviert?: boolean;
 };
 
 // Produktnamen (Volkan 31.07.): EzyRank/EzyAI/EzyPerformance = etablierte
 // Produktlinien (awork-Projekttypen); Reaktivierung/Admin haben keine.
-export const EZY_APPS: EzyAppDef[] = [
+export const ALLE_APPS: EzyAppDef[] = [
   {
     id: "seo",
     name: "EzyRank",
@@ -68,6 +70,9 @@ export const EZY_APPS: EzyAppDef[] = [
     color: "#059669",
     tint: "rgba(5,150,105,.10)",
     href: "/reakt", // Phase 3: Interims-Route (echte UI kommt in Phase 4)
+    // Volkan 14.10.2026: «WebApp Reaktivierung für den Moment deaktivieren».
+    // Wieder einschalten = diese Zeile entfernen.
+    deaktiviert: true,
   },
   {
     id: "admin",
@@ -80,6 +85,14 @@ export const EZY_APPS: EzyAppDef[] = [
     adminOnly: true,
   },
 ];
+
+/** Alle aktiven Apps — Launcher, Seitenleiste, Matrix, Kunden-Zugriff. */
+export const EZY_APPS: EzyAppDef[] = ALLE_APPS.filter((a) => !a.deaktiviert);
+
+/** true, wenn die App vorübergehend abgeschaltet ist (deaktiviert: true). */
+export function appDeaktiviert(id: string): boolean {
+  return ALLE_APPS.some((a) => a.id === id && a.deaktiviert);
+}
 
 /** Phase 3 (31.07.): EzyOneApp wird zur Engine — jeder Scope filtert die
  *  Haupt-Navigation (pages) und die Dashboard-Tabs (tabs) der jeweiligen App.

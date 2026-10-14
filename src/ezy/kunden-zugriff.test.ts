@@ -11,12 +11,17 @@ import {
   sichtbareAppsFuerKunde,
   zugewieseneKunden,
 } from "./data/kundenZugriff";
-import { APP_SCOPES, EZY_APPS, currentAppOf } from "./data/appRegistry";
+import { ALLE_APPS, APP_SCOPES, EZY_APPS, appDeaktiviert, currentAppOf } from "./data/appRegistry";
 import { appEnabledFor, appSichtbarFuerRolle, portalVisibleFor } from "./data/useClientAppAccess";
 
 describe("Kunden-Zugriff: sichtbare Apps je Kunde", () => {
-  it("Portal-Apps sind genau EzyRank/EzyAI/EzyPerformance/Reaktivierung", () => {
-    expect(kundenfaehigeApps(EZY_APPS).map((a) => a.id)).toEqual(["seo", "geo", "ads", "reakt"]);
+  // Reaktivierung ist seit 14.10.2026 vorübergehend deaktiviert (appRegistry).
+  it("Portal-Apps sind genau EzyRank/EzyAI/EzyPerformance (Reaktivierung deaktiviert)", () => {
+    expect(kundenfaehigeApps(EZY_APPS).map((a) => a.id)).toEqual(["seo", "geo", "ads"]);
+    expect(appDeaktiviert("reakt")).toBe(true);
+    expect(EZY_APPS.some((a) => a.id === "reakt")).toBe(false);
+    expect(ALLE_APPS.some((a) => a.id === "reakt")).toBe(true); // Definition bleibt
+    expect(appDeaktiviert("seo")).toBe(false);
   });
 
   it("keine Zeile = App aktiv, Zeile mit enabled=false = gesperrt", () => {
@@ -33,7 +38,7 @@ describe("Kunden-Zugriff: sichtbare Apps je Kunde", () => {
     const c1 = Object.fromEntries(
       sichtbareAppsFuerKunde("c1", apps, map).map((a) => [a.id, a.enabled]),
     );
-    expect(c1).toEqual({ seo: true, geo: true, ads: false, reakt: true });
+    expect(c1).toEqual({ seo: true, geo: true, ads: false });
     // Kunde ohne Zeilen und ohne Map: alles aktiv (Legacy-Default)
     expect(sichtbareAppsFuerKunde("c9", apps, null).every((a) => a.enabled)).toBe(true);
   });
@@ -160,7 +165,6 @@ describe("Kunden-Zugriff: Portal-Sichtbarkeit getrennt von der Team-Sicht", () =
       ["seo", true, false],
       ["geo", true, true],
       ["ads", false, false],
-      ["reakt", true, true],
     ]);
   });
 });
