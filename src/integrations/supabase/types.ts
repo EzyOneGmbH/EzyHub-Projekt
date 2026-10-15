@@ -2106,18 +2106,21 @@ export type Database = {
           created_at: string
           event_name: string
           id: string
+          modus: string
         }
         Insert: {
           client_id: string
           created_at?: string
           event_name: string
           id?: string
+          modus?: string
         }
         Update: {
           client_id?: string
           created_at?: string
           event_name?: string
           id?: string
+          modus?: string
         }
         Relationships: [
           {
@@ -2578,6 +2581,59 @@ export type Database = {
           },
         ]
       }
+      conversion_log: {
+        Row: {
+          client_id: string
+          created_at: string
+          created_by: string | null
+          created_by_email: string | null
+          datum: string
+          firma: string
+          grund: string
+          id: string
+          organization_id: string
+          person: string
+          telefon: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          created_by_email?: string | null
+          datum?: string
+          firma?: string
+          grund?: string
+          id?: string
+          organization_id: string
+          person?: string
+          telefon?: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          created_by_email?: string | null
+          datum?: string
+          firma?: string
+          grund?: string
+          id?: string
+          organization_id?: string
+          person?: string
+          telefon?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversion_log_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversion_scan_runs: {
         Row: {
           client_id: string
@@ -2938,6 +2994,38 @@ export type Database = {
             columns: ["rotated_from"]
             isOneToOne: false
             referencedRelation: "ingest_credentials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      login_ansicht: {
+        Row: {
+          ansicht: string
+          created_at: string
+          created_by: string | null
+          organization_id: string
+          user_id: string
+        }
+        Insert: {
+          ansicht: string
+          created_at?: string
+          created_by?: string | null
+          organization_id: string
+          user_id: string
+        }
+        Update: {
+          ansicht?: string
+          created_at?: string
+          created_by?: string | null
+          organization_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "login_ansicht_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -3529,6 +3617,38 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      uebersicht_cache: {
+        Row: {
+          art: string
+          client_id: string
+          erstellt: string
+          payload: Json
+          schluessel: string
+        }
+        Insert: {
+          art: string
+          client_id: string
+          erstellt?: string
+          payload: Json
+          schluessel: string
+        }
+        Update: {
+          art?: string
+          client_id?: string
+          erstellt?: string
+          payload?: Json
+          schluessel?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "uebersicht_cache_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
             referencedColumns: ["id"]
           },
         ]
