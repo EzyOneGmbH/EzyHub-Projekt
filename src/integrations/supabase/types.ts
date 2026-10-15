@@ -2106,18 +2106,21 @@ export type Database = {
           created_at: string
           event_name: string
           id: string
+          modus: string
         }
         Insert: {
           client_id: string
           created_at?: string
           event_name: string
           id?: string
+          modus?: string
         }
         Update: {
           client_id?: string
           created_at?: string
           event_name?: string
           id?: string
+          modus?: string
         }
         Relationships: [
           {
@@ -3529,6 +3532,38 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      uebersicht_cache: {
+        Row: {
+          art: string
+          client_id: string
+          erstellt: string
+          payload: Json
+          schluessel: string
+        }
+        Insert: {
+          art: string
+          client_id: string
+          erstellt?: string
+          payload: Json
+          schluessel: string
+        }
+        Update: {
+          art?: string
+          client_id?: string
+          erstellt?: string
+          payload?: Json
+          schluessel?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "uebersicht_cache_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
             referencedColumns: ["id"]
           },
         ]
