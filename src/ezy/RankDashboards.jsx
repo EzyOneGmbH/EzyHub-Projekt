@@ -4,6 +4,7 @@
 import { cacheGet, cachePut, useStuendlich } from "./data/rangeStore";
 import { organischerBreakdown } from "@/lib/convEvents";
 import { vorperiode } from "@/lib/date-range";
+import { zaehleRankKacheln } from "@/lib/rankKacheln";
 import { besucheLand, landName, laenderImZeitraum, laenderMitTraffic } from "@/lib/seoHistLaender";
 import { Btn } from "./shared-ui";
 import {
@@ -228,23 +229,33 @@ export function AgencyOverview({
           setStats(next);
           return;
         }
-        const [rankRes, ga4Res, seoRes] = await Promise.all([
-          neuesteLaeufe(ids, "rankings", ["aggregate"], ["agg"]),
+        // Top 3/10 wie im Kunden-Dashboard (15.10.2026): Tabellen-Basis aus
+        // getrackten Keywords + nicht getrackten GSC-Queries (lib/rankKacheln).
+        const [rankRes, ga4Res, seoRes, gscRes] = await Promise.all([
+          neuesteLaeufe(ids, "rankings", ["keywords"], ["kw"]),
           // Echter organischer Traffic (2026-08-13, User-Wunsch): GA4-Kanal
           // "Organic Search" aus dem letzten ga4_traffic-Snapshot — wie die
           // "Organic Traffic"-Kachel im SEO-Tab. DFS-ETV nur noch Fallback.
           neuesteLaeufe(ids, "ga4_traffic", ["channels"], ["ch"]),
           neuesteLaeufe(ids, "ahrefs", ["metrics"], ["m"]),
+          neuesteLaeufe(ids, "gsc_queries", ["topNonbrandQueries"], ["gq"]),
         ]);
+        const gscJeKunde = new Map();
+        for (const row of gscRes.data || []) {
+          if (!gscJeKunde.has(row.client_id)) gscJeKunde.set(row.client_id, row.gq);
+        }
         if (!alive) return;
         const next = {};
         for (const row of rankRes.data || []) {
           if (next[row.client_id]?.top3 != null) continue; // erste Zeile = neuester Lauf
-          const a = row.agg || {};
+          const z = zaehleRankKacheln(
+            Array.isArray(row.kw) ? row.kw : [],
+            gscJeKunde.get(row.client_id),
+          );
           next[row.client_id] = {
             ...next[row.client_id],
-            top3: Number(a.top3 ?? 0) || 0,
-            top10: Number(a.top10 ?? 0) || 0,
+            top3: z ? z.top3 : 0,
+            top10: z ? z.top10 : 0,
             // Datum-Chip wie in der EzyAI-Übersicht: letzter Messlauf.
             date: String(row.created_at || "").slice(0, 10),
           };
@@ -1245,15 +1256,17 @@ export function SeoDashboard({ selectedClient, dateRange }) {
     const zaehle = (liste, max) =>
       liste.filter((k) => k.pos != null && Number(k.pos) > 0 && Number(k.pos) <= max).length;
     const vonListe = Array.isArray(rankVon?.keywords) ? rankVon.keywords : null;
+    // Gleiche Funktion wie Agentur-Kacheln/-Tabelle (lib/rankKacheln, 15.10.2026).
+    const jetzt = zaehleRankKacheln(rank?.keywords, gscQ?.topNonbrandQueries);
     return {
-      top3: rankBasis.length ? zaehle(rankBasis, 3) : null,
-      top10: rankBasis.length ? zaehle(rankBasis, 10) : null,
+      top3: jetzt ? jetzt.top3 : null,
+      top10: jetzt ? jetzt.top10 : null,
       improved7: rankBasis.filter(istVerbessert).length,
       declined7: rankBasis.filter(istVerschlechtert).length,
       top3Von: vonListe ? zaehle(vonListe, 3) : null,
       top10Von: vonListe ? zaehle(vonListe, 10) : null,
     };
-  }, [rankBasis, rankVon]);
+  }, [rankBasis, rankVon, rank, gscQ]);
   const rankRows = useMemo(() => {
     let rows = [...rankBasis];
     // Kachel-Filter: gleiche Definition wie die Kacheln Verbessert/Verschlechtert

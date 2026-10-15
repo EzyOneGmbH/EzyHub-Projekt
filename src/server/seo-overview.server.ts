@@ -1,3 +1,4 @@
+import { zaehleRankKacheln } from "@/lib/rankKacheln";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "./google-tokens.server";
 import { ga4RunReportUrl } from "./ga4.server";
@@ -160,7 +161,7 @@ export function rankVergleichbar(cur: RankLaufInfo, prev: RankLaufInfo): boolean
 
 async function letzterLauf(
   clientId: string,
-  auditType: "rankings" | "ahrefs",
+  auditType: "rankings" | "ahrefs" | "gsc_queries",
   feld: string,
   bisIso: string | null,
   extra = "",
@@ -216,25 +217,36 @@ export async function fetchSeoOverviewZeile(
   // ── Rankings + Sichtbarkeit aus gespeicherten Laeufen ──────────────────────
   const bisCur = stichtagIso(aktuell.endDate);
   const bisPrev = stichtagIso(vorher.endDate);
-  const [rCur, rPrev, vCur, vPrev] = await Promise.all([
-    letzterLauf(kunde.id, "rankings", "result->aggregate", bisCur, ", ort:result->>crawlLocation"),
-    letzterLauf(kunde.id, "rankings", "result->aggregate", bisPrev, ", ort:result->>crawlLocation"),
+  // Top 3/10 wie Kunden-Dashboard (15.10.2026): Tabellen-Basis = getrackte
+  // Keywords (Position Crawl, sonst GSC-Ø) + nicht getrackte GSC-Queries
+  // (lib/rankKacheln) statt result.aggregate (nur exakte Crawl-Treffer).
+  const [rCur, rPrev, vCur, vPrev, gCur, gPrev] = await Promise.all([
+    letzterLauf(kunde.id, "rankings", "result->keywords", bisCur, ", ort:result->>crawlLocation"),
+    letzterLauf(kunde.id, "rankings", "result->keywords", bisPrev, ", ort:result->>crawlLocation"),
     letzterLauf(kunde.id, "ahrefs", "result->sistrix", bisCur),
     letzterLauf(kunde.id, "ahrefs", "result->sistrix", bisPrev),
+    letzterLauf(kunde.id, "gsc_queries", "result->topNonbrandQueries", bisCur),
+    letzterLauf(kunde.id, "gsc_queries", "result->topNonbrandQueries", bisPrev),
   ]);
+  const tabelle = (r: Lauf | null, g: Lauf | null) =>
+    zaehleRankKacheln(Array.isArray(r?.wert) ? r.wert : [], Array.isArray(g?.wert) ? g.wert : []);
+  // Gleiche Zaehlmethode fuer beide Laeufe -> nur der Standort-Guard bleibt relevant.
+  const mitBasis = (r: Lauf | null) => (r ? { ...r, wert: { basis: "tabelle" } } : null);
   if (rCur) {
-    cur.top3 = zahlOderNull(rCur.wert?.top3);
-    cur.top10 = zahlOderNull(rCur.wert?.top10);
+    const z = tabelle(rCur, gCur);
+    cur.top3 = z ? z.top3 : null;
+    cur.top10 = z ? z.top10 : null;
   } else hinweise.push("Kein Rankings-Lauf bis Zeitraum-Ende");
   // Vergleich nur, wenn ein ANDERER (frueherer) Lauf existiert — wie im Dashboard —
   // und beide nach derselben Methode gezaehlt wurden (Methodenwechsel-Guard).
   let rankVergleich: SeoOverviewZeile["rankVergleich"] = null;
   let rankVergleichGrundText: string | null = null;
   if (rPrev && rCur && rPrev.id !== rCur.id) {
-    rankVergleichGrundText = rankVergleichGrund(rCur, rPrev);
+    rankVergleichGrundText = rankVergleichGrund(mitBasis(rCur), mitBasis(rPrev));
     if (rankVergleichGrundText === null) {
-      prev.top3 = zahlOderNull(rPrev.wert?.top3);
-      prev.top10 = zahlOderNull(rPrev.wert?.top10);
+      const z = tabelle(rPrev, gPrev);
+      prev.top3 = z ? z.top3 : null;
+      prev.top10 = z ? z.top10 : null;
       rankVergleich = "ok";
     } else {
       rankVergleich = "methodenwechsel";
