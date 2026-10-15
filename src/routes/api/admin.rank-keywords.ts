@@ -8,11 +8,11 @@ import { requireTeamRole } from "@/server/team-guard.server";
 // Gespeicherte Keywords (15.10.2026, Volkan Punkt 7) — NUR Team-Ansicht
 // (owner/admin/member; Kundenportal viewer = 403). Leitet an den agent-service
 // (/keyword-mark) weiter: track = ins Rank-Tracking übernehmen (Tag «saved»),
-// save/unsave = Merkliste (nie rotiert), pin/unpin = Money-Keyword.
+// save/unsave = Merkliste (nie rotiert). Money-Pin am 15.10. entfernt (ohne Funktion).
 
 const Body = z.object({
   clientId: z.string().uuid(),
-  action: z.enum(["track", "save", "unsave", "pin", "unpin"]),
+  action: z.enum(["track", "save", "unsave"]),
   keywords: z.array(z.string().trim().min(1).max(200)).min(1).max(50),
 });
 

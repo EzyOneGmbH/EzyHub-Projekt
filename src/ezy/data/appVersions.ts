@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.4.17",
+    version: "2.4.18",
     changelog: [
+      {
+        version: "2.4.18",
+        date: "2026-10-15",
+        note: "Team-Ansicht Rankings: Money-Pin 📌 entfernt (ohne Funktion) — Merkliste ★ bleibt",
+      },
       {
         version: "2.4.17",
         date: "2026-10-15",

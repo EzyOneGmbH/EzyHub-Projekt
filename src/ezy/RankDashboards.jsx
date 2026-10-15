@@ -1380,8 +1380,6 @@ export function SeoDashboard({ selectedClient, dateRange }) {
       const j = await r.json().catch(() => ({}));
       const texte = {
         track: `«${kw}» wird ab dem nächsten Crawl getrackt.`,
-        pin: `«${kw}» als Money-Keyword angeheftet.`,
-        unpin: `«${kw}» nicht mehr angeheftet.`,
         save: `«${kw}» auf der Merkliste.`,
         unsave: `«${kw}» von der Merkliste entfernt.`,
       };
@@ -1917,39 +1915,21 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                                 + Tracken
                               </button>
                             ) : (
-                              <>
-                                <span
-                                  role="button"
-                                  onClick={() => rankMarkieren(k.isSaved ? "unsave" : "save", k.kw)}
-                                  title={
-                                    k.isSaved
-                                      ? "Von der Merkliste entfernen"
-                                      : "Auf die Merkliste (wird nie rotiert)"
-                                  }
-                                  style={{
-                                    cursor: rankAktion ? "wait" : "pointer",
-                                    color: k.isSaved ? C.accent : C.textDim,
-                                    marginRight: 8,
-                                  }}
-                                >
-                                  {k.isSaved ? "★" : "☆"}
-                                </span>
-                                <span
-                                  role="button"
-                                  onClick={() => rankMarkieren(k.isMoney ? "unpin" : "pin", k.kw)}
-                                  title={
-                                    k.isMoney
-                                      ? "Money-Markierung entfernen"
-                                      : "Als Money-Keyword anheften"
-                                  }
-                                  style={{
-                                    cursor: rankAktion ? "wait" : "pointer",
-                                    opacity: k.isMoney ? 1 : 0.35,
-                                  }}
-                                >
-                                  📌
-                                </span>
-                              </>
+                              <span
+                                role="button"
+                                onClick={() => rankMarkieren(k.isSaved ? "unsave" : "save", k.kw)}
+                                title={
+                                  k.isSaved
+                                    ? "Von der Merkliste entfernen"
+                                    : "Auf die Merkliste (wird nie rotiert)"
+                                }
+                                style={{
+                                  cursor: rankAktion ? "wait" : "pointer",
+                                  color: k.isSaved ? C.accent : C.textDim,
+                                }}
+                              >
+                                {k.isSaved ? "★" : "☆"}
+                              </span>
                             )}
                           </td>
                         )}
