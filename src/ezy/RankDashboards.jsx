@@ -5,6 +5,7 @@ import { cacheGet, cachePut, useStuendlich } from "./data/rangeStore";
 import { organischerBreakdown } from "@/lib/convEvents";
 import { vorperiode } from "@/lib/date-range";
 import { zaehleRankKacheln } from "@/lib/rankKacheln";
+import { strikingDistance } from "@/lib/strikingDistance";
 import { besucheLand, landName, laenderImZeitraum, laenderMitTraffic } from "@/lib/seoHistLaender";
 import { Btn } from "./shared-ui";
 import {
@@ -864,6 +865,10 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   // «Datenquellen der Widgets»-Tabelle nicht (interne Kanal-Information).
   const { role, isOrgAdmin } = useAuth();
   const istKunde = role === "viewer";
+  // Team-Funktionen (15.10.2026, Volkan: «nur in unserer Ansicht»): Striking
+  // Distance, Mobil-Spalte, Merkliste/Anheften/Tracken — fail-closed, solange
+  // die Rolle laedt, bleibt alles verborgen; Kundenportal (viewer) nie.
+  const istTeam = role === "owner" || role === "admin" || role === "member";
   // Zeitraum-Anbindung (22.08.): Snapshots zum ENDE des gewählten Zeitraums
   // aus den gespeicherten Messläufen — Presets (Ende = heute) unverändert.
   const bis = dateRange?.end || null;
@@ -1166,6 +1171,9 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   };
   // Suchfeld (Volkan 31.08.): Keywords in der Rankings-Tabelle schnell finden.
   const [rankSearch, setRankSearch] = useState("");
+  const [rankMerk, setRankMerk] = useState(false);
+  const [rankAktion, setRankAktion] = useState(null); // { kw, action } laufend
+  const [rankAktionInfo, setRankAktionInfo] = useState(null);
   // Gesamter Keyword-Bestand (2026-08-12): getrackte KW (DataForSEO, präzise
   // Position + Verlauf + Volumen) UNION komplette GSC-Non-Brand-Queries
   // (GSC-Ø-Position + Klicks + Impressions). Dedup nach normalisiertem Keyword —
@@ -1273,6 +1281,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
     // (rankKacheln) — Klick auf die Kachel zeigt genau die gezaehlten Zeilen.
     if (rankFilter === "improved") rows = rows.filter(istVerbessert);
     else if (rankFilter === "declined") rows = rows.filter(istVerschlechtert);
+    if (istTeam && rankMerk) rows = rows.filter((k) => k.isSaved);
     // Suchfeld: Teilstring-Match auf dem normalisierten Keyword.
     const search = normKw(rankSearch);
     if (search) rows = rows.filter((k) => normKw(k.kw).includes(search));
@@ -1309,6 +1318,9 @@ export function SeoDashboard({ selectedClient, dateRange }) {
       } else if (col === "posi") {
         av = a.posIntl ?? 999;
         bv = b.posIntl ?? 999;
+      } else if (col === "posm") {
+        av = a.posMobile ?? 999;
+        bv = b.posMobile ?? 999;
       } else if (col === "posl") {
         av = a.posLocal ?? 999;
         bv = b.posLocal ?? 999;
@@ -1322,7 +1334,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
       return dir * (av - bv);
     });
     return rows;
-  }, [rankBasis, rankSort, rankFilter, rankSearch]);
+  }, [rankBasis, rankSort, rankFilter, rankSearch, rankMerk, istTeam]);
   // Zähler für die Kopfzeile (getrackt vs. aus GSC gemergt).
   const rankCounts = useMemo(() => {
     let dfs = 0,
@@ -1339,6 +1351,53 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   // Maps-Kasten (11.09.): Spalte nur, wenn der standortbezogene Crawl mindestens
   // ein Keyword im Local Pack gefunden hat.
   const hasLocal = useMemo(() => (rank?.keywords || []).some((k) => k.posLocal != null), [rank]);
+  const hasMobile = useMemo(
+    () => istTeam && (rank?.keywords || []).some((k) => k.posMobile !== undefined),
+    [rank, istTeam],
+  );
+  // Striking Distance (Team): GSC-Begriffe Ø-Position 5–20, Potenzial bis Platz 3.
+  const striking = useMemo(() => {
+    if (!istTeam) return [];
+    const getrackt = new Set(
+      (rank?.keywords || []).map((k) =>
+        String(k.kw || "")
+          .trim()
+          .toLowerCase(),
+      ),
+    );
+    return strikingDistance(gscQ?.topNonbrandQueries, getrackt, { limit: 25 });
+  }, [istTeam, rank, gscQ]);
+  const rankMarkieren = async (action, kw) => {
+    if (!selectedClient?.id || rankAktion) return;
+    setRankAktion({ kw, action });
+    setRankAktionInfo(null);
+    try {
+      const r = await ezyFetch("/api/admin/rank-keywords", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: selectedClient.id, action, keywords: [kw] }),
+      });
+      const j = await r.json().catch(() => ({}));
+      const texte = {
+        track: `«${kw}» wird ab dem nächsten Crawl getrackt.`,
+        pin: `«${kw}» als Money-Keyword angeheftet.`,
+        unpin: `«${kw}» nicht mehr angeheftet.`,
+        save: `«${kw}» auf der Merkliste.`,
+        unsave: `«${kw}» von der Merkliste entfernt.`,
+      };
+      setRankAktionInfo(
+        j?.ok
+          ? { fehler: false, text: texte[action] }
+          : { fehler: true, text: j?.error || "Aktion fehlgeschlagen" },
+      );
+      // Snapshot-Push des agent-service ist asynchron — kurz warten, dann neu laden.
+      setTimeout(() => refreshRank(), 2500);
+    } catch {
+      setRankAktionInfo({ fehler: true, text: "Aktion fehlgeschlagen" });
+    } finally {
+      setRankAktion(null);
+    }
+  };
   // Sortierung der GSC-Suchbegriff-Tabelle (User-Wunsch 2026-07-20): wie Rankings.
   // Erstklick: Query/Pos. aufsteigend, Metriken (Klicks/Impr./CTR) absteigend.
   // (Das separate Top-Non-Brand-Widget ist seit 31.08. in der Rankings-Tabelle
@@ -1603,6 +1662,39 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                   </span>
                 )}
                 {hasIntl && !istKunde ? " · INT = google.com (USA/en, wöchentliche Messung)" : ""}
+                {istTeam && (
+                  <span
+                    onClick={() => {
+                      setRankMerk((v) => !v);
+                      setRankPage(0);
+                    }}
+                    title="Nur Team: Keywords auf der Merkliste zeigen"
+                    style={{
+                      marginLeft: 8,
+                      padding: "2px 8px",
+                      borderRadius: 999,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      background: rankMerk ? `${C.accent}22` : "transparent",
+                      border: `1px solid ${rankMerk ? C.accent : C.border}`,
+                      color: rankMerk ? C.accent : C.textMuted,
+                    }}
+                  >
+                    ★ Merkliste{rankMerk ? " ✕" : ""}
+                  </span>
+                )}
+                {istTeam && rankAktionInfo && (
+                  <span
+                    style={{
+                      marginLeft: 8,
+                      fontSize: 11,
+                      color: rankAktionInfo.fehler ? C.orange : C.green,
+                    }}
+                  >
+                    {rankAktionInfo.text}
+                  </span>
+                )}
               </div>
               <input
                 type="search"
@@ -1634,6 +1726,8 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                       ["pos", "Position", "right"],
                       // Maps-Kasten (Local Pack) aus dem standortbezogenen Crawl (11.09.)
                       ...(hasLocal ? [["posl", "Maps", "right"]] : []),
+                      // Mobil (Team, Vollcrawl Mo/Fr) — 15.10.2026
+                      ...(hasMobile ? [["posm", "Mobil", "right"]] : []),
                       // INT-Spalten (google.com USA/en, alle 10 Tage)
                       ...(hasIntl ? [["posi", "Pos. INT", "right"]] : []),
                       ["d7", "Δ 7T", "right"],
@@ -1645,6 +1739,8 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                       ...(hasIntl ? [["voli", "Vol. INT", "right"]] : []),
                       // Quelle (Tracking/GSC) ist interne Information (31.08.).
                       ...(istKunde ? [] : [[null, "Quelle", "right"]]),
+                      // Merken / Anheften / Tracken (Team)
+                      ...(istTeam ? [[null, " ", "right"]] : []),
                     ].map(([col, label, align]) => (
                       <th
                         key={label}
@@ -1712,6 +1808,14 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                             }
                           >
                             {k.posLocal != null ? `#${k.posLocal}` : "—"}
+                          </td>
+                        )}
+                        {hasMobile && (
+                          <td
+                            style={{ padding: "6px 8px", textAlign: "right", color: C.textMuted }}
+                            title="Mobil-Position (Vollcrawl Mo/Fr, Android) — nur Team-Ansicht"
+                          >
+                            {k._src === "gsc" ? "—" : k.posMobile != null ? k.posMobile : "> 30"}
                           </td>
                         )}
                         {hasIntl && (
@@ -1790,6 +1894,65 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                             </span>
                           </td>
                         )}
+                        {istTeam && (
+                          <td
+                            style={{ padding: "6px 8px", textAlign: "right", whiteSpace: "nowrap" }}
+                          >
+                            {k._src === "gsc" ? (
+                              <button
+                                type="button"
+                                disabled={!!rankAktion}
+                                onClick={() => rankMarkieren("track", k.kw)}
+                                title="Ins Rank-Tracking übernehmen (wird nie rotiert)"
+                                style={{
+                                  fontSize: 11,
+                                  padding: "1px 7px",
+                                  borderRadius: 6,
+                                  border: `1px solid ${C.border}`,
+                                  background: "transparent",
+                                  color: C.accent,
+                                  cursor: rankAktion ? "wait" : "pointer",
+                                }}
+                              >
+                                + Tracken
+                              </button>
+                            ) : (
+                              <>
+                                <span
+                                  role="button"
+                                  onClick={() => rankMarkieren(k.isSaved ? "unsave" : "save", k.kw)}
+                                  title={
+                                    k.isSaved
+                                      ? "Von der Merkliste entfernen"
+                                      : "Auf die Merkliste (wird nie rotiert)"
+                                  }
+                                  style={{
+                                    cursor: rankAktion ? "wait" : "pointer",
+                                    color: k.isSaved ? C.accent : C.textDim,
+                                    marginRight: 8,
+                                  }}
+                                >
+                                  {k.isSaved ? "★" : "☆"}
+                                </span>
+                                <span
+                                  role="button"
+                                  onClick={() => rankMarkieren(k.isMoney ? "unpin" : "pin", k.kw)}
+                                  title={
+                                    k.isMoney
+                                      ? "Money-Markierung entfernen"
+                                      : "Als Money-Keyword anheften"
+                                  }
+                                  style={{
+                                    cursor: rankAktion ? "wait" : "pointer",
+                                    opacity: k.isMoney ? 1 : 0.35,
+                                  }}
+                                >
+                                  📌
+                                </span>
+                              </>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     ))}
                 </tbody>
@@ -1802,6 +1965,106 @@ export function SeoDashboard({ selectedClient, dateRange }) {
               unit="Keywords"
             />
           </div>
+          {istTeam && striking.length > 0 && (
+            <div
+              style={{
+                background: C.card,
+                border: `1px solid ${C.border}`,
+                borderRadius: 14,
+                padding: 16,
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, color: C.textMuted }}>
+                Striking Distance — Quick Wins{" "}
+                <span style={{ fontSize: 11, fontWeight: 400, color: C.textDim }}>(nur Team)</span>
+              </div>
+              <div style={{ fontSize: 11, color: C.textDim, marginBottom: 10 }}>
+                Search-Console-Begriffe auf Ø-Position 5–20 mit der rankenden Seite. Potenzial =
+                zusätzliche Klicks im Zeitraum, wenn der Begriff auf Platz 3 käme.
+              </div>
+              <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                <table
+                  style={{ width: "100%", minWidth: 680, borderCollapse: "collapse", fontSize: 13 }}
+                >
+                  <thead>
+                    <tr style={{ color: C.textDim, textAlign: "left" }}>
+                      <th style={{ padding: "6px 8px" }}>Suchbegriff</th>
+                      <th style={{ padding: "6px 8px", textAlign: "right" }}>Ø Position</th>
+                      <th style={{ padding: "6px 8px", textAlign: "right" }}>Impr.</th>
+                      <th style={{ padding: "6px 8px", textAlign: "right" }}>Klicks</th>
+                      <th style={{ padding: "6px 8px" }}>Seite</th>
+                      <th style={{ padding: "6px 8px", textAlign: "right" }}>Potenzial</th>
+                      <th style={{ padding: "6px 8px", textAlign: "right" }}> </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {striking.map((z) => (
+                      <tr key={z.query} style={{ borderTop: `1px solid ${C.border}` }}>
+                        <td style={{ padding: "6px 8px", color: C.text }}>{z.query}</td>
+                        <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 600 }}>
+                          {z.position.toLocaleString("de-CH")}
+                        </td>
+                        <td style={{ padding: "6px 8px", textAlign: "right", color: C.textMuted }}>
+                          {z.impressions.toLocaleString("de-CH")}
+                        </td>
+                        <td style={{ padding: "6px 8px", textAlign: "right", color: C.textMuted }}>
+                          {z.clicks.toLocaleString("de-CH")}
+                        </td>
+                        <td
+                          style={{
+                            padding: "6px 8px",
+                            color: C.textMuted,
+                            maxWidth: 240,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                          title={z.pageUrl || undefined}
+                        >
+                          {z.pageUrl || "—"}
+                        </td>
+                        <td
+                          style={{
+                            padding: "6px 8px",
+                            textAlign: "right",
+                            color: C.green,
+                            fontWeight: 600,
+                          }}
+                        >
+                          +{z.potenzial.toLocaleString("de-CH")}
+                        </td>
+                        <td
+                          style={{ padding: "6px 8px", textAlign: "right", whiteSpace: "nowrap" }}
+                        >
+                          {z.getrackt ? (
+                            <span style={{ fontSize: 11, color: C.textDim }}>getrackt</span>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={!!rankAktion}
+                              onClick={() => rankMarkieren("track", z.query)}
+                              title="Ins Rank-Tracking übernehmen"
+                              style={{
+                                fontSize: 11,
+                                padding: "1px 7px",
+                                borderRadius: 6,
+                                border: `1px solid ${C.border}`,
+                                background: "transparent",
+                                color: C.accent,
+                                cursor: rankAktion ? "wait" : "pointer",
+                              }}
+                            >
+                              + Tracken
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <SectionPlaceholder

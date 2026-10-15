@@ -100,6 +100,7 @@ import { Route as ApiAdminOpenaiAdsRouteImport } from './routes/api/admin.openai
 import { Route as ApiAdminOpenaiAdsIngestRouteImport } from './routes/api/admin.openai-ads-ingest'
 import { Route as ApiAdminPopulateRouteImport } from './routes/api/admin.populate'
 import { Route as ApiAdminRankSnapshotRouteImport } from './routes/api/admin.rank-snapshot'
+import { Route as ApiAdminRankKeywordsRouteImport } from './routes/api/admin.rank-keywords'
 import { Route as ApiAdminSecretStatusRouteImport } from './routes/api/admin.secret-status'
 import { Route as ApiAdminSecureMigrateRouteImport } from './routes/api/admin.secure-migrate'
 import { Route as ApiAdminSetCanonryProjectRouteImport } from './routes/api/admin.set-canonry-project'
@@ -646,6 +647,11 @@ const ApiAdminRankSnapshotRoute = ApiAdminRankSnapshotRouteImport.update({
   path: '/api/admin/rank-snapshot',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminRankKeywordsRoute = ApiAdminRankKeywordsRouteImport.update({
+  id: '/api/admin/rank-keywords',
+  path: '/api/admin/rank-keywords',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminSecretStatusRoute = ApiAdminSecretStatusRouteImport.update({
   id: '/api/admin/secret-status',
   path: '/api/admin/secret-status',
@@ -1105,6 +1111,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/openai-ads-ingest': typeof ApiAdminOpenaiAdsIngestRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
+  '/api/admin/rank-keywords': typeof ApiAdminRankKeywordsRoute
   '/api/admin/secret-status': typeof ApiAdminSecretStatusRoute
   '/api/admin/secure-migrate': typeof ApiAdminSecureMigrateRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
@@ -1269,6 +1276,7 @@ export interface FileRoutesByTo {
   '/api/admin/openai-ads-ingest': typeof ApiAdminOpenaiAdsIngestRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
+  '/api/admin/rank-keywords': typeof ApiAdminRankKeywordsRoute
   '/api/admin/secret-status': typeof ApiAdminSecretStatusRoute
   '/api/admin/secure-migrate': typeof ApiAdminSecureMigrateRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
@@ -1434,6 +1442,7 @@ export interface FileRoutesById {
   '/api/admin/openai-ads-ingest': typeof ApiAdminOpenaiAdsIngestRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
+  '/api/admin/rank-keywords': typeof ApiAdminRankKeywordsRoute
   '/api/admin/secret-status': typeof ApiAdminSecretStatusRoute
   '/api/admin/secure-migrate': typeof ApiAdminSecureMigrateRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
@@ -1600,6 +1609,7 @@ export interface FileRouteTypes {
     | '/api/admin/openai-ads-ingest'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
+    | '/api/admin/rank-keywords'
     | '/api/admin/secret-status'
     | '/api/admin/secure-migrate'
     | '/api/admin/set-canonry-project'
@@ -1764,6 +1774,7 @@ export interface FileRouteTypes {
     | '/api/admin/openai-ads-ingest'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
+    | '/api/admin/rank-keywords'
     | '/api/admin/secret-status'
     | '/api/admin/secure-migrate'
     | '/api/admin/set-canonry-project'
@@ -1928,6 +1939,7 @@ export interface FileRouteTypes {
     | '/api/admin/openai-ads-ingest'
     | '/api/admin/populate'
     | '/api/admin/rank-snapshot'
+    | '/api/admin/rank-keywords'
     | '/api/admin/secret-status'
     | '/api/admin/secure-migrate'
     | '/api/admin/set-canonry-project'
@@ -2088,6 +2100,7 @@ export interface RootRouteChildren {
   ApiAdminOpenaiAdsIngestRoute: typeof ApiAdminOpenaiAdsIngestRoute
   ApiAdminPopulateRoute: typeof ApiAdminPopulateRoute
   ApiAdminRankSnapshotRoute: typeof ApiAdminRankSnapshotRoute
+  ApiAdminRankKeywordsRoute: typeof ApiAdminRankKeywordsRoute
   ApiAdminSecretStatusRoute: typeof ApiAdminSecretStatusRoute
   ApiAdminSecureMigrateRoute: typeof ApiAdminSecureMigrateRoute
   ApiAdminSetCanonryProjectRoute: typeof ApiAdminSetCanonryProjectRoute
@@ -2795,6 +2808,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminRankSnapshotRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/rank-keywords': {
+      id: '/api/admin/rank-keywords'
+      path: '/api/admin/rank-keywords'
+      fullPath: '/api/admin/rank-keywords'
+      preLoaderRoute: typeof ApiAdminRankKeywordsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/secret-status': {
       id: '/api/admin/secret-status'
       path: '/api/admin/secret-status'
@@ -3460,6 +3480,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminOpenaiAdsIngestRoute: ApiAdminOpenaiAdsIngestRoute,
   ApiAdminPopulateRoute: ApiAdminPopulateRoute,
   ApiAdminRankSnapshotRoute: ApiAdminRankSnapshotRoute,
+  ApiAdminRankKeywordsRoute: ApiAdminRankKeywordsRoute,
   ApiAdminSecretStatusRoute: ApiAdminSecretStatusRoute,
   ApiAdminSecureMigrateRoute: ApiAdminSecureMigrateRoute,
   ApiAdminSetCanonryProjectRoute: ApiAdminSetCanonryProjectRoute,

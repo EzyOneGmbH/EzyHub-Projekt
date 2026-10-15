@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.4.16",
+    version: "2.4.17",
     changelog: [
+      {
+        version: "2.4.17",
+        date: "2026-10-15",
+        note: "Nur Team-Ansicht: Striking Distance (Quick Wins Pos. 5–20 mit Potenzial), Spalte «Mobil» (Vollcrawl Mo/Fr), Merkliste ★, Money-Pin 📌 und «+ Tracken» für Search-Console-Begriffe — Kundenportal unverändert",
+      },
       {
         version: "2.4.16",
         date: "2026-10-15",

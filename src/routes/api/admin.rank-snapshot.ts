@@ -47,6 +47,10 @@ const Keyword = z.object({
   url: z.string().nullable().optional(),
   volume: z.number().nullable().optional(),
   isMoney: z.boolean().optional(),
+  // Merkliste (15.10.2026, nur Team-Ansicht): Tag «saved» im Rank-Store.
+  isSaved: z.boolean().optional(),
+  // Mobile-Rankings (15.10.2026, nur Team-Ansicht): Vollcrawl mobil (<= 7 Tage), null = nicht in Top 30.
+  posMobile: z.number().int().min(1).nullable().optional(),
   // INT-Zweitmessung (06.08.): google.com USA/en, wöchentlich (Stores mit intl:true).
   posIntl: z.number().int().min(1).nullable().optional(),
   urlIntl: z.string().nullable().optional(),
