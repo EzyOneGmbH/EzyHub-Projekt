@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.4.18",
+    version: "2.5.0",
     changelog: [
+      {
+        version: "2.5.0",
+        date: "2026-10-15",
+        note: "Nur Team-Ansicht: Kundenkontext für Agenten (Ziele, Zielgruppe, Wettbewerber, Tonalität, Notizen), Keyword-Cluster nach Suchabsicht (Kannibalisierung/Lücken), Berichte aus Vorlagen mit Freigabe-Link, Local SEO auf Abruf (Maps-Raster + Konkurrenz-Bewertungen) — Kundenportal unverändert",
+      },
       {
         version: "2.4.18",
         date: "2026-10-15",

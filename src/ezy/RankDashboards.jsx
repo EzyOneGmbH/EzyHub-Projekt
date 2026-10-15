@@ -6,6 +6,10 @@ import { organischerBreakdown } from "@/lib/convEvents";
 import { vorperiode } from "@/lib/date-range";
 import { zaehleRankKacheln } from "@/lib/rankKacheln";
 import { strikingDistance } from "@/lib/strikingDistance";
+import KundenkontextCard from "@/ezy/KundenkontextCard";
+import KeywordClusterCard from "@/ezy/KeywordClusterCard";
+import BerichteCard from "@/ezy/BerichteCard";
+import LocalSeoCard from "@/ezy/LocalSeoCard";
 import { besucheLand, landName, laenderImZeitraum, laenderMitTraffic } from "@/lib/seoHistLaender";
 import { Btn } from "./shared-ui";
 import {
@@ -1367,6 +1371,14 @@ export function SeoDashboard({ selectedClient, dateRange }) {
     );
     return strikingDistance(gscQ?.topNonbrandQueries, getrackt, { limit: 25 });
   }, [istTeam, rank, gscQ]);
+  // Local-SEO-Vorschlaege (Team): getrackte KW mit Maps-Treffer, sonst nach Volumen.
+  const localVorschlaege = useMemo(() => {
+    const kw = (rank?.keywords || []).filter((k) => k.kw);
+    const nachVol = (a, b) => (b.volume ?? 0) - (a.volume ?? 0);
+    const maps = kw.filter((k) => k.posLocal != null).sort(nachVol);
+    const rest = kw.filter((k) => k.posLocal == null).sort(nachVol);
+    return [...maps, ...rest].slice(0, 3).map((k) => k.kw);
+  }, [rank]);
   const rankMarkieren = async (action, kw) => {
     if (!selectedClient?.id || rankAktion) return;
     setRankAktion({ kw, action });
@@ -1945,6 +1957,12 @@ export function SeoDashboard({ selectedClient, dateRange }) {
               unit="Keywords"
             />
           </div>
+          {istTeam && selectedClient?.id && <KundenkontextCard clientId={selectedClient.id} />}
+          {istTeam && selectedClient?.id && <KeywordClusterCard clientId={selectedClient.id} />}
+          {istTeam && selectedClient?.id && <BerichteCard clientId={selectedClient.id} />}
+          {istTeam && selectedClient?.id && (
+            <LocalSeoCard clientId={selectedClient.id} vorschlaege={localVorschlaege} />
+          )}
           {istTeam && striking.length > 0 && (
             <div
               style={{

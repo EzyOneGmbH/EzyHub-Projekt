@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { markdownToHtml } from "@/ezy/lib/markdown";
 
 export const Route = createFileRoute("/r/$token")({
   component: PublicReport,
@@ -49,6 +50,41 @@ function PublicReport() {
 
   if (!rep) return <Center>Lade Report…</Center>;
   if (!rep.ok) return <Center>⚠️ {rep.error || "Link ungültig"}</Center>;
+  // SEO-Bericht (15.10.2026): Markdown aus der Vorlage, sicher gerendert
+  // (markdownToHtml escaped zuerst alles HTML).
+  if ((rep as any).kind === "bericht") {
+    const b = rep as any;
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          background: S.bg,
+          color: S.txt,
+          fontFamily: '"Segoe UI",system-ui,sans-serif',
+        }}
+      >
+        <div
+          style={{ maxWidth: 820, margin: "0 auto", padding: "40px 20px 60px", lineHeight: 1.6 }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              textTransform: "uppercase",
+              letterSpacing: ".1em",
+              color: S.acc,
+              fontWeight: 700,
+            }}
+          >
+            SEO-Bericht · {b.client}
+          </div>
+          <div
+            className="ezy-bericht"
+            dangerouslySetInnerHTML={{ __html: markdownToHtml(String(b.markdown || "")) }}
+          />
+        </div>
+      </div>
+    );
+  }
 
   const hist = rep.history || [];
   const last12 = hist.slice(-12);

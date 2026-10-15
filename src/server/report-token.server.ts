@@ -65,3 +65,47 @@ export function claimsPassenZuKunde(
 ): boolean {
   return claims.clientId === kunde.id && claims.organizationId === kunde.organization_id;
 }
+
+// Bericht-Links (15.10.2026, Volkan Punkt 10): Token v3 bindet zusaetzlich die
+// Bericht-ID (audit_runs seo_bericht): v3|berichtId|clientId|orgId|exp|hmac.
+// Registry/Widerruf ueber dieselbe Tabelle public_report_links (Hash).
+export type BerichtTokenClaims = ReportTokenClaims & { berichtId: string };
+
+export function makeBerichtToken(
+  berichtId: string,
+  clientId: string,
+  organizationId: string,
+  days: number,
+  secret: string,
+  now = Date.now(),
+): string {
+  const exp = now + days * 864e5;
+  const payload = `v3|${berichtId}|${clientId}|${organizationId}|${exp}`;
+  return b64u(`${payload}|${sign(payload, secret)}`);
+}
+
+export function verifyBerichtToken(
+  token: string,
+  secret: string,
+  now = Date.now(),
+): BerichtTokenClaims | null {
+  try {
+    const raw = unb64u(token);
+    const i = raw.lastIndexOf("|");
+    if (i <= 0) return null;
+    const payload = raw.slice(0, i);
+    const mac = raw.slice(i + 1);
+    const want = sign(payload, secret);
+    if (mac.length !== want.length || !timingSafeEqual(Buffer.from(mac), Buffer.from(want)))
+      return null;
+    const teile = payload.split("|");
+    if (teile.length !== 5 || teile[0] !== "v3") return null;
+    const [, berichtId, clientId, organizationId, expStr] = teile;
+    const exp = Number(expStr);
+    if (!berichtId || !clientId || !organizationId || !Number.isFinite(exp) || exp < now)
+      return null;
+    return { berichtId, clientId, organizationId, exp };
+  } catch {
+    return null;
+  }
+}

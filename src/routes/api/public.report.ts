@@ -1,7 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireTeamRole } from "@/server/team-guard.server";
-import { makeReportToken, verifyReportToken, reportTokenHash } from "@/server/report-token.server";
+import {
+  makeReportToken,
+  verifyReportToken,
+  verifyBerichtToken,
+  reportTokenHash,
+} from "@/server/report-token.server";
 
 // Teilbare Kunden-Reports (Searchable-Nachbau, 2026-08-03).
 // POST  { clientId, days? }  (eingeloggt, owner/admin) -> { url } signierter Link
@@ -78,6 +83,47 @@ export const Route = createFileRoute("/api/public/report")({
         if (!secret)
           return Response.json({ ok: false, error: "Server not configured" }, { status: 503 });
         const token = new URL(request.url).searchParams.get("token") || "";
+        // SEO-Bericht-Links (15.10.2026, Token v3): einzelner Bericht aus audit_runs
+        // «seo_bericht», gleiche Registry-Pruefung (Ablauf/Widerruf) wie aivis.
+        const bericht = verifyBerichtToken(token, secret);
+        if (bericht) {
+          const sbB = supabaseAdmin as any;
+          const { data: linkB } = await sbB
+            .from("public_report_links")
+            .select("id, revoked_at, expires_at")
+            .eq("token_hash", reportTokenHash(token))
+            .eq("organization_id", bericht.organizationId)
+            .eq("client_id", bericht.clientId)
+            .maybeSingle();
+          if (!linkB || linkB.revoked_at || new Date(linkB.expires_at).getTime() < Date.now())
+            return Response.json(
+              { ok: false, error: "Link ungültig oder widerrufen" },
+              { status: 401 },
+            );
+          const { data: kundeB } = await sbB
+            .from("clients")
+            .select("id, name")
+            .eq("id", bericht.clientId)
+            .eq("organization_id", bericht.organizationId)
+            .maybeSingle();
+          const { data: run } = await sbB
+            .from("audit_runs")
+            .select("result, created_at")
+            .eq("id", bericht.berichtId)
+            .eq("client_id", bericht.clientId)
+            .eq("audit_type", "seo_bericht")
+            .maybeSingle();
+          if (!kundeB || !run)
+            return Response.json({ ok: false, error: "Bericht nicht gefunden" }, { status: 404 });
+          return Response.json({
+            ok: true,
+            kind: "bericht",
+            client: kundeB.name,
+            title: run.result?.title || "SEO-Bericht",
+            markdown: run.result?.markdown || "",
+            date: String(run.created_at || "").slice(0, 10),
+          });
+        }
         const claims = verifyReportToken(token, secret);
         if (!claims)
           return Response.json(
