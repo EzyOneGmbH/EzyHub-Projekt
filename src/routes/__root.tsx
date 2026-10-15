@@ -1,5 +1,13 @@
-import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
-import { AuthProvider } from "@/hooks/use-auth";
+import {
+  Outlet,
+  Link,
+  createRootRoute,
+  HeadContent,
+  Scripts,
+  useRouterState,
+} from "@tanstack/react-router";
+import { useEffect } from "react";
+import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { Toaster } from "@/components/ui/sonner";
 import { SupabaseConfigError } from "@/components/supabase-config-error";
 import { getMissingSupabaseEnv } from "@/components/supabase-env";
@@ -126,6 +134,29 @@ function RootShell({ children }: { children: React.ReactNode }) {
   );
 }
 
+// Ansichts-Beschränkung (15.10.2026): Logins mit login_ansicht
+// "conversion_log" (z. B. Mitarbeitende von Studioforma) sehen NUR
+// /conversion-log — jede andere Seite leitet dorthin um.
+const ANSICHT_ZIEL: Record<string, string> = { conversion_log: "/conversion-log" };
+const FREI_FUER_BESCHRAENKTE = ["/login", "/set-password", "/r/"];
+
+function AnsichtsGuard() {
+  const { session, nurAnsicht, loading } = useAuth();
+  const pfad = useRouterState({ select: (s) => s.location.pathname });
+  const ziel = nurAnsicht ? ANSICHT_ZIEL[nurAnsicht] || null : null;
+  const umleiten =
+    !loading &&
+    !!session &&
+    !!ziel &&
+    !pfad.startsWith(ziel) &&
+    !FREI_FUER_BESCHRAENKTE.some((p) => pfad.startsWith(p));
+  useEffect(() => {
+    if (umleiten && ziel) window.location.replace(ziel);
+  }, [umleiten, ziel]);
+  if (umleiten) return null;
+  return <Outlet />;
+}
+
 function RootComponent() {
   const missing = getMissingSupabaseEnv();
   if (missing.length > 0) {
@@ -139,7 +170,7 @@ function RootComponent() {
   }
   return (
     <AuthProvider>
-      <Outlet />
+      <AnsichtsGuard />
       <Toaster />
       <SprachInit />
     </AuthProvider>

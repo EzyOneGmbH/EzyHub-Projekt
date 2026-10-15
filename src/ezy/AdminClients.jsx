@@ -6,7 +6,7 @@ import { Badge, Btn } from "./shared-ui";
 import { Inp, LiveEmptyState, Modal, TabBar } from "./ui-kit";
 import { ClientAvatar } from "@/ezy/ClientAvatar";
 import GoogleClientPanel from "@/ezy/GoogleClientPanel.jsx";
-import { Search } from "lucide-react";
+import { Phone, Search } from "lucide-react";
 import { Fragment } from "react";
 import {
   DEFAULT_CUSTOMER_DEFAULTS,
@@ -1209,6 +1209,7 @@ export function ClientSettingsPanel({ client, onUpsertClient }) {
               { id: "aivis", label: "KI-Sichtbarkeit", icon: Bot },
               { id: "conversions", label: "Conversions", icon: DollarSign },
               { id: "ads", label: "Ads", icon: Megaphone },
+              { id: "conversionlog", label: "Conversion-Log", icon: Phone },
             ].map((t) => {
               const on = (
                 draft.visibleTabs || ["overview", "seo", "aivis", "conversions", "ads"]

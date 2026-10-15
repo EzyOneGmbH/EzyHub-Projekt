@@ -122,7 +122,7 @@ export const APP_SCOPES: Record<
     pages: ["dashboard", "copilot", "tools", "content", "reports"],
     // Volkan 10.08.: Übersicht-Tab raus — EzyRank startet direkt im SEO-Tab.
     // Local Grid (17.08.–09.09.) entfernt (Volkan 09.09.): kein Freitags-Scan mehr.
-    tabs: ["seo", "blog", "conversions"],
+    tabs: ["seo", "blog", "conversions", "conversionlog"],
     primary: "seo", // umgeht die Kunden-Tab-Auswahl (Kern-Tab der App)
     home: "/ezyrank",
     // kein services-Filter: SEO ist das Kernprodukt — alle Kunden sichtbar

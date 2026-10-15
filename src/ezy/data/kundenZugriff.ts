@@ -7,6 +7,8 @@ export type TeamUser = {
   email?: string | null;
   self?: boolean;
   clientIds?: string[];
+  /** Ansichts-Beschränkung (15.10.2026), z. B. "conversion_log". */
+  ansicht?: string | null;
 };
 
 export type KundeMinimal = { id: string; name: string; domain?: string };

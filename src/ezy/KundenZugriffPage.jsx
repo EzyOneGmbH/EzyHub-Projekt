@@ -34,6 +34,8 @@ export function KundenZugriffPage({ clients }) {
   const [filterClient, setFilterClient] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteClient, setInviteClient] = useState("");
+  // "" = volles Kundenportal, "conversion_log" = Login sieht nur das Conversion-Log
+  const [inviteAnsicht, setInviteAnsicht] = useState("");
   const [expanded, setExpanded] = useState(null); // userId mit offener Kunden-Zuweisung
   const [draftAccess, setDraftAccess] = useState(new Set());
 
@@ -67,10 +69,12 @@ export function KundenZugriffPage({ clients }) {
       email: inviteEmail.trim(),
       role: "viewer",
       clientIds: [inviteClient],
+      ...(inviteAnsicht ? { ansicht: inviteAnsicht } : {}),
     });
     setBusy(false);
     if (j.ok) {
       toast(`Kunden-Login-Einladung an ${inviteEmail.trim()} gesendet`, "success");
+      if (j.warnung) toast(j.warnung, "error");
       setInviteEmail("");
       await load();
     } else toast(j.error || "Einladung fehlgeschlagen", "error");
@@ -80,6 +84,15 @@ export function KundenZugriffPage({ clients }) {
     const j = await callTeam({ action: "remove", userId: u.userId });
     if (j.ok) {
       toast("Kunden-Zugang entfernt", "success");
+      await load();
+    } else toast(j.error || "Fehlgeschlagen", "error");
+  };
+  const setAnsicht = async (u, ansicht) => {
+    setBusy(true);
+    const j = await callTeam({ action: "setAnsicht", userId: u.userId, ansicht });
+    setBusy(false);
+    if (j.ok) {
+      toast(ansicht ? "Login auf Conversion-Log beschränkt" : "Beschränkung aufgehoben", "success");
       await load();
     } else toast(j.error || "Fehlgeschlagen", "error");
   };
@@ -244,6 +257,18 @@ export function KundenZugriffPage({ clients }) {
               ))}
             </select>
           </div>
+          <div style={{ minWidth: 200 }}>
+            <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>Zugriff</div>
+            <select
+              aria-label="Zugriff für Einladung"
+              value={inviteAnsicht}
+              onChange={(e) => setInviteAnsicht(e.target.value)}
+              style={selectStyle}
+            >
+              <option value="">Kundenportal (freigeschaltete Apps)</option>
+              <option value="conversion_log">Nur Conversion-Log</option>
+            </select>
+          </div>
           <Btn onClick={invite} disabled={busy || !emailOk || !inviteClient}>
             {busy ? "…" : "Einladen"}
           </Btn>
@@ -336,7 +361,11 @@ export function KundenZugriffPage({ clients }) {
                     <span style={{ fontSize: 13, color: C.text, fontWeight: 700 }}>
                       {u.email || u.userId.slice(0, 8)}
                     </span>
-                    <Badge color={C.textDim}>Kunde (Portal)</Badge>
+                    {u.ansicht === "conversion_log" ? (
+                      <Badge color={C.accent}>Nur Conversion-Log</Badge>
+                    ) : (
+                      <Badge color={C.textDim}>Kunde (Portal)</Badge>
+                    )}
                     <div
                       style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}
                     >
@@ -378,6 +407,18 @@ export function KundenZugriffPage({ clients }) {
                         onClick={() => (expanded === u.userId ? setExpanded(null) : openAssign(u))}
                       >
                         Kunden zuweisen
+                      </Btn>
+                      <Btn
+                        variant="secondary"
+                        size="sm"
+                        disabled={busy}
+                        onClick={() =>
+                          setAnsicht(u, u.ansicht === "conversion_log" ? null : "conversion_log")
+                        }
+                      >
+                        {u.ansicht === "conversion_log"
+                          ? "Volles Portal erlauben"
+                          : "Nur Conversion-Log"}
                       </Btn>
                       <Btn variant="danger" size="sm" onClick={() => remove(u)}>
                         Zugang entfernen

@@ -16,6 +16,7 @@ import { Route as AssistantRouteImport } from './routes/assistant'
 import { Route as ContentRouteImport } from './routes/content'
 import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as ConversionLogRouteImport } from './routes/conversion-log'
 import { Route as EzyaiRouteImport } from './routes/ezyai'
 import { Route as EzyaiAnalyseRouteImport } from './routes/ezyai-analyse'
 import { Route as EzyperformanceRouteImport } from './routes/ezyperformance'
@@ -210,6 +211,11 @@ const CustomersRoute = CustomersRouteImport.update({
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConversionLogRoute = ConversionLogRouteImport.update({
+  id: '/conversion-log',
+  path: '/conversion-log',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EzyaiRoute = EzyaiRouteImport.update({
@@ -1051,6 +1057,7 @@ export interface FileRoutesByFullPath {
   '/content': typeof ContentRouteWithChildren
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
+  '/conversion-log': typeof ConversionLogRoute
   '/ezyai': typeof EzyaiRoute
   '/ezyai-analyse': typeof EzyaiAnalyseRoute
   '/ezyperformance': typeof EzyperformanceRoute
@@ -1220,6 +1227,7 @@ export interface FileRoutesByTo {
   '/content': typeof ContentRouteWithChildren
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
+  '/conversion-log': typeof ConversionLogRoute
   '/ezyai': typeof EzyaiRoute
   '/ezyai-analyse': typeof EzyaiAnalyseRoute
   '/ezyperformance': typeof EzyperformanceRoute
@@ -1390,6 +1398,7 @@ export interface FileRoutesById {
   '/content': typeof ContentRouteWithChildren
   '/customers': typeof CustomersRouteWithChildren
   '/dashboard': typeof DashboardRoute
+  '/conversion-log': typeof ConversionLogRoute
   '/ezyai': typeof EzyaiRoute
   '/ezyai-analyse': typeof EzyaiAnalyseRoute
   '/ezyperformance': typeof EzyperformanceRoute
@@ -1561,6 +1570,7 @@ export interface FileRouteTypes {
     | '/content'
     | '/customers'
     | '/dashboard'
+    | '/conversion-log'
     | '/ezyai'
     | '/ezyai-analyse'
     | '/ezyperformance'
@@ -1730,6 +1740,7 @@ export interface FileRouteTypes {
     | '/content'
     | '/customers'
     | '/dashboard'
+    | '/conversion-log'
     | '/ezyai'
     | '/ezyai-analyse'
     | '/ezyperformance'
@@ -1899,6 +1910,7 @@ export interface FileRouteTypes {
     | '/content'
     | '/customers'
     | '/dashboard'
+    | '/conversion-log'
     | '/ezyai'
     | '/ezyai-analyse'
     | '/ezyperformance'
@@ -2069,6 +2081,7 @@ export interface RootRouteChildren {
   ContentRoute: typeof ContentRouteWithChildren
   CustomersRoute: typeof CustomersRouteWithChildren
   DashboardRoute: typeof DashboardRoute
+  ConversionLogRoute: typeof ConversionLogRoute
   EzyaiRoute: typeof EzyaiRoute
   EzyaiAnalyseRoute: typeof EzyaiAnalyseRoute
   EzyperformanceRoute: typeof EzyperformanceRoute
@@ -2270,6 +2283,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/conversion-log': {
+      id: '/conversion-log'
+      path: '/conversion-log'
+      fullPath: '/conversion-log'
+      preLoaderRoute: typeof ConversionLogRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ezyai': {
@@ -3480,6 +3500,7 @@ const rootRouteChildren: RootRouteChildren = {
   ContentRoute: ContentRouteWithChildren,
   CustomersRoute: CustomersRouteWithChildren,
   DashboardRoute: DashboardRoute,
+  ConversionLogRoute: ConversionLogRoute,
   EzyaiRoute: EzyaiRoute,
   EzyaiAnalyseRoute: EzyaiAnalyseRoute,
   EzyperformanceRoute: EzyperformanceRoute,

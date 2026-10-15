@@ -41,6 +41,9 @@ type AuthContextValue = {
   isOrgAdmin: boolean;
   /** owner | admin | member */
   canRunAudits: boolean;
+  /** Login auf eine Ansicht beschränkt (15.10.2026, login_ansicht) — z. B.
+   *  "conversion_log": dieser Login sieht NUR /conversion-log. */
+  nurAnsicht: string | null;
   hasRole: (...roles: OrgRole[]) => boolean;
   loading: boolean;
   signOut: () => Promise<void>;
@@ -150,16 +153,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [auswahlNoetig, setAuswahlNoetig] = useState(false);
   const [legacyAdmin, setLegacyAdmin] = useState(false);
+  const [ansichten, setAnsichten] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   // Mehrfach-Organisationen (13.09.2026): ALLE Mitgliedschaften laden, die
   // gespeicherte Wahl gegen den frischen Bestand validieren — nie
   // order("role").limit(1) (das nahm die hoechste Rolle irgendeiner Org).
   const loadProfile = useCallback(async (userId: string) => {
-    const [m, r] = await Promise.all([
+    const [m, r, a] = await Promise.all([
       supabase.from("app_users").select("organization_id, role").eq("user_id", userId),
       supabase.from("user_roles").select("role").eq("user_id", userId),
+      // Ansichts-Beschränkung (15.10.2026); fehlt die Tabelle noch → keine.
+      (supabase as any)
+        .from("login_ansicht")
+        .select("organization_id, ansicht")
+        .eq("user_id", userId)
+        .then(
+          (x: any) => x,
+          () => ({ data: null }),
+        ),
     ]);
+    const an: Record<string, string> = {};
+    for (const x of (a?.data ?? []) as any[])
+      if (x?.organization_id && x?.ansicht) an[String(x.organization_id)] = String(x.ansicht);
+    setAnsichten(an);
     const alle: Membership[] = (m.data ?? [])
       .filter((x: any) => x?.organization_id)
       .map((x: any) => ({ organization_id: String(x.organization_id), role: x.role as OrgRole }));
@@ -251,6 +268,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAdmin: legacyAdmin || isOrgAdmin,
     isOrgAdmin,
     canRunAudits,
+    nurAnsicht: (membership && ansichten[membership.organization_id]) || null,
     hasRole: (...roles) => (role ? roles.includes(role) : false),
     loading,
     signOut: async () => {

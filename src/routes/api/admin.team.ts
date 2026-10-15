@@ -18,12 +18,15 @@ import { orgRoleOf } from "@/server/integrations.server";
 //  - remove {userId}               -> aus der Org entfernen (+ Zuweisungen)
 
 const Body = z.object({
-  action: z.enum(["list", "invite", "setRole", "assign", "remove"]),
+  action: z.enum(["list", "invite", "setRole", "assign", "remove", "setAnsicht"]),
   email: z.string().email().optional(),
   role: z.enum(["admin", "member", "viewer"]).optional(),
   userId: z.string().uuid().optional(),
   clientIds: z.array(z.string().uuid()).optional(),
   nachricht: z.string().max(500).optional(),
+  // Ansichts-Beschränkung (15.10.2026): "conversion_log" = Login sieht nur
+  // /conversion-log (login_ansicht). null bei setAnsicht = Beschränkung aufheben.
+  ansicht: z.enum(["conversion_log"]).nullable().optional(),
 });
 
 export const Route = createFileRoute("/api/admin/team")({
@@ -67,6 +70,17 @@ export const Route = createFileRoute("/api/admin/team")({
               /* ignore */
             }
           }
+          // Ansichts-Beschränkungen (tolerant, falls die Tabelle noch fehlt).
+          const ansichtVon: Record<string, string> = {};
+          try {
+            const { data: an } = await (supabaseAdmin as any)
+              .from("login_ansicht")
+              .select("user_id, ansicht")
+              .eq("organization_id", orgId);
+            for (const a of an || []) ansichtVon[a.user_id] = a.ansicht;
+          } catch {
+            /* Tabelle fehlt → keine Beschränkungen */
+          }
           const byUser: Record<string, string[]> = {};
           for (const a of access || []) {
             (byUser[(a as any).user_id] ||= []).push((a as any).client_id);
@@ -77,6 +91,7 @@ export const Route = createFileRoute("/api/admin/team")({
             email: emails[m.user_id] || null,
             self: m.user_id === user.id,
             clientIds: byUser[m.user_id] || [],
+            ansicht: ansichtVon[m.user_id] || null,
           }));
           return Response.json({ ok: true, users });
         }
@@ -215,7 +230,52 @@ export const Route = createFileRoute("/api/admin/team")({
                 .from("client_access")
                 .upsert(rows, { onConflict: "user_id,client_id", ignoreDuplicates: true });
           }
-          return Response.json({ ok: true, userId: newUserId, role, invited: !invErr });
+          // Ansichts-Beschränkung nur für Kunden-Logins (viewer).
+          let warnung: string | null = null;
+          if (role === "viewer" && d.ansicht) {
+            const { error: anErr } = await (supabaseAdmin as any).from("login_ansicht").upsert(
+              {
+                user_id: newUserId,
+                organization_id: orgId,
+                ansicht: d.ansicht,
+                created_by: user.id,
+              },
+              { onConflict: "user_id,organization_id" },
+            );
+            if (anErr) warnung = "Beschränkung konnte nicht gespeichert werden (Migration fehlt?)";
+          }
+          return Response.json({ ok: true, userId: newUserId, role, invited: !invErr, warnung });
+        }
+
+        // ── setAnsicht ────────────────────────────────────────────────────────
+        if (d.action === "setAnsicht") {
+          if (!d.userId) return Response.json({ error: "userId erforderlich" }, { status: 400 });
+          const { data: mitglied } = await supabaseAdmin
+            .from("app_users")
+            .select("role")
+            .eq("user_id", d.userId)
+            .eq("organization_id", orgId)
+            .maybeSingle();
+          if (!mitglied) return Response.json({ error: "Kein Mitglied" }, { status: 404 });
+          if ((mitglied as any).role !== "viewer")
+            return Response.json(
+              { error: "Nur Kunden-Logins können beschränkt werden" },
+              { status: 400 },
+            );
+          const tab = (supabaseAdmin as any).from("login_ansicht");
+          const { error } = d.ansicht
+            ? await tab.upsert(
+                {
+                  user_id: d.userId,
+                  organization_id: orgId,
+                  ansicht: d.ansicht,
+                  created_by: user.id,
+                },
+                { onConflict: "user_id,organization_id" },
+              )
+            : await tab.delete().eq("user_id", d.userId).eq("organization_id", orgId);
+          if (error) return Response.json({ error: error.message }, { status: 500 });
+          return Response.json({ ok: true, ansicht: d.ansicht ?? null });
         }
 
         // ── setRole ───────────────────────────────────────────────────────────

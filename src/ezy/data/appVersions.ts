@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.5.0",
+    version: "2.6.0",
     changelog: [
+      {
+        version: "2.6.0",
+        date: "2026-10-15",
+        note: "Neuer Tab «Conversion-Log» (je Kunde in der Tab-Auswahl zuschaltbar): telefonische Leads mit Datum, Firma, Telefonnummer, Person und Grund erfassen, inkl. «eingetragen von», Suche und CSV-Export. Kunden-Logins lassen sich unter Kundenzugriff auf «Nur Conversion-Log» beschränken — sie sehen dann ausschliesslich diese Seite",
+      },
       {
         version: "2.5.0",
         date: "2026-10-15",

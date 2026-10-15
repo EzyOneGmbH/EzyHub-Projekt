@@ -12,6 +12,7 @@ import {
 } from "./ui-kit";
 
 import {
+  Phone,
   Search,
   Bell,
   ChevronDown,
@@ -159,6 +160,7 @@ export { ToastProvider, EzyPilotProvider, EzyPilotPopup, EzyPilotButton };
 // der EzyOneApp-Chunk enthaelt nur noch Shell + Tools/Tasks/Agents.
 const lazyTeil = (lade, name) => lazy(() => lade().then((m) => ({ default: m[name] })));
 const AgentRunsPanel = lazyTeil(() => import("./AdminClients"), "AgentRunsPanel");
+const ConversionLog = lazy(() => import("./ConversionLog"));
 const ClientsPage = lazyTeil(() => import("./AdminClients"), "ClientsPage");
 const MatrixPage = lazyTeil(() => import("./AdminClients"), "MatrixPage");
 // Kunden-Zugriff (14.09.): alle Kunden-Accounts (Portal, Rolle viewer) — nicht mehr im Team.
@@ -6680,6 +6682,9 @@ const TABS = [
   { id: "conversions", label: "Conversions", icon: DollarSign },
   { id: "ads", label: "Ads", icon: Megaphone },
   { id: "runs", label: "Agent-Läufe", icon: Clock },
+  // Conversion-Log (15.10.2026): telefonische Leads; opt-in je Kunde über die
+  // Tab-Auswahl (zuerst Studioforma). Beschränkte Logins nutzen /conversion-log.
+  { id: "conversionlog", label: "Conversion-Log", icon: Phone },
 ];
 
 // Welcher Dienst muss beim Kunden aktiv sein, damit ein Dashboard-Sub-Tab erscheint.
@@ -6691,6 +6696,7 @@ const TAB_SERVICE = {
   conversions: ["ga4"],
   ads: ["google-ads"],
   runs: null, // Lauf-Nachweis: immer sichtbar
+  conversionlog: null, // opt-in rein über die Tab-Auswahl je Kunde
 };
 
 const NAV = [
@@ -7902,6 +7908,9 @@ function App({ appScope = null }) {
                         </>
                       )}
                       {tab === "runs" && <AgentRunsPanel selectedClient={client} />}
+                      {tab === "conversionlog" && client?.id && (
+                        <ConversionLog clientId={client.id} />
+                      )}
                     </>
                   )}
                 </>
