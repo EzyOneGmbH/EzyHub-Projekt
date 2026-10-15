@@ -1,7 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { askUtility } from "./admin.aivis-sync";
+import { generateViaSubscription } from "@/server/claude-generate.server";
+import { requireTeamRole } from "@/server/team-guard.server";
+
+// Auf Abruf (15.10.2026, Volkan Punkt 12): DataForSEO fuer EzyAI bleibt global
+// AUS (AIVIS_DFS_ENABLED=0, Kosten). Ein Team-Mitglied darf einen Lauf bewusst
+// starten (?jetzt=1) — gilt nur fuer diese Anfrage (AsyncLocalStorage).
+const aufAbruf = new AsyncLocalStorage<{ erlaubt: boolean }>();
+// Kernbegriffe: Utility-Kette (direkte API-Konten), sonst Claude-Abo via agent-service.
+async function askKern(prompt: string, maxTokens = 2000): Promise<string | null> {
+  const t = await askUtility(prompt, maxTokens);
+  if (t) return t;
+  const g = await generateViaSubscription({ prompt, label: "KI-Konkurrenz Kernbegriffe" });
+  return g?.text ?? null;
+}
 
 // KI-Konkurrenz (06.08.2026): GET ?client=<uuid>&platform=google|chat_gpt —
 // welche Domains/Seiten/Marken die KI-Antworten im Markt des Kunden dominieren.
@@ -58,7 +73,7 @@ async function dfsLive(
 ): Promise<{ ok: boolean; result?: any; error?: string; cost?: number }> {
   // DataForSEO nur noch für EzyRank (09.09.2026): EzyAI-Konkurrenz-Gaps
   // fragen DFS nicht mehr ab. AIVIS_DFS_ENABLED=1 stellt zurück.
-  if (String(process.env.AIVIS_DFS_ENABLED ?? "0") !== "1")
+  if (String(process.env.AIVIS_DFS_ENABLED ?? "0") !== "1" && !aufAbruf.getStore()?.erlaubt)
     return { ok: false, error: "DataForSEO für EzyAI deaktiviert (AIVIS_DFS_ENABLED=0)" };
   const auth = dfsAuth();
   if (!auth) return { ok: false, error: "DATAFORSEO_LOGIN/PASSWORD fehlt" };
@@ -271,7 +286,7 @@ async function distillTerms(
     lang === "de"
       ? `die ${n} wichtigsten DEUTSCHEN Kernbegriffe ihrer Branche (bevorzugt EIN gängiges Substantiv wie "Architekt" oder "Spende", max. 2 Wörter nur bei festen Begriffen)`
       : `die ${n} gebräuchlichsten ENGLISCHEN Kernbegriffe ihrer Branche (bevorzugt EIN einzelnes gängiges Wort, max. 2 nur bei festen Begriffen wie "coffee machine"; generisch statt wörtlich)`;
-  const txt = await askUtility(
+  const txt = await askKern(
     `Destilliere aus diesen Such-Themen der Firma "${clientName}" ${spec}. Keine Dubletten, keine seltenen Wörter. Antworte NUR mit JSON-Array aus ${n} Strings:\n${JSON.stringify(topics.slice(0, 15))}`,
     600,
   ).catch(() => null);
@@ -414,434 +429,428 @@ async function cacheWrite(sbA: any, client: any, type: string, input: any, paylo
   }
 }
 
+async function verarbeiten(request: Request): Promise<Response> {
+  const auth = await requireUser(request);
+  if (auth instanceof Response) return auth;
+  const u = new URL(request.url);
+  const clientId = u.searchParams.get("client") || "";
+  const platform = u.searchParams.get("platform") === "chat_gpt" ? "chat_gpt" : "google";
+  const refresh = u.searchParams.get("refresh") === "1";
+  const wantTrend = u.searchParams.get("trend") === "1";
+  if (!/^[0-9a-f-]{36}$/i.test(clientId))
+    return Response.json({ ok: false, error: "client (uuid) erforderlich" }, { status: 400 });
+
+  // Zugriff prüft die RLS-Sicht des eingeloggten Users (oder Admin-Secret).
+  const db = auth.userClient ?? (supabaseAdmin as any);
+  const { data: client } = await db
+    .from("clients")
+    .select("id, name, domain, organization_id, language")
+    .eq("id", clientId)
+    .maybeSingle();
+  if (!client) return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
+  const sbA = supabaseAdmin as any;
+
+  // ── Trend-Modus: KI-Erwähnungs-Verlauf der Kunden-Domain ─────────────
+  if (wantTrend) {
+    const domain = String(client.domain || "")
+      .replace(/^https?:\/\//, "")
+      .replace(/^www\./, "")
+      .replace(/\/.*$/, "");
+    if (!domain)
+      return Response.json({ ok: false, error: "Kunde hat keine Domain" }, { status: 400 });
+    if (!refresh) {
+      const hit = await cacheRead(sbA, clientId, TREND_TYPE, TREND_CACHE_MS);
+      if (hit) return Response.json(hit, { headers: { "Cache-Control": "no-store" } });
+    }
+    const now = new Date();
+    const dateTo = now.toISOString().slice(0, 10);
+    const dateFrom = new Date(now.getTime() - 365 * 864e5).toISOString().slice(0, 10);
+    const tgt = { target: [{ domain }] };
+    const [histG, histC, nl] = await Promise.all([
+      dfsLive("ai_optimization/llm_mentions/historical/live", { ...tgt, platform: "google" }),
+      dfsLive("ai_optimization/llm_mentions/historical/live", {
+        ...tgt,
+        platform: "chat_gpt",
+      }),
+      dfsLive("ai_optimization/llm_mentions/timeseries_new_lost/live", {
+        ...tgt,
+        platform: "chat_gpt",
+        date_from: dateFrom,
+        date_to: dateTo,
+        group_range: "month",
+      }),
+    ]);
+    const monthly = (r: any) =>
+      ((r?.result?.items as any[]) || [])
+        .map((it) => ({
+          y: Number(it.year),
+          m: Number(it.month),
+          mentions: Number(it.metrics?.mentions || 0),
+          aiVolume: Number(it.metrics?.ai_search_volume || 0),
+        }))
+        .sort((a, b) => a.y - b.y || a.m - b.m);
+    const payload = {
+      ok: true,
+      build: BUILD,
+      trend: true,
+      client: { id: client.id, name: client.name, domain },
+      google: histG.ok ? monthly(histG) : [],
+      chatgpt: histC.ok ? monthly(histC) : [],
+      newLost: nl.ok
+        ? ((nl.result?.items as any[]) || []).map((it) => ({
+            date: String(it.date || ""),
+            new: Number(it.new_mentions || 0),
+            lost: Number(it.lost_mentions || 0),
+          }))
+        : [],
+      cost: (histG.cost || 0) + (histC.cost || 0) + (nl.cost || 0),
+    };
+    if (!payload.google.length && !payload.chatgpt.length && !histG.ok && !histC.ok)
+      return Response.json({ ok: false, error: histG.error || histC.error }, { status: 502 });
+    await cacheWrite(sbA, client, TREND_TYPE, { domain }, payload);
+    return Response.json(payload, { headers: { "Cache-Control": "no-store" } });
+  }
+
+  // ── Gap-Modus (?gaps=1): echte Fragen, bei denen Rivalen zitiert ─────
+  // werden und der Kunde nicht (include/exclude-Domain-Targets, CH/de-
+  // Google-Korpus). Rival-Domains kommen aus den Judge-Feldern
+  // comp_positions (d) des neuesten Reports. 7-Tage-Cache.
+  if (u.searchParams.get("gaps") === "1") {
+    const own = String(client.domain || "")
+      .replace(/^https?:\/\//, "")
+      .replace(/^www\./, "")
+      .replace(/\/.*$/, "");
+    if (!own) return Response.json({ ok: false, error: "Kunde hat keine Domain" }, { status: 400 });
+    if (!refresh) {
+      const hit = await cacheRead(sbA, clientId, GAP_TYPE, TREND_CACHE_MS);
+      if (hit) return Response.json(hit, { headers: { "Cache-Control": "no-store" } });
+    }
+    const { data: rep2 } = await db
+      .from("ai_visibility_reports")
+      .select("id")
+      .eq("client_id", clientId)
+      .order("snapshot_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const rivalFreq = new Map<string, { n: number; name: string }>();
+    if (rep2?.id) {
+      const { data: rows } = await db
+        .from("ai_visibility_prompts")
+        .select("comp_positions")
+        .eq("report_id", rep2.id)
+        .not("comp_positions", "is", null)
+        .limit(1000);
+      for (const r of rows || [])
+        for (const cp of (r.comp_positions as any[]) || []) {
+          const d = String(cp?.d || "")
+            .replace(/^www\./, "")
+            .toLowerCase();
+          if (!d || d === own || d.endsWith("." + own)) continue;
+          const e = rivalFreq.get(d) || { n: 0, name: String(cp?.n || d) };
+          e.n += 1;
+          rivalFreq.set(d, e);
+        }
+    }
+    const rivals = [...rivalFreq.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 2);
+    if (!rivals.length)
+      return Response.json(
+        {
+          ok: true,
+          build: BUILD,
+          gaps: [],
+          note: "Noch keine Konkurrenz-Domains aus dem Messlauf bekannt.",
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    const lang = (client.language || "de").slice(0, 2);
+    const calls = await Promise.all(
+      rivals.map(([dom]) =>
+        dfsLive("ai_optimization/llm_mentions/search/live", {
+          target: [
+            { domain: dom, search_filter: "include" },
+            { domain: own, search_filter: "exclude" },
+          ],
+          platform: "google",
+          location_name: "Switzerland",
+          language_code: lang,
+          limit: 20,
+        }),
+      ),
+    );
+    let cost = 0;
+    const gaps = rivals
+      .map(([dom, meta], i) => {
+        const c = calls[i];
+        cost += c.cost || 0;
+        const seen = new Set<string>();
+        const questions: Array<{ q: string; vol: number }> = [];
+        for (const it of (c.ok ? (c.result?.items as any[]) : []) || []) {
+          const q = String(it.question || "").trim();
+          if (!q || seen.has(q.toLowerCase())) continue;
+          seen.add(q.toLowerCase());
+          questions.push({ q, vol: Number(it.ai_search_volume || 0) });
+        }
+        questions.sort((a, b) => b.vol - a.vol);
+        return {
+          rival: meta.name,
+          rivalDomain: dom,
+          total: c.ok ? Number(c.result?.total_count || 0) : 0,
+          questions: questions.slice(0, 8),
+        };
+      })
+      .filter((g) => g.questions.length);
+    const payload = { ok: true, build: BUILD, gaps, cost };
+    await cacheWrite(sbA, client, GAP_TYPE, { own }, payload);
+    return Response.json(payload, { headers: { "Cache-Control": "no-store" } });
+  }
+
+  // ── Frage-Mining (?questions=1): echte Korpus-Fragen zum Thema ──────
+  // search_scope ["question"] auf deutschen Kernbegriffen (CH/de) —
+  // liefert reale Nutzerfragen als Prompt-Kandidaten. 7-Tage-Cache.
+  if (u.searchParams.get("questions") === "1") {
+    if (!refresh) {
+      const hit = await cacheRead(sbA, clientId, QUESTIONS_TYPE, TREND_CACHE_MS);
+      if (hit) return Response.json(hit, { headers: { "Cache-Control": "no-store" } });
+    }
+    const { data: rep3 } = await db
+      .from("ai_visibility_reports")
+      .select("id")
+      .eq("client_id", clientId)
+      .order("snapshot_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    let topics3: string[] = [];
+    if (rep3?.id) {
+      const { data: prompts } = await db
+        .from("ai_visibility_prompts")
+        .select("topic")
+        .eq("report_id", rep3.id)
+        .limit(1000);
+      const freq = new Map<string, number>();
+      for (const p of prompts || []) {
+        const t = String(p.topic || "").trim();
+        if (t.length >= 3) freq.set(t, (freq.get(t) || 0) + 1);
+      }
+      topics3 = [...freq.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t);
+    }
+    if (!topics3.length) topics3 = [client.name];
+    const lang = (client.language || "de").slice(0, 2);
+    const termsDe = await distillTerms(client.name, topics3, "de", 3);
+    if (!termsDe.length)
+      return Response.json({ ok: false, error: "Kernbegriffe nicht ableitbar" }, { status: 502 });
+    const mkTask = (t: string, scopeQuestion: boolean) => ({
+      target: [
+        {
+          keyword: t,
+          match_type: "partial_match",
+          ...(scopeQuestion ? { search_scope: ["question"] } : {}),
+        },
+      ],
+      platform: "google",
+      location_name: "Switzerland",
+      language_code: lang,
+      limit: 30,
+    });
+    const calls = await Promise.all(
+      termsDe.map((t) => dfsLive("ai_optimization/llm_mentions/search/live", mkTask(t, true))),
+    );
+    let cost = 0;
+    const seen = new Set<string>();
+    const questions: Array<{ q: string; vol: number; term: string }> = [];
+    const harvest = (c: any, term: string) => {
+      for (const it of (c?.ok ? (c.result?.items as any[]) : []) || []) {
+        const q = String(it.question || "").trim();
+        if (q.length < 8 || seen.has(q.toLowerCase())) continue;
+        seen.add(q.toLowerCase());
+        questions.push({ q, vol: Number(it.ai_search_volume || 0), term });
+      }
+    };
+    calls.forEach((c, i) => {
+      cost += c.cost || 0;
+      harvest(c, termsDe[i]);
+    });
+    // Fallback (12.08., live-Befund Gasser): bei Nischen-Begriffen steht
+    // der Begriff selten in der FRAGE selbst — dann die Fragen jener
+    // Antworten nehmen, die ihn im ANTWORTTEXT erwähnen (scope any).
+    if (questions.length < 5) {
+      const calls2 = await Promise.all(
+        termsDe.map((t) => dfsLive("ai_optimization/llm_mentions/search/live", mkTask(t, false))),
+      );
+      calls2.forEach((c, i) => {
+        cost += c.cost || 0;
+        harvest(c, termsDe[i]);
+      });
+    }
+    questions.sort((a, b) => b.vol - a.vol);
+    const payload = {
+      ok: true,
+      build: BUILD,
+      terms: termsDe,
+      questions: questions.slice(0, 20),
+      cost,
+    };
+    await cacheWrite(sbA, client, QUESTIONS_TYPE, { terms: termsDe }, payload);
+    return Response.json(payload, { headers: { "Cache-Control": "no-store" } });
+  }
+
+  // ── Konkurrenz-Modus ─────────────────────────────────────────────────
+  if (!refresh) {
+    const hit = await cacheRead(sbA, clientId, CACHE_TYPE, CACHE_MS, platform);
+    if (hit) return Response.json(hit, { headers: { "Cache-Control": "no-store" } });
+  }
+
+  // Themen des neuesten aivis-Reports, häufigste zuerst.
+  const { data: rep } = await db
+    .from("ai_visibility_reports")
+    .select("id")
+    .eq("client_id", clientId)
+    .order("snapshot_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  let topics: string[] = [];
+  if (rep?.id) {
+    const { data: prompts } = await db
+      .from("ai_visibility_prompts")
+      .select("topic")
+      .eq("report_id", rep.id)
+      .limit(1000);
+    const freq = new Map<string, number>();
+    for (const p of prompts || []) {
+      const t = String(p.topic || "").trim();
+      if (t.length >= 3) freq.set(t, (freq.get(t) || 0) + 1);
+    }
+    topics = [...freq.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t);
+  }
+  if (!topics.length) topics = [client.name];
+
+  // Marken-Roster für den Mentions-SoV: Kunde + Top-Rivalen aus dem
+  // prompt-basierten SoV des neuesten Reports (unabhängige Zweitmessung).
+  let sovNames: Array<{ name: string; isSelf: boolean }> = [];
+  if (rep?.id) {
+    const { data: sovRows } = await db
+      .from("ai_visibility_sov")
+      .select("brand, is_self, share")
+      .eq("report_id", rep.id)
+      .order("share", { ascending: false })
+      .limit(12);
+    const self = (sovRows || []).find((s: any) => s.is_self);
+    sovNames = [
+      { name: String(self?.brand || client.name), isSelf: true },
+      ...(sovRows || [])
+        .filter((s: any) => !s.is_self)
+        .slice(0, 5)
+        .map((s: any) => ({ name: String(s.brand), isSelf: false })),
+    ];
+  }
+
+  let payload: any;
+  if (platform === "google") {
+    // Echte Schweizer Sicht: deutsche Kernbegriffe gegen den CH-Korpus.
+    const lang = (client.language || "de").slice(0, 2);
+    const termsDe = await distillTerms(client.name, topics, "de", 3);
+    const [ch, sov] = await Promise.all([
+      termsDe.length
+        ? queryChCorpus(termsDe, lang)
+        : Promise.resolve({
+            ok: false,
+            domains: [] as Row[],
+            pages: [] as Row[],
+            brands: [] as Row[],
+            answers: 0,
+            cost: 0,
+            error: "keine Kernbegriffe",
+          }),
+      queryMentionsSov(sovNames, "google", lang),
+    ]);
+    if (ch.ok && (ch.domains.length || ch.pages.length)) {
+      payload = {
+        ok: true,
+        build: BUILD,
+        client: { id: client.id, name: client.name, domain: client.domain || "" },
+        platform,
+        targets: termsDe,
+        note: `Echte Schweizer Messung: ${ch.answers} gespeicherte Google-KI-Antworten (Standort Schweiz, ${lang.toUpperCase()}) zu den Kernbegriffen ausgewertet. Aktualisierung max. 1×/Tag.`,
+        domains: ch.domains,
+        pages: ch.pages,
+        brands: ch.brands,
+        sov: sov.rows,
+        cost: ch.cost + sov.cost,
+      };
+    } else {
+      // Fallback: globaler EN-Korpus (wie chat_gpt-Pfad).
+      const termsEn = await distillTerms(client.name, topics, "en", 5);
+      if (!termsEn.length)
+        return Response.json(
+          { ok: false, error: ch.error || "Kernbegriffe nicht ableitbar" },
+          { status: 502 },
+        );
+      const [domains, pages] = await Promise.all([
+        queryTerms("ai_optimization/llm_mentions/top_domains/live", termsEn, "google"),
+        queryTerms("ai_optimization/llm_mentions/top_pages/live", termsEn, "google"),
+      ]);
+      if (!domains.ok && !pages.ok)
+        return Response.json({ ok: false, error: domains.error || pages.error }, { status: 502 });
+      payload = {
+        ok: true,
+        build: BUILD,
+        client: { id: client.id, name: client.name, domain: client.domain || "" },
+        platform,
+        targets: termsEn,
+        note: "Der Schweizer Korpus lieferte zu den deutschen Kernbegriffen (noch) keine Daten — gezeigt wird die internationale Sicht über englische Kernbegriffe. Aktualisierung max. 1×/Tag.",
+        domains: domains.rows,
+        pages: pages.rows,
+        brands: domains.brands,
+        sov: sov.rows,
+        cost: (domains.cost || 0) + (pages.cost || 0) + ch.cost + sov.cost,
+      };
+    }
+  } else {
+    // ChatGPT: globaler Korpus (Location wird API-seitig nicht unterstützt).
+    const termsEn = await distillTerms(client.name, topics, "en", 5);
+    if (!termsEn.length)
+      return Response.json(
+        { ok: false, error: "Kernbegriffe nicht ableitbar (Utility-LLM)" },
+        { status: 502 },
+      );
+    const [domains, pages, brandsNew, cats, sov] = await Promise.all([
+      queryTerms("ai_optimization/llm_mentions/top_domains/live", termsEn, "chat_gpt"),
+      queryTerms("ai_optimization/llm_mentions/top_pages/live", termsEn, "chat_gpt"),
+      queryBrandsNew(termsEn),
+      queryBrandCategories(termsEn),
+      queryMentionsSov(sovNames, "chat_gpt", "en"),
+    ]);
+    if (!domains.ok && !pages.ok)
+      return Response.json({ ok: false, error: domains.error || pages.error }, { status: 502 });
+    payload = {
+      ok: true,
+      build: BUILD,
+      client: { id: client.id, name: client.name, domain: client.domain || "" },
+      platform,
+      targets: termsEn,
+      note: "ChatGPT-Korpus ist global/englischsprachig (Standort-Filter werden API-seitig nicht unterstützt) — Messung über englische Kernbegriffe. Aktualisierung max. 1×/Tag.",
+      domains: domains.rows,
+      pages: pages.rows,
+      brands: brandsNew.rows.length ? brandsNew.rows : domains.brands,
+      categories: cats.rows,
+      sov: sov.rows,
+      cost: (domains.cost || 0) + (pages.cost || 0) + brandsNew.cost + cats.cost + sov.cost,
+    };
+  }
+
+  await cacheWrite(sbA, client, CACHE_TYPE, { platform, terms: payload.targets }, payload);
+  return Response.json(payload, { headers: { "Cache-Control": "no-store" } });
+}
+
 export const Route = createFileRoute("/api/admin/aivis-competitors")({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        const auth = await requireUser(request);
-        if (auth instanceof Response) return auth;
-        const u = new URL(request.url);
-        const clientId = u.searchParams.get("client") || "";
-        const platform = u.searchParams.get("platform") === "chat_gpt" ? "chat_gpt" : "google";
-        const refresh = u.searchParams.get("refresh") === "1";
-        const wantTrend = u.searchParams.get("trend") === "1";
-        if (!/^[0-9a-f-]{36}$/i.test(clientId))
-          return Response.json({ ok: false, error: "client (uuid) erforderlich" }, { status: 400 });
-
-        // Zugriff prüft die RLS-Sicht des eingeloggten Users (oder Admin-Secret).
-        const db = auth.userClient ?? (supabaseAdmin as any);
-        const { data: client } = await db
-          .from("clients")
-          .select("id, name, domain, organization_id, language")
-          .eq("id", clientId)
-          .maybeSingle();
-        if (!client)
-          return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
-        const sbA = supabaseAdmin as any;
-
-        // ── Trend-Modus: KI-Erwähnungs-Verlauf der Kunden-Domain ─────────────
-        if (wantTrend) {
-          const domain = String(client.domain || "")
-            .replace(/^https?:\/\//, "")
-            .replace(/^www\./, "")
-            .replace(/\/.*$/, "");
-          if (!domain)
-            return Response.json({ ok: false, error: "Kunde hat keine Domain" }, { status: 400 });
-          if (!refresh) {
-            const hit = await cacheRead(sbA, clientId, TREND_TYPE, TREND_CACHE_MS);
-            if (hit) return Response.json(hit, { headers: { "Cache-Control": "no-store" } });
-          }
-          const now = new Date();
-          const dateTo = now.toISOString().slice(0, 10);
-          const dateFrom = new Date(now.getTime() - 365 * 864e5).toISOString().slice(0, 10);
-          const tgt = { target: [{ domain }] };
-          const [histG, histC, nl] = await Promise.all([
-            dfsLive("ai_optimization/llm_mentions/historical/live", { ...tgt, platform: "google" }),
-            dfsLive("ai_optimization/llm_mentions/historical/live", {
-              ...tgt,
-              platform: "chat_gpt",
-            }),
-            dfsLive("ai_optimization/llm_mentions/timeseries_new_lost/live", {
-              ...tgt,
-              platform: "chat_gpt",
-              date_from: dateFrom,
-              date_to: dateTo,
-              group_range: "month",
-            }),
-          ]);
-          const monthly = (r: any) =>
-            ((r?.result?.items as any[]) || [])
-              .map((it) => ({
-                y: Number(it.year),
-                m: Number(it.month),
-                mentions: Number(it.metrics?.mentions || 0),
-                aiVolume: Number(it.metrics?.ai_search_volume || 0),
-              }))
-              .sort((a, b) => a.y - b.y || a.m - b.m);
-          const payload = {
-            ok: true,
-            build: BUILD,
-            trend: true,
-            client: { id: client.id, name: client.name, domain },
-            google: histG.ok ? monthly(histG) : [],
-            chatgpt: histC.ok ? monthly(histC) : [],
-            newLost: nl.ok
-              ? ((nl.result?.items as any[]) || []).map((it) => ({
-                  date: String(it.date || ""),
-                  new: Number(it.new_mentions || 0),
-                  lost: Number(it.lost_mentions || 0),
-                }))
-              : [],
-            cost: (histG.cost || 0) + (histC.cost || 0) + (nl.cost || 0),
-          };
-          if (!payload.google.length && !payload.chatgpt.length && !histG.ok && !histC.ok)
-            return Response.json({ ok: false, error: histG.error || histC.error }, { status: 502 });
-          await cacheWrite(sbA, client, TREND_TYPE, { domain }, payload);
-          return Response.json(payload, { headers: { "Cache-Control": "no-store" } });
+        if (new URL(request.url).searchParams.get("jetzt") === "1") {
+          const team = await requireTeamRole(request, "member");
+          if (team instanceof Response) return team;
+          return aufAbruf.run({ erlaubt: true }, () => verarbeiten(request));
         }
-
-        // ── Gap-Modus (?gaps=1): echte Fragen, bei denen Rivalen zitiert ─────
-        // werden und der Kunde nicht (include/exclude-Domain-Targets, CH/de-
-        // Google-Korpus). Rival-Domains kommen aus den Judge-Feldern
-        // comp_positions (d) des neuesten Reports. 7-Tage-Cache.
-        if (u.searchParams.get("gaps") === "1") {
-          const own = String(client.domain || "")
-            .replace(/^https?:\/\//, "")
-            .replace(/^www\./, "")
-            .replace(/\/.*$/, "");
-          if (!own)
-            return Response.json({ ok: false, error: "Kunde hat keine Domain" }, { status: 400 });
-          if (!refresh) {
-            const hit = await cacheRead(sbA, clientId, GAP_TYPE, TREND_CACHE_MS);
-            if (hit) return Response.json(hit, { headers: { "Cache-Control": "no-store" } });
-          }
-          const { data: rep2 } = await db
-            .from("ai_visibility_reports")
-            .select("id")
-            .eq("client_id", clientId)
-            .order("snapshot_date", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          const rivalFreq = new Map<string, { n: number; name: string }>();
-          if (rep2?.id) {
-            const { data: rows } = await db
-              .from("ai_visibility_prompts")
-              .select("comp_positions")
-              .eq("report_id", rep2.id)
-              .not("comp_positions", "is", null)
-              .limit(1000);
-            for (const r of rows || [])
-              for (const cp of (r.comp_positions as any[]) || []) {
-                const d = String(cp?.d || "")
-                  .replace(/^www\./, "")
-                  .toLowerCase();
-                if (!d || d === own || d.endsWith("." + own)) continue;
-                const e = rivalFreq.get(d) || { n: 0, name: String(cp?.n || d) };
-                e.n += 1;
-                rivalFreq.set(d, e);
-              }
-          }
-          const rivals = [...rivalFreq.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 2);
-          if (!rivals.length)
-            return Response.json(
-              {
-                ok: true,
-                build: BUILD,
-                gaps: [],
-                note: "Noch keine Konkurrenz-Domains aus dem Messlauf bekannt.",
-              },
-              { headers: { "Cache-Control": "no-store" } },
-            );
-          const lang = (client.language || "de").slice(0, 2);
-          const calls = await Promise.all(
-            rivals.map(([dom]) =>
-              dfsLive("ai_optimization/llm_mentions/search/live", {
-                target: [
-                  { domain: dom, search_filter: "include" },
-                  { domain: own, search_filter: "exclude" },
-                ],
-                platform: "google",
-                location_name: "Switzerland",
-                language_code: lang,
-                limit: 20,
-              }),
-            ),
-          );
-          let cost = 0;
-          const gaps = rivals
-            .map(([dom, meta], i) => {
-              const c = calls[i];
-              cost += c.cost || 0;
-              const seen = new Set<string>();
-              const questions: Array<{ q: string; vol: number }> = [];
-              for (const it of (c.ok ? (c.result?.items as any[]) : []) || []) {
-                const q = String(it.question || "").trim();
-                if (!q || seen.has(q.toLowerCase())) continue;
-                seen.add(q.toLowerCase());
-                questions.push({ q, vol: Number(it.ai_search_volume || 0) });
-              }
-              questions.sort((a, b) => b.vol - a.vol);
-              return {
-                rival: meta.name,
-                rivalDomain: dom,
-                total: c.ok ? Number(c.result?.total_count || 0) : 0,
-                questions: questions.slice(0, 8),
-              };
-            })
-            .filter((g) => g.questions.length);
-          const payload = { ok: true, build: BUILD, gaps, cost };
-          await cacheWrite(sbA, client, GAP_TYPE, { own }, payload);
-          return Response.json(payload, { headers: { "Cache-Control": "no-store" } });
-        }
-
-        // ── Frage-Mining (?questions=1): echte Korpus-Fragen zum Thema ──────
-        // search_scope ["question"] auf deutschen Kernbegriffen (CH/de) —
-        // liefert reale Nutzerfragen als Prompt-Kandidaten. 7-Tage-Cache.
-        if (u.searchParams.get("questions") === "1") {
-          if (!refresh) {
-            const hit = await cacheRead(sbA, clientId, QUESTIONS_TYPE, TREND_CACHE_MS);
-            if (hit) return Response.json(hit, { headers: { "Cache-Control": "no-store" } });
-          }
-          const { data: rep3 } = await db
-            .from("ai_visibility_reports")
-            .select("id")
-            .eq("client_id", clientId)
-            .order("snapshot_date", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          let topics3: string[] = [];
-          if (rep3?.id) {
-            const { data: prompts } = await db
-              .from("ai_visibility_prompts")
-              .select("topic")
-              .eq("report_id", rep3.id)
-              .limit(1000);
-            const freq = new Map<string, number>();
-            for (const p of prompts || []) {
-              const t = String(p.topic || "").trim();
-              if (t.length >= 3) freq.set(t, (freq.get(t) || 0) + 1);
-            }
-            topics3 = [...freq.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t);
-          }
-          if (!topics3.length) topics3 = [client.name];
-          const lang = (client.language || "de").slice(0, 2);
-          const termsDe = await distillTerms(client.name, topics3, "de", 3);
-          if (!termsDe.length)
-            return Response.json(
-              { ok: false, error: "Kernbegriffe nicht ableitbar" },
-              { status: 502 },
-            );
-          const mkTask = (t: string, scopeQuestion: boolean) => ({
-            target: [
-              {
-                keyword: t,
-                match_type: "partial_match",
-                ...(scopeQuestion ? { search_scope: ["question"] } : {}),
-              },
-            ],
-            platform: "google",
-            location_name: "Switzerland",
-            language_code: lang,
-            limit: 30,
-          });
-          const calls = await Promise.all(
-            termsDe.map((t) =>
-              dfsLive("ai_optimization/llm_mentions/search/live", mkTask(t, true)),
-            ),
-          );
-          let cost = 0;
-          const seen = new Set<string>();
-          const questions: Array<{ q: string; vol: number; term: string }> = [];
-          const harvest = (c: any, term: string) => {
-            for (const it of (c?.ok ? (c.result?.items as any[]) : []) || []) {
-              const q = String(it.question || "").trim();
-              if (q.length < 8 || seen.has(q.toLowerCase())) continue;
-              seen.add(q.toLowerCase());
-              questions.push({ q, vol: Number(it.ai_search_volume || 0), term });
-            }
-          };
-          calls.forEach((c, i) => {
-            cost += c.cost || 0;
-            harvest(c, termsDe[i]);
-          });
-          // Fallback (12.08., live-Befund Gasser): bei Nischen-Begriffen steht
-          // der Begriff selten in der FRAGE selbst — dann die Fragen jener
-          // Antworten nehmen, die ihn im ANTWORTTEXT erwähnen (scope any).
-          if (questions.length < 5) {
-            const calls2 = await Promise.all(
-              termsDe.map((t) =>
-                dfsLive("ai_optimization/llm_mentions/search/live", mkTask(t, false)),
-              ),
-            );
-            calls2.forEach((c, i) => {
-              cost += c.cost || 0;
-              harvest(c, termsDe[i]);
-            });
-          }
-          questions.sort((a, b) => b.vol - a.vol);
-          const payload = {
-            ok: true,
-            build: BUILD,
-            terms: termsDe,
-            questions: questions.slice(0, 20),
-            cost,
-          };
-          await cacheWrite(sbA, client, QUESTIONS_TYPE, { terms: termsDe }, payload);
-          return Response.json(payload, { headers: { "Cache-Control": "no-store" } });
-        }
-
-        // ── Konkurrenz-Modus ─────────────────────────────────────────────────
-        if (!refresh) {
-          const hit = await cacheRead(sbA, clientId, CACHE_TYPE, CACHE_MS, platform);
-          if (hit) return Response.json(hit, { headers: { "Cache-Control": "no-store" } });
-        }
-
-        // Themen des neuesten aivis-Reports, häufigste zuerst.
-        const { data: rep } = await db
-          .from("ai_visibility_reports")
-          .select("id")
-          .eq("client_id", clientId)
-          .order("snapshot_date", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        let topics: string[] = [];
-        if (rep?.id) {
-          const { data: prompts } = await db
-            .from("ai_visibility_prompts")
-            .select("topic")
-            .eq("report_id", rep.id)
-            .limit(1000);
-          const freq = new Map<string, number>();
-          for (const p of prompts || []) {
-            const t = String(p.topic || "").trim();
-            if (t.length >= 3) freq.set(t, (freq.get(t) || 0) + 1);
-          }
-          topics = [...freq.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t);
-        }
-        if (!topics.length) topics = [client.name];
-
-        // Marken-Roster für den Mentions-SoV: Kunde + Top-Rivalen aus dem
-        // prompt-basierten SoV des neuesten Reports (unabhängige Zweitmessung).
-        let sovNames: Array<{ name: string; isSelf: boolean }> = [];
-        if (rep?.id) {
-          const { data: sovRows } = await db
-            .from("ai_visibility_sov")
-            .select("brand, is_self, share")
-            .eq("report_id", rep.id)
-            .order("share", { ascending: false })
-            .limit(12);
-          const self = (sovRows || []).find((s: any) => s.is_self);
-          sovNames = [
-            { name: String(self?.brand || client.name), isSelf: true },
-            ...(sovRows || [])
-              .filter((s: any) => !s.is_self)
-              .slice(0, 5)
-              .map((s: any) => ({ name: String(s.brand), isSelf: false })),
-          ];
-        }
-
-        let payload: any;
-        if (platform === "google") {
-          // Echte Schweizer Sicht: deutsche Kernbegriffe gegen den CH-Korpus.
-          const lang = (client.language || "de").slice(0, 2);
-          const termsDe = await distillTerms(client.name, topics, "de", 3);
-          const [ch, sov] = await Promise.all([
-            termsDe.length
-              ? queryChCorpus(termsDe, lang)
-              : Promise.resolve({
-                  ok: false,
-                  domains: [] as Row[],
-                  pages: [] as Row[],
-                  brands: [] as Row[],
-                  answers: 0,
-                  cost: 0,
-                  error: "keine Kernbegriffe",
-                }),
-            queryMentionsSov(sovNames, "google", lang),
-          ]);
-          if (ch.ok && (ch.domains.length || ch.pages.length)) {
-            payload = {
-              ok: true,
-              build: BUILD,
-              client: { id: client.id, name: client.name, domain: client.domain || "" },
-              platform,
-              targets: termsDe,
-              note: `Echte Schweizer Messung: ${ch.answers} gespeicherte Google-KI-Antworten (Standort Schweiz, ${lang.toUpperCase()}) zu den Kernbegriffen ausgewertet. Aktualisierung max. 1×/Tag.`,
-              domains: ch.domains,
-              pages: ch.pages,
-              brands: ch.brands,
-              sov: sov.rows,
-              cost: ch.cost + sov.cost,
-            };
-          } else {
-            // Fallback: globaler EN-Korpus (wie chat_gpt-Pfad).
-            const termsEn = await distillTerms(client.name, topics, "en", 5);
-            if (!termsEn.length)
-              return Response.json(
-                { ok: false, error: ch.error || "Kernbegriffe nicht ableitbar" },
-                { status: 502 },
-              );
-            const [domains, pages] = await Promise.all([
-              queryTerms("ai_optimization/llm_mentions/top_domains/live", termsEn, "google"),
-              queryTerms("ai_optimization/llm_mentions/top_pages/live", termsEn, "google"),
-            ]);
-            if (!domains.ok && !pages.ok)
-              return Response.json(
-                { ok: false, error: domains.error || pages.error },
-                { status: 502 },
-              );
-            payload = {
-              ok: true,
-              build: BUILD,
-              client: { id: client.id, name: client.name, domain: client.domain || "" },
-              platform,
-              targets: termsEn,
-              note: "Der Schweizer Korpus lieferte zu den deutschen Kernbegriffen (noch) keine Daten — gezeigt wird die internationale Sicht über englische Kernbegriffe. Aktualisierung max. 1×/Tag.",
-              domains: domains.rows,
-              pages: pages.rows,
-              brands: domains.brands,
-              sov: sov.rows,
-              cost: (domains.cost || 0) + (pages.cost || 0) + ch.cost + sov.cost,
-            };
-          }
-        } else {
-          // ChatGPT: globaler Korpus (Location wird API-seitig nicht unterstützt).
-          const termsEn = await distillTerms(client.name, topics, "en", 5);
-          if (!termsEn.length)
-            return Response.json(
-              { ok: false, error: "Kernbegriffe nicht ableitbar (Utility-LLM)" },
-              { status: 502 },
-            );
-          const [domains, pages, brandsNew, cats, sov] = await Promise.all([
-            queryTerms("ai_optimization/llm_mentions/top_domains/live", termsEn, "chat_gpt"),
-            queryTerms("ai_optimization/llm_mentions/top_pages/live", termsEn, "chat_gpt"),
-            queryBrandsNew(termsEn),
-            queryBrandCategories(termsEn),
-            queryMentionsSov(sovNames, "chat_gpt", "en"),
-          ]);
-          if (!domains.ok && !pages.ok)
-            return Response.json(
-              { ok: false, error: domains.error || pages.error },
-              { status: 502 },
-            );
-          payload = {
-            ok: true,
-            build: BUILD,
-            client: { id: client.id, name: client.name, domain: client.domain || "" },
-            platform,
-            targets: termsEn,
-            note: "ChatGPT-Korpus ist global/englischsprachig (Standort-Filter werden API-seitig nicht unterstützt) — Messung über englische Kernbegriffe. Aktualisierung max. 1×/Tag.",
-            domains: domains.rows,
-            pages: pages.rows,
-            brands: brandsNew.rows.length ? brandsNew.rows : domains.brands,
-            categories: cats.rows,
-            sov: sov.rows,
-            cost: (domains.cost || 0) + (pages.cost || 0) + brandsNew.cost + cats.cost + sov.cost,
-          };
-        }
-
-        await cacheWrite(sbA, client, CACHE_TYPE, { platform, terms: payload.targets }, payload);
-        return Response.json(payload, { headers: { "Cache-Control": "no-store" } });
+        return verarbeiten(request);
       },
     },
   },

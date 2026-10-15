@@ -228,8 +228,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.33.0",
+    version: "1.34.0",
     changelog: [
+      {
+        version: "1.34.0",
+        date: "2026-10-15",
+        note: "Nur Team-Ansicht: KI-Share-of-Voice & zitierte Quellen auf Abruf (Google AI Overview CH bzw. ChatGPT — Erwähnungsanteil gegenüber Wettbewerbern, meistzitierte Domains/Seiten, Kosten je Messung). EzyPilot antwortet nach klaren Regeln: direkte Antwort zuerst, Tabellen für Daten, keine erfundenen Zahlen, Rückfrage vor grossen kostenpflichtigen Abfragen — Kundenansicht unverändert",
+      },
       {
         version: "1.33.0",
         date: "2026-10-12",

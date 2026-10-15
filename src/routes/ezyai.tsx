@@ -1,4 +1,5 @@
 import { authedFetch } from "@/lib/authed-fetch";
+import KiShareOfVoiceCard from "@/ezy/KiShareOfVoiceCard";
 import { PORTAL_RAIL_APPS } from "@/ezy/data/kundenZugriff";
 import { SprachSwitch } from "@/i18n/SprachSwitch";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -5624,6 +5625,8 @@ function EzyAiApp() {
                     {!DISABLED_CARDS.has("ki-crawler") && (
                       <CrawlerCard clientId={client.id} S={S} isOrgAdmin={isOrgAdmin} />
                     )}
+                    {/* Punkt 12 (15.10.2026): KI-Share-of-Voice auf Abruf — nur Team */}
+                    {role && role !== "viewer" && <KiShareOfVoiceCard clientId={client.id} S={S} />}
                   </>
                 )}
               </main>
