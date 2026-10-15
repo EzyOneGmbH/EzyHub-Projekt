@@ -1618,6 +1618,40 @@ async function adoptPixel(sb: any, clientId: string, organizationId: string, pix
     });
 }
 
+// Kopier-Payloads fuer Duplizieren (Kampagne 06.10. / Anzeigengruppe 15.10.):
+// Gruppe bzw. Anzeige 1:1 aus dem Roh-Datensatz, immer pausiert.
+function dupGruppenPayload(g: any, campaignId: string, name?: string) {
+  const gr = g.raw || {};
+  const p: any = {
+    campaign_id: campaignId,
+    name: String(name || g.name || gr.name || "Anzeigengruppe"),
+    status: "paused",
+    bidding_config: gr.bidding_config || { billing_event_type: "impression" },
+  };
+  if (Array.isArray(gr.context_hints) && gr.context_hints.length)
+    p.context_hints = gr.context_hints.map(String);
+  if (gr.description) p.description = gr.description;
+  if (gr.landing_page_configuration) p.landing_page_configuration = gr.landing_page_configuration;
+  if (gr.product_set) p.product_set = gr.product_set;
+  return p;
+}
+function dupAnzeigenPayload(a: any, adGroupId: string) {
+  const ar = a.raw || {};
+  const c0 = ar.creative || {};
+  const creative: any = { type: c0.type || "chat_card" };
+  for (const k of ["title", "body", "target_url", "file_id", "image_crop"])
+    if (c0[k] != null) creative[k] = c0[k];
+  for (const k of Object.keys(c0)) if (!(k in creative) && c0[k] != null) creative[k] = c0[k];
+  const p: any = {
+    ad_group_id: adGroupId,
+    name: String(a.name || ar.name || "Anzeige"),
+    status: "paused",
+    creative,
+  };
+  if (ar.landing_page_configuration) p.landing_page_configuration = ar.landing_page_configuration;
+  return p;
+}
+
 // Demo-Vorschau: Chat-Card-Optik aus dem Creative.
 function mockPreviewHtml(ad: any): string {
   const cr = ad?.raw?.creative || {};
@@ -3107,40 +3141,8 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
                 .eq("account_id", acc.id)
                 .in("ad_group_id", gruppenIds)
             : { data: [] as any[] };
-          const gruppenPayload = (g: any, campaignId: string) => {
-            const gr = g.raw || {};
-            const p: any = {
-              campaign_id: campaignId,
-              name: String(g.name || gr.name || "Anzeigengruppe"),
-              status: "paused",
-              bidding_config: gr.bidding_config || { billing_event_type: "impression" },
-            };
-            if (Array.isArray(gr.context_hints) && gr.context_hints.length)
-              p.context_hints = gr.context_hints.map(String);
-            if (gr.description) p.description = gr.description;
-            if (gr.landing_page_configuration)
-              p.landing_page_configuration = gr.landing_page_configuration;
-            if (gr.product_set) p.product_set = gr.product_set;
-            return p;
-          };
-          const anzeigenPayload = (a: any, adGroupId: string) => {
-            const ar = a.raw || {};
-            const c0 = ar.creative || {};
-            const creative: any = { type: c0.type || "chat_card" };
-            for (const k of ["title", "body", "target_url", "file_id", "image_crop"])
-              if (c0[k] != null) creative[k] = c0[k];
-            for (const k of Object.keys(c0))
-              if (!(k in creative) && c0[k] != null) creative[k] = c0[k];
-            const p: any = {
-              ad_group_id: adGroupId,
-              name: String(a.name || ar.name || "Anzeige"),
-              status: "paused",
-              creative,
-            };
-            if (ar.landing_page_configuration)
-              p.landing_page_configuration = ar.landing_page_configuration;
-            return p;
-          };
+          const gruppenPayload = dupGruppenPayload;
+          const anzeigenPayload = dupAnzeigenPayload;
           // Eindeutig je Klick (mehrfaches Duplizieren erlaubt), stabil bei Retries.
           const lauf = String(body?.requestId || Date.now());
 
@@ -3302,6 +3304,137 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
             anzeigen: { kopiert: rr.anzeigenOk, quelle: (anzeigen || []).length },
             fehler: rr.fehler,
             hinweise,
+          });
+        }
+
+        // Anzeigengruppe duplizieren (15.10.2026): Gruppe + alle Anzeigen in
+        // derselben Kampagne, pausiert (vorher kopierte das UI nur die Gruppe).
+        if (action === "adgroup-duplicate") {
+          const srcId = String(body?.adGroupId || "");
+          if (!srcId)
+            return Response.json({ ok: false, error: "adGroupId fehlt" }, { status: 400 });
+          const { data: g } = await sb
+            .from("chatgpt_ads_ad_groups")
+            .select("id, name, raw, campaign_id")
+            .eq("account_id", acc.id)
+            .eq("openai_ad_group_id", srcId)
+            .maybeSingle();
+          if (!g)
+            return Response.json({ ok: false, error: "Anzeigengruppe unbekannt" }, { status: 404 });
+          const { data: kamp } = await sb
+            .from("chatgpt_ads_campaigns")
+            .select("openai_campaign_id")
+            .eq("id", g.campaign_id)
+            .maybeSingle();
+          const campaignOpenAi = String(kamp?.openai_campaign_id || g.raw?.campaign_id || "");
+          if (!campaignOpenAi)
+            return Response.json({ ok: false, error: "Kampagne unbekannt" }, { status: 409 });
+          const neuerName =
+            String(body?.name || "").trim() || `${g.name || "Anzeigengruppe"} (Kopie)`;
+          if (neuerName.length < 3)
+            return Response.json(
+              { ok: false, error: "Name: mindestens 3 Zeichen" },
+              { status: 400 },
+            );
+          const { data: anzeigen } = await sb
+            .from("chatgpt_ads_ads")
+            .select("ad_group_id, name, raw")
+            .eq("account_id", acc.id)
+            .eq("ad_group_id", g.id);
+          const lauf = String(body?.requestId || Date.now());
+          const gp = dupGruppenPayload(g, campaignOpenAi, neuerName);
+          const res = await withAudit(
+            sb,
+            acc,
+            "adgroup_duplicate",
+            "ad_group",
+            srcId,
+            { neuerName, anzeigen: (anzeigen || []).length },
+            actor,
+            async () => {
+              let anzeigenOk = 0;
+              const fehler: string[] = [];
+              if (acc.is_mock) {
+                const gid = `adg_mock_${Date.now().toString(36)}`;
+                await sb.from("chatgpt_ads_ad_groups").insert({
+                  account_id: acc.id,
+                  campaign_id: g.campaign_id,
+                  openai_ad_group_id: gid,
+                  name: gp.name,
+                  status: "paused",
+                  raw: { ...gp, id: gid, mock: true },
+                  synced_at: new Date().toISOString(),
+                });
+                const { data: gNeu } = await sb
+                  .from("chatgpt_ads_ad_groups")
+                  .select("id")
+                  .eq("account_id", acc.id)
+                  .eq("openai_ad_group_id", gid)
+                  .maybeSingle();
+                for (const a of anzeigen || []) {
+                  const aid = `ad_mock_${Date.now().toString(36)}${anzeigenOk}`;
+                  const ap = dupAnzeigenPayload(a, gid);
+                  await sb.from("chatgpt_ads_ads").insert({
+                    account_id: acc.id,
+                    ad_group_id: gNeu?.id,
+                    openai_ad_id: aid,
+                    name: ap.name,
+                    status: "paused",
+                    review_status: "in_review",
+                    raw: { ...ap, id: aid, mock: true },
+                    synced_at: new Date().toISOString(),
+                  });
+                  anzeigenOk++;
+                }
+                return { ok: true, id: gid, anzeigenOk, fehler };
+              }
+              const key = keyOf();
+              if (key instanceof Response) return { ok: false, error: "Key nicht lesbar" };
+              const rg = await adsFetch(key, acc.openai_ad_account_id, "/ad_groups", {
+                method: "POST",
+                body: gp,
+                headers: {
+                  "Idempotency-Key": await idemKey("adgroup-duplicate", clientId, {
+                    lauf,
+                    src: srcId,
+                    gp,
+                  }),
+                },
+              });
+              if (!rg.ok || !rg.json?.id) return { ok: false, error: httpErr(rg) };
+              const neueGruppe = String(rg.json.id);
+              await resyncEntity(sb, acc, key, "ad_group", neueGruppe);
+              for (const a of anzeigen || []) {
+                const ap = dupAnzeigenPayload(a, neueGruppe);
+                const ra = await adsFetch(key, acc.openai_ad_account_id, "/ads", {
+                  method: "POST",
+                  body: ap,
+                  headers: {
+                    "Idempotency-Key": await idemKey("ad-duplicate", clientId, {
+                      lauf,
+                      src: a.raw?.id || a.name,
+                      ap,
+                    }),
+                  },
+                });
+                if (!ra.ok || !ra.json?.id) {
+                  fehler.push(`Anzeige «${ap.name}»: ${httpErr(ra)}`);
+                  continue;
+                }
+                anzeigenOk++;
+                await resyncEntity(sb, acc, key, "ad", String(ra.json.id));
+              }
+              return { ok: true, id: neueGruppe, anzeigenOk, fehler };
+            },
+          );
+          if (!res.ok) return Response.json({ ok: false, error: res.error }, { status: 502 });
+          const rr: any = res;
+          return Response.json({
+            ok: true,
+            id: rr.id,
+            name: neuerName,
+            anzeigen: { kopiert: rr.anzeigenOk, quelle: (anzeigen || []).length },
+            fehler: rr.fehler,
           });
         }
 

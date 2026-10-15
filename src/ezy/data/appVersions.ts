@@ -228,8 +228,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.34.0",
+    version: "1.35.0",
     changelog: [
+      {
+        version: "1.35.0",
+        date: "2026-10-15",
+        note: "Ads › Kampagnen: Drill-down wie im Ads Manager (Klick auf eine Kampagne zeigt nur ihre Anzeigengruppen, Klick auf eine Gruppe nur ihre Anzeigen, Filter-Hinweis mit ×), Anzeigengruppe duplizieren kopiert die Anzeigen mit, Kontexthinweise unter «Anzeigengruppe bearbeiten» editierbar, Name auf-/absteigend sortierbar",
+      },
       {
         version: "1.34.0",
         date: "2026-10-15",

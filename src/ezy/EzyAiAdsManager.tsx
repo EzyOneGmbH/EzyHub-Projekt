@@ -80,6 +80,7 @@ const ZERO: Agg = { imp: 0, clk: 0, conv: 0, ctc: 0, spend: 0 };
 // Spalten je Ebene — Namen und Reihenfolge exakt wie im OpenAI Ads Manager
 // (Live-Durchklick 15.09.). group = Gruppe im Dialog «Spalten anpassen».
 type ColKey =
+  | "name"
   | "status"
   | "typ"
   | "campaign"
@@ -862,7 +863,30 @@ export default function EzyAiAdsManager({
   const [reload, setReload] = useState(0);
   const refresh = useCallback(() => setReload((k) => k + 1), []);
   const [level, setLevel] = useState<Level>("campaign");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Auswahl je Ebene (15.10.): wie im OpenAI Ads Manager filtert die Auswahl
+  // der Kampagnen die Anzeigengruppen und die Auswahl der Gruppen die Anzeigen.
+  // Ändert sich die Auswahl einer Ebene, verfallen die darunterliegenden.
+  const [selByLevel, setSelByLevel] = useState<Record<Level, Set<string>>>(() => ({
+    campaign: new Set(),
+    ad_group: new Set(),
+    ad: new Set(),
+  }));
+  const selected = selByLevel[level];
+  const setSelected = useCallback(
+    (v: Set<string> | ((p: Set<string>) => Set<string>)) =>
+      setSelByLevel((p) => {
+        const neu = typeof v === "function" ? v(p[level]) : v;
+        return {
+          ...p,
+          [level]: neu,
+          ...(level === "campaign" ? { ad_group: new Set<string>(), ad: new Set<string>() } : {}),
+          ...(level === "ad_group" ? { ad: new Set<string>() } : {}),
+        };
+      }),
+    [level],
+  );
+  const kampFilter = selByLevel.campaign;
+  const gruppenFilter = selByLevel.ad_group;
   const [search, setSearch] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "paused">("all");
   const [openMenu, setOpenMenu] = useState<string | null>(null); // "create" | "filter" | "status" | "export" | "more" | row id
@@ -1012,10 +1036,16 @@ export default function EzyAiAdsManager({
               sub: data.campaigns.find((c) => c.openai_campaign_id === a.campaign_id)?.name || "—",
               ad: a,
             }));
+    if (level === "ad_group" && kampFilter.size)
+      out = out.filter((r) => r.group && kampFilter.has(r.group.campaign_id ?? ""));
+    if (level === "ad" && gruppenFilter.size)
+      out = out.filter((r) => r.ad && gruppenFilter.has(r.ad.ad_group_id ?? ""));
+    else if (level === "ad" && kampFilter.size)
+      out = out.filter((r) => r.ad && kampFilter.has(r.ad.campaign_id ?? ""));
     if (statusFilter !== "all") out = out.filter((r) => r.status === statusFilter);
     if (search) out = out.filter((r) => r.name.toLowerCase().includes(search.toLowerCase()));
     return out;
-  }, [data, level, statusFilter, search]);
+  }, [data, level, statusFilter, search, kampFilter, gruppenFilter]);
   const colVal = useCallback(
     (r: RowT, key: ColKey): number | string => {
       const a = agg.cur[level + ":" + r.id] || ZERO;
@@ -1140,6 +1170,20 @@ export default function EzyAiAdsManager({
     for (const r of selRows) await entityCmd(r.id, cmd);
     setSelected(new Set());
   };
+  // Klick auf Kampagnen-/Gruppennamen (15.10.): nur diese Zeile auswählen und
+  // direkt zur nächsten Ebene wechseln (gefiltert auf ihre Gruppen/Anzeigen).
+  const drill = (r: RowT) => {
+    const naechste: Level = level === "campaign" ? "ad_group" : "ad";
+    setSelByLevel((p) => ({
+      ...p,
+      [level]: new Set([r.id]),
+      ...(level === "campaign" ? { ad_group: new Set<string>() } : {}),
+      ad: new Set<string>(),
+    }));
+    setExpanded(null);
+    setOpenMenu(null);
+    setLevel(naechste);
+  };
   const duplicate = async (r: RowT) => {
     if (level === "campaign" && r.campaign) {
       // Echte 1:1-Kopie (Kampagne + alle Gruppen + Anzeigen, pausiert).
@@ -1152,16 +1196,27 @@ export default function EzyAiAdsManager({
         anzeigen: (data as Data).ads.filter((a) => a.campaign_id === r.id).length,
       });
     } else if (level === "ad_group" && r.group) {
-      const bc = r.group.bidding_config || {};
-      await run(`dup:${r.id}`, {
-        action: "adgroup-create",
-        campaignId: r.group.campaign_id,
+      // 15.10.: Gruppe samt Anzeigen kopieren (pausiert), wie im Ads Manager.
+      setBusy(`dup:${r.id}`);
+      setErr("");
+      setNotice("");
+      const j = await post({
+        clientId,
+        action: "adgroup-duplicate",
+        adGroupId: r.id,
         name: `${r.name} (Kopie)`,
-        billingEventType: bc.billing_event_type || "impression",
-        strategy: bc.strategy || undefined,
-        maxBidMicros: bc.max_bid_micros || undefined,
-        contextHints: r.group.context_hints || [],
+        requestId: `${r.id}:${Date.now()}`,
       });
+      setBusy("");
+      if (!j.ok) {
+        setErr(`Duplizieren fehlgeschlagen: ${j.error || "Fehler"}`);
+        return;
+      }
+      setNotice(
+        `Anzeigengruppe «${j.name}» angelegt (pausiert) · ${j.anzeigen?.kopiert ?? 0}/${j.anzeigen?.quelle ?? 0} Anzeigen kopiert`,
+      );
+      if (j.fehler?.length) setErr(`Nicht alles kopiert: ${j.fehler.join(" · ")}`);
+      refresh();
     } else if (level === "ad" && r.ad) {
       await run(`dup:${r.id}`, {
         action: "ad-create",
@@ -1647,7 +1702,6 @@ export default function EzyAiAdsManager({
             key={l}
             onClick={() => {
               setLevel(l);
-              setSelected(new Set());
               setExpanded(null);
             }}
             style={{
@@ -1963,6 +2017,85 @@ export default function EzyAiAdsManager({
         </div>
       )}
 
+      <style>
+        {".ezy-ads-drill{cursor:pointer}.ezy-ads-drill:hover{text-decoration:underline}"}
+      </style>
+      {/* Drill-down-Filter (15.10.): aus der Auswahl der übergeordneten Ebene */}
+      {data &&
+        level !== "campaign" &&
+        (kampFilter.size > 0 || (level === "ad" && gruppenFilter.size > 0)) && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              flexWrap: "wrap",
+              padding: "8px 20px",
+              fontSize: 12.5,
+              color: "#555",
+              borderBottom: `1px solid ${S.line}`,
+              background: "#fafafb",
+            }}
+          >
+            <span>Gefiltert nach</span>
+            {(level === "ad" && gruppenFilter.size > 0
+              ? [
+                  {
+                    art: "ad_group" as Level,
+                    namen: data.adGroups
+                      .filter((g) => gruppenFilter.has(g.openai_ad_group_id))
+                      .map((g) => g.name),
+                  },
+                ]
+              : [
+                  {
+                    art: "campaign" as Level,
+                    namen: data.campaigns
+                      .filter((c) => kampFilter.has(c.openai_campaign_id))
+                      .map((c) => c.name),
+                  },
+                ]
+            ).map((f) => (
+              <span
+                key={f.art}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  background: "#e6efff",
+                  color: "#1d4ed8",
+                  borderRadius: 999,
+                  padding: "2px 10px",
+                  fontWeight: 600,
+                  maxWidth: 520,
+                }}
+                title={f.namen.join("\n")}
+              >
+                <span
+                  style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                >
+                  {f.namen.length === 1
+                    ? `${f.art === "campaign" ? "Kampagne" : "Anzeigengruppe"} «${f.namen[0]}»`
+                    : `${f.namen.length} ${f.art === "campaign" ? "Kampagnen" : "Anzeigengruppen"}`}
+                </span>
+                <span
+                  onClick={() =>
+                    setSelByLevel((p0) => ({
+                      ...p0,
+                      [f.art]: new Set<string>(),
+                      ...(f.art === "campaign" ? { ad_group: new Set<string>() } : {}),
+                      ad: new Set<string>(),
+                    }))
+                  }
+                  style={{ cursor: "pointer" }}
+                  title="Filter entfernen"
+                >
+                  ×
+                </span>
+              </span>
+            ))}
+          </div>
+        )}
       {/* Tabelle + Trends-Panel */}
       <div
         style={{ display: "flex", flexDirection: trendsBeside ? "row" : "column", minHeight: 180 }}
@@ -1981,8 +2114,27 @@ export default function EzyAiAdsManager({
                   />
                 </th>
                 <th style={{ ...thL, width: 54 }}>Aktiv</th>
-                <th style={{ ...thL, ...divider, minWidth: 210 }}>
+                <th
+                  onClick={() =>
+                    setSort((s0) =>
+                      s0?.key === "name"
+                        ? s0.dir === "asc"
+                          ? { key: "name", dir: "desc" }
+                          : null
+                        : { key: "name", dir: "asc" },
+                    )
+                  }
+                  title={manyLabel + " nach Name sortieren"}
+                  style={{
+                    ...thL,
+                    ...divider,
+                    minWidth: 210,
+                    cursor: "pointer",
+                    color: sort?.key === "name" ? "#111" : "#555",
+                  }}
+                >
                   {level === "ad" ? "Anzeige" : "Name"}
+                  {sort?.key === "name" ? (sort.dir === "asc" ? " ↑" : " ↓") : ""}
                 </th>
                 {visibleCols.map((c) => (
                   <th
@@ -2078,7 +2230,15 @@ export default function EzyAiAdsManager({
                               whiteSpace: "nowrap",
                               maxWidth: 260,
                             }}
-                            title={r.name}
+                            title={
+                              level === "campaign"
+                                ? `${r.name} — Anzeigengruppen anzeigen`
+                                : level === "ad_group"
+                                  ? `${r.name} — Anzeigen anzeigen`
+                                  : r.name
+                            }
+                            onClick={level !== "ad" ? () => drill(r) : undefined}
+                            className={level !== "ad" ? "ezy-ads-drill" : undefined}
                           >
                             {r.name}
                           </span>
@@ -2812,6 +2972,29 @@ function AdGroupEditor({
   );
   const [strategy, setStrategy] = useState(bc.strategy || "");
   const [bid, setBid] = useState(bc.max_bid_micros ? String(bc.max_bid_micros / 1e6) : "");
+  // Kontexthinweise (15.10.): wie im ChatGPT Ads Manager bearbeitbar — Enter
+  // fügt hinzu; eingefügter Text wird NUR an Zeilenumbrüchen getrennt (Hinweise
+  // dürfen Kommas enthalten).
+  const [hints, setHints] = useState<string[]>(group.context_hints || []);
+  const [hintDraft, setHintDraft] = useState("");
+  const addHints = (txt: string) => {
+    const neu = txt
+      .split(/\r?\n/)
+      .map((x) => x.trim())
+      .filter(Boolean);
+    if (!neu.length) return;
+    setHints((h) => {
+      const seen = new Set(h.map((x) => x.toLowerCase()));
+      const out = h.slice();
+      for (const x of neu)
+        if (!seen.has(x.toLowerCase()) && out.length < 50) {
+          seen.add(x.toLowerCase());
+          out.push(x);
+        }
+      return out;
+    });
+    setHintDraft("");
+  };
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const inp: React.CSSProperties = {
@@ -2872,6 +3055,15 @@ function AdGroupEditor({
               strategy === "fixed_bid"
                 ? Math.round(Number(bid.replace(",", ".")) * 1e6)
                 : undefined,
+            contextHints: hintDraft.trim()
+              ? [
+                  ...hints,
+                  ...hintDraft
+                    .split(/\r?\n/)
+                    .map((x) => x.trim())
+                    .filter(Boolean),
+                ]
+              : hints,
           });
           setBusy(false);
           if (!j.ok) {
@@ -2890,6 +3082,96 @@ function AdGroupEditor({
         Abbrechen
       </button>
       {err && <span style={{ color: "#b91c1c" }}>{err}</span>}
+      <div style={{ flexBasis: "100%", display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+          <span style={{ fontWeight: 600, color: "#111" }}>Kontexthinweise</span>
+          <span style={{ fontSize: 11.5, color: "#777" }}>
+            {hints.length}/50 · Themen und Situationen, in denen die Anzeigen erscheinen sollen
+          </span>
+          {hints.length > 0 && (
+            <button
+              onClick={() => setHints([])}
+              style={{
+                marginLeft: "auto",
+                background: "none",
+                border: "none",
+                color: "#777",
+                fontSize: 11.5,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              Alle entfernen
+            </button>
+          )}
+        </div>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 6,
+            border: `1px solid ${S.line}`,
+            borderRadius: 8,
+            padding: 8,
+            background: "#fff",
+          }}
+        >
+          {hints.map((h, i) => (
+            <span
+              key={h + i}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                background: "#f1f1f4",
+                borderRadius: 999,
+                padding: "3px 10px",
+                fontSize: 12,
+                color: "#111",
+                maxWidth: "100%",
+              }}
+            >
+              <span style={{ overflowWrap: "anywhere" }}>{h}</span>
+              <span
+                onClick={() => setHints((x) => x.filter((_, k) => k !== i))}
+                style={{ cursor: "pointer", color: "#777" }}
+                title="Hinweis entfernen"
+              >
+                ×
+              </span>
+            </span>
+          ))}
+          <input
+            value={hintDraft}
+            onChange={(e) => setHintDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addHints(hintDraft);
+              } else if (e.key === "Backspace" && !hintDraft && hints.length)
+                setHints((x) => x.slice(0, -1));
+            }}
+            onPaste={(e) => {
+              const t = e.clipboardData.getData("text");
+              if (/\n/.test(t)) {
+                e.preventDefault();
+                addHints(t);
+              }
+            }}
+            disabled={hints.length >= 50}
+            placeholder={hints.length >= 50 ? "Maximum erreicht" : "Hinweis eingeben, Enter"}
+            style={{
+              border: "none",
+              outline: "none",
+              flex: "1 1 200px",
+              minWidth: 160,
+              fontSize: 12.5,
+              fontFamily: "inherit",
+              padding: "3px 4px",
+            }}
+          />
+        </div>
+      </div>
     </div>
   );
 }
