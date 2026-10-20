@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.6.1",
+    version: "2.6.2",
     changelog: [
+      {
+        version: "2.6.2",
+        date: "2026-10-20",
+        note: "Conversions: einzelne Buchungen ohne erkennbare Herkunft (GA4 «Unassigned») lassen sich je Kunde von Ezy One einem Kanal zuordnen — sie zählen dann in Kanal-Tabelle, «Generated» und Detailliste dort, markiert mit ¹ und Fussnote",
+      },
       {
         version: "2.6.1",
         date: "2026-10-20",

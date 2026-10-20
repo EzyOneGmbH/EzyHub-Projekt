@@ -10,6 +10,7 @@ import { Clock, DollarSign, FileInput, FileText } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import ConversionScoutPanel from "@/ezy/ConversionScoutPanel";
 import { monatLabel, rekonstruktionImZeitraum, rekonstruktionVon } from "@/lib/convRekonstruktion";
+import { umzuordnungAnwenden, umzuordnungVon } from "@/lib/convUmzuordnung";
 import { isAiConvSource } from "@/ezy/data/aiSources";
 import {
   convBucketVon,
@@ -69,7 +70,16 @@ export function ConvDashboard({ selectedClient, dateRange, appScope = null }) {
   const { data: liveConvRes } = useLiveGa4(selectedClient?.id, "ga4-conversions", liveDays);
   const { data: liveTrafRes } = useLiveGa4(selectedClient?.id, "ga4-traffic", liveDays);
   const sumRes = liveSum || run?.result || null;
-  const convRes = liveConvRes || convRun?.result || null;
+  // Manuelle Kanal-Umzuordnung einzelner Buchungen (20.10.2026, Hotel Bären):
+  // clients.metadata.conv_umzuordnung, nur Anzeige — siehe lib/convUmzuordnung.
+  const umzuordnung = useMemo(
+    () => umzuordnungVon(selectedClient?.metadata),
+    [selectedClient?.metadata],
+  );
+  const { result: convRes, angewendet: umgeordnet } = useMemo(
+    () => umzuordnungAnwenden(liveConvRes || convRun?.result || null, umzuordnung),
+    [liveConvRes, convRun?.result, umzuordnung],
+  );
   const trafRes = liveTrafRes || trafRun?.result || null;
   const ga4Raw = sumRes ? ga4KpisFromResult(sumRes) : null;
   const conv = convRes ? ga4ConversionsFromResult(convRes) : null;
@@ -542,6 +552,7 @@ export function ConvDashboard({ selectedClient, dateRange, appScope = null }) {
                         ? (Number(ch.revenue) || 0) + (plus?.umsatz || 0)
                         : null;
                     const ca = plus ? "≈ " : "";
+                    const umMark = ch.umgeordnet && !ads ? " ¹" : "";
                     const adsMark = ads ? " †" : "";
                     return (
                       <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
@@ -584,12 +595,12 @@ export function ConvDashboard({ selectedClient, dateRange, appScope = null }) {
                           {convWert != null
                             ? ads
                               ? `${fmtConv(convWert)}${adsMark}`
-                              : `${ca}${Math.round(convWert).toLocaleString("de-CH")}${plus ? " *" : ""}`
+                              : `${ca}${Math.round(convWert).toLocaleString("de-CH")}${plus ? " *" : ""}${umMark}`
                             : "—"}
                         </td>
                         <td style={{ padding: "6px 8px", textAlign: "right" }}>
                           {umsatzWert != null && !clicksMode
-                            ? `${ca}${Math.round(umsatzWert).toLocaleString("de-CH")} CHF${plus ? " *" : ""}${adsMark}`
+                            ? `${ca}${Math.round(umsatzWert).toLocaleString("de-CH")} CHF${plus ? " *" : ""}${umMark}${adsMark}`
                             : umsatzWert != null
                               ? Math.round(umsatzWert).toLocaleString("de-CH")
                               : "—"}
@@ -605,6 +616,20 @@ export function ConvDashboard({ selectedClient, dateRange, appScope = null }) {
                 † Paid Search und Cross-network: Conversions und Conversion-Wert aus Google Ads (wie
                 EzyPerformance, Attribution von Google Ads nach Klickdatum; Search-Kampagnen = Paid
                 Search, PMax/Demand Gen/übrige = Cross-network). Sessions aus GA4.
+              </div>
+            )}
+            {umgeordnet.length > 0 && (
+              <div style={{ fontSize: 11, color: C.textDim, marginTop: 8 }}>
+                ¹ inkl. {umgeordnet.length} Buchung{umgeordnet.length === 1 ? "" : "en"} ohne von
+                GA4 erkannte Herkunft («{umgeordnet[0].von}»), von Ezy One als «{umgeordnet[0].nach}
+                » eingestuft (
+                {umgeordnet
+                  .map(
+                    (e) =>
+                      `${e.datum.slice(8, 10)}.${e.datum.slice(5, 7)}. ${Math.round(e.umsatz).toLocaleString("de-CH")} CHF`,
+                  )
+                  .join(", ")}
+                ).{umzuordnung?.hinweis ? ` ${umzuordnung.hinweis}` : ""}
               </div>
             )}
             {rekonstruiert && (
@@ -1007,7 +1032,15 @@ export function ConvDashboard({ selectedClient, dateRange, appScope = null }) {
                         {r.value > 0 ? `${Math.round(r.value).toLocaleString("de-CH")} CHF` : "—"}
                       </td>
                       <td style={{ padding: "6px 8px", color: C.textMuted }}>{r.country || "—"}</td>
-                      <td style={{ padding: "6px 8px", color: C.textMuted }}>{r.source || "—"}</td>
+                      <td style={{ padding: "6px 8px", color: C.textMuted }}>
+                        {r.source || "—"}
+                        {r.umgeordnet && (
+                          <span title="Herkunft von GA4 nicht erkannt, von Ezy One als organisch eingestuft">
+                            {" "}
+                            ¹
+                          </span>
+                        )}
+                      </td>
                       <td style={{ padding: "6px 8px", color: C.textMuted }}>{r.device || "—"}</td>
                       <td style={{ padding: "6px 8px", textAlign: "right" }}>
                         {Number(r.count).toLocaleString("de-CH")}
