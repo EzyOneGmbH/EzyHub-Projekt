@@ -1,5 +1,5 @@
 // Conversion-Log (15.10.2026, Volkan): telefonische Leads je Kunde erfassen —
-// Datum, Firma, Telefonnummer, Person, Grund für den Anruf + «eingetragen von».
+// Zeitpunkt (Erfassung), Firma, Telefonnummer, Person, Grund für den Anruf + «eingetragen von».
 // Genutzt auf /conversion-log (beschränkte Kunden-Logins, z. B. Studioforma-
 // Mitarbeitende) und als Team-Tab in EzyRank. Direkt gegen Supabase (RLS:
 // Zugriff auf den Kunden; ändern/löschen nur eigene Einträge, Team alle).
@@ -9,8 +9,20 @@ import { useAuth } from "@/hooks/use-auth";
 import { C } from "./theme";
 
 const heute = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Zurich" });
-const LEER = { datum: "", firma: "", telefon: "", person: "", grund: "" };
-const datumCH = (d) => (d ? d.split("-").reverse().join(".") : "");
+const LEER = { firma: "", telefon: "", person: "", grund: "" };
+// Zeitpunkt = Erfassungs-Zeitstempel (created_at, von der DB gesetzt und
+// unveränderlich) — nicht wählbar (Volkan 20.10.2026), mit Uhrzeit.
+const zeitCH = (ts) =>
+  ts
+    ? new Date(ts).toLocaleString("de-CH", {
+        timeZone: "Europe/Zurich",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "";
 
 const eingabe = {
   fontSize: 13,
@@ -65,7 +77,7 @@ export default function ConversionLog({ clientId }) {
   const team = role === "owner" || role === "admin" || role === "member";
   const [zeilen, setZeilen] = useState([]);
   const [laedt, setLaedt] = useState(true);
-  const [neu, setNeu] = useState({ ...LEER, datum: heute() });
+  const [neu, setNeu] = useState({ ...LEER });
   const [bearbeiten, setBearbeiten] = useState(null); // {id, ...felder}
   const [loeschen, setLoeschen] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -77,7 +89,6 @@ export default function ConversionLog({ clientId }) {
       .from("conversion_log")
       .select("id, datum, firma, telefon, person, grund, created_by, created_by_email, created_at")
       .eq("client_id", clientId)
-      .order("datum", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(1000);
     if (error) setFehler("Einträge konnten nicht geladen werden.");
@@ -95,7 +106,7 @@ export default function ConversionLog({ clientId }) {
   }, [clientId]);
 
   const darfAendern = (z) => team || (user && z.created_by === user.id);
-  const gueltig = (f) => f.datum && (f.firma.trim() || f.person.trim() || f.telefon.trim());
+  const gueltig = (f) => !!(f.firma.trim() || f.person.trim() || f.telefon.trim());
 
   const speichern = async () => {
     if (busy || !gueltig(neu)) return;
@@ -103,7 +114,6 @@ export default function ConversionLog({ clientId }) {
     setFehler(null);
     const row = {
       client_id: clientId,
-      datum: neu.datum,
       firma: neu.firma.trim(),
       telefon: neu.telefon.trim(),
       person: neu.person.trim(),
@@ -115,7 +125,7 @@ export default function ConversionLog({ clientId }) {
       setFehler("Speichern fehlgeschlagen — bitte erneut versuchen.");
       return;
     }
-    setNeu({ ...LEER, datum: neu.datum });
+    setNeu({ ...LEER });
     laden();
   };
 
@@ -123,11 +133,10 @@ export default function ConversionLog({ clientId }) {
     if (busy || !bearbeiten || !gueltig(bearbeiten)) return;
     setBusy(true);
     setFehler(null);
-    const { id, datum, firma, telefon, person, grund } = bearbeiten;
+    const { id, firma, telefon, person, grund } = bearbeiten;
     const { error } = await supabase
       .from("conversion_log")
       .update({
-        datum,
         firma: firma.trim(),
         telefon: telefon.trim(),
         person: person.trim(),
@@ -167,7 +176,7 @@ export default function ConversionLog({ clientId }) {
   const csv = () => {
     const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const kopf = [
-      "Datum",
+      "Datum/Zeit",
       "Firma",
       "Telefonnummer",
       "Person",
@@ -175,7 +184,7 @@ export default function ConversionLog({ clientId }) {
       "Eingetragen von",
     ];
     const linien = gefiltert.map((z) =>
-      [datumCH(z.datum), z.firma, z.telefon, z.person, z.grund, z.created_by_email]
+      [zeitCH(z.created_at), z.firma, z.telefon, z.person, z.grund, z.created_by_email]
         .map(esc)
         .join(";"),
     );
@@ -222,10 +231,6 @@ export default function ConversionLog({ clientId }) {
           borderRadius: 10,
         }}
       >
-        <label style={{ fontSize: 11.5, color: C.textMuted }}>
-          Datum
-          {feld(neu, setNeu, "datum", { type: "date", max: heute() })}
-        </label>
         <label style={{ fontSize: 11.5, color: C.textMuted }}>
           Firma
           {feld(neu, setNeu, "firma", { maxLength: 200 })}
@@ -297,7 +302,7 @@ export default function ConversionLog({ clientId }) {
         <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 760 }}>
           <thead>
             <tr>
-              <th style={th}>Datum</th>
+              <th style={th}>Datum / Zeit</th>
               <th style={th}>Firma</th>
               <th style={th}>Telefonnummer</th>
               <th style={th}>Person</th>
@@ -310,8 +315,8 @@ export default function ConversionLog({ clientId }) {
             {gefiltert.map((z) =>
               bearbeiten?.id === z.id ? (
                 <tr key={z.id}>
-                  <td style={td}>
-                    {feld(bearbeiten, setBearbeiten, "datum", { type: "date", max: heute() })}
+                  <td style={{ ...td, whiteSpace: "nowrap", color: C.textMuted }}>
+                    {zeitCH(z.created_at)}
                   </td>
                   <td style={td}>{feld(bearbeiten, setBearbeiten, "firma", { maxLength: 200 })}</td>
                   <td style={td}>
@@ -341,7 +346,7 @@ export default function ConversionLog({ clientId }) {
                 </tr>
               ) : (
                 <tr key={z.id}>
-                  <td style={{ ...td, whiteSpace: "nowrap" }}>{datumCH(z.datum)}</td>
+                  <td style={{ ...td, whiteSpace: "nowrap" }}>{zeitCH(z.created_at)}</td>
                   <td style={td}>{z.firma}</td>
                   <td style={{ ...td, whiteSpace: "nowrap" }}>
                     {z.telefon ? (
@@ -379,7 +384,6 @@ export default function ConversionLog({ clientId }) {
                               setLoeschen(null);
                               setBearbeiten({
                                 id: z.id,
-                                datum: z.datum,
                                 firma: z.firma || "",
                                 telefon: z.telefon || "",
                                 person: z.person || "",
