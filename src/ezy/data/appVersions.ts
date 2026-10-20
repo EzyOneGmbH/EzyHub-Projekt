@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.6.2",
+    version: "2.6.3",
     changelog: [
+      {
+        version: "2.6.3",
+        date: "2026-10-20",
+        note: "Conversion-Liste: Käufe ohne Wert werden ausgeblendet, sobald im Zeitraum echte Käufe mit Umsatz vorliegen (Doppelmeldungen von Buchungsmaschinen wie Mews)",
+      },
       {
         version: "2.6.2",
         date: "2026-10-20",

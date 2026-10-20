@@ -188,3 +188,18 @@ export function isKaufEvent(eventName: unknown): boolean {
   if (!n || isMuellEvent(n) || isFunnelEvent(n)) return false;
   return /purchase|transaction|^order$|_order$|^order_/i.test(n);
 }
+
+/**
+ * Käufe ohne Wert ausblenden (20.10.2026, Campagnola): Mews meldet je Buchung
+ * zusätzlich «purchase» ohne Betrag/Nummer, die ein Fremd-Tag an GA4 weitergibt.
+ * Gibt es im Ergebnis echte Käufe mit Wert, sind wertlose Kaufzeilen Duplikate
+ * und fallen weg. Ohne einen einzigen Kauf mit Wert bleibt alles stehen (Kunden
+ * ohne Umsatz-Tracking).
+ */
+export function ohneWertloseKaeufe<T extends { eventName?: unknown; value?: unknown }>(
+  rows: T[],
+): T[] {
+  const mitWert = rows.some((r) => isKaufEvent(r.eventName) && Number(r.value) > 0);
+  if (!mitWert) return rows;
+  return rows.filter((r) => !isKaufEvent(r.eventName) || Number(r.value) > 0);
+}

@@ -13,6 +13,7 @@ import { monatLabel, rekonstruktionImZeitraum, rekonstruktionVon } from "@/lib/c
 import { umzuordnungAnwenden, umzuordnungVon } from "@/lib/convUmzuordnung";
 import { isAiConvSource } from "@/ezy/data/aiSources";
 import {
+  ohneWertloseKaeufe,
   convBucketVon,
   generatedUmsatz,
   isFunnelEvent,
@@ -128,7 +129,8 @@ export function ConvDashboard({ selectedClient, dateRange, appScope = null }) {
   // Event-Übersichtstabelle (convEventsFiltered) bleibt bewusst ungefiltert.
   const convRowsOrganic = useMemo(
     () =>
-      (conv?.rows || []).filter((r) => {
+      // Käufe ohne Wert sind Duplikate, sobald es Käufe mit Wert gibt (20.10.2026).
+      ohneWertloseKaeufe(conv?.rows || []).filter((r) => {
         // Funnel-Schritte nie in der Conversion-Liste (auch alte Snapshots).
         if (isFunnelEvent(r.eventName)) return false;
         // Zählregeln (02.10.2026) auch auf ältere Snapshots anwenden.

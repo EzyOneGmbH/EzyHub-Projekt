@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ohneWertloseKaeufe,
   convBucketVon,
   isKaufEvent,
   isMuellEvent,
@@ -183,5 +184,26 @@ describe("Zählregeln (Audit 02.10.2026)", () => {
     expect(isKaufEvent("Click_Ski_und_Bergbahntickets_Kaufen")).toBe(false);
     expect(isKaufEvent("begin_checkout")).toBe(false);
     expect(isKaufEvent("G-14HEGP45HE")).toBe(false);
+  });
+});
+
+describe("ohneWertloseKaeufe", () => {
+  it("entfernt Käufe ohne Wert, wenn es Käufe mit Wert gibt", () => {
+    const rows = [
+      { eventName: "purchase", value: 0 },
+      { eventName: "purchase", value: 1350.2 },
+      { eventName: "phone_click", value: 0 },
+    ];
+    expect(ohneWertloseKaeufe(rows)).toEqual([
+      { eventName: "purchase", value: 1350.2 },
+      { eventName: "phone_click", value: 0 },
+    ]);
+  });
+  it("lässt alles stehen, wenn kein Kauf einen Wert hat", () => {
+    const rows = [
+      { eventName: "purchase", value: 0 },
+      { eventName: "mail_click", value: 0 },
+    ];
+    expect(ohneWertloseKaeufe(rows)).toBe(rows);
   });
 });
