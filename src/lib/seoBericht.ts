@@ -23,7 +23,11 @@ export type BerichtDaten = {
   clusters?: any; // keyword_clusters.result
 };
 
-const zahl = (n: unknown) => Math.round(Number(n) || 0).toLocaleString("de-CH");
+// Tausender-Trenner einheitlich «’»: ICU auf Linux liefert «'», auf Windows «’».
+const zahl = (n: unknown) =>
+  Math.round(Number(n) || 0)
+    .toLocaleString("de-CH")
+    .replace(/'/g, "’");
 const datumCH = (ymd: string) => {
   const [y, m, d] = String(ymd || "").split("-");
   return y && m && d ? `${d}.${m}.${y}` : ymd;
