@@ -3527,6 +3527,91 @@ export type Database = {
           },
         ]
       }
+      seo_report_config: {
+        Row: {
+          awork_project_id: string | null
+          brand_regex: string | null
+          client_id: string
+          created_at: string
+          dfs_language_code: string
+          dfs_location_code: number
+          report_active: boolean
+          strategic_keywords: string[]
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          awork_project_id?: string | null
+          brand_regex?: string | null
+          client_id: string
+          created_at?: string
+          dfs_language_code?: string
+          dfs_location_code?: number
+          report_active?: boolean
+          strategic_keywords?: string[]
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          awork_project_id?: string | null
+          brand_regex?: string | null
+          client_id?: string
+          created_at?: string
+          dfs_language_code?: string
+          dfs_location_code?: number
+          report_active?: boolean
+          strategic_keywords?: string[]
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seo_report_config_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: true
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      seo_report_snapshots: {
+        Row: {
+          client_id: string
+          created_at: string
+          dataforseo_cost: number
+          id: string
+          month: string
+          payload: Json
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          dataforseo_cost?: number
+          id?: string
+          month: string
+          payload: Json
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          dataforseo_cost?: number
+          id?: string
+          month?: string
+          payload?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seo_report_snapshots_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       site_health_audits: {
         Row: {
           at: string
