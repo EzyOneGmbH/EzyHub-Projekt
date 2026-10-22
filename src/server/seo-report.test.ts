@@ -27,10 +27,21 @@ import {
   positionenAm,
   positionenAusSnapshot,
   veraenderung,
+  istYmd,
+  periodenFuerMonat,
+  periodenFuerZeitraum,
+  vorjahrTag,
+  zeitraumText,
   type RankZeile,
 } from "@/lib/seoReport";
-import { baueKonfig, berechneSeoReport, tagesendeZuerich, type Quellen } from "./seo-report.server";
-import { ga4WerteAus } from "./seo-report-quellen.server";
+import {
+  baueKonfig,
+  berechneSeoReport,
+  tagesendeZuerich,
+  zeitraumUnvollstaendig,
+  type Quellen,
+} from "./seo-report.server";
+import { ga4KeyEventsAus, ga4WerteAus } from "./seo-report-quellen.server";
 
 // Gespeicherter labs_history-Lauf (agent-service, Form wie audit_runs.result.months)
 const LABS_LAUF = {
@@ -766,5 +777,148 @@ describe("GA4", () => {
       { sessions: 320, engagement_rate: 0.58, key_events: 5 },
       { sessions: 0, engagement_rate: null, key_events: 0 },
     ]);
+  });
+
+  it("Key Events je Event und Zeitraum, absteigend, ohne Nullwerte", () => {
+    const j = {
+      dimensionHeaders: [{ name: "eventName" }, { name: "dateRange" }],
+      rows: [
+        {
+          dimensionValues: [{ value: "purchase" }, { value: "date_range_0" }],
+          metricValues: [{ value: "3" }],
+        },
+        {
+          dimensionValues: [{ value: "click_phone" }, { value: "date_range_0" }],
+          metricValues: [{ value: "9" }],
+        },
+        {
+          dimensionValues: [{ value: "page_view" }, { value: "date_range_0" }],
+          metricValues: [{ value: "0" }],
+        },
+        {
+          dimensionValues: [{ value: "purchase" }, { value: "date_range_2" }],
+          metricValues: [{ value: "1" }],
+        },
+      ],
+    };
+    expect(ga4KeyEventsAus(j, 3)).toEqual([
+      [
+        { event: "click_phone", count: 9 },
+        { event: "purchase", count: 3 },
+      ],
+      [],
+      [{ event: "purchase", count: 1 }],
+    ]);
+    expect(ga4KeyEventsAus(null, 3)).toBeNull();
+  });
+});
+
+describe("Freier Zeitraum (from/to)", () => {
+  it("Vorperiode gleich lang direkt davor, Vorjahr gleiche Tage", () => {
+    expect(periodenFuerZeitraum("2026-10-01", "2026-10-21")).toEqual({
+      modus: "range",
+      monat: null,
+      current: { from: "2026-10-01", to: "2026-10-21" },
+      previous: { from: "2026-09-10", to: "2026-09-30" },
+      previous_year: { from: "2025-10-01", to: "2025-10-21" },
+      etvMonat: "2026-10",
+    });
+    expect(periodenFuerZeitraum("2028-02-29", "2028-02-29").previous_year).toEqual({
+      from: "2027-02-28",
+      to: "2027-02-28",
+    });
+    expect(vorjahrTag("2026-03-01")).toBe("2025-03-01");
+  });
+  it("Monatsmodus unverändert: ganzer Vormonat und Vorjahresmonat", () => {
+    expect(periodenFuerMonat("2026-03")).toMatchObject({
+      previous: { from: "2026-02-01", to: "2026-02-28" },
+      previous_year: { from: "2025-03-01", to: "2025-03-31" },
+    });
+  });
+  it("Datum prüfen, Zeitraum benennen, Vollständigkeit", () => {
+    expect(istYmd("2026-02-30")).toBe(false);
+    expect(istYmd("2026-10-21")).toBe(true);
+    expect(zeitraumText({ from: "2025-09-01", to: "2025-09-30" })).toBe("2025-09");
+    expect(zeitraumText({ from: "2025-10-01", to: "2025-10-21" })).toBe(
+      "2025-10-01 bis 2025-10-21",
+    );
+    expect(zeitraumUnvollstaendig("2026-10-21", "2026-10-22")).toBe(true);
+    expect(zeitraumUnvollstaendig("2026-10-19", "2026-10-22")).toBe(false);
+  });
+
+  it("Report 10.–30.09.2026: Zeiträume, Messtage, GA4-Conversions", async () => {
+    const r: any = await berechneSeoReport(
+      BERNINA,
+      periodenFuerZeitraum("2026-09-10", "2026-09-30"),
+      quellen({
+        ga4: async () => [
+          {
+            sessions: 400,
+            engagement_rate: 0.61,
+            key_events: 8,
+            key_events_by_event: [
+              { event: "click_phone", count: 5 },
+              { event: "purchase", count: 3 },
+            ],
+          },
+          { sessions: 320, engagement_rate: 0.58, key_events: 4, key_events_by_event: [] },
+          { sessions: 0, engagement_rate: null, key_events: 0, key_events_by_event: null },
+        ],
+      }),
+      { jetzt: new Date("2026-10-03T05:00:00Z"), heute: "2026-10-03" },
+    );
+    expect(r.period).toMatchObject({
+      mode: "range",
+      month: null,
+      from: "2026-09-10",
+      to: "2026-09-30",
+      previous: { from: "2026-08-20", to: "2026-09-09" },
+      previous_year: { from: "2025-09-10", to: "2025-09-30" },
+      days: 21,
+      visibility_month: "2026-09",
+      partial: false,
+      // Fenster wie Dashboard: Vorperiode [10.08., 09.09.] → Messtag 30.08.
+      data_dates: { rankings_current: "2026-09-28", rankings_previous: "2026-08-30" },
+    });
+    expect(r.gsc.ranges).toEqual({
+      current: { startDate: "2026-09-10", endDate: "2026-09-30" },
+      previous: { startDate: "2026-08-20", endDate: "2026-09-09" },
+      previous_year: { startDate: "2025-09-10", endDate: "2025-09-30" },
+    });
+    expect(r.ga4.current).toEqual({
+      sessions: 400,
+      engagement_rate: 0.61,
+      key_events: 8,
+      conversion_rate: 0.02,
+      key_events_by_event: [
+        { event: "click_phone", count: 5 },
+        { event: "purchase", count: 3 },
+      ],
+    });
+    expect(r.ga4.previous_year).toMatchObject({ conversion_rate: null, key_events_by_event: null });
+    expect(r.ga4.change.conversion_rate_mom).toBe(0.6);
+    expect(r.meta.partial).toBe(false);
+  });
+
+  it("unvollständiger Zeitraum: partial, GSC bis heute − 3", async () => {
+    const r: any = await berechneSeoReport(
+      BERNINA,
+      periodenFuerZeitraum("2026-10-01", "2026-10-21"),
+      quellen(),
+      { heute: "2026-10-22" },
+    );
+    expect(r.meta.partial).toBe(true);
+    expect(r.period.partial).toBe(true);
+    expect(r.gsc.ranges.current).toEqual({ startDate: "2026-10-01", endDate: "2026-10-19" });
+    expect(r.ga4.ranges.current).toEqual({ startDate: "2026-10-01", endDate: "2026-10-21" });
+  });
+
+  it("Monatsreport: Conversion-Rate und by_event null ohne Daten", async () => {
+    const r: any = await berechneSeoReport(BERNINA, "2026-09", quellen(), {
+      heute: "2026-10-03",
+    });
+    expect(r.ga4.current).toMatchObject({ conversion_rate: 0.0175, key_events_by_event: null });
+    expect(r.period).toMatchObject({ mode: "month", month: "2026-09", from: "2026-09-01" });
+    expect(r.meta.partial).toBe(false);
   });
 });

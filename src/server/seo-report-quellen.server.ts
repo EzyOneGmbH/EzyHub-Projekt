@@ -167,32 +167,83 @@ export async function gscTopSeiten(
   }));
 }
 
-export type Ga4Werte = { sessions: number; engagement_rate: number | null; key_events: number };
+export type Ga4KeyEvent = { event: string; count: number };
+export type Ga4Werte = {
+  sessions: number;
+  engagement_rate: number | null;
+  key_events: number;
+  /** Key Events je Event-Name (absteigend); null = Abfrage fehlgeschlagen */
+  key_events_by_event?: Ga4KeyEvent[] | null;
+};
 
-/** GA4 organische Sitzungen, Engagement-Rate, Key Events für bis zu 4 Zeiträume. */
+const ORGANIC_FILTER = {
+  filter: {
+    fieldName: "sessionDefaultChannelGroup",
+    stringFilter: { matchType: "EXACT", value: "Organic Search" },
+  },
+};
+
+/**
+ * GA4 «Organic Search» für bis zu 4 Zeiträume: Sitzungen, Engagement-Rate,
+ * Key Events und Key Events je Event-Name (Kennzahl keyEvents, gleicher
+ * Kanalfilter — die Summe je Event ergibt key_events).
+ */
 export async function ga4Organisch(
   property: string,
   token: string,
   zeitraeume: Array<{ startDate: string; endDate: string }>,
   fetcher: Fetcher = fetch,
 ): Promise<Ga4Werte[]> {
-  const res = await fetcher(ga4RunReportUrl(property), {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      dateRanges: zeitraeume,
+  const abfrage = (body: Record<string, unknown>) =>
+    fetcher(ga4RunReportUrl(property), {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ dateRanges: zeitraeume, dimensionFilter: ORGANIC_FILTER, ...body }),
+      signal: AbortSignal.timeout(25_000),
+    });
+  const [res, resEv] = await Promise.all([
+    abfrage({
       metrics: [{ name: "sessions" }, { name: "engagementRate" }, { name: "keyEvents" }],
-      dimensionFilter: {
-        filter: {
-          fieldName: "sessionDefaultChannelGroup",
-          stringFilter: { matchType: "EXACT", value: "Organic Search" },
-        },
-      },
     }),
-    signal: AbortSignal.timeout(25_000),
-  });
+    abfrage({
+      dimensions: [{ name: "eventName" }],
+      metrics: [{ name: "keyEvents" }],
+      orderBys: [{ metric: { metricName: "keyEvents" }, desc: true }],
+      limit: 1000,
+    }).catch(() => null),
+  ]);
   if (!res.ok) throw new Error(`GA4 HTTP ${res.status}`);
-  return ga4WerteAus(await res.json(), zeitraeume.length);
+  const werte = ga4WerteAus(await res.json(), zeitraeume.length);
+  const jeEvent = resEv?.ok
+    ? ga4KeyEventsAus(await resEv.json().catch(() => null), zeitraeume.length)
+    : null;
+  return werte.map((w, i) => ({ ...w, key_events_by_event: jeEvent ? jeEvent[i] : null }));
+}
+
+/**
+ * GA4-Antwort (Dimension eventName, Kennzahl keyEvents) → Key Events je Event
+ * und Zeitraum, absteigend, nur Events mit mindestens einem Key Event.
+ */
+export function ga4KeyEventsAus(j: any, anzahl: number): Ga4KeyEvent[][] | null {
+  if (!j || typeof j !== "object") return null;
+  const kopf: string[] = (j.dimensionHeaders ?? []).map((h: any) => String(h?.name ?? ""));
+  const iEvent = Math.max(0, kopf.indexOf("eventName"));
+  const iRange = kopf.indexOf("dateRange");
+  const out: Ga4KeyEvent[][] = Array.from({ length: anzahl }, () => []);
+  for (const row of j.rows ?? []) {
+    const dv = row?.dimensionValues ?? [];
+    const i =
+      anzahl > 1 && iRange >= 0
+        ? Number(String(dv[iRange]?.value ?? "").replace(/\D/g, "")) || 0
+        : 0;
+    const count = Number(row?.metricValues?.[0]?.value) || 0;
+    const event = String(dv[iEvent]?.value ?? "");
+    if (!out[i] || !event || count <= 0) continue;
+    out[i].push({ event, count });
+  }
+  for (const liste of out)
+    liste.sort((a, b) => b.count - a.count || a.event.localeCompare(b.event));
+  return out;
 }
 
 /** GA4-Antwort → Werte je Zeitraum (bei mehreren Zeiträumen Dimension dateRange). */

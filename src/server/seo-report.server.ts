@@ -8,15 +8,16 @@
 // in EzyHub, bleibt er null (checks-Hinweis).
 //   gsc / ga4              gleiche Funktionen wie das Dashboard (gscTotals,
 //                          GA4 «Organic Search») über die Google-Anbindung
-// Konfiguration: clients + seo_report_config. Jeder Abruf wird als Monats-
-// Snapshot in seo_report_snapshots gespeichert; der zweite Aufruf kostet nichts.
+// Konfiguration: clients + seo_report_config. Zeitraum: Monat (month) oder frei
+// (from/to, 22.10.2026) mit gleich langer Vorperiode und Vorjahreszeitraum.
+// Snapshots (seo_report_snapshots) nur für vollständige Monate; unvollständige
+// Zeiträume → meta.partial = true, kein Snapshot.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { normalizeDomain } from "./backlink-overview.server";
 import {
   backlinkStandAus,
   labsMonateAusGespeichert,
   refdomainsVerlaufAus,
-  refdomainsZumMonatsende,
   verteilungAusRankDaily,
   type LabsMonat,
   berechneChecks,
@@ -29,8 +30,13 @@ import {
   chancenKeywords,
   gscJeQuery,
   letzterMesstag,
+  letzterMesstagIm,
   monatPlus,
-  monatsEnde,
+  periodenFuerMonat,
+  refdomainsImZeitraum,
+  zeitraumText,
+  type Perioden,
+  type Zeitraum,
   positionenAm,
   positionenAusSnapshot,
   veraenderung,
@@ -202,7 +208,7 @@ export type Quellen = {
   snapshotVormonat: () => Promise<any | null>;
 };
 
-export function echteQuellen(k: SeoKonfig, monat: string): Quellen {
+export function echteQuellen(k: SeoKonfig, monat: string | null): Quellen {
   return {
     rankZeilen: (von, bis, kws) => ladeRankZeilen(k.id, von, bis, kws),
     rankTage: (tage) => ladeRankTage(k.id, tage),
@@ -212,7 +218,8 @@ export function echteQuellen(k: SeoKonfig, monat: string): Quellen {
     gscPeriode: (t, von, bis) => gscPeriode(String(k.gsc_property), t, von, bis),
     gscTopSeiten: (t, von, bis) => gscTopSeiten(String(k.gsc_property), t, von, bis),
     ga4: (t, z) => ga4Organisch(String(k.ga4_property_id), t, z),
-    snapshotVormonat: () => ladeSnapshot(k.id, monatPlus(monat, -1)),
+    snapshotVormonat: () =>
+      monat ? ladeSnapshot(k.id, monatPlus(monat, -1)) : Promise.resolve(null),
   };
 }
 
@@ -226,6 +233,24 @@ export function tagesendeZuerich(ymd: string): string {
   return `${ymd}T23:59:59.999${m >= 3 && m <= 9 ? "+02:00" : "+01:00"}`;
 }
 
+/** Rank-Fenster des Dashboards: [min(from, to − 30), to]. */
+const rankFenster = (z: Zeitraum): Zeitraum => ({
+  from: kleinerDatum(z.from, minusTage(z.to, 30)),
+  to: z.to,
+});
+
+/** GA4-Werte eines Zeitraums inkl. Conversion-Rate (Key Events / Sitzungen). */
+function ga4Block(w: Ga4Werte) {
+  return {
+    sessions: w.sessions,
+    engagement_rate: w.engagement_rate,
+    key_events: w.key_events,
+    conversion_rate:
+      w.sessions > 0 ? Math.round((w.key_events / w.sessions) * 10000) / 10000 : null,
+    key_events_by_event: w.key_events_by_event ?? null,
+  };
+}
+
 type BacklinkWert = {
   wert: number | null;
   quelle: "ezyhub" | null;
@@ -234,22 +259,32 @@ type BacklinkWert = {
 
 type GscBlock = GscKennzahlen & { brand: GscKennzahlen; nonbrand: GscKennzahlen };
 
-/** Report berechnen. `heute` = Schweizer Datum (YYYY-MM-DD). */
+/** Zeitraum unvollständig? GSC-Daten sind erst nach GSC_VERZUG_TAGE vollständig. */
+export function zeitraumUnvollstaendig(bis: string, heute: string): boolean {
+  return bis > minusTage(heute, GSC_VERZUG_TAGE);
+}
+
+/**
+ * Report berechnen. `periode` = Berichtsmonat (YYYY-MM) oder Perioden aus
+ * periodenFuerZeitraum (from/to). `heute` = Schweizer Datum (YYYY-MM-DD).
+ */
 export async function berechneSeoReport(
   k: SeoKonfig,
-  monat: string,
+  periode: string | Perioden,
   q: Quellen,
   opts: { jetzt?: Date; heute: string },
 ) {
+  const P = typeof periode === "string" ? periodenFuerMonat(periode) : periode;
+  const monatsModus = P.modus === "month";
+  const monat = P.etvMonat;
   const jetzt = opts.jetzt ?? new Date();
   const heute = opts.heute;
   const errors: Array<{ source: string; message: string }> = [];
   const fehler = (source: string, e: unknown) =>
     errors.push({ source, message: String((e as Error)?.message || e).slice(0, 160) });
 
-  const vm = monatPlus(monat, -1);
-  const vj = monatPlus(monat, -12);
-  const ende = monatsEnde(monat);
+  const zr = { current: P.current, previous: P.previous, previous_year: P.previous_year };
+  const ende = P.current.to;
   const istBrand = brandErkenner(k.brand_regex);
 
   // Felder ohne gespeicherten Wert in EzyHub (bleiben null, checks-Hinweis)
@@ -276,43 +311,38 @@ export async function berechneSeoReport(
 
   // ── Backlinks: gespeicherte EzyRank-Läufe zum Monatsende ───────────────────
   const backlinksLaden = async () => {
-    const laufBis = async (m: string) => {
+    const laufBis = async (z: Zeitraum) => {
       try {
-        return await q.backlinkLauf(tagesendeZuerich(monatsEnde(m)));
+        return await q.backlinkLauf(tagesendeZuerich(z.to));
       } catch (e) {
         fehler("ezyrank_backlinks", e);
         return null;
       }
     };
-    // Läufe zum Ende von Monat, Vormonat, Vorjahresmonat (Dashboard-Auswahl)
+    // Läufe zum Ende von Zeitraum, Vorperiode, Vorjahreszeitraum (Dashboard-Auswahl)
     const [laufCur, laufPrev, laufPy] = await Promise.all([
-      laufBis(monat),
-      laufBis(vm),
-      laufBis(vj),
+      laufBis(zr.current),
+      laufBis(zr.previous),
+      laufBis(zr.previous_year),
     ]);
     const laeufe = { current: laufCur, previous: laufPrev, previous_year: laufPy };
-    const laufVon: Record<string, GespeicherterLauf | null> = {
-      [monat]: laufCur,
-      [vm]: laufPrev,
-      [vj]: laufPy,
-    };
-    const ausLauf = (m: string): BacklinkWert => {
-      for (const lauf of [laufCur, m === monat ? null : laufVon[m]]) {
+    type Teil = keyof typeof laeufe;
+    const ausLauf = (t: Teil): BacklinkWert => {
+      for (const lauf of [laufCur, t === "current" ? null : laeufe[t]]) {
         if (!lauf) continue;
-        const wert = refdomainsZumMonatsende(refdomainsVerlaufAus(lauf.result), m);
+        const wert = refdomainsImZeitraum(refdomainsVerlaufAus(lauf.result), zr[t].from, zr[t].to);
         if (wert != null) return { wert, quelle: "ezyhub", lauf };
       }
       return { wert: null, quelle: null, lauf: null };
     };
-    const werte: Record<"current" | "previous" | "previous_year", BacklinkWert> = {
-      current: ausLauf(monat),
-      previous: ausLauf(vm),
-      previous_year: ausLauf(vj),
+    const werte: Record<Teil, BacklinkWert> = {
+      current: ausLauf("current"),
+      previous: ausLauf("previous"),
+      previous_year: ausLauf("previous_year"),
     };
-    const monatVon = { current: monat, previous: vm, previous_year: vj };
-    for (const p of Object.keys(werte) as Array<keyof typeof werte>)
+    for (const p of Object.keys(werte) as Teil[])
       if (werte[p].wert == null)
-        fehlend.push({ field: `backlinks.referring_domains.${p}`, monat: monatVon[p] });
+        fehlend.push({ field: `backlinks.referring_domains.${p}`, monat: zeitraumText(zr[p]) });
     return { ...werte, laeufe };
   };
 
@@ -327,9 +357,9 @@ export async function berechneSeoReport(
   const token = k.gsc_property || k.ga4_property_id ? await q.googleToken() : null;
   const gscEnde = kleinerDatum(ende, minusTage(heute, GSC_VERZUG_TAGE));
   const zeitraeume = {
-    current: { startDate: `${monat}-01`, endDate: gscEnde },
-    previous: { startDate: `${vm}-01`, endDate: monatsEnde(vm) },
-    previous_year: { startDate: `${vj}-01`, endDate: monatsEnde(vj) },
+    current: { startDate: zr.current.from, endDate: gscEnde },
+    previous: { startDate: zr.previous.from, endDate: zr.previous.to },
+    previous_year: { startDate: zr.previous_year.from, endDate: zr.previous_year.to },
   };
   let gsc: any = null;
   let gscCur: GscPeriode | null = null;
@@ -364,7 +394,7 @@ export async function berechneSeoReport(
         },
         top_pages: seiten,
         opportunity_keywords: chancenKeywords(c.queries),
-        /** Kontrolle der Brand-Regex: grösste Brand-Queries im Berichtsmonat */
+        /** Kontrolle der Brand-Regex: grösste Brand-Queries im Berichtszeitraum */
         brand_top_queries: brandTopQueries(c.queries, istBrand),
         /** Brand/Non-Brand = Summe der gelisteten Queries (ohne anonymisierte) */
         brand_basis: "queries",
@@ -377,14 +407,21 @@ export async function berechneSeoReport(
   let ga4: any = undefined; // Feld fehlt, wenn GA4 nicht angebunden ist
   if (k.ga4_property_id && token) {
     try {
-      const [c, p, y] = await q.ga4(token, [
-        { startDate: `${monat}-01`, endDate: kleinerDatum(ende, minusTage(heute, 1)) },
-        zeitraeume.previous,
-        zeitraeume.previous_year,
-      ]);
+      const ga4Bereiche = {
+        current: {
+          startDate: zr.current.from,
+          endDate: kleinerDatum(ende, minusTage(heute, 1)),
+        },
+        previous: zeitraeume.previous,
+        previous_year: zeitraeume.previous_year,
+      };
+      const [c, p, y] = (
+        await q.ga4(token, [ga4Bereiche.current, ga4Bereiche.previous, ga4Bereiche.previous_year])
+      ).map(ga4Block);
       ga4 = {
         property_id: k.ga4_property_id,
         channel: "Organic Search",
+        ranges: ga4Bereiche,
         current: c,
         previous: p,
         previous_year: y,
@@ -392,6 +429,9 @@ export async function berechneSeoReport(
           sessions_mom: veraenderung(c.sessions, p.sessions),
           sessions_yoy: veraenderung(c.sessions, y.sessions),
           key_events_mom: veraenderung(c.key_events, p.key_events),
+          key_events_yoy: veraenderung(c.key_events, y.key_events),
+          conversion_rate_mom: veraenderung(c.conversion_rate, p.conversion_rate),
+          conversion_rate_yoy: veraenderung(c.conversion_rate, y.conversion_rate),
         },
       };
     } catch (e) {
@@ -404,18 +444,24 @@ export async function berechneSeoReport(
   let rankZeilen: RankZeile[] = [];
   try {
     rankZeilen = await q.rankZeilen(
-      `${vm}-01`,
+      monatsModus ? zr.previous.from : rankFenster(zr.previous).from,
       ende,
       k.strategic_keywords.map((s) => s.toLowerCase()),
     );
   } catch (e) {
     fehler("rank_daily", e);
   }
-  const tagCur = letzterMesstag(rankZeilen, monat);
-  const tagPrev = letzterMesstag(rankZeilen, vm);
+  // Monat: letzter Messtag im Monat. Freier Zeitraum: Fenster wie das Dashboard
+  // ([min(from, to − 30), to]), damit auch kurze Zeiträume eine Vollmessung haben.
+  const messtagIn = (z: Zeitraum) =>
+    monatsModus
+      ? letzterMesstag(rankZeilen, z.from.slice(0, 7))
+      : letzterMesstagIm(rankZeilen, rankFenster(z).from, z.to);
+  const tagCur = messtagIn(zr.current);
+  const tagPrev = messtagIn(zr.previous);
   let vorher = tagPrev ? positionenAm(rankZeilen, tagPrev) : null;
   let vorherQuelle: "rank_daily" | "snapshot" | null = tagPrev ? "rank_daily" : null;
-  if (!vorher) {
+  if (!vorher && monatsModus) {
     vorher = positionenAusSnapshot(await q.snapshotVormonat().catch(() => null));
     if (vorher) vorherQuelle = "snapshot";
   }
@@ -443,6 +489,7 @@ export async function berechneSeoReport(
       })
     : null;
 
+  const partial = zeitraumUnvollstaendig(ende, heute);
   const checks = berechneChecks({
     monat,
     visibility,
@@ -452,6 +499,7 @@ export async function berechneSeoReport(
     konfigFehlt: !k.strategic_keywords.length,
     refdomains: { current: rdCur, previous: rdPrev },
     fehlend,
+    ende: monatsModus ? undefined : ende,
   });
   const quellenBl = [bl.current.quelle, bl.previous.quelle, bl.previous_year.quelle].filter(
     (x) => x != null,
@@ -483,9 +531,18 @@ export async function berechneSeoReport(
       dataforseo: { location_code: k.dfs_location_code, language_code: k.dfs_language_code },
     },
     period: {
-      month: monat,
-      previous_month: vm,
-      previous_year_month: vj,
+      mode: P.modus,
+      month: P.monat,
+      previous_month: P.monat ? monatPlus(P.monat, -1) : null,
+      previous_year_month: P.monat ? monatPlus(P.monat, -12) : null,
+      from: zr.current.from,
+      to: zr.current.to,
+      previous: zr.previous,
+      previous_year: zr.previous_year,
+      days: Math.round((Date.parse(zr.current.to) - Date.parse(zr.current.from)) / 864e5) + 1,
+      /** ETV ist ein Monatswert: Monat des Zeitraum-Endes */
+      visibility_month: P.etvMonat,
+      partial,
       data_dates: { rankings_current: tagCur, rankings_previous: tagPrev },
     },
     visibility: visibility ? { source: "ezyhub", data_date: sicht.stand, ...visibility } : null,
@@ -538,6 +595,8 @@ export async function berechneSeoReport(
     meta: {
       generated_at: jetzt.toISOString(),
       cached: false,
+      /** Zeitraum noch nicht vollständig (GSC-Verzug 3 Tage) — kein Snapshot */
+      partial,
       /** keine Live-Abfragen mehr (22.10.2026) — immer 0 */
       dataforseo_cost: 0,
       errors,

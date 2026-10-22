@@ -35,6 +35,69 @@ export function tageZwischen(vonYmd: string, bisYmd: string): number {
   return (Date.parse(`${bisYmd}T00:00:00Z`) - Date.parse(`${vonYmd}T00:00:00Z`)) / 864e5;
 }
 
+// ── Berichtszeitraum: Monat oder frei gewählt (from/to, 22.10.2026) ─────────
+/** Gültiges Kalenderdatum YYYY-MM-DD? */
+export function istYmd(s: unknown): s is string {
+  if (typeof s !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}
+
+export function plusTage(ymd: string, n: number): string {
+  return new Date(Date.parse(`${ymd}T00:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
+}
+
+/** Gleicher Tag im Vorjahr; 29. Februar → 28. Februar. */
+export function vorjahrTag(ymd: string): string {
+  const j = Number(ymd.slice(0, 4)) - 1;
+  const md = ymd.slice(5);
+  return md === "02-29" ? `${j}-02-28` : `${j}-${md}`;
+}
+
+export type Zeitraum = { from: string; to: string };
+export type Perioden = {
+  modus: "month" | "range";
+  /** Berichtsmonat (nur Monatsmodus) */
+  monat: string | null;
+  current: Zeitraum;
+  previous: Zeitraum;
+  previous_year: Zeitraum;
+  /** Monat der Sichtbarkeit (ETV ist ein Monatswert): Monat des Zeitraum-Endes */
+  etvMonat: string;
+};
+
+/** Monat: Vormonat und Vorjahresmonat, jeweils ganz. */
+export function periodenFuerMonat(m: string): Perioden {
+  const ganz = (x: string): Zeitraum => ({ from: `${x}-01`, to: monatsEnde(x) });
+  return {
+    modus: "month",
+    monat: m,
+    current: ganz(m),
+    previous: ganz(monatPlus(m, -1)),
+    previous_year: ganz(monatPlus(m, -12)),
+    etvMonat: m,
+  };
+}
+
+/** Freier Zeitraum: gleich lange Vorperiode direkt davor, gleicher Zeitraum im Vorjahr. */
+export function periodenFuerZeitraum(from: string, to: string): Perioden {
+  const tage = tageZwischen(from, to) + 1;
+  return {
+    modus: "range",
+    monat: null,
+    current: { from, to },
+    previous: { from: plusTage(from, -tage), to: plusTage(from, -1) },
+    previous_year: { from: vorjahrTag(from), to: vorjahrTag(to) },
+    etvMonat: to.slice(0, 7),
+  };
+}
+
+/** Bezeichnung eines Zeitraums in checks: Monat «2026-09» oder «2026-10-01 bis 2026-10-21». */
+export function zeitraumText(z: Zeitraum): string {
+  const m = z.from.slice(0, 7);
+  return z.from === `${m}-01` && z.to === monatsEnde(m) ? m : `${z.from} bis ${z.to}`;
+}
+
 const rund = (n: number, stellen = 4) => {
   const f = 10 ** stellen;
   return Math.round(n * f) / f;
@@ -172,8 +235,17 @@ export function refdomainsVerlaufAus(result: any): RefdomainPunkt[] {
 
 /** Stand zum Monatsende: letzter Verlaufspunkt innerhalb des Monats. */
 export function refdomainsZumMonatsende(verlauf: RefdomainPunkt[], monat: string): number | null {
-  const imMonat = verlauf.filter((p) => p.date.slice(0, 7) === monat);
-  return imMonat.length ? imMonat[imMonat.length - 1].refdomains : null;
+  return refdomainsImZeitraum(verlauf, `${monat}-01`, monatsEnde(monat));
+}
+
+/** Stand zum Zeitraum-Ende: letzter Verlaufspunkt innerhalb des Zeitraums. */
+export function refdomainsImZeitraum(
+  verlauf: RefdomainPunkt[],
+  von: string,
+  bis: string,
+): number | null {
+  const drin = verlauf.filter((p) => p.date >= von && p.date <= bis);
+  return drin.length ? drin[drin.length - 1].refdomains : null;
 }
 
 /** Kacheln des EzyRank-Dashboards aus demselben Lauf (Domain Rating, Backlinks live). */
@@ -573,6 +645,8 @@ export type ReportTeile = {
   refdomains: { current: number | null; previous: number | null };
   /** Felder ohne gespeicherten Wert in EzyHub (bleiben null) */
   fehlend?: Array<{ field: string; monat: string }>;
+  /** freier Zeitraum: Ende des Berichtszeitraums (sonst Monatsende) */
+  ende?: string;
 };
 
 /** Plausibilitätsprüfungen laut Spezifikation — markieren, nie korrigieren. */
@@ -597,18 +671,20 @@ export function berechneChecks(t: ReportTeile): Check[] {
       level: "warn",
       message: "Die gespeicherte Labs-Historie hat noch keinen Wert für den Berichtsmonat",
     });
-  const ende = monatsEnde(t.monat);
+  const ende = t.ende ?? monatsEnde(t.monat);
   if (!t.rankTag)
     c.push({
       field: "rankings",
       level: "warn",
-      message: "Keine DataForSEO-Messung im Berichtsmonat",
+      message: t.ende
+        ? "Keine DataForSEO-Messung im Berichtszeitraum"
+        : "Keine DataForSEO-Messung im Berichtsmonat",
     });
   else if (tageZwischen(t.rankTag, ende) > 10)
     c.push({
       field: "rankings",
       level: "warn",
-      message: `Letzte DataForSEO-Messung vom ${t.rankTag}, mehr als 10 Tage vor Monatsende`,
+      message: `Letzte DataForSEO-Messung vom ${t.rankTag}, mehr als 10 Tage vor ${t.ende ? "Zeitraum-Ende" : "Monatsende"}`,
     });
   for (const k of t.keywords ?? [])
     if (k.change != null && k.change <= -10)
