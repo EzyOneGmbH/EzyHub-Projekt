@@ -64,6 +64,17 @@ export function brandErkenner(brandRegex: string | null | undefined): (kw: strin
   return (kw) => re.test(kw);
 }
 
+/**
+ * Brand-Regex eines Kunden — EINE Regel für Report und Dashboard (22.10.2026):
+ * seo_report_config.brand_regex, Rückfall clients.brand_terms.
+ */
+export function brandRegexFuer(
+  client: { brand_terms?: string[] | null } | null | undefined,
+  konfig: { brand_regex?: string | null } | null | undefined,
+): string | null {
+  return konfig?.brand_regex?.trim() || brandRegexAusBegriffen(client?.brand_terms);
+}
+
 /** Brand-Regex aus clients.brand_terms, falls im Report nichts hinterlegt ist. */
 export function brandRegexAusBegriffen(begriffe: string[] | null | undefined): string | null {
   const b = (begriffe ?? []).map((s) => s.trim()).filter(Boolean);
@@ -220,20 +231,37 @@ export function refdomainsZumMonatsende(verlauf: RefdomainPunkt[], monat: string
 }
 
 /** Kacheln des EzyRank-Dashboards aus demselben Lauf (Domain Rating, Backlinks live). */
-export function backlinkStandAus(result: any): {
+export type BacklinkStand = {
+  provider: "ahrefs" | "dataforseo";
+  /** Ahrefs Domain Rating (0–100); null bei DataForSEO-Läufen */
   domain_rating: number | null;
+  /** DataForSEO-Rank (0–1000), nur DataForSEO-Läufe (06.08.–09.09.2026) */
+  dataforseo_rank: number | null;
   backlinks_live: number | null;
   referring_domains_live: number | null;
-} {
+};
+
+export function backlinkStandAus(result: any): BacklinkStand {
   const r = result || {};
-  const drNode = r.domain_rating?.domain_rating ?? r.domain_rating ?? {};
-  const dr = (typeof drNode === "number" ? drNode : drNode?.domain_rating) ?? r.domain_rating?.rank;
+  const provider = r.source === "dataforseo" ? "dataforseo" : "ahrefs";
+  const zahl = (v: unknown) => (v != null && Number.isFinite(Number(v)) ? Number(v) : null);
   const bl = r.backlinks_stats?.metrics ?? r.backlinks_stats ?? {};
-  const zahl = (v: unknown) => (Number.isFinite(Number(v)) && v != null ? Number(v) : null);
+  if (provider === "dataforseo")
+    return {
+      provider,
+      domain_rating: null,
+      dataforseo_rank: zahl(r.domain_rating?.rank),
+      backlinks_live: zahl(bl.backlinks),
+      referring_domains_live: zahl(bl.referring_domains),
+    };
+  const drNode = r.domain_rating?.domain_rating ?? r.domain_rating ?? {};
+  const dr = typeof drNode === "number" ? drNode : drNode?.domain_rating;
   return {
+    provider,
     domain_rating: zahl(dr),
-    backlinks_live: zahl(bl.live ?? bl.all_time ?? bl.backlinks),
-    referring_domains_live: zahl(bl.live_refdomains ?? bl.referring_domains),
+    dataforseo_rank: null,
+    backlinks_live: zahl(bl.live ?? bl.all_time),
+    referring_domains_live: zahl(bl.live_refdomains),
   };
 }
 
@@ -284,9 +312,18 @@ export function istDfsZeile(r: RankZeile): boolean {
  * der maximalen DFS-Zeilen des Monats (Teil-Crawls wie «nur Top 10» zählen nicht).
  */
 export function letzterMesstag(zeilen: RankZeile[], monat: string): string | null {
+  return letzterMesstagIm(zeilen, `${monat}-01`, monatsEnde(monat));
+}
+
+/**
+ * Letzter DataForSEO-Messtag in einem Zeitfenster (gleiche Regel wie
+ * letzterMesstag: mindestens die Hälfte der maximalen DFS-Zeilen im Fenster).
+ * Genutzt vom Report (Monat) und vom Dashboard (Zeitraum, 22.10.2026).
+ */
+export function letzterMesstagIm(zeilen: RankZeile[], von: string, bis: string): string | null {
   const proTag = new Map<string, number>();
   for (const r of zeilen)
-    if (r.date.slice(0, 7) === monat && istDfsZeile(r))
+    if (r.date >= von && r.date <= bis && istDfsZeile(r))
       proTag.set(r.date, (proTag.get(r.date) ?? 0) + 1);
   if (!proTag.size) return null;
   const max = Math.max(...proTag.values());
@@ -501,6 +538,74 @@ export function chancenKeywords(rows: GscZeile[], max = 10) {
       clicks: r.clicks,
       position: rund(r.position, 1),
     }));
+}
+
+export type GscKwVoll = GscKw & { position: number | null };
+
+/** GSC je Suchanfrage inkl. impressionsgewichteter Ø-Position (Dashboard-Spalte «Ø Position GSC»). */
+export function gscJeQueryVoll(rows: GscZeile[]): Map<string, GscKwVoll> {
+  const roh = new Map<string, { clicks: number; impressions: number; pi: number }>();
+  for (const r of rows) {
+    const k = String(r.keys[0] ?? "")
+      .trim()
+      .toLowerCase();
+    const alt = roh.get(k) ?? { clicks: 0, impressions: 0, pi: 0 };
+    const imp = Number(r.impressions) || 0;
+    roh.set(k, {
+      clicks: alt.clicks + (Number(r.clicks) || 0),
+      impressions: alt.impressions + imp,
+      pi: alt.pi + (Number(r.position) || 0) * imp,
+    });
+  }
+  return new Map(
+    [...roh].map(([k, x]) => [
+      k,
+      {
+        clicks: x.clicks,
+        impressions: x.impressions,
+        position: x.impressions > 0 ? rund(x.pi / x.impressions, 1) : null,
+      },
+    ]),
+  );
+}
+
+export type BrandBucket = { queries: number; clicks: number; impressions: number };
+
+/**
+ * Brand/Non-Brand-Widget des Dashboards: Summen + Anzahl Suchanfragen und
+ * Non-Brand-Buckets nach Ø-Position (Top 3 = unter 4, Top 10 = 4–10).
+ * Summen identisch zu brandSplit (Report).
+ */
+export function brandWidget(rows: GscZeile[], istBrand: (q: string) => boolean) {
+  const split = brandSplit(rows, istBrand);
+  const leer = (): BrandBucket => ({ queries: 0, clicks: 0, impressions: 0 });
+  const buckets = { top3: leer(), top10: leer(), pos11to20: leer(), pos21plus: leer() };
+  let brandQ = 0;
+  let nonbrandQ = 0;
+  for (const r of rows) {
+    if (istBrand(r.keys[0] ?? "")) {
+      brandQ += 1;
+      continue;
+    }
+    nonbrandQ += 1;
+    const p = Number(r.position) || 0;
+    const b =
+      p < 4
+        ? buckets.top3
+        : p <= 10
+          ? buckets.top10
+          : p <= 20
+            ? buckets.pos11to20
+            : buckets.pos21plus;
+    b.queries += 1;
+    b.clicks += Number(r.clicks) || 0;
+    b.impressions += Number(r.impressions) || 0;
+  }
+  return {
+    brand: { ...split.brand, queries: brandQ },
+    nonbrand: { ...split.nonbrand, queries: nonbrandQ },
+    buckets_nonbrand: buckets,
+  };
 }
 
 export function gscJeQuery(rows: GscZeile[]): Map<string, GscKw> {

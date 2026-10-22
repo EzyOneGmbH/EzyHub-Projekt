@@ -33,6 +33,8 @@ import {
   useLiveIntegrations,
 } from "./ui-kit";
 import { ezyFetch } from "@/ezy/data/api";
+import { useEzyZeitraum } from "@/ezy/data/useEzyZeitraum";
+import { berechneSichtbarkeit, labsMonateAusGespeichert } from "@/lib/seoReport";
 import {
   aiVisibilityKpisFromResult,
   aiVisibilityProvidersFromResult,
@@ -915,6 +917,27 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   // Ende des VERGLEICHS-Zeitraums (Vorperiode/Vorjahr); sonst Zeitraum-Anfang.
   const cmpAktiv = !!dateRange?.compare;
   const von = cmpAktiv ? dateRange.compare.end : dateRange?.start || null;
+  // Zeitraum-Stand (22.10.2026, Abgleich mit dem SEO-Report-Endpoint): Rankings
+  // = letzte DataForSEO-Messung bis Zeitraum-Ende, GSC je Keyword und Brand-
+  // Split über den gewählten Zeitraum (brand_regex aus seo_report_config).
+  const { data: zr } = useEzyZeitraum(selectedClient?.id, dateRange, von);
+  const zrAktiv = !!zr?.rankings?.measured_on;
+  // Geschätzter organischer Traffic (ETV) aus dem gespeicherten labs_history-
+  // Lauf — gleiche Daten wie visibility im SEO-Report-Endpoint.
+  const { run: labsRun } = useEzyLatestRun(selectedClient?.id, "labs_history");
+  const etv = useMemo(() => {
+    const reihe = labsMonateAusGespeichert(labsRun?.result?.months);
+    if (!reihe.length) return null;
+    const e = bis ? new Date(bis) : new Date();
+    const endeMonat = `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, "0")}`;
+    const monat = reihe
+      .map((m) => m.month)
+      .filter((m) => m <= endeMonat)
+      .pop();
+    if (!monat) return null;
+    const v = berechneSichtbarkeit(reihe, monat);
+    return v ? { ...v, monat, stand: String(labsRun?.created_at || "").slice(0, 10) } : null;
+  }, [labsRun, bis]);
   const { run: rankVonRun } = useEzyLatestRun(selectedClient?.id, "rankings", von);
   const { run: ahrefsVonRun } = useEzyLatestRun(selectedClient?.id, "ahrefs", von);
   const { run: trafVonRun } = useEzyLatestRun(selectedClient?.id, "ga4_traffic", von);
@@ -960,6 +983,8 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   const TRAFFIC_CMP_LABEL = cmpAktiv ? FENSTER_LABEL : "Vorperiode";
   const { run: gscQRun } = useEzyLatestRun(selectedClient?.id, "gsc_queries", bis);
   const gscQ = gscQRun?.result || null;
+  // Brand-Widget: Zeitraum-Stand (brand_regex), sonst gespeicherter 28-Tage-Lauf.
+  const brandDaten = zr?.gsc || gscQ;
   // Entwicklung der Non-Brand-Suchanfragen (Volkan 31.08.): Vergleich gegen
   // die gespeicherten gsc_queries-Läufe von vor 7 bzw. 28 Tagen. Die
   // Ø-Position ist je ein 28-Tage-Fenster — das Delta zeigt die Verschiebung
@@ -1213,6 +1238,46 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   // (nur exakte Crawl-Treffer), die Tabelle zeigt Crawl, sonst GSC-Ø.
   const rankBasis = useMemo(() => {
     const gq = gscQ && Array.isArray(gscQ.topNonbrandQueries) ? gscQ.topNonbrandQueries : [];
+    if (zrAktiv) {
+      // Position NUR aus der DataForSEO-Messung; GSC-Ø als eigene Spalte (gscPos).
+      // Maps/Mobil/INT/Merkliste weiter aus dem Rank-Snapshot.
+      const snapMap = new Map((rank?.keywords || []).map((k) => [normKw(k.kw), k]));
+      const gqMap = new Map(gq.map((q) => [normKw(q.query), q]));
+      const tracked = zr.rankings.keywords.map((k) => {
+        const snap = snapMap.get(normKw(k.kw)) || {};
+        return {
+          ...snap,
+          kw: k.kw,
+          pos: k.position,
+          url: k.url ?? snap.url ?? null,
+          volume: k.volume ?? snap.volume ?? null,
+          posPrev7: k.posPrev7,
+          posPrev28: k.posPrev28,
+          clicks: k.gsc?.clicks ?? null,
+          impressions: k.gsc?.impressions ?? null,
+          gscPos: k.gsc?.position ?? null,
+          _src: "dfs",
+          _posSrc: "dfs",
+        };
+      });
+      const gscOnly = (zr.gsc?.queries_untracked || []).map((q) => {
+        const g = gqMap.get(normKw(q.query));
+        return {
+          kw: q.query,
+          pos: null,
+          gscPos: q.position,
+          posPrev7: null,
+          posPrev28: null,
+          url: g?.dfsUrl || g?.pageUrl || null,
+          volume: g?.volume ?? null,
+          clicks: q.clicks,
+          impressions: q.impressions,
+          _src: "gsc",
+          _posSrc: "gsc",
+        };
+      });
+      return [...tracked, ...gscOnly];
+    }
     // GSC-Lookup fuer getrackte Keywords (2026-08-13): Klicks/Impressionen auch
     // fuer Tracking-Zeilen befuellen. Non-Brand aus gsc_queries, Brand-Terms
     // als Fallback aus gsc_summary.topQueries (enthaelt Brand).
@@ -1259,7 +1324,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
       });
     }
     return [...tracked, ...gscOnly];
-  }, [rank, gscQ, gscRes, gscQPrevMaps, prevPosComparable]);
+  }, [rank, gscQ, gscRes, gscQPrevMaps, prevPosComparable, zr, zrAktiv]);
   const istVerbessert = (k) =>
     k._src === "dfs" && k.pos != null && k.posPrev7 != null && k.pos < k.posPrev7;
   const istVerschlechtert = (k) =>
@@ -1267,6 +1332,18 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   const rankKacheln = useMemo(() => {
     const zaehle = (liste, max) =>
       liste.filter((k) => k.pos != null && Number(k.pos) > 0 && Number(k.pos) <= max).length;
+    if (zrAktiv) {
+      // Gleiche Verteilung wie rankings.distribution im SEO-Report-Endpoint.
+      const d = zr.rankings.distribution;
+      return {
+        top3: d.current ? d.current.top3 : null,
+        top10: d.current ? d.current.top10 : null,
+        improved7: rankBasis.filter(istVerbessert).length,
+        declined7: rankBasis.filter(istVerschlechtert).length,
+        top3Von: d.previous ? d.previous.top3 : null,
+        top10Von: d.previous ? d.previous.top10 : null,
+      };
+    }
     const vonListe = Array.isArray(rankVon?.keywords) ? rankVon.keywords : null;
     // Gleiche Funktion wie Agentur-Kacheln/-Tabelle (lib/rankKacheln, 15.10.2026).
     const jetzt = zaehleRankKacheln(rank?.keywords, gscQ?.topNonbrandQueries);
@@ -1278,7 +1355,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
       top3Von: vonListe ? zaehle(vonListe, 3) : null,
       top10Von: vonListe ? zaehle(vonListe, 10) : null,
     };
-  }, [rankBasis, rankVon, rank, gscQ]);
+  }, [rankBasis, rankVon, rank, gscQ, zr, zrAktiv]);
   const rankRows = useMemo(() => {
     let rows = [...rankBasis];
     // Kachel-Filter: gleiche Definition wie die Kacheln Verbessert/Verschlechtert
@@ -1319,6 +1396,9 @@ export function SeoDashboard({ selectedClient, dateRange }) {
       } else if (col === "vol") {
         av = a.volume ?? -1;
         bv = b.volume ?? -1;
+      } else if (col === "gpos") {
+        av = a.gscPos ?? 999;
+        bv = b.gscPos ?? 999;
       } else if (col === "posi") {
         av = a.posIntl ?? 999;
         bv = b.posIntl ?? 999;
@@ -1632,9 +1712,11 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                   ? ` · ${rankCounts.dfs} getrackt + ${rankCounts.gsc} aus GSC`
                   : ""}
                 {" · Stand "}
-                {rank?.date || gscQ?.range?.to || "—"}
+                {zrAktiv
+                  ? `${zr.rankings.measured_on} (DataForSEO-Messung)`
+                  : rank?.date || gscQ?.range?.to || "—"}
                 {/* 13.09.2026: Messkontext + Naeherung/Kuerzung sichtbar machen. */}
-                {!istKunde && rank?.measurement?.method
+                {!zrAktiv && !istKunde && rank?.measurement?.method
                   ? ` · ${
                       rank.measurement.method === "crawl"
                         ? "SERP-Crawl"
@@ -1643,7 +1725,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                           : "Crawl+GSC"
                     }${rank.measurement.crawlLocation ? ` ${rank.measurement.crawlLocation.split(",")[0]}` : ""}`
                   : ""}
-                {rankNaeherung && !rankNaeherung.exakt
+                {!zrAktiv && rankNaeherung && !rankNaeherung.exakt
                   ? ` · Näherung: letzter Messstand vor dem gewählten Zeitraum`
                   : ""}
                 {gscQ?.coverage?.truncated
@@ -1744,6 +1826,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                       ["d28", "Δ 28T", "right"],
                       ["clk", "Klicks", "right"],
                       ["imp", "Impr.", "right"],
+                      ["gpos", "Ø Position GSC", "right"],
                       [null, "URL", "left"],
                       ["vol", "Volumen", "right"],
                       ...(hasIntl ? [["voli", "Vol. INT", "right"]] : []),
@@ -1790,18 +1873,22 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                         <td
                           style={{ padding: "6px 8px", textAlign: "right", fontWeight: 600 }}
                           title={
-                            k._src === "gsc"
-                              ? k._posSrc === "dfs"
-                                ? "Labs-Position (DataForSEO, google.ch — wöchentlich)"
-                                : "GSC-Ø-Position (Durchschnitt über den Zeitraum)"
-                              : k._posSrc === "gsc"
-                                ? "GSC-Ø-Position (letzte 7 Tage, Schweiz) — zwischen den Vollcrawls (alle 5 Tage)"
-                                : "Crawl-Position (DataForSEO, Desktop, vom Kundenstandort bzw. Schweiz)"
+                            zrAktiv
+                              ? k._src === "gsc"
+                                ? "Nicht getrackt — keine DataForSEO-Messung (siehe Ø Position GSC)"
+                                : `DataForSEO-Messung vom ${zr.rankings.measured_on} (Desktop)`
+                              : k._src === "gsc"
+                                ? k._posSrc === "dfs"
+                                  ? "Labs-Position (DataForSEO, google.ch — wöchentlich)"
+                                  : "GSC-Ø-Position (Durchschnitt über den Zeitraum)"
+                                : k._posSrc === "gsc"
+                                  ? "GSC-Ø-Position (letzte 7 Tage, Schweiz) — zwischen den Vollcrawls (alle 5 Tage)"
+                                  : "Crawl-Position (DataForSEO, Desktop, vom Kundenstandort bzw. Schweiz)"
                           }
                         >
                           {/* Volkan 11.09.: nur die Zahl, keine Icons/Marker — die Quelle
                               (Crawl vs. GSC-Ø) steht ausschliesslich im Tooltip. */}
-                          {k.pos != null ? k.pos : "> 100"}
+                          {k.pos != null ? k.pos : zrAktiv && k._src === "gsc" ? "—" : "> 100"}
                         </td>
                         {hasLocal && (
                           <td
@@ -1847,6 +1934,17 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                         </td>
                         <td style={{ padding: "6px 8px", textAlign: "right", color: C.textMuted }}>
                           {k.impressions != null ? k.impressions.toLocaleString("de-CH") : "—"}
+                        </td>
+                        <td
+                          style={{ padding: "6px 8px", textAlign: "right", color: C.textMuted }}
+                          title="Durchschnittsposition in der Google Search Console im gewählten Zeitraum — kein Ranking"
+                        >
+                          {k.gscPos != null
+                            ? Number(k.gscPos).toLocaleString("de-CH", {
+                                minimumFractionDigits: 1,
+                                maximumFractionDigits: 1,
+                              })
+                            : "—"}
                         </td>
                         <td
                           style={{
@@ -2168,6 +2266,51 @@ export function SeoDashboard({ selectedClient, dateRange }) {
           </ResponsiveContainer>
         </div>
       )}
+      {etv && (
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 14,
+            padding: 16,
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 600, color: C.textMuted, marginBottom: 4 }}>
+            Geschätzter organischer Traffic (ETV)
+          </div>
+          <div style={{ fontSize: 11, color: C.textDim, marginBottom: 12 }}>
+            {(() => {
+              const f = (x) => (x == null ? "—" : Math.round(x).toLocaleString("de-CH"));
+              const pct = (x) =>
+                x == null ? "—" : `${x > 0 ? "+" : ""}${Math.round(x * 1000) / 10} %`;
+              return `DataForSEO Labs, Schätzung · ${etv.monat}: ${f(etv.current)} · Vormonat ${f(etv.previous)} (${pct(etv.change_mom)}) · Vorjahr ${f(etv.previous_year)} (${pct(etv.change_yoy)}) · Stand ${etv.stand}`;
+            })()}
+          </div>
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={etv.history}>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+              <XAxis dataKey="month" stroke={C.textDim} fontSize={11} />
+              <YAxis stroke={C.textDim} fontSize={11} />
+              <Tooltip
+                contentStyle={{
+                  background: C.surface,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 8,
+                  color: C.textMuted,
+                }}
+              />
+              <Line
+                type="monotone"
+                dataKey="value"
+                name="ETV"
+                stroke={C.accent}
+                strokeWidth={2}
+                dot={{ r: 2 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
       {isOn("seo.ahrefs") && isOrgAdmin && selectedClient?.id && (
         <SistrixLandWahl client={selectedClient} />
       )}
@@ -2245,9 +2388,9 @@ export function SeoDashboard({ selectedClient, dateRange }) {
           )}
         </div>
       )}
-      {isOn("seo.gsc") && gscQ && (
+      {isOn("seo.gsc") && brandDaten && (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {/* B2a: Brand vs. Non-Brand (28 Tage, GSC-Puffer heute-3) */}
+          {/* B2a: Brand vs. Non-Brand — gewählter Zeitraum, brand_regex (22.10.2026) */}
           <div
             style={{
               display: "grid",
@@ -2256,8 +2399,8 @@ export function SeoDashboard({ selectedClient, dateRange }) {
             }}
           >
             {[
-              ["Brand", gscQ.brand, C.blue],
-              ["Non-Brand", gscQ.nonbrand, C.accent],
+              ["Brand", brandDaten.brand, C.blue],
+              ["Non-Brand", brandDaten.nonbrand, C.accent],
             ].map(([label, seg, color]) => (
               <div
                 key={label}
@@ -2269,7 +2412,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                 }}
               >
                 <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 6 }}>
-                  {label} · {gscQ.range?.from} – {gscQ.range?.to}
+                  {label} · {brandDaten.range?.from} – {brandDaten.range?.to}
                 </div>
                 <div style={{ fontSize: 24, fontWeight: 800, color }}>
                   {(seg?.clicks ?? 0).toLocaleString("de-CH")} Klicks
@@ -2290,10 +2433,10 @@ export function SeoDashboard({ selectedClient, dateRange }) {
             }}
           >
             {[
-              ["Top 3", gscQ.buckets_nonbrand?.top3, C.green],
-              ["Top 10", gscQ.buckets_nonbrand?.top10, C.accent],
-              ["11–20", gscQ.buckets_nonbrand?.pos11to20, C.orange],
-              ["21+", gscQ.buckets_nonbrand?.pos21plus, C.textDim],
+              ["Top 3", brandDaten.buckets_nonbrand?.top3, C.green],
+              ["Top 10", brandDaten.buckets_nonbrand?.top10, C.accent],
+              ["11–20", brandDaten.buckets_nonbrand?.pos11to20, C.orange],
+              ["21+", brandDaten.buckets_nonbrand?.pos21plus, C.textDim],
             ].map(([label, b, color]) => (
               <div
                 key={label}

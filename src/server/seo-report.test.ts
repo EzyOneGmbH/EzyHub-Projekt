@@ -116,6 +116,16 @@ const AHREFS_LAUF = {
     },
   },
 };
+// Älterer EzyRank-Lauf aus der DataForSEO-Zeit (06.08.–09.09.2026)
+const DFS_LAUF = {
+  created_at: "2026-08-31T18:11:57.444Z",
+  result: {
+    source: "dataforseo",
+    domain_rating: { rank: 201, backlinks: 676, referring_domains: 86 },
+    backlinks_stats: { backlinks: 676, referring_domains: 86 },
+    refdomains_history: { items: [{ date: "2026-08-31", referring_domains: 86 }] },
+  },
+};
 const BERNINA_BRAND = String.raw`^(?!.*(express|pass|piz|bahn|zug|gletscher|samedan|1865|st\.?\s?moritz|ischgl|thusis|swiss\s?q|wi-?fi|wlan|\bpin\b)).*(?=.*\bber(n?in|ni|i)a\b).*\b(hotel|hotels|pontresina|restaurant)\b`;
 const BACKLINKS = [
   { date: "2025-09-30 00:00:00 +00:00", referring_domains: 70, backlinks: 658 },
@@ -219,11 +229,20 @@ describe("Gespeicherte EzyHub-Daten", () => {
     expect(refdomainsZumMonatsende(dfs, "2026-08")).toBe(86);
     expect(refdomainsVerlaufAus(null)).toEqual([]);
   });
-  it("Dashboard-Kacheln aus demselben Lauf", () => {
+  it("Dashboard-Kacheln aus demselben Lauf; DataForSEO-Rank ist kein Domain Rating", () => {
     expect(backlinkStandAus(AHREFS_LAUF.result)).toEqual({
+      provider: "ahrefs",
       domain_rating: 26,
+      dataforseo_rank: null,
       backlinks_live: 3350,
       referring_domains_live: 792,
+    });
+    expect(backlinkStandAus(DFS_LAUF.result)).toEqual({
+      provider: "dataforseo",
+      domain_rating: null,
+      dataforseo_rank: 201,
+      backlinks_live: 676,
+      referring_domains_live: 86,
     });
   });
   it("Verteilung aus rank_daily: nur Crawl, total_tracked, ohne Auslandsmessung", () => {
@@ -529,7 +548,8 @@ function quellen(over: Partial<Quellen> = {}): Quellen & { aufrufe: string[] } {
       ].filter((r) => tage.includes(r.date)),
     labsGespeichert: async () => LABS_LAUF,
     // Läufe erst ab Juli 2026 gespeichert — Vorjahr fehlt in EzyHub
-    backlinkLauf: async (bisIso) => (bisIso >= "2026-09-30" ? AHREFS_LAUF : null),
+    backlinkLauf: async (bisIso) =>
+      bisIso >= "2026-09-30" ? AHREFS_LAUF : bisIso >= "2026-08-31" ? DFS_LAUF : null,
     googleToken: async () => "TOKEN",
     gscPeriode: async (_t, von) => periode(von.startsWith("2026-09") ? 100 : 80),
     gscTopSeiten: async () => [
@@ -602,11 +622,25 @@ describe("berechneSeoReport", () => {
       previous_year: "ahrefs_live",
     });
     expect(r.backlinks.ezyrank).toEqual({
-      run_date: "2026-09-30",
-      provider: "ahrefs",
-      domain_rating: 26,
-      backlinks_live: 3350,
-      referring_domains_live: 792,
+      current: {
+        run_date: "2026-09-30",
+        provider: "ahrefs",
+        domain_rating: 26,
+        dataforseo_rank: null,
+        backlinks_live: 3350,
+        referring_domains_live: 792,
+      },
+      previous: {
+        run_date: "2026-08-31",
+        provider: "dataforseo",
+        domain_rating: null,
+        dataforseo_rank: 201,
+        backlinks_live: 676,
+        referring_domains_live: 86,
+      },
+      previous_year: null,
+      // Ahrefs gegen DataForSEO ist nicht vergleichbar → keine Veränderung
+      change: { domain_rating: null, backlinks_live_pct: null, backlinks_live_pct_yoy: null },
     });
     expect(r.backlinks.referring_domains).toMatchObject({
       current: 851,
@@ -667,7 +701,12 @@ describe("berechneSeoReport", () => {
     const r: any = await berechneSeoReport(BERNINA, "2026-09", q, opts);
     expect(r.visibility).toMatchObject({ source: "dataforseo_live", current: 1283.4 });
     expect(r.backlinks.source).toBe("live");
-    expect(r.backlinks.ezyrank).toBeNull();
+    expect(r.backlinks.ezyrank).toEqual({
+      current: null,
+      previous: null,
+      previous_year: null,
+      change: { domain_rating: null, backlinks_live_pct: null, backlinks_live_pct_yoy: null },
+    });
     expect(r.backlinks.referring_domains).toMatchObject({
       current: 843,
       previous: 446,
@@ -685,6 +724,31 @@ describe("berechneSeoReport", () => {
       "backlinks.referring_domains.previous_year",
       "visibility",
     ]);
+  });
+
+  it("Domain Rating und Backlinks: Veränderung nur zwischen Ahrefs-Läufen", async () => {
+    const aug = {
+      created_at: "2026-08-31T18:00:00Z",
+      result: {
+        ...AHREFS_LAUF.result,
+        domain_rating: { domain_rating: { domain_rating: 22 } },
+        backlinks_stats: { metrics: { live: 2680, live_refdomains: 600 } },
+      },
+    };
+    const q = quellen({
+      backlinkLauf: async (bisIso) =>
+        bisIso >= "2026-09-30" ? AHREFS_LAUF : bisIso >= "2026-08-31" ? aug : null,
+    });
+    const r: any = await berechneSeoReport(BERNINA, "2026-09", q, opts);
+    expect(r.backlinks.ezyrank.previous).toMatchObject({
+      run_date: "2026-08-31",
+      domain_rating: 22,
+    });
+    expect(r.backlinks.ezyrank.change).toEqual({
+      domain_rating: 4,
+      backlinks_live_pct: 0.25,
+      backlinks_live_pct_yoy: null,
+    });
   });
 
   it("gespeicherte Labs-Historie ohne Berichtsmonat: Rückweg live", async () => {

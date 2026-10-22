@@ -29,7 +29,7 @@ import {
   berechneKeywords,
   berechneSichtbarkeit,
   brandErkenner,
-  brandRegexAusBegriffen,
+  brandRegexFuer,
   brandSplit,
   brandTopQueries,
   chancenKeywords,
@@ -98,7 +98,7 @@ export function baueKonfig(c: any, k: any | null): SeoKonfig {
     dfs_location_code: Number(k?.dfs_location_code) || 2756,
     dfs_language_code: String(k?.dfs_language_code || "de"),
     strategic_keywords: strategic,
-    brand_regex: k?.brand_regex?.trim() || brandRegexAusBegriffen(c.brand_terms),
+    brand_regex: brandRegexFuer(c, k),
     gsc_property: c.gsc_property || null,
     ga4_property_id: c.ga4_property ? String(c.ga4_property).replace(/^properties\//, "") : null,
     awork_project_id: k?.awork_project_id ?? null,
@@ -336,9 +336,20 @@ export async function berechneSeoReport(
         return null;
       }
     };
-    const laufCur = await laufBis(monat);
+    // Läufe zum Ende von Monat, Vormonat, Vorjahresmonat (Dashboard-Auswahl)
+    const [laufCur, laufPrev, laufPy] = await Promise.all([
+      laufBis(monat),
+      laufBis(vm),
+      laufBis(vj),
+    ]);
+    const laeufe = { current: laufCur, previous: laufPrev, previous_year: laufPy };
+    const laufVon: Record<string, GespeicherterLauf | null> = {
+      [monat]: laufCur,
+      [vm]: laufPrev,
+      [vj]: laufPy,
+    };
     const ausLauf = async (m: string): Promise<BacklinkWert> => {
-      for (const lauf of [laufCur, m === monat ? null : await laufBis(m)]) {
+      for (const lauf of [laufCur, m === monat ? null : laufVon[m]]) {
         if (!lauf) continue;
         const wert = refdomainsZumMonatsende(refdomainsVerlaufAus(lauf.result), m);
         if (wert != null) return { wert, quelle: "ezyhub", lauf };
@@ -387,7 +398,7 @@ export async function berechneSeoReport(
         });
       }
     }
-    return werte;
+    return { ...werte, laeufe };
   };
 
   const [sicht, bl] = await Promise.all([sichtbarkeitLaden(), backlinksLaden()]);
@@ -530,7 +541,20 @@ export async function berechneSeoReport(
   const quellenBl = [bl.current.quelle, bl.previous.quelle, bl.previous_year.quelle].filter(
     (x) => x != null,
   );
-  const blStandLauf = bl.current.lauf;
+  // Stand der EzyRank-Kacheln (Domain Rating, Backlinks) zum Monatsende — der
+  // Lauf, den das Dashboard für einen Zeitraum mit diesem Ende zeigt.
+  const standAus = (lauf: GespeicherterLauf | null) =>
+    lauf
+      ? { run_date: String(lauf.created_at).slice(0, 10), ...backlinkStandAus(lauf.result) }
+      : null;
+  const ezyrank = {
+    current: standAus(bl.laeufe.current),
+    previous: standAus(bl.laeufe.previous),
+    previous_year: standAus(bl.laeufe.previous_year),
+  };
+  const differenz = (a: number | null, b: number | null) =>
+    a != null && b != null ? Math.round((a - b) * 10) / 10 : null;
+  const drVergleichbar = (a: any, b: any) => a?.provider === "ahrefs" && b?.provider === "ahrefs";
 
   return {
     client: {
@@ -576,13 +600,20 @@ export async function berechneSeoReport(
         previous_year: bl.previous_year.quelle,
       },
       /** Stand des EzyRank-Laufs zum Monatsende (Kacheln Domain Rating / Backlinks) */
-      ezyrank: blStandLauf
-        ? {
-            run_date: String(blStandLauf.created_at).slice(0, 10),
-            provider: blStandLauf.result?.source ?? "ahrefs",
-            ...backlinkStandAus(blStandLauf.result),
-          }
-        : null,
+      ezyrank: {
+        ...ezyrank,
+        change: {
+          domain_rating: drVergleichbar(ezyrank.current, ezyrank.previous)
+            ? differenz(ezyrank.current!.domain_rating, ezyrank.previous!.domain_rating)
+            : null,
+          backlinks_live_pct: drVergleichbar(ezyrank.current, ezyrank.previous)
+            ? veraenderung(ezyrank.current!.backlinks_live, ezyrank.previous!.backlinks_live)
+            : null,
+          backlinks_live_pct_yoy: drVergleichbar(ezyrank.current, ezyrank.previous_year)
+            ? veraenderung(ezyrank.current!.backlinks_live, ezyrank.previous_year!.backlinks_live)
+            : null,
+        },
+      },
       referring_domains: {
         current: rdCur,
         previous: rdPrev,

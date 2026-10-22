@@ -108,6 +108,7 @@ import { Route as ApiAdminRankSnapshotRouteImport } from './routes/api/admin.ran
 import { Route as ApiAdminSecretStatusRouteImport } from './routes/api/admin.secret-status'
 import { Route as ApiAdminSecureMigrateRouteImport } from './routes/api/admin.secure-migrate'
 import { Route as ApiAdminSeoBerichtRouteImport } from './routes/api/admin.seo-bericht'
+import { Route as ApiAdminEzyrankZeitraumRouteImport } from './routes/api/admin.ezyrank-zeitraum'
 import { Route as ApiAdminSeoClientsRouteImport } from './routes/api/admin.seo-clients'
 import { Route as ApiAdminSeoReportRouteImport } from './routes/api/admin.seo-report'
 import { Route as ApiAdminSetCanonryProjectRouteImport } from './routes/api/admin.set-canonry-project'
@@ -694,6 +695,11 @@ const ApiAdminSeoBerichtRoute = ApiAdminSeoBerichtRouteImport.update({
   path: '/api/admin/seo-bericht',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminEzyrankZeitraumRoute = ApiAdminEzyrankZeitraumRouteImport.update({
+  id: '/api/admin/ezyrank-zeitraum',
+  path: '/api/admin/ezyrank-zeitraum',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminSeoClientsRoute = ApiAdminSeoClientsRouteImport.update({
   id: '/api/admin/seo-clients',
   path: '/api/admin/seo-clients',
@@ -1161,6 +1167,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/secret-status': typeof ApiAdminSecretStatusRoute
   '/api/admin/secure-migrate': typeof ApiAdminSecureMigrateRoute
   '/api/admin/seo-bericht': typeof ApiAdminSeoBerichtRoute
+  '/api/admin/ezyrank-zeitraum': typeof ApiAdminEzyrankZeitraumRoute
   '/api/admin/seo-clients': typeof ApiAdminSeoClientsRoute
   '/api/admin/seo-report': typeof ApiAdminSeoReportRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
@@ -1333,6 +1340,7 @@ export interface FileRoutesByTo {
   '/api/admin/secret-status': typeof ApiAdminSecretStatusRoute
   '/api/admin/secure-migrate': typeof ApiAdminSecureMigrateRoute
   '/api/admin/seo-bericht': typeof ApiAdminSeoBerichtRoute
+  '/api/admin/ezyrank-zeitraum': typeof ApiAdminEzyrankZeitraumRoute
   '/api/admin/seo-clients': typeof ApiAdminSeoClientsRoute
   '/api/admin/seo-report': typeof ApiAdminSeoReportRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
@@ -1506,6 +1514,7 @@ export interface FileRoutesById {
   '/api/admin/secret-status': typeof ApiAdminSecretStatusRoute
   '/api/admin/secure-migrate': typeof ApiAdminSecureMigrateRoute
   '/api/admin/seo-bericht': typeof ApiAdminSeoBerichtRoute
+  '/api/admin/ezyrank-zeitraum': typeof ApiAdminEzyrankZeitraumRoute
   '/api/admin/seo-clients': typeof ApiAdminSeoClientsRoute
   '/api/admin/seo-report': typeof ApiAdminSeoReportRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
@@ -1680,6 +1689,7 @@ export interface FileRouteTypes {
     | '/api/admin/secret-status'
     | '/api/admin/secure-migrate'
     | '/api/admin/seo-bericht'
+    | '/api/admin/ezyrank-zeitraum'
     | '/api/admin/seo-clients'
     | '/api/admin/seo-report'
     | '/api/admin/set-canonry-project'
@@ -1852,6 +1862,7 @@ export interface FileRouteTypes {
     | '/api/admin/secret-status'
     | '/api/admin/secure-migrate'
     | '/api/admin/seo-bericht'
+    | '/api/admin/ezyrank-zeitraum'
     | '/api/admin/seo-clients'
     | '/api/admin/seo-report'
     | '/api/admin/set-canonry-project'
@@ -2024,6 +2035,7 @@ export interface FileRouteTypes {
     | '/api/admin/secret-status'
     | '/api/admin/secure-migrate'
     | '/api/admin/seo-bericht'
+    | '/api/admin/ezyrank-zeitraum'
     | '/api/admin/seo-clients'
     | '/api/admin/seo-report'
     | '/api/admin/set-canonry-project'
@@ -2192,6 +2204,7 @@ export interface RootRouteChildren {
   ApiAdminSecretStatusRoute: typeof ApiAdminSecretStatusRoute
   ApiAdminSecureMigrateRoute: typeof ApiAdminSecureMigrateRoute
   ApiAdminSeoBerichtRoute: typeof ApiAdminSeoBerichtRoute
+  ApiAdminEzyrankZeitraumRoute: typeof ApiAdminEzyrankZeitraumRoute
   ApiAdminSeoClientsRoute: typeof ApiAdminSeoClientsRoute
   ApiAdminSeoReportRoute: typeof ApiAdminSeoReportRoute
   ApiAdminSetCanonryProjectRoute: typeof ApiAdminSetCanonryProjectRoute
@@ -2955,6 +2968,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminSeoBerichtRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/ezyrank-zeitraum': {
+      id: '/api/admin/ezyrank-zeitraum'
+      path: '/api/admin/ezyrank-zeitraum'
+      fullPath: '/api/admin/ezyrank-zeitraum'
+      preLoaderRoute: typeof ApiAdminEzyrankZeitraumRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/seo-clients': {
       id: '/api/admin/seo-clients'
       path: '/api/admin/seo-clients'
@@ -3628,6 +3648,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminSecretStatusRoute: ApiAdminSecretStatusRoute,
   ApiAdminSecureMigrateRoute: ApiAdminSecureMigrateRoute,
   ApiAdminSeoBerichtRoute: ApiAdminSeoBerichtRoute,
+  ApiAdminEzyrankZeitraumRoute: ApiAdminEzyrankZeitraumRoute,
   ApiAdminSeoClientsRoute: ApiAdminSeoClientsRoute,
   ApiAdminSeoReportRoute: ApiAdminSeoReportRoute,
   ApiAdminSetCanonryProjectRoute: ApiAdminSetCanonryProjectRoute,
