@@ -108,6 +108,7 @@ import { Route as ApiAdminRankSnapshotRouteImport } from './routes/api/admin.ran
 import { Route as ApiAdminSecretStatusRouteImport } from './routes/api/admin.secret-status'
 import { Route as ApiAdminSecureMigrateRouteImport } from './routes/api/admin.secure-migrate'
 import { Route as ApiAdminSeoBerichtRouteImport } from './routes/api/admin.seo-bericht'
+import { Route as ApiAdminEzyrankKachelnRouteImport } from './routes/api/admin.ezyrank-kacheln'
 import { Route as ApiAdminEzyrankZeitraumRouteImport } from './routes/api/admin.ezyrank-zeitraum'
 import { Route as ApiAdminSeoClientsRouteImport } from './routes/api/admin.seo-clients'
 import { Route as ApiAdminSeoReportRouteImport } from './routes/api/admin.seo-report'
@@ -695,6 +696,11 @@ const ApiAdminSeoBerichtRoute = ApiAdminSeoBerichtRouteImport.update({
   path: '/api/admin/seo-bericht',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminEzyrankKachelnRoute = ApiAdminEzyrankKachelnRouteImport.update({
+  id: '/api/admin/ezyrank-kacheln',
+  path: '/api/admin/ezyrank-kacheln',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminEzyrankZeitraumRoute = ApiAdminEzyrankZeitraumRouteImport.update({
   id: '/api/admin/ezyrank-zeitraum',
   path: '/api/admin/ezyrank-zeitraum',
@@ -1167,6 +1173,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/secret-status': typeof ApiAdminSecretStatusRoute
   '/api/admin/secure-migrate': typeof ApiAdminSecureMigrateRoute
   '/api/admin/seo-bericht': typeof ApiAdminSeoBerichtRoute
+  '/api/admin/ezyrank-kacheln': typeof ApiAdminEzyrankKachelnRoute
   '/api/admin/ezyrank-zeitraum': typeof ApiAdminEzyrankZeitraumRoute
   '/api/admin/seo-clients': typeof ApiAdminSeoClientsRoute
   '/api/admin/seo-report': typeof ApiAdminSeoReportRoute
@@ -1340,6 +1347,7 @@ export interface FileRoutesByTo {
   '/api/admin/secret-status': typeof ApiAdminSecretStatusRoute
   '/api/admin/secure-migrate': typeof ApiAdminSecureMigrateRoute
   '/api/admin/seo-bericht': typeof ApiAdminSeoBerichtRoute
+  '/api/admin/ezyrank-kacheln': typeof ApiAdminEzyrankKachelnRoute
   '/api/admin/ezyrank-zeitraum': typeof ApiAdminEzyrankZeitraumRoute
   '/api/admin/seo-clients': typeof ApiAdminSeoClientsRoute
   '/api/admin/seo-report': typeof ApiAdminSeoReportRoute
@@ -1514,6 +1522,7 @@ export interface FileRoutesById {
   '/api/admin/secret-status': typeof ApiAdminSecretStatusRoute
   '/api/admin/secure-migrate': typeof ApiAdminSecureMigrateRoute
   '/api/admin/seo-bericht': typeof ApiAdminSeoBerichtRoute
+  '/api/admin/ezyrank-kacheln': typeof ApiAdminEzyrankKachelnRoute
   '/api/admin/ezyrank-zeitraum': typeof ApiAdminEzyrankZeitraumRoute
   '/api/admin/seo-clients': typeof ApiAdminSeoClientsRoute
   '/api/admin/seo-report': typeof ApiAdminSeoReportRoute
@@ -1689,6 +1698,7 @@ export interface FileRouteTypes {
     | '/api/admin/secret-status'
     | '/api/admin/secure-migrate'
     | '/api/admin/seo-bericht'
+    | '/api/admin/ezyrank-kacheln'
     | '/api/admin/ezyrank-zeitraum'
     | '/api/admin/seo-clients'
     | '/api/admin/seo-report'
@@ -1862,6 +1872,7 @@ export interface FileRouteTypes {
     | '/api/admin/secret-status'
     | '/api/admin/secure-migrate'
     | '/api/admin/seo-bericht'
+    | '/api/admin/ezyrank-kacheln'
     | '/api/admin/ezyrank-zeitraum'
     | '/api/admin/seo-clients'
     | '/api/admin/seo-report'
@@ -2035,6 +2046,7 @@ export interface FileRouteTypes {
     | '/api/admin/secret-status'
     | '/api/admin/secure-migrate'
     | '/api/admin/seo-bericht'
+    | '/api/admin/ezyrank-kacheln'
     | '/api/admin/ezyrank-zeitraum'
     | '/api/admin/seo-clients'
     | '/api/admin/seo-report'
@@ -2204,6 +2216,7 @@ export interface RootRouteChildren {
   ApiAdminSecretStatusRoute: typeof ApiAdminSecretStatusRoute
   ApiAdminSecureMigrateRoute: typeof ApiAdminSecureMigrateRoute
   ApiAdminSeoBerichtRoute: typeof ApiAdminSeoBerichtRoute
+  ApiAdminEzyrankKachelnRoute: typeof ApiAdminEzyrankKachelnRoute
   ApiAdminEzyrankZeitraumRoute: typeof ApiAdminEzyrankZeitraumRoute
   ApiAdminSeoClientsRoute: typeof ApiAdminSeoClientsRoute
   ApiAdminSeoReportRoute: typeof ApiAdminSeoReportRoute
@@ -2968,6 +2981,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminSeoBerichtRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/ezyrank-kacheln': {
+      id: '/api/admin/ezyrank-kacheln'
+      path: '/api/admin/ezyrank-kacheln'
+      fullPath: '/api/admin/ezyrank-kacheln'
+      preLoaderRoute: typeof ApiAdminEzyrankKachelnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/ezyrank-zeitraum': {
       id: '/api/admin/ezyrank-zeitraum'
       path: '/api/admin/ezyrank-zeitraum'
@@ -3648,6 +3668,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminSecretStatusRoute: ApiAdminSecretStatusRoute,
   ApiAdminSecureMigrateRoute: ApiAdminSecureMigrateRoute,
   ApiAdminSeoBerichtRoute: ApiAdminSeoBerichtRoute,
+  ApiAdminEzyrankKachelnRoute: ApiAdminEzyrankKachelnRoute,
   ApiAdminEzyrankZeitraumRoute: ApiAdminEzyrankZeitraumRoute,
   ApiAdminSeoClientsRoute: ApiAdminSeoClientsRoute,
   ApiAdminSeoReportRoute: ApiAdminSeoReportRoute,

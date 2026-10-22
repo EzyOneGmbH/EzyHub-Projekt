@@ -1,8 +1,8 @@
-// Datenquellen des SEO-Monatsreports (21.10.2026): DataForSEO (Labs, Backlinks),
-// EzyHub-Keyword-Liste (rank_daily), Search Console und GA4 über die
-// bestehende Google-Anbindung des Kunden. Alles ohne Sistrix.
+// Datenquellen des SEO-Monatsreports (21.10.2026, seit 22.10.2026 ohne Live-
+// Abfragen bei DataForSEO/Ahrefs): EzyHub-Keyword-Liste (rank_daily),
+// gespeicherte Läufe (audit_runs), Search Console und GA4 über die bestehende
+// Google-Anbindung des Kunden. Alles ohne Sistrix.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { ahrefsAuth, backlinkProvider, dfsAuth } from "./backlink-overview.server";
 import { getGoogleAccessToken } from "./google-tokens.server";
 import { isProviderEnabled } from "./integrations.server";
 import { ga4RunReportUrl } from "./ga4.server";
@@ -10,99 +10,6 @@ import { gscRows, gscTotals } from "./gsc.server";
 import type { GscZeile, RankZeile } from "@/lib/seoReport";
 
 export type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
-
-const DFS_BASIS = "https://api.dataforseo.com/v3";
-const TIMEOUT_MS = 20_000;
-/** DFS-Statuscodes «keine Daten» — leer, kein Fehler. */
-const DFS_LEER = new Set([40102]);
-
-export type DfsAntwort =
-  | { ok: true; items: any[]; cost: number }
-  | { ok: false; leer: true; cost: number }
-  | { ok: false; leer: false; error: string; cost: number };
-
-/** Ein DataForSEO-Live-Task; Timeout 20 s, ein Retry bei Netz-/Serverfehler. */
-export async function dfsTask(
-  pfad: string,
-  task: Record<string, unknown>,
-  opts: { auth: string; fetcher?: Fetcher },
-): Promise<DfsAntwort> {
-  const f = opts.fetcher ?? fetch;
-  let fehler = "";
-  for (let versuch = 0; versuch < 2; versuch++) {
-    try {
-      const r = await f(`${DFS_BASIS}/${pfad}`, {
-        method: "POST",
-        headers: { Authorization: opts.auth, "Content-Type": "application/json" },
-        body: JSON.stringify([task]),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
-      const j: any = await r.json().catch(() => null);
-      const t = j?.tasks?.[0];
-      const cost = Number(t?.cost) || 0;
-      if (t && Number(t.status_code) === 20000)
-        return { ok: true, items: t.result?.[0]?.items ?? [], cost };
-      if (t && DFS_LEER.has(Number(t.status_code))) return { ok: false, leer: true, cost };
-      fehler = String(t?.status_message || j?.status_message || `HTTP ${r.status}`).slice(0, 160);
-      if (r.status < 500 && t) break; // fachlicher Fehler: kein Retry
-    } catch (e) {
-      fehler = String((e as Error)?.message || e).slice(0, 160);
-    }
-  }
-  return { ok: false, leer: false, error: fehler, cost: 0 };
-}
-
-export function dfsZugang(): string | null {
-  return dfsAuth();
-}
-
-/** Ahrefs-Zugang wie das EzyRank-Modul; null bei BACKLINK_PROVIDER=dataforseo oder fehlendem Key. */
-export function ahrefsZugang(): string | null {
-  return backlinkProvider() === "ahrefs" ? ahrefsAuth() : null;
-}
-
-export type AhrefsAntwort =
-  | { ok: true; rows: any[]; units: number }
-  | { ok: false; error: string; units: number };
-
-/**
- * Ahrefs refdomains-history, monatlich, mode=subdomains (wie das EzyRank-Modul).
- * Kosten laut Ahrefs: 6 Units je Zeile (13 Monate = 78 Units). Ein Retry bei 429/5xx.
- */
-export async function ahrefsRefdomains(
-  domain: string,
-  von: string,
-  bis: string,
-  opts: { auth: string; fetcher?: Fetcher },
-): Promise<AhrefsAntwort> {
-  const f = opts.fetcher ?? fetch;
-  const url = new URL("https://api.ahrefs.com/v3/site-explorer/refdomains-history");
-  url.searchParams.set("target", domain);
-  url.searchParams.set("date_from", von);
-  url.searchParams.set("date_to", bis);
-  url.searchParams.set("history_grouping", "monthly");
-  url.searchParams.set("mode", "subdomains");
-  let fehler = "";
-  for (let versuch = 0; versuch < 2; versuch++) {
-    try {
-      const r = await f(url.toString(), {
-        headers: { Authorization: opts.auth, Accept: "application/json" },
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
-      if (r.ok) {
-        const j: any = await r.json().catch(() => null);
-        const rows = Array.isArray(j?.refdomains) ? j.refdomains : [];
-        return { ok: true, rows, units: rows.length * 6 };
-      }
-      const t = await r.text().catch(() => "");
-      fehler = `Ahrefs HTTP ${r.status}: ${t.replace(/Bearers+S+/gi, "Bearer ***").slice(0, 120)}`;
-      if (r.status !== 429 && r.status < 500) break;
-    } catch (e) {
-      fehler = String((e as Error)?.message || e).slice(0, 160);
-    }
-  }
-  return { ok: false, error: fehler, units: 0 };
-}
 
 /**
  * rank_daily-Zeilen eines Kunden im Zeitraum. Nur DFS-relevante Zeilen

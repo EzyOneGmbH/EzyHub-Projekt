@@ -10,16 +10,22 @@ export const UEBERSICHT_CACHE_MS = 70 * 60 * 1000;
 const AUFRAEUMEN_MS = 2 * 24 * 60 * 60 * 1000;
 const SPEICHER_MS = 5 * 60 * 1000;
 
-type Art = "seo" | "ads";
+// gsc (22.10.2026): Search-Console-Zeilen je Property und Zeitraum für das
+// EzyRank-Dashboard (Kundenkonten lesen bis 6 Stunden alte Stände).
+type Art = "seo" | "ads" | "gsc";
 const speicher = new Map<string, { at: number; payload: unknown }>();
 
-export async function cacheLesen<T>(art: Art, schluessel: string): Promise<T | null> {
+export async function cacheLesen<T>(
+  art: Art,
+  schluessel: string,
+  maxAlterMs: number = UEBERSICHT_CACHE_MS,
+): Promise<T | null> {
   const k = `${art}|${schluessel}`;
   const m = speicher.get(k);
   // Instanz-Speicher nur kurz: neue Messläufe verwerfen die Tabelle per Trigger.
-  if (m && Date.now() - m.at < SPEICHER_MS) return m.payload as T;
+  if (m && Date.now() - m.at < Math.min(SPEICHER_MS, maxAlterMs)) return m.payload as T;
   try {
-    const seit = new Date(Date.now() - UEBERSICHT_CACHE_MS).toISOString();
+    const seit = new Date(Date.now() - maxAlterMs).toISOString();
     const { data } = await (supabaseAdmin as any)
       .from("uebersicht_cache")
       .select("payload, erstellt")

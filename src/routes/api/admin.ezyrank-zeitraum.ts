@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { heuteYmdZuerich } from "@/lib/date-range";
 import {
   berechneZeitraumStand,
@@ -59,10 +60,24 @@ export const Route = createFileRoute("/api/admin/ezyrank-zeitraum")({
           const kunde = await ladeZeitraumKunde(clientId);
           if (!kunde)
             return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
+          // Kundenkonto (Rolle viewer in der Organisation des Kunden): GSC aus dem
+          // Zwischenspeicher, höchstens 6 Stunden alt (22.10.2026).
+          const { data: c } = await (supabaseAdmin as any)
+            .from("clients")
+            .select("organization_id")
+            .eq("id", clientId)
+            .maybeSingle();
+          const { data: m } = await (supabaseAdmin as any)
+            .from("app_users")
+            .select("role")
+            .eq("user_id", user.id)
+            .eq("organization_id", c?.organization_id ?? "")
+            .maybeSingle();
+          const kundenkonto = !m || m.role === "viewer";
           const stand = await berechneZeitraumStand(
             kunde,
             { von: startDate, bis, vergleichBis: compareEnd ?? null, heute },
-            echteZeitraumQuellen(kunde),
+            echteZeitraumQuellen(kunde, { kundenkonto }),
           );
           return Response.json(stand);
         } catch (e) {

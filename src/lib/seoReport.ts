@@ -89,34 +89,7 @@ export type LabsMonat = {
   pos: Record<string, number>;
 };
 
-/** Labs historical_rank_overview → Monatsreihe (fehlende pos_*-Felder = 0). */
-export function labsMonateAus(items: any[] | null | undefined): LabsMonat[] {
-  return (items ?? [])
-    .map((it) => {
-      const o = it?.metrics?.organic ?? {};
-      const pos: Record<string, number> = {};
-      for (const [k, v] of Object.entries(o)) if (k.startsWith("pos_")) pos[k] = Number(v) || 0;
-      return {
-        month: `${it?.year}-${String(it?.month).padStart(2, "0")}`,
-        etv: Number(o.etv) || 0,
-        count: Number(o.count) || 0,
-        pos,
-      };
-    })
-    .filter((m) => istMonat(m.month))
-    .sort((a, b) => a.month.localeCompare(b.month));
-}
-
 export type Verteilung = { top3: number; top10: number; top20: number; top100: number };
-
-export function verteilungAus(m: LabsMonat | null | undefined): Verteilung | null {
-  if (!m) return null;
-  const p = (k: string) => m.pos[k] ?? 0;
-  const top3 = p("pos_1") + p("pos_2_3");
-  const top10 = top3 + p("pos_4_10");
-  const top20 = top10 + p("pos_11_20");
-  return { top3, top10, top20, top100: m.count };
-}
 
 /** ETV unter diesem Wert gilt als kleine Basis (Prozentwerte nicht als Highlight). */
 export const ETV_KLEINE_BASIS = 50;
@@ -157,33 +130,6 @@ export function berechneSichtbarkeit(
       .filter((x) => x.month >= ab && x.month <= monat)
       .map((x) => ({ month: x.month, value: rund(x.etv, 1) })),
   };
-}
-
-// ── Backlinks: Ahrefs (wie EzyRank-Modul), DataForSEO als Rückweg ───────────
-/** Verweisende Domains je Monat (YYYY-MM). */
-export type BacklinkMonat = { month: string; referring_domains: number };
-
-/**
- * Ahrefs refdomains-history (history_grouping=monthly): Punkt «YYYY-MM-01» =
- * Monatswert (live geprüft 21.10.2026: 2026-09-01 = 843, Woche 28.09. = 841).
- */
-export function ahrefsMonateAus(rows: any[] | null | undefined): BacklinkMonat[] {
-  return (rows ?? [])
-    .map((r) => ({
-      month: String(r?.date ?? "").slice(0, 7),
-      referring_domains: Number(r?.refdomains),
-    }))
-    .filter((x) => istMonat(x.month) && Number.isFinite(x.referring_domains));
-}
-
-/** DataForSEO timeseries_summary (group_range=month): Datum = letzter Tag des Monats. */
-export function dfsBacklinkMonateAus(items: any[] | null | undefined): BacklinkMonat[] {
-  return (items ?? [])
-    .map((it) => ({
-      month: String(it?.date ?? "").slice(0, 7),
-      referring_domains: Number(it?.referring_domains),
-    }))
-    .filter((x) => istMonat(x.month) && Number.isFinite(x.referring_domains));
 }
 
 // ── Gespeicherte EzyHub-Daten (22.10.2026) ──────────────────────────────────
@@ -263,10 +209,6 @@ export function backlinkStandAus(result: any): BacklinkStand {
     backlinks_live: zahl(bl.live ?? bl.all_time),
     referring_domains_live: zahl(bl.live_refdomains),
   };
-}
-
-export function refdomainsIm(reihe: BacklinkMonat[] | null, monat: string): number | null {
-  return reihe?.find((x) => x.month === monat)?.referring_domains ?? null;
 }
 
 // ── Keyword-Liste (rank_daily) ───────────────────────────────────────────────
@@ -629,8 +571,8 @@ export type ReportTeile = {
   keywords: KeywordReport[] | null;
   konfigFehlt: boolean;
   refdomains: { current: number | null; previous: number | null };
-  /** Werte, die mangels gespeicherter EzyHub-Daten live abgefragt wurden */
-  liveRueckwege?: Array<{ field: string; quelle: string; monat: string }>;
+  /** Felder ohne gespeicherten Wert in EzyHub (bleiben null) */
+  fehlend?: Array<{ field: string; monat: string }>;
 };
 
 /** Plausibilitätsprüfungen laut Spezifikation — markieren, nie korrigieren. */
@@ -653,7 +595,7 @@ export function berechneChecks(t: ReportTeile): Check[] {
     c.push({
       field: "visibility",
       level: "warn",
-      message: "DataForSEO Labs hat noch keinen Wert für den Berichtsmonat",
+      message: "Die gespeicherte Labs-Historie hat noch keinen Wert für den Berichtsmonat",
     });
   const ende = monatsEnde(t.monat);
   if (!t.rankTag)
@@ -675,11 +617,11 @@ export function berechneChecks(t: ReportTeile): Check[] {
         level: "info",
         message: `Keyword «${k.keyword}» verliert ${-k.change} Positionen`,
       });
-  for (const l of t.liveRueckwege ?? [])
+  for (const f of t.fehlend ?? [])
     c.push({
-      field: l.field,
-      level: "warn",
-      message: `EzyHub hat für ${l.monat} keine gespeicherten Daten, Wert live von ${l.quelle} abgefragt`,
+      field: f.field,
+      level: "info",
+      message: `EzyHub hat für ${f.monat} keine gespeicherten Daten, Wert bleibt leer`,
     });
   if (t.konfigFehlt)
     c.push({

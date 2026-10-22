@@ -1,13 +1,11 @@
 // SEO-Monatsreport für n8n «SEO Monatspräsentation» (21.10.2026). Grundsatz
-// (22.10.2026): jeder Wert aus EzyHub, gleiche Quelle wie das Dashboard; live
-// nur als Rückweg, wenn EzyHub für den Monat nichts gespeichert hat (source +
-// checks-Warnung). Kein Sistrix.
+// (22.10.2026): jeder Wert aus EzyHub, gleiche Quelle wie das Dashboard. Kein Sistrix.
 //   rankings.keywords      rank_daily, nur DataForSEO-Messtage (+ GSC je Keyword)
 //   rankings.distribution  rank_daily, Crawl-Positionen am letzten Messtag
 //   visibility (ETV)       gespeicherter labs_history-Lauf des agent-service
-//                          (Rückweg: DataForSEO Labs live)
 //   backlinks              gespeicherte EzyRank-Läufe (audit_runs 'ahrefs')
-//                          (Rückweg: Ahrefs bzw. DataForSEO live)
+// Keine Live-Abfragen bei DataForSEO oder Ahrefs (22.10.2026): fehlt ein Wert
+// in EzyHub, bleibt er null (checks-Hinweis).
 //   gsc / ga4              gleiche Funktionen wie das Dashboard (gscTotals,
 //                          GA4 «Organic Search») über die Google-Anbindung
 // Konfiguration: clients + seo_report_config. Jeder Abruf wird als Monats-
@@ -15,15 +13,11 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { normalizeDomain } from "./backlink-overview.server";
 import {
-  ahrefsMonateAus,
   backlinkStandAus,
-  dfsBacklinkMonateAus,
   labsMonateAusGespeichert,
-  refdomainsIm,
   refdomainsVerlaufAus,
   refdomainsZumMonatsende,
   verteilungAusRankDaily,
-  type BacklinkMonat,
   type LabsMonat,
   berechneChecks,
   berechneKeywords,
@@ -34,7 +28,6 @@ import {
   brandTopQueries,
   chancenKeywords,
   gscJeQuery,
-  labsMonateAus,
   letzterMesstag,
   monatPlus,
   monatsEnde,
@@ -46,11 +39,6 @@ import {
   type RankZeile,
 } from "@/lib/seoReport";
 import {
-  ahrefsRefdomains,
-  ahrefsZugang,
-  type AhrefsAntwort,
-  dfsTask,
-  dfsZugang,
   ga4Organisch,
   googleToken,
   gscPeriode,
@@ -59,7 +47,6 @@ import {
   ladeRankTage,
   ladeRankZeilen,
   type GespeicherterLauf,
-  type DfsAntwort,
   type Ga4Werte,
   type GscPeriode,
 } from "./seo-report-quellen.server";
@@ -198,8 +185,6 @@ export async function speichereSnapshot(clientId: string, monat: string, payload
 
 // ── Quellen (für Tests austauschbar) ─────────────────────────────────────────
 export type Quellen = {
-  dfs: ((pfad: string, task: Record<string, unknown>) => Promise<DfsAntwort>) | null;
-  ahrefs: ((von: string, bis: string) => Promise<AhrefsAntwort>) | null;
   rankZeilen: (von: string, bis: string, keywords: string[]) => Promise<RankZeile[]>;
   /** alle rank_daily-Zeilen der Messtage (Verteilung) */
   rankTage: (tage: string[]) => Promise<RankZeile[]>;
@@ -218,11 +203,7 @@ export type Quellen = {
 };
 
 export function echteQuellen(k: SeoKonfig, monat: string): Quellen {
-  const auth = dfsZugang();
-  const ahrefs = ahrefsZugang();
   return {
-    dfs: auth ? (pfad, task) => dfsTask(pfad, task, { auth }) : null,
-    ahrefs: ahrefs ? (von, bis) => ahrefsRefdomains(k.domain, von, bis, { auth: ahrefs }) : null,
     rankZeilen: (von, bis, kws) => ladeRankZeilen(k.id, von, bis, kws),
     rankTage: (tage) => ladeRankTage(k.id, tage),
     labsGespeichert: () => ladeGespeichertenLauf(k.id, "labs_history"),
@@ -247,7 +228,7 @@ export function tagesendeZuerich(ymd: string): string {
 
 type BacklinkWert = {
   wert: number | null;
-  quelle: "ezyhub" | "ahrefs_live" | "dataforseo_live" | null;
+  quelle: "ezyhub" | null;
   lauf: GespeicherterLauf | null;
 };
 
@@ -263,8 +244,6 @@ export async function berechneSeoReport(
   const jetzt = opts.jetzt ?? new Date();
   const heute = opts.heute;
   const errors: Array<{ source: string; message: string }> = [];
-  let kosten = 0;
-  let ahrefsUnits = 0;
   const fehler = (source: string, e: unknown) =>
     errors.push({ source, message: String((e as Error)?.message || e).slice(0, 160) });
 
@@ -273,60 +252,29 @@ export async function berechneSeoReport(
   const ende = monatsEnde(monat);
   const istBrand = brandErkenner(k.brand_regex);
 
-  const liveRueckwege: Array<{ field: string; quelle: string; monat: string }> = [];
-  const dfs = async (quelle: string, pfad: string, task: Record<string, unknown>) => {
-    if (!q.dfs) {
-      errors.push({ source: quelle, message: "DATAFORSEO_LOGIN/PASSWORD fehlt" });
-      return null;
-    }
-    const r = await q.dfs(pfad, task);
-    kosten += r.cost;
-    if (r.ok) return r.items;
-    if (r.leer) return [];
-    errors.push({ source: quelle, message: r.error });
-    return null;
-  };
+  // Felder ohne gespeicherten Wert in EzyHub (bleiben null, checks-Hinweis)
+  const fehlend: Array<{ field: string; monat: string }> = [];
 
-  // ── Sichtbarkeit (ETV): gespeicherter labs_history-Lauf, live nur als Rückweg
+  // ── Sichtbarkeit (ETV): gespeicherter labs_history-Lauf ────────────────────
   const sichtbarkeitLaden = async (): Promise<{
     labs: LabsMonat[] | null;
-    quelle: "ezyhub" | "dataforseo_live" | null;
     stand: string | null;
   }> => {
-    let gespeichert: LabsMonat[] | null = null;
-    let stand: string | null = null;
     try {
       const lauf = await q.labsGespeichert();
-      if (lauf) {
-        gespeichert = labsMonateAusGespeichert(lauf.result?.months);
-        stand = String(lauf.created_at).slice(0, 10);
-      }
+      if (lauf)
+        return {
+          labs: labsMonateAusGespeichert(lauf.result?.months),
+          stand: String(lauf.created_at).slice(0, 10),
+        };
     } catch (e) {
       fehler("labs_history", e);
     }
-    if (gespeichert?.some((m) => m.month === monat))
-      return { labs: gespeichert, quelle: "ezyhub", stand };
-    const items = await dfs(
-      "dataforseo.labs",
-      "dataforseo_labs/google/historical_rank_overview/live",
-      {
-        target: k.domain,
-        location_code: k.dfs_location_code,
-        language_code: k.dfs_language_code,
-        date_from: `${vj}-01`,
-        date_to: kleinerDatum(ende, heute),
-      },
-    );
-    if (items) {
-      liveRueckwege.push({ field: "visibility", quelle: "DataForSEO Labs", monat });
-      return { labs: labsMonateAus(items), quelle: "dataforseo_live", stand: heute };
-    }
-    return { labs: gespeichert, quelle: gespeichert ? "ezyhub" : null, stand };
+    fehlend.push({ field: "visibility", monat });
+    return { labs: null, stand: null };
   };
 
-  // ── Backlinks: gespeicherte EzyRank-Läufe, live nur für fehlende Monate ────
-  // Ahrefs kennt kein «heute» (bad date) -> spätestens gestern
-  const blBis = kleinerDatum(ende, minusTage(heute, 1));
+  // ── Backlinks: gespeicherte EzyRank-Läufe zum Monatsende ───────────────────
   const backlinksLaden = async () => {
     const laufBis = async (m: string) => {
       try {
@@ -348,7 +296,7 @@ export async function berechneSeoReport(
       [vm]: laufPrev,
       [vj]: laufPy,
     };
-    const ausLauf = async (m: string): Promise<BacklinkWert> => {
+    const ausLauf = (m: string): BacklinkWert => {
       for (const lauf of [laufCur, m === monat ? null : laufVon[m]]) {
         if (!lauf) continue;
         const wert = refdomainsZumMonatsende(refdomainsVerlaufAus(lauf.result), m);
@@ -357,47 +305,14 @@ export async function berechneSeoReport(
       return { wert: null, quelle: null, lauf: null };
     };
     const werte: Record<"current" | "previous" | "previous_year", BacklinkWert> = {
-      current: await ausLauf(monat),
-      previous: await ausLauf(vm),
-      previous_year: await ausLauf(vj),
+      current: ausLauf(monat),
+      previous: ausLauf(vm),
+      previous_year: ausLauf(vj),
     };
     const monatVon = { current: monat, previous: vm, previous_year: vj };
-    const fehlend = (Object.keys(werte) as Array<keyof typeof werte>).filter(
-      (p) => werte[p].wert == null,
-    );
-    if (fehlend.length) {
-      const monate = fehlend.map((p) => monatVon[p]).sort();
-      const von = `${monate[0]}-01`;
-      const letzter = monate[monate.length - 1];
-      let reihe: BacklinkMonat[] | null = null;
-      let quelle: "ahrefs_live" | "dataforseo_live" = "ahrefs_live";
-      if (q.ahrefs) {
-        const a = await q.ahrefs(von, kleinerDatum(monatsEnde(letzter), blBis));
-        ahrefsUnits += a.units;
-        if (a.ok) reihe = ahrefsMonateAus(a.rows);
-        else errors.push({ source: "ahrefs", message: a.error });
-      }
-      if (!reihe) {
-        quelle = "dataforseo_live";
-        const items = await dfs("dataforseo.backlinks", "backlinks/timeseries_summary/live", {
-          target: k.domain,
-          date_from: von,
-          date_to: kleinerDatum(monatsEnde(letzter), heute),
-          group_range: "month",
-        });
-        reihe = items ? dfsBacklinkMonateAus(items) : null;
-      }
-      for (const p of fehlend) {
-        const wert = refdomainsIm(reihe, monatVon[p]);
-        if (wert == null) continue;
-        werte[p] = { wert, quelle, lauf: null };
-        liveRueckwege.push({
-          field: `backlinks.referring_domains.${p}`,
-          quelle: quelle === "ahrefs_live" ? "Ahrefs" : "DataForSEO",
-          monat: monatVon[p],
-        });
-      }
-    }
+    for (const p of Object.keys(werte) as Array<keyof typeof werte>)
+      if (werte[p].wert == null)
+        fehlend.push({ field: `backlinks.referring_domains.${p}`, monat: monatVon[p] });
     return { ...werte, laeufe };
   };
 
@@ -536,7 +451,7 @@ export async function berechneSeoReport(
     keywords,
     konfigFehlt: !k.strategic_keywords.length,
     refdomains: { current: rdCur, previous: rdPrev },
-    liveRueckwege,
+    fehlend,
   });
   const quellenBl = [bl.current.quelle, bl.previous.quelle, bl.previous_year.quelle].filter(
     (x) => x != null,
@@ -573,7 +488,7 @@ export async function berechneSeoReport(
       previous_year_month: vj,
       data_dates: { rankings_current: tagCur, rankings_previous: tagPrev },
     },
-    visibility: visibility ? { source: sicht.quelle, data_date: sicht.stand, ...visibility } : null,
+    visibility: visibility ? { source: "ezyhub", data_date: sicht.stand, ...visibility } : null,
     rankings: {
       source: "ezyhub",
       previous_source: vorherQuelle,
@@ -587,13 +502,7 @@ export async function berechneSeoReport(
       },
     },
     backlinks: {
-      source: !quellenBl.length
-        ? null
-        : quellenBl.every((x) => x === "ezyhub")
-          ? "ezyhub"
-          : quellenBl.some((x) => x === "ezyhub")
-            ? "ezyhub_with_live_fallback"
-            : "live",
+      source: quellenBl.length ? "ezyhub" : null,
       sources: {
         current: bl.current.quelle,
         previous: bl.previous.quelle,
@@ -629,8 +538,8 @@ export async function berechneSeoReport(
     meta: {
       generated_at: jetzt.toISOString(),
       cached: false,
-      dataforseo_cost: Math.round(kosten * 10000) / 10000,
-      ahrefs_units: ahrefsUnits,
+      /** keine Live-Abfragen mehr (22.10.2026) — immer 0 */
+      dataforseo_cost: 0,
       errors,
     },
   };

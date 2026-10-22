@@ -5,7 +5,11 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: {} }));
 
 import { brandRegexFuer, letzterMesstagIm, type RankZeile } from "@/lib/seoReport";
-import { berechneZeitraumStand, type ZeitraumQuellen } from "./ezyrank-zeitraum.server";
+import {
+  berechneRankStand,
+  berechneZeitraumStand,
+  type ZeitraumQuellen,
+} from "./ezyrank-zeitraum.server";
 import { baueKonfig, berechneSeoReport, type Quellen } from "./seo-report.server";
 
 const z = (
@@ -120,6 +124,34 @@ describe("Zeitraum-Stand", () => {
     expect(b.errors).toEqual([{ source: "gsc", message: "Google nicht verbunden" }]);
   });
 
+  it("Kundenkonto: gespeicherte GSC-Zeilen statt Live-Abfrage", async () => {
+    let live = 0;
+    const r = await berechneZeitraumStand(KUNDE, SEPT, {
+      ...zq(),
+      googleToken: async () => {
+        live += 1;
+        return "TOKEN";
+      },
+      gscGespeichert: async () => GSC_ROWS.slice(0, 2),
+    });
+    expect(live).toBe(0);
+    expect(r.gsc!.brand.queries).toBe(2);
+    expect(r.gsc!.nonbrand.queries).toBe(0);
+    const ohne = await berechneZeitraumStand(KUNDE, SEPT, {
+      ...zq(),
+      gscGespeichert: async () => null,
+    });
+    expect(ohne.gsc!.nonbrand.queries).toBe(4); // nichts gespeichert → live
+  });
+
+  it("Agentur-Übersicht: berechneRankStand = Dashboard-Verteilung", async () => {
+    const stand = await berechneZeitraumStand(KUNDE, SEPT, zq());
+    const kachel = await berechneRankStand(SEPT, zq());
+    expect(kachel.measured_on).toBe(stand.rankings.measured_on);
+    expect(kachel.compare_measured_on).toBe(stand.rankings.compare_measured_on);
+    expect(kachel.distribution).toEqual(stand.rankings.distribution);
+  });
+
   it("identisch mit dem SEO-Report-Endpoint für September", async () => {
     const konfig = baueKonfig(
       {
@@ -134,8 +166,6 @@ describe("Zeitraum-Stand", () => {
       { report_active: true, strategic_keywords: [], brand_regex: BRAND },
     );
     const q: Quellen = {
-      dfs: null,
-      ahrefs: null,
       rankZeilen: async (von, bis) => DFS_ZEILEN.filter((r) => r.date >= von && r.date <= bis),
       rankTage: async (tage) => TAGES_ZEILEN.filter((r) => tage.includes(r.date)),
       labsGespeichert: async () => null,

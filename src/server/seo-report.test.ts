@@ -1,15 +1,12 @@
 // SEO-Monatsreport (21.10.2026): Rechenregeln, null-Fälle, checks und Fehler
-// mit gemockten Quellen (DataForSEO-Formen live geprüft 21.10.2026).
+// mit gemockten Quellen. Seit 22.10.2026 nur gespeicherte EzyHub-Daten.
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: {} }));
 
 import {
-  ahrefsMonateAus,
   backlinkStandAus,
-  dfsBacklinkMonateAus,
   labsMonateAusGespeichert,
-  refdomainsIm,
   refdomainsVerlaufAus,
   refdomainsZumMonatsende,
   verteilungAusRankDaily,
@@ -23,7 +20,6 @@ import {
   chancenKeywords,
   istDfsZeile,
   istMonat,
-  labsMonateAus,
   letzterMesstag,
   monatInZukunft,
   monatPlus,
@@ -31,39 +27,11 @@ import {
   positionenAm,
   positionenAusSnapshot,
   veraenderung,
-  verteilungAus,
   type RankZeile,
 } from "@/lib/seoReport";
 import { baueKonfig, berechneSeoReport, tagesendeZuerich, type Quellen } from "./seo-report.server";
-import { dfsTask, ga4WerteAus } from "./seo-report-quellen.server";
+import { ga4WerteAus } from "./seo-report-quellen.server";
 
-const labsItem = (
-  year: number,
-  month: number,
-  etv: number,
-  count: number,
-  pos: Record<string, number>,
-) => ({
-  year,
-  month,
-  metrics: { organic: { etv, count, ...pos } },
-});
-const LABS = [
-  labsItem(2026, 9, 1283.414, 84, {
-    pos_1: 2,
-    pos_2_3: 3,
-    pos_4_10: 10,
-    pos_11_20: 23,
-    pos_21_30: 21,
-  }),
-  labsItem(2026, 8, 2174.318, 66, { pos_1: 2, pos_2_3: 2, pos_4_10: 11, pos_11_20: 16 }),
-  labsItem(2025, 9, 1524.1666, 155, { pos_1: 3, pos_2_3: 1, pos_4_10: 19, pos_11_20: 33 }),
-];
-const AHREFS = [
-  { date: "2025-09-01T00:00:00Z", refdomains: 87 },
-  { date: "2026-08-01T00:00:00Z", refdomains: 446 },
-  { date: "2026-09-01T00:00:00Z", refdomains: 843 },
-];
 // Gespeicherter labs_history-Lauf (agent-service, Form wie audit_runs.result.months)
 const LABS_LAUF = {
   created_at: "2026-10-09T02:43:40.776Z",
@@ -127,12 +95,6 @@ const DFS_LAUF = {
   },
 };
 const BERNINA_BRAND = String.raw`^(?!.*(express|pass|piz|bahn|zug|gletscher|samedan|1865|st\.?\s?moritz|ischgl|thusis|swiss\s?q|wi-?fi|wlan|\bpin\b)).*(?=.*\bber(n?in|ni|i)a\b).*\b(hotel|hotels|pontresina|restaurant)\b`;
-const BACKLINKS = [
-  { date: "2025-09-30 00:00:00 +00:00", referring_domains: 70, backlinks: 658 },
-  { date: "2026-08-31 00:00:00 +00:00", referring_domains: 85, backlinks: 674 },
-  { date: "2026-09-30 00:00:00 +00:00", referring_domains: 93, backlinks: 174 },
-];
-
 const z = (
   date: string,
   keyword: string,
@@ -169,8 +131,8 @@ describe("Prozentveränderung", () => {
   });
 });
 
-describe("Labs: Sichtbarkeit (ETV) und Verteilung", () => {
-  const reihe = labsMonateAus(LABS);
+describe("Sichtbarkeit (ETV) aus der gespeicherten Labs-Historie", () => {
+  const reihe = labsMonateAusGespeichert(LABS_LAUF.result.months);
   it("Monat, Vormonat, Vorjahr; History aufsteigend", () => {
     const v = berechneSichtbarkeit(reihe, "2026-09")!;
     expect(v).toMatchObject({
@@ -183,40 +145,18 @@ describe("Labs: Sichtbarkeit (ETV) und Verteilung", () => {
     expect(v.small_base).toBe(false);
     expect(v.history.map((h) => h.month)).toEqual(["2025-09", "2026-08", "2026-09"]);
   });
-  it("fehlende Monate → null, Fehler → null", () => {
-    const v = berechneSichtbarkeit(reihe, "2026-10")!;
-    expect(v.current).toBeNull();
+  it("fehlende Monate → null, keine Reihe → null", () => {
+    expect(berechneSichtbarkeit(reihe, "2026-10")!.current).toBeNull();
     expect(berechneSichtbarkeit(null, "2026-09")).toBeNull();
-  });
-  it("Verteilung: Top 3/10/20 kumuliert, Top 100 = count", () => {
-    expect(verteilungAus(reihe.find((m) => m.month === "2026-09"))).toEqual({
-      top3: 5,
-      top10: 15,
-      top20: 38,
-      top100: 84,
-    });
-    expect(verteilungAus(undefined)).toBeNull();
-  });
-});
-
-describe("Backlinks: Ahrefs (Monatswert) und DataForSEO-Rückweg", () => {
-  it("Ahrefs «YYYY-MM-01» = Monat, DFS «letzter Tag» = Monat", () => {
-    const ah = ahrefsMonateAus(AHREFS);
-    expect(refdomainsIm(ah, "2026-09")).toBe(843);
-    expect(refdomainsIm(ah, "2025-09")).toBe(87);
-    expect(refdomainsIm(ah, "2026-07")).toBeNull();
-    expect(refdomainsIm(dfsBacklinkMonateAus(BACKLINKS), "2026-09")).toBe(93);
-    expect(refdomainsIm(null, "2026-09")).toBeNull();
   });
 });
 
 describe("Gespeicherte EzyHub-Daten", () => {
-  it("labs_history-Monate → ETV und Verteilung wie Labs live", () => {
+  it("labs_history-Monate: Keywords als Anzahl, pos_* übernommen", () => {
     const reihe = labsMonateAusGespeichert(LABS_LAUF.result.months);
     expect(reihe.map((m) => m.month)).toEqual(["2025-09", "2026-08", "2026-09"]);
-    expect(berechneSichtbarkeit(reihe, "2026-09")).toEqual(
-      berechneSichtbarkeit(labsMonateAus(LABS), "2026-09"),
-    );
+    expect(reihe[2]).toMatchObject({ count: 84, pos: { pos_1: 2, pos_2_3: 3 } });
+    expect(labsMonateAusGespeichert(null)).toEqual([]);
   });
   it("Backlink-Verlauf: letzter Wochenpunkt im Monat, DataForSEO-Form ebenso", () => {
     const v = refdomainsVerlaufAus(AHREFS_LAUF.result);
@@ -446,7 +386,7 @@ describe("GSC-Auswertung", () => {
 });
 
 describe("checks", () => {
-  const vis = berechneSichtbarkeit(labsMonateAus(LABS), "2026-09");
+  const vis = berechneSichtbarkeit(labsMonateAusGespeichert(LABS_LAUF.result.months), "2026-09");
   const basis = {
     monat: "2026-09",
     visibility: vis,
@@ -513,8 +453,7 @@ const BERNINA = baueKonfig(
   { report_active: true, strategic_keywords: [], brand_regex: "bernina" },
 );
 
-function quellen(over: Partial<Quellen> = {}): Quellen & { aufrufe: string[] } {
-  const aufrufe: string[] = [];
+function quellen(over: Partial<Quellen> = {}): Quellen {
   const periode = (clicks: number) => ({
     totals: { clicks, impressions: clicks * 20, ctr: 0.05, position: 9.5 },
     queries: [
@@ -524,12 +463,6 @@ function quellen(over: Partial<Quellen> = {}): Quellen & { aufrufe: string[] } {
     queriesGekappt: false,
   });
   const q: Quellen = {
-    dfs: async (pfad) => {
-      aufrufe.push(pfad);
-      if (pfad.startsWith("dataforseo_labs")) return { ok: true, items: LABS, cost: 0.0103 };
-      return { ok: true, items: BACKLINKS, cost: 0.0201 };
-    },
-    ahrefs: async () => ({ ok: true, rows: AHREFS, units: AHREFS.length * 6 }),
     rankZeilen: async () => [
       z("2026-08-30", "pontresina", 20, null, { search_volume: 4400 }),
       z("2026-08-30", "hotel pontresina", 1, null, { search_volume: 2900 }),
@@ -569,7 +502,7 @@ function quellen(over: Partial<Quellen> = {}): Quellen & { aufrufe: string[] } {
     snapshotVormonat: async () => null,
     ...over,
   };
-  return Object.assign(q, { aufrufe });
+  return q;
 }
 
 describe("berechneSeoReport", () => {
@@ -615,11 +548,11 @@ describe("berechneSeoReport", () => {
       current: { top3: 1, top10: 2, top20: 2, top100: 2, total_tracked: 3 },
       previous: { top3: 1, top10: 1, top20: 2, top100: 2, total_tracked: 3 },
     });
-    expect(r.backlinks.source).toBe("ezyhub_with_live_fallback");
+    expect(r.backlinks.source).toBe("ezyhub");
     expect(r.backlinks.sources).toEqual({
       current: "ezyhub",
       previous: "ezyhub",
-      previous_year: "ahrefs_live",
+      previous_year: null,
     });
     expect(r.backlinks.ezyrank).toEqual({
       current: {
@@ -642,16 +575,18 @@ describe("berechneSeoReport", () => {
       // Ahrefs gegen DataForSEO ist nicht vergleichbar → keine Veränderung
       change: { domain_rating: null, backlinks_live_pct: null, backlinks_live_pct_yoy: null },
     });
+    // Vorjahr fehlt in EzyHub → null, keine Live-Abfrage
     expect(r.backlinks.referring_domains).toMatchObject({
       current: 851,
       previous: 446,
-      previous_year: 87,
+      previous_year: null,
       change: 405,
+      change_pct_yoy: null,
     });
     expect(r.checks).toContainEqual({
       field: "backlinks.referring_domains.previous_year",
-      level: "warn",
-      message: "EzyHub hat für 2025-09 keine gespeicherten Daten, Wert live von Ahrefs abgefragt",
+      level: "info",
+      message: "EzyHub hat für 2025-09 keine gespeicherten Daten, Wert bleibt leer",
     });
     expect(r.gsc.current).toMatchObject({ clicks: 100, impressions: 2000 });
     expect(r.gsc.current.brand.clicks).toBe(95);
@@ -659,48 +594,16 @@ describe("berechneSeoReport", () => {
     expect(r.gsc.ranges.current).toEqual({ startDate: "2026-09-01", endDate: "2026-09-30" });
     expect(r.gsc.opportunity_keywords).toEqual([expect.objectContaining({ query: "pontresina" })]);
     expect(r.ga4.current.sessions).toBe(400);
-    expect(r.meta).toMatchObject({ dataforseo_cost: 0, ahrefs_units: 18, errors: [] });
-    expect(q.aufrufe).toEqual([]);
+    expect(r.meta).toMatchObject({ dataforseo_cost: 0, errors: [] });
+    expect("ahrefs_units" in r.meta).toBe(false);
     expect(JSON.stringify(r)).not.toMatch(/sistrix|traffic"/i);
   });
 
-  it("Vorjahr fehlt, Ahrefs-Fehler: Rückweg DataForSEO, Quelle im JSON", async () => {
-    const q = quellen({
-      ahrefs: async () => ({ ok: false, error: "Ahrefs HTTP 429: limit", units: 0 }),
-    });
-    const r: any = await berechneSeoReport(BERNINA, "2026-09", q, opts);
-    expect(r.backlinks.sources.previous_year).toBe("dataforseo_live");
-    expect(r.backlinks.referring_domains).toMatchObject({
-      current: 851,
-      previous: 446,
-      previous_year: 70,
-    });
-    expect(q.aufrufe).toEqual(["backlinks/timeseries_summary/live"]);
-    expect(r.meta.errors).toEqual([{ source: "ahrefs", message: "Ahrefs HTTP 429: limit" }]);
-  });
-
-  it("ohne Ahrefs-Key und DFS-Fehler: Feld null, Fehler gemeldet, Rest bleibt", async () => {
-    const q = quellen({
-      ahrefs: null,
-      dfs: async (pfad) =>
-        pfad.startsWith("backlinks")
-          ? { ok: false, leer: false, error: "Payment required", cost: 0 }
-          : { ok: true, items: LABS, cost: 0.01 },
-    });
-    const r: any = await berechneSeoReport(BERNINA, "2026-09", q, opts);
-    expect(r.backlinks.source).toBe("ezyhub");
-    expect(r.backlinks.referring_domains.previous_year).toBeNull();
-    expect(r.meta.errors).toEqual([
-      { source: "dataforseo.backlinks", message: "Payment required" },
-    ]);
-    expect(r.visibility.current).toBe(1283.4);
-  });
-
-  it("ohne gespeicherte Daten: alles live, source und Warnungen gesetzt", async () => {
+  it("ohne gespeicherte Daten: Werte null, Hinweise gesetzt, keine Live-Abfrage", async () => {
     const q = quellen({ labsGespeichert: async () => null, backlinkLauf: async () => null });
     const r: any = await berechneSeoReport(BERNINA, "2026-09", q, opts);
-    expect(r.visibility).toMatchObject({ source: "dataforseo_live", current: 1283.4 });
-    expect(r.backlinks.source).toBe("live");
+    expect(r.visibility).toBeNull();
+    expect(r.backlinks.source).toBeNull();
     expect(r.backlinks.ezyrank).toEqual({
       current: null,
       previous: null,
@@ -708,11 +611,10 @@ describe("berechneSeoReport", () => {
       change: { domain_rating: null, backlinks_live_pct: null, backlinks_live_pct_yoy: null },
     });
     expect(r.backlinks.referring_domains).toMatchObject({
-      current: 843,
-      previous: 446,
-      previous_year: 87,
+      current: null,
+      previous: null,
+      previous_year: null,
     });
-    expect(q.aufrufe).toEqual(["dataforseo_labs/google/historical_rank_overview/live"]);
     expect(
       r.checks
         .filter((c: any) => c.message.startsWith("EzyHub hat"))
@@ -724,6 +626,21 @@ describe("berechneSeoReport", () => {
       "backlinks.referring_domains.previous_year",
       "visibility",
     ]);
+    expect(r.meta).toMatchObject({ dataforseo_cost: 0, errors: [] });
+  });
+
+  it("Labs-Historie ohne Berichtsmonat: Monat null, Hinweis, kein Rückweg", async () => {
+    const ohneSept = { ...LABS_LAUF, result: { months: LABS_LAUF.result.months.slice(0, 2) } };
+    const r: any = await berechneSeoReport(
+      BERNINA,
+      "2026-09",
+      quellen({ labsGespeichert: async () => ohneSept }),
+      opts,
+    );
+    expect(r.visibility).toMatchObject({ source: "ezyhub", current: null, previous: 2174.3 });
+    expect(r.checks).toContainEqual(
+      expect.objectContaining({ field: "visibility", level: "warn" }),
+    );
   });
 
   it("Domain Rating und Backlinks: Veränderung nur zwischen Ahrefs-Läufen", async () => {
@@ -749,14 +666,6 @@ describe("berechneSeoReport", () => {
       backlinks_live_pct: 0.25,
       backlinks_live_pct_yoy: null,
     });
-  });
-
-  it("gespeicherte Labs-Historie ohne Berichtsmonat: Rückweg live", async () => {
-    const ohneSept = { ...LABS_LAUF, result: { months: LABS_LAUF.result.months.slice(0, 2) } };
-    const q = quellen({ labsGespeichert: async () => ohneSept });
-    const r: any = await berechneSeoReport(BERNINA, "2026-09", q, opts);
-    expect(r.visibility.source).toBe("dataforseo_live");
-    expect(r.meta.dataforseo_cost).toBe(0.0103);
   });
 
   it("lost nur mit DataForSEO-Position im Vormonat (GSC-Wert zählt nicht)", async () => {
@@ -823,30 +732,7 @@ describe("berechneSeoReport", () => {
   });
 });
 
-describe("dfsTask / GA4", () => {
-  it("Retry bei Netzfehler, Kosten aus der Antwort", async () => {
-    let n = 0;
-    const f = vi.fn(async () => {
-      if (n++ === 0) throw new Error("timeout");
-      return new Response(
-        JSON.stringify({
-          tasks: [{ status_code: 20000, cost: 0.0103, result: [{ items: [1, 2] }] }],
-        }),
-      );
-    });
-    const r = await dfsTask("x", {}, { auth: "Basic x", fetcher: f as any });
-    expect(f).toHaveBeenCalledTimes(2);
-    expect(r).toEqual({ ok: true, items: [1, 2], cost: 0.0103 });
-  });
-  it("«No Search Results» ist leer, kein Fehler", async () => {
-    const f = async () =>
-      new Response(JSON.stringify({ tasks: [{ status_code: 40102, cost: 0.01 }] }));
-    expect(await dfsTask("x", {}, { auth: "a", fetcher: f as any })).toEqual({
-      ok: false,
-      leer: true,
-      cost: 0.01,
-    });
-  });
+describe("GA4", () => {
   it("GA4-Zeilen je Zeitraum", () => {
     const j = {
       rows: [

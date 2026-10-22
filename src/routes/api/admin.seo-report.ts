@@ -53,7 +53,7 @@ export const Route = createFileRoute("/api/admin/seo-report")({
             if (snap?.meta)
               return Response.json({
                 ...snap,
-                meta: { ...snap.meta, cached: true, dataforseo_cost: 0, ahrefs_units: 0 },
+                meta: { ...snap.meta, cached: true, dataforseo_cost: 0 },
               });
           }
 

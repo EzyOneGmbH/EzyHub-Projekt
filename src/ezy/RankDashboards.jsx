@@ -203,12 +203,22 @@ export function AgencyOverview({
     .sort()
     .join(",");
   const stunde = useStuendlich(); // Kacheln stündlich still neu laden (11.10.)
+  // Zeitraum der Kacheln (22.10.2026): Top 3/Top 10 = letzte DataForSEO-Messung
+  // bis Zeitraum-Ende — dieselbe Funktion wie SEO-Dashboard und SEO-Report.
+  const tagYmd = (d) => {
+    const x = new Date(d);
+    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+  };
+  const kachelBis = tagYmd(dateRange?.end ?? new Date(Date.now() - 864e5));
+  const kachelVon = tagYmd(dateRange?.start ?? new Date(Date.now() - 30 * 864e5));
   useEffect(() => {
     let alive = true;
     const ids = idsKey ? idsKey.split(",") : [];
     if (!ids.length) return;
     // Browser-Zwischenspeicher (06.10.2026): Kacheln sofort mit letztem Stand.
-    const cacheKey = `kacheln:${isAds ? "ads" : "seo"}:${idsKey}`;
+    const cacheKey = isAds
+      ? `kacheln:ads:${idsKey}`
+      : `kacheln:seo:${idsKey}:${kachelVon}..${kachelBis}`;
     const gespeichert = cacheGet(cacheKey);
     if (gespeichert) setStats(gespeichert.data);
     (async () => {
@@ -236,35 +246,30 @@ export function AgencyOverview({
           setStats(next);
           return;
         }
-        // Top 3/10 wie im Kunden-Dashboard (15.10.2026): Tabellen-Basis aus
-        // getrackten Keywords + nicht getrackten GSC-Queries (lib/rankKacheln).
-        const [rankRes, ga4Res, seoRes, gscRes] = await Promise.all([
-          neuesteLaeufe(ids, "rankings", ["keywords"], ["kw"]),
+        // Top 3/10 (22.10.2026): Server-Funktion wie SEO-Dashboard und Report.
+        const [rankRes, ga4Res, seoRes] = await Promise.all([
+          ezyFetch("/api/admin/ezyrank-kacheln", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ clientIds: ids, startDate: kachelVon, endDate: kachelBis }),
+          })
+            .then((r) => r.json())
+            .catch(() => null),
           // Echter organischer Traffic (2026-08-13, User-Wunsch): GA4-Kanal
           // "Organic Search" aus dem letzten ga4_traffic-Snapshot — wie die
           // "Organic Traffic"-Kachel im SEO-Tab. DFS-ETV nur noch Fallback.
           neuesteLaeufe(ids, "ga4_traffic", ["channels"], ["ch"]),
           neuesteLaeufe(ids, "ahrefs", ["metrics"], ["m"]),
-          neuesteLaeufe(ids, "gsc_queries", ["topNonbrandQueries"], ["gq"]),
         ]);
-        const gscJeKunde = new Map();
-        for (const row of gscRes.data || []) {
-          if (!gscJeKunde.has(row.client_id)) gscJeKunde.set(row.client_id, row.gq);
-        }
         if (!alive) return;
         const next = {};
-        for (const row of rankRes.data || []) {
-          if (next[row.client_id]?.top3 != null) continue; // erste Zeile = neuester Lauf
-          const z = zaehleRankKacheln(
-            Array.isArray(row.kw) ? row.kw : [],
-            gscJeKunde.get(row.client_id),
-          );
-          next[row.client_id] = {
-            ...next[row.client_id],
-            top3: z ? z.top3 : 0,
-            top10: z ? z.top10 : 0,
-            // Datum-Chip wie in der EzyAI-Übersicht: letzter Messlauf.
-            date: String(row.created_at || "").slice(0, 10),
+        for (const [id, k] of Object.entries(rankRes?.ok ? rankRes.kacheln || {} : {})) {
+          next[id] = {
+            ...next[id],
+            top3: k.top3,
+            top10: k.top10,
+            // Datum-Chip: Tag der verwendeten DataForSEO-Messung.
+            date: k.measured_on || undefined,
           };
         }
         // GA4 zuerst (echte organische Besuche); DFS-ETV nur wo kein GA4 liegt.
@@ -299,7 +304,7 @@ export function AgencyOverview({
     return () => {
       alive = false;
     };
-  }, [idsKey, isAds, stunde]);
+  }, [idsKey, isAds, stunde, kachelVon, kachelBis]);
   // Kacheln alphabetisch — Kundenreihenfolge ist überall gleich (Volkan 13.08.).
   const tiles = [...clients].sort((a, b) =>
     String(a.name).localeCompare(String(b.name), "de-CH", { sensitivity: "base" }),
@@ -1094,6 +1099,15 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   const { isOn } = useEzyDashboardConfig();
   const traffic = Number(live?.traffic ?? selectedClient?.traffic ?? 0);
   const score = Number(live?.score ?? selectedClient?.score ?? 0);
+  // Quelle des Backlink-Laufs (22.10.2026): 06.08.–09.09.2026 lief das Modul über
+  // DataForSEO — dessen Rank (0–1000) ist kein Ahrefs Domain Rating. Beschriftung
+  // je Quelle; Veränderung nur zwischen zwei Ahrefs-Läufen.
+  const drQuelle = (r) => (r?.result?.source === "dataforseo" ? "dataforseo" : "ahrefs");
+  const drIstDfs = !!run && drQuelle(run) === "dataforseo";
+  const drVon =
+    ahrefsVon && run && drQuelle(run) === "ahrefs" && drQuelle(ahrefsVonRun) === "ahrefs"
+      ? Number(ahrefsVon.score) || null
+      : null;
   const visibility = Number(live?.visibility ?? selectedClient?.visibility ?? 0);
   const viLand = live?.visibilityLand || "ch";
   const viVon =
@@ -2355,13 +2369,15 @@ export function SeoDashboard({ selectedClient, dateRange }) {
           />
           <KpiCard
             icon={Award}
-            label="Domain Rating (Ahrefs)"
+            label={drIstDfs ? "DataForSEO-Rank" : "Domain Rating (Ahrefs)"}
             value={score > 0 ? score : "—"}
             color={C.green}
+            change={score > 0 && drVon != null ? fensterPct(score, drVon) : undefined}
+            compareValue={drVon != null ? drVon : undefined}
+            compareLabel={FENSTER_LABEL}
           />
-          {/* Kein «vorher»-Vergleich bei Domain Rating und Backlinks (Volkan 11.09.):
-              die Vorwerte stammen aus der DataForSEO-Zeit (anderer Index) und
-              erzeugten Scheinbewegungen wie −87 % / +322 %. */}
+          {/* Domain Rating: «vorher» nur, wenn beide Läufe von Ahrefs stammen
+              (22.10.2026). Backlinks weiterhin ohne Vergleich (Volkan 11.09.). */}
           {/* «Organic Keywords»-Kachel entfernt (Volkan 11.09.): Zahl war eine
               Index-Schätzung (Ahrefs org_keywords), die Rankings-Tabelle zeigt
               den echten Bestand. */}
