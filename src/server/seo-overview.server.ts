@@ -1,10 +1,10 @@
+import { zaehleRankKacheln } from "@/lib/rankKacheln";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "./google-tokens.server";
 import { ga4RunReportUrl } from "./ga4.server";
 import { gscTotals, type GscFilter } from "./gsc.server";
 import { heuteYmd, type Zeitraum } from "@/lib/date-range";
 import { cacheLesen, cacheSchreiben } from "./uebersicht-cache.server";
-import { berechneRankStand, rankLader } from "./ezyrank-zeitraum.server";
 
 // Agentur-Performance-Tabelle EzyRank (29.09.2026, analog EzyPerformance):
 // SEO-Kennzahlen mehrerer Kunden fuer Zeitraum + Vergleich. Nur lesend, nichts
@@ -12,9 +12,8 @@ import { berechneRankStand, rankLader } from "./ezyrank-zeitraum.server";
 //  - Traffic / Traffic CH: GA4-Sitzungen Kanal «Organic Search» (wie die Kachel
 //    «Org. Traffic»), CH = countryId CH. Ohne GA4 Fallback auf Google-Klicks
 //    aus der Search Console (country che) — Quelle wird mitgeliefert.
-//  - Top 3 / Top 10: letzte DataForSEO-Messung (rank_daily, pos_src crawl) bis
-//    Zeitraum- bzw. Vergleichs-Ende — dieselbe Funktion wie SEO-Dashboard und
-//    SEO-Report-Endpoint (berechneRankStand, 22.10.2026).
+//  - Top 3 / Top 10: Rankings-Lauf (Crawl, sonst GSC-Ø) zum Ende des Zeitraums
+//    bzw. der Vergleichsperiode — gleiche Stichtag-Logik wie das SEO-Dashboard.
 //  - Visibility Index: Sistrix (CH), gespeichert im Backlink-Lauf
 //    (audit_type «ahrefs», result.sistrix) — ebenfalls per Stichtag.
 
@@ -207,7 +206,7 @@ export async function fetchSeoOverviewZeile(
   // frisch: stündliches Vorwärmen rechnet immer neu und überschreibt den Speicher.
   const hit = opts.frisch
     ? null
-    : await cacheLesen<SeoOverviewZeile>("seo", `${key}|${googleErlaubt ? 1 : 0}`);
+    : await cacheLesen<SeoOverviewZeile>("seo", `${key}|${googleErlaubt ? 1 : 0}|r2`);
   if (hit) return hit;
 
   const cur: SeoKennzahlen = { ...LEER };
@@ -218,26 +217,41 @@ export async function fetchSeoOverviewZeile(
   // ── Rankings + Sichtbarkeit aus gespeicherten Laeufen ──────────────────────
   const bisCur = stichtagIso(aktuell.endDate);
   const bisPrev = stichtagIso(vorher.endDate);
-  // Top 3/10 (22.10.2026): dieselbe Funktion wie SEO-Dashboard und Report —
-  // Crawl-Positionen am letzten Messtag bis Zeitraum- bzw. Vergleichs-Ende.
-  const [rs, vCur, vPrev] = await Promise.all([
-    berechneRankStand(
-      { von: aktuell.startDate, bis: aktuell.endDate, vergleichBis: vorher.endDate },
-      rankLader(kunde.id),
-    ),
+  // Top 3/10 wie Kunden-Dashboard (15.10.2026, wieder seit 22.10.2026 abends,
+  // Volkan: «komplett zurück zur alten Rechnung»): Tabellen-Basis = getrackte
+  // Keywords (Position Crawl, sonst GSC-Ø) + nicht getrackte GSC-Queries
+  // (lib/rankKacheln). Der SEO-Report rechnet weiter mit der DataForSEO-Messung.
+  const [rCur, rPrev, vCur, vPrev, gCur, gPrev] = await Promise.all([
+    letzterLauf(kunde.id, "rankings", "result->keywords", bisCur, ", ort:result->>crawlLocation"),
+    letzterLauf(kunde.id, "rankings", "result->keywords", bisPrev, ", ort:result->>crawlLocation"),
     letzterLauf(kunde.id, "ahrefs", "result->sistrix", bisCur),
     letzterLauf(kunde.id, "ahrefs", "result->sistrix", bisPrev),
+    letzterLauf(kunde.id, "gsc_queries", "result->topNonbrandQueries", bisCur),
+    letzterLauf(kunde.id, "gsc_queries", "result->topNonbrandQueries", bisPrev),
   ]);
-  if (rs.distribution.current) {
-    cur.top3 = rs.distribution.current.top3;
-    cur.top10 = rs.distribution.current.top10;
-  } else hinweise.push("Keine DataForSEO-Messung bis Zeitraum-Ende");
+  const tabelle = (r: Lauf | null, g: Lauf | null) =>
+    zaehleRankKacheln(Array.isArray(r?.wert) ? r.wert : [], Array.isArray(g?.wert) ? g.wert : []);
+  // Gleiche Zaehlmethode fuer beide Laeufe -> nur der Standort-Guard bleibt relevant.
+  const mitBasis = (r: Lauf | null) => (r ? { ...r, wert: { basis: "tabelle" } } : null);
+  if (rCur) {
+    const z = tabelle(rCur, gCur);
+    cur.top3 = z ? z.top3 : null;
+    cur.top10 = z ? z.top10 : null;
+  } else hinweise.push("Kein Rankings-Lauf bis Zeitraum-Ende");
+  // Vergleich nur, wenn ein ANDERER (frueherer) Lauf existiert — wie im Dashboard —
+  // und beide nach derselben Methode gezaehlt wurden (Methodenwechsel-Guard).
   let rankVergleich: SeoOverviewZeile["rankVergleich"] = null;
-  const rankVergleichGrundText: string | null = null;
-  if (rs.distribution.previous) {
-    prev.top3 = rs.distribution.previous.top3;
-    prev.top10 = rs.distribution.previous.top10;
-    rankVergleich = "ok";
+  let rankVergleichGrundText: string | null = null;
+  if (rPrev && rCur && rPrev.id !== rCur.id) {
+    rankVergleichGrundText = rankVergleichGrund(mitBasis(rCur), mitBasis(rPrev));
+    if (rankVergleichGrundText === null) {
+      const z = tabelle(rPrev, gPrev);
+      prev.top3 = z ? z.top3 : null;
+      prev.top10 = z ? z.top10 : null;
+      rankVergleich = "ok";
+    } else {
+      rankVergleich = "methodenwechsel";
+    }
   }
   const vi = (l: Lauf | null) => {
     const n = zahlOderNull(l?.wert?.visibility_index);
@@ -340,11 +354,11 @@ export async function fetchSeoOverviewZeile(
     visibilityLand: vCur ? visibilityLand : null,
     stand: {
       cur: {
-        rank: rs.measured_on,
+        rank: rCur ? String(rCur.created_at).slice(0, 10) : null,
         visibility: vCur ? String(vCur.created_at).slice(0, 10) : null,
       },
       prev: {
-        rank: rankVergleich === "ok" ? rs.compare_measured_on : null,
+        rank: rankVergleich === "ok" && rPrev ? String(rPrev.created_at).slice(0, 10) : null,
         visibility:
           vPrev && vCur && vPrev.id !== vCur.id ? String(vPrev.created_at).slice(0, 10) : null,
       },
@@ -353,6 +367,6 @@ export async function fetchSeoOverviewZeile(
     error: null,
   };
   if (seoZeileSpeicherbar(zeile))
-    await cacheSchreiben("seo", `${key}|${googleErlaubt ? 1 : 0}`, kunde.id, zeile);
+    await cacheSchreiben("seo", `${key}|${googleErlaubt ? 1 : 0}|r2`, kunde.id, zeile);
   return zeile;
 }

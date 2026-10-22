@@ -203,22 +203,12 @@ export function AgencyOverview({
     .sort()
     .join(",");
   const stunde = useStuendlich(); // Kacheln stündlich still neu laden (11.10.)
-  // Zeitraum der Kacheln (22.10.2026): Top 3/Top 10 = letzte DataForSEO-Messung
-  // bis Zeitraum-Ende — dieselbe Funktion wie SEO-Dashboard und SEO-Report.
-  const tagYmd = (d) => {
-    const x = new Date(d);
-    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
-  };
-  const kachelBis = tagYmd(dateRange?.end ?? new Date(Date.now() - 864e5));
-  const kachelVon = tagYmd(dateRange?.start ?? new Date(Date.now() - 30 * 864e5));
   useEffect(() => {
     let alive = true;
     const ids = idsKey ? idsKey.split(",") : [];
     if (!ids.length) return;
     // Browser-Zwischenspeicher (06.10.2026): Kacheln sofort mit letztem Stand.
-    const cacheKey = isAds
-      ? `kacheln:ads:${idsKey}`
-      : `kacheln:seo:${idsKey}:${kachelVon}..${kachelBis}`;
+    const cacheKey = `kacheln:${isAds ? "ads" : "seo2"}:${idsKey}`;
     const gespeichert = cacheGet(cacheKey);
     if (gespeichert) setStats(gespeichert.data);
     (async () => {
@@ -246,30 +236,36 @@ export function AgencyOverview({
           setStats(next);
           return;
         }
-        // Top 3/10 (22.10.2026): Server-Funktion wie SEO-Dashboard und Report.
-        const [rankRes, ga4Res, seoRes] = await Promise.all([
-          ezyFetch("/api/admin/ezyrank-kacheln", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ clientIds: ids, startDate: kachelVon, endDate: kachelBis }),
-          })
-            .then((r) => r.json())
-            .catch(() => null),
+        // Top 3/10 wie im Kunden-Dashboard (15.10.2026, wieder seit 22.10.2026):
+        // Tabellen-Basis aus getrackten Keywords + nicht getrackten GSC-Queries
+        // (lib/rankKacheln) — Tagesstand, nicht die DataForSEO-Messung des Reports.
+        const [rankRes, ga4Res, seoRes, gscRes] = await Promise.all([
+          neuesteLaeufe(ids, "rankings", ["keywords"], ["kw"]),
           // Echter organischer Traffic (2026-08-13, User-Wunsch): GA4-Kanal
           // "Organic Search" aus dem letzten ga4_traffic-Snapshot — wie die
           // "Organic Traffic"-Kachel im SEO-Tab. DFS-ETV nur noch Fallback.
           neuesteLaeufe(ids, "ga4_traffic", ["channels"], ["ch"]),
           neuesteLaeufe(ids, "ahrefs", ["metrics"], ["m"]),
+          neuesteLaeufe(ids, "gsc_queries", ["topNonbrandQueries"], ["gq"]),
         ]);
+        const gscJeKunde = new Map();
+        for (const row of gscRes.data || []) {
+          if (!gscJeKunde.has(row.client_id)) gscJeKunde.set(row.client_id, row.gq);
+        }
         if (!alive) return;
         const next = {};
-        for (const [id, k] of Object.entries(rankRes?.ok ? rankRes.kacheln || {} : {})) {
-          next[id] = {
-            ...next[id],
-            top3: k.top3,
-            top10: k.top10,
-            // Datum-Chip: Tag der verwendeten DataForSEO-Messung.
-            date: k.measured_on || undefined,
+        for (const row of rankRes.data || []) {
+          if (next[row.client_id]?.top3 != null) continue; // erste Zeile = neuester Lauf
+          const z = zaehleRankKacheln(
+            Array.isArray(row.kw) ? row.kw : [],
+            gscJeKunde.get(row.client_id),
+          );
+          next[row.client_id] = {
+            ...next[row.client_id],
+            top3: z ? z.top3 : 0,
+            top10: z ? z.top10 : 0,
+            // Datum-Chip wie in der EzyAI-Übersicht: letzter Messlauf.
+            date: String(row.created_at || "").slice(0, 10),
           };
         }
         // GA4 zuerst (echte organische Besuche); DFS-ETV nur wo kein GA4 liegt.
@@ -304,7 +300,7 @@ export function AgencyOverview({
     return () => {
       alive = false;
     };
-  }, [idsKey, isAds, stunde, kachelVon, kachelBis]);
+  }, [idsKey, isAds, stunde]);
   // Kacheln alphabetisch — Kundenreihenfolge ist überall gleich (Volkan 13.08.).
   const tiles = [...clients].sort((a, b) =>
     String(a.name).localeCompare(String(b.name), "de-CH", { sensitivity: "base" }),
@@ -926,7 +922,11 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   // = letzte DataForSEO-Messung bis Zeitraum-Ende, GSC je Keyword und Brand-
   // Split über den gewählten Zeitraum (brand_regex aus seo_report_config).
   const { data: zr } = useEzyZeitraum(selectedClient?.id, dateRange, von);
-  const zrAktiv = !!zr?.rankings?.measured_on;
+  // Rankings-Kacheln/-Tabelle (22.10.2026 abends, Volkan: «komplett zurück zur
+  // alten Rechnung»): wieder Tagesstand (Crawl, sonst GSC-Ø) statt DataForSEO-
+  // Messung. Der SEO-Report bleibt bei der DataForSEO-Messung. true = Report-Logik.
+  const RANKS_WIE_REPORT = false;
+  const zrAktiv = RANKS_WIE_REPORT && !!zr?.rankings?.measured_on;
   // Geschätzter organischer Traffic (ETV) aus dem gespeicherten labs_history-
   // Lauf — gleiche Daten wie visibility im SEO-Report-Endpoint.
   const { run: labsRun } = useEzyLatestRun(selectedClient?.id, "labs_history");
@@ -1370,16 +1370,6 @@ export function SeoDashboard({ selectedClient, dateRange }) {
       top10Von: vonListe ? zaehle(vonListe, 10) : null,
     };
   }, [rankBasis, rankVon, rank, gscQ, zr, zrAktiv]);
-  // Zusatz-Kacheln «inkl. GSC» (22.10.2026, Volkan): bisherige Tagesstand-Zählung
-  // (Crawl des Tages, sonst GSC-Ø 7 Tage) neben den DataForSEO-Werten. Nur wenn
-  // die Hauptkacheln die DataForSEO-Messung zeigen; ändert Report-Werte nicht.
-  const rankKachelnGsc = useMemo(() => {
-    if (!zrAktiv) return null;
-    const jetzt = zaehleRankKacheln(rank?.keywords, gscQ?.topNonbrandQueries);
-    if (!jetzt) return null;
-    const von = zaehleRankKacheln(rankVon?.keywords, null);
-    return { ...jetzt, top3Von: von ? von.top3 : null, top10Von: von ? von.top10 : null };
-  }, [zrAktiv, rank, gscQ, rankVon]);
   const rankRows = useMemo(() => {
     let rows = [...rankBasis];
     // Kachel-Filter: gleiche Definition wie die Kacheln Verbessert/Verschlechtert
@@ -1675,26 +1665,6 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                 compareValue={rankKacheln.top10Von ?? undefined}
                 compareLabel={FENSTER_LABEL}
               />
-              {rankKachelnGsc &&
-                [
-                  ["top3", "In Top 3 inkl. GSC", Award, C.green],
-                  ["top10", "In Top 10 inkl. GSC", Target, C.accent],
-                ].map(([f, label, Icon, farbe]) => (
-                  <div
-                    key={f}
-                    title="Tagesstand wie bisher: Crawl-Position des Tages, sonst Ø Position GSC (7 Tage, Schweiz). Kein Ranking-Wert für den Report."
-                  >
-                    <KpiCard
-                      icon={Icon}
-                      label={label}
-                      value={rankKachelnGsc[f]}
-                      color={farbe}
-                      change={fensterPct(rankKachelnGsc[f], rankKachelnGsc[`${f}Von`])}
-                      compareValue={rankKachelnGsc[`${f}Von`] ?? undefined}
-                      compareLabel={FENSTER_LABEL}
-                    />
-                  </div>
-                ))}
               {/* Klickbare Filter-Kacheln (2026-08-13): filtern die Rankings-
                 Tabelle auf verbesserte/verschlechterte Keywords (Toggle). */}
               <div
@@ -1870,7 +1840,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                       ["d28", "Δ 28T", "right"],
                       ["clk", "Klicks", "right"],
                       ["imp", "Impr.", "right"],
-                      ["gpos", "Ø Position GSC", "right"],
+                      ...(zrAktiv ? [["gpos", "Ø Position GSC", "right"]] : []),
                       [null, "URL", "left"],
                       ["vol", "Volumen", "right"],
                       ...(hasIntl ? [["voli", "Vol. INT", "right"]] : []),
@@ -1979,17 +1949,19 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                         <td style={{ padding: "6px 8px", textAlign: "right", color: C.textMuted }}>
                           {k.impressions != null ? k.impressions.toLocaleString("de-CH") : "—"}
                         </td>
-                        <td
-                          style={{ padding: "6px 8px", textAlign: "right", color: C.textMuted }}
-                          title="Durchschnittsposition in der Google Search Console im gewählten Zeitraum — kein Ranking"
-                        >
-                          {k.gscPos != null
-                            ? Number(k.gscPos).toLocaleString("de-CH", {
-                                minimumFractionDigits: 1,
-                                maximumFractionDigits: 1,
-                              })
-                            : "—"}
-                        </td>
+                        {zrAktiv && (
+                          <td
+                            style={{ padding: "6px 8px", textAlign: "right", color: C.textMuted }}
+                            title="Durchschnittsposition in der Google Search Console im gewählten Zeitraum — kein Ranking"
+                          >
+                            {k.gscPos != null
+                              ? Number(k.gscPos).toLocaleString("de-CH", {
+                                  minimumFractionDigits: 1,
+                                  maximumFractionDigits: 1,
+                                })
+                              : "—"}
+                          </td>
+                        )}
                         <td
                           style={{
                             padding: "6px 8px",
