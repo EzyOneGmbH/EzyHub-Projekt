@@ -59,7 +59,7 @@ const AHREFS = [
   { date: "2026-08-01T00:00:00Z", refdomains: 446 },
   { date: "2026-09-01T00:00:00Z", refdomains: 843 },
 ];
-const BERNINA_BRAND = String.raw`^(?!.*(express|pass|piz|bahn|zug|gletscher))(?=.*\bber(n?in|ni|i)a\b).*\b(hotel|samedan|pontresina|restaurant)\b`;
+const BERNINA_BRAND = String.raw`^(?!.*(express|pass|piz|bahn|zug|gletscher|samedan|1865|st\.?\s?moritz|ischgl|thusis|swiss\s?q|wi-?fi|wlan|\bpin\b)).*(?=.*\bber(n?in|ni|i)a\b).*\b(hotel|hotels|pontresina|restaurant)\b`;
 const BACKLINKS = [
   { date: "2025-09-30 00:00:00 +00:00", referring_domains: 70, backlinks: 658 },
   { date: "2026-08-31 00:00:00 +00:00", referring_domains: 85, backlinks: 674 },
@@ -152,11 +152,26 @@ describe("Brand-Regex Hotel Bernina", () => {
     ["piz bernina", false],
     ["hotel bernia", true],
     ["berina hotel", true],
-    ["hotel bernina samedan", true],
     ["Hotel Bernina Pontresina", true],
     ["pontresina hotel", false],
     ["bernina nähmaschine", false],
     ["bernina 535", false],
+    // andere Hotels namens Bernina und WLAN-Text (22.10.2026)
+    ["hotel bernina samedan", false],
+    ["bernina hotel samedan", false],
+    ["hotel bernina 1865", false],
+    ["hotel bernina st moritz", false],
+    ["hotel bernina ischgl", false],
+    ["bernina thusis speisekarte", false],
+    ["bernina swiss q hotels", false],
+    [
+      "hotel bernina wi-fi pin: @bernina it - connettiti alla rete hotelberninafree. registrati con nome, cognome, ed email inserendo il pin.",
+      false,
+    ],
+    ["hotel bernina pontresina", true],
+    ["hotel bernina", true],
+    ["restaurant bernina pontresina", true],
+    ["hotel bernina pontresina preise", true],
   ])("«%s» → Brand %s", (q, erwartet) => {
     expect(istBrand(q)).toBe(erwartet);
   });
