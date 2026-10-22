@@ -14,6 +14,7 @@ import {
   brandErkenner,
   brandRegexAusBegriffen,
   brandSplit,
+  brandTopQueries,
   chancenKeywords,
   istDfsZeile,
   istMonat,
@@ -58,7 +59,7 @@ const AHREFS = [
   { date: "2026-08-01T00:00:00Z", refdomains: 446 },
   { date: "2026-09-01T00:00:00Z", refdomains: 843 },
 ];
-const BERNINA_BRAND = String.raw`^(?!.*(express|pass|piz|bahn|zug|gletscher)).*\bber(n?in|ni|i)a\b`;
+const BERNINA_BRAND = String.raw`^(?!.*(express|pass|piz|bahn|zug|gletscher))(?=.*\bber(n?in|ni|i)a\b).*\b(hotel|samedan|pontresina|restaurant)\b`;
 const BACKLINKS = [
   { date: "2025-09-30 00:00:00 +00:00", referring_domains: 70, backlinks: 658 },
   { date: "2026-08-31 00:00:00 +00:00", referring_domains: 85, backlinks: 674 },
@@ -154,6 +155,8 @@ describe("Brand-Regex Hotel Bernina", () => {
     ["hotel bernina samedan", true],
     ["Hotel Bernina Pontresina", true],
     ["pontresina hotel", false],
+    ["bernina nähmaschine", false],
+    ["bernina 535", false],
   ])("«%s» → Brand %s", (q, erwartet) => {
     expect(istBrand(q)).toBe(erwartet);
   });
@@ -282,6 +285,12 @@ describe("GSC-Auswertung", () => {
     expect(s.brand).toEqual({ clicks: 50, impressions: 200, ctr: 0.25, position: 1.2 });
     expect(s.nonbrand.impressions).toBe(1500);
     expect(s.nonbrand.position).toBe(13.6);
+  });
+  it("Brand-Top-Queries nach Impressionen, Nähmaschinen ausgeschlossen", () => {
+    const mit = [...rows, { keys: ["bernina 535"], clicks: 1, impressions: 900, position: 3 }];
+    expect(brandTopQueries(mit, brandErkenner(BERNINA_BRAND))).toEqual([
+      { query: "hotel bernina", impressions: 200, clicks: 50, position: 1.2 },
+    ]);
   });
   it("Chancen: Position 8–20 nach Impressionen", () => {
     expect(chancenKeywords(rows).map((r) => r.query)).toEqual([

@@ -22,6 +22,7 @@ import {
   brandErkenner,
   brandRegexAusBegriffen,
   brandSplit,
+  brandTopQueries,
   chancenKeywords,
   gscJeQuery,
   labsMonateAus,
@@ -334,6 +335,8 @@ export async function berechneSeoReport(
         },
         top_pages: seiten,
         opportunity_keywords: chancenKeywords(c.queries),
+        /** Kontrolle der Brand-Regex: grösste Brand-Queries im Berichtsmonat */
+        brand_top_queries: brandTopQueries(c.queries, istBrand),
         /** Brand/Non-Brand = Summe der gelisteten Queries (ohne anonymisierte) */
         brand_basis: "queries",
       };

@@ -365,6 +365,20 @@ export function brandSplit(rows: GscZeile[], istBrand: (q: string) => boolean) {
   return { brand: summe(brand), nonbrand: summe(nonbrand) };
 }
 
+/** Brand-Queries mit den meisten Impressionen (zur Kontrolle der Brand-Regex). */
+export function brandTopQueries(rows: GscZeile[], istBrand: (q: string) => boolean, max = 20) {
+  return rows
+    .filter((r) => istBrand(r.keys[0] ?? ""))
+    .sort((a, b) => b.impressions - a.impressions)
+    .slice(0, max)
+    .map((r) => ({
+      query: r.keys[0],
+      impressions: r.impressions,
+      clicks: r.clicks,
+      position: rund(r.position, 1),
+    }));
+}
+
 /** Keywords auf Position 8–20 mit den meisten Impressionen (Chancen). */
 export function chancenKeywords(rows: GscZeile[], max = 10) {
   return rows
