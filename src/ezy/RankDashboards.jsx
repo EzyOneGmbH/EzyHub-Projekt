@@ -1370,6 +1370,16 @@ export function SeoDashboard({ selectedClient, dateRange }) {
       top10Von: vonListe ? zaehle(vonListe, 10) : null,
     };
   }, [rankBasis, rankVon, rank, gscQ, zr, zrAktiv]);
+  // Zusatz-Kacheln «inkl. GSC» (22.10.2026, Volkan): bisherige Tagesstand-Zählung
+  // (Crawl des Tages, sonst GSC-Ø 7 Tage) neben den DataForSEO-Werten. Nur wenn
+  // die Hauptkacheln die DataForSEO-Messung zeigen; ändert Report-Werte nicht.
+  const rankKachelnGsc = useMemo(() => {
+    if (!zrAktiv) return null;
+    const jetzt = zaehleRankKacheln(rank?.keywords, gscQ?.topNonbrandQueries);
+    if (!jetzt) return null;
+    const von = zaehleRankKacheln(rankVon?.keywords, null);
+    return { ...jetzt, top3Von: von ? von.top3 : null, top10Von: von ? von.top10 : null };
+  }, [zrAktiv, rank, gscQ, rankVon]);
   const rankRows = useMemo(() => {
     let rows = [...rankBasis];
     // Kachel-Filter: gleiche Definition wie die Kacheln Verbessert/Verschlechtert
@@ -1665,6 +1675,26 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                 compareValue={rankKacheln.top10Von ?? undefined}
                 compareLabel={FENSTER_LABEL}
               />
+              {rankKachelnGsc &&
+                [
+                  ["top3", "In Top 3 inkl. GSC", Award, C.green],
+                  ["top10", "In Top 10 inkl. GSC", Target, C.accent],
+                ].map(([f, label, Icon, farbe]) => (
+                  <div
+                    key={f}
+                    title="Tagesstand wie bisher: Crawl-Position des Tages, sonst Ø Position GSC (7 Tage, Schweiz). Kein Ranking-Wert für den Report."
+                  >
+                    <KpiCard
+                      icon={Icon}
+                      label={label}
+                      value={rankKachelnGsc[f]}
+                      color={farbe}
+                      change={fensterPct(rankKachelnGsc[f], rankKachelnGsc[`${f}Von`])}
+                      compareValue={rankKachelnGsc[`${f}Von`] ?? undefined}
+                      compareLabel={FENSTER_LABEL}
+                    />
+                  </div>
+                ))}
               {/* Klickbare Filter-Kacheln (2026-08-13): filtern die Rankings-
                 Tabelle auf verbesserte/verschlechterte Keywords (Toggle). */}
               <div
