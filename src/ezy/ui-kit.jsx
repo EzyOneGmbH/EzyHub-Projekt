@@ -1236,6 +1236,13 @@ export const COMPARE_OPTIONS = [
   { id: "prevYear", label: "Vorjahr (gleicher Zeitraum)" },
 ];
 
+// Zeitraum = genau ein ganzer Kalendermonat (1. bis Monatsletzter)?
+const ganzerMonat = (start, end) =>
+  start.getDate() === 1 &&
+  end.getFullYear() === start.getFullYear() &&
+  end.getMonth() === start.getMonth() &&
+  end.getDate() === new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate();
+
 // Compute the comparison start/end dates for a given range + mode.
 export function computeCompareRange(range, mode) {
   if (!range || mode === "none") return null;
@@ -1247,6 +1254,11 @@ export function computeCompareRange(range, mode) {
     // The contiguous period immediately before the current one.
     cEnd = new Date(start.getTime() - 24 * 60 * 60 * 1000);
     cStart = new Date(cEnd.getTime() - (days - 1) * 24 * 60 * 60 * 1000);
+  } else if (mode === "prevMonth" && ganzerMonat(start, end)) {
+    // Ganzer Kalendermonat (22.10.2026): Vergleich mit dem GANZEN Vormonat —
+    // gleiche Zeiträume wie der SEO-Report (z. B. September vs. 01.–31.08.).
+    cStart = new Date(start.getFullYear(), start.getMonth() - 1, 1);
+    cEnd = new Date(start.getFullYear(), start.getMonth(), 0);
   } else if (mode === "prevMonth") {
     cStart = new Date(start);
     cStart.setMonth(cStart.getMonth() - 1);
