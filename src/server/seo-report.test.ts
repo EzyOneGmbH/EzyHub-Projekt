@@ -247,6 +247,21 @@ describe("Brand-Regex Hotel Bernina", () => {
   });
 });
 
+// B5 Boutique Hotel, Lugano (22.10.2026)
+const B5_BRAND = String.raw`^(?=.*\bb5\b)(?=.*\b(hotel|lugano|boutique)\b)`;
+describe("Brand-Regex B5 Boutique Hotel", () => {
+  const istBrand = brandErkenner(B5_BRAND);
+  it.each([
+    ["b5 hotel lugano", true],
+    ["b5 boutique hotel", true],
+    ["vitamin b5", false],
+    ["b5 papier", false],
+    ["hotel lugano", false],
+  ])("«%s» → Brand %s", (q, erwartet) => {
+    expect(istBrand(q)).toBe(erwartet);
+  });
+});
+
 describe("Keyword-Liste rank_daily", () => {
   it("nur DataForSEO-Positionen zählen, GSC-Ø nie", () => {
     expect(istDfsZeile(z("2026-09-28", "a", 4, "crawl"))).toBe(true);
