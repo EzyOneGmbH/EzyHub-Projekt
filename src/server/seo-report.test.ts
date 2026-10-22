@@ -6,8 +6,13 @@ vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: {} }));
 
 import {
   ahrefsMonateAus,
+  backlinkStandAus,
   dfsBacklinkMonateAus,
+  labsMonateAusGespeichert,
   refdomainsIm,
+  refdomainsVerlaufAus,
+  refdomainsZumMonatsende,
+  verteilungAusRankDaily,
   berechneChecks,
   berechneKeywords,
   berechneSichtbarkeit,
@@ -29,7 +34,7 @@ import {
   verteilungAus,
   type RankZeile,
 } from "@/lib/seoReport";
-import { baueKonfig, berechneSeoReport, type Quellen } from "./seo-report.server";
+import { baueKonfig, berechneSeoReport, tagesendeZuerich, type Quellen } from "./seo-report.server";
 import { dfsTask, ga4WerteAus } from "./seo-report-quellen.server";
 
 const labsItem = (
@@ -59,6 +64,58 @@ const AHREFS = [
   { date: "2026-08-01T00:00:00Z", refdomains: 446 },
   { date: "2026-09-01T00:00:00Z", refdomains: 843 },
 ];
+// Gespeicherter labs_history-Lauf (agent-service, Form wie audit_runs.result.months)
+const LABS_LAUF = {
+  created_at: "2026-10-09T02:43:40.776Z",
+  result: {
+    months: [
+      {
+        month: "2025-09",
+        keywords: 155,
+        etv: 1524.1666,
+        pos_1: 3,
+        pos_2_3: 1,
+        pos_4_10: 19,
+        pos_11_20: 33,
+      },
+      {
+        month: "2026-08",
+        keywords: 66,
+        etv: 2174.318,
+        pos_1: 2,
+        pos_2_3: 2,
+        pos_4_10: 11,
+        pos_11_20: 16,
+      },
+      {
+        month: "2026-09",
+        keywords: 84,
+        etv: 1283.414,
+        pos_1: 2,
+        pos_2_3: 3,
+        pos_4_10: 10,
+        pos_11_20: 23,
+      },
+    ],
+  },
+};
+// Gespeicherter EzyRank-Lauf (audit_runs 'ahrefs', Ahrefs-Rohform, wöchentlicher Verlauf)
+const AHREFS_LAUF = {
+  created_at: "2026-09-30T18:05:32.595Z",
+  result: {
+    source: "ahrefs",
+    domain_rating: { domain_rating: { domain_rating: 26 } },
+    backlinks_stats: { metrics: { live: 3350, all_time: 21160, live_refdomains: 792 } },
+    refdomains_history: {
+      refdomains: [
+        { date: "2026-08-24T00:00:00Z", refdomains: 440 },
+        { date: "2026-08-31T00:00:00Z", refdomains: 446 },
+        { date: "2026-09-21T00:00:00Z", refdomains: 830 },
+        { date: "2026-09-28T00:00:00Z", refdomains: 851 },
+      ],
+    },
+  },
+};
 const BERNINA_BRAND = String.raw`^(?!.*(express|pass|piz|bahn|zug|gletscher|samedan|1865|st\.?\s?moritz|ischgl|thusis|swiss\s?q|wi-?fi|wlan|\bpin\b)).*(?=.*\bber(n?in|ni|i)a\b).*\b(hotel|hotels|pontresina|restaurant)\b`;
 const BACKLINKS = [
   { date: "2025-09-30 00:00:00 +00:00", referring_domains: 70, backlinks: 658 },
@@ -140,6 +197,60 @@ describe("Backlinks: Ahrefs (Monatswert) und DataForSEO-Rückweg", () => {
     expect(refdomainsIm(ah, "2026-07")).toBeNull();
     expect(refdomainsIm(dfsBacklinkMonateAus(BACKLINKS), "2026-09")).toBe(93);
     expect(refdomainsIm(null, "2026-09")).toBeNull();
+  });
+});
+
+describe("Gespeicherte EzyHub-Daten", () => {
+  it("labs_history-Monate → ETV und Verteilung wie Labs live", () => {
+    const reihe = labsMonateAusGespeichert(LABS_LAUF.result.months);
+    expect(reihe.map((m) => m.month)).toEqual(["2025-09", "2026-08", "2026-09"]);
+    expect(berechneSichtbarkeit(reihe, "2026-09")).toEqual(
+      berechneSichtbarkeit(labsMonateAus(LABS), "2026-09"),
+    );
+  });
+  it("Backlink-Verlauf: letzter Wochenpunkt im Monat, DataForSEO-Form ebenso", () => {
+    const v = refdomainsVerlaufAus(AHREFS_LAUF.result);
+    expect(refdomainsZumMonatsende(v, "2026-09")).toBe(851);
+    expect(refdomainsZumMonatsende(v, "2026-08")).toBe(446);
+    expect(refdomainsZumMonatsende(v, "2026-07")).toBeNull();
+    const dfs = refdomainsVerlaufAus({
+      refdomains_history: { items: [{ date: "2026-08-31", referring_domains: 86 }] },
+    });
+    expect(refdomainsZumMonatsende(dfs, "2026-08")).toBe(86);
+    expect(refdomainsVerlaufAus(null)).toEqual([]);
+  });
+  it("Dashboard-Kacheln aus demselben Lauf", () => {
+    expect(backlinkStandAus(AHREFS_LAUF.result)).toEqual({
+      domain_rating: 26,
+      backlinks_live: 3350,
+      referring_domains_live: 792,
+    });
+  });
+  it("Verteilung aus rank_daily: nur Crawl, total_tracked, ohne Auslandsmessung", () => {
+    const tag = "2026-09-28";
+    const zeilen = [
+      z(tag, "a", 1, "crawl", { country: "CH", device: "desktop" }),
+      z(tag, "b", 3, "crawl", { country: "CH", device: "desktop" }),
+      z(tag, "c", 8, "crawl", { country: "CH", device: "desktop" }),
+      z(tag, "d", 15, "crawl", { country: "CH", device: "desktop" }),
+      z(tag, "e", 2, "gsc", { country: "CH", device: "desktop" }),
+      z(tag, "f", null, null, { country: "CH", device: "desktop" }),
+      z(tag, "g", 1, "crawl", { country: "DE", device: "desktop" }),
+      z("2026-09-25", "h", 1, "crawl", { country: "CH", device: "desktop" }),
+    ];
+    expect(verteilungAusRankDaily(zeilen, tag)).toEqual({
+      top3: 2,
+      top10: 3,
+      top20: 4,
+      top100: 4,
+      total_tracked: 6,
+    });
+    expect(verteilungAusRankDaily(zeilen, null)).toBeNull();
+    expect(verteilungAusRankDaily(zeilen, "2026-09-01")).toBeNull();
+  });
+  it("Tagesende Zürich mit Sommer-/Winterzeit", () => {
+    expect(tagesendeZuerich("2026-09-30")).toBe("2026-09-30T23:59:59.999+02:00");
+    expect(tagesendeZuerich("2026-10-31")).toBe("2026-10-31T23:59:59.999+01:00");
   });
 });
 
@@ -407,6 +518,18 @@ function quellen(over: Partial<Quellen> = {}): Quellen & { aufrufe: string[] } {
       z("2026-09-28", "bernina hotel", 2, "crawl", { search_volume: 90 }),
       z("2026-09-29", "pontresina", 3, "gsc"),
     ],
+    rankTage: async (tage) =>
+      [
+        z("2026-08-30", "pontresina", 20, null),
+        z("2026-08-30", "hotel pontresina", 1, null),
+        z("2026-08-30", "bernina hotel", null, null),
+        z("2026-09-28", "pontresina", 6, "crawl"),
+        z("2026-09-28", "bernina hotel", 2, "crawl"),
+        z("2026-09-28", "hotel pontresina", 9, "gsc"),
+      ].filter((r) => tage.includes(r.date)),
+    labsGespeichert: async () => LABS_LAUF,
+    // Läufe erst ab Juli 2026 gespeichert — Vorjahr fehlt in EzyHub
+    backlinkLauf: async (bisIso) => (bisIso >= "2026-09-30" ? AHREFS_LAUF : null),
     googleToken: async () => "TOKEN",
     gscPeriode: async (_t, von) => periode(von.startsWith("2026-09") ? 100 : 80),
     gscTopSeiten: async () => [
@@ -435,7 +558,14 @@ describe("berechneSeoReport", () => {
   it("Bernina September 2026: alle Blöcke, Kosten, Quellen", async () => {
     const q = quellen();
     const r: any = await berechneSeoReport(BERNINA, "2026-09", q, opts);
-    expect(r.visibility).toMatchObject({ metric: "etv", current: 1283.4, previous: 2174.3 });
+    expect(r.visibility).toMatchObject({
+      source: "ezyhub",
+      data_date: "2026-10-09",
+      metric: "etv",
+      current: 1283.4,
+      previous: 2174.3,
+      previous_year: 1524.2,
+    });
     expect(r.rankings).toMatchObject({
       source: "ezyhub",
       previous_source: "rank_daily",
@@ -458,13 +588,36 @@ describe("berechneSeoReport", () => {
       expect.objectContaining({ keyword: "hotel pontresina", position: null, lost: true }),
       expect.objectContaining({ keyword: "bernina hotel", brand: true, new: true }),
     ]);
-    expect(r.rankings.distribution.current).toEqual({ top3: 5, top10: 15, top20: 38, top100: 84 });
-    expect(r.backlinks.source).toBe("ahrefs");
+    expect(r.rankings.distribution).toEqual({
+      source: "rank_daily",
+      basis: "crawl",
+      data_dates: { current: "2026-09-28", previous: "2026-08-30" },
+      current: { top3: 1, top10: 2, top20: 2, top100: 2, total_tracked: 3 },
+      previous: { top3: 1, top10: 1, top20: 2, top100: 2, total_tracked: 3 },
+    });
+    expect(r.backlinks.source).toBe("ezyhub_with_live_fallback");
+    expect(r.backlinks.sources).toEqual({
+      current: "ezyhub",
+      previous: "ezyhub",
+      previous_year: "ahrefs_live",
+    });
+    expect(r.backlinks.ezyrank).toEqual({
+      run_date: "2026-09-30",
+      provider: "ahrefs",
+      domain_rating: 26,
+      backlinks_live: 3350,
+      referring_domains_live: 792,
+    });
     expect(r.backlinks.referring_domains).toMatchObject({
-      current: 843,
+      current: 851,
       previous: 446,
       previous_year: 87,
-      change: 397,
+      change: 405,
+    });
+    expect(r.checks).toContainEqual({
+      field: "backlinks.referring_domains.previous_year",
+      level: "warn",
+      message: "EzyHub hat für 2025-09 keine gespeicherten Daten, Wert live von Ahrefs abgefragt",
     });
     expect(r.gsc.current).toMatchObject({ clicks: 100, impressions: 2000 });
     expect(r.gsc.current.brand.clicks).toBe(95);
@@ -472,22 +625,23 @@ describe("berechneSeoReport", () => {
     expect(r.gsc.ranges.current).toEqual({ startDate: "2026-09-01", endDate: "2026-09-30" });
     expect(r.gsc.opportunity_keywords).toEqual([expect.objectContaining({ query: "pontresina" })]);
     expect(r.ga4.current.sessions).toBe(400);
-    expect(r.meta).toMatchObject({ dataforseo_cost: 0.0103, ahrefs_units: 18, errors: [] });
-    expect(q.aufrufe).toEqual(["dataforseo_labs/google/historical_rank_overview/live"]);
+    expect(r.meta).toMatchObject({ dataforseo_cost: 0, ahrefs_units: 18, errors: [] });
+    expect(q.aufrufe).toEqual([]);
     expect(JSON.stringify(r)).not.toMatch(/sistrix|traffic"/i);
   });
 
-  it("Ahrefs-Fehler: Rückweg DataForSEO, Quelle im JSON", async () => {
+  it("Vorjahr fehlt, Ahrefs-Fehler: Rückweg DataForSEO, Quelle im JSON", async () => {
     const q = quellen({
       ahrefs: async () => ({ ok: false, error: "Ahrefs HTTP 429: limit", units: 0 }),
     });
     const r: any = await berechneSeoReport(BERNINA, "2026-09", q, opts);
-    expect(r.backlinks.source).toBe("dataforseo");
+    expect(r.backlinks.sources.previous_year).toBe("dataforseo_live");
     expect(r.backlinks.referring_domains).toMatchObject({
-      current: 93,
-      previous: 85,
+      current: 851,
+      previous: 446,
       previous_year: 70,
     });
+    expect(q.aufrufe).toEqual(["backlinks/timeseries_summary/live"]);
     expect(r.meta.errors).toEqual([{ source: "ahrefs", message: "Ahrefs HTTP 429: limit" }]);
   });
 
@@ -500,12 +654,45 @@ describe("berechneSeoReport", () => {
           : { ok: true, items: LABS, cost: 0.01 },
     });
     const r: any = await berechneSeoReport(BERNINA, "2026-09", q, opts);
-    expect(r.backlinks.source).toBe("dataforseo");
-    expect(r.backlinks.referring_domains.current).toBeNull();
+    expect(r.backlinks.source).toBe("ezyhub");
+    expect(r.backlinks.referring_domains.previous_year).toBeNull();
     expect(r.meta.errors).toEqual([
       { source: "dataforseo.backlinks", message: "Payment required" },
     ]);
     expect(r.visibility.current).toBe(1283.4);
+  });
+
+  it("ohne gespeicherte Daten: alles live, source und Warnungen gesetzt", async () => {
+    const q = quellen({ labsGespeichert: async () => null, backlinkLauf: async () => null });
+    const r: any = await berechneSeoReport(BERNINA, "2026-09", q, opts);
+    expect(r.visibility).toMatchObject({ source: "dataforseo_live", current: 1283.4 });
+    expect(r.backlinks.source).toBe("live");
+    expect(r.backlinks.ezyrank).toBeNull();
+    expect(r.backlinks.referring_domains).toMatchObject({
+      current: 843,
+      previous: 446,
+      previous_year: 87,
+    });
+    expect(q.aufrufe).toEqual(["dataforseo_labs/google/historical_rank_overview/live"]);
+    expect(
+      r.checks
+        .filter((c: any) => c.message.startsWith("EzyHub hat"))
+        .map((c: any) => c.field)
+        .sort(),
+    ).toEqual([
+      "backlinks.referring_domains.current",
+      "backlinks.referring_domains.previous",
+      "backlinks.referring_domains.previous_year",
+      "visibility",
+    ]);
+  });
+
+  it("gespeicherte Labs-Historie ohne Berichtsmonat: Rückweg live", async () => {
+    const ohneSept = { ...LABS_LAUF, result: { months: LABS_LAUF.result.months.slice(0, 2) } };
+    const q = quellen({ labsGespeichert: async () => ohneSept });
+    const r: any = await berechneSeoReport(BERNINA, "2026-09", q, opts);
+    expect(r.visibility.source).toBe("dataforseo_live");
+    expect(r.meta.dataforseo_cost).toBe(0.0103);
   });
 
   it("lost nur mit DataForSEO-Position im Vormonat (GSC-Wert zählt nicht)", async () => {

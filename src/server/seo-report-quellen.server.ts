@@ -116,7 +116,7 @@ export async function ladeRankZeilen(
   keywords: string[] = [],
 ): Promise<RankZeile[]> {
   const sb = supabaseAdmin as any;
-  const felder = "date, keyword, position, pos_src, method, url, search_volume";
+  const felder = "date, keyword, position, pos_src, method, url, search_volume, country, device";
   const alle: RankZeile[] = [];
   const seite = 1000;
   for (let ab = 0; ab < 50_000; ab += seite) {
@@ -153,6 +153,51 @@ export async function ladeRankZeilen(
     position: r.position == null ? null : Number(r.position),
     search_volume: r.search_volume == null ? null : Number(r.search_volume),
   }));
+}
+
+/** Alle rank_daily-Zeilen der Messtage (auch ohne Position) — Basis der Verteilung. */
+export async function ladeRankTage(clientId: string, tage: string[]): Promise<RankZeile[]> {
+  if (!tage.length) return [];
+  const sb = supabaseAdmin as any;
+  const alle: RankZeile[] = [];
+  const seite = 1000;
+  for (let ab = 0; ab < 50_000; ab += seite) {
+    const { data, error } = await sb
+      .from("rank_daily")
+      .select("date, keyword, position, pos_src, method, url, search_volume, country, device")
+      .eq("client_id", clientId)
+      .in("date", tage)
+      .order("date")
+      .order("keyword")
+      .range(ab, ab + seite - 1);
+    if (error) throw new Error(`rank_daily: ${error.message}`);
+    alle.push(...(data ?? []));
+    if (!data || data.length < seite) break;
+  }
+  return alle.map((r) => ({ ...r, position: r.position == null ? null : Number(r.position) }));
+}
+
+export type GespeicherterLauf = { created_at: string; result: any };
+
+/**
+ * Jüngster gespeicherter Lauf eines Typs (audit_runs, succeeded), optional bis
+ * zu einem Zeitpunkt — gleiche Auswahl wie useEzyLatestRun im Dashboard.
+ */
+export async function ladeGespeichertenLauf(
+  clientId: string,
+  auditType: "labs_history" | "ahrefs",
+  bisIso?: string,
+): Promise<GespeicherterLauf | null> {
+  let q = (supabaseAdmin as any)
+    .from("audit_runs")
+    .select("created_at, result")
+    .eq("client_id", clientId)
+    .eq("audit_type", auditType)
+    .eq("status", "succeeded");
+  if (bisIso) q = q.lte("created_at", bisIso);
+  const { data, error } = await q.order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(`audit_runs ${auditType}: ${error.message}`);
+  return data ?? null;
 }
 
 /** Google-Zugriff des Kunden (GSC/GA4); null = nicht verbunden oder abgeschaltet. */

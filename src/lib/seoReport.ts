@@ -175,6 +175,68 @@ export function dfsBacklinkMonateAus(items: any[] | null | undefined): BacklinkM
     .filter((x) => istMonat(x.month) && Number.isFinite(x.referring_domains));
 }
 
+// ── Gespeicherte EzyHub-Daten (22.10.2026) ──────────────────────────────────
+/** Monate aus dem gespeicherten labs_history-Lauf des agent-service (`result.months`). */
+export function labsMonateAusGespeichert(months: any[] | null | undefined): LabsMonat[] {
+  return (months ?? [])
+    .map((m) => {
+      const pos: Record<string, number> = {};
+      for (const [k, v] of Object.entries(m ?? {}))
+        if (k.startsWith("pos_")) pos[k] = Number(v) || 0;
+      return {
+        month: String(m?.month ?? ""),
+        etv: Number(m?.etv) || 0,
+        count: Number(m?.keywords) || 0,
+        pos,
+      };
+    })
+    .filter((m) => istMonat(m.month))
+    .sort((a, b) => a.month.localeCompare(b.month));
+}
+
+export type RefdomainPunkt = { date: string; refdomains: number };
+
+/**
+ * Verlauf der verweisenden Domains aus einem gespeicherten EzyRank-Backlink-Lauf
+ * (audit_runs 'ahrefs'): Ahrefs { refdomains_history.refdomains[] } wöchentlich,
+ * ältere DataForSEO-Läufe { refdomains_history.items[] } — wie das Dashboard.
+ */
+export function refdomainsVerlaufAus(result: any): RefdomainPunkt[] {
+  const rows = result?.refdomains_history?.refdomains ?? result?.refdomains_history?.items;
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .map((r: any) => ({
+      date: String(r?.date ?? "").slice(0, 10),
+      refdomains: Number(r?.refdomains ?? r?.referring_domains),
+    }))
+    .filter((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.date) && Number.isFinite(r.refdomains))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** Stand zum Monatsende: letzter Verlaufspunkt innerhalb des Monats. */
+export function refdomainsZumMonatsende(verlauf: RefdomainPunkt[], monat: string): number | null {
+  const imMonat = verlauf.filter((p) => p.date.slice(0, 7) === monat);
+  return imMonat.length ? imMonat[imMonat.length - 1].refdomains : null;
+}
+
+/** Kacheln des EzyRank-Dashboards aus demselben Lauf (Domain Rating, Backlinks live). */
+export function backlinkStandAus(result: any): {
+  domain_rating: number | null;
+  backlinks_live: number | null;
+  referring_domains_live: number | null;
+} {
+  const r = result || {};
+  const drNode = r.domain_rating?.domain_rating ?? r.domain_rating ?? {};
+  const dr = (typeof drNode === "number" ? drNode : drNode?.domain_rating) ?? r.domain_rating?.rank;
+  const bl = r.backlinks_stats?.metrics ?? r.backlinks_stats ?? {};
+  const zahl = (v: unknown) => (Number.isFinite(Number(v)) && v != null ? Number(v) : null);
+  return {
+    domain_rating: zahl(dr),
+    backlinks_live: zahl(bl.live ?? bl.all_time ?? bl.backlinks),
+    referring_domains_live: zahl(bl.live_refdomains ?? bl.referring_domains),
+  };
+}
+
 export function refdomainsIm(reihe: BacklinkMonat[] | null, monat: string): number | null {
   return reihe?.find((x) => x.month === monat)?.referring_domains ?? null;
 }
@@ -188,7 +250,23 @@ export type RankZeile = {
   method: string | null;
   url: string | null;
   search_volume: number | null;
+  /** Messland/-gerät (internationale Zusatzmessungen); fehlt in älteren Tests */
+  country?: string | null;
+  device?: string | null;
 };
+
+/**
+ * Hauptmessung eines Tages: häufigste Kombination aus Land und Gerät.
+ * Internationale Zusatzmessungen (alle 10 Tage) zählen damit nicht doppelt.
+ */
+export function hauptmessung(zeilen: RankZeile[]): RankZeile[] {
+  const schluessel = (r: RankZeile) => `${r.country ?? ""}|${r.device ?? ""}`;
+  const n = new Map<string, number>();
+  for (const r of zeilen) n.set(schluessel(r), (n.get(schluessel(r)) ?? 0) + 1);
+  if (n.size <= 1) return zeilen;
+  const best = [...n.entries()].sort((a, b) => b[1] - a[1])[0][0];
+  return zeilen.filter((r) => schluessel(r) === best);
+}
 
 /**
  * DataForSEO-Messung? Seit 09.09.2026 «hybrid»: pos_src crawl = DataForSEO,
@@ -225,14 +303,46 @@ export type DfsPos = { position: number; url: string | null };
 export function positionenAm(zeilen: RankZeile[], tag: string | null): Map<string, DfsPos> {
   const m = new Map<string, DfsPos>();
   if (!tag) return m;
-  for (const r of zeilen) {
-    if (r.date !== tag || !istDfsZeile(r)) continue;
+  for (const r of hauptmessung(zeilen.filter((z) => z.date === tag && istDfsZeile(z)))) {
     const k = r.keyword.trim().toLowerCase();
     const alt = m.get(k);
     if (!alt || (r.position as number) < alt.position)
       m.set(k, { position: r.position as number, url: r.url });
   }
   return m;
+}
+
+export type RankVerteilung = Verteilung & { total_tracked: number };
+
+/**
+ * Ranking-Verteilung aus rank_daily an einem DataForSEO-Messtag (22.10.2026):
+ * nur Crawl-Positionen (GSC-Ø zählt nicht), kumuliert; total_tracked = alle an
+ * dem Tag getrackten Keywords (auch ohne Position). `zeilen` = ALLE Zeilen des Tages.
+ */
+export function verteilungAusRankDaily(
+  zeilen: RankZeile[],
+  tag: string | null,
+): RankVerteilung | null {
+  if (!tag) return null;
+  const tagZ = hauptmessung(zeilen.filter((r) => r.date === tag));
+  if (!tagZ.length) return null;
+  const alle = new Set<string>();
+  const best = new Map<string, number>();
+  for (const r of tagZ) {
+    const k = r.keyword.trim().toLowerCase();
+    alle.add(k);
+    if (!istDfsZeile(r)) continue;
+    const p = r.position as number;
+    if (!best.has(k) || p < (best.get(k) as number)) best.set(k, p);
+  }
+  const bis = (max: number) => [...best.values()].filter((p) => p <= max).length;
+  return {
+    top3: bis(3),
+    top10: bis(10),
+    top20: bis(20),
+    top100: bis(100),
+    total_tracked: alle.size,
+  };
 }
 
 /** Suchvolumen je Keyword (jüngster Wert). */
@@ -414,6 +524,8 @@ export type ReportTeile = {
   keywords: KeywordReport[] | null;
   konfigFehlt: boolean;
   refdomains: { current: number | null; previous: number | null };
+  /** Werte, die mangels gespeicherter EzyHub-Daten live abgefragt wurden */
+  liveRueckwege?: Array<{ field: string; quelle: string; monat: string }>;
 };
 
 /** Plausibilitätsprüfungen laut Spezifikation — markieren, nie korrigieren. */
@@ -458,6 +570,12 @@ export function berechneChecks(t: ReportTeile): Check[] {
         level: "info",
         message: `Keyword «${k.keyword}» verliert ${-k.change} Positionen`,
       });
+  for (const l of t.liveRueckwege ?? [])
+    c.push({
+      field: l.field,
+      level: "warn",
+      message: `EzyHub hat für ${l.monat} keine gespeicherten Daten, Wert live von ${l.quelle} abgefragt`,
+    });
   if (t.konfigFehlt)
     c.push({
       field: "rankings",

@@ -1,21 +1,30 @@
-// SEO-Monatsreport für n8n «SEO Monatspräsentation» (21.10.2026). Alle Daten aus
-// EzyHub bzw. den EzyHub-Integrationen — kein Sistrix:
-//   rankings.keywords      EzyHub-Keyword-Liste (rank_daily, nur DataForSEO-Messtage)
-//                          + GSC-Klicks/-Impressionen je Keyword
-//   rankings.distribution  DataForSEO Labs historical_rank_overview
-//   visibility (ETV)       DataForSEO Labs historical_rank_overview
-//   backlinks              Ahrefs refdomains-history (wie EzyRank-Modul),
-//                          DataForSEO timeseries_summary als Rückweg
-//   gsc / ga4              Live über die Google-Anbindung des Kunden
+// SEO-Monatsreport für n8n «SEO Monatspräsentation» (21.10.2026). Grundsatz
+// (22.10.2026): jeder Wert aus EzyHub, gleiche Quelle wie das Dashboard; live
+// nur als Rückweg, wenn EzyHub für den Monat nichts gespeichert hat (source +
+// checks-Warnung). Kein Sistrix.
+//   rankings.keywords      rank_daily, nur DataForSEO-Messtage (+ GSC je Keyword)
+//   rankings.distribution  rank_daily, Crawl-Positionen am letzten Messtag
+//   visibility (ETV)       gespeicherter labs_history-Lauf des agent-service
+//                          (Rückweg: DataForSEO Labs live)
+//   backlinks              gespeicherte EzyRank-Läufe (audit_runs 'ahrefs')
+//                          (Rückweg: Ahrefs bzw. DataForSEO live)
+//   gsc / ga4              gleiche Funktionen wie das Dashboard (gscTotals,
+//                          GA4 «Organic Search») über die Google-Anbindung
 // Konfiguration: clients + seo_report_config. Jeder Abruf wird als Monats-
 // Snapshot in seo_report_snapshots gespeichert; der zweite Aufruf kostet nichts.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { normalizeDomain } from "./backlink-overview.server";
 import {
   ahrefsMonateAus,
+  backlinkStandAus,
   dfsBacklinkMonateAus,
+  labsMonateAusGespeichert,
   refdomainsIm,
+  refdomainsVerlaufAus,
+  refdomainsZumMonatsende,
+  verteilungAusRankDaily,
   type BacklinkMonat,
+  type LabsMonat,
   berechneChecks,
   berechneKeywords,
   berechneSichtbarkeit,
@@ -32,7 +41,6 @@ import {
   positionenAm,
   positionenAusSnapshot,
   veraenderung,
-  verteilungAus,
   volumenJeKeyword,
   type GscKennzahlen,
   type RankZeile,
@@ -47,7 +55,10 @@ import {
   googleToken,
   gscPeriode,
   gscTopSeiten,
+  ladeGespeichertenLauf,
+  ladeRankTage,
   ladeRankZeilen,
+  type GespeicherterLauf,
   type DfsAntwort,
   type Ga4Werte,
   type GscPeriode,
@@ -190,6 +201,12 @@ export type Quellen = {
   dfs: ((pfad: string, task: Record<string, unknown>) => Promise<DfsAntwort>) | null;
   ahrefs: ((von: string, bis: string) => Promise<AhrefsAntwort>) | null;
   rankZeilen: (von: string, bis: string, keywords: string[]) => Promise<RankZeile[]>;
+  /** alle rank_daily-Zeilen der Messtage (Verteilung) */
+  rankTage: (tage: string[]) => Promise<RankZeile[]>;
+  /** jüngster gespeicherter labs_history-Lauf */
+  labsGespeichert: () => Promise<GespeicherterLauf | null>;
+  /** jüngster gespeicherter EzyRank-Backlink-Lauf bis zum Zeitpunkt */
+  backlinkLauf: (bisIso: string) => Promise<GespeicherterLauf | null>;
   googleToken: () => Promise<string | null>;
   gscPeriode: (token: string, von: string, bis: string) => Promise<GscPeriode>;
   gscTopSeiten: (token: string, von: string, bis: string) => Promise<any[]>;
@@ -207,6 +224,9 @@ export function echteQuellen(k: SeoKonfig, monat: string): Quellen {
     dfs: auth ? (pfad, task) => dfsTask(pfad, task, { auth }) : null,
     ahrefs: ahrefs ? (von, bis) => ahrefsRefdomains(k.domain, von, bis, { auth: ahrefs }) : null,
     rankZeilen: (von, bis, kws) => ladeRankZeilen(k.id, von, bis, kws),
+    rankTage: (tage) => ladeRankTage(k.id, tage),
+    labsGespeichert: () => ladeGespeichertenLauf(k.id, "labs_history"),
+    backlinkLauf: (bisIso) => ladeGespeichertenLauf(k.id, "ahrefs", bisIso),
     googleToken: () => googleToken(k.id),
     gscPeriode: (t, von, bis) => gscPeriode(String(k.gsc_property), t, von, bis),
     gscTopSeiten: (t, von, bis) => gscTopSeiten(String(k.gsc_property), t, von, bis),
@@ -218,6 +238,18 @@ export function echteQuellen(k: SeoKonfig, monat: string): Quellen {
 const kleinerDatum = (a: string, b: string) => (a < b ? a : b);
 const minusTage = (ymd: string, n: number) =>
   new Date(Date.parse(`${ymd}T00:00:00Z`) - n * 864e5).toISOString().slice(0, 10);
+
+/** Tagesende in Zürich als ISO-Zeitpunkt (Sommerzeit Ende März bis Ende Oktober). */
+export function tagesendeZuerich(ymd: string): string {
+  const m = Number(ymd.slice(5, 7));
+  return `${ymd}T23:59:59.999${m >= 3 && m <= 9 ? "+02:00" : "+01:00"}`;
+}
+
+type BacklinkWert = {
+  wert: number | null;
+  quelle: "ezyhub" | "ahrefs_live" | "dataforseo_live" | null;
+  lauf: GespeicherterLauf | null;
+};
 
 type GscBlock = GscKennzahlen & { brand: GscKennzahlen; nonbrand: GscKennzahlen };
 
@@ -241,7 +273,7 @@ export async function berechneSeoReport(
   const ende = monatsEnde(monat);
   const istBrand = brandErkenner(k.brand_regex);
 
-  // ── DataForSEO Labs (ETV + Verteilung) und Backlinks (Ahrefs), parallel ─────
+  const liveRueckwege: Array<{ field: string; quelle: string; monat: string }> = [];
   const dfs = async (quelle: string, pfad: string, task: Record<string, unknown>) => {
     if (!q.dfs) {
       errors.push({ source: quelle, message: "DATAFORSEO_LOGIN/PASSWORD fehlt" });
@@ -254,45 +286,116 @@ export async function berechneSeoReport(
     errors.push({ source: quelle, message: r.error });
     return null;
   };
+
+  // ── Sichtbarkeit (ETV): gespeicherter labs_history-Lauf, live nur als Rückweg
+  const sichtbarkeitLaden = async (): Promise<{
+    labs: LabsMonat[] | null;
+    quelle: "ezyhub" | "dataforseo_live" | null;
+    stand: string | null;
+  }> => {
+    let gespeichert: LabsMonat[] | null = null;
+    let stand: string | null = null;
+    try {
+      const lauf = await q.labsGespeichert();
+      if (lauf) {
+        gespeichert = labsMonateAusGespeichert(lauf.result?.months);
+        stand = String(lauf.created_at).slice(0, 10);
+      }
+    } catch (e) {
+      fehler("labs_history", e);
+    }
+    if (gespeichert?.some((m) => m.month === monat))
+      return { labs: gespeichert, quelle: "ezyhub", stand };
+    const items = await dfs(
+      "dataforseo.labs",
+      "dataforseo_labs/google/historical_rank_overview/live",
+      {
+        target: k.domain,
+        location_code: k.dfs_location_code,
+        language_code: k.dfs_language_code,
+        date_from: `${vj}-01`,
+        date_to: kleinerDatum(ende, heute),
+      },
+    );
+    if (items) {
+      liveRueckwege.push({ field: "visibility", quelle: "DataForSEO Labs", monat });
+      return { labs: labsMonateAus(items), quelle: "dataforseo_live", stand: heute };
+    }
+    return { labs: gespeichert, quelle: gespeichert ? "ezyhub" : null, stand };
+  };
+
+  // ── Backlinks: gespeicherte EzyRank-Läufe, live nur für fehlende Monate ────
   // Ahrefs kennt kein «heute» (bad date) -> spätestens gestern
   const blBis = kleinerDatum(ende, minusTage(heute, 1));
-  const backlinksLaden = async (): Promise<{
-    quelle: "ahrefs" | "dataforseo";
-    reihe: BacklinkMonat[] | null;
-  }> => {
-    if (q.ahrefs) {
-      const a = await q.ahrefs(`${vj}-01`, blBis);
-      ahrefsUnits += a.units;
-      if (a.ok) return { quelle: "ahrefs", reihe: ahrefsMonateAus(a.rows) };
-      errors.push({ source: "ahrefs", message: a.error });
+  const backlinksLaden = async () => {
+    const laufBis = async (m: string) => {
+      try {
+        return await q.backlinkLauf(tagesendeZuerich(monatsEnde(m)));
+      } catch (e) {
+        fehler("ezyrank_backlinks", e);
+        return null;
+      }
+    };
+    const laufCur = await laufBis(monat);
+    const ausLauf = async (m: string): Promise<BacklinkWert> => {
+      for (const lauf of [laufCur, m === monat ? null : await laufBis(m)]) {
+        if (!lauf) continue;
+        const wert = refdomainsZumMonatsende(refdomainsVerlaufAus(lauf.result), m);
+        if (wert != null) return { wert, quelle: "ezyhub", lauf };
+      }
+      return { wert: null, quelle: null, lauf: null };
+    };
+    const werte: Record<"current" | "previous" | "previous_year", BacklinkWert> = {
+      current: await ausLauf(monat),
+      previous: await ausLauf(vm),
+      previous_year: await ausLauf(vj),
+    };
+    const monatVon = { current: monat, previous: vm, previous_year: vj };
+    const fehlend = (Object.keys(werte) as Array<keyof typeof werte>).filter(
+      (p) => werte[p].wert == null,
+    );
+    if (fehlend.length) {
+      const monate = fehlend.map((p) => monatVon[p]).sort();
+      const von = `${monate[0]}-01`;
+      const letzter = monate[monate.length - 1];
+      let reihe: BacklinkMonat[] | null = null;
+      let quelle: "ahrefs_live" | "dataforseo_live" = "ahrefs_live";
+      if (q.ahrefs) {
+        const a = await q.ahrefs(von, kleinerDatum(monatsEnde(letzter), blBis));
+        ahrefsUnits += a.units;
+        if (a.ok) reihe = ahrefsMonateAus(a.rows);
+        else errors.push({ source: "ahrefs", message: a.error });
+      }
+      if (!reihe) {
+        quelle = "dataforseo_live";
+        const items = await dfs("dataforseo.backlinks", "backlinks/timeseries_summary/live", {
+          target: k.domain,
+          date_from: von,
+          date_to: kleinerDatum(monatsEnde(letzter), heute),
+          group_range: "month",
+        });
+        reihe = items ? dfsBacklinkMonateAus(items) : null;
+      }
+      for (const p of fehlend) {
+        const wert = refdomainsIm(reihe, monatVon[p]);
+        if (wert == null) continue;
+        werte[p] = { wert, quelle, lauf: null };
+        liveRueckwege.push({
+          field: `backlinks.referring_domains.${p}`,
+          quelle: quelle === "ahrefs_live" ? "Ahrefs" : "DataForSEO",
+          monat: monatVon[p],
+        });
+      }
     }
-    const items = await dfs("dataforseo.backlinks", "backlinks/timeseries_summary/live", {
-      target: k.domain,
-      date_from: `${vj}-01`,
-      date_to: kleinerDatum(ende, heute),
-      group_range: "month",
-    });
-    return { quelle: "dataforseo", reihe: items ? dfsBacklinkMonateAus(items) : null };
+    return werte;
   };
-  const [labsItems, bl] = await Promise.all([
-    dfs("dataforseo.labs", "dataforseo_labs/google/historical_rank_overview/live", {
-      target: k.domain,
-      location_code: k.dfs_location_code,
-      language_code: k.dfs_language_code,
-      date_from: `${vj}-01`,
-      date_to: kleinerDatum(ende, heute),
-    }),
-    backlinksLaden(),
-  ]);
-  const labs = labsItems ? labsMonateAus(labsItems) : null;
+
+  const [sicht, bl] = await Promise.all([sichtbarkeitLaden(), backlinksLaden()]);
+  const labs = sicht.labs;
   const visibility = berechneSichtbarkeit(labs, monat);
-  const distribution = {
-    current: labs ? verteilungAus(labs.find((m) => m.month === monat)) : null,
-    previous: labs ? verteilungAus(labs.find((m) => m.month === vm)) : null,
-  };
-  const rdCur = refdomainsIm(bl.reihe, monat);
-  const rdPrev = refdomainsIm(bl.reihe, vm);
-  const rdPy = refdomainsIm(bl.reihe, vj);
+  const rdCur = bl.current.wert;
+  const rdPrev = bl.previous.wert;
+  const rdPy = bl.previous_year.wert;
 
   // ── Google: Token einmal, dann GSC (3 Zeiträume + Top-Seiten) und GA4 ───────
   const token = k.gsc_property || k.ga4_property_id ? await q.googleToken() : null;
@@ -390,6 +493,19 @@ export async function berechneSeoReport(
     vorher = positionenAusSnapshot(await q.snapshotVormonat().catch(() => null));
     if (vorher) vorherQuelle = "snapshot";
   }
+  let tagesZeilen: RankZeile[] = [];
+  const messtage = [tagCur, tagPrev].filter((t): t is string => !!t);
+  if (messtage.length) {
+    try {
+      tagesZeilen = await q.rankTage(messtage);
+    } catch (e) {
+      fehler("rank_daily", e);
+    }
+  }
+  const distribution = {
+    current: verteilungAusRankDaily(tagesZeilen, tagCur),
+    previous: verteilungAusRankDaily(tagesZeilen, tagPrev),
+  };
   const keywords = tagCur
     ? berechneKeywords({
         aktuell: positionenAm(rankZeilen, tagCur),
@@ -409,7 +525,12 @@ export async function berechneSeoReport(
     keywords,
     konfigFehlt: !k.strategic_keywords.length,
     refdomains: { current: rdCur, previous: rdPrev },
+    liveRueckwege,
   });
+  const quellenBl = [bl.current.quelle, bl.previous.quelle, bl.previous_year.quelle].filter(
+    (x) => x != null,
+  );
+  const blStandLauf = bl.current.lauf;
 
   return {
     client: {
@@ -428,16 +549,40 @@ export async function berechneSeoReport(
       previous_year_month: vj,
       data_dates: { rankings_current: tagCur, rankings_previous: tagPrev },
     },
-    visibility,
+    visibility: visibility ? { source: sicht.quelle, data_date: sicht.stand, ...visibility } : null,
     rankings: {
       source: "ezyhub",
       previous_source: vorherQuelle,
       selection: k.strategic_keywords.length ? "strategic_keywords" : "top_search_volume",
       keywords,
-      distribution: { source: "dataforseo_labs", ...distribution },
+      distribution: {
+        source: "rank_daily",
+        basis: "crawl",
+        data_dates: { current: tagCur, previous: tagPrev },
+        ...distribution,
+      },
     },
     backlinks: {
-      source: bl.quelle,
+      source: !quellenBl.length
+        ? null
+        : quellenBl.every((x) => x === "ezyhub")
+          ? "ezyhub"
+          : quellenBl.some((x) => x === "ezyhub")
+            ? "ezyhub_with_live_fallback"
+            : "live",
+      sources: {
+        current: bl.current.quelle,
+        previous: bl.previous.quelle,
+        previous_year: bl.previous_year.quelle,
+      },
+      /** Stand des EzyRank-Laufs zum Monatsende (Kacheln Domain Rating / Backlinks) */
+      ezyrank: blStandLauf
+        ? {
+            run_date: String(blStandLauf.created_at).slice(0, 10),
+            provider: blStandLauf.result?.source ?? "ahrefs",
+            ...backlinkStandAus(blStandLauf.result),
+          }
+        : null,
       referring_domains: {
         current: rdCur,
         previous: rdPrev,
