@@ -4892,6 +4892,22 @@ function EzyAiApp() {
     } else alert(j?.error || "Link konnte nicht erstellt werden");
   };
 
+  // GSC «Generative KI» (KI-Übersichten + KI-Modus) als Abschnitt unter dem
+  // Traffic (Volkan 26.10.2026: kein eigener Tab) — API sobald verfügbar,
+  // sonst CSV-Import.
+  const gscKiAbschnitt = client ? (
+    <div style={{ marginTop: 24 }}>
+      <Suspense fallback={null}>
+        <GscKiPanel
+          clientId={client.id}
+          S={S}
+          range={range}
+          canUpload={!!role && role !== "viewer"}
+        />
+      </Suspense>
+    </div>
+  ) : null;
+
   return (
     <ToastProvider>
       <EzyPilotProvider selectedClient={client} clients={clients} tools={[]}>
@@ -5488,7 +5504,10 @@ function EzyAiApp() {
                 ) : section === "llm-analytics" ? (
                   <LlmAnalyticsPanel clientId={client.id} S={S} range={range} compare={compare} />
                 ) : section === "traffic" ? (
-                  <TrafficPanel clientId={client.id} S={S} range={range} compare={compare} />
+                  <>
+                    <TrafficPanel clientId={client.id} S={S} range={range} compare={compare} />
+                    {gscKiAbschnitt}
+                  </>
                 ) : section === "first-party" ? (
                   <Suspense fallback={null}>
                     <FirstPartyGeo clientId={client.id} client={client} range={range} S={S} />
@@ -5619,24 +5638,8 @@ function EzyAiApp() {
                                   compare={compare}
                                 />
                               </Suspense>
+                              {gscKiAbschnitt}
                             </div>
-                          ),
-                        },
-                        {
-                          // 26.10.2026: GSC «Generative KI» (KI-Übersichten +
-                          // KI-Modus) — API sobald verfügbar, sonst CSV-Import.
-                          id: "gsc-ki",
-                          label: "Google KI",
-                          icon: Sparkles,
-                          render: () => (
-                            <Suspense fallback={null}>
-                              <GscKiPanel
-                                clientId={client.id}
-                                S={S}
-                                range={range}
-                                canUpload={!!role && role !== "viewer"}
-                              />
-                            </Suspense>
                           ),
                         },
                       ]}

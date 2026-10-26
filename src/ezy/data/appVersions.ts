@@ -248,8 +248,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.36.0",
+    version: "1.36.1",
     changelog: [
+      {
+        version: "1.36.1",
+        date: "2026-10-26",
+        note: "«Google KI» ist kein eigener Tab mehr: der Search-Console-Bericht «Generative KI» steht jetzt im Traffic-Tab unter den KI-Besuchern",
+      },
       {
         version: "1.36.0",
         date: "2026-10-26",
