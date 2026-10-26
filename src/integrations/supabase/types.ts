@@ -2929,6 +2929,94 @@ export type Database = {
           },
         ]
       }
+      gsc_ki_imports: {
+        Row: {
+          client_id: string
+          compare_end: string | null
+          compare_start: string | null
+          created_at: string
+          dateiname: string | null
+          end_date: string | null
+          id: string
+          organization_id: string
+          start_date: string | null
+          tabellen: Json
+          total_imp: number
+          total_imp_prev: number | null
+          uploaded_by: string | null
+        }
+        Insert: {
+          client_id: string
+          compare_end?: string | null
+          compare_start?: string | null
+          created_at?: string
+          dateiname?: string | null
+          end_date?: string | null
+          id?: string
+          organization_id: string
+          start_date?: string | null
+          tabellen?: Json
+          total_imp?: number
+          total_imp_prev?: number | null
+          uploaded_by?: string | null
+        }
+        Update: {
+          client_id?: string
+          compare_end?: string | null
+          compare_start?: string | null
+          created_at?: string
+          dateiname?: string | null
+          end_date?: string | null
+          id?: string
+          organization_id?: string
+          start_date?: string | null
+          tabellen?: Json
+          total_imp?: number
+          total_imp_prev?: number | null
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gsc_ki_imports_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gsc_ki_tage: {
+        Row: {
+          client_id: string
+          datum: string
+          imp: number
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          datum: string
+          imp?: number
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          datum?: string
+          imp?: number
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gsc_ki_tage_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ingest_credentials: {
         Row: {
           client_id: string | null
