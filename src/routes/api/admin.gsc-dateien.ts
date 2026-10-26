@@ -67,37 +67,6 @@ export const Route = createFileRoute("/api/admin/gsc-dateien")({
             { ok: false, error: "Keine Search Console verbunden" },
             { status: 400 },
           );
-        // Diagnose 26.10.: kennt die API einen Typ fuer «Generative KI»? Nur
-        // Admin-Secret, nur lesend — gibt die rohe GSC-Antwort je Typ zurueck.
-        const probe = u.searchParams.getAll("probeType");
-        if (probe.length && !acc.userClient) {
-          const token = (await getGoogleAccessToken(clientId)).accessToken;
-          const out: any[] = [];
-          for (const typ of probe.slice(0, 8)) {
-            const extra =
-              typ === "-"
-                ? {}
-                : typ === "dims"
-                  ? { dimensions: ["searchAppearance"], rowLimit: 50 }
-                  : { type: typ };
-            const r = await fetch(
-              `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(String(client.gsc_property))}/searchAnalytics/query`,
-              {
-                method: "POST",
-                headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  startDate: zr.startDate,
-                  endDate: zr.endDate,
-                  dimensions: ["page"],
-                  rowLimit: 5,
-                  ...extra,
-                }),
-              },
-            );
-            out.push({ typ, status: r.status, body: (await r.text()).slice(0, 1200) });
-          }
-          return Response.json({ ok: true, out });
-        }
         try {
           const token = (await getGoogleAccessToken(clientId)).accessToken;
           const basis = {

@@ -83,6 +83,8 @@ import { Route as ApiAdminContentSyncRouteImport } from './routes/api/admin.cont
 import { Route as ApiAdminConversionCandidatesRouteImport } from './routes/api/admin.conversion-candidates'
 import { Route as ApiAdminConversionScanRouteImport } from './routes/api/admin.conversion-scan'
 import { Route as ApiAdminEwwwProvisionRouteImport } from './routes/api/admin.ewww-provision'
+import { Route as ApiAdminEzyrankKachelnRouteImport } from './routes/api/admin.ezyrank-kacheln'
+import { Route as ApiAdminEzyrankZeitraumRouteImport } from './routes/api/admin.ezyrank-zeitraum'
 import { Route as ApiAdminFirstPartyConnectionRouteImport } from './routes/api/admin.first-party-connection'
 import { Route as ApiAdminFirstPartySyncRouteImport } from './routes/api/admin.first-party-sync'
 import { Route as ApiAdminGa4ConversionsRouteImport } from './routes/api/admin.ga4-conversions'
@@ -90,6 +92,7 @@ import { Route as ApiAdminGbpRouteImport } from './routes/api/admin.gbp'
 import { Route as ApiAdminGeoGridSnapshotRouteImport } from './routes/api/admin.geo-grid-snapshot'
 import { Route as ApiAdminGratisTaktRouteImport } from './routes/api/admin.gratis-takt'
 import { Route as ApiAdminGscDateienRouteImport } from './routes/api/admin.gsc-dateien'
+import { Route as ApiAdminGscKiRouteImport } from './routes/api/admin.gsc-ki'
 import { Route as ApiAdminGtmRouteImport } from './routes/api/admin.gtm'
 import { Route as ApiAdminIngestCredentialsRouteImport } from './routes/api/admin.ingest-credentials'
 import { Route as ApiAdminKeywordClustersRouteImport } from './routes/api/admin.keyword-clusters'
@@ -108,8 +111,6 @@ import { Route as ApiAdminRankSnapshotRouteImport } from './routes/api/admin.ran
 import { Route as ApiAdminSecretStatusRouteImport } from './routes/api/admin.secret-status'
 import { Route as ApiAdminSecureMigrateRouteImport } from './routes/api/admin.secure-migrate'
 import { Route as ApiAdminSeoBerichtRouteImport } from './routes/api/admin.seo-bericht'
-import { Route as ApiAdminEzyrankKachelnRouteImport } from './routes/api/admin.ezyrank-kacheln'
-import { Route as ApiAdminEzyrankZeitraumRouteImport } from './routes/api/admin.ezyrank-zeitraum'
 import { Route as ApiAdminSeoClientsRouteImport } from './routes/api/admin.seo-clients'
 import { Route as ApiAdminSeoReportRouteImport } from './routes/api/admin.seo-report'
 import { Route as ApiAdminSetCanonryProjectRouteImport } from './routes/api/admin.set-canonry-project'
@@ -567,6 +568,16 @@ const ApiAdminEwwwProvisionRoute = ApiAdminEwwwProvisionRouteImport.update({
   path: '/api/admin/ewww-provision',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminEzyrankKachelnRoute = ApiAdminEzyrankKachelnRouteImport.update({
+  id: '/api/admin/ezyrank-kacheln',
+  path: '/api/admin/ezyrank-kacheln',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminEzyrankZeitraumRoute = ApiAdminEzyrankZeitraumRouteImport.update({
+  id: '/api/admin/ezyrank-zeitraum',
+  path: '/api/admin/ezyrank-zeitraum',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminFirstPartyConnectionRoute =
   ApiAdminFirstPartyConnectionRouteImport.update({
     id: '/api/admin/first-party-connection',
@@ -601,6 +612,11 @@ const ApiAdminGratisTaktRoute = ApiAdminGratisTaktRouteImport.update({
 const ApiAdminGscDateienRoute = ApiAdminGscDateienRouteImport.update({
   id: '/api/admin/gsc-dateien',
   path: '/api/admin/gsc-dateien',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminGscKiRoute = ApiAdminGscKiRouteImport.update({
+  id: '/api/admin/gsc-ki',
+  path: '/api/admin/gsc-ki',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminGtmRoute = ApiAdminGtmRouteImport.update({
@@ -694,16 +710,6 @@ const ApiAdminSecureMigrateRoute = ApiAdminSecureMigrateRouteImport.update({
 const ApiAdminSeoBerichtRoute = ApiAdminSeoBerichtRouteImport.update({
   id: '/api/admin/seo-bericht',
   path: '/api/admin/seo-bericht',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAdminEzyrankKachelnRoute = ApiAdminEzyrankKachelnRouteImport.update({
-  id: '/api/admin/ezyrank-kacheln',
-  path: '/api/admin/ezyrank-kacheln',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAdminEzyrankZeitraumRoute = ApiAdminEzyrankZeitraumRouteImport.update({
-  id: '/api/admin/ezyrank-zeitraum',
-  path: '/api/admin/ezyrank-zeitraum',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminSeoClientsRoute = ApiAdminSeoClientsRouteImport.update({
@@ -1148,6 +1154,8 @@ export interface FileRoutesByFullPath {
   '/api/admin/conversion-candidates': typeof ApiAdminConversionCandidatesRoute
   '/api/admin/conversion-scan': typeof ApiAdminConversionScanRoute
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
+  '/api/admin/ezyrank-kacheln': typeof ApiAdminEzyrankKachelnRoute
+  '/api/admin/ezyrank-zeitraum': typeof ApiAdminEzyrankZeitraumRoute
   '/api/admin/first-party-connection': typeof ApiAdminFirstPartyConnectionRoute
   '/api/admin/first-party-sync': typeof ApiAdminFirstPartySyncRoute
   '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
@@ -1155,6 +1163,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/geo-grid-snapshot': typeof ApiAdminGeoGridSnapshotRoute
   '/api/admin/gratis-takt': typeof ApiAdminGratisTaktRoute
   '/api/admin/gsc-dateien': typeof ApiAdminGscDateienRoute
+  '/api/admin/gsc-ki': typeof ApiAdminGscKiRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/ingest-credentials': typeof ApiAdminIngestCredentialsRoute
   '/api/admin/keyword-clusters': typeof ApiAdminKeywordClustersRoute
@@ -1173,8 +1182,6 @@ export interface FileRoutesByFullPath {
   '/api/admin/secret-status': typeof ApiAdminSecretStatusRoute
   '/api/admin/secure-migrate': typeof ApiAdminSecureMigrateRoute
   '/api/admin/seo-bericht': typeof ApiAdminSeoBerichtRoute
-  '/api/admin/ezyrank-kacheln': typeof ApiAdminEzyrankKachelnRoute
-  '/api/admin/ezyrank-zeitraum': typeof ApiAdminEzyrankZeitraumRoute
   '/api/admin/seo-clients': typeof ApiAdminSeoClientsRoute
   '/api/admin/seo-report': typeof ApiAdminSeoReportRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
@@ -1322,6 +1329,8 @@ export interface FileRoutesByTo {
   '/api/admin/conversion-candidates': typeof ApiAdminConversionCandidatesRoute
   '/api/admin/conversion-scan': typeof ApiAdminConversionScanRoute
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
+  '/api/admin/ezyrank-kacheln': typeof ApiAdminEzyrankKachelnRoute
+  '/api/admin/ezyrank-zeitraum': typeof ApiAdminEzyrankZeitraumRoute
   '/api/admin/first-party-connection': typeof ApiAdminFirstPartyConnectionRoute
   '/api/admin/first-party-sync': typeof ApiAdminFirstPartySyncRoute
   '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
@@ -1329,6 +1338,7 @@ export interface FileRoutesByTo {
   '/api/admin/geo-grid-snapshot': typeof ApiAdminGeoGridSnapshotRoute
   '/api/admin/gratis-takt': typeof ApiAdminGratisTaktRoute
   '/api/admin/gsc-dateien': typeof ApiAdminGscDateienRoute
+  '/api/admin/gsc-ki': typeof ApiAdminGscKiRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/ingest-credentials': typeof ApiAdminIngestCredentialsRoute
   '/api/admin/keyword-clusters': typeof ApiAdminKeywordClustersRoute
@@ -1347,8 +1357,6 @@ export interface FileRoutesByTo {
   '/api/admin/secret-status': typeof ApiAdminSecretStatusRoute
   '/api/admin/secure-migrate': typeof ApiAdminSecureMigrateRoute
   '/api/admin/seo-bericht': typeof ApiAdminSeoBerichtRoute
-  '/api/admin/ezyrank-kacheln': typeof ApiAdminEzyrankKachelnRoute
-  '/api/admin/ezyrank-zeitraum': typeof ApiAdminEzyrankZeitraumRoute
   '/api/admin/seo-clients': typeof ApiAdminSeoClientsRoute
   '/api/admin/seo-report': typeof ApiAdminSeoReportRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
@@ -1497,6 +1505,8 @@ export interface FileRoutesById {
   '/api/admin/conversion-candidates': typeof ApiAdminConversionCandidatesRoute
   '/api/admin/conversion-scan': typeof ApiAdminConversionScanRoute
   '/api/admin/ewww-provision': typeof ApiAdminEwwwProvisionRoute
+  '/api/admin/ezyrank-kacheln': typeof ApiAdminEzyrankKachelnRoute
+  '/api/admin/ezyrank-zeitraum': typeof ApiAdminEzyrankZeitraumRoute
   '/api/admin/first-party-connection': typeof ApiAdminFirstPartyConnectionRoute
   '/api/admin/first-party-sync': typeof ApiAdminFirstPartySyncRoute
   '/api/admin/ga4-conversions': typeof ApiAdminGa4ConversionsRoute
@@ -1504,6 +1514,7 @@ export interface FileRoutesById {
   '/api/admin/geo-grid-snapshot': typeof ApiAdminGeoGridSnapshotRoute
   '/api/admin/gratis-takt': typeof ApiAdminGratisTaktRoute
   '/api/admin/gsc-dateien': typeof ApiAdminGscDateienRoute
+  '/api/admin/gsc-ki': typeof ApiAdminGscKiRoute
   '/api/admin/gtm': typeof ApiAdminGtmRoute
   '/api/admin/ingest-credentials': typeof ApiAdminIngestCredentialsRoute
   '/api/admin/keyword-clusters': typeof ApiAdminKeywordClustersRoute
@@ -1522,8 +1533,6 @@ export interface FileRoutesById {
   '/api/admin/secret-status': typeof ApiAdminSecretStatusRoute
   '/api/admin/secure-migrate': typeof ApiAdminSecureMigrateRoute
   '/api/admin/seo-bericht': typeof ApiAdminSeoBerichtRoute
-  '/api/admin/ezyrank-kacheln': typeof ApiAdminEzyrankKachelnRoute
-  '/api/admin/ezyrank-zeitraum': typeof ApiAdminEzyrankZeitraumRoute
   '/api/admin/seo-clients': typeof ApiAdminSeoClientsRoute
   '/api/admin/seo-report': typeof ApiAdminSeoReportRoute
   '/api/admin/set-canonry-project': typeof ApiAdminSetCanonryProjectRoute
@@ -1673,6 +1682,8 @@ export interface FileRouteTypes {
     | '/api/admin/conversion-candidates'
     | '/api/admin/conversion-scan'
     | '/api/admin/ewww-provision'
+    | '/api/admin/ezyrank-kacheln'
+    | '/api/admin/ezyrank-zeitraum'
     | '/api/admin/first-party-connection'
     | '/api/admin/first-party-sync'
     | '/api/admin/ga4-conversions'
@@ -1680,6 +1691,7 @@ export interface FileRouteTypes {
     | '/api/admin/geo-grid-snapshot'
     | '/api/admin/gratis-takt'
     | '/api/admin/gsc-dateien'
+    | '/api/admin/gsc-ki'
     | '/api/admin/gtm'
     | '/api/admin/ingest-credentials'
     | '/api/admin/keyword-clusters'
@@ -1698,8 +1710,6 @@ export interface FileRouteTypes {
     | '/api/admin/secret-status'
     | '/api/admin/secure-migrate'
     | '/api/admin/seo-bericht'
-    | '/api/admin/ezyrank-kacheln'
-    | '/api/admin/ezyrank-zeitraum'
     | '/api/admin/seo-clients'
     | '/api/admin/seo-report'
     | '/api/admin/set-canonry-project'
@@ -1847,6 +1857,8 @@ export interface FileRouteTypes {
     | '/api/admin/conversion-candidates'
     | '/api/admin/conversion-scan'
     | '/api/admin/ewww-provision'
+    | '/api/admin/ezyrank-kacheln'
+    | '/api/admin/ezyrank-zeitraum'
     | '/api/admin/first-party-connection'
     | '/api/admin/first-party-sync'
     | '/api/admin/ga4-conversions'
@@ -1854,6 +1866,7 @@ export interface FileRouteTypes {
     | '/api/admin/geo-grid-snapshot'
     | '/api/admin/gratis-takt'
     | '/api/admin/gsc-dateien'
+    | '/api/admin/gsc-ki'
     | '/api/admin/gtm'
     | '/api/admin/ingest-credentials'
     | '/api/admin/keyword-clusters'
@@ -1872,8 +1885,6 @@ export interface FileRouteTypes {
     | '/api/admin/secret-status'
     | '/api/admin/secure-migrate'
     | '/api/admin/seo-bericht'
-    | '/api/admin/ezyrank-kacheln'
-    | '/api/admin/ezyrank-zeitraum'
     | '/api/admin/seo-clients'
     | '/api/admin/seo-report'
     | '/api/admin/set-canonry-project'
@@ -2021,6 +2032,8 @@ export interface FileRouteTypes {
     | '/api/admin/conversion-candidates'
     | '/api/admin/conversion-scan'
     | '/api/admin/ewww-provision'
+    | '/api/admin/ezyrank-kacheln'
+    | '/api/admin/ezyrank-zeitraum'
     | '/api/admin/first-party-connection'
     | '/api/admin/first-party-sync'
     | '/api/admin/ga4-conversions'
@@ -2028,6 +2041,7 @@ export interface FileRouteTypes {
     | '/api/admin/geo-grid-snapshot'
     | '/api/admin/gratis-takt'
     | '/api/admin/gsc-dateien'
+    | '/api/admin/gsc-ki'
     | '/api/admin/gtm'
     | '/api/admin/ingest-credentials'
     | '/api/admin/keyword-clusters'
@@ -2046,8 +2060,6 @@ export interface FileRouteTypes {
     | '/api/admin/secret-status'
     | '/api/admin/secure-migrate'
     | '/api/admin/seo-bericht'
-    | '/api/admin/ezyrank-kacheln'
-    | '/api/admin/ezyrank-zeitraum'
     | '/api/admin/seo-clients'
     | '/api/admin/seo-report'
     | '/api/admin/set-canonry-project'
@@ -2191,6 +2203,8 @@ export interface RootRouteChildren {
   ApiAdminConversionCandidatesRoute: typeof ApiAdminConversionCandidatesRoute
   ApiAdminConversionScanRoute: typeof ApiAdminConversionScanRoute
   ApiAdminEwwwProvisionRoute: typeof ApiAdminEwwwProvisionRoute
+  ApiAdminEzyrankKachelnRoute: typeof ApiAdminEzyrankKachelnRoute
+  ApiAdminEzyrankZeitraumRoute: typeof ApiAdminEzyrankZeitraumRoute
   ApiAdminFirstPartyConnectionRoute: typeof ApiAdminFirstPartyConnectionRoute
   ApiAdminFirstPartySyncRoute: typeof ApiAdminFirstPartySyncRoute
   ApiAdminGa4ConversionsRoute: typeof ApiAdminGa4ConversionsRoute
@@ -2198,6 +2212,7 @@ export interface RootRouteChildren {
   ApiAdminGeoGridSnapshotRoute: typeof ApiAdminGeoGridSnapshotRoute
   ApiAdminGratisTaktRoute: typeof ApiAdminGratisTaktRoute
   ApiAdminGscDateienRoute: typeof ApiAdminGscDateienRoute
+  ApiAdminGscKiRoute: typeof ApiAdminGscKiRoute
   ApiAdminGtmRoute: typeof ApiAdminGtmRoute
   ApiAdminIngestCredentialsRoute: typeof ApiAdminIngestCredentialsRoute
   ApiAdminKeywordClustersRoute: typeof ApiAdminKeywordClustersRoute
@@ -2216,8 +2231,6 @@ export interface RootRouteChildren {
   ApiAdminSecretStatusRoute: typeof ApiAdminSecretStatusRoute
   ApiAdminSecureMigrateRoute: typeof ApiAdminSecureMigrateRoute
   ApiAdminSeoBerichtRoute: typeof ApiAdminSeoBerichtRoute
-  ApiAdminEzyrankKachelnRoute: typeof ApiAdminEzyrankKachelnRoute
-  ApiAdminEzyrankZeitraumRoute: typeof ApiAdminEzyrankZeitraumRoute
   ApiAdminSeoClientsRoute: typeof ApiAdminSeoClientsRoute
   ApiAdminSeoReportRoute: typeof ApiAdminSeoReportRoute
   ApiAdminSetCanonryProjectRoute: typeof ApiAdminSetCanonryProjectRoute
@@ -2806,6 +2819,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminEwwwProvisionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/ezyrank-kacheln': {
+      id: '/api/admin/ezyrank-kacheln'
+      path: '/api/admin/ezyrank-kacheln'
+      fullPath: '/api/admin/ezyrank-kacheln'
+      preLoaderRoute: typeof ApiAdminEzyrankKachelnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/ezyrank-zeitraum': {
+      id: '/api/admin/ezyrank-zeitraum'
+      path: '/api/admin/ezyrank-zeitraum'
+      fullPath: '/api/admin/ezyrank-zeitraum'
+      preLoaderRoute: typeof ApiAdminEzyrankZeitraumRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/first-party-connection': {
       id: '/api/admin/first-party-connection'
       path: '/api/admin/first-party-connection'
@@ -2853,6 +2880,13 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/gsc-dateien'
       fullPath: '/api/admin/gsc-dateien'
       preLoaderRoute: typeof ApiAdminGscDateienRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/gsc-ki': {
+      id: '/api/admin/gsc-ki'
+      path: '/api/admin/gsc-ki'
+      fullPath: '/api/admin/gsc-ki'
+      preLoaderRoute: typeof ApiAdminGscKiRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/gtm': {
@@ -2979,20 +3013,6 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/seo-bericht'
       fullPath: '/api/admin/seo-bericht'
       preLoaderRoute: typeof ApiAdminSeoBerichtRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/admin/ezyrank-kacheln': {
-      id: '/api/admin/ezyrank-kacheln'
-      path: '/api/admin/ezyrank-kacheln'
-      fullPath: '/api/admin/ezyrank-kacheln'
-      preLoaderRoute: typeof ApiAdminEzyrankKachelnRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/admin/ezyrank-zeitraum': {
-      id: '/api/admin/ezyrank-zeitraum'
-      path: '/api/admin/ezyrank-zeitraum'
-      fullPath: '/api/admin/ezyrank-zeitraum'
-      preLoaderRoute: typeof ApiAdminEzyrankZeitraumRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/seo-clients': {
@@ -3643,6 +3663,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminConversionCandidatesRoute: ApiAdminConversionCandidatesRoute,
   ApiAdminConversionScanRoute: ApiAdminConversionScanRoute,
   ApiAdminEwwwProvisionRoute: ApiAdminEwwwProvisionRoute,
+  ApiAdminEzyrankKachelnRoute: ApiAdminEzyrankKachelnRoute,
+  ApiAdminEzyrankZeitraumRoute: ApiAdminEzyrankZeitraumRoute,
   ApiAdminFirstPartyConnectionRoute: ApiAdminFirstPartyConnectionRoute,
   ApiAdminFirstPartySyncRoute: ApiAdminFirstPartySyncRoute,
   ApiAdminGa4ConversionsRoute: ApiAdminGa4ConversionsRoute,
@@ -3650,6 +3672,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminGeoGridSnapshotRoute: ApiAdminGeoGridSnapshotRoute,
   ApiAdminGratisTaktRoute: ApiAdminGratisTaktRoute,
   ApiAdminGscDateienRoute: ApiAdminGscDateienRoute,
+  ApiAdminGscKiRoute: ApiAdminGscKiRoute,
   ApiAdminGtmRoute: ApiAdminGtmRoute,
   ApiAdminIngestCredentialsRoute: ApiAdminIngestCredentialsRoute,
   ApiAdminKeywordClustersRoute: ApiAdminKeywordClustersRoute,
@@ -3668,8 +3691,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminSecretStatusRoute: ApiAdminSecretStatusRoute,
   ApiAdminSecureMigrateRoute: ApiAdminSecureMigrateRoute,
   ApiAdminSeoBerichtRoute: ApiAdminSeoBerichtRoute,
-  ApiAdminEzyrankKachelnRoute: ApiAdminEzyrankKachelnRoute,
-  ApiAdminEzyrankZeitraumRoute: ApiAdminEzyrankZeitraumRoute,
   ApiAdminSeoClientsRoute: ApiAdminSeoClientsRoute,
   ApiAdminSeoReportRoute: ApiAdminSeoReportRoute,
   ApiAdminSetCanonryProjectRoute: ApiAdminSetCanonryProjectRoute,
@@ -3740,12 +3761,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

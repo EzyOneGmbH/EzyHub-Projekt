@@ -224,6 +224,8 @@ const EzyAiCampaignsPanel = lazy(() => import("@/ezy/EzyAiCampaignsPanel"));
 // Ads-Manager-Nachbau (15.09.): Bereich «Kampagnen» mit Ebenen-Tabs.
 const EzyAiAdsManager = lazy(() => import("@/ezy/EzyAiAdsManager"));
 const EzyAiAdsReport = lazy(() => import("@/ezy/EzyAiAdsReport"));
+// Insights → «Google KI» (26.10.): Search-Console-Bericht «Generative KI».
+const GscKiPanel = lazy(() => import("@/ezy/GscKiPanel"));
 // Agentur-Performance-Tabelle (29.09., analog EzyRank/EzyPerformance).
 const EzyAiAgencyTable = lazy(() =>
   import("@/ezy/EzyAiAgencyTable").then((m) => ({ default: m.EzyAiAgencyTable })),
@@ -5618,6 +5620,23 @@ function EzyAiApp() {
                                 />
                               </Suspense>
                             </div>
+                          ),
+                        },
+                        {
+                          // 26.10.2026: GSC «Generative KI» (KI-Übersichten +
+                          // KI-Modus) — API sobald verfügbar, sonst CSV-Import.
+                          id: "gsc-ki",
+                          label: "Google KI",
+                          icon: Sparkles,
+                          render: () => (
+                            <Suspense fallback={null}>
+                              <GscKiPanel
+                                clientId={client.id}
+                                S={S}
+                                range={range}
+                                canUpload={!!role && role !== "viewer"}
+                              />
+                            </Suspense>
                           ),
                         },
                       ]}

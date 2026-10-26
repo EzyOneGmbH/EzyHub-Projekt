@@ -248,8 +248,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.35.0",
+    version: "1.36.0",
     changelog: [
+      {
+        version: "1.36.0",
+        date: "2026-10-26",
+        note: "Insights › neuer Tab «Google KI»: Search-Console-Bericht «Generative KI» (KI-Übersichten + KI-Modus) mit Impressionen je Seite, Land, Gerät und Tag inkl. Vorperiode. Google bietet ihn nicht per API an — Export als CSV/ZIP hochladen; sobald die API ihn liefert, kommen die Daten automatisch",
+      },
       {
         version: "1.35.0",
         date: "2026-10-15",
