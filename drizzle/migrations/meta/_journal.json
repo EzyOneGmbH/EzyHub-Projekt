@@ -8,6 +8,13 @@
       "when": 1792075143349,
       "tag": "0000_20261015140000_conversion_log",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793025840985,
+      "tag": "0001_gsc_ki_imports",
+      "breakpoints": true
     }
   ]
 }
