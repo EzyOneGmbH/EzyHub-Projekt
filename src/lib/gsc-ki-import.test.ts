@@ -6,6 +6,9 @@ import {
   leseTabelle,
   leseUpload,
   parseCsv,
+  reiheFuer,
+  summeTage,
+  tagesWerte,
   tabellenArt,
   zahl,
 } from "./gsc-ki-import";
@@ -141,5 +144,45 @@ describe("gsc-ki-import", () => {
     const imp = await leseUpload([{ name: "export.zip", buf }]);
     expect(imp.tabellen.page).toHaveLength(3);
     expect(imp.totalImp).toBe(1293);
+  });
+});
+
+describe("Historie (Tageswerte)", () => {
+  it("tagesWerte legt Vergleichswerte auf ihr eigenes Datum", () => {
+    const t = tagesWerte({
+      startDate: "2026-10-01",
+      compareStart: "2026-09-01",
+      tabellen: {
+        date: [
+          { key: "2026-10-01", imp: 5, impPrev: 2 },
+          { key: "2026-10-02", imp: 7, impPrev: 3 },
+          { key: "kein-datum", imp: 9, impPrev: 9 },
+        ],
+      },
+    });
+    expect(t).toEqual([
+      { datum: "2026-09-01", imp: 2 },
+      { datum: "2026-09-02", imp: 3 },
+      { datum: "2026-10-01", imp: 5 },
+      { datum: "2026-10-02", imp: 7 },
+    ]);
+  });
+
+  it("reiheFuer + summeTage: frei gewählter Zeitraum mit Vergleich", () => {
+    const tage = [
+      { datum: "2025-10-01", imp: 1 },
+      { datum: "2025-10-02", imp: 2 },
+      { datum: "2026-10-01", imp: 10 },
+      { datum: "2026-10-03", imp: 30 },
+    ];
+    const r = reiheFuer(tage, "2026-10-01", "2026-10-03", { von: "2025-10-01", bis: "2025-10-03" });
+    expect(r).toEqual([
+      { key: "2026-10-01", imp: 10, impPrev: 1 },
+      { key: "2026-10-02", imp: 0, impPrev: 2 },
+      { key: "2026-10-03", imp: 30, impPrev: 0 },
+    ]);
+    expect(reiheFuer(tage, "2026-10-01", "2026-10-01")[0].impPrev).toBeNull();
+    expect(summeTage(tage, "2026-10-01", "2026-10-31")).toBe(40);
+    expect(summeTage(tage, "2025-01-01", "2025-12-31")).toBe(3);
   });
 });

@@ -4902,6 +4902,7 @@ function EzyAiApp() {
           clientId={client.id}
           S={S}
           range={range}
+          compare={compare}
           canUpload={!!role && role !== "viewer"}
         />
       </Suspense>

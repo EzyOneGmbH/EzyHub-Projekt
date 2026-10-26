@@ -6,6 +6,7 @@ import { getGoogleAccessToken } from "@/server/google-tokens.server";
 import { requireTeamRole } from "@/server/team-guard.server";
 import { gscRows, GSC_END_LAG_DAYS } from "@/server/gsc.server";
 import { zeitraum, zeitraumAusParams } from "@/lib/date-range";
+import { tageZwischen, tagesWerte } from "@/lib/gsc-ki-import";
 
 // Search Console «Generative KI» in EzyAI → Insights (Volkan 26.10.2026).
 // Die Search-Console-API hat (Stand 26.10.) KEINEN Typ fuer den KI-Bericht
@@ -78,7 +79,7 @@ const PostBody = z.object({
       page: z.array(Zeile).max(5000).optional(),
       country: z.array(Zeile).max(500).optional(),
       device: z.array(Zeile).max(20).optional(),
-      date: z.array(Zeile).max(1000).optional(),
+      date: z.array(Zeile).max(2000).optional(),
     }),
     startDate: Datum,
     endDate: Datum,
@@ -107,6 +108,13 @@ export const Route = createFileRoute("/api/admin/gsc-ki")({
           .maybeSingle();
         if (!client)
           return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
+        // Zeitraum + Vergleich aus dem Portal (frei wählbar über die Historie)
+        const iso = (k: string) => {
+          const v = u.searchParams.get(k) || "";
+          return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+        };
+        const vergleich =
+          iso("cmpStart") && iso("cmpEnd") ? { von: iso("cmpStart")!, bis: iso("cmpEnd")! } : null;
 
         // 1) Automatik: API, sobald Google den KI-Typ anbietet
         let zr;
@@ -142,18 +150,41 @@ export const Route = createFileRoute("/api/admin/gsc-ki")({
                     impPrev: null,
                   }),
                 );
-              const [page, country, device, date] = await Promise.all([
+              const [page, country, device, date, dateV] = await Promise.all([
                 tab("page", 1000),
                 tab("country", 250),
                 tab("device", 10),
                 tab("date", 500),
+                vergleich
+                  ? gscRows({
+                      ...basis,
+                      startDate: vergleich.von,
+                      endDate: vergleich.bis,
+                      dimensions: ["date"],
+                      rowLimit: 500,
+                    })
+                      .then((r) =>
+                        r.rows.map((x: any) => ({
+                          datum: String(x.keys?.[0] ?? ""),
+                          imp: Number(x.impressions || 0),
+                        })),
+                      )
+                      .catch(() => [])
+                  : Promise.resolve([] as Array<{ datum: string; imp: number }>),
               ]);
               date.sort((a, b) => a.key.localeCompare(b.key));
+              const tage = [...date.map((z0) => ({ datum: z0.key, imp: z0.imp })), ...dateV].sort(
+                (a, b) => a.datum.localeCompare(b.datum),
+              );
               return Response.json(
                 {
                   ok: true,
                   quelle: "api",
                   apiTyp: typ,
+                  tage,
+                  historie: tage.length
+                    ? { von: tage[0].datum, bis: tage[tage.length - 1].datum, anzahl: tage.length }
+                    : null,
                   import: {
                     tabellen: { page, country, device, date },
                     startDate: zr.startDate,
@@ -173,16 +204,91 @@ export const Route = createFileRoute("/api/admin/gsc-ki")({
           }
         }
 
-        // 2) Neuester CSV-Import
-        const { data: imp, error } = await (supabaseAdmin as any)
+        // 2) CSV-Importe: Tageshistorie (zusammengeführt) + Seiten/Länder/Geräte
+        //    aus dem Export, der den gewählten Zeitraum am besten abdeckt.
+        const sa = supabaseAdmin as any;
+        const von = iso("start") || zr.startDate;
+        const bis = iso("end") || zr.endDate;
+        const { data: liste, error } = await sa
           .from("gsc_ki_imports")
-          .select(
-            "id, start_date, end_date, compare_start, compare_end, tabellen, total_imp, total_imp_prev, dateiname, created_at",
-          )
+          .select("id, start_date, end_date, created_at")
           .eq("client_id", clientId)
           .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .limit(100);
+        let imp: any = null;
+        if (!error && liste?.length) {
+          const ueberlappung = (r: any) => {
+            if (!r.start_date || !r.end_date) return 0;
+            const a = r.start_date > von ? r.start_date : von;
+            const b = r.end_date < bis ? r.end_date : bis;
+            return a > b ? 0 : tageZwischen(a, b) + 1;
+          };
+          // Höchste Überlappung; bei Gleichstand der kürzere (passgenauere)
+          // Export, dann der neuere. Ohne Überlappung: neuester.
+          const best = [...liste].sort(
+            (x: any, y: any) =>
+              ueberlappung(y) - ueberlappung(x) ||
+              (ueberlappung(x) > 0
+                ? tageZwischen(x.start_date, x.end_date) - tageZwischen(y.start_date, y.end_date)
+                : 0) ||
+              String(y.created_at).localeCompare(String(x.created_at)),
+          )[0];
+          const r = await sa
+            .from("gsc_ki_imports")
+            .select(
+              "id, start_date, end_date, compare_start, compare_end, tabellen, total_imp, total_imp_prev, dateiname, created_at",
+            )
+            .eq("id", best.id)
+            .maybeSingle();
+          imp = r.data;
+        }
+        // Tageswerte für Zeitraum und Vergleich + Umfang der Historie
+        const holeTage = async (a: string, b: string) => {
+          const { data: t } = await sa
+            .from("gsc_ki_tage")
+            .select("datum, imp")
+            .eq("client_id", clientId)
+            .gte("datum", a)
+            .lte("datum", b)
+            .order("datum", { ascending: true })
+            .limit(1000);
+          return ((t || []) as any[]).map((x) => ({ datum: String(x.datum), imp: Number(x.imp) }));
+        };
+        const [tageA, tageV, erster, letzter, anzahl] = await Promise.all([
+          holeTage(von, bis),
+          vergleich ? holeTage(vergleich.von, vergleich.bis) : Promise.resolve([]),
+          sa
+            .from("gsc_ki_tage")
+            .select("datum")
+            .eq("client_id", clientId)
+            .order("datum", { ascending: true })
+            .limit(1)
+            .maybeSingle(),
+          sa
+            .from("gsc_ki_tage")
+            .select("datum")
+            .eq("client_id", clientId)
+            .order("datum", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+          sa
+            .from("gsc_ki_tage")
+            .select("datum", { count: "exact", head: true })
+            .eq("client_id", clientId),
+        ]);
+        const tageMap = new Map<string, number>();
+        for (const t of [...tageA, ...tageV]) tageMap.set(t.datum, t.imp);
+        const tage = [...tageMap.entries()]
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([datum, n]) => ({ datum, imp: n }));
+        const historie =
+          erster.data && letzter.data
+            ? {
+                von: String(erster.data.datum),
+                bis: String(letzter.data.datum),
+                anzahl: Number(anzahl.count || 0),
+              }
+            : null;
         if (error)
           return Response.json({
             ok: true,
@@ -199,6 +305,9 @@ export const Route = createFileRoute("/api/admin/gsc-ki")({
             quelle: imp ? "import" : null,
             property: client.gsc_property || null,
             apiFehler,
+            tage,
+            historie,
+            tageTabelleFehlt: !!(erster.error || anzahl.error),
             import: imp
               ? {
                   id: imp.id,
@@ -270,7 +379,30 @@ export const Route = createFileRoute("/api/admin/gsc-ki")({
             },
             { status: 500 },
           );
-        return Response.json({ ok: true, id: data?.id });
+        // Tageswerte in die Historie (neuester Import gewinnt je Tag)
+        const tage = tagesWerte(imp);
+        let tageGespeichert = 0;
+        let tageFehler: string | null = null;
+        for (let i = 0; i < tage.length; i += 500) {
+          const { error: e2 } = await sb.from("gsc_ki_tage").upsert(
+            tage.slice(i, i + 500).map((t) => ({
+              client_id: clientId,
+              organization_id: ctx.organizationId,
+              datum: t.datum,
+              imp: t.imp,
+              updated_at: new Date().toISOString(),
+            })),
+            { onConflict: "client_id,datum" },
+          );
+          if (e2) {
+            tageFehler = /gsc_ki_tage|schema cache|42P01/i.test(`${e2.message} ${e2.code}`)
+              ? "Tabelle gsc_ki_tage fehlt — SQL der Migration 20261026120000 erneut ausführen"
+              : e2.message;
+            break;
+          }
+          tageGespeichert += Math.min(500, tage.length - i);
+        }
+        return Response.json({ ok: true, id: data?.id, tageGespeichert, tageFehler });
       },
     },
   },

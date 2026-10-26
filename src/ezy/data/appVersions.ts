@@ -248,8 +248,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.36.1",
+    version: "1.37.0",
     changelog: [
+      {
+        version: "1.37.0",
+        date: "2026-10-26",
+        note: "Traffic › Google KI mit Historie: jeder CSV-Upload speichert die Tageswerte (bis 16 Monate) und führt sie mit früheren Uploads zusammen — Impressionen, Verlauf und Datumstabelle folgen danach frei dem Zeitraum und Vergleich oben im Portal; Seiten/Länder/Geräte stammen aus dem passendsten Export",
+      },
       {
         version: "1.36.1",
         date: "2026-10-26",

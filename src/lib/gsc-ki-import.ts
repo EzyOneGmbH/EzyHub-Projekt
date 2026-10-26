@@ -243,6 +243,63 @@ export function baueImport(dateien: Array<{ name: string; text: string }>): KiIm
   };
 }
 
+// ── Historie (Tageswerte) ────────────────────────────────────────────────────
+export type KiTag = { datum: string; imp: number };
+const ISO = /^\d{4}-\d{2}-\d{2}$/;
+const utc = (iso: string) => Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10));
+export const plusTage = (iso: string, n: number) =>
+  new Date(utc(iso) + n * 86_400_000).toISOString().slice(0, 10);
+export const tageZwischen = (von: string, bis: string) =>
+  Math.round((utc(bis) - utc(von)) / 86_400_000);
+
+/** Tageswerte eines Imports. Bei einem Export mit «Vergleichen» liegen die
+ *  Vorperioden-Werte tagesweise versetzt in derselben Zeile — sie werden auf
+ *  ihr eigenes Datum (Vergleichsbeginn + Abstand) gelegt. */
+export function tagesWerte(
+  imp: Pick<KiImport, "tabellen" | "startDate" | "compareStart">,
+): KiTag[] {
+  const tage = (imp.tabellen.date || []).filter((z) => ISO.test(z.key));
+  const out = new Map<string, number>();
+  for (const z of tage) out.set(z.key, z.imp);
+  if (imp.startDate && imp.compareStart && ISO.test(imp.startDate) && ISO.test(imp.compareStart)) {
+    const off = tageZwischen(imp.startDate, imp.compareStart);
+    for (const z of tage)
+      if (z.impPrev !== null) {
+        const d = plusTage(z.key, off);
+        if (!out.has(d)) out.set(d, z.impPrev);
+      }
+  }
+  return [...out.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([datum, imp]) => ({ datum, imp }));
+}
+
+/** Tagesreihe für einen Zeitraum, optional mit Vergleich (tagesweise nach
+ *  Abstand zum jeweiligen Beginn). Fehlende Tage = 0. */
+export function reiheFuer(
+  tage: KiTag[],
+  von: string,
+  bis: string,
+  vergleich?: { von: string; bis: string } | null,
+): KiZeile[] {
+  const m = new Map(tage.map((t) => [t.datum, t.imp]));
+  const n = Math.max(0, tageZwischen(von, bis)) + 1;
+  const nV = vergleich ? Math.max(0, tageZwischen(vergleich.von, vergleich.bis)) + 1 : 0;
+  const out: KiZeile[] = [];
+  for (let i = 0; i < n; i++) {
+    const d = plusTage(von, i);
+    out.push({
+      key: d,
+      imp: m.get(d) ?? 0,
+      impPrev: vergleich ? (i < nV ? (m.get(plusTage(vergleich.von, i)) ?? 0) : 0) : null,
+    });
+  }
+  return out;
+}
+
+export const summeTage = (tage: KiTag[], von: string, bis: string) =>
+  tage.reduce((s, t) => (t.datum >= von && t.datum <= bis ? s + t.imp : s), 0);
+
 /** Datei(en) aus dem Upload lesen: ZIP entpacken, CSV direkt. */
 export async function leseUpload(
   dateien: Array<{ name: string; buf: ArrayBuffer }>,

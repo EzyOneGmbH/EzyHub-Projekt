@@ -6,7 +6,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { authedFetch } from "@/lib/authed-fetch";
 import { isoDay, type ResolvedRange } from "@/ezy/data/rangeStore";
-import { leseUpload, type KiImport, type KiTabelle, type KiZeile } from "@/lib/gsc-ki-import";
+import {
+  leseUpload,
+  reiheFuer,
+  summeTage,
+  tagesWerte,
+  type KiImport,
+  type KiTabelle,
+  type KiTag,
+  type KiZeile,
+} from "@/lib/gsc-ki-import";
 
 type Tokens = Record<string, string>;
 type Antwort = {
@@ -15,6 +24,9 @@ type Antwort = {
   quelle: "api" | "import" | null;
   property: string | null;
   tabelleFehlt?: boolean;
+  tageTabelleFehlt?: boolean;
+  tage?: KiTag[];
+  historie?: { von: string; bis: string; anzahl: number } | null;
   import?: (KiImport & { dateiname?: string | null; importiertAm?: string }) | null;
 };
 
@@ -43,11 +55,14 @@ export default function GscKiPanel({
   clientId,
   S,
   range,
+  compare = null,
   canUpload,
 }: {
   clientId: string;
   S: Tokens;
   range: ResolvedRange;
+  /** Vergleichszeitraum aus dem Portal (null = kein Vergleich) */
+  compare?: { start: Date; end: Date } | null;
   canUpload: boolean;
 }) {
   const [data, setData] = useState<Antwort | null>(null);
@@ -61,13 +76,16 @@ export default function GscKiPanel({
   const fileRef = useRef<HTMLInputElement>(null);
   const start = isoDay(range.start);
   const end = isoDay(range.end);
+  const cmpStart = compare ? isoDay(compare.start) : "";
+  const cmpEnd = compare ? isoDay(compare.end) : "";
 
   useEffect(() => {
     let alive = true;
     setData(null);
     (async () => {
       const r = await authedFetch(
-        `/api/admin/gsc-ki?client=${encodeURIComponent(clientId)}&start=${start}&end=${end}`,
+        `/api/admin/gsc-ki?client=${encodeURIComponent(clientId)}&start=${start}&end=${end}` +
+          (cmpStart ? `&cmpStart=${cmpStart}&cmpEnd=${cmpEnd}` : ""),
         { headers: { Authorization: `Bearer ${await token()}` } },
       );
       const j = await r.json().catch(() => ({ ok: false, error: `HTTP ${r.status}` }));
@@ -76,7 +94,7 @@ export default function GscKiPanel({
     return () => {
       alive = false;
     };
-  }, [clientId, start, end, reload]);
+  }, [clientId, start, end, cmpStart, cmpEnd, reload]);
 
   const waehleDateien = useCallback(async (files: FileList | null) => {
     if (!files?.length) return;
@@ -117,17 +135,33 @@ export default function GscKiPanel({
       setErr(j.error || `HTTP ${r.status}`);
       return;
     }
+    if (j.tageFehler) setErr(`Import gespeichert, Tageswerte aber nicht: ${j.tageFehler}`);
     setVorschau(null);
     setReload((x) => x + 1);
   };
 
   const imp = vorschau || data?.import || null;
+  // Mit Historie (Tageswerte aller Importe bzw. API) folgen Kennzahl, Verlauf
+  // und Datumstabelle dem Zeitraum + Vergleich oben im Portal.
+  const mitHistorie = !vorschau && !!data?.historie && !!imp;
+  const histReihe = useMemo(
+    () =>
+      mitHistorie
+        ? reiheFuer(data?.tage || [], start, end, cmpStart ? { von: cmpStart, bis: cmpEnd } : null)
+        : [],
+    [mitHistorie, data, start, end, cmpStart, cmpEnd],
+  );
+  const tabellen = useMemo(
+    () => (mitHistorie && imp ? { ...imp.tabellen, date: histReihe } : imp?.tabellen || {}),
+    [mitHistorie, imp, histReihe],
+  ) as KiImport["tabellen"];
   const zeilen: KiZeile[] = useMemo(() => {
-    const t = (imp?.tabellen?.[tab] || []) as KiZeile[];
+    const t = (tabellen[tab] || []) as KiZeile[];
     const q = suche.trim().toLowerCase();
     return q ? t.filter((z) => z.key.toLowerCase().includes(q)) : t;
-  }, [imp, tab, suche]);
-  const reihe = (imp?.tabellen?.date || []) as KiZeile[];
+  }, [tabellen, tab, suche]);
+  const reihe = (tabellen.date || []) as KiZeile[];
+  const vorschauTage = useMemo(() => (vorschau ? tagesWerte(vorschau) : []), [vorschau]);
   const mitPrev = zeilen.some((z) => z.impPrev !== null);
 
   const karte: React.CSSProperties = {
@@ -216,7 +250,8 @@ export default function GscKiPanel({
           <a href={gscLink} target="_blank" rel="noreferrer" style={{ color: S.app }}>
             Search Console → Leistung → Generative KI
           </a>{" "}
-          den Zeitraum (und optional «Vergleichen») wählen.
+          den Zeitraum «16 Monate» wählen — die ganze Historie; Zeitraum und Vergleich wählst du
+          danach frei hier im Portal.
         </li>
         <li>Oben rechts «Exportieren» → «CSV herunterladen».</li>
         <li>Die heruntergeladene ZIP-Datei hier mit «CSV importieren» hochladen.</li>
@@ -233,8 +268,21 @@ export default function GscKiPanel({
       </div>
     );
 
-  const total = imp?.totalImp || 0;
-  const d = imp ? delta(total, imp.totalImpPrev ?? null) : null;
+  const vergleich = cmpStart ? { von: cmpStart, bis: cmpEnd } : null;
+  const total = mitHistorie ? summeTage(data?.tage || [], start, end) : imp?.totalImp || 0;
+  const totalPrev = mitHistorie
+    ? vergleich
+      ? summeTage(data?.tage || [], vergleich.von, vergleich.bis)
+      : null
+    : (imp?.totalImpPrev ?? null);
+  const d = imp ? delta(total, totalPrev) : null;
+  const hist = data?.historie || null;
+  const luecke = !!(mitHistorie && hist && (start < hist.von || end > hist.bis));
+  const exportAbweichend = !!(
+    mitHistorie &&
+    imp &&
+    (imp.startDate !== start || imp.endDate !== end)
+  );
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -258,6 +306,8 @@ export default function GscKiPanel({
           >
             <b style={{ color: S.txt }}>Vorschau: {vorschau.dateiname}</b>
             <span style={{ color: S.mut }}>
+              {vorschauTage.length > 0 &&
+                `${nf(vorschauTage.length)} Tageswerte für die Historie (${fmtDatum(vorschauTage[0].datum)} – ${fmtDatum(vorschauTage[vorschauTage.length - 1].datum)}) · `}
               {(Object.keys(vorschau.tabellen) as KiTabelle[])
                 .map(
                   (k) => `${TABS.find((t) => t[0] === k)?.[1]} (${vorschau.tabellen[k]?.length})`,
@@ -306,27 +356,47 @@ export default function GscKiPanel({
                     }}
                   >
                     {d >= 0 ? "▲" : "▼"} {Math.abs(d).toLocaleString("de-CH")} % ggü. Vorperiode (
-                    {nf(imp.totalImpPrev || 0)})
+                    {nf(totalPrev || 0)})
                   </div>
                 )}
               </div>
               <div>
                 <div style={{ fontSize: 12, color: S.mut }}>Seiten mit KI-Impressionen</div>
                 <div style={{ fontSize: 26, fontWeight: 700, color: S.txt }}>
-                  {nf((imp.tabellen.page || []).filter((z) => z.imp > 0).length)}
+                  {nf((tabellen.page || []).filter((z) => z.imp > 0).length)}
                 </div>
               </div>
               <div>
                 <div style={{ fontSize: 12, color: S.mut }}>Zeitraum</div>
                 <div style={{ fontSize: 15, fontWeight: 600, color: S.txt, marginTop: 6 }}>
-                  {fmtDatum(imp.startDate)} – {fmtDatum(imp.endDate)}
+                  {mitHistorie
+                    ? `${fmtDatum(start)} – ${fmtDatum(end)}`
+                    : `${fmtDatum(imp.startDate)} – ${fmtDatum(imp.endDate)}`}
                 </div>
-                {data.quelle === "import" && !vorschau && (
+                {mitHistorie && vergleich && (
+                  <div style={{ fontSize: 11.5, color: S.mut }}>
+                    Vergleich: {fmtDatum(vergleich.von)} – {fmtDatum(vergleich.bis)}
+                  </div>
+                )}
+                {data.quelle === "import" && !vorschau && !mitHistorie && (
                   <div style={{ fontSize: 11.5, color: S.mut }}>
                     Zeitraum des Exports — die Datumsauswahl oben gilt hier nicht
                   </div>
                 )}
               </div>
+              {hist && data.quelle === "import" && !vorschau && (
+                <div>
+                  <div style={{ fontSize: 12, color: S.mut }}>Hochgeladene Historie</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: S.txt, marginTop: 6 }}>
+                    {fmtDatum(hist.von)} – {fmtDatum(hist.bis)}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: luecke ? "#b45309" : S.mut }}>
+                    {luecke
+                      ? "Zeitraum/Vergleich reicht über die Historie hinaus — fehlende Tage zählen als 0"
+                      : `${nf(hist.anzahl)} Tage`}
+                  </div>
+                </div>
+              )}
             </div>
             {reihe.length > 1 && <Verlauf reihe={reihe} S={S} />}
           </>
@@ -353,22 +423,28 @@ export default function GscKiPanel({
                   setAlle(false);
                   setSuche("");
                 }}
-                disabled={!imp.tabellen[id]?.length}
+                disabled={!tabellen[id]?.length}
                 style={{
                   background: "none",
                   border: "none",
                   borderBottom: `2px solid ${tab === id ? S.app : "transparent"}`,
-                  color: !imp.tabellen[id]?.length ? S.line : tab === id ? S.txt : S.mut,
+                  color: !tabellen[id]?.length ? S.line : tab === id ? S.txt : S.mut,
                   fontWeight: tab === id ? 700 : 500,
                   fontSize: 13,
                   padding: "12px 0 10px",
-                  cursor: imp.tabellen[id]?.length ? "pointer" : "default",
+                  cursor: tabellen[id]?.length ? "pointer" : "default",
                   fontFamily: "inherit",
                 }}
               >
                 {label}
               </button>
             ))}
+            {exportAbweichend && tab !== "date" && (
+              <span style={{ fontSize: 11.5, color: S.mut }}>
+                {TABS.find((t) => t[0] === tab)?.[1]} aus dem Export {fmtDatum(imp.startDate)} –{" "}
+                {fmtDatum(imp.endDate)}
+              </span>
+            )}
             {tab === "page" && (
               <input
                 value={suche}
