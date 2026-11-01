@@ -78,6 +78,8 @@ import { Route as ApiAdminClientMetricsRouteImport } from './routes/api/admin.cl
 import { Route as ApiAdminClientReadinessRouteImport } from './routes/api/admin.client-readiness'
 import { Route as ApiAdminContentBriefRouteImport } from './routes/api/admin.content-brief'
 import { Route as ApiAdminContentDecisionRouteImport } from './routes/api/admin.content-decision'
+import { Route as ApiAdminContentActionsRouteImport } from './routes/api/admin.content-actions'
+import { Route as ApiAdminContentActionsRecommendationRouteImport } from './routes/api/admin.content-actions.recommendation'
 import { Route as ApiAdminContentNoteRouteImport } from './routes/api/admin.content-note'
 import { Route as ApiAdminContentSyncRouteImport } from './routes/api/admin.content-sync'
 import { Route as ApiAdminConversionCandidatesRouteImport } from './routes/api/admin.conversion-candidates'
@@ -540,6 +542,16 @@ const ApiAdminContentBriefRoute = ApiAdminContentBriefRouteImport.update({
 const ApiAdminContentDecisionRoute = ApiAdminContentDecisionRouteImport.update({
   id: '/api/admin/content-decision',
   path: '/api/admin/content-decision',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminContentActionsRoute = ApiAdminContentActionsRouteImport.update({
+  id: '/api/admin/content-actions',
+  path: '/api/admin/content-actions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminContentActionsRecommendationRoute = ApiAdminContentActionsRecommendationRouteImport.update({
+  id: '/api/admin/content-actions/recommendation',
+  path: '/api/admin/content-actions/recommendation',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminContentNoteRoute = ApiAdminContentNoteRouteImport.update({
@@ -1149,6 +1161,8 @@ export interface FileRoutesByFullPath {
   '/api/admin/client-readiness': typeof ApiAdminClientReadinessRoute
   '/api/admin/content-brief': typeof ApiAdminContentBriefRoute
   '/api/admin/content-decision': typeof ApiAdminContentDecisionRoute
+  '/api/admin/content-actions': typeof ApiAdminContentActionsRoute
+  '/api/admin/content-actions/recommendation': typeof ApiAdminContentActionsRecommendationRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
   '/api/admin/content-sync': typeof ApiAdminContentSyncRoute
   '/api/admin/conversion-candidates': typeof ApiAdminConversionCandidatesRoute
@@ -1324,6 +1338,8 @@ export interface FileRoutesByTo {
   '/api/admin/client-readiness': typeof ApiAdminClientReadinessRoute
   '/api/admin/content-brief': typeof ApiAdminContentBriefRoute
   '/api/admin/content-decision': typeof ApiAdminContentDecisionRoute
+  '/api/admin/content-actions': typeof ApiAdminContentActionsRoute
+  '/api/admin/content-actions/recommendation': typeof ApiAdminContentActionsRecommendationRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
   '/api/admin/content-sync': typeof ApiAdminContentSyncRoute
   '/api/admin/conversion-candidates': typeof ApiAdminConversionCandidatesRoute
@@ -1500,6 +1516,8 @@ export interface FileRoutesById {
   '/api/admin/client-readiness': typeof ApiAdminClientReadinessRoute
   '/api/admin/content-brief': typeof ApiAdminContentBriefRoute
   '/api/admin/content-decision': typeof ApiAdminContentDecisionRoute
+  '/api/admin/content-actions': typeof ApiAdminContentActionsRoute
+  '/api/admin/content-actions/recommendation': typeof ApiAdminContentActionsRecommendationRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
   '/api/admin/content-sync': typeof ApiAdminContentSyncRoute
   '/api/admin/conversion-candidates': typeof ApiAdminConversionCandidatesRoute
@@ -1677,6 +1695,8 @@ export interface FileRouteTypes {
     | '/api/admin/client-readiness'
     | '/api/admin/content-brief'
     | '/api/admin/content-decision'
+    | '/api/admin/content-actions'
+    | '/api/admin/content-actions/recommendation'
     | '/api/admin/content-note'
     | '/api/admin/content-sync'
     | '/api/admin/conversion-candidates'
@@ -1852,6 +1872,8 @@ export interface FileRouteTypes {
     | '/api/admin/client-readiness'
     | '/api/admin/content-brief'
     | '/api/admin/content-decision'
+    | '/api/admin/content-actions'
+    | '/api/admin/content-actions/recommendation'
     | '/api/admin/content-note'
     | '/api/admin/content-sync'
     | '/api/admin/conversion-candidates'
@@ -2027,6 +2049,8 @@ export interface FileRouteTypes {
     | '/api/admin/client-readiness'
     | '/api/admin/content-brief'
     | '/api/admin/content-decision'
+    | '/api/admin/content-actions'
+    | '/api/admin/content-actions/recommendation'
     | '/api/admin/content-note'
     | '/api/admin/content-sync'
     | '/api/admin/conversion-candidates'
@@ -2198,6 +2222,8 @@ export interface RootRouteChildren {
   ApiAdminClientReadinessRoute: typeof ApiAdminClientReadinessRoute
   ApiAdminContentBriefRoute: typeof ApiAdminContentBriefRoute
   ApiAdminContentDecisionRoute: typeof ApiAdminContentDecisionRoute
+  ApiAdminContentActionsRoute: typeof ApiAdminContentActionsRoute
+  ApiAdminContentActionsRecommendationRoute: typeof ApiAdminContentActionsRecommendationRoute
   ApiAdminContentNoteRoute: typeof ApiAdminContentNoteRoute
   ApiAdminContentSyncRoute: typeof ApiAdminContentSyncRoute
   ApiAdminConversionCandidatesRoute: typeof ApiAdminConversionCandidatesRoute
@@ -2782,6 +2808,20 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/content-decision'
       fullPath: '/api/admin/content-decision'
       preLoaderRoute: typeof ApiAdminContentDecisionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/content-actions': {
+      id: '/api/admin/content-actions'
+      path: '/api/admin/content-actions'
+      fullPath: '/api/admin/content-actions'
+      preLoaderRoute: typeof ApiAdminContentActionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/content-actions/recommendation': {
+      id: '/api/admin/content-actions/recommendation'
+      path: '/api/admin/content-actions/recommendation'
+      fullPath: '/api/admin/content-actions/recommendation'
+      preLoaderRoute: typeof ApiAdminContentActionsRecommendationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/content-note': {
@@ -3658,6 +3698,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminClientReadinessRoute: ApiAdminClientReadinessRoute,
   ApiAdminContentBriefRoute: ApiAdminContentBriefRoute,
   ApiAdminContentDecisionRoute: ApiAdminContentDecisionRoute,
+  ApiAdminContentActionsRoute: ApiAdminContentActionsRoute,
+  ApiAdminContentActionsRecommendationRoute: ApiAdminContentActionsRecommendationRoute,
   ApiAdminContentNoteRoute: ApiAdminContentNoteRoute,
   ApiAdminContentSyncRoute: ApiAdminContentSyncRoute,
   ApiAdminConversionCandidatesRoute: ApiAdminConversionCandidatesRoute,

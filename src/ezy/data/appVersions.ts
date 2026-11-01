@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.6.3",
+    version: "2.7.0",
     changelog: [
+      {
+        version: "2.7.0",
+        date: "2026-11-01",
+        note: "Content-Massnahmen für Automationen: /api/admin/content-actions liefert die offenen Massnahmen je Kunde (Texte und Regeln wie im Massnahmen-Modal), /api/admin/content-actions/recommendation die KI-Empfehlung mit Top 5 Google Schweiz und internen Links (7 Tage Cache)",
+      },
       {
         version: "2.6.3",
         date: "2026-10-20",

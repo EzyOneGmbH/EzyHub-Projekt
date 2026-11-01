@@ -5,6 +5,8 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { isProviderEnabled, canRunAudits } from "@/server/integrations.server";
 import { generateViaSubscription } from "@/server/claude-generate.server";
 import { recordApiCost } from "@/server/api-cost.server";
+import { REC_FOCUS } from "@/lib/contentMassnahmen";
+import { fetchPageSnapshot } from "@/server/content-actions.server";
 
 // Artikel-spezifische Refresh-Empfehlung fuer das Playbook-Pop-up im Blog-Register.
 // Das generische Playbook sagt WIE man vorgeht — diese Route sagt WAS konkret an
@@ -31,70 +33,6 @@ function redact(input: unknown, secrets: Array<string | undefined>): string {
   }
   s = s.replace(/sk-ant-[A-Za-z0-9\-_]+/g, "***REDACTED***");
   return s.slice(0, 500);
-}
-
-// Was die jeweilige Empfehlung bedeutet + worauf sich der Plan konzentrieren soll.
-const REC_FOCUS: Record<string, string> = {
-  ctr_fix:
-    "Das Snippet verliert den Klick, nicht der Inhalt. Liefere 3 konkrete neue Title-Varianten (<=60 Zeichen, Keyword vorn, klarer Klick-Grund) und 2 Meta-Description-Varianten (150-160 Zeichen) fuer GENAU diesen Artikel. KEIN Volltext-Refresh empfehlen.",
-  push_expand:
-    "Position 11-20 (Striking Distance). Benenne die konkreten fehlenden Subtopics/Fragen als vorgeschlagene neue H2-Ueberschriften (mit 1 Satz, was darunter stehen soll), 3-5 FAQ-Fragen im Answer-first-Format und 2-3 interne Link-Quellen-Ideen (Seitentypen, die auf den Artikel verlinken sollten).",
-  refresh_decay:
-    "Der Artikel faellt gegen seinen eigenen Peak. Benenne konkret, WAS zu aktualisieren ist: veraltete Jahres-/Zahlenangaben, fehlende neue Aspekte des Themas, Freshness-Signale. Weise zuerst auf den Saisonalitaets-Check hin (Vorjahresmonat in GSC vergleichen), bevor refresht wird.",
-  consolidate:
-    "Kannibalisierung: mehrere Artikel desselben Kunden ranken auf dem Keyword. Beschreibe, welche einzigartigen Inhalte dieses Artikels in den staerkeren Artikel zu mergen waeren und was beim 301-Redirect zu beachten ist (Redirect nur nach Freigabe).",
-  tech_fix:
-    "Kein Text-Problem: pruefe Indexierung/interne Verlinkung. Liste die konkreten Pruefschritte (GSC-URL-Pruefung, interne Links, Sitemap) — KEINE Textaenderungen vorschlagen.",
-  ceiling_new_kw:
-    "Rankt bereits top, Keyword-Volumen ist zu klein. Schlage 3-5 angrenzende, groessere Ziel-Keywords/Themen vor, die zum Artikelthema passen, und ob Erweiterung oder neuer Artikel sinnvoller ist. KEINEN Refresh dieses Artikels empfehlen.",
-  low_visibility:
-    "Der Artikel ist alt genug und die Messung vollstaendig, aber Google spielt ihn kaum aus (<100 Impressionen/28T). Beurteile zuerst Saisonalitaet (Thema vs. Jahreszeit!) — dann: passt das Ziel-Keyword (Nachfrage? Intent?), welche konkreten internen Link-Quellen fehlen, und wie waeren Title/H1 auf ein nachgefragtes Keyword zu schaerfen? Konkrete Keyword-Alternativen mit Begruendung nennen.",
-};
-
-// Live-Snapshot des Artikels: Title-Tag, Meta-Description, H2/H3, grobe Wortzahl.
-async function fetchPageSnapshot(url: string) {
-  try {
-    const res = await fetch(url, {
-      signal: AbortSignal.timeout(15_000),
-      headers: { "User-Agent": "EzyHubContentBot/1.0 (+https://ezyone.ch)" },
-    });
-    if (!res.ok) return { error: `HTTP ${res.status}` };
-    const html = (await res.text()).slice(0, 400_000);
-    const pick = (re: RegExp) => (html.match(re)?.[1] || "").replace(/\s+/g, " ").trim();
-    const strip = (s: string) =>
-      s
-        .replace(/<[^>]+>/g, " ")
-        .replace(/&[a-z#0-9]+;/gi, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-    const heads: string[] = [];
-    for (const m of html.matchAll(/<h([23])[^>]*>([\s\S]*?)<\/h\1>/gi)) {
-      const t = strip(m[2]);
-      if (t) heads.push(`H${m[1]}: ${t}`);
-      if (heads.length >= 25) break;
-    }
-    const bodyText = strip(
-      html
-        .replace(/<script[\s\S]*?<\/script>/gi, " ")
-        .replace(/<style[\s\S]*?<\/style>/gi, " ")
-        .replace(/<nav[\s\S]*?<\/nav>/gi, " ")
-        .replace(/<footer[\s\S]*?<\/footer>/gi, " "),
-    );
-    return {
-      titleTag: pick(/<title[^>]*>([\s\S]*?)<\/title>/i),
-      metaDescription:
-        pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)["']/i) ||
-        pick(/<meta[^>]+content=["']([^"']*)["'][^>]+name=["']description["']/i),
-      modified: pick(
-        /<meta[^>]+property=["']article:modified_time["'][^>]+content=["']([^"']*)["']/i,
-      ),
-      headings: heads,
-      wordCount: bodyText ? bodyText.split(" ").length : 0,
-      excerpt: bodyText.slice(0, 1500),
-    };
-  } catch (e) {
-    return { error: String((e as Error)?.message || e).slice(0, 120) };
-  }
 }
 
 export const Route = createFileRoute("/api/content/refresh-brief")({

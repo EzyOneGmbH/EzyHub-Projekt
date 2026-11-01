@@ -7,6 +7,7 @@ import WordPressPublishModal from "@/ezy/PublishFlow";
 import { Badge, Btn, useToast } from "./shared-ui";
 import { useAuth } from "@/hooks/use-auth";
 import { C } from "./theme";
+import { ACTION_RECS, REC_PLAYBOOK, REC_TEXTE } from "@/lib/contentMassnahmen";
 import { Modal, TabBar, downloadFile } from "./ui-kit";
 import { escapeHtml, markdownToHtml, sanitizeHref } from "@/ezy/lib/markdown";
 import { supabase } from "@/integrations/supabase/client";
@@ -251,157 +252,27 @@ export function ContentEditor({ item, stCo, stLb, onBack, onSave }) {
 // Worklist aus der SQL-View content_decision via rpc('get_content_dashboard').
 // Gate/Trend/Empfehlung werden in der DB berechnet (agentenunabhaengig); RLS via
 // SECURITY-DEFINER-Gate. Detail-Chart = content_metrics-Zeitreihe (recharts).
-export const REC_META = {
-  not_indexed: {
-    t: "Nicht im Google-Index",
-    c: C.red,
-    a: "Auffindbarkeit herstellen – Content-Massnahmen wirken hier nicht",
-  },
-  refresh_decay: {
-    t: "Decay – Refresh fällig",
-    c: C.red,
-    a: "Freshness-Update gegen aktuelle SERP",
-  },
-  tech_fix: {
-    t: "Technik prüfen",
-    c: C.blue,
-    a: "An Tech/Agent (Index/interne Links) – nicht Content",
-  },
-  consolidate: { t: "Kannibalisierung – zusammenführen", c: C.pink, a: "Zwei Artikel mergen" },
-  push_expand: {
-    t: "Striking Distance – ausbauen",
-    c: C.accent,
-    a: "Content erweitern, E-E-A-T, Intent schärfen",
-  },
-  ctr_fix: {
-    t: "Title/Meta optimieren",
-    c: C.cyan,
-    a: "Snippet überarbeiten (kein Volltext-Refresh)",
-  },
-  ceiling_new_kw: {
-    t: "Keyword-Ceiling – neues Ziel",
-    c: C.orange,
-    a: "Nicht refreshen – neues KW/Strategie",
-  },
-  low_visibility: {
-    t: "Kaum sichtbar",
-    c: C.orange,
-    a: "Sichtbarkeit aufbauen: Keyword-Fokus, Intent, interne Links",
-  },
-  stable_hold: { t: "Stabil", c: C.green, a: "Nichts tun" },
-  monitor: { t: "Beobachten", c: C.textMuted, a: "Beobachten" },
-  maturing_wait: { t: "Reift noch", c: C.textDim, a: "Warten (< 30 Tage)" },
-  insufficient_data: {
-    t: "Zu wenig Daten",
-    c: C.textDim,
-    a: "Beobachten, kein Urteil (Messfenster füllt sich noch)",
-  },
-  unpublished: { t: "Unpubliziert", c: C.textDim, a: "—" },
+// Texte/Regeln aus src/lib/contentMassnahmen.ts (gemeinsam mit den Admin-Routen
+// /api/admin/content-actions*); hier nur die Farben je Empfehlung.
+const REC_FARBE = {
+  not_indexed: C.red,
+  refresh_decay: C.red,
+  tech_fix: C.blue,
+  consolidate: C.pink,
+  push_expand: C.accent,
+  ctr_fix: C.cyan,
+  ceiling_new_kw: C.orange,
+  low_visibility: C.orange,
+  stable_hold: C.green,
+  monitor: C.textMuted,
+  maturing_wait: C.textDim,
+  insufficient_data: C.textDim,
+  unpublished: C.textDim,
 };
-
-export const ACTION_RECS = [
-  "not_indexed",
-  "tech_fix",
-  "ctr_fix",
-  "push_expand",
-  "refresh_decay",
-  "consolidate",
-  "ceiling_new_kw",
-  "low_visibility",
-];
-
-// Massnahmen-Playbook je Empfehlung (Kurzfassung von content-fix-playbook/fix-procedures.md)
-// fuer das Mitarbeiter-Pop-up: Befund -> konkrete Schritte -> Exit-Kriterium.
-export const REC_PLAYBOOK = {
-  not_indexed: {
-    befund:
-      'Google hat den Artikel nicht im Index — geprüft über die GSC-URL-Prüfung. Steht dort "URL is unknown to Google", hat Google die Seite noch nie gesehen: das ist ein Auffindbarkeits-Problem, kein Qualitätsproblem. Solange das so ist, bleibt JEDE Content-Massnahme wirkungslos.',
-    schritte: [
-      "Erreichbarkeit bestätigen: Seite liefert HTTP 200, kein noindex, Canonical zeigt auf sich selbst, robots.txt erlaubt den Zugriff.",
-      "Sitemap prüfen: Ist der Artikel in der Sitemap UND ist die Sitemap in der Search Console eingereicht? (Ein Eintrag in der robots.txt allein reicht Google oft nicht.)",
-      "Interne Verlinkung prüfen — der häufigste Grund: Verlinkt eine bereits indexierte Seite auf den Artikel? Eine Blog-Übersicht, die selbst nicht im Index ist, vererbt nichts. Links von starken, indexierten Seiten setzen.",
-      'In der GSC "Indexierung beantragen" für die betroffenen URLs auslösen (manuell, wirkt pro URL).',
-      "KEINEN Refresh und keine Title-Optimierung vornehmen — beides ändert am Indexstatus nichts.",
-    ],
-    exit: 'Artikel in der GSC-URL-Prüfung auf "URL ist auf Google"; Re-Check in 2–3 Wochen.',
-  },
-  ctr_fix: {
-    befund:
-      "Gute Position (Top 10), Impressionen vorhanden, aber kaum Klicks — das Problem sitzt im Snippet, nicht im Inhalt.",
-    schritte: [
-      "SERP für das Ziel-Keyword ansehen: welche Snippets gewinnen den Klick — und warum?",
-      "Title neu schreiben: Ziel-Keyword vorn, konkreter Nutzen/Differenzierung, Zahl/Jahr wo sinnvoll, unter 60 Zeichen.",
-      "Meta-Description: Suchintention beantworten + klarer Grund zu klicken, 150–160 Zeichen.",
-      "KEIN Volltext-Refresh — der Inhalt rankt bereits.",
-    ],
-    exit: "Neuer Title/Meta nach QA live; Re-Test in 3–4 Wochen auf CTR terminieren.",
-  },
-  push_expand: {
-    befund:
-      "Position 11–20 — knapp vor Seite 1. Höchster Refresh-ROI: ein gezielter Schub bringt überproportional Traffic.",
-    schritte: [
-      "Top 5 der SERP analysieren: welche Subtopics/Fragen decken sie ab, die diesem Artikel fehlen?",
-      "Lücken als Answer-first-Blöcke schließen: Frage als H2, Antwort im ersten Satz, 130–170 Wörter.",
-      "E-E-A-T stärken: Autor/Quellen/Aktualität sichtbar machen; interne Links von starken Seiten auf diesen Artikel setzen.",
-      "Intent schärfen: passt das Format zur Suchintention (Guide vs. Liste vs. Definition)?",
-    ],
-    exit: "Ausbau live, interne Links gesetzt; Re-Test in 4 Wochen auf Position terminieren.",
-  },
-  refresh_decay: {
-    befund:
-      "War gut, fällt jetzt (Decay ab Tag 90) — die SERP hat sich bewegt oder der Inhalt ist veraltet.",
-    schritte: [
-      "Zuerst Saisonalität prüfen: gleichen Kalendermonat im Vorjahr vergleichen (GSC). Entspricht der Rückgang dem Vorjahresmuster → KEIN Refresh, nur vermerken.",
-      "Aktuelle SERP vs. Artikel: was ist bei den Gewinnern neu oder anders?",
-      "Veraltetes aktualisieren (Zahlen, Jahr, Fakten), fehlende neue Aspekte ergänzen — Substanz statt Kosmetik.",
-      "Modified-Datum sauber setzen; interne Links prüfen.",
-    ],
-    exit: "Update nach QA live, Refresh datiert; Re-Test in 4 Wochen terminieren.",
-  },
-  consolidate: {
-    befund:
-      "Mehrere publizierte Artikel ranken auf demselben Keyword und nehmen sich gegenseitig die Sichtbarkeit (Kannibalisierung).",
-    schritte: [
-      "Stärkeren Artikel bestimmen (Position, Backlinks, Traffic).",
-      "Einzigartige Inhalte des schwächeren Artikels in den stärkeren mergen.",
-      "Schwächeren per 301 auf den stärkeren umleiten — Redirect ist strukturell: erst Freigabe einholen, nie eigenmächtig.",
-      "Interne Links auf die neue Ziel-URL umbiegen.",
-    ],
-    exit: "Merge + Redirect live; Re-Test in 4–6 Wochen terminieren.",
-  },
-  tech_fix: {
-    befund:
-      "Keine verwertbare Position trotz Sichtbarkeitsdaten — das Problem liegt in der Technik (Indexierung, interne Verlinkung, Crawlbarkeit), nicht im Text.",
-    schritte: [
-      "Indexierungsstatus prüfen (GSC URL-Prüfung: ist die Seite im Index?).",
-      "Interne Verlinkung prüfen: erreichen starke Seiten diesen Artikel?",
-      "An Technik/SEO übergeben — an diesem Artikel KEINE Text-Änderung vornehmen.",
-    ],
-    exit: "Übergabe/Ticket an Technik erstellt; Artikel bleibt unverändert.",
-  },
-  low_visibility: {
-    befund:
-      "Über 90 Tage publiziert und volle Messabdeckung, aber unter 100 Impressionen in 28 Tagen — Google zeigt den Artikel kaum. Meist kein Technik-, sondern ein Relevanz-Problem (Keyword ohne Nachfrage, Intent-Mismatch, fehlende interne Links).",
-    schritte: [
-      "Indexierung einmal bestätigen (GSC URL-Prüfung). Nicht indexiert → als Technik-Fall behandeln.",
-      "Saisonalität prüfen: Winterthemen sind im Sommer natürlich unsichtbar — dann nur für die Saison terminieren, nichts ändern.",
-      "Ziel-Keyword hinterfragen: hat es Suchvolumen, und deckt der Artikel die Suchintention (Format, Tiefe)? GSC-Top-Query mit dem gemeinten Thema vergleichen.",
-      "Interne Links von starken Seiten (Startseite, Hub-Seiten) auf den Artikel setzen — unsichtbare Artikel sind oft Waisen.",
-      "Title/H1 auf das Ziel-Keyword schärfen; ggf. auf ein nachgefragtes, angrenzendes Keyword erweitern.",
-    ],
-    exit: "Massnahmen live; Re-Check in 6–8 Wochen mit Ziel >100 Impressionen/28 Tage.",
-  },
-  ceiling_new_kw: {
-    befund:
-      "Rankt bereits top, aber das Keyword hat zu wenig Suchvolumen — ein Refresh bringt hier nichts mehr.",
-    schritte: [
-      "Keinen Refresh an diesem Artikel durchführen.",
-      "Größeres, angrenzendes Ziel-Keyword identifizieren (Keyword-Recherche).",
-      "Entscheiden: bestehenden Artikel auf das neue Keyword erweitern ODER zusätzlichen Artikel für die angrenzende Nachfrage planen.",
-    ],
-    exit: "Neues Keyword-Ziel an Strategie/Content-Planung übergeben.",
-  },
-};
+export const REC_META = Object.fromEntries(
+  Object.entries(REC_TEXTE).map(([k, v]) => [k, { ...v, c: REC_FARBE[k] }]),
+);
+export { ACTION_RECS, REC_PLAYBOOK };
 
 export const TREND_META = {
   steigend_stabil: { c: C.green, t: "steigend/stabil" },
