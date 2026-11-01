@@ -195,3 +195,11 @@ describe("Content-Massnahmen Nachbesserung (01.11.2026)", () => {
     ).toEqual(["diagnosis"]);
   });
 });
+
+describe("textBegrenzt", () => {
+  it("liest höchstens maxBytes", async () => {
+    const { textBegrenzt } = await import("@/server/content-actions.server");
+    expect((await textBegrenzt(new Response("x".repeat(500_000)), 100_000)).length).toBe(100_000);
+    expect(await textBegrenzt(new Response("kurz"), 100)).toBe("kurz");
+  });
+});

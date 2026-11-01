@@ -5,14 +5,14 @@
 // indexierten Seiten. Nur lesend (Live-Seite, robots.txt, Sitemaps, GSC, DataForSEO).
 import { googleToken } from "./seo-report-quellen.server";
 import { GSC_API } from "./gsc.server";
-import { dfsMarkdown, dfsSeitenInfo, type Kunde } from "./content-actions.server";
+import { dfsMarkdown, dfsSeitenInfo, textBegrenzt, type Kunde } from "./content-actions.server";
 
 export type DiagnoseCheck = { check: string; ok: boolean; detail: string };
 
 const BOT_UA = "EzyHubContentBot/1.0 (+https://ezyone.ch)";
 const BROWSER_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
-const MAX_TEXT = 3_000_000; // Obergrenze pro Abruf (Worker-Speicher/CPU)
+const MAX_TEXT = 1_500_000; // Obergrenze pro Abruf (Worker-Speicher/CPU)
 
 export const normUrl = (u: string) =>
   u
@@ -43,7 +43,8 @@ async function abruf(url: string, timeoutMs = 12_000): Promise<Abruf> {
     let r = await laden(BOT_UA);
     if (r.status === 403 || r.status === 429) r = await laden(BROWSER_UA);
     const gesperrt = r.status === 403 || r.status === 429;
-    const text = gesperrt ? "" : (await r.text().catch(() => "")).slice(0, MAX_TEXT);
+    const text = gesperrt ? "" : await textBegrenzt(r, MAX_TEXT);
+    if (gesperrt) r.body?.cancel().catch(() => {});
     return {
       status: r.status,
       location: r.headers.get("location") || "",

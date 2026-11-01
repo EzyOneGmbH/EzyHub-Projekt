@@ -85,6 +85,32 @@ const strip = (s: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
+/**
+ * Liest höchstens maxBytes des Antwort-Bodys (Rest wird abgebrochen). Grosse
+ * Seiten (z. B. myswitzerland.com) komplett zu laden, sprengte das Worker-Limit
+ * (Cloudflare 1102).
+ */
+export async function textBegrenzt(res: Response, maxBytes: number): Promise<string> {
+  const reader = res.body?.getReader();
+  if (!reader) return "";
+  const dec = new TextDecoder();
+  let out = "";
+  let n = 0;
+  try {
+    while (n < maxBytes) {
+      const { done, value } = await reader.read();
+      if (done || !value) break;
+      n += value.byteLength;
+      out += dec.decode(value, { stream: true });
+    }
+  } catch {
+    /* Abbruch/Timeout: bisher Gelesenes verwenden */
+  } finally {
+    reader.cancel().catch(() => {});
+  }
+  return out.slice(0, maxBytes);
+}
+
 const BROWSER_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
 
@@ -137,7 +163,7 @@ async function direktSnapshot(url: string, opts: SnapshotOpts): Promise<SeitenSn
     // Manche Hoster/WAFs sperren Bot-Kennungen (hotelbernina.ch: 403) → zweiter Versuch
     if (res.status === 403 || res.status === 429) res = await laden(BROWSER_UA);
     if (!res.ok) return { error: `HTTP ${res.status}` };
-    const html = (await res.text()).slice(0, 400_000);
+    const html = await textBegrenzt(res, 400_000);
     const pick = (re: RegExp) => (html.match(re)?.[1] || "").replace(/\s+/g, " ").trim();
     const heads: string[] = [];
     for (const m of html.matchAll(/<h([23])[^>]*>([\s\S]*?)<\/h\1>/gi)) {
@@ -371,7 +397,7 @@ export async function gotoAufloesen(url: string): Promise<string | null> {
     if (fremd(loc)) return loc;
     // Von Rechenzentrums-IPs antwortet Google teils mit einer Hinweisseite statt 302:
     // erste fremde URL aus Links bzw. Meta-Refresh nehmen.
-    const html = await r.text().catch(() => "");
+    const html = await textBegrenzt(r, 200_000);
     for (const m of html.matchAll(/(?:href=|url=)["']?(https?:\/\/[^"'<>\s]+)/gi)) {
       const u = m[1].replace(/&amp;/g, "&");
       if (fremd(u)) return u;
