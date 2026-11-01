@@ -382,7 +382,7 @@ export async function erstelleEmpfehlung(a: EmpfehlungsAnfrage): Promise<{
   const { period } = await ladeAktionen(kunde.id);
 
   const [snap, gsc, serp] = await Promise.all([
-    fetchPageSnapshot(url, { timeoutMs: 15_000, maxHeadings: 40, excerptChars: 6000 }),
+    fetchPageSnapshot(url, { timeoutMs: 15_000, maxHeadings: 40, excerptChars: 4000 }),
     gscKontext(kunde, url, period).catch(
       () => ({ queries: [], starkeSeiten: [], hinweis: "GSC-Fehler" }) as GscKontext,
     ),
@@ -393,17 +393,26 @@ export async function erstelleEmpfehlung(a: EmpfehlungsAnfrage): Promise<{
   if (serp.error) hinweise.push(serp.error);
 
   const pb = REC_PLAYBOOK[rec];
-  const system =
+  // Zwei kleinere, parallele KI-Aufrufe statt eines grossen (01.11.2026): ein
+  // Gesamt-Aufruf brauchte >110 s (13k Ausgabe-Tokens) — so bleibt die Route
+  // unter 150 s.
+  const basisSystem =
     "Du bist Senior-SEO-Editor einer Schweizer Agentur. Du bekommst die Bewertungsdaten, den Live-Zustand EINES Blog-Artikels, seine GSC-Suchanfragen, die Top 5 der Google-SERP (Schweiz) mit deren Überschriften und eine Liste starker Seiten derselben Domain. " +
     "Du schreibst eine konkrete, sofort umsetzbare Empfehlung fuer GENAU diesen Artikel — keine Allgemeinplaetze. Fehlende Unterthemen benennst du konkret aus dem Vergleich mit den Überschriften der Top 5. " +
+    "Alle Daten liegen vor: verwende KEINE Werkzeuge, rufe keine Webseiten ab, antworte sofort. " +
     "Sprache: Deutsch (Schweiz), ss statt ß, ausser der Artikel ist in einer anderen Sprache — dann Title, Meta, Abschnitte und FAQ in der Artikelsprache, summary/change/eeat auf Deutsch. " +
-    "Antworte NUR mit einem JSON-Objekt (kein Text davor oder danach) mit genau diesen Feldern: " +
+    "Erfinde keine Fakten über den Kunden (Preise, Angebote, Auszeichnungen); wo Fakten fehlen, Platzhalter in eckigen Klammern. " +
+    "Antworte NUR mit einem JSON-Objekt (kein Text davor oder danach, kein Markdown) mit genau diesen Feldern: ";
+  const systemA =
+    basisSystem +
     '{"summary": "2–3 Sätze, was der Artikel braucht", "title_variants": ["genau 3 Varianten, max. 60 Zeichen, Keyword vorn"], "meta_description": "150–160 Zeichen", ' +
-    '"sections_to_add": [{"h2": "Frage als H2", "answer_first": "fertiger erster Absatz, 130–170 Wörter, Antwort im ersten Satz", "points": ["Unterpunkte"]}], ' +
     '"sections_to_update": [{"heading": "bestehende Überschrift exakt wie im Artikel", "change": "was konkret ändern"}], ' +
     '"internal_links": [{"from_url": "NUR aus der Liste STARKE SEITEN", "from_title": "Titel/Thema der Quellseite", "anchor": "Ankertext"}], ' +
-    '"faq": [{"q": "Frage", "a": "Antwort 40–60 Wörter"}], "eeat": ["konkrete E-E-A-T-Massnahmen"]}. ' +
-    "sections_to_add: 2–4 Abschnitte; faq: 3–5; internal_links: 2–4, from_url zwingend aus der Liste, sonst weglassen. Erfinde keine Fakten über das Hotel/den Kunden; wo Fakten fehlen, Platzhalter in eckigen Klammern.";
+    '"eeat": ["konkrete E-E-A-T-Massnahmen"]}. sections_to_update: 2–4; internal_links: 2–4, from_url zwingend aus der Liste, sonst weglassen; eeat: 2–4.';
+  const systemB =
+    basisSystem +
+    '{"sections_to_add": [{"h2": "Frage als H2", "answer_first": "fertiger erster Absatz, 130–170 Wörter, Antwort im ersten Satz", "points": ["3–5 Unterpunkte"]}], ' +
+    '"faq": [{"q": "Frage", "a": "Antwort 40–60 Wörter"}]}. sections_to_add: 2–3 Abschnitte zu Unterthemen, die die Top 5 abdecken und dieser Artikel nicht; faq: 3–5, keine Wiederholung der neuen Abschnitte.';
 
   const live =
     "error" in snap
@@ -439,7 +448,7 @@ ${
   serp.treffer
     .map(
       (t) =>
-        `#${t.position} ${t.title} — ${t.url}\n${t.headings.slice(0, 25).join("\n") || "(Überschriften nicht abrufbar)"}`,
+        `#${t.position} ${t.title} — ${t.url}\n${t.headings.slice(0, 20).join("\n") || "(Überschriften nicht abrufbar)"}`,
     )
     .join("\n\n") || "nicht verfügbar"
 }
@@ -451,53 +460,72 @@ FOKUS
 ${REC_FOCUS[rec] || "Beurteile anhand der Daten, welche Massnahme sinnvoll ist."}`;
 
   const rest = () => a.deadline - Date.now();
-  let text = "";
-  const viaSub = await generateViaSubscription({
-    system,
-    prompt,
-    model: MODELL,
-    clientId: kunde.id,
-    clientName: kunde.name,
-    label: "Content-Massnahme",
-    maxTurns: 2,
-    timeoutMs: Math.max(20_000, rest() - 25_000),
-  });
-  if (viaSub?.text) text = viaSub.text;
-  let j = text ? jsonAusText(text) : null;
-
-  // Direktweg über das API-Guthaben, wenn der agent-service nichts Brauchbares liefert
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!j && apiKey && rest() > 25_000) {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: MODELL,
-        max_tokens: 6000,
-        system,
-        messages: [{ role: "user", content: prompt }],
-      }),
-      signal: AbortSignal.timeout(Math.max(10_000, rest() - 5_000)),
+  const teil = async (system: string, label: string): Promise<any | null> => {
+    const viaSub = await generateViaSubscription({
+      system,
+      prompt,
+      model: MODELL,
+      clientId: kunde.id,
+      clientName: kunde.name,
+      label,
+      maxTurns: 3,
+      timeoutMs: Math.max(20_000, rest() - 30_000),
     });
-    if (res.ok) {
+    const j = viaSub?.text ? jsonAusText(viaSub.text) : null;
+    if (j) return j;
+    hinweise.push(`${label}: agent-service ohne gültiges JSON`);
+    // Direktweg über das API-Guthaben, wenn der agent-service nichts Brauchbares liefert
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey || rest() < 25_000) return null;
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: MODELL,
+          max_tokens: 4000,
+          system,
+          messages: [{ role: "user", content: prompt }],
+        }),
+        signal: AbortSignal.timeout(Math.max(10_000, rest() - 5_000)),
+      });
+      if (!res.ok) {
+        hinweise.push(`${label}: Anthropic HTTP ${res.status}`);
+        return null;
+      }
       const out: any = await res.json();
-      text = (out.content ?? [])
-        .filter((b: any) => b.type === "text")
-        .map((b: any) => b.text ?? "")
-        .join("\n");
       await recordApiCost({
         provider: "Claude",
         tokensIn: Number(out.usage?.input_tokens || 0),
         tokensOut: Number(out.usage?.output_tokens || 0),
       });
-      j = jsonAusText(text);
-    } else hinweise.push(`Anthropic HTTP ${res.status}`);
-  }
-  if (!j) throw new Error("KI-Antwort leer oder kein gültiges JSON");
+      return jsonAusText(
+        (out.content ?? [])
+          .filter((b: any) => b.type === "text")
+          .map((b: any) => b.text ?? "")
+          .join("\n"),
+      );
+    } catch (e) {
+      hinweise.push(`${label}: ${String((e as Error)?.message || e).slice(0, 80)}`);
+      return null;
+    }
+  };
+  const [ja, jb] = await Promise.all([
+    teil(systemA, "Content-Massnahme A"),
+    teil(systemB, "Content-Massnahme B"),
+  ]);
+  if (!ja || !jb)
+    throw new Error(
+      `KI-Antwort leer oder kein gültiges JSON (${!ja ? "Teil A" : ""}${!ja && !jb ? ", " : ""}${!jb ? "Teil B" : ""}; ${hinweise.join("; ")})`.slice(
+        0,
+        300,
+      ),
+    );
+  const j = { ...ja, sections_to_add: jb.sections_to_add, faq: jb.faq };
 
   const erlaubt = gsc.starkeSeiten.map((p) => ({ url: p.url }));
   return {
