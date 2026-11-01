@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.7.0",
+    version: "2.7.1",
     changelog: [
+      {
+        version: "2.7.1",
+        date: "2026-11-01",
+        note: "Content-Massnahmen: Keyword optional (aus GSC bzw. Title/H1), «Nicht im Index» liefert eine Diagnose (Status, noindex, Canonical, robots.txt, Sitemap, GSC-Prüfung, interne Links), gesperrte Artikel werden über DataForSEO gelesen, Modal-Texte ohne ß; Content-Sync schreibt die Zahlen jetzt zuerst für alle Kunden",
+      },
       {
         version: "2.7.0",
         date: "2026-11-01",

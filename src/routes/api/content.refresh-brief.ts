@@ -111,7 +111,9 @@ export const Route = createFileRoute("/api/content/refresh-brief")({
           .limit(84);
         const weekly = (series || []).filter((_, i) => i % 7 === 0).reverse();
 
-        const snap = row.url ? await fetchPageSnapshot(row.url) : { error: "keine URL" };
+        const snap = row.url
+          ? await fetchPageSnapshot(row.url, { dfsFallback: true })
+          : { error: "keine URL" };
 
         const system =
           "Du bist Senior-SEO-Editor einer Schweizer Agentur. Du bekommst die Bewertungsdaten und den Live-Zustand EINES Blog-Artikels und schreibst einen konkreten, sofort umsetzbaren Massnahmenplan fuer GENAU diesen Artikel — keine Allgemeinplaetze. " +

@@ -9,6 +9,7 @@ import { googleToken } from "./seo-report-quellen.server";
 import { gscRows } from "./gsc.server";
 import { generateViaSubscription } from "./claude-generate.server";
 import { recordApiCost } from "./api-cost.server";
+import { diagnoseNichtIndexiert, type DiagnoseCheck } from "./content-diagnose.server";
 import {
   REC_FOCUS,
   REC_PLAYBOOK,
@@ -93,10 +94,21 @@ export type SeitenSnapshot =
       titleTag: string;
       metaDescription: string;
       modified: string;
+      h1: string;
       headings: string[];
       wordCount: number;
       excerpt: string;
+      /** direkt = eigener Abruf; dataforseo = Ersatzweg, wenn die Website unseren Server sperrt */
+      quelle: "direkt" | "dataforseo";
     };
+
+type SnapshotOpts = {
+  timeoutMs?: number;
+  maxHeadings?: number;
+  excerptChars?: number;
+  /** Bei Sperre (403/429/Netzfehler) über DataForSEO abrufen (kostet ~0.0003 USD). */
+  dfsFallback?: boolean;
+};
 
 /**
  * Live-Snapshot eines Artikels: Title-Tag, Meta-Description, H2/H3, Wortzahl, Text.
@@ -104,8 +116,17 @@ export type SeitenSnapshot =
  */
 export async function fetchPageSnapshot(
   url: string,
-  opts: { timeoutMs?: number; maxHeadings?: number; excerptChars?: number } = {},
+  opts: SnapshotOpts = {},
 ): Promise<SeitenSnapshot> {
+  const direkt = await direktSnapshot(url, opts);
+  if (!("error" in direkt) || !opts.dfsFallback) return direkt;
+  // hotelbernina.ch u. a. sperren Rechenzentrums-IPs (unabhängig vom User-Agent:
+  // lokal 200 mit Bot-, Browser- und Googlebot-Kennung, vom Server 403) → DataForSEO
+  const dfs = await dfsSnapshot(url, opts);
+  return "error" in dfs ? { error: `${direkt.error}; DataForSEO: ${dfs.error}` } : dfs;
+}
+
+async function direktSnapshot(url: string, opts: SnapshotOpts): Promise<SeitenSnapshot> {
   try {
     const laden = (ua: string) =>
       fetch(url, {
@@ -136,6 +157,8 @@ export async function fetchPageSnapshot(
               .replace(/<footer[\s\S]*?<\/footer>/gi, " "),
           );
     return {
+      quelle: "direkt",
+      h1: strip(html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1] || "").slice(0, 200),
       titleTag: pick(/<title[^>]*>([\s\S]*?)<\/title>/i),
       metaDescription:
         pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)["']/i) ||
@@ -150,6 +173,103 @@ export async function fetchPageSnapshot(
   } catch (e) {
     return { error: String((e as Error)?.message || e).slice(0, 120) };
   }
+}
+
+// ── DataForSEO On-Page (Ersatzweg für gesperrte Seiten) ─────────────────────
+
+let dfsKosten = 0;
+/** Seit dem letzten Aufruf angefallene DataForSEO-On-Page-Kosten (USD), danach 0. */
+export function holeDfsKosten(): number {
+  const k = dfsKosten;
+  dfsKosten = 0;
+  return k;
+}
+
+export async function dfsPost(
+  pfad: string,
+  body: unknown,
+  timeoutMs = 30_000,
+): Promise<any | null> {
+  const auth = dfsAuth();
+  if (!auth) return null;
+  try {
+    const r = await fetch(`https://api.dataforseo.com/v3/${pfad}`, {
+      method: "POST",
+      headers: { Authorization: auth, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    const j: any = await r.json().catch(() => null);
+    dfsKosten += Number(j?.cost) || 0;
+    const t = j?.tasks?.[0];
+    if (!r.ok || !t || Number(t.status_code) >= 40000) return null;
+    return t.result?.[0]?.items?.[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Status, Meta, Canonical, robots-Meta einer Seite laut DataForSEO (instant_pages). */
+export async function dfsSeitenInfo(url: string, timeoutMs = 30_000) {
+  const it = await dfsPost("on_page/instant_pages", [{ url, enable_javascript: false }], timeoutMs);
+  if (!it) return null;
+  const checks = it.checks ?? {};
+  const noindex = Object.entries(checks).some(([k, v]) => /no_?index/i.test(k) && v === true);
+  return {
+    status: Number(it.status_code) || 0,
+    title: String(it.meta?.title ?? ""),
+    description: String(it.meta?.description ?? ""),
+    canonical: String(it.meta?.canonical ?? ""),
+    h1: (it.meta?.htags?.h1 ?? []).map(String),
+    h2: (it.meta?.htags?.h2 ?? []).map(String),
+    h3: (it.meta?.htags?.h3 ?? []).map(String),
+    wordCount: Number(it.meta?.content?.plain_text_word_count) || 0,
+    modified: String(it.last_modified?.meta_tag ?? ""),
+    noindex,
+  };
+}
+
+/** Haupttext einer Seite als Markdown laut DataForSEO (content_parsing). */
+export async function dfsMarkdown(url: string, timeoutMs = 30_000): Promise<string | null> {
+  const it = await dfsPost(
+    "on_page/content_parsing/live",
+    [{ url, markdown_view: true }],
+    timeoutMs,
+  );
+  const md = it?.page_as_markdown;
+  return typeof md === "string" && md.trim() ? md : null;
+}
+
+const ohneMarkdown = (md: string) =>
+  md
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/^#+\s*/gm, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+async function dfsSnapshot(url: string, opts: SnapshotOpts): Promise<SeitenSnapshot> {
+  const t = Math.max(10_000, opts.timeoutMs ?? 15_000) + 10_000;
+  const [info, md] = await Promise.all([
+    dfsSeitenInfo(url, t),
+    opts.excerptChars === 0 ? Promise.resolve(null) : dfsMarkdown(url, t),
+  ]);
+  if (!info && !md) return { error: "nicht abrufbar" };
+  if (info && info.status >= 400) return { error: `HTTP ${info.status}` };
+  const heads: string[] = info
+    ? [...info.h2.map((h: string) => `H2: ${h}`), ...info.h3.map((h: string) => `H3: ${h}`)]
+    : [...(md ?? "").matchAll(/^(#{2,3})\s+(.+)$/gm)].map((m) => `H${m[1].length}: ${m[2]}`);
+  const text = md ? ohneMarkdown(md) : "";
+  return {
+    quelle: "dataforseo",
+    titleTag: info?.title ?? "",
+    metaDescription: info?.description ?? "",
+    modified: info?.modified ?? "",
+    h1: info?.h1?.[0] ?? md?.match(/^#\s+(.+)$/m)?.[1] ?? "",
+    headings: heads.map((h) => h.slice(0, 140)).slice(0, opts.maxHeadings ?? 25),
+    wordCount: info?.wordCount || (text ? text.split(" ").length : 0),
+    excerpt: text.slice(0, opts.excerptChars ?? 1500),
+  };
 }
 
 // ── GSC ─────────────────────────────────────────────────────────────────────
@@ -380,6 +500,16 @@ export type Empfehlung = {
   faq: Array<{ q: string; a: string }>;
   eeat: string[];
   serp_top5: Array<{ position: number; url: string; title: string }>;
+  /** Live-Artikel abrufbar (direkt oder über DataForSEO) */
+  article_fetched: boolean;
+};
+
+/** Antwort für type «not_indexed»: Diagnose statt Content-Empfehlung. */
+export type Diagnose = {
+  summary: string;
+  diagnosis: DiagnoseCheck[];
+  internal_links: Array<{ from_url: string; from_title: string; anchor: string }>;
+  article_fetched: boolean;
 };
 
 const s = (v: unknown) => (typeof v === "string" ? v.trim() : "");
@@ -403,6 +533,7 @@ export function normalisiereEmpfehlung(
   j: any,
   erlaubt: Array<{ url: string; title?: string }>,
   serp: SerpTreffer[],
+  articleFetched = true,
 ): Empfehlung {
   const norm = (u: string) =>
     u
@@ -441,12 +572,67 @@ export function normalisiereEmpfehlung(
       .filter((x) => x.q && x.a && !h2s.has(frage(x.q))),
     eeat: arr(j?.eeat).map(s).filter(Boolean),
     serp_top5: serp.map((t) => ({ position: t.position, url: t.url, title: t.title })),
+    article_fetched: articleFetched,
   });
 }
 
+/** Interne Links aus einer Modellantwort, nur aus der erlaubten Liste, je Quelle einmal. */
+export function erlaubteLinks(
+  roh: unknown,
+  erlaubt: Array<{ url: string; title?: string }>,
+): Array<{ from_url: string; from_title: string; anchor: string }> {
+  const norm = (u: string) =>
+    u
+      .replace(/[#?].*$/, "")
+      .replace(/\/+$/, "")
+      .toLowerCase();
+  const map = new Map(erlaubt.map((e) => [norm(e.url), e]));
+  const seen = new Set<string>();
+  return arr(roh)
+    .map((l) => ({ from_url: s(l?.from_url), from_title: s(l?.from_title), anchor: s(l?.anchor) }))
+    .filter((l) => l.from_url && l.anchor && map.has(norm(l.from_url)))
+    .map((l) => {
+      const e = map.get(norm(l.from_url))!;
+      return { ...l, from_url: e.url, from_title: l.from_title || e.title || "" };
+    })
+    .filter((l) => !seen.has(l.from_url) && !!seen.add(l.from_url));
+}
+
+/** «Pontresina Tourismus: Wo die Alpen …» → «pontresina tourismus» */
+export function keywordAusTitel(t: string): string {
+  const kopf = String(t || "")
+    .split(/\s[–—|-]\s|[:?!|]/)[0]
+    .replace(/[«»"“”„()]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+  return kopf.split(" ").slice(0, 6).join(" ");
+}
+
+/** Haupt-Keyword: GSC-Suchanfrage mit den meisten Klicks (sonst Impressionen), sonst aus Title/H1. */
+export function hauptKeyword(
+  queries: Array<{ query: string; clicks: number; impressions: number }>,
+  titel: string[],
+): { keyword: string; quelle: "gsc" | "titel" } | null {
+  const q = [...queries]
+    .filter((x) => x.query && x.impressions > 0)
+    .sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions)[0];
+  if (q) return { keyword: q.query, quelle: "gsc" };
+  for (const t of titel) {
+    const k = keywordAusTitel(t);
+    if (k.length >= 3) return { keyword: k, quelle: "titel" };
+  }
+  return null;
+}
+
 /** Fehlende Pflichtteile; leer = vollständig. */
-export function luecken(e: Empfehlung): string[] {
+export function luecken(e: Empfehlung | Diagnose): string[] {
   const f: string[] = [];
+  if ("diagnosis" in e) {
+    if (!e.summary) f.push("summary");
+    if (!e.diagnosis.length) f.push("diagnosis");
+    return f;
+  }
   if (!e.summary) f.push("summary");
   if (e.title_variants.length < 3) f.push("title_variants");
   if (!e.meta_description) f.push("meta_description");
@@ -459,17 +645,21 @@ export type EmpfehlungsAnfrage = {
   kunde: Kunde;
   url: string;
   rec: string;
-  keyword: string;
+  /** optional: ohne Keyword Haupt-Keyword aus GSC bzw. Title/H1 */
+  keyword?: string;
   deadline: number; // Date.now()-Zeitpunkt, bis zu dem fertig sein muss
 };
 
 export async function erstelleEmpfehlung(a: EmpfehlungsAnfrage): Promise<{
-  recommendation: Empfehlung;
+  recommendation: Empfehlung | Diagnose;
   cost: { dataforseo: number };
   hinweise: string[];
+  keyword: string;
+  keyword_quelle: "eingabe" | "gsc" | "titel";
 }> {
-  const { kunde, url, rec, keyword } = a;
+  const { kunde, url, rec } = a;
   const hinweise: string[] = [];
+  holeDfsKosten();
   const { data: zeile } = await sb
     .from("content_decision")
     .select("*")
@@ -484,14 +674,39 @@ export async function erstelleEmpfehlung(a: EmpfehlungsAnfrage): Promise<{
     ] ?? "de";
   const { period } = await ladeAktionen(kunde.id);
 
-  const [snap, gsc, serp] = await Promise.all([
-    fetchPageSnapshot(url, { timeoutMs: 15_000, maxHeadings: 40, excerptChars: 4000 }),
+  const eingabe = (a.keyword || "").trim();
+  if (rec === "not_indexed") return diagnose(a, zeile, period, eingabe, hinweise);
+
+  // Mit Keyword läuft die SERP parallel; ohne wird es erst aus GSC/Title abgeleitet
+  const serpFrueh = eingabe ? serpTop5(eingabe, sprache, kunde.domain) : null;
+  const [snap, gsc] = await Promise.all([
+    fetchPageSnapshot(url, {
+      timeoutMs: 15_000,
+      maxHeadings: 40,
+      excerptChars: 4000,
+      dfsFallback: true,
+    }),
     gscKontext(kunde, url, period).catch(
       () => ({ queries: [], starkeSeiten: [], hinweis: "GSC-Fehler" }) as GscKontext,
     ),
-    serpTop5(keyword, sprache, kunde.domain),
   ]);
+  let keyword = eingabe;
+  let keyword_quelle: "eingabe" | "gsc" | "titel" = "eingabe";
+  if (!keyword) {
+    const k = hauptKeyword(gsc.queries, [
+      "error" in snap ? "" : snap.h1,
+      String(zeile?.title || ""),
+      "error" in snap ? "" : snap.titleTag,
+    ]);
+    if (!k) throw new Error("Kein keyword angegeben und keines aus GSC oder Title/H1 ableitbar");
+    keyword = k.keyword;
+    keyword_quelle = k.quelle;
+  }
+  const serp = await (serpFrueh ?? serpTop5(keyword, sprache, kunde.domain));
+  const articleFetched = !("error" in snap);
   if ("error" in snap) hinweise.push(`Live-Artikel nicht abrufbar (${snap.error})`);
+  else if (snap.quelle === "dataforseo")
+    hinweise.push("Live-Artikel über DataForSEO abgerufen (Website sperrt unseren Server)");
   const knapp = (t: string, n: number) => (t.length > n ? t.slice(0, n) + " …" : t);
   if (gsc.hinweis) hinweise.push(gsc.hinweis);
   if (serp.error) hinweise.push(serp.error);
@@ -641,9 +856,122 @@ ${REC_FOCUS[rec] || "Beurteile anhand der Daten, welche Massnahme sinnvoll ist."
 
   const erlaubt = gsc.starkeSeiten.map((p) => ({ url: p.url }));
   return {
-    recommendation: normalisiereEmpfehlung(j, erlaubt, serp.treffer),
-    cost: { dataforseo: serp.cost },
+    recommendation: normalisiereEmpfehlung(j, erlaubt, serp.treffer, articleFetched),
+    cost: { dataforseo: rund4(serp.cost + holeDfsKosten()) },
     hinweise,
+    keyword,
+    keyword_quelle,
+  };
+}
+
+const rund4 = (n: number) => Math.round(n * 10_000) / 10_000;
+
+/** Ein JSON-Teil über das Claude-Abo (agent-service); null bei Fehler. */
+async function kiJson(
+  kunde: Kunde,
+  system: string,
+  prompt: string,
+  label: string,
+  timeoutMs: number,
+): Promise<any | null> {
+  const r = await generateViaSubscription({
+    system,
+    prompt,
+    model: MODELL,
+    clientId: kunde.id,
+    clientName: kunde.name,
+    label,
+    maxTurns: 3,
+    effort: "low",
+    timeoutMs,
+  });
+  return r?.text ? jsonAusText(r.text) : null;
+}
+
+/** type «not_indexed»: Diagnose der Index-Hürden + interne Links von indexierten Seiten. */
+async function diagnose(
+  a: EmpfehlungsAnfrage,
+  zeile: any,
+  period: { start: string; end: string },
+  eingabe: string,
+  hinweise: string[],
+) {
+  const { kunde, url } = a;
+  const gsc = await gscKontext(kunde, url, period).catch(
+    () => ({ queries: [], starkeSeiten: [], hinweis: "GSC-Fehler" }) as GscKontext,
+  );
+  if (gsc.hinweis) hinweise.push(gsc.hinweis);
+  const d = await diagnoseNichtIndexiert({ kunde, url, starkeSeiten: gsc.starkeSeiten });
+  hinweise.push(...d.hinweise);
+
+  let keyword = eingabe;
+  let keyword_quelle: "eingabe" | "gsc" | "titel" = "eingabe";
+  if (!keyword) {
+    const k = hauptKeyword(gsc.queries, [d.artikelTitel, String(zeile?.title || "")]);
+    keyword = k?.keyword ?? "";
+    keyword_quelle = k?.quelle ?? "titel";
+  }
+
+  // Linkquellen: indexiert (GSC-Klicks), abrufbar und noch ohne Link auf den Artikel
+  const kandidaten = d.linkQuellen.filter((l) => l.verlinkt === false);
+  const erlaubt = kandidaten.map((l) => ({ url: l.url, title: l.title }));
+  const fehler = d.checks.filter((c) => !c.ok);
+
+  const system =
+    "Du bist technischer SEO einer Schweizer Agentur. Ein Blog-Artikel ist nicht im Google-Index. Du bekommst die Ergebnisse automatischer Prüfungen und eine Liste indexierter Seiten derselben Domain, die den Artikel noch NICHT verlinken. " +
+    "Alle Daten liegen vor: verwende KEINE Werkzeuge, antworte sofort. Deutsch (Schweiz), ss statt ß. Erfinde nichts, stütze dich nur auf die Prüfergebnisse. " +
+    'Antworte NUR mit JSON: {"summary": "2–4 Sätze: wahrscheinlichste Ursache(n) und die nächsten Schritte in Reihenfolge (z. B. Indexierung in GSC beantragen, Sitemap einreichen, intern verlinken)", ' +
+    '"internal_links": [{"from_url": "NUR aus der Liste KANDIDATEN", "from_title": "Titel der Quellseite", "anchor": "natürlicher Ankertext zum Thema des Artikels"}]}. internal_links: 2–4, thematisch passende Quellen zuerst.';
+  const prompt = `ARTIKEL
+URL: ${url}
+Titel: ${d.artikelTitel || zeile?.title || "—"}
+Haupt-Keyword: ${keyword || "—"}
+Kunde: ${kunde.name} (${kunde.domain || "—"})
+
+PRÜFUNGEN
+${d.checks.map((c) => `${c.ok ? "OK" : "FEHLER"} ${c.check}: ${c.detail}`).join("\n")}
+
+KANDIDATEN (indexiert, GSC-Klicks 28T, verlinken den Artikel noch nicht)
+${kandidaten.map((l) => `${l.url} — ${l.title || "ohne Titel"} (${l.clicks} Klicks)`).join("\n") || "keine"}`;
+
+  const rest = a.deadline - Date.now();
+  const j =
+    rest > 25_000
+      ? await kiJson(
+          kunde,
+          system,
+          prompt,
+          "Content-Massnahme Diagnose",
+          Math.max(20_000, rest - 15_000),
+        )
+      : null;
+  if (!j) hinweise.push("Diagnose-Text ohne KI erstellt (agent-service ohne gültiges JSON)");
+
+  let links = erlaubteLinks(j?.internal_links, erlaubt);
+  if (!links.length && kandidaten.length && keyword)
+    links = kandidaten.slice(0, 3).map((l) => ({
+      from_url: l.url,
+      from_title: l.title,
+      anchor: keyword,
+    }));
+  const summary =
+    s(j?.summary) ||
+    (fehler.length
+      ? `Auffällig: ${fehler.map((c) => `${c.check} (${c.detail})`).join("; ")}. Diese Punkte beheben, danach in der GSC die Indexierung beantragen.`
+      : "Technisch keine Hürde gefunden. In der GSC die Indexierung beantragen und den Artikel von starken Seiten intern verlinken.");
+
+  const recommendation: Diagnose = ohneEszett({
+    summary,
+    diagnosis: d.checks,
+    internal_links: links,
+    article_fetched: d.articleFetched,
+  });
+  return {
+    recommendation,
+    cost: { dataforseo: rund4(holeDfsKosten()) },
+    hinweise,
+    keyword,
+    keyword_quelle: keyword_quelle as "eingabe" | "gsc" | "titel",
   };
 }
 
@@ -668,7 +996,7 @@ export async function speichereCache(
   url: string,
   type: string,
   keyword: string,
-  payload: Empfehlung,
+  payload: Empfehlung | Diagnose,
   generatedAt: string,
 ) {
   const { error } = await sb

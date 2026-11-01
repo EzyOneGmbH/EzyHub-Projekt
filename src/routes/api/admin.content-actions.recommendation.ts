@@ -16,13 +16,15 @@ import {
 // und interne Links nur von starken Seiten derselben Domain (GSC-Klicks).
 // Schutz wie /api/admin/seo-report. Schreibt nur content_action_recommendations
 // (Cache, 7 Tage). Fehler → { ok:false, error } mit HTTP 200.
-// POST { client, url, type, keyword } [?refresh=true]
+// POST { client, url, type, keyword? } [?refresh=true]
+// type «not_indexed» → Diagnose (summary, diagnosis[], internal_links) statt Content-Empfehlung.
 
 const Body = z.object({
   client: z.string().uuid(),
   url: z.string().url(),
   type: z.string().min(1),
-  keyword: z.string().trim().min(1).max(200),
+  // optional: ohne Keyword Haupt-Keyword aus den GSC-Suchanfragen der Seite, sonst aus Title/H1
+  keyword: z.string().trim().max(200).optional().nullable(),
 });
 
 const BUDGET_MS = 140_000; // unter 150 s pro Aufruf
@@ -64,29 +66,33 @@ export const Route = createFileRoute("/api/admin/content-actions/recommendation"
 
           if (!refresh) {
             const c = await ladeCache(kunde.id, d.url, type);
-            if (c?.payload)
+            // Anderes Keyword ausdrücklich verlangt → neu erstellen
+            const passt = !d.keyword || !c?.keyword || c.keyword === d.keyword;
+            if (c?.payload && passt)
               return Response.json(
                 {
                   ok: true,
                   recommendation: c.payload,
                   generated_at: new Date(c.generated_at).toISOString(),
                   cached: true,
+                  meta: { keyword: c.keyword ?? null },
                 },
                 { headers: { "Cache-Control": "no-store" } },
               );
           }
 
-          const { recommendation, hinweise, cost } = await erstelleEmpfehlung({
-            kunde,
-            url: d.url,
-            rec,
-            keyword: d.keyword,
-            deadline: start + BUDGET_MS,
-          });
+          const { recommendation, hinweise, cost, keyword, keyword_quelle } =
+            await erstelleEmpfehlung({
+              kunde,
+              url: d.url,
+              rec,
+              keyword: d.keyword ?? undefined,
+              deadline: start + BUDGET_MS,
+            });
           const fehlt = luecken(recommendation);
           if (fehlt.length) return fehler(`Empfehlung unvollständig (${fehlt.join(", ")})`);
           const generated_at = new Date().toISOString();
-          await speichereCache(kunde.id, d.url, type, d.keyword, recommendation, generated_at);
+          await speichereCache(kunde.id, d.url, type, keyword, recommendation, generated_at);
           return Response.json(
             {
               ok: true,
@@ -95,6 +101,8 @@ export const Route = createFileRoute("/api/admin/content-actions/recommendation"
               cached: false,
               meta: {
                 dauer_ms: Date.now() - start,
+                keyword,
+                keyword_quelle,
                 dataforseo_cost: cost.dataforseo,
                 hinweise,
               },

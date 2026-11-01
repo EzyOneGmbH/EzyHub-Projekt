@@ -643,7 +643,7 @@ export function RefreshRadar({ selectedClient }) {
                     }}
                   />
                   <span
-                    title={REC_PLAYBOOK[r.recommendation] ? "Klicken für Maßnahme" : undefined}
+                    title={REC_PLAYBOOK[r.recommendation] ? "Klicken für Massnahme" : undefined}
                     onClick={
                       REC_PLAYBOOK[r.recommendation]
                         ? (e) => {
@@ -710,7 +710,7 @@ export function RefreshRadar({ selectedClient }) {
                       </div>
                       {REC_PLAYBOOK[r.recommendation] ? (
                         <Btn variant="secondary" size="sm" onClick={() => setPlaybook(r)}>
-                          Maßnahme anzeigen
+                          Massnahme anzeigen
                         </Btn>
                       ) : null}
                     </div>
@@ -734,7 +734,7 @@ export function RefreshRadar({ selectedClient }) {
               <Modal
                 open
                 onClose={() => setPlaybook(null)}
-                title={`Maßnahme: ${rec.t}`}
+                title={`Massnahme: ${rec.t}`}
                 width={620}
               >
                 <div

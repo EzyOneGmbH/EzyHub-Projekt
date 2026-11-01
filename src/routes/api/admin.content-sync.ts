@@ -710,23 +710,58 @@ export const Route = createFileRoute("/api/admin/content-sync")({
         if (!clients.length)
           return Response.json({ ok: false, error: "Kein Kunde gefunden" }, { status: 404 });
 
-        const results: any[] = [];
-        for (const c of clients) {
-          const jr: Record<string, unknown> = {};
-          for (const j of wanted) {
-            try {
-              if (j === "discover") jr.discover = await jobDiscover(c, perPage, maxPages);
-              else if (j === "metrics") jr.metrics = await jobMetrics(c);
-              else if (j === "inspect") jr.inspect = await jobInspect(c, inspectLimit, inspectUrls);
-              else if (j === "backfill") jr.backfill = await jobBackfill(c, backfillDays);
-              else if (j === "sitemaps") jr.sitemaps = await jobSitemaps(c, submitSitemaps);
-            } catch (e) {
-              jr[j] = { error: redactSecrets(e) };
-            }
-          }
-          results.push({ client: c.name, domain: c.domain, jobs: jr });
+        // 01.11.2026: Der Sammellauf wird serverseitig nach ~14 min gekappt. Früher
+        // lief pro Kunde discover→metrics→inspect→sitemaps nacheinander in zufälliger
+        // Tabellenreihenfolge — Kunden weit hinten (Bernina, Ava, Bären, Embassy …)
+        // bekamen tagelang keine Zahlen. Jetzt: (1) feste Reihenfolge, Start rotiert
+        // je 12-h-Lauf; (2) erst die schnellen Jobs (metrics/backfill) für ALLE
+        // Kunden, dann die langsamen; (3) langsame Jobs nach 10 min überspringen.
+        const t0 = Date.now();
+        const BUDGET_LANGSAM_MS = 10 * 60_000;
+        clients.sort((x: any, y: any) => String(x.id).localeCompare(String(y.id)));
+        if (all && clients.length > 1) {
+          const versatz = Math.floor(Date.now() / (12 * 3_600_000)) % clients.length;
+          clients = [...clients.slice(versatz), ...clients.slice(0, versatz)];
         }
-        return Response.json({ ok: true, count: clients.length, results, capturedOn: refDate() });
+        const schnell = wanted.filter((j) => j === "metrics" || j === "backfill");
+        const langsam = wanted.filter((j) => j !== "metrics" && j !== "backfill");
+        const jr = new Map<string, Record<string, unknown>>(clients.map((c: any) => [c.id, {}]));
+        const lauf = async (c: any, j: string) => {
+          const r = jr.get(c.id)!;
+          try {
+            if (j === "discover") r.discover = await jobDiscover(c, perPage, maxPages);
+            else if (j === "metrics") r.metrics = await jobMetrics(c);
+            else if (j === "inspect") r.inspect = await jobInspect(c, inspectLimit, inspectUrls);
+            else if (j === "backfill") r.backfill = await jobBackfill(c, backfillDays);
+            else if (j === "sitemaps") r.sitemaps = await jobSitemaps(c, submitSitemaps);
+          } catch (e) {
+            r[j] = { error: redactSecrets(e) };
+          }
+        };
+        for (const c of clients) for (const j of schnell) await lauf(c, j);
+        let uebersprungen = 0;
+        for (const c of clients)
+          for (const j of langsam) {
+            if (all && Date.now() - t0 > BUDGET_LANGSAM_MS) {
+              jr.get(c.id)![j] = { skipped: "Zeitbudget" };
+              uebersprungen++;
+              continue;
+            }
+            await lauf(c, j);
+          }
+        const results = clients.map((c: any) => ({
+          client: c.name,
+          domain: c.domain,
+          jobs: jr.get(c.id),
+        }));
+        return Response.json({
+          ok: true,
+          count: clients.length,
+          results,
+          capturedOn: refDate(),
+          partial: uebersprungen > 0,
+          dauer_ms: Date.now() - t0,
+        });
       },
     },
   },

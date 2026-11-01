@@ -77,7 +77,7 @@ export const REC_PLAYBOOK: Record<string, { befund: string; schritte: string[]; 
       "Position 11–20 — knapp vor Seite 1. Höchster Refresh-ROI: ein gezielter Schub bringt überproportional Traffic.",
     schritte: [
       "Top 5 der SERP analysieren: welche Subtopics/Fragen decken sie ab, die diesem Artikel fehlen?",
-      "Lücken als Answer-first-Blöcke schließen: Frage als H2, Antwort im ersten Satz, 130–170 Wörter.",
+      "Lücken als Answer-first-Blöcke schliessen: Frage als H2, Antwort im ersten Satz, 130–170 Wörter.",
       "E-E-A-T stärken: Autor/Quellen/Aktualität sichtbar machen; interne Links von starken Seiten auf diesen Artikel setzen.",
       "Intent schärfen: passt das Format zur Suchintention (Guide vs. Liste vs. Definition)?",
     ],
@@ -132,7 +132,7 @@ export const REC_PLAYBOOK: Record<string, { befund: string; schritte: string[]; 
       "Rankt bereits top, aber das Keyword hat zu wenig Suchvolumen — ein Refresh bringt hier nichts mehr.",
     schritte: [
       "Keinen Refresh an diesem Artikel durchführen.",
-      "Größeres, angrenzendes Ziel-Keyword identifizieren (Keyword-Recherche).",
+      "Grösseres, angrenzendes Ziel-Keyword identifizieren (Keyword-Recherche).",
       "Entscheiden: bestehenden Artikel auf das neue Keyword erweitern ODER zusätzlichen Artikel für die angrenzende Nachfrage planen.",
     ],
     exit: "Neues Keyword-Ziel an Strategie/Content-Planung übergeben.",

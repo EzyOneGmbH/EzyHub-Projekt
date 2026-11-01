@@ -130,3 +130,68 @@ describe("Breadcrumb und FAQ-Dubletten", () => {
     expect(e.faq.map((f) => f.q)).toEqual(["Wie reise ich an?"]);
   });
 });
+
+describe("Content-Massnahmen Nachbesserung (01.11.2026)", () => {
+  it("Modal-Texte ohne ß", () => {
+    expect(JSON.stringify({ REC_TEXTE, REC_PLAYBOOK })).not.toContain("ß");
+  });
+
+  it("Keyword aus GSC (Klicks vor Impressionen), sonst aus Title/H1", async () => {
+    const { hauptKeyword, keywordAusTitel } = await import("@/server/content-actions.server");
+    expect(
+      hauptKeyword(
+        [
+          { query: "a", clicks: 0, impressions: 90 },
+          { query: "b", clicks: 2, impressions: 10 },
+        ],
+        [],
+      ),
+    ).toEqual({ keyword: "b", quelle: "gsc" });
+    expect(hauptKeyword([], ["Pontresina Tourismus: Wo die Alpen noch Wildnis sind"])).toEqual({
+      keyword: "pontresina tourismus",
+      quelle: "titel",
+    });
+    expect(keywordAusTitel("Pontresina Wandern – die schönsten Wege")).toBe("pontresina wandern");
+    expect(hauptKeyword([], ["", "  "])).toBeNull();
+  });
+
+  it("robots.txt: Googlebot-Gruppe, längste Regel, Wildcards", async () => {
+    const { robotsErlaubt } = await import("@/server/content-diagnose.server");
+    const r =
+      "User-agent: *\nDisallow: /wp-admin/\nAllow: /wp-admin/admin-ajax.php\nDisallow: /*?s=\n";
+    expect(robotsErlaubt(r, "/pontresina/").erlaubt).toBe(true);
+    expect(robotsErlaubt(r, "/wp-admin/x").erlaubt).toBe(false);
+    expect(robotsErlaubt(r, "/wp-admin/admin-ajax.php").erlaubt).toBe(true);
+    expect(robotsErlaubt(r, "/suche?s=x").erlaubt).toBe(false);
+    const g = "User-agent: *\nDisallow: /\n\nUser-agent: Googlebot\nDisallow: /privat/\n";
+    expect(robotsErlaubt(g, "/blog/").erlaubt).toBe(true);
+    expect(robotsErlaubt(g, "/privat/a").regel).toBe("Disallow: /privat/");
+  });
+
+  it("interne Links in HTML und Markdown erkennen (www/Slash/relativ egal)", async () => {
+    const { verlinkt } = await import("@/server/content-diagnose.server");
+    const ziel = "https://www.h.ch/pontresina/";
+    expect(verlinkt('<a href="/pontresina">x</a>', ziel, "https://www.h.ch/")).toBe(true);
+    expect(verlinkt('<a href="https://h.ch/pontresina/#top">x</a>', ziel, "https://h.ch/")).toBe(
+      true,
+    );
+    expect(verlinkt("[Dorf](https://www.h.ch/pontresina/)", ziel, "https://www.h.ch/")).toBe(true);
+    expect(verlinkt('<a href="/pontresina-wandern/">x</a>', ziel, "https://www.h.ch/")).toBe(false);
+  });
+
+  it("Diagnose-Links nur aus Kandidaten, Diagnose-Vollständigkeit", async () => {
+    const { erlaubteLinks } = await import("@/server/content-actions.server");
+    const l = erlaubteLinks(
+      [
+        { from_url: "https://h.ch/a/", anchor: "x" },
+        { from_url: "https://h.ch/a", anchor: "y" },
+        { from_url: "https://fremd.ch/", anchor: "z" },
+      ],
+      [{ url: "https://h.ch/a", title: "Seite A" }],
+    );
+    expect(l).toEqual([{ from_url: "https://h.ch/a", from_title: "Seite A", anchor: "x" }]);
+    expect(
+      luecken({ summary: "s", diagnosis: [], internal_links: [], article_fetched: true }),
+    ).toEqual(["diagnosis"]);
+  });
+});
