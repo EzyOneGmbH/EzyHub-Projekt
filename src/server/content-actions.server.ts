@@ -768,6 +768,17 @@ export async function erstelleEmpfehlung(a: EmpfehlungsAnfrage): Promise<{
   const systemB =
     basisSystem +
     '{"sections_to_add": [{"h2": "Frage als H2", "answer_first": "fertiger erster Absatz aus 8–10 Sätzen, MINDESTENS 135 und höchstens 170 Wörter (zähle nach), Antwort im ersten Satz", "points": ["3–5 Unterpunkte"]}]}. 2–3 Abschnitte zu Unterthemen, die die Top 5 abdecken und dieser Artikel nicht.';
+  // Teil B aufgeteilt (01.11.2026): ein Aufruf für alle Abschnitte brauchte bei
+  // Campagnola >100 s. Jetzt: kurzer Plan (H2-Fragen), dann je Abschnitt parallel.
+  const systemBPlan =
+    basisSystem +
+    '{"h2": ["Frage als H2"]}. Genau 3 Fragen (als H2 formuliert) zu Unterthemen, die die Top 5 abdecken und dieser Artikel nicht — verschiedene Themen, keine Überschneidung. NUR die Fragen, keine Texte.';
+  const systemBAbschnitt = (h2: string, andere: string[]) =>
+    basisSystem +
+    `{"h2": "${h2.replace(/"/g, "'")}", "answer_first": "fertiger erster Absatz aus 8–10 Sätzen, MINDESTENS 135 und höchstens 170 Wörter (zähle nach), Antwort im ersten Satz", "points": ["3–5 Unterpunkte"]}. Schreibe GENAU EINEN neuen Abschnitt zur H2 «${h2}».` +
+    (andere.length
+      ? ` Die Themen ${andere.map((x) => `«${x}»`).join(", ")} behandeln andere Abschnitte — nicht wiederholen.`
+      : "");
   const systemC =
     basisSystem +
     '{"faq": [{"q": "Frage", "a": "Antwort 40–60 Wörter"}]}. 3–5 FAQ zu konkreten Nutzerfragen aus den GSC-Suchanfragen und zum Ziel-Keyword — kurze Detailfragen (Preise, Anreise, Dauer, Saison o. ä.), keine breiten Unterthemen.';
@@ -820,7 +831,7 @@ ${REC_FOCUS[rec] || "Beurteile anhand der Daten, welche Massnahme sinnvoll ist."
   // Obergrenze gegen ausufernde Seiten (Prompt-Grösse treibt die Laufzeit)
   const kurzPrompt = knapp(prompt, 24_000);
   const rest = () => a.deadline - Date.now();
-  const teil = async (system: string, label: string): Promise<any | null> => {
+  const teil = async (system: string, label: string, maxMs?: number): Promise<any | null> => {
     const viaSub = await generateViaSubscription({
       system,
       prompt: kurzPrompt,
@@ -830,7 +841,7 @@ ${REC_FOCUS[rec] || "Beurteile anhand der Daten, welche Massnahme sinnvoll ist."
       label,
       maxTurns: 3,
       effort: "low",
-      timeoutMs: Math.max(20_000, rest() - 10_000),
+      timeoutMs: Math.min(maxMs ?? Infinity, Math.max(20_000, rest() - 10_000)),
     });
     const j = viaSub?.text ? jsonAusText(viaSub.text) : null;
     if (j) return j;
@@ -875,9 +886,30 @@ ${REC_FOCUS[rec] || "Beurteile anhand der Daten, welche Massnahme sinnvoll ist."
       return null;
     }
   };
+  const teilB = async (): Promise<any | null> => {
+    const plan = await teil(systemBPlan, "Content-Massnahme B-Plan", 40_000);
+    const fragen: string[] = [...new Set(arr(plan?.h2).map(s).filter(Boolean))].slice(0, 3);
+    // Ohne Plan: alter Einzelaufruf für alle Abschnitte
+    if (!fragen.length) return teil(systemB, "Content-Massnahme B");
+    const teile = await Promise.all(
+      fragen.map((h, i) =>
+        teil(
+          systemBAbschnitt(
+            h,
+            fragen.filter((x) => x !== h),
+          ),
+          `Content-Massnahme B${i + 1}`,
+        ),
+      ),
+    );
+    const abschnitte = teile
+      .map((t, i) => (t ? { ...t, h2: s(t.h2) || fragen[i] } : null))
+      .filter(Boolean);
+    return abschnitte.length ? { sections_to_add: abschnitte } : null;
+  };
   const [ja, jb, jc] = await Promise.all([
     teil(systemA, "Content-Massnahme A"),
-    teil(systemB, "Content-Massnahme B"),
+    teilB(),
     teil(systemC, "Content-Massnahme C"),
   ]);
   const fehlt = [!ja && "Teil A", !jb && "Teil B", !jc && "Teil C"].filter(Boolean);
