@@ -220,6 +220,19 @@ export type SerpTreffer = {
 };
 
 /** google.com/goto?url=… → Ziel-URL (302 von www.google.com); null = kein goto-Link / nicht auflösbar. */
+/** «https://www.ticino.ch › commons › details» → URL; gekürzt («…») → nur Domain. */
+export function urlAusBreadcrumb(b: unknown): string | null {
+  const teile = String(b ?? "")
+    .split(/\s*›\s*/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+  const basis = teile[0] ?? "";
+  if (!/^https?:\/\/[^/\s]+$/i.test(basis)) return null;
+  const pfad = teile.slice(1);
+  if (!pfad.length || pfad.some((x) => /\.\.\.|…/.test(x) || /\s/.test(x))) return `${basis}/`;
+  return `${basis}/${pfad.join("/")}`;
+}
+
 export async function gotoAufloesen(url: string): Promise<string | null> {
   if (!/^https?:\/\/(www\.)?google\.[a-z.]+\/goto\?/i.test(url)) return null;
   try {
@@ -256,7 +269,7 @@ export async function serpTop5(
   keyword: string,
   sprache: string,
   eigeneDomain: string | null,
-): Promise<{ treffer: SerpTreffer[]; cost: number; error?: string }> {
+): Promise<{ treffer: SerpTreffer[]; cost: number; error?: string; hinweis?: string }> {
   const auth = dfsAuth();
   if (!auth) return { treffer: [], cost: 0, error: "DATAFORSEO_LOGIN/PASSWORD fehlt" };
   try {
@@ -278,9 +291,25 @@ export async function serpTop5(
       .filter((i: any) => i?.type === "organic")
       .slice(0, 9);
     // DataForSEO liefert teils google.com/goto?url=…-Links statt der Ziel-URL
+    let ungeloest = 0;
     const items = await Promise.all(
       roh.map(async (i) => {
-        const echt = await gotoAufloesen(String(i.url || ""));
+        const istGoto = /\/goto\?/.test(String(i.url || ""));
+        let echt = await gotoAufloesen(String(i.url || ""));
+        if (!echt && istGoto) {
+          // Google leitet Rechenzentrums-IPs nicht weiter → Adresse aus dem Breadcrumb
+          echt = urlAusBreadcrumb(i.breadcrumb);
+          ungeloest++;
+          if (!echt) return i;
+          let dom2 = i.domain;
+          try {
+            dom2 = new URL(echt).hostname;
+          } catch {
+            /* bleibt */
+          }
+          // Nur Domain bekannt → keine Überschriften der Startseite als «Wettbewerber-Inhalt»
+          return { ...i, url: echt, domain: dom2, nurDomain: new URL(echt).pathname === "/" };
+        }
         if (!echt) return i;
         let domain = i.domain;
         try {
@@ -303,7 +332,13 @@ export async function serpTop5(
       .slice(0, 5);
     const snaps = await Promise.all(
       top.map((i) =>
-        fetchPageSnapshot(String(i.url), { timeoutMs: 12_000, maxHeadings: 30, excerptChars: 0 }),
+        i.nurDomain
+          ? Promise.resolve({ error: "nur Domain" } as SeitenSnapshot)
+          : fetchPageSnapshot(String(i.url), {
+              timeoutMs: 12_000,
+              maxHeadings: 30,
+              excerptChars: 0,
+            }),
       ),
     );
     return {
@@ -314,6 +349,9 @@ export async function serpTop5(
         headings: "headings" in snaps[n] ? (snaps[n] as any).headings : [],
       })),
       cost,
+      hinweis: ungeloest
+        ? `${ungeloest} Google-Weiterleitungslink(s) nicht auflösbar — URL aus dem Breadcrumb`
+        : undefined,
     };
   } catch (e) {
     return { treffer: [], cost: 0, error: String((e as Error)?.message || e).slice(0, 140) };
@@ -367,6 +405,12 @@ export function normalisiereEmpfehlung(
     .filter((l) => l.from_url && l.anchor && map.has(norm(l.from_url)))
     .map((l) => ({ ...l, from_url: map.get(norm(l.from_url))!.url }));
   const seen = new Set<string>();
+  const frage = (t: string) =>
+    t
+      .toLowerCase()
+      .replace(/[^a-z0-9äöüéèà]+/g, " ")
+      .trim();
+  const h2s = new Set(arr(j?.sections_to_add).map((x) => frage(s(x?.h2))));
   return ohneEszett({
     summary: s(j?.summary),
     title_variants: arr(j?.title_variants).map(s).filter(Boolean).slice(0, 3),
@@ -384,7 +428,7 @@ export function normalisiereEmpfehlung(
     internal_links: links.filter((l) => !seen.has(l.from_url) && !!seen.add(l.from_url)),
     faq: arr(j?.faq)
       .map((x) => ({ q: s(x?.q), a: s(x?.a) }))
-      .filter((x) => x.q && x.a),
+      .filter((x) => x.q && x.a && !h2s.has(frage(x.q))),
     eeat: arr(j?.eeat).map(s).filter(Boolean),
     serp_top5: serp.map((t) => ({ position: t.position, url: t.url, title: t.title })),
   });
@@ -441,6 +485,7 @@ export async function erstelleEmpfehlung(a: EmpfehlungsAnfrage): Promise<{
   const knapp = (t: string, n: number) => (t.length > n ? t.slice(0, n) + " …" : t);
   if (gsc.hinweis) hinweise.push(gsc.hinweis);
   if (serp.error) hinweise.push(serp.error);
+  if (serp.hinweis) hinweise.push(serp.hinweis);
 
   const pb = REC_PLAYBOOK[rec];
   // Zwei kleinere, parallele KI-Aufrufe statt eines grossen (01.11.2026): ein
@@ -452,7 +497,7 @@ export async function erstelleEmpfehlung(a: EmpfehlungsAnfrage): Promise<{
     "Alle Daten liegen vor: verwende KEINE Werkzeuge, rufe keine Webseiten ab, antworte sofort. " +
     "Sprache: Deutsch (Schweiz), ss statt ß, ausser der Artikel ist in einer anderen Sprache — dann Title, Meta, Abschnitte und FAQ in der Artikelsprache, summary/change/eeat auf Deutsch. " +
     "Erfinde keine Fakten über den Kunden (Preise, Angebote, Auszeichnungen); wo Fakten fehlen, Platzhalter in eckigen Klammern. " +
-    "Antworte NUR mit einem JSON-Objekt (kein Text davor oder danach, kein Markdown) mit genau diesen Feldern: ";
+    "Überlege kurz und antworte direkt. Antworte NUR mit einem JSON-Objekt (kein Text davor oder danach, kein Markdown) mit genau diesen Feldern: ";
   const systemA =
     basisSystem +
     '{"summary": "2–3 Sätze, was der Artikel braucht", "title_variants": ["genau 3 Varianten, max. 60 Zeichen, Keyword vorn"], "meta_description": "150–160 Zeichen", ' +
@@ -461,8 +506,10 @@ export async function erstelleEmpfehlung(a: EmpfehlungsAnfrage): Promise<{
     '"eeat": ["konkrete E-E-A-T-Massnahmen"]}. sections_to_update: 2–4; internal_links: 2–4, from_url zwingend aus der Liste, sonst weglassen; eeat: 2–4.';
   const systemB =
     basisSystem +
-    '{"sections_to_add": [{"h2": "Frage als H2", "answer_first": "fertiger erster Absatz aus 8–10 Sätzen, MINDESTENS 135 und höchstens 170 Wörter (zähle nach), Antwort im ersten Satz", "points": ["3–5 Unterpunkte"]}], ' +
-    '"faq": [{"q": "Frage", "a": "Antwort 40–60 Wörter"}]}. sections_to_add: 2–3 Abschnitte zu Unterthemen, die die Top 5 abdecken und dieser Artikel nicht; faq: 3–5, keine Wiederholung der neuen Abschnitte.';
+    '{"sections_to_add": [{"h2": "Frage als H2", "answer_first": "fertiger erster Absatz aus 8–10 Sätzen, MINDESTENS 135 und höchstens 170 Wörter (zähle nach), Antwort im ersten Satz", "points": ["3–5 Unterpunkte"]}]}. 2–3 Abschnitte zu Unterthemen, die die Top 5 abdecken und dieser Artikel nicht.';
+  const systemC =
+    basisSystem +
+    '{"faq": [{"q": "Frage", "a": "Antwort 40–60 Wörter"}]}. 3–5 FAQ zu konkreten Nutzerfragen aus den GSC-Suchanfragen und zum Ziel-Keyword — kurze Detailfragen (Preise, Anreise, Dauer, Saison o. ä.), keine breiten Unterthemen.';
 
   const live =
     "error" in snap
@@ -566,18 +613,20 @@ ${REC_FOCUS[rec] || "Beurteile anhand der Daten, welche Massnahme sinnvoll ist."
       return null;
     }
   };
-  const [ja, jb] = await Promise.all([
+  const [ja, jb, jc] = await Promise.all([
     teil(systemA, "Content-Massnahme A"),
     teil(systemB, "Content-Massnahme B"),
+    teil(systemC, "Content-Massnahme C"),
   ]);
-  if (!ja || !jb)
+  const fehlt = [!ja && "Teil A", !jb && "Teil B", !jc && "Teil C"].filter(Boolean);
+  if (fehlt.length)
     throw new Error(
-      `KI-Antwort leer oder kein gültiges JSON (${!ja ? "Teil A" : ""}${!ja && !jb ? ", " : ""}${!jb ? "Teil B" : ""}; ${hinweise.join("; ")})`.slice(
+      `KI-Antwort leer oder kein gültiges JSON (${fehlt.join(", ")}; ${hinweise.join("; ")})`.slice(
         0,
         300,
       ),
     );
-  const j = { ...ja, sections_to_add: jb.sections_to_add, faq: jb.faq };
+  const j = { ...ja, sections_to_add: jb.sections_to_add, faq: jc.faq };
 
   const erlaubt = gsc.starkeSeiten.map((p) => ({ url: p.url }));
   return {

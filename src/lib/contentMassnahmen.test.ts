@@ -99,3 +99,34 @@ describe("SERP-Hilfen", () => {
     expect(await gotoAufloesen("https://www.ticino.ch/de/")).toBeNull();
   });
 });
+
+describe("Breadcrumb und FAQ-Dubletten", () => {
+  it("urlAusBreadcrumb", async () => {
+    const { urlAusBreadcrumb } = await import("@/server/content-actions.server");
+    expect(urlAusBreadcrumb("https://www.ticino.ch › discover › themes › touring")).toBe(
+      "https://www.ticino.ch/discover/themes/touring",
+    );
+    expect(urlAusBreadcrumb("https://www.ticino.ch › commons › details › Lago-Mag...")).toBe(
+      "https://www.ticino.ch/",
+    );
+    expect(urlAusBreadcrumb("https://www.myswitzerland.com › ...")).toBe(
+      "https://www.myswitzerland.com/",
+    );
+    expect(urlAusBreadcrumb(undefined)).toBeNull();
+  });
+
+  it("FAQ ohne Wiederholung einer neuen H2", () => {
+    const e = normalisiereEmpfehlung(
+      {
+        sections_to_add: [{ h2: "Wann ist die beste Reisezeit?", answer_first: "x" }],
+        faq: [
+          { q: "Wann ist die beste Reisezeit?", a: "a" },
+          { q: "Wie reise ich an?", a: "b" },
+        ],
+      },
+      [],
+      [],
+    );
+    expect(e.faq.map((f) => f.q)).toEqual(["Wie reise ich an?"]);
+  });
+});
