@@ -25,6 +25,8 @@ export async function generateViaSubscription(opts: {
   /** Standard 1 (One-Shot). Laengere Prompts brauchen gelegentlich 2–3 Turns —
    *  Befund 17.08.: "Reached maximum number of turns (1)" beim Themen-Prompt. */
   maxTurns?: number;
+  /** Optional: Denkaufwand (agent-service ≥ 01.11.2026; ältere Versionen ignorieren ihn). */
+  effort?: "low" | "medium" | "high";
 }): Promise<GenResult | null> {
   const base = process.env.AGENT_BASE_URL?.replace(/\/+$/, "");
   const secret = process.env.AGENT_SHARED_SECRET;
@@ -40,6 +42,7 @@ export async function generateViaSubscription(opts: {
         model: opts.model,
         authPrefer: "subscription",
         maxTurns: opts.maxTurns,
+        ...(opts.effort ? { effort: opts.effort } : {}),
         clientId: opts.clientId ?? null,
         clientName: opts.clientName ?? null,
         label: opts.label ?? "App-Generierung",

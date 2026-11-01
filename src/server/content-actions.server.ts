@@ -124,13 +124,17 @@ export async function fetchPageSnapshot(
       if (t) heads.push(`H${m[1]}: ${t}`);
       if (heads.length >= (opts.maxHeadings ?? 25)) break;
     }
-    const bodyText = strip(
-      html
-        .replace(/<script[\s\S]*?<\/script>/gi, " ")
-        .replace(/<style[\s\S]*?<\/style>/gi, " ")
-        .replace(/<nav[\s\S]*?<\/nav>/gi, " ")
-        .replace(/<footer[\s\S]*?<\/footer>/gi, " "),
-    );
+    // Nur Überschriften gefragt (SERP-Seiten) → Textaufbereitung sparen (Worker-CPU)
+    const bodyText =
+      opts.excerptChars === 0
+        ? ""
+        : strip(
+            html
+              .replace(/<script[\s\S]*?<\/script>/gi, " ")
+              .replace(/<style[\s\S]*?<\/style>/gi, " ")
+              .replace(/<nav[\s\S]*?<\/nav>/gi, " ")
+              .replace(/<footer[\s\S]*?<\/footer>/gi, " "),
+          );
     return {
       titleTag: pick(/<title[^>]*>([\s\S]*?)<\/title>/i),
       metaDescription:
@@ -568,6 +572,7 @@ ${REC_FOCUS[rec] || "Beurteile anhand der Daten, welche Massnahme sinnvoll ist."
       clientName: kunde.name,
       label,
       maxTurns: 3,
+      effort: "low",
       timeoutMs: Math.max(20_000, rest() - 30_000),
     });
     const j = viaSub?.text ? jsonAusText(viaSub.text) : null;
