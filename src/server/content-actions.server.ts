@@ -228,10 +228,18 @@ export async function gotoAufloesen(url: string): Promise<string | null> {
       headers: { "User-Agent": BROWSER_UA },
       signal: AbortSignal.timeout(8_000),
     });
-    let ziel = r.headers.get("location") || "";
-    if (!ziel) ziel = (await r.text().catch(() => "")).match(/HREF="([^"]+)"/i)?.[1] || "";
-    ziel = ziel.replace(/&amp;/g, "&");
-    return /^https?:\/\//.test(ziel) && !/\/\/(www\.)?google\./i.test(ziel) ? ziel : null;
+    const fremd = (u: string) =>
+      /^https?:\/\//.test(u) && !/\/\/([a-z0-9-]+\.)*(google|gstatic|googleusercontent)\./i.test(u);
+    const loc = (r.headers.get("location") || "").replace(/&amp;/g, "&");
+    if (fremd(loc)) return loc;
+    // Von Rechenzentrums-IPs antwortet Google teils mit einer Hinweisseite statt 302:
+    // erste fremde URL aus Links bzw. Meta-Refresh nehmen.
+    const html = await r.text().catch(() => "");
+    for (const m of html.matchAll(/(?:href=|url=)["']?(https?:\/\/[^"'<>\s]+)/gi)) {
+      const u = m[1].replace(/&amp;/g, "&");
+      if (fremd(u)) return u;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -453,12 +461,12 @@ export async function erstelleEmpfehlung(a: EmpfehlungsAnfrage): Promise<{
     '"eeat": ["konkrete E-E-A-T-Massnahmen"]}. sections_to_update: 2–4; internal_links: 2–4, from_url zwingend aus der Liste, sonst weglassen; eeat: 2–4.';
   const systemB =
     basisSystem +
-    '{"sections_to_add": [{"h2": "Frage als H2", "answer_first": "fertiger erster Absatz, MINDESTENS 135 und höchstens 170 Wörter (zähle nach), Antwort im ersten Satz", "points": ["3–5 Unterpunkte"]}], ' +
+    '{"sections_to_add": [{"h2": "Frage als H2", "answer_first": "fertiger erster Absatz aus 8–10 Sätzen, MINDESTENS 135 und höchstens 170 Wörter (zähle nach), Antwort im ersten Satz", "points": ["3–5 Unterpunkte"]}], ' +
     '"faq": [{"q": "Frage", "a": "Antwort 40–60 Wörter"}]}. sections_to_add: 2–3 Abschnitte zu Unterthemen, die die Top 5 abdecken und dieser Artikel nicht; faq: 3–5, keine Wiederholung der neuen Abschnitte.';
 
   const live =
     "error" in snap
-      ? `Live-Text nicht verfügbar: unser Server-Abruf wurde blockiert (${snap.error}). Das sagt NICHTS über Google oder die Indexierung aus — nicht als Problem werten; arbeite mit Titel, Keyword, GSC-Daten und SERP.`
+      ? `Live-Text nicht verfügbar (technischer Abruf aus unserem Rechenzentrum gesperrt — Besucher und Google sehen die Seite normal). Erwähne den Abruf NIRGENDS (nicht in summary, eeat oder change). sections_to_update leer lassen ([]), da die bestehenden Überschriften unbekannt sind; arbeite mit Titel, Keyword, GSC-Daten und SERP.`
       : `Title-Tag: ${snap.titleTag || "—"} (${snap.titleTag.length} Zeichen)
 Meta-Description: ${snap.metaDescription || "FEHLT"} (${snap.metaDescription.length} Zeichen)
 Zuletzt geändert: ${snap.modified || "—"} · Wortzahl (grob): ${snap.wordCount}
