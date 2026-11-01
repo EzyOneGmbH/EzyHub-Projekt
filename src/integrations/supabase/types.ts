@@ -2321,6 +2321,44 @@ export type Database = {
           },
         ]
       }
+      content_action_recommendations: {
+        Row: {
+          client_id: string
+          generated_at: string
+          id: string
+          keyword: string | null
+          payload: Json
+          type: string
+          url: string
+        }
+        Insert: {
+          client_id: string
+          generated_at?: string
+          id?: string
+          keyword?: string | null
+          payload: Json
+          type: string
+          url: string
+        }
+        Update: {
+          client_id?: string
+          generated_at?: string
+          id?: string
+          keyword?: string | null
+          payload?: Json
+          type?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_action_recommendations_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       content_briefs: {
         Row: {
           brief_md: string
