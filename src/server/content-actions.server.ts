@@ -304,7 +304,12 @@ export async function serpTop5(
           // Google leitet Rechenzentrums-IPs nicht weiter → Adresse aus dem Breadcrumb
           echt = urlAusBreadcrumb(i.breadcrumb);
           ungeloest++;
-          if (!echt) return i;
+          // Kein Breadcrumb → Domain aus DataForSEO; ohne brauchbare Domain Treffer verwerfen
+          if (!echt) {
+            const d = String(i.domain || "").trim();
+            if (!d || /(^|\.)google\./i.test(d)) return null;
+            echt = `https://${d}/`;
+          }
           let dom2 = i.domain;
           try {
             dom2 = new URL(echt).hostname;
@@ -326,6 +331,7 @@ export async function serpTop5(
     );
     const dom = (eigeneDomain || "").replace(/^www\./, "").toLowerCase();
     const top = items
+      .filter((i): i is NonNullable<typeof i> => i != null && !/\/goto\?/.test(String(i.url || "")))
       .filter(
         (i) =>
           !dom ||
