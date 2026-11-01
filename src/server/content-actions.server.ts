@@ -678,31 +678,41 @@ export async function erstelleEmpfehlung(a: EmpfehlungsAnfrage): Promise<{
   if (rec === "not_indexed") return diagnose(a, zeile, period, eingabe, hinweise);
 
   // Mit Keyword läuft die SERP parallel; ohne wird es erst aus GSC/Title abgeleitet
-  const serpFrueh = eingabe ? serpTop5(eingabe, sprache, kunde.domain) : null;
-  const [snap, gsc] = await Promise.all([
-    fetchPageSnapshot(url, {
-      timeoutMs: 15_000,
-      maxHeadings: 40,
-      excerptChars: 4000,
-      dfsFallback: true,
-    }),
-    gscKontext(kunde, url, period).catch(
-      () => ({ queries: [], starkeSeiten: [], hinweis: "GSC-Fehler" }) as GscKontext,
-    ),
-  ]);
+  // Artikelabruf (ggf. über DataForSEO, bis ~30 s) läuft parallel zu GSC → SERP.
+  // Ohne Keyword startet die SERP, sobald GSC da ist; nur ohne GSC-Daten wird auf
+  // den Artikel (H1/Title) gewartet.
+  const snapP = fetchPageSnapshot(url, {
+    timeoutMs: 15_000,
+    maxHeadings: 40,
+    excerptChars: 4000,
+    dfsFallback: true,
+  });
+  const gscP = gscKontext(kunde, url, period).catch(
+    () => ({ queries: [], starkeSeiten: [], hinweis: "GSC-Fehler" }) as GscKontext,
+  );
   let keyword = eingabe;
   let keyword_quelle: "eingabe" | "gsc" | "titel" = "eingabe";
-  if (!keyword) {
-    const k = hauptKeyword(gsc.queries, [
-      "error" in snap ? "" : snap.h1,
-      String(zeile?.title || ""),
-      "error" in snap ? "" : snap.titleTag,
-    ]);
-    if (!k) throw new Error("Kein keyword angegeben und keines aus GSC oder Title/H1 ableitbar");
-    keyword = k.keyword;
-    keyword_quelle = k.quelle;
-  }
-  const serp = await (serpFrueh ?? serpTop5(keyword, sprache, kunde.domain));
+  const serpP = eingabe
+    ? serpTop5(eingabe, sprache, kunde.domain)
+    : (async () => {
+        const g = await gscP;
+        let k = hauptKeyword(g.queries, [String(zeile?.title || "")]);
+        if (!k || k.quelle === "titel") {
+          const sn = await snapP;
+          k =
+            hauptKeyword(g.queries, [
+              "error" in sn ? "" : sn.h1,
+              String(zeile?.title || ""),
+              "error" in sn ? "" : sn.titleTag,
+            ]) ?? k;
+        }
+        if (!k)
+          throw new Error("Kein keyword angegeben und keines aus GSC oder Title/H1 ableitbar");
+        keyword = k.keyword;
+        keyword_quelle = k.quelle;
+        return serpTop5(keyword, sprache, kunde.domain);
+      })();
+  const [snap, gsc, serp] = await Promise.all([snapP, gscP, serpP]);
   const articleFetched = !("error" in snap);
   if ("error" in snap) hinweise.push(`Live-Artikel nicht abrufbar (${snap.error})`);
   else if (snap.quelle === "dataforseo")
@@ -794,7 +804,7 @@ ${REC_FOCUS[rec] || "Beurteile anhand der Daten, welche Massnahme sinnvoll ist."
       label,
       maxTurns: 3,
       effort: "low",
-      timeoutMs: Math.max(20_000, rest() - 30_000),
+      timeoutMs: Math.max(20_000, rest() - 10_000),
     });
     const j = viaSub?.text ? jsonAusText(viaSub.text) : null;
     if (j) return j;
