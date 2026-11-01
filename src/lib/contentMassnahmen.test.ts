@@ -92,3 +92,10 @@ describe("Empfehlung normalisieren", () => {
     ]);
   });
 });
+
+describe("SERP-Hilfen", () => {
+  it("gotoAufloesen ignoriert normale URLs", async () => {
+    const { gotoAufloesen } = await import("@/server/content-actions.server");
+    expect(await gotoAufloesen("https://www.ticino.ch/de/")).toBeNull();
+  });
+});

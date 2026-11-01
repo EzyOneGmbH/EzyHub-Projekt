@@ -84,6 +84,9 @@ const strip = (s: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
+const BROWSER_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
+
 export type SeitenSnapshot =
   | { error: string }
   | {
@@ -104,16 +107,20 @@ export async function fetchPageSnapshot(
   opts: { timeoutMs?: number; maxHeadings?: number; excerptChars?: number } = {},
 ): Promise<SeitenSnapshot> {
   try {
-    const res = await fetch(url, {
-      signal: AbortSignal.timeout(opts.timeoutMs ?? 15_000),
-      headers: { "User-Agent": "EzyHubContentBot/1.0 (+https://ezyone.ch)" },
-    });
+    const laden = (ua: string) =>
+      fetch(url, {
+        signal: AbortSignal.timeout(opts.timeoutMs ?? 15_000),
+        headers: { "User-Agent": ua, "Accept-Language": "de-CH,de;q=0.9" },
+      });
+    let res = await laden("EzyHubContentBot/1.0 (+https://ezyone.ch)");
+    // Manche Hoster/WAFs sperren Bot-Kennungen (hotelbernina.ch: 403) → zweiter Versuch
+    if (res.status === 403 || res.status === 429) res = await laden(BROWSER_UA);
     if (!res.ok) return { error: `HTTP ${res.status}` };
     const html = (await res.text()).slice(0, 400_000);
     const pick = (re: RegExp) => (html.match(re)?.[1] || "").replace(/\s+/g, " ").trim();
     const heads: string[] = [];
     for (const m of html.matchAll(/<h([23])[^>]*>([\s\S]*?)<\/h\1>/gi)) {
-      const t = strip(m[2]);
+      const t = strip(m[2]).slice(0, 140);
       if (t) heads.push(`H${m[1]}: ${t}`);
       if (heads.length >= (opts.maxHeadings ?? 25)) break;
     }
@@ -212,6 +219,24 @@ export type SerpTreffer = {
   headings: string[];
 };
 
+/** google.com/goto?url=… → Ziel-URL (302 von www.google.com); null = kein goto-Link / nicht auflösbar. */
+export async function gotoAufloesen(url: string): Promise<string | null> {
+  if (!/^https?:\/\/(www\.)?google\.[a-z.]+\/goto\?/i.test(url)) return null;
+  try {
+    const r = await fetch(url.replace(/^https?:\/\/(www\.)?google\./i, "https://www.google."), {
+      redirect: "manual",
+      headers: { "User-Agent": BROWSER_UA },
+      signal: AbortSignal.timeout(8_000),
+    });
+    let ziel = r.headers.get("location") || "";
+    if (!ziel) ziel = (await r.text().catch(() => "")).match(/HREF="([^"]+)"/i)?.[1] || "";
+    ziel = ziel.replace(/&amp;/g, "&");
+    return /^https?:\/\//.test(ziel) && !/\/\/(www\.)?google\./i.test(ziel) ? ziel : null;
+  } catch {
+    return null;
+  }
+}
+
 function dfsAuth(): string | null {
   const login = process.env.DATAFORSEO_LOGIN,
     pass = process.env.DATAFORSEO_PASSWORD;
@@ -241,7 +266,23 @@ export async function serpTop5(
     if (!r.ok || !t) return { treffer: [], cost, error: `DataForSEO HTTP ${r.status}` };
     if (Number(t.status_code) >= 40000)
       return { treffer: [], cost, error: `DataForSEO ${t.status_code}: ${t.status_message}` };
-    const items: any[] = (t.result?.[0]?.items ?? []).filter((i: any) => i?.type === "organic");
+    const roh: any[] = (t.result?.[0]?.items ?? [])
+      .filter((i: any) => i?.type === "organic")
+      .slice(0, 9);
+    // DataForSEO liefert teils google.com/goto?url=…-Links statt der Ziel-URL
+    const items = await Promise.all(
+      roh.map(async (i) => {
+        const echt = await gotoAufloesen(String(i.url || ""));
+        if (!echt) return i;
+        let domain = i.domain;
+        try {
+          domain = new URL(echt).hostname;
+        } catch {
+          /* bleibt */
+        }
+        return { ...i, url: echt, domain };
+      }),
+    );
     const dom = (eigeneDomain || "").replace(/^www\./, "").toLowerCase();
     const top = items
       .filter(
@@ -389,6 +430,7 @@ export async function erstelleEmpfehlung(a: EmpfehlungsAnfrage): Promise<{
     serpTop5(keyword, sprache, kunde.domain),
   ]);
   if ("error" in snap) hinweise.push(`Live-Artikel nicht abrufbar (${snap.error})`);
+  const knapp = (t: string, n: number) => (t.length > n ? t.slice(0, n) + " …" : t);
   if (gsc.hinweis) hinweise.push(gsc.hinweis);
   if (serp.error) hinweise.push(serp.error);
 
@@ -411,12 +453,12 @@ export async function erstelleEmpfehlung(a: EmpfehlungsAnfrage): Promise<{
     '"eeat": ["konkrete E-E-A-T-Massnahmen"]}. sections_to_update: 2–4; internal_links: 2–4, from_url zwingend aus der Liste, sonst weglassen; eeat: 2–4.';
   const systemB =
     basisSystem +
-    '{"sections_to_add": [{"h2": "Frage als H2", "answer_first": "fertiger erster Absatz, 130–170 Wörter, Antwort im ersten Satz", "points": ["3–5 Unterpunkte"]}], ' +
+    '{"sections_to_add": [{"h2": "Frage als H2", "answer_first": "fertiger erster Absatz, MINDESTENS 135 und höchstens 170 Wörter (zähle nach), Antwort im ersten Satz", "points": ["3–5 Unterpunkte"]}], ' +
     '"faq": [{"q": "Frage", "a": "Antwort 40–60 Wörter"}]}. sections_to_add: 2–3 Abschnitte zu Unterthemen, die die Top 5 abdecken und dieser Artikel nicht; faq: 3–5, keine Wiederholung der neuen Abschnitte.';
 
   const live =
     "error" in snap
-      ? `Seite nicht abrufbar (${snap.error}).`
+      ? `Live-Text nicht verfügbar: unser Server-Abruf wurde blockiert (${snap.error}). Das sagt NICHTS über Google oder die Indexierung aus — nicht als Problem werten; arbeite mit Titel, Keyword, GSC-Daten und SERP.`
       : `Title-Tag: ${snap.titleTag || "—"} (${snap.titleTag.length} Zeichen)
 Meta-Description: ${snap.metaDescription || "FEHLT"} (${snap.metaDescription.length} Zeichen)
 Zuletzt geändert: ${snap.modified || "—"} · Wortzahl (grob): ${snap.wordCount}
@@ -459,11 +501,13 @@ ${gsc.starkeSeiten.map((p) => `${p.url} (${p.clicks} Klicks)`).join("\n") || "ke
 FOKUS
 ${REC_FOCUS[rec] || "Beurteile anhand der Daten, welche Massnahme sinnvoll ist."}`;
 
+  // Obergrenze gegen ausufernde Seiten (Prompt-Grösse treibt die Laufzeit)
+  const kurzPrompt = knapp(prompt, 24_000);
   const rest = () => a.deadline - Date.now();
   const teil = async (system: string, label: string): Promise<any | null> => {
     const viaSub = await generateViaSubscription({
       system,
-      prompt,
+      prompt: kurzPrompt,
       model: MODELL,
       clientId: kunde.id,
       clientName: kunde.name,
@@ -489,7 +533,7 @@ ${REC_FOCUS[rec] || "Beurteile anhand der Daten, welche Massnahme sinnvoll ist."
           model: MODELL,
           max_tokens: 4000,
           system,
-          messages: [{ role: "user", content: prompt }],
+          messages: [{ role: "user", content: kurzPrompt }],
         }),
         signal: AbortSignal.timeout(Math.max(10_000, rest() - 5_000)),
       });
