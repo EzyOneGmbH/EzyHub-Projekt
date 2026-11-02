@@ -603,3 +603,102 @@ export async function fetchAttribution(
     })),
   };
 }
+
+// Ausgehende Klicks auf eine Ziel-Domain je KI-Engine (02.11.2026, Hotel
+// Emmental): Buchungsmaschinen wie Mews öffnen per Link in neuem Tab — GA4
+// (Erweiterte Messung) zeichnet das als «click» mit linkDomain auf. So lässt
+// sich die Buchungsabsicht aus KI-Besuchen RÜCKWIRKEND zählen, auch wenn die
+// Buchung selbst nie an GA4 ging. Nur lesend.
+export type KlickEngine = {
+  engine: string;
+  klicks: number;
+  sitzungen: number;
+  tage: Array<{ datum: string; klicks: number }>;
+};
+export async function fetchAusgehendeKlicks(
+  c: { id: string; ga4_property?: string | null },
+  zr: Pick<Zeitraum, "startDate" | "endDate">,
+  domain: string,
+): Promise<
+  { engines: KlickEngine[]; gesamtKlicks: number } | { skipped: string } | { error: string }
+> {
+  if (!c.ga4_property) return { skipped: "kein ga4_property" };
+  let token: string;
+  try {
+    token = (await getGoogleAccessToken(c.id)).accessToken;
+  } catch (e) {
+    return { error: "Google-Token: " + redactSecrets(e) };
+  }
+  const propertyId = String(c.ga4_property).replace(/^properties\//, "");
+  const run = async (body: unknown) => {
+    const r = await fetch(`${GA4}/properties/${encodeURIComponent(propertyId)}:runReport`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!r.ok)
+      throw new Error(`GA4 HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 200)}`);
+    return r.json().catch(() => ({}));
+  };
+  const klickFilter = [
+    { filter: { fieldName: "eventName", stringFilter: { matchType: "EXACT", value: "click" } } },
+    {
+      filter: {
+        fieldName: "linkDomain",
+        stringFilter: { matchType: "CONTAINS", value: domain, caseSensitive: false },
+      },
+    },
+  ];
+  try {
+    const dateRanges = [ga4DateRange(zr)];
+    const [alle, ki] = await Promise.all([
+      run({
+        dateRanges,
+        metrics: [{ name: "eventCount" }],
+        dimensionFilter: { andGroup: { expressions: klickFilter } },
+      }),
+      run({
+        dateRanges,
+        dimensions: [
+          { name: "sessionSource" },
+          { name: "sessionDefaultChannelGroup" },
+          { name: "date" },
+        ],
+        metrics: [{ name: "eventCount" }, { name: "sessions" }],
+        dimensionFilter: { andGroup: { expressions: [...klickFilter, AI_SOURCE_FILTER] } },
+        limit: 10000,
+      }),
+    ]);
+    const gesamtKlicks = Number((alle as any).rows?.[0]?.metricValues?.[0]?.value || 0);
+    const out = new Map<string, KlickEngine>();
+    for (const row of ((ki as any).rows || []) as any[]) {
+      const [src, kanal, d] = (row.dimensionValues || []).map((v: any) => String(v.value || ""));
+      const eng = ENGINES.find((e) => e.re.test(src));
+      if (!eng || isOrganicBing(src, kanal) || istBezahlt(kanal)) continue;
+      const n = Number(row.metricValues?.[0]?.value || 0);
+      const s = Number(row.metricValues?.[1]?.value || 0);
+      const e = out.get(eng.name) ?? {
+        engine: eng.name,
+        klicks: 0,
+        sitzungen: 0,
+        tage: [] as KlickEngine["tage"],
+      };
+      e.klicks += n;
+      e.sitzungen += s;
+      const datum = /^\d{8}$/.test(d) ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}` : d;
+      const t = e.tage.find((x) => x.datum === datum);
+      if (t) t.klicks += n;
+      else e.tage.push({ datum, klicks: n });
+      out.set(eng.name, e);
+    }
+    return {
+      gesamtKlicks,
+      engines: [...out.values()]
+        .map((e) => ({ ...e, tage: e.tage.sort((a, b) => b.datum.localeCompare(a.datum)) }))
+        .sort((a, b) => b.klicks - a.klicks),
+    };
+  } catch (e) {
+    return { error: redactSecrets(e) };
+  }
+}

@@ -5,6 +5,7 @@ import { zeitraumAusParams } from "@/lib/date-range";
 import {
   fetchAttribution,
   fetchErstkontakt,
+  fetchAusgehendeKlicks,
   countedConversionEvents,
   eventLabels,
 } from "@/server/aivis-attribution.server";
@@ -73,6 +74,26 @@ export const Route = createFileRoute("/api/admin/aivis-attribution")({
           .maybeSingle();
         if (!client)
           return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
+        // linkDomain (02.11.): ausgehende Klicks auf eine Ziel-Domain (z.B.
+        // Buchungsmaschine app.mews.com) je KI-Engine — rückwirkend aus GA4.
+        const linkDomain = (u.searchParams.get("linkDomain") || "").trim().toLowerCase();
+        if (linkDomain) {
+          if (!/^[a-z0-9.-]{3,100}$/.test(linkDomain))
+            return Response.json({ ok: false, error: "linkDomain ungültig" }, { status: 400 });
+          const kl = await fetchAusgehendeKlicks(client, zr, linkDomain);
+          if ("error" in kl) return Response.json({ ok: false, error: kl.error }, { status: 502 });
+          return Response.json(
+            {
+              ok: true,
+              linkDomain,
+              ga4: !("skipped" in kl),
+              range: { from: zr.startDate, to: zr.endDate, days: zr.days },
+              gesamtKlicks: "gesamtKlicks" in kl ? kl.gesamtKlicks : 0,
+              engines: "engines" in kl ? kl.engines : [],
+            },
+            { headers: { "Cache-Control": "no-store" } },
+          );
+        }
         // scope=user (06.10.): Erstkontakt-Attribution statt Sitzung.
         if (u.searchParams.get("scope") === "user") {
           const ek = await fetchErstkontakt(client, zr);
