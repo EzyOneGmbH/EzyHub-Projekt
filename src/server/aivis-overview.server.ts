@@ -19,6 +19,8 @@ import {
   istBezahlt,
   countedConversionEvents,
   ignoredConversionEvents,
+  KLICK_PREFIX,
+  klickFilter,
 } from "@/server/aivis-attribution.server";
 import { GA4_MEDIUM_RE, GA4_SOURCE_RE } from "@/server/chatgpt-ads-report.server";
 
@@ -76,6 +78,9 @@ async function kiTraffic(
   counted: Set<string>,
   ignored: Set<string> = new Set(),
 ): Promise<{ sessions: number; conversions: number }> {
+  // «click@<domain>»: ausgehende Klicks (z.B. Buchungsmaschine) separat zählen.
+  const klickZiele = [...counted].filter((n) => n.startsWith(KLICK_PREFIX));
+  counted = new Set([...counted].filter((n) => !n.startsWith(KLICK_PREFIX)));
   const j = await runReport(g.token, g.propertyId, {
     dateRanges: [ga4DateRange(zr)],
     dimensions: [{ name: "sessionSource" }, { name: "sessionDefaultChannelGroup" }],
@@ -116,6 +121,22 @@ async function kiTraffic(
       const ke = Number(row.metricValues?.[0]?.value ?? 0);
       if (ignored.has(String(row.dimensionValues?.[2]?.value ?? ""))) conversions -= ke;
       else conversions += Number(row.metricValues?.[1]?.value ?? 0) - ke;
+    }
+  }
+  if (klickZiele.length) {
+    const jk = await runReport(g.token, g.propertyId, {
+      dateRanges: [ga4DateRange(zr)],
+      dimensions: [{ name: "sessionSource" }, { name: "sessionDefaultChannelGroup" }],
+      metrics: [{ name: "eventCount" }],
+      dimensionFilter: klickFilter(klickZiele),
+      limit: 10000,
+    });
+    for (const row of jk.rows ?? []) {
+      const src = String(row.dimensionValues?.[0]?.value ?? "");
+      const kanal = String(row.dimensionValues?.[1]?.value ?? "");
+      if (!ENGINES.some((e) => e.re.test(src))) continue;
+      if (isOrganicBing(src, kanal) || istBezahlt(kanal)) continue;
+      conversions += Number(row.metricValues?.[0]?.value ?? 0);
     }
   }
   return { sessions, conversions };

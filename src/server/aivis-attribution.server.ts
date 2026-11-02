@@ -142,6 +142,32 @@ export type AttributionResult =
 
 const GA4 = "https://analyticsdata.googleapis.com/v1beta";
 
+// «click@<domain>» in client_conversion_events = ausgehende Klicks (GA4
+// Erweiterte Messung, Ereignis «click») auf diese Ziel-Domain zählen.
+export const KLICK_PREFIX = "click@";
+export function klickFilter(ziele: string[]) {
+  const domains = ziele.map((z) => z.slice(KLICK_PREFIX.length)).filter(Boolean);
+  return {
+    andGroup: {
+      expressions: [
+        {
+          filter: { fieldName: "eventName", stringFilter: { matchType: "EXACT", value: "click" } },
+        },
+        {
+          orGroup: {
+            expressions: domains.map((d) => ({
+              filter: {
+                fieldName: "linkDomain",
+                stringFilter: { matchType: "CONTAINS", value: d, caseSensitive: false },
+              },
+            })),
+          },
+        },
+      ],
+    },
+  };
+}
+
 async function conversionModus(
   clientId: string,
   modus: "zaehlt" | "ignoriert",
@@ -310,6 +336,11 @@ export async function fetchAttribution(
   const counted = await countedConversionEvents(c.id);
   const ignored = await ignoredConversionEvents(c.id);
   const labels = await eventLabels(c.id);
+  // Klick-Conversions (02.11.2026, Hotel Emmental): «click@<domain>» zählt
+  // ausgehende Klicks der Erweiterten Messung auf diese Ziel-Domain (z.B. die
+  // Buchungsmaschine app.mews.com) — rückwirkend, ohne GTM-Eingriff.
+  const klickZiele = [...counted].filter((n) => n.startsWith(KLICK_PREFIX));
+  for (const n of klickZiele) counted.delete(n);
   let r: Response;
   try {
     r = await fetch(`${GA4}/properties/${encodeURIComponent(propertyId)}:runReport`, {
@@ -397,6 +428,37 @@ export async function fetchAttribution(
       }
     } catch {
       /* optional — keyEvents-Totale bleiben gueltig */
+    }
+  }
+
+  // Klick-Conversions: Anzahl je Engine (eventCount der «click»-Ereignisse).
+  if (klickZiele.length) {
+    try {
+      const rk = await fetch(`${GA4}/properties/${encodeURIComponent(propertyId)}:runReport`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dateRanges,
+          dimensions: [{ name: "sessionSource" }, { name: "sessionDefaultChannelGroup" }],
+          metrics: [{ name: "eventCount" }],
+          dimensionFilter: klickFilter(klickZiele),
+          limit: 10000,
+        }),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (rk.ok) {
+        const jk: any = await rk.json().catch(() => ({}));
+        for (const row of jk.rows ?? []) {
+          const src = String(row.dimensionValues?.[0]?.value ?? "");
+          const kanal = String(row.dimensionValues?.[1]?.value ?? "");
+          const eng = ENGINES.find((e) => e.re.test(src));
+          if (!eng || isOrganicBing(src, kanal) || istBezahlt(kanal)) continue;
+          agg[eng.name] ??= { sessions: 0, conversions: 0 };
+          agg[eng.name].conversions += Number(row.metricValues?.[0]?.value ?? 0);
+        }
+      }
+    } catch {
+      /* optional */
     }
   }
 
@@ -587,6 +649,72 @@ export async function fetchAttribution(
     } catch (e) {
       /* Detail optional — Totale bleiben gueltig */
       detailError ??= "Detail: " + redactSecrets(e);
+    }
+    // Klick-Conversions als Einzelzeilen (Ziel-Domain, Seite, Ort, Zeit).
+    if (klickZiele.length) {
+      try {
+        const rk = await fetch(`${GA4}/properties/${encodeURIComponent(propertyId)}:runReport`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            dateRanges,
+            dimensions: [
+              { name: "sessionSource" },
+              { name: "linkDomain" },
+              { name: "country" },
+              { name: "deviceCategory" },
+              { name: "dateHourMinute" },
+              { name: "sessionDefaultChannelGroup" },
+              { name: "city" },
+              { name: "pagePath" },
+            ],
+            metrics: [{ name: "eventCount" }],
+            dimensionFilter: {
+              andGroup: { expressions: [klickFilter(klickZiele), DETAIL_FILTER] },
+            },
+            limit: 25000,
+          }),
+          signal: AbortSignal.timeout(30_000),
+        });
+        if (rk.ok) {
+          const jk: any = await rk.json().catch(() => ({}));
+          for (const row of jk.rows ?? []) {
+            const v = (i: number) => String(row.dimensionValues?.[i]?.value ?? "");
+            const src = v(0);
+            const eng = ENGINES.find((e) => e.re.test(src));
+            const n = Number(row.metricValues?.[0]?.value ?? 0);
+            if (!eng || n <= 0 || isOrganicBing(src, v(5)) || istBezahlt(v(5))) continue;
+            const ld = v(1).toLowerCase();
+            const name =
+              klickZiele.find((z) => ld.includes(z.slice(KLICK_PREFIX.length))) ?? klickZiele[0];
+            const dhm = v(4);
+            const basis: AttributionEvent = {
+              name,
+              ...(labels.get(name) ? { label: labels.get(name) } : {}),
+              count: 1,
+              value: 0,
+              country: v(2),
+              device: v(3),
+              date: dhm.slice(0, 8),
+              ...(dhm.length >= 12 ? { time: `${dhm.slice(8, 10)}:${dhm.slice(10, 12)}` } : {}),
+              ...(v(6) && v(6) !== "(not set)" ? { city: v(6) } : {}),
+              ...(v(7) && v(7) !== "(not set)" ? { page: v(7) } : {}),
+            };
+            const list = (events[eng.name] ??= []);
+            for (let i = 0; i < n && list.length < MAX_EVENT_ROWS * 2; i++) list.push({ ...basis });
+          }
+          for (const k of Object.keys(events))
+            events[k] = events[k]
+              .sort(
+                (a, b) =>
+                  String(b.date).localeCompare(String(a.date)) ||
+                  String(b.time ?? "").localeCompare(String(a.time ?? "")),
+              )
+              .slice(0, MAX_EVENT_ROWS);
+        }
+      } catch (e) {
+        detailError ??= "Klick-Detail: " + redactSecrets(e);
+      }
     }
   }
   return {

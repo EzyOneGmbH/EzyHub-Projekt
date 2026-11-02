@@ -258,8 +258,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.37.0",
+    version: "1.38.0",
     changelog: [
+      {
+        version: "1.38.0",
+        date: "2026-11-02",
+        note: "Organic-Conversions: Klicks auf eine externe Buchungsmaschine (z.B. Mews) zählen jetzt als KI-Conversion — auch rückwirkend, ohne Eingriff auf der Website (GA4-Erweiterte-Messung «ausgehende Klicks»); mit Datum, Uhrzeit, Ort und Seite in der Detailliste",
+      },
       {
         version: "1.37.0",
         date: "2026-10-26",

@@ -210,3 +210,69 @@ describe("fetchAttribution — Einzelzeilen", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("fetchAttribution — Klick-Conversions (click@domain)", () => {
+  beforeEach(() => {
+    counted.length = 0;
+    ignored.length = 0;
+  });
+
+  it("zaehlt ausgehende Klicks auf die Ziel-Domain je Engine, bezahlt nicht", async () => {
+    counted.push("click@mews.com");
+    const bodies: any[] = [];
+    vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(String(init.body)) : {};
+      bodies.push(body);
+      if (url.includes("customDimensions")) return res({ customDimensions: [] });
+      const dims: string[] = (body.dimensions ?? []).map((d: any) => d.name);
+      if (dims.join() === "sessionSource,country,sessionDefaultChannelGroup")
+        return res(ga4Rows(dims, [{ d: ["chatgpt.com", "Switzerland", "Referral"], m: [99, 0] }]));
+      if (dims.join() === "sessionSource,sessionDefaultChannelGroup")
+        return res(
+          ga4Rows(dims, [
+            { d: ["chatgpt.com", "Referral"], m: [22] },
+            { d: ["chatgpt.com", "Paid Other"], m: [5] },
+          ]),
+        );
+      if (dims.includes("linkDomain"))
+        return res(
+          ga4Rows(dims, [
+            {
+              d: [
+                "chatgpt.com",
+                "app.mews.com",
+                "Switzerland",
+                "mobile",
+                "202611011412",
+                "Referral",
+                "Bern",
+                "/zimmer",
+              ],
+              m: [2],
+            },
+          ]),
+        );
+      return res({ rows: [] });
+    });
+    const { fetchAttribution } = await import("./aivis-attribution.server");
+    const out: any = await fetchAttribution(
+      { id: "c1", ga4_property: "properties/1" },
+      { startDate: "2025-11-02", endDate: "2026-11-01" },
+    );
+    const gpt = out.engines.find((e: any) => e.engine === "ChatGPT");
+    expect(gpt.conversions).toBe(22);
+    expect(gpt.events).toHaveLength(2);
+    expect(gpt.events[0]).toMatchObject({
+      name: "click@mews.com",
+      date: "20261101",
+      time: "14:12",
+      city: "Bern",
+      page: "/zimmer",
+    });
+    // «click@…» ist kein GA4-Eventname: nie in einem inListFilter
+    expect(JSON.stringify(bodies)).not.toMatch(/inListFilter[^\]]*click@/);
+    const klick = bodies.find((b) => JSON.stringify(b).includes('"linkDomain"'));
+    expect(JSON.stringify(klick.dimensionFilter)).toContain("mews.com");
+    vi.unstubAllGlobals();
+  });
+});
