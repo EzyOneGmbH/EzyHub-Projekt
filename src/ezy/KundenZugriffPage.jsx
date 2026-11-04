@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ClientAvatar } from "@/ezy/ClientAvatar";
 import { Badge, Btn, useToast } from "./shared-ui";
 import { Inp } from "./ui-kit";
+import { LinkSendenBtn, LinkStatusBadge } from "./LinkSenden";
 import { C } from "./theme";
 import { EZY_APPS } from "@/ezy/data/appRegistry";
 import { useClientAppAccess } from "@/ezy/data/useClientAppAccess";
@@ -366,6 +367,7 @@ export function KundenZugriffPage({ clients }) {
                     ) : (
                       <Badge color={C.textDim}>Kunde (Portal)</Badge>
                     )}
+                    <LinkStatusBadge u={u} />
                     <div
                       style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}
                     >
@@ -420,6 +422,7 @@ export function KundenZugriffPage({ clients }) {
                           ? "Volles Portal erlauben"
                           : "Nur Conversion-Log"}
                       </Btn>
+                      <LinkSendenBtn u={u} callTeam={callTeam} onDone={load} />
                       <Btn variant="danger" size="sm" onClick={() => remove(u)}>
                         Zugang entfernen
                       </Btn>

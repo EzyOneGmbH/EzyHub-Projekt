@@ -3,6 +3,7 @@
 import { authedFetch } from "@/lib/authed-fetch";
 import { ServicesPanel, ServicesPicker } from "@/ezy/components/ServicesPanel.jsx";
 import { Badge, Btn } from "./shared-ui";
+import { LinkSendenBtn, LinkStatusBadge } from "./LinkSenden";
 import { Inp, LiveEmptyState, Modal, TabBar } from "./ui-kit";
 import { ClientAvatar } from "@/ezy/ClientAvatar";
 import GoogleClientPanel from "@/ezy/GoogleClientPanel.jsx";
@@ -2069,16 +2070,18 @@ export function ClientAppAccessPanel({ client }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
             {portalUsers.map((u) => (
               <div key={u.userId} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Badge color={C.green}>aktiv</Badge>
+                {u.status === "aktiv" || !u.status ? (
+                  <Badge color={C.green}>aktiv</Badge>
+                ) : (
+                  <LinkStatusBadge u={u} />
+                )}
                 <span style={{ fontSize: 12.5, color: C.text }}>
                   {u.email || u.userId.slice(0, 8)}
                 </span>
-                <Btn
-                  variant="danger"
-                  size="sm"
-                  style={{ marginLeft: "auto" }}
-                  onClick={() => removePortal(u)}
-                >
+                <span style={{ marginLeft: "auto" }}>
+                  <LinkSendenBtn u={u} callTeam={callTeam} onDone={loadPortal} />
+                </span>
+                <Btn variant="danger" size="sm" onClick={() => removePortal(u)}>
                   Sperren
                 </Btn>
               </div>

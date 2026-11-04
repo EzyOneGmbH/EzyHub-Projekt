@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { originVon, sendeNeuenLink, zuletztGesendet } from "@/server/neuer-link.server";
 
 // Neuen Einladungs-/Passwort-Link anfordern (04.11.2026, Volkan: «Link
 // abgelaufen»). Supabase-Links gelten max. 24 h und werden teils vom
@@ -53,30 +54,9 @@ export const Route = createFileRoute("/api/auth/neuer-link")({
             .eq("user_id", u.id);
           if (!count) return antwort;
 
-          const zuletzt = Math.max(
-            ...[u.invited_at, u.confirmation_sent_at, u.recovery_sent_at]
-              .filter(Boolean)
-              .map((t) => new Date(t as string).getTime()),
-            0,
-          );
-          if (Date.now() - zuletzt < SPERRE_MS) return antwort;
-
-          const origin = (() => {
-            try {
-              return new URL(request.url).origin;
-            } catch {
-              return "https://ezyhub.ch";
-            }
-          })();
-          const redirectTo = `${origin}/set-password`;
-
-          if (!u.email_confirmed_at) {
-            const { error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-              redirectTo,
-            });
-            if (!error) return antwort;
-          }
-          await supabaseAdmin.auth.resetPasswordForEmail(email, { redirectTo });
+          if (Date.now() - zuletztGesendet(u) < SPERRE_MS) return antwort;
+          const r = await sendeNeuenLink(u, originVon(request));
+          if (r.error) console.error("[neuer-link]", r.error);
         } catch (e) {
           console.error("[neuer-link]", e instanceof Error ? e.message : e);
         }

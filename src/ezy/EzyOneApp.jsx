@@ -153,6 +153,7 @@ import {
   EzyPilotFab,
   EzyPilotPage,
 } from "./shared-ui";
+import { LinkSendenBtn, LinkStatusBadge } from "./LinkSenden";
 export { ToastProvider, EzyPilotProvider, EzyPilotPopup, EzyPilotButton };
 // CD-Pattern: durchgehendes Hexagon-Waben-Mesh als Seiten-Textur, sehr dezent
 // Modularisierung 21.08.2026: Bereichs-Module (reines Verschieben).
@@ -4279,6 +4280,7 @@ function TeamPage({ clients }) {
                     {roleLabel[u.role] || u.role}
                   </Badge>
                   {u.self && <Badge color={C.blue}>Du</Badge>}
+                  <LinkStatusBadge u={u} />
                   {u.role !== "owner" && u.role !== "admin" && (
                     <span style={{ fontSize: 11, color: C.textMuted }}>
                       {u.clientIds.length} von {clients.length} Kunden
@@ -4313,6 +4315,9 @@ function TeamPage({ clients }) {
                         <option value="member">Mitarbeiter</option>
                         {myRole === "owner" && <option value="admin">Admin</option>}
                       </select>
+                    )}
+                    {!u.self && u.role !== "owner" && (
+                      <LinkSendenBtn u={u} callTeam={callTeam} onDone={load} />
                     )}
                     {!u.self && u.role !== "owner" && (
                       <Btn variant="danger" size="sm" onClick={() => remove(u.userId, u.email)}>

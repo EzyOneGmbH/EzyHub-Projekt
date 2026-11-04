@@ -3,6 +3,7 @@ import { requireTeamRole } from "@/server/team-guard.server";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { orgRoleOf } from "@/server/integrations.server";
+import { linkStatus, originVon, sendeNeuenLink, zuletztGesendet } from "@/server/neuer-link.server";
 
 // Team-/Mitarbeiter-Verwaltung (RBAC, 2026-07-15). Nur owner/admin dürfen die
 // Aktionen ausführen; Mitarbeiter werden hier angelegt (KEIN Self-Signup) und
@@ -16,9 +17,11 @@ import { orgRoleOf } from "@/server/integrations.server";
 //  - setRole {userId, role}        -> Rolle ändern (nicht den eigenen Owner degradieren)
 //  - assign {userId, clientIds[]}  -> Kunden-Zuweisung setzen (ersetzt bestehende)
 //  - remove {userId}               -> aus der Org entfernen (+ Zuweisungen)
+//  - resend {userId}               -> Link erneut senden (04.11.2026): noch nicht
+//    bestaetigt -> Einladung erneut, sonst Passwort-Link
 
 const Body = z.object({
-  action: z.enum(["list", "invite", "setRole", "assign", "remove", "setAnsicht"]),
+  action: z.enum(["list", "invite", "setRole", "assign", "remove", "setAnsicht", "resend"]),
   email: z.string().email().optional(),
   role: z.enum(["admin", "member", "viewer"]).optional(),
   userId: z.string().uuid().optional(),
@@ -62,10 +65,18 @@ export const Route = createFileRoute("/api/admin/team")({
             .eq("organization_id", orgId);
           // E-Mails via Auth-Admin (batch).
           const emails: Record<string, string> = {};
+          const status: Record<string, { status: string; linkGesendet: string | null }> = {};
           for (const m of members || []) {
             try {
               const { data: au } = await supabaseAdmin.auth.admin.getUserById((m as any).user_id);
               if (au?.user?.email) emails[(m as any).user_id] = au.user.email;
+              if (au?.user) {
+                const t = zuletztGesendet(au.user);
+                status[(m as any).user_id] = {
+                  status: linkStatus(au.user),
+                  linkGesendet: t ? new Date(t).toISOString() : null,
+                };
+              }
             } catch {
               /* ignore */
             }
@@ -92,8 +103,36 @@ export const Route = createFileRoute("/api/admin/team")({
             self: m.user_id === user.id,
             clientIds: byUser[m.user_id] || [],
             ansicht: ansichtVon[m.user_id] || null,
+            // "eingeladen" (Link nie benutzt) | "bestaetigt" (nie eingeloggt) | "aktiv"
+            status: status[m.user_id]?.status || null,
+            linkGesendet: status[m.user_id]?.linkGesendet || null,
           }));
           return Response.json({ ok: true, users });
+        }
+
+        // ── resend ────────────────────────────────────────────────────────────
+        if (d.action === "resend") {
+          if (!d.userId) return Response.json({ error: "userId erforderlich" }, { status: 400 });
+          const zielRolle = await orgRoleOf(d.userId, orgId);
+          if (!zielRolle) return Response.json({ error: "Kein Mitglied" }, { status: 404 });
+          if (zielRolle === "owner")
+            return Response.json({ error: "Nicht für den SuperAdmin" }, { status: 400 });
+          const { data: au, error: auErr } = await supabaseAdmin.auth.admin.getUserById(d.userId);
+          if (auErr || !au?.user)
+            return Response.json({ error: "Konto nicht gefunden" }, { status: 404 });
+          const r = await sendeNeuenLink(au.user, originVon(request));
+          if (r.error) {
+            const zuSchnell = /rate|seconds|security purposes/i.test(r.error);
+            return Response.json(
+              {
+                error: zuSchnell
+                  ? "Gerade eben wurde schon ein Link verschickt. Bitte eine Minute warten."
+                  : `Link konnte nicht gesendet werden: ${r.error}`,
+              },
+              { status: zuSchnell ? 429 : 500 },
+            );
+          }
+          return Response.json({ ok: true, art: r.art, email: au.user.email });
         }
 
         // ── invite ────────────────────────────────────────────────────────────
