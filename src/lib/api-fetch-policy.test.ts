@@ -15,6 +15,7 @@ const ERLAUBT = new Set([
   "lib/authed-fetch.ts", // der Helfer selbst
   "routes/r.$token.tsx", // oeffentlicher, signierter Report-Link (kein Login)
   "routes/github-status.tsx", // Fremd-API (GitHub)
+  "routes/set-password.tsx", // neuer Link bei abgelaufenem Link (keine Session)
 ]);
 const SERVER_RE = /^(routes\/api\/|lib\/mcp\/|server\/)|\.server\.ts$|\.test\.tsx?$/;
 

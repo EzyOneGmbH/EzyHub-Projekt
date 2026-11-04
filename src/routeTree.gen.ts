@@ -175,6 +175,7 @@ import { Route as ApiV1ProjectsRouteImport } from './routes/api/v1.projects'
 import { Route as ApiWordpressConnectionRouteImport } from './routes/api/wordpress.connection'
 import { Route as ApiWordpressPostsRouteImport } from './routes/api/wordpress.posts'
 import { Route as ApiWordpressPublishRouteImport } from './routes/api/wordpress.publish'
+import { Route as ApiAuthNeuerLinkRouteImport } from './routes/api/auth.neuer-link'
 import { Route as ApiGoogleOauthStartRouteImport } from './routes/api/google.oauth.start'
 import { Route as ApiLiveCanonryAiVisibilityRouteImport } from './routes/api/live.canonry.ai-visibility'
 import { Route as ApiLiveCanonryOverviewRouteImport } from './routes/api/live.canonry.overview'
@@ -1039,6 +1040,11 @@ const ApiWordpressPublishRoute = ApiWordpressPublishRouteImport.update({
   path: '/api/wordpress/publish',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthNeuerLinkRoute = ApiAuthNeuerLinkRouteImport.update({
+  id: '/api/auth/neuer-link',
+  path: '/api/auth/neuer-link',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiGoogleOauthStartRoute = ApiGoogleOauthStartRouteImport.update({
   id: '/api/google/oauth/start',
   path: '/api/google/oauth/start',
@@ -1258,6 +1264,7 @@ export interface FileRoutesByFullPath {
   '/api/wordpress/connection': typeof ApiWordpressConnectionRoute
   '/api/wordpress/posts': typeof ApiWordpressPostsRoute
   '/api/wordpress/publish': typeof ApiWordpressPublishRoute
+  '/api/auth/neuer-link': typeof ApiAuthNeuerLinkRoute
   '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
   '/api/live/canonry/ai-visibility': typeof ApiLiveCanonryAiVisibilityRoute
   '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
@@ -1435,6 +1442,7 @@ export interface FileRoutesByTo {
   '/api/wordpress/connection': typeof ApiWordpressConnectionRoute
   '/api/wordpress/posts': typeof ApiWordpressPostsRoute
   '/api/wordpress/publish': typeof ApiWordpressPublishRoute
+  '/api/auth/neuer-link': typeof ApiAuthNeuerLinkRoute
   '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
   '/api/live/canonry/ai-visibility': typeof ApiLiveCanonryAiVisibilityRoute
   '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
@@ -1613,6 +1621,7 @@ export interface FileRoutesById {
   '/api/wordpress/connection': typeof ApiWordpressConnectionRoute
   '/api/wordpress/posts': typeof ApiWordpressPostsRoute
   '/api/wordpress/publish': typeof ApiWordpressPublishRoute
+  '/api/auth/neuer-link': typeof ApiAuthNeuerLinkRoute
   '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
   '/api/live/canonry/ai-visibility': typeof ApiLiveCanonryAiVisibilityRoute
   '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
@@ -1792,6 +1801,7 @@ export interface FileRouteTypes {
     | '/api/wordpress/connection'
     | '/api/wordpress/posts'
     | '/api/wordpress/publish'
+    | '/api/auth/neuer-link'
     | '/api/google/oauth/start'
     | '/api/live/canonry/ai-visibility'
     | '/api/live/canonry/overview'
@@ -1969,6 +1979,7 @@ export interface FileRouteTypes {
     | '/api/wordpress/connection'
     | '/api/wordpress/posts'
     | '/api/wordpress/publish'
+    | '/api/auth/neuer-link'
     | '/api/google/oauth/start'
     | '/api/live/canonry/ai-visibility'
     | '/api/live/canonry/overview'
@@ -2146,6 +2157,7 @@ export interface FileRouteTypes {
     | '/api/wordpress/connection'
     | '/api/wordpress/posts'
     | '/api/wordpress/publish'
+    | '/api/auth/neuer-link'
     | '/api/google/oauth/start'
     | '/api/live/canonry/ai-visibility'
     | '/api/live/canonry/overview'
@@ -2319,6 +2331,7 @@ export interface RootRouteChildren {
   ApiWordpressConnectionRoute: typeof ApiWordpressConnectionRoute
   ApiWordpressPostsRoute: typeof ApiWordpressPostsRoute
   ApiWordpressPublishRoute: typeof ApiWordpressPublishRoute
+  ApiAuthNeuerLinkRoute: typeof ApiAuthNeuerLinkRoute
   ApiGoogleOauthStartRoute: typeof ApiGoogleOauthStartRoute
   ApiLiveCanonryAiVisibilityRoute: typeof ApiLiveCanonryAiVisibilityRoute
   ApiLiveCanonryOverviewRoute: typeof ApiLiveCanonryOverviewRoute
@@ -3489,6 +3502,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWordpressPublishRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/neuer-link': {
+      id: '/api/auth/neuer-link'
+      path: '/api/auth/neuer-link'
+      fullPath: '/api/auth/neuer-link'
+      preLoaderRoute: typeof ApiAuthNeuerLinkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/google/oauth/start': {
       id: '/api/google/oauth/start'
       path: '/api/google/oauth/start'
@@ -3795,6 +3815,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWordpressConnectionRoute: ApiWordpressConnectionRoute,
   ApiWordpressPostsRoute: ApiWordpressPostsRoute,
   ApiWordpressPublishRoute: ApiWordpressPublishRoute,
+  ApiAuthNeuerLinkRoute: ApiAuthNeuerLinkRoute,
   ApiGoogleOauthStartRoute: ApiGoogleOauthStartRoute,
   ApiLiveCanonryAiVisibilityRoute: ApiLiveCanonryAiVisibilityRoute,
   ApiLiveCanonryOverviewRoute: ApiLiveCanonryOverviewRoute,

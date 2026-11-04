@@ -18,6 +18,98 @@ const schema = z.object({
   password: z.string().min(8, "Mindestens 8 Zeichen").max(72),
 });
 
+// Abgelaufener/verbrauchter Link (04.11.2026): Supabase-Links gelten max. 24 h
+// und Outlook Safe Links verbraucht sie teils vorab. Statt Sackgasse kann der
+// Nutzer hier selbst einen neuen Link an seine Adresse anfordern.
+function NeuerLink({
+  feldStil,
+  labelStil,
+}: {
+  feldStil: React.CSSProperties;
+  labelStil: React.CSSProperties;
+}) {
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [gesendet, setGesendet] = useState(false);
+
+  const senden = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!z.string().email().safeParse(email.trim()).success) {
+      toast.error("Bitte eine gültige E-Mail-Adresse angeben.");
+      return;
+    }
+    setBusy(true);
+    try {
+      // Bewusst ohne authedFetch: hier gibt es noch keine Session (Link abgelaufen).
+      // eslint-disable-next-line no-restricted-syntax
+      const r = await fetch("/api/auth/neuer-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        toast.error(j?.error || "Das hat nicht geklappt. Bitte später nochmals versuchen.");
+        return;
+      }
+      setGesendet(true);
+    } catch {
+      toast.error("Das hat nicht geklappt. Bitte später nochmals versuchen.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (gesendet)
+    return (
+      <div style={{ fontSize: 13.5, color: "#c9e8c9", lineHeight: 1.5 }}>
+        Falls für <strong>{email.trim()}</strong> ein EzyHub-Konto besteht, ist ein neuer Link
+        unterwegs. Bitte das Postfach (auch den Spam-Ordner) prüfen und den Link innerhalb von 24
+        Stunden öffnen.
+      </div>
+    );
+
+  return (
+    <form onSubmit={senden} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ fontSize: 13, color: "#e0a458", lineHeight: 1.5 }}>
+        Dieser Link ist abgelaufen oder wurde bereits verwendet. Gib deine E-Mail-Adresse ein, dann
+        senden wir dir sofort einen neuen Link.
+      </div>
+      <div>
+        <label htmlFor="mail" style={labelStil}>
+          E-Mail-Adresse
+        </label>
+        <input
+          id="mail"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoComplete="email"
+          autoFocus
+          style={{ ...feldStil, paddingRight: 13 }}
+        />
+      </div>
+      <button
+        type="submit"
+        disabled={busy}
+        style={{
+          padding: "12px 16px",
+          borderRadius: 10,
+          border: "none",
+          background: busy ? "#5d2a6e" : "#9c00a8",
+          color: "#fff",
+          fontSize: 14,
+          fontWeight: 700,
+          fontFamily: "inherit",
+          cursor: busy ? "default" : "pointer",
+        }}
+      >
+        {busy ? "Wird gesendet…" : "Neuen Link senden"}
+      </button>
+    </form>
+  );
+}
+
 function SetPasswordPage() {
   const navigate = useNavigate();
   const [ready, setReady] = useState(false);
@@ -134,10 +226,7 @@ function SetPasswordPage() {
         {!ready ? (
           <p style={{ color: "#8a94a8", fontSize: 13 }}>Einladung wird geprüft…</p>
         ) : !hasSession ? (
-          <div style={{ fontSize: 13, color: "#e0a458" }}>
-            Dieser Einladungslink ist ungültig oder abgelaufen. Bitte den SuperAdmin um eine neue
-            Einladung.
-          </div>
+          <NeuerLink feldStil={feldStil} labelStil={labelStil} />
         ) : (
           <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div>
