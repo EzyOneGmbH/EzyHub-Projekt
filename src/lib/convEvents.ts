@@ -149,6 +149,111 @@ export async function ladeKaufJeKanal(
   }
 }
 
+// ── ChatGPT Ads im Kanal «AI Assistant» (05.11.2026, Morosani) ─────────────
+// Kunden-Option clients.metadata.ezyai_ads_in_organic: bezahlte ChatGPT-Klicks
+// (Quelle chatgpt/openai, Kanal «Paid …»/«Cross-network») werden in der
+// Kanal-Tabelle aus ihrem Paid-Kanal in «AI Assistant» verschoben — gleiche
+// Zählweise wie EzyAI Organic mit dieser Option. Summe aller Kanäle bleibt gleich.
+
+type KanalZeile = {
+  channel?: string;
+  sessions?: number | null;
+  conversions?: number | null;
+  revenue?: number | null;
+};
+export type ChatgptAdsJeKanal = Record<
+  string,
+  { sessions: number; conversions: number; revenue: number }
+>;
+
+const KI_KANAL = "AI Assistant";
+const PAID_KANAL_RE = /^(paid|cross-network)/i;
+
+/** Verschiebt ChatGPT-Ads-Werte aus den Paid-Kanälen nach «AI Assistant». */
+export function chatgptAdsInKiKanal<T extends KanalZeile>(
+  channels: T[],
+  ads: ChatgptAdsJeKanal | null | undefined,
+): T[] {
+  if (!ads) return channels;
+  const minus = (a: number | null | undefined, b: number) =>
+    a == null ? a : Math.max(0, Number(a) - b);
+  const plus = (a: number | null | undefined, b: number) => (a == null ? a : Number(a) + b);
+  let summe = { sessions: 0, conversions: 0, revenue: 0 };
+  const out = channels.map((ch) => {
+    const k = ads[String(ch.channel ?? "")];
+    if (!k || !PAID_KANAL_RE.test(String(ch.channel ?? ""))) return ch;
+    summe = {
+      sessions: summe.sessions + k.sessions,
+      conversions: summe.conversions + k.conversions,
+      revenue: summe.revenue + k.revenue,
+    };
+    return {
+      ...ch,
+      sessions: minus(ch.sessions, k.sessions),
+      conversions: minus(ch.conversions, k.conversions),
+      revenue: minus(ch.revenue, k.revenue),
+    };
+  });
+  if (!summe.sessions && !summe.conversions && !summe.revenue) return channels;
+  const i = out.findIndex(
+    (ch) => String(ch.channel ?? "").toLowerCase() === KI_KANAL.toLowerCase(),
+  );
+  if (i >= 0) {
+    const ch = out[i];
+    out[i] = {
+      ...ch,
+      sessions: plus(ch.sessions, summe.sessions),
+      conversions: plus(ch.conversions, summe.conversions),
+      revenue: plus(ch.revenue, summe.revenue),
+    };
+  } else {
+    out.push({
+      channel: KI_KANAL,
+      sessions: summe.sessions,
+      conversions: summe.conversions,
+      revenue: summe.revenue,
+    } as T);
+  }
+  return out.sort((a, b) => Number(b.sessions ?? 0) - Number(a.sessions ?? 0));
+}
+
+/** ChatGPT-Ads je Paid-Kanal aus GA4. null = Abfrage nicht möglich. */
+export async function ladeChatgptAdsJeKanal(
+  call: Ga4Call,
+  dateRanges: unknown,
+): Promise<ChatgptAdsJeKanal | null> {
+  try {
+    const r = await call({
+      dateRanges,
+      dimensions: [{ name: "sessionDefaultChannelGroup" }],
+      metrics: [{ name: "sessions" }, { name: "conversions" }, { name: "totalRevenue" }],
+      dimensionFilter: {
+        filter: {
+          fieldName: "sessionSource",
+          stringFilter: {
+            matchType: "PARTIAL_REGEXP",
+            value: "chatgpt|openai",
+            caseSensitive: false,
+          },
+        },
+      },
+    });
+    const out: ChatgptAdsJeKanal = {};
+    for (const row of r.rows ?? []) {
+      const kanal = row.dimensionValues?.[0]?.value ?? "";
+      if (!PAID_KANAL_RE.test(kanal)) continue;
+      out[kanal] = {
+        sessions: Number(row.metricValues?.[0]?.value ?? 0) || 0,
+        conversions: Number(row.metricValues?.[1]?.value ?? 0) || 0,
+        revenue: Number(row.metricValues?.[2]?.value ?? 0) || 0,
+      };
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 // ── Zählregeln (02.10.2026, GTM-Conversion-Audit) ─────────────────────────────
 // Vorher zu grob: «form» zählte form_start/form_aborted, «submit» Suche und
 // Newsletter, «tel» ohne Wortgrenze traf «Bestellen»/«Hotels», «kauf» Ticket-

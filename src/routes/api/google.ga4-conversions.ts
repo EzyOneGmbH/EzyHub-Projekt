@@ -9,11 +9,14 @@ import {
   kanaeleKaeufeBereinigt,
   kaufZaehler,
   ladeKaufJeKanal,
+  chatgptAdsInKiKanal,
+  ladeChatgptAdsJeKanal,
   type ConvBreakdown,
 } from "@/lib/convEvents";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
+import { adsInOrganic } from "@/server/aivis-attribution.server";
 import { redactSecrets } from "@/server/google-oauth.server";
 import { isProviderEnabled, canRunAudits } from "@/server/integrations.server";
 import { ga4CoverageSammler, ga4RunReportUrl } from "@/server/ga4.server";
@@ -304,6 +307,12 @@ export const Route = createFileRoute("/api/google/ga4-conversions")({
             }));
             // Doppelte purchase-Events in den Kanal-Conversions durch Transaktionen ersetzen.
             channels = kanaeleKaeufeBereinigt(channels, await ladeKaufJeKanal(callGa4, dateRanges));
+            // Kunden-Option ezyai_ads_in_organic: ChatGPT Ads → «AI Assistant» (05.11.2026)
+            if (await adsInOrganic(client.id))
+              channels = chatgptAdsInKiKanal(
+                channels,
+                await ladeChatgptAdsJeKanal(callGa4, dateRanges),
+              );
           } catch {
             // Fallback ohne conversions/revenue (ältere Properties): nur sessions.
             try {

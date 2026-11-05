@@ -29,6 +29,8 @@ import {
 } from "@/lib/convEvents";
 import { seoHistoryGuardAb } from "@/lib/seoHistoryGuard";
 import { ga4Coverage, ga4CoverageSammler, ga4RunReportUrl } from "@/server/ga4.server";
+import { adsInOrganic } from "@/server/aivis-attribution.server";
+import { chatgptAdsInKiKanal, ladeChatgptAdsJeKanal } from "@/lib/convEvents";
 import {
   gscTotals,
   gscRows,
@@ -991,6 +993,9 @@ async function jobGa4Traffic(c: any, uid: string, days: number) {
       conversions: Number(r.metricValues?.[1]?.value ?? 0),
       revenue: Number(r.metricValues?.[2]?.value ?? 0),
     }));
+    // Kunden-Option ezyai_ads_in_organic: ChatGPT Ads → «AI Assistant» (05.11.2026)
+    if (await adsInOrganic(c.id))
+      channels = chatgptAdsInKiKanal(channels, await ladeChatgptAdsJeKanal(call, dateRanges));
   } catch {
     // Fallback ohne conversions/revenue (aeltere Properties): nur sessions.
     try {
@@ -1324,6 +1329,9 @@ async function jobGa4Conversions(c: any, uid: string, days: number) {
     }));
     // Doppelte purchase-Events in den Kanal-Conversions durch Transaktionen ersetzen.
     channels = kanaeleKaeufeBereinigt(channels, await ladeKaufJeKanal(call, dateRanges));
+    // Kunden-Option ezyai_ads_in_organic: ChatGPT Ads → «AI Assistant» (05.11.2026)
+    if (await adsInOrganic(c.id))
+      channels = chatgptAdsInKiKanal(channels, await ladeChatgptAdsJeKanal(call, dateRanges));
   } catch {
     /* optional — Feld fehlt dann, UI blendet den Block aus */
   }

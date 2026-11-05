@@ -278,8 +278,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.39.0",
+    version: "1.39.1",
     changelog: [
+      {
+        version: "1.39.1",
+        date: "2026-11-05",
+        note: "Mit der Option «ChatGPT Ads in Organic mitzählen» zeigt auch die Kanal-Tabelle auf der Conversion-Seite (EzyRank) die ChatGPT-Ads-Besucher unter «AI Assistant» statt unter «Paid …» — Summe aller Kanäle bleibt gleich",
+      },
       {
         version: "1.39.0",
         date: "2026-11-05",
