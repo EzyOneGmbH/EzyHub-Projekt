@@ -1050,6 +1050,32 @@ export function SeoDashboard({ selectedClient, dateRange }) {
     () => seoHistSeries.some((m) => m[seoHistLandKey] != null),
     [seoHistSeries, seoHistLandKey],
   );
+  // Verlauf Top 3 / Top 10 (05.11.2026, Volkan): nur Team, gleiche Zählung wie
+  // die Kacheln je gespeichertem Messtag (/api/admin/rank-verlauf).
+  const [rankVerlauf, setRankVerlauf] = useState(null);
+  useEffect(() => {
+    setRankVerlauf(null);
+    const id = selectedClient?.id;
+    if (!istTeam || !id) return;
+    let ab = false;
+    ezyFetch(`/api/admin/rank-verlauf?clientId=${encodeURIComponent(id)}`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (ab || !j?.ok || !Array.isArray(j.punkte)) return;
+        setRankVerlauf(
+          j.punkte.map((p) => ({
+            date: p.date,
+            label: `${p.date.slice(8, 10)}.${p.date.slice(5, 7)}.`,
+            "Top 3": p.top3,
+            "Top 10": p.top10,
+          })),
+        );
+      })
+      .catch(() => {});
+    return () => {
+      ab = true;
+    };
+  }, [istTeam, selectedClient?.id]);
   const { run: psiRun, refresh: refreshPsi } = useEzyLatestRun(
     selectedClient?.id,
     "pagespeed",
@@ -2278,6 +2304,56 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                   dot={false}
                 />
               )}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+      {istTeam && rankVerlauf && rankVerlauf.length >= 2 && (
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 14,
+            padding: 16,
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 600, color: C.textMuted, marginBottom: 4 }}>
+            Keywords in Top 3 / Top 10 <Badge>Nur Team</Badge>
+          </div>
+          <div style={{ fontSize: 11, color: C.textDim, marginBottom: 12 }}>
+            {(() => {
+              const a = rankVerlauf[0];
+              const z = rankVerlauf[rankVerlauf.length - 1];
+              const d = (x) => (x > 0 ? `+${x}` : `${x}`);
+              return `Je Messtag, gleiche Zählung wie die Kacheln · seit ${a.label}${a.date.slice(0, 4)}: Top 3 ${a["Top 3"]} → ${z["Top 3"]} (${d(z["Top 3"] - a["Top 3"])}), Top 10 ${a["Top 10"]} → ${z["Top 10"]} (${d(z["Top 10"] - a["Top 10"])})`;
+            })()}
+          </div>
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={rankVerlauf}>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+              <XAxis dataKey="label" stroke={C.textDim} fontSize={11} minTickGap={24} />
+              <YAxis stroke={C.textDim} fontSize={11} allowDecimals={false} />
+              <Tooltip
+                labelFormatter={(_, p) => {
+                  const d = p?.[0]?.payload?.date;
+                  return d ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : "";
+                }}
+                contentStyle={{
+                  background: C.surface,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 8,
+                  color: C.textMuted,
+                }}
+              />
+              <Legend />
+              <Line type="monotone" dataKey="Top 3" stroke={C.green} strokeWidth={2} dot={false} />
+              <Line
+                type="monotone"
+                dataKey="Top 10"
+                stroke={C.accent}
+                strokeWidth={2}
+                dot={false}
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>

@@ -109,6 +109,7 @@ import { Route as ApiAdminOpenaiAdsRouteImport } from './routes/api/admin.openai
 import { Route as ApiAdminOpenaiAdsIngestRouteImport } from './routes/api/admin.openai-ads-ingest'
 import { Route as ApiAdminPopulateRouteImport } from './routes/api/admin.populate'
 import { Route as ApiAdminRankKeywordsRouteImport } from './routes/api/admin.rank-keywords'
+import { Route as ApiAdminRankVerlaufRouteImport } from './routes/api/admin.rank-verlauf'
 import { Route as ApiAdminRankSnapshotRouteImport } from './routes/api/admin.rank-snapshot'
 import { Route as ApiAdminSecretStatusRouteImport } from './routes/api/admin.secret-status'
 import { Route as ApiAdminSecureMigrateRouteImport } from './routes/api/admin.secure-migrate'
@@ -705,6 +706,11 @@ const ApiAdminRankKeywordsRoute = ApiAdminRankKeywordsRouteImport.update({
   path: '/api/admin/rank-keywords',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminRankVerlaufRoute = ApiAdminRankVerlaufRouteImport.update({
+  id: '/api/admin/rank-verlauf',
+  path: '/api/admin/rank-verlauf',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminRankSnapshotRoute = ApiAdminRankSnapshotRouteImport.update({
   id: '/api/admin/rank-snapshot',
   path: '/api/admin/rank-snapshot',
@@ -1198,6 +1204,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/openai-ads-ingest': typeof ApiAdminOpenaiAdsIngestRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-keywords': typeof ApiAdminRankKeywordsRoute
+  '/api/admin/rank-verlauf': typeof ApiAdminRankVerlaufRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
   '/api/admin/secret-status': typeof ApiAdminSecretStatusRoute
   '/api/admin/secure-migrate': typeof ApiAdminSecureMigrateRoute
@@ -1376,6 +1383,7 @@ export interface FileRoutesByTo {
   '/api/admin/openai-ads-ingest': typeof ApiAdminOpenaiAdsIngestRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-keywords': typeof ApiAdminRankKeywordsRoute
+  '/api/admin/rank-verlauf': typeof ApiAdminRankVerlaufRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
   '/api/admin/secret-status': typeof ApiAdminSecretStatusRoute
   '/api/admin/secure-migrate': typeof ApiAdminSecureMigrateRoute
@@ -1555,6 +1563,7 @@ export interface FileRoutesById {
   '/api/admin/openai-ads-ingest': typeof ApiAdminOpenaiAdsIngestRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-keywords': typeof ApiAdminRankKeywordsRoute
+  '/api/admin/rank-verlauf': typeof ApiAdminRankVerlaufRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
   '/api/admin/secret-status': typeof ApiAdminSecretStatusRoute
   '/api/admin/secure-migrate': typeof ApiAdminSecureMigrateRoute
@@ -1735,6 +1744,7 @@ export interface FileRouteTypes {
     | '/api/admin/openai-ads-ingest'
     | '/api/admin/populate'
     | '/api/admin/rank-keywords'
+    | '/api/admin/rank-verlauf'
     | '/api/admin/rank-snapshot'
     | '/api/admin/secret-status'
     | '/api/admin/secure-migrate'
@@ -1913,6 +1923,7 @@ export interface FileRouteTypes {
     | '/api/admin/openai-ads-ingest'
     | '/api/admin/populate'
     | '/api/admin/rank-keywords'
+    | '/api/admin/rank-verlauf'
     | '/api/admin/rank-snapshot'
     | '/api/admin/secret-status'
     | '/api/admin/secure-migrate'
@@ -2091,6 +2102,7 @@ export interface FileRouteTypes {
     | '/api/admin/openai-ads-ingest'
     | '/api/admin/populate'
     | '/api/admin/rank-keywords'
+    | '/api/admin/rank-verlauf'
     | '/api/admin/rank-snapshot'
     | '/api/admin/secret-status'
     | '/api/admin/secure-migrate'
@@ -2265,6 +2277,7 @@ export interface RootRouteChildren {
   ApiAdminOpenaiAdsIngestRoute: typeof ApiAdminOpenaiAdsIngestRoute
   ApiAdminPopulateRoute: typeof ApiAdminPopulateRoute
   ApiAdminRankKeywordsRoute: typeof ApiAdminRankKeywordsRoute
+  ApiAdminRankVerlaufRoute: typeof ApiAdminRankVerlaufRoute
   ApiAdminRankSnapshotRoute: typeof ApiAdminRankSnapshotRoute
   ApiAdminSecretStatusRoute: typeof ApiAdminSecretStatusRoute
   ApiAdminSecureMigrateRoute: typeof ApiAdminSecureMigrateRoute
@@ -3040,6 +3053,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminRankKeywordsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/rank-verlauf': {
+      id: '/api/admin/rank-verlauf'
+      path: '/api/admin/rank-verlauf'
+      fullPath: '/api/admin/rank-verlauf'
+      preLoaderRoute: typeof ApiAdminRankVerlaufRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/rank-snapshot': {
       id: '/api/admin/rank-snapshot'
       path: '/api/admin/rank-snapshot'
@@ -3749,6 +3769,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminOpenaiAdsIngestRoute: ApiAdminOpenaiAdsIngestRoute,
   ApiAdminPopulateRoute: ApiAdminPopulateRoute,
   ApiAdminRankKeywordsRoute: ApiAdminRankKeywordsRoute,
+  ApiAdminRankVerlaufRoute: ApiAdminRankVerlaufRoute,
   ApiAdminRankSnapshotRoute: ApiAdminRankSnapshotRoute,
   ApiAdminSecretStatusRoute: ApiAdminSecretStatusRoute,
   ApiAdminSecureMigrateRoute: ApiAdminSecureMigrateRoute,
