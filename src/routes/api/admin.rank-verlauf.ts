@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { requireTeamRole } from "@/server/team-guard.server";
 import { cacheLesen, cacheSchreiben } from "@/server/uebersicht-cache.server";
 import { bisTag, rankVerlauf, tagZuerich, waehleLaeufe, type LaufKopf } from "@/lib/rankVerlauf";
 
-// Verlauf Top 3 / Top 10 je Messtag (05.11.2026) — NUR Team. Nur lesen:
+// Verlauf Top 3 / Top 10 je Messtag (05.11.2026). Seit 2.7.4 auch für Kunden
+// (Volkan): Zugriff wie /api/admin/ezyrank-kacheln — angemeldeter Benutzer,
+// nur Kunden, die er laut RLS sehen darf. Nur lesen:
 // audit_runs rankings (keywords) + gsc_queries (topNonbrandQueries), gleiche
 // Zählung wie die Kacheln im EzyRank-Dashboard. Ergebnis 70 min im Cache.
 
@@ -53,14 +54,16 @@ export const Route = createFileRoute("/api/admin/rank-verlauf")({
         const clientId = new URL(request.url).searchParams.get("clientId") || "";
         if (!isUuid(clientId))
           return Response.json({ ok: false, error: "clientId fehlt" }, { status: 400 });
-        const team = await requireTeamRole(request, "member");
-        if (team instanceof Response) return team;
-        // Kunde muss für den Benutzer sichtbar sein (RLS)
+        // Angemeldet + Kunde für den Benutzer sichtbar (RLS)
         const sb = createClient(
           process.env.SUPABASE_URL!,
           process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY!,
           { global: { headers: { Authorization: request.headers.get("authorization") ?? "" } } },
         );
+        const {
+          data: { user },
+        } = await sb.auth.getUser();
+        if (!user) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
         const { data: sichtbar } = await sb.from("clients").select("id").eq("id", clientId);
         if (!sichtbar?.length)
           return Response.json({ ok: false, error: "Forbidden" }, { status: 403 });

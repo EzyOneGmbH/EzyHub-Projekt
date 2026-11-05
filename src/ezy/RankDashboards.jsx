@@ -1050,13 +1050,13 @@ export function SeoDashboard({ selectedClient, dateRange }) {
     () => seoHistSeries.some((m) => m[seoHistLandKey] != null),
     [seoHistSeries, seoHistLandKey],
   );
-  // Verlauf Top 3 / Top 10 (05.11.2026, Volkan): nur Team, gleiche Zählung wie
+  // Verlauf Top 3 / Top 10 (05.11.2026, Volkan): Team und Kunden, gleiche Zählung wie
   // die Kacheln je gespeichertem Messtag (/api/admin/rank-verlauf).
   const [rankVerlauf, setRankVerlauf] = useState(null);
   useEffect(() => {
     setRankVerlauf(null);
     const id = selectedClient?.id;
-    if (!istTeam || !id) return;
+    if (!id) return;
     let ab = false;
     ezyFetch(`/api/admin/rank-verlauf?clientId=${encodeURIComponent(id)}`)
       .then((r) => r.json())
@@ -1075,7 +1075,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
     return () => {
       ab = true;
     };
-  }, [istTeam, selectedClient?.id]);
+  }, [selectedClient?.id]);
   const { run: psiRun, refresh: refreshPsi } = useEzyLatestRun(
     selectedClient?.id,
     "pagespeed",
@@ -2308,7 +2308,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
           </ResponsiveContainer>
         </div>
       )}
-      {istTeam && rankVerlauf && rankVerlauf.length >= 2 && (
+      {rankVerlauf && rankVerlauf.length >= 2 && (
         <div
           style={{
             background: C.card,
@@ -2318,7 +2318,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
           }}
         >
           <div style={{ fontSize: 13, fontWeight: 600, color: C.textMuted, marginBottom: 4 }}>
-            Keywords in Top 3 / Top 10 <Badge>Nur Team</Badge>
+            Keywords in Top 3 / Top 10
           </div>
           <div style={{ fontSize: 11, color: C.textDim, marginBottom: 12 }}>
             {(() => {
