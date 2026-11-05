@@ -16,12 +16,15 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 // selbstheilend: wird ein Agent auf beobachtend zurueckgestellt, faellt auch
 // das Flag zurueck, ohne dass jemand daran denken muss.
 //
-// Secret-gated, schreibt AUSSCHLIESSLICH clients.metadata.seo_autonom —
+// Secret-gated, schreibt AUSSCHLIESSLICH clients.metadata.seo_autonom bzw.
+// ezyai_ads_in_organic (Feld key) —
 // keine anderen Felder, kein Delete.
 
 const Body = z.object({
   // { "<clientId>": true|false, ... }
   flags: z.record(z.string().uuid(), z.boolean()),
+  // 05.11.2026: zweiter erlaubter Schluessel — EzyAI zaehlt ChatGPT Ads in Organic mit.
+  key: z.enum(["seo_autonom", "ezyai_ads_in_organic"]).default("seo_autonom"),
 });
 
 export const Route = createFileRoute("/api/admin/client-flags")({
@@ -42,6 +45,7 @@ export const Route = createFileRoute("/api/admin/client-flags")({
           return Response.json({ ok: false, error: "Invalid input" }, { status: 400 });
 
         const entries = Object.entries(parsed.data.flags);
+        const key = parsed.data.key;
         if (!entries.length) return Response.json({ ok: true, updated: 0, changed: [] });
 
         // Bestand lesen, damit metadata NICHT ueberschrieben, sondern
@@ -59,11 +63,11 @@ export const Route = createFileRoute("/api/admin/client-flags")({
           const row = (rows ?? []).find((r: any) => r.id === id);
           if (!row) continue; // unbekannte Kunden-ID still ignorieren
           const meta = (row.metadata as any) ?? {};
-          const vorher = meta.seo_autonom === true;
+          const vorher = meta[key] === true;
           if (vorher === wert) continue; // nichts zu tun -> kein Schreibvorgang
           const { error } = await supabaseAdmin
             .from("clients")
-            .update({ metadata: { ...meta, seo_autonom: wert } } as never)
+            .update({ metadata: { ...meta, [key]: wert } } as never)
             .eq("id", id);
           if (error) continue;
           updated++;

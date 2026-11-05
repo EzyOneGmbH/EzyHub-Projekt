@@ -8,7 +8,7 @@ import { redactSecrets } from "@/server/google-oauth.server";
 import {
   ENGINES,
   isOrganicBing,
-  istBezahlt,
+  bezahltFuer,
   fetchAttribution,
 } from "@/server/aivis-attribution.server";
 import { getEnabledServices } from "@/server/integrations.server";
@@ -3976,7 +3976,8 @@ async function jobBackfill(c: any, sb: any, months: number) {
             const src = String(row.dimensionValues?.[0]?.value ?? "");
             const kanal = String(row.dimensionValues?.[1]?.value ?? "");
             const eng = ENGINES.find((e) => e.re.test(src));
-            if (!eng || isOrganicBing(src, kanal) || istBezahlt(kanal)) continue;
+            if (!eng || isOrganicBing(src, kanal) || (await bezahltFuer(c.id))(kanal, src))
+              continue;
             agg[eng.name] ??= { sessions: 0, conversions: 0 };
             agg[eng.name].sessions += Number(row.metricValues?.[0]?.value ?? 0);
             agg[eng.name].conversions += Number(row.metricValues?.[1]?.value ?? 0);

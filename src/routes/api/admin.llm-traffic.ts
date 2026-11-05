@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
 import { zeitraumAusParams } from "@/lib/date-range";
 import { ga4CoverageSammler, ga4RunReportUrl } from "@/server/ga4.server";
+import { bezahltFuer } from "@/server/aivis-attribution.server";
 
 // LLM Analytics (05.08.2026, Searchable-Nachbau "/ai-traffic"):
 // GET ?client=<uuid>&days=<1..365, Default 30> liefert die GA4-Seite des
@@ -29,7 +30,7 @@ const ENGINES: Array<{ name: string; re: RegExp }> = [
 // als Copilot-Verweis.
 // Bezahlter KI-Traffic (ChatGPT Ads, Kanal «Paid …») gehoert nicht in die
 // organische LLM-Analyse (02.10.2026).
-const istBezahlt = (channel: string) => /^(paid|cross-network)/i.test(String(channel || "").trim());
+
 const isOrganicBing = (src: string, channel: string) =>
   /(^|\.)bing\b/i.test(src) && !/copilot|chat|edgeservices/i.test(src) && /organic/i.test(channel);
 
@@ -84,6 +85,7 @@ export const Route = createFileRoute("/api/admin/llm-traffic")({
         if (!client)
           return Response.json({ ok: false, error: "Kunde nicht gefunden" }, { status: 404 });
         if (!client.ga4_property) return Response.json({ ok: true, ga4: false });
+        const istBezahlt = await bezahltFuer(clientId);
 
         let token: string;
         try {
@@ -136,7 +138,7 @@ export const Route = createFileRoute("/api/admin/llm-traffic")({
             const src = String(row.dimensionValues?.[1]?.value ?? "");
             const channel = String(row.dimensionValues?.[2]?.value ?? "");
             const eng = ENGINES.find((e) => e.re.test(src));
-            if (!eng || !date || isOrganicBing(src, channel) || istBezahlt(channel)) continue;
+            if (!eng || !date || isOrganicBing(src, channel) || istBezahlt(channel, src)) continue;
             const sessions = Number(row.metricValues?.[0]?.value ?? 0);
             const newUsers = Number(row.metricValues?.[1]?.value ?? 0);
             const day = byDay.get(date) ?? {};
@@ -166,7 +168,7 @@ export const Route = createFileRoute("/api/admin/llm-traffic")({
             const channel = String(row.dimensionValues?.[2]?.value ?? "");
             const eng = ENGINES.find((e) => e.re.test(src));
             const n = Number(row.metricValues?.[0]?.value ?? 0);
-            if (!eng || !path || n <= 0 || isOrganicBing(src, channel) || istBezahlt(channel))
+            if (!eng || !path || n <= 0 || isOrganicBing(src, channel) || istBezahlt(channel, src))
               continue;
             const key = `${eng.name}\\n${path}`;
             agg.set(key, (agg.get(key) ?? 0) + n);

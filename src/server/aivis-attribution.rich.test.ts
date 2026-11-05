@@ -276,3 +276,16 @@ describe("fetchAttribution — Klick-Conversions (click@domain)", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("Kunden-Option ezyai_ads_in_organic (bezahltFilter)", () => {
+  it("Standard: bezahlte KI-Klicks raus; mit Option nur ChatGPT Ads wieder drin", async () => {
+    const { bezahltFilter } = await import("./aivis-attribution.server");
+    const aus = bezahltFilter(false);
+    const mit = bezahltFilter(true);
+    expect(aus("Paid Search", "chatgpt.com")).toBe(true);
+    expect(aus("Referral", "chatgpt.com")).toBe(false);
+    expect(mit("Paid Search", "chatgpt.com")).toBe(false);
+    expect(mit("Paid Other", "openai")).toBe(false);
+    expect(mit("Paid Search", "bing")).toBe(true);
+  });
+});

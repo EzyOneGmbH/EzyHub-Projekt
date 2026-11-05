@@ -16,7 +16,7 @@ import { ga4DateRange, type Zeitraum } from "@/lib/date-range";
 import {
   ENGINES,
   isOrganicBing,
-  istBezahlt,
+  bezahltFuer,
   countedConversionEvents,
   ignoredConversionEvents,
   KLICK_PREFIX,
@@ -77,6 +77,7 @@ async function kiTraffic(
   zr: Pick<Zeitraum, "startDate" | "endDate">,
   counted: Set<string>,
   ignored: Set<string> = new Set(),
+  bezahlt: (channel: string, src?: string) => boolean = () => false,
 ): Promise<{ sessions: number; conversions: number }> {
   // «click@<domain>»: ausgehende Klicks (z.B. Buchungsmaschine) separat zählen.
   const klickZiele = [...counted].filter((n) => n.startsWith(KLICK_PREFIX));
@@ -93,7 +94,7 @@ async function kiTraffic(
     const src = String(row.dimensionValues?.[0]?.value ?? "");
     if (!ENGINES.some((e) => e.re.test(src))) continue;
     if (isOrganicBing(src, String(row.dimensionValues?.[1]?.value ?? ""))) continue;
-    if (istBezahlt(String(row.dimensionValues?.[1]?.value ?? ""))) continue;
+    if (bezahlt(String(row.dimensionValues?.[1]?.value ?? ""), src)) continue;
     sessions += Number(row.metricValues?.[0]?.value ?? 0);
     conversions += Number(row.metricValues?.[1]?.value ?? 0);
   }
@@ -117,7 +118,7 @@ async function kiTraffic(
       const src = String(row.dimensionValues?.[0]?.value ?? "");
       if (!ENGINES.some((e) => e.re.test(src))) continue;
       if (isOrganicBing(src, String(row.dimensionValues?.[1]?.value ?? ""))) continue;
-      if (istBezahlt(String(row.dimensionValues?.[1]?.value ?? ""))) continue;
+      if (bezahlt(String(row.dimensionValues?.[1]?.value ?? ""), src)) continue;
       const ke = Number(row.metricValues?.[0]?.value ?? 0);
       if (ignored.has(String(row.dimensionValues?.[2]?.value ?? ""))) conversions -= ke;
       else conversions += Number(row.metricValues?.[1]?.value ?? 0) - ke;
@@ -135,7 +136,7 @@ async function kiTraffic(
       const src = String(row.dimensionValues?.[0]?.value ?? "");
       const kanal = String(row.dimensionValues?.[1]?.value ?? "");
       if (!ENGINES.some((e) => e.re.test(src))) continue;
-      if (isOrganicBing(src, kanal) || istBezahlt(kanal)) continue;
+      if (isOrganicBing(src, kanal) || bezahlt(kanal, src)) continue;
       conversions += Number(row.metricValues?.[0]?.value ?? 0);
     }
   }
@@ -164,6 +165,7 @@ export async function fetchAiOrganicZeile(
   let tPrev: { sessions: number; conversions: number } | null = null;
   try {
     const g = await ga4Zugang(c);
+    const bezahlt = await bezahltFuer(c.id);
     if (!g) hinweise.push("Kein GA4 verbunden");
     else {
       const [counted, ignored] = await Promise.all([
@@ -171,8 +173,8 @@ export async function fetchAiOrganicZeile(
         ignoredConversionEvents(c.id),
       ]);
       [tCur, tPrev] = await Promise.all([
-        kiTraffic(g, f.aktuell, counted, ignored),
-        kiTraffic(g, f.vorher, counted, ignored),
+        kiTraffic(g, f.aktuell, counted, ignored, bezahlt),
+        kiTraffic(g, f.vorher, counted, ignored, bezahlt),
       ]);
     }
   } catch (e) {

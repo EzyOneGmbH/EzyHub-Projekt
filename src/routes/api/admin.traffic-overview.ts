@@ -5,6 +5,7 @@ import { getGoogleAccessToken } from "@/server/google-tokens.server";
 import { zeitraum, zeitraumAusParams } from "@/lib/date-range";
 import { gscTotals, gscRows, GSC_END_LAG_DAYS } from "@/server/gsc.server";
 import { ga4CoverageSammler, ga4RunReportUrl } from "@/server/ga4.server";
+import { adsInOrganic } from "@/server/aivis-attribution.server";
 
 // Traffic (05.08.2026, Searchable-Nachbau "Traffic"): der Gesamt-Traffic-Blick
 // als Ergänzung zu LLM Analytics (das nur die KI-Hälfte zeigt).
@@ -24,8 +25,10 @@ const AI_SOURCE_RE =
 // kommt — sonst würde klassisches Bing-SEO als KI gezählt.
 // Bezahlter Traffic (02.10.): ChatGPT Ads (chatgpt / cpc) und Microsoft-Ads-
 // Klicks («bing», Kanal Paid Search) zählen nicht als KI-Traffic.
-const isAiTraffic = (src: string, channel: string) =>
-  !/^(paid|cross-network)/i.test(String(channel || "").trim()) &&
+// adsMit (05.11.2026): Kunden-Option ezyai_ads_in_organic — ChatGPT Ads zählen mit.
+const isAiTraffic = (src: string, channel: string, adsMit = false) =>
+  (!/^(paid|cross-network)/i.test(String(channel || "").trim()) ||
+    (adsMit && /chatgpt|openai/i.test(src))) &&
   (AI_SOURCE_RE.test(src) ||
     /ai assistant/i.test(channel) ||
     (/(^|\.)bing\b/i.test(src) && !/organic/i.test(channel)));
@@ -157,6 +160,7 @@ export const Route = createFileRoute("/api/admin/traffic-overview")({
                 .map(([date, byChannel]) => ({ date, byChannel })),
             };
           }
+          const adsMit = await adsInOrganic(clientId);
           if (segRes.ok) {
             const j: any = cov.erfasse(await segRes.json().catch(() => ({})));
             // Segmente: KI (Quelle matcht KI-Regex) > Organisch > Direkt > Übrige.
@@ -194,7 +198,7 @@ export const Route = createFileRoute("/api/admin/traffic-overview")({
               const dur = Number(row.metricValues?.[2]?.value ?? 0);
               const pps = Number(row.metricValues?.[3]?.value ?? 0);
               const eng = Number(row.metricValues?.[4]?.value ?? 0);
-              const seg = isAiTraffic(src, ch)
+              const seg = isAiTraffic(src, ch, adsMit)
                 ? "KI-Antworten"
                 : /organic search/i.test(ch)
                   ? "Organische Suche"

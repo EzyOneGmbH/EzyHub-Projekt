@@ -104,6 +104,38 @@ export const istBezahlt = (channel: string, medium = "") =>
   /^(paid|cross-network)/i.test(String(channel || "").trim()) ||
   /^(cpc|ppc|cpm|cpv|paid.*|display|retargeting)$/i.test(String(medium || "").trim());
 
+// Kunden-Option (05.11.2026, Volkan, Morosani «beides zusammen zählen wie
+// Searchable»): clients.metadata.ezyai_ads_in_organic = true zählt bezahlte
+// ChatGPT-Ads-Klicks (Quelle chatgpt/openai, Kanal «Paid …») in Organic mit.
+// Andere bezahlte Quellen (z. B. Microsoft Ads «bing») bleiben draussen.
+const ADS_KI_QUELLE = /chatgpt|openai/i;
+const adsOrgCache = new Map<string, { wert: boolean; bis: number }>();
+export async function adsInOrganic(clientId: string): Promise<boolean> {
+  const hit = adsOrgCache.get(clientId);
+  if (hit && hit.bis > Date.now()) return hit.wert;
+  let wert = false;
+  try {
+    const { data } = await (supabaseAdmin as any)
+      .from("clients")
+      .select("metadata")
+      .eq("id", clientId)
+      .maybeSingle();
+    wert = (data?.metadata as any)?.ezyai_ads_in_organic === true;
+  } catch {
+    wert = false;
+  }
+  adsOrgCache.set(clientId, { wert, bis: Date.now() + 60_000 });
+  return wert;
+}
+/** Filter «bezahlt → raus», mit Ausnahme ChatGPT Ads, wenn der Kunde sie in Organic will. */
+export const bezahltFilter =
+  (adsMit: boolean) =>
+  (channel: string, src = ""): boolean =>
+    istBezahlt(channel) && !(adsMit && ADS_KI_QUELLE.test(src));
+export async function bezahltFuer(clientId: string) {
+  return bezahltFilter(await adsInOrganic(clientId));
+}
+
 export const isOrganicBing = (src: string, channel: string) =>
   /(^|\.)bing\b/i.test(src) && !/copilot|chat|edgeservices/i.test(src) && /organic/i.test(channel);
 
@@ -225,6 +257,7 @@ export async function fetchErstkontakt(
   zr: Pick<Zeitraum, "startDate" | "endDate">,
 ): Promise<{ engines: ErstkontaktEngine[] } | { skipped: string } | { error: string }> {
   if (!c.ga4_property) return { skipped: "kein ga4_property" };
+  const bezahlt = await bezahltFuer(c.id);
   let token: string;
   try {
     token = (await getGoogleAccessToken(c.id)).accessToken;
@@ -282,7 +315,7 @@ export async function fetchErstkontakt(
     const out = new Map<string, ErstkontaktEngine>();
     const engineVon = (src: string, kanal: string) => {
       const eng = ENGINES.find((e) => e.re.test(src));
-      if (!eng || isOrganicBing(src, kanal) || istBezahlt(kanal)) return null;
+      if (!eng || isOrganicBing(src, kanal) || bezahlt(kanal, src)) return null;
       if (!out.has(eng.name))
         out.set(eng.name, { engine: eng.name, users: 0, conversions: 0, nachEreignis: [] });
       return out.get(eng.name)!;
@@ -325,6 +358,7 @@ export async function fetchAttribution(
   zr: Pick<Zeitraum, "startDate" | "endDate">,
 ): Promise<AttributionResult> {
   if (!c.ga4_property) return { skipped: "kein ga4_property" };
+  const bezahlt = await bezahltFuer(c.id);
   let token: string;
   try {
     token = (await getGoogleAccessToken(c.id)).accessToken;
@@ -373,7 +407,7 @@ export async function fetchAttribution(
     const eng = ENGINES.find((e) => e.re.test(src));
     if (!eng) continue;
     if (isOrganicBing(src, String(row.dimensionValues?.[2]?.value ?? ""))) continue;
-    if (istBezahlt(String(row.dimensionValues?.[2]?.value ?? ""))) continue;
+    if (bezahlt(String(row.dimensionValues?.[2]?.value ?? ""), src)) continue;
     const country = String(row.dimensionValues?.[1]?.value ?? "");
     const sess = Number(row.metricValues?.[0]?.value ?? 0);
     agg[eng.name] ??= { sessions: 0, conversions: 0 };
@@ -416,7 +450,7 @@ export async function fetchAttribution(
           const eng = ENGINES.find((e) => e.re.test(src));
           if (!eng) continue;
           if (isOrganicBing(src, String(row.dimensionValues?.[1]?.value ?? ""))) continue;
-          if (istBezahlt(String(row.dimensionValues?.[1]?.value ?? ""))) continue;
+          if (bezahlt(String(row.dimensionValues?.[1]?.value ?? ""), src)) continue;
           const ke = Number(row.metricValues?.[0]?.value ?? 0);
           const ec = Number(row.metricValues?.[1]?.value ?? 0);
           const ev = String(row.dimensionValues?.[2]?.value ?? "");
@@ -452,7 +486,7 @@ export async function fetchAttribution(
           const src = String(row.dimensionValues?.[0]?.value ?? "");
           const kanal = String(row.dimensionValues?.[1]?.value ?? "");
           const eng = ENGINES.find((e) => e.re.test(src));
-          if (!eng || isOrganicBing(src, kanal) || istBezahlt(kanal)) continue;
+          if (!eng || isOrganicBing(src, kanal) || bezahlt(kanal, src)) continue;
           agg[eng.name] ??= { sessions: 0, conversions: 0 };
           agg[eng.name].conversions += Number(row.metricValues?.[0]?.value ?? 0);
         }
@@ -599,7 +633,7 @@ export async function fetchAttribution(
             !eng ||
             n <= 0 ||
             isOrganicBing(src, get("sessionDefaultChannelGroup")) ||
-            istBezahlt(get("sessionDefaultChannelGroup"))
+            bezahlt(get("sessionDefaultChannelGroup"), src)
           )
             continue;
           const idRaw = get(idDim);
@@ -683,7 +717,7 @@ export async function fetchAttribution(
             const src = v(0);
             const eng = ENGINES.find((e) => e.re.test(src));
             const n = Number(row.metricValues?.[0]?.value ?? 0);
-            if (!eng || n <= 0 || isOrganicBing(src, v(5)) || istBezahlt(v(5))) continue;
+            if (!eng || n <= 0 || isOrganicBing(src, v(5)) || bezahlt(v(5), src)) continue;
             const ld = v(1).toLowerCase();
             const name =
               klickZiele.find((z) => ld.includes(z.slice(KLICK_PREFIX.length))) ?? klickZiele[0];
@@ -751,6 +785,7 @@ export async function fetchAusgehendeKlicks(
   { engines: KlickEngine[]; gesamtKlicks: number } | { skipped: string } | { error: string }
 > {
   if (!c.ga4_property) return { skipped: "kein ga4_property" };
+  const bezahlt = await bezahltFuer(c.id);
   let token: string;
   try {
     token = (await getGoogleAccessToken(c.id)).accessToken;
@@ -803,7 +838,7 @@ export async function fetchAusgehendeKlicks(
     for (const row of ((ki as any).rows || []) as any[]) {
       const [src, kanal, d] = (row.dimensionValues || []).map((v: any) => String(v.value || ""));
       const eng = ENGINES.find((e) => e.re.test(src));
-      if (!eng || isOrganicBing(src, kanal) || istBezahlt(kanal)) continue;
+      if (!eng || isOrganicBing(src, kanal) || bezahlt(kanal, src)) continue;
       const n = Number(row.metricValues?.[0]?.value || 0);
       const s = Number(row.metricValues?.[1]?.value || 0);
       const e = out.get(eng.name) ?? {

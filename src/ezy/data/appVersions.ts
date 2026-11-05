@@ -263,8 +263,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.38.0",
+    version: "1.39.0",
     changelog: [
+      {
+        version: "1.39.0",
+        date: "2026-11-05",
+        note: "Kunden-Option «ChatGPT Ads in Organic mitzählen» (zuerst Morosani): bezahlte ChatGPT-Klicks zählen auf Wunsch in KI-Besuchern, Conversions, Traffic und Performance-Tabelle mit — wie bei Searchable; andere bezahlte Quellen bleiben draussen",
+      },
       {
         version: "1.38.0",
         date: "2026-11-02",
