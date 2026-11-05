@@ -2325,7 +2325,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
               const a = rankVerlauf[0];
               const z = rankVerlauf[rankVerlauf.length - 1];
               const d = (x) => (x > 0 ? `+${x}` : `${x}`);
-              return `Je Messtag, gleiche Zählung wie die Kacheln · seit ${a.label}${a.date.slice(0, 4)}: Top 3 ${a["Top 3"]} → ${z["Top 3"]} (${d(z["Top 3"] - a["Top 3"])}), Top 10 ${a["Top 10"]} → ${z["Top 10"]} (${d(z["Top 10"] - a["Top 10"])})`;
+              return `Täglich bis gestern, gleiche Zählung wie die Kacheln (Tage ohne Messung = letzter Stand) · seit ${a.label}${a.date.slice(0, 4)}: Top 3 ${a["Top 3"]} → ${z["Top 3"]} (${d(z["Top 3"] - a["Top 3"])}), Top 10 ${a["Top 10"]} → ${z["Top 10"]} (${d(z["Top 10"] - a["Top 10"])})`;
             })()}
           </div>
           <ResponsiveContainer width="100%" height={240}>

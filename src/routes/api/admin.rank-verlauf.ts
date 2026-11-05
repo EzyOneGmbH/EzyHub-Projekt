@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireTeamRole } from "@/server/team-guard.server";
 import { cacheLesen, cacheSchreiben } from "@/server/uebersicht-cache.server";
-import { rankVerlauf, waehleLaeufe, type LaufKopf } from "@/lib/rankVerlauf";
+import { bisTag, rankVerlauf, tagZuerich, waehleLaeufe, type LaufKopf } from "@/lib/rankVerlauf";
 
 // Verlauf Top 3 / Top 10 je Messtag (05.11.2026) — NUR Team. Nur lesen:
 // audit_runs rankings (keywords) + gsc_queries (topNonbrandQueries), gleiche
@@ -65,7 +65,9 @@ export const Route = createFileRoute("/api/admin/rank-verlauf")({
         if (!sichtbar?.length)
           return Response.json({ ok: false, error: "Forbidden" }, { status: 403 });
 
-        const schluessel = `rankverlauf|${clientId}`;
+        // Immer bis gestern (Zürcher Zeit); Schlüssel wechselt um Mitternacht.
+        const gestern = tagZuerich(new Date(Date.now() - 864e5).toISOString());
+        const schluessel = `rankverlauf|${clientId}|${gestern}`;
         const hit = await cacheLesen<any>("seo", schluessel);
         if (hit) return Response.json({ ok: true, ...hit, cache: true });
         try {
@@ -84,8 +86,8 @@ export const Route = createFileRoute("/api/admin/rank-verlauf")({
             ),
             felder(gscIds, "result->topNonbrandQueries", "queries"),
           ]);
-          const punkte = rankVerlauf(auswahl, kw, gq);
-          const payload = { punkte };
+          const punkte = bisTag(rankVerlauf(auswahl, kw, gq), gestern);
+          const payload = { punkte, bis: gestern };
           await cacheSchreiben("seo", schluessel, clientId, payload);
           return Response.json({ ok: true, ...payload });
         } catch (e) {

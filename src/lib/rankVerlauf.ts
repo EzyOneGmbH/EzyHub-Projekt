@@ -55,3 +55,24 @@ export function rankVerlauf(
   }
   return out;
 }
+
+const plusTag = (ymd: string) =>
+  new Date(Date.parse(`${ymd}T12:00:00Z`) + 864e5).toISOString().slice(0, 10);
+
+/**
+ * Tagesreihe bis einschliesslich `bis` (gestern, 05.11.2026 Volkan: «immer bis
+ * zum gestrigen Tag»): spätere Punkte fallen weg, Tage ohne Messlauf tragen den
+ * letzten bekannten Stand (wie die Kacheln, die den letzten Lauf zeigen).
+ */
+export function bisTag(punkte: VerlaufPunkt[], bis: string): VerlaufPunkt[] {
+  const p = [...punkte].filter((x) => x.date <= bis).sort((a, b) => a.date.localeCompare(b.date));
+  if (!p.length) return [];
+  const out: VerlaufPunkt[] = [];
+  let i = 0;
+  let letzter = p[0];
+  for (let d = p[0].date; d <= bis; d = plusTag(d)) {
+    while (i < p.length && p[i].date <= d) letzter = p[i++];
+    out.push({ date: d, top3: letzter.top3, top10: letzter.top10 });
+  }
+  return out;
+}

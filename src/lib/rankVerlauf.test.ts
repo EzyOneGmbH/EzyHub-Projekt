@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rankVerlauf, tagZuerich, waehleLaeufe } from "./rankVerlauf";
+import { bisTag, rankVerlauf, tagZuerich, waehleLaeufe } from "./rankVerlauf";
 
 describe("waehleLaeufe", () => {
   it("nimmt je Tag den letzten Rankings-Lauf und den GSC-Lauf davor", () => {
@@ -59,5 +59,24 @@ describe("rankVerlauf", () => {
       ]),
     );
     expect(pkt).toEqual([{ date: "2026-10-01", top3: 2, top10: 3 }]);
+  });
+});
+
+describe("bisTag", () => {
+  it("schneidet nach gestern ab und füllt Lücken mit dem letzten Stand", () => {
+    const r = bisTag(
+      [
+        { date: "2026-11-01", top3: 5, top10: 20 },
+        { date: "2026-11-03", top3: 6, top10: 22 },
+        { date: "2026-11-05", top3: 9, top10: 30 },
+      ],
+      "2026-11-04",
+    );
+    expect(r).toEqual([
+      { date: "2026-11-01", top3: 5, top10: 20 },
+      { date: "2026-11-02", top3: 5, top10: 20 },
+      { date: "2026-11-03", top3: 6, top10: 22 },
+      { date: "2026-11-04", top3: 6, top10: 22 },
+    ]);
   });
 });
