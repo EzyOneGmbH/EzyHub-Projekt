@@ -988,8 +988,6 @@ export function SeoDashboard({ selectedClient, dateRange }) {
   const TRAFFIC_CMP_LABEL = cmpAktiv ? FENSTER_LABEL : "Vorperiode";
   const { run: gscQRun } = useEzyLatestRun(selectedClient?.id, "gsc_queries", bis);
   const gscQ = gscQRun?.result || null;
-  // Brand-Widget: Zeitraum-Stand (brand_regex), sonst gespeicherter 28-Tage-Lauf.
-  const brandDaten = zr?.gsc || gscQ;
   // Entwicklung der Non-Brand-Suchanfragen (Volkan 31.08.): Vergleich gegen
   // die gespeicherten gsc_queries-Läufe von vor 7 bzw. 28 Tagen. Die
   // Ø-Position ist je ein 28-Tage-Fenster — das Delta zeigt die Verschiebung
@@ -2482,75 +2480,7 @@ export function SeoDashboard({ selectedClient, dateRange }) {
           )}
         </div>
       )}
-      {isOn("seo.gsc") && brandDaten && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {/* B2a: Brand vs. Non-Brand — gewählter Zeitraum, brand_regex (22.10.2026) */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))",
-              gap: 14,
-            }}
-          >
-            {[
-              ["Brand", brandDaten.brand, C.blue],
-              ["Non-Brand", brandDaten.nonbrand, C.accent],
-            ].map(([label, seg, color]) => (
-              <div
-                key={label}
-                style={{
-                  background: C.card,
-                  border: `1px solid ${C.border}`,
-                  borderRadius: 14,
-                  padding: 16,
-                }}
-              >
-                <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 6 }}>
-                  {label} · {brandDaten.range?.from} – {brandDaten.range?.to}
-                </div>
-                <div style={{ fontSize: 24, fontWeight: 800, color }}>
-                  {(seg?.clicks ?? 0).toLocaleString("de-CH")} Klicks
-                </div>
-                <div style={{ fontSize: 12, color: C.textMuted }}>
-                  {(seg?.impressions ?? 0).toLocaleString("de-CH")} Impressionen ·{" "}
-                  {(seg?.queries ?? 0).toLocaleString("de-CH")} Suchanfragen
-                </div>
-              </div>
-            ))}
-          </div>
-          {/* B2b: Positions-Buckets Non-Brand */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))",
-              gap: 14,
-            }}
-          >
-            {[
-              ["Top 3", brandDaten.buckets_nonbrand?.top3, C.green],
-              ["Top 10", brandDaten.buckets_nonbrand?.top10, C.accent],
-              ["11–20", brandDaten.buckets_nonbrand?.pos11to20, C.orange],
-              ["21+", brandDaten.buckets_nonbrand?.pos21plus, C.textDim],
-            ].map(([label, b, color]) => (
-              <div
-                key={label}
-                style={{
-                  background: C.card,
-                  border: `1px solid ${C.border}`,
-                  borderRadius: 14,
-                  padding: 14,
-                  textAlign: "center",
-                }}
-              >
-                <div style={{ fontSize: 22, fontWeight: 800, color }}>{b?.queries ?? 0}</div>
-                <div style={{ fontSize: 11, color: C.textMuted }}>
-                  {label} · {(b?.clicks ?? 0).toLocaleString("de-CH")} Klicks
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Brand/Non-Brand + Positions-Buckets entfernt (05.11.2026, Volkan) */}
       {hasGsc && !gscQ && (
         <>
           <div
@@ -2857,11 +2787,6 @@ export function SeoDashboard({ selectedClient, dateRange }) {
                     run,
                   ],
                   ["Switzerland Traffic", "GA4 (Organic Search, nur CH)", trafRun],
-                  [
-                    "Brand/Non-Brand-Split · Positions-Buckets (Top-Suchanfragen: in der Rankings-Tabelle)",
-                    "Google Search Console",
-                    gscQRun || gscRun,
-                  ],
                   [
                     "Core Web Vitals (LCP, INP, CLS, Performance)",
                     "Google PageSpeed (CrUX/Lighthouse)",
