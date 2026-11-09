@@ -41,6 +41,7 @@ const db: Record<string, any[]> = {
   writing_rules: [],
   wp_connections: [],
   blog_events: [],
+  blog_competitors: [],
 };
 
 function builder(table: string) {
@@ -59,6 +60,10 @@ function builder(table: string) {
       return null;
     }
     let rows = (db[table] || []).filter((r) => st.filters.every((f: any) => f(r)));
+    if (st.del) {
+      db[table] = db[table].filter((r) => !rows.includes(r));
+      return null;
+    }
     if (st.update) for (const r of rows) Object.assign(r, st.update);
     if (st.limit) rows = rows.slice(0, st.limit);
     return st.single ? (rows.length === 1 ? rows[0] : null) : rows;
@@ -84,6 +89,10 @@ function builder(table: string) {
     },
     single() {
       st.single = true;
+      return api;
+    },
+    delete() {
+      st.del = true;
       return api;
     },
     update(p: any) {
@@ -163,7 +172,14 @@ function req(method: string, path: string, user?: string, body?: any) {
   });
 }
 
-let projects: any, connect: any, test: any;
+let projects: any,
+  connect: any,
+  test: any,
+  projekt: any,
+  comps: any,
+  rules: any,
+  rule: any,
+  events: any;
 const echteFetch = globalThis.fetch;
 beforeAll(async () => {
   process.env.SUPABASE_URL = "http://stub.local";
@@ -174,6 +190,12 @@ beforeAll(async () => {
   connect = (await import("../routes/api/blog.projects.$id.wp.connect")).Route.options.server!
     .handlers;
   test = (await import("../routes/api/blog.projects.$id.wp.[test]")).Route.options.server!.handlers;
+  projekt = (await import("../routes/api/blog.projects.$id")).Route.options.server!.handlers;
+  comps = (await import("../routes/api/blog.projects.$id.competitors")).Route.options.server!
+    .handlers;
+  rules = (await import("../routes/api/blog.projects.$id.rules")).Route.options.server!.handlers;
+  rule = (await import("../routes/api/blog.rules.$id")).Route.options.server!.handlers;
+  events = (await import("../routes/api/blog.projects.$id.events")).Route.options.server!.handlers;
 });
 afterAll(() => vi.stubGlobal("fetch", echteFetch));
 
@@ -341,5 +363,98 @@ describe("Blog-Autopilot: reine Funktionen", () => {
     expect(schluesselVerwerfen("ezr_blocked")).toBe(false);
     expect(EZR_KEY_RE.test(KEY)).toBe(true);
     expect(EZR_KEY_RE.test("ezr_kurz")).toBe(false);
+  });
+});
+
+describe("Blog-Autopilot Phase 2: Onboarding-Daten", () => {
+  const pid = () => db.blog_projects[0].id;
+  const p = (u: string, body: any) =>
+    projekt.PATCH({
+      request: req("PATCH", `/api/blog/projects/${pid()}`, u, body),
+      params: { id: pid() },
+    });
+
+  it("Schritte 3–5 speichern, unbekannte Felder abgelehnt", async () => {
+    const ok = await p("viewer-a1", {
+      name: "Faith in Humanity",
+      audiences: ["Spenderinnen in der Schweiz"],
+      tone: "gespraechig",
+      cta_blocks: [{ label: "Jetzt spenden", url: "https://faithinhumanity.ch/spenden" }],
+      excluded_domains: ["https://www.Beispiel.ch/x"],
+      onboarding_step: 4,
+    });
+    expect(ok.status).toBe(200);
+    const j = await ok.json();
+    expect(j.project.tone).toBe("gespraechig");
+    expect(j.project.excluded_domains).toEqual(["beispiel.ch"]);
+    expect(j.project.cta_blocks[0].position).toBe("end");
+    expect(JSON.stringify(j)).not.toMatch(/key_enc/);
+
+    expect((await p("viewer-a1", { status: "active" })).status).toBe(400);
+    expect((await p("viewer-a1", { client_id: K_B })).status).toBe(400);
+    expect(
+      (await p("viewer-a1", { cta_blocks: [{ label: "x", url: "http://unsicher.ch" }] })).status,
+    ).toBe(400);
+  });
+
+  it("Kontingent nur für Ezy One, fremde Org 404", async () => {
+    expect((await p("viewer-a1", { articles_per_month: 20 })).status).toBe(403);
+    const a = await p("admin-a", { articles_per_month: 4 });
+    expect(a.status).toBe(200);
+    expect(db.blog_projects[0].articles_per_month).toBe(4);
+    expect((await p("owner-b", { name: "fremd" })).status).toBe(404);
+    expect((await p(undefined as any, { name: "x" })).status).toBe(401);
+  });
+
+  it("Mitbewerber: Liste setzen, eigene Domain ignoriert, ungültige abgelehnt", async () => {
+    db.blog_competitors.push({
+      id: crypto.randomUUID(),
+      project_id: pid(),
+      domain: "ki-fund.ch",
+      source: "ki",
+      validated: false,
+    });
+    const put = (u: string, domains: string[]) =>
+      comps.PUT({ request: req("PUT", "/x", u, { domains }), params: { id: pid() } });
+    const r = await put("viewer-a1", ["ki-fund.ch", "https://www.Neu.ch", "faithinhumanity.ch"]);
+    const j = await r.json();
+    expect(r.status).toBe(200);
+    expect(j.competitors.map((c: any) => c.domain).sort()).toEqual(["ki-fund.ch", "neu.ch"]);
+    expect(j.competitors.find((c: any) => c.domain === "ki-fund.ch").source).toBe("ki");
+    expect(j.competitors.find((c: any) => c.domain === "neu.ch").source).toBe("manuell");
+    expect((await put("viewer-a1", ["kein domain"])).status).toBe(400);
+    await put("viewer-a1", ["neu.ch"]);
+    expect(db.blog_competitors.map((c) => c.domain)).toEqual(["neu.ch"]);
+    expect((await put("owner-b", [])).status).toBe(404);
+  });
+
+  it("Schreibregeln: anlegen ohne Duplikat, Standard bleibt an", async () => {
+    const post = (u: string, body: any) =>
+      rules.POST({ request: req("POST", "/x", u, body), params: { id: pid() } });
+    const a = await (await post("viewer-a1", { rule: "Immer du-Form verwenden." })).json();
+    expect(a.created).toBe(true);
+    const b = await (await post("viewer-a1", { rule: "immer du-form verwenden." })).json();
+    expect(b.created).toBe(false);
+    expect((await post("viewer-a1", { rule: "x", source: "agentur" })).status).toBe(400);
+    expect((await post("viewer-a1", { rule: "Agentur-Regel", source: "agentur" })).status).toBe(
+      403,
+    );
+
+    const std = db.writing_rules.find((w) => w.project_id === pid() && w.source === "standard");
+    const aus = (u: string, id: string, active: boolean) =>
+      rule.PATCH({ request: req("PATCH", "/x", u, { active }), params: { id } });
+    expect((await aus("viewer-a1", std.id, false)).status).toBe(409);
+    expect((await aus("viewer-a1", a.rule.id, false)).status).toBe(200);
+    expect(db.writing_rules.find((w) => w.id === a.rule.id).active).toBe(false);
+    expect((await aus("owner-b", a.rule.id, true)).status).toBe(404);
+  });
+
+  it("Ereignisse: nur erlaubte Typen", async () => {
+    const ev = (body: any) =>
+      events.POST({ request: req("POST", "/x", "viewer-a1", body), params: { id: pid() } });
+    expect((await ev({ type: "onboarding.step_viewed", payload: { step: 3 } })).status).toBe(200);
+    expect((await ev({ type: "wp.connected", payload: {} })).status).toBe(400);
+    expect((await ev({ type: "onboarding.step_viewed", payload: { evil: "x" } })).status).toBe(400);
+    expect(db.blog_events.some((e) => e.type === "onboarding.step_viewed")).toBe(true);
   });
 });

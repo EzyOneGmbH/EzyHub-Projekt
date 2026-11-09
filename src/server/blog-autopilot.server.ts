@@ -8,6 +8,7 @@
 // eingeschaltet. Kunden-Logins (viewer) sind ausdrücklich erlaubt — sie
 // richten den Autopiloten im Onboarding selbst ein.
 import { createClient } from "@supabase/supabase-js";
+import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export const BLOG_FEATURE = "blog_autopilot";
@@ -153,3 +154,85 @@ export function normalisiereDomain(raw: string): string {
   d = d.split(/[/?#]/)[0] || "";
   return /^[a-z0-9.-]+\.[a-z]{2,}$/.test(d) ? d : "";
 }
+
+// ── Phase 2: Projekt laden und ändern ───────────────────────────────────────
+
+export const WP_FELDER =
+  "site_url, scopes, plugin_version, status, last_error_code, last_checked_at, updated_at";
+
+/** Projekt um den WordPress-Status ergänzen. Felder explizit übernehmen:
+ *  key_enc darf nie in einer Antwort landen. */
+export async function mitWordpress(project: any) {
+  const { data: wp } = await (supabaseAdmin as any)
+    .from("wp_connections")
+    .select(WP_FELDER)
+    .eq("project_id", project.id)
+    .maybeSingle();
+  const wordpress = wp
+    ? Object.fromEntries(WP_FELDER.split(", ").map((k) => [k, (wp as any)[k] ?? null]))
+    : { status: "nicht_verbunden" };
+  return { ...project, wordpress };
+}
+
+export async function ladeBlogProjekt(clientId: string) {
+  const { data: project } = await (supabaseAdmin as any)
+    .from("blog_projects")
+    .select("*")
+    .eq("client_id", clientId)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  return project ? mitWordpress(project) : null;
+}
+
+/** Ezy-One-Rollen (nicht Kunden-Logins) dürfen Kontingent und Kostenlimits setzen. */
+export function istAgentur(ctx: Pick<BlogKontext, "role">): boolean {
+  return ctx.role !== "viewer";
+}
+
+const domainFeld = z
+  .string()
+  .max(253)
+  .transform((d) => normalisiereDomain(d))
+  .refine((d) => !!d, "Ungültige Domain");
+
+/** Felder aus Onboarding-Schritten 3–5 und Einstellungen (Kap. 6A, 8). */
+export const ProjektPatch = z
+  .object({
+    name: z.string().trim().min(1).max(200),
+    description: z.string().trim().max(4000),
+    audiences: z.array(z.string().trim().min(1).max(300)).max(4),
+    market: z.string().regex(/^[A-Z]{2}$/),
+    language: z.enum(["de-CH", "de-DE", "fr-CH", "it-CH", "en"]),
+    local_business: z.boolean(),
+    tone: z.enum(["informativ", "gespraechig", "ueberzeugend"]),
+    internal_links: z.number().int().min(0).max(5),
+    cta_blocks: z
+      .array(
+        z.object({
+          label: z.string().trim().min(1).max(80),
+          url: z
+            .string()
+            .url()
+            .refine((u) => /^https:\/\//i.test(u), "Nur https-Links"),
+          text: z.string().trim().max(300).default(""),
+          position: z.enum(["end", "after_first_third"]).default("end"),
+        }),
+      )
+      .max(3),
+    excluded_domains: z.array(domainFeld).max(50),
+    image_style: z.string().trim().max(40).nullable(),
+    publish_mode: z.enum(["wp_draft", "hub_only"]),
+    publish_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+    timezone: z.string().trim().min(1).max(64),
+    min_volume: z.number().int().min(0).max(100000),
+    min_impressions: z.number().int().min(0).max(100000),
+    onboarding_step: z.number().int().min(1).max(8),
+    // nur Agentur
+    articles_per_month: z.number().int().min(1).max(60).nullable(),
+    ahrefs_units_limit: z.number().int().min(0).max(20000),
+  })
+  .partial()
+  .strict();
+
+export const NUR_AGENTUR: ReadonlyArray<string> = ["articles_per_month", "ahrefs_units_limit"];
