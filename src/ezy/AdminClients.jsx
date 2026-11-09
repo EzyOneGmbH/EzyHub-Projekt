@@ -18,7 +18,7 @@ import {
   slugifyProjectName,
   splitCsv,
 } from "./ui-kit";
-import { APP_FEATURES, EZY_APPS } from "@/ezy/data/appRegistry";
+import { APP_FEATURES, EZY_APPS, OPT_IN_FEATURES } from "@/ezy/data/appRegistry";
 import {
   STATUS_LABEL as READINESS_STATUS_LABEL,
   warneBeimAppAktivieren,
@@ -1863,13 +1863,21 @@ export function ClientAppAccessPanel({ client }) {
       );
   };
   const toggleFeature = async (appId, featureId) => {
-    const cat = catalogOf(appId).map((f) => f.id);
-    const e = entryOf(appId);
-    // [] = alle Funktionen → beim ersten Abwählen die volle Liste materialisieren.
-    const current = e && e.features.length ? e.features : cat;
-    const next = current.includes(featureId)
-      ? current.filter((f) => f !== featureId)
-      : [...current, featureId];
+    const feats = entryOf(appId)?.features || [];
+    const umschalten = (liste) =>
+      liste.includes(featureId) ? liste.filter((f) => f !== featureId) : [...liste, featureId];
+    // Zusatz-Flags (Blog-Autopilot) nur an/aus, ohne die übrigen Funktionen anzufassen.
+    const zusatz = feats.filter((f) => OPT_IN_FEATURES.has(f));
+    const restr = feats.filter((f) => !OPT_IN_FEATURES.has(f));
+    let next;
+    if (OPT_IN_FEATURES.has(featureId)) next = [...restr, ...umschalten(zusatz)];
+    else {
+      // [] = alle Funktionen → beim ersten Abwählen die volle Liste materialisieren.
+      const cat = catalogOf(appId)
+        .map((f) => f.id)
+        .filter((f) => !OPT_IN_FEATURES.has(f));
+      next = [...umschalten(restr.length ? restr : cat), ...zusatz];
+    }
     const err = await caa.setAccess(client.id, appId, { features: next });
     if (err) toast(err, "error");
   };
@@ -2040,7 +2048,7 @@ export function ClientAppAccessPanel({ client }) {
                     </button>
                   );
                 })}
-                {!entryOf(a.id)?.features?.length && (
+                {!(entryOf(a.id)?.features || []).some((f) => !OPT_IN_FEATURES.has(f)) && (
                   <span style={{ fontSize: 11, color: C.textDim, alignSelf: "center" }}>
                     alle Funktionen (Standard)
                   </span>

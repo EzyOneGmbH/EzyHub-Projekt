@@ -12,7 +12,12 @@ import {
   zugewieseneKunden,
 } from "./data/kundenZugriff";
 import { ALLE_APPS, APP_SCOPES, EZY_APPS, appDeaktiviert, currentAppOf } from "./data/appRegistry";
-import { appEnabledFor, appSichtbarFuerRolle, portalVisibleFor } from "./data/useClientAppAccess";
+import {
+  appEnabledFor,
+  appSichtbarFuerRolle,
+  featureEnabledFor,
+  portalVisibleFor,
+} from "./data/useClientAppAccess";
 
 describe("Kunden-Zugriff: sichtbare Apps je Kunde", () => {
   // Reaktivierung ist seit 14.10.2026 vorübergehend deaktiviert (appRegistry).
@@ -166,5 +171,34 @@ describe("Kunden-Zugriff: Portal-Sichtbarkeit getrennt von der Team-Sicht", () =
       ["geo", true, true],
       ["ads", false, false],
     ]);
+  });
+});
+
+describe("Kunden-Zugriff: Blog-Autopilot ist ein Zusatz-Flag", () => {
+  const e = (enabled: boolean, features: string[]) => ({ enabled, features });
+  const m = (entry: any) => new Map([["c1", new Map([["seo", entry]])]]) as any;
+
+  it("ohne Zeile: übrige Funktionen frei, Blog-Autopilot aus", () => {
+    const map = new Map() as any;
+    expect(featureEnabledFor(map, "c1", "seo", "blog")).toBe(true);
+    expect(featureEnabledFor(map, "c1", "seo", "blog_autopilot")).toBe(false);
+  });
+
+  it("nur das Flag gesetzt: alle übrigen Funktionen bleiben frei", () => {
+    const map = m(e(true, ["blog_autopilot"]));
+    expect(featureEnabledFor(map, "c1", "seo", "blog_autopilot")).toBe(true);
+    for (const f of ["seo", "blog", "conversions", "reports"])
+      expect(featureEnabledFor(map, "c1", "seo", f)).toBe(true);
+  });
+
+  it("eingeschränkte Liste plus Flag: Einschränkung gilt weiter", () => {
+    const map = m(e(true, ["seo", "blog_autopilot"]));
+    expect(featureEnabledFor(map, "c1", "seo", "seo")).toBe(true);
+    expect(featureEnabledFor(map, "c1", "seo", "blog")).toBe(false);
+    expect(featureEnabledFor(map, "c1", "seo", "blog_autopilot")).toBe(true);
+  });
+
+  it("leere Liste schaltet den Blog-Autopiloten nicht frei", () => {
+    expect(featureEnabledFor(m(e(true, [])), "c1", "seo", "blog_autopilot")).toBe(false);
   });
 });

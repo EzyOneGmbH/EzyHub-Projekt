@@ -310,7 +310,9 @@ export const Route = createFileRoute("/api/admin/team")({
                       organization_id: orgId,
                       client_id: (c as any).id,
                       app: "seo",
-                      enabled: false,
+                      // keine Zeile = SEO aktiv (Legacy-Default) → so lassen;
+                      // ein reines Zusatz-Flag schränkt die übrigen Funktionen nicht ein
+                      enabled: true,
                       features: ["blog_autopilot"],
                     });
                 if (faErr) warnung = "Blog-Autopilot konnte nicht freigeschaltet werden";

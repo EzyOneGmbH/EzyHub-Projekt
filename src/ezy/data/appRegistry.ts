@@ -228,6 +228,12 @@ export const GEO_SECTION_FEATURE: Record<string, string> = {
   issues: "aivis-sitehealth",
 };
 
+/** Zusatz-Flags (opt-in): nur aktiv, wenn ausdrücklich in features gesetzt.
+ *  Sie zählen NICHT zur Einschränkungsliste – eine Liste nur mit Zusatz-Flags
+ *  heisst weiterhin «alle übrigen Funktionen frei». Sonst würde das Setzen von
+ *  blog_autopilot alle anderen SEO-Funktionen sperren. */
+export const OPT_IN_FEATURES: ReadonlySet<string> = new Set(["blog_autopilot"]);
+
 /** Alt-Freischaltungen: der fruehere Sammel-Eintrag deckt alle Nachfolger ab —
  *  sonst wuerde eine bestehende features-Liste ["aivis"] nach dem Katalog-
  *  Split ploetzlich ALLE EzyAI-Bereiche sperren. */

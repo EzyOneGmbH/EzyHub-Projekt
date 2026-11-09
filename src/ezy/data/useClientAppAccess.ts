@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { FEATURE_LEGACY_ALIAS, type EzyAppId } from "./appRegistry";
+import { FEATURE_LEGACY_ALIAS, OPT_IN_FEATURES, type EzyAppId } from "./appRegistry";
 
 export type ClientAppRow = {
   client_id: string;
@@ -49,7 +49,9 @@ export function appSichtbarFuerRolle(
     : appEnabledFor(map, clientId, app);
 }
 
-/** enabled + leere features-Liste = ALLE Funktionen frei (Legacy-Default). */
+/** enabled + leere features-Liste = ALLE Funktionen frei (Legacy-Default).
+ *  Zusatz-Flags (OPT_IN_FEATURES) gelten nur, wenn ausdrücklich gesetzt, und
+ *  zählen nicht zur Einschränkungsliste. */
 export function featureEnabledFor(
   map: ClientAppMap | null,
   clientId: string,
@@ -57,9 +59,11 @@ export function featureEnabledFor(
   feature: string,
 ): boolean {
   const e = map?.get(clientId)?.get(app);
+  if (OPT_IN_FEATURES.has(feature)) return !!e && e.features.includes(feature);
   if (!e) return true;
   if (!e.enabled) return false;
-  if (e.features.length === 0 || e.features.includes(feature)) return true;
+  const liste = e.features.filter((f) => !OPT_IN_FEATURES.has(f));
+  if (liste.length === 0 || liste.includes(feature)) return true;
   // Alt-Eintrag (z. B. "aivis") deckt seine Nachfolge-Funktionen weiter ab.
   const alias = FEATURE_LEGACY_ALIAS[feature];
   return alias != null && e.features.includes(alias);
