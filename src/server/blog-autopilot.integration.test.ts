@@ -42,6 +42,8 @@ const db: Record<string, any[]> = {
   wp_connections: [],
   blog_events: [],
   blog_competitors: [],
+  keyword_opportunities: [],
+  blog_topics: [],
 };
 
 function builder(table: string) {
@@ -179,7 +181,8 @@ let projects: any,
   comps: any,
   rules: any,
   rule: any,
-  events: any;
+  events: any,
+  approve: any;
 const echteFetch = globalThis.fetch;
 beforeAll(async () => {
   process.env.SUPABASE_URL = "http://stub.local";
@@ -196,6 +199,8 @@ beforeAll(async () => {
   rules = (await import("../routes/api/blog.projects.$id.rules")).Route.options.server!.handlers;
   rule = (await import("../routes/api/blog.rules.$id")).Route.options.server!.handlers;
   events = (await import("../routes/api/blog.projects.$id.events")).Route.options.server!.handlers;
+  approve = (await import("../routes/api/blog.projects.$id.topics.approve")).Route.options.server!
+    .handlers;
 });
 afterAll(() => vi.stubGlobal("fetch", echteFetch));
 
@@ -456,5 +461,51 @@ describe("Blog-Autopilot Phase 2: Onboarding-Daten", () => {
     expect((await ev({ type: "wp.connected", payload: {} })).status).toBe(400);
     expect((await ev({ type: "onboarding.step_viewed", payload: { evil: "x" } })).status).toBe(400);
     expect(db.blog_events.some((e) => e.type === "onboarding.step_viewed")).toBe(true);
+  });
+});
+
+describe("Blog-Autopilot Phase 2: Themenplan freigeben", () => {
+  const pid = () => db.blog_projects[0].id;
+  const opp = (keyword: string, category: string, volume: number, project_id = pid()) => {
+    const o = {
+      id: crypto.randomUUID(),
+      project_id,
+      keyword,
+      category,
+      volume,
+      difficulty: 5,
+      cluster: "Wasser",
+      decision: "offen",
+    };
+    db.keyword_opportunities.push(o);
+    return o.id;
+  };
+  const freigeben = (u: string, ids: string[]) =>
+    approve.POST({ request: req("POST", "/x", u, { opportunityIds: ids }), params: { id: pid() } });
+
+  it("nur eigene, nicht aussortierte Chancen; Termine an Werktagen, fast vorne zuerst", async () => {
+    const neu = opp("wasserkiosk ghana", "neu", 40);
+    const vorne = opp("trinkwasser afrika", "fast_vorne", 0);
+    const aus = opp("solarbrunnen", "aussortiert", 250);
+    const fremd = opp("fremdes thema", "neu", 99, crypto.randomUUID());
+    expect((await freigeben("viewer-a1", [aus])).status).toBe(409);
+    expect((await freigeben("viewer-a1", [fremd])).status).toBe(404);
+    expect((await freigeben("owner-b", [neu])).status).toBe(404);
+    expect(db.blog_topics).toHaveLength(0);
+
+    const r = await freigeben("viewer-a1", [neu, vorne]);
+    const j = await r.json();
+    expect(r.status).toBe(200);
+    expect(j.neu).toBe(2);
+    const t = db.blog_topics.filter((x) => x.project_id === pid());
+    expect(t.map((x) => x.keyword)).toEqual(["trinkwasser afrika", "wasserkiosk ghana"]);
+    expect(t.map((x) => x.kind)).toEqual(["refresh", "neu"]);
+    for (const x of t) {
+      expect(x.approved_at).toBeTruthy();
+      expect([0, 6]).not.toContain(new Date(x.scheduled_for + "T12:00:00Z").getUTCDay());
+    }
+    // nochmals freigeben legt keine Duplikate an
+    expect((await (await freigeben("viewer-a1", [neu])).json()).neu).toBe(0);
+    expect(db.keyword_opportunities.find((o) => o.id === neu).decision).toBe("uebernommen");
   });
 });

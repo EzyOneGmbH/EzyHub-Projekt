@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { blogEvent, requireBlogProject } from "@/server/blog-autopilot.server";
+import { blogEvent, requireBlogProject, websiteErreichbar } from "@/server/blog-autopilot.server";
 
 // POST /api/blog/projects/:id/analysis (Kap. 6.1): Website-Analyse anlegen.
 // Läuft im minütlichen Worker; ein offener Lauf wird zurückgegeben statt
@@ -22,6 +22,9 @@ export const Route = createFileRoute("/api/blog/projects/$id/analysis")({
           .limit(1)
           .maybeSingle();
         if (offen) return Response.json({ ok: true, run: offen, bereitsLaufend: true });
+        const erreichbar = await websiteErreichbar(project.domain);
+        if (!erreichbar.ok)
+          return Response.json({ ok: false, error: erreichbar.grund }, { status: 422 });
         const { data: run, error } = await (supabaseAdmin as any)
           .from("blog_analysis_runs")
           .insert({ project_id: project.id, created_by: ctx.userId })

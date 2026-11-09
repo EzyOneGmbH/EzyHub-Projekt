@@ -154,6 +154,7 @@ import {
   EzyPilotPage,
 } from "./shared-ui";
 import { LinkSendenBtn, LinkStatusBadge } from "./LinkSenden";
+import BlogAutopilotKarte from "./BlogAutopilotKarte";
 export { ToastProvider, EzyPilotProvider, EzyPilotPopup, EzyPilotButton };
 // CD-Pattern: durchgehendes Hexagon-Waben-Mesh als Seiten-Textur, sehr dezent
 // Modularisierung 21.08.2026: Bereichs-Module (reines Verschieben).
@@ -7892,6 +7893,7 @@ function App({ appScope = null }) {
                       {tab === "seo" && (
                         <SeoDashboard selectedClient={client} dateRange={dateRangeWithCompare} />
                       )}
+                      {tab === "blog" && <BlogAutopilotKarte client={client} />}
                       {tab === "blog" && <RefreshRadar selectedClient={client} />}
                       {/* aivis: seit Phase 2 in der EzyAI-App (/ezyai) */}
                       {tab === "conversions" && (

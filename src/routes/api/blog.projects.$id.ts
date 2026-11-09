@@ -43,6 +43,11 @@ export const Route = createFileRoute("/api/blog/projects/$id")({
             { ok: false, error: "Kontingent und Limits setzt Ezy One" },
             { status: 403 },
           );
+        if ("domain" in patch && project.status !== "onboarding")
+          return Response.json(
+            { ok: false, error: "Die Website lässt sich nur während der Einrichtung ändern" },
+            { status: 409 },
+          );
         if (Object.keys(patch).length === 0)
           return Response.json({ ok: true, project: await mitWordpress(project) });
 

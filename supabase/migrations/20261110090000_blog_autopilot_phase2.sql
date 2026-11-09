@@ -49,3 +49,6 @@ create index if not exists blog_analysis_runs_open_idx on public.blog_analysis_r
   where status in ('queued','running');
 create index if not exists keyword_audits_open_idx on public.keyword_audits (status)
   where status in ('queued','running');
+
+-- GA4-Datenstream des Blogs (Onboarding Schritt 6; Property bleibt clients.ga4_property)
+alter table public.blog_projects add column if not exists ga4_stream_id text;

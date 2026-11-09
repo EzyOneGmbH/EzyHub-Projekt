@@ -207,6 +207,8 @@ const domainFeld = z
 /** Felder aus Onboarding-Schritten 3–5 und Einstellungen (Kap. 6A, 8). */
 export const ProjektPatch = z
   .object({
+    // nur während des Onboardings (Schritt 1, Adresse korrigieren)
+    domain: domainFeld,
     name: z.string().trim().min(1).max(200),
     description: z.string().trim().max(4000),
     audiences: z.array(z.string().trim().min(1).max(300)).max(4),
@@ -244,3 +246,75 @@ export const ProjektPatch = z
   .strict();
 
 export const NUR_AGENTUR: ReadonlyArray<string> = ["articles_per_month", "ahrefs_units_limit"];
+
+/** Kunden, für die die angemeldete Person den Blog-Autopiloten nutzen darf
+ *  (Einstieg nach der Einladung, Kunden-Wahl im Assistenten). */
+export async function blogKunden(request: Request) {
+  const url = process.env.SUPABASE_URL;
+  const anon = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
+  if (!url || !anon)
+    return Response.json({ ok: false, error: "Server not configured" }, { status: 503 });
+  const sb = createClient(url, anon, {
+    global: { headers: { Authorization: request.headers.get("authorization") ?? "" } },
+  });
+  const { data } = await sb.auth.getUser();
+  if (!data.user) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  const userId = data.user.id;
+  const [{ data: mitglied }, { data: zuw }, { data: flags }] = await Promise.all([
+    supabaseAdmin.from("app_users").select("organization_id, role").eq("user_id", userId),
+    supabaseAdmin.from("client_access").select("client_id").eq("user_id", userId),
+    (supabaseAdmin as any).from("client_app_access").select("client_id, features").eq("app", "seo"),
+  ]);
+  const mitFlag = new Set(
+    ((flags as any[]) ?? [])
+      .filter((f) => Array.isArray(f.features) && f.features.includes(BLOG_FEATURE))
+      .map((f) => String(f.client_id)),
+  );
+  if (!mitglied?.length || mitFlag.size === 0) return Response.json({ ok: true, kunden: [] });
+  const { data: clients } = await supabaseAdmin
+    .from("clients")
+    .select("id, name, domain, organization_id")
+    .in("id", [...mitFlag]);
+  const zugewiesen = new Set(((zuw as any[]) ?? []).map((z) => String(z.client_id)));
+  const kunden = ((clients as any[]) ?? []).filter((c) => {
+    const m = (mitglied as any[]).find((x) => x.organization_id === c.organization_id);
+    if (!m) return false;
+    return m.role === "owner" || m.role === "admin" || zugewiesen.has(String(c.id));
+  });
+  const { data: projekte } = await (supabaseAdmin as any)
+    .from("blog_projects")
+    .select("id, client_id, status, onboarding_step")
+    .in(
+      "client_id",
+      kunden.map((k) => k.id),
+    );
+  return Response.json({
+    ok: true,
+    kunden: kunden
+      .map((k) => ({
+        id: k.id,
+        name: k.name,
+        domain: k.domain,
+        projekt: ((projekte as any[]) ?? []).find((p) => p.client_id === k.id) ?? null,
+      }))
+      .sort((a, b) => String(a.name).localeCompare(String(b.name))),
+  });
+}
+
+/** Erreichbarkeit einer Website (Schritt 1): https, Antwort innerhalb 10 s. */
+export async function websiteErreichbar(domain: string): Promise<{ ok: boolean; grund?: string }> {
+  try {
+    const r = await fetch(`https://${domain}/`, {
+      method: "GET",
+      redirect: "follow",
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; EzyHubBot/1.0; +https://ezyhub.ch)" },
+      signal: AbortSignal.timeout(10_000),
+    });
+    await r.body?.cancel().catch(() => undefined);
+    if (r.status >= 500)
+      return { ok: false, grund: `Die Website antwortet mit Fehler ${r.status}` };
+    return { ok: true };
+  } catch {
+    return { ok: false, grund: "Die Website ist nicht erreichbar. Adresse prüfen." };
+  }
+}
