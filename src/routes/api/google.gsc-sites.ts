@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { darfGoogleListen } from "@/server/google-list-access.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
 import { redactSecrets } from "@/server/google-oauth.server";
 
@@ -45,7 +46,8 @@ export const Route = createFileRoute("/api/google/gsc-sites")({
             .eq("user_id", user.id)
             .eq("organization_id", client.organization_id)
             .maybeSingle();
-          if (!m) return Response.json({ ok: false, error: "Forbidden" }, { status: 403 });
+          if (!m || !darfGoogleListen((m as any).role))
+            return Response.json({ ok: false, error: "Forbidden" }, { status: 403 });
 
           const { accessToken } = await getGoogleAccessToken(client.id);
           const r = await fetch("https://www.googleapis.com/webmasters/v3/sites", {

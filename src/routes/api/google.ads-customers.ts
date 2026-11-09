@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { darfGoogleListen } from "@/server/google-list-access.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
 import { redactSecrets } from "@/server/google-oauth.server";
 
@@ -47,7 +48,8 @@ export const Route = createFileRoute("/api/google/ads-customers")({
             .eq("user_id", user.id)
             .eq("organization_id", client.organization_id)
             .maybeSingle();
-          if (!m) return Response.json({ ok: false, error: "Forbidden" }, { status: 403 });
+          if (!m || !darfGoogleListen((m as any).role))
+            return Response.json({ ok: false, error: "Forbidden" }, { status: 403 });
 
           const devToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
           if (!devToken) {
