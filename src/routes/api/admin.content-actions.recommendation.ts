@@ -81,7 +81,7 @@ export const Route = createFileRoute("/api/admin/content-actions/recommendation"
               );
           }
 
-          const { recommendation, hinweise, cost, keyword, keyword_quelle } =
+          const { recommendation, hinweise, cost, keyword, keyword_quelle, sprache } =
             await erstelleEmpfehlung({
               kunde,
               url: d.url,
@@ -103,6 +103,7 @@ export const Route = createFileRoute("/api/admin/content-actions/recommendation"
                 dauer_ms: Date.now() - start,
                 keyword,
                 keyword_quelle,
+                sprache: sprache ?? null,
                 dataforseo_cost: cost.dataforseo,
                 hinweise,
               },

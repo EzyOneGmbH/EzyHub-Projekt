@@ -312,3 +312,27 @@ describe("Diagnose: nicht prüfbare Punkte (09.11.2026)", () => {
     expect(r2).toEqual({ error: "HTTP 403" });
   });
 });
+
+describe("erkenneSprache", () => {
+  it("html lang zuerst, sonst Stoppwörter", async () => {
+    const { erkenneSprache } = await import("@/lib/contentMassnahmen");
+    expect(erkenneSprache("fr-CH", "egal")).toBe("fr");
+    expect(erkenneSprache("de_DE", "")).toBe("de");
+    expect(
+      erkenneSprache(
+        "",
+        "Hôtel de luxe en Suisse : quand le temps devient le plus grand des luxes",
+      ),
+    ).toBe("fr");
+    expect(
+      erkenneSprache(
+        "",
+        "Beste Hotels am Lago Maggiore: Wo Schweizer Qualität auf das Lebensgefühl trifft",
+      ),
+    ).toBe("de");
+    expect(
+      erkenneSprache("", "Le migliori vacanze sul Lago Maggiore con la famiglia e il lago"),
+    ).toBe("it");
+    expect(erkenneSprache(null, "Pontresina")).toBeNull();
+  });
+});

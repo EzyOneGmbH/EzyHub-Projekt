@@ -16,7 +16,10 @@ import {
   REC_PLAYBOOK,
   REC_TEXTE,
   baueAktionen,
+  erkenneSprache,
   ohneEszett,
+  SPRACH_NAME,
+  type Sprache,
   type ContentAction,
 } from "@/lib/contentMassnahmen";
 
@@ -127,6 +130,8 @@ export type SeitenSnapshot =
       excerpt: string;
       /** direkt = eigener Abruf; dataforseo = Ersatzweg, wenn die Website unseren Server sperrt */
       quelle: "direkt" | "dataforseo";
+      /** <html lang> bzw. og:locale (2 Buchstaben), "" = unbekannt */
+      lang?: string;
     };
 
 type SnapshotOpts = {
@@ -199,6 +204,11 @@ async function direktSnapshot(url: string, opts: SnapshotOpts): Promise<SeitenSn
           );
     return {
       quelle: "direkt",
+      lang: (
+        html.match(/<html[^>]*\slang=["']?([a-z]{2})/i)?.[1] ||
+        html.match(/<meta[^>]+property=["']og:locale["'][^>]+content=["']([a-z]{2})/i)?.[1] ||
+        ""
+      ).toLowerCase(),
       h1: strip(html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1] || "").slice(0, 200),
       titleTag: pick(/<title[^>]*>([\s\S]*?)<\/title>/i),
       metaDescription:
@@ -718,6 +728,8 @@ export async function erstelleEmpfehlung(a: EmpfehlungsAnfrage): Promise<{
   hinweise: string[];
   keyword: string;
   keyword_quelle: "eingabe" | "gsc" | "titel";
+  /** Artikelsprache (an der Seite erkannt) */
+  sprache?: string;
 }> {
   const { kunde, url, rec } = a;
   const hinweise: string[] = [];
@@ -728,12 +740,12 @@ export async function erstelleEmpfehlung(a: EmpfehlungsAnfrage): Promise<{
     .eq("client_id", kunde.id)
     .eq("url", url)
     .maybeSingle();
-  const sprache =
-    SPRACHEN[
-      String(zeile?.language || "de")
-        .slice(0, 2)
-        .toLowerCase()
-    ] ?? "de";
+  // content_items.language ist nur die Kundensprache → bloss letzter Rückfall
+  const spracheDb = (SPRACHEN[
+    String(zeile?.language || "de")
+      .slice(0, 2)
+      .toLowerCase()
+  ] ?? "de") as Sprache;
   const { period } = await ladeAktionen(kunde.id);
 
   const eingabe = (a.keyword || "").trim();
@@ -749,13 +761,23 @@ export async function erstelleEmpfehlung(a: EmpfehlungsAnfrage): Promise<{
     excerptChars: 4000,
     dfsFallback: true,
   });
+  // Artikelsprache (09.11.2026): <html lang>/og:locale bzw. Wörter im Text,
+  // sonst Titel aus dem CMS, sonst Kundensprache. SERP und Formulierungen folgen ihr.
+  const spracheP: Promise<Sprache> = snapP.then(
+    (sn) =>
+      ("error" in sn
+        ? null
+        : erkenneSprache(sn.lang, [sn.titleTag, sn.h1, sn.excerpt.slice(0, 1500)].join(" "))) ??
+      erkenneSprache("", String(zeile?.title || "")) ??
+      spracheDb,
+  );
   const gscP = gscKontext(kunde, url, period).catch(
     () => ({ queries: [], starkeSeiten: [], hinweis: "GSC-Fehler" }) as GscKontext,
   );
   let keyword = eingabe;
   let keyword_quelle: "eingabe" | "gsc" | "titel" = "eingabe";
   const serpP = eingabe
-    ? serpTop5(eingabe, sprache, kunde.domain)
+    ? spracheP.then((sp) => serpTop5(eingabe, sp, kunde.domain))
     : (async () => {
         const g = await gscP;
         let k = hauptKeyword(g.queries, [String(zeile?.title || "")]);
@@ -772,9 +794,9 @@ export async function erstelleEmpfehlung(a: EmpfehlungsAnfrage): Promise<{
           throw new Error("Kein keyword angegeben und keines aus GSC oder Title/H1 ableitbar");
         keyword = k.keyword;
         keyword_quelle = k.quelle;
-        return serpTop5(keyword, sprache, kunde.domain);
+        return serpTop5(keyword, await spracheP, kunde.domain);
       })();
-  const [snap, gsc, serp] = await Promise.all([snapP, gscP, serpP]);
+  const [snap, gsc, serp, sprache] = await Promise.all([snapP, gscP, serpP, spracheP]);
   const articleFetched = !("error" in snap);
   if ("error" in snap) hinweise.push(`Live-Artikel nicht abrufbar (${snap.error})`);
   else if (snap.quelle === "dataforseo")
@@ -792,7 +814,9 @@ export async function erstelleEmpfehlung(a: EmpfehlungsAnfrage): Promise<{
     "Du bist Senior-SEO-Editor einer Schweizer Agentur. Du bekommst die Bewertungsdaten, den Live-Zustand EINES Blog-Artikels, seine GSC-Suchanfragen, die Top 5 der Google-SERP (Schweiz) mit deren Überschriften und eine Liste starker Seiten derselben Domain. " +
     "Du schreibst eine konkrete, sofort umsetzbare Empfehlung fuer GENAU diesen Artikel — keine Allgemeinplaetze. Fehlende Unterthemen benennst du konkret aus dem Vergleich mit den Überschriften der Top 5. " +
     "Alle Daten liegen vor: verwende KEINE Werkzeuge, rufe keine Webseiten ab, antworte sofort. " +
-    "Sprache: Deutsch (Schweiz), ss statt ß, ausser der Artikel ist in einer anderen Sprache — dann Title, Meta, Abschnitte und FAQ in der Artikelsprache, summary/change/eeat auf Deutsch. " +
+    (sprache === "de"
+      ? "Sprache: Deutsch (Schweiz), ss statt ß. "
+      : `Der Artikel ist auf ${SPRACH_NAME[sprache]}. Alle Formulierungsvorschläge auf ${SPRACH_NAME[sprache]}: title_variants, meta_description, sections_to_add (h2, answer_first, points), faq (q, a) und anchor. Erklärungen auf Deutsch (Schweiz, ss statt ß): summary, sections_to_update.change und eeat. sections_to_update.heading exakt wie im Artikel. `) +
     "Erfinde keine Fakten über den Kunden (Preise, Angebote, Auszeichnungen); wo Fakten fehlen, Platzhalter in eckigen Klammern. " +
     "Überlege kurz und antworte direkt. Antworte NUR mit einem JSON-Objekt (kein Text davor oder danach, kein Markdown) mit genau diesen Feldern: ";
   const systemA =
@@ -834,7 +858,7 @@ Titel (CMS): ${zeile?.title || "—"}
 URL: ${url}
 Kunde: ${kunde.name} (${kunde.domain || "—"})
 Ziel-Keyword: ${keyword}
-Sprache: ${sprache}
+Sprache des Artikels: ${SPRACH_NAME[sprache]}
 
 MASSNAHME (Regel-Engine, 28-Tage-Fenster ${period.start}–${period.end})
 ${REC_TEXTE[rec]?.t ?? rec}
@@ -965,6 +989,7 @@ ${REC_FOCUS[rec] || "Beurteile anhand der Daten, welche Massnahme sinnvoll ist."
     hinweise,
     keyword,
     keyword_quelle,
+    sprache,
   };
 }
 

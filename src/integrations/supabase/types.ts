@@ -3658,6 +3658,7 @@ export type Database = {
           awork_project_id: string | null
           brand_regex: string | null
           client_id: string
+          content_actions_active: boolean
           created_at: string
           dfs_language_code: string
           dfs_location_code: number
@@ -3670,6 +3671,7 @@ export type Database = {
           awork_project_id?: string | null
           brand_regex?: string | null
           client_id: string
+          content_actions_active?: boolean
           created_at?: string
           dfs_language_code?: string
           dfs_location_code?: number
@@ -3682,6 +3684,7 @@ export type Database = {
           awork_project_id?: string | null
           brand_regex?: string | null
           client_id?: string
+          content_actions_active?: boolean
           created_at?: string
           dfs_language_code?: string
           dfs_location_code?: number

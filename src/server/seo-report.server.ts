@@ -73,10 +73,12 @@ export type SeoKonfig = {
   awork_project_id: string | null;
   website: string | null;
   report_active: boolean;
+  /** Content-Massnahmen-Workflow (awork) für diesen Kunden aktiv (09.11.2026) */
+  content_actions_active: boolean;
 };
 
 const KONFIG_FELDER =
-  "client_id, report_active, strategic_keywords, brand_regex, awork_project_id, website, dfs_location_code, dfs_language_code";
+  "client_id, report_active, content_actions_active, strategic_keywords, brand_regex, awork_project_id, website, dfs_location_code, dfs_language_code";
 const KUNDEN_FELDER = "id, name, domain, gsc_property, ga4_property, metadata, brand_terms";
 
 export function baueKonfig(c: any, k: any | null): SeoKonfig {
@@ -97,16 +99,17 @@ export function baueKonfig(c: any, k: any | null): SeoKonfig {
     awork_project_id: k?.awork_project_id ?? null,
     website: k?.website?.trim() || (domain ? `https://${domain.split("/")[0]}` : null),
     report_active: k?.report_active === true,
+    content_actions_active: k?.content_actions_active === true,
   };
 }
 
-/** Aktive EzyRank-Kunden mit eingeschaltetem Report. */
+/** Aktive EzyRank-Kunden mit eingeschaltetem Report ODER Content-Massnahmen (09.11.2026). */
 export async function ladeSeoKunden(): Promise<SeoKonfig[]> {
   const sb = supabaseAdmin as any;
   const { data: konfig, error } = await sb
     .from("seo_report_config")
     .select(KONFIG_FELDER)
-    .eq("report_active", true);
+    .or("report_active.eq.true,content_actions_active.eq.true");
   if (error) throw new Error(error.message);
   const ids = (konfig ?? []).map((k: any) => k.client_id);
   if (!ids.length) return [];

@@ -6,6 +6,9 @@ import { ladeSeoKunden } from "@/server/seo-report.server";
 // /api/admin/ads-clients (ADMIN_AUTOMATION_SECRET). Nur lesend, keine
 // Sistrix-Abfragen. Aktiv = seo_report_config.report_active + App «seo» +
 // Kunde nicht pausiert.
+// 09.11.2026: Kunden mit report_active ODER content_actions_active; beide Flags
+// je Kunde in der Antwort — die n8n-Workflows filtern selbst (Monatsreport:
+// report_active, Content-Massnahmen: content_actions_active).
 
 export const Route = createFileRoute("/api/admin/seo-clients")({
   server: {

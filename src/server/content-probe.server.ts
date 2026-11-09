@@ -9,6 +9,7 @@ export type ProbeSnapshot =
   | { error: string }
   | {
       quelle: "direkt" | "dataforseo";
+      lang?: string;
       titleTag: string;
       metaDescription: string;
       modified: string;

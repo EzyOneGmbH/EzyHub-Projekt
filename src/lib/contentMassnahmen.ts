@@ -273,3 +273,101 @@ export function ohneEszett<T>(v: T): T {
     ) as T;
   return v;
 }
+
+// ── Artikelsprache (09.11.2026) ─────────────────────────────────────────────
+// content_items.language kommt aus der Kundensprache (Standard «de»), nicht aus
+// dem Artikel — Horlogers' französischer Artikel stand auf «de». Route 2
+// erkennt die Sprache deshalb an der Seite selbst.
+
+export type Sprache = "de" | "fr" | "it" | "en";
+
+export const SPRACH_NAME: Record<Sprache, string> = {
+  de: "Deutsch (Schweiz)",
+  fr: "Französisch",
+  it: "Italienisch",
+  en: "Englisch",
+};
+
+const STOPP: Record<Sprache, string[]> = {
+  de: [
+    "der",
+    "die",
+    "das",
+    "und",
+    "ist",
+    "mit",
+    "für",
+    "im",
+    "ein",
+    "eine",
+    "auf",
+    "den",
+    "zu",
+    "nicht",
+    "sie",
+    "wo",
+  ],
+  fr: [
+    "le",
+    "la",
+    "les",
+    "et",
+    "est",
+    "des",
+    "du",
+    "une",
+    "un",
+    "pour",
+    "dans",
+    "sur",
+    "au",
+    "aux",
+    "avec",
+    "quand",
+    "qui",
+    "que",
+  ],
+  it: [
+    "il",
+    "lo",
+    "la",
+    "gli",
+    "le",
+    "e",
+    "è",
+    "di",
+    "del",
+    "della",
+    "che",
+    "per",
+    "con",
+    "una",
+    "un",
+    "nel",
+    "alla",
+    "sono",
+  ],
+  en: ["the", "and", "is", "of", "to", "in", "for", "with", "on", "your", "you", "are", "a", "an"],
+};
+
+/** Sprache aus <html lang>/og:locale, sonst aus häufigen Wörtern im Text; null = unklar. */
+export function erkenneSprache(htmlLang: string | null | undefined, text: string): Sprache | null {
+  const l = String(htmlLang || "")
+    .trim()
+    .slice(0, 2)
+    .toLowerCase();
+  if (l === "de" || l === "fr" || l === "it" || l === "en") return l;
+  const woerter = String(text || "")
+    .toLowerCase()
+    .replace(/[’']/g, " ")
+    .split(/[^a-zà-ÿäöüè]+/i)
+    .filter(Boolean);
+  if (woerter.length < 3) return null;
+  const punkte = (Object.keys(STOPP) as Sprache[]).map((s) => {
+    const set = new Set(STOPP[s]);
+    return { s, n: woerter.filter((w) => set.has(w)).length };
+  });
+  punkte.sort((a, b) => b.n - a.n);
+  const [erst, zweit] = punkte;
+  return erst.n >= 2 && erst.n > zweit.n ? erst.s : null;
+}
