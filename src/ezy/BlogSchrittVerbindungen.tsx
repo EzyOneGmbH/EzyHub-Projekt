@@ -2,18 +2,7 @@
 // (Pflicht, ausser «nur in EzyHub»), Search Console (empfohlen), GA4
 // (empfohlen, «später verbinden» möglich).
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import {
-  api,
-  Feld,
-  Fuss,
-  Hinweis,
-  Karte,
-  Knopf,
-  P,
-  Titel,
-  eingabe,
-  type Ctx,
-} from "@/ezy/BlogEinrichtung";
+import { api, Feld, Fuss, Hinweis, Karte, Knopf, P, Titel, eingabe, type Ctx } from "@/ezy/BlogUi";
 
 type Status = "verbunden" | "offen" | "optional";
 
