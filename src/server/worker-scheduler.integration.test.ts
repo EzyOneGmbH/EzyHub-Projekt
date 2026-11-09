@@ -113,6 +113,10 @@ vi.mock("@/integrations/supabase/client.server", () => ({
 }));
 // Etappen-Aussenwelt der Analyse (Site-Health) — kontrolliert fehlschlagen lassen.
 const siteHealth = vi.fn();
+// Blog-Autopilot-Jobs (eigene Tests in blog-analysis.test.ts): hier leer.
+vi.mock("./blog-jobs.server", () => ({
+  tickeBlogJobs: async () => ({ getickt: 0, fertig: 0, fehler: 0 }),
+}));
 vi.mock("@/routes/api/admin.site-health", () => ({
   runSiteHealthForDomain: (...a: any[]) => siteHealth(...a),
   fetchText: async () => ({ ok: false, text: "" }),

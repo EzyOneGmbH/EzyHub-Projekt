@@ -24,6 +24,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { tickeOffeneAudits as tickeOffeneAuditsEcht } from "./prospect-audit.server";
 import { tickeAdminJobs as tickeAdminJobsEcht } from "./admin-jobs.server";
+import { tickeBlogJobs as tickeBlogJobsEcht } from "./blog-jobs.server";
 
 const SB = supabaseAdmin as any;
 
@@ -56,6 +57,7 @@ export type TickErgebnis = { getickt: number; fertig: number; fehler: number };
 type Deps = {
   tickeOffeneAudits: (budgetMs: number) => Promise<TickErgebnis>;
   tickeAdminJobs: (budgetMs: number, origin: string) => Promise<TickErgebnis>;
+  tickeBlogJobs: (budgetMs: number) => Promise<TickErgebnis>;
   fetchImpl: typeof fetch;
   jetzt: () => number;
 };
@@ -298,6 +300,7 @@ export async function runWorkerTick(
   const deps: Deps = {
     tickeOffeneAudits: tickeOffeneAuditsEcht,
     tickeAdminJobs: tickeAdminJobsEcht,
+    tickeBlogJobs: tickeBlogJobsEcht,
     fetchImpl: globalThis.fetch,
     jetzt: () => Date.now(),
     ...depsTeil,
@@ -311,20 +314,27 @@ export async function runWorkerTick(
 
   let audits: TickErgebnis = { getickt: 0, fertig: 0, fehler: 0 };
   let adminJobs: TickErgebnis = { getickt: 0, fertig: 0, fehler: 0 };
+  let blogJobs: TickErgebnis = { getickt: 0, fertig: 0, fehler: 0 };
   let lastError: string | null = null;
   let sweep: any = null;
   let alarm: any = null;
   try {
     try {
-      // Analyse-Jobs zuerst (max 150 s), Admin-Jobs (z.B. Datenlaeufe)
-      // bekommen das Restbudget desselben Ticks — wie bisher.
-      audits = await deps.tickeOffeneAudits(Math.min(budget, 150_000));
+      // Blog-Autopilot zuerst (Website-Analyse/KI-Audit, jemand wartet im
+      // Onboarding live; max 120 s, ohne offenen Job sofort zurueck). Danach
+      // Analyse-Jobs (max 150 s) und Admin-Jobs mit dem Restbudget.
+      try {
+        blogJobs = await deps.tickeBlogJobs(Math.min(budget, 120_000));
+      } catch (e) {
+        lastError = msg(e);
+      }
+      audits = await deps.tickeOffeneAudits(Math.min(budget - (deps.jetzt() - t0), 150_000));
       adminJobs = await deps.tickeAdminJobs(budget - (deps.jetzt() - t0), opts.origin);
     } catch (e) {
       lastError = msg(e);
     }
     const hbAlt = await ladeHeartbeat();
-    const fehlerTick = audits.fehler + adminJobs.fehler > 0 || !!lastError;
+    const fehlerTick = audits.fehler + adminJobs.fehler + blogJobs.fehler > 0 || !!lastError;
     const folge = fehlerTick ? (Number(hbAlt?.consecutive_error_ticks) || 0) + 1 : 0;
 
     const jetzt = deps.jetzt();
@@ -348,8 +358,8 @@ export async function runWorkerTick(
       id: 1,
       last_run_at: new Date(jetzt).toISOString(),
       duration_ms: jetzt - t0,
-      jobs_processed: audits.getickt + adminJobs.getickt,
-      errors: audits.fehler + adminJobs.fehler + (lastError ? 1 : 0),
+      jobs_processed: audits.getickt + adminJobs.getickt + blogJobs.getickt,
+      errors: audits.fehler + adminJobs.fehler + blogJobs.fehler + (lastError ? 1 : 0),
       last_error: lastError,
       consecutive_error_ticks: folge,
       source,
@@ -366,6 +376,7 @@ export async function runWorkerTick(
     ok: !lastError,
     ...audits,
     adminJobs,
+    blogJobs,
     sweep,
     alarm,
     quelle: source,

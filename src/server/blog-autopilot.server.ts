@@ -171,7 +171,15 @@ export async function mitWordpress(project: any) {
   const wordpress = wp
     ? Object.fromEntries(WP_FELDER.split(", ").map((k) => [k, (wp as any)[k] ?? null]))
     : { status: "nicht_verbunden" };
-  return { ...project, wordpress };
+  // letzter Analyse-Lauf (Wiedereinstieg im Onboarding)
+  const { data: analysis } = await (supabaseAdmin as any)
+    .from("blog_analysis_runs")
+    .select("id, status, percent, created_at")
+    .eq("project_id", project.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return { ...project, wordpress, analysis: analysis ?? null };
 }
 
 export async function ladeBlogProjekt(clientId: string) {

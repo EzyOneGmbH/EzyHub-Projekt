@@ -24,3 +24,28 @@ create index if not exists ahrefs_cache_fetched_idx on public.ahrefs_cache (fetc
 alter table public.ahrefs_cache enable row level security;
 revoke all on public.ahrefs_cache from anon, authenticated;
 grant all on public.ahrefs_cache to service_role;
+
+-- Hintergrund-Jobs (Analyse, KI-Audit) im minütlichen Worker: Stufe, Zwischenstand,
+-- Lock und Versuche (gleiches Muster wie admin_jobs).
+alter table public.blog_analysis_runs
+  add column if not exists stage text not null default 'lesen',
+  add column if not exists state jsonb not null default '{}',
+  add column if not exists attempts int not null default 0,
+  add column if not exists locked_until timestamptz,
+  add column if not exists started_at timestamptz,
+  add column if not exists finished_at timestamptz,
+  add column if not exists created_by uuid;
+alter table public.keyword_audits
+  add column if not exists stage text not null default 'sammeln',
+  add column if not exists state jsonb not null default '{}',
+  add column if not exists percent int not null default 0 check (percent between 0 and 100),
+  add column if not exists events jsonb not null default '[]',
+  add column if not exists attempts int not null default 0,
+  add column if not exists locked_until timestamptz,
+  add column if not exists trigger text not null default 'manuell'
+    check (trigger in ('onboarding','manuell','cron')),
+  add column if not exists created_by uuid;
+create index if not exists blog_analysis_runs_open_idx on public.blog_analysis_runs (status)
+  where status in ('queued','running');
+create index if not exists keyword_audits_open_idx on public.keyword_audits (status)
+  where status in ('queued','running');
