@@ -203,3 +203,112 @@ describe("textBegrenzt", () => {
     expect(await textBegrenzt(new Response("kurz"), 100)).toBe("kurz");
   });
 });
+
+describe("Diagnose: nicht prüfbare Punkte (09.11.2026)", () => {
+  const url = "https://www.h.ch/pontresina/";
+  const leer = {
+    seite: {
+      quelle: null,
+      status: 0,
+      location: "",
+      xRobots: "",
+      xRobotsGeprueft: false,
+      metaRobots: null,
+      noindex: null,
+      canonical: null,
+      title: "",
+    },
+    robots: { status: 0, gesperrt: true, text: "" },
+    sitemap: { gefunden: null, geprueft: 0, abrufbar: false },
+    links: [],
+  } as const;
+
+  it("alles gesperrt, kein GSC → ok: null statt true", async () => {
+    const { baueChecks } = await import("@/server/content-diagnose.server");
+    const c = baueChecks({
+      url,
+      roh: structuredClone(leer) as any,
+      gsc: null,
+      gscFehler: "Timeout (2 Versuche)",
+      sitemapsGsc: { error: "HTTP 500" },
+      linkQuellen: [{ url: "https://www.h.ch/", title: "", clicks: 5, verlinkt: null }],
+    });
+    expect(Object.fromEntries(c.map((x) => [x.check, x.ok]))).toEqual({
+      "HTTP-Status": null,
+      noindex: null,
+      Canonical: null,
+      "robots.txt": null,
+      "In Sitemap enthalten": null,
+      "Sitemap in GSC eingereicht": null,
+      "GSC-URL-Prüfung": null,
+      "Interne Links von indexierten Seiten": null,
+    });
+  });
+
+  it("direkt abgerufen: echte true/false; DataForSEO ohne X-Robots → noindex null", async () => {
+    const { baueChecks } = await import("@/server/content-diagnose.server");
+    const direkt = {
+      ...structuredClone(leer),
+      seite: {
+        quelle: "direkt",
+        status: 200,
+        location: "",
+        xRobots: "",
+        xRobotsGeprueft: true,
+        metaRobots: "index, follow",
+        noindex: null,
+        canonical: url,
+        title: "T",
+      },
+      robots: { status: 200, gesperrt: false, text: "User-agent: *\nDisallow: /wp-admin/\n" },
+      sitemap: { gefunden: null, geprueft: 3, abrufbar: true },
+    } as any;
+    const basis = {
+      url,
+      gsc: null,
+      gscFehler: "x",
+      sitemapsGsc: { liste: [] },
+      linkQuellen: [{ url: "https://www.h.ch/", title: "", clicks: 5, verlinkt: false }],
+    };
+    const ok = (r: any) =>
+      Object.fromEntries(baueChecks({ ...basis, roh: r }).map((x) => [x.check, x.ok]));
+    expect(ok(direkt)).toMatchObject({
+      "HTTP-Status": true,
+      noindex: true,
+      Canonical: true,
+      "robots.txt": true,
+      "In Sitemap enthalten": false,
+      "Sitemap in GSC eingereicht": false,
+      "Interne Links von indexierten Seiten": false,
+    });
+    const dfs = {
+      ...direkt,
+      seite: {
+        ...direkt.seite,
+        quelle: "dataforseo",
+        xRobotsGeprueft: false,
+        metaRobots: null,
+        noindex: false,
+      },
+    };
+    expect(ok(dfs).noindex).toBeNull();
+    expect(ok({ ...dfs, seite: { ...dfs.seite, noindex: true } }).noindex).toBe(false);
+  });
+
+  it("GSC-URL-Prüfung: einmal wiederholen bei Timeout, nicht bei 403", async () => {
+    const { gscInspektion } = await import("@/server/content-diagnose.server");
+    let n = 0;
+    const r = await gscInspektion("t", "s", "u", { pauseMs: 0 }, async () =>
+      ++n === 1 ? { error: "timeout", wiederholbar: true } : { res: { verdict: "PASS" } },
+    );
+    expect(n).toBe(2);
+    expect(r).toEqual({ res: { verdict: "PASS" } });
+    let m = 0;
+    const r2 = await gscInspektion("t", "s", "u", { pauseMs: 0 }, async () => {
+      m++;
+      return { error: "HTTP 403", wiederholbar: false };
+    });
+    expect(m).toBe(1);
+    expect(r2).toEqual({ error: "HTTP 403" });
+  });
+});

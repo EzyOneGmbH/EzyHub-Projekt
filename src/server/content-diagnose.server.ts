@@ -3,11 +3,24 @@
 // Checks: HTTP-Status, noindex (Meta + X-Robots-Tag), Canonical, robots.txt,
 // Sitemap, Sitemap in GSC eingereicht, GSC-URL-Prüfung, interne Links von
 // indexierten Seiten. Nur lesend (Live-Seite, robots.txt, Sitemaps, GSC, DataForSEO).
+//
+// 09.11.2026: Die Abrufe (Seite, robots.txt, Sitemaps, bis 15 interne Seiten)
+// laufen über den agent-service (Cloud-PC) — im Worker führten sie zu Fehler 1102,
+// und manche Hoster sperren Rechenzentrums-IPs. Nur ohne agent-service ruft der
+// Worker selbst ab. Nicht prüfbare Punkte melden ok: null statt true.
 import { googleToken } from "./seo-report-quellen.server";
 import { GSC_API } from "./gsc.server";
-import { dfsMarkdown, dfsSeitenInfo, textBegrenzt, type Kunde } from "./content-actions.server";
+import {
+  addDfsKosten,
+  dfsMarkdown,
+  dfsSeitenInfo,
+  textBegrenzt,
+  type Kunde,
+} from "./content-actions.server";
+import { contentProbe, type ProbeDiagnose, type ProbeSeite } from "./content-probe.server";
 
-export type DiagnoseCheck = { check: string; ok: boolean; detail: string };
+/** ok: true = in Ordnung, false = Problem gefunden, null = nicht prüfbar */
+export type DiagnoseCheck = { check: string; ok: boolean | null; detail: string };
 
 const BOT_UA = "EzyHubContentBot/1.0 (+https://ezyone.ch)";
 const BROWSER_UA =
@@ -149,29 +162,61 @@ async function inSitemap(
 
 // ── GSC ─────────────────────────────────────────────────────────────────────
 
-async function gscInspektion(token: string, site: string, url: string) {
+type Inspektion = { res: Record<string, any> } | { error: string };
+type InspektionsVersuch = { res: Record<string, any> } | { error: string; wiederholbar: boolean };
+
+async function gscInspektionEinmal(
+  token: string,
+  site: string,
+  url: string,
+  timeoutMs: number,
+): Promise<InspektionsVersuch> {
   try {
     const r = await fetch("https://searchconsole.googleapis.com/v1/urlInspection/index:inspect", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ inspectionUrl: url, siteUrl: site, languageCode: "de-CH" }),
-      signal: AbortSignal.timeout(20_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
-    if (!r.ok) return { error: `HTTP ${r.status}` } as const;
+    if (!r.ok)
+      return { error: `HTTP ${r.status}`, wiederholbar: r.status === 429 || r.status >= 500 };
     const j: any = await r.json();
-    return { res: (j?.inspectionResult?.indexStatusResult ?? {}) as Record<string, any> } as const;
+    return { res: (j?.inspectionResult?.indexStatusResult ?? {}) as Record<string, any> };
   } catch (e) {
-    return { error: String((e as Error)?.message || e).slice(0, 80) } as const;
+    return { error: String((e as Error)?.message || e).slice(0, 80), wiederholbar: true };
   }
 }
 
-async function gscSitemaps(token: string, site: string) {
+/** URL-Prüfung: 40 s Timeout, bei Timeout/429/5xx einmal wiederholen (09.11.2026). */
+export async function gscInspektion(
+  token: string,
+  site: string,
+  url: string,
+  opts: { timeoutMs?: number; pauseMs?: number } = {},
+  einmal: typeof gscInspektionEinmal = gscInspektionEinmal,
+): Promise<Inspektion> {
+  const t = opts.timeoutMs ?? 40_000;
+  const erst = await einmal(token, site, url, t);
+  if ("res" in erst) return erst;
+  if (!erst.wiederholbar) return { error: erst.error };
+  await new Promise((ok) => setTimeout(ok, opts.pauseMs ?? 2_000));
+  const zweit = await einmal(token, site, url, t);
+  return "res" in zweit ? zweit : { error: `${zweit.error} (2 Versuche)` };
+}
+
+export type SitemapsGsc =
+  | {
+      liste: Array<{ path: string; lastSubmitted: string; isPending: boolean; errors: number }>;
+    }
+  | { error: string };
+
+async function gscSitemaps(token: string, site: string): Promise<SitemapsGsc> {
   try {
     const r = await fetch(`${GSC_API}/${encodeURIComponent(site)}/sitemaps`, {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(15_000),
     });
-    if (!r.ok) return { error: `HTTP ${r.status}` } as const;
+    if (!r.ok) return { error: `HTTP ${r.status}` };
     const j: any = await r.json();
     return {
       liste: ((j?.sitemap ?? []) as any[]).map((s) => ({
@@ -180,9 +225,9 @@ async function gscSitemaps(token: string, site: string) {
         isPending: !!s.isPending,
         errors: Number(s.errors) || 0,
       })),
-    } as const;
+    };
   } catch (e) {
-    return { error: String((e as Error)?.message || e).slice(0, 80) } as const;
+    return { error: String((e as Error)?.message || e).slice(0, 80) };
   }
 }
 
@@ -236,82 +281,147 @@ async function pruefeLinkQuellen(
   );
 }
 
-// ── Diagnose ────────────────────────────────────────────────────────────────
+// ── Rohdaten im Worker (nur ohne agent-service) ─────────────────────────────
+
+async function rohImWorker(
+  url: string,
+  sitemapKandidaten: string[],
+  linkSeiten: Array<{ url: string; clicks: number }>,
+): Promise<ProbeDiagnose> {
+  const origin = new URL(url).origin;
+  const [seite, robots, links] = await Promise.all([
+    abruf(url, 15_000),
+    abruf(`${origin}/robots.txt`, 10_000),
+    pruefeLinkQuellen(linkSeiten, url),
+  ]);
+  let s: ProbeSeite;
+  if (!seite.gesperrt) {
+    const ok200 = seite.status === 200;
+    s = {
+      quelle: "direkt",
+      status: seite.status,
+      location: seite.location,
+      xRobots: seite.xRobots,
+      xRobotsGeprueft: true,
+      metaRobots: ok200
+        ? [...seite.text.matchAll(/<meta[^>]+name=["'](?:robots|googlebot)["'][^>]*>/gi)]
+            .map((m) => m[0].match(/content=["']([^"']*)["']/i)?.[1] ?? "")
+            .join(", ")
+        : null,
+      noindex: null,
+      canonical: ok200
+        ? (seite.text
+            .match(/<link[^>]+rel=["']canonical["'][^>]*>/i)?.[0]
+            .match(/href=["']([^"']+)["']/i)?.[1] ?? "")
+        : null,
+      title: seite.text ? seitenTitel(seite.text) : "",
+    };
+  } else {
+    const dfs = await dfsSeitenInfo(url, 30_000);
+    s = dfs
+      ? {
+          quelle: "dataforseo",
+          status: dfs.status,
+          location: "",
+          xRobots: "",
+          xRobotsGeprueft: false,
+          metaRobots: null,
+          noindex: dfs.noindex,
+          canonical: dfs.canonical,
+          title: dfs.h1?.[0] || dfs.title || "",
+        }
+      : {
+          quelle: null,
+          status: 0,
+          location: "",
+          xRobots: "",
+          xRobotsGeprueft: false,
+          metaRobots: null,
+          noindex: null,
+          canonical: null,
+          title: "",
+        };
+  }
+  const robotsText = robots.status === 200 ? robots.text : "";
+  const smRobots = [...robotsText.matchAll(/^\s*sitemap\s*:\s*(\S+)/gim)].map((m) => m[1]);
+  const kandidaten = [
+    ...new Set([
+      ...smRobots,
+      ...sitemapKandidaten,
+      `${origin}/sitemap_index.xml`,
+      `${origin}/sitemap.xml`,
+    ]),
+  ];
+  return {
+    seite: s,
+    robots: { status: robots.status, gesperrt: robots.gesperrt, text: robotsText },
+    sitemap: await inSitemap(kandidaten, url),
+    links: links.map((l) => ({
+      url: l.url,
+      title: l.title,
+      verlinkt: l.verlinkt,
+      quelle: l.verlinkt === null ? null : "direkt",
+    })),
+  };
+}
+
+// ── Checks (rein, testbar) ──────────────────────────────────────────────────
 
 const datum = (iso: string) => (iso ? iso.slice(0, 10) : "");
 
-export async function diagnoseNichtIndexiert(a: {
-  kunde: Kunde;
+export function baueChecks(a: {
   url: string;
-  starkeSeiten: Array<{ url: string; clicks: number }>;
-}): Promise<{
-  checks: DiagnoseCheck[];
+  roh: ProbeDiagnose;
+  gsc: Record<string, any> | null;
+  gscFehler: string | null;
+  sitemapsGsc: SitemapsGsc;
   linkQuellen: LinkQuelle[];
-  articleFetched: boolean;
-  artikelTitel: string;
-  hinweise: string[];
-}> {
-  const { kunde, url } = a;
-  const hinweise: string[] = [];
-  const origin = new URL(url).origin;
+}): DiagnoseCheck[] {
+  const { url, roh, gsc } = a;
+  const seite = roh.seite;
   const pfad = new URL(url).pathname + new URL(url).search;
-  const site = kunde.gsc_property || "";
-  const token = site ? await googleToken(kunde.id).catch(() => null) : null;
-  if (!site) hinweise.push("keine GSC-Property");
-  else if (!token) hinweise.push("Google nicht verbunden");
-
-  const [seite, robots, insp, sms, linkQuellen] = await Promise.all([
-    abruf(url, 15_000),
-    abruf(`${origin}/robots.txt`, 10_000),
-    token
-      ? gscInspektion(token, site, url)
-      : Promise.resolve({ error: "kein GSC-Zugang" } as const),
-    token ? gscSitemaps(token, site) : Promise.resolve({ error: "kein GSC-Zugang" } as const),
-    pruefeLinkQuellen(a.starkeSeiten.slice(0, 15), url),
-  ]);
-  const gsc = "res" in insp ? insp.res : null;
-  if ("error" in insp) hinweise.push(`GSC-URL-Prüfung: ${insp.error}`);
-
-  // Bei Sperre: Seitendaten über DataForSEO
-  const dfs = seite.gesperrt ? await dfsSeitenInfo(url, 30_000) : null;
-  if (seite.gesperrt)
-    hinweise.push(
-      dfs
-        ? "Website sperrt unseren Server — Seitendaten über DataForSEO"
-        : "Website sperrt unseren Server, DataForSEO ebenfalls ohne Ergebnis",
-    );
-  const articleFetched = seite.status === 200 || (!!dfs && dfs.status === 200);
   const checks: DiagnoseCheck[] = [];
+  const viaDfs = seite.quelle === "dataforseo";
 
   // 1) HTTP-Status
-  const status = seite.gesperrt ? (dfs?.status ?? 0) : seite.status;
-  const via = seite.gesperrt ? " (abgerufen über DataForSEO; unser Server wird gesperrt)" : "";
+  const status = seite.status;
   checks.push({
     check: "HTTP-Status",
-    ok: status === 200,
+    ok: status === 0 ? null : status === 200,
     detail:
       status === 0
-        ? "Seite nicht abrufbar"
+        ? "nicht prüfbar: Seite weder direkt noch über DataForSEO abrufbar"
         : status >= 300 && status < 400
           ? `${status} — Weiterleitung auf ${seite.location || "?"}: die Ziel-URL ist die zu indexierende Seite`
-          : `${status}${via}`,
+          : `${status}${viaDfs ? " (abgerufen über DataForSEO; die Website sperrt unsere Abrufe)" : ""}`,
   });
 
   // 2) noindex (Meta + X-Robots-Tag), ergänzt um GSC indexingState
-  const metaRobots = [...seite.text.matchAll(/<meta[^>]+name=["'](?:robots|googlebot)["'][^>]*>/gi)]
-    .map((m) => m[0].match(/content=["']([^"']*)["']/i)?.[1] ?? "")
-    .join(", ");
-  const metaNoindex = /noindex|none/i.test(metaRobots) || !!dfs?.noindex;
-  const headerNoindex = /noindex|none/i.test(seite.xRobots);
+  const metaBekannt = seite.metaRobots !== null || seite.noindex !== null;
+  const metaNoindex = /noindex|none/i.test(seite.metaRobots ?? "") || seite.noindex === true;
+  const headerNoindex = seite.xRobotsGeprueft && /noindex|none/i.test(seite.xRobots);
   const gscIdx = String(gsc?.indexingState ?? "");
   const gscNoindex = /BLOCKED_BY_META_TAG|BLOCKED_BY_HTTP_HEADER/.test(gscIdx);
+  const gscErlaubt = gscIdx === "INDEXING_ALLOWED";
+  const metaText =
+    seite.metaRobots !== null
+      ? `Meta robots: ${seite.metaRobots || "keins"}`
+      : seite.noindex !== null
+        ? `Meta robots laut DataForSEO: ${seite.noindex ? "noindex" : "kein noindex"}`
+        : "Meta robots nicht prüfbar";
   checks.push({
     check: "noindex",
-    ok: !metaNoindex && !headerNoindex && !gscNoindex,
+    ok:
+      metaNoindex || headerNoindex || gscNoindex
+        ? false
+        : gscErlaubt || (metaBekannt && seite.xRobotsGeprueft)
+          ? true
+          : null,
     detail: [
-      seite.gesperrt
-        ? `Meta robots laut DataForSEO: ${dfs ? (dfs.noindex ? "noindex" : "kein noindex") : "unbekannt"}; X-Robots-Tag nicht prüfbar`
-        : `Meta robots: ${metaRobots || "keins"}; X-Robots-Tag: ${seite.xRobots || "keins"}`,
+      metaText,
+      seite.xRobotsGeprueft
+        ? `X-Robots-Tag: ${seite.xRobots || "keins"}`
+        : "X-Robots-Tag nicht prüfbar",
       gscIdx ? `GSC: ${gscIdx}` : "",
     ]
       .filter(Boolean)
@@ -319,24 +429,22 @@ export async function diagnoseNichtIndexiert(a: {
   });
 
   // 3) Canonical (Seite + Google)
-  const canonSeite = seite.gesperrt
-    ? (dfs?.canonical ?? "")
-    : (seite.text
-        .match(/<link[^>]+rel=["']canonical["'][^>]*>/i)?.[0]
-        .match(/href=["']([^"']+)["']/i)?.[1] ?? "");
+  const canonSeite = seite.canonical; // null = nicht ermittelbar
   const gCanon = String(gsc?.googleCanonical ?? "");
   const uCanon = String(gsc?.userCanonical ?? "");
   const canonFremd = !!canonSeite && normUrl(canonSeite) !== normUrl(url);
   const googleAnders = !!gCanon && normUrl(gCanon) !== normUrl(url);
   checks.push({
     check: "Canonical",
-    ok: !canonFremd && !googleAnders,
+    ok: canonFremd || googleAnders ? false : canonSeite === null && !gCanon ? null : true,
     detail: [
-      canonSeite
-        ? canonFremd
-          ? `zeigt auf eine andere URL: ${canonSeite}`
-          : "selbstreferenzierend"
-        : "kein Canonical gesetzt",
+      canonSeite === null
+        ? "Canonical der Seite nicht ermittelbar"
+        : canonSeite
+          ? canonFremd
+            ? `zeigt auf eine andere URL: ${canonSeite}`
+            : "selbstreferenzierend"
+          : "kein Canonical gesetzt",
       gCanon ? `Google-Canonical: ${googleAnders ? gCanon : "gleich"}` : "",
       uCanon && normUrl(uCanon) !== normUrl(canonSeite || url)
         ? `GSC-User-Canonical: ${uCanon}`
@@ -348,50 +456,50 @@ export async function diagnoseNichtIndexiert(a: {
 
   // 4) robots.txt
   const gscRobots = String(gsc?.robotsTxtState ?? "");
-  let robotsOk = true;
-  let robotsDetail = "";
-  if (robots.status === 200 && robots.text) {
-    const r = robotsErlaubt(robots.text, pfad);
+  let robotsOk: boolean | null;
+  let robotsDetail: string;
+  if (roh.robots.status === 200 && roh.robots.text) {
+    const r = robotsErlaubt(roh.robots.text, pfad);
     robotsOk = r.erlaubt;
     robotsDetail = r.erlaubt ? "Googlebot darf die URL crawlen" : `gesperrt durch «${r.regel}»`;
-  } else if (robots.status === 404) robotsDetail = "keine robots.txt (alles erlaubt)";
-  else
-    robotsDetail = `robots.txt nicht abrufbar (${robots.gesperrt ? "Server gesperrt" : `HTTP ${robots.status}`})`;
+  } else if (roh.robots.status === 404) {
+    robotsOk = true;
+    robotsDetail = "keine robots.txt (alles erlaubt)";
+  } else {
+    robotsOk = null;
+    robotsDetail = `robots.txt nicht abrufbar (${roh.robots.gesperrt ? "Abruf gesperrt" : `HTTP ${roh.robots.status}`})`;
+  }
   if (gscRobots) {
     if (gscRobots === "DISALLOWED") robotsOk = false;
+    else if (robotsOk === null && gscRobots === "ALLOWED") robotsOk = true;
     robotsDetail += ` · GSC: ${gscRobots}`;
   }
   checks.push({ check: "robots.txt", ok: robotsOk, detail: robotsDetail });
 
   // 5) In Sitemap enthalten
-  const smRobots = [...(robots.text || "").matchAll(/^\s*sitemap\s*:\s*(\S+)/gim)].map((m) => m[1]);
-  const smListe = "liste" in sms && sms.liste ? sms.liste : null;
-  const smGsc = smListe ? smListe.map((s) => s.path) : [];
-  const kandidaten = [
-    ...new Set([...smRobots, ...smGsc, `${origin}/sitemap_index.xml`, `${origin}/sitemap.xml`]),
-  ];
-  const sm = await inSitemap(kandidaten, url);
+  const sm = roh.sitemap;
   const gscSm: string[] = Array.isArray(gsc?.sitemap) ? gsc.sitemap.map(String) : [];
   checks.push({
     check: "In Sitemap enthalten",
-    ok: !!sm.gefunden || gscSm.length > 0,
+    ok: sm.gefunden || gscSm.length ? true : sm.abrufbar ? false : null,
     detail: sm.gefunden
       ? `ja, in ${sm.gefunden}`
       : gscSm.length
         ? `laut GSC in ${gscSm.join(", ")}`
         : sm.abrufbar
           ? `nicht gefunden (${sm.geprueft} Sitemap(s) geprüft)`
-          : "Sitemaps nicht abrufbar und GSC kennt keine Sitemap mit dieser URL",
+          : "nicht prüfbar: Sitemaps nicht abrufbar und GSC kennt keine Sitemap mit dieser URL",
   });
 
   // 6) Sitemap in GSC eingereicht
+  const sms = a.sitemapsGsc;
   checks.push(
-    smListe
+    "liste" in sms
       ? {
           check: "Sitemap in GSC eingereicht",
-          ok: smListe.length > 0,
-          detail: smListe.length
-            ? smListe
+          ok: sms.liste.length > 0,
+          detail: sms.liste.length
+            ? sms.liste
                 .slice(0, 4)
                 .map(
                   (s) =>
@@ -400,7 +508,7 @@ export async function diagnoseNichtIndexiert(a: {
                 .join("; ")
             : "keine Sitemap eingereicht",
         }
-      : { check: "Sitemap in GSC eingereicht", ok: false, detail: `nicht prüfbar (${sms.error})` },
+      : { check: "Sitemap in GSC eingereicht", ok: null, detail: `nicht prüfbar (${sms.error})` },
   );
 
   // 7) GSC-URL-Prüfung
@@ -422,12 +530,13 @@ export async function diagnoseNichtIndexiert(a: {
         }
       : {
           check: "GSC-URL-Prüfung",
-          ok: false,
-          detail: `nicht prüfbar (${"error" in insp ? insp.error : "?"})`,
+          ok: null,
+          detail: `nicht prüfbar (${a.gscFehler || "?"})`,
         },
   );
 
   // 8) Interne Links von indexierten Seiten (Seiten mit GSC-Klicks = indexiert)
+  const linkQuellen = a.linkQuellen;
   const geprueft = linkQuellen.filter((l) => l.verlinkt !== null);
   const mitLink = geprueft.filter((l) => l.verlinkt);
   const referring: string[] = Array.isArray(gsc?.referringUrls)
@@ -436,16 +545,89 @@ export async function diagnoseNichtIndexiert(a: {
   const beispiele = [...new Set([...mitLink.map((l) => l.url), ...referring])].slice(0, 5);
   checks.push({
     check: "Interne Links von indexierten Seiten",
-    ok: mitLink.length > 0 || referring.length > 0,
+    ok: mitLink.length > 0 || referring.length > 0 ? true : geprueft.length ? false : null,
     detail:
-      `${mitLink.length} von ${geprueft.length} geprüften stärksten Seiten (GSC-Klicks) verlinken den Artikel` +
+      (geprueft.length || !linkQuellen.length
+        ? `${mitLink.length} von ${geprueft.length} geprüften stärksten Seiten (GSC-Klicks) verlinken den Artikel`
+        : `nicht prüfbar: keine der ${linkQuellen.length} stärksten Seiten abrufbar`) +
       (referring.length ? `; Google kennt ${referring.length} verweisende URL(s)` : "") +
       (beispiele.length ? `. Beispiele: ${beispiele.join(", ")}` : "") +
-      (geprueft.length < linkQuellen.length
+      (geprueft.length && geprueft.length < linkQuellen.length
         ? ` (${linkQuellen.length - geprueft.length} Seite(n) nicht abrufbar)`
         : ""),
   });
+  return checks;
+}
 
-  const artikelTitel = (seite.text && seitenTitel(seite.text)) || dfs?.h1?.[0] || dfs?.title || "";
-  return { checks, linkQuellen, articleFetched, artikelTitel, hinweise };
+// ── Diagnose ────────────────────────────────────────────────────────────────
+
+export async function diagnoseNichtIndexiert(a: {
+  kunde: Kunde;
+  url: string;
+  starkeSeiten: Array<{ url: string; clicks: number }>;
+}): Promise<{
+  checks: DiagnoseCheck[];
+  linkQuellen: LinkQuelle[];
+  articleFetched: boolean;
+  artikelTitel: string;
+  hinweise: string[];
+}> {
+  const { kunde, url } = a;
+  const hinweise: string[] = [];
+  const site = kunde.gsc_property || "";
+  const token = site ? await googleToken(kunde.id).catch(() => null) : null;
+  if (!site) hinweise.push("keine GSC-Property");
+  else if (!token) hinweise.push("Google nicht verbunden");
+  const linkSeiten = a.starkeSeiten.slice(0, 15);
+
+  const inspP: Promise<Inspektion> = token
+    ? gscInspektion(token, site, url)
+    : Promise.resolve({ error: "kein GSC-Zugang" });
+  const smsP: Promise<SitemapsGsc> = token
+    ? gscSitemaps(token, site)
+    : Promise.resolve({ error: "kein GSC-Zugang" });
+  // Abrufe über den agent-service, sobald die GSC-Sitemaps bekannt sind
+  const rohP = smsP.then(async (sms) => {
+    const kandidaten = "liste" in sms ? sms.liste.map((s) => s.path).filter(Boolean) : [];
+    const p = await contentProbe(
+      {
+        diagnose: {
+          url,
+          linkSources: linkSeiten.map((l) => l.url),
+          sitemapCandidates: kandidaten,
+        },
+      },
+      90_000,
+    );
+    if (p?.diagnose) {
+      addDfsKosten(p.cost_dfs);
+      return p.diagnose;
+    }
+    hinweise.push("agent-service nicht erreichbar — Abrufe im Worker");
+    return rohImWorker(url, kandidaten, linkSeiten);
+  });
+  const [insp, sms, roh] = await Promise.all([inspP, smsP, rohP]);
+  const gsc = "res" in insp ? insp.res : null;
+  const gscFehler = "error" in insp ? insp.error : null;
+  if (gscFehler) hinweise.push(`GSC-URL-Prüfung: ${gscFehler}`);
+  if (roh.seite.quelle === "dataforseo")
+    hinweise.push("Website sperrt unsere Abrufe — Seitendaten über DataForSEO");
+  else if (roh.seite.quelle === null)
+    hinweise.push("Seite weder direkt noch über DataForSEO abrufbar");
+
+  const klicks = new Map(linkSeiten.map((l) => [l.url, l.clicks]));
+  const linkQuellen: LinkQuelle[] = roh.links.map((l) => ({
+    url: l.url,
+    title: l.title,
+    clicks: klicks.get(l.url) ?? 0,
+    verlinkt: l.verlinkt,
+  }));
+  const checks = baueChecks({ url, roh, gsc, gscFehler, sitemapsGsc: sms, linkQuellen });
+  return {
+    checks,
+    linkQuellen,
+    articleFetched: roh.seite.status === 200,
+    artikelTitel: roh.seite.title,
+    hinweise,
+  };
 }

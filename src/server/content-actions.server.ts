@@ -10,6 +10,7 @@ import { gscRows } from "./gsc.server";
 import { generateViaSubscription } from "./claude-generate.server";
 import { recordApiCost } from "./api-cost.server";
 import { diagnoseNichtIndexiert, type DiagnoseCheck } from "./content-diagnose.server";
+import { contentProbe } from "./content-probe.server";
 import {
   REC_FOCUS,
   REC_PLAYBOOK,
@@ -134,6 +135,8 @@ type SnapshotOpts = {
   excerptChars?: number;
   /** Bei Sperre (403/429/Netzfehler) über DataForSEO abrufen (kostet ~0.0003 USD). */
   dfsFallback?: boolean;
+  /** false = nicht über den agent-service (Standard: zuerst agent-service, 09.11.2026) */
+  viaAgent?: boolean;
 };
 
 /**
@@ -144,6 +147,18 @@ export async function fetchPageSnapshot(
   url: string,
   opts: SnapshotOpts = {},
 ): Promise<SeitenSnapshot> {
+  // Zuerst über den agent-service (Cloud-PC): kein Worker-Limit, keine IP-Sperre;
+  // er fällt bei Sperren selbst auf DataForSEO zurück.
+  if (opts.viaAgent !== false) {
+    const p = await contentProbe(
+      { snapshots: [{ url, maxHeadings: opts.maxHeadings, excerptChars: opts.excerptChars }] },
+      (opts.timeoutMs ?? 15_000) + 45_000,
+    );
+    if (p?.snapshots[0]) {
+      dfsKosten += p.cost_dfs || 0;
+      return p.snapshots[0];
+    }
+  }
   const direkt = await direktSnapshot(url, opts);
   if (!("error" in direkt) || !opts.dfsFallback) return direkt;
   // hotelbernina.ch u. a. sperren Rechenzentrums-IPs (unabhängig vom User-Agent:
@@ -204,6 +219,11 @@ async function direktSnapshot(url: string, opts: SnapshotOpts): Promise<SeitenSn
 // ── DataForSEO On-Page (Ersatzweg für gesperrte Seiten) ─────────────────────
 
 let dfsKosten = 0;
+/** DataForSEO-Kosten aus agent-service-Abrufen mitzählen. */
+export function addDfsKosten(n: number) {
+  dfsKosten += Number(n) || 0;
+}
+
 /** Seit dem letzten Aufruf angefallene DataForSEO-On-Page-Kosten (USD), danach 0. */
 export function holeDfsKosten(): number {
   const k = dfsKosten;
@@ -441,11 +461,15 @@ export async function serpTop5(
       .filter((i: any) => i?.type === "organic")
       .slice(0, 9);
     // DataForSEO liefert teils google.com/goto?url=…-Links statt der Ziel-URL
+    // Aufgelöst wird über den agent-service (Cloud-PC bekommt die 302 von Google)
     let ungeloest = 0;
+    const gotoUrls = roh.map((i) => String(i.url || "")).filter((u) => /\/goto\?/.test(u));
+    const gp = gotoUrls.length ? await contentProbe({ goto: gotoUrls }, 25_000) : null;
+    const aufloesen = (u: string) => (gp ? Promise.resolve(gp.goto[u] ?? null) : gotoAufloesen(u));
     const items = await Promise.all(
       roh.map(async (i) => {
         const istGoto = /\/goto\?/.test(String(i.url || ""));
-        let echt = await gotoAufloesen(String(i.url || ""));
+        let echt = await aufloesen(String(i.url || ""));
         if (!echt && istGoto) {
           // Google leitet Rechenzentrums-IPs nicht weiter → Adresse aus dem Breadcrumb
           echt = urlAusBreadcrumb(i.breadcrumb);
@@ -486,16 +510,28 @@ export async function serpTop5(
             .endsWith(dom),
       )
       .slice(0, 5);
+    // Wettbewerberseiten in EINEM agent-service-Aufruf (Worker-Limit 1102);
+    // ohne agent-service wie bisher einzeln im Worker
+    const zuLaden = top.filter((i) => !i.nurDomain).map((i) => String(i.url));
+    const bp = zuLaden.length
+      ? await contentProbe(
+          { snapshots: zuLaden.map((u) => ({ url: u, maxHeadings: 30, excerptChars: 0 })) },
+          55_000,
+        )
+      : null;
+    if (bp) dfsKosten += bp.cost_dfs || 0;
     const snaps = await Promise.all(
-      top.map((i) =>
-        i.nurDomain
-          ? Promise.resolve({ error: "nur Domain" } as SeitenSnapshot)
-          : fetchPageSnapshot(String(i.url), {
-              timeoutMs: 12_000,
-              maxHeadings: 30,
-              excerptChars: 0,
-            }),
-      ),
+      top.map((i) => {
+        if (i.nurDomain) return Promise.resolve({ error: "nur Domain" } as SeitenSnapshot);
+        const ausAgent = bp?.snapshots[zuLaden.indexOf(String(i.url))];
+        if (ausAgent) return Promise.resolve(ausAgent as SeitenSnapshot);
+        return fetchPageSnapshot(String(i.url), {
+          timeoutMs: 12_000,
+          maxHeadings: 30,
+          excerptChars: 0,
+          viaAgent: false,
+        });
+      }),
     );
     return {
       treffer: top.map((i, n) => ({
@@ -983,11 +1019,12 @@ async function diagnose(
   // Linkquellen: indexiert (GSC-Klicks), abrufbar und noch ohne Link auf den Artikel
   const kandidaten = d.linkQuellen.filter((l) => l.verlinkt === false);
   const erlaubt = kandidaten.map((l) => ({ url: l.url, title: l.title }));
-  const fehler = d.checks.filter((c) => !c.ok);
+  const fehler = d.checks.filter((c) => c.ok === false);
+  const offen = d.checks.filter((c) => c.ok === null);
 
   const system =
     "Du bist technischer SEO einer Schweizer Agentur. Ein Blog-Artikel ist nicht im Google-Index. Du bekommst die Ergebnisse automatischer Prüfungen und eine Liste indexierter Seiten derselben Domain, die den Artikel noch NICHT verlinken. " +
-    "Alle Daten liegen vor: verwende KEINE Werkzeuge, antworte sofort. Deutsch (Schweiz), ss statt ß. Erfinde nichts, stütze dich nur auf die Prüfergebnisse. " +
+    "Alle Daten liegen vor: verwende KEINE Werkzeuge, antworte sofort. Deutsch (Schweiz), ss statt ß. Erfinde nichts, stütze dich nur auf die Prüfergebnisse. Punkte mit «NICHT PRÜFBAR» sind unbekannt — weder als Ursache noch als in Ordnung darstellen; falls relevant, empfehle sie manuell zu prüfen. " +
     'Antworte NUR mit JSON: {"summary": "2–4 Sätze: wahrscheinlichste Ursache(n) und die nächsten Schritte in Reihenfolge (z. B. Indexierung in GSC beantragen, Sitemap einreichen, intern verlinken)", ' +
     '"internal_links": [{"from_url": "NUR aus der Liste KANDIDATEN", "from_title": "Titel der Quellseite", "anchor": "natürlicher Ankertext zum Thema des Artikels"}]}. internal_links: 2–4, thematisch passende Quellen zuerst.';
   const prompt = `ARTIKEL
@@ -997,7 +1034,7 @@ Haupt-Keyword: ${keyword || "—"}
 Kunde: ${kunde.name} (${kunde.domain || "—"})
 
 PRÜFUNGEN
-${d.checks.map((c) => `${c.ok ? "OK" : "FEHLER"} ${c.check}: ${c.detail}`).join("\n")}
+${d.checks.map((c) => `${c.ok === true ? "OK" : c.ok === false ? "FEHLER" : "NICHT PRÜFBAR"} ${c.check}: ${c.detail}`).join("\n")}
 
 KANDIDATEN (indexiert, GSC-Klicks 28T, verlinken den Artikel noch nicht)
 ${kandidaten.map((l) => `${l.url} — ${l.title || "ohne Titel"} (${l.clicks} Klicks)`).join("\n") || "keine"}`;
@@ -1026,7 +1063,8 @@ ${kandidaten.map((l) => `${l.url} — ${l.title || "ohne Titel"} (${l.clicks} Kl
     s(j?.summary) ||
     (fehler.length
       ? `Auffällig: ${fehler.map((c) => `${c.check} (${c.detail})`).join("; ")}. Diese Punkte beheben, danach in der GSC die Indexierung beantragen.`
-      : "Technisch keine Hürde gefunden. In der GSC die Indexierung beantragen und den Artikel von starken Seiten intern verlinken.");
+      : "Technisch keine Hürde gefunden. In der GSC die Indexierung beantragen und den Artikel von starken Seiten intern verlinken.") +
+      (offen.length ? ` Nicht prüfbar: ${offen.map((c) => c.check).join(", ")}.` : "");
 
   const recommendation: Diagnose = ohneEszett({
     summary,
