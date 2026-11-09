@@ -58,7 +58,8 @@ const ACTIONS: Record<string, { method: "GET" | "POST"; path: string; fields: st
   "plugin-self-update": {
     method: "POST",
     path: "/ezyhub/v1/plugin/self-update",
-    fields: ["contentB64"],
+    // ab Connector 2.0: files = { "includes/ezyrank/…php": base64, … } (Pfad-Allowlist im Plugin)
+    fields: ["contentB64", "files"],
   },
   // WP-core endpoints (not the connector): install/activate a wordpress.org
   // plugin by slug, and toggle its active state. Used for autonomous
@@ -145,6 +146,7 @@ const Body = z.object({
   limit: z.number().int().optional(),
   settings: z.record(z.string(), z.union([z.number(), z.boolean()])).optional(),
   contentB64: z.string().optional(),
+  files: z.record(z.string(), z.string()).optional(),
   slug: z.string().optional(),
   status: z.string().optional(),
   search: z.string().optional(),
