@@ -177,6 +177,9 @@ export const APP_FEATURES: Record<EzyAppId, Array<{ id: string; label: string }>
     // EzyRank nicht mehr — TAB_APP_FEATURE behält den Eintrag fürs Gating alter Stände.
     { id: "seo", label: "Rankings & GSC-Suchbegriffe" },
     { id: "blog", label: "Blog / Refresh-Radar" },
+    // Blog-Autopilot (09.11.2026): Feature-Flag pro Kunde; schaltet Einrichtung
+    // und /api/blog/* frei. Wird auch über die Einladung gesetzt.
+    { id: "blog_autopilot", label: "Blog-Autopilot" },
     // "localgrid" entfernt (09.09.); alte Freischaltungen mit dem Eintrag bleiben
     // harmlos (Gating kennt den Tab nicht mehr).
     { id: "conversions", label: "Conversions" },

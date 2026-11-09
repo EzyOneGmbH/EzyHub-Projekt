@@ -76,10 +76,9 @@ import { Route as ApiAdminClientFlagsRouteImport } from './routes/api/admin.clie
 import { Route as ApiAdminClientKontextRouteImport } from './routes/api/admin.client-kontext'
 import { Route as ApiAdminClientMetricsRouteImport } from './routes/api/admin.client-metrics'
 import { Route as ApiAdminClientReadinessRouteImport } from './routes/api/admin.client-readiness'
+import { Route as ApiAdminContentActionsRouteImport } from './routes/api/admin.content-actions'
 import { Route as ApiAdminContentBriefRouteImport } from './routes/api/admin.content-brief'
 import { Route as ApiAdminContentDecisionRouteImport } from './routes/api/admin.content-decision'
-import { Route as ApiAdminContentActionsRouteImport } from './routes/api/admin.content-actions'
-import { Route as ApiAdminContentActionsRecommendationRouteImport } from './routes/api/admin.content-actions.recommendation'
 import { Route as ApiAdminContentNoteRouteImport } from './routes/api/admin.content-note'
 import { Route as ApiAdminContentSyncRouteImport } from './routes/api/admin.content-sync'
 import { Route as ApiAdminConversionCandidatesRouteImport } from './routes/api/admin.conversion-candidates'
@@ -109,8 +108,8 @@ import { Route as ApiAdminOpenaiAdsRouteImport } from './routes/api/admin.openai
 import { Route as ApiAdminOpenaiAdsIngestRouteImport } from './routes/api/admin.openai-ads-ingest'
 import { Route as ApiAdminPopulateRouteImport } from './routes/api/admin.populate'
 import { Route as ApiAdminRankKeywordsRouteImport } from './routes/api/admin.rank-keywords'
-import { Route as ApiAdminRankVerlaufRouteImport } from './routes/api/admin.rank-verlauf'
 import { Route as ApiAdminRankSnapshotRouteImport } from './routes/api/admin.rank-snapshot'
+import { Route as ApiAdminRankVerlaufRouteImport } from './routes/api/admin.rank-verlauf'
 import { Route as ApiAdminSecretStatusRouteImport } from './routes/api/admin.secret-status'
 import { Route as ApiAdminSecureMigrateRouteImport } from './routes/api/admin.secure-migrate'
 import { Route as ApiAdminSeoBerichtRouteImport } from './routes/api/admin.seo-bericht'
@@ -140,10 +139,12 @@ import { Route as ApiAgentRunsRouteImport } from './routes/api/agent.runs'
 import { Route as ApiAgentTemplatesRouteImport } from './routes/api/agent.templates'
 import { Route as ApiAhrefsOverviewRouteImport } from './routes/api/ahrefs.overview'
 import { Route as ApiAiGenerateRouteImport } from './routes/api/ai.generate'
+import { Route as ApiAuthNeuerLinkRouteImport } from './routes/api/auth.neuer-link'
 import { Route as ApiAworkCreateTaskRouteImport } from './routes/api/awork.create-task'
 import { Route as ApiAworkTaskRouteImport } from './routes/api/awork.task'
 import { Route as ApiAworkTasksRouteImport } from './routes/api/awork.tasks'
 import { Route as ApiAworkUsersRouteImport } from './routes/api/awork.users'
+import { Route as ApiBlogProjectsRouteImport } from './routes/api/blog.projects'
 import { Route as ApiCanonryCreateProjectRouteImport } from './routes/api/canonry.create-project'
 import { Route as ApiContentRefreshBriefRouteImport } from './routes/api/content.refresh-brief'
 import { Route as ApiGoogleAdsAutopilotConfigRouteImport } from './routes/api/google.ads-autopilot-config'
@@ -176,7 +177,7 @@ import { Route as ApiV1ProjectsRouteImport } from './routes/api/v1.projects'
 import { Route as ApiWordpressConnectionRouteImport } from './routes/api/wordpress.connection'
 import { Route as ApiWordpressPostsRouteImport } from './routes/api/wordpress.posts'
 import { Route as ApiWordpressPublishRouteImport } from './routes/api/wordpress.publish'
-import { Route as ApiAuthNeuerLinkRouteImport } from './routes/api/auth.neuer-link'
+import { Route as ApiAdminContentActionsRecommendationRouteImport } from './routes/api/admin.content-actions.recommendation'
 import { Route as ApiGoogleOauthStartRouteImport } from './routes/api/google.oauth.start'
 import { Route as ApiLiveCanonryAiVisibilityRouteImport } from './routes/api/live.canonry.ai-visibility'
 import { Route as ApiLiveCanonryOverviewRouteImport } from './routes/api/live.canonry.overview'
@@ -186,6 +187,8 @@ import { Route as ApiV1ProjectsProjectIdRankingChangesRouteImport } from './rout
 import { Route as ApiV1ProjectsProjectIdRankingsRouteImport } from './routes/api/v1.projects.$projectId.rankings'
 import { Route as ApiV1ProjectsProjectIdSearchConsoleRouteImport } from './routes/api/v1.projects.$projectId.search-console'
 import { Route as ApiV1ProjectsProjectIdVisibilityRouteImport } from './routes/api/v1.projects.$projectId.visibility'
+import { Route as ApiBlogProjectsIdWpConnectRouteImport } from './routes/api/blog.projects.$id.wp.connect'
+import { Route as ApiBlogProjectsIdWpChar91testChar93RouteImport } from './routes/api/blog.projects.$id.wp.[test]'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -536,6 +539,11 @@ const ApiAdminClientReadinessRoute = ApiAdminClientReadinessRouteImport.update({
   path: '/api/admin/client-readiness',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminContentActionsRoute = ApiAdminContentActionsRouteImport.update({
+  id: '/api/admin/content-actions',
+  path: '/api/admin/content-actions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminContentBriefRoute = ApiAdminContentBriefRouteImport.update({
   id: '/api/admin/content-brief',
   path: '/api/admin/content-brief',
@@ -544,16 +552,6 @@ const ApiAdminContentBriefRoute = ApiAdminContentBriefRouteImport.update({
 const ApiAdminContentDecisionRoute = ApiAdminContentDecisionRouteImport.update({
   id: '/api/admin/content-decision',
   path: '/api/admin/content-decision',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAdminContentActionsRoute = ApiAdminContentActionsRouteImport.update({
-  id: '/api/admin/content-actions',
-  path: '/api/admin/content-actions',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAdminContentActionsRecommendationRoute = ApiAdminContentActionsRecommendationRouteImport.update({
-  id: '/api/admin/content-actions/recommendation',
-  path: '/api/admin/content-actions/recommendation',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminContentNoteRoute = ApiAdminContentNoteRouteImport.update({
@@ -706,14 +704,14 @@ const ApiAdminRankKeywordsRoute = ApiAdminRankKeywordsRouteImport.update({
   path: '/api/admin/rank-keywords',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAdminRankVerlaufRoute = ApiAdminRankVerlaufRouteImport.update({
-  id: '/api/admin/rank-verlauf',
-  path: '/api/admin/rank-verlauf',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiAdminRankSnapshotRoute = ApiAdminRankSnapshotRouteImport.update({
   id: '/api/admin/rank-snapshot',
   path: '/api/admin/rank-snapshot',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminRankVerlaufRoute = ApiAdminRankVerlaufRouteImport.update({
+  id: '/api/admin/rank-verlauf',
+  path: '/api/admin/rank-verlauf',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminSecretStatusRoute = ApiAdminSecretStatusRouteImport.update({
@@ -862,6 +860,11 @@ const ApiAiGenerateRoute = ApiAiGenerateRouteImport.update({
   path: '/api/ai/generate',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthNeuerLinkRoute = ApiAuthNeuerLinkRouteImport.update({
+  id: '/api/auth/neuer-link',
+  path: '/api/auth/neuer-link',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAworkCreateTaskRoute = ApiAworkCreateTaskRouteImport.update({
   id: '/api/awork/create-task',
   path: '/api/awork/create-task',
@@ -880,6 +883,11 @@ const ApiAworkTasksRoute = ApiAworkTasksRouteImport.update({
 const ApiAworkUsersRoute = ApiAworkUsersRouteImport.update({
   id: '/api/awork/users',
   path: '/api/awork/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBlogProjectsRoute = ApiBlogProjectsRouteImport.update({
+  id: '/api/blog/projects',
+  path: '/api/blog/projects',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCanonryCreateProjectRoute = ApiCanonryCreateProjectRouteImport.update({
@@ -1046,11 +1054,12 @@ const ApiWordpressPublishRoute = ApiWordpressPublishRouteImport.update({
   path: '/api/wordpress/publish',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAuthNeuerLinkRoute = ApiAuthNeuerLinkRouteImport.update({
-  id: '/api/auth/neuer-link',
-  path: '/api/auth/neuer-link',
-  getParentRoute: () => rootRouteImport,
-} as any)
+const ApiAdminContentActionsRecommendationRoute =
+  ApiAdminContentActionsRecommendationRouteImport.update({
+    id: '/recommendation',
+    path: '/recommendation',
+    getParentRoute: () => ApiAdminContentActionsRoute,
+  } as any)
 const ApiGoogleOauthStartRoute = ApiGoogleOauthStartRouteImport.update({
   id: '/api/google/oauth/start',
   path: '/api/google/oauth/start',
@@ -1101,6 +1110,18 @@ const ApiV1ProjectsProjectIdVisibilityRoute =
     id: '/$projectId/visibility',
     path: '/$projectId/visibility',
     getParentRoute: () => ApiV1ProjectsRoute,
+  } as any)
+const ApiBlogProjectsIdWpConnectRoute =
+  ApiBlogProjectsIdWpConnectRouteImport.update({
+    id: '/$id/wp/connect',
+    path: '/$id/wp/connect',
+    getParentRoute: () => ApiBlogProjectsRoute,
+  } as any)
+const ApiBlogProjectsIdWpChar91testChar93Route =
+  ApiBlogProjectsIdWpChar91testChar93RouteImport.update({
+    id: '/$id/wp/test',
+    path: '/$id/wp/test',
+    getParentRoute: () => ApiBlogProjectsRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -1171,10 +1192,9 @@ export interface FileRoutesByFullPath {
   '/api/admin/client-kontext': typeof ApiAdminClientKontextRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
   '/api/admin/client-readiness': typeof ApiAdminClientReadinessRoute
+  '/api/admin/content-actions': typeof ApiAdminContentActionsRouteWithChildren
   '/api/admin/content-brief': typeof ApiAdminContentBriefRoute
   '/api/admin/content-decision': typeof ApiAdminContentDecisionRoute
-  '/api/admin/content-actions': typeof ApiAdminContentActionsRoute
-  '/api/admin/content-actions/recommendation': typeof ApiAdminContentActionsRecommendationRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
   '/api/admin/content-sync': typeof ApiAdminContentSyncRoute
   '/api/admin/conversion-candidates': typeof ApiAdminConversionCandidatesRoute
@@ -1204,8 +1224,8 @@ export interface FileRoutesByFullPath {
   '/api/admin/openai-ads-ingest': typeof ApiAdminOpenaiAdsIngestRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-keywords': typeof ApiAdminRankKeywordsRoute
-  '/api/admin/rank-verlauf': typeof ApiAdminRankVerlaufRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
+  '/api/admin/rank-verlauf': typeof ApiAdminRankVerlaufRoute
   '/api/admin/secret-status': typeof ApiAdminSecretStatusRoute
   '/api/admin/secure-migrate': typeof ApiAdminSecureMigrateRoute
   '/api/admin/seo-bericht': typeof ApiAdminSeoBerichtRoute
@@ -1235,10 +1255,12 @@ export interface FileRoutesByFullPath {
   '/api/agent/templates': typeof ApiAgentTemplatesRoute
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/ai/generate': typeof ApiAiGenerateRoute
+  '/api/auth/neuer-link': typeof ApiAuthNeuerLinkRoute
   '/api/awork/create-task': typeof ApiAworkCreateTaskRoute
   '/api/awork/task': typeof ApiAworkTaskRoute
   '/api/awork/tasks': typeof ApiAworkTasksRoute
   '/api/awork/users': typeof ApiAworkUsersRoute
+  '/api/blog/projects': typeof ApiBlogProjectsRouteWithChildren
   '/api/canonry/create-project': typeof ApiCanonryCreateProjectRoute
   '/api/content/refresh-brief': typeof ApiContentRefreshBriefRoute
   '/api/google/ads-autopilot-config': typeof ApiGoogleAdsAutopilotConfigRoute
@@ -1271,7 +1293,7 @@ export interface FileRoutesByFullPath {
   '/api/wordpress/connection': typeof ApiWordpressConnectionRoute
   '/api/wordpress/posts': typeof ApiWordpressPostsRoute
   '/api/wordpress/publish': typeof ApiWordpressPublishRoute
-  '/api/auth/neuer-link': typeof ApiAuthNeuerLinkRoute
+  '/api/admin/content-actions/recommendation': typeof ApiAdminContentActionsRecommendationRoute
   '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
   '/api/live/canonry/ai-visibility': typeof ApiLiveCanonryAiVisibilityRoute
   '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
@@ -1281,6 +1303,8 @@ export interface FileRoutesByFullPath {
   '/api/v1/projects/$projectId/rankings': typeof ApiV1ProjectsProjectIdRankingsRoute
   '/api/v1/projects/$projectId/search-console': typeof ApiV1ProjectsProjectIdSearchConsoleRoute
   '/api/v1/projects/$projectId/visibility': typeof ApiV1ProjectsProjectIdVisibilityRoute
+  '/api/blog/projects/$id/wp/connect': typeof ApiBlogProjectsIdWpConnectRoute
+  '/api/blog/projects/$id/wp/test': typeof ApiBlogProjectsIdWpChar91testChar93Route
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -1350,10 +1374,9 @@ export interface FileRoutesByTo {
   '/api/admin/client-kontext': typeof ApiAdminClientKontextRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
   '/api/admin/client-readiness': typeof ApiAdminClientReadinessRoute
+  '/api/admin/content-actions': typeof ApiAdminContentActionsRouteWithChildren
   '/api/admin/content-brief': typeof ApiAdminContentBriefRoute
   '/api/admin/content-decision': typeof ApiAdminContentDecisionRoute
-  '/api/admin/content-actions': typeof ApiAdminContentActionsRoute
-  '/api/admin/content-actions/recommendation': typeof ApiAdminContentActionsRecommendationRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
   '/api/admin/content-sync': typeof ApiAdminContentSyncRoute
   '/api/admin/conversion-candidates': typeof ApiAdminConversionCandidatesRoute
@@ -1383,8 +1406,8 @@ export interface FileRoutesByTo {
   '/api/admin/openai-ads-ingest': typeof ApiAdminOpenaiAdsIngestRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-keywords': typeof ApiAdminRankKeywordsRoute
-  '/api/admin/rank-verlauf': typeof ApiAdminRankVerlaufRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
+  '/api/admin/rank-verlauf': typeof ApiAdminRankVerlaufRoute
   '/api/admin/secret-status': typeof ApiAdminSecretStatusRoute
   '/api/admin/secure-migrate': typeof ApiAdminSecureMigrateRoute
   '/api/admin/seo-bericht': typeof ApiAdminSeoBerichtRoute
@@ -1414,10 +1437,12 @@ export interface FileRoutesByTo {
   '/api/agent/templates': typeof ApiAgentTemplatesRoute
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/ai/generate': typeof ApiAiGenerateRoute
+  '/api/auth/neuer-link': typeof ApiAuthNeuerLinkRoute
   '/api/awork/create-task': typeof ApiAworkCreateTaskRoute
   '/api/awork/task': typeof ApiAworkTaskRoute
   '/api/awork/tasks': typeof ApiAworkTasksRoute
   '/api/awork/users': typeof ApiAworkUsersRoute
+  '/api/blog/projects': typeof ApiBlogProjectsRouteWithChildren
   '/api/canonry/create-project': typeof ApiCanonryCreateProjectRoute
   '/api/content/refresh-brief': typeof ApiContentRefreshBriefRoute
   '/api/google/ads-autopilot-config': typeof ApiGoogleAdsAutopilotConfigRoute
@@ -1450,7 +1475,7 @@ export interface FileRoutesByTo {
   '/api/wordpress/connection': typeof ApiWordpressConnectionRoute
   '/api/wordpress/posts': typeof ApiWordpressPostsRoute
   '/api/wordpress/publish': typeof ApiWordpressPublishRoute
-  '/api/auth/neuer-link': typeof ApiAuthNeuerLinkRoute
+  '/api/admin/content-actions/recommendation': typeof ApiAdminContentActionsRecommendationRoute
   '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
   '/api/live/canonry/ai-visibility': typeof ApiLiveCanonryAiVisibilityRoute
   '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
@@ -1460,6 +1485,8 @@ export interface FileRoutesByTo {
   '/api/v1/projects/$projectId/rankings': typeof ApiV1ProjectsProjectIdRankingsRoute
   '/api/v1/projects/$projectId/search-console': typeof ApiV1ProjectsProjectIdSearchConsoleRoute
   '/api/v1/projects/$projectId/visibility': typeof ApiV1ProjectsProjectIdVisibilityRoute
+  '/api/blog/projects/$id/wp/connect': typeof ApiBlogProjectsIdWpConnectRoute
+  '/api/blog/projects/$id/wp/test': typeof ApiBlogProjectsIdWpChar91testChar93Route
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -1530,10 +1557,9 @@ export interface FileRoutesById {
   '/api/admin/client-kontext': typeof ApiAdminClientKontextRoute
   '/api/admin/client-metrics': typeof ApiAdminClientMetricsRoute
   '/api/admin/client-readiness': typeof ApiAdminClientReadinessRoute
+  '/api/admin/content-actions': typeof ApiAdminContentActionsRouteWithChildren
   '/api/admin/content-brief': typeof ApiAdminContentBriefRoute
   '/api/admin/content-decision': typeof ApiAdminContentDecisionRoute
-  '/api/admin/content-actions': typeof ApiAdminContentActionsRoute
-  '/api/admin/content-actions/recommendation': typeof ApiAdminContentActionsRecommendationRoute
   '/api/admin/content-note': typeof ApiAdminContentNoteRoute
   '/api/admin/content-sync': typeof ApiAdminContentSyncRoute
   '/api/admin/conversion-candidates': typeof ApiAdminConversionCandidatesRoute
@@ -1563,8 +1589,8 @@ export interface FileRoutesById {
   '/api/admin/openai-ads-ingest': typeof ApiAdminOpenaiAdsIngestRoute
   '/api/admin/populate': typeof ApiAdminPopulateRoute
   '/api/admin/rank-keywords': typeof ApiAdminRankKeywordsRoute
-  '/api/admin/rank-verlauf': typeof ApiAdminRankVerlaufRoute
   '/api/admin/rank-snapshot': typeof ApiAdminRankSnapshotRoute
+  '/api/admin/rank-verlauf': typeof ApiAdminRankVerlaufRoute
   '/api/admin/secret-status': typeof ApiAdminSecretStatusRoute
   '/api/admin/secure-migrate': typeof ApiAdminSecureMigrateRoute
   '/api/admin/seo-bericht': typeof ApiAdminSeoBerichtRoute
@@ -1594,10 +1620,12 @@ export interface FileRoutesById {
   '/api/agent/templates': typeof ApiAgentTemplatesRoute
   '/api/ahrefs/overview': typeof ApiAhrefsOverviewRoute
   '/api/ai/generate': typeof ApiAiGenerateRoute
+  '/api/auth/neuer-link': typeof ApiAuthNeuerLinkRoute
   '/api/awork/create-task': typeof ApiAworkCreateTaskRoute
   '/api/awork/task': typeof ApiAworkTaskRoute
   '/api/awork/tasks': typeof ApiAworkTasksRoute
   '/api/awork/users': typeof ApiAworkUsersRoute
+  '/api/blog/projects': typeof ApiBlogProjectsRouteWithChildren
   '/api/canonry/create-project': typeof ApiCanonryCreateProjectRoute
   '/api/content/refresh-brief': typeof ApiContentRefreshBriefRoute
   '/api/google/ads-autopilot-config': typeof ApiGoogleAdsAutopilotConfigRoute
@@ -1630,7 +1658,7 @@ export interface FileRoutesById {
   '/api/wordpress/connection': typeof ApiWordpressConnectionRoute
   '/api/wordpress/posts': typeof ApiWordpressPostsRoute
   '/api/wordpress/publish': typeof ApiWordpressPublishRoute
-  '/api/auth/neuer-link': typeof ApiAuthNeuerLinkRoute
+  '/api/admin/content-actions/recommendation': typeof ApiAdminContentActionsRecommendationRoute
   '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
   '/api/live/canonry/ai-visibility': typeof ApiLiveCanonryAiVisibilityRoute
   '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
@@ -1640,6 +1668,8 @@ export interface FileRoutesById {
   '/api/v1/projects/$projectId/rankings': typeof ApiV1ProjectsProjectIdRankingsRoute
   '/api/v1/projects/$projectId/search-console': typeof ApiV1ProjectsProjectIdSearchConsoleRoute
   '/api/v1/projects/$projectId/visibility': typeof ApiV1ProjectsProjectIdVisibilityRoute
+  '/api/blog/projects/$id/wp/connect': typeof ApiBlogProjectsIdWpConnectRoute
+  '/api/blog/projects/$id/wp/test': typeof ApiBlogProjectsIdWpChar91testChar93Route
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -1711,10 +1741,9 @@ export interface FileRouteTypes {
     | '/api/admin/client-kontext'
     | '/api/admin/client-metrics'
     | '/api/admin/client-readiness'
+    | '/api/admin/content-actions'
     | '/api/admin/content-brief'
     | '/api/admin/content-decision'
-    | '/api/admin/content-actions'
-    | '/api/admin/content-actions/recommendation'
     | '/api/admin/content-note'
     | '/api/admin/content-sync'
     | '/api/admin/conversion-candidates'
@@ -1744,8 +1773,8 @@ export interface FileRouteTypes {
     | '/api/admin/openai-ads-ingest'
     | '/api/admin/populate'
     | '/api/admin/rank-keywords'
-    | '/api/admin/rank-verlauf'
     | '/api/admin/rank-snapshot'
+    | '/api/admin/rank-verlauf'
     | '/api/admin/secret-status'
     | '/api/admin/secure-migrate'
     | '/api/admin/seo-bericht'
@@ -1775,10 +1804,12 @@ export interface FileRouteTypes {
     | '/api/agent/templates'
     | '/api/ahrefs/overview'
     | '/api/ai/generate'
+    | '/api/auth/neuer-link'
     | '/api/awork/create-task'
     | '/api/awork/task'
     | '/api/awork/tasks'
     | '/api/awork/users'
+    | '/api/blog/projects'
     | '/api/canonry/create-project'
     | '/api/content/refresh-brief'
     | '/api/google/ads-autopilot-config'
@@ -1811,7 +1842,7 @@ export interface FileRouteTypes {
     | '/api/wordpress/connection'
     | '/api/wordpress/posts'
     | '/api/wordpress/publish'
-    | '/api/auth/neuer-link'
+    | '/api/admin/content-actions/recommendation'
     | '/api/google/oauth/start'
     | '/api/live/canonry/ai-visibility'
     | '/api/live/canonry/overview'
@@ -1821,6 +1852,8 @@ export interface FileRouteTypes {
     | '/api/v1/projects/$projectId/rankings'
     | '/api/v1/projects/$projectId/search-console'
     | '/api/v1/projects/$projectId/visibility'
+    | '/api/blog/projects/$id/wp/connect'
+    | '/api/blog/projects/$id/wp/test'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -1890,10 +1923,9 @@ export interface FileRouteTypes {
     | '/api/admin/client-kontext'
     | '/api/admin/client-metrics'
     | '/api/admin/client-readiness'
+    | '/api/admin/content-actions'
     | '/api/admin/content-brief'
     | '/api/admin/content-decision'
-    | '/api/admin/content-actions'
-    | '/api/admin/content-actions/recommendation'
     | '/api/admin/content-note'
     | '/api/admin/content-sync'
     | '/api/admin/conversion-candidates'
@@ -1923,8 +1955,8 @@ export interface FileRouteTypes {
     | '/api/admin/openai-ads-ingest'
     | '/api/admin/populate'
     | '/api/admin/rank-keywords'
-    | '/api/admin/rank-verlauf'
     | '/api/admin/rank-snapshot'
+    | '/api/admin/rank-verlauf'
     | '/api/admin/secret-status'
     | '/api/admin/secure-migrate'
     | '/api/admin/seo-bericht'
@@ -1954,10 +1986,12 @@ export interface FileRouteTypes {
     | '/api/agent/templates'
     | '/api/ahrefs/overview'
     | '/api/ai/generate'
+    | '/api/auth/neuer-link'
     | '/api/awork/create-task'
     | '/api/awork/task'
     | '/api/awork/tasks'
     | '/api/awork/users'
+    | '/api/blog/projects'
     | '/api/canonry/create-project'
     | '/api/content/refresh-brief'
     | '/api/google/ads-autopilot-config'
@@ -1990,7 +2024,7 @@ export interface FileRouteTypes {
     | '/api/wordpress/connection'
     | '/api/wordpress/posts'
     | '/api/wordpress/publish'
-    | '/api/auth/neuer-link'
+    | '/api/admin/content-actions/recommendation'
     | '/api/google/oauth/start'
     | '/api/live/canonry/ai-visibility'
     | '/api/live/canonry/overview'
@@ -2000,6 +2034,8 @@ export interface FileRouteTypes {
     | '/api/v1/projects/$projectId/rankings'
     | '/api/v1/projects/$projectId/search-console'
     | '/api/v1/projects/$projectId/visibility'
+    | '/api/blog/projects/$id/wp/connect'
+    | '/api/blog/projects/$id/wp/test'
   id:
     | '__root__'
     | '/'
@@ -2069,10 +2105,9 @@ export interface FileRouteTypes {
     | '/api/admin/client-kontext'
     | '/api/admin/client-metrics'
     | '/api/admin/client-readiness'
+    | '/api/admin/content-actions'
     | '/api/admin/content-brief'
     | '/api/admin/content-decision'
-    | '/api/admin/content-actions'
-    | '/api/admin/content-actions/recommendation'
     | '/api/admin/content-note'
     | '/api/admin/content-sync'
     | '/api/admin/conversion-candidates'
@@ -2102,8 +2137,8 @@ export interface FileRouteTypes {
     | '/api/admin/openai-ads-ingest'
     | '/api/admin/populate'
     | '/api/admin/rank-keywords'
-    | '/api/admin/rank-verlauf'
     | '/api/admin/rank-snapshot'
+    | '/api/admin/rank-verlauf'
     | '/api/admin/secret-status'
     | '/api/admin/secure-migrate'
     | '/api/admin/seo-bericht'
@@ -2133,10 +2168,12 @@ export interface FileRouteTypes {
     | '/api/agent/templates'
     | '/api/ahrefs/overview'
     | '/api/ai/generate'
+    | '/api/auth/neuer-link'
     | '/api/awork/create-task'
     | '/api/awork/task'
     | '/api/awork/tasks'
     | '/api/awork/users'
+    | '/api/blog/projects'
     | '/api/canonry/create-project'
     | '/api/content/refresh-brief'
     | '/api/google/ads-autopilot-config'
@@ -2169,7 +2206,7 @@ export interface FileRouteTypes {
     | '/api/wordpress/connection'
     | '/api/wordpress/posts'
     | '/api/wordpress/publish'
-    | '/api/auth/neuer-link'
+    | '/api/admin/content-actions/recommendation'
     | '/api/google/oauth/start'
     | '/api/live/canonry/ai-visibility'
     | '/api/live/canonry/overview'
@@ -2179,6 +2216,8 @@ export interface FileRouteTypes {
     | '/api/v1/projects/$projectId/rankings'
     | '/api/v1/projects/$projectId/search-console'
     | '/api/v1/projects/$projectId/visibility'
+    | '/api/blog/projects/$id/wp/connect'
+    | '/api/blog/projects/$id/wp/test'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -2244,10 +2283,9 @@ export interface RootRouteChildren {
   ApiAdminClientKontextRoute: typeof ApiAdminClientKontextRoute
   ApiAdminClientMetricsRoute: typeof ApiAdminClientMetricsRoute
   ApiAdminClientReadinessRoute: typeof ApiAdminClientReadinessRoute
+  ApiAdminContentActionsRoute: typeof ApiAdminContentActionsRouteWithChildren
   ApiAdminContentBriefRoute: typeof ApiAdminContentBriefRoute
   ApiAdminContentDecisionRoute: typeof ApiAdminContentDecisionRoute
-  ApiAdminContentActionsRoute: typeof ApiAdminContentActionsRoute
-  ApiAdminContentActionsRecommendationRoute: typeof ApiAdminContentActionsRecommendationRoute
   ApiAdminContentNoteRoute: typeof ApiAdminContentNoteRoute
   ApiAdminContentSyncRoute: typeof ApiAdminContentSyncRoute
   ApiAdminConversionCandidatesRoute: typeof ApiAdminConversionCandidatesRoute
@@ -2277,8 +2315,8 @@ export interface RootRouteChildren {
   ApiAdminOpenaiAdsIngestRoute: typeof ApiAdminOpenaiAdsIngestRoute
   ApiAdminPopulateRoute: typeof ApiAdminPopulateRoute
   ApiAdminRankKeywordsRoute: typeof ApiAdminRankKeywordsRoute
-  ApiAdminRankVerlaufRoute: typeof ApiAdminRankVerlaufRoute
   ApiAdminRankSnapshotRoute: typeof ApiAdminRankSnapshotRoute
+  ApiAdminRankVerlaufRoute: typeof ApiAdminRankVerlaufRoute
   ApiAdminSecretStatusRoute: typeof ApiAdminSecretStatusRoute
   ApiAdminSecureMigrateRoute: typeof ApiAdminSecureMigrateRoute
   ApiAdminSeoBerichtRoute: typeof ApiAdminSeoBerichtRoute
@@ -2308,10 +2346,12 @@ export interface RootRouteChildren {
   ApiAgentTemplatesRoute: typeof ApiAgentTemplatesRoute
   ApiAhrefsOverviewRoute: typeof ApiAhrefsOverviewRoute
   ApiAiGenerateRoute: typeof ApiAiGenerateRoute
+  ApiAuthNeuerLinkRoute: typeof ApiAuthNeuerLinkRoute
   ApiAworkCreateTaskRoute: typeof ApiAworkCreateTaskRoute
   ApiAworkTaskRoute: typeof ApiAworkTaskRoute
   ApiAworkTasksRoute: typeof ApiAworkTasksRoute
   ApiAworkUsersRoute: typeof ApiAworkUsersRoute
+  ApiBlogProjectsRoute: typeof ApiBlogProjectsRouteWithChildren
   ApiCanonryCreateProjectRoute: typeof ApiCanonryCreateProjectRoute
   ApiContentRefreshBriefRoute: typeof ApiContentRefreshBriefRoute
   ApiGoogleAdsAutopilotConfigRoute: typeof ApiGoogleAdsAutopilotConfigRoute
@@ -2344,7 +2384,6 @@ export interface RootRouteChildren {
   ApiWordpressConnectionRoute: typeof ApiWordpressConnectionRoute
   ApiWordpressPostsRoute: typeof ApiWordpressPostsRoute
   ApiWordpressPublishRoute: typeof ApiWordpressPublishRoute
-  ApiAuthNeuerLinkRoute: typeof ApiAuthNeuerLinkRoute
   ApiGoogleOauthStartRoute: typeof ApiGoogleOauthStartRoute
   ApiLiveCanonryAiVisibilityRoute: typeof ApiLiveCanonryAiVisibilityRoute
   ApiLiveCanonryOverviewRoute: typeof ApiLiveCanonryOverviewRoute
@@ -2822,6 +2861,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminClientReadinessRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/content-actions': {
+      id: '/api/admin/content-actions'
+      path: '/api/admin/content-actions'
+      fullPath: '/api/admin/content-actions'
+      preLoaderRoute: typeof ApiAdminContentActionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/content-brief': {
       id: '/api/admin/content-brief'
       path: '/api/admin/content-brief'
@@ -2834,20 +2880,6 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/content-decision'
       fullPath: '/api/admin/content-decision'
       preLoaderRoute: typeof ApiAdminContentDecisionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/admin/content-actions': {
-      id: '/api/admin/content-actions'
-      path: '/api/admin/content-actions'
-      fullPath: '/api/admin/content-actions'
-      preLoaderRoute: typeof ApiAdminContentActionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/admin/content-actions/recommendation': {
-      id: '/api/admin/content-actions/recommendation'
-      path: '/api/admin/content-actions/recommendation'
-      fullPath: '/api/admin/content-actions/recommendation'
-      preLoaderRoute: typeof ApiAdminContentActionsRecommendationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/content-note': {
@@ -3053,18 +3085,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminRankKeywordsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/admin/rank-verlauf': {
-      id: '/api/admin/rank-verlauf'
-      path: '/api/admin/rank-verlauf'
-      fullPath: '/api/admin/rank-verlauf'
-      preLoaderRoute: typeof ApiAdminRankVerlaufRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/admin/rank-snapshot': {
       id: '/api/admin/rank-snapshot'
       path: '/api/admin/rank-snapshot'
       fullPath: '/api/admin/rank-snapshot'
       preLoaderRoute: typeof ApiAdminRankSnapshotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/rank-verlauf': {
+      id: '/api/admin/rank-verlauf'
+      path: '/api/admin/rank-verlauf'
+      fullPath: '/api/admin/rank-verlauf'
+      preLoaderRoute: typeof ApiAdminRankVerlaufRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/secret-status': {
@@ -3270,6 +3302,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAiGenerateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/neuer-link': {
+      id: '/api/auth/neuer-link'
+      path: '/api/auth/neuer-link'
+      fullPath: '/api/auth/neuer-link'
+      preLoaderRoute: typeof ApiAuthNeuerLinkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/awork/create-task': {
       id: '/api/awork/create-task'
       path: '/api/awork/create-task'
@@ -3296,6 +3335,13 @@ declare module '@tanstack/react-router' {
       path: '/api/awork/users'
       fullPath: '/api/awork/users'
       preLoaderRoute: typeof ApiAworkUsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/blog/projects': {
+      id: '/api/blog/projects'
+      path: '/api/blog/projects'
+      fullPath: '/api/blog/projects'
+      preLoaderRoute: typeof ApiBlogProjectsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/canonry/create-project': {
@@ -3522,12 +3568,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWordpressPublishRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/auth/neuer-link': {
-      id: '/api/auth/neuer-link'
-      path: '/api/auth/neuer-link'
-      fullPath: '/api/auth/neuer-link'
-      preLoaderRoute: typeof ApiAuthNeuerLinkRouteImport
-      parentRoute: typeof rootRouteImport
+    '/api/admin/content-actions/recommendation': {
+      id: '/api/admin/content-actions/recommendation'
+      path: '/recommendation'
+      fullPath: '/api/admin/content-actions/recommendation'
+      preLoaderRoute: typeof ApiAdminContentActionsRecommendationRouteImport
+      parentRoute: typeof ApiAdminContentActionsRoute
     }
     '/api/google/oauth/start': {
       id: '/api/google/oauth/start'
@@ -3592,6 +3638,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1ProjectsProjectIdVisibilityRouteImport
       parentRoute: typeof ApiV1ProjectsRoute
     }
+    '/api/blog/projects/$id/wp/connect': {
+      id: '/api/blog/projects/$id/wp/connect'
+      path: '/$id/wp/connect'
+      fullPath: '/api/blog/projects/$id/wp/connect'
+      preLoaderRoute: typeof ApiBlogProjectsIdWpConnectRouteImport
+      parentRoute: typeof ApiBlogProjectsRoute
+    }
+    '/api/blog/projects/$id/wp/test': {
+      id: '/api/blog/projects/$id/wp/test'
+      path: '/$id/wp/test'
+      fullPath: '/api/blog/projects/$id/wp/test'
+      preLoaderRoute: typeof ApiBlogProjectsIdWpChar91testChar93RouteImport
+      parentRoute: typeof ApiBlogProjectsRoute
+    }
   }
 }
 
@@ -3649,6 +3709,36 @@ const TasksRouteChildren: TasksRouteChildren = {
 }
 
 const TasksRouteWithChildren = TasksRoute._addFileChildren(TasksRouteChildren)
+
+interface ApiAdminContentActionsRouteChildren {
+  ApiAdminContentActionsRecommendationRoute: typeof ApiAdminContentActionsRecommendationRoute
+}
+
+const ApiAdminContentActionsRouteChildren: ApiAdminContentActionsRouteChildren =
+  {
+    ApiAdminContentActionsRecommendationRoute:
+      ApiAdminContentActionsRecommendationRoute,
+  }
+
+const ApiAdminContentActionsRouteWithChildren =
+  ApiAdminContentActionsRoute._addFileChildren(
+    ApiAdminContentActionsRouteChildren,
+  )
+
+interface ApiBlogProjectsRouteChildren {
+  ApiBlogProjectsIdWpConnectRoute: typeof ApiBlogProjectsIdWpConnectRoute
+  ApiBlogProjectsIdWpChar91testChar93Route: typeof ApiBlogProjectsIdWpChar91testChar93Route
+}
+
+const ApiBlogProjectsRouteChildren: ApiBlogProjectsRouteChildren = {
+  ApiBlogProjectsIdWpConnectRoute: ApiBlogProjectsIdWpConnectRoute,
+  ApiBlogProjectsIdWpChar91testChar93Route:
+    ApiBlogProjectsIdWpChar91testChar93Route,
+}
+
+const ApiBlogProjectsRouteWithChildren = ApiBlogProjectsRoute._addFileChildren(
+  ApiBlogProjectsRouteChildren,
+)
 
 interface ApiV1ProjectsRouteChildren {
   ApiV1ProjectsProjectIdAnalyticsRoute: typeof ApiV1ProjectsProjectIdAnalyticsRoute
@@ -3736,10 +3826,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminClientKontextRoute: ApiAdminClientKontextRoute,
   ApiAdminClientMetricsRoute: ApiAdminClientMetricsRoute,
   ApiAdminClientReadinessRoute: ApiAdminClientReadinessRoute,
+  ApiAdminContentActionsRoute: ApiAdminContentActionsRouteWithChildren,
   ApiAdminContentBriefRoute: ApiAdminContentBriefRoute,
   ApiAdminContentDecisionRoute: ApiAdminContentDecisionRoute,
-  ApiAdminContentActionsRoute: ApiAdminContentActionsRoute,
-  ApiAdminContentActionsRecommendationRoute: ApiAdminContentActionsRecommendationRoute,
   ApiAdminContentNoteRoute: ApiAdminContentNoteRoute,
   ApiAdminContentSyncRoute: ApiAdminContentSyncRoute,
   ApiAdminConversionCandidatesRoute: ApiAdminConversionCandidatesRoute,
@@ -3769,8 +3858,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminOpenaiAdsIngestRoute: ApiAdminOpenaiAdsIngestRoute,
   ApiAdminPopulateRoute: ApiAdminPopulateRoute,
   ApiAdminRankKeywordsRoute: ApiAdminRankKeywordsRoute,
-  ApiAdminRankVerlaufRoute: ApiAdminRankVerlaufRoute,
   ApiAdminRankSnapshotRoute: ApiAdminRankSnapshotRoute,
+  ApiAdminRankVerlaufRoute: ApiAdminRankVerlaufRoute,
   ApiAdminSecretStatusRoute: ApiAdminSecretStatusRoute,
   ApiAdminSecureMigrateRoute: ApiAdminSecureMigrateRoute,
   ApiAdminSeoBerichtRoute: ApiAdminSeoBerichtRoute,
@@ -3800,10 +3889,12 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAgentTemplatesRoute: ApiAgentTemplatesRoute,
   ApiAhrefsOverviewRoute: ApiAhrefsOverviewRoute,
   ApiAiGenerateRoute: ApiAiGenerateRoute,
+  ApiAuthNeuerLinkRoute: ApiAuthNeuerLinkRoute,
   ApiAworkCreateTaskRoute: ApiAworkCreateTaskRoute,
   ApiAworkTaskRoute: ApiAworkTaskRoute,
   ApiAworkTasksRoute: ApiAworkTasksRoute,
   ApiAworkUsersRoute: ApiAworkUsersRoute,
+  ApiBlogProjectsRoute: ApiBlogProjectsRouteWithChildren,
   ApiCanonryCreateProjectRoute: ApiCanonryCreateProjectRoute,
   ApiContentRefreshBriefRoute: ApiContentRefreshBriefRoute,
   ApiGoogleAdsAutopilotConfigRoute: ApiGoogleAdsAutopilotConfigRoute,
@@ -3836,7 +3927,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWordpressConnectionRoute: ApiWordpressConnectionRoute,
   ApiWordpressPostsRoute: ApiWordpressPostsRoute,
   ApiWordpressPublishRoute: ApiWordpressPublishRoute,
-  ApiAuthNeuerLinkRoute: ApiAuthNeuerLinkRoute,
   ApiGoogleOauthStartRoute: ApiGoogleOauthStartRoute,
   ApiLiveCanonryAiVisibilityRoute: ApiLiveCanonryAiVisibilityRoute,
   ApiLiveCanonryOverviewRoute: ApiLiveCanonryOverviewRoute,
@@ -3845,12 +3935,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

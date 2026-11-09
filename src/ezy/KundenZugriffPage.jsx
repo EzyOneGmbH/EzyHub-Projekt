@@ -37,6 +37,7 @@ export function KundenZugriffPage({ clients }) {
   const [inviteClient, setInviteClient] = useState("");
   // "" = volles Kundenportal, "conversion_log" = Login sieht nur das Conversion-Log
   const [inviteAnsicht, setInviteAnsicht] = useState("");
+  const [inviteBlog, setInviteBlog] = useState(false);
   const [expanded, setExpanded] = useState(null); // userId mit offener Kunden-Zuweisung
   const [draftAccess, setDraftAccess] = useState(new Set());
 
@@ -71,12 +72,17 @@ export function KundenZugriffPage({ clients }) {
       role: "viewer",
       clientIds: [inviteClient],
       ...(inviteAnsicht ? { ansicht: inviteAnsicht } : {}),
+      ...(inviteBlog && !inviteAnsicht ? { blogAutopilot: true } : {}),
     });
     setBusy(false);
     if (j.ok) {
-      toast(`Kunden-Login-Einladung an ${inviteEmail.trim()} gesendet`, "success");
+      toast(
+        `Kunden-Login-Einladung an ${inviteEmail.trim()} gesendet${j.blogAutopilot ? " · Blog-Autopilot freigeschaltet" : ""}`,
+        "success",
+      );
       if (j.warnung) toast(j.warnung, "error");
       setInviteEmail("");
+      setInviteBlog(false);
       await load();
     } else toast(j.error || "Einladung fehlgeschlagen", "error");
   };
@@ -274,6 +280,26 @@ export function KundenZugriffPage({ clients }) {
             {busy ? "…" : "Einladen"}
           </Btn>
         </div>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginTop: 10,
+            fontSize: 12.5,
+            cursor: inviteAnsicht ? "not-allowed" : "pointer",
+            opacity: inviteAnsicht ? 0.5 : 1,
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={inviteBlog && !inviteAnsicht}
+            disabled={!!inviteAnsicht}
+            onChange={(e) => setInviteBlog(e.target.checked)}
+          />
+          Blog-Autopilot einrichten lassen (schaltet die Funktion für diesen Kunden frei und führt
+          die Person nach dem Passwort-Setzen in die Einrichtung)
+        </label>
         <p style={{ fontSize: 11, color: C.textDim, margin: "8px 0 0" }}>
           Die Person erhält eine E-Mail zum Passwort-Setzen und ist fest an den gewählten Kunden
           gebunden. Welche Funktionen sie sieht, steuerst du im Kunden-Detail unter App-Zugriff.

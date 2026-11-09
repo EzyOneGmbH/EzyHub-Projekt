@@ -183,7 +183,11 @@ function SetPasswordPage() {
       return;
     }
     toast.success("Passwort gesetzt — willkommen!");
-    void navigate({ to: "/dashboard" });
+    // Einladung mit Blog-Autopilot (09.11.2026): direkt nach EzyRank, ab
+    // Phase 2 in die Einrichtung. Das Ziel ist fest, nie aus der URL.
+    const { data: u } = await supabase.auth.getUser();
+    const blog = u.user?.user_metadata?.onboarding === "blog_autopilot";
+    void navigate({ to: blog ? "/ezyrank" : "/dashboard" });
   };
 
   return (

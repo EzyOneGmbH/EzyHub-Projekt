@@ -1,13 +1,23 @@
 <?php
 /**
  * Plugin Name: EzyHub Connector
- * Description: Lässt EzyHub technische SEO-Maßnahmen autonom deployen — <head>-Injektion (JSON-LD, OG, Meta), llms.txt, Seiten-Meta, Canonical/Noindex, robots.txt, Sitemap-Optimierung, Bild-Alt-Texte und Elementor-Editing (Headings + Text-Widgets) mit automatischem Backup/Restore. Auth via Application Passwords (manage_options). Alle Änderungen reversibel.
- * Version: 1.9.12
+ * Description: Lässt EzyHub technische SEO-Maßnahmen autonom deployen — <head>-Injektion (JSON-LD, OG, Meta), llms.txt, Seiten-Meta, Canonical/Noindex, robots.txt, Sitemap-Optimierung, Bild-Alt-Texte und Elementor-Editing (Headings + Text-Widgets) mit automatischem Backup/Restore. Auth via Application Passwords (manage_options). Alle Änderungen reversibel. Ab 2.0 zusätzlich die EzyRank-Schnittstelle für den Blog-Autopiloten (Namespace ezyrank/v1, eigener Verbindungsschlüssel mit Berechtigungen, Einstellungen › EzyRank).
+ * Version: 2.0.0
  * Author: EzyOne GmbH
  * License: GPL-2.0+
+ * Requires at least: 6.0
+ * Requires PHP: 7.4
  */
 
 if (!defined('ABSPATH')) exit;
+
+// EzyRank Blog-Autopilot (2.0): eigenständiges Modul, nutzt die bestehenden
+// ezyhub/v1-Routen nicht und ändert sie nicht. Nur laden, wenn die Dateien da
+// sind: ein Self-Update von 1.9.x schreibt zunächst nur diese Hauptdatei, ein
+// hartes require würde die Website lahmlegen.
+if (file_exists(__DIR__ . '/includes/ezyrank/class-ezyrank-plugin.php')) {
+    require_once __DIR__ . '/includes/ezyrank/class-ezyrank-plugin.php';
+}
 
 class EzyHub_Connector {
     const OPT_HEAD     = 'ezyhub_head_html';
@@ -17,7 +27,7 @@ class EzyHub_Connector {
     // Muss mit dem Plugin-Header uebereinstimmen. /status meldete frueher eine
     // hartcodierte, nie mitgepflegte Zahl ('1.9.6') — das erzeugte falsche
     // Versions-Drift-Diagnosen.
-    const VERSION      = '1.9.12';
+    const VERSION      = '2.0.0';
 
     // ── Elementor-Widget-Map (v1.9.12) ────────────────────────────────────────
     // Blind-Spot-Fix: /elementor/headings matchte nur widgetType 'heading' —
@@ -260,6 +270,34 @@ class EzyHub_Connector {
                 return new WP_Error('bad_plugin', 'Kein gueltiges EzyHub-Connector-Plugin', ['status' => 400]);
             $file = __FILE__;
             if (!is_writable($file)) return new WP_Error('not_writable', 'Plugin-Datei nicht beschreibbar (Dateirechte/DISALLOW_FILE_MODS)', ['status' => 409]);
+            // Ab 2.0: optionale Zusatzdateien des Plugins (EzyRank-Modul, Admin,
+            // uninstall.php). Nur feste Pfadmuster innerhalb des Plugin-Ordners,
+            // nur PHP-Dateien; alles wird geprüft, bevor etwas geschrieben wird.
+            $extra = [];
+            $files = $r['files'] ?? [];
+            if (!is_array($files)) return new WP_Error('bad_files', 'files muss ein Objekt {Pfad: base64} sein', ['status' => 400]);
+            foreach ($files as $rel => $b64f) {
+                $rel = (string) $rel;
+                if (!preg_match('#^(includes/ezyrank/class-ezyrank-[a-z-]+\.php|admin/class-ezyrank-admin\.php|uninstall\.php)$#', $rel))
+                    return new WP_Error('bad_path', 'Pfad nicht erlaubt: ' . $rel, ['status' => 400]);
+                $code = base64_decode((string) $b64f, true);
+                if ($code === false || substr($code, 0, 5) !== '<?php')
+                    return new WP_Error('bad_file', 'Keine gueltige PHP-Datei: ' . $rel, ['status' => 400]);
+                $extra[$rel] = $code;
+            }
+            $dir = __DIR__;
+            foreach ($extra as $rel => $code) {
+                $target = $dir . '/' . $rel;
+                if (!wp_mkdir_p(dirname($target)) || (file_exists($target) && !is_writable($target)))
+                    return new WP_Error('not_writable', 'Nicht beschreibbar: ' . $rel, ['status' => 409]);
+            }
+            foreach ($extra as $rel => $code) {
+                $target = $dir . '/' . $rel;
+                if (file_exists($target)) @copy($target, $target . '.bak');
+                if (file_put_contents($target, $code) === false)
+                    return new WP_Error('write_failed', 'Schreiben fehlgeschlagen: ' . $rel, ['status' => 500]);
+                if (function_exists('opcache_invalidate')) { @opcache_invalidate($target, true); }
+            }
             @copy($file, $file . '.bak');
             $bytes = file_put_contents($file, $php);
             if ($bytes === false) return new WP_Error('write_failed', 'Schreiben fehlgeschlagen', ['status' => 500]);
@@ -268,7 +306,7 @@ class EzyHub_Connector {
             if (function_exists('opcache_invalidate')) { @opcache_invalidate($file, true); }
             $this->purge_caches();
             $ver = preg_match('/Version:\s*([0-9.]+)/', $php, $m) ? $m[1] : '';
-            return ['ok' => true, 'bytes' => $bytes, 'newVersion' => $ver, 'backup' => basename($file) . '.bak'];
+            return ['ok' => true, 'bytes' => $bytes, 'newVersion' => $ver, 'backup' => basename($file) . '.bak', 'files' => array_keys($extra)];
         }]);
 
         // ── <head> snippet ──
@@ -979,3 +1017,4 @@ class EzyHub_Connector {
 }
 
 new EzyHub_Connector();
+if (class_exists('EzyRank_Plugin')) EzyRank_Plugin::init();

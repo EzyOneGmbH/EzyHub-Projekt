@@ -1,0 +1,66 @@
+# EzyHub Connector (WordPress-Plugin): PHPUnit mit der WordPress-Testsuite
+# (Blog-Autopilot Phase 1, 09.11.2026). Läuft nur bei Änderungen am Plugin.
+name: Plugin-Tests
+
+on:
+  push:
+    paths:
+      - "wordpress-plugin/**"
+      - ".github/workflows/plugin-tests.yml"
+  pull_request:
+    paths:
+      - "wordpress-plugin/**"
+  workflow_dispatch:
+
+jobs:
+  phpunit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ["7.4", "8.2"]
+        wp: ["6.6.2"]
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: wordpress_test
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -proot" --health-interval=5s --health-timeout=5s --health-retries=20
+    defaults:
+      run:
+        working-directory: wordpress-plugin/ezyhub-connector
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mysqli
+          tools: composer
+          coverage: none
+      - name: PHP-Syntax
+        run: find . -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 php -l
+      - name: WordPress ${{ matrix.wp }} + Testsuite
+        run: |
+          mkdir -p /tmp/wordpress /tmp/wordpress-tests-lib
+          curl -sSL "https://wordpress.org/wordpress-${{ matrix.wp }}.tar.gz" | tar -xz -C /tmp/wordpress --strip-components=1
+          git clone -q --depth 1 --filter=blob:none --sparse --branch "${{ matrix.wp }}" https://github.com/WordPress/wordpress-develop.git /tmp/wpd
+          git -C /tmp/wpd sparse-checkout set tests/phpunit/includes tests/phpunit/data
+          cp -r /tmp/wpd/tests/phpunit/includes /tmp/wpd/tests/phpunit/data /tmp/wordpress-tests-lib/
+          sed -e "s:dirname( __FILE__ ) . '/src/':'/tmp/wordpress/':" \
+              -e "s:__DIR__ . '/src/':'/tmp/wordpress/':" \
+              -e "s/youremptytestdbnamehere/wordpress_test/" \
+              -e "s/yourusernamehere/root/" \
+              -e "s/yourpasswordhere/root/" \
+              -e "s|localhost|127.0.0.1:3306|" \
+              /tmp/wpd/wp-tests-config-sample.php > /tmp/wordpress-tests-lib/wp-tests-config.php
+          grep -n "ABSPATH\|DB_HOST" /tmp/wordpress-tests-lib/wp-tests-config.php
+      - name: Composer
+        run: composer install --no-interaction --no-progress
+      - name: PHPUnit
+        env:
+          WP_TESTS_DIR: /tmp/wordpress-tests-lib
+        run: vendor/bin/phpunit

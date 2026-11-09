@@ -30,6 +30,10 @@ const Body = z.object({
   // Ansichts-Beschränkung (15.10.2026): "conversion_log" = Login sieht nur
   // /conversion-log (login_ansicht). null bei setAnsicht = Beschränkung aufheben.
   ansicht: z.enum(["conversion_log"]).nullable().optional(),
+  // Blog-Autopilot (09.11.2026): Einladung schaltet das Feature-Flag
+  // «blog_autopilot» für die zugewiesenen Kunden ein und führt die Person nach
+  // dem Passwort-Setzen in die Einrichtung (user_metadata.onboarding).
+  blogAutopilot: z.boolean().optional(),
 });
 
 export const Route = createFileRoute("/api/admin/team")({
@@ -183,7 +187,14 @@ export const Route = createFileRoute("/api/admin/team")({
               redirectTo: origin ? `${origin}/set-password` : undefined,
               // Optionale persoenliche Nachricht — landet als Invite-Metadata
               // (im Mail-Template als {{ .Data.nachricht }} verwendbar).
-              ...(d.nachricht ? { data: { nachricht: d.nachricht } } : {}),
+              ...(d.nachricht || d.blogAutopilot
+                ? {
+                    data: {
+                      ...(d.nachricht ? { nachricht: d.nachricht } : {}),
+                      ...(d.blogAutopilot ? { onboarding: "blog_autopilot" } : {}),
+                    },
+                  }
+                : {}),
             },
           );
           let newUserId = inv?.user?.id;
@@ -269,8 +280,44 @@ export const Route = createFileRoute("/api/admin/team")({
                 .from("client_access")
                 .upsert(rows, { onConflict: "user_id,client_id", ignoreDuplicates: true });
           }
-          // Ansichts-Beschränkung nur für Kunden-Logins (viewer).
           let warnung: string | null = null;
+          // Blog-Autopilot freischalten (Feature-Flag pro Kunde, App seo). Die
+          // App-Freischaltung selbst (enabled) bleibt unverändert.
+          if (d.blogAutopilot) {
+            if (!d.clientIds?.length)
+              warnung = "Blog-Autopilot braucht einen Kunden – nicht freigeschaltet";
+            else {
+              const { data: valid } = await supabaseAdmin
+                .from("clients")
+                .select("id")
+                .eq("organization_id", orgId)
+                .in("id", d.clientIds);
+              for (const c of valid || []) {
+                const { data: row } = await (supabaseAdmin as any)
+                  .from("client_app_access")
+                  .select("id, features")
+                  .eq("client_id", (c as any).id)
+                  .eq("app", "seo")
+                  .maybeSingle();
+                const features: string[] = Array.isArray(row?.features) ? row.features : [];
+                if (features.includes("blog_autopilot")) continue;
+                const { error: faErr } = row?.id
+                  ? await (supabaseAdmin as any)
+                      .from("client_app_access")
+                      .update({ features: [...features, "blog_autopilot"] })
+                      .eq("id", row.id)
+                  : await (supabaseAdmin as any).from("client_app_access").insert({
+                      organization_id: orgId,
+                      client_id: (c as any).id,
+                      app: "seo",
+                      enabled: false,
+                      features: ["blog_autopilot"],
+                    });
+                if (faErr) warnung = "Blog-Autopilot konnte nicht freigeschaltet werden";
+              }
+            }
+          }
+          // Ansichts-Beschränkung nur für Kunden-Logins (viewer).
           if (role === "viewer" && d.ansicht) {
             const { error: anErr } = await (supabaseAdmin as any).from("login_ansicht").upsert(
               {
@@ -283,7 +330,14 @@ export const Route = createFileRoute("/api/admin/team")({
             );
             if (anErr) warnung = "Beschränkung konnte nicht gespeichert werden (Migration fehlt?)";
           }
-          return Response.json({ ok: true, userId: newUserId, role, invited: !invErr, warnung });
+          return Response.json({
+            ok: true,
+            userId: newUserId,
+            role,
+            invited: !invErr,
+            warnung,
+            blogAutopilot: !!d.blogAutopilot && !warnung,
+          });
         }
 
         // ── setAnsicht ────────────────────────────────────────────────────────
