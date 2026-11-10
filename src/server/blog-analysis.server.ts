@@ -7,6 +7,7 @@
 //   abschluss   Ergebnis zusammenstellen, KI-Mitbewerber speichern
 // KI-Aufrufe nur serverseitig, Tokens in api_cost_daily.
 import { z } from "zod";
+import { KiLaeuftNoch, runnerAktiv, runnerText } from "@/server/ki-runner.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { recordApiCost } from "@/server/api-cost.server";
 import { blogEvent, normalisiereDomain } from "@/server/blog-autopilot.server";
@@ -324,6 +325,7 @@ export async function claudeText(opts: {
   websuche?: number;
   timeoutMs: number;
 }): Promise<string> {
+  if (runnerAktiv()) return runnerText(opts);
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("KI ist nicht konfiguriert (ANTHROPIC_API_KEY fehlt)");
   const r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -511,7 +513,8 @@ async function fuehrePhaseAus(run: any, project: any): Promise<{ next: Phase | n
         timeoutMs: 110_000,
       });
       liste = bereinigeMitbewerber(MitbewerberSchema.parse(jsonAusText(roh)), project.domain);
-    } catch {
+    } catch (e) {
+      if (e instanceof KiLaeuftNoch) throw e;
       // Suche fehlgeschlagen: Hinweise von der Website als «nicht bestätigt» zeigen
       liste = bereinigeMitbewerber(
         {
@@ -661,6 +664,13 @@ export async function tickeBlogAnalysen(budgetMs: number) {
         );
       }
     } catch (e) {
+      if (e instanceof KiLaeuftNoch) {
+        // Runner-Job läuft noch: kein Fehlversuch, nächster Takt holt ab
+        await SB.from("blog_analysis_runs")
+          .update({ locked_until: null, updated_at: new Date().toISOString() })
+          .eq("id", run.id);
+        continue;
+      }
       const attempts = (Number(run.attempts) || 0) + 1;
       const endgueltig = attempts >= MAX_VERSUCHE;
       const msg = String((e as Error)?.message || e).slice(0, 300);

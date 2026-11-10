@@ -11,6 +11,7 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { blogEvent, normalisiereDomain } from "@/server/blog-autopilot.server";
 import { claudeText, jsonAusText } from "@/server/blog-analysis.server";
+import { KiLaeuftNoch } from "@/server/ki-runner.server";
 import { getGoogleAccessToken } from "@/server/google-tokens.server";
 import { gscRows, GSC_END_LAG_DAYS } from "@/server/gsc.server";
 
@@ -492,6 +493,7 @@ async function bewerten(audit: any, project: any) {
       }
     }
   } catch (e) {
+    if (e instanceof KiLaeuftNoch) throw e;
     intentFehler = String((e as Error)?.message || e).slice(0, 160);
   }
   const zahl = (c: string) => kandidaten.filter((k) => k.category === c).length;
@@ -620,6 +622,13 @@ export async function tickeKeywordAudits(budgetMs: number) {
         );
       }
     } catch (e) {
+      if (e instanceof KiLaeuftNoch) {
+        // Runner-Job läuft noch: kein Fehlversuch, nächster Takt holt ab
+        await SB.from("keyword_audits")
+          .update({ locked_until: null, updated_at: new Date().toISOString() })
+          .eq("id", audit.id);
+        continue;
+      }
       const attempts = (Number(audit.attempts) || 0) + 1;
       const endgueltig = attempts >= MAX_VERSUCHE;
       const msg = String((e as Error)?.message || e).slice(0, 300);
