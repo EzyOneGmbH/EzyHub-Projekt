@@ -14,7 +14,7 @@ export class KiLaeuftNoch extends Error {
 
 const URL_RUNNER = () =>
   (process.env.AGENT_RUNNER_URL || "https://gsc-runner.ezyhub.ch").replace(/\/+$/, "");
-const SECRET = () => process.env.AGENT_RUNNER_SECRET || "";
+const SECRET = () => (process.env.AGENT_RUNNER_SECRET || "").trim().replace(/^["']|["']$/g, "");
 
 /** Runner statt API, sobald das Runner-Secret gesetzt ist (BLOG_KI=api erzwingt die API). */
 export function runnerAktiv(): boolean {
