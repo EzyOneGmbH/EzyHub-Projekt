@@ -125,14 +125,18 @@ export function zaehleCta(html: string): number {
   return (String(html || "").match(/<div class="ezyrank-cta">/gi) || []).length;
 }
 
-/** Modell-HTML aufräumen: kein h1, kein script/style, keine Inline-Handler. */
+/** Modell-HTML aufräumen: Attribute in "…", kein h1, kein script/style, keine Inline-Handler. */
 export function bereinigeHtml(html: string): string {
-  return String(html || "")
-    .replace(/<(script|style|iframe)[\s\S]*?<\/\1>/gi, "")
-    .replace(/<h1\b[^>]*>([\s\S]*?)<\/h1>/gi, "<h2>$1</h2>")
-    .replace(/\son\w+="[^"]*"/gi, "")
-    .replace(/```(html)?/gi, "")
-    .trim();
+  return (
+    String(html || "")
+      // Attribute einheitlich in doppelten Anführungszeichen (Link- und Claim-Prüfung)
+      .replace(/<[^>]+>/g, (tag) => tag.replace(/([\w-]+)='([^'"]*)'/g, '$1="$2"'))
+      .replace(/<(script|style|iframe)[\s\S]*?<\/\1>/gi, "")
+      .replace(/<h1\b[^>]*>([\s\S]*?)<\/h1>/gi, "<h2>$1</h2>")
+      .replace(/\son\w+="[^"]*"/gi, "")
+      .replace(/```(html)?/gi, "")
+      .trim()
+  );
 }
 
 export function hrefsVon(html: string): string[] {

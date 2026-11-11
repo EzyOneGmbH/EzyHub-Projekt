@@ -99,6 +99,28 @@ describe("CTA-Block", () => {
   });
 });
 
+describe("Anführungszeichen", () => {
+  it("einfache Anführungszeichen werden vor Link- und Claim-Prüfung vereinheitlicht", () => {
+    const html = bereinigeHtml(
+      "<p><a href='https://www.solafrica.ch/x'>M</a> <span data-claim='1'>13 % ohne Wasser.</span></p>",
+    );
+    const r = bereinigeLinks(html, {
+      eigen: "faithinhumanity.ch",
+      gesperrt: ["solafrica.ch"],
+      erreichbar: () => true,
+    });
+    expect(r.html).not.toContain("solafrica");
+    const c = pruefeBehauptungen({
+      html,
+      claims: [{ n: 1, quelle_url: null }],
+      quellen: [],
+      eigen: "x.ch",
+    });
+    expect(c.find((x) => x.n === 1)?.status).toBe("offen");
+    expect(bereinigeHtml("<p>Es ist's gut</p>")).toBe("<p>Es ist's gut</p>");
+  });
+});
+
 describe("Links", () => {
   it("Mitbewerber und tote Links fallen weg, extern nofollow, intern bleibt", () => {
     const html =
