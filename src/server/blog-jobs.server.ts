@@ -6,7 +6,7 @@
 import type { TickErgebnis } from "./worker-scheduler.server";
 import { tickeBlogAnalysen } from "./blog-analysis.server";
 import { planeWochenAudits, tickeKeywordAudits } from "./blog-audit.server";
-import { planeArtikel, tickeBlogArtikel } from "./blog-pipeline.server";
+import { planeArtikel, planeNachpruefung, tickeBlogArtikel } from "./blog-pipeline.server";
 
 export async function tickeBlogJobs(budgetMs: number): Promise<TickErgebnis> {
   const start = Date.now();
@@ -14,6 +14,7 @@ export async function tickeBlogJobs(budgetMs: number): Promise<TickErgebnis> {
   const a = await tickeBlogAnalysen(budgetMs);
   const b = await tickeKeywordAudits(budgetMs - (Date.now() - start));
   await planeArtikel().catch(() => 0);
+  await planeNachpruefung().catch(() => 0);
   const c = await tickeBlogArtikel(budgetMs - (Date.now() - start));
   return {
     getickt: a.getickt + b.getickt + c.getickt,

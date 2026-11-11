@@ -39,6 +39,43 @@ describe("Faktencheck (Kap. 10 Pipeline)", () => {
     expect(c.some((x) => x.text.includes("13 %"))).toBe(true);
   });
 
+  it("Reste rund um markierte Behauptungen sind kein eigener Satz (Fehlalarm «Overview 2026»)", () => {
+    const q = "https://www.unocha.org/gho-2026";
+    const html =
+      "<h2>Wie gross ist der Bedarf 2026?</h2>" +
+      `<p>Die UNO veröffentlicht jedes Jahr einen Hilfsaufruf. Laut dem <a href="${q}">Global Humanitarian Overview 2026 der UNO-Nothilfekoordination OCHA</a> ` +
+      '<span data-claim="2">benötigen 239 Millionen Menschen humanitäre Hilfe.</span> ' +
+      '<span data-claim="3">Der Gesamtaufruf beträgt 33 Milliarden US-Dollar.</span></p>' +
+      '<p>Gleichzeitig fehlt das Geld: <span data-claim="4">Der Aufruf des Vorjahres war nur mit rund 12 Milliarden US-Dollar finanziert.</span> ' +
+      'Afrika ist besonders betroffen. <span data-claim="5">An der Spitze steht 2026 der Sudan mit 33,7 Millionen Menschen in Not</span>, wie die OCHA-Übersicht «At a glance» zeigt.</p>';
+    const c = pruefeBehauptungen({
+      html,
+      claims: [2, 3, 4, 5].map((n) => ({ n, typ: "statistik", quelle_url: q })),
+      quellen: [q],
+      eigen: "faithinhumanity.ch",
+    });
+    expect(c.map((x) => x.n)).toEqual([2, 3, 4, 5]);
+    expect(c.every((x) => x.status === "belegt")).toBe(true);
+  });
+
+  it("unmarkierte Zahl neben einer markierten Behauptung bleibt offen, mit ganzem Satz", () => {
+    const html =
+      '<p>Im Dorf leben rund 2000 Kinder, <span data-claim="1">13 % davon ohne sauberes Wasser.</span></p>' +
+      "<p>Absatz ohne Punkt am Ende</p><p>Der Verein wurde 2018 gegründet.</p>";
+    const c = pruefeBehauptungen({
+      html,
+      claims: [{ n: 1, quelle_url: "https://faithinhumanity.ch/projekte/" }],
+      quellen: [],
+      eigen: "faithinhumanity.ch",
+    });
+    const ohne = c.filter((x) => x.n >= 1000).map((x) => x.text);
+    expect(ohne).toEqual([
+      "Im Dorf leben rund 2000 Kinder, 13 % davon ohne sauberes Wasser.",
+      "Der Verein wurde 2018 gegründet.",
+    ]);
+    expect(c.find((x) => x.n === 1)?.status).toBe("belegt");
+  });
+
   it("markierte Behauptung mit Recherche-Quelle ist belegt, ohne Quelle offen", () => {
     const html =
       '<p><span data-claim="1">2 Milliarden Menschen haben kein sicheres Trinkwasser.</span> ' +

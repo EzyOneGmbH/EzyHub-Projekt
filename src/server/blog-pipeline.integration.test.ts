@@ -88,7 +88,8 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: { from: (t: string) => builder(t) },
 }));
 
-const { planeArtikel, tickeBlogArtikel, datumZuerich } = await import("./blog-pipeline.server");
+const { planeArtikel, planeNachpruefung, tickeBlogArtikel, datumZuerich, PRUEF_VERSION } =
+  await import("./blog-pipeline.server");
 
 const JETZT = new Date("2026-11-11T07:00:00Z");
 
@@ -153,6 +154,32 @@ describe("planeArtikel", () => {
   it("pausierte Projekte bekommen keine Artikel", async () => {
     db.blog_projects[0].status = "paused";
     expect(await planeArtikel(JETZT)).toBe(0);
+  });
+});
+
+describe("planeNachpruefung", () => {
+  it("prüft Artikel mit alter Prüf-Version einmal neu, von Hand bearbeitete nicht", async () => {
+    const basis = { project_id: P, client_id: C, status: "faktencheck", stage: "pruefen" };
+    db.blog_articles.push(
+      { ...basis, id: "alt", attempts: 1, finished_at: "x", pruefung: { claims_offen: 1 } },
+      { ...basis, id: "hand", pruefung: { claims_offen: 1, manuell: true } },
+      { ...basis, id: "neu", pruefung: { v: PRUEF_VERSION, claims_offen: 1 } },
+      { ...basis, id: "fertig", status: "entwurf_wp", pruefung: { claims_offen: 0 } },
+    );
+    expect(await planeNachpruefung()).toBe(1);
+    const a = db.blog_articles.find((x) => x.id === "alt");
+    expect(a).toMatchObject({
+      status: "freigegeben",
+      stage: "pruefen",
+      attempts: 0,
+      finished_at: null,
+    });
+    expect(db.blog_articles.filter((x) => x.id !== "alt").map((x) => x.status)).toEqual([
+      "faktencheck",
+      "faktencheck",
+      "entwurf_wp",
+    ]);
+    expect(db.blog_events.filter((e) => e.type === "article.recheck")).toHaveLength(1);
   });
 });
 

@@ -31,6 +31,8 @@ const MAX_VERSUCHE = 3;
 export const MAX_PARALLEL = 2;
 /** Plugin-Version mit Kommentare/Pings zu und Bildern aus der eigenen Mediathek. */
 const PLUGIN_EIGENE_BILDER = "2.0.1";
+/** Version des Faktenchecks. Erhöhen, wenn die Prüfung besser wird: löst die Nachprüfung aus. */
+export const PRUEF_VERSION = 2;
 
 // ── Reine Helfer (vitest) ───────────────────────────────────────────────────
 
@@ -189,9 +191,19 @@ const CLAIM_SPAN = /<span data-claim="(\d+)">([\s\S]*?)<\/span>/gi;
 const ZAHL_RE =
   /(\d[\d'’.,]*\s*(%|prozent|chf|fr\.|franken|mio\.?|millionen|milliarden|liter))|(\b\d{3,}\b)|(\b\d+[.,]\d+\b)/i;
 
+/** Platzhalter für eine markierte Behauptung im Fliesstext (Unicode-Privatbereich). */
+const PLATZ = "\uE000";
+const PLATZ_RE = /\uE000[.!?]?/g;
+/**
+ * Jahreszahl als Angabe zum Kontext («… Overview 2026 der UNO», «Stand 2024»).
+ * Nicht, wenn eine Einheit oder ein Nomen folgt: «2000 Kinder» ist eine Menge.
+ */
+const JAHR_RE =
+  /\b(19[5-9]\d|20[0-4]\d)\b(?!\s*(%|prozent|chf|fr\.|franken|mio|millionen|milliarden|liter)|\s+[A-ZÄÖÜ])/g;
+
 function satzListe(text: string): string[] {
   return text
-    .split(/(?<=[.!?])\s+(?=[A-ZÄÖÜ«"„0-9])/)
+    .split(/(?<=[.!?])\s+(?=[A-ZÄÖÜ«"„0-9\uE000])/)
     .map((s) => s.trim())
     .filter(Boolean);
 }
@@ -225,22 +237,41 @@ export function pruefeBehauptungen(opts: {
       status: belegt ? "belegt" : "offen",
     });
   }
-  // unmarkierte Zahlen
-  const ohneSpans = String(opts.html || "")
-    .replace(CLAIM_SPAN, " ")
+  // Unmarkierte Zahlen. Markierte Behauptungen bleiben als Platzhalter im Satz
+  // stehen, damit die Satzgrenzen stimmen: Sonst wachsen die Reste rund um die
+  // Markierungen zu einem Scheinsatz zusammen.
+  const innen: string[] = [];
+  const mitPlatz = String(opts.html || "")
     .replace(CTA_RE, " ")
-    // Links nur als Text; Überschriften enthalten keine Belege
-    .replace(/<h[1-6]\b[^>]*>[\s\S]*?<\/h[1-6]>/gi, " ");
+    // Überschriften enthalten keine Belege
+    .replace(/<h[1-6]\b[^>]*>[\s\S]*?<\/h[1-6]>/gi, " ")
+    .replace(CLAIM_SPAN, (_g, _n: string, inner: string) => {
+      const text = htmlZuText(inner);
+      innen.push(text);
+      return ` ${PLATZ}${/[.!?]$/.exec(text)?.[0] ?? ""} `;
+    });
   let n = 1000;
-  for (const satz of satzListe(htmlZuText(ohneSpans))) {
-    if (ZAHL_RE.test(satz))
-      out.push({
-        n: n++,
-        text: satz.slice(0, 600),
-        typ: "zahl",
-        source_url: null,
-        status: "offen",
-      });
+  let i = 0;
+  for (const absatz of htmlZuText(mitPlatz).split("\n")) {
+    for (const satz of satzListe(absatz)) {
+      const hatBeleg = satz.includes(PLATZ);
+      let rest = satz.replace(PLATZ_RE, " ");
+      // Eine Jahreszahl neben einer markierten Behauptung gehört zu deren
+      // Kontext («Laut dem Bericht 2026 …»). Ohne Markierung im Satz zählt sie.
+      if (hatBeleg) rest = rest.replace(JAHR_RE, " ");
+      const ganz = satz
+        .replace(PLATZ_RE, () => innen[i++] ?? "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (ZAHL_RE.test(rest))
+        out.push({
+          n: n++,
+          text: ganz.slice(0, 600),
+          typ: "zahl",
+          source_url: null,
+          status: "offen",
+        });
+    }
   }
   return out;
 }
@@ -884,6 +915,7 @@ async function pruefen(article: any, project: any): Promise<StufeErgebnis> {
   const job = {
     ...article.job,
     pruefung: {
+      v: PRUEF_VERSION,
       links_entfernt: links.entfernt,
       claims_offen: offen.length,
       claims_belegt: endClaims.filter((c) => c.status === "belegt").length,
@@ -1013,6 +1045,42 @@ export async function planeArtikel(jetzt = new Date()): Promise<number> {
   for (const t of themen) {
     if (schon.has(t.id)) continue;
     if (await legeArtikelAn(t, "cron", null)) n++;
+  }
+  return n;
+}
+
+/**
+ * Nachprüfung: Artikel, die mit einer älteren Prüf-Version im Faktencheck
+ * hängen, laufen einmal neu durch die Stufe «pruefen» (aus dem gespeicherten
+ * Entwurf, ohne KI-Kosten). Nicht, sobald jemand von Hand Behauptungen belegt
+ * oder entfernt hat: die Stufe schreibt Text und Behauptungen neu.
+ */
+export async function planeNachpruefung(): Promise<number> {
+  const { data: rows } = await SB.from("blog_articles")
+    .select("id, project_id, pruefung:job->pruefung")
+    .eq("status", "faktencheck")
+    .limit(50);
+  let n = 0;
+  for (const a of rows ?? []) {
+    const p = a.pruefung;
+    if (!p || p.manuell || Number(p.v ?? 1) >= PRUEF_VERSION) continue;
+    const { data: neu } = await SB.from("blog_articles")
+      .update({
+        status: "freigegeben",
+        stage: "pruefen",
+        attempts: 0,
+        error: null,
+        locked_until: null,
+        finished_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", a.id)
+      .eq("status", "faktencheck")
+      .select("id")
+      .maybeSingle();
+    if (!neu) continue;
+    n++;
+    await blogEvent(a.project_id, "article.recheck", { article_id: a.id, von: p.v ?? 1 }, null);
   }
   return n;
 }
@@ -1173,7 +1241,11 @@ export async function loeseBehauptung(opts: {
     .select("id")
     .eq("article_id", article.id)
     .eq("status", "offen");
-  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  const patch: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+    // von Hand bearbeitet: keine automatische Nachprüfung mehr
+    job: { ...article.job, pruefung: { ...article.job?.pruefung, manuell: true } },
+  };
   if (html !== article.content_html) {
     patch.content_html = html;
     patch.word_count = woerter(loeseClaims(html));
