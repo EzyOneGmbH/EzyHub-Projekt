@@ -645,6 +645,33 @@ export type Database = {
           },
         ]
       }
+      ahrefs_cache: {
+        Row: {
+          endpoint: string
+          fetched_at: string
+          params: Json
+          params_hash: string
+          response: Json
+          units: number
+        }
+        Insert: {
+          endpoint: string
+          fetched_at?: string
+          params: Json
+          params_hash: string
+          response: Json
+          units?: number
+        }
+        Update: {
+          endpoint?: string
+          fetched_at?: string
+          params?: Json
+          params_hash?: string
+          response?: Json
+          units?: number
+        }
+        Relationships: []
+      }
       ai_crawler_hits: {
         Row: {
           at: string
@@ -1526,6 +1553,131 @@ export type Database = {
           },
         ]
       }
+      article_claims: {
+        Row: {
+          article_id: string
+          claim_text: string
+          claim_type: string | null
+          client_id: string
+          created_at: string
+          id: string
+          note: string | null
+          project_id: string
+          source_url: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          article_id: string
+          claim_text: string
+          claim_type?: string | null
+          client_id: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          project_id: string
+          source_url?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          article_id?: string
+          claim_text?: string
+          claim_type?: string | null
+          client_id?: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          project_id?: string
+          source_url?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "article_claims_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "blog_articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "article_claims_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "article_claims_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "blog_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      article_versions: {
+        Row: {
+          article_id: string
+          client_id: string
+          content_html: string
+          created_at: string
+          created_by: string | null
+          id: string
+          project_id: string
+          reason: string | null
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          article_id: string
+          client_id: string
+          content_html: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          project_id: string
+          reason?: string | null
+          updated_at?: string
+          version: number
+        }
+        Update: {
+          article_id?: string
+          client_id?: string
+          content_html?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          project_id?: string
+          reason?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "article_versions_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "blog_articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "article_versions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "article_versions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "blog_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_runs: {
         Row: {
           audit_type: string
@@ -1585,6 +1737,476 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      blog_analysis_runs: {
+        Row: {
+          attempts: number
+          client_id: string
+          created_at: string
+          created_by: string | null
+          error: string | null
+          events: Json
+          finished_at: string | null
+          id: string
+          locked_until: string | null
+          percent: number
+          project_id: string
+          result: Json | null
+          stage: string
+          started_at: string | null
+          state: Json
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          events?: Json
+          finished_at?: string | null
+          id?: string
+          locked_until?: string | null
+          percent?: number
+          project_id: string
+          result?: Json | null
+          stage?: string
+          started_at?: string | null
+          state?: Json
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          events?: Json
+          finished_at?: string | null
+          id?: string
+          locked_until?: string | null
+          percent?: number
+          project_id?: string
+          result?: Json | null
+          stage?: string
+          started_at?: string | null
+          state?: Json
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blog_analysis_runs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blog_analysis_runs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "blog_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      blog_articles: {
+        Row: {
+          client_id: string
+          content_html: string | null
+          created_at: string
+          error: string | null
+          excerpt: string | null
+          featured_image: Json | null
+          focus_keyword: string | null
+          id: string
+          meta_description: string | null
+          project_id: string
+          published_at: string | null
+          scheduled_for: string | null
+          schema_jsonld: Json | null
+          seo_title: string | null
+          slug: string | null
+          status: string
+          title: string | null
+          topic_id: string | null
+          updated_at: string
+          version: number
+          word_count: number | null
+          wp_category_ids: number[] | null
+          wp_edit_url: string | null
+          wp_permalink: string | null
+          wp_post_id: number | null
+          wp_tag_names: string[] | null
+        }
+        Insert: {
+          client_id: string
+          content_html?: string | null
+          created_at?: string
+          error?: string | null
+          excerpt?: string | null
+          featured_image?: Json | null
+          focus_keyword?: string | null
+          id?: string
+          meta_description?: string | null
+          project_id: string
+          published_at?: string | null
+          scheduled_for?: string | null
+          schema_jsonld?: Json | null
+          seo_title?: string | null
+          slug?: string | null
+          status?: string
+          title?: string | null
+          topic_id?: string | null
+          updated_at?: string
+          version?: number
+          word_count?: number | null
+          wp_category_ids?: number[] | null
+          wp_edit_url?: string | null
+          wp_permalink?: string | null
+          wp_post_id?: number | null
+          wp_tag_names?: string[] | null
+        }
+        Update: {
+          client_id?: string
+          content_html?: string | null
+          created_at?: string
+          error?: string | null
+          excerpt?: string | null
+          featured_image?: Json | null
+          focus_keyword?: string | null
+          id?: string
+          meta_description?: string | null
+          project_id?: string
+          published_at?: string | null
+          scheduled_for?: string | null
+          schema_jsonld?: Json | null
+          seo_title?: string | null
+          slug?: string | null
+          status?: string
+          title?: string | null
+          topic_id?: string | null
+          updated_at?: string
+          version?: number
+          word_count?: number | null
+          wp_category_ids?: number[] | null
+          wp_edit_url?: string | null
+          wp_permalink?: string | null
+          wp_post_id?: number | null
+          wp_tag_names?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blog_articles_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blog_articles_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "blog_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blog_articles_topic_id_fkey"
+            columns: ["topic_id"]
+            isOneToOne: false
+            referencedRelation: "blog_topics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      blog_competitors: {
+        Row: {
+          client_id: string
+          created_at: string
+          domain: string
+          id: string
+          project_id: string
+          source: string
+          updated_at: string
+          validated: boolean
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          domain: string
+          id?: string
+          project_id: string
+          source: string
+          updated_at?: string
+          validated?: boolean
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          domain?: string
+          id?: string
+          project_id?: string
+          source?: string
+          updated_at?: string
+          validated?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blog_competitors_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blog_competitors_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "blog_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      blog_events: {
+        Row: {
+          actor: string | null
+          article_id: string | null
+          client_id: string
+          created_at: string
+          id: string
+          payload: Json | null
+          project_id: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          actor?: string | null
+          article_id?: string | null
+          client_id: string
+          created_at?: string
+          id?: string
+          payload?: Json | null
+          project_id: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          actor?: string | null
+          article_id?: string | null
+          client_id?: string
+          created_at?: string
+          id?: string
+          payload?: Json | null
+          project_id?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blog_events_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "blog_articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blog_events_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blog_events_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "blog_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      blog_projects: {
+        Row: {
+          ahrefs_units_limit: number
+          articles_per_month: number | null
+          audiences: string[]
+          auto_remove_unsourced: boolean
+          client_id: string
+          created_at: string
+          created_by: string | null
+          cta_blocks: Json
+          description: string | null
+          domain: string
+          excluded_domains: string[]
+          ga4_stream_id: string | null
+          id: string
+          image_style: string | null
+          internal_links: number
+          language: string
+          local_business: boolean
+          market: string
+          min_impressions: number
+          min_volume: number
+          name: string | null
+          onboarding_step: number
+          publish_mode: string
+          publish_time: string
+          status: string
+          timezone: string
+          tone: string
+          updated_at: string
+        }
+        Insert: {
+          ahrefs_units_limit?: number
+          articles_per_month?: number | null
+          audiences?: string[]
+          auto_remove_unsourced?: boolean
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          cta_blocks?: Json
+          description?: string | null
+          domain: string
+          excluded_domains?: string[]
+          ga4_stream_id?: string | null
+          id?: string
+          image_style?: string | null
+          internal_links?: number
+          language?: string
+          local_business?: boolean
+          market?: string
+          min_impressions?: number
+          min_volume?: number
+          name?: string | null
+          onboarding_step?: number
+          publish_mode?: string
+          publish_time?: string
+          status?: string
+          timezone?: string
+          tone?: string
+          updated_at?: string
+        }
+        Update: {
+          ahrefs_units_limit?: number
+          articles_per_month?: number | null
+          audiences?: string[]
+          auto_remove_unsourced?: boolean
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          cta_blocks?: Json
+          description?: string | null
+          domain?: string
+          excluded_domains?: string[]
+          ga4_stream_id?: string | null
+          id?: string
+          image_style?: string | null
+          internal_links?: number
+          language?: string
+          local_business?: boolean
+          market?: string
+          min_impressions?: number
+          min_volume?: number
+          name?: string | null
+          onboarding_step?: number
+          publish_mode?: string
+          publish_time?: string
+          status?: string
+          timezone?: string
+          tone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blog_projects_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      blog_topics: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          article_type: string | null
+          client_id: string
+          cluster: string | null
+          created_at: string
+          difficulty: number | null
+          id: string
+          keyword: string
+          kind: string
+          opportunity_id: string | null
+          project_id: string
+          refresh_wp_post_id: number | null
+          scheduled_for: string | null
+          updated_at: string
+          volume: number | null
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          article_type?: string | null
+          client_id: string
+          cluster?: string | null
+          created_at?: string
+          difficulty?: number | null
+          id?: string
+          keyword: string
+          kind?: string
+          opportunity_id?: string | null
+          project_id: string
+          refresh_wp_post_id?: number | null
+          scheduled_for?: string | null
+          updated_at?: string
+          volume?: number | null
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          article_type?: string | null
+          client_id?: string
+          cluster?: string | null
+          created_at?: string
+          difficulty?: number | null
+          id?: string
+          keyword?: string
+          kind?: string
+          opportunity_id?: string | null
+          project_id?: string
+          refresh_wp_post_id?: number | null
+          scheduled_for?: string | null
+          updated_at?: string
+          volume?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blog_topics_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blog_topics_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "keyword_opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blog_topics_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "blog_projects"
             referencedColumns: ["id"]
           },
         ]
@@ -2195,6 +2817,57 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_facts: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          label: string
+          project_id: string
+          source_url: string | null
+          updated_at: string
+          value: string
+          verified_at: string | null
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          label: string
+          project_id: string
+          source_url?: string | null
+          updated_at?: string
+          value: string
+          verified_at?: string | null
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          label?: string
+          project_id?: string
+          source_url?: string | null
+          updated_at?: string
+          value?: string
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_facts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_facts_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "blog_projects"
             referencedColumns: ["id"]
           },
         ]
@@ -3124,6 +3797,169 @@ export type Database = {
           },
         ]
       }
+      keyword_audits: {
+        Row: {
+          attempts: number
+          client_id: string
+          created_at: string
+          created_by: string | null
+          error: string | null
+          events: Json
+          finished_at: string | null
+          id: string
+          locked_until: string | null
+          percent: number
+          project_id: string
+          sources: Json | null
+          stage: string
+          started_at: string | null
+          state: Json
+          status: string
+          trigger: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          events?: Json
+          finished_at?: string | null
+          id?: string
+          locked_until?: string | null
+          percent?: number
+          project_id: string
+          sources?: Json | null
+          stage?: string
+          started_at?: string | null
+          state?: Json
+          status?: string
+          trigger?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          events?: Json
+          finished_at?: string | null
+          id?: string
+          locked_until?: string | null
+          percent?: number
+          project_id?: string
+          sources?: Json | null
+          stage?: string
+          started_at?: string | null
+          state?: Json
+          status?: string
+          trigger?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "keyword_audits_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "keyword_audits_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "blog_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      keyword_opportunities: {
+        Row: {
+          audit_id: string
+          avg_position: number | null
+          category: string
+          client_id: string
+          cluster: string | null
+          covered_by_url: string | null
+          created_at: string
+          decision: string
+          difficulty: number | null
+          id: string
+          impressions: number | null
+          keyword: string
+          parent_topic: string | null
+          position_delta: number | null
+          project_id: string
+          reason: string
+          updated_at: string
+          volume: number | null
+        }
+        Insert: {
+          audit_id: string
+          avg_position?: number | null
+          category: string
+          client_id: string
+          cluster?: string | null
+          covered_by_url?: string | null
+          created_at?: string
+          decision?: string
+          difficulty?: number | null
+          id?: string
+          impressions?: number | null
+          keyword: string
+          parent_topic?: string | null
+          position_delta?: number | null
+          project_id: string
+          reason: string
+          updated_at?: string
+          volume?: number | null
+        }
+        Update: {
+          audit_id?: string
+          avg_position?: number | null
+          category?: string
+          client_id?: string
+          cluster?: string | null
+          covered_by_url?: string | null
+          created_at?: string
+          decision?: string
+          difficulty?: number | null
+          id?: string
+          impressions?: number | null
+          keyword?: string
+          parent_topic?: string | null
+          position_delta?: number | null
+          project_id?: string
+          reason?: string
+          updated_at?: string
+          volume?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "keyword_opportunities_audit_id_fkey"
+            columns: ["audit_id"]
+            isOneToOne: false
+            referencedRelation: "keyword_audits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "keyword_opportunities_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "keyword_opportunities_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "blog_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       login_ansicht: {
         Row: {
           ansicht: string
@@ -3888,6 +4724,120 @@ export type Database = {
         }
         Relationships: []
       }
+      wp_connections: {
+        Row: {
+          capabilities: Json | null
+          client_id: string
+          created_at: string
+          id: string
+          key_enc: string | null
+          last_checked_at: string | null
+          last_error_code: string | null
+          plugin_version: string | null
+          project_id: string
+          scopes: string[]
+          site_url: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          capabilities?: Json | null
+          client_id: string
+          created_at?: string
+          id?: string
+          key_enc?: string | null
+          last_checked_at?: string | null
+          last_error_code?: string | null
+          plugin_version?: string | null
+          project_id: string
+          scopes?: string[]
+          site_url: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          capabilities?: Json | null
+          client_id?: string
+          created_at?: string
+          id?: string
+          key_enc?: string | null
+          last_checked_at?: string | null
+          last_error_code?: string | null
+          plugin_version?: string | null
+          project_id?: string
+          scopes?: string[]
+          site_url?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wp_connections_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wp_connections_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "blog_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      writing_rules: {
+        Row: {
+          active: boolean
+          anchor_excerpt: string | null
+          client_id: string
+          created_at: string
+          id: string
+          project_id: string
+          rule: string
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          anchor_excerpt?: string | null
+          client_id: string
+          created_at?: string
+          id?: string
+          project_id: string
+          rule: string
+          source: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          anchor_excerpt?: string | null
+          client_id?: string
+          created_at?: string
+          id?: string
+          project_id?: string
+          rule?: string
+          source?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "writing_rules_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "writing_rules_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "blog_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       ads_agent_scorecard: {
@@ -3963,6 +4913,7 @@ export type Database = {
         Returns: undefined
       }
       analyse_worker_watchdog: { Args: { _jetzt?: string }; Returns: Json }
+      blog_autopilot_enabled: { Args: { _client_id: string }; Returns: boolean }
       can_access_client: { Args: { _client_id: string }; Returns: boolean }
       can_edit_client: { Args: { _client_id: string }; Returns: boolean }
       can_run_audits: { Args: { _org: string }; Returns: boolean }
