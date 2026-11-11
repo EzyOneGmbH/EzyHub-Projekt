@@ -900,6 +900,13 @@ async function pruefen(article: any, project: any): Promise<StufeErgebnis> {
 export async function sendeAnWordpress(article: any, project: any) {
   const wp = await wpVerbindung(project.id);
   if (!wp) throw new Error("WordPress ist nicht verbunden");
+  // Plugin-Version live lesen (nach einem Update ist der gespeicherte Wert alt)
+  const health = await ezrRequest(wp.conn, "GET", "/health");
+  const live = health.ok ? String(health.data?.plugin_version || "") : "";
+  if (live && live !== wp.plugin_version) {
+    wp.plugin_version = live;
+    await SB.from("wp_connections").update({ plugin_version: live }).eq("project_id", project.id);
+  }
   // Vorgabe Ezy One: Kommentare/Pings immer zu – das garantiert erst das Plugin ab 2.0.1
   if (!versionAb(wp.plugin_version, PLUGIN_EIGENE_BILDER))
     throw new Error(
