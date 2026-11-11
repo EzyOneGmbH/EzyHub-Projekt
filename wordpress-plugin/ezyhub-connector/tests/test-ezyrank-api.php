@@ -131,6 +131,19 @@ class Test_EzyRank_Api extends WP_UnitTestCase {
         $this->assertSame('draft', $b->get_data()['status']);
     }
 
+    public function test_kommentare_und_pings_immer_geschlossen() {
+        update_option('default_comment_status', 'open');
+        update_option('default_ping_status', 'open');
+        $a = $this->req('POST', '/posts', $this->artikel());
+        $id = $a->get_data()['post_id'];
+        $this->assertSame('closed', get_post($id)->comment_status);
+        $this->assertSame('closed', get_post($id)->ping_status);
+        wp_update_post(['ID' => $id, 'comment_status' => 'open', 'ping_status' => 'open']);
+        $this->req('POST', '/posts', $this->artikel(['title' => 'Update']));
+        $this->assertSame('closed', get_post($id)->comment_status);
+        $this->assertSame('closed', get_post($id)->ping_status);
+    }
+
     public function test_update_ohne_kategorie_laesst_kategorie_unveraendert() {
         $cat = self::factory()->category->create(['name' => 'Wasser']);
         $a = $this->req('POST', '/posts', $this->artikel(['category_ids' => [$cat], 'tags' => ['afrika']]));
@@ -138,6 +151,30 @@ class Test_EzyRank_Api extends WP_UnitTestCase {
         $this->req('POST', '/posts', $this->artikel(['title' => 'Ohne Kategorie im Update']));
         $this->assertSame([$cat], wp_get_post_categories($id));
         $this->assertSame(['afrika'], wp_get_post_tags($id, ['fields' => 'names']));
+    }
+
+    public function test_bild_aus_eigener_mediathek_ohne_neuen_upload() {
+        $att = self::factory()->attachment->create_object([
+            'file' => '2026/11/brunnen.jpg', 'post_mime_type' => 'image/jpeg', 'post_type' => 'attachment',
+        ]);
+        $vorher = count(get_posts(['post_type' => 'attachment', 'numberposts' => -1, 'post_status' => 'any']));
+        $url = wp_upload_dir()['baseurl'] . '/2026/11/brunnen-800x600.jpg';
+        $res = $this->req('POST', '/posts', $this->artikel([
+            'external_id' => 'b0c1d2e3-0000-4000-8000-0000000000aa',
+            'featured_image' => ['url' => $url, 'alt' => 'Brunnen im Dorf'],
+        ]));
+        $this->assertSame(200, $res->get_status(), wp_json_encode($res->get_data()));
+        $this->assertSame($att, (int) get_post_thumbnail_id($res->get_data()['post_id']));
+        $nachher = count(get_posts(['post_type' => 'attachment', 'numberposts' => -1, 'post_status' => 'any']));
+        $this->assertSame($vorher, $nachher);
+        $this->assertSame('Brunnen im Dorf', get_post_meta($att, '_wp_attachment_image_alt', true));
+    }
+
+    public function test_bild_eigene_website_ausserhalb_mediathek_abgelehnt() {
+        $res = $this->req('POST', '/posts', $this->artikel([
+            'featured_image' => ['url' => home_url('/wp-content/themes/x/logo.png'), 'alt' => 'x'],
+        ]));
+        $this->assertSame(422, $res->get_status());
     }
 
     public function test_bild_von_fremder_domain_wird_abgelehnt() {

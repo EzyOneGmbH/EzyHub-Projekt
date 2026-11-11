@@ -113,6 +113,9 @@ class EzyRank_Posts {
             'post_type'    => 'post',
             'post_title'   => $title,
             'post_content' => EzyRank_Sanitizer::clean($html),
+            // Vorgabe Ezy One: Kommentare und Pings bei EzyRank-Beiträgen immer zu.
+            'comment_status' => 'closed',
+            'ping_status'    => 'closed',
         ];
         if (isset($params['excerpt'])) $data['post_excerpt'] = sanitize_textarea_field($params['excerpt']);
         if (isset($params['slug'])) $data['post_name'] = sanitize_title($params['slug']);

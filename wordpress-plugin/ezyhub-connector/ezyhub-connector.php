@@ -2,7 +2,7 @@
 /**
  * Plugin Name: EzyHub Connector
  * Description: Lässt EzyHub technische SEO-Maßnahmen autonom deployen — <head>-Injektion (JSON-LD, OG, Meta), llms.txt, Seiten-Meta, Canonical/Noindex, robots.txt, Sitemap-Optimierung, Bild-Alt-Texte und Elementor-Editing (Headings + Text-Widgets) mit automatischem Backup/Restore. Auth via Application Passwords (manage_options). Alle Änderungen reversibel. Ab 2.0 zusätzlich die EzyRank-Schnittstelle für den Blog-Autopiloten (Namespace ezyrank/v1, eigener Verbindungsschlüssel mit Berechtigungen, Einstellungen › EzyRank).
- * Version: 2.0.0
+ * Version: 2.0.1
  * Author: EzyOne GmbH
  * License: GPL-2.0+
  * Requires at least: 6.0
@@ -27,7 +27,7 @@ class EzyHub_Connector {
     // Muss mit dem Plugin-Header uebereinstimmen. /status meldete frueher eine
     // hartcodierte, nie mitgepflegte Zahl ('1.9.6') — das erzeugte falsche
     // Versions-Drift-Diagnosen.
-    const VERSION      = '2.0.0';
+    const VERSION      = '2.0.1';
 
     // ── Elementor-Widget-Map (v1.9.12) ────────────────────────────────────────
     // Blind-Spot-Fix: /elementor/headings matchte nur widgetType 'heading' —

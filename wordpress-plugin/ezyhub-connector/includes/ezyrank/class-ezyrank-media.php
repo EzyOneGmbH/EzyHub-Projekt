@@ -2,7 +2,8 @@
 /**
  * Bilder in die Mediathek laden (Kap. 7.5 Punkt 5). Bild-URLs nur von der
  * EzyHub-Storage-Domain (Konstante EZYRANK_STORAGE_HOST, überschreibbar nur in
- * wp-config.php). Gleiche Quelle (URL ohne Query/Signatur) wird
+ * wp-config.php) oder bereits vorhandene Bilder der eigenen Mediathek (ab 2.0.1,
+ * ohne neuen Upload). Gleiche Quelle (URL ohne Query/Signatur) wird
  * wiederverwendet statt erneut hochgeladen.
  */
 
@@ -17,9 +18,47 @@ class EzyRank_Media {
         return strtolower($p['host']) === strtolower(EZYRANK_STORAGE_HOST);
     }
 
+    /** Gehört die URL zur eigenen Website (mit/ohne www)? */
+    public static function own_host($url) {
+        $h = strtolower((string) wp_parse_url((string) $url, PHP_URL_HOST));
+        $own = strtolower((string) wp_parse_url(home_url(), PHP_URL_HOST));
+        $norm = function ($x) { return preg_replace('/^www\./', '', $x); };
+        return $h !== '' && $own !== '' && $norm($h) === $norm($own);
+    }
+
+    /**
+     * Bild aus der eigenen Mediathek (URL der eigenen Website, auch
+     * Grössenvariante «-800x600») → Attachment-ID, ohne erneuten Upload.
+     */
+    public static function own_attachment($url) {
+        $clean = strtok((string) $url, '?');
+        $id = (int) attachment_url_to_postid($clean);
+        if (!$id) {
+            $full = preg_replace('/-\d+x\d+(\.[a-z0-9]+)$/i', '$1', $clean);
+            if ($full !== $clean) $id = (int) attachment_url_to_postid($full);
+        }
+        if (!$id) {
+            // «-scaled» (WordPress verkleinert grosse Uploads)
+            $scaled = preg_replace('/(\.[a-z0-9]+)$/i', '-scaled$1', preg_replace('/-\d+x\d+(\.[a-z0-9]+)$/i', '$1', $clean));
+            $id = (int) attachment_url_to_postid($scaled);
+        }
+        return $id && wp_attachment_is_image($id) ? $id : 0;
+    }
+
     /** Liefert Attachment-ID oder WP_Error(ezr_image_failed). */
     public static function sideload($url, $alt, $parent_id = 0) {
         $url = (string) $url;
+        if (self::own_host($url)) {
+            $id = self::own_attachment($url);
+            if (!$id) {
+                return new WP_Error('ezr_image_failed', 'Bild der eigenen Website ist nicht in der Mediathek.', ['status' => 422]);
+            }
+            // Bestehenden Alt-Text des Kunden nicht überschreiben
+            if ($alt !== null && $alt !== '' && get_post_meta($id, '_wp_attachment_image_alt', true) === '') {
+                update_post_meta($id, '_wp_attachment_image_alt', sanitize_text_field($alt));
+            }
+            return $id;
+        }
         if (!self::host_allowed($url)) {
             return new WP_Error('ezr_image_failed', 'Bild-URL nicht erlaubt: nur Bilder aus dem EzyHub-Speicher.', ['status' => 422]);
         }
