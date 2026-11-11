@@ -1818,14 +1818,18 @@ export type Database = {
       }
       blog_articles: {
         Row: {
+          attempts: number
           client_id: string
           content_html: string | null
           created_at: string
           error: string | null
           excerpt: string | null
           featured_image: Json | null
+          finished_at: string | null
           focus_keyword: string | null
           id: string
+          job: Json
+          locked_until: string | null
           meta_description: string | null
           project_id: string
           published_at: string | null
@@ -1833,6 +1837,8 @@ export type Database = {
           schema_jsonld: Json | null
           seo_title: string | null
           slug: string | null
+          stage: string | null
+          started_at: string | null
           status: string
           title: string | null
           topic_id: string | null
@@ -1846,14 +1852,18 @@ export type Database = {
           wp_tag_names: string[] | null
         }
         Insert: {
+          attempts?: number
           client_id: string
           content_html?: string | null
           created_at?: string
           error?: string | null
           excerpt?: string | null
           featured_image?: Json | null
+          finished_at?: string | null
           focus_keyword?: string | null
           id?: string
+          job?: Json
+          locked_until?: string | null
           meta_description?: string | null
           project_id: string
           published_at?: string | null
@@ -1861,6 +1871,8 @@ export type Database = {
           schema_jsonld?: Json | null
           seo_title?: string | null
           slug?: string | null
+          stage?: string | null
+          started_at?: string | null
           status?: string
           title?: string | null
           topic_id?: string | null
@@ -1874,14 +1886,18 @@ export type Database = {
           wp_tag_names?: string[] | null
         }
         Update: {
+          attempts?: number
           client_id?: string
           content_html?: string | null
           created_at?: string
           error?: string | null
           excerpt?: string | null
           featured_image?: Json | null
+          finished_at?: string | null
           focus_keyword?: string | null
           id?: string
+          job?: Json
+          locked_until?: string | null
           meta_description?: string | null
           project_id?: string
           published_at?: string | null
@@ -1889,6 +1905,8 @@ export type Database = {
           schema_jsonld?: Json | null
           seo_title?: string | null
           slug?: string | null
+          stage?: string | null
+          started_at?: string | null
           status?: string
           title?: string | null
           topic_id?: string | null
