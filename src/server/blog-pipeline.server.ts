@@ -29,7 +29,7 @@ export type Modus = "neu" | "refresh" | "vorschlag";
 const MAX_VERSUCHE = 3;
 /** Gleichzeitig laufende Artikel je Projekt (Schutz vor Doppelklick/Kosten). */
 export const MAX_PARALLEL = 2;
-/** Plugin-Version, ab der Bilder der eigenen Mediathek angenommen werden. */
+/** Plugin-Version mit Kommentare/Pings zu und Bildern aus der eigenen Mediathek. */
 const PLUGIN_EIGENE_BILDER = "2.0.1";
 
 // ── Reine Helfer (vitest) ───────────────────────────────────────────────────
@@ -896,6 +896,11 @@ async function pruefen(article: any, project: any): Promise<StufeErgebnis> {
 export async function sendeAnWordpress(article: any, project: any) {
   const wp = await wpVerbindung(project.id);
   if (!wp) throw new Error("WordPress ist nicht verbunden");
+  // Vorgabe Ezy One: Kommentare/Pings immer zu – das garantiert erst das Plugin ab 2.0.1
+  if (!versionAb(wp.plugin_version, PLUGIN_EIGENE_BILDER))
+    throw new Error(
+      `EzyHub Connector ${wp.plugin_version || "?"} ist zu alt: bitte auf ${PLUGIN_EIGENE_BILDER} aktualisieren (Kommentare/Pings zu, Bilder)`,
+    );
   const modus = article.job?.modus ?? "neu";
   const eigeneBilder = versionAb(wp.plugin_version, PLUGIN_EIGENE_BILDER);
   const body: Record<string, unknown> = {
