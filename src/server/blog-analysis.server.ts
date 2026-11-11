@@ -324,6 +324,7 @@ export async function claudeText(opts: {
   maxTokens: number;
   websuche?: number;
   timeoutMs: number;
+  modell?: string;
 }): Promise<string> {
   if (runnerAktiv()) return runnerText(opts);
   const key = process.env.ANTHROPIC_API_KEY;

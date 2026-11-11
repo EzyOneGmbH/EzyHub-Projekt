@@ -180,6 +180,7 @@ import { Route as ApiWordpressPostsRouteImport } from './routes/api/wordpress.po
 import { Route as ApiWordpressPublishRouteImport } from './routes/api/wordpress.publish'
 import { Route as ApiAdminContentActionsRecommendationRouteImport } from './routes/api/admin.content-actions.recommendation'
 import { Route as ApiBlogAnalysisRunIdRouteImport } from './routes/api/blog.analysis.$runId'
+import { Route as ApiBlogArticlesIdRouteImport } from './routes/api/blog.articles.$id'
 import { Route as ApiBlogProjectsIdRouteImport } from './routes/api/blog.projects.$id'
 import { Route as ApiBlogRulesIdRouteImport } from './routes/api/blog.rules.$id'
 import { Route as ApiGoogleOauthStartRouteImport } from './routes/api/google.oauth.start'
@@ -187,8 +188,10 @@ import { Route as ApiLiveCanonryAiVisibilityRouteImport } from './routes/api/liv
 import { Route as ApiLiveCanonryOverviewRouteImport } from './routes/api/live.canonry.overview'
 import { Route as ApiV1SeoRankingChangesRouteImport } from './routes/api/v1.seo.ranking-changes'
 import { Route as EzyrankBlogEinrichtungStepRouteImport } from './routes/ezyrank_.blog.einrichtung.$step'
+import { Route as ApiBlogClaimsIdResolveRouteImport } from './routes/api/blog.claims.$id.resolve'
 import { Route as ApiBlogOpportunitiesIdDecisionRouteImport } from './routes/api/blog.opportunities.$id.decision'
 import { Route as ApiBlogProjectsIdAnalysisRouteImport } from './routes/api/blog.projects.$id.analysis'
+import { Route as ApiBlogProjectsIdArticlesRouteImport } from './routes/api/blog.projects.$id.articles'
 import { Route as ApiBlogProjectsIdAuditRouteImport } from './routes/api/blog.projects.$id.audit'
 import { Route as ApiBlogProjectsIdCompetitorsRouteImport } from './routes/api/blog.projects.$id.competitors'
 import { Route as ApiBlogProjectsIdEventsRouteImport } from './routes/api/blog.projects.$id.events'
@@ -197,6 +200,7 @@ import { Route as ApiBlogProjectsIdOpportunitiesRouteImport } from './routes/api
 import { Route as ApiBlogProjectsIdRulesRouteImport } from './routes/api/blog.projects.$id.rules'
 import { Route as ApiBlogProjectsIdStartRouteImport } from './routes/api/blog.projects.$id.start'
 import { Route as ApiBlogProjectsIdTopicsRouteImport } from './routes/api/blog.projects.$id.topics'
+import { Route as ApiBlogProjectsIdWriteNowRouteImport } from './routes/api/blog.projects.$id.write-now'
 import { Route as ApiV1ProjectsProjectIdAnalyticsRouteImport } from './routes/api/v1.projects.$projectId.analytics'
 import { Route as ApiV1ProjectsProjectIdRankingChangesRouteImport } from './routes/api/v1.projects.$projectId.ranking-changes'
 import { Route as ApiV1ProjectsProjectIdRankingsRouteImport } from './routes/api/v1.projects.$projectId.rankings'
@@ -1087,6 +1091,11 @@ const ApiBlogAnalysisRunIdRoute = ApiBlogAnalysisRunIdRouteImport.update({
   path: '/api/blog/analysis/$runId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiBlogArticlesIdRoute = ApiBlogArticlesIdRouteImport.update({
+  id: '/api/blog/articles/$id',
+  path: '/api/blog/articles/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiBlogProjectsIdRoute = ApiBlogProjectsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -1124,6 +1133,11 @@ const EzyrankBlogEinrichtungStepRoute =
     path: '/ezyrank/blog/einrichtung/$step',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiBlogClaimsIdResolveRoute = ApiBlogClaimsIdResolveRouteImport.update({
+  id: '/api/blog/claims/$id/resolve',
+  path: '/api/blog/claims/$id/resolve',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiBlogOpportunitiesIdDecisionRoute =
   ApiBlogOpportunitiesIdDecisionRouteImport.update({
     id: '/api/blog/opportunities/$id/decision',
@@ -1134,6 +1148,12 @@ const ApiBlogProjectsIdAnalysisRoute =
   ApiBlogProjectsIdAnalysisRouteImport.update({
     id: '/analysis',
     path: '/analysis',
+    getParentRoute: () => ApiBlogProjectsIdRoute,
+  } as any)
+const ApiBlogProjectsIdArticlesRoute =
+  ApiBlogProjectsIdArticlesRouteImport.update({
+    id: '/articles',
+    path: '/articles',
     getParentRoute: () => ApiBlogProjectsIdRoute,
   } as any)
 const ApiBlogProjectsIdAuditRoute = ApiBlogProjectsIdAuditRouteImport.update({
@@ -1178,6 +1198,12 @@ const ApiBlogProjectsIdTopicsRoute = ApiBlogProjectsIdTopicsRouteImport.update({
   path: '/topics',
   getParentRoute: () => ApiBlogProjectsIdRoute,
 } as any)
+const ApiBlogProjectsIdWriteNowRoute =
+  ApiBlogProjectsIdWriteNowRouteImport.update({
+    id: '/write-now',
+    path: '/write-now',
+    getParentRoute: () => ApiBlogProjectsIdRoute,
+  } as any)
 const ApiV1ProjectsProjectIdAnalyticsRoute =
   ApiV1ProjectsProjectIdAnalyticsRouteImport.update({
     id: '/$projectId/analytics',
@@ -1405,6 +1431,7 @@ export interface FileRoutesByFullPath {
   '/api/wordpress/publish': typeof ApiWordpressPublishRoute
   '/api/admin/content-actions/recommendation': typeof ApiAdminContentActionsRecommendationRoute
   '/api/blog/analysis/$runId': typeof ApiBlogAnalysisRunIdRoute
+  '/api/blog/articles/$id': typeof ApiBlogArticlesIdRoute
   '/api/blog/projects/$id': typeof ApiBlogProjectsIdRouteWithChildren
   '/api/blog/rules/$id': typeof ApiBlogRulesIdRoute
   '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
@@ -1412,8 +1439,10 @@ export interface FileRoutesByFullPath {
   '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
   '/api/v1/seo/ranking-changes': typeof ApiV1SeoRankingChangesRoute
   '/ezyrank/blog/einrichtung/$step': typeof EzyrankBlogEinrichtungStepRoute
+  '/api/blog/claims/$id/resolve': typeof ApiBlogClaimsIdResolveRoute
   '/api/blog/opportunities/$id/decision': typeof ApiBlogOpportunitiesIdDecisionRoute
   '/api/blog/projects/$id/analysis': typeof ApiBlogProjectsIdAnalysisRoute
+  '/api/blog/projects/$id/articles': typeof ApiBlogProjectsIdArticlesRoute
   '/api/blog/projects/$id/audit': typeof ApiBlogProjectsIdAuditRoute
   '/api/blog/projects/$id/competitors': typeof ApiBlogProjectsIdCompetitorsRoute
   '/api/blog/projects/$id/events': typeof ApiBlogProjectsIdEventsRoute
@@ -1422,6 +1451,7 @@ export interface FileRoutesByFullPath {
   '/api/blog/projects/$id/rules': typeof ApiBlogProjectsIdRulesRoute
   '/api/blog/projects/$id/start': typeof ApiBlogProjectsIdStartRoute
   '/api/blog/projects/$id/topics': typeof ApiBlogProjectsIdTopicsRouteWithChildren
+  '/api/blog/projects/$id/write-now': typeof ApiBlogProjectsIdWriteNowRoute
   '/api/v1/projects/$projectId/analytics': typeof ApiV1ProjectsProjectIdAnalyticsRoute
   '/api/v1/projects/$projectId/ranking-changes': typeof ApiV1ProjectsProjectIdRankingChangesRoute
   '/api/v1/projects/$projectId/rankings': typeof ApiV1ProjectsProjectIdRankingsRoute
@@ -1604,6 +1634,7 @@ export interface FileRoutesByTo {
   '/api/wordpress/publish': typeof ApiWordpressPublishRoute
   '/api/admin/content-actions/recommendation': typeof ApiAdminContentActionsRecommendationRoute
   '/api/blog/analysis/$runId': typeof ApiBlogAnalysisRunIdRoute
+  '/api/blog/articles/$id': typeof ApiBlogArticlesIdRoute
   '/api/blog/projects/$id': typeof ApiBlogProjectsIdRouteWithChildren
   '/api/blog/rules/$id': typeof ApiBlogRulesIdRoute
   '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
@@ -1611,8 +1642,10 @@ export interface FileRoutesByTo {
   '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
   '/api/v1/seo/ranking-changes': typeof ApiV1SeoRankingChangesRoute
   '/ezyrank/blog/einrichtung/$step': typeof EzyrankBlogEinrichtungStepRoute
+  '/api/blog/claims/$id/resolve': typeof ApiBlogClaimsIdResolveRoute
   '/api/blog/opportunities/$id/decision': typeof ApiBlogOpportunitiesIdDecisionRoute
   '/api/blog/projects/$id/analysis': typeof ApiBlogProjectsIdAnalysisRoute
+  '/api/blog/projects/$id/articles': typeof ApiBlogProjectsIdArticlesRoute
   '/api/blog/projects/$id/audit': typeof ApiBlogProjectsIdAuditRoute
   '/api/blog/projects/$id/competitors': typeof ApiBlogProjectsIdCompetitorsRoute
   '/api/blog/projects/$id/events': typeof ApiBlogProjectsIdEventsRoute
@@ -1621,6 +1654,7 @@ export interface FileRoutesByTo {
   '/api/blog/projects/$id/rules': typeof ApiBlogProjectsIdRulesRoute
   '/api/blog/projects/$id/start': typeof ApiBlogProjectsIdStartRoute
   '/api/blog/projects/$id/topics': typeof ApiBlogProjectsIdTopicsRouteWithChildren
+  '/api/blog/projects/$id/write-now': typeof ApiBlogProjectsIdWriteNowRoute
   '/api/v1/projects/$projectId/analytics': typeof ApiV1ProjectsProjectIdAnalyticsRoute
   '/api/v1/projects/$projectId/ranking-changes': typeof ApiV1ProjectsProjectIdRankingChangesRoute
   '/api/v1/projects/$projectId/rankings': typeof ApiV1ProjectsProjectIdRankingsRoute
@@ -1804,6 +1838,7 @@ export interface FileRoutesById {
   '/api/wordpress/publish': typeof ApiWordpressPublishRoute
   '/api/admin/content-actions/recommendation': typeof ApiAdminContentActionsRecommendationRoute
   '/api/blog/analysis/$runId': typeof ApiBlogAnalysisRunIdRoute
+  '/api/blog/articles/$id': typeof ApiBlogArticlesIdRoute
   '/api/blog/projects/$id': typeof ApiBlogProjectsIdRouteWithChildren
   '/api/blog/rules/$id': typeof ApiBlogRulesIdRoute
   '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
@@ -1811,8 +1846,10 @@ export interface FileRoutesById {
   '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
   '/api/v1/seo/ranking-changes': typeof ApiV1SeoRankingChangesRoute
   '/ezyrank_/blog/einrichtung/$step': typeof EzyrankBlogEinrichtungStepRoute
+  '/api/blog/claims/$id/resolve': typeof ApiBlogClaimsIdResolveRoute
   '/api/blog/opportunities/$id/decision': typeof ApiBlogOpportunitiesIdDecisionRoute
   '/api/blog/projects/$id/analysis': typeof ApiBlogProjectsIdAnalysisRoute
+  '/api/blog/projects/$id/articles': typeof ApiBlogProjectsIdArticlesRoute
   '/api/blog/projects/$id/audit': typeof ApiBlogProjectsIdAuditRoute
   '/api/blog/projects/$id/competitors': typeof ApiBlogProjectsIdCompetitorsRoute
   '/api/blog/projects/$id/events': typeof ApiBlogProjectsIdEventsRoute
@@ -1821,6 +1858,7 @@ export interface FileRoutesById {
   '/api/blog/projects/$id/rules': typeof ApiBlogProjectsIdRulesRoute
   '/api/blog/projects/$id/start': typeof ApiBlogProjectsIdStartRoute
   '/api/blog/projects/$id/topics': typeof ApiBlogProjectsIdTopicsRouteWithChildren
+  '/api/blog/projects/$id/write-now': typeof ApiBlogProjectsIdWriteNowRoute
   '/api/v1/projects/$projectId/analytics': typeof ApiV1ProjectsProjectIdAnalyticsRoute
   '/api/v1/projects/$projectId/ranking-changes': typeof ApiV1ProjectsProjectIdRankingChangesRoute
   '/api/v1/projects/$projectId/rankings': typeof ApiV1ProjectsProjectIdRankingsRoute
@@ -2005,6 +2043,7 @@ export interface FileRouteTypes {
     | '/api/wordpress/publish'
     | '/api/admin/content-actions/recommendation'
     | '/api/blog/analysis/$runId'
+    | '/api/blog/articles/$id'
     | '/api/blog/projects/$id'
     | '/api/blog/rules/$id'
     | '/api/google/oauth/start'
@@ -2012,8 +2051,10 @@ export interface FileRouteTypes {
     | '/api/live/canonry/overview'
     | '/api/v1/seo/ranking-changes'
     | '/ezyrank/blog/einrichtung/$step'
+    | '/api/blog/claims/$id/resolve'
     | '/api/blog/opportunities/$id/decision'
     | '/api/blog/projects/$id/analysis'
+    | '/api/blog/projects/$id/articles'
     | '/api/blog/projects/$id/audit'
     | '/api/blog/projects/$id/competitors'
     | '/api/blog/projects/$id/events'
@@ -2022,6 +2063,7 @@ export interface FileRouteTypes {
     | '/api/blog/projects/$id/rules'
     | '/api/blog/projects/$id/start'
     | '/api/blog/projects/$id/topics'
+    | '/api/blog/projects/$id/write-now'
     | '/api/v1/projects/$projectId/analytics'
     | '/api/v1/projects/$projectId/ranking-changes'
     | '/api/v1/projects/$projectId/rankings'
@@ -2204,6 +2246,7 @@ export interface FileRouteTypes {
     | '/api/wordpress/publish'
     | '/api/admin/content-actions/recommendation'
     | '/api/blog/analysis/$runId'
+    | '/api/blog/articles/$id'
     | '/api/blog/projects/$id'
     | '/api/blog/rules/$id'
     | '/api/google/oauth/start'
@@ -2211,8 +2254,10 @@ export interface FileRouteTypes {
     | '/api/live/canonry/overview'
     | '/api/v1/seo/ranking-changes'
     | '/ezyrank/blog/einrichtung/$step'
+    | '/api/blog/claims/$id/resolve'
     | '/api/blog/opportunities/$id/decision'
     | '/api/blog/projects/$id/analysis'
+    | '/api/blog/projects/$id/articles'
     | '/api/blog/projects/$id/audit'
     | '/api/blog/projects/$id/competitors'
     | '/api/blog/projects/$id/events'
@@ -2221,6 +2266,7 @@ export interface FileRouteTypes {
     | '/api/blog/projects/$id/rules'
     | '/api/blog/projects/$id/start'
     | '/api/blog/projects/$id/topics'
+    | '/api/blog/projects/$id/write-now'
     | '/api/v1/projects/$projectId/analytics'
     | '/api/v1/projects/$projectId/ranking-changes'
     | '/api/v1/projects/$projectId/rankings'
@@ -2403,6 +2449,7 @@ export interface FileRouteTypes {
     | '/api/wordpress/publish'
     | '/api/admin/content-actions/recommendation'
     | '/api/blog/analysis/$runId'
+    | '/api/blog/articles/$id'
     | '/api/blog/projects/$id'
     | '/api/blog/rules/$id'
     | '/api/google/oauth/start'
@@ -2410,8 +2457,10 @@ export interface FileRouteTypes {
     | '/api/live/canonry/overview'
     | '/api/v1/seo/ranking-changes'
     | '/ezyrank_/blog/einrichtung/$step'
+    | '/api/blog/claims/$id/resolve'
     | '/api/blog/opportunities/$id/decision'
     | '/api/blog/projects/$id/analysis'
+    | '/api/blog/projects/$id/articles'
     | '/api/blog/projects/$id/audit'
     | '/api/blog/projects/$id/competitors'
     | '/api/blog/projects/$id/events'
@@ -2420,6 +2469,7 @@ export interface FileRouteTypes {
     | '/api/blog/projects/$id/rules'
     | '/api/blog/projects/$id/start'
     | '/api/blog/projects/$id/topics'
+    | '/api/blog/projects/$id/write-now'
     | '/api/v1/projects/$projectId/analytics'
     | '/api/v1/projects/$projectId/ranking-changes'
     | '/api/v1/projects/$projectId/rankings'
@@ -2597,12 +2647,14 @@ export interface RootRouteChildren {
   ApiWordpressPostsRoute: typeof ApiWordpressPostsRoute
   ApiWordpressPublishRoute: typeof ApiWordpressPublishRoute
   ApiBlogAnalysisRunIdRoute: typeof ApiBlogAnalysisRunIdRoute
+  ApiBlogArticlesIdRoute: typeof ApiBlogArticlesIdRoute
   ApiBlogRulesIdRoute: typeof ApiBlogRulesIdRoute
   ApiGoogleOauthStartRoute: typeof ApiGoogleOauthStartRoute
   ApiLiveCanonryAiVisibilityRoute: typeof ApiLiveCanonryAiVisibilityRoute
   ApiLiveCanonryOverviewRoute: typeof ApiLiveCanonryOverviewRoute
   ApiV1SeoRankingChangesRoute: typeof ApiV1SeoRankingChangesRoute
   EzyrankBlogEinrichtungStepRoute: typeof EzyrankBlogEinrichtungStepRoute
+  ApiBlogClaimsIdResolveRoute: typeof ApiBlogClaimsIdResolveRoute
   ApiBlogOpportunitiesIdDecisionRoute: typeof ApiBlogOpportunitiesIdDecisionRoute
 }
 
@@ -3805,6 +3857,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiBlogAnalysisRunIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/blog/articles/$id': {
+      id: '/api/blog/articles/$id'
+      path: '/api/blog/articles/$id'
+      fullPath: '/api/blog/articles/$id'
+      preLoaderRoute: typeof ApiBlogArticlesIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/blog/projects/$id': {
       id: '/api/blog/projects/$id'
       path: '/$id'
@@ -3854,6 +3913,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EzyrankBlogEinrichtungStepRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/blog/claims/$id/resolve': {
+      id: '/api/blog/claims/$id/resolve'
+      path: '/api/blog/claims/$id/resolve'
+      fullPath: '/api/blog/claims/$id/resolve'
+      preLoaderRoute: typeof ApiBlogClaimsIdResolveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/blog/opportunities/$id/decision': {
       id: '/api/blog/opportunities/$id/decision'
       path: '/api/blog/opportunities/$id/decision'
@@ -3866,6 +3932,13 @@ declare module '@tanstack/react-router' {
       path: '/analysis'
       fullPath: '/api/blog/projects/$id/analysis'
       preLoaderRoute: typeof ApiBlogProjectsIdAnalysisRouteImport
+      parentRoute: typeof ApiBlogProjectsIdRoute
+    }
+    '/api/blog/projects/$id/articles': {
+      id: '/api/blog/projects/$id/articles'
+      path: '/articles'
+      fullPath: '/api/blog/projects/$id/articles'
+      preLoaderRoute: typeof ApiBlogProjectsIdArticlesRouteImport
       parentRoute: typeof ApiBlogProjectsIdRoute
     }
     '/api/blog/projects/$id/audit': {
@@ -3922,6 +3995,13 @@ declare module '@tanstack/react-router' {
       path: '/topics'
       fullPath: '/api/blog/projects/$id/topics'
       preLoaderRoute: typeof ApiBlogProjectsIdTopicsRouteImport
+      parentRoute: typeof ApiBlogProjectsIdRoute
+    }
+    '/api/blog/projects/$id/write-now': {
+      id: '/api/blog/projects/$id/write-now'
+      path: '/write-now'
+      fullPath: '/api/blog/projects/$id/write-now'
+      preLoaderRoute: typeof ApiBlogProjectsIdWriteNowRouteImport
       parentRoute: typeof ApiBlogProjectsIdRoute
     }
     '/api/v1/projects/$projectId/analytics': {
@@ -4091,6 +4171,7 @@ const ApiBlogProjectsIdTopicsRouteWithChildren =
 
 interface ApiBlogProjectsIdRouteChildren {
   ApiBlogProjectsIdAnalysisRoute: typeof ApiBlogProjectsIdAnalysisRoute
+  ApiBlogProjectsIdArticlesRoute: typeof ApiBlogProjectsIdArticlesRoute
   ApiBlogProjectsIdAuditRoute: typeof ApiBlogProjectsIdAuditRoute
   ApiBlogProjectsIdCompetitorsRoute: typeof ApiBlogProjectsIdCompetitorsRoute
   ApiBlogProjectsIdEventsRoute: typeof ApiBlogProjectsIdEventsRoute
@@ -4099,12 +4180,14 @@ interface ApiBlogProjectsIdRouteChildren {
   ApiBlogProjectsIdRulesRoute: typeof ApiBlogProjectsIdRulesRoute
   ApiBlogProjectsIdStartRoute: typeof ApiBlogProjectsIdStartRoute
   ApiBlogProjectsIdTopicsRoute: typeof ApiBlogProjectsIdTopicsRouteWithChildren
+  ApiBlogProjectsIdWriteNowRoute: typeof ApiBlogProjectsIdWriteNowRoute
   ApiBlogProjectsIdWpConnectRoute: typeof ApiBlogProjectsIdWpConnectRoute
   ApiBlogProjectsIdWpChar91testChar93Route: typeof ApiBlogProjectsIdWpChar91testChar93Route
 }
 
 const ApiBlogProjectsIdRouteChildren: ApiBlogProjectsIdRouteChildren = {
   ApiBlogProjectsIdAnalysisRoute: ApiBlogProjectsIdAnalysisRoute,
+  ApiBlogProjectsIdArticlesRoute: ApiBlogProjectsIdArticlesRoute,
   ApiBlogProjectsIdAuditRoute: ApiBlogProjectsIdAuditRoute,
   ApiBlogProjectsIdCompetitorsRoute: ApiBlogProjectsIdCompetitorsRoute,
   ApiBlogProjectsIdEventsRoute: ApiBlogProjectsIdEventsRoute,
@@ -4114,6 +4197,7 @@ const ApiBlogProjectsIdRouteChildren: ApiBlogProjectsIdRouteChildren = {
   ApiBlogProjectsIdRulesRoute: ApiBlogProjectsIdRulesRoute,
   ApiBlogProjectsIdStartRoute: ApiBlogProjectsIdStartRoute,
   ApiBlogProjectsIdTopicsRoute: ApiBlogProjectsIdTopicsRouteWithChildren,
+  ApiBlogProjectsIdWriteNowRoute: ApiBlogProjectsIdWriteNowRoute,
   ApiBlogProjectsIdWpConnectRoute: ApiBlogProjectsIdWpConnectRoute,
   ApiBlogProjectsIdWpChar91testChar93Route:
     ApiBlogProjectsIdWpChar91testChar93Route,
@@ -4323,12 +4407,14 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWordpressPostsRoute: ApiWordpressPostsRoute,
   ApiWordpressPublishRoute: ApiWordpressPublishRoute,
   ApiBlogAnalysisRunIdRoute: ApiBlogAnalysisRunIdRoute,
+  ApiBlogArticlesIdRoute: ApiBlogArticlesIdRoute,
   ApiBlogRulesIdRoute: ApiBlogRulesIdRoute,
   ApiGoogleOauthStartRoute: ApiGoogleOauthStartRoute,
   ApiLiveCanonryAiVisibilityRoute: ApiLiveCanonryAiVisibilityRoute,
   ApiLiveCanonryOverviewRoute: ApiLiveCanonryOverviewRoute,
   ApiV1SeoRankingChangesRoute: ApiV1SeoRankingChangesRoute,
   EzyrankBlogEinrichtungStepRoute: EzyrankBlogEinrichtungStepRoute,
+  ApiBlogClaimsIdResolveRoute: ApiBlogClaimsIdResolveRoute,
   ApiBlogOpportunitiesIdDecisionRoute: ApiBlogOpportunitiesIdDecisionRoute,
 }
 export const routeTree = rootRouteImport

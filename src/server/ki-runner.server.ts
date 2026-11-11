@@ -47,8 +47,10 @@ export async function runnerText(opts: {
   prompt: string;
   websuche?: number;
   timeoutMs: number;
+  /** Runner-Modell (z.B. «opus» für Artikeltexte); Standard BLOG_RUNNER_MODEL bzw. sonnet. */
+  modell?: string;
 }): Promise<string> {
-  const model = process.env.BLOG_RUNNER_MODEL || "sonnet";
+  const model = opts.modell || process.env.BLOG_RUNNER_MODEL || "sonnet";
   const websearch = opts.websuche ?? 0;
   const hash = await sha256(`${model}|${websearch}|${opts.system}|${opts.prompt}`);
   const { data: vorher } = await SB.from("ahrefs_cache")

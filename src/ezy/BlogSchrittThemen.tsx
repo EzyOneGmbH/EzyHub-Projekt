@@ -378,6 +378,7 @@ export function BlogSchrittStart({ c }: { c: Ctx }) {
   const [themen, setThemen] = useState<any[] | null>(null);
   const [google, setGoogle] = useState<any | null>(null);
   const [busy, setBusy] = useState(false);
+  const [schreibt, setSchreibt] = useState<string | null>(null);
 
   useEffect(() => {
     void api(`/api/blog/projects/${c.project.id}/topics`).then((r) =>
@@ -405,6 +406,22 @@ export function BlogSchrittStart({ c }: { c: Ctx }) {
     setBusy(false);
     if (!r.ok) return c.setFehler(r.json?.error || "Start fehlgeschlagen");
     window.location.href = `/ezyrank?tab=blog`;
+  };
+
+  const jetztSchreiben = async () => {
+    setBusy(true);
+    c.setFehler(null);
+    if (c.project.status !== "active") {
+      const s = await api(`/api/blog/projects/${c.project.id}/start`, "POST");
+      if (!s.ok) {
+        setBusy(false);
+        return c.setFehler(s.json?.error || "Start fehlgeschlagen");
+      }
+    }
+    const r = await api(`/api/blog/projects/${c.project.id}/write-now`, "POST", {});
+    setBusy(false);
+    if (!r.ok) return c.setFehler(r.json?.error || "Schreiben konnte nicht starten");
+    setSchreibt(String(r.json?.article?.keyword || ""));
   };
 
   const wp = c.project.wordpress?.status === "verbunden";
@@ -445,10 +462,18 @@ export function BlogSchrittStart({ c }: { c: Ctx }) {
         />
       </Karte>
       <div style={{ marginTop: 16 }}>
-        <Hinweis>
-          Die Schreib-Pipeline mit Faktencheck folgt als Nächstes. Bis dahin plant der Autopilot
-          deine Themen und prüft jeden Montag neue Chancen.
-        </Hinweis>
+        {schreibt !== null ? (
+          <Hinweis ton="ok">
+            Der Autopilot schreibt jetzt{schreibt ? ` «${schreibt}»` : " deinen ersten Artikel"}:
+            Recherche, Entwurf und Faktencheck dauern rund 10 Minuten. Danach liegt der Entwurf in
+            WordPress und wartet auf deine Freigabe. Live geht nichts ohne dich.
+          </Hinweis>
+        ) : (
+          <Hinweis>
+            Jeder Artikel wird am Vortag geschrieben, mit Quellen geprüft und als Entwurf abgelegt.
+            Live geht nichts ohne deine Freigabe.
+          </Hinweis>
+        )}
       </div>
       {c.fehler && (
         <div style={{ marginTop: 12 }}>
@@ -468,8 +493,12 @@ export function BlogSchrittStart({ c }: { c: Ctx }) {
           ← Zurück
         </Knopf>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <Knopf art="sekundaer" disabled>
-            Ersten Artikel jetzt schreiben (bald)
+          <Knopf
+            art="sekundaer"
+            onClick={() => void jetztSchreiben()}
+            disabled={busy || schreibt !== null || !themen?.length}
+          >
+            {schreibt !== null ? "Wird geschrieben…" : "Ersten Artikel jetzt schreiben"}
           </Knopf>
           <Knopf onClick={() => void start()} disabled={busy}>
             {busy ? "Startet…" : c.project.status === "active" ? "Zum Blog" : "Autopilot starten"}
