@@ -4,10 +4,12 @@ vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: {} }));
 
 const {
   bereinigeLinks,
+  ctaAktuell,
   datumZuerich,
   entferneClaims,
   entferneSatz,
   EntwurfSchema,
+  linkStatus,
   loeseClaims,
   modusFuer,
   normUrl,
@@ -134,6 +136,41 @@ describe("CTA-Block", () => {
     expect(zaehleCta(h)).toBe(1);
     expect(h.indexOf("ezyrank-cta")).toBeLessThan(h.indexOf("<p>b</p>"));
   });
+
+  it("kommt ohne <div> und ohne class auf <a> aus (Filter im WordPress-Plugin)", () => {
+    const h = setzeCta("<p>Text</p>", CTA);
+    expect(h).not.toContain("<div");
+    expect(h).not.toMatch(/<a\b[^>]*\bclass=/);
+    expect(h).toContain('<p class="ezyrank-cta ezyrank-cta-text">Jeder Beitrag');
+    expect(h).toContain(
+      '<p class="ezyrank-cta ezyrank-cta-button"><a href="https://faithinhumanity.ch/spenden/"><strong>Jetzt spenden</strong></a></p>',
+    );
+    expect(zaehleCta(setzeCta("<p>Text</p>", { ...CTA, text: "" }))).toBe(1);
+    expect(zaehleCta(setzeCta("<p>Text</p>", { ...CTA, url: "" }))).toBe(1);
+    expect(zaehleCta("<p>Text</p>")).toBe(0);
+  });
+
+  it("frühere <div>-Form wird ersetzt und für WordPress umgeschrieben", () => {
+    const alt =
+      '<p>Text</p>\n<div class="ezyrank-cta"><p>Jeder Beitrag.</p>' +
+      '<p><a class="ezyrank-cta-button" href="https://faithinhumanity.ch/spenden/"><strong>Jetzt spenden</strong></a></p></div>';
+    expect(zaehleCta(alt)).toBe(1);
+    const neu = setzeCta(alt, CTA);
+    expect(zaehleCta(neu)).toBe(1);
+    expect(neu).not.toContain("<div");
+    const um = ctaAktuell(alt);
+    expect(um).toBe(
+      '<p>Text</p>\n<p class="ezyrank-cta ezyrank-cta-text">Jeder Beitrag.</p>' +
+        '<p class="ezyrank-cta ezyrank-cta-button"><a href="https://faithinhumanity.ch/spenden/"><strong>Jetzt spenden</strong></a></p>',
+    );
+    expect(ctaAktuell(um)).toBe(um);
+    expect(zaehleCta(um)).toBe(1);
+  });
+
+  it("CTA-Text wird nicht als Behauptung geprüft", () => {
+    const h = setzeCta("<p>Text ohne Zahl.</p>", { ...CTA, text: "Schon 20 Franken helfen." });
+    expect(pruefeBehauptungen({ html: h, claims: [], quellen: [], eigen: "x.ch" })).toEqual([]);
+  });
 });
 
 describe("Anführungszeichen", () => {
@@ -176,6 +213,41 @@ describe("Links", () => {
     expect(r.html).not.toContain("tot.example");
     expect(r.html).toContain("Mitbewerber");
     expect(r.entfernt).toHaveLength(2);
+  });
+
+  it("CTA-Link bleibt unangetastet", () => {
+    const h = setzeCta('<p><a href="https://who.int/b">WHO</a></p>', {
+      ...CTA,
+      url: "https://spenden.example/x",
+    });
+    const r = bereinigeLinks(h, {
+      eigen: "faithinhumanity.ch",
+      gesperrt: [],
+      erreichbar: () => false,
+    });
+    expect(r.html).toContain('<a href="https://spenden.example/x"><strong>');
+    expect(r.entfernt).toEqual(["https://who.int/b"]);
+    expect(zaehleCta(r.html)).toBe(1);
+  });
+
+  it("Link gilt nur bei klarem 404/410 als tot", async () => {
+    const u = "https://www.unocha.org/x.pdf";
+    const antwort = (...status: (number | null)[]) => {
+      let i = 0;
+      return (async () => {
+        const s = status[Math.min(i++, status.length - 1)];
+        if (s === null) throw new Error("timeout");
+        return { status: s };
+      }) as unknown as typeof fetch;
+    };
+    expect(await linkStatus(u, antwort(200))).toBe("ok");
+    expect(await linkStatus(u, antwort(405, 200))).toBe("ok");
+    expect(await linkStatus(u, antwort(404))).toBe("tot");
+    expect(await linkStatus(u, antwort(null, 410))).toBe("tot");
+    expect(await linkStatus(u, antwort(null))).toBe("unklar");
+    expect(await linkStatus(u, antwort(403))).toBe("unklar");
+    expect(await linkStatus(u, antwort(503))).toBe("unklar");
+    expect(await linkStatus(u, antwort(404, null))).toBe("unklar");
   });
 });
 

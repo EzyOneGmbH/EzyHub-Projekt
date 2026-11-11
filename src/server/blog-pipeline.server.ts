@@ -94,15 +94,33 @@ export function esc(s: string): string {
 
 export type Cta = { label?: string; text?: string; url?: string; position?: string };
 
+/** CTA aus Absätzen mit Klasse: Der Filter im WordPress-Plugin lässt weder
+ *  <div> noch class auf <a> durch, Klassen auf <p> aber schon. */
 export function ctaHtml(cta: Cta): string {
-  const text = cta.text ? `<p>${esc(cta.text)}</p>` : "";
+  const text = cta.text ? `<p class="ezyrank-cta ezyrank-cta-text">${esc(cta.text)}</p>` : "";
   const knopf = cta.url
-    ? `<p><a class="ezyrank-cta-button" href="${esc(cta.url)}"><strong>${esc(cta.label || "Mehr erfahren")}</strong></a></p>`
+    ? `<p class="ezyrank-cta ezyrank-cta-button"><a href="${esc(cta.url)}"><strong>${esc(cta.label || "Mehr erfahren")}</strong></a></p>`
     : "";
-  return `<div class="ezyrank-cta">${text}${knopf}</div>`;
+  return `${text}${knopf}`;
 }
 
-const CTA_RE = /<div class="ezyrank-cta">[\s\S]*?<\/div>/gi;
+// Ein Block = aufeinanderfolgende CTA-Absätze; dazu die frühere <div>-Form.
+const CTA_RE =
+  /(?:<p class="ezyrank-cta[ "][^>]*>[\s\S]*?<\/p>\s*)+|<div class="ezyrank-cta">[\s\S]*?<\/div>/gi;
+
+/** Frühere <div>-Form in die Absatz-Form bringen (Artikel, die vor der Umstellung geprüft wurden). */
+export function ctaAktuell(html: string): string {
+  return String(html || "").replace(
+    /<div class="ezyrank-cta">([\s\S]*?)<\/div>/gi,
+    (_g, innen: string) =>
+      innen
+        .replace(
+          /<p>\s*<a class="ezyrank-cta-button"/gi,
+          '<p class="ezyrank-cta ezyrank-cta-button"><a',
+        )
+        .replace(/<p>/gi, '<p class="ezyrank-cta ezyrank-cta-text">'),
+  );
+}
 
 /** CTA-Block genau einmal: alte Blöcke und Platzhalter entfernen, dann einsetzen
  *  (Platzhalter {{cta}} bei position «mitte», sonst am Ende). */
@@ -124,7 +142,7 @@ export function setzeCta(html: string, cta: Cta | null | undefined): string {
 }
 
 export function zaehleCta(html: string): number {
-  return (String(html || "").match(/<div class="ezyrank-cta">/gi) || []).length;
+  return (String(html || "").match(CTA_RE) || []).length;
 }
 
 /** Modell-HTML aufräumen: Attribute in "…", kein h1, kein script/style, keine Inline-Handler. */
@@ -157,10 +175,12 @@ export function bereinigeLinks(
   opts: { eigen: string; gesperrt: string[]; erreichbar: (url: string) => boolean },
 ): { html: string; entfernt: string[] } {
   const entfernt: string[] = [];
-  const out = String(html || "").replace(
+  // CTA-Blöcke bleiben unangetastet (fester Block des Kunden)
+  const cta: string[] = [];
+  const ohneCta = String(html || "").replace(CTA_RE, (g) => `\uE001${cta.push(g) - 1}\uE001`);
+  const out = ohneCta.replace(
     /<a\b([^>]*)>([\s\S]*?)<\/a>/gi,
     (ganz, attrs: string, inner: string) => {
-      if (/class="ezyrank-cta-button"/.test(attrs)) return ganz;
       const href = (attrs.match(/\bhref="([^"]*)"/i) || [])[1] || "";
       if (!href || href.startsWith("#") || /^(mailto|tel):/i.test(href)) return ganz;
       if (!/^https?:\/\//i.test(href)) {
@@ -176,7 +196,7 @@ export function bereinigeLinks(
       return `<a href="${href}" rel="nofollow noopener">${inner}</a>`;
     },
   );
-  return { html: out, entfernt };
+  return { html: out.replace(/\uE001(\d+)\uE001/g, (_g, i: string) => cta[Number(i)]), entfernt };
 }
 
 export type Claim = {
@@ -445,22 +465,30 @@ async function holeHtml(url: string, timeoutMs = 10_000): Promise<string> {
   }
 }
 
-async function erreichbar(url: string): Promise<boolean> {
+/** Externer Link: «tot» nur bei klarem 404/410. Zeitüberschreitung, Netzfehler,
+ *  Bot-Sperre (403/429) oder Serverfehler sind «unklar»: der Link bleibt und
+ *  wird für die Prüfung durch den Menschen vermerkt. */
+export async function linkStatus(
+  url: string,
+  holen: typeof fetch = fetch,
+): Promise<"ok" | "tot" | "unklar"> {
+  let status = 0;
   for (const method of ["HEAD", "GET"]) {
     try {
-      const r = await fetch(url, {
+      const r = await holen(url, {
         method,
         headers: { "User-Agent": UA },
         redirect: "follow",
         signal: AbortSignal.timeout(8000),
       });
-      if (r.status < 400) return true;
-      if (method === "GET") return false;
+      if (r.status < 400) return "ok";
+      status = r.status;
     } catch {
-      if (method === "GET") return false;
+      status = 0;
     }
   }
-  return false;
+  // massgebend ist die GET-Antwort (HEAD wird oft nicht unterstützt)
+  return status === 404 || status === 410 ? "tot" : "unklar";
 }
 
 /** Original über die öffentliche WP-REST-API (Beitrag per Slug), sonst HTML-Text. */
@@ -834,13 +862,15 @@ async function pruefen(article: any, project: any): Promise<StufeErgebnis> {
       ),
     ),
   ];
-  const ok = new Map<string, boolean>();
-  await Promise.all(extern.slice(0, 25).map(async (u) => ok.set(u, await erreichbar(u))));
+  const stand = new Map<string, "ok" | "tot" | "unklar">();
+  await Promise.all(extern.slice(0, 25).map(async (u) => stand.set(u, await linkStatus(u))));
+  // Entfernt wird nur, was sicher tot ist; nicht geprüfte Links bleiben.
   const links = bereinigeLinks(html, {
     eigen: project.domain,
     gesperrt: b.gesperrt,
-    erreichbar: (u) => ok.get(u) === true,
+    erreichbar: (u) => stand.get(u) !== "tot",
   });
+  const linksUnklar = extern.filter((u) => stand.get(u) !== "ok" && !links.entfernt.includes(u));
   html = links.html;
 
   const istVorschlag = b.modus === "vorschlag";
@@ -917,6 +947,7 @@ async function pruefen(article: any, project: any): Promise<StufeErgebnis> {
     pruefung: {
       v: PRUEF_VERSION,
       links_entfernt: links.entfernt,
+      links_unklar: linksUnklar,
       claims_offen: offen.length,
       claims_belegt: endClaims.filter((c) => c.status === "belegt").length,
       cta: zaehleCta(html),
@@ -951,7 +982,7 @@ export async function sendeAnWordpress(article: any, project: any) {
     title: modus === "refresh" ? `[Überarbeitung] ${article.title}` : article.title,
     slug: modus === "refresh" ? `${article.slug}-ueberarbeitung` : article.slug,
     status: "draft",
-    content_html: loeseClaims(article.content_html),
+    content_html: ctaAktuell(loeseClaims(article.content_html)),
     excerpt: article.excerpt,
     seo: {
       title: article.seo_title,

@@ -241,6 +241,19 @@ class Test_EzyRank_Api extends WP_UnitTestCase {
         $this->assertStringContainsString('<details>', $c);
     }
 
+    // Der CTA-Block kommt als Absätze mit Klasse: <div> und class auf <a> lässt der Filter nicht durch.
+    public function test_cta_absaetze_behalten_ihre_klassen() {
+        $html = '<p>Text</p>'
+            . '<p class="ezyrank-cta ezyrank-cta-text">Jeder Beitrag hilft.</p>'
+            . '<p class="ezyrank-cta ezyrank-cta-button"><a href="https://example.org/spenden/"><strong>Jetzt spenden</strong></a></p>';
+        $id = $this->req('POST', '/posts', $this->artikel(['content_html' => $html]))->get_data()['post_id'];
+        $c = get_post($id)->post_content;
+        $this->assertStringContainsString('<p class="ezyrank-cta ezyrank-cta-text">Jeder Beitrag hilft.</p>', $c);
+        $this->assertStringContainsString('<p class="ezyrank-cta ezyrank-cta-button"><a ', $c);
+        $this->assertStringContainsString('href="https://example.org/spenden/"', $c);
+        $this->assertStringContainsString('<strong>Jetzt spenden</strong>', $c);
+    }
+
     public function test_yoast_felder() {
         add_filter('ezyrank_active_seo_plugins', function () { return ['yoast']; });
         $id = $this->req('POST', '/posts', $this->artikel(['seo' => [
