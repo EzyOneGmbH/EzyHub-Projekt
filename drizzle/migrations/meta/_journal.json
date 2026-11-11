@@ -29,6 +29,13 @@
       "when": 1793549173591,
       "tag": "0003_content_action_recommendations",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794402767995,
+      "tag": "0004_blog_pipeline",
+      "breakpoints": true
     }
   ]
 }
