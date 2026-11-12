@@ -28,12 +28,28 @@ Alle verlangen den Schlüssel (`Authorization: Bearer ezr_…` oder `X-EzyRank-K
 | POST | `/media` (nur Bilder aus dem EzyHub-Speicher) | draft |
 | POST | `/test` (Testentwurf anlegen und sofort löschen) | draft |
 | POST | `/posts/{id}/publish` | publish |
+| POST | `/posts/{id}/replace-original` (ab 2.1) | publish |
+| POST | `/posts/{id}/indexnow` (ab 2.1) | publish |
 
 Fehlercodes: `ezr_auth_missing`, `ezr_auth_invalid`, `ezr_rate_limited`, `ezr_scope_missing`,
 `ezr_image_failed`, `ezr_https_required` (Kap. 7.10 der Bauanleitung).
 
 Konstanten (nur in `wp-config.php` überschreibbar): `EZYRANK_API_HOST` (Standard `ezyhub.ch`),
 `EZYRANK_STORAGE_HOST` (erlaubter Bild-Speicher).
+
+## Live stellen und Indexierung (ab 2.1)
+
+- `publish` veröffentlicht einen EzyRank-Entwurf. Kommentare und Pings bleiben geschlossen.
+- `replace-original` übernimmt den Inhalt einer Überarbeitung in den bestehenden, veröffentlichten
+  Beitrag (`original_url`). URL, Datum, Autor, Kategorien und Tags bleiben; WordPress legt eine
+  Revision an. Der Entwurf wandert in den Papierkorb. Fehlt ein passender Beitrag:
+  `ezr_original_not_found` (404).
+- Nach beiden Schritten meldet das Plugin die URL per IndexNow (Bing, Yandex, Seznam, Naver).
+  Der Schlüssel ist öffentlich und liegt unter `/{schlüssel}.txt`; es entsteht keine echte Datei.
+  `indexnow` meldet einen Live-Beitrag erneut.
+- Keine Meldung, wenn die Website Suchmaschinen aussperrt (Einstellungen › Lesen) oder der Filter
+  `ezyrank_indexnow_enabled` `false` liefert.
+- Google nimmt nicht an IndexNow teil. EzyHub reicht dort die Sitemap in der Search Console ein.
 
 ## Aktualisieren
 

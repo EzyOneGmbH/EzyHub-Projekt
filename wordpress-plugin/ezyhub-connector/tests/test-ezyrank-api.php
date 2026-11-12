@@ -8,6 +8,7 @@ class Test_EzyRank_Api extends WP_UnitTestCase {
     private $server;
     private $key;
     private $ip = 0;
+    private $pings = [];
 
     public function set_up() {
         parent::set_up();
@@ -20,6 +21,13 @@ class Test_EzyRank_Api extends WP_UnitTestCase {
         remove_all_filters('ezyrank_active_seo_plugins');
         self::factory()->user->create(['role' => 'administrator']);
         $this->key = EzyRank_Auth::generate_key();
+        // IndexNow nie wirklich aufrufen: Anfragen abfangen und mitzählen.
+        $this->pings = [];
+        add_filter('pre_http_request', function ($pre, $args, $url) {
+            if (strpos($url, 'api.indexnow.org') === false) return $pre;
+            $this->pings[] = json_decode($args['body'], true);
+            return ['response' => ['code' => 200, 'message' => 'OK'], 'body' => '', 'headers' => [], 'cookies' => []];
+        }, 10, 3);
     }
 
     public function tear_down() {
@@ -66,6 +74,7 @@ class Test_EzyRank_Api extends WP_UnitTestCase {
             ['GET', '/health'], ['GET', '/capabilities'], ['GET', '/taxonomies'], ['GET', '/authors'],
             ['GET', '/posts/1'], ['GET', '/posts/by-external/b0c1d2e3-0000'], ['POST', '/posts'],
             ['PATCH', '/posts/1'], ['POST', '/media'], ['POST', '/posts/1/publish'], ['POST', '/test'],
+            ['POST', '/posts/1/replace-original'], ['POST', '/posts/1/indexnow'],
         ];
     }
 
@@ -289,6 +298,118 @@ class Test_EzyRank_Api extends WP_UnitTestCase {
         $id = $this->req('POST', '/posts', $this->artikel())->get_data()['post_id'];
         $d = $this->req('GET', '/posts/by-external/b0c1d2e3-0000-4000-8000-000000000001')->get_data();
         $this->assertSame($id, $d['post_id']);
+    }
+
+    public function test_publish_schliesst_kommentare_und_meldet_indexnow() {
+        update_option('ezyrank_scope_publish', '1');
+        $id = $this->req('POST', '/posts', $this->artikel())->get_data()['post_id'];
+        wp_update_post(['ID' => $id, 'comment_status' => 'open', 'ping_status' => 'open']);
+        $d = $this->req('POST', '/posts/' . $id . '/publish', [])->get_data();
+        $this->assertSame('closed', get_post($id)->comment_status);
+        $this->assertSame('closed', get_post($id)->ping_status);
+        $this->assertTrue($d['indexnow']['ok']);
+        $this->assertCount(1, $this->pings);
+        $this->assertSame([get_permalink($id)], $this->pings[0]['urlList']);
+        $this->assertSame(EzyRank_Indexnow::key(), $this->pings[0]['key']);
+        $this->assertSame(1, preg_match('/^[a-f0-9]{32}$/', $this->pings[0]['key']));
+    }
+
+    public function test_geplanter_beitrag_wird_noch_nicht_gemeldet() {
+        update_option('ezyrank_scope_publish', '1');
+        $id = $this->req('POST', '/posts', $this->artikel())->get_data()['post_id'];
+        $d = $this->req('POST', '/posts/' . $id . '/publish', ['date' => gmdate('c', time() + 86400)])->get_data();
+        $this->assertSame('future', $d['status']);
+        $this->assertArrayNotHasKey('indexnow', $d);
+        $this->assertCount(0, $this->pings);
+    }
+
+    public function test_indexnow_route_nur_fuer_live_beitraege() {
+        update_option('ezyrank_scope_publish', '1');
+        $entwurf = self::factory()->post->create(['post_status' => 'draft']);
+        $this->assertSame(400, $this->req('POST', '/posts/' . $entwurf . '/indexnow', [])->get_status());
+        $live = self::factory()->post->create(['post_status' => 'publish']);
+        $res = $this->req('POST', '/posts/' . $live . '/indexnow', []);
+        $this->assertSame(200, $res->get_status());
+        $this->assertTrue($res->get_data()['indexnow']['ok']);
+        $this->assertCount(1, $this->pings);
+    }
+
+    public function test_indexnow_gesperrte_website_meldet_nichts() {
+        update_option('blog_public', '0');
+        $r = EzyRank_Indexnow::ping(home_url('/x/'));
+        $this->assertFalse($r['ok']);
+        $this->assertCount(0, $this->pings);
+    }
+
+    public function test_indexnow_schluesseldatei_pfad() {
+        $k = str_repeat('a', 32);
+        $this->assertTrue(EzyRank_Indexnow::is_key_request('/' . $k . '.txt', $k));
+        $this->assertTrue(EzyRank_Indexnow::is_key_request('/blog/' . $k . '.txt?x=1', $k, '/blog/'));
+        $this->assertFalse(EzyRank_Indexnow::is_key_request('/' . $k . '.txt', ''));
+        $this->assertFalse(EzyRank_Indexnow::is_key_request('/wp-content/' . $k . '.txt', $k));
+        $this->assertFalse(EzyRank_Indexnow::is_key_request('/' . str_repeat('b', 32) . '.txt', $k));
+    }
+
+    public function test_ersetzen_nur_mit_scope() {
+        $orig = self::factory()->post->create(['post_status' => 'publish', 'post_content' => '<p>Alt</p>']);
+        $id = $this->req('POST', '/posts', $this->artikel())->get_data()['post_id'];
+        $res = $this->req('POST', '/posts/' . $id . '/replace-original', ['original_url' => get_permalink($orig)]);
+        $this->assertSame(403, $res->get_status());
+        $this->assertSame('<p>Alt</p>', get_post($orig)->post_content);
+    }
+
+    public function test_ersetzen_uebernimmt_inhalt_und_behaelt_url() {
+        update_option('ezyrank_scope_publish', '1');
+        $cat = self::factory()->category->create(['name' => 'Nothilfe']);
+        $orig = self::factory()->post->create([
+            'post_status' => 'publish', 'post_title' => 'Alter Titel', 'post_name' => 'nothilfe-afrika',
+            'post_content' => '<p>Alt</p>', 'post_category' => [$cat],
+            'comment_status' => 'open', 'ping_status' => 'open',
+        ]);
+        $url = get_permalink($orig);
+        $datum = get_post($orig)->post_date;
+        $id = $this->req('POST', '/posts', $this->artikel([
+            'title' => '[Überarbeitung] Nothilfe', 'slug' => 'nothilfe-afrika-ueberarbeitung',
+            'content_html' => '<h2>Neu</h2><p>Besser</p>',
+        ]))->get_data()['post_id'];
+
+        $res = $this->req('POST', '/posts/' . $id . '/replace-original', ['original_url' => $url, 'title' => 'Nothilfe in Afrika']);
+        $this->assertSame(200, $res->get_status(), wp_json_encode($res->get_data()));
+        $d = $res->get_data();
+        $this->assertSame($orig, $d['post_id']);
+        $this->assertSame($id, $d['replaced_draft_id']);
+        $this->assertSame('publish', $d['status']);
+        $this->assertTrue($d['indexnow']['ok']);
+
+        $p = get_post($orig);
+        $this->assertStringContainsString('Besser', $p->post_content);
+        $this->assertSame('Nothilfe in Afrika', $p->post_title);
+        $this->assertSame('nothilfe-afrika', $p->post_name);
+        $this->assertSame($datum, $p->post_date);
+        $this->assertSame($url, get_permalink($orig));
+        $this->assertSame([$cat], wp_get_post_categories($orig));
+        $this->assertSame('closed', $p->comment_status);
+        $this->assertSame('closed', $p->ping_status);
+        $this->assertSame('trash', get_post_status($id));
+        $this->assertSame($orig, EzyRank_Posts::find_by_external('b0c1d2e3-0000-4000-8000-000000000001'));
+        $this->assertNotEmpty(wp_get_post_revisions($orig));
+    }
+
+    public function test_ersetzen_ohne_passendes_original() {
+        update_option('ezyrank_scope_publish', '1');
+        $id = $this->req('POST', '/posts', $this->artikel())->get_data()['post_id'];
+        $seite = self::factory()->post->create(['post_type' => 'page', 'post_status' => 'publish']);
+        $entwurf = self::factory()->post->create(['post_status' => 'draft']);
+        foreach ([home_url('/?p=999999'), get_permalink($seite), get_permalink($entwurf), 'https://example.com/x', ''] as $url) {
+            $this->neue_ip();
+            $res = $this->req('POST', '/posts/' . $id . '/replace-original', ['original_url' => $url]);
+            $this->assertSame(404, $res->get_status(), $url);
+            $this->assertSame('ezr_original_not_found', $this->code($res));
+        }
+        $this->assertSame('draft', get_post_status($id));
+        // Fremder Beitrag als «Überarbeitung» ist nicht erlaubt.
+        $orig = self::factory()->post->create(['post_status' => 'publish']);
+        $this->assertSame(404, $this->req('POST', '/posts/' . $entwurf . '/replace-original', ['original_url' => get_permalink($orig)])->get_status());
     }
 
     public function test_bestehende_ezyhub_routen_bleiben() {

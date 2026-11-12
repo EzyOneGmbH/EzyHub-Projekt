@@ -8,7 +8,7 @@ if (!defined('WP_UNINSTALL_PLUGIN')) exit;
 
 foreach ([
     'ezyrank_key_hash', 'ezyrank_key_created', 'ezyrank_key_last4', 'ezyrank_scope_publish',
-    'ezyrank_default_author', 'ezyrank_log', 'ezyrank_last_ok', 'ezyrank_last_error',
+    'ezyrank_default_author', 'ezyrank_log', 'ezyrank_last_ok', 'ezyrank_last_error', 'ezyrank_indexnow_key',
 ] as $opt) {
     delete_option($opt);
 }

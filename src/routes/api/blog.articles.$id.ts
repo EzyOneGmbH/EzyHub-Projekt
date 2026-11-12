@@ -38,7 +38,7 @@ export const Route = createFileRoute("/api/blog/articles/$id")({
           // Bewusst ohne key_enc: nur Status und Rechte der Verbindung.
           sb
             .from("wp_connections")
-            .select("status, scopes")
+            .select("status, scopes, plugin_version")
             .eq("project_id", project.id)
             .maybeSingle(),
         ]);
@@ -51,7 +51,12 @@ export const Route = createFileRoute("/api/blog/articles/$id")({
           wp: {
             verbunden: !!wp,
             status: wp?.status ?? null,
-            kann_veroeffentlichen: kannVeroeffentlichen(article, project, scopes),
+            kann_veroeffentlichen: kannVeroeffentlichen(
+              article,
+              project,
+              scopes,
+              wp?.plugin_version,
+            ),
           },
         });
       },

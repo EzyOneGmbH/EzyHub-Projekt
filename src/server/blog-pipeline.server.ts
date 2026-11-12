@@ -31,6 +31,8 @@ const MAX_VERSUCHE = 3;
 export const MAX_PARALLEL = 2;
 /** Plugin-Version mit Kommentare/Pings zu und Bildern aus der eigenen Mediathek. */
 const PLUGIN_EIGENE_BILDER = "2.0.1";
+/** Plugin-Version, die Überarbeitungen in den bestehenden Beitrag übernimmt und IndexNow meldet. */
+export const PLUGIN_LIVE = "2.1.0";
 /** Version des Faktenchecks. Erhöhen, wenn die Prüfung besser wird: löst die Nachprüfung aus. */
 export const PRUEF_VERSION = 2;
 

@@ -10,13 +10,16 @@ import {
   requireBlogProject,
   type BlogKontext,
 } from "@/server/blog-autopilot.server";
+import { meldeIndexierung, pruefeIndexierung } from "@/server/blog-indexierung.server";
 import {
+  PLUGIN_LIVE,
   bereinigeHtml,
   bereinigeLinks,
   ctaAktuell,
   loeseClaims,
   schweiz,
   sendeAnWordpress,
+  versionAb,
   woerter,
   wpVerbindung,
   zaehleCta,
@@ -196,19 +199,28 @@ export function artikelSicht(a: any, project: any) {
     bearbeitet: job?.bearbeitet ?? null,
     freigabe: job?.freigabe ?? null,
     wordpress: job?.wordpress ?? null,
+    indexierung: job?.indexierung ?? null,
     quellen: (job?.recherche?.quellen ?? []).map((q: any) => ({ url: q.url, titel: q.titel })),
   };
 }
 
-/** Darf «Freigeben» den Beitrag in WordPress live schalten? Nur neue Artikel
- *  mit Entwurf und Scope «publish»: eine Überarbeitung liegt als eigener Entwurf
- *  neben dem Original und würde als Doppel erscheinen. */
-export function kannVeroeffentlichen(article: any, project: any, scopes: string[]): boolean {
+/** Darf «Freigeben» den Beitrag in WordPress live schalten? Braucht einen
+ *  Entwurf und den Scope «publish». Eine Überarbeitung wird nie als eigener
+ *  Beitrag veröffentlicht (Doppel): Sie ersetzt den bestehenden Beitrag, und
+ *  das kann das Plugin erst ab PLUGIN_LIVE. */
+export function kannVeroeffentlichen(
+  article: any,
+  project: any,
+  scopes: string[],
+  pluginVersion?: string | null,
+): boolean {
+  if (nurHub(article, project) || !article.wp_post_id || !scopes.includes("publish")) return false;
+  const modus = modusVon(article);
+  if (modus === "neu") return true;
   return (
-    modusVon(article) === "neu" &&
-    !nurHub(article, project) &&
-    !!article.wp_post_id &&
-    scopes.includes("publish")
+    modus === "refresh" &&
+    !!article.job?.brief?.original_url &&
+    versionAb(pluginVersion, PLUGIN_LIVE)
   );
 }
 
@@ -368,6 +380,15 @@ export async function pruefeWpStatus(r: Rahmen): Promise<Antwort> {
       ctx.userId,
       article.id,
     );
+  if (wirdLive)
+    await meldeIndexierung({
+      article,
+      project,
+      url: stand.permalink || article.wp_permalink,
+      wp,
+      postId: Number(article.wp_post_id),
+      actor: ctx.userId,
+    });
   return ok({
     wp: {
       status: stand.status,
@@ -514,6 +535,20 @@ export async function freigabe(
       ctx.userId,
       article.id,
     );
+    // Von Hand übernommen: Eine Überarbeitung lebt unter der URL des Originals.
+    const refresh = modusVon(article) === "refresh";
+    const wpNeu =
+      !refresh && article.wp_post_id && !nurHub(article, project)
+        ? await wpVerbindung(project.id)
+        : null;
+    await meldeIndexierung({
+      article,
+      project,
+      url: refresh ? job.brief?.original_url : article.wp_permalink,
+      wp: wpNeu,
+      postId: wpNeu ? Number(article.wp_post_id) : null,
+      actor: ctx.userId,
+    });
     return ok({ status: "live" });
   }
 
@@ -538,20 +573,44 @@ export async function freigabe(
     article.wp_post_id && !nurHub(article, project) ? await wpVerbindung(project.id) : null;
   let hinweis = freigabeHinweis(article, project);
 
-  if (wp && kannVeroeffentlichen(article, project, wp.scopes)) {
-    const pub = await ezrRequest<any>(wp.conn, "POST", `/posts/${article.wp_post_id}/publish`, {});
+  if (wp && kannVeroeffentlichen(article, project, wp.scopes, wp.plugin_version)) {
+    // Neu: Entwurf veröffentlichen. Überarbeitung: Inhalt in den bestehenden
+    // Beitrag übernehmen (URL, Datum und Autor bleiben), der Entwurf fällt weg.
+    const ersetzt = modusVon(article) === "refresh";
+    const pub = ersetzt
+      ? await ezrRequest<any>(
+          wp.conn,
+          "POST",
+          `/posts/${article.wp_post_id}/replace-original`,
+          {
+            original_url: job.brief.original_url,
+            title: article.title,
+            seo: {
+              title: article.seo_title,
+              description: article.meta_description,
+              focus_keyword: article.focus_keyword,
+            },
+          },
+          60_000,
+        )
+      : await ezrRequest<any>(wp.conn, "POST", `/posts/${article.wp_post_id}/publish`, {});
     if (pub.ok) {
+      const wpStatus = String(pub.data?.status || "publish");
+      const postId = Number(pub.data?.post_id) || Number(article.wp_post_id);
+      const permalink = pub.data?.permalink ?? article.wp_permalink ?? null;
       await speichere({
         status: "live",
         published_at: jetzt,
-        wp_permalink: pub.data?.permalink ?? article.wp_permalink,
+        wp_permalink: permalink,
+        ...(ersetzt ? { wp_post_id: postId, wp_edit_url: pub.data?.edit_url ?? null } : {}),
         job: {
           ...job,
           freigabe: freigabeInfo,
           wordpress: {
             ...job.wordpress,
-            status: String(pub.data?.status || "publish"),
+            status: wpStatus,
             geprueft_at: jetzt,
+            ...(ersetzt ? { ersetzt_entwurf: Number(article.wp_post_id) } : {}),
           },
         },
       });
@@ -565,17 +624,38 @@ export async function freigabe(
       await blogEvent(
         article.project_id,
         "article.published",
-        { wp_post_id: article.wp_post_id, weg: "freigabe" },
+        { wp_post_id: postId, weg: ersetzt ? "ersetzt" : "freigabe" },
         ctx.userId,
         article.id,
       );
+      // Ein geplanter Beitrag («future») ist noch nicht erreichbar: nichts melden.
+      const indexierung =
+        wpStatus === "publish"
+          ? await meldeIndexierung({
+              article,
+              project,
+              url: permalink,
+              wp,
+              postId,
+              // Plugin ab 2.1.0 meldet IndexNow gleich beim Veröffentlichen mit.
+              ...(pub.data?.indexnow !== undefined ? { indexnow: pub.data.indexnow } : {}),
+              actor: ctx.userId,
+            })
+          : null;
       return ok({
         status: "live",
-        permalink: pub.data?.permalink ?? article.wp_permalink ?? null,
-        hinweis: "Freigegeben und in WordPress veröffentlicht.",
+        permalink,
+        indexierung,
+        hinweis: ersetzt
+          ? "Freigegeben. Der bestehende Beitrag ist mit der Überarbeitung aktualisiert."
+          : "Freigegeben und in WordPress veröffentlicht.",
       });
     }
-    hinweis = `Freigegeben. Das Veröffentlichen in WordPress hat nicht geklappt (${pub.message}): bitte dort veröffentlichen.`;
+    hinweis = ersetzt
+      ? pub.status === 404
+        ? "Freigegeben. Der bestehende Beitrag wurde in WordPress nicht gefunden: Inhalt bitte von Hand übernehmen."
+        : `Freigegeben. Das Übernehmen in den bestehenden Beitrag hat nicht geklappt (${pub.message}): Inhalt bitte von Hand übernehmen.`
+      : `Freigegeben. Das Veröffentlichen in WordPress hat nicht geklappt (${pub.message}): bitte dort veröffentlichen.`;
   }
 
   await speichere({ status: "kunde_freigegeben", job: { ...job, freigabe: freigabeInfo } });
@@ -587,4 +667,38 @@ export async function freigabe(
     article.id,
   );
   return ok({ status: "kunde_freigegeben", hinweis });
+}
+
+// ── Indexierung ─────────────────────────────────────────────────────────────
+
+export const IndexierungBody = z.object({ action: z.enum(["melden", "pruefen"]) }).strict();
+
+/** Live-Artikel erneut bei den Suchmaschinen melden oder den Google-Stand abfragen. */
+export async function indexierung(
+  r: Rahmen,
+  action: z.infer<typeof IndexierungBody>["action"],
+): Promise<Antwort> {
+  const { article, project, ctx } = r;
+  if (!istAgentur(ctx)) return fehler(403, "Nur für Ezy One");
+  if (article.status !== "live") return fehler(409, "Erst möglich, wenn der Artikel live ist");
+  const url =
+    article.wp_permalink ||
+    (modusVon(article) === "refresh" ? article.job?.brief?.original_url : null);
+  if (!url) return fehler(409, "Zu diesem Artikel ist keine Live-URL bekannt");
+  if (action === "pruefen") {
+    const out = await pruefeIndexierung({ article, project, url });
+    return "grund" in out ? fehler(409, out.grund) : ok({ indexierung: out.indexierung });
+  }
+  const wp =
+    article.wp_post_id && !nurHub(article, project) ? await wpVerbindung(project.id) : null;
+  const out = await meldeIndexierung({
+    article,
+    project,
+    url,
+    wp,
+    postId: wp ? Number(article.wp_post_id) : null,
+    actor: ctx.userId,
+  });
+  if (!out) return fehler(502, "Die Meldung hat nicht geklappt. Bitte nochmals versuchen.");
+  return ok({ indexierung: out });
 }

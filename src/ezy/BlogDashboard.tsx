@@ -46,6 +46,11 @@ const EREIGNIS: Record<string, { text: string; gruppe: Gruppe; farbe: string }> 
   "article.reviewed": { text: "Von Ezy One geprüft", gruppe: "pruefung", farbe: P.green },
   "article.approved": { text: "Freigegeben", gruppe: "artikel", farbe: P.green },
   "article.published": { text: "Veröffentlicht", gruppe: "artikel", farbe: P.green },
+  "article.index_requested": {
+    text: "Bei Suchmaschinen gemeldet",
+    gruppe: "artikel",
+    farbe: P.accent,
+  },
   "article.wp_synced": {
     text: "Änderungen an WordPress gesendet",
     gruppe: "artikel",

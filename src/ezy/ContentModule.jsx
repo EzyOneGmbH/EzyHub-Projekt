@@ -7,7 +7,13 @@ import WordPressPublishModal from "@/ezy/PublishFlow";
 import { Badge, Btn, useToast } from "./shared-ui";
 import { useAuth } from "@/hooks/use-auth";
 import { C } from "./theme";
-import { ACTION_RECS, REC_PLAYBOOK, REC_TEXTE } from "@/lib/contentMassnahmen";
+import {
+  ACTION_RECS,
+  REC_PLAYBOOK,
+  REC_TEXTE,
+  gateText,
+  titelKlartext,
+} from "@/lib/contentMassnahmen";
 import { Modal, TabBar, downloadFile } from "./ui-kit";
 import { escapeHtml, markdownToHtml, sanitizeHref } from "@/ezy/lib/markdown";
 import { supabase } from "@/integrations/supabase/client";
@@ -592,7 +598,7 @@ export function RefreshRadar({ selectedClient }) {
                         textOverflow: "ellipsis",
                       }}
                     >
-                      {r.title}
+                      {titelKlartext(r.title)}
                     </div>
                     {r.url ? (
                       <div
@@ -630,7 +636,7 @@ export function RefreshRadar({ selectedClient }) {
                       whiteSpace: "nowrap",
                     }}
                   >
-                    {r.gate}
+                    {gateText(r.gate)}
                   </span>
                   <span
                     title={tr.t}
@@ -986,7 +992,7 @@ export function ReportsPage({ items, selectedClient }) {
                   fontFamily: "inherit",
                 }}
               >
-                <div style={{ fontSize: 13, fontWeight: 600 }}>{r.title}</div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{titelKlartext(r.title)}</div>
                 <div style={{ fontSize: 11, color: C.textMuted }}>{r.updatedAt || r.createdAt}</div>
               </button>
             ))}

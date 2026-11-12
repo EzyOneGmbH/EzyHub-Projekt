@@ -4,9 +4,11 @@ import {
   REC_PLAYBOOK,
   REC_TEXTE,
   baueAktionen,
+  gateText,
   ohneEszett,
   prioritaet,
   recVonTyp,
+  titelKlartext,
 } from "./contentMassnahmen";
 import { jsonAusText, luecken, normalisiereEmpfehlung } from "@/server/content-actions.server";
 
@@ -334,5 +336,19 @@ describe("erkenneSprache", () => {
       erkenneSprache("", "Le migliori vacanze sul Lago Maggiore con la famiglia e il lago"),
     ).toBe("it");
     expect(erkenneSprache(null, "Pontresina")).toBeNull();
+  });
+});
+
+describe("Lesbare Anzeige", () => {
+  it("übersetzt die Alters-Codes", () => {
+    expect(gateText("maturing")).toBe("Neu (unter 30 Tage)");
+    expect(gateText("gate_90_plus")).toBe("Über 3 Monate online");
+    expect(gateText(null)).toBe("—");
+    expect(gateText("unbekannt")).toBe("unbekannt");
+  });
+  it("löst HTML-Entitäten in Titeln auf", () => {
+    expect(titelKlartext("Nothilfe &#8211; Afrika &amp; Asien")).toBe("Nothilfe – Afrika & Asien");
+    expect(titelKlartext("A&#x2019;s &hellip; &unbekannt;")).toBe("A’s … &unbekannt;");
+    expect(titelKlartext(null)).toBe("");
   });
 });

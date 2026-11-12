@@ -87,6 +87,16 @@ function Zeile({
   );
 }
 
+/** a >= b bei Versionen wie «2.1.0». */
+function abVersion(a: string, b: string): boolean {
+  const za = a.split(".").map((n) => parseInt(n, 10) || 0);
+  const zb = b.split(".").map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < 3; i++) {
+    if ((za[i] ?? 0) !== (zb[i] ?? 0)) return (za[i] ?? 0) > (zb[i] ?? 0);
+  }
+  return true;
+}
+
 export default function BlogIntegrationen({
   projekt,
   agentur,
@@ -163,6 +173,14 @@ export default function BlogIntegrationen({
           zusatz={[
             wp.last_checked_at ? `Zuletzt geprüft: ${zeitText(wp.last_checked_at)}` : null,
             agentur && wp.plugin_version ? `Plugin ${wp.plugin_version}` : null,
+            agentur && wp.site_url && !nurHub
+              ? Array.isArray(wp.scopes) && wp.scopes.includes("publish")
+                ? "Live stellen: aktiv"
+                : "Live stellen: im Plugin nicht erlaubt"
+              : null,
+            agentur && wp.plugin_version && !abVersion(wp.plugin_version, "2.1.0")
+              ? "Für Überarbeitungen und IndexNow: Plugin 2.1.0 nötig"
+              : null,
             agentur && wp.status === "aktion_noetig" && wp.last_error_code
               ? `Fehler: ${wp.last_error_code}`
               : null,

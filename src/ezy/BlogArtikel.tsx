@@ -171,6 +171,27 @@ const STIL = `
 .ezr-artikel[contenteditable="true"]:focus-visible{outline:2px solid ${P.accent};outline-offset:2px}
 `;
 
+const GOOGLE_STAND: Record<string, string> = {
+  PASS: "im Index",
+  PARTIAL: "im Index, mit Hinweisen",
+  NEUTRAL: "noch nicht im Index",
+  FAIL: "nicht im Index",
+};
+
+function IndexZeile({ name, teil }: { name: string; teil?: { ok?: boolean; grund?: string } }) {
+  const ok = !!teil?.ok;
+  return (
+    <div style={{ fontSize: 13.5, lineHeight: 1.45 }}>
+      <span style={{ fontWeight: 700, color: ok ? P.green : P.orange }}>
+        {ok ? "Gemeldet" : "Nicht gemeldet"}
+      </span>
+      {" · "}
+      {name}
+      {!ok && teil?.grund ? <span style={{ color: P.muted }}>: {teil.grund}</span> : null}
+    </div>
+  );
+}
+
 const klein: React.CSSProperties = { fontSize: 13.5, color: P.muted, lineHeight: 1.45 };
 
 const verweis: React.CSSProperties = {
@@ -414,6 +435,20 @@ export default function BlogArtikel({ id }: { id: string }) {
       erledigt: "Als veröffentlicht markiert.",
     };
     setMeldung({ ton: "ok", text: j.hinweis || text[action] });
+  };
+
+  const indexiere = async (action: "melden" | "pruefen") => {
+    const j = await aktion(`index_${action}`, `/api/blog/articles/${id}/indexierung`, { action });
+    if (!j) return;
+    await lade();
+    const ix = j.indexierung ?? {};
+    setMeldung(
+      action === "pruefen"
+        ? { ton: "ok", text: "Stand bei Google abgefragt." }
+        : ix.indexnow?.ok || ix.google?.ok
+          ? { ton: "ok", text: "Bei den Suchmaschinen gemeldet." }
+          : { ton: "info", text: "Die Meldung ist nicht angekommen. Die Gründe stehen unten." },
+    );
   };
 
   const sendeWp = async () => {
@@ -809,9 +844,11 @@ export default function BlogArtikel({ id }: { id: string }) {
                 {frage === "approve" ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     <div style={{ fontSize: 14, fontWeight: 700 }}>
-                      {wp.kann_veroeffentlichen
-                        ? "Der Artikel wird sofort auf der Website veröffentlicht. Fortfahren?"
-                        : "Artikel freigeben? Das lässt sich hier nicht zurücknehmen."}
+                      {!wp.kann_veroeffentlichen
+                        ? "Artikel freigeben? Das lässt sich hier nicht zurücknehmen."
+                        : a.modus === "refresh"
+                          ? "Der bestehende Beitrag auf der Website wird sofort mit der Überarbeitung ersetzt. Fortfahren?"
+                          : "Der Artikel wird sofort auf der Website veröffentlicht. Fortfahren?"}
                     </div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                       <Knopf onClick={() => void freigeben("approve")} disabled={busy !== null}>
@@ -890,6 +927,61 @@ export default function BlogArtikel({ id }: { id: string }) {
                   <a href={liveUrl} target="_blank" rel="noopener noreferrer" style={verweis}>
                     Auf der Website ansehen
                   </a>
+                )}
+                {(a.indexierung || agentur) && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700 }}>Suchmaschinen</div>
+                    {a.indexierung ? (
+                      <>
+                        <IndexZeile
+                          name="Bing, Yandex, Seznam, Naver (IndexNow)"
+                          teil={a.indexierung.indexnow}
+                        />
+                        <IndexZeile
+                          name="Google (Sitemap in der Search Console)"
+                          teil={a.indexierung.google}
+                        />
+                        {a.indexierung.at && (
+                          <div style={klein}>Gemeldet am {zeitText(a.indexierung.at)}.</div>
+                        )}
+                        {a.indexierung.pruefung && (
+                          <div style={klein}>
+                            Google am {zeitText(a.indexierung.pruefung.at)}:{" "}
+                            {GOOGLE_STAND[a.indexierung.pruefung.verdict ?? ""] ??
+                              "Stand unbekannt"}
+                            {a.indexierung.pruefung.coverageState
+                              ? ` (${a.indexierung.pruefung.coverageState})`
+                              : ""}
+                            .
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div style={klein}>Noch nicht gemeldet.</div>
+                    )}
+                    <div style={klein}>
+                      Eine Meldung ist eine Bitte: Wann die Seite im Index erscheint, entscheidet
+                      jede Suchmaschine selbst.
+                    </div>
+                    {agentur && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                        <Knopf
+                          art="sekundaer"
+                          onClick={() => void indexiere("melden")}
+                          disabled={busy !== null}
+                        >
+                          {busy === "index_melden" ? "Meldet…" : "Erneut einreichen"}
+                        </Knopf>
+                        <Knopf
+                          art="text"
+                          onClick={() => void indexiere("pruefen")}
+                          disabled={busy !== null}
+                        >
+                          {busy === "index_pruefen" ? "Prüft…" : "Indexierung prüfen"}
+                        </Knopf>
+                      </div>
+                    )}
+                  </div>
                 )}
               </>
             )}

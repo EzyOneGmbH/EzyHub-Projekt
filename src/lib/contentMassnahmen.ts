@@ -34,6 +34,40 @@ export const REC_TEXTE: Record<string, { t: string; a: string }> = {
   unpublished: { t: "Unpubliziert", a: "—" },
 };
 
+/** Alter seit Veröffentlichung (Code aus der SQL-View content_decision) lesbar. */
+export const GATE_TEXTE: Record<string, string> = {
+  maturing: "Neu (unter 30 Tage)",
+  gate_30: "Seit 1 Monat online",
+  gate_60: "Seit 2 Monaten online",
+  gate_90_plus: "Über 3 Monate online",
+};
+export const gateText = (gate: string | null | undefined): string =>
+  gate ? (GATE_TEXTE[gate] ?? gate) : "—";
+
+const ENTITAETEN: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+  ndash: "–",
+  mdash: "—",
+  hellip: "…",
+  laquo: "«",
+  raquo: "»",
+};
+const zeichen = (code: number, roh: string): string =>
+  Number.isFinite(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : roh;
+
+/** HTML-Entitäten in WordPress-Titeln auflösen («&#8211;» wird «–»). Nur Text, kein HTML. */
+export function titelKlartext(s: string | null | undefined): string {
+  return String(s ?? "")
+    .replace(/&#(\d+);/g, (roh, n) => zeichen(Number(n), roh))
+    .replace(/&#x([0-9a-f]+);/gi, (roh, n) => zeichen(parseInt(n, 16), roh))
+    .replace(/&([a-z]+);/gi, (roh, n) => ENTITAETEN[String(n).toLowerCase()] ?? roh);
+}
+
 /** Empfehlungen mit Handlungsbedarf (Filter «Nur handlungsbedürftig» + Modal). */
 export const ACTION_RECS = [
   "not_indexed",

@@ -16,12 +16,14 @@ require_once __DIR__ . '/class-ezyrank-auth.php';
 require_once __DIR__ . '/class-ezyrank-sanitizer.php';
 require_once __DIR__ . '/class-ezyrank-seo.php';
 require_once __DIR__ . '/class-ezyrank-media.php';
+require_once __DIR__ . '/class-ezyrank-indexnow.php';
 require_once __DIR__ . '/class-ezyrank-posts.php';
 require_once __DIR__ . '/class-ezyrank-rest.php';
 
 class EzyRank_Plugin {
     public static function init() {
         add_action('rest_api_init', ['EzyRank_Rest', 'register']);
+        add_action('init', ['EzyRank_Indexnow', 'serve_key'], 1);
         add_filter('pre_get_document_title', ['EzyRank_Seo', 'filter_title'], 100);
         add_action('wp_head', ['EzyRank_Seo', 'meta_description'], 2);
         add_action('wp_head', ['EzyRank_Seo', 'jsonld'], 20);

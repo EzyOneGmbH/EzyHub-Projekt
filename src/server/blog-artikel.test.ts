@@ -537,3 +537,102 @@ describe("freigabe", () => {
     expect(wp).not.toHaveBeenCalled();
   });
 });
+
+describe("live stellen und Indexierung", () => {
+  const ORIGINAL = "https://faithinhumanity.ch/nothilfe/";
+  const refresh = { job: { modus: "refresh", brief: { original_url: ORIGINAL }, wordpress: {} } };
+  const mitPlugin = (version: string) => {
+    db.wp_connections[0].scopes = ["read", "draft", "publish"];
+    db.wp_connections[0].plugin_version = version;
+  };
+
+  it("eine Überarbeitung geht nur mit Original-URL und Plugin ab 2.1.0 live", () => {
+    const p = db.blog_projects[0];
+    const a = { wp_post_id: 1, ...refresh };
+    expect(kannVeroeffentlichen(a, p, ["publish"], "2.1.0")).toBe(true);
+    expect(kannVeroeffentlichen(a, p, ["publish"], "2.0.1")).toBe(false);
+    expect(kannVeroeffentlichen(a, p, ["draft"], "2.1.0")).toBe(false);
+    expect(
+      kannVeroeffentlichen({ wp_post_id: 1, job: { modus: "refresh" } }, p, ["publish"], "2.1.0"),
+    ).toBe(false);
+  });
+
+  it("die Freigabe ersetzt den bestehenden Beitrag und meldet ihn", async () => {
+    mitPlugin("2.1.0");
+    wpAntworten(
+      wpOk({
+        post_id: 4711,
+        status: "publish",
+        permalink: ORIGINAL,
+        edit_url: "https://faithinhumanity.ch/wp-admin/post.php?post=4711",
+        replaced_draft_id: 18012,
+        indexnow: { ok: true, status: 202 },
+      }),
+    );
+    const out = await freigabe(rahmen(refresh), "approve");
+    expect(wp).toHaveBeenCalledTimes(1);
+    expect(wp.mock.calls[0].slice(1, 3)).toEqual(["POST", "/posts/18012/replace-original"]);
+    expect(wp.mock.calls[0][3]).toMatchObject({ original_url: ORIGINAL });
+    expect(out.body).toMatchObject({ status: "live", permalink: ORIGINAL });
+    expect(String(out.body.hinweis)).toMatch(/aktualisiert/);
+    const a = db.blog_articles[0];
+    expect(a).toMatchObject({ status: "live", wp_post_id: 4711, wp_permalink: ORIGINAL });
+    expect(a.job.wordpress.ersetzt_entwurf).toBe(18012);
+    expect(a.job.indexierung.indexnow).toEqual({ ok: true, status: 202 });
+    expect(a.job.indexierung.google.ok).toBe(false);
+    expect(db.blog_events.map((e) => e.type)).toEqual([
+      "article.approved",
+      "article.published",
+      "article.index_requested",
+    ]);
+  });
+
+  it("fehlt der bestehende Beitrag, bleibt es bei der Freigabe", async () => {
+    mitPlugin("2.1.0");
+    wpAntworten({ ok: false, status: 404, code: "ezr_original_not_found", message: "x" });
+    const out = await freigabe(rahmen(refresh), "approve");
+    expect(out.body.status).toBe("kunde_freigegeben");
+    expect(String(out.body.hinweis)).toMatch(/nicht gefunden/);
+    expect(db.blog_articles[0].wp_post_id).toBe(18012);
+  });
+
+  it("erneut einreichen: nur Ezy One, nur live", async () => {
+    const { indexierung } = await import("./blog-artikel.server");
+    expect((await indexierung(rahmen({ status: "live" }, kunde), "melden")).status).toBe(403);
+    expect((await indexierung(rahmen(), "melden")).status).toBe(409);
+    expect((await indexierung(rahmen({ status: "live" }), "melden")).status).toBe(409);
+    mitPlugin("2.1.0");
+    wpAntworten(wpOk({ indexnow: { ok: true, status: 200 } }));
+    const out = await indexierung(
+      rahmen({ status: "live", wp_permalink: "https://faithinhumanity.ch/a/" }),
+      "melden",
+    );
+    expect(wp.mock.calls[0].slice(1, 3)).toEqual(["POST", "/posts/18012/indexnow"]);
+    expect((out.body.indexierung as any).indexnow.ok).toBe(true);
+    expect((out.body.indexierung as any).google.grund).toMatch(/Search Console/);
+    // Ohne Search Console lässt sich der Google-Stand nicht abfragen.
+    expect(
+      (
+        await indexierung(
+          rahmen({ status: "live", wp_permalink: "https://faithinhumanity.ch/a/" }),
+          "pruefen",
+        )
+      ).status,
+    ).toBe(409);
+  });
+
+  it("liest Plugin-Antwort und robots.txt", async () => {
+    const { ausPlugin, sitemapsAusRobots } = await import("./blog-indexierung.server");
+    expect(ausPlugin(null).ok).toBe(false);
+    expect(ausPlugin({ ok: false, status: 403, error: "Key ungültig" })).toEqual({
+      ok: false,
+      status: 403,
+      grund: "Key ungültig",
+    });
+    expect(
+      sitemapsAusRobots(
+        "User-agent: *\nSitemap: https://a.ch/s.xml\nsitemap: https://a.ch/s.xml\nSitemap: /x",
+      ),
+    ).toEqual(["https://a.ch/s.xml"]);
+  });
+});

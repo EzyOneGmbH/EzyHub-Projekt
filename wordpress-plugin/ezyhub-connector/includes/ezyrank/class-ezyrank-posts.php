@@ -9,7 +9,8 @@
  *   zum Entwurf.
  * - Autor, Kategorien, Tags und Datum nur ändern, wenn mitgeschickt.
  * - Geändert werden nur Beiträge, die EzyRank selbst angelegt hat
- *   (Meta _ezyrank_external_id).
+ *   (Meta _ezyrank_external_id). Einzige Ausnahme: /replace-original
+ *   (Scope publish) ersetzt den Beitrag, zu dem die Überarbeitung gehört.
  */
 
 if (!defined('ABSPATH')) exit;
@@ -212,7 +213,8 @@ class EzyRank_Posts {
     /** POST /posts/{id}/publish (Scope publish). */
     public static function publish($id, $params) {
         if (!self::is_ezyrank_post($id)) return self::err('ezr_not_found', 'Kein von EzyRank angelegter Beitrag', 404);
-        $data = ['ID' => (int) $id, 'post_status' => 'publish'];
+        // Vorgabe Ezy One: Kommentare und Pings bleiben auch beim Livegang zu.
+        $data = ['ID' => (int) $id, 'post_status' => 'publish', 'comment_status' => 'closed', 'ping_status' => 'closed'];
         if (!empty($params['date'])) {
             $ts = strtotime((string) $params['date']);
             if ($ts) {
@@ -225,7 +227,76 @@ class EzyRank_Posts {
         $r = wp_update_post($data, true);
         if (is_wp_error($r)) return self::err('ezr_save_failed', $r->get_error_message(), 500);
         EzyRank_Logger::log('post.published', get_the_title($id), '', $id);
-        return self::describe($id, false);
+        $out = self::describe($id, false);
+        // Geplante Beiträge sind noch nicht erreichbar: erst melden, wenn live.
+        if ($out['status'] === 'publish') $out['indexnow'] = EzyRank_Indexnow::ping($out['permalink']);
+        return $out;
+    }
+
+    /** POST /posts/{id}/indexnow (Scope publish): Live-Beitrag erneut melden. */
+    public static function indexnow($id) {
+        $p = get_post((int) $id);
+        if (!$p || $p->post_type !== 'post') return self::err('ezr_not_found', 'Beitrag nicht gefunden', 404);
+        if ($p->post_status !== 'publish') return self::err('ezr_invalid', 'Der Beitrag ist nicht veröffentlicht');
+        $out = self::describe($p->ID);
+        $out['indexnow'] = EzyRank_Indexnow::ping($out['permalink']);
+        return $out;
+    }
+
+    /**
+     * POST /posts/{id}/replace-original (Scope publish, ab 2.1.0).
+     * Ersetzt einen bestehenden, veröffentlichten Beitrag durch den Inhalt des
+     * EzyRank-Entwurfs {id}. URL, Datum, Autor, Kategorien und Tags des
+     * Originals bleiben. WordPress legt dabei eine Revision an: Der alte Stand
+     * lässt sich im Editor wiederherstellen. Der Entwurf wandert in den
+     * Papierkorb, seine EzyHub-ID geht auf das Original über.
+     */
+    public static function replace_original($id, $params) {
+        if (!self::is_ezyrank_post($id)) return self::err('ezr_not_found', 'Kein von EzyRank angelegter Beitrag', 404);
+        $draft = get_post((int) $id);
+        if (in_array($draft->post_status, ['publish', 'future', 'private', 'trash'], true)) {
+            return self::err('ezr_invalid', 'Die Überarbeitung ist kein Entwurf mehr');
+        }
+        $url = isset($params['original_url']) ? esc_url_raw((string) $params['original_url']) : '';
+        $target_id = $url !== '' ? (int) url_to_postid($url) : 0;
+        $target = $target_id ? get_post($target_id) : null;
+        if (!$target || $target->post_type !== 'post' || $target->post_status !== 'publish' || $target_id === (int) $id) {
+            return self::err('ezr_original_not_found', 'Zur Original-URL gibt es keinen veröffentlichten Beitrag', 404);
+        }
+
+        $data = [
+            'ID'             => $target_id,
+            // Inhalt wurde beim Anlegen des Entwurfs bereits bereinigt.
+            'post_content'   => $draft->post_content,
+            'comment_status' => 'closed',
+            'ping_status'    => 'closed',
+        ];
+        $title = isset($params['title']) ? sanitize_text_field($params['title']) : '';
+        if ($title !== '') $data['post_title'] = $title;
+        if ($draft->post_excerpt !== '') $data['post_excerpt'] = $draft->post_excerpt;
+
+        kses_remove_filters();
+        $r = wp_update_post(wp_slash($data), true);
+        kses_init();
+        if (is_wp_error($r)) return self::err('ezr_save_failed', $r->get_error_message(), 500);
+
+        $thumb = (int) get_post_thumbnail_id($id);
+        if ($thumb) set_post_thumbnail($target_id, $thumb);
+        $schema = get_post_meta($id, '_ezyrank_schema', true);
+        if ($schema !== '') update_post_meta($target_id, '_ezyrank_schema', wp_slash($schema));
+        if (isset($params['seo']) && is_array($params['seo'])) EzyRank_Seo::write($target_id, $params['seo']);
+
+        // EzyHub-ID umhängen, damit spätere Änderungen das Original treffen.
+        $ext = (string) get_post_meta($id, self::META_EXT, true);
+        delete_post_meta($id, self::META_EXT);
+        update_post_meta($target_id, self::META_EXT, $ext);
+        wp_trash_post($id);
+
+        EzyRank_Logger::log('post.replaced', get_the_title($target_id), '', $target_id);
+        $out = self::describe($target_id, false);
+        $out['replaced_draft_id'] = (int) $id;
+        $out['indexnow'] = EzyRank_Indexnow::ping($out['permalink']);
+        return $out;
     }
 
     /** POST /test: Testentwurf anlegen und sofort endgültig löschen. */

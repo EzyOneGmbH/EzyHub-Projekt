@@ -32,7 +32,7 @@ class EzyRank_Rest {
                 'seo_plugin'     => EzyRank_Seo::primary(),
                 'editor'         => $gutenberg ? 'gutenberg' : 'classic',
                 'image_formats'  => array_values(array_unique(array_values(EzyRank_Media::TYPES))),
-                'features'       => ['upsert', 'patch', 'media', 'publish', 'jsonld', 'test'],
+                'features'       => ['upsert', 'patch', 'media', 'publish', 'replace', 'indexnow', 'jsonld', 'test'],
                 'timezone'       => wp_timezone_string(),
                 'plugin_version' => EzyHub_Connector::VERSION,
             ];
@@ -80,6 +80,14 @@ class EzyRank_Rest {
 
         register_rest_route(self::NS, '/posts/(?P<id>\d+)/publish', ['methods' => 'POST', 'permission_callback' => $publish, 'callback' => function ($r) {
             return EzyRank_Posts::publish((int) $r['id'], (array) $r->get_json_params());
+        }]);
+
+        register_rest_route(self::NS, '/posts/(?P<id>\d+)/replace-original', ['methods' => 'POST', 'permission_callback' => $publish, 'callback' => function ($r) {
+            return EzyRank_Posts::replace_original((int) $r['id'], (array) $r->get_json_params());
+        }]);
+
+        register_rest_route(self::NS, '/posts/(?P<id>\d+)/indexnow', ['methods' => 'POST', 'permission_callback' => $publish, 'callback' => function ($r) {
+            return EzyRank_Posts::indexnow((int) $r['id']);
         }]);
 
         register_rest_route(self::NS, '/media', ['methods' => 'POST', 'permission_callback' => $draft, 'callback' => function ($r) {
