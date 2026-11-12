@@ -409,3 +409,300 @@ export const zeitText = (iso: string | null | undefined) =>
         minute: "2-digit",
       }).format(new Date(iso))
     : "";
+
+// ── Blog-Tab (Dashboard, Kalender, Optimierung, Einstellungen) ─────────────
+
+export const HAARLINIE = "rgba(43,0,51,.06)";
+
+/** Zahl in Schweizer Schreibweise, «—» wenn kein Wert da ist. */
+export const zahl = (n: number | null | undefined, stellen = 0) =>
+  n === null || n === undefined || Number.isNaN(Number(n))
+    ? "—"
+    : new Intl.NumberFormat("de-CH", {
+        minimumFractionDigits: stellen,
+        maximumFractionDigits: stellen,
+      }).format(Number(n));
+
+export const ARTIKELTYP_TEXT: Record<string, string> = {
+  ratgeber: "Ratgeber",
+  anleitung: "Anleitung",
+  erklaerung: "Erklärung",
+  uebersicht: "Übersicht",
+};
+
+export const verweisStil: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 44,
+  color: P.accent,
+  fontSize: 14,
+  fontWeight: 700,
+  textDecoration: "none",
+  background: "transparent",
+  border: "none",
+  padding: 0,
+  cursor: "pointer",
+  fontFamily: "inherit",
+};
+
+/** Umschalter mit zwei bis fünf Segmenten (Unter-Tabs, Zeitraum, Ansicht). */
+export function Segmente<T extends string>({
+  wert,
+  optionen,
+  onChange,
+  label,
+  klein,
+}: {
+  wert: T;
+  optionen: { id: T; label: string }[];
+  onChange: (id: T) => void;
+  label: string;
+  klein?: boolean;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      style={{
+        display: "inline-flex",
+        maxWidth: "100%",
+        overflowX: "auto",
+        background: "rgba(43,0,51,.05)",
+        borderRadius: 12,
+        padding: 3,
+        gap: 2,
+      }}
+    >
+      {optionen.map((o) => {
+        const an = o.id === wert;
+        return (
+          <button
+            key={o.id}
+            type="button"
+            aria-pressed={an}
+            onClick={() => onChange(o.id)}
+            style={{
+              minHeight: klein ? 38 : 44,
+              padding: klein ? "0 12px" : "0 16px",
+              border: "none",
+              borderRadius: 10,
+              background: an ? "#fff" : "transparent",
+              boxShadow: an ? "0 1px 3px rgba(43,0,51,.10)" : "none",
+              color: an ? P.text : P.muted,
+              fontSize: klein ? 13 : 14,
+              fontWeight: an ? 700 : 600,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              fontFamily: "inherit",
+            }}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Karte mit Kopfzeile: Titel links, Aktionen rechts. */
+export function Block({
+  titel,
+  rechts,
+  children,
+  style,
+}: {
+  titel?: string;
+  rechts?: ReactNode;
+  children: ReactNode;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <section
+      aria-label={titel}
+      style={{
+        background: P.card,
+        borderRadius: 16,
+        boxShadow: "0 1px 2px rgba(43,0,51,.04), 0 10px 28px -20px rgba(43,0,51,.16)",
+        padding: "18px 20px 20px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 14,
+        minWidth: 0,
+        color: P.text,
+        ...style,
+      }}
+    >
+      {(titel || rechts) && (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "6px 16px",
+          }}
+        >
+          {titel && <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>{titel}</h2>}
+          {rechts}
+        </div>
+      )}
+      {children}
+    </section>
+  );
+}
+
+/** Filter-Chip mit Anzahl (Statusfilter in Kalender und Optimierung). */
+export function FilterChip({
+  an,
+  onClick,
+  children,
+  anzahl,
+}: {
+  an: boolean;
+  onClick: () => void;
+  children: ReactNode;
+  anzahl?: number;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={an}
+      onClick={onClick}
+      style={{
+        minHeight: 44,
+        padding: "0 14px",
+        borderRadius: 99,
+        border: `1px solid ${an ? P.accent : P.input}`,
+        background: an ? P.accentDim : "#fff",
+        color: an ? P.accent : P.muted,
+        fontSize: 13.5,
+        fontWeight: 700,
+        cursor: "pointer",
+        whiteSpace: "nowrap",
+        fontFamily: "inherit",
+      }}
+    >
+      {children}
+      {anzahl !== undefined && (
+        <span style={{ marginLeft: 6, fontWeight: 600, opacity: 0.75 }}>{anzahl}</span>
+      )}
+    </button>
+  );
+}
+
+/** Schwierigkeit 0–100 in Worten, damit die Zahl nicht allein steht. */
+export function Schwierigkeit({ wert }: { wert: number | null | undefined }) {
+  if (wert === null || wert === undefined) return <span style={{ color: P.dim }}>—</span>;
+  const s =
+    wert <= 30
+      ? { text: "Leicht", ...TON.gruen }
+      : wert <= 60
+        ? { text: "Mittel", ...TON.orange }
+        : { text: "Schwer", ...TON.rot };
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        minHeight: 24,
+        padding: "0 9px",
+        borderRadius: 99,
+        fontSize: 12.5,
+        fontWeight: 700,
+        color: s.farbe,
+        background: s.grund,
+        whiteSpace: "nowrap",
+        fontVariantNumeric: "tabular-nums",
+      }}
+    >
+      {Math.round(wert)} · {s.text}
+    </span>
+  );
+}
+
+export function montag(d: Date): Date {
+  const m = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  m.setDate(m.getDate() - ((m.getDay() + 6) % 7));
+  return m;
+}
+
+export function plusTage(d: Date, n: number): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+}
+
+/** Ein Kalendereintrag: ein Artikel oder ein freigegebenes Thema ohne Artikel. */
+export type Eintrag = {
+  schluessel: string;
+  artikelId: string | null;
+  topicId: string | null;
+  titel: string;
+  modus: string;
+  status: string;
+  tag: Date | null;
+  geprueft: boolean;
+  ungesendet: boolean;
+  fehler: string | null;
+  volume: number | null;
+  difficulty: number | null;
+  typ: string | null;
+  liveSeit: string | null;
+};
+
+export function eintraegeAus(daten: any, nurHub: boolean): Eintrag[] {
+  if (!daten) return [];
+  const artikel: Eintrag[] = (daten.articles ?? []).map((a: any) => ({
+    schluessel: `a-${a.id}`,
+    artikelId: a.id,
+    topicId: a.topic_id ?? null,
+    titel: a.title || a.focus_keyword || "Ohne Titel",
+    modus: a.modus || "neu",
+    status: a.status,
+    tag: tagLokal(a.scheduled_for) ?? tagLokal(a.created_at),
+    geprueft: !!a.review,
+    ungesendet:
+      !nurHub &&
+      !!a.wp_post_id &&
+      !!a.bearbeitet?.at &&
+      (!a.wordpress?.at || a.wordpress.at < a.bearbeitet.at),
+    fehler: a.error ?? null,
+    volume: a.volume ?? null,
+    difficulty: a.difficulty ?? null,
+    typ: a.article_type ?? null,
+    liveSeit: a.published_at ?? null,
+  }));
+  const themen: Eintrag[] = (daten.geplant ?? []).map((t: any) => ({
+    schluessel: `t-${t.id}`,
+    artikelId: null,
+    topicId: t.id,
+    titel: t.keyword,
+    modus: t.kind === "refresh" ? "refresh" : "neu",
+    status: "geplant",
+    tag: tagLokal(t.scheduled_for),
+    geprueft: false,
+    ungesendet: false,
+    fehler: null,
+    volume: t.volume ?? null,
+    difficulty: t.difficulty ?? null,
+    typ: t.article_type ?? null,
+    liveSeit: null,
+  }));
+  return [...artikel, ...themen];
+}
+
+/** Wohin ein Eintrag führt. Kunden sehen einen Artikel erst nach der Prüfung. */
+export function eintragVerweis(
+  e: Eintrag,
+  agentur: boolean,
+): { text: string; stark: boolean } | null {
+  if (!e.artikelId) return null;
+  if (e.status === "entwurf_wp") {
+    if (agentur)
+      return { text: e.geprueft ? "Ansehen" : "Prüfen und freigeben", stark: !e.geprueft };
+    return e.geprueft ? { text: "Prüfen und freigeben", stark: true } : null;
+  }
+  if (e.status === "faktencheck")
+    return agentur ? { text: "Faktencheck öffnen", stark: true } : null;
+  if (e.status === "kunde_freigegeben" || e.status === "live")
+    return { text: "Ansehen", stark: false };
+  return null;
+}
