@@ -6804,13 +6804,31 @@ function App({ appScope = null }) {
     return aktiv.filter((c) => appSichtbarFuerRolle(caa.map, c.id, appScope, role));
   }, [ezy.clients, scope, svcMatrix, appScope, caa.map, role]);
   const ui0 = useMemo(() => loadUiState(), []); // letzter UI-Stand aus localStorage
-  const [clientId, setClientId] = useState(ui0.clientId || "");
+  // Rücksprung aus Vollbild-Seiten (12.11.): ?tab=<id>&client=<uuid> öffnet
+  // direkt den Dashboard-Tab dieses Kunden (z. B. «Zurück zum Blog» aus der
+  // Artikel-Ansicht). Ein unbekannter Kunde fällt unten auf clients[0] zurück,
+  // ein unbekannter Tab auf den ersten sichtbaren.
+  const deepLink = useMemo(() => {
+    try {
+      const q = new URLSearchParams(window.location.search);
+      const t = q.get("tab") || "";
+      const c = q.get("client") || "";
+      return {
+        tab: /^[a-z]{2,20}$/.test(t) ? t : null,
+        client: /^[0-9a-f-]{36}$/i.test(c) ? c : null,
+      };
+    } catch {
+      return { tab: null, client: null };
+    }
+  }, []);
+  const [clientId, setClientId] = useState(deepLink.client || ui0.clientId || "");
   // App-Einstieg (Volkan 11.08., präzisiert): "Alle Kunden" nur beim FRISCHEN
   // Einstieg (Login, App-Wechsel per Link). Ein Reload/Zurück stellt die
   // letzte Auswahl wieder her — mitten in der Kunden-Arbeit bleibt man drin.
   // Admin startet in der Verwaltung; Viewer haben keine Alle-Kunden-Sicht.
   const [showAll, setShowAll] = useState(() => {
     if (appScope === "admin") return false;
+    if (deepLink.tab && (deepLink.client || ui0.clientId)) return false;
     if (isReloadNavigation() && ui0.showAll === false && ui0.clientId) return false;
     return true;
   });
@@ -6863,7 +6881,9 @@ function App({ appScope = null }) {
   useEffect(() => {
     if (appParam === "geo") window.location.replace("/ezyai");
   }, [appParam]);
-  const [page, setPage] = useState(appStart?.page || ui0.page || "dashboard");
+  const [page, setPage] = useState(
+    appStart?.page || (deepLink.tab ? "dashboard" : ui0.page) || "dashboard",
+  );
   // Dashboard/Agent-Switcher (04.08.): "Agent" = copilot-Seite, "Dashboard" =
   // zurück zur zuletzt aktiven Nicht-Agent-Seite (Searchable-Muster).
   const lastDashRef = useRef(page === "copilot" ? "dashboard" : page);
@@ -6871,20 +6891,25 @@ function App({ appScope = null }) {
   // gemerkte Tabs, die nicht mehr existieren (aivis seit Phase 2, overview seit
   // 10.08.) → SEO, damit der Einstieg direkt im SEO-Tab landet.
   const [tab, setTab] = useState(
-    appStart?.tab || (ui0.tab === "aivis" || ui0.tab === "overview" ? "seo" : ui0.tab) || "seo",
+    appStart?.tab ||
+      deepLink.tab ||
+      (ui0.tab === "aivis" || ui0.tab === "overview" ? "seo" : ui0.tab) ||
+      "seo",
   );
   useEffect(() => {
     // Param nach dem Einstieg aus der URL nehmen, damit Reload/Bookmark wieder
     // beim gemerkten UI-Stand landet statt ewig in der Deep-Link-Ansicht.
-    if (!appParam) return;
+    if (!appParam && !deepLink.tab && !deepLink.client) return;
     try {
       const u = new URL(window.location.href);
       u.searchParams.delete("app");
+      u.searchParams.delete("tab");
+      u.searchParams.delete("client");
       window.history.replaceState({}, "", u.pathname + (u.search || ""));
     } catch {
       /* egal */
     }
-  }, [appParam]);
+  }, [appParam, deepLink]);
   // Viewers (Kunden) dürfen Dashboard + ihre Reports sehen, sonst nichts.
   useEffect(() => {
     if (isViewer && page !== "dashboard" && page !== "reports" && page !== "heute")
@@ -6921,8 +6946,9 @@ function App({ appScope = null }) {
   useEffect(() => {
     if (heuteInit.current) return;
     heuteInit.current = true;
-    if (isMobile && !appStart && page === "dashboard" && !isReloadNavigation()) setPage("heute");
-  }, [isMobile, appStart, page]);
+    if (isMobile && !appStart && !deepLink.tab && page === "dashboard" && !isReloadNavigation())
+      setPage("heute");
+  }, [isMobile, appStart, deepLink, page]);
   useEffect(() => {
     if (!isMobile && page === "heute") setPage("dashboard");
   }, [isMobile, page]);

@@ -229,12 +229,14 @@ function Werkzeug({
   );
 }
 
-function Rahmen({ children }: { children: ReactNode }) {
+function Rahmen({ children, clientId }: { children: ReactNode; clientId?: string }) {
+  // Mit Kunde im Link landet der Rücksprung direkt im Blog-Tab dieses Kunden.
+  const zurueck = `/ezyrank?tab=blog${clientId ? `&client=${encodeURIComponent(clientId)}` : ""}`;
   return (
     <div className="ezr-seite" style={{ minHeight: "100vh", background: P.bg, color: P.text }}>
       <style dangerouslySetInnerHTML={{ __html: STIL }} />
       <main style={{ maxWidth: 1120, margin: "0 auto", padding: "20px 16px 80px" }}>
-        <a href="/ezyrank?tab=blog" style={{ ...verweis, color: P.muted }}>
+        <a href={zurueck} style={{ ...verweis, color: P.muted }}>
           ← Zurück zum Blog
         </a>
         {children}
@@ -549,7 +551,7 @@ export default function BlogArtikel({ id }: { id: string }) {
   const linksUnklar: string[] = a.pruefung?.links_unklar ?? [];
 
   return (
-    <Rahmen>
+    <Rahmen clientId={a.client_id}>
       <style dangerouslySetInnerHTML={{ __html: claimStil }} />
 
       <header style={{ margin: "8px 0 24px", display: "flex", flexDirection: "column", gap: 10 }}>

@@ -405,7 +405,7 @@ export function BlogSchrittStart({ c }: { c: Ctx }) {
     const r = await api(`/api/blog/projects/${c.project.id}/start`, "POST");
     setBusy(false);
     if (!r.ok) return c.setFehler(r.json?.error || "Start fehlgeschlagen");
-    window.location.href = `/ezyrank?tab=blog`;
+    window.location.href = `/ezyrank?tab=blog&client=${encodeURIComponent(c.kunde.id)}`;
   };
 
   const jetztSchreiben = async () => {
