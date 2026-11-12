@@ -741,12 +741,17 @@ export default function BlogDashboard({
             : "Im Moment ist kein Artikel geplant. Neue Themen gibst du im Themenplan frei."}
         </p>
         {kommend.length > 0 && (
-          <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 4 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+              gap: 12,
+            }}
+          >
             {kommend.slice(0, 8).map((e) => (
               <div
                 key={e.schluessel}
                 style={{
-                  flex: "0 0 220px",
                   border: `1px solid ${P.border}`,
                   borderRadius: 12,
                   padding: 14,

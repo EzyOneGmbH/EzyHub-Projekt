@@ -134,7 +134,6 @@ export default function BlogBereich({
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Blog</h2>
           <span
             style={{
               display: "inline-flex",

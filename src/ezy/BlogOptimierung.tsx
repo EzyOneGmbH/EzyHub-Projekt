@@ -100,6 +100,7 @@ export default function BlogOptimierung({
   const sichtbar = filter ? alle.filter((o) => o.category === filter) : alle;
   const anzahl = (k: string) => alle.filter((o) => o.category === k).length;
   const zuletzt = daten?.ergebnisAudit?.finished_at ?? null;
+  const mitVolumen = sichtbar.some((o) => o.volume != null);
 
   return (
     <>
@@ -180,9 +181,11 @@ export default function BlogOptimierung({
                       <th scope="col" style={{ ...kopf, textAlign: "right" }}>
                         Impressionen
                       </th>
-                      <th scope="col" style={{ ...kopf, textAlign: "right" }}>
-                        Suchvolumen
-                      </th>
+                      {mitVolumen && (
+                        <th scope="col" style={{ ...kopf, textAlign: "right" }}>
+                          Suchvolumen
+                        </th>
+                      )}
                       <th scope="col" style={kopf}>
                         Status
                       </th>
@@ -222,7 +225,7 @@ export default function BlogOptimierung({
                           </td>
                           <td style={{ ...zelle, ...rechts }}>{zahl(o.avg_position, 1)}</td>
                           <td style={{ ...zelle, ...rechts }}>{zahl(o.impressions)}</td>
-                          <td style={{ ...zelle, ...rechts }}>{zahl(o.volume)}</td>
+                          {mitVolumen && <td style={{ ...zelle, ...rechts }}>{zahl(o.volume)}</td>}
                           <td style={zelle}>
                             <span
                               style={{

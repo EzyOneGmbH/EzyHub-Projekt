@@ -206,9 +206,12 @@ export default function BlogKalender({
     return null;
   };
 
+  // Spalten ohne einen einzigen Wert weglassen, damit die Aktion Platz hat.
+  const mitVolumen = sichtbar.some((e) => e.volume != null);
+  const mitSchwierigkeit = sichtbar.some((e) => e.difficulty != null);
   const tabelle = (zeilen: Eintrag[]) => (
     <div style={{ overflowX: "auto", margin: "0 -8px" }}>
-      <table style={{ width: "100%", minWidth: 760, borderCollapse: "collapse" }}>
+      <table style={{ width: "100%", minWidth: 640, borderCollapse: "collapse" }}>
         <thead>
           <tr>
             <th scope="col" style={kopf}>
@@ -220,12 +223,16 @@ export default function BlogKalender({
             <th scope="col" style={kopf}>
               Status
             </th>
-            <th scope="col" style={{ ...kopf, textAlign: "right" }}>
-              Suchvolumen
-            </th>
-            <th scope="col" style={kopf}>
-              Schwierigkeit
-            </th>
+            {mitVolumen && (
+              <th scope="col" style={{ ...kopf, textAlign: "right" }}>
+                Suchvolumen
+              </th>
+            )}
+            {mitSchwierigkeit && (
+              <th scope="col" style={kopf}>
+                Schwierigkeit
+              </th>
+            )}
             <th scope="col" style={kopf} aria-label="Aktion" />
           </tr>
         </thead>
@@ -241,7 +248,7 @@ export default function BlogKalender({
                   "Kein Termin"
                 )}
               </td>
-              <td style={{ ...zelle, minWidth: 260 }}>
+              <td style={{ ...zelle, minWidth: 200 }}>
                 <div style={{ fontWeight: 700, lineHeight: 1.3, overflowWrap: "anywhere" }}>
                   {e.titel}
                 </div>
@@ -266,13 +273,17 @@ export default function BlogKalender({
               <td style={zelle}>
                 <StatusMarke status={e.status} agentur={agentur} geprueft={e.geprueft} />
               </td>
-              <td style={{ ...zelle, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                {zahl(e.volume)}
-              </td>
-              <td style={zelle}>
-                <Schwierigkeit wert={e.difficulty} />
-              </td>
-              <td style={{ ...zelle, textAlign: "right" }}>{aktion(e)}</td>
+              {mitVolumen && (
+                <td style={{ ...zelle, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                  {zahl(e.volume)}
+                </td>
+              )}
+              {mitSchwierigkeit && (
+                <td style={zelle}>
+                  <Schwierigkeit wert={e.difficulty} />
+                </td>
+              )}
+              <td style={{ ...zelle, textAlign: "right", whiteSpace: "nowrap" }}>{aktion(e)}</td>
             </tr>
           ))}
         </tbody>

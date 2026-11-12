@@ -7194,11 +7194,26 @@ function App({ appScope = null }) {
       caa.map,
     ],
   );
+  // Deep-Link-Tab: solange der Kunde noch lädt, fehlt der Tab in der Auswahl
+  // und der Rückfall unten würde ihn verwerfen. Darum kurz merken und setzen,
+  // sobald er sichtbar ist.
+  const deepTabRef = useRef(deepLink.tab ? { tab: deepLink.tab, bis: Date.now() + 15000 } : null);
   useEffect(() => {
+    const wunsch = deepTabRef.current;
+    if (wunsch && Date.now() < wunsch.bis && page === "dashboard") {
+      if (visibleTabs.some((t) => t.id === wunsch.tab)) {
+        if (tab !== wunsch.tab) {
+          setTab(wunsch.tab);
+          return;
+        }
+        // angekommen: ab jetzt entscheidet wieder der Nutzer
+        if (hasClients) deepTabRef.current = null;
+      }
+    } else if (wunsch) deepTabRef.current = null;
     if (visibleTabs.length > 0 && !visibleTabs.some((t) => t.id === tab)) {
       setTab(visibleTabs[0].id);
     }
-  }, [visibleTabs, tab]);
+  }, [visibleTabs, tab, page, hasClients]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -7309,6 +7324,7 @@ function App({ appScope = null }) {
                           group: "Dashboard",
                           active: page === "dashboard" && tab === t.id,
                           onClick: () => {
+                            deepTabRef.current = null;
                             setPage("dashboard");
                             setTab(t.id);
                           },
