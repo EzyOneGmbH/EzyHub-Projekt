@@ -10,7 +10,7 @@ Ein Plugin pro Kunde, zwei Schnittstellen:
 ## Blog-Autopilot einrichten (Kunde)
 
 1. Plugin installieren und aktivieren.
-2. **Einstellungen › EzyRank** › «Verbindungsschlüssel erzeugen». Der Schlüssel wird einmal angezeigt.
+2. **EzyRank** im WordPress-Menü (bis 2.1.0: Einstellungen › EzyRank) › «Verbindungsschlüssel erzeugen». Der Schlüssel wird einmal angezeigt.
 3. In EzyHub Site-URL und Schlüssel eintragen, «Verbindung testen».
 
 Berechtigungen: `read` und `draft` sind immer aktiv; `publish` ist aus und wird nur im Plugin eingeschaltet.

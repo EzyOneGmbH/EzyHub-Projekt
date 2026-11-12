@@ -25,12 +25,12 @@ export type EzrFehlerCode =
 
 export const EZR_HILFE: Record<EzrFehlerCode, string> = {
   ezr_auth_missing:
-    "Es kam kein Schlüssel an. Im Plugin unter Einstellungen › EzyRank einen Verbindungsschlüssel erzeugen und hier eintragen.",
+    "Es kam kein Schlüssel an. Im WordPress-Menü unter EzyRank einen Verbindungsschlüssel erzeugen und hier eintragen.",
   ezr_auth_invalid:
     "Der Schlüssel passt nicht. Im Plugin einen neuen Schlüssel erzeugen und vollständig kopieren.",
   ezr_rate_limited: "Zu viele Anfragen in kurzer Zeit. Bitte in 15 Minuten erneut versuchen.",
   ezr_scope_missing:
-    "Dem Schlüssel fehlt eine Berechtigung. Im Plugin unter Einstellungen › EzyRank die nötige Berechtigung aktivieren.",
+    "Dem Schlüssel fehlt eine Berechtigung. Im WordPress-Menü unter EzyRank die nötige Berechtigung aktivieren.",
   ezr_image_failed:
     "Ein Bild konnte nicht geladen werden. Bild-URL und Firewall der Website prüfen.",
   ezr_https_required: "Die Website läuft ohne HTTPS. Bitte SSL aktivieren.",

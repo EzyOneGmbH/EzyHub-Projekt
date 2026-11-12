@@ -334,7 +334,7 @@ function WordPressKarte({ c }: { c: Ctx }) {
           </li>
           <li>Plugin aktivieren.</li>
           <li>
-            Unter Einstellungen › EzyRank auf «Verbindungsschlüssel erzeugen» klicken und den
+            Im WordPress-Menü unter EzyRank auf «Verbindungsschlüssel erzeugen» klicken und den
             Schlüssel hier einfügen.
           </li>
         </ol>

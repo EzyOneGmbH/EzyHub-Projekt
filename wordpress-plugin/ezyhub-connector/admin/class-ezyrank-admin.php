@@ -16,11 +16,12 @@ class EzyRank_Admin {
     }
 
     public static function menu() {
-        add_options_page('EzyRank', 'EzyRank', 'manage_options', self::SLUG, [__CLASS__, 'render']);
+        // Eigener Punkt im Hauptmenü (ab 2.1.1), vorher unter «Einstellungen».
+        add_menu_page('EzyRank', 'EzyRank', 'manage_options', self::SLUG, [__CLASS__, 'render'], 'dashicons-chart-line', 81);
     }
 
     private static function back($msg = '') {
-        wp_safe_redirect(add_query_arg(['page' => self::SLUG, 'ezr_msg' => $msg], admin_url('options-general.php')));
+        wp_safe_redirect(add_query_arg(['page' => self::SLUG, 'ezr_msg' => $msg], admin_url('admin.php')));
         exit;
     }
 
