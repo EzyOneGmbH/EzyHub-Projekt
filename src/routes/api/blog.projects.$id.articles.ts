@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { requireBlogProject } from "@/server/blog-autopilot.server";
+import { istAgentur, requireBlogProject } from "@/server/blog-autopilot.server";
 
 // GET /api/blog/projects/:id/articles (Kap. 8 «Kalender»): Artikel (nur
 // Kopfdaten, ohne Inhalt) und freigegebene Themen ohne Artikel, nach Termin.
 
 const KOPF =
-  "id, topic_id, status, stage, title, focus_keyword, word_count, scheduled_for, wp_post_id, wp_edit_url, wp_permalink, error, attempts, modus:job->>modus, pruefung:job->pruefung, created_at, updated_at, finished_at";
+  "id, topic_id, status, stage, title, focus_keyword, word_count, scheduled_for, wp_post_id, wp_edit_url, wp_permalink, error, attempts, modus:job->>modus, pruefung:job->pruefung, review:job->review, bearbeitet:job->bearbeitet, wordpress:job->wordpress, created_at, updated_at, finished_at";
 
 export const Route = createFileRoute("/api/blog/projects/$id/articles")({
   server: {
@@ -35,6 +35,8 @@ export const Route = createFileRoute("/api/blog/projects/$id/articles")({
           ok: true,
           articles: artikel ?? [],
           geplant: (themen ?? []).filter((t: any) => !mitArtikel.has(t.id)),
+          agentur: istAgentur(r.ctx),
+          kontingent: r.project.articles_per_month ?? null,
         });
       },
     },

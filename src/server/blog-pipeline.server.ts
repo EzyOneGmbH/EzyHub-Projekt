@@ -552,7 +552,7 @@ async function bildKandidaten(domain: string, keyword: string) {
   return [...out.values()].slice(0, 20);
 }
 
-async function wpVerbindung(projectId: string) {
+export async function wpVerbindung(projectId: string) {
   const { data: wp } = await SB.from("wp_connections")
     .select("site_url, key_enc, status, plugin_version, scopes")
     .eq("project_id", projectId)
@@ -562,6 +562,7 @@ async function wpVerbindung(projectId: string) {
     conn: { siteUrl: wp.site_url as string, key: decryptSecret(wp.key_enc) },
     status: wp.status as string,
     plugin_version: (wp.plugin_version as string) || null,
+    scopes: (Array.isArray(wp.scopes) ? wp.scopes : []) as string[],
   };
 }
 

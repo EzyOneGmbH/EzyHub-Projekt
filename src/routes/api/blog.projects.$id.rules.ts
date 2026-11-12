@@ -9,9 +9,12 @@ import { blogEvent, istAgentur, requireBlogProject } from "@/server/blog-autopil
 
 const MAX_AKTIV = 30;
 
+// «feedback»: Regel aus der Artikelansicht, mit der markierten Textstelle als
+// Anker (Kap. 6.6). Darf jeder mit Zugriff, auch der Kunde.
 const PostBody = z.object({
   rule: z.string().trim().min(3).max(1000),
-  source: z.enum(["onboarding", "agentur"]).default("onboarding"),
+  source: z.enum(["onboarding", "agentur", "feedback"]).default("onboarding"),
+  anchor_excerpt: z.string().trim().max(500).optional(),
 });
 
 export const Route = createFileRoute("/api/blog/projects/$id/rules")({
@@ -61,7 +64,14 @@ export const Route = createFileRoute("/api/blog/projects/$id/rules")({
           );
         const { data: rule, error } = await (supabaseAdmin as any)
           .from("writing_rules")
-          .insert({ project_id: project.id, rule: parsed.data.rule, source: parsed.data.source })
+          .insert({
+            project_id: project.id,
+            rule: parsed.data.rule,
+            source: parsed.data.source,
+            ...(parsed.data.source === "feedback" && parsed.data.anchor_excerpt
+              ? { anchor_excerpt: parsed.data.anchor_excerpt }
+              : {}),
+          })
           .select("id, rule, source, active, created_at")
           .single();
         if (error || !rule)

@@ -306,3 +306,106 @@ export type Ctx = {
   setFehler: (f: string | null) => void;
   neuLaden: () => Promise<void>;
 };
+
+// ── Artikelstatus (Kalender und Artikelansicht) ────────────────────────────
+
+const TON = {
+  grau: { farbe: P.muted, grund: "rgba(43,0,51,.06)" },
+  akzent: { farbe: P.accent, grund: P.accentDim },
+  orange: { farbe: "#8a5d00", grund: P.orangeDim },
+  gruen: { farbe: "#00704a", grund: P.greenDim },
+  rot: { farbe: "#c01623", grund: P.redDim },
+};
+
+/** Status in Worten. Der Kunde sieht interne Zwischenschritte als «Ezy One prüft». */
+export function artikelStatus(
+  status: string,
+  { agentur, geprueft }: { agentur: boolean; geprueft: boolean },
+): { text: string; farbe: string; grund: string } {
+  switch (status) {
+    case "geplant":
+      return { text: "Geplant", ...TON.grau };
+    case "freigegeben":
+    case "schreibt":
+      return { text: "Wird geschrieben", ...TON.akzent };
+    case "faktencheck":
+      return agentur
+        ? { text: "Faktencheck offen", ...TON.orange }
+        : { text: "Ezy One prüft", ...TON.grau };
+    case "entwurf_wp":
+      if (agentur)
+        return { text: geprueft ? "Wartet auf Freigabe" : "Bereit zur Prüfung", ...TON.akzent };
+      return geprueft
+        ? { text: "Bereit zur Freigabe", ...TON.akzent }
+        : { text: "Ezy One prüft", ...TON.grau };
+    case "kunde_freigegeben":
+      return { text: "Freigegeben", ...TON.gruen };
+    case "live":
+      return { text: "Live", ...TON.gruen };
+    case "fehler":
+      return { text: "Fehler", ...TON.rot };
+    default:
+      return { text: status, ...TON.grau };
+  }
+}
+
+export function StatusMarke({
+  status,
+  agentur,
+  geprueft,
+}: {
+  status: string;
+  agentur: boolean;
+  geprueft: boolean;
+}) {
+  const s = artikelStatus(status, { agentur, geprueft });
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        minHeight: 26,
+        padding: "0 10px",
+        borderRadius: 99,
+        fontSize: 12.5,
+        fontWeight: 700,
+        color: s.farbe,
+        background: s.grund,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {s.text}
+    </span>
+  );
+}
+
+export const MODUS_TEXT: Record<string, string> = {
+  neu: "Neuer Artikel",
+  refresh: "Überarbeitung",
+  vorschlag: "Vorschlag",
+};
+
+/** «2026-11-12» als lokaler Tag (nicht als UTC-Zeitpunkt, sonst rutscht das Datum). */
+export function tagLokal(ymd: string | null | undefined): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(ymd || ""));
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+}
+
+export const datumText = (d: Date | null, mitJahr = false) =>
+  d
+    ? new Intl.DateTimeFormat("de-CH", {
+        day: "numeric",
+        month: "long",
+        ...(mitJahr ? { year: "numeric" } : {}),
+      }).format(d)
+    : "";
+
+export const zeitText = (iso: string | null | undefined) =>
+  iso
+    ? new Intl.DateTimeFormat("de-CH", {
+        day: "numeric",
+        month: "long",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(new Date(iso))
+    : "";

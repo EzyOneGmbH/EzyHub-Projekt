@@ -187,7 +187,10 @@ import { Route as ApiGoogleOauthStartRouteImport } from './routes/api/google.oau
 import { Route as ApiLiveCanonryAiVisibilityRouteImport } from './routes/api/live.canonry.ai-visibility'
 import { Route as ApiLiveCanonryOverviewRouteImport } from './routes/api/live.canonry.overview'
 import { Route as ApiV1SeoRankingChangesRouteImport } from './routes/api/v1.seo.ranking-changes'
+import { Route as EzyrankBlogArtikelIdRouteImport } from './routes/ezyrank_.blog.artikel.$id'
 import { Route as EzyrankBlogEinrichtungStepRouteImport } from './routes/ezyrank_.blog.einrichtung.$step'
+import { Route as ApiBlogArticlesIdApproveRouteImport } from './routes/api/blog.articles.$id.approve'
+import { Route as ApiBlogArticlesIdSyncWpRouteImport } from './routes/api/blog.articles.$id.sync-wp'
 import { Route as ApiBlogClaimsIdResolveRouteImport } from './routes/api/blog.claims.$id.resolve'
 import { Route as ApiBlogOpportunitiesIdDecisionRouteImport } from './routes/api/blog.opportunities.$id.decision'
 import { Route as ApiBlogProjectsIdAnalysisRouteImport } from './routes/api/blog.projects.$id.analysis'
@@ -1127,12 +1130,28 @@ const ApiV1SeoRankingChangesRoute = ApiV1SeoRankingChangesRouteImport.update({
   path: '/api/v1/seo/ranking-changes',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EzyrankBlogArtikelIdRoute = EzyrankBlogArtikelIdRouteImport.update({
+  id: '/ezyrank_/blog/artikel/$id',
+  path: '/ezyrank/blog/artikel/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EzyrankBlogEinrichtungStepRoute =
   EzyrankBlogEinrichtungStepRouteImport.update({
     id: '/ezyrank_/blog/einrichtung/$step',
     path: '/ezyrank/blog/einrichtung/$step',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiBlogArticlesIdApproveRoute =
+  ApiBlogArticlesIdApproveRouteImport.update({
+    id: '/approve',
+    path: '/approve',
+    getParentRoute: () => ApiBlogArticlesIdRoute,
+  } as any)
+const ApiBlogArticlesIdSyncWpRoute = ApiBlogArticlesIdSyncWpRouteImport.update({
+  id: '/sync-wp',
+  path: '/sync-wp',
+  getParentRoute: () => ApiBlogArticlesIdRoute,
+} as any)
 const ApiBlogClaimsIdResolveRoute = ApiBlogClaimsIdResolveRouteImport.update({
   id: '/api/blog/claims/$id/resolve',
   path: '/api/blog/claims/$id/resolve',
@@ -1431,14 +1450,17 @@ export interface FileRoutesByFullPath {
   '/api/wordpress/publish': typeof ApiWordpressPublishRoute
   '/api/admin/content-actions/recommendation': typeof ApiAdminContentActionsRecommendationRoute
   '/api/blog/analysis/$runId': typeof ApiBlogAnalysisRunIdRoute
-  '/api/blog/articles/$id': typeof ApiBlogArticlesIdRoute
+  '/api/blog/articles/$id': typeof ApiBlogArticlesIdRouteWithChildren
   '/api/blog/projects/$id': typeof ApiBlogProjectsIdRouteWithChildren
   '/api/blog/rules/$id': typeof ApiBlogRulesIdRoute
   '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
   '/api/live/canonry/ai-visibility': typeof ApiLiveCanonryAiVisibilityRoute
   '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
   '/api/v1/seo/ranking-changes': typeof ApiV1SeoRankingChangesRoute
+  '/ezyrank/blog/artikel/$id': typeof EzyrankBlogArtikelIdRoute
   '/ezyrank/blog/einrichtung/$step': typeof EzyrankBlogEinrichtungStepRoute
+  '/api/blog/articles/$id/approve': typeof ApiBlogArticlesIdApproveRoute
+  '/api/blog/articles/$id/sync-wp': typeof ApiBlogArticlesIdSyncWpRoute
   '/api/blog/claims/$id/resolve': typeof ApiBlogClaimsIdResolveRoute
   '/api/blog/opportunities/$id/decision': typeof ApiBlogOpportunitiesIdDecisionRoute
   '/api/blog/projects/$id/analysis': typeof ApiBlogProjectsIdAnalysisRoute
@@ -1634,14 +1656,17 @@ export interface FileRoutesByTo {
   '/api/wordpress/publish': typeof ApiWordpressPublishRoute
   '/api/admin/content-actions/recommendation': typeof ApiAdminContentActionsRecommendationRoute
   '/api/blog/analysis/$runId': typeof ApiBlogAnalysisRunIdRoute
-  '/api/blog/articles/$id': typeof ApiBlogArticlesIdRoute
+  '/api/blog/articles/$id': typeof ApiBlogArticlesIdRouteWithChildren
   '/api/blog/projects/$id': typeof ApiBlogProjectsIdRouteWithChildren
   '/api/blog/rules/$id': typeof ApiBlogRulesIdRoute
   '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
   '/api/live/canonry/ai-visibility': typeof ApiLiveCanonryAiVisibilityRoute
   '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
   '/api/v1/seo/ranking-changes': typeof ApiV1SeoRankingChangesRoute
+  '/ezyrank/blog/artikel/$id': typeof EzyrankBlogArtikelIdRoute
   '/ezyrank/blog/einrichtung/$step': typeof EzyrankBlogEinrichtungStepRoute
+  '/api/blog/articles/$id/approve': typeof ApiBlogArticlesIdApproveRoute
+  '/api/blog/articles/$id/sync-wp': typeof ApiBlogArticlesIdSyncWpRoute
   '/api/blog/claims/$id/resolve': typeof ApiBlogClaimsIdResolveRoute
   '/api/blog/opportunities/$id/decision': typeof ApiBlogOpportunitiesIdDecisionRoute
   '/api/blog/projects/$id/analysis': typeof ApiBlogProjectsIdAnalysisRoute
@@ -1838,14 +1863,17 @@ export interface FileRoutesById {
   '/api/wordpress/publish': typeof ApiWordpressPublishRoute
   '/api/admin/content-actions/recommendation': typeof ApiAdminContentActionsRecommendationRoute
   '/api/blog/analysis/$runId': typeof ApiBlogAnalysisRunIdRoute
-  '/api/blog/articles/$id': typeof ApiBlogArticlesIdRoute
+  '/api/blog/articles/$id': typeof ApiBlogArticlesIdRouteWithChildren
   '/api/blog/projects/$id': typeof ApiBlogProjectsIdRouteWithChildren
   '/api/blog/rules/$id': typeof ApiBlogRulesIdRoute
   '/api/google/oauth/start': typeof ApiGoogleOauthStartRoute
   '/api/live/canonry/ai-visibility': typeof ApiLiveCanonryAiVisibilityRoute
   '/api/live/canonry/overview': typeof ApiLiveCanonryOverviewRoute
   '/api/v1/seo/ranking-changes': typeof ApiV1SeoRankingChangesRoute
+  '/ezyrank_/blog/artikel/$id': typeof EzyrankBlogArtikelIdRoute
   '/ezyrank_/blog/einrichtung/$step': typeof EzyrankBlogEinrichtungStepRoute
+  '/api/blog/articles/$id/approve': typeof ApiBlogArticlesIdApproveRoute
+  '/api/blog/articles/$id/sync-wp': typeof ApiBlogArticlesIdSyncWpRoute
   '/api/blog/claims/$id/resolve': typeof ApiBlogClaimsIdResolveRoute
   '/api/blog/opportunities/$id/decision': typeof ApiBlogOpportunitiesIdDecisionRoute
   '/api/blog/projects/$id/analysis': typeof ApiBlogProjectsIdAnalysisRoute
@@ -2050,7 +2078,10 @@ export interface FileRouteTypes {
     | '/api/live/canonry/ai-visibility'
     | '/api/live/canonry/overview'
     | '/api/v1/seo/ranking-changes'
+    | '/ezyrank/blog/artikel/$id'
     | '/ezyrank/blog/einrichtung/$step'
+    | '/api/blog/articles/$id/approve'
+    | '/api/blog/articles/$id/sync-wp'
     | '/api/blog/claims/$id/resolve'
     | '/api/blog/opportunities/$id/decision'
     | '/api/blog/projects/$id/analysis'
@@ -2253,7 +2284,10 @@ export interface FileRouteTypes {
     | '/api/live/canonry/ai-visibility'
     | '/api/live/canonry/overview'
     | '/api/v1/seo/ranking-changes'
+    | '/ezyrank/blog/artikel/$id'
     | '/ezyrank/blog/einrichtung/$step'
+    | '/api/blog/articles/$id/approve'
+    | '/api/blog/articles/$id/sync-wp'
     | '/api/blog/claims/$id/resolve'
     | '/api/blog/opportunities/$id/decision'
     | '/api/blog/projects/$id/analysis'
@@ -2456,7 +2490,10 @@ export interface FileRouteTypes {
     | '/api/live/canonry/ai-visibility'
     | '/api/live/canonry/overview'
     | '/api/v1/seo/ranking-changes'
+    | '/ezyrank_/blog/artikel/$id'
     | '/ezyrank_/blog/einrichtung/$step'
+    | '/api/blog/articles/$id/approve'
+    | '/api/blog/articles/$id/sync-wp'
     | '/api/blog/claims/$id/resolve'
     | '/api/blog/opportunities/$id/decision'
     | '/api/blog/projects/$id/analysis'
@@ -2647,12 +2684,13 @@ export interface RootRouteChildren {
   ApiWordpressPostsRoute: typeof ApiWordpressPostsRoute
   ApiWordpressPublishRoute: typeof ApiWordpressPublishRoute
   ApiBlogAnalysisRunIdRoute: typeof ApiBlogAnalysisRunIdRoute
-  ApiBlogArticlesIdRoute: typeof ApiBlogArticlesIdRoute
+  ApiBlogArticlesIdRoute: typeof ApiBlogArticlesIdRouteWithChildren
   ApiBlogRulesIdRoute: typeof ApiBlogRulesIdRoute
   ApiGoogleOauthStartRoute: typeof ApiGoogleOauthStartRoute
   ApiLiveCanonryAiVisibilityRoute: typeof ApiLiveCanonryAiVisibilityRoute
   ApiLiveCanonryOverviewRoute: typeof ApiLiveCanonryOverviewRoute
   ApiV1SeoRankingChangesRoute: typeof ApiV1SeoRankingChangesRoute
+  EzyrankBlogArtikelIdRoute: typeof EzyrankBlogArtikelIdRoute
   EzyrankBlogEinrichtungStepRoute: typeof EzyrankBlogEinrichtungStepRoute
   ApiBlogClaimsIdResolveRoute: typeof ApiBlogClaimsIdResolveRoute
   ApiBlogOpportunitiesIdDecisionRoute: typeof ApiBlogOpportunitiesIdDecisionRoute
@@ -3906,12 +3944,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1SeoRankingChangesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ezyrank_/blog/artikel/$id': {
+      id: '/ezyrank_/blog/artikel/$id'
+      path: '/ezyrank/blog/artikel/$id'
+      fullPath: '/ezyrank/blog/artikel/$id'
+      preLoaderRoute: typeof EzyrankBlogArtikelIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/ezyrank_/blog/einrichtung/$step': {
       id: '/ezyrank_/blog/einrichtung/$step'
       path: '/ezyrank/blog/einrichtung/$step'
       fullPath: '/ezyrank/blog/einrichtung/$step'
       preLoaderRoute: typeof EzyrankBlogEinrichtungStepRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/api/blog/articles/$id/approve': {
+      id: '/api/blog/articles/$id/approve'
+      path: '/approve'
+      fullPath: '/api/blog/articles/$id/approve'
+      preLoaderRoute: typeof ApiBlogArticlesIdApproveRouteImport
+      parentRoute: typeof ApiBlogArticlesIdRoute
+    }
+    '/api/blog/articles/$id/sync-wp': {
+      id: '/api/blog/articles/$id/sync-wp'
+      path: '/sync-wp'
+      fullPath: '/api/blog/articles/$id/sync-wp'
+      preLoaderRoute: typeof ApiBlogArticlesIdSyncWpRouteImport
+      parentRoute: typeof ApiBlogArticlesIdRoute
     }
     '/api/blog/claims/$id/resolve': {
       id: '/api/blog/claims/$id/resolve'
@@ -4240,6 +4299,19 @@ const ApiV1ProjectsRouteWithChildren = ApiV1ProjectsRoute._addFileChildren(
   ApiV1ProjectsRouteChildren,
 )
 
+interface ApiBlogArticlesIdRouteChildren {
+  ApiBlogArticlesIdApproveRoute: typeof ApiBlogArticlesIdApproveRoute
+  ApiBlogArticlesIdSyncWpRoute: typeof ApiBlogArticlesIdSyncWpRoute
+}
+
+const ApiBlogArticlesIdRouteChildren: ApiBlogArticlesIdRouteChildren = {
+  ApiBlogArticlesIdApproveRoute: ApiBlogArticlesIdApproveRoute,
+  ApiBlogArticlesIdSyncWpRoute: ApiBlogArticlesIdSyncWpRoute,
+}
+
+const ApiBlogArticlesIdRouteWithChildren =
+  ApiBlogArticlesIdRoute._addFileChildren(ApiBlogArticlesIdRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
@@ -4407,12 +4479,13 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWordpressPostsRoute: ApiWordpressPostsRoute,
   ApiWordpressPublishRoute: ApiWordpressPublishRoute,
   ApiBlogAnalysisRunIdRoute: ApiBlogAnalysisRunIdRoute,
-  ApiBlogArticlesIdRoute: ApiBlogArticlesIdRoute,
+  ApiBlogArticlesIdRoute: ApiBlogArticlesIdRouteWithChildren,
   ApiBlogRulesIdRoute: ApiBlogRulesIdRoute,
   ApiGoogleOauthStartRoute: ApiGoogleOauthStartRoute,
   ApiLiveCanonryAiVisibilityRoute: ApiLiveCanonryAiVisibilityRoute,
   ApiLiveCanonryOverviewRoute: ApiLiveCanonryOverviewRoute,
   ApiV1SeoRankingChangesRoute: ApiV1SeoRankingChangesRoute,
+  EzyrankBlogArtikelIdRoute: EzyrankBlogArtikelIdRoute,
   EzyrankBlogEinrichtungStepRoute: EzyrankBlogEinrichtungStepRoute,
   ApiBlogClaimsIdResolveRoute: ApiBlogClaimsIdResolveRoute,
   ApiBlogOpportunitiesIdDecisionRoute: ApiBlogOpportunitiesIdDecisionRoute,
