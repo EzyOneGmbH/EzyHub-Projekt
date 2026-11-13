@@ -121,6 +121,31 @@ export function ordneZu(
 const zahlOderNull = (v: unknown): number | null =>
   v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v);
 
+export type KiBasis = {
+  fragen: number;
+  systeme: string[];
+  marke: { gefragt: number; erkannt: number };
+};
+
+/**
+ * Worauf die Messung beruht: Anzahl allgemeiner Fragen (ohne Markennamen, nur
+ * sie zählen für den Score), die befragten KI-Systeme und wie oft die Marke
+ * bei Fragen nach ihr selbst erkannt wurde. Pure.
+ */
+export function messBasis(prompts: any[]): KiBasis {
+  const basis: KiBasis = { fragen: 0, systeme: [], marke: { gefragt: 0, erkannt: 0 } };
+  for (const p of Array.isArray(prompts) ? prompts : []) {
+    const system = kurz(p?.platform, 40);
+    if (system && !basis.systeme.includes(system)) basis.systeme.push(system);
+    if (p?.prompt_type === "brand") {
+      basis.marke.gefragt++;
+      if (String(p?.status ?? "").trim()) basis.marke.erkannt++;
+    } else basis.fragen++;
+  }
+  basis.systeme.sort();
+  return basis;
+}
+
 /** Auswertung für das Blog-Dashboard. Ohne Messung: { gemessen: false }. */
 export async function kiAuswertung(project: {
   id: string;
@@ -148,7 +173,7 @@ export async function kiAuswertung(project: {
   const prompts: any[] = [];
   for (let i = 0; i < MAX_SEITEN; i++) {
     const { data } = await SB.from("ai_visibility_prompts")
-      .select("prompt, platform, source_urls")
+      .select("prompt, platform, source_urls, prompt_type, status")
       .eq("client_id", clientId)
       .eq("report_id", bericht.id)
       .order("id", { ascending: true })
@@ -179,6 +204,7 @@ export async function kiAuswertung(project: {
     zitateDelta: zahlOderNull(bericht.citations_delta),
     seiten: zahlOderNull(bericht.cited_pages),
     seitenDelta: zahlOderNull(bericht.cited_pages_delta),
+    basis: messBasis(prompts),
     artikelLive: live.length,
     artikel,
     weitere: weitere.slice(0, MAX_WEITERE),

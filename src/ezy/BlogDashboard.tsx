@@ -9,11 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import {
-  ahrefsKpisFromResult,
-  aiVisibilityScoreFromResult,
-  useEzyLatestRun,
-} from "@/ezy/data/useEzyLatestRun";
+import { ahrefsKpisFromResult, useEzyLatestRun } from "@/ezy/data/useEzyLatestRun";
 import {
   ARTIKELTYP_TEXT,
   Block,
@@ -37,7 +33,6 @@ import type { BlogTab } from "@/ezy/BlogBereich";
 const BLAU = "#2563eb";
 const GUT = "#00704a";
 const SCHLECHT = "#c01623";
-const KI_TEXT: Record<string, string> = { Low: "Tief", Medium: "Mittel", High: "Hoch" };
 
 type Gruppe = "artikel" | "pruefung" | "einstellung";
 const EREIGNIS: Record<string, { text: string; gruppe: Gruppe; farbe: string }> = {
@@ -1015,6 +1010,8 @@ function KiSichtbarkeit({ daten }: { daten: any }) {
     ? (daten.artikel ?? [])
     : [];
   const weitere: KiSeiteDaten[] = bereit ? (daten.weitere ?? []) : [];
+  const basis = bereit ? daten.basis : null;
+  const systeme: string[] = basis?.systeme ?? [];
   return (
     <Block
       titel="KI-Sichtbarkeit"
@@ -1060,6 +1057,21 @@ function KiSichtbarkeit({ daten }: { daten: any }) {
               delta={delta(daten.seitenDelta)}
             />
           </div>
+
+          {basis && basis.fragen + basis.marke.gefragt > 0 && (
+            <p style={{ margin: 0, fontSize: 12.5, color: P.dim, lineHeight: 1.5 }}>
+              {basis.fragen > 0
+                ? `Der Score beruht auf ${zahl(basis.fragen)} allgemeinen ${
+                    basis.fragen === 1 ? "Frage" : "Fragen"
+                  } ohne Markennamen${systeme.length ? `, gestellt an ${systeme.join(", ")}` : ""}.`
+                : ""}
+              {basis.marke.gefragt > 0
+                ? ` Bei ${zahl(basis.marke.gefragt)} ${
+                    basis.marke.gefragt === 1 ? "Frage" : "Fragen"
+                  } direkt nach der Marke wurde sie ${zahl(basis.marke.erkannt)}-mal erkannt. Das zählt nicht zum Score.`
+                : ""}
+            </p>
+          )}
 
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <div style={{ fontSize: 14.5, fontWeight: 700 }}>KI-Zitate je Artikel</div>
@@ -1135,9 +1147,10 @@ export default function BlogDashboard({
   const [struktur, setStruktur] = useState<any>(null);
 
   const { run: ahrefsRun } = useEzyLatestRun(clientId, "ahrefs");
-  const { run: kiRun } = useEzyLatestRun(clientId, "canonry_ai_visibility");
   const ahrefs = ahrefsRun ? ahrefsKpisFromResult(ahrefsRun.result) : null;
-  const ki = kiRun ? aiVisibilityScoreFromResult(kiRun.result) : null;
+  // Dieselbe Messung wie im Block «KI-Sichtbarkeit» weiter unten.
+  const kiScore: number | null =
+    kiDaten?.gemessen && typeof kiDaten.score === "number" ? kiDaten.score : null;
 
   useEffect(() => {
     setVerkehr({});
@@ -1295,16 +1308,24 @@ export default function BlogDashboard({
         <Kachel
           titel="KI-Sichtbarkeit"
           wert={
-            ki ? (
+            kiScore !== null ? (
               <>
-                {ki.score}
+                {zahl(kiScore)}
                 <span style={{ fontSize: 14, fontWeight: 600, color: P.dim }}> / 100</span>
               </>
             ) : (
               "—"
             )
           }
-          zusatz={ki ? KI_TEXT[ki.label] : "Noch nicht gemessen"}
+          zusatz={
+            !kiDaten
+              ? "Wird geladen…"
+              : kiScore === null
+                ? "Noch nicht gemessen"
+                : kiDaten.stand
+                  ? `Messung vom ${datumText(new Date(kiDaten.stand), true)}`
+                  : "Letzte Messung"
+          }
         />
       </div>
 

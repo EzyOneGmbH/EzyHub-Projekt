@@ -46,7 +46,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: { from: (t: string) => builder(t) },
 }));
 
-const { eigeneUrl, kiAuswertung, ordneZu, sammleZitate, urlSchluessel } =
+const { eigeneUrl, kiAuswertung, messBasis, ordneZu, sammleZitate, urlSchluessel } =
   await import("@/server/blog-ki.server");
 
 const PARTS = {
@@ -158,6 +158,23 @@ describe("ordneZu", () => {
   });
 });
 
+describe("messBasis", () => {
+  it("trennt allgemeine Fragen von Fragen nach der Marke", () => {
+    expect(
+      messBasis([
+        { platform: "Gemini", prompt_type: "markt", status: null },
+        { platform: "Claude", prompt_type: null, status: "Erwähnt" },
+        { platform: "Gemini", prompt_type: "brand", status: "Erwähnt" },
+        { platform: "Gemini", prompt_type: "brand", status: "Referenziert" },
+        { platform: "Gemini", prompt_type: "brand", status: null },
+      ]),
+    ).toEqual({ fragen: 2, systeme: ["Claude", "Gemini"], marke: { gefragt: 3, erkannt: 2 } });
+  });
+  it("kommt ohne Fragen aus", () => {
+    expect(messBasis([])).toEqual({ fragen: 0, systeme: [], marke: { gefragt: 0, erkannt: 0 } });
+  });
+});
+
 describe("kiAuswertung", () => {
   beforeEach(() => {
     db = {
@@ -237,6 +254,7 @@ describe("kiAuswertung", () => {
       zitateDelta: -1,
       seiten: 3,
       artikelLive: 1,
+      basis: { fragen: 1, systeme: ["Gemini"], marke: { gefragt: 0, erkannt: 0 } },
     });
     expect(out.artikel).toHaveLength(1);
     expect(out.artikel[0].systeme).toEqual(["Google AI Overviews", "ChatGPT", "Gemini"]);
