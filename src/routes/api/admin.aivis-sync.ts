@@ -11,6 +11,14 @@ import {
   bezahltFuer,
   fetchAttribution,
 } from "@/server/aivis-attribution.server";
+import {
+  engineStaende,
+  engineTeileMit,
+  groundingRefs,
+  hostGehoertZu,
+  vereint,
+  type GroundingRef,
+} from "@/server/aivis-quellen.server";
 import { getEnabledServices } from "@/server/integrations.server";
 import { generateViaSubscription } from "@/server/claude-generate.server";
 import { istKundePausiert, ohnePausierte } from "@/server/client-status.server";
@@ -1487,7 +1495,7 @@ async function askGemini(
   prompt: string,
   maxTokens = 600,
   temperature?: number,
-): Promise<{ text: string; sources: number; model?: string } | null> {
+): Promise<{ text: string; sources: number; model?: string; refs?: GroundingRef[] } | null> {
   const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!key) return null;
   const r = await fetch(
@@ -1523,8 +1531,16 @@ async function askGemini(
     Number(j?.usageMetadata?.promptTokenCount || 0),
     Number(j?.usageMetadata?.candidatesTokenCount || 0),
   );
+  // Gemini nennt seine Web-Quellen in groundingMetadata, nicht im Antworttext
+  // (13.11.): ohne sie blieb fast jede Gemini-Antwort ohne Quelle.
+  const refs = groundingRefs(j?.candidates?.[0]);
   return text
-    ? { text, sources: urlsIn(text), model: String(j?.modelVersion || "gemini-2.5-flash") }
+    ? {
+        text,
+        sources: Math.max(urlsIn(text), refs.length),
+        model: String(j?.modelVersion || "gemini-2.5-flash"),
+        refs,
+      }
     : null;
 }
 
@@ -2715,13 +2731,43 @@ async function jobPromptRunner(
         if (a?.error && !engineErrors[eng.name]) engineErrors[eng.name] = a.error;
         return;
       }
-      if ((defs[i]?.prompt_type || "markt") === "brand")
-        bRows.push({ i: bRows.length, def: defs[i], platform: eng.name, text: a.text });
-      else rows.push({ i: rows.length, def: defs[i], platform: eng.name, text: a.text });
+      const zeile = { def: defs[i], platform: eng.name, text: a.text, refs: a.refs };
+      if ((defs[i]?.prompt_type || "markt") === "brand") bRows.push({ i: bRows.length, ...zeile });
+      else rows.push({ i: rows.length, ...zeile });
     });
   }
   diag(`prompts: Engines fertig (${rows.length} Markt- + ${bRows.length} Brand-Antworten)`);
-  if (!rows.length && !bRows.length) return { skipped: "keine Engine-Antworten", seeded };
+  // Stand je KI-System (13.11.): gefragt, beantwortet, Fehlergrund. Landet in
+  // reports.parts.eng, damit ein stummes System im Systemcheck sichtbar wird.
+  const engineStand = engineStaende(
+    engineAnswers.map(({ eng, answers }) => ({
+      name: eng.name,
+      gefragt: defs.length,
+      beantwortet: answers.filter((a: any) => a && a.text).length,
+      fehler: engineErrors[eng.name],
+    })),
+  );
+  if (!rows.length && !bRows.length)
+    return { skipped: "keine Engine-Antworten", seeded, engineStand, engineOffset: offset };
+
+  // Gemini-Quellen: Grounding-Verweise in Adressen wandeln. Fremde Quellen
+  // zählen mit ihrer Domain; Verweise auf die eigene Domain werden zur echten
+  // Seite aufgelöst (höchstens 12 je Etappe, sonst die Startseite).
+  const refCache = new Map<string, string | null>();
+  const eigeneRefs = [
+    ...new Set(
+      [...rows, ...bRows].flatMap((r) =>
+        ((r.refs || []) as GroundingRef[])
+          .filter((x) => hostGehoertZu(x.host, domain))
+          .map((x) => x.uri),
+      ),
+    ),
+  ].slice(0, 12);
+  if (eigeneRefs.length) await pMap(eigeneRefs, (u) => resolveWrapper(u, refCache), 12);
+  const refUrls = (r: any): string[] =>
+    ((r.refs || []) as GroundingRef[])
+      .filter((x) => x.host)
+      .map((x) => (hostGehoertZu(x.host, domain) && refCache.get(x.uri)) || `https://${x.host}`);
 
   // A) LLM-Judge über alle Antworten; Fallback = Regex, falls Judge ausfällt.
   // Harte Gesamt-Deadline (2026-07-16): der Judge darf den Lauf nie ueber das
@@ -2780,7 +2826,10 @@ async function jobPromptRunner(
               .filter((x: any) => x.n)
               .slice(0, 8)
           : [],
-        sources: Array.isArray(j.sources) ? j.sources.map(String) : urlListIn(r.text),
+        sources: vereint(
+          Array.isArray(j.sources) ? j.sources.map(String) : urlListIn(r.text),
+          refUrls(r),
+        ),
       };
     }
     const cited = domain ? r.text.toLowerCase().includes(domain.toLowerCase()) : false;
@@ -2792,7 +2841,7 @@ async function jobPromptRunner(
       sentiment: null as string | null,
       competitors: [] as string[],
       compPositions: [] as any[],
-      sources: urlListIn(r.text),
+      sources: vereint(urlListIn(r.text), refUrls(r)),
     };
   });
 
@@ -2872,9 +2921,10 @@ async function jobPromptRunner(
           ? j.tonalitaet
           : "neutral",
         halluzination: j.halluzination ? String(j.halluzination).slice(0, 300) : null,
-        quellen: Array.isArray(j.quellen)
-          ? j.quellen.map(String).slice(0, 8)
-          : urlListIn(r.text).slice(0, 8),
+        quellen: vereint(
+          Array.isArray(j.quellen) ? j.quellen.map(String) : urlListIn(r.text),
+          refUrls(r),
+        ).slice(0, 8),
         konkurrenz: Array.isArray(j.konkurrenz)
           ? j.konkurrenz
               .map((x: any) => String(x).trim())
@@ -2936,6 +2986,8 @@ async function jobPromptRunner(
       answered: rows.length + bRows.length,
       byEngine: byEnginePart,
       engineErrors,
+      engineStand,
+      engineOffset: offset,
       partial: true,
       chunk: { offset, next, total: allDefs.length },
       engineFilter: opts.engines ?? null,
@@ -3307,6 +3359,8 @@ async function jobPromptRunner(
     answered: rows.length,
     byEngine,
     engineErrors,
+    engineStand,
+    engineOffset: offset,
     mentions: customModels.reduce((a, m) => a + m.mentions, 0),
     selfShare: sov[0]?.share ?? 0,
     positionQuality: Math.round(positionQuality * 100),
@@ -4290,11 +4344,12 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 : "skipped";
               jr.prompts = pr
                 ? pr.skipped
-                  ? { skipped: pr.skipped, seeded: pr.seeded }
+                  ? { skipped: pr.skipped, seeded: pr.seeded, engineStand: pr.engineStand ?? null }
                   : {
                       answered: pr.answered,
                       byEngine: pr.byEngine,
                       engineErrors: pr.engineErrors,
+                      engineStand: pr.engineStand ?? null,
                       mentions: pr.mentions,
                       seeded: pr.seeded,
                       topics: pr.topics?.length,
@@ -4431,6 +4486,14 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                       : {}),
                   };
                 }
+                // Stand der KI-Systeme (13.11.): je Etappe gefragt/beantwortet/
+                // Fehlergrund, auch bei Teil-Etappen. Fliesst NICHT in den Score.
+                if (pr?.engineStand && Object.keys(pr.engineStand).length)
+                  newParts.eng = engineTeileMit(
+                    (existingRep?.parts as any)?.eng,
+                    pr.engineOffset ?? 0,
+                    pr.engineStand,
+                  );
                 const parts: any = { ...((existingRep?.parts as any) || {}), ...newParts };
                 if (Object.keys(parts).length > Object.keys(newParts).length)
                   jr.note = `Merge: bestehende Anteile bewahrt (${Object.keys(parts)

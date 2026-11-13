@@ -6,6 +6,7 @@ import { secretStatus } from "@/server/secretbox.server";
 import { bewerteHeartbeat } from "@/server/worker-scheduler.server";
 import { ladeSchedulerStatus } from "@/server/scheduler-status.server";
 import { gleichZeitkonstant } from "@/server/ingest-auth.server";
+import { engineBefund } from "@/server/aivis-quellen.server";
 
 // Systemcheck (Admin-Ausbau 21.08.2026): prueft SERVERSEITIG, ob die von der
 // App erwarteten Tabellen/Spalten wirklich existieren (Lovable wendet Repo-
@@ -265,6 +266,34 @@ export const Route = createFileRoute("/api/admin/system-check")({
           }
         } catch {
           /* Zaehler bleiben 0 */
+        }
+
+        // 4b) KI-Systeme der letzten KI-Sichtbarkeits-Messung (Org-gebunden):
+        //     ein stummes System (kein Guthaben, Key fehlt, Limit) faellt sonst
+        //     nicht auf. Nur Systemnamen, Zahlen und Kurzgrund, nie Inhalte.
+        {
+          const TAGE = 14;
+          let befund: { status: CheckStatus; detail: string } = {
+            status: "nicht_pruefbar",
+            detail: "Stand der KI-Systeme lässt sich gerade nicht lesen",
+          };
+          try {
+            const { data: clients } = await SB.from("clients")
+              .select("id")
+              .eq("organization_id", ctx.organizationId);
+            const ids = (clients || []).map((c: any) => c.id);
+            const ab = new Date(Date.now() - TAGE * 86_400_000).toISOString().slice(0, 10);
+            const { data: rows, error } = ids.length
+              ? await SB.from("ai_visibility_reports")
+                  .select("client_id, snapshot_date, eng:parts->eng")
+                  .in("client_id", ids)
+                  .gte("snapshot_date", ab)
+              : { data: [], error: null };
+            if (!error) befund = engineBefund(rows || [], TAGE);
+          } catch {
+            /* bleibt nicht_pruefbar */
+          }
+          checks.push({ id: "ki_systeme", name: "KI-Systeme (letzte Messung)", ...befund });
         }
 
         // 5) Verwalteter Scheduler (pg_cron/pg_net/Vault/Heartbeat/Watchdog/
