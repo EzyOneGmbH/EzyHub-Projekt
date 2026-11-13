@@ -201,6 +201,7 @@ import { Route as ApiBlogProjectsIdCompetitorsRouteImport } from './routes/api/b
 import { Route as ApiBlogProjectsIdEventsRouteImport } from './routes/api/blog.projects.$id.events'
 import { Route as ApiBlogProjectsIdActivityRouteImport } from './routes/api/blog.projects.$id.activity'
 import { Route as ApiBlogProjectsIdTrafficRouteImport } from './routes/api/blog.projects.$id.traffic'
+import { Route as ApiBlogProjectsIdWirkungRouteImport } from './routes/api/blog.projects.$id.wirkung'
 import { Route as ApiBlogProjectsIdKiRouteImport } from './routes/api/blog.projects.$id.ki'
 import { Route as ApiBlogProjectsIdGoogleRouteImport } from './routes/api/blog.projects.$id.google'
 import { Route as ApiBlogProjectsIdOpportunitiesRouteImport } from './routes/api/blog.projects.$id.opportunities'
@@ -1210,6 +1211,11 @@ const ApiBlogProjectsIdTrafficRoute = ApiBlogProjectsIdTrafficRouteImport.update
   path: '/traffic',
   getParentRoute: () => ApiBlogProjectsIdRoute,
 } as any)
+const ApiBlogProjectsIdWirkungRoute = ApiBlogProjectsIdWirkungRouteImport.update({
+  id: '/wirkung',
+  path: '/wirkung',
+  getParentRoute: () => ApiBlogProjectsIdRoute,
+} as any)
 const ApiBlogProjectsIdKiRoute = ApiBlogProjectsIdKiRouteImport.update({
   id: '/ki',
   path: '/ki',
@@ -1495,6 +1501,7 @@ export interface FileRoutesByFullPath {
   '/api/blog/projects/$id/events': typeof ApiBlogProjectsIdEventsRoute
   '/api/blog/projects/$id/activity': typeof ApiBlogProjectsIdActivityRoute
   '/api/blog/projects/$id/traffic': typeof ApiBlogProjectsIdTrafficRoute
+  '/api/blog/projects/$id/wirkung': typeof ApiBlogProjectsIdWirkungRoute
   '/api/blog/projects/$id/ki': typeof ApiBlogProjectsIdKiRoute
   '/api/blog/projects/$id/google': typeof ApiBlogProjectsIdGoogleRoute
   '/api/blog/projects/$id/opportunities': typeof ApiBlogProjectsIdOpportunitiesRouteWithChildren
@@ -1705,6 +1712,7 @@ export interface FileRoutesByTo {
   '/api/blog/projects/$id/events': typeof ApiBlogProjectsIdEventsRoute
   '/api/blog/projects/$id/activity': typeof ApiBlogProjectsIdActivityRoute
   '/api/blog/projects/$id/traffic': typeof ApiBlogProjectsIdTrafficRoute
+  '/api/blog/projects/$id/wirkung': typeof ApiBlogProjectsIdWirkungRoute
   '/api/blog/projects/$id/ki': typeof ApiBlogProjectsIdKiRoute
   '/api/blog/projects/$id/google': typeof ApiBlogProjectsIdGoogleRoute
   '/api/blog/projects/$id/opportunities': typeof ApiBlogProjectsIdOpportunitiesRouteWithChildren
@@ -1916,6 +1924,7 @@ export interface FileRoutesById {
   '/api/blog/projects/$id/events': typeof ApiBlogProjectsIdEventsRoute
   '/api/blog/projects/$id/activity': typeof ApiBlogProjectsIdActivityRoute
   '/api/blog/projects/$id/traffic': typeof ApiBlogProjectsIdTrafficRoute
+  '/api/blog/projects/$id/wirkung': typeof ApiBlogProjectsIdWirkungRoute
   '/api/blog/projects/$id/ki': typeof ApiBlogProjectsIdKiRoute
   '/api/blog/projects/$id/google': typeof ApiBlogProjectsIdGoogleRoute
   '/api/blog/projects/$id/opportunities': typeof ApiBlogProjectsIdOpportunitiesRouteWithChildren
@@ -2128,6 +2137,7 @@ export interface FileRouteTypes {
     | '/api/blog/projects/$id/events'
     | '/api/blog/projects/$id/activity'
     | '/api/blog/projects/$id/traffic'
+    | '/api/blog/projects/$id/wirkung'
     | '/api/blog/projects/$id/ki'
     | '/api/blog/projects/$id/google'
     | '/api/blog/projects/$id/opportunities'
@@ -2338,6 +2348,7 @@ export interface FileRouteTypes {
     | '/api/blog/projects/$id/events'
     | '/api/blog/projects/$id/activity'
     | '/api/blog/projects/$id/traffic'
+    | '/api/blog/projects/$id/wirkung'
     | '/api/blog/projects/$id/ki'
     | '/api/blog/projects/$id/google'
     | '/api/blog/projects/$id/opportunities'
@@ -2548,6 +2559,7 @@ export interface FileRouteTypes {
     | '/api/blog/projects/$id/events'
     | '/api/blog/projects/$id/activity'
     | '/api/blog/projects/$id/traffic'
+    | '/api/blog/projects/$id/wirkung'
     | '/api/blog/projects/$id/ki'
     | '/api/blog/projects/$id/google'
     | '/api/blog/projects/$id/opportunities'
@@ -4090,6 +4102,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiBlogProjectsIdTrafficRouteImport
       parentRoute: typeof ApiBlogProjectsIdRoute
     }
+    '/api/blog/projects/$id/wirkung': {
+      id: '/api/blog/projects/$id/wirkung'
+      path: '/wirkung'
+      fullPath: '/api/blog/projects/$id/wirkung'
+      preLoaderRoute: typeof ApiBlogProjectsIdWirkungRouteImport
+      parentRoute: typeof ApiBlogProjectsIdRoute
+    }
     '/api/blog/projects/$id/ki': {
       id: '/api/blog/projects/$id/ki'
       path: '/ki'
@@ -4312,6 +4331,7 @@ interface ApiBlogProjectsIdRouteChildren {
   ApiBlogProjectsIdEventsRoute: typeof ApiBlogProjectsIdEventsRoute
   ApiBlogProjectsIdActivityRoute: typeof ApiBlogProjectsIdActivityRoute
   ApiBlogProjectsIdTrafficRoute: typeof ApiBlogProjectsIdTrafficRoute
+  ApiBlogProjectsIdWirkungRoute: typeof ApiBlogProjectsIdWirkungRoute
   ApiBlogProjectsIdKiRoute: typeof ApiBlogProjectsIdKiRoute
   ApiBlogProjectsIdGoogleRoute: typeof ApiBlogProjectsIdGoogleRoute
   ApiBlogProjectsIdOpportunitiesRoute: typeof ApiBlogProjectsIdOpportunitiesRouteWithChildren
@@ -4331,6 +4351,7 @@ const ApiBlogProjectsIdRouteChildren: ApiBlogProjectsIdRouteChildren = {
   ApiBlogProjectsIdEventsRoute: ApiBlogProjectsIdEventsRoute,
   ApiBlogProjectsIdActivityRoute: ApiBlogProjectsIdActivityRoute,
   ApiBlogProjectsIdTrafficRoute: ApiBlogProjectsIdTrafficRoute,
+  ApiBlogProjectsIdWirkungRoute: ApiBlogProjectsIdWirkungRoute,
   ApiBlogProjectsIdKiRoute: ApiBlogProjectsIdKiRoute,
   ApiBlogProjectsIdGoogleRoute: ApiBlogProjectsIdGoogleRoute,
   ApiBlogProjectsIdOpportunitiesRoute:

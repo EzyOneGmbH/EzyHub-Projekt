@@ -568,6 +568,160 @@ function AktivitaetDialog({ events, zu }: { events: any[]; zu: () => void }) {
   );
 }
 
+const WIRKUNG_GRUND: Record<string, string> = {
+  frisch: "Google liefert die ersten Zahlen einige Tage nach dem Live-Gang.",
+  url: "Die Adresse des Artikels gehört nicht zur verbundenen Search Console.",
+  fehler: "Die Zahlen von Google lassen sich gerade nicht laden.",
+};
+
+function WirkungWert({
+  jetzt,
+  vorher,
+  stellen = 0,
+  gutWennTiefer,
+}: {
+  jetzt: number;
+  vorher?: number | null;
+  stellen?: number;
+  gutWennTiefer?: boolean;
+}) {
+  const d = vorher === null || vorher === undefined ? null : jetzt - vorher;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+      <span>{zahl(jetzt, stellen)}</span>
+      {d !== null && (
+        <Delta
+          diff={d}
+          gutWennTiefer={gutWennTiefer}
+          text={
+            gutWennTiefer
+              ? `${zahl(Math.abs(d), stellen)} ${d < 0 ? "besser" : "schlechter"}`
+              : zahl(Math.abs(d), stellen)
+          }
+        />
+      )}
+    </div>
+  );
+}
+
+function WirkungJeArtikel({ clientId, daten }: { clientId: string; daten: any }) {
+  const hinweis = { margin: 0, color: P.muted, fontSize: 14, lineHeight: 1.5 } as const;
+  const artikel: any[] = daten?.verbunden ? (daten.artikel ?? []) : [];
+  const mitVergleich = artikel.some((a) => a.vor);
+  return (
+    <Block titel="Wirkung je Artikel">
+      {!daten && <p style={{ margin: 0, color: P.dim, fontSize: 14 }}>Daten werden geladen…</p>}
+      {daten?.fehler && <p style={hinweis}>Die Daten lassen sich gerade nicht laden.</p>}
+      {daten && !daten.fehler && !daten.verbunden && (
+        <div style={hinweis}>
+          Die Google Search Console ist noch nicht verbunden. Sobald sie verbunden ist, siehst du
+          hier, was jeder Artikel in der Suche bringt.
+          <div>
+            <a href={`/ezyrank/blog/einrichtung/6?client=${clientId}`} style={verweisStil}>
+              Search Console verbinden
+            </a>
+          </div>
+        </div>
+      )}
+      {daten?.verbunden && artikel.length === 0 && (
+        <p style={hinweis}>
+          Noch ist kein Artikel live. Sobald Artikel veröffentlicht sind, siehst du hier, wie oft
+          sie in der Suche erscheinen und angeklickt werden.
+        </p>
+      )}
+      {artikel.length > 0 && (
+        <>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 520 }}>
+              <thead>
+                <tr>
+                  <th style={{ ...kopf, textAlign: "left" }}>Artikel</th>
+                  <th style={kopf}>Klicks</th>
+                  <th style={kopf}>Impressionen</th>
+                  <th style={kopf}>Ø Position</th>
+                </tr>
+              </thead>
+              <tbody>
+                {artikel.map((a) => {
+                  const live = new Date(a.liveSeit);
+                  const seit = Number.isNaN(live.getTime()) ? "" : datumText(live, true);
+                  return (
+                    <tr key={a.id}>
+                      <td
+                        style={{
+                          ...zelle,
+                          textAlign: "left",
+                          whiteSpace: "normal",
+                          verticalAlign: "top",
+                        }}
+                      >
+                        <a
+                          href={`/ezyrank/blog/artikel/${a.id}`}
+                          style={{ fontWeight: 700, color: P.text, overflowWrap: "anywhere" }}
+                        >
+                          {a.titel}
+                        </a>
+                        <div style={{ fontSize: 12.5, color: P.dim, marginTop: 2 }}>
+                          {a.modus === "refresh" ? "Überarbeitung" : "Neuer Artikel"}
+                          {seit ? ` · live seit ${seit}` : ""}
+                          {a.nach && a.tage < daten.tage
+                            ? ` · bisher ${a.tage === 1 ? "1 Tag" : `${a.tage} Tage`} gemessen`
+                            : ""}
+                        </div>
+                      </td>
+                      {a.nach ? (
+                        <>
+                          <td style={{ ...zelle, verticalAlign: "top" }}>
+                            <WirkungWert jetzt={a.nach.clicks} vorher={a.vor?.clicks} />
+                          </td>
+                          <td style={{ ...zelle, verticalAlign: "top" }}>
+                            <WirkungWert jetzt={a.nach.impressions} vorher={a.vor?.impressions} />
+                          </td>
+                          <td style={{ ...zelle, verticalAlign: "top" }}>
+                            {a.nach.impressions > 0 ? (
+                              <WirkungWert
+                                jetzt={a.nach.position}
+                                vorher={a.vor?.impressions ? a.vor.position : null}
+                                stellen={1}
+                                gutWennTiefer
+                              />
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                        </>
+                      ) : (
+                        <td
+                          colSpan={3}
+                          style={{
+                            ...zelle,
+                            whiteSpace: "normal",
+                            color: P.muted,
+                            verticalAlign: "top",
+                          }}
+                        >
+                          {WIRKUNG_GRUND[a.grund] ?? WIRKUNG_GRUND.fehler}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p style={{ margin: 0, fontSize: 12.5, color: P.dim }}>
+            Gemessen werden die ersten {daten.tage} Tage nach dem Live-Gang, Quelle: Google Search
+            Console.
+            {mitVergleich
+              ? " Bei Überarbeitungen steht darunter die Veränderung zu gleich vielen Tagen davor."
+              : ""}
+          </p>
+        </>
+      )}
+    </Block>
+  );
+}
+
 const marke = {
   display: "inline-flex",
   alignItems: "center",
@@ -800,6 +954,7 @@ export default function BlogDashboard({
   const [events, setEvents] = useState<any[] | null>(null);
   const [alle, setAlle] = useState(false);
   const [kiDaten, setKiDaten] = useState<any>(null);
+  const [wirkung, setWirkung] = useState<any>(null);
 
   const { run: ahrefsRun } = useEzyLatestRun(clientId, "ahrefs");
   const { run: kiRun } = useEzyLatestRun(clientId, "canonry_ai_visibility");
@@ -810,6 +965,17 @@ export default function BlogDashboard({
     setVerkehr({});
     setEvents(null);
     setKiDaten(null);
+    setWirkung(null);
+  }, [projektId]);
+
+  useEffect(() => {
+    let aktiv = true;
+    void api(`/api/blog/projects/${projektId}/wirkung`).then((r) => {
+      if (aktiv) setWirkung(r.ok && r.json?.ok ? r.json : { fehler: true });
+    });
+    return () => {
+      aktiv = false;
+    };
   }, [projektId]);
 
   useEffect(() => {
@@ -954,6 +1120,8 @@ export default function BlogDashboard({
       </div>
 
       <Suchverkehr clientId={clientId} tage={tage} setTage={setTage} daten={verkehr[tage]} />
+
+      <WirkungJeArtikel clientId={clientId} daten={wirkung} />
 
       <KiSichtbarkeit daten={kiDaten} />
 
