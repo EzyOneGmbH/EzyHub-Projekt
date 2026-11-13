@@ -734,6 +734,183 @@ const marke = {
   whiteSpace: "nowrap",
 } as const;
 
+const THEMA_STUFE: Record<string, { text: string; farbe: string }> = {
+  stark: { text: "Gut abgedeckt", farbe: GUT },
+  aufbau: { text: "Im Aufbau", farbe: P.text },
+  leer: { text: "Noch offen", farbe: P.muted },
+};
+
+function ThemenAutoritaet({ clientId, daten }: { clientId: string; daten: any }) {
+  const hinweis = { margin: 0, color: P.muted, fontSize: 14, lineHeight: 1.5 } as const;
+  const themen: any[] = daten?.themen ?? [];
+  const ohne = daten?.ohneThema ?? { live: 0, geplant: 0 };
+  return (
+    <Block titel="Themen-Autorität">
+      {!daten && <p style={{ margin: 0, color: P.dim, fontSize: 14 }}>Daten werden geladen…</p>}
+      {daten?.fehler && <p style={hinweis}>Die Daten lassen sich gerade nicht laden.</p>}
+      {daten && !daten.fehler && themen.length === 0 && (
+        <p style={hinweis}>
+          Für diesen Blog sind noch keine Themen festgelegt. Sie entstehen bei der Analyse in der
+          Einrichtung.
+        </p>
+      )}
+      {themen.length > 0 && (
+        <>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 520 }}>
+              <thead>
+                <tr>
+                  <th style={{ ...kopf, textAlign: "left" }}>Thema</th>
+                  <th style={kopf}>Live</th>
+                  <th style={kopf}>In Arbeit</th>
+                  <th style={kopf}>Offene Chancen</th>
+                  <th style={kopf}>Stand</th>
+                </tr>
+              </thead>
+              <tbody>
+                {themen.map((t) => {
+                  const stufe = THEMA_STUFE[t.stufe] ?? THEMA_STUFE.leer;
+                  return (
+                    <tr key={t.name}>
+                      <td
+                        style={{
+                          ...zelle,
+                          textAlign: "left",
+                          whiteSpace: "normal",
+                          fontWeight: 700,
+                          overflowWrap: "anywhere",
+                        }}
+                      >
+                        {t.name}
+                      </td>
+                      <td style={zelle}>{zahl(t.live)}</td>
+                      <td style={zelle}>{zahl(t.geplant)}</td>
+                      <td style={zelle}>{zahl(t.chancen)}</td>
+                      <td style={zelle}>
+                        <span style={{ ...marke, color: stufe.farbe }}>{stufe.text}</span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p style={{ margin: 0, fontSize: 12.5, color: P.dim }}>
+            Ein Thema gilt ab {daten.stark} Live-Artikeln als gut abgedeckt. «In Arbeit» sind
+            geplante Themen und Artikel, die noch nicht live sind.
+            {ohne.live + ohne.geplant > 0
+              ? ` Ohne Thema: ${zahl(ohne.live)} live, ${zahl(ohne.geplant)} in Arbeit.`
+              : ""}{" "}
+            <a href={`/ezyrank/blog/einrichtung/7?client=${clientId}`} style={verweisStil}>
+              Zum Themenplan
+            </a>
+          </p>
+        </>
+      )}
+    </Block>
+  );
+}
+
+function InterneVerlinkung({ daten }: { daten: any }) {
+  const hinweis = { margin: 0, color: P.muted, fontSize: 14, lineHeight: 1.5 } as const;
+  const artikel: any[] = daten?.links?.artikel ?? [];
+  const ziel = Number(daten?.links?.ziel ?? 0);
+  const ohneEingang = artikel.filter((a) => a.eingehend === 0).length;
+  return (
+    <Block titel="Interne Verlinkung">
+      {!daten && <p style={{ margin: 0, color: P.dim, fontSize: 14 }}>Daten werden geladen…</p>}
+      {daten?.fehler && <p style={hinweis}>Die Daten lassen sich gerade nicht laden.</p>}
+      {daten && !daten.fehler && artikel.length === 0 && (
+        <p style={hinweis}>
+          Noch ist kein Artikel live. Sobald Artikel veröffentlicht sind, siehst du hier, wie gut
+          sie untereinander verlinkt sind.
+        </p>
+      )}
+      {artikel.length > 0 && (
+        <>
+          <p style={hinweis}>
+            {artikel.length === 1
+              ? "Erst ein Artikel ist live. Links zwischen Artikeln entstehen ab dem zweiten."
+              : ohneEingang === 0
+                ? "Jeder Artikel wird von mindestens einem anderen Artikel verlinkt."
+                : `${zahl(ohneEingang)} von ${zahl(artikel.length)} Artikeln ${
+                    ohneEingang === 1 ? "wird" : "werden"
+                  } noch von keinem anderen Artikel verlinkt.`}
+          </p>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 520 }}>
+              <thead>
+                <tr>
+                  <th style={{ ...kopf, textAlign: "left" }}>Artikel</th>
+                  <th style={kopf}>Links im Text</th>
+                  <th style={kopf}>Links von anderen Artikeln</th>
+                </tr>
+              </thead>
+              <tbody>
+                {artikel.map((a) => (
+                  <tr key={a.id}>
+                    <td
+                      style={{
+                        ...zelle,
+                        textAlign: "left",
+                        whiteSpace: "normal",
+                        verticalAlign: "top",
+                      }}
+                    >
+                      <a
+                        href={`/ezyrank/blog/artikel/${a.id}`}
+                        style={{ fontWeight: 700, color: P.text, overflowWrap: "anywhere" }}
+                      >
+                        {a.titel}
+                      </a>
+                      {a.vorschlaege?.length > 0 && (
+                        <div style={{ fontSize: 12.5, color: P.dim, marginTop: 2 }}>
+                          Passt als Link in:{" "}
+                          {a.vorschlaege.map((v: any, i: number) => (
+                            <span key={v.id}>
+                              {i > 0 ? ", " : ""}
+                              <a href={`/ezyrank/blog/artikel/${v.id}`} style={verweisStil}>
+                                {v.titel}
+                              </a>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                    <td
+                      style={{
+                        ...zelle,
+                        verticalAlign: "top",
+                        color: ziel > 0 && a.ausgehend < ziel ? SCHLECHT : P.text,
+                      }}
+                    >
+                      {zahl(a.ausgehend)}
+                    </td>
+                    <td
+                      style={{
+                        ...zelle,
+                        verticalAlign: "top",
+                        color: artikel.length > 1 && a.eingehend === 0 ? SCHLECHT : P.text,
+                      }}
+                    >
+                      {zahl(a.eingehend)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p style={{ margin: 0, fontSize: 12.5, color: P.dim }}>
+            «Links im Text» zählt Links auf Seiten der eigenen Website
+            {ziel > 0 ? `, Ziel laut Einstellungen: ${zahl(ziel)} pro Artikel` : ""}. «Links von
+            anderen Artikeln» zählt nur Artikel aus diesem Blog-Autopiloten.
+          </p>
+        </>
+      )}
+    </Block>
+  );
+}
+
 type KiSeiteDaten = { url: string; fragen: { frage: string; system: string }[]; systeme: string[] };
 
 function KiSeite({ titel, href, seite }: { titel: string; href: string; seite: KiSeiteDaten }) {
@@ -955,6 +1132,7 @@ export default function BlogDashboard({
   const [alle, setAlle] = useState(false);
   const [kiDaten, setKiDaten] = useState<any>(null);
   const [wirkung, setWirkung] = useState<any>(null);
+  const [struktur, setStruktur] = useState<any>(null);
 
   const { run: ahrefsRun } = useEzyLatestRun(clientId, "ahrefs");
   const { run: kiRun } = useEzyLatestRun(clientId, "canonry_ai_visibility");
@@ -966,6 +1144,17 @@ export default function BlogDashboard({
     setEvents(null);
     setKiDaten(null);
     setWirkung(null);
+    setStruktur(null);
+  }, [projektId]);
+
+  useEffect(() => {
+    let aktiv = true;
+    void api(`/api/blog/projects/${projektId}/struktur`).then((r) => {
+      if (aktiv) setStruktur(r.ok && r.json?.ok ? r.json : { fehler: true });
+    });
+    return () => {
+      aktiv = false;
+    };
   }, [projektId]);
 
   useEffect(() => {
@@ -1122,6 +1311,10 @@ export default function BlogDashboard({
       <Suchverkehr clientId={clientId} tage={tage} setTage={setTage} daten={verkehr[tage]} />
 
       <WirkungJeArtikel clientId={clientId} daten={wirkung} />
+
+      <ThemenAutoritaet clientId={clientId} daten={struktur} />
+
+      <InterneVerlinkung daten={struktur} />
 
       <KiSichtbarkeit daten={kiDaten} />
 
