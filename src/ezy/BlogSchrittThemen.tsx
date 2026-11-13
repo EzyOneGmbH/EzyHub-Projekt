@@ -1,7 +1,18 @@
 // Blog-Autopilot Onboarding Schritt 7 (Themenplan, KI-Audit) und Schritt 8
 // (Start). Kein Artikel vor der Themenplan-Freigabe (Kap. 6A).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, Fuss, Hinweis, Karte, Knopf, P, Titel, eingabe, type Ctx } from "@/ezy/BlogUi";
+import {
+  api,
+  blogZurueck,
+  Fuss,
+  Hinweis,
+  Karte,
+  Knopf,
+  P,
+  Titel,
+  eingabe,
+  type Ctx,
+} from "@/ezy/BlogUi";
 
 const KATEGORIE: Record<string, { label: string; farbe: string; hinter: string }> = {
   fast_vorne: { label: "Fast vorne", farbe: P.green, hinter: P.greenDim },
@@ -405,7 +416,7 @@ export function BlogSchrittStart({ c }: { c: Ctx }) {
     const r = await api(`/api/blog/projects/${c.project.id}/start`, "POST");
     setBusy(false);
     if (!r.ok) return c.setFehler(r.json?.error || "Start fehlgeschlagen");
-    window.location.href = `/ezyrank?tab=blog&client=${encodeURIComponent(c.kunde.id)}`;
+    window.location.href = blogZurueck(c.kunde.id);
   };
 
   const jetztSchreiben = async () => {

@@ -8,6 +8,7 @@ import {
   P,
   StatusMarke,
   api,
+  blogZurueck,
   datumText,
   eingabe,
   tagLokal,
@@ -252,7 +253,7 @@ function Werkzeug({
 
 function Rahmen({ children, clientId }: { children: ReactNode; clientId?: string }) {
   // Mit Kunde im Link landet der Rücksprung direkt im Blog-Tab dieses Kunden.
-  const zurueck = `/ezyrank?tab=blog${clientId ? `&client=${encodeURIComponent(clientId)}` : ""}`;
+  const zurueck = blogZurueck(clientId);
   return (
     <div className="ezr-seite" style={{ minHeight: "100vh", background: P.bg, color: P.text }}>
       <style dangerouslySetInnerHTML={{ __html: STIL }} />

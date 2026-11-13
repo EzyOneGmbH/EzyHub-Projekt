@@ -1,8 +1,16 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import BlogAutopilotKarte from "@/ezy/BlogAutopilotKarte";
-import { P, Segmente, api, eintraegeAus, verweisStil } from "@/ezy/BlogUi";
+import {
+  P,
+  Segmente,
+  api,
+  eintraegeAus,
+  merkeBlogHerkunft,
+  verweisStil,
+  type BlogHerkunft,
+} from "@/ezy/BlogUi";
 
-// Blog-Tab in EzyRank: Kopfzeile und Unter-Tabs. Solange der Autopilot noch
+// Blog-Tab in EzyRank und Bereich «Blog» in EzyAI: Kopfzeile und Unter-Tabs. Solange der Autopilot noch
 // nicht läuft, steht hier nur die Einrichtungskarte.
 
 const BlogDashboard = lazy(() => import("@/ezy/BlogDashboard"));
@@ -35,9 +43,11 @@ function gemerkterTab(): BlogTab {
 export default function BlogBereich({
   client,
   refreshRadar,
+  herkunft = "ezyrank",
 }: {
   client: { id: string } | null;
   refreshRadar?: ReactNode;
+  herkunft?: BlogHerkunft;
 }) {
   const clientId = client?.id ?? null;
   // undefined = lädt, null = kein laufender Autopilot
@@ -47,6 +57,7 @@ export default function BlogBereich({
   const [tab, setTab] = useState<BlogTab>("dashboard");
 
   useEffect(() => setTab(gemerkterTab()), []);
+  useEffect(() => merkeBlogHerkunft(herkunft), [herkunft]);
 
   const gehe = useCallback((t: BlogTab) => {
     setTab(t);
@@ -101,6 +112,13 @@ export default function BlogBereich({
     [],
   );
 
+  // In EzyAI steht der Bereich für sich: ohne Hinweis bliebe die Seite leer.
+  if (clientId && !verfuegbar && herkunft === "ezyai")
+    return (
+      <div style={{ color: P.muted, fontSize: 14, padding: "48px 16px", textAlign: "center" }}>
+        Für diesen Kunden ist der Blog-Autopilot nicht verfügbar.
+      </div>
+    );
   if (!clientId || !verfuegbar) return <>{refreshRadar}</>;
   if (projekt === undefined) return null;
   if (!projekt)

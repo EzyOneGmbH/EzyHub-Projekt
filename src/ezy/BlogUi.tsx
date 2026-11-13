@@ -26,6 +26,39 @@ export const P = {
   shadow: "0 1px 2px rgba(43,0,51,.04), 0 12px 32px -20px rgba(43,0,51,.22)",
 };
 
+// Der Blog ist in EzyRank und in EzyAI derselbe. Der Rücksprung aus den
+// Vollbild-Seiten (Artikel, Einrichtung) führt in das Produkt zurück, in dem
+// der Blog zuletzt offen war.
+export type BlogHerkunft = "ezyrank" | "ezyai";
+const HERKUNFT = "ezyBlogHerkunft.v1";
+
+export function merkeBlogHerkunft(h: BlogHerkunft): void {
+  try {
+    window.localStorage.setItem(HERKUNFT, h);
+  } catch {
+    // ohne Speicher: Rücksprung nach EzyRank
+  }
+}
+
+function blogHerkunft(): BlogHerkunft {
+  try {
+    return window.localStorage.getItem(HERKUNFT) === "ezyai" ? "ezyai" : "ezyrank";
+  } catch {
+    return "ezyrank";
+  }
+}
+
+/** Startseite des Produkts, aus dem der Blog geöffnet wurde. */
+export function blogHeim(): string {
+  return blogHerkunft() === "ezyai" ? "/ezyai" : "/ezyrank";
+}
+
+/** Link zurück in den Blog, mit Kunde direkt in dessen Blog. */
+export function blogZurueck(clientId?: string | null): string {
+  const kunde = clientId ? `&client=${encodeURIComponent(clientId)}` : "";
+  return blogHerkunft() === "ezyai" ? `/ezyai?bereich=blog${kunde}` : `/ezyrank?tab=blog${kunde}`;
+}
+
 export type Kunde = {
   id: string;
   name: string;

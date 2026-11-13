@@ -74,6 +74,7 @@ import {
   Users,
   Settings,
   Database,
+  PenTool,
 } from "lucide-react";
 
 // QS-Runde 13.09.2026: herausgeloeste Teile (kleinere Datei, gleiche Logik).
@@ -145,6 +146,8 @@ const APP_NAV: Array<{ group: string; items: NavItem[] }> = [
     group: "Actions",
     items: [
       // Content-Briefs (13.08., Content-Loop): aus Chancen erzeugte Briefs.
+      // Blog-Autopilot (13.11.): derselbe Bereich wie der Blog-Tab in EzyRank.
+      { id: "blog", label: "Blog", icon: PenTool },
       { id: "content", label: "Content", icon: FileText },
       // Chancen (11.08., Searchable "Opportunities"): konsolidierte Queue über
       // alle Signalquellen — Site-Health-Issues, Prompt-Chancen, Prüf-Aufgaben.
@@ -232,6 +235,21 @@ const EzyAiAgencyTable = lazy(() =>
 );
 // First-Party GEO (GSC + GA4, 22.09.): eigener Lazy-Chunk.
 const FirstPartyGeo = lazy(() => import("@/ezy/ezyai/FirstPartyGeo"));
+const BlogBereich = lazy(() => import("@/ezy/BlogBereich"));
+
+// Rücksprung aus den Blog-Vollbild-Seiten (13.11.): /ezyai?bereich=blog&client=<uuid>
+// öffnet direkt den Blog dieses Kunden. Ein unbekannter Kunde fällt auf den
+// ersten sichtbaren zurück.
+function blogEinstieg(): { client: string | null } | null {
+  try {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("bereich") !== "blog") return null;
+    const c = q.get("client") || "";
+    return { client: /^[0-9a-f-]{36}$/i.test(c) ? c : null };
+  } catch {
+    return null;
+  }
+}
 
 /** Organic/Ads-Schalter (Segmented, Hi-Fi) — sitzt in der AppRail unter der
  *  Trennlinie, damit die Apps-Zone abgegrenzt bleibt (Volkan 26.08.). */
@@ -4572,12 +4590,16 @@ function EzyAiApp() {
   const [swOpen, setSwOpen] = useState(false);
   // Native-Mobile (2h): "Heute" ist der Handy-Einstieg (<900px), sonst Dashboard.
   const [view, setView] = useState<"dashboard" | "agent" | "heute">(() =>
-    typeof window !== "undefined" && window.innerWidth < 900 ? "heute" : "dashboard",
+    typeof window !== "undefined" && window.innerWidth < 900 && !blogEinstieg()
+      ? "heute"
+      : "dashboard",
   );
-  const [section, setSection] = useState("aeo-insights"); // aktiver Sidebar-App-Bereich
+  // aktiver Sidebar-App-Bereich
+  const [section, setSection] = useState(() => (blogEinstieg() ? "blog" : "aeo-insights"));
   // Organic/Ads-Schalter (26.08.): Ads = ChatGPT-Ads-Conversions (OpenAI
   // Conversions API). Eigener Bereichs-State je Modus, Wahl bleibt erhalten.
   const [adsMode, setAdsMode] = useState(() => {
+    if (blogEinstieg()) return false;
     try {
       return localStorage.getItem("ezyai.mode.v1") === "ads";
     } catch {
@@ -4663,7 +4685,7 @@ function EzyAiApp() {
   }, [range, compareMode]);
   const [clientId, setClientId] = useState(() => {
     try {
-      return localStorage.getItem(CLIENT_LS) || "";
+      return blogEinstieg()?.client || localStorage.getItem(CLIENT_LS) || "";
     } catch {
       return "";
     }
@@ -4673,6 +4695,7 @@ function EzyAiApp() {
   // Einstieg (Login, App-Wechsel per Link); Reload/Zurück stellt die letzte
   // Auswahl wieder her. Viewer werden ohnehin ins Portal umgeleitet.
   const [showAll, setShowAll] = useState(() => {
+    if (blogEinstieg()) return false;
     if (isReloadNavigation()) {
       try {
         return localStorage.getItem("ezyai.showAll.v1") !== "0";
@@ -4768,6 +4791,19 @@ function EzyAiApp() {
     const ids = navOrganic.flatMap((g) => g.items.map((t) => t.id));
     if (ids.length && !ids.includes(section)) setSection(ids[0]);
   }, [navOrganic, section]);
+  // Einstiegs-Parameter nach dem Start aus der Adresse nehmen: Ein Reload soll
+  // den zuletzt gewählten Bereich zeigen, nicht wieder den Blog erzwingen.
+  useEffect(() => {
+    if (!blogEinstieg()) return;
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.delete("bereich");
+      u.searchParams.delete("client");
+      window.history.replaceState({}, "", u.pathname + (u.search || ""));
+    } catch {
+      /* egal */
+    }
+  }, []);
 
   const client = useMemo(
     () => clients.find((c: any) => c.id === clientId) || clients[0] || null,
@@ -5501,6 +5537,10 @@ function EzyAiApp() {
                         isOrgAdmin={!!isOrgAdmin}
                       />
                     )}
+                  </Suspense>
+                ) : section === "blog" ? (
+                  <Suspense fallback={null}>
+                    <BlogBereich client={client} herkunft="ezyai" />
                   </Suspense>
                 ) : section === "llm-analytics" ? (
                   <LlmAnalyticsPanel clientId={client.id} S={S} range={range} compare={compare} />

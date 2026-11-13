@@ -27,6 +27,7 @@ import {
   P,
   Titel,
   api,
+  blogHeim,
   domainVon,
   eingabe,
 } from "@/ezy/BlogUi";
@@ -219,7 +220,7 @@ function Kopf({ step }: { step: number }) {
         }}
       >
         <a
-          href="/ezyrank"
+          href={blogHeim()}
           style={{ fontWeight: 800, color: P.text, textDecoration: "none", fontSize: 15 }}
         >
           Ezy One <span style={{ color: P.dim, fontWeight: 600 }}>· Blog-Autopilot</span>

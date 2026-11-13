@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import BlogArtikel from "@/ezy/BlogArtikel";
+import { blogZurueck } from "@/ezy/BlogUi";
 
 // Blog-Autopilot: «Artikel prüfen» als Vollbild ohne Sidebar (Kap. 3, 9).
 // /ezyrank/blog/artikel/<id>. «ezyrank_» = nicht in die EzyRank-Oberfläche
@@ -21,7 +22,7 @@ function Seite() {
   }, [loading, session, navigate]);
   if (loading || !session) return null;
   if (!/^[0-9a-f-]{36}$/i.test(id)) {
-    window.location.replace("/ezyrank?tab=blog");
+    window.location.replace(blogZurueck());
     return null;
   }
   return <BlogArtikel key={id} id={id} />;
