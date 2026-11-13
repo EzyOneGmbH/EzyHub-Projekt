@@ -568,6 +568,217 @@ function AktivitaetDialog({ events, zu }: { events: any[]; zu: () => void }) {
   );
 }
 
+const marke = {
+  display: "inline-flex",
+  alignItems: "center",
+  padding: "3px 10px",
+  borderRadius: 99,
+  fontSize: 12.5,
+  fontWeight: 600,
+  background: P.accentDim,
+  color: P.text,
+  whiteSpace: "nowrap",
+} as const;
+
+type KiSeiteDaten = { url: string; fragen: { frage: string; system: string }[]; systeme: string[] };
+
+function KiSeite({ titel, href, seite }: { titel: string; href: string; seite: KiSeiteDaten }) {
+  const [offen, setOffen] = useState(false);
+  const n = seite.fragen.length;
+  const extern = /^https?:/i.test(href);
+  return (
+    <li
+      style={{
+        borderTop: `1px solid ${HAARLINIE}`,
+        padding: "10px 0",
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          justifyContent: "space-between",
+          columnGap: 12,
+        }}
+      >
+        <a
+          href={href}
+          {...(extern ? { target: "_blank", rel: "noreferrer" } : {})}
+          style={{
+            fontSize: 14.5,
+            fontWeight: 700,
+            color: P.text,
+            minWidth: 0,
+            overflowWrap: "anywhere",
+          }}
+        >
+          {titel}
+        </a>
+        {n > 0 && (
+          <button
+            type="button"
+            onClick={() => setOffen((o) => !o)}
+            aria-expanded={offen}
+            style={verweisStil}
+          >
+            {n === 1 ? "1 Frage" : `${n} Fragen`} {offen ? "ausblenden" : "anzeigen"}
+          </button>
+        )}
+      </div>
+      {seite.systeme.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {seite.systeme.map((x) => (
+            <span key={x} style={marke}>
+              {x}
+            </span>
+          ))}
+        </div>
+      )}
+      {offen && (
+        <ul
+          style={{
+            margin: 0,
+            padding: "0 0 0 18px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+            fontSize: 13.5,
+            lineHeight: 1.45,
+          }}
+        >
+          {seite.fragen.map((f, i) => (
+            <li key={i}>
+              {f.frage}
+              {f.system ? <span style={{ color: P.dim }}> · {f.system}</span> : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+const kiPfad = (url: string): string => {
+  try {
+    const u = new URL(url);
+    return u.pathname === "/" ? u.hostname : u.pathname;
+  } catch {
+    return url;
+  }
+};
+
+function KiSichtbarkeit({ daten }: { daten: any }) {
+  const hinweis = { margin: 0, color: P.muted, fontSize: 14, lineHeight: 1.5 } as const;
+  const liste = { listStyle: "none", margin: 0, padding: 0 } as const;
+  const bereit = daten && !daten.fehler && daten.gemessen;
+  const wert = (v: number | null) => (v === null || v === undefined ? "—" : zahl(v));
+  const delta = (d: number | null, einheit = "") =>
+    d === null || d === undefined ? null : (
+      <Delta diff={d} text={`${zahl(Math.abs(d))}${einheit}`} />
+    );
+  const artikel: (KiSeiteDaten & { id: string; titel: string })[] = bereit
+    ? (daten.artikel ?? [])
+    : [];
+  const weitere: KiSeiteDaten[] = bereit ? (daten.weitere ?? []) : [];
+  return (
+    <Block
+      titel="KI-Sichtbarkeit"
+      rechts={
+        bereit && daten.stand ? (
+          <span style={{ fontSize: 12.5, color: P.dim }}>
+            Messung vom {datumText(new Date(daten.stand), true)}
+          </span>
+        ) : undefined
+      }
+    >
+      {!daten && <p style={{ margin: 0, color: P.dim, fontSize: 14 }}>Daten werden geladen…</p>}
+      {daten?.fehler && <p style={hinweis}>Die KI-Daten lassen sich gerade nicht laden.</p>}
+      {daten && !daten.fehler && !daten.gemessen && (
+        <p style={hinweis}>
+          Für diese Website gibt es noch keine KI-Messung. Sobald eine vorliegt, siehst du hier,
+          welche Artikel ChatGPT, Gemini und Google als Quelle nennen.
+        </p>
+      )}
+      {bereit && (
+        <>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+              gap: 14,
+            }}
+          >
+            <Kennzahl
+              titel="Score"
+              wert={daten.score === null ? "—" : `${zahl(daten.score)} / 100`}
+              delta={delta(daten.scoreDelta, " Punkte")}
+            />
+            <Kennzahl
+              titel="Erwähnungen"
+              wert={wert(daten.erwaehnungen)}
+              delta={delta(daten.erwaehnungenDelta)}
+            />
+            <Kennzahl titel="Zitate" wert={wert(daten.zitate)} delta={delta(daten.zitateDelta)} />
+            <Kennzahl
+              titel="Zitierte Seiten"
+              wert={wert(daten.seiten)}
+              delta={delta(daten.seitenDelta)}
+            />
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ fontSize: 14.5, fontWeight: 700 }}>KI-Zitate je Artikel</div>
+            {artikel.length > 0 ? (
+              <>
+                <p style={{ ...hinweis, fontSize: 13.5 }}>
+                  {artikel.length} von {daten.artikelLive} Live-Artikeln{" "}
+                  {artikel.length === 1 ? "wird" : "werden"} von KI-Systemen als Quelle genannt.
+                </p>
+                <ul style={liste}>
+                  {artikel.map((a) => (
+                    <KiSeite
+                      key={a.id}
+                      titel={a.titel}
+                      href={`/ezyrank/blog/artikel/${a.id}`}
+                      seite={a}
+                    />
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p style={hinweis}>
+                {daten.artikelLive > 0
+                  ? "Noch nennt kein KI-System einen deiner Live-Artikel als Quelle. Neue Artikel können frühestens in der nächsten Messung auftauchen."
+                  : "Noch ist kein Artikel live. Sobald Artikel veröffentlicht sind, siehst du hier, welche davon KI-Systeme als Quelle nennen."}
+              </p>
+            )}
+          </div>
+
+          {weitere.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ fontSize: 14.5, fontWeight: 700 }}>Weitere zitierte Seiten</div>
+              <ul style={liste}>
+                {weitere.map((w) => (
+                  <KiSeite key={w.url} titel={kiPfad(w.url)} href={w.url} seite={w} />
+                ))}
+              </ul>
+              {daten.weitereAnzahl > weitere.length && (
+                <p style={{ ...hinweis, fontSize: 13 }}>
+                  und {daten.weitereAnzahl - weitere.length} weitere Seiten.
+                </p>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </Block>
+  );
+}
+
 export default function BlogDashboard({
   clientId,
   projekt,
@@ -588,6 +799,7 @@ export default function BlogDashboard({
   const [verkehr, setVerkehr] = useState<Record<string, any>>({});
   const [events, setEvents] = useState<any[] | null>(null);
   const [alle, setAlle] = useState(false);
+  const [kiDaten, setKiDaten] = useState<any>(null);
 
   const { run: ahrefsRun } = useEzyLatestRun(clientId, "ahrefs");
   const { run: kiRun } = useEzyLatestRun(clientId, "canonry_ai_visibility");
@@ -597,6 +809,17 @@ export default function BlogDashboard({
   useEffect(() => {
     setVerkehr({});
     setEvents(null);
+    setKiDaten(null);
+  }, [projektId]);
+
+  useEffect(() => {
+    let aktiv = true;
+    void api(`/api/blog/projects/${projektId}/ki`).then((r) => {
+      if (aktiv) setKiDaten(r.ok && r.json?.ok ? r.json : { fehler: true });
+    });
+    return () => {
+      aktiv = false;
+    };
   }, [projektId]);
 
   // Die Kachel braucht immer 28 Tage, die Karte den gewählten Zeitraum.
@@ -731,6 +954,8 @@ export default function BlogDashboard({
       </div>
 
       <Suchverkehr clientId={clientId} tage={tage} setTage={setTage} daten={verkehr[tage]} />
+
+      <KiSichtbarkeit daten={kiDaten} />
 
       <Block
         titel="Als Nächstes"
