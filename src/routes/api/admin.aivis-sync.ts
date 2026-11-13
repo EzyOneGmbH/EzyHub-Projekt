@@ -14,6 +14,7 @@ import {
 import {
   engineStaende,
   engineTeileMit,
+  fehlerKurz,
   groundingRefs,
   hostGehoertZu,
   vereint,
@@ -4054,6 +4055,36 @@ async function jobBackfill(c: any, sb: any, months: number) {
   return { months: written, ahrefs: Object.keys(byMonth).length, ga4: !!ga4Token };
 }
 
+// Jede Engine einmal minimal anpingen und den echten Grund zurückgeben
+// (GET ?engineProbe=1 und Admin-Systemcheck). Nur Status und Kurzgrund, nie
+// Inhalte; Fehlertexte laufen durch fehlerKurz (keine Adressen, keine Keys).
+export async function engineProbe(): Promise<
+  Array<{ engine: string; ok: boolean; ms: number; grund?: string; model?: string | null }>
+> {
+  const probes = await Promise.all(
+    PROMPT_ENGINES.map(async (e) => {
+      const t0 = Date.now();
+      try {
+        const r: any = await e.ask("ping");
+        const ms = Date.now() - t0;
+        if (r === null)
+          return { engine: e.name, ok: false, ms, grund: "kein Key gesetzt oder leere Antwort" };
+        if (r.error) return { engine: e.name, ok: false, ms, grund: fehlerKurz(r.error, 300) };
+        return { engine: e.name, ok: true, ms, model: r.model ?? null };
+      } catch (err) {
+        return {
+          engine: e.name,
+          ok: false,
+          ms: Date.now() - t0,
+          grund: fehlerKurz(redactSecrets(err), 300),
+        };
+      }
+    }),
+  );
+  await flushCost(supabaseAdmin as any);
+  return probes;
+}
+
 export const Route = createFileRoute("/api/admin/aivis-sync")({
   server: {
     handlers: {
@@ -5272,32 +5303,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
         // zurückgeben und der Runner ihn verwirft. Ohne diese Probe endet jede
         // Ausfall-Diagnose beim Raten (Guthaben? Key? Quota? Modellname?).
         if (new URL(request.url).searchParams.get("engineProbe")) {
-          const probes = await Promise.all(
-            PROMPT_ENGINES.map(async (e) => {
-              const t0 = Date.now();
-              try {
-                const r: any = await e.ask("ping");
-                const ms = Date.now() - t0;
-                if (r === null)
-                  return {
-                    engine: e.name,
-                    ok: false,
-                    ms,
-                    grund: "kein Key gesetzt ODER leere Antwort",
-                  };
-                if (r.error) return { engine: e.name, ok: false, ms, grund: String(r.error) };
-                return { engine: e.name, ok: true, ms, model: r.model ?? null };
-              } catch (err) {
-                return {
-                  engine: e.name,
-                  ok: false,
-                  ms: Date.now() - t0,
-                  grund: redactSecrets(err),
-                };
-              }
-            }),
-          );
-          await flushCost(sb);
+          const probes = await engineProbe();
           return Response.json({ ok: true, build: BUILD_TAG, probes });
         }
 

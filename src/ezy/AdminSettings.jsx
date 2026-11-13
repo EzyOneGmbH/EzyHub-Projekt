@@ -227,6 +227,24 @@ export function SystemCheckPanel() {
   useEffect(() => {
     void lade();
   }, [lade]);
+  const [kiTest, setKiTest] = useState(null);
+  const [kiBusy, setKiBusy] = useState(false);
+  const testeKi = useCallback(async () => {
+    setKiBusy(true);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const r = await authedFetch("/api/admin/system-check", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token || ""}` },
+      });
+      const j = await r.json().catch(() => null);
+      setKiTest(j?.ok ? j : { fehler: j?.error || `HTTP ${r.status}` });
+    } catch (e) {
+      setKiTest({ fehler: String(e?.message || e) });
+    } finally {
+      setKiBusy(false);
+    }
+  }, []);
   const farbe = (st) =>
     st === "vorhanden" ? C.green : st === "fehlt" ? C.red : st === "fehlerhaft" ? C.red : C.orange;
   const label = (st) =>
@@ -452,6 +470,52 @@ export function SystemCheckPanel() {
               {c.detail !== "ok" ? c.detail : ""}
             </span>
             {pill(farbe(c.status), label(c.status))}
+          </div>
+        ))}
+      </div>
+      <div
+        style={{
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: 10,
+          padding: "12px 16px",
+          marginTop: 14,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>KI-Systeme testen</span>
+          <Btn size="sm" variant="secondary" icon={Activity} onClick={testeKi} disabled={kiBusy}>
+            {kiBusy ? "Testet…" : "KI-Systeme jetzt testen"}
+          </Btn>
+          <span style={{ fontSize: 11, color: C.textDim }}>
+            {kiTest?.stand
+              ? `Stand ${new Date(kiTest.stand).toLocaleTimeString("de-CH")}`
+              : "Schickt jedem KI-System eine Testfrage und zeigt, ob es antwortet."}
+          </span>
+        </div>
+        {kiTest?.fehler && (
+          <div style={{ fontSize: 13, color: C.red, marginTop: 8 }}>{kiTest.fehler}</div>
+        )}
+        {(kiTest?.probes || []).map((p) => (
+          <div
+            key={p.engine}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              padding: "9px 0",
+              borderBottom: `1px solid ${C.hairline}`,
+              fontSize: 13,
+            }}
+          >
+            <span style={{ flex: "0 0 110px" }}>{p.engine}</span>
+            <span
+              style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: C.textDim }}
+              title={p.ok ? p.model || "" : p.grund}
+            >
+              {p.ok ? p.model || "" : p.grund}
+            </span>
+            {pill(p.ok ? C.green : C.red, p.ok ? "antwortet" : "KEINE ANTWORT")}
           </div>
         ))}
       </div>

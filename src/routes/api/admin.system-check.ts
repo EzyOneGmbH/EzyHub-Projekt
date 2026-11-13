@@ -7,6 +7,7 @@ import { bewerteHeartbeat } from "@/server/worker-scheduler.server";
 import { ladeSchedulerStatus } from "@/server/scheduler-status.server";
 import { gleichZeitkonstant } from "@/server/ingest-auth.server";
 import { engineBefund } from "@/server/aivis-quellen.server";
+import { engineProbe } from "./admin.aivis-sync";
 
 // Systemcheck (Admin-Ausbau 21.08.2026): prueft SERVERSEITIG, ob die von der
 // App erwarteten Tabellen/Spalten wirklich existieren (Lovable wendet Repo-
@@ -17,6 +18,9 @@ import { engineBefund } from "@/server/aivis-quellen.server";
 // Nur owner/admin; Antwort enthaelt NIE Inhalte, nur Status + Kurzdetail.
 
 const SB = supabaseAdmin as any;
+
+// Sperre gegen Doppelklicks: der KI-Test kostet je System eine Anfrage.
+let letzterKiTest = 0;
 
 type CheckStatus = "vorhanden" | "fehlt" | "fehlerhaft" | "nicht_pruefbar";
 type Check = { id: string; name: string; status: CheckStatus; detail: string };
@@ -318,6 +322,29 @@ export const Route = createFileRoute("/api/admin/system-check")({
           },
           { headers: { "Cache-Control": "no-store" } },
         );
+      },
+      // POST: KI-Systeme jetzt testen. Je System eine Testfrage, zurück kommt
+      // nur «ok» oder der Kurzgrund. Nur owner/admin.
+      POST: async ({ request }) => {
+        const ctx = await requireTeamRole(request, "admin");
+        if (ctx instanceof Response) return ctx;
+        if (Date.now() - letzterKiTest < 60_000)
+          return Response.json(
+            { ok: false, error: "Der Test lief gerade erst. Bitte eine Minute warten." },
+            { status: 429 },
+          );
+        letzterKiTest = Date.now();
+        try {
+          return Response.json(
+            { ok: true, stand: new Date().toISOString(), probes: await engineProbe() },
+            { headers: { "Cache-Control": "no-store" } },
+          );
+        } catch {
+          return Response.json(
+            { ok: false, error: "Der Test liess sich nicht ausführen" },
+            { status: 502 },
+          );
+        }
       },
     },
   },
