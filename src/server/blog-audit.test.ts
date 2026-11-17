@@ -120,6 +120,9 @@ vi.mock("@/server/gsc.server", () => ({
 
 import {
   abgedecktVon,
+  ergaenzeIdeen,
+  minVolumeZusatz,
+  zusatzmarkt,
   istMarke,
   kategorisiere,
   seedsAus,
@@ -132,12 +135,41 @@ import { gscKandidaten, passtZuDomain } from "@/server/blog-google.server";
 
 let ahrefsAufrufe: string[] = [];
 let claudeAufrufe = 0;
+let deAufrufe = 0;
 function attrappe(input: any, init?: any): Promise<Response> {
   const u = new URL(String(input));
   if (u.host === "api.ahrefs.com") {
     ahrefsAufrufe.push(`${u.pathname}?${u.searchParams.get("keywords")}`);
-    expect(u.searchParams.get("country")).toBe("ch");
     const kw = u.searchParams.get("keywords");
+    if (u.searchParams.get("country") === "de") {
+      // Zusatzmarkt: höheres Mindestvolumen, sonst gleiche Abfrage.
+      deAufrufe++;
+      expect(JSON.parse(u.searchParams.get("where")!).is).toEqual(["gte", 50]);
+      return Promise.resolve(
+        Response.json({
+          keywords:
+            kw === "brunnen"
+              ? [
+                  {
+                    keyword: "Brunnen bauen Afrika",
+                    volume: 320,
+                    difficulty: 8,
+                    parent_topic: null,
+                  },
+                ]
+              : [
+                  { keyword: "Afrika Spenden", volume: 900, difficulty: 30, parent_topic: null },
+                  {
+                    keyword: "wasserprojekt afrika",
+                    volume: 70,
+                    difficulty: 4,
+                    parent_topic: null,
+                  },
+                ],
+        }),
+      );
+    }
+    expect(u.searchParams.get("country")).toBe("ch");
     const rows =
       kw === "brunnen"
         ? [
@@ -406,6 +438,73 @@ describe("KI-Audit: ganzer Lauf", () => {
     for (let i = 0; i < 4; i++) await tickeKeywordAudits(200_000);
     expect(ahrefsAufrufe.length).toBe(vorher);
     expect(db.keyword_audits[1].sources.ahrefs_units).toBe(0);
+    expect(deAufrufe).toBe(0); // ohne Sprache am Projekt kein Zusatzmarkt
+  });
+
+  it("kleine Nische: zu wenige Ideen in der Schweiz → Deutschland kommt dazu, offen benannt", async () => {
+    db.blog_projects[0].language = "de-CH";
+    db.keyword_audits.push({
+      id: "a3",
+      project_id: db.blog_projects[0].id,
+      status: "queued",
+      stage: "sammeln",
+      state: {},
+      events: [],
+      attempts: 0,
+    });
+    for (let i = 0; i < 4; i++) await tickeKeywordAudits(200_000);
+    const a = db.keyword_audits[2];
+    expect(a.status).toBe("done");
+    expect(deAufrufe).toBe(2);
+    // Schweiz aus dem Cache, nur die drei Zeilen aus Deutschland kosten Units.
+    expect(a.sources).toMatchObject({ ahrefs_units: 3 * 22, market: "CH", extra_market: "DE" });
+    expect(a.events.find((e: any) => e.key === "ahrefs").detail).toContain(
+      "davon 2 aus Deutschland",
+    );
+    const o = new Map(
+      db.keyword_opportunities.filter((x) => x.audit_id === "a3").map((x) => [x.keyword, x]),
+    );
+    expect(o.get("Brunnen bauen Afrika")).toMatchObject({ category: "neu", volume: 320 });
+    expect(o.get("Brunnen bauen Afrika").reason).toMatch(/320 Suchen pro Monat in Deutschland/);
+    expect(o.get("wasserprojekt afrika").reason).toMatch(/in Deutschland/);
+    // Was die Schweiz schon lieferte, behält die Schweizer Zahlen.
+    expect(o.has("Afrika Spenden")).toBe(false);
+    expect(o.get("afrika spenden").volume).toBe(150);
+    expect(o.get("wasserkiosk ghana").reason).not.toMatch(/Deutschland/);
+  });
+});
+
+describe("Zusatzmarkt für kleine Nischen", () => {
+  it("nimmt den grossen Nachbarmarkt derselben Sprache, sonst keinen", () => {
+    expect(zusatzmarkt("CH", "de-CH")).toBe("DE");
+    expect(zusatzmarkt("ch", "fr-CH")).toBe("FR");
+    expect(zusatzmarkt("CH", "it-CH")).toBe("IT");
+    expect(zusatzmarkt("AT", "de-DE")).toBe("DE");
+    expect(zusatzmarkt("CH", "en")).toBeNull();
+    expect(zusatzmarkt("DE", "de-DE")).toBeNull();
+    expect(zusatzmarkt("CH", undefined)).toBeNull();
+    expect(zusatzmarkt(null, "de-CH")).toBeNull();
+  });
+  it("verlangt im Zusatzmarkt mehr Volumen", () => {
+    expect(minVolumeZusatz(10)).toBe(50);
+    expect(minVolumeZusatz(0)).toBe(50);
+    expect(minVolumeZusatz(30)).toBe(150);
+  });
+  it("hängt nur neue Keywords an", () => {
+    expect(
+      ergaenzeIdeen(
+        [{ keyword: "Afrika spenden", volume: 150 }],
+        [
+          { keyword: "afrika  SPENDEN", volume: 900 },
+          { keyword: "wasserprojekt", volume: 70 },
+          { keyword: "wasserprojekt", volume: 60 },
+          { keyword: "", volume: 1 },
+        ],
+      ),
+    ).toEqual([
+      { keyword: "Afrika spenden", volume: 150 },
+      { keyword: "wasserprojekt", volume: 70 },
+    ]);
   });
 });
 

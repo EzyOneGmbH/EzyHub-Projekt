@@ -132,6 +132,57 @@ export type Kandidat = {
   reason: string;
 };
 
+// ── Kleine Nischen: Zusatzmarkt ─────────────────────────────────────────────
+// In kleinen Märkten (z. B. Schweiz) weist Ahrefs für Nischenthemen oft kein
+// messbares Suchvolumen aus. Liefert der eigene Markt zu wenige Ideen, wird der
+// grosse Nachbarmarkt derselben Sprache dazugenommen. Solche Ideen tragen
+// `markt`, damit die Begründung offen sagt, woher das Volumen stammt.
+
+/** Ab so vielen Ideen aus dem eigenen Markt wird nicht erweitert. */
+export const ZIEL_IDEEN = 12;
+const MARKT_NAME: Record<string, string> = {
+  DE: "Deutschland",
+  FR: "Frankreich",
+  IT: "Italien",
+};
+const NACHBAR: Record<string, Record<string, string>> = {
+  CH: { de: "DE", fr: "FR", it: "IT" },
+  AT: { de: "DE" },
+  LI: { de: "DE" },
+  BE: { fr: "FR" },
+  LU: { fr: "FR", de: "DE" },
+};
+
+/** Grosser Nachbarmarkt derselben Sprache, sonst null. Pure. */
+export function zusatzmarkt(market: unknown, language: unknown): string | null {
+  const m = String(market ?? "")
+    .trim()
+    .toUpperCase();
+  const sprache = String(language ?? "")
+    .trim()
+    .toLowerCase()
+    .slice(0, 2);
+  return NACHBAR[m]?.[sprache] ?? null;
+}
+
+/** Mindestvolumen im Zusatzmarkt: deutlich höher, weil der Markt viel grösser ist. Pure. */
+export function minVolumeZusatz(minVolume: number): number {
+  return Math.max(50, Math.round(minVolume) * 5);
+}
+
+/** Neue Ideen anhängen; ein Keyword, das schon da ist, bleibt wie es ist. Pure. */
+export function ergaenzeIdeen<T extends { keyword: string }>(bisher: T[], neu: T[]): T[] {
+  const da = new Set(bisher.map((i) => normKw(i.keyword)));
+  const out = [...bisher];
+  for (const i of neu) {
+    const k = normKw(i.keyword);
+    if (!k || da.has(k)) continue;
+    da.add(k);
+    out.push(i);
+  }
+  return out;
+}
+
 /** Regel-Kategorien ohne KI (Kap. 6.2). Suchintention prüft danach Claude. */
 export function kategorisiere(opts: {
   gsc: GscQuery[];
@@ -141,6 +192,8 @@ export function kategorisiere(opts: {
     difficulty: number | null;
     parent_topic: string | null;
     cluster: string | null;
+    /** Gesetzt, wenn das Volumen aus dem Zusatzmarkt stammt (z. B. «DE»). */
+    markt?: string | null;
   }>;
   artikel: Artikel[];
   minVolume: number;
@@ -192,7 +245,7 @@ export function kategorisiere(opts: {
       cluster: i.cluster,
       reason: url
         ? `Ein publizierter Artikel deckt das Thema schon ab – besser auffrischen als neu schreiben.`
-        : `${i.volume} Suchen pro Monat${i.difficulty != null ? `, Schwierigkeit ${i.difficulty}` : ""}; noch kein Artikel dazu.`,
+        : `${i.volume} Suchen pro Monat${i.markt ? ` in ${MARKT_NAME[i.markt] ?? i.markt}` : ""}${i.difficulty != null ? `, Schwierigkeit ${i.difficulty}` : ""}; noch kein Artikel dazu.${i.markt ? " Im eigenen Markt ist das Suchvolumen zu klein für eine Messung." : ""}`,
     });
   }
   return [...out.values()];
@@ -374,6 +427,37 @@ async function ahrefsStufe(audit: any, project: any) {
     if (r.cache) cacheTreffer++;
     for (const k of r.rows) ideen.push({ ...k, cluster: s.cluster });
   }
+  // Kleine Nische: zu wenige Ideen im eigenen Markt → Nachbarmarkt derselben Sprache.
+  const zusatz = zusatzmarkt(project.market || "CH", project.language);
+  const eigene = ideen.length;
+  let alle = ideen;
+  if (zusatz && eigene < ZIEL_IDEEN) {
+    for (const s of seeds) {
+      if (units + proSeed * UNITS_PRO_ZEILE > budget) break;
+      const r = await ahrefsAbruf(
+        "keywords-explorer/matching-terms",
+        {
+          select: "keyword,volume,difficulty,parent_topic",
+          country: zusatz.toLowerCase(),
+          keywords: s.seed,
+          limit: String(proSeed),
+          order_by: "volume:desc",
+          where: JSON.stringify({
+            field: "volume",
+            is: ["gte", minVolumeZusatz(Number(project.min_volume ?? 10))],
+          }),
+        },
+        UNITS_PRO_ZEILE,
+      );
+      units += r.units;
+      if (r.cache) cacheTreffer++;
+      alle = ergaenzeIdeen(
+        alle,
+        r.rows.map((k: any) => ({ ...k, cluster: s.cluster, markt: zusatz })),
+      );
+    }
+  }
+  const ausZusatz = alle.length - eigene;
   // Ohne Search Console: Domain-Keywords aus Ahrefs als Ersatz für «fast vorne»
   let domainKw: GscQuery[] = [];
   if (st.gscStatus !== "ok" && units + 20 * 12 <= budget) {
@@ -403,12 +487,19 @@ async function ahrefsStufe(audit: any, project: any) {
       }));
   }
   return {
-    state: { ...st, ideen, domainKw, units, cacheTreffer },
+    state: {
+      ...st,
+      ideen: alle,
+      domainKw,
+      units,
+      cacheTreffer,
+      zusatzmarkt: ausZusatz ? zusatz : null,
+    },
     events: [
       {
         key: "ahrefs",
         label: "Keywords recherchieren",
-        detail: `${ideen.length} Ideen aus ${seeds.length} Seeds · ${units} Ahrefs-Units${cacheTreffer ? `, ${cacheTreffer}× aus Cache` : ""}`,
+        detail: `${alle.length} Ideen aus ${seeds.length} Seeds${ausZusatz ? `, davon ${ausZusatz} aus ${MARKT_NAME[zusatz ?? ""] ?? zusatz}` : ""} · ${units} Ahrefs-Units${cacheTreffer ? `, ${cacheTreffer}× aus Cache` : ""}`,
       },
     ],
     percent: 55,
@@ -549,6 +640,7 @@ async function speichern(audit: any, project: any) {
     ahrefs_cache_hits: st.cacheTreffer ?? 0,
     published_articles: (st.artikel ?? []).length,
     market: project.market,
+    extra_market: st.zusatzmarkt ?? null,
     intent_checked: !st.intentFehler,
   };
   return {
