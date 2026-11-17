@@ -149,11 +149,20 @@ function attrappe(input: any, init?: any): Promise<Response> {
 }
 
 const echt = globalThis.fetch;
+const kiVorher = process.env.BLOG_KI;
 beforeAll(() => {
   process.env.ANTHROPIC_API_KEY = "test";
+  // Die Attrappe antwortet auf api.anthropic.com. Ist ein Runner-Secret in der
+  // Umgebung gesetzt, würde claudeText zum Runner geschickt und die Attrappe
+  // lieferte HTML statt JSON – also hier zwingend die API-Route.
+  process.env.BLOG_KI = "api";
   vi.stubGlobal("fetch", attrappe);
 });
-afterAll(() => vi.stubGlobal("fetch", echt));
+afterAll(() => {
+  vi.stubGlobal("fetch", echt);
+  if (kiVorher === undefined) delete process.env.BLOG_KI;
+  else process.env.BLOG_KI = kiVorher;
+});
 
 describe("Website-Analyse: reine Helfer", () => {
   it("htmlZuText entfernt Skripte und dekodiert Entitäten", () => {
