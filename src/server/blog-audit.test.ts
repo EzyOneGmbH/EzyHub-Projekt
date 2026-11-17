@@ -160,6 +160,7 @@ function attrappe(input: any, init?: any): Promise<Response> {
     claudeAufrufe++;
     const body = JSON.parse(init.body);
     expect(body.messages[0].content).toContain("gartenbrunnen");
+    expect(body.messages[0].content).toContain("trinkwasser afrika");
     return Promise.resolve(
       Response.json({
         content: [
@@ -180,6 +181,13 @@ function attrappe(input: any, init?: any): Promise<Response> {
                   grund: "",
                   cluster: "Trinkwasser",
                   artikeltyp: "erklaerung",
+                },
+                {
+                  keyword: "trinkwasser afrika",
+                  passt: false,
+                  grund: "",
+                  cluster: "trinkwasser",
+                  artikeltyp: "ratgeber",
                 },
                 {
                   keyword: "afrika spenden",
@@ -247,9 +255,30 @@ describe("KI-Audit: Regeln", () => {
   it("fast vorne nur Position 4–20 mit genug Impressionen, ohne Marke", () => {
     const k = kategorisiere({
       gsc: [
-        { query: "wasser filter", impressions: 50, clicks: 0, position: 6, page: null, position_prev: 9 },
-        { query: "wasser pumpe", impressions: 5, clicks: 0, position: 6, page: null, position_prev: null },
-        { query: "wasser tank", impressions: 50, clicks: 0, position: 2, page: null, position_prev: null },
+        {
+          query: "wasser filter",
+          impressions: 50,
+          clicks: 0,
+          position: 6,
+          page: null,
+          position_prev: 9,
+        },
+        {
+          query: "wasser pumpe",
+          impressions: 5,
+          clicks: 0,
+          position: 6,
+          page: null,
+          position_prev: null,
+        },
+        {
+          query: "wasser tank",
+          impressions: 50,
+          clicks: 0,
+          position: 2,
+          page: null,
+          position_prev: null,
+        },
         {
           query: "faith humanity",
           impressions: 500,
@@ -338,7 +367,9 @@ describe("KI-Audit: ganzer Lauf", () => {
     expect(o.get("afrika spenden").covered_by_url).toBe("https://fih.ch/blog/spenden/");
     expect(o.get("wasserkiosk ghana").category).toBe("neu");
     expect(o.get("wasserkiosk ghana").cluster).toBe("Trinkwasser");
+    // «fast vorne» bekommt nur das Thema; aussortiert wird dort nichts.
     expect(o.get("trinkwasser afrika").category).toBe("fast_vorne");
+    expect(o.get("trinkwasser afrika").cluster).toBe("Trinkwasser");
     expect(o.has("hilfswerk schweiz")).toBe(false); // unter Mindestvolumen
     expect(o.has("brunnen bauen")).toBe(false); // rankt schon top 3
     expect(o.has("faith in humanity")).toBe(false); // Marke

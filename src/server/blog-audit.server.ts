@@ -432,14 +432,25 @@ const IntentSchema = z.object({
     .catch([]),
 });
 
+/** Cluster-Angabe der KI auf einen bekannten Themen-Cluster zurückführen, sonst null. Pure. */
+export function bekannterCluster(roh: unknown, clusters: string[]): string | null {
+  const k = String(roh ?? "")
+    .trim()
+    .toLowerCase();
+  return (k && clusters.find((c) => c.trim().toLowerCase() === k)) || null;
+}
+
 export async function pruefeSuchintention(
   project: any,
   kandidaten: Kandidat[],
   clusters: string[],
 ) {
-  const liste = kandidaten
-    .filter((k) => k.category === "neu" || k.category === "abgedeckt")
-    .slice(0, 60);
+  // «fast vorne» kommt aus der Search Console und trägt kein Thema: Die KI
+  // ordnet es nur einem Cluster zu, aussortiert wird dort nichts.
+  const liste = [
+    ...kandidaten.filter((k) => k.category === "neu" || k.category === "abgedeckt").slice(0, 60),
+    ...(clusters.length ? kandidaten.filter((k) => k.category === "fast_vorne").slice(0, 15) : []),
+  ];
   if (!liste.length) return new Map<string, z.infer<typeof IntentSchema>["pruefung"][number]>();
   const roh = await claudeText({
     system:
@@ -452,12 +463,13 @@ Themen-Cluster: ${clusters.join(", ") || "-"}
 Prüfe für jedes Keyword, ob die Suchintention zum Angebot passt: Würde ein Blogartikel dieses Kunden
 die Suchenden sinnvoll bedienen? "Hauptthema" ist das übergeordnete Thema laut Ahrefs; weicht es klar vom
 Angebot ab (z. B. Gartenbrunnen statt Trinkwasser-Hilfe), passt das Keyword nicht.
+Ordne jedes Keyword dem passendsten Themen-Cluster zu (Name exakt wie oben); passt keiner klar, dann null.
 
 ${liste.map((k) => `- ${k.keyword} | Hauptthema: ${k.parent_topic ?? "-"} | Volumen: ${k.volume ?? "-"}`).join("\n")}
 
 Antworte so:
 {"pruefung":[{"keyword":"…","passt":true,"grund":"ein kurzer Satz","cluster":"einer der Cluster oder null","artikeltyp":"ratgeber|anleitung|erklaerung|uebersicht"}]}`,
-    maxTokens: 4000,
+    maxTokens: 5000,
     timeoutMs: 100_000,
   });
   const p = IntentSchema.parse(jsonAusText(roh)).pruefung;
@@ -477,15 +489,13 @@ async function bewerten(audit: any, project: any) {
   });
   let intentFehler: string | null = null;
   try {
-    const intent = await pruefeSuchintention(
-      project,
-      kandidaten,
-      (st.clusters ?? []).map((c: any) => c.name),
-    );
+    const namen: string[] = (st.clusters ?? []).map((c: any) => c.name);
+    const intent = await pruefeSuchintention(project, kandidaten, namen);
     for (const k of kandidaten) {
       const i = intent.get(normKw(k.keyword));
       if (!i) continue;
-      if (i.cluster && !k.cluster) k.cluster = i.cluster;
+      if (!k.cluster) k.cluster = bekannterCluster(i.cluster, namen);
+      if (k.category === "fast_vorne") continue;
       (k as any).artikeltyp = i.artikeltyp;
       if (!i.passt) {
         k.category = "aussortiert";
