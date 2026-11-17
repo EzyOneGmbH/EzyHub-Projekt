@@ -1493,8 +1493,6 @@ export default function BlogDashboard({
   const { run: ahrefsRun } = useEzyLatestRun(clientId, "ahrefs");
   const ahrefs = ahrefsRun ? ahrefsKpisFromResult(ahrefsRun.result) : null;
   // Dieselbe Messung wie im Block «KI-Sichtbarkeit» weiter unten.
-  const kiScore: number | null =
-    kiDaten?.gemessen && typeof kiDaten.score === "number" ? kiDaten.score : null;
 
   useEffect(() => {
     setVerkehr({});
@@ -1633,10 +1631,10 @@ export default function BlogDashboard({
           wert={klicks ? zahl(klicks.clicks) : "—"}
           zusatz={
             klicks ? (
-              <Delta
-                diff={klickDelta}
-                text={`${zahl(Math.abs(klickDelta ?? 0), 1)} % zum Vorzeitraum`}
-              />
+              <>
+                <Delta diff={klickDelta} text={`${zahl(Math.abs(klickDelta ?? 0), 1)} %`} /> zum
+                Vorzeitraum
+              </>
             ) : v28 && !v28.verbunden ? (
               "Search Console nicht verbunden"
             ) : null
@@ -1651,28 +1649,6 @@ export default function BlogDashboard({
           titel="Domain Rating"
           wert={ahrefs?.score ? zahl(ahrefs.score) : "—"}
           zusatz="Stärke der Website, 0 bis 100"
-        />
-        <Kachel
-          titel="KI-Sichtbarkeit"
-          wert={
-            kiScore !== null ? (
-              <>
-                {zahl(kiScore)}
-                <span style={{ fontSize: 14, fontWeight: 600, color: P.dim }}> / 100</span>
-              </>
-            ) : (
-              "—"
-            )
-          }
-          zusatz={
-            !kiDaten
-              ? "Wird geladen…"
-              : kiScore === null
-                ? "Noch nicht gemessen"
-                : kiDaten.stand
-                  ? `Messung vom ${datumText(new Date(kiDaten.stand), true)}`
-                  : "Letzte Messung"
-          }
         />
       </div>
 

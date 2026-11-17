@@ -34,14 +34,14 @@ const kurzMonat = (d: Date) =>
 const tagNr = (d: Date) => d.getFullYear() * 10_000 + d.getMonth() * 100 + d.getDate();
 
 const zelle: React.CSSProperties = {
-  padding: "10px 12px",
+  padding: "10px 10px",
   borderTop: `1px solid ${HAARLINIE}`,
   fontSize: 14,
   verticalAlign: "middle",
   textAlign: "left",
 };
 const kopf: React.CSSProperties = {
-  padding: "8px 12px",
+  padding: "8px 10px",
   fontSize: 12.5,
   fontWeight: 700,
   color: P.dim,
@@ -248,7 +248,7 @@ export default function BlogKalender({
                   "Kein Termin"
                 )}
               </td>
-              <td style={{ ...zelle, minWidth: 200 }}>
+              <td style={{ ...zelle, minWidth: 140 }}>
                 <div style={{ fontWeight: 700, lineHeight: 1.3, overflowWrap: "anywhere" }}>
                   {e.titel}
                 </div>
