@@ -165,8 +165,8 @@ export default function BlogOptimierung({
             {sichtbar.length === 0 ? (
               <div style={{ fontSize: 14, color: P.muted }}>Nichts in dieser Auswahl.</div>
             ) : (
-              <div style={{ overflowX: "auto", margin: "0 -8px" }}>
-                <table style={{ width: "100%", minWidth: 760, borderCollapse: "collapse" }}>
+              <div style={{ overflowX: "auto", maxWidth: "100%" }}>
+                <table style={{ width: "100%", minWidth: 520, borderCollapse: "collapse" }}>
                   <thead>
                     <tr>
                       <th scope="col" style={kopf}>
@@ -196,7 +196,7 @@ export default function BlogOptimierung({
                       const e = ENTSCHEID[o.decision] ?? ENTSCHEID.offen;
                       return (
                         <tr key={o.id}>
-                          <td style={{ ...zelle, minWidth: 260 }}>
+                          <td style={{ ...zelle, minWidth: 160 }}>
                             <div style={{ fontWeight: 700, overflowWrap: "anywhere" }}>
                               {o.keyword}
                             </div>

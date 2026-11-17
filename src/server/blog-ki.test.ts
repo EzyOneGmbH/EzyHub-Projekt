@@ -46,8 +46,17 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: { from: (t: string) => builder(t) },
 }));
 
-const { eigeneUrl, kiAuswertung, messBasis, ordneZu, sammleZitate, urlSchluessel } =
-  await import("@/server/blog-ki.server");
+const {
+  eigeneUrl,
+  frageStaende,
+  grundKlar,
+  kiAuswertung,
+  messBasis,
+  ordneZu,
+  sammleZitate,
+  systemStaende,
+  urlSchluessel,
+} = await import("@/server/blog-ki.server");
 
 const PARTS = {
   sa: {
@@ -175,6 +184,83 @@ describe("messBasis", () => {
   });
 });
 
+const ENG = {
+  "0": {
+    Grok: { gefragt: 10, beantwortet: 10 },
+    Claude: {
+      gefragt: 10,
+      beantwortet: 0,
+      fehler:
+        'HTTP 400 {"type":"error","message":"credit balance is too low","request_id":"req_GEHEIM"}',
+    },
+  },
+  "10": {
+    Grok: { gefragt: 5, beantwortet: 4 },
+    Claude: { gefragt: 5, beantwortet: 0, fehler: "credit balance is too low" },
+    Gemini: { gefragt: 5, beantwortet: 0, fehler: "HTTP 429 quota exceeded" },
+  },
+};
+
+describe("grundKlar", () => {
+  it("übersetzt Anbieterfehler in feste Gründe", () => {
+    expect(grundKlar("Your credit balance is too low")).toBe("Kein Guthaben");
+    expect(grundKlar("HTTP 429 quota exceeded")).toBe("Kontingent erschöpft");
+    expect(grundKlar("kein Key gesetzt oder leere Antwort")).toBe("Kein Zugang");
+    expect(grundKlar("irgendwas req_123")).toBe("Keine Antwort");
+  });
+});
+
+describe("systemStaende", () => {
+  it("summiert je System, Grund nur für die Agentur und nie als Rohtext", () => {
+    const agentur = systemStaende(ENG, true);
+    expect(agentur).toEqual([
+      { name: "Grok", gefragt: 15, beantwortet: 14 },
+      { name: "Claude", gefragt: 15, beantwortet: 0, grund: "Kein Guthaben" },
+      { name: "Gemini", gefragt: 5, beantwortet: 0, grund: "Kontingent erschöpft" },
+    ]);
+    expect(JSON.stringify(agentur)).not.toMatch(/GEHEIM|request_id|HTTP/);
+    expect(JSON.stringify(systemStaende(ENG, false))).not.toContain("grund");
+  });
+  it("kommt ohne Systemstand aus", () => {
+    expect(systemStaende(null, true)).toEqual([]);
+    expect(systemStaende("x", true)).toEqual([]);
+  });
+});
+
+describe("frageStaende", () => {
+  it("bündelt je Frage, ohne Markenfragen, Fragen mit Nennung zuerst", () => {
+    const out = frageStaende([
+      { prompt: "Frage A", platform: "Grok", status: null, topic: "Thema 1" },
+      { prompt: "Frage A", platform: "Gemini", status: null },
+      { prompt: "Frage B", platform: "Grok", status: "Erwähnt" },
+      { prompt: "Frage B", platform: "Gemini", status: "Referenziert" },
+      { prompt: "Kennst du die Marke?", platform: "Grok", status: "Erwähnt", prompt_type: "brand" },
+    ]);
+    expect(out.anzahl).toBe(2);
+    expect(out.ohneNennung).toBe(1);
+    expect(out.fragen).toEqual([
+      {
+        frage: "Frage B",
+        thema: "",
+        genannt: true,
+        systeme: [
+          { name: "Grok", ergebnis: "erwaehnt" },
+          { name: "Gemini", ergebnis: "zitiert" },
+        ],
+      },
+      {
+        frage: "Frage A",
+        thema: "Thema 1",
+        genannt: false,
+        systeme: [
+          { name: "Grok", ergebnis: "nicht" },
+          { name: "Gemini", ergebnis: "nicht" },
+        ],
+      },
+    ]);
+  });
+});
+
 describe("kiAuswertung", () => {
   beforeEach(() => {
     db = {
@@ -263,6 +349,31 @@ describe("kiAuswertung", () => {
     expect(text).not.toContain("geheim");
     // Der Entwurf ist kein Live-Artikel: seine Seite bleibt unter «weitere».
     expect(out.weitere.map((s: any) => s.url)).toContain("https://beispiel.ch/hotel");
+  });
+
+  it("liefert Verlauf, Systemstand und Fragen, den Grund nur der Agentur", async () => {
+    db.ai_visibility_reports.push({
+      id: "r0",
+      client_id: C,
+      snapshot_date: "2026-11-03",
+      score: 30,
+      mentions: 8,
+      citations: 2,
+    });
+    db.ai_visibility_reports[1].parts = { ...PARTS, eng: ENG };
+    const kunde: any = await kiAuswertung({ id: P, client_id: C });
+    expect(kunde.verlauf).toEqual([
+      { datum: "2026-11-03", score: 30, erwaehnungen: 8, zitate: 2 },
+      { datum: "2026-11-10", score: 41, erwaehnungen: 12, zitate: 5 },
+    ]);
+    expect(kunde.systemStand.map((x: any) => x.name)).toEqual(["Grok", "Claude", "Gemini"]);
+    expect(JSON.stringify(kunde)).not.toMatch(/"grund"|GEHEIM|credit balance/);
+    expect(kunde.fragenAnzahl).toBe(1);
+    expect(kunde.fragenOhneNennung).toBe(1);
+    expect(kunde.fragen[0].frage).toBe("Wo übernachten im Tessin?");
+    const agentur: any = await kiAuswertung({ id: P, client_id: C }, { agentur: true });
+    expect(agentur.systemStand[1]).toMatchObject({ name: "Claude", grund: "Kein Guthaben" });
+    expect(JSON.stringify(agentur)).not.toMatch(/GEHEIM|credit balance|Fremde Frage/);
   });
 
   it("meldet ohne Messung «nicht gemessen»", async () => {

@@ -210,8 +210,8 @@ export default function BlogKalender({
   const mitVolumen = sichtbar.some((e) => e.volume != null);
   const mitSchwierigkeit = sichtbar.some((e) => e.difficulty != null);
   const tabelle = (zeilen: Eintrag[]) => (
-    <div style={{ overflowX: "auto", margin: "0 -8px" }}>
-      <table style={{ width: "100%", minWidth: 640, borderCollapse: "collapse" }}>
+    <div style={{ overflowX: "auto", maxWidth: "100%" }}>
+      <table style={{ width: "100%", minWidth: 480, borderCollapse: "collapse" }}>
         <thead>
           <tr>
             <th scope="col" style={kopf}>

@@ -12,6 +12,8 @@ const MAX_FRAGEN = 20;
 const MAX_WEITERE = 8;
 const SEITE = 1000;
 const MAX_SEITEN = 6;
+const MAX_VERLAUF = 12;
+const MAX_FRAGEN_LISTE = 40;
 
 export type KiZitat = { url: string; frage: string; system: string };
 export type KiFrage = { frage: string; system: string };
@@ -146,11 +148,96 @@ export function messBasis(prompts: any[]): KiBasis {
   return basis;
 }
 
+export type KiSystemStand = { name: string; gefragt: number; beantwortet: number; grund?: string };
+
+/** Fehlertext eines Anbieters in einen kurzen, festen Grund übersetzen. Der
+ *  Rohtext (Anbieter-JSON, Request-IDs) verlässt den Server nie. Pure. */
+export function grundKlar(roh: unknown): string {
+  const t = String(roh ?? "").toLowerCase();
+  if (/credit|balance|billing|payment|guthaben/.test(t)) return "Kein Guthaben";
+  if (/quota|rate.?limit|429|exhaust|too many/.test(t)) return "Kontingent erschöpft";
+  if (/kein key|api.?key|401|403|unauthor|forbidden|permission/.test(t)) return "Kein Zugang";
+  return "Keine Antwort";
+}
+
+/**
+ * Stand je KI-System aus parts.eng: über alle Abschnitte der Messung summiert.
+ * Den Grund für ein stummes System sieht nur die Agentur. Pure.
+ */
+export function systemStaende(eng: unknown, agentur: boolean): KiSystemStand[] {
+  const summe = new Map<string, { gefragt: number; beantwortet: number; fehler: string }>();
+  if (eng && typeof eng === "object")
+    for (const teil of Object.values(eng as Record<string, any>))
+      for (const [nameRoh, st] of Object.entries((teil as Record<string, any>) || {})) {
+        const name = kurz(nameRoh, 40);
+        if (!name) continue;
+        const z = summe.get(name) ?? { gefragt: 0, beantwortet: 0, fehler: "" };
+        z.gefragt += Number(st?.gefragt || 0);
+        z.beantwortet += Number(st?.beantwortet || 0);
+        if (!z.fehler && st?.fehler) z.fehler = String(st.fehler);
+        summe.set(name, z);
+      }
+  return [...summe.entries()]
+    .filter(([, z]) => z.gefragt > 0)
+    .map(([name, z]) => ({
+      name,
+      gefragt: z.gefragt,
+      beantwortet: Math.min(z.beantwortet, z.gefragt),
+      ...(agentur && z.beantwortet === 0 ? { grund: grundKlar(z.fehler) } : {}),
+    }))
+    .sort((a, b) => b.beantwortet - a.beantwortet || a.name.localeCompare(b.name));
+}
+
+export type KiErgebnis = "zitiert" | "erwaehnt" | "nicht";
+export type KiFrageStand = {
+  frage: string;
+  thema: string;
+  genannt: boolean;
+  systeme: { name: string; ergebnis: KiErgebnis }[];
+};
+
+/**
+ * Die gemessenen allgemeinen Fragen (ohne Markenfragen) mit dem Ergebnis je
+ * KI-System. Zuerst die Fragen mit Nennung, dann die ohne. Pure.
+ */
+export function frageStaende(prompts: any[]): {
+  fragen: KiFrageStand[];
+  anzahl: number;
+  ohneNennung: number;
+} {
+  const nach = new Map<string, KiFrageStand>();
+  for (const p of Array.isArray(prompts) ? prompts : []) {
+    if (p?.prompt_type === "brand") continue;
+    const frage = kurz(p?.prompt);
+    if (!frage) continue;
+    let f = nach.get(frage);
+    if (!f)
+      nach.set(frage, (f = { frage, thema: kurz(p?.topic, 60), genannt: false, systeme: [] }));
+    const status = String(p?.status ?? "").trim();
+    const ergebnis: KiErgebnis =
+      status === "Referenziert" ? "zitiert" : status ? "erwaehnt" : "nicht";
+    if (ergebnis !== "nicht") f.genannt = true;
+    const name = kurz(p?.platform, 40) || "KI-System";
+    if (!f.systeme.some((x) => x.name === name)) f.systeme.push({ name, ergebnis });
+  }
+  const alle = [...nach.values()];
+  const mit = alle.filter((f) => f.genannt);
+  const ohne = alle.filter((f) => !f.genannt);
+  return {
+    fragen: [...mit, ...ohne].slice(0, MAX_FRAGEN_LISTE),
+    anzahl: alle.length,
+    ohneNennung: ohne.length,
+  };
+}
+
 /** Auswertung für das Blog-Dashboard. Ohne Messung: { gemessen: false }. */
-export async function kiAuswertung(project: {
-  id: string;
-  client_id: string;
-}): Promise<Record<string, unknown>> {
+export async function kiAuswertung(
+  project: {
+    id: string;
+    client_id: string;
+  },
+  opts: { agentur?: boolean } = {},
+): Promise<Record<string, unknown>> {
   const clientId = project.client_id;
   const { data: berichte } = await SB.from("ai_visibility_reports")
     .select(
@@ -162,18 +249,23 @@ export async function kiAuswertung(project: {
   const bericht = Array.isArray(berichte) ? berichte[0] : null;
   if (!bericht) return { gemessen: false };
 
-  const [{ data: kunde }, { data: artikelRoh }] = await Promise.all([
+  const [{ data: kunde }, { data: artikelRoh }, { data: verlaufRoh }] = await Promise.all([
     SB.from("clients").select("domain").eq("id", clientId).maybeSingle(),
     SB.from("blog_articles")
       .select("id, title, focus_keyword, wp_permalink, status, job")
       .eq("project_id", project.id)
       .eq("status", "live"),
+    SB.from("ai_visibility_reports")
+      .select("snapshot_date, score, mentions, citations")
+      .eq("client_id", clientId)
+      .order("snapshot_date", { ascending: false })
+      .limit(MAX_VERLAUF),
   ]);
 
   const prompts: any[] = [];
   for (let i = 0; i < MAX_SEITEN; i++) {
     const { data } = await SB.from("ai_visibility_prompts")
-      .select("prompt, platform, source_urls, prompt_type, status")
+      .select("prompt, platform, source_urls, prompt_type, status, topic")
       .eq("client_id", clientId)
       .eq("report_id", bericht.id)
       .order("id", { ascending: true })
@@ -193,6 +285,17 @@ export async function kiAuswertung(project: {
       urls: [a.wp_permalink, a.job?.brief?.original_url],
     })),
   );
+  const verlauf = (Array.isArray(verlaufRoh) ? verlaufRoh : [])
+    .filter((b: any) => b?.snapshot_date)
+    .map((b: any) => ({
+      datum: String(b.snapshot_date).slice(0, 10),
+      score: zahlOderNull(b.score),
+      erwaehnungen: zahlOderNull(b.mentions),
+      zitate: zahlOderNull(b.citations),
+    }))
+    .sort((a: any, b: any) => a.datum.localeCompare(b.datum))
+    .slice(-MAX_VERLAUF);
+  const fragen = frageStaende(prompts);
   return {
     gemessen: true,
     stand: bericht.snapshot_date ?? null,
@@ -205,6 +308,11 @@ export async function kiAuswertung(project: {
     seiten: zahlOderNull(bericht.cited_pages),
     seitenDelta: zahlOderNull(bericht.cited_pages_delta),
     basis: messBasis(prompts),
+    verlauf,
+    systemStand: systemStaende(bericht.parts?.eng, !!opts.agentur),
+    fragen: fragen.fragen,
+    fragenAnzahl: fragen.anzahl,
+    fragenOhneNennung: fragen.ohneNennung,
     artikelLive: live.length,
     artikel,
     weitere: weitere.slice(0, MAX_WEITERE),

@@ -997,7 +997,262 @@ const kiPfad = (url: string): string => {
   }
 };
 
-function KiSichtbarkeit({ daten }: { daten: any }) {
+function KiRing({ score }: { score: number | null }) {
+  const r = 40;
+  const umfang = 2 * Math.PI * r;
+  const anteil = score === null ? 0 : Math.max(0, Math.min(100, score)) / 100;
+  return (
+    <svg
+      width={104}
+      height={104}
+      viewBox="0 0 104 104"
+      role="img"
+      aria-label={score === null ? "Noch kein Score" : `Score ${zahl(score)} von 100`}
+      style={{ flexShrink: 0 }}
+    >
+      <circle cx={52} cy={52} r={r} fill="none" stroke={P.accentDim} strokeWidth={10} />
+      {anteil > 0 && (
+        <circle
+          cx={52}
+          cy={52}
+          r={r}
+          fill="none"
+          stroke={P.accent}
+          strokeWidth={10}
+          strokeLinecap="round"
+          strokeDasharray={`${umfang * anteil} ${umfang}`}
+          transform="rotate(-90 52 52)"
+        />
+      )}
+      <text
+        x={52}
+        y={50}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        style={{ fontSize: 26, fontWeight: 800, fill: P.text }}
+      >
+        {score === null ? "—" : zahl(score)}
+      </text>
+      <text x={52} y={73} textAnchor="middle" style={{ fontSize: 11, fill: P.dim }}>
+        von 100
+      </text>
+    </svg>
+  );
+}
+
+function KiVerlauf({ punkte }: { punkte: { datum: string; score: number | null }[] }) {
+  const p = punkte.filter((x) => x.score !== null) as { datum: string; score: number }[];
+  const klein = { fontSize: 12.5, color: P.dim, lineHeight: 1.45 } as const;
+  if (p.length < 2) return <span style={klein}>Der Verlauf erscheint ab der zweiten Messung.</span>;
+  const B = 240;
+  const H = 56;
+  const max = Math.max(10, ...p.map((x) => x.score));
+  const linie = p
+    .map(
+      (x, i) =>
+        `${((i / (p.length - 1)) * B).toFixed(1)},${(H - 4 - (x.score / max) * (H - 8)).toFixed(1)}`,
+    )
+    .join(" ");
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 600, color: P.muted }}>Score im Verlauf</div>
+      <svg
+        viewBox={`0 0 ${B} ${H}`}
+        width="100%"
+        height={H}
+        preserveAspectRatio="none"
+        role="img"
+        aria-label={`Score-Verlauf über ${p.length} Messungen, von ${zahl(p[0].score)} auf ${zahl(p[p.length - 1].score)}`}
+      >
+        <polygon points={`0,${H} ${linie} ${B},${H}`} fill={P.accentDim} />
+        <polyline
+          points={linie}
+          fill="none"
+          stroke={P.accent}
+          strokeWidth={2}
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+      <div style={{ ...klein, display: "flex", justifyContent: "space-between", gap: 8 }}>
+        <span>{datumText(new Date(p[0].datum), true)}</span>
+        <span>{p.length} Messungen</span>
+        <span>{datumText(new Date(p[p.length - 1].datum), true)}</span>
+      </div>
+    </div>
+  );
+}
+
+type KiSystem = { name: string; gefragt: number; beantwortet: number; grund?: string };
+type KiFrage = {
+  frage: string;
+  thema: string;
+  genannt: boolean;
+  systeme: { name: string; ergebnis: "zitiert" | "erwaehnt" | "nicht" }[];
+};
+
+const KI_ERGEBNIS = {
+  zitiert: { text: "als Quelle genannt", bg: P.greenDim, farbe: "#00704a" },
+  erwaehnt: { text: "erwähnt", bg: P.accentDim, farbe: P.accent },
+  nicht: { text: "nicht genannt", bg: "rgba(43,0,51,.05)", farbe: P.muted },
+} as const;
+
+function KiSysteme({ systeme }: { systeme: KiSystem[] }) {
+  const stumm = systeme.filter((x) => x.beantwortet === 0).length;
+  const aktiv = systeme.length - stumm;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ fontSize: 14.5, fontWeight: 700 }}>KI-Systeme in dieser Messung</div>
+      <ul
+        style={{
+          listStyle: "none",
+          margin: 0,
+          padding: 0,
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+        }}
+      >
+        {systeme.map((x) => {
+          const anteil = x.gefragt > 0 ? x.beantwortet / x.gefragt : 0;
+          return (
+            <li
+              key={x.name}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "minmax(84px, 120px) minmax(60px, 1fr) auto",
+                alignItems: "center",
+                columnGap: 12,
+                fontSize: 13.5,
+              }}
+            >
+              <span style={{ fontWeight: 600, overflowWrap: "anywhere" }}>{x.name}</span>
+              <span
+                aria-hidden
+                style={{
+                  height: 8,
+                  borderRadius: 99,
+                  background: "rgba(43,0,51,.07)",
+                  overflow: "hidden",
+                }}
+              >
+                <span
+                  style={{
+                    display: "block",
+                    height: "100%",
+                    width: `${Math.round(anteil * 100)}%`,
+                    borderRadius: 99,
+                    background: P.accent,
+                  }}
+                />
+              </span>
+              <span
+                style={{
+                  color: x.beantwortet > 0 ? P.text : P.muted,
+                  fontVariantNumeric: "tabular-nums",
+                  textAlign: "right",
+                }}
+              >
+                {x.beantwortet > 0
+                  ? `${zahl(x.beantwortet)} von ${zahl(x.gefragt)} Antworten`
+                  : `Keine Antwort${x.grund && x.grund !== "Keine Antwort" ? ` · ${x.grund}` : ""}`}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      {stumm > 0 && (
+        <p style={{ margin: 0, fontSize: 12.5, color: P.dim, lineHeight: 1.5 }}>
+          {aktiv === 0
+            ? "Kein System hat geantwortet. Diese Messung sagt deshalb noch nichts aus."
+            : `${aktiv} von ${systeme.length} Systemen ${
+                aktiv === 1 ? "hat" : "haben"
+              } geantwortet. Der Score beruht nur auf diesen Antworten.`}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function KiFragen({ fragen, anzahl }: { fragen: KiFrage[]; anzahl: number }) {
+  const [alle, setAlle] = useState(false);
+  const sicht = alle ? fragen : fragen.slice(0, 5);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+          columnGap: 12,
+        }}
+      >
+        <div style={{ fontSize: 14.5, fontWeight: 700 }}>Gemessene Fragen</div>
+        {fragen.length > 5 && (
+          <button
+            type="button"
+            onClick={() => setAlle((x) => !x)}
+            aria-expanded={alle}
+            style={{
+              ...verweisStil,
+              background: "none",
+              border: "none",
+              padding: 0,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            {alle ? "Weniger anzeigen" : `Alle ${fragen.length} anzeigen`}
+          </button>
+        )}
+      </div>
+      <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+        {sicht.map((f) => (
+          <li
+            key={f.frage}
+            style={{
+              borderTop: `1px solid ${HAARLINIE}`,
+              padding: "9px 0",
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+            }}
+          >
+            <span style={{ fontSize: 14, lineHeight: 1.45, overflowWrap: "anywhere" }}>
+              {f.frage}
+            </span>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {f.systeme.map((x) => {
+                const e = KI_ERGEBNIS[x.ergebnis] ?? KI_ERGEBNIS.nicht;
+                return (
+                  <span key={x.name} style={{ ...marke, background: e.bg, color: e.farbe }}>
+                    {x.name}: {e.text}
+                  </span>
+                );
+              })}
+            </div>
+          </li>
+        ))}
+      </ul>
+      {anzahl > fragen.length && alle && (
+        <p style={{ margin: 0, fontSize: 13, color: P.muted }}>
+          und {anzahl - fragen.length} weitere Fragen.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function KiSichtbarkeit({
+  daten,
+  clientId,
+  agentur,
+}: {
+  daten: any;
+  clientId: string;
+  agentur: boolean;
+}) {
   const hinweis = { margin: 0, color: P.muted, fontSize: 14, lineHeight: 1.5 } as const;
   const liste = { listStyle: "none", margin: 0, padding: 0 } as const;
   const bereit = daten && !daten.fehler && daten.gemessen;
@@ -1011,67 +1266,156 @@ function KiSichtbarkeit({ daten }: { daten: any }) {
     : [];
   const weitere: KiSeiteDaten[] = bereit ? (daten.weitere ?? []) : [];
   const basis = bereit ? daten.basis : null;
-  const systeme: string[] = basis?.systeme ?? [];
+  const systeme: KiSystem[] = bereit ? (daten.systemStand ?? []) : [];
+  const fragen: KiFrage[] = bereit ? (daten.fragen ?? []) : [];
+  const fragenAnzahl: number = bereit ? (daten.fragenAnzahl ?? fragen.length) : 0;
+  const ohne: number = bereit ? (daten.fragenOhneNennung ?? 0) : 0;
+  const offen = fragen.filter((f) => !f.genannt).slice(0, 3);
+  const antwortet = systeme.some((x) => x.beantwortet > 0);
+  // EzyAI öffnet den zuletzt gewählten Kunden, deshalb hier denselben vormerken.
+  const merkeKunde = () => {
+    try {
+      window.localStorage.setItem("ezyai.clientId", clientId);
+    } catch {
+      // ohne Speicher öffnet EzyAI den zuletzt gewählten Kunden
+    }
+  };
   return (
     <Block
       titel="KI-Sichtbarkeit"
       rechts={
-        bereit && daten.stand ? (
-          <span style={{ fontSize: 12.5, color: P.dim }}>
-            Messung vom {datumText(new Date(daten.stand), true)}
-          </span>
-        ) : undefined
+        <span
+          style={{
+            display: "inline-flex",
+            flexWrap: "wrap",
+            alignItems: "baseline",
+            columnGap: 14,
+            rowGap: 2,
+          }}
+        >
+          {bereit && daten.stand ? (
+            <span style={{ fontSize: 12.5, color: P.dim }}>
+              Messung vom {datumText(new Date(daten.stand), true)}
+            </span>
+          ) : null}
+          <a href="/ezyai" onClick={merkeKunde} style={verweisStil}>
+            Zum EzyAI-Dashboard
+          </a>
+        </span>
       }
     >
       {!daten && <p style={{ margin: 0, color: P.dim, fontSize: 14 }}>Daten werden geladen…</p>}
       {daten?.fehler && <p style={hinweis}>Die KI-Daten lassen sich gerade nicht laden.</p>}
       {daten && !daten.fehler && !daten.gemessen && (
         <p style={hinweis}>
-          Für diese Website gibt es noch keine KI-Messung. Sobald eine vorliegt, siehst du hier,
-          welche Artikel ChatGPT, Gemini und Google als Quelle nennen.
+          Für diese Website gibt es noch keine KI-Messung. Sobald eine vorliegt, siehst du hier, bei
+          welchen Fragen ChatGPT, Gemini und andere KI-Systeme dich nennen und welche Artikel sie
+          als Quelle verwenden.
         </p>
       )}
       {bereit && (
         <>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
-              gap: 14,
-            }}
-          >
-            <Kennzahl
-              titel="Score"
-              wert={daten.score === null ? "—" : `${zahl(daten.score)} / 100`}
-              delta={delta(daten.scoreDelta, " Punkte")}
-            />
-            <Kennzahl
-              titel="Erwähnungen"
-              wert={wert(daten.erwaehnungen)}
-              delta={delta(daten.erwaehnungenDelta)}
-            />
-            <Kennzahl titel="Zitate" wert={wert(daten.zitate)} delta={delta(daten.zitateDelta)} />
-            <Kennzahl
-              titel="Zitierte Seiten"
-              wert={wert(daten.seiten)}
-              delta={delta(daten.seitenDelta)}
-            />
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 20 }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+              <KiRing score={daten.score} />
+              {delta(daten.scoreDelta, " Punkte")}
+            </div>
+            <div
+              style={{
+                flex: "1 1 280px",
+                minWidth: 0,
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+                gap: 14,
+              }}
+            >
+              <Kennzahl
+                titel="Erwähnungen"
+                wert={wert(daten.erwaehnungen)}
+                delta={delta(daten.erwaehnungenDelta)}
+              />
+              <Kennzahl titel="Zitate" wert={wert(daten.zitate)} delta={delta(daten.zitateDelta)} />
+              <Kennzahl
+                titel="Zitierte Seiten"
+                wert={wert(daten.seiten)}
+                delta={delta(daten.seitenDelta)}
+              />
+              <Kennzahl
+                titel="Marke erkannt"
+                wert={
+                  basis?.marke?.gefragt > 0
+                    ? `${zahl(basis.marke.erkannt)} von ${zahl(basis.marke.gefragt)}`
+                    : "—"
+                }
+                delta={
+                  <span style={{ fontSize: 12.5, color: P.dim }}>
+                    {basis?.marke?.gefragt > 0 ? "Fragen direkt nach der Marke" : "Nicht gemessen"}
+                  </span>
+                }
+              />
+            </div>
+            <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+              <KiVerlauf punkte={daten.verlauf ?? []} />
+            </div>
           </div>
 
-          {basis && basis.fragen + basis.marke.gefragt > 0 && (
+          {basis && basis.fragen > 0 && (
             <p style={{ margin: 0, fontSize: 12.5, color: P.dim, lineHeight: 1.5 }}>
-              {basis.fragen > 0
-                ? `Der Score beruht auf ${zahl(basis.fragen)} allgemeinen ${
-                    basis.fragen === 1 ? "Frage" : "Fragen"
-                  } ohne Markennamen${systeme.length ? `, gestellt an ${systeme.join(", ")}` : ""}.`
-                : ""}
-              {basis.marke.gefragt > 0
-                ? ` Bei ${zahl(basis.marke.gefragt)} ${
-                    basis.marke.gefragt === 1 ? "Frage" : "Fragen"
-                  } direkt nach der Marke wurde sie ${zahl(basis.marke.erkannt)}-mal erkannt. Das zählt nicht zum Score.`
-                : ""}
+              Der Score beruht auf {zahl(basis.fragen)} allgemeinen{" "}
+              {basis.fragen === 1 ? "Frage" : "Fragen"} ohne Markennamen. Die Markenerkennung zählt
+              nicht zum Score.
             </p>
           )}
+
+          {systeme.length > 0 && <KiSysteme systeme={systeme} />}
+
+          {ohne > 0 && (systeme.length === 0 || antwortet) && (
+            <div
+              style={{
+                background: P.accentDim,
+                borderRadius: 12,
+                padding: "12px 14px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+              }}
+            >
+              <div style={{ fontSize: 14.5, fontWeight: 700 }}>Das kannst du tun</div>
+              <p style={{ ...hinweis, color: P.text }}>
+                Bei {zahl(ohne)} von {zahl(fragenAnzahl)} Fragen wirst du noch nicht genannt. Ein
+                Artikel, der eine solche Frage klar beantwortet, erhöht die Chance auf eine Nennung.
+              </p>
+              {offen.length > 0 && (
+                <ul
+                  style={{
+                    margin: 0,
+                    padding: "0 0 0 18px",
+                    fontSize: 13.5,
+                    lineHeight: 1.5,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 2,
+                  }}
+                >
+                  {offen.map((f) => (
+                    <li key={f.frage} style={{ overflowWrap: "anywhere" }}>
+                      {f.frage}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {agentur && (
+                <a
+                  href={`/ezyrank/blog/einrichtung/7?client=${clientId}`}
+                  style={{ ...verweisStil, alignSelf: "flex-start" }}
+                >
+                  Themen im Plan ergänzen
+                </a>
+              )}
+            </div>
+          )}
+
+          {fragen.length > 0 && <KiFragen fragen={fragen} anzahl={fragenAnzahl} />}
 
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <div style={{ fontSize: 14.5, fontWeight: 700 }}>KI-Zitate je Artikel</div>
@@ -1224,8 +1568,8 @@ export default function BlogDashboard({
   const klickDelta = klicks ? prozent(klicks.clicks, v28.vorher?.clicks ?? 0) : null;
 
   const live = eintraege.filter((e) => e.status === "live");
-  const vor30 = Date.now() - 30 * 86_400_000;
-  const neuLive = live.filter((e) => e.liveSeit && Date.parse(e.liveSeit) >= vor30).length;
+  const vor28 = Date.now() - 28 * 86_400_000;
+  const neuLive = live.filter((e) => e.liveSeit && Date.parse(e.liveSeit) >= vor28).length;
 
   const heute = new Date();
   heute.setHours(0, 0, 0, 0);
@@ -1275,21 +1619,24 @@ export default function BlogDashboard({
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(165px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
           gap: 12,
         }}
       >
         <Kachel
           titel="Artikel live"
           wert={daten ? zahl(live.length) : "—"}
-          zusatz={neuLive > 0 ? `${neuLive} neu in 30 Tagen` : "Seit Start des Autopiloten"}
+          zusatz={neuLive > 0 ? `${neuLive} neu in 28 Tagen` : "Seit Start des Autopiloten"}
         />
         <Kachel
-          titel="Klicks, 28 Tage"
+          titel="Klicks, letzte 28 Tage"
           wert={klicks ? zahl(klicks.clicks) : "—"}
           zusatz={
             klicks ? (
-              <Delta diff={klickDelta} text={`${zahl(Math.abs(klickDelta ?? 0), 1)} %`} />
+              <Delta
+                diff={klickDelta}
+                text={`${zahl(Math.abs(klickDelta ?? 0), 1)} % zum Vorzeitraum`}
+              />
             ) : v28 && !v28.verbunden ? (
               "Search Console nicht verbunden"
             ) : null
@@ -1329,6 +1676,8 @@ export default function BlogDashboard({
         />
       </div>
 
+      <KiSichtbarkeit daten={kiDaten} clientId={clientId} agentur={agentur} />
+
       <Suchverkehr clientId={clientId} tage={tage} setTage={setTage} daten={verkehr[tage]} />
 
       <WirkungJeArtikel clientId={clientId} daten={wirkung} />
@@ -1336,8 +1685,6 @@ export default function BlogDashboard({
       <ThemenAutoritaet clientId={clientId} daten={struktur} />
 
       <InterneVerlinkung daten={struktur} />
-
-      <KiSichtbarkeit daten={kiDaten} />
 
       <Block
         titel="Als Nächstes"

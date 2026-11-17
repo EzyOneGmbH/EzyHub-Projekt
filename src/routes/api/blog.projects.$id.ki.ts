@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { requireBlogProject } from "@/server/blog-autopilot.server";
+import { istAgentur, requireBlogProject } from "@/server/blog-autopilot.server";
 import { kiAuswertung } from "@/server/blog-ki.server";
 
 // GET /api/blog/projects/:id/ki (Blog-Dashboard «KI-Sichtbarkeit»): Kennzahlen
@@ -14,7 +14,8 @@ export const Route = createFileRoute("/api/blog/projects/$id/ki")({
         const r = await requireBlogProject(request, params.id);
         if (r instanceof Response) return r;
         try {
-          return Response.json({ ok: true, ...(await kiAuswertung(r.project)) });
+          const daten = await kiAuswertung(r.project, { agentur: istAgentur(r.ctx) });
+          return Response.json({ ok: true, ...daten });
         } catch {
           return Response.json(
             { ok: false, error: "Die KI-Daten lassen sich gerade nicht laden" },
