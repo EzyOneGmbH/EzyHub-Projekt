@@ -47,6 +47,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({
 }));
 
 const {
+  besucherListe,
   eigeneUrl,
   frageStaende,
   grundKlar,
@@ -56,6 +57,7 @@ const {
   sammleZitate,
   systemStaende,
   urlSchluessel,
+  wettbewerbListe,
 } = await import("@/server/blog-ki.server");
 
 const PARTS = {
@@ -261,6 +263,74 @@ describe("frageStaende", () => {
   });
 });
 
+describe("wettbewerbListe", () => {
+  const sov = [
+    { brand: "Alpha", is_self: false, mentions: 6 },
+    { brand: "Eigene AG", is_self: true, mentions: 3 },
+    { brand: "Beta", is_self: false, mentions: 3 },
+    { brand: "Gesperrt GmbH", is_self: false, mentions: 50 },
+    { brand: "", is_self: false, mentions: 9 },
+  ];
+  it("sortiert nach Nennungen, lässt Ausgeschlossene weg und rechnet den Anteil neu", () => {
+    const out = wettbewerbListe(sov, ["gesperrt gmbh"])!;
+    expect(out.marken).toEqual([
+      { name: "Alpha", nennungen: 6, anteil: 50, selbst: false },
+      { name: "Eigene AG", nennungen: 3, anteil: 25, selbst: true },
+      { name: "Beta", nennungen: 3, anteil: 25, selbst: false },
+    ]);
+    expect(out).toMatchObject({ anzahl: 3, rang: 2, eigeneNennungen: 3 });
+  });
+  it("zeigt die eigene Marke auch ohne Nennung und hinter einer langen Liste", () => {
+    const viele = Array.from({ length: 12 }, (_, i) => ({
+      brand: `Marke ${i}`,
+      is_self: false,
+      mentions: 20 - i,
+    }));
+    const out = wettbewerbListe([...viele, { brand: "Eigene AG", is_self: true, mentions: 0 }])!;
+    expect(out.marken).toHaveLength(9);
+    expect(out.marken[8]).toEqual({ name: "Eigene AG", nennungen: 0, anteil: 0, selbst: true });
+    expect(out).toMatchObject({ anzahl: 13, rang: null, eigeneNennungen: 0 });
+  });
+  it("schliesst die eigene Marke nie aus und kommt ohne Zeilen aus", () => {
+    expect(wettbewerbListe(sov, ["Eigene AG"])!.marken.some((m) => m.selbst)).toBe(true);
+    expect(wettbewerbListe([])).toBeNull();
+    expect(wettbewerbListe(null as any)).toBeNull();
+  });
+});
+
+describe("besucherListe", () => {
+  const berichte = [
+    { id: "neu", snapshot_date: "2026-11-10" },
+    { id: "mitte", snapshot_date: "2026-10-16" },
+    { id: "alt", snapshot_date: "2026-10-01" },
+  ];
+  it("nimmt den jüngsten Bericht mit Zeilen und summiert je System", () => {
+    const out = besucherListe(
+      [
+        { report_id: "alt", engine: "ChatGPT", sessions: 99, conversions: 9 },
+        { report_id: "mitte", engine: "Perplexity", sessions: 1, conversions: 2 },
+        { report_id: "mitte", engine: "ChatGPT", sessions: 3, conversions: 0 },
+        { report_id: "mitte", engine: "Claude", sessions: 0, conversions: 0 },
+        { report_id: "unbekannt", engine: "Grok", sessions: 500, conversions: 0 },
+      ],
+      berichte,
+    );
+    expect(out).toEqual({
+      stand: "2026-10-16",
+      sitzungen: 4,
+      conversions: 2,
+      systeme: [
+        { name: "ChatGPT", sitzungen: 3, conversions: 0 },
+        { name: "Perplexity", sitzungen: 1, conversions: 2 },
+      ],
+    });
+  });
+  it("kommt ohne Zeilen aus", () => {
+    expect(besucherListe([], berichte)).toBeNull();
+    expect(besucherListe(null as any, null as any)).toBeNull();
+  });
+});
+
 describe("kiAuswertung", () => {
   beforeEach(() => {
     db = {
@@ -374,6 +444,60 @@ describe("kiAuswertung", () => {
     const agentur: any = await kiAuswertung({ id: P, client_id: C }, { agentur: true });
     expect(agentur.systemStand[1]).toMatchObject({ name: "Claude", grund: "Kein Guthaben" });
     expect(JSON.stringify(agentur)).not.toMatch(/GEHEIM|credit balance|Fremde Frage/);
+  });
+
+  it("liefert Wettbewerber und KI-Besucher nur für den eigenen Kunden", async () => {
+    db.clients[0].ga4_property = "properties/1";
+    db.ai_visibility_reports.push({ id: "r0", client_id: C, snapshot_date: "2026-11-03" });
+    db.ai_visibility_sov = [
+      { report_id: "r1", client_id: C, brand: "Beispiel", is_self: true, mentions: 2 },
+      { report_id: "r1", client_id: C, brand: "Konkurrent", is_self: false, mentions: 6 },
+      { report_id: "r1", client_id: C, brand: "Raus AG", is_self: false, mentions: 40 },
+      { report_id: "r0", client_id: C, brand: "Alte Marke", is_self: false, mentions: 7 },
+      {
+        report_id: "r-fremd",
+        client_id: FREMD,
+        brand: "Fremde Marke",
+        is_self: false,
+        mentions: 9,
+      },
+    ];
+    db.ai_visibility_competitors = [
+      { client_id: C, name: "Raus AG", active: false },
+      { client_id: FREMD, name: "Konkurrent", active: false },
+    ];
+    db.ai_visibility_attribution = [
+      {
+        report_id: "r0",
+        client_id: C,
+        engine: "ChatGPT",
+        sessions: 4,
+        conversions: 1,
+        visitors: [{ country: "Geheimland", sessions: 4 }],
+        events: [{ name: "geheim_event" }],
+      },
+      { report_id: "r-fremd", client_id: FREMD, engine: "Grok", sessions: 700, conversions: 70 },
+    ];
+    const out: any = await kiAuswertung({ id: P, client_id: C });
+    expect(out.wettbewerb.marken.map((m: any) => m.name)).toEqual(["Konkurrent", "Beispiel"]);
+    expect(out.wettbewerb).toMatchObject({ rang: 2, anzahl: 2, eigeneNennungen: 2 });
+    expect(out.analyticsVerbunden).toBe(true);
+    expect(out.besucher).toEqual({
+      stand: "2026-11-03",
+      sitzungen: 4,
+      conversions: 1,
+      systeme: [{ name: "ChatGPT", sitzungen: 4, conversions: 1 }],
+    });
+    expect(JSON.stringify(out)).not.toMatch(
+      /Fremde Marke|Raus AG|Alte Marke|Geheimland|geheim_event|700|properties/,
+    );
+  });
+
+  it("kommt ohne Vergleich und ohne Besuche aus", async () => {
+    const out: any = await kiAuswertung({ id: P, client_id: C });
+    expect(out.wettbewerb).toBeNull();
+    expect(out.besucher).toBeNull();
+    expect(out.analyticsVerbunden).toBe(false);
   });
 
   it("meldet ohne Messung «nicht gemessen»", async () => {

@@ -1244,6 +1244,159 @@ function KiFragen({ fragen, anzahl }: { fragen: KiFrage[]; anzahl: number }) {
   );
 }
 
+type KiMarke = { name: string; nennungen: number; anteil: number; selbst: boolean };
+type KiWettbewerb = {
+  marken: KiMarke[];
+  anzahl: number;
+  rang: number | null;
+  eigeneNennungen: number;
+};
+type KiBesucher = {
+  stand: string | null;
+  sitzungen: number;
+  conversions: number;
+  systeme: { name: string; sitzungen: number; conversions: number }[];
+};
+
+const KI_LISTE = {
+  listStyle: "none",
+  margin: 0,
+  padding: 0,
+  display: "flex",
+  flexDirection: "column",
+  gap: 8,
+} as const;
+const KI_ZEILE = {
+  display: "grid",
+  gridTemplateColumns: "minmax(84px, 140px) minmax(40px, 1fr) auto",
+  alignItems: "center",
+  columnGap: 12,
+  fontSize: 13.5,
+} as const;
+
+function KiBalken({ anteil, farbe }: { anteil: number; farbe: string }) {
+  return (
+    <span
+      aria-hidden
+      style={{
+        height: 8,
+        borderRadius: 99,
+        background: "rgba(43,0,51,.07)",
+        overflow: "hidden",
+      }}
+    >
+      <span
+        style={{
+          display: "block",
+          height: "100%",
+          width: `${Math.round(Math.max(0, Math.min(1, anteil)) * 100)}%`,
+          borderRadius: 99,
+          background: farbe,
+        }}
+      />
+    </span>
+  );
+}
+
+function KiWettbewerber({ daten }: { daten: KiWettbewerb }) {
+  const max = Math.max(1, ...daten.marken.map((m) => m.nennungen));
+  const mehr = daten.anzahl - daten.marken.length;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
+      <div style={{ fontSize: 14.5, fontWeight: 700 }}>Im Vergleich mit anderen</div>
+      <p style={{ margin: 0, fontSize: 13.5, color: P.muted, lineHeight: 1.5 }}>
+        {daten.rang
+          ? `Du liegst auf Platz ${zahl(daten.rang)} von ${zahl(daten.anzahl)} genannten Marken.`
+          : "Du wirst in dieser Messung noch nicht genannt. Diese Marken nennen die KI-Systeme stattdessen."}
+      </p>
+      <ul style={KI_LISTE}>
+        {daten.marken.map((m) => (
+          <li key={`${m.selbst ? "selbst" : "marke"}-${m.name}`} style={KI_ZEILE}>
+            <span style={{ fontWeight: m.selbst ? 800 : 600, overflowWrap: "anywhere" }}>
+              {m.name}
+              {m.selbst && (
+                <span
+                  style={{
+                    marginLeft: 6,
+                    padding: "1px 7px",
+                    borderRadius: 99,
+                    background: P.accentDim,
+                    color: P.accent,
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Du
+                </span>
+              )}
+            </span>
+            <KiBalken anteil={m.nennungen / max} farbe={m.selbst ? P.accent : "rgba(43,0,51,.3)"} />
+            <span
+              style={{
+                color: m.nennungen > 0 ? P.text : P.muted,
+                fontVariantNumeric: "tabular-nums",
+                textAlign: "right",
+              }}
+            >
+              {zahl(m.nennungen)} · {zahl(m.anteil)} %
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p style={{ margin: 0, fontSize: 12.5, color: P.dim, lineHeight: 1.5 }}>
+        Nennungen in den Antworten und Anteil an allen Nennungen.
+        {mehr > 0 ? ` ${zahl(mehr)} weitere ${mehr === 1 ? "Marke" : "Marken"} nicht gezeigt.` : ""}
+      </p>
+    </div>
+  );
+}
+
+function KiBesuche({ daten, verbunden }: { daten: KiBesucher | null; verbunden: boolean }) {
+  const max = Math.max(1, ...(daten?.systeme ?? []).map((x) => x.sitzungen));
+  const leer = !daten || daten.systeme.length === 0;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
+      <div style={{ fontSize: 14.5, fontWeight: 700 }}>Besucher aus KI-Systemen</div>
+      {leer ? (
+        <p style={{ margin: 0, fontSize: 13.5, color: P.muted, lineHeight: 1.5 }}>
+          {verbunden
+            ? "Bisher kam kein Besuch von einem KI-System auf deine Website."
+            : "Dafür braucht es Google Analytics. Sobald es verbunden ist, siehst du hier, wie viele Besucher von ChatGPT, Perplexity und anderen KI-Systemen kommen."}
+        </p>
+      ) : (
+        <>
+          <p style={{ margin: 0, fontSize: 13.5, color: P.muted, lineHeight: 1.5 }}>
+            {zahl(daten.sitzungen)} {daten.sitzungen === 1 ? "Besuch" : "Besuche"}
+            {daten.conversions > 0
+              ? `, daraus ${zahl(daten.conversions)} ${
+                  daten.conversions === 1 ? "Conversion" : "Conversions"
+                }`
+              : ""}
+            .
+          </p>
+          <ul style={KI_LISTE}>
+            {daten.systeme.map((x) => (
+              <li key={x.name} style={KI_ZEILE}>
+                <span style={{ fontWeight: 600, overflowWrap: "anywhere" }}>{x.name}</span>
+                <KiBalken anteil={x.sitzungen / max} farbe={P.accent} />
+                <span style={{ fontVariantNumeric: "tabular-nums", textAlign: "right" }}>
+                  {zahl(x.sitzungen)}
+                  {x.conversions > 0 ? ` · ${zahl(x.conversions)} Conv.` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p style={{ margin: 0, fontSize: 12.5, color: P.dim, lineHeight: 1.5 }}>
+            Aus Google Analytics, 30 Tage
+            {daten.stand ? `, Stand ${datumText(new Date(daten.stand), true)}` : ""}.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 function KiSichtbarkeit({
   daten,
   clientId,
@@ -1272,6 +1425,8 @@ function KiSichtbarkeit({
   const ohne: number = bereit ? (daten.fragenOhneNennung ?? 0) : 0;
   const offen = fragen.filter((f) => !f.genannt).slice(0, 3);
   const antwortet = systeme.some((x) => x.beantwortet > 0);
+  const wettbewerb: KiWettbewerb | null = bereit ? (daten.wettbewerb ?? null) : null;
+  const besucher: KiBesucher | null = bereit ? (daten.besucher ?? null) : null;
   // EzyAI öffnet den zuletzt gewählten Kunden, deshalb hier denselben vormerken.
   const merkeKunde = () => {
     try {
@@ -1368,6 +1523,17 @@ function KiSichtbarkeit({
           )}
 
           {systeme.length > 0 && <KiSysteme systeme={systeme} />}
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
+              gap: 24,
+            }}
+          >
+            {wettbewerb && wettbewerb.marken.length > 0 && <KiWettbewerber daten={wettbewerb} />}
+            <KiBesuche daten={besucher} verbunden={!!daten.analyticsVerbunden} />
+          </div>
 
           {ohne > 0 && (systeme.length === 0 || antwortet) && (
             <div

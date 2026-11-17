@@ -2,6 +2,8 @@
 // des Kunden (ai_visibility_reports, ai_visibility_prompts) und ordnet die
 // zitierten Seiten der eigenen Domain den Live-Artikeln des Blogs zu: Welcher
 // Artikel wird von welchem KI-System bei welcher Frage als Quelle genannt.
+// Dazu der Vergleich mit anderen Marken aus derselben Messung und die Besuche,
+// die laut Analytics von KI-Systemen kamen.
 // Gemessen wird hier nichts. Jede Abfrage ist auf den Kunden des Projekts
 // begrenzt (client_id).
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
@@ -14,6 +16,8 @@ const SEITE = 1000;
 const MAX_SEITEN = 6;
 const MAX_VERLAUF = 12;
 const MAX_FRAGEN_LISTE = 40;
+const MAX_WETTBEWERBER = 8;
+const MAX_BESUCHER_SYSTEME = 8;
 
 export type KiZitat = { url: string; frage: string; system: string };
 export type KiFrage = { frage: string; system: string };
@@ -230,6 +234,108 @@ export function frageStaende(prompts: any[]): {
   };
 }
 
+export type KiMarke = { name: string; nennungen: number; anteil: number; selbst: boolean };
+export type KiWettbewerb = {
+  marken: KiMarke[];
+  anzahl: number;
+  rang: number | null;
+  eigeneNennungen: number;
+};
+
+/**
+ * Marken aus derselben Messung im Vergleich: wie oft die KI-Systeme welche
+ * Marke nennen. Dauerhaft ausgeschlossene Wettbewerber fallen weg, der Anteil
+ * rechnet sich über die verbleibenden Marken. Die eigene Marke steht immer in
+ * der Liste, auch ohne Nennung. Ohne Zeilen: null. Pure.
+ */
+export function wettbewerbListe(sov: any[], gesperrt: unknown[] = []): KiWettbewerb | null {
+  const schluessel = (v: unknown) => kurz(v, 80).toLowerCase();
+  const weg = new Set((Array.isArray(gesperrt) ? gesperrt : []).map(schluessel).filter(Boolean));
+  const nach = new Map<string, { name: string; nennungen: number; selbst: boolean }>();
+  for (const z of Array.isArray(sov) ? sov : []) {
+    const name = kurz(z?.brand, 80);
+    const selbst = z?.is_self === true;
+    if (!name || (!selbst && weg.has(schluessel(name)))) continue;
+    const k = selbst ? "\u0000selbst" : schluessel(name);
+    const m = nach.get(k) ?? { name, nennungen: 0, selbst };
+    m.nennungen += Math.max(0, Math.round(Number(z?.mentions) || 0));
+    nach.set(k, m);
+  }
+  if (!nach.size) return null;
+  const alle = [...nach.values()].sort(
+    (a, b) =>
+      b.nennungen - a.nennungen ||
+      Number(b.selbst) - Number(a.selbst) ||
+      a.name.localeCompare(b.name),
+  );
+  const summe = alle.reduce((n, m) => n + m.nennungen, 0);
+  const mitAnteil: KiMarke[] = alle.map((m) => ({
+    ...m,
+    anteil: summe > 0 ? Math.round((m.nennungen / summe) * 100) : 0,
+  }));
+  const eigene = mitAnteil.find((m) => m.selbst) ?? null;
+  const marken = mitAnteil.filter((m) => !m.selbst).slice(0, MAX_WETTBEWERBER);
+  if (eigene) {
+    marken.push(eigene);
+    marken.sort((a, b) => b.nennungen - a.nennungen || Number(b.selbst) - Number(a.selbst));
+  }
+  return {
+    marken,
+    anzahl: alle.length,
+    rang:
+      eigene && eigene.nennungen > 0
+        ? 1 + alle.filter((m) => !m.selbst && m.nennungen > eigene.nennungen).length
+        : null,
+    eigeneNennungen: eigene?.nennungen ?? 0,
+  };
+}
+
+export type KiBesucher = {
+  stand: string | null;
+  sitzungen: number;
+  conversions: number;
+  systeme: { name: string; sitzungen: number; conversions: number }[];
+};
+
+/**
+ * Besuche auf der Website, die von einem KI-System kamen (aus Analytics), je
+ * System. Es zählt der jüngste Bericht, an dem solche Zeilen hängen. Länder
+ * und einzelne Ereignisse bleiben auf dem Server. Ohne Zeilen: null. Pure.
+ */
+export function besucherListe(
+  zeilen: any[],
+  berichte: { id: unknown; snapshot_date: unknown }[],
+): KiBesucher | null {
+  const datum = new Map<string, string>();
+  for (const b of Array.isArray(berichte) ? berichte : [])
+    if (b?.id && b?.snapshot_date) datum.set(String(b.id), String(b.snapshot_date).slice(0, 10));
+  let neuester = "";
+  for (const z of Array.isArray(zeilen) ? zeilen : []) {
+    const d = datum.get(String(z?.report_id ?? ""));
+    if (d && d > neuester) neuester = d;
+  }
+  if (!neuester) return null;
+  const nach = new Map<string, { name: string; sitzungen: number; conversions: number }>();
+  for (const z of zeilen) {
+    if (datum.get(String(z?.report_id ?? "")) !== neuester) continue;
+    const name = kurz(z?.engine, 40);
+    if (!name) continue;
+    const e = nach.get(name) ?? { name, sitzungen: 0, conversions: 0 };
+    e.sitzungen += Math.max(0, Math.round(Number(z?.sessions) || 0));
+    e.conversions += Math.max(0, Math.round(Number(z?.conversions) || 0));
+    nach.set(name, e);
+  }
+  const systeme = [...nach.values()]
+    .filter((e) => e.sitzungen > 0 || e.conversions > 0)
+    .sort((a, b) => b.sitzungen - a.sitzungen || a.name.localeCompare(b.name));
+  return {
+    stand: neuester,
+    sitzungen: systeme.reduce((n, e) => n + e.sitzungen, 0),
+    conversions: systeme.reduce((n, e) => n + e.conversions, 0),
+    systeme: systeme.slice(0, MAX_BESUCHER_SYSTEME),
+  };
+}
+
 /** Auswertung für das Blog-Dashboard. Ohne Messung: { gemessen: false }. */
 export async function kiAuswertung(
   project: {
@@ -249,8 +355,16 @@ export async function kiAuswertung(
   const bericht = Array.isArray(berichte) ? berichte[0] : null;
   if (!bericht) return { gemessen: false };
 
-  const [{ data: kunde }, { data: artikelRoh }, { data: verlaufRoh }] = await Promise.all([
-    SB.from("clients").select("domain").eq("id", clientId).maybeSingle(),
+  const [
+    { data: kunde },
+    { data: artikelRoh },
+    { data: verlaufRoh },
+    { data: sovRoh },
+    { data: gesperrtRoh },
+    { data: besucherRoh },
+    { data: berichtDaten },
+  ] = await Promise.all([
+    SB.from("clients").select("domain, ga4_property").eq("id", clientId).maybeSingle(),
     SB.from("blog_articles")
       .select("id, title, focus_keyword, wp_permalink, status, job")
       .eq("project_id", project.id)
@@ -260,6 +374,28 @@ export async function kiAuswertung(
       .eq("client_id", clientId)
       .order("snapshot_date", { ascending: false })
       .limit(MAX_VERLAUF),
+    SB.from("ai_visibility_sov")
+      .select("brand, is_self, mentions")
+      .eq("client_id", clientId)
+      .eq("report_id", bericht.id)
+      .limit(200),
+    // Dauerhaft ausgeschlossene Wettbewerber (active = false) nie zeigen.
+    SB.from("ai_visibility_competitors")
+      .select("name")
+      .eq("client_id", clientId)
+      .eq("active", false)
+      .limit(500),
+    // Besuche aus KI-Systemen hängen nicht an jedem Bericht: der jüngste mit
+    // Zeilen zählt. Länder und Ereignisse werden gar nicht erst gelesen.
+    SB.from("ai_visibility_attribution")
+      .select("report_id, engine, sessions, conversions")
+      .eq("client_id", clientId)
+      .limit(1000),
+    SB.from("ai_visibility_reports")
+      .select("id, snapshot_date")
+      .eq("client_id", clientId)
+      .order("snapshot_date", { ascending: false })
+      .limit(1000),
   ]);
 
   const prompts: any[] = [];
@@ -313,6 +449,15 @@ export async function kiAuswertung(
     fragen: fragen.fragen,
     fragenAnzahl: fragen.anzahl,
     fragenOhneNennung: fragen.ohneNennung,
+    wettbewerb: wettbewerbListe(
+      Array.isArray(sovRoh) ? sovRoh : [],
+      (Array.isArray(gesperrtRoh) ? gesperrtRoh : []).map((w: any) => w?.name),
+    ),
+    analyticsVerbunden: !!String(kunde?.ga4_property ?? "").trim(),
+    besucher: besucherListe(
+      Array.isArray(besucherRoh) ? besucherRoh : [],
+      Array.isArray(berichtDaten) ? berichtDaten : [],
+    ),
     artikelLive: live.length,
     artikel,
     weitere: weitere.slice(0, MAX_WEITERE),
