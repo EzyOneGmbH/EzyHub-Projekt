@@ -1,5 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import BlogAutopilotKarte from "@/ezy/BlogAutopilotKarte";
+import BlogTour, { TOUR_SCHRITTE, merkeTourGesehen, tourGesehen } from "@/ezy/BlogTour";
 import {
   P,
   Segmente,
@@ -67,6 +68,22 @@ export default function BlogBereich({
       // nicht merken
     }
   }, []);
+
+  // Führung: null = aus, sonst der Schritt. Beim ersten Besuch von selbst.
+  const [tour, setTour] = useState<number | null>(null);
+  const zeigeSchritt = useCallback((n: number) => {
+    setTour(n);
+    setTab(TOUR_SCHRITTE[n].tab);
+  }, []);
+  const beendeTour = useCallback(() => {
+    merkeTourGesehen();
+    setTour(null);
+    setTab(gemerkterTab());
+  }, []);
+  const laeuftAktiv = !!projekt;
+  useEffect(() => {
+    if (laeuftAktiv && !tourGesehen()) zeigeSchritt(0);
+  }, [laeuftAktiv, zeigeSchritt]);
 
   useEffect(() => {
     let aktiv = true;
@@ -172,12 +189,44 @@ export default function BlogBereich({
             Autopilot aktiv
           </span>
         </div>
-        <a href={`/ezyrank/blog/einrichtung/7?client=${clientId}`} style={verweisStil}>
-          Themenplan öffnen
-        </a>
+        <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
+          {tour === null && (
+            <button
+              type="button"
+              onClick={() => zeigeSchritt(0)}
+              style={{
+                ...verweisStil,
+                background: "none",
+                border: "none",
+                padding: 0,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              Kurze Führung
+            </button>
+          )}
+          <a href={`/ezyrank/blog/einrichtung/7?client=${clientId}`} style={verweisStil}>
+            Themenplan öffnen
+          </a>
+        </div>
       </header>
 
-      <Segmente label="Bereiche im Blog" wert={tab} optionen={[...TABS]} onChange={gehe} />
+      {tour !== null && <BlogTour schritt={tour} onSchritt={zeigeSchritt} onEnde={beendeTour} />}
+
+      <Segmente
+        label="Bereiche im Blog"
+        wert={tab}
+        optionen={[...TABS]}
+        onChange={(t) => {
+          // Wer selbst klickt, verlässt die Führung.
+          if (tour !== null) {
+            merkeTourGesehen();
+            setTour(null);
+          }
+          gehe(t);
+        }}
+      />
 
       <Suspense fallback={<div style={{ minHeight: 240 }} />}>
         {tab === "dashboard" && (

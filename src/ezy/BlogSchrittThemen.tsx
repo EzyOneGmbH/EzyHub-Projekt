@@ -390,6 +390,7 @@ export function BlogSchrittStart({ c }: { c: Ctx }) {
   const [google, setGoogle] = useState<any | null>(null);
   const [busy, setBusy] = useState(false);
   const [schreibt, setSchreibt] = useState<string | null>(null);
+  const [artikelId, setArtikelId] = useState<string | null>(null);
 
   useEffect(() => {
     void api(`/api/blog/projects/${c.project.id}/topics`).then((r) =>
@@ -433,6 +434,7 @@ export function BlogSchrittStart({ c }: { c: Ctx }) {
     setBusy(false);
     if (!r.ok) return c.setFehler(r.json?.error || "Schreiben konnte nicht starten");
     setSchreibt(String(r.json?.article?.keyword || ""));
+    setArtikelId(r.json?.article?.id ? String(r.json.article.id) : null);
   };
 
   const wp = c.project.wordpress?.status === "verbunden";
@@ -477,7 +479,16 @@ export function BlogSchrittStart({ c }: { c: Ctx }) {
           <Hinweis ton="ok">
             Der Autopilot schreibt jetzt{schreibt ? ` «${schreibt}»` : " deinen ersten Artikel"}:
             Recherche, Entwurf und Faktencheck dauern rund 10 Minuten. Danach liegt der Entwurf in
-            WordPress und wartet auf deine Freigabe. Live geht nichts ohne dich.
+            {c.project.publish_mode === "hub_only" ? "EzyHub" : "WordPress"} und wartet auf deine
+            Freigabe. Live geht nichts ohne dich.
+            {artikelId && (
+              <>
+                {" "}
+                <a href={`/ezyrank/blog/artikel/${artikelId}`} style={{ fontWeight: 700 }}>
+                  Fortschritt ansehen
+                </a>
+              </>
+            )}
           </Hinweis>
         ) : (
           <Hinweis>
@@ -512,7 +523,11 @@ export function BlogSchrittStart({ c }: { c: Ctx }) {
             {schreibt !== null ? "Wird geschrieben…" : "Ersten Artikel jetzt schreiben"}
           </Knopf>
           <Knopf onClick={() => void start()} disabled={busy}>
-            {busy ? "Startet…" : c.project.status === "active" ? "Zum Blog" : "Autopilot starten"}
+            {busy
+              ? "Startet…"
+              : c.project.status === "active" || schreibt !== null
+                ? "Zum Blog"
+                : "Autopilot starten"}
           </Knopf>
         </div>
       </div>
