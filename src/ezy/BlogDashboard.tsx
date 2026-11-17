@@ -1098,75 +1098,61 @@ const KI_ERGEBNIS = {
 } as const;
 
 function KiSysteme({ systeme }: { systeme: KiSystem[] }) {
-  const stumm = systeme.filter((x) => x.beantwortet === 0).length;
-  const aktiv = systeme.length - stumm;
+  const aktiv = systeme.filter((x) => x.beantwortet > 0);
+  const stumm = systeme.filter((x) => x.beantwortet === 0);
+  // Stumme Systeme nach Grund bündeln, damit nicht jede Zeile dasselbe sagt.
+  const gruppen = new Map<string, string[]>();
+  for (const x of stumm) {
+    const grund = x.grund && x.grund !== "Keine Antwort" ? x.grund : "";
+    gruppen.set(grund, [...(gruppen.get(grund) ?? []), x.name]);
+  }
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <div style={{ fontSize: 14.5, fontWeight: 700 }}>KI-Systeme in dieser Messung</div>
-      <ul
-        style={{
-          listStyle: "none",
-          margin: 0,
-          padding: 0,
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-        }}
-      >
-        {systeme.map((x) => {
-          const anteil = x.gefragt > 0 ? x.beantwortet / x.gefragt : 0;
-          return (
-            <li
-              key={x.name}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "minmax(84px, 120px) minmax(60px, 1fr) auto",
-                alignItems: "center",
-                columnGap: 12,
-                fontSize: 13.5,
-              }}
-            >
+    <div style={{ ...KI_KARTE, flex: 1 }}>
+      <div style={KI_TITEL}>KI-Systeme in dieser Messung</div>
+      {aktiv.length > 0 && (
+        <ul style={KI_LISTE}>
+          {aktiv.map((x) => (
+            <li key={x.name} style={KI_ZEILE}>
               <span style={{ fontWeight: 600, overflowWrap: "anywhere" }}>{x.name}</span>
-              <span
-                aria-hidden
-                style={{
-                  height: 8,
-                  borderRadius: 99,
-                  background: "rgba(43,0,51,.07)",
-                  overflow: "hidden",
-                }}
-              >
-                <span
-                  style={{
-                    display: "block",
-                    height: "100%",
-                    width: `${Math.round(anteil * 100)}%`,
-                    borderRadius: 99,
-                    background: P.accent,
-                  }}
-                />
-              </span>
-              <span
-                style={{
-                  color: x.beantwortet > 0 ? P.text : P.muted,
-                  fontVariantNumeric: "tabular-nums",
-                  textAlign: "right",
-                }}
-              >
-                {x.beantwortet > 0
-                  ? `${zahl(x.beantwortet)} von ${zahl(x.gefragt)} Antworten`
-                  : `Keine Antwort${x.grund && x.grund !== "Keine Antwort" ? ` · ${x.grund}` : ""}`}
+              <KiBalken anteil={x.gefragt > 0 ? x.beantwortet / x.gefragt : 0} farbe={P.accent} />
+              <span style={KI_WERT}>
+                <b>{zahl(x.beantwortet)}</b>
+                <span style={{ color: P.dim }}> von {zahl(x.gefragt)}</span>
               </span>
             </li>
-          );
-        })}
-      </ul>
-      {stumm > 0 && (
-        <p style={{ margin: 0, fontSize: 12.5, color: P.dim, lineHeight: 1.5 }}>
-          {aktiv === 0
+          ))}
+        </ul>
+      )}
+      {[...gruppen.entries()].map(([grund, namen]) => (
+        <div key={grund || "ohne"} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ fontSize: 12.5, color: P.dim }}>
+            Ohne Antwort{grund ? ` · ${grund}` : ""}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {namen.map((n) => (
+              <span
+                key={n}
+                style={{
+                  padding: "3px 10px",
+                  borderRadius: 99,
+                  background: "rgba(43,0,51,.05)",
+                  color: P.muted,
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                }}
+              >
+                {n}
+              </span>
+            ))}
+          </div>
+        </div>
+      ))}
+      {stumm.length > 0 && (
+        <p style={KI_NOTIZ}>
+          {aktiv.length === 0
             ? "Kein System hat geantwortet. Diese Messung sagt deshalb noch nichts aus."
-            : `${aktiv} von ${systeme.length} Systemen ${
-                aktiv === 1 ? "hat" : "haben"
+            : `${aktiv.length} von ${systeme.length} Systemen ${
+                aktiv.length === 1 ? "hat" : "haben"
               } geantwortet. Der Score beruht nur auf diesen Antworten.`}
         </p>
       )}
@@ -1258,20 +1244,41 @@ type KiBesucher = {
   systeme: { name: string; sitzungen: number; conversions: number }[];
 };
 
+const KI_KARTE = {
+  border: "1px solid rgba(43,0,51,.1)",
+  borderRadius: 14,
+  background: P.card,
+  padding: "16px 18px",
+  display: "flex",
+  flexDirection: "column",
+  gap: 12,
+  minWidth: 0,
+} as const;
+const KI_TITEL = { fontSize: 14.5, fontWeight: 700 } as const;
+const KI_NOTIZ = { margin: 0, fontSize: 12.5, color: P.dim, lineHeight: 1.5 } as const;
 const KI_LISTE = {
   listStyle: "none",
   margin: 0,
   padding: 0,
   display: "flex",
   flexDirection: "column",
-  gap: 8,
+  gap: 2,
 } as const;
+// Feste Wertspalte: so enden alle Balken einer Liste an derselben Stelle.
 const KI_ZEILE = {
   display: "grid",
-  gridTemplateColumns: "minmax(84px, 140px) minmax(40px, 1fr) auto",
+  gridTemplateColumns: "minmax(90px, 170px) minmax(40px, 1fr) 78px",
   alignItems: "center",
   columnGap: 12,
   fontSize: 13.5,
+  padding: "6px 8px",
+  margin: "0 -8px",
+  borderRadius: 8,
+} as const;
+const KI_WERT = {
+  fontVariantNumeric: "tabular-nums",
+  textAlign: "right",
+  whiteSpace: "nowrap",
 } as const;
 
 function KiBalken({ anteil, farbe }: { anteil: number; farbe: string }) {
@@ -1279,7 +1286,7 @@ function KiBalken({ anteil, farbe }: { anteil: number; farbe: string }) {
     <span
       aria-hidden
       style={{
-        height: 8,
+        height: 6,
         borderRadius: 99,
         background: "rgba(43,0,51,.07)",
         overflow: "hidden",
@@ -1302,49 +1309,43 @@ function KiWettbewerber({ daten }: { daten: KiWettbewerb }) {
   const max = Math.max(1, ...daten.marken.map((m) => m.nennungen));
   const mehr = daten.anzahl - daten.marken.length;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
-      <div style={{ fontSize: 14.5, fontWeight: 700 }}>Im Vergleich mit anderen</div>
-      <p style={{ margin: 0, fontSize: 13.5, color: P.muted, lineHeight: 1.5 }}>
-        {daten.rang
-          ? `Du liegst auf Platz ${zahl(daten.rang)} von ${zahl(daten.anzahl)} genannten Marken.`
-          : "Du wirst in dieser Messung noch nicht genannt. Diese Marken nennen die KI-Systeme stattdessen."}
-      </p>
+    <div style={{ ...KI_KARTE, flex: 1 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <div style={KI_TITEL}>Im Vergleich mit anderen</div>
+        <p style={{ margin: 0, fontSize: 13.5, color: P.muted, lineHeight: 1.5 }}>
+          {daten.rang
+            ? `Du liegst auf Platz ${zahl(daten.rang)} von ${zahl(daten.anzahl)} genannten Marken.`
+            : "Du wirst noch nicht genannt. Diese Marken nennen die KI-Systeme stattdessen."}
+        </p>
+      </div>
       <ul style={KI_LISTE}>
         {daten.marken.map((m) => (
-          <li key={`${m.selbst ? "selbst" : "marke"}-${m.name}`} style={KI_ZEILE}>
-            <span style={{ fontWeight: m.selbst ? 800 : 600, overflowWrap: "anywhere" }}>
-              {m.name}
-              {m.selbst && (
-                <span
-                  style={{
-                    marginLeft: 6,
-                    padding: "1px 7px",
-                    borderRadius: 99,
-                    background: P.accentDim,
-                    color: P.accent,
-                    fontSize: 11.5,
-                    fontWeight: 700,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  Du
-                </span>
-              )}
-            </span>
-            <KiBalken anteil={m.nennungen / max} farbe={m.selbst ? P.accent : "rgba(43,0,51,.3)"} />
+          <li
+            key={`${m.selbst ? "selbst" : "marke"}-${m.name}`}
+            style={{ ...KI_ZEILE, background: m.selbst ? P.accentDim : "transparent" }}
+          >
             <span
               style={{
-                color: m.nennungen > 0 ? P.text : P.muted,
-                fontVariantNumeric: "tabular-nums",
-                textAlign: "right",
+                fontWeight: m.selbst ? 800 : 600,
+                color: m.selbst ? P.accent : P.text,
+                overflowWrap: "anywhere",
               }}
             >
-              {zahl(m.nennungen)} · {zahl(m.anteil)} %
+              {m.name}
+              {m.selbst ? " (du)" : ""}
+            </span>
+            <KiBalken
+              anteil={m.nennungen / max}
+              farbe={m.selbst ? P.accent : "rgba(43,0,51,.32)"}
+            />
+            <span style={KI_WERT}>
+              <b>{zahl(m.nennungen)}</b>
+              <span style={{ color: P.dim }}> · {zahl(m.anteil)} %</span>
             </span>
           </li>
         ))}
       </ul>
-      <p style={{ margin: 0, fontSize: 12.5, color: P.dim, lineHeight: 1.5 }}>
+      <p style={{ ...KI_NOTIZ, marginTop: "auto" }}>
         Nennungen in den Antworten und Anteil an allen Nennungen.
         {mehr > 0 ? ` ${zahl(mehr)} weitere ${mehr === 1 ? "Marke" : "Marken"} nicht gezeigt.` : ""}
       </p>
@@ -1356,8 +1357,8 @@ function KiBesuche({ daten, verbunden }: { daten: KiBesucher | null; verbunden: 
   const max = Math.max(1, ...(daten?.systeme ?? []).map((x) => x.sitzungen));
   const leer = !daten || daten.systeme.length === 0;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
-      <div style={{ fontSize: 14.5, fontWeight: 700 }}>Besucher aus KI-Systemen</div>
+    <div style={KI_KARTE}>
+      <div style={KI_TITEL}>Besucher aus KI-Systemen</div>
       {leer ? (
         <p style={{ margin: 0, fontSize: 13.5, color: P.muted, lineHeight: 1.5 }}>
           {verbunden
@@ -1366,29 +1367,40 @@ function KiBesuche({ daten, verbunden }: { daten: KiBesucher | null; verbunden: 
         </p>
       ) : (
         <>
-          <p style={{ margin: 0, fontSize: 13.5, color: P.muted, lineHeight: 1.5 }}>
-            {zahl(daten.sitzungen)} {daten.sitzungen === 1 ? "Besuch" : "Besuche"}
-            {daten.conversions > 0
-              ? `, daraus ${zahl(daten.conversions)} ${
-                  daten.conversions === 1 ? "Conversion" : "Conversions"
-                }`
-              : ""}
-            .
-          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", columnGap: 28, rowGap: 8 }}>
+            <div>
+              <div style={{ fontSize: 28, fontWeight: 800, lineHeight: 1.1 }}>
+                {zahl(daten.sitzungen)}
+              </div>
+              <div style={{ fontSize: 12.5, color: P.dim }}>
+                {daten.sitzungen === 1 ? "Besuch" : "Besuche"} in 30 Tagen
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 28, fontWeight: 800, lineHeight: 1.1 }}>
+                {zahl(daten.conversions)}
+              </div>
+              <div style={{ fontSize: 12.5, color: P.dim }}>
+                {daten.conversions === 1 ? "Conversion" : "Conversions"}
+              </div>
+            </div>
+          </div>
           <ul style={KI_LISTE}>
             {daten.systeme.map((x) => (
               <li key={x.name} style={KI_ZEILE}>
                 <span style={{ fontWeight: 600, overflowWrap: "anywhere" }}>{x.name}</span>
                 <KiBalken anteil={x.sitzungen / max} farbe={P.accent} />
-                <span style={{ fontVariantNumeric: "tabular-nums", textAlign: "right" }}>
-                  {zahl(x.sitzungen)}
-                  {x.conversions > 0 ? ` · ${zahl(x.conversions)} Conv.` : ""}
+                <span style={KI_WERT}>
+                  <b>{zahl(x.sitzungen)}</b>
+                  {x.conversions > 0 && (
+                    <span style={{ color: P.dim }}> · {zahl(x.conversions)} Conv.</span>
+                  )}
                 </span>
               </li>
             ))}
           </ul>
-          <p style={{ margin: 0, fontSize: 12.5, color: P.dim, lineHeight: 1.5 }}>
-            Aus Google Analytics, 30 Tage
+          <p style={KI_NOTIZ}>
+            Aus Google Analytics
             {daten.stand ? `, Stand ${datumText(new Date(daten.stand), true)}` : ""}.
           </p>
         </>
@@ -1522,17 +1534,24 @@ function KiSichtbarkeit({
             </p>
           )}
 
-          {systeme.length > 0 && <KiSysteme systeme={systeme} />}
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
-              gap: 24,
-            }}
-          >
-            {wettbewerb && wettbewerb.marken.length > 0 && <KiWettbewerber daten={wettbewerb} />}
-            <KiBesuche daten={besucher} verbunden={!!daten.analyticsVerbunden} />
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+            {wettbewerb && wettbewerb.marken.length > 0 && (
+              <div style={{ flex: "3 1 380px", minWidth: 0, display: "flex" }}>
+                <KiWettbewerber daten={wettbewerb} />
+              </div>
+            )}
+            <div
+              style={{
+                flex: "2 1 280px",
+                minWidth: 0,
+                display: "flex",
+                flexDirection: "column",
+                gap: 16,
+              }}
+            >
+              <KiBesuche daten={besucher} verbunden={!!daten.analyticsVerbunden} />
+              {systeme.length > 0 && <KiSysteme systeme={systeme} />}
+            </div>
           </div>
 
           {ohne > 0 && (systeme.length === 0 || antwortet) && (
