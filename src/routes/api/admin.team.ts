@@ -4,6 +4,7 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { orgRoleOf } from "@/server/integrations.server";
 import { linkStatus, originVon, sendeNeuenLink, zuletztGesendet } from "@/server/neuer-link.server";
+import { neuesPasswort } from "@/server/passwort.server";
 
 // Team-/Mitarbeiter-Verwaltung (RBAC, 2026-07-15). Nur owner/admin dürfen die
 // Aktionen ausführen; Mitarbeiter werden hier angelegt (KEIN Self-Signup) und
@@ -19,9 +20,21 @@ import { linkStatus, originVon, sendeNeuenLink, zuletztGesendet } from "@/server
 //  - remove {userId}               -> aus der Org entfernen (+ Zuweisungen)
 //  - resend {userId}               -> Link erneut senden (04.11.2026): noch nicht
 //    bestaetigt -> Einladung erneut, sonst Passwort-Link
+//  - neuesPasswort {userId}        -> zufälliges Passwort erzeugen, im Konto setzen
+//    und EINMAL zurückgeben (17.11.2026). Es wird nirgends gespeichert oder
+//    protokolliert; das Protokoll hält nur fest, wer es für wen gesetzt hat.
 
 const Body = z.object({
-  action: z.enum(["list", "invite", "setRole", "assign", "remove", "setAnsicht", "resend"]),
+  action: z.enum([
+    "list",
+    "invite",
+    "setRole",
+    "assign",
+    "remove",
+    "setAnsicht",
+    "resend",
+    "neuesPasswort",
+  ]),
   email: z.string().email().optional(),
   role: z.enum(["admin", "member", "viewer"]).optional(),
   userId: z.string().uuid().optional(),
@@ -137,6 +150,70 @@ export const Route = createFileRoute("/api/admin/team")({
             );
           }
           return Response.json({ ok: true, art: r.art, email: au.user.email });
+        }
+
+        // ── neuesPasswort ─────────────────────────────────────────────────────
+        if (d.action === "neuesPasswort") {
+          if (!d.userId) return Response.json({ error: "userId erforderlich" }, { status: 400 });
+          if (d.userId === user.id)
+            return Response.json(
+              { error: "Für das eigene Konto bitte «Passwort vergessen» verwenden." },
+              { status: 400 },
+            );
+          const zielRolle = await orgRoleOf(d.userId, orgId);
+          if (!zielRolle) return Response.json({ error: "Kein Mitglied" }, { status: 404 });
+          if (zielRolle === "owner")
+            return Response.json({ error: "Nicht für den SuperAdmin" }, { status: 400 });
+          if (zielRolle === "admin" && (await orgRoleOf(user.id, orgId)) !== "owner")
+            return Response.json(
+              { error: "Nur der SuperAdmin darf Passwörter von Admins setzen." },
+              { status: 403 },
+            );
+          // Ein Konto, das auch zu einer anderen Organisation gehört, bekommt
+          // hier kein Passwort: das würde den Zugang dort mit übernehmen.
+          const { count: andere, error: andereErr } = await supabaseAdmin
+            .from("app_users")
+            .select("id", { count: "exact", head: true })
+            .eq("user_id", d.userId)
+            .neq("organization_id", orgId);
+          if (andereErr) return Response.json({ error: "Prüfung fehlgeschlagen" }, { status: 500 });
+          if (andere)
+            return Response.json(
+              {
+                error:
+                  "Dieses Konto gehört auch zu einer anderen Organisation. Bitte den Passwort-Link senden.",
+              },
+              { status: 409 },
+            );
+          const { data: au, error: auErr } = await supabaseAdmin.auth.admin.getUserById(d.userId);
+          if (auErr || !au?.user)
+            return Response.json({ error: "Konto nicht gefunden" }, { status: 404 });
+          const passwort = neuesPasswort();
+          const { error: pwErr } = await supabaseAdmin.auth.admin.updateUserById(d.userId, {
+            password: passwort,
+            // Offene Einladung: ohne bestätigte E-Mail wäre die Anmeldung gesperrt.
+            ...(au.user.email_confirmed_at ? {} : { email_confirm: true }),
+          });
+          if (pwErr)
+            return Response.json(
+              { error: "Passwort konnte nicht gesetzt werden" },
+              { status: 500 },
+            );
+          try {
+            await (supabaseAdmin as any).from("admin_audit_log").insert({
+              organization_id: orgId,
+              user_id: user.id,
+              target_table: "auth.users",
+              target_id: d.userId,
+              action: "passwort_gesetzt",
+            });
+          } catch {
+            /* Protokoll best-effort */
+          }
+          return Response.json(
+            { ok: true, passwort, email: au.user.email || null },
+            { headers: { "Cache-Control": "no-store" } },
+          );
         }
 
         // ── invite ────────────────────────────────────────────────────────────

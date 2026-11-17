@@ -153,7 +153,7 @@ import {
   EzyPilotFab,
   EzyPilotPage,
 } from "./shared-ui";
-import { LinkSendenBtn, LinkStatusBadge } from "./LinkSenden";
+import { LinkSendenBtn, LinkStatusBadge, PasswortBtn } from "./LinkSenden";
 import BlogBereich from "./BlogBereich";
 export { ToastProvider, EzyPilotProvider, EzyPilotPopup, EzyPilotButton };
 // CD-Pattern: durchgehendes Hexagon-Waben-Mesh als Seiten-Textur, sehr dezent
@@ -4320,6 +4320,11 @@ function TeamPage({ clients }) {
                     {!u.self && u.role !== "owner" && (
                       <LinkSendenBtn u={u} callTeam={callTeam} onDone={load} />
                     )}
+                    {!u.self &&
+                      u.role !== "owner" &&
+                      (myRole === "owner" || u.role !== "admin") && (
+                        <PasswortBtn u={u} callTeam={callTeam} onDone={load} />
+                      )}
                     {!u.self && u.role !== "owner" && (
                       <Btn variant="danger" size="sm" onClick={() => remove(u.userId, u.email)}>
                         Entfernen

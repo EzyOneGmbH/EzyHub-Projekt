@@ -3,7 +3,7 @@
 import { authedFetch } from "@/lib/authed-fetch";
 import { ServicesPanel, ServicesPicker } from "@/ezy/components/ServicesPanel.jsx";
 import { Badge, Btn } from "./shared-ui";
-import { LinkSendenBtn, LinkStatusBadge } from "./LinkSenden";
+import { LinkSendenBtn, LinkStatusBadge, PasswortBtn } from "./LinkSenden";
 import { Inp, LiveEmptyState, Modal, TabBar } from "./ui-kit";
 import { ClientAvatar } from "@/ezy/ClientAvatar";
 import GoogleClientPanel from "@/ezy/GoogleClientPanel.jsx";
@@ -2086,8 +2086,9 @@ export function ClientAppAccessPanel({ client }) {
                 <span style={{ fontSize: 12.5, color: C.text }}>
                   {u.email || u.userId.slice(0, 8)}
                 </span>
-                <span style={{ marginLeft: "auto" }}>
+                <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
                   <LinkSendenBtn u={u} callTeam={callTeam} onDone={loadPortal} />
+                  <PasswortBtn u={u} callTeam={callTeam} onDone={loadPortal} />
                 </span>
                 <Btn variant="danger" size="sm" onClick={() => removePortal(u)}>
                   Sperren
