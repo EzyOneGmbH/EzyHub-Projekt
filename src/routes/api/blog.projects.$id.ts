@@ -11,7 +11,8 @@ import {
 
 // PATCH /api/blog/projects/:id (Kap. 8): Felder aus Onboarding-Schritten 3–5
 // und den Einstellungen. Nur bekannte Felder (strict); Kontingent und
-// Ahrefs-Limit nur für Ezy-One-Rollen. Status-Wechsel laufen über eigene
+// Ahrefs-Limit nur für Ezy-One-Rollen, der Veröffentlichungsmodus nach der
+// Einrichtung ebenfalls. Status-Wechsel laufen über eigene
 // Endpunkte (Start, Pause), nicht hierüber.
 
 export const Route = createFileRoute("/api/blog/projects/$id")({
@@ -41,6 +42,18 @@ export const Route = createFileRoute("/api/blog/projects/$id")({
         if (!istAgentur(ctx) && NUR_AGENTUR.some((k) => k in patch))
           return Response.json(
             { ok: false, error: "Kontingent und Limits setzt Ezy One" },
+            { status: 403 },
+          );
+        // Den Veröffentlichungsmodus wählt der Kunde nur in der Einrichtung;
+        // danach stellt ihn Ezy One um (die Einstellungen zeigen ihn gesperrt).
+        if (
+          !istAgentur(ctx) &&
+          "publish_mode" in patch &&
+          patch.publish_mode !== project.publish_mode &&
+          project.status !== "onboarding"
+        )
+          return Response.json(
+            { ok: false, error: "Den Veröffentlichungsmodus stellt Ezy One für dich um" },
             { status: 403 },
           );
         if ("domain" in patch && project.status !== "onboarding")

@@ -411,6 +411,22 @@ describe("Blog-Autopilot Phase 2: Onboarding-Daten", () => {
     expect((await p(undefined as any, { name: "x" })).status).toBe(401);
   });
 
+  it("Veröffentlichungsmodus: Kunde nur in der Einrichtung, danach Ezy One", async () => {
+    const vorher = db.blog_projects[0].status;
+    db.blog_projects[0].status = "onboarding";
+    expect((await p("viewer-a1", { publish_mode: "hub_only" })).status).toBe(200);
+    expect(db.blog_projects[0].publish_mode).toBe("hub_only");
+    db.blog_projects[0].status = "aktiv";
+    const nein = await p("viewer-a1", { publish_mode: "wp_draft" });
+    expect(nein.status).toBe(403);
+    expect(db.blog_projects[0].publish_mode).toBe("hub_only");
+    // Unveränderter Wert (z. B. aus einem ganzen Formular) bleibt erlaubt.
+    expect((await p("viewer-a1", { publish_mode: "hub_only", name: "FIH" })).status).toBe(200);
+    expect((await p("admin-a", { publish_mode: "wp_draft" })).status).toBe(200);
+    expect(db.blog_projects[0].publish_mode).toBe("wp_draft");
+    db.blog_projects[0].status = vorher;
+  });
+
   it("Mitbewerber: Liste setzen, eigene Domain ignoriert, ungültige abgelehnt", async () => {
     db.blog_competitors.push({
       id: crypto.randomUUID(),

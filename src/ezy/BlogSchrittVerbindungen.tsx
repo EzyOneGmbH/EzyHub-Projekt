@@ -302,6 +302,7 @@ function WordPressKarte({ c }: { c: Ctx }) {
   const modus = async (m: "wp_draft" | "hub_only") => {
     const r = await api(`/api/blog/projects/${c.project.id}`, "PATCH", { publish_mode: m });
     if (r.ok) c.setProject(r.json.project);
+    else setFehler(r.json?.error || "Speichern fehlgeschlagen");
   };
 
   return (
