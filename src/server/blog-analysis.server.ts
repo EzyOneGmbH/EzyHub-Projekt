@@ -395,7 +395,7 @@ Gib dieses JSON zurück:
   "tone": "informativ | gespraechig | ueberzeugend",
   "tone_reason": "ein Satz, warum dieser Ton zur Website passt",
   "rules": ["3–6 Schreibregeln, die zur Marke passen (z. B. Anrede, Begriffe, Tabus)"],
-  "clusters": [{"name": "Themen-Cluster für den Blog", "seeds": ["2–5 deutsche Such-Keywords"]}],
+  "clusters": [{"name": "Themen-Cluster für den Blog", "seeds": ["2–5 Such-Keywords in der Sprache der Website"]}],
   "cta": {"label": "Button-Text", "url": "EXAKT eine URL aus der Link-Liste", "text": "ein kurzer Satz"} oder null,
   "image_style": "eine von ${BILDSTILE.map((b) => b.id).join(", ")}",
   "competitor_hints": ["Domains von Mitbewerbern, falls auf der Website erwähnt, sonst leer"]

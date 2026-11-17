@@ -98,10 +98,10 @@ export type Cta = { label?: string; text?: string; url?: string; position?: stri
 
 /** CTA aus Absätzen mit Klasse: Der Filter im WordPress-Plugin lässt weder
  *  <div> noch class auf <a> durch, Klassen auf <p> aber schon. */
-export function ctaHtml(cta: Cta): string {
+export function ctaHtml(cta: Cta, sprache?: string): string {
   const text = cta.text ? `<p class="ezyrank-cta ezyrank-cta-text">${esc(cta.text)}</p>` : "";
   const knopf = cta.url
-    ? `<p class="ezyrank-cta ezyrank-cta-button"><a href="${esc(cta.url)}"><strong>${esc(cta.label || "Mehr erfahren")}</strong></a></p>`
+    ? `<p class="ezyrank-cta ezyrank-cta-button"><a href="${esc(cta.url)}"><strong>${esc(cta.label || sprachRegel(sprache).mehr)}</strong></a></p>`
     : "";
   return `${text}${knopf}`;
 }
@@ -126,11 +126,11 @@ export function ctaAktuell(html: string): string {
 
 /** CTA-Block genau einmal: alte Blöcke und Platzhalter entfernen, dann einsetzen
  *  (Platzhalter {{cta}} bei position «mitte», sonst am Ende). */
-export function setzeCta(html: string, cta: Cta | null | undefined): string {
+export function setzeCta(html: string, cta: Cta | null | undefined, sprache?: string): string {
   let h = String(html || "").replace(CTA_RE, "");
   const hatPlatzhalter = /\{\{cta\}\}/i.test(h);
   if (!cta?.url && !cta?.text) return h.replace(/(<p>\s*)?\{\{cta\}\}(\s*<\/p>)?/gi, "");
-  const block = ctaHtml(cta);
+  const block = ctaHtml(cta, sprache);
   if (cta.position === "mitte" && hatPlatzhalter) {
     let erst = true;
     return h.replace(/(<p>\s*)?\{\{cta\}\}(\s*<\/p>)?/gi, () => {
@@ -383,6 +383,66 @@ export function slugify(s: string): string {
 /** Schweizer Rechtschreibung: ß → ss (de-CH). */
 export function schweiz(s: string, sprache: string): string {
   return /^de-CH/i.test(sprache) ? String(s ?? "").replace(/ß/g, "ss") : String(s ?? "");
+}
+
+const FREMD: Record<string, { name: string; anrede: string; zeichen: string; mehr: string }> = {
+  fr: {
+    name: "Französisch",
+    anrede: "Anrede (tu/vous) wie auf der Website (siehe Auszüge), im Zweifel «vous».",
+    zeichen: "Anführungszeichen «…»",
+    mehr: "En savoir plus",
+  },
+  it: {
+    name: "Italienisch",
+    anrede: "Anrede (tu/Lei) wie auf der Website (siehe Auszüge), im Zweifel «Lei».",
+    zeichen: "Anführungszeichen «…»",
+    mehr: "Scopri di più",
+  },
+  en: {
+    name: "Englisch",
+    anrede: "Ansprache wie auf der Website (siehe Auszüge).",
+    zeichen: "Anführungszeichen “…”",
+    mehr: "Learn more",
+  },
+};
+
+/**
+ * Sprachangabe für die KI-Aufträge. Die Aufträge sind deutsch geschrieben; ohne
+ * klare Ansage fällt ein französischer oder englischer Artikel stellenweise ins
+ * Deutsche zurück (Überschriften, FAQ, Meta-Texte). Pure.
+ */
+export function sprachRegel(language: unknown): {
+  code: string;
+  fremd: boolean;
+  name: string;
+  zeile: string;
+  anrede: string;
+  mehr: string;
+} {
+  const code = String(language || "de-CH").trim() || "de-CH";
+  const kurz = code.toLowerCase().split("-")[0];
+  if (kurz === "de")
+    return {
+      code,
+      fremd: false,
+      name: "Deutsch",
+      zeile: `Sprache: ${code}${/^de-CH/i.test(code) ? " – Schweizer Rechtschreibung: immer «ss», nie «ß»; Anführungszeichen «…»" : ""}`,
+      anrede: "Anrede (du/Sie) wie auf der Website (siehe Auszüge).",
+      mehr: "Mehr erfahren",
+    };
+  const f = FREMD[kurz];
+  const name = f ? `${f.name}${/-CH$/i.test(code) ? " (Schweiz)" : ""}` : code;
+  return {
+    code,
+    fremd: true,
+    name,
+    zeile:
+      `Sprache: ${code} – Schreibe ALLES, was im Artikel erscheint, auf ${name}: Titel, Überschriften, Text, FAQ, Fazit, ` +
+      `SEO-Titel, Meta-Description, Auszug, Slug, Tags und Bild-Alt-Text. Diese Anweisungen sind deutsch, der Artikel nicht; ` +
+      `kein deutsches Wort ausser Eigennamen. Zitate aus deutschen Quellen sinngemäss übertragen.${f ? ` ${f.zeichen}.` : ""}`,
+    anrede: f?.anrede ?? "Ansprache wie auf der Website (siehe Auszüge).",
+    mehr: f?.mehr ?? "Mehr erfahren",
+  };
 }
 
 const tok = (s: string) =>
@@ -705,6 +765,7 @@ const SYSTEM_RECHERCHE =
   "Nimm nur Quellen auf, die du tatsächlich gefunden hast, mit exakter URL. Erfinde keine URLs, Zahlen oder Zitate.";
 
 export function recherchePrompt(project: any, b: any): string {
+  const sp = sprachRegel(project.language);
   return [
     `Thema/Keyword: «${b.keyword}»`,
     `Markt: ${project.market || "CH"}, Sprache: ${project.language || "de-CH"}`,
@@ -715,6 +776,9 @@ export function recherchePrompt(project: any, b: any): string {
     "Finde 4 bis 8 seriöse, aktuelle Quellen (Behörden, UN/WHO/UNICEF, Statistikämter, Fachstellen, Studien, Qualitätsmedien) mit belastbaren Fakten und Zahlen zum Thema.",
     `Keine Quellen von diesen Domains (Mitbewerber): ${b.gesperrt.join(", ") || "–"}.`,
     "Pro Quelle 1 bis 4 Fakten als kurze, wörtlich belegbare Aussagen (mit Jahr, wenn vorhanden).",
+    sp.fremd
+      ? `Der Artikel erscheint auf ${sp.name}: Suche auch in dieser Sprache und bevorzuge Quellen auf ${sp.name} oder Englisch. Formuliere die Fakten auf ${sp.name}.`
+      : "",
     "",
     'Format: {"quellen":[{"url":"https://…","titel":"…","fakten":["…"]}]}',
   ]
@@ -750,13 +814,13 @@ const SYSTEM_ENTWURF =
 
 export function entwurfPrompt(project: any, b: any, quellen: any[]): string {
   const cta = (project.cta_blocks ?? [])[0];
-  const deCH = /^de-CH/i.test(project.language || "de-CH");
+  const sp = sprachRegel(project.language);
   const gemeinsam = [
     `Auftraggeber: ${project.name || project.domain} (https://${project.domain})`,
     `Beschreibung: ${String(project.description || "").slice(0, 1500)}`,
     `Zielgruppen: ${(project.audiences ?? []).join(" | ")}`,
-    `Sprache: ${project.language || "de-CH"}${deCH ? " – Schweizer Rechtschreibung: immer «ss», nie «ß»; Anführungszeichen «…»" : ""}`,
-    `Ton: ${project.tone || "informativ"}. Anrede (du/Sie) wie auf der Website (siehe Auszüge).`,
+    sp.zeile,
+    `Ton: ${project.tone || "informativ"}. ${sp.anrede}`,
     `Bildstil: ${project.image_style || "–"}`,
     "",
     "Schreibregeln (verbindlich):",
@@ -788,7 +852,7 @@ export function entwurfPrompt(project: any, b: any, quellen: any[]): string {
       "Interne Artikel, die auf die Seite verlinken könnten:",
       ...b.links.map((l: any) => `- ${l.titel}: ${l.url}`),
       "",
-      'Format: {"title":"Vorschläge: …","seo_title":"… (max. 60 Zeichen)","meta_description":"… (max. 155 Zeichen)","excerpt":"Zusammenfassung in 2 Sätzen","content_html":"<h2>…</h2><p>…</p><ul><li>…</li></ul>"}',
+      `Format: {"title":"${sp.fremd ? "…" : "Vorschläge: …"}","seo_title":"… (max. 60 Zeichen)","meta_description":"… (max. 155 Zeichen)","excerpt":"Zusammenfassung in 2 Sätzen","content_html":"<h2>…</h2><p>…</p><ul><li>…</li></ul>"}`,
     ].join("\n");
   }
   return [
@@ -898,7 +962,7 @@ async function pruefen(article: any, project: any): Promise<StufeErgebnis> {
     entfernen.has(c.n) ? { ...c, status: "entfernt" as const } : c,
   );
   html = entferneClaims(html, entfernen);
-  if (!istVorschlag) html = setzeCta(html, (project.cta_blocks ?? [])[0]);
+  if (!istVorschlag) html = setzeCta(html, (project.cta_blocks ?? [])[0], sprache);
 
   const offen = endClaims.filter((c) => c.status === "offen");
   await SB.from("article_claims").delete().eq("article_id", article.id);

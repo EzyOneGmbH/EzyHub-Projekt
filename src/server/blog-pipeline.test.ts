@@ -22,6 +22,8 @@ const {
   zaehleCta,
   bereinigeHtml,
   entwurfPrompt,
+  recherchePrompt,
+  sprachRegel,
 } = await import("./blog-pipeline.server");
 
 const CTA = {
@@ -317,5 +319,63 @@ describe("Modus, Kategorie, Helfer", () => {
     expect(p).toContain("solafrica.ch");
     expect(p).toContain("KEINEN eigenen Spendenaufruf");
     expect(p).toContain("nie «ß»");
+    expect(p).toContain("Anrede (du/Sie)");
+  });
+
+  const BRIEF = {
+    modus: "neu",
+    keyword: "eau potable ghana",
+    regeln: [],
+    gesperrt: [],
+    fakten: [],
+    auszuege: [],
+    links: [],
+    kategorien: [],
+    bilder: [],
+  };
+
+  it("Französisch und Englisch: der ganze Artikel in der Zielsprache, kein Schweizer-ss-Hinweis", () => {
+    const fr = entwurfPrompt({ domain: "exemple.ch", language: "fr-CH" }, BRIEF, []);
+    expect(fr).toContain("auf Französisch (Schweiz): Titel, Überschriften");
+    expect(fr).toContain("Bild-Alt-Text");
+    expect(fr).toContain("Anrede (tu/vous)");
+    expect(fr).not.toContain("nie «ß»");
+    expect(fr).not.toContain("du/Sie");
+
+    const en = entwurfPrompt({ domain: "example.com", language: "en" }, BRIEF, []);
+    expect(en).toContain("auf Englisch: Titel");
+    expect(en).toContain("Anführungszeichen “…”");
+
+    const vorschlag = entwurfPrompt(
+      { domain: "example.com", language: "en" },
+      { ...BRIEF, modus: "vorschlag", original_url: "https://example.com/x" },
+      [],
+    );
+    expect(vorschlag).not.toContain("Vorschläge: …");
+    expect(recherchePrompt({ domain: "example.com", language: "en" }, BRIEF)).toContain(
+      "Formuliere die Fakten auf Englisch",
+    );
+    expect(recherchePrompt({ domain: "beispiel.ch" }, BRIEF)).not.toContain(
+      "Formuliere die Fakten",
+    );
+  });
+
+  it("sprachRegel: Deutsch bleibt wie bisher, unbekannte Sprache wird benannt", () => {
+    expect(sprachRegel(undefined)).toMatchObject({ code: "de-CH", fremd: false });
+    expect(sprachRegel("de-DE").zeile).toBe("Sprache: de-DE");
+    expect(sprachRegel("it-CH")).toMatchObject({
+      name: "Italienisch (Schweiz)",
+      mehr: "Scopri di più",
+    });
+    expect(sprachRegel("es").zeile).toContain("auf es:");
+  });
+
+  it("CTA ohne eigenen Button-Text spricht die Artikelsprache", () => {
+    const cta = { url: "https://exemple.ch/don/" };
+    expect(setzeCta("<p>Texte</p>", cta, "fr-CH")).toContain("En savoir plus");
+    expect(setzeCta("<p>Text</p>", cta)).toContain("Mehr erfahren");
+    expect(setzeCta("<p>Texte</p>", { ...cta, label: "Faire un don" }, "fr-CH")).toContain(
+      "Faire un don",
+    );
   });
 });
