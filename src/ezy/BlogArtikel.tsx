@@ -14,6 +14,7 @@ import {
   tagLokal,
   zeitText,
 } from "@/ezy/BlogUi";
+import { alsDokument, alsWxr, exportSlug, type ExportArtikel } from "@/ezy/blogExport";
 
 // Blog-Autopilot: «Artikel prüfen» (Kap. 6.5, 6.6, 9). Lesemodus mit markierten
 // offenen Behauptungen, Faktencheck, WordPress-Status, Freigabe und Regeln aus
@@ -137,6 +138,41 @@ function sicheresHtml(html: string, neuerTab: boolean): string {
   putze(doc.body);
   return doc.body.innerHTML;
 }
+
+// ── Export ─────────────────────────────────────────────────────────────────
+
+function ladeHerunter(inhalt: string, name: string, typ: string) {
+  const url = URL.createObjectURL(new Blob([inhalt], { type: typ }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+// PDF: Der Browser druckt das Dokument aus einem unsichtbaren Rahmen. Im
+// Druckdialog wählt man «Als PDF speichern». Der Rahmen führt keine Skripte aus.
+function druckeAlsPdf(dokument: string) {
+  const rahmen = document.createElement("iframe");
+  rahmen.setAttribute("aria-hidden", "true");
+  rahmen.setAttribute("sandbox", "allow-same-origin allow-modals");
+  rahmen.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+  rahmen.onload = () => {
+    rahmen.contentWindow?.focus();
+    rahmen.contentWindow?.print();
+    window.setTimeout(() => rahmen.remove(), 120_000);
+  };
+  rahmen.srcdoc = dokument;
+  document.body.appendChild(rahmen);
+}
+
+const EXPORTE = [
+  ["pdf", "PDF", "Öffnet den Druckdialog, dort «Als PDF speichern» wählen"],
+  ["word", "Word-Dokument", "Datei .doc zum Weiterbearbeiten"],
+  ["wp", "WordPress-Import", "Datei .xml für Werkzeuge → Daten importieren"],
+] as const;
 
 // ── Darstellung ────────────────────────────────────────────────────────────
 
@@ -283,6 +319,7 @@ export default function BlogArtikel({ id }: { id: string }) {
   const [linkUrl, setLinkUrl] = useState("");
   const [regel, setRegel] = useState("");
   const [auswahl, setAuswahl] = useState("");
+  const [exportOffen, setExportOffen] = useState(false);
   const textRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const bereich = useRef<Range | null>(null);
@@ -585,6 +622,26 @@ export default function BlogArtikel({ id }: { id: string }) {
   const quellen: any[] = (a.quellen ?? []).filter((q: any) => httpUrl(q?.url));
   const linksEntfernt: string[] = a.pruefung?.links_entfernt ?? [];
   const linksUnklar: string[] = a.pruefung?.links_unklar ?? [];
+
+  const exportiere = (art: (typeof EXPORTE)[number][0]) => {
+    const e: ExportArtikel = {
+      title: a.title || a.focus_keyword || "Ohne Titel",
+      slug: a.slug,
+      excerpt: a.excerpt,
+      seo_title: a.seo_title,
+      meta_description: a.meta_description,
+      focus_keyword: a.focus_keyword,
+      tags: Array.isArray(a.wp_tag_names) ? a.wp_tag_names : [],
+      html: sicheresHtml(rohHtml, false),
+      bild: bild ? { url: bild.url, alt: bild.alt } : null,
+    };
+    const name = exportSlug(e);
+    if (art === "pdf") druckeAlsPdf(alsDokument(e));
+    else if (art === "word")
+      ladeHerunter("\ufeff" + alsDokument(e, true), `${name}.doc`, "application/msword");
+    else ladeHerunter(alsWxr(e), `${name}.wordpress.xml`, "application/xml");
+    setExportOffen(false);
+  };
 
   return (
     <Rahmen clientId={a.client_id}>
@@ -993,6 +1050,41 @@ export default function BlogArtikel({ id }: { id: string }) {
               </Knopf>
             )}
           </Block>
+
+          {html && !bearbeiten && (
+            <Block titel="Export">
+              <Knopf art="sekundaer" onClick={() => setExportOffen(!exportOffen)}>
+                {exportOffen ? "Schliessen" : "Exportieren"}
+              </Knopf>
+              {exportOffen && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {EXPORTE.map(([art, name, hilfe]) => (
+                    <button
+                      key={art}
+                      type="button"
+                      onClick={() => exportiere(art)}
+                      style={{
+                        textAlign: "left",
+                        minHeight: 44,
+                        padding: "8px 12px",
+                        borderRadius: 12,
+                        border: `1px solid ${P.input}`,
+                        background: "#fff",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        color: P.text,
+                      }}
+                    >
+                      <span style={{ display: "block", fontSize: 14.5, fontWeight: 700 }}>
+                        {name}
+                      </span>
+                      <span style={{ display: "block", ...klein, fontSize: 12.5 }}>{hilfe}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </Block>
+          )}
 
           {agentur && claims.length > 0 && (
             <Block titel={offen.length > 0 ? `Faktencheck (${offen.length} offen)` : "Faktencheck"}>
