@@ -12,6 +12,8 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export const BLOG_FEATURE = "blog_autopilot";
+/** Kunden-Logins (viewer) sehen den Blog-Bereich erst mit dieser Freigabe. */
+export const BLOG_KUNDEN_FEATURE = "blog_kunde";
 
 /** Standard-Schreibregeln (Kap. 6A Schritt 5: «immer aktiv»). */
 export const STANDARD_REGELN = [
@@ -33,6 +35,7 @@ export function blogZugriffErlaubt(f: {
   role: string | null;
   zugewiesen: boolean;
   flag: boolean;
+  kundenFreigabe: boolean;
 }): { ok: true } | { ok: false; status: 403; grund: string } {
   if (!f.role) return { ok: false, status: 403, grund: "Kein Zugang (nur per Einladung)" };
   const admin = f.role === "owner" || f.role === "admin";
@@ -44,6 +47,8 @@ export function blogZugriffErlaubt(f: {
       status: 403,
       grund: "Blog-Autopilot ist für diesen Kunden nicht freigeschaltet",
     };
+  if (f.role === "viewer" && !f.kundenFreigabe)
+    return { ok: false, status: 403, grund: "Dieser Bereich ist noch nicht freigegeben" };
   return { ok: true };
 }
 
@@ -92,7 +97,12 @@ export async function requireBlogAccess(
   ]);
   const role = (m as any)?.role ? String((m as any).role) : null;
   const features: unknown[] = Array.isArray((app as any)?.features) ? (app as any).features : [];
-  const e = blogZugriffErlaubt({ role, zugewiesen: !!zuw, flag: features.includes(BLOG_FEATURE) });
+  const e = blogZugriffErlaubt({
+    role,
+    zugewiesen: !!zuw,
+    flag: features.includes(BLOG_FEATURE),
+    kundenFreigabe: features.includes(BLOG_KUNDEN_FEATURE),
+  });
   if (!e.ok) return Response.json({ ok: false, error: e.grund }, { status: e.status });
   return {
     userId,
@@ -265,11 +275,14 @@ export async function blogKunden(request: Request) {
     supabaseAdmin.from("client_access").select("client_id").eq("user_id", userId),
     (supabaseAdmin as any).from("client_app_access").select("client_id, features").eq("app", "seo"),
   ]);
-  const mitFlag = new Set(
-    ((flags as any[]) ?? [])
-      .filter((f) => Array.isArray(f.features) && f.features.includes(BLOG_FEATURE))
-      .map((f) => String(f.client_id)),
-  );
+  const mitMerkmal = (merkmal: string) =>
+    new Set(
+      ((flags as any[]) ?? [])
+        .filter((f) => Array.isArray(f.features) && f.features.includes(merkmal))
+        .map((f) => String(f.client_id)),
+    );
+  const mitFlag = mitMerkmal(BLOG_FEATURE);
+  const fuerKunden = mitMerkmal(BLOG_KUNDEN_FEATURE);
   if (!mitglied?.length || mitFlag.size === 0) return Response.json({ ok: true, kunden: [] });
   const { data: clients } = await supabaseAdmin
     .from("clients")
@@ -279,7 +292,9 @@ export async function blogKunden(request: Request) {
   const kunden = ((clients as any[]) ?? []).filter((c) => {
     const m = (mitglied as any[]).find((x) => x.organization_id === c.organization_id);
     if (!m) return false;
-    return m.role === "owner" || m.role === "admin" || zugewiesen.has(String(c.id));
+    if (m.role === "owner" || m.role === "admin") return true;
+    if (!zugewiesen.has(String(c.id))) return false;
+    return m.role !== "viewer" || fuerKunden.has(String(c.id));
   });
   const { data: projekte } = await (supabaseAdmin as any)
     .from("blog_projects")

@@ -180,6 +180,9 @@ export const APP_FEATURES: Record<EzyAppId, Array<{ id: string; label: string }>
     // Blog-Autopilot (09.11.2026): Feature-Flag pro Kunde; schaltet Einrichtung
     // und /api/blog/* frei. Wird auch über die Einladung gesetzt.
     { id: "blog_autopilot", label: "Blog-Autopilot" },
+    // Kunden-Sperre (18.11.2026, Volkan): Kunden-Logins sehen den Blog-Bereich
+    // erst, wenn dieser Schalter für den Kunden gesetzt ist.
+    { id: "blog_kunde", label: "Blog für Kunden-Login sichtbar" },
     // "localgrid" entfernt (09.09.); alte Freischaltungen mit dem Eintrag bleiben
     // harmlos (Gating kennt den Tab nicht mehr).
     { id: "conversions", label: "Conversions" },
@@ -232,7 +235,7 @@ export const GEO_SECTION_FEATURE: Record<string, string> = {
  *  Sie zählen NICHT zur Einschränkungsliste – eine Liste nur mit Zusatz-Flags
  *  heisst weiterhin «alle übrigen Funktionen frei». Sonst würde das Setzen von
  *  blog_autopilot alle anderen SEO-Funktionen sperren. */
-export const OPT_IN_FEATURES: ReadonlySet<string> = new Set(["blog_autopilot"]);
+export const OPT_IN_FEATURES: ReadonlySet<string> = new Set(["blog_autopilot", "blog_kunde"]);
 
 /** Alt-Freischaltungen: der fruehere Sammel-Eintrag deckt alle Nachfolger ab —
  *  sonst wuerde eine bestehende features-Liste ["aivis"] nach dem Katalog-

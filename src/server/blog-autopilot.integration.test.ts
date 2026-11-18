@@ -33,7 +33,7 @@ const db: Record<string, any[]> = {
   ],
   client_access: [{ user_id: "viewer-a1", client_id: K_A1 }],
   client_app_access: [
-    { client_id: K_A1, app: "seo", features: ["blog", "blog_autopilot"] },
+    { client_id: K_A1, app: "seo", features: ["blog", "blog_autopilot", "blog_kunde"] },
     { client_id: K_A2, app: "seo", features: ["blog"] },
     { client_id: K_B, app: "seo", features: ["blog_autopilot"] },
   ],
@@ -338,12 +338,33 @@ describe("Blog-Autopilot: WordPress verbinden", () => {
 
 describe("Blog-Autopilot: reine Funktionen", () => {
   it("blogZugriffErlaubt", () => {
-    expect(blogZugriffErlaubt({ role: null, zugewiesen: true, flag: true }).ok).toBe(false);
-    expect(blogZugriffErlaubt({ role: "viewer", zugewiesen: false, flag: true }).ok).toBe(false);
-    expect(blogZugriffErlaubt({ role: "member", zugewiesen: false, flag: true }).ok).toBe(false);
-    expect(blogZugriffErlaubt({ role: "viewer", zugewiesen: true, flag: false }).ok).toBe(false);
-    expect(blogZugriffErlaubt({ role: "viewer", zugewiesen: true, flag: true }).ok).toBe(true);
-    expect(blogZugriffErlaubt({ role: "admin", zugewiesen: false, flag: true }).ok).toBe(true);
+    expect(
+      blogZugriffErlaubt({ role: null, zugewiesen: true, flag: true, kundenFreigabe: true }).ok,
+    ).toBe(false);
+    expect(
+      blogZugriffErlaubt({ role: "viewer", zugewiesen: false, flag: true, kundenFreigabe: true })
+        .ok,
+    ).toBe(false);
+    expect(
+      blogZugriffErlaubt({ role: "member", zugewiesen: false, flag: true, kundenFreigabe: false })
+        .ok,
+    ).toBe(false);
+    expect(
+      blogZugriffErlaubt({ role: "viewer", zugewiesen: true, flag: false, kundenFreigabe: true })
+        .ok,
+    ).toBe(false);
+    const kunde = { role: "viewer", zugewiesen: true, flag: true };
+    expect(blogZugriffErlaubt({ ...kunde, kundenFreigabe: true }).ok).toBe(true);
+    // Kunden-Sperre: ohne Freigabe kein Zugriff für Kunden-Logins.
+    expect(blogZugriffErlaubt({ ...kunde, kundenFreigabe: false }).ok).toBe(false);
+    expect(
+      blogZugriffErlaubt({ role: "member", zugewiesen: true, flag: true, kundenFreigabe: false })
+        .ok,
+    ).toBe(true);
+    expect(
+      blogZugriffErlaubt({ role: "admin", zugewiesen: false, flag: true, kundenFreigabe: false })
+        .ok,
+    ).toBe(true);
   });
   it("normalisiereDomain", () => {
     expect(normalisiereDomain("https://www.FaithInHumanity.ch/blog?x=1")).toBe(

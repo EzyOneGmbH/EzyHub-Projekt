@@ -46,6 +46,8 @@ const Body = z.object({
   // Blog-Autopilot (09.11.2026): Einladung schaltet das Feature-Flag
   // «blog_autopilot» für die zugewiesenen Kunden ein und führt die Person nach
   // dem Passwort-Setzen in die Einrichtung (user_metadata.onboarding).
+  // Seit 18.11.2026 setzt sie auch «blog_kunde» (Kunden-Sperre): wer ein
+  // Kunden-Login in den Blog einlädt, gibt den Bereich damit frei.
   blogAutopilot: z.boolean().optional(),
 });
 
@@ -377,11 +379,14 @@ export const Route = createFileRoute("/api/admin/team")({
                   .eq("app", "seo")
                   .maybeSingle();
                 const features: string[] = Array.isArray(row?.features) ? row.features : [];
-                if (features.includes("blog_autopilot")) continue;
+                const fehlen = ["blog_autopilot", "blog_kunde"].filter(
+                  (f) => !features.includes(f),
+                );
+                if (fehlen.length === 0) continue;
                 const { error: faErr } = row?.id
                   ? await (supabaseAdmin as any)
                       .from("client_app_access")
-                      .update({ features: [...features, "blog_autopilot"] })
+                      .update({ features: [...features, ...fehlen] })
                       .eq("id", row.id)
                   : await (supabaseAdmin as any).from("client_app_access").insert({
                       organization_id: orgId,
@@ -390,7 +395,7 @@ export const Route = createFileRoute("/api/admin/team")({
                       // keine Zeile = SEO aktiv (Legacy-Default) → so lassen;
                       // ein reines Zusatz-Flag schränkt die übrigen Funktionen nicht ein
                       enabled: true,
-                      features: ["blog_autopilot"],
+                      features: fehlen,
                     });
                 if (faErr) warnung = "Blog-Autopilot konnte nicht freigeschaltet werden";
               }
