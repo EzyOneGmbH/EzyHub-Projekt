@@ -740,6 +740,10 @@ async function brief(article: any, project: any): Promise<StufeErgebnis> {
     keyword: topic.keyword,
     cluster: topic.cluster ?? null,
     article_type: topic.article_type ?? null,
+    titel: topic.title ?? null,
+    zielgruppe: topic.audience ?? null,
+    zielfrage: topic.target_question ?? null,
+    zitierbar: topic.citable_element ?? null,
     grund: opp?.reason ?? null,
     position: opp?.avg_position ?? null,
     original_url: opp?.covered_by_url ?? null,
@@ -812,6 +816,22 @@ const SYSTEM_ENTWURF =
   "Schreibe hilfreich, konkret und menschlich, ohne Floskeln und ohne KI-typische Wendungen. " +
   "Erfinde nichts: Fakten nur aus den gelieferten Quellen, Kundenfakten und Website-Auszügen.";
 
+/** Vorgaben aus dem festen Themenplan; leer, wenn das Thema aus der Analyse stammt. */
+function planZeilen(b: any): string[] {
+  return [
+    b.titel
+      ? `Arbeitstitel: «${b.titel}». Der Titel darf sprachlich geschärft werden, das Thema bleibt.`
+      : "",
+    b.zielgruppe ? `Zielgruppe dieses Artikels: ${b.zielgruppe}.` : "",
+    b.zielfrage
+      ? `Zielfrage: «${b.zielfrage}». Beantworte sie in den ersten drei Sätzen direkt und vollständig. Einer dieser Sätze nennt den Auftraggeber beim Namen und ist auch ohne den Rest des Artikels verständlich.`
+      : "",
+    b.zitierbar
+      ? `Zitierfähiges Element (Pflicht, gut sichtbar im Artikel): ${b.zitierbar}. Verwende dafür nur belegte Fakten.`
+      : "",
+  ].filter(Boolean);
+}
+
 export function entwurfPrompt(project: any, b: any, quellen: any[]): string {
   const cta = (project.cta_blocks ?? [])[0];
   const sp = sprachRegel(project.language);
@@ -861,6 +881,7 @@ export function entwurfPrompt(project: any, b: any, quellen: any[]): string {
     b.modus === "refresh"
       ? `AUFGABE: Überarbeite den bestehenden Artikel ${b.original_url} («${b.original?.titel ?? ""}»). Er rankt für «${b.keyword}» auf Position ${b.position ?? "?"}. ${b.grund ?? ""} Behalte die guten Teile und den Kern, schliesse Lücken zur Suchintention, aktualisiere Fakten, verbessere Struktur, Einstieg und Überschriften. Ergebnis ist der vollständige neue Text.`
       : `AUFGABE: Schreibe einen neuen Blogartikel zum Keyword «${b.keyword}»${b.article_type ? ` (Typ: ${b.article_type})` : ""}.${b.grund ? ` Hintergrund: ${b.grund}` : ""}`,
+    ...(b.modus === "refresh" ? [] : planZeilen(b)),
     b.original ? `\nBestehender Text:\n${String(b.original.text).slice(0, 10_000)}` : "",
     "",
     "Recherchierte Quellen (nur diese URLs als externe Links/Belege verwenden):",

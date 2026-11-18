@@ -334,6 +334,28 @@ describe("Modus, Kategorie, Helfer", () => {
     bilder: [],
   };
 
+  it("fester Themenplan: Arbeitstitel, Zielgruppe, Zielfrage und zitierfähiges Element im Prompt", () => {
+    const ohne = entwurfPrompt({ domain: "beispiel.ch", language: "de-CH" }, BRIEF, []);
+    expect(ohne).not.toContain("Zielfrage:");
+    expect(ohne).not.toContain("Arbeitstitel:");
+    const mit = entwurfPrompt(
+      { domain: "beispiel.ch", language: "de-CH" },
+      {
+        ...BRIEF,
+        titel: "Barrierefrei tagen",
+        zielgruppe: "Verbände",
+        zielfrage: "Welches Tagungshotel bei Zug ist barrierefrei?",
+        zitierbar: "Checkliste Barrierefreiheit",
+      },
+      [],
+    );
+    expect(mit).toContain("Arbeitstitel: «Barrierefrei tagen»");
+    expect(mit).toContain("Zielgruppe dieses Artikels: Verbände.");
+    expect(mit).toContain("«Welches Tagungshotel bei Zug ist barrierefrei?»");
+    expect(mit).toContain("in den ersten drei Sätzen");
+    expect(mit).toContain("Checkliste Barrierefreiheit");
+  });
+
   it("Französisch und Englisch: der ganze Artikel in der Zielsprache, kein Schweizer-ss-Hinweis", () => {
     const fr = entwurfPrompt({ domain: "exemple.ch", language: "fr-CH" }, BRIEF, []);
     expect(fr).toContain("auf Französisch (Schweiz): Titel, Überschriften");

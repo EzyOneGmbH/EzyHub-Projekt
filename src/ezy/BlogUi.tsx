@@ -707,7 +707,7 @@ export function eintraegeAus(daten: any, nurHub: boolean): Eintrag[] {
     schluessel: `t-${t.id}`,
     artikelId: null,
     topicId: t.id,
-    titel: t.keyword,
+    titel: t.title || t.keyword,
     modus: t.kind === "refresh" ? "refresh" : "neu",
     status: "geplant",
     tag: tagLokal(t.scheduled_for),

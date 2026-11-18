@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ARTIKELTYP_TEXT,
   Block,
+  Feld,
   FilterChip,
   HAARLINIE,
   Hinweis,
+  Knopf,
   MODUS_TEXT,
   P,
   Schwierigkeit,
@@ -58,6 +60,15 @@ const pfeil: React.CSSProperties = {
   fontSize: 18,
   cursor: "pointer",
   fontFamily: "inherit",
+};
+
+const PLAN_LEER = {
+  title: "",
+  date: "",
+  audience: "",
+  target_question: "",
+  citable_element: "",
+  keyword: "",
 };
 
 export default function BlogKalender({
@@ -118,6 +129,29 @@ export default function BlogKalender({
           (b.tag?.getTime() ?? Number.MAX_SAFE_INTEGER),
       );
   }, [eintraege, start, suche, versatz]);
+
+  const [planOffen, setPlanOffen] = useState(false);
+  const [plan, setPlan] = useState(PLAN_LEER);
+  const plane = async () => {
+    setBusy("plan");
+    setMeldung(null);
+    const r = await api(`/api/blog/projects/${projektId}/topics`, "POST", plan);
+    setBusy(null);
+    if (!r.ok || !r.json?.ok) {
+      setMeldung({
+        ton: "fehler",
+        text: r.json?.error || "Das hat nicht geklappt. Bitte nochmals versuchen.",
+      });
+      return;
+    }
+    setMeldung({
+      ton: "ok",
+      text: "Das Thema ist geplant. Der Artikel wird am Termin geschrieben.",
+    });
+    setPlan(PLAN_LEER);
+    setPlanOffen(false);
+    await neuLaden();
+  };
 
   if (!daten)
     return (
@@ -396,6 +430,117 @@ export default function BlogKalender({
       )}
 
       {meldung && <Hinweis ton={meldung.ton}>{meldung.text}</Hinweis>}
+
+      {agentur &&
+        (planOffen ? (
+          <form
+            onSubmit={(ev) => {
+              ev.preventDefault();
+              void plane();
+            }}
+            style={{
+              border: HAARLINIE,
+              borderRadius: 14,
+              padding: "16px 18px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 14,
+            }}
+          >
+            <div style={{ fontSize: 14.5, fontWeight: 700 }}>Thema von Hand planen</div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))",
+                gap: 14,
+              }}
+            >
+              <Feld label="Titel" id="plan-titel">
+                <input
+                  id="plan-titel"
+                  style={eingabe}
+                  value={plan.title}
+                  maxLength={200}
+                  onChange={(ev) => setPlan({ ...plan, title: ev.target.value })}
+                />
+              </Feld>
+              <Feld label="Erscheint am" id="plan-datum">
+                <input
+                  id="plan-datum"
+                  type="date"
+                  style={eingabe}
+                  value={plan.date}
+                  onChange={(ev) => setPlan({ ...plan, date: ev.target.value })}
+                />
+              </Feld>
+              <Feld label="Zielgruppe" id="plan-zielgruppe">
+                <input
+                  id="plan-zielgruppe"
+                  style={eingabe}
+                  value={plan.audience}
+                  maxLength={300}
+                  onChange={(ev) => setPlan({ ...plan, audience: ev.target.value })}
+                />
+              </Feld>
+              <Feld
+                label="Zielfrage"
+                hilfe="Die Frage, bei der KI-Systeme den Kunden nennen sollen."
+                id="plan-frage"
+              >
+                <input
+                  id="plan-frage"
+                  style={eingabe}
+                  value={plan.target_question}
+                  maxLength={300}
+                  onChange={(ev) => setPlan({ ...plan, target_question: ev.target.value })}
+                />
+              </Feld>
+              <Feld
+                label="Zitierfähiges Element"
+                hilfe="Zum Beispiel Checkliste, Tabelle oder Faktenblock."
+                id="plan-element"
+              >
+                <input
+                  id="plan-element"
+                  style={eingabe}
+                  value={plan.citable_element}
+                  maxLength={500}
+                  onChange={(ev) => setPlan({ ...plan, citable_element: ev.target.value })}
+                />
+              </Feld>
+              <Feld
+                label="Keyword (optional)"
+                hilfe="Leer lassen, dann gilt der Titel."
+                id="plan-keyword"
+              >
+                <input
+                  id="plan-keyword"
+                  style={eingabe}
+                  value={plan.keyword}
+                  maxLength={120}
+                  onChange={(ev) => setPlan({ ...plan, keyword: ev.target.value })}
+                />
+              </Feld>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+              <Knopf
+                type="submit"
+                disabled={busy === "plan" || plan.title.trim().length < 3 || !plan.date}
+              >
+                {busy === "plan" ? "Wird gespeichert…" : "Thema planen"}
+              </Knopf>
+              <Knopf art="text" onClick={() => setPlanOffen(false)}>
+                Abbrechen
+              </Knopf>
+            </div>
+          </form>
+        ) : (
+          <div>
+            <Knopf art="sekundaer" onClick={() => setPlanOffen(true)}>
+              Thema von Hand planen
+            </Knopf>
+          </div>
+        ))}
 
       {eintraege.length === 0 ? (
         <div style={{ fontSize: 14, color: P.muted }}>

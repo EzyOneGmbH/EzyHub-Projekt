@@ -25,9 +25,7 @@ export const Route = createFileRoute("/api/blog/projects/$id/articles")({
             .limit(200),
           sb
             .from("blog_topics")
-            .select(
-              "id, keyword, kind, scheduled_for, cluster, volume, difficulty, article_type, approved_at",
-            )
+            .select("*")
             .eq("project_id", r.project.id)
             .order("scheduled_for", { ascending: true, nullsFirst: false })
             .limit(400),
@@ -47,7 +45,20 @@ export const Route = createFileRoute("/api/blog/projects/$id/articles")({
           }),
           geplant: (themen ?? [])
             .filter((t: any) => t.approved_at && !mitArtikel.has(t.id))
-            .map(({ approved_at: _weg, ...t }: any) => t),
+            .map((t: any) => ({
+              id: t.id,
+              keyword: t.keyword,
+              kind: t.kind,
+              scheduled_for: t.scheduled_for,
+              cluster: t.cluster ?? null,
+              volume: t.volume ?? null,
+              difficulty: t.difficulty ?? null,
+              article_type: t.article_type ?? null,
+              title: t.title ?? null,
+              audience: t.audience ?? null,
+              target_question: t.target_question ?? null,
+              citable_element: t.citable_element ?? null,
+            })),
           agentur: istAgentur(r.ctx),
           kontingent: r.project.articles_per_month ?? null,
         });

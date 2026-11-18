@@ -75,12 +75,14 @@ import {
   Settings,
   Database,
   PenTool,
+  Target,
 } from "lucide-react";
 
 // QS-Runde 13.09.2026: herausgeloeste Teile (kleinere Datei, gleiche Logik).
 import { NotificationsBell } from "@/ezy/ezyai/NotificationsBell";
 import { SiteHealthPanel } from "@/ezy/ezyai/SiteHealthPanel";
 import { SEV_STYLE } from "@/ezy/ezyai/severity";
+import { ZielfragenPanel } from "@/ezy/ezyai/ZielfragenPanel";
 
 // Initialen aus einem Namen (Shell-Profilblock, wie in der EzyRank-Shell).
 function initials(name: string) {
@@ -141,7 +143,14 @@ const APP_NAV: Array<{ group: string; items: NavItem[] }> = [
       // Daten da sind (Loader-Fallback in useEzyAIVisibility).
     ],
   },
-  { group: "Prompts", items: [{ id: "your-prompts", label: "Your Prompts", icon: MessageSquare }] },
+  {
+    group: "Prompts",
+    items: [
+      { id: "your-prompts", label: "Your Prompts", icon: MessageSquare },
+      // Zielfragen (18.11.2026): die Fragen aus der GEO-Strategie des Kunden.
+      { id: "zielfragen", label: "Zielfragen", icon: Target },
+    ],
+  },
   {
     group: "Actions",
     items: [
@@ -5581,6 +5590,8 @@ function EzyAiApp() {
                   />
                 ) : section === "your-prompts" ? (
                   <PromptCurationPanel clientId={client.id} S={S} />
+                ) : section === "zielfragen" ? (
+                  <ZielfragenPanel clientId={client.id} S={S} darfPflegen={role !== "viewer"} />
                 ) : section !== "aeo-insights" ? (
                   <div
                     style={{

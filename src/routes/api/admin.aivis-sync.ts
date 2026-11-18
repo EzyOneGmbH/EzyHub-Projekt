@@ -2206,14 +2206,18 @@ async function auditPromptRelevance(
   for (let from = 0; ; from += 1000) {
     const { data: page } = await sbAny
       .from("ai_visibility_prompt_defs")
-      .select("id, prompt, prompt_type, active")
+      .select("id, prompt, prompt_type, active, origin")
       .eq("client_id", c.id)
       .eq("active", true)
       .range(from, from + 999);
     defs.push(...(page ?? []));
     if (!page || page.length < 1000) break;
   }
-  const markt = defs.filter((d: any) => (d.prompt_type || "markt") !== "brand");
+  // Zielfragen aus der Kundenstrategie sind von Hand gesetzt und werden nie
+  // automatisch pausiert.
+  const markt = defs.filter(
+    (d: any) => (d.prompt_type || "markt") !== "brand" && d.origin !== "zielfrage",
+  );
   if (!markt.length) return { checked: 0, flagged: 0, skipped: "keine aktiven Markt-Prompts" };
   const factsText = `${f.angebot ? "Angebot: " + f.angebot + ". " : ""}${Array.isArray(f.kernfakten) && f.kernfakten.length ? "Fakten: " + f.kernfakten.join(" | ") : ""}`;
   const flaggedIds: string[] = [];

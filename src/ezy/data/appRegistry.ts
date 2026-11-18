@@ -225,6 +225,7 @@ export const GEO_SECTION_FEATURE: Record<string, string> = {
   "llm-analytics": "aivis-analytics",
   traffic: "aivis-analytics",
   "your-prompts": "aivis-prompts",
+  zielfragen: "aivis-insights",
   opportunities: "aivis-chancen",
   content: "aivis-briefs",
   "site-health": "aivis-sitehealth",

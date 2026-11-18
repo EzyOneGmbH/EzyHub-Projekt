@@ -182,7 +182,8 @@ let projects: any,
   rules: any,
   rule: any,
   events: any,
-  approve: any;
+  approve: any,
+  topics: any;
 const echteFetch = globalThis.fetch;
 beforeAll(async () => {
   process.env.SUPABASE_URL = "http://stub.local";
@@ -201,6 +202,7 @@ beforeAll(async () => {
   events = (await import("../routes/api/blog.projects.$id.events")).Route.options.server!.handlers;
   approve = (await import("../routes/api/blog.projects.$id.topics.approve")).Route.options.server!
     .handlers;
+  topics = (await import("../routes/api/blog.projects.$id.topics")).Route.options.server!.handlers;
 });
 afterAll(() => vi.stubGlobal("fetch", echteFetch));
 
@@ -544,5 +546,42 @@ describe("Blog-Autopilot Phase 2: Themenplan freigeben", () => {
     // nochmals freigeben legt keine Duplikate an
     expect((await (await freigeben("viewer-a1", [neu])).json()).neu).toBe(0);
     expect(db.keyword_opportunities.find((o) => o.id === neu).decision).toBe("uebernommen");
+  });
+});
+
+describe("Blog-Autopilot: Thema von Hand planen", () => {
+  const pid = () => db.blog_projects[0].id;
+  const THEMA = {
+    title: "Generalversammlung organisieren: Raum, Technik, Verpflegung",
+    audience: "Vereine, Verbände",
+    target_question: "Wo können wir unsere Generalversammlung mit Essen durchführen?",
+    citable_element: "Checkliste GV",
+    date: "2027-01-12",
+  };
+  const plane = (u: string, body: any) =>
+    topics.POST({ request: req("POST", "/x", u, body), params: { id: pid() } });
+
+  it("nur die Agentur, nur im eigenen Projekt, kein Duplikat", async () => {
+    expect((await plane("viewer-a1", THEMA)).status).toBe(403);
+    expect((await plane("owner-b", THEMA)).status).toBe(404);
+    expect((await plane("admin-a", { ...THEMA, date: "bald" })).status).toBe(400);
+    expect((await plane("admin-a", { ...THEMA, title: "" })).status).toBe(400);
+    expect(db.blog_topics.some((t) => t.title === THEMA.title)).toBe(false);
+
+    const r = await plane("admin-a", THEMA);
+    expect(r.status).toBe(200);
+    const t = db.blog_topics.find((x) => x.title === THEMA.title);
+    expect(t).toMatchObject({
+      project_id: pid(),
+      keyword: THEMA.title,
+      kind: "neu",
+      scheduled_for: "2027-01-12",
+      audience: "Vereine, Verbände",
+      target_question: THEMA.target_question,
+      citable_element: "Checkliste GV",
+      approved_by: "admin-a",
+    });
+    expect(t.approved_at).toBeTruthy();
+    expect((await plane("admin-a", THEMA)).status).toBe(409);
   });
 });
