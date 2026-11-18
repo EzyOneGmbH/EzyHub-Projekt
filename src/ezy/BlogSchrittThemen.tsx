@@ -13,6 +13,7 @@ import {
   eingabe,
   type Ctx,
 } from "@/ezy/BlogUi";
+import BlogPlanEingabe from "@/ezy/BlogPlanEingabe";
 
 const KATEGORIE: Record<string, { label: string; farbe: string; hinter: string }> = {
   fast_vorne: { label: "Fast vorne", farbe: P.green, hinter: P.greenDim },
@@ -31,6 +32,22 @@ export function BlogSchrittThemenplan({ c }: { c: Ctx }) {
   const [busy, setBusy] = useState(false);
   const gestartet = useRef(false);
   const vorausgewaehlt = useRef(false);
+  // Fester Themenplan: von Hand geplante Themen (nur die Agentur erfasst sie).
+  const [plan, setPlan] = useState<{ agentur: boolean; themen: any[] }>({
+    agentur: false,
+    themen: [],
+  });
+  const ladePlan = useCallback(async () => {
+    const r = await api(`/api/blog/projects/${c.project.id}/topics`);
+    if (!r.ok) return;
+    setPlan({
+      agentur: !!r.json?.agentur,
+      themen: (r.json?.topics ?? []).filter((t: any) => t.approved_at && !t.opportunity_id),
+    });
+  }, [c.project.id]);
+  useEffect(() => {
+    void ladePlan();
+  }, [ladePlan]);
 
   const lade = useCallback(async () => {
     const r = await api(`/api/blog/projects/${c.project.id}/opportunities`);
@@ -104,6 +121,8 @@ export function BlogSchrittThemenplan({ c }: { c: Ctx }) {
   };
 
   const freigeben = async () => {
+    // Nur der feste Plan, keine Vorschläge aus der Analyse gewählt.
+    if (auswahl.size === 0) return void (await c.weiter(7));
     setBusy(true);
     c.setFehler(null);
     const r = await api(`/api/blog/projects/${c.project.id}/topics/approve`, "POST", {
@@ -268,6 +287,29 @@ export function BlogSchrittThemenplan({ c }: { c: Ctx }) {
           )}
         </>
       )}
+      {daten !== null && plan.agentur && (
+        <BlogPlanEingabe
+          projektId={c.project.id}
+          geplant={plan.themen}
+          onGeplant={async (art) => {
+            // Ein ganzer Plan ersetzt die Vorauswahl aus der Analyse.
+            if (art === "plan") {
+              vorausgewaehlt.current = true;
+              setAuswahl(new Set());
+            }
+            await ladePlan();
+          }}
+        />
+      )}
+      {plan.themen.length > 0 && opps.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <Hinweis>
+            {auswahl.size === 0
+              ? "Es wird nur der feste Plan geschrieben. Wähle oben Vorschläge an, wenn sie zusätzlich erscheinen sollen."
+              : `Zusätzlich zum festen Plan ${auswahl.size === 1 ? "wird 1 Vorschlag" : `werden ${auswahl.size} Vorschläge`} aus der Analyse freigegeben.`}
+          </Hinweis>
+        </div>
+      )}
       {c.fehler && (
         <div style={{ marginTop: 12 }}>
           <Hinweis ton="fehler">{c.fehler}</Hinweis>
@@ -276,8 +318,12 @@ export function BlogSchrittThemenplan({ c }: { c: Ctx }) {
       <Fuss
         zurueck={() => c.gehe(6)}
         weiter={() => void freigeben()}
-        weiterText={`${auswahl.size} ${auswahl.size === 1 ? "Thema" : "Themen"} freigeben`}
-        weiterAus={!!laeuft || auswahl.size === 0}
+        weiterText={
+          auswahl.size === 0 && plan.themen.length > 0
+            ? "Weiter mit dem festen Plan"
+            : `${auswahl.size} ${auswahl.size === 1 ? "Thema" : "Themen"} freigeben`
+        }
+        weiterAus={auswahl.size === 0 ? plan.themen.length === 0 : !!laeuft}
         busy={busy}
       />
     </>

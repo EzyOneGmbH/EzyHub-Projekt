@@ -584,4 +584,35 @@ describe("Blog-Autopilot: Thema von Hand planen", () => {
     expect(t.approved_at).toBeTruthy();
     expect((await plane("admin-a", THEMA)).status).toBe(409);
   });
+
+  it("ganzer Plan auf einmal: überspringt Doppelte, nur die Agentur", async () => {
+    const plan = [
+      { title: "Chor- und Probewochenende planen", date: "2027-02-02", audience: "Chöre" },
+      { title: "Barrierefrei tagen: Checkliste", date: "2027-11-02" },
+      { title: "chor- und probewochenende planen", date: "2027-03-02" },
+      THEMA,
+    ];
+    expect((await plane("viewer-a1", { topics: plan })).status).toBe(403);
+    expect((await plane("admin-a", { topics: [] })).status).toBe(400);
+    expect((await plane("admin-a", { topics: [{ title: "Ohne Datum" }] })).status).toBe(400);
+    const zuViele = Array.from({ length: 25 }, (_, i) => ({
+      title: `Thema ${i}`,
+      date: "2027-05-04",
+    }));
+    expect((await plane("admin-a", { topics: zuViele })).status).toBe(400);
+
+    const r = await plane("admin-a", { topics: plan });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ ok: true, neu: 2, doppelt: 2 });
+    const chor = db.blog_topics.filter((t) => /probewochenende/i.test(t.keyword));
+    expect(chor).toHaveLength(1);
+    expect(chor[0]).toMatchObject({ scheduled_for: "2027-02-02", audience: "Chöre", kind: "neu" });
+    expect(chor[0].approved_at).toBeTruthy();
+    expect((await plane("admin-a", { topics: plan })).status).toBe(409);
+
+    const liste = await (
+      await topics.GET({ request: req("GET", "/x", "admin-a"), params: { id: pid() } })
+    ).json();
+    expect(liste.agentur).toBe(true);
+  });
 });
