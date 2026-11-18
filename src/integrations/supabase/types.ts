@@ -2155,6 +2155,8 @@ export type Database = {
           approved_at: string | null
           approved_by: string | null
           article_type: string | null
+          audience: string | null
+          citable_element: string | null
           client_id: string
           cluster: string | null
           created_at: string
@@ -2166,6 +2168,8 @@ export type Database = {
           project_id: string
           refresh_wp_post_id: number | null
           scheduled_for: string | null
+          target_question: string | null
+          title: string | null
           updated_at: string
           volume: number | null
         }
@@ -2173,6 +2177,8 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           article_type?: string | null
+          audience?: string | null
+          citable_element?: string | null
           client_id: string
           cluster?: string | null
           created_at?: string
@@ -2184,6 +2190,8 @@ export type Database = {
           project_id: string
           refresh_wp_post_id?: number | null
           scheduled_for?: string | null
+          target_question?: string | null
+          title?: string | null
           updated_at?: string
           volume?: number | null
         }
@@ -2191,6 +2199,8 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           article_type?: string | null
+          audience?: string | null
+          citable_element?: string | null
           client_id?: string
           cluster?: string | null
           created_at?: string
@@ -2202,6 +2212,8 @@ export type Database = {
           project_id?: string
           refresh_wp_post_id?: number | null
           scheduled_for?: string | null
+          target_question?: string | null
+          title?: string | null
           updated_at?: string
           volume?: number | null
         }
