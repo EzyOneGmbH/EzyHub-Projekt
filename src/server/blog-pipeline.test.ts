@@ -375,6 +375,15 @@ describe("Modus, Kategorie, Helfer", () => {
     expect([...STIL_REGELN, ...NEUTRAL_REGELN].join(" ")).not.toContain("ß");
   });
 
+  it("Kundenabschnitt: gebündelt nach den Kriterien, keine Hintergrundstatistik", () => {
+    const p = { domain: "beispiel.ch", language: "de-CH" };
+    const text = entwurfPrompt(p, { ...BRIEF, zielfrage: "Passt das Haus für 50 Personen?" }, []);
+    expect(text).toContain("gebündelt in genau einem Abschnitt, direkt nach dem allgemeinen Teil");
+    expect(text).toContain("Sein erster Satz sagt, ob und unter welchen Bedingungen es passt.");
+    expect(text).toContain("Keine Branchen-, Markt- oder Regionsstatistik");
+    expect(text).toContain("Schreibe nie über die Recherche oder ihre Lücken");
+  });
+
   it("Formhinweis je Artikeltyp: nur bei neuem Artikel mit bekanntem Typ", () => {
     const p = { domain: "beispiel.ch", language: "de-CH" };
     const mit = entwurfPrompt(p, { ...BRIEF, article_type: "anleitung" }, []);

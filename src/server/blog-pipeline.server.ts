@@ -826,7 +826,9 @@ export const STIL_REGELN = [
   "Schreibe zusammenhängenden Fliesstext: Absätze mit drei bis fünf Sätzen, in denen ein Gedanke zum nächsten führt. Wechsle kurze und längere Sätze ab. Keine Reihen aus Ein-Satz-Absätzen.",
   "Die Form folgt dem Inhalt: Ein Ablauf mit fester Reihenfolge wird eine nummerierte Liste, ein Vergleich mehrerer Möglichkeiten nach denselben Merkmalen eine Tabelle, alles andere Fliesstext. Höchstens zwei Listen und eine Tabelle pro Artikel (ausser eine Vorgabe verlangt mehr). Listen und Tabellen ersetzen keine Absätze. Jeder Listenpunkt ist ein ganzer Satz mit Begründung oder Beispiel. Keine Listenpunkte nach dem Muster «fettes Stichwort: Erklärung».",
   "Jeder Abschnitt beginnt mit der Antwort auf seine eigene Überschrift, Begründung und Einzelheiten folgen danach. Der erste Satz eines Abschnitts ist für sich allein verständlich, auch ohne den Text davor.",
-  "Jeder Abschnitt bringt etwas Konkretes: ein Beispiel, eine Zahl aus den Quellen, einen Erfahrungswert, eine typische Fehlerquelle. Keine Allgemeinplätze, die auf jedes Thema passen.",
+  "Jeder Abschnitt bringt etwas Konkretes: ein Beispiel, eine Zahl aus den Quellen, einen Erfahrungswert, eine typische Fehlerquelle. Keine Allgemeinplätze, die auf jedes Thema passen. Nennt das Thema eine konkrete Grösse (Personenzahl, Budget, Fläche, Dauer), rechne ein Beispiel mit genau dieser Grösse durch.",
+  "Zahlen und Statistiken nur, wenn sie der Leserschaft bei der Entscheidung oder beim Vorgehen helfen. Keine Branchen-, Markt- oder Regionsstatistik als Hintergrund oder Einstieg. Keine Zahlen, die älter als fünf Jahre sind, ausser es gibt nichts Neueres und das Alter steht dabei.",
+  "Schreibe nie über die Recherche oder ihre Lücken («die ausgewerteten Seiten nennen nicht», «aus den Quellen geht nicht hervor»). Was nicht belegt ist, bleibt weg oder steht als Punkt, den die Leserschaft bei einer Anfrage selbst klären sollte.",
   "Der Artikel sagt etwas, das in einer Zusammenfassung der üblichen Suchergebnisse fehlt: eine klare Empfehlung je Situation, ein Kriterium für die Entscheidung, eine Einordnung, einen Fehler, der oft passiert. Gestützt auf die Quellen und Kundenfakten, nichts erfinden.",
   "Sprache: Verben statt Substantivketten («prüfen» statt «eine Prüfung vornehmen»), aktiv statt passiv. Einen Schachtelsatz in zwei Sätze teilen, die aneinander anschliessen. Fachbegriffe beim ersten Vorkommen in einem Halbsatz erklären.",
   "Angaben, die sich ändern (Preise, Fristen, Gebühren, Rechtslage, Öffnungszeiten), stehen mit ihrem Stand (Monat und Jahr oder Jahr gemäss Quelle) und nie als zeitlose Tatsache. Was sich nicht belegen lässt, weglassen oder klar als Richtwert kennzeichnen.",
@@ -858,6 +860,7 @@ export const TYP_HINWEIS: Record<string, string> = {
 export const NEUTRAL_REGELN = [
   "Der Artikel ist ein Ratgeber für die Leserschaft, keine Werbung für den Auftraggeber. Er muss auch für jemanden nützlich sein, der nie beim Auftraggeber bucht, kauft oder spendet.",
   "Der Auftraggeber kommt nur in Abschnitten vor, deren Überschrift oder Vorgabe ihn ausdrücklich verlangt (zum Beispiel ein Faktenblock zum Haus). Dort sachlich und belegt, ohne Wertung und ohne Superlative.",
+  "Die Angaben zum Auftraggeber stehen gebündelt in genau einem Abschnitt, direkt nach dem allgemeinen Teil mit den Kriterien und nicht erst am Schluss. Der Abschnitt stellt die belegten Angaben den Anforderungen aus dem Thema gegenüber und sagt, was daraus folgt, auch wo etwas nicht reicht oder nur unter Bedingungen passt. Mehrere vergleichbare Angaben (Räume, Kapazitäten, Preise, Pakete) stehen als Tabelle. Jede Angabe genau so wie in den Kundenfakten und Website-Auszügen, keine gerundeten oder verkürzten Bezeichnungen.",
   "Nicht im Einstieg, nicht im Fazit und nicht nebenbei für den Auftraggeber werben. Keine Wir-Form, keine Aufforderung zur Kontaktaufnahme.",
   "Interne Links bleiben erlaubt, mit sachlichem Ankertext und dort, wo sie dem Thema dienen.",
 ];
@@ -870,7 +873,7 @@ function planZeilen(b: any): string[] {
       : "",
     b.zielgruppe ? `Zielgruppe dieses Artikels: ${b.zielgruppe}.` : "",
     b.zielfrage
-      ? `Zielfrage: «${b.zielfrage}». Beantworte sie in den ersten drei Sätzen direkt und vollständig, als allgemeingültige Antwort ohne Nennung des Auftraggebers. Jeder dieser Sätze ist auch ohne den Rest des Artikels verständlich. Weiter unten beantwortet ein eigener kurzer Abschnitt, dessen Überschrift den Auftraggeber beim Namen nennt, die Zielfrage für den Auftraggeber: zwei bis vier Sätze, nur belegte Fakten, ohne Wertung, jeder Satz für sich verständlich. Fehlen belegte Fakten dazu, entfällt dieser Abschnitt.`
+      ? `Zielfrage: «${b.zielfrage}». Beantworte sie in den ersten drei Sätzen direkt und vollständig, als allgemeingültige Antwort ohne Nennung des Auftraggebers. Jeder dieser Sätze ist auch ohne den Rest des Artikels verständlich. Direkt nach dem allgemeinen Teil mit den Kriterien beantwortet ein eigener Abschnitt, dessen Überschrift den Auftraggeber beim Namen nennt, die Zielfrage für den Auftraggeber. Sein erster Satz sagt, ob und unter welchen Bedingungen es passt. Nur belegte Fakten, ohne Wertung, jeder Satz für sich verständlich. Fehlen belegte Fakten dazu, entfällt dieser Abschnitt.`
       : "",
     b.zitierbar
       ? `Zitierfähiges Element (Pflicht, gut sichtbar im Artikel): ${b.zitierbar}. Verwende dafür nur belegte Fakten. Verlangt das Element Angaben zum Auftraggeber, stehen sie in einem eigenen Abschnitt mit entsprechender Überschrift.`
