@@ -22,6 +22,8 @@ const {
   zaehleCta,
   bereinigeHtml,
   entwurfPrompt,
+  NEUTRAL_REGELN,
+  STIL_REGELN,
   recherchePrompt,
   sprachRegel,
 } = await import("./blog-pipeline.server");
@@ -354,6 +356,21 @@ describe("Modus, Kategorie, Helfer", () => {
     expect(mit).toContain("«Welches Tagungshotel bei Zug ist barrierefrei?»");
     expect(mit).toContain("in den ersten drei Sätzen");
     expect(mit).toContain("Checkliste Barrierefreiheit");
+    expect(mit).toContain("ohne Nennung des Auftraggebers");
+  });
+
+  it("Stil: Fliesstext und kein KI-Ton für alle, keine Werbung ausser bei Seitenvorschlägen", () => {
+    const neu = entwurfPrompt({ domain: "beispiel.ch", language: "de-CH" }, BRIEF, []);
+    expect(neu).toContain("Stil (verbindlich):");
+    for (const r of [...STIL_REGELN, ...NEUTRAL_REGELN]) expect(neu).toContain(`- ${r}`);
+    const vorschlag = entwurfPrompt(
+      { domain: "beispiel.ch", language: "de-CH" },
+      { ...BRIEF, modus: "vorschlag", original_url: "https://beispiel.ch/x" },
+      [],
+    );
+    expect(vorschlag).toContain(STIL_REGELN[0]);
+    expect(vorschlag).not.toContain(NEUTRAL_REGELN[0]);
+    expect([...STIL_REGELN, ...NEUTRAL_REGELN].join(" ")).not.toContain("ß");
   });
 
   it("Französisch und Englisch: der ganze Artikel in der Zielsprache, kein Schweizer-ss-Hinweis", () => {

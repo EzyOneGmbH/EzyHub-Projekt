@@ -813,8 +813,33 @@ async function recherche(article: any, project: any, restMs: number): Promise<St
 const SYSTEM_ENTWURF =
   "Du bist Senior-Redaktor:in einer Schweizer SEO-Agentur und schreibst Blogartikel für Kundenwebsites. " +
   "Antworte ausschliesslich mit einem JSON-Objekt, ohne Text davor oder danach und ohne Markdown-Codeblock. " +
-  "Schreibe hilfreich, konkret und menschlich, ohne Floskeln und ohne KI-typische Wendungen. " +
+  "Du schreibst wie eine erfahrene Fachperson, die das Thema aus der Praxis kennt: im Fluss, konkret, ohne Floskeln. " +
+  "Der Text informiert die Leserschaft und wirbt nicht für den Auftraggeber. " +
   "Erfinde nichts: Fakten nur aus den gelieferten Quellen, Kundenfakten und Website-Auszügen.";
+
+/**
+ * Stilvorgaben für jeden Text. Rückmeldung aus der Redaktion: Die Artikel lasen
+ * sich abgehackt und nach KI. Die Beispiele sind deutsch, gelten aber sinngemäss
+ * in jeder Sprache.
+ */
+export const STIL_REGELN = [
+  "Schreibe zusammenhängenden Fliesstext: Absätze mit drei bis fünf Sätzen, in denen ein Gedanke zum nächsten führt. Wechsle kurze und längere Sätze ab. Keine Reihen aus Ein-Satz-Absätzen.",
+  "Listen nur für echte Aufzählungen, Schritte oder Checklisten, höchstens zwei pro Artikel (ausser eine Vorgabe verlangt mehr). Listen ersetzen keine Absätze. Keine Listenpunkte nach dem Muster «fettes Stichwort: Erklärung».",
+  "Jeder Abschnitt bringt etwas Konkretes: ein Beispiel, eine Zahl aus den Quellen, einen Erfahrungswert, eine typische Fehlerquelle. Keine Allgemeinplätze, die auf jedes Thema passen.",
+  "Keine Sätze, die ankündigen oder zusammenfassen, was der Text tut («In diesem Artikel erfahren Sie», «Dieser Artikel soll Ihnen helfen», «Hier die Eckdaten», «Zusammenfassend»). Steige direkt in die Sache ein.",
+  "Keine KI-typischen Muster: keine Szenen-Einstiege («Vielleicht kennen Sie die Situation», «Stellen Sie sich vor»), kein «nicht nur …, sondern auch», kein «Am Ende sind es …», keine Etiketten mit Doppelpunkt («Der grosse Vorteil:», «Für Sie bedeutet das:», «Das Ergebnis:»), keine rhetorischen Fragen als Überleitung, keine Dreierreihen aus Gewohnheit, keine Gedankenstriche als Stilmittel.",
+  "Keine Werbe- und Füllwörter: wertvoll, entscheidend, massgeschneidert, rundum, einzigartig, steht und fällt, auf ein neues Level, im Ernstfall. Sag stattdessen, was genau gemeint ist.",
+  "Überschriften schlicht und unterschiedlich gebaut, nicht jede nach dem Schema «Thema: Untertitel».",
+  "Das Fazit ist kurz, wiederholt den Artikel nicht und endet mit einem Gedanken, den die Leserschaft mitnehmen kann.",
+];
+
+/** Der Artikel informiert; der Auftraggeber kommt nur vor, wo es verlangt ist. */
+export const NEUTRAL_REGELN = [
+  "Der Artikel ist ein Ratgeber für die Leserschaft, keine Werbung für den Auftraggeber. Er muss auch für jemanden nützlich sein, der nie beim Auftraggeber bucht, kauft oder spendet.",
+  "Der Auftraggeber kommt nur in Abschnitten vor, deren Überschrift oder Vorgabe ihn ausdrücklich verlangt (zum Beispiel ein Faktenblock zum Haus). Dort sachlich und belegt, ohne Wertung und ohne Superlative.",
+  "Nicht im Einstieg, nicht im Fazit und nicht nebenbei für den Auftraggeber werben. Keine Wir-Form, keine Aufforderung zur Kontaktaufnahme.",
+  "Interne Links bleiben erlaubt, mit sachlichem Ankertext und dort, wo sie dem Thema dienen.",
+];
 
 /** Vorgaben aus dem festen Themenplan; leer, wenn das Thema aus der Analyse stammt. */
 function planZeilen(b: any): string[] {
@@ -824,10 +849,10 @@ function planZeilen(b: any): string[] {
       : "",
     b.zielgruppe ? `Zielgruppe dieses Artikels: ${b.zielgruppe}.` : "",
     b.zielfrage
-      ? `Zielfrage: «${b.zielfrage}». Beantworte sie in den ersten drei Sätzen direkt und vollständig. Einer dieser Sätze nennt den Auftraggeber beim Namen und ist auch ohne den Rest des Artikels verständlich.`
+      ? `Zielfrage: «${b.zielfrage}». Beantworte sie in den ersten drei Sätzen direkt und vollständig, als allgemeingültige Antwort ohne Nennung des Auftraggebers. Jeder dieser Sätze ist auch ohne den Rest des Artikels verständlich.`
       : "",
     b.zitierbar
-      ? `Zitierfähiges Element (Pflicht, gut sichtbar im Artikel): ${b.zitierbar}. Verwende dafür nur belegte Fakten.`
+      ? `Zitierfähiges Element (Pflicht, gut sichtbar im Artikel): ${b.zitierbar}. Verwende dafür nur belegte Fakten. Verlangt das Element Angaben zum Auftraggeber, stehen sie in einem eigenen Abschnitt mit entsprechender Überschrift.`
       : "",
   ].filter(Boolean);
 }
@@ -847,6 +872,10 @@ export function entwurfPrompt(project: any, b: any, quellen: any[]): string {
     ...b.regeln.map((r: string) => `- ${r}`),
     "- Keine anderen Hilfswerke, Mitbewerber oder Vergleichslisten mit Mitbewerbern.",
     `- Niemals auf diese Domains verlinken oder sie nennen: ${b.gesperrt.join(", ") || "–"}`,
+    "",
+    "Stil (verbindlich):",
+    ...STIL_REGELN.map((r) => `- ${r}`),
+    ...(b.modus === "vorschlag" ? [] : NEUTRAL_REGELN.map((r) => `- ${r}`)),
     "",
     "Kundenfakten:",
     ...(b.fakten.length
