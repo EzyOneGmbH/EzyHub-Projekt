@@ -382,6 +382,7 @@ describe("Modus, Kategorie, Helfer", () => {
     expect(text).toContain("Hochrechnungen und Zusagen gehen nie über die Belege hinaus.");
     expect(text).toContain("bleibt dieser Vorbehalt im Artikel erhalten");
     expect(text).toContain("Ausschliessende Wörter («nur», «einzig»");
+    expect(text).toContain("steht pro Zelle genau ein Wert");
     expect(text).toContain("an eine andere Zielgruppe richten als die des Artikels, bleiben weg");
     expect(text).toContain("Fehlt eine neuere Zahl, bleibt die Angabe weg.");
     expect(text).not.toContain("ausser es gibt nichts Neueres");
