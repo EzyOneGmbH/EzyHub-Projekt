@@ -378,7 +378,10 @@ describe("Modus, Kategorie, Helfer", () => {
   it("Kundenabschnitt: gebündelt nach den Kriterien, keine Hintergrundstatistik", () => {
     const p = { domain: "beispiel.ch", language: "de-CH" };
     const text = entwurfPrompt(p, { ...BRIEF, zielfrage: "Passt das Haus für 50 Personen?" }, []);
-    expect(text).toContain("Er ist der zweite Abschnitt des Artikels");
+    expect(text).toContain("Er ist der erste Abschnitt nach dem Einstieg");
+    expect(text).toContain("beantwortet der erste Absatz sie direkt mit den belegten Angaben");
+    expect(text).toContain("Befristete Angebote Dritter");
+    expect(text).toContain("stehen als Bedingung («falls … nötig ist»)");
     expect(text).toContain("Hochrechnungen und Zusagen gehen nie über die Belege hinaus.");
     expect(text).toContain("bleibt dieser Vorbehalt im Artikel erhalten");
     expect(text).toContain("Ausschliessende Wörter («nur», «einzig»");
