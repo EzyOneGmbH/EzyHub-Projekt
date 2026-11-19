@@ -824,14 +824,35 @@ const SYSTEM_ENTWURF =
  */
 export const STIL_REGELN = [
   "Schreibe zusammenhängenden Fliesstext: Absätze mit drei bis fünf Sätzen, in denen ein Gedanke zum nächsten führt. Wechsle kurze und längere Sätze ab. Keine Reihen aus Ein-Satz-Absätzen.",
-  "Listen nur für echte Aufzählungen, Schritte oder Checklisten, höchstens zwei pro Artikel (ausser eine Vorgabe verlangt mehr). Listen ersetzen keine Absätze. Keine Listenpunkte nach dem Muster «fettes Stichwort: Erklärung».",
+  "Die Form folgt dem Inhalt: Ein Ablauf mit fester Reihenfolge wird eine nummerierte Liste, ein Vergleich mehrerer Möglichkeiten nach denselben Merkmalen eine Tabelle, alles andere Fliesstext. Höchstens zwei Listen und eine Tabelle pro Artikel (ausser eine Vorgabe verlangt mehr). Listen und Tabellen ersetzen keine Absätze. Jeder Listenpunkt ist ein ganzer Satz mit Begründung oder Beispiel. Keine Listenpunkte nach dem Muster «fettes Stichwort: Erklärung».",
+  "Jeder Abschnitt beginnt mit der Antwort auf seine eigene Überschrift, Begründung und Einzelheiten folgen danach. Der erste Satz eines Abschnitts ist für sich allein verständlich, auch ohne den Text davor.",
   "Jeder Abschnitt bringt etwas Konkretes: ein Beispiel, eine Zahl aus den Quellen, einen Erfahrungswert, eine typische Fehlerquelle. Keine Allgemeinplätze, die auf jedes Thema passen.",
+  "Der Artikel sagt etwas, das in einer Zusammenfassung der üblichen Suchergebnisse fehlt: eine klare Empfehlung je Situation, ein Kriterium für die Entscheidung, eine Einordnung, einen Fehler, der oft passiert. Gestützt auf die Quellen und Kundenfakten, nichts erfinden.",
+  "Sprache: Verben statt Substantivketten («prüfen» statt «eine Prüfung vornehmen»), aktiv statt passiv. Einen Schachtelsatz in zwei Sätze teilen, die aneinander anschliessen. Fachbegriffe beim ersten Vorkommen in einem Halbsatz erklären.",
+  "Angaben, die sich ändern (Preise, Fristen, Gebühren, Rechtslage, Öffnungszeiten), stehen mit ihrem Stand (Monat und Jahr oder Jahr gemäss Quelle) und nie als zeitlose Tatsache. Was sich nicht belegen lässt, weglassen oder klar als Richtwert kennzeichnen.",
+  "Die Länge folgt dem Thema. Kein Absatz, der beim Streichen nicht fehlen würde, keine Wiederholung in anderen Worten, kein Auffüllen auf eine Wortzahl.",
   "Keine Sätze, die ankündigen oder zusammenfassen, was der Text tut («In diesem Artikel erfahren Sie», «Dieser Artikel soll Ihnen helfen», «Hier die Eckdaten», «Zusammenfassend»). Steige direkt in die Sache ein.",
   "Keine KI-typischen Muster: keine Szenen-Einstiege («Vielleicht kennen Sie die Situation», «Stellen Sie sich vor»), kein «nicht nur …, sondern auch», kein «Am Ende sind es …», keine Etiketten mit Doppelpunkt («Der grosse Vorteil:», «Für Sie bedeutet das:», «Das Ergebnis:»), keine rhetorischen Fragen als Überleitung, keine Dreierreihen aus Gewohnheit, keine Gedankenstriche als Stilmittel.",
-  "Keine Werbe- und Füllwörter: wertvoll, entscheidend, massgeschneidert, rundum, einzigartig, steht und fällt, auf ein neues Level, im Ernstfall. Sag stattdessen, was genau gemeint ist.",
-  "Überschriften schlicht und unterschiedlich gebaut, nicht jede nach dem Schema «Thema: Untertitel».",
-  "Das Fazit ist kurz, wiederholt den Artikel nicht und endet mit einem Gedanken, den die Leserschaft mitnehmen kann.",
+  "Keine Werbe- und Füllwörter: wertvoll, entscheidend, massgeschneidert, rundum, einzigartig, steht und fällt, auf ein neues Level, im Ernstfall. Keine leeren Einstiegsfloskeln («In der heutigen Zeit», «Es ist wichtig zu beachten», «Immer mehr Menschen», «Wussten Sie»). Sag stattdessen, was genau gemeint ist.",
+  "Überschriften sagen, was im Abschnitt steht, und sind für sich allein verständlich: eine konkrete Aussage oder die Frage der Leserschaft, kein einzelnes Schlagwort (statt «Kosten» besser «Was ein Seminartag pro Person kostet»). Schlicht und unterschiedlich gebaut, nicht jede nach dem Schema «Thema: Untertitel» und nicht jede als Frage.",
+  "Das Fazit ist kurz, wiederholt den Artikel nicht, greift die Ausgangsfrage noch einmal auf und endet mit einem Gedanken oder einem sachlichen nächsten Schritt, den die Leserschaft mitnehmen kann.",
 ];
+
+/**
+ * Formhinweis je Artikeltyp (blog_topics.article_type). Das Format richtet sich
+ * nach der Suchabsicht: Wer eine Anleitung sucht, will Schritte, wer vergleicht,
+ * will Kriterien.
+ */
+export const TYP_HINWEIS: Record<string, string> = {
+  ratgeber:
+    "Entscheidungshilfe. Nenne die Kriterien, auf die es ankommt, und sage klar, für welche Situation welche Lösung passt.",
+  anleitung:
+    "Die Lösung in einem Satz vorweg, dann die Schritte in ihrer Reihenfolge als nummerierte Liste. Zu jedem Schritt: was genau zu tun ist und was dabei typischerweise schiefgeht.",
+  erklaerung:
+    "Die Definition in ein bis zwei Sätzen vorweg, dann wie es funktioniert, ein Beispiel aus der Praxis und die häufigsten Missverständnisse.",
+  uebersicht:
+    "Nenne vorweg, nach welchen Kriterien ausgewählt wurde. Jeder Eintrag mit Begründung oder Beispiel, lieber wenige gut begründete Einträge als viele. Haben die Einträge dieselben Merkmale, gehört der Vergleich in eine Tabelle.",
+};
 
 /** Der Artikel informiert; der Auftraggeber kommt nur vor, wo es verlangt ist. */
 export const NEUTRAL_REGELN = [
@@ -910,6 +931,9 @@ export function entwurfPrompt(project: any, b: any, quellen: any[]): string {
     b.modus === "refresh"
       ? `AUFGABE: Überarbeite den bestehenden Artikel ${b.original_url} («${b.original?.titel ?? ""}»). Er rankt für «${b.keyword}» auf Position ${b.position ?? "?"}. ${b.grund ?? ""} Behalte die guten Teile und den Kern, schliesse Lücken zur Suchintention, aktualisiere Fakten, verbessere Struktur, Einstieg und Überschriften. Ergebnis ist der vollständige neue Text.`
       : `AUFGABE: Schreibe einen neuen Blogartikel zum Keyword «${b.keyword}»${b.article_type ? ` (Typ: ${b.article_type})` : ""}.${b.grund ? ` Hintergrund: ${b.grund}` : ""}`,
+    ...(b.modus !== "refresh" && TYP_HINWEIS[b.article_type ?? ""]
+      ? [`Form für diesen Artikeltyp: ${TYP_HINWEIS[b.article_type ?? ""]}`]
+      : []),
     ...(b.modus === "refresh" ? [] : planZeilen(b)),
     b.original ? `\nBestehender Text:\n${String(b.original.text).slice(0, 10_000)}` : "",
     "",
@@ -925,8 +949,8 @@ export function entwurfPrompt(project: any, b: any, quellen: any[]): string {
     ...b.links.map((l: any) => `- ${l.titel}: ${l.url}`),
     "",
     "Aufbau und Form:",
-    "- 1200 bis 1800 Wörter. Einstieg beantwortet die Suchfrage in den ersten 2–3 Sätzen.",
-    "- Gliederung mit <h2>/<h3> (kein <h1>), kurze Absätze <p>, Listen <ul>/<ol> wo sinnvoll, am Schluss ein kurzes Fazit.",
+    "- Richtwert 1200 bis 1800 Wörter. Eine eng gefasste Frage darf kürzer ausfallen (nicht unter 800 Wörtern), statt mit Fülltext gestreckt zu werden. Einstieg beantwortet die Suchfrage in den ersten 2–3 Sätzen.",
+    "- Gliederung mit <h2>/<h3> (kein <h1>), Absätze <p>, Listen <ul>/<ol> und Tabellen <table> mit <thead>/<tbody> nur nach den Stilregeln, am Schluss ein kurzes Fazit.",
     "- Fokus-Keyword im ersten Absatz, in mindestens einer <h2> und natürlich im Text (kein Keyword-Stuffing).",
     '- Externe Quellen als <a href="…">sprechender Ankertext</a> direkt bei der Aussage.',
     '- Jede Behauptung mit Zahl, Statistik, Preis, Zitat oder rechtlicher Aussage MUSS so markiert sein: <span data-claim="1">…Aussage…</span> (fortlaufend nummeriert) und in «claims» mit ihrer Quelle stehen (URL aus den Quellen oder aus den Website-Auszügen). Ohne Quelle: Aussage weglassen.',

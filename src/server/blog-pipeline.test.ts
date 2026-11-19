@@ -24,6 +24,7 @@ const {
   entwurfPrompt,
   NEUTRAL_REGELN,
   STIL_REGELN,
+  TYP_HINWEIS,
   recherchePrompt,
   sprachRegel,
 } = await import("./blog-pipeline.server");
@@ -372,6 +373,17 @@ describe("Modus, Kategorie, Helfer", () => {
     expect(vorschlag).toContain(STIL_REGELN[0]);
     expect(vorschlag).not.toContain(NEUTRAL_REGELN[0]);
     expect([...STIL_REGELN, ...NEUTRAL_REGELN].join(" ")).not.toContain("ß");
+  });
+
+  it("Formhinweis je Artikeltyp: nur bei neuem Artikel mit bekanntem Typ", () => {
+    const p = { domain: "beispiel.ch", language: "de-CH" };
+    const mit = entwurfPrompt(p, { ...BRIEF, article_type: "anleitung" }, []);
+    expect(mit).toContain(`Form für diesen Artikeltyp: ${TYP_HINWEIS.anleitung}`);
+    expect(entwurfPrompt(p, BRIEF, [])).not.toContain("Form für diesen Artikeltyp");
+    expect(entwurfPrompt(p, { ...BRIEF, article_type: "unbekannt" }, [])).not.toContain(
+      "Form für diesen Artikeltyp",
+    );
+    expect(Object.values(TYP_HINWEIS).join(" ")).not.toContain("ß");
   });
 
   it("Französisch und Englisch: der ganze Artikel in der Zielsprache, kein Schweizer-ss-Hinweis", () => {
