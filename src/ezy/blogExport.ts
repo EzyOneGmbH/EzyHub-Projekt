@@ -64,7 +64,19 @@ th,td{border:1px solid #999;padding:4pt 6pt;text-align:left;vertical-align:top}
 tr,img,blockquote{page-break-inside:avoid}
 summary{font-weight:bold}
 .lead{font-size:12.5pt;color:#444;margin:0 0 14pt}
+table.breit{font-family:Arial,Helvetica,sans-serif;font-size:8pt;line-height:1.3}
+table.breit th,table.breit td{padding:3pt 4pt}
 `;
+
+/** Tabellen ab 6 Spalten bekommen im Druck eine kleinere Schrift, sonst werden
+ *  die Zellen auf A4 hoch so schmal, dass der Text in jeder Zelle umbricht. */
+export function markiereBreiteTabellen(html: string): string {
+  return html.replace(/<table>([\s\S]*?)<\/table>/gi, (ganz, innen: string) => {
+    const zeile = /<tr[\s>][\s\S]*?<\/tr>/i.exec(innen)?.[0] ?? "";
+    const spalten = (zeile.match(/<t[hd][\s>]/gi) ?? []).length;
+    return spalten >= 6 ? `<table class="breit">${innen}</table>` : ganz;
+  });
+}
 
 /** Vollständiges HTML-Dokument: Grundlage für den PDF-Druck und die Word-Datei. */
 export function alsDokument(a: ExportArtikel, fuerWord = false): string {
@@ -79,7 +91,7 @@ export function alsDokument(a: ExportArtikel, fuerWord = false): string {
     ? `<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->`
     : "";
   // Im geöffneten <details> steht der ganze Text: Word und der Druck kennen kein Aufklappen.
-  const text = ohneMarken(a.html).replace(/<details>/gi, "<details open>");
+  const text = markiereBreiteTabellen(ohneMarken(a.html)).replace(/<details>/gi, "<details open>");
   return (
     `${kopf}<head><meta charset="utf-8"><title>${esc(a.title)}</title>${wordXml}` +
     `<style>${DRUCK_STIL}</style></head><body>` +

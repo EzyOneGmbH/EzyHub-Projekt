@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { alsDokument, alsWxr, exportSlug, ohneMarken } from "@/ezy/blogExport";
+import {
+  alsDokument,
+  alsWxr,
+  exportSlug,
+  markiereBreiteTabellen,
+  ohneMarken,
+} from "@/ezy/blogExport";
 
 const artikel = {
   title: 'Seminarhotel & Tagung: "Worauf" es ankommt',
@@ -33,6 +39,17 @@ describe("blogExport", () => {
     expect(d).toContain("<details open>");
     expect(d).not.toContain("data-claim");
     expect(alsDokument(artikel, true)).toContain("urn:schemas-microsoft-com:office:word");
+  });
+
+  it("setzt breite Tabellen im Druck kleiner, schmale bleiben", () => {
+    const zeile = (n: number) => `<thead><tr>${"<th>a</th>".repeat(n)}</tr></thead>`;
+    expect(markiereBreiteTabellen(`<table>${zeile(9)}</table>`)).toContain('<table class="breit">');
+    expect(markiereBreiteTabellen(`<table>${zeile(4)}</table>`)).toBe(`<table>${zeile(4)}</table>`);
+    const beide = markiereBreiteTabellen(`<table>${zeile(3)}</table><table>${zeile(6)}</table>`);
+    expect(beide.match(/class="breit"/g)?.length).toBe(1);
+    expect(alsDokument({ title: "T", html: `<table>${zeile(9)}</table>` })).toContain(
+      '<table class="breit">',
+    );
   });
 
   it("nimmt nur https-Bilder ins Dokument", () => {
