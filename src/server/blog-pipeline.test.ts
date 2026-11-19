@@ -24,6 +24,7 @@ const {
   entwurfPrompt,
   NEUTRAL_REGELN,
   STIL_REGELN,
+  aufGanzeSaetze,
   TYP_HINWEIS,
   recherchePrompt,
   sprachRegel,
@@ -389,6 +390,7 @@ describe("Modus, Kategorie, Helfer", () => {
     expect(text).toContain("bleibt dieser Vorbehalt im Artikel erhalten");
     expect(text).toContain("Ausschliessende Wörter («nur», «einzig»");
     expect(text).toContain("steht pro Zelle genau ein Wert");
+    expect(text).toContain("steht dieser Vorbehalt in der Zelle selbst");
     expect(text).toContain("an eine andere Zielgruppe richten als die des Artikels, bleiben weg");
     expect(text).toContain("Fehlt eine neuere Zahl, bleibt die Angabe weg.");
     expect(text).not.toContain("ausser es gibt nichts Neueres");
@@ -451,5 +453,18 @@ describe("Modus, Kategorie, Helfer", () => {
     expect(setzeCta("<p>Texte</p>", { ...cta, label: "Faire un don" }, "fr-CH")).toContain(
       "Faire un don",
     );
+  });
+});
+
+describe("aufGanzeSaetze", () => {
+  it("kürzt am Satzende statt mitten im Wort", () => {
+    const lang = `${"Erster Satz mit Inhalt. ".repeat(3)}Zweiter Teil (Stand 2025/2026) läuft weiter`;
+    const k = aufGanzeSaetze(lang, 80);
+    expect(k.length).toBeLessThanOrEqual(80);
+    expect(k.endsWith(".")).toBe(true);
+    expect(aufGanzeSaetze("Kurz.", 80)).toBe("Kurz.");
+    const ohne = aufGanzeSaetze("Wort ".repeat(40), 50);
+    expect(ohne.length).toBeLessThanOrEqual(50);
+    expect(ohne.endsWith("…")).toBe(true);
   });
 });

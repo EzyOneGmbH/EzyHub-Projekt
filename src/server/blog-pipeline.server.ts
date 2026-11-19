@@ -465,6 +465,25 @@ const t = (max: number) =>
     .transform((s) => s.trim().slice(0, max))
     .catch("");
 
+/**
+ * Wie t(), kürzt aber nie mitten im Wort: bei Überlänge bis zum letzten
+ * vollständigen Satz, sonst bis zum letzten Wort mit Auslassungszeichen.
+ */
+export function aufGanzeSaetze(roh: string, max: number): string {
+  const s = roh.trim();
+  if (s.length <= max) return s;
+  const teil = s.slice(0, max);
+  const ende = Math.max(teil.lastIndexOf(". "), teil.lastIndexOf("! "), teil.lastIndexOf("? "));
+  if (ende >= max / 2) return teil.slice(0, ende + 1);
+  const wort = teil.slice(0, max - 1).lastIndexOf(" ");
+  return `${teil.slice(0, wort > 0 ? wort : max - 1).replace(/[\s,;:(]+$/, "")}…`;
+}
+const ganzeSaetze = (max: number) =>
+  z
+    .string()
+    .transform((s) => aufGanzeSaetze(s, max))
+    .catch("");
+
 export const RechercheSchema = z.object({
   quellen: z
     .array(
@@ -482,7 +501,7 @@ export const EntwurfSchema = z.object({
   slug: t(90),
   seo_title: t(70),
   meta_description: t(170),
-  excerpt: t(400),
+  excerpt: ganzeSaetze(400),
   focus_keyword: t(100),
   content_html: z.string().catch(""),
   claims: z
@@ -824,7 +843,7 @@ const SYSTEM_ENTWURF =
  */
 export const STIL_REGELN = [
   "Schreibe zusammenhängenden Fliesstext: Absätze mit drei bis fünf Sätzen, in denen ein Gedanke zum nächsten führt. Wechsle kurze und längere Sätze ab. Keine Reihen aus Ein-Satz-Absätzen.",
-  "Die Form folgt dem Inhalt: Ein Ablauf mit fester Reihenfolge wird eine nummerierte Liste, ein Vergleich mehrerer Möglichkeiten nach denselben Merkmalen eine Tabelle, alles andere Fliesstext. Höchstens zwei Listen und eine Tabelle pro Artikel (ausser eine Vorgabe verlangt mehr). Listen und Tabellen ersetzen keine Absätze. In einer Tabelle steht pro Zelle genau ein Wert, und jedes Merkmal hat eine eigene Spalte: nie mehrere Werte mit Schrägstrich oder Komma in einer Zelle. Jeder Listenpunkt ist ein ganzer Satz mit Begründung oder Beispiel. Keine Listenpunkte nach dem Muster «fettes Stichwort: Erklärung».",
+  "Die Form folgt dem Inhalt: Ein Ablauf mit fester Reihenfolge wird eine nummerierte Liste, ein Vergleich mehrerer Möglichkeiten nach denselben Merkmalen eine Tabelle, alles andere Fliesstext. Höchstens zwei Listen und eine Tabelle pro Artikel (ausser eine Vorgabe verlangt mehr). Listen und Tabellen ersetzen keine Absätze. In einer Tabelle steht pro Zelle genau ein Wert, und jedes Merkmal hat eine eigene Spalte: nie mehrere Werte mit Schrägstrich oder Komma in einer Zelle. Lässt die Quelle bei einem Wert etwas offen (Dauer, Einheit, Bedingung), steht dieser Vorbehalt in der Zelle selbst, nicht nur im Text darunter. Jeder Listenpunkt ist ein ganzer Satz mit Begründung oder Beispiel. Keine Listenpunkte nach dem Muster «fettes Stichwort: Erklärung».",
   "Jeder Abschnitt beginnt mit der Antwort auf seine eigene Überschrift, Begründung und Einzelheiten folgen danach. Der erste Satz eines Abschnitts ist für sich allein verständlich, auch ohne den Text davor.",
   "Jeder Abschnitt bringt etwas Konkretes: ein Beispiel, eine Zahl aus den Quellen, einen Erfahrungswert, eine typische Fehlerquelle. Keine Allgemeinplätze, die auf jedes Thema passen. Nennt das Thema eine konkrete Grösse (Personenzahl, Budget, Fläche, Dauer), rechne ein Beispiel mit genau dieser Grösse durch.",
   "Zahlen und Statistiken nur, wenn sie der Leserschaft bei der Entscheidung oder beim Vorgehen helfen. Keine Branchen-, Markt- oder Regionsstatistik als Hintergrund oder Einstieg. Keine Zahlen, die älter als fünf Jahre sind. Fehlt eine neuere Zahl, bleibt die Angabe weg.",
@@ -929,7 +948,7 @@ export function entwurfPrompt(project: any, b: any, quellen: any[]): string {
       "Interne Artikel, die auf die Seite verlinken könnten:",
       ...b.links.map((l: any) => `- ${l.titel}: ${l.url}`),
       "",
-      `Format: {"title":"${sp.fremd ? "…" : "Vorschläge: …"}","seo_title":"… (max. 60 Zeichen)","meta_description":"… (max. 155 Zeichen)","excerpt":"Zusammenfassung in 2 Sätzen","content_html":"<h2>…</h2><p>…</p><ul><li>…</li></ul>"}`,
+      `Format: {"title":"${sp.fremd ? "…" : "Vorschläge: …"}","seo_title":"… (max. 60 Zeichen)","meta_description":"… (max. 155 Zeichen)","excerpt":"Zusammenfassung in 2 Sätzen, zusammen höchstens 300 Zeichen","content_html":"<h2>…</h2><p>…</p><ul><li>…</li></ul>"}`,
     ].join("\n");
   }
   return [
@@ -973,7 +992,7 @@ export function entwurfPrompt(project: any, b: any, quellen: any[]): string {
       ? b.bilder.map((i: any) => `- ${i.url} | ${i.titel} | ${i.alt}`)
       : ["- keine"]),
     "",
-    'Format: {"title":"H1/Beitragstitel","slug":"kurzer-slug-mit-keyword","seo_title":"max. 60 Zeichen","meta_description":"max. 155 Zeichen, mit Keyword und Nutzen","excerpt":"2 Sätze","focus_keyword":"…","content_html":"<p>…</p>","claims":[{"n":1,"typ":"zahl|statistik|zitat|rechtlich|preis|sonstiges","quelle_url":"https://…"}],"category_ids":[12],"tags":["…"],"featured_image_url":"https://…|null","featured_image_alt":"…"}',
+    'Format: {"title":"H1/Beitragstitel","slug":"kurzer-slug-mit-keyword","seo_title":"max. 60 Zeichen","meta_description":"max. 155 Zeichen, mit Keyword und Nutzen","excerpt":"2 Sätze, zusammen höchstens 300 Zeichen","focus_keyword":"…","content_html":"<p>…</p>","claims":[{"n":1,"typ":"zahl|statistik|zitat|rechtlich|preis|sonstiges","quelle_url":"https://…"}],"category_ids":[12],"tags":["…"],"featured_image_url":"https://…|null","featured_image_alt":"…"}',
   ]
     .filter((z) => z !== "")
     .join("\n");
