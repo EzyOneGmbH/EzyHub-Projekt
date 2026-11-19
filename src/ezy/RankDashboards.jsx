@@ -342,6 +342,16 @@ export function AgencyOverview({
           berechtigten Kunden als anklickbare Kacheln gezeigt — ein Klick öffnet
           das Dashboard des jeweiligen Kunden. Die frühere KPI-Karten-Reihe
           (Aktive Kunden / Ø Score / AI Visitors / Revenue) ist entfernt. */}
+      {/* Suchfeld zwischen Seitentitel und «Kunden», wie in der Performance-Tabelle. */}
+      {!zeigeTabelle && (
+        <div style={{ margin: "0 2px 14px" }}>
+          <KundenSuche
+            wert={suche}
+            onChange={setSuche}
+            farben={{ rand: C.inputBorder, icon: C.textDim, grund: "#fff", text: C.text }}
+          />
+        </div>
+      )}
       <div
         style={{
           display: "flex",
@@ -357,13 +367,6 @@ export function AgencyOverview({
           <span style={{ fontSize: 12, color: C.textMuted }}>
             {sucht ? `${sichtbar.length} von ${clients.length}` : `${clients.length} berechtigt`}
           </span>
-          {!zeigeTabelle && (
-            <KundenSuche
-              wert={suche}
-              onChange={setSuche}
-              farben={{ rand: C.inputBorder, icon: C.textDim, grund: "#fff", text: C.text }}
-            />
-          )}
           {hatTabelle && (
             <TabBar
               tabs={[

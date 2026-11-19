@@ -4135,6 +4135,13 @@ function AiAgencyOverview({
   const sichtbar = tiles.filter((c: any) => passtZurSuche(suche, c.name, c.domain));
   return (
     <>
+      <div style={{ margin: "0 2px 14px" }}>
+        <KundenSuche
+          wert={suche}
+          onChange={setSuche}
+          farben={{ rand: S.line, icon: S.mut, grund: S.panel, text: S.txt }}
+        />
+      </div>
       <div
         style={{
           display: "flex",
@@ -4152,11 +4159,6 @@ function AiAgencyOverview({
               ? `${sichtbar.length} von ${clients.length}`
               : `${clients.length} berechtigt`}
           </span>
-          <KundenSuche
-            wert={suche}
-            onChange={setSuche}
-            farben={{ rand: S.line, icon: S.mut, grund: S.panel, text: S.txt }}
-          />
         </div>
       </div>
       {!!suche.trim() && !sichtbar.length && <KeineTreffer farbe={S.mut} />}
@@ -4386,6 +4388,13 @@ function AdsAgencyOverview({
 
   return (
     <>
+      <div style={{ margin: "0 2px 14px" }}>
+        <KundenSuche
+          wert={suche}
+          onChange={setSuche}
+          farben={{ rand: S.line, icon: S.mut, grund: S.panel, text: S.txt }}
+        />
+      </div>
       <div
         style={{
           display: "flex",
@@ -4401,11 +4410,6 @@ function AdsAgencyOverview({
           <span style={{ fontSize: 12, color: S.mut }}>
             {suche.trim() ? `${sichtbar.length} von ${rows.length}` : `${rows.length} aktiv`}
           </span>
-          <KundenSuche
-            wert={suche}
-            onChange={setSuche}
-            farben={{ rand: S.line, icon: S.mut, grund: S.panel, text: S.txt }}
-          />
         </div>
       </div>
       {!!suche.trim() && !sichtbar.length && <KeineTreffer farbe={S.mut} />}
