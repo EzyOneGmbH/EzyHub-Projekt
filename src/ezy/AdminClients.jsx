@@ -535,9 +535,14 @@ export function OnboardingWizard({
   onCreate,
   onFinished,
   onOpenPanel,
+  caa,
 }) {
   const toast = useToast();
   const [step, setStep] = useState(1);
+  // App-Zugriff direkt beim Anlegen (Volkan 19.11.): abgewählte Apps werden
+  // nach dem Anlegen in client_app_access deaktiviert. Standard = alle aktiv.
+  const [appsAus, setAppsAus] = useState(new Set());
+  const wizardApps = EZY_APPS.filter((a) => !a.adminOnly && !a.internalOnly);
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState(clientFormFromClient());
   const [tabsSel, setTabsSel] = useState(new Set(DEFAULT_CUSTOMER_DEFAULTS.visibleTabs));
@@ -560,6 +565,7 @@ export function OnboardingWizard({
       setDraft(clientFormFromClient());
       setTabsSel(new Set(DEFAULT_CUSTOMER_DEFAULTS.visibleTabs));
       setCreated(null);
+      setAppsAus(new Set());
       setGConn(null);
       setGBusy(false);
       setGRes({ gsc: null, ga4: null });
@@ -703,6 +709,19 @@ export function OnboardingWizard({
       next.services = [...(draft.services || [])];
       const mapped = await onCreate(next);
       if (!mapped?.id) return; // Fehler-Toast kommt aus dem Upsert-Wrapper
+      if (caa && !caa.legacy) {
+        const fehler = [];
+        for (const a of wizardApps) {
+          if (!appsAus.has(a.id)) continue;
+          const err = await caa.setAccess(mapped.id, a.id, { enabled: false });
+          if (err) fehler.push(a.name);
+        }
+        if (fehler.length)
+          toast(
+            `App-Zugriff nicht gespeichert für: ${fehler.join(", ")}. Bitte in der Zugriffs-Matrix prüfen.`,
+            "error",
+          );
+      }
       setCreated(mapped);
       setStep(3);
     } catch (e) {
@@ -811,13 +830,87 @@ export function OnboardingWizard({
                 setStep(2);
               }}
             >
-              Weiter: Dashboards & Dienste
+              Weiter: Apps, Dashboards & Dienste
             </Btn>
           </div>
         </>
       )}
       {step === 2 && (
         <>
+          {caa && !caa.legacy && (
+            <>
+              <div style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: "0 0 6px" }}>
+                App-Zugriff
+              </div>
+              <p style={{ fontSize: 11, color: C.textMuted, margin: "0 0 10px" }}>
+                In welchen Apps soll dieser Kunde erscheinen? Entspricht der Zeile in der
+                Zugriffs-Matrix und lässt sich dort jederzeit ändern.
+              </p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
+                {wizardApps.map((a) => {
+                  const on = !appsAus.has(a.id);
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      role="switch"
+                      aria-checked={on}
+                      onClick={() =>
+                        setAppsAus((p) => {
+                          const n = new Set(p);
+                          if (on) n.add(a.id);
+                          else n.delete(a.id);
+                          return n;
+                        })
+                      }
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        padding: "8px 12px",
+                        borderRadius: 10,
+                        cursor: "pointer",
+                        border: `1px solid ${C.border}`,
+                        background: "transparent",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 38,
+                          height: 22,
+                          borderRadius: C.rPill,
+                          background: on ? a.color : "rgba(43,0,51,.12)",
+                          position: "relative",
+                          transition: "background .15s",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <span
+                          style={{
+                            position: "absolute",
+                            top: 2,
+                            left: on ? 18 : 2,
+                            width: 18,
+                            height: 18,
+                            borderRadius: "50%",
+                            background: "#fff",
+                            boxShadow: "0 1px 3px rgba(0,0,0,.25)",
+                            transition: "left .15s",
+                          }}
+                        />
+                      </span>
+                      <span
+                        style={{ fontSize: 13, fontWeight: 600, color: on ? C.text : C.textDim }}
+                      >
+                        {a.name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
           <div style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: "0 0 6px" }}>
             Dashboards
           </div>
@@ -2971,6 +3064,7 @@ Tipp: «Deaktivieren» pausiert reversibel und behält alle Daten.`,
         onClose={() => setWizardOpen(false)}
         effectiveDefaults={effectiveDefaults}
         onCreate={onUpsertClient}
+        caa={caaList}
         onFinished={(c) => {
           if (!c) return;
           onSelectClient?.(c);
