@@ -1,7 +1,8 @@
 // EzyRank-Dashboards (aus EzyOneApp.jsx extrahiert, 21.08.2026 — reines
 // Verschieben): Agentur-Uebersicht, SEO/GEO/Conversions/Overview-Dashboards,
 // KI-Sichtbarkeit (Makro) und Onboarding-Scan-Panel.
-import { cacheGet, cachePut, useStuendlich } from "./data/rangeStore";
+import { cacheGet, cachePut, isoDay, letzteTage, useStuendlich } from "./data/rangeStore";
+import { adsKachelnAusOverview, adsKachelnAusSnapshots } from "@/lib/adsKacheln";
 import { organischerBreakdown } from "@/lib/convEvents";
 import { vorperiode } from "@/lib/date-range";
 import { zaehleRankKacheln } from "@/lib/rankKacheln";
@@ -172,7 +173,7 @@ export function AgencyOverview({
   // Nur fuer Mitarbeiter (Volkan 29.09.): Kundenportal-Rolle viewer sieht nur
   // die Kacheln; solange die Rolle laedt, bleibt die Tabelle verborgen
   // (fail-closed). Serverseitig zusaetzlich requireTeamRole("member").
-  const { role } = useAuth();
+  const { role, loading: rolleLaedt } = useAuth();
   const istMitarbeiter = role === "owner" || role === "admin" || role === "member";
   const hatTabelle = istMitarbeiter && (isAds || appScope === "seo");
   const leseAnsicht = (scope) => {
@@ -207,17 +208,63 @@ export function AgencyOverview({
     .sort()
     .join(",");
   const stunde = useStuendlich(); // Kacheln stündlich still neu laden (11.10.)
+  // EzyPerformance (Volkan 19.11.2026: «Kacheln und Performance stündlich
+  // aktuell»): Mitarbeiter-Kacheln lesen denselben stündlich vorgewärmten Stand
+  // wie die Performance-Tabelle (/api/google/ads-overview) — im Zeitraum der
+  // Kopfzeile statt im zufällig zuletzt gespeicherten Snapshot-Zeitraum.
+  // Bewusst OHNE Vergleichszeitraum: nur so trifft der Abruf den vorgewärmten
+  // Cache-Schlüssel. Kundenportal (viewer) bleibt beim Snapshot (alle 4 h).
+  const adsLive = isAds && istMitarbeiter;
+  const standard30 = letzteTage(30);
+  const adsStart = adsLive ? isoDay(new Date(dateRange?.start ?? standard30.start)) : "";
+  const adsEnd = adsLive ? isoDay(new Date(dateRange?.end ?? standard30.end)) : "";
   useEffect(() => {
     let alive = true;
     const ids = idsKey ? idsKey.split(",") : [];
     if (!ids.length) return;
+    // Solange die Rolle lädt, ist die Quelle der Ads-Kacheln noch offen.
+    if (isAds && rolleLaedt) return;
     // Browser-Zwischenspeicher (06.10.2026): Kacheln sofort mit letztem Stand.
-    const cacheKey = `kacheln:${isAds ? "ads" : "seo2"}:${idsKey}`;
+    const cacheKey = adsLive
+      ? `kacheln:ads3:${adsStart}:${adsEnd}:${idsKey}`
+      : `kacheln:${isAds ? "ads" : "seo2"}:${idsKey}`;
     const gespeichert = cacheGet(cacheKey);
     if (gespeichert) setStats(gespeichert.data);
     (async () => {
       try {
         if (isAds) {
+          if (adsLive) {
+            try {
+              const bloecke = [];
+              for (let i = 0; i < ids.length; i += 40) bloecke.push(ids.slice(i, i + 40));
+              const antworten = await Promise.all(
+                bloecke.map(async (clientIds) => {
+                  const res = await ezyFetch("/api/google/ads-overview", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ clientIds, startDate: adsStart, endDate: adsEnd }),
+                  });
+                  const json = await res.json().catch(() => ({}));
+                  if (!json?.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+                  return json.rows || [];
+                }),
+              );
+              if (!alive) return;
+              // Konten mit Abruffehler behalten den letzten Wert desselben Zeitraums.
+              const next = adsKachelnAusOverview(
+                antworten.flat(),
+                isoDay(new Date()),
+                gespeichert?.data,
+              );
+              cachePut(cacheKey, next);
+              setStats(next);
+              return;
+            } catch {
+              // Route nicht erreichbar: letzter Stand dieses Zeitraums bleibt
+              // stehen; ohne solchen Stand hilft der gespeicherte Snapshot aus.
+              if (!alive || gespeichert) return;
+            }
+          }
           const { data } = await neuesteLaeufe(
             ids,
             "google_ads",
@@ -225,18 +272,9 @@ export function AgencyOverview({
             ["t", "roas"],
           );
           if (!alive) return;
-          const next = {};
-          for (const row of data || []) {
-            if (next[row.client_id]) continue; // erste Zeile = neuester Snapshot
-            const t = row.t || {};
-            next[row.client_id] = {
-              budget: Number(t.cost ?? 0) || 0,
-              revenue: Number(t.conversionValue ?? 0) || 0,
-              roas: Number(row.roas ?? 0) || 0,
-              date: String(row.created_at || "").slice(0, 10),
-            };
-          }
-          cachePut(cacheKey, next);
+          const next = adsKachelnAusSnapshots(data);
+          // Aushilfswerte nicht unter dem Zeitraum-Schlüssel der Live-Werte ablegen.
+          if (!adsLive) cachePut(cacheKey, next);
           setStats(next);
           return;
         }
@@ -304,7 +342,7 @@ export function AgencyOverview({
     return () => {
       alive = false;
     };
-  }, [idsKey, isAds, stunde]);
+  }, [idsKey, isAds, stunde, adsLive, adsStart, adsEnd, rolleLaedt]);
   // Kacheln alphabetisch — Kundenreihenfolge ist überall gleich (Volkan 13.08.).
   const tiles = [...clients].sort((a, b) =>
     String(a.name).localeCompare(String(b.name), "de-CH", { sensitivity: "base" }),

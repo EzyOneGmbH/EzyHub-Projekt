@@ -699,8 +699,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyPerformance (Ads)
   ads: {
-    version: "1.5.0",
+    version: "1.5.1",
     changelog: [
+      {
+        version: "1.5.1",
+        date: "2026-11-19",
+        note: "Übersicht «Alle Kunden»: Werbebudget, ROAS und Umsatz der Kunden-Kacheln kommen jetzt aus demselben stündlich aktualisierten Stand wie die Performance-Tabelle und gelten für den Zeitraum der Kopfzeile (vorher: gespeicherter Stand alle 4 Stunden, je nach Lauf über 7, 14, 30 oder 90 Tage)",
+      },
       {
         version: "1.5.0",
         date: "2026-10-06",
