@@ -80,6 +80,8 @@ import {
 
 // QS-Runde 13.09.2026: herausgeloeste Teile (kleinere Datei, gleiche Logik).
 import { NotificationsBell } from "@/ezy/ezyai/NotificationsBell";
+import { KeineTreffer, KundenSuche } from "@/ezy/KundenSuche";
+import { passtZurSuche } from "@/lib/kundenSuche";
 import { SiteHealthPanel } from "@/ezy/ezyai/SiteHealthPanel";
 import { SEV_STYLE } from "@/ezy/ezyai/severity";
 import { ZielfragenPanel } from "@/ezy/ezyai/ZielfragenPanel";
@@ -4077,6 +4079,7 @@ function AiAgencyOverview({
   const [stats, setStats] = useState<
     Record<string, { visitors: number; conversions: number; date: string }>
   >({});
+  const [suche, setSuche] = useState("");
   useEffect(() => {
     let alive = true;
     const ids = clients.map((c: any) => c.id).filter((id: string) => /^[0-9a-f-]{36}$/i.test(id));
@@ -4129,6 +4132,7 @@ function AiAgencyOverview({
   const tiles = [...clients].sort((a: any, b: any) =>
     String(a.name).localeCompare(String(b.name), "de-CH", { sensitivity: "base" }),
   );
+  const sichtbar = tiles.filter((c: any) => passtZurSuche(suche, c.name, c.domain));
   return (
     <>
       <div
@@ -4136,12 +4140,26 @@ function AiAgencyOverview({
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 10,
           margin: "0 2px 12px",
         }}
       >
         <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: S.txt }}>Kunden</h2>
-        <span style={{ fontSize: 12, color: S.mut }}>{clients.length} berechtigt</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: S.mut }}>
+            {suche.trim()
+              ? `${sichtbar.length} von ${clients.length}`
+              : `${clients.length} berechtigt`}
+          </span>
+          <KundenSuche
+            wert={suche}
+            onChange={setSuche}
+            farben={{ rand: S.line, icon: S.mut, grund: S.panel, text: S.txt }}
+          />
+        </div>
       </div>
+      {!!suche.trim() && !sichtbar.length && <KeineTreffer farbe={S.mut} />}
       <div
         style={{
           display: "grid",
@@ -4149,7 +4167,7 @@ function AiAgencyOverview({
           gap: 14,
         }}
       >
-        {tiles.map((c: any) => {
+        {sichtbar.map((c: any) => {
           const st = stats[c.id];
           return (
             <button
@@ -4292,6 +4310,7 @@ function AdsAgencyOverview({
   S: Record<string, string>;
 }) {
   const [rows, setRows] = useState<AdsOverviewRow[] | null>(null);
+  const [suche, setSuche] = useState("");
   const [fehler, setFehler] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
@@ -4363,6 +4382,7 @@ function AdsAgencyOverview({
 
   const geld = (n: number) => n.toLocaleString("de-CH", { maximumFractionDigits: 0 });
   const zahl = (n: number) => n.toLocaleString("de-CH");
+  const sichtbar = rows.filter((c) => passtZurSuche(suche, c.clientName, c.domain, c.accountName));
 
   return (
     <>
@@ -4371,12 +4391,24 @@ function AdsAgencyOverview({
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 10,
           margin: "0 2px 12px",
         }}
       >
         <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: S.txt }}>Kunden</h2>
-        <span style={{ fontSize: 12, color: S.mut }}>{rows.length} aktiv</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: S.mut }}>
+            {suche.trim() ? `${sichtbar.length} von ${rows.length}` : `${rows.length} aktiv`}
+          </span>
+          <KundenSuche
+            wert={suche}
+            onChange={setSuche}
+            farben={{ rand: S.line, icon: S.mut, grund: S.panel, text: S.txt }}
+          />
+        </div>
       </div>
+      {!!suche.trim() && !sichtbar.length && <KeineTreffer farbe={S.mut} />}
       <div
         style={{
           display: "grid",
@@ -4384,7 +4416,7 @@ function AdsAgencyOverview({
           gap: 14,
         }}
       >
-        {rows.map((c) => (
+        {sichtbar.map((c) => (
           <button
             key={c.clientId}
             type="button"

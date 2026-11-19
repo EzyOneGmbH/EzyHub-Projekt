@@ -66,6 +66,8 @@ import { Badge } from "./shared-ui";
 import { C } from "./theme";
 import { KpiCard, SectionPlaceholder, SeoPager, TabBar, liveDaysFor, useLiveGa4 } from "./ui-kit";
 import { ClientAvatar } from "@/ezy/ClientAvatar";
+import { KeineTreffer, KundenSuche } from "@/ezy/KundenSuche";
+import { passtZurSuche } from "@/lib/kundenSuche";
 import { AdsPaketChip } from "@/ezy/AdsPaketTag";
 import { SistrixLandWahl } from "@/ezy/SistrixLandWahl";
 import { adsPaketVon } from "@/lib/adsPakete";
@@ -195,6 +197,8 @@ export function AgencyOverview({
   };
   const zeigeTabelle = hatTabelle && ansicht === "tabelle";
   const [stats, setStats] = useState({});
+  // Suchfeld über den Kacheln; die Tabelle hat ihr eigenes.
+  const [suche, setSuche] = useState("");
   // Stabiler Auslöser: nur neu laden, wenn sich die Kunden-IDs wirklich ändern
   // (nicht bei jedem Neuzeichnen mit neuem Array-Objekt).
   const idsKey = clients
@@ -305,6 +309,8 @@ export function AgencyOverview({
   const tiles = [...clients].sort((a, b) =>
     String(a.name).localeCompare(String(b.name), "de-CH", { sensitivity: "base" }),
   );
+  const sichtbar = tiles.filter((c) => passtZurSuche(suche, c.name, c.domain));
+  const sucht = !zeigeTabelle && !!suche.trim();
   // Kachel-Metriken je Scope; Werte vorformatiert (CHF im Label, damit die
   // 3er-Spalte nicht umbricht).
   const numCH = (n) => Math.round(Number(n || 0)).toLocaleString("de-CH");
@@ -348,7 +354,16 @@ export function AgencyOverview({
       >
         <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: C.text }}>Kunden</h2>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 12, color: C.textMuted }}>{clients.length} berechtigt</span>
+          <span style={{ fontSize: 12, color: C.textMuted }}>
+            {sucht ? `${sichtbar.length} von ${clients.length}` : `${clients.length} berechtigt`}
+          </span>
+          {!zeigeTabelle && (
+            <KundenSuche
+              wert={suche}
+              onChange={setSuche}
+              farben={{ rand: C.inputBorder, icon: C.textDim, grund: "#fff", text: C.text }}
+            />
+          )}
           {hatTabelle && (
             <TabBar
               tabs={[
@@ -380,6 +395,7 @@ export function AgencyOverview({
           )}
         </Suspense>
       )}
+      {sucht && !sichtbar.length && <KeineTreffer farbe={C.textMuted} />}
       <div
         className="agency-client-grid"
         style={{
@@ -388,7 +404,7 @@ export function AgencyOverview({
           gap: 14,
         }}
       >
-        {tiles.map((c) => {
+        {sichtbar.map((c) => {
           const st = stats[c.id];
           return (
             <button
