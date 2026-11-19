@@ -381,6 +381,9 @@ describe("Modus, Kategorie, Helfer", () => {
     expect(text).toContain("Er ist der erste Abschnitt nach dem Einstieg");
     expect(text).toContain("beantwortet der erste Absatz sie direkt mit den belegten Angaben");
     expect(text).toContain("Befristete Angebote Dritter");
+    expect(text).toContain(
+      "Eine Teilgrenze (zum Beispiel weniger Zimmer als Personen) ist kein Grund dafür",
+    );
     expect(text).toContain("stehen als Bedingung («falls … nötig ist»)");
     expect(text).toContain("Hochrechnungen und Zusagen gehen nie über die Belege hinaus.");
     expect(text).toContain("bleibt dieser Vorbehalt im Artikel erhalten");
